@@ -14,8 +14,9 @@
 //     board-scan compute logic, with a wire-format assertion;
 //   - Andradite Leech's cost-modifier (mirrors the Derelor precedent,
 //     fem/black.ts) + its activated pump;
-//   - Duskwalker's kicker → entersWith-counters → keyword-grant-proxy chain,
-//     a novel-enough composition to warrant its own assertion.
+//   - Duskwalker's kicker → entersWith-counters → wasKicked-gated
+//     keyword-grant chain (issue #1716), a novel-enough composition to
+//     warrant its own assertion.
 //
 // First-printing audit (ADR 0041): some cards exercised below were first
 // implemented as part of this INV tranche but are REPRINTS — their
@@ -74,7 +75,12 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
-import { resolveTopOfStack, getCostModifiers } from "../../../../gre/state";
+import {
+    resolveTopOfStack,
+    getCostModifiers,
+    applySourceStaticEffects,
+    unapplySourceStaticEffects,
+} from "../../../../gre/state";
 import {
     applyNameCardSubmit,
     applyPendingChoiceSubmit,
@@ -824,16 +830,67 @@ describe("Duskwalker (Kicker → two +1/+1 counters + fear; CR 702.33 / 122.1 / 
             (c) => c.card.id === duskwalker.id
         )!;
         expect(dw.counters?.["+1/+1"]).toBe(2);
+        expect(dw.wasKicked).toBe(true);
         expect(dw.staticAbilities).toContain("fear");
     });
 
-    it("not kicked: no counters, no fear", () => {
+    it("not kicked: no counters, no fear, wasKicked unset", () => {
         const state = enterKicked(false);
         const dw = state.players[0].battlefield.find(
             (c) => c.card.id === duskwalker.id
         )!;
         expect(dw.counters?.["+1/+1"] ?? 0).toBe(0);
+        expect(dw.wasKicked).toBeUndefined();
         expect(dw.staticAbilities).not.toContain("fear");
+    });
+
+    // Revert-sensitive regressions (issue #1716): before the fix, the
+    // `keyword-grant` gated on `(target.counters?.["+1/+1"] ?? 0) >= 2` — an
+    // exact proxy for "was kicked" ONLY at the instant `entersWith` placed the
+    // counters. Forcing a re-materialization (`unapplySourceStaticEffects` +
+    // `applySourceStaticEffects`, what `refreshCounterGatedStatics` does
+    // internally for any counter-dependent grant) exposes the proxy's two
+    // failure modes directly against the real production apply path — these
+    // fail if the `applies` predicate is reverted to read `target.counters`.
+    it("(regression) unkicked, later pumped to 2+ +1/+1 counters externally: still does not gain fear", () => {
+        const state = enterKicked(false);
+        const dw = state.players[0].battlefield.find(
+            (c) => c.card.id === duskwalker.id
+        )!;
+        expect(dw.staticAbilities).not.toContain("fear");
+        // Simulate an unrelated pump spell (one of 40+ catalogue "+1/+1"
+        // sources) landing 2 counters on the never-kicked Duskwalker post-ETB.
+        dw.counters = { "+1/+1": 2 };
+        unapplySourceStaticEffects(state, dw);
+        applySourceStaticEffects(state, dw);
+        expect(dw.staticAbilities).not.toContain("fear");
+    });
+
+    it("(regression) kicked, then all +1/+1 counters annihilated (CR 704.5q): keeps fear", () => {
+        const state = enterKicked(true);
+        const dw = state.players[0].battlefield.find(
+            (c) => c.card.id === duskwalker.id
+        )!;
+        expect(dw.staticAbilities).toContain("fear");
+        // Simulate -1/-1 counter annihilation wiping the +1/+1 counters.
+        delete dw.counters?.["+1/+1"];
+        unapplySourceStaticEffects(state, dw);
+        applySourceStaticEffects(state, dw);
+        expect(dw.staticAbilities).toContain("fear");
+    });
+
+    // Wire format (mandatory for a new CardInstanceState field, issue #1716,
+    // `.claude/rules/gre-development.md` § Frontend wiring analysis): the
+    // materialized "fear" keyword — the client-visible effect of
+    // `wasKicked` — must survive `projectPublicState`'s slim reshape.
+    it("kicked fear grant survives projectPublicState (wire format)", () => {
+        const state = enterKicked(true);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.card.id === duskwalker.id
+        )!;
+        expect(slim.wasKicked).toBe(true);
+        expect(slim.staticAbilities).toContain("fear");
     });
 });
 

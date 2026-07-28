@@ -145,48 +145,28 @@ function staticEffectsOf(card: CardDefinition): StaticEffect[] {
 /** Narrow, per-(card, kind) exemption for a materialized static effect whose
  *  counter read is a **proxy for a one-shot fact**, not a live condition.
  *
- *  Kicker (CR 702.33) is fixed as the spell resolves, and the "if this
- *  creature was kicked …" clause applies as a CR 614.1c ETB replacement.
- *  `kickerCount` lives only on the STACK ITEM (`gre/state.ts`), so these two
- *  cards read the two `+1/+1` counters their own `entersWith` just placed as
- *  an exact proxy — exact ONLY at that instant. Enrolling them via
- *  `dependsOnCounters` would make the proxy live and produce two behaviours
- *  Oracle never allows: an UNKICKED one that later accumulates 2+ `+1/+1`
- *  counters from any external source would gain the keyword, and a KICKED one
- *  whose counters are annihilated by `-1/-1` counters (CR 704.5q) would lose
- *  it. Materialising once at ETB is the CORRECT behaviour for these two.
- *
- *  The durable fix is to record kicked-ness on the permanent so the grant can
- *  gate on the fact directly (**#1716**); both rows come out then. Like
- *  `KEYWORD_ALLOWLIST` (`mechanicsRegistry.test.ts`) this is meant to empty
- *  out, never a standing escape hatch — the well-formedness test below keeps
- *  every row truthful. */
+ *  Formerly held Pouncing Kavu and Duskwalker (`cards/sets/inv/red.ts` /
+ *  `cards/sets/inv/black.ts`): Kicker (CR 702.33) is fixed as the spell
+ *  resolves, and the "if this creature was kicked …" clause applies as a CR
+ *  614.1c ETB replacement, but `kickerCount` used to live only on the STACK
+ *  ITEM (`gre/state.ts`) — gone by the time the permanent was on the
+ *  battlefield — so both cards read the two `+1/+1` counters their own
+ *  `entersWith` had just placed as an exact-at-that-instant proxy. Issue
+ *  #1716 closed the gap: `CardInstanceState.wasKicked` now snapshots the
+ *  one-shot fact directly onto the permanent at ETB
+ *  (`finalizeSpellResolution`, `gre/state.ts`), so both `keyword-grant`
+ *  predicates gate on `target.wasKicked` instead of a counter count — no
+ *  longer reading counters at all, so this guard has nothing to allowlist for
+ *  them. Empty and meant to STAY empty: like `KEYWORD_ALLOWLIST`
+ *  (`mechanicsRegistry.test.ts`), a new row here is a fresh proxy an author
+ *  should reach for only as a last resort, never a standing convenience. */
 const KICKER_PROXY_ALLOWLIST: ReadonlyArray<{
     readonly cardId: string;
     readonly cardName: string;
     readonly kind: StaticEffect["kind"];
     readonly reason: string;
     readonly issue: number;
-}> = [
-    {
-        cardId: "7e6e2e49-7bde-43c1-8caf-43d237dfc052",
-        cardName: "Pouncing Kavu",
-        kind: "keyword-grant",
-        reason:
-            "the `+1/+1` counter read is a PROXY for the one-shot 'was kicked' fact " +
-            "(CR 702.33, fixed at CR 614.1c ETB replacement time), not a live condition",
-        issue: 1716,
-    },
-    {
-        cardId: "39a4a026-f44e-40e1-9942-a3d8448aca70",
-        cardName: "Duskwalker",
-        kind: "keyword-grant",
-        reason:
-            "the `+1/+1` counter read is a PROXY for the one-shot 'was kicked' fact " +
-            "(CR 702.33, fixed at CR 614.1c ETB replacement time), not a live condition",
-        issue: 1716,
-    },
-];
+}> = [];
 
 /** The detector itself, factored out of the catalogue sweep so it can be
  *  NEGATIVE-tested against synthetic cards below — a guard nobody has ever
@@ -343,8 +323,9 @@ describe("counter-gated materialized statics must declare dependsOnCounters (CR 
         // counter"). A future refactor that drops the declaration from any of
         // them must fail here even if the source-scan heuristic above is ever
         // relaxed. Pouncing Kavu and Duskwalker are deliberately NOT here —
-        // their counter read is a kicked-ness proxy (see
-        // `KICKER_PROXY_ALLOWLIST`, #1716).
+        // since issue #1716 their `keyword-grant` gates on the permanent's
+        // own `wasKicked` flag, not a counter count, so they don't read
+        // counters at all anymore and never needed `dependsOnCounters`.
         const expected = [
             "65d332e2-4b2d-4131-84f7-862cb138c477", // Dread Wight (ICE)
             "11fb92c0-bb1e-463a-a6b6-887a5d0cb873", // Venarian Gold (LEG)

@@ -487,16 +487,16 @@ export const dredge: CardDefinition = {
 // `count: "kicker"` (kickerCount is 0/1 for a single, non-multi Kicker), so
 // the placement loop (`finalizeSpellResolution`, state.ts) sums them to
 // exactly 0 or 2, matching "two +1/+1 counters" without a fixed-multiplier
-// field. The fear half has no `entersWith` analogue (no keyword-conditional-
-// on-kicker field, and kickerCount isn't persisted onto the permanent post-
-// ETB for a later static predicate to read) — instead, the `keyword-grant`'s
-// `applies` reads the +1/+1 counter count the SAME entersWith application
-// just placed as an exact, deterministic proxy for "was kicked" (nothing else
-// can add to Duskwalker's counters between entersWith running and this
-// static effect being read). Documented simplification: this would misfire
-// only if some OTHER effect independently pushed a non-kicked Duskwalker to
-// 2+ +1/+1 counters as it entered — no such interaction exists in the
-// current catalogue.
+// field. The fear half gates on the permanent's own `wasKicked` flag
+// (`CardInstanceState.wasKicked`, gre/state.ts) — a one-shot fact
+// snapshotted from the resolving stack item's `kickerCount` the instant this
+// permanent entered the battlefield (issue #1716). Previously this read the
+// `+1/+1` counter count the SAME `entersWith` application had just placed, as
+// a PROXY for "was kicked" that was exact ONLY at that instant; see the
+// counter-gated statics guard (`cards/__tests__/counterGatedStatics.test.ts`)
+// for the two failure modes (spurious gain from an external pump, spurious
+// loss to `-1/-1` annihilation) that made it a proxy and not a live
+// condition.
 export const duskwalker: CardDefinition = {
     id: "39a4a026-f44e-40e1-9942-a3d8448aca70", // INV 104
     rarity: "common",
@@ -518,22 +518,18 @@ export const duskwalker: CardDefinition = {
     staticEffects: [
         {
             kind: "keyword-grant",
-            // Deliberately NOT `dependsOnCounters` (CR 613.5 / issue #1711).
-            // The counter read above is a PROXY for the one-shot "was kicked"
-            // fact (CR 702.33), fixed as the CR 614.1c ETB replacement
-            // applies — it is not a live condition. Enrolling it in
-            // `refreshCounterGatedStatics` would make the proxy live and
-            // introduce two behaviours Oracle never allows: an UNKICKED
-            // Duskwalker that later accumulates 2+ `+1/+1` counters from any
-            // external source would gain fear, and a KICKED one whose
-            // counters are annihilated by `-1/-1` counters (CR 704.5q) would
-            // lose it. Materialising once at ETB is the correct behaviour
-            // here; the durable fix is to record kicked-ness on the
-            // permanent — tracked-by: #1716. Allowlisted in
-            // `cards/__tests__/counterGatedStatics.test.ts` until then.
+            // No `dependsOnCounters` needed (CR 613.5 / issue #1711) — this
+            // predicate no longer reads counters at all. `wasKicked` is a
+            // one-shot fact fixed at CR 614.1c ETB replacement time (CR
+            // 702.33) that the engine never mutates afterward
+            // (`CardInstanceState.wasKicked`, gre/state.ts), so it is safe to
+            // read whether or not the grant is ever re-evaluated — unlike the
+            // `+1/+1` counter count it replaces (issue #1716): an UNKICKED
+            // Duskwalker later pumped to 2+ counters no longer spuriously
+            // gains fear, and a KICKED one whose counters are later
+            // annihilated (CR 704.5q) no longer spuriously loses it.
             applies: (target, source) =>
-                target.id === source.id &&
-                (target.counters?.["+1/+1"] ?? 0) >= 2,
+                target.id === source.id && target.wasKicked === true,
             keyword: "fear",
         },
     ],

@@ -1103,6 +1103,25 @@ export type CardInstanceState = {
      *  for the full doc — this is the persistent post-ETB twin of the
      *  ephemeral `StackItem.notedManaSpent`. */
     notedManaSpentOnCast?: Record<string, number>;
+    /** CR 702.33 / 614.1c — true iff the resolving spell's Kicker cost was
+     *  paid as it was cast, snapshotted from the stack item's `kickerCount`
+     *  (`StackItem.kickerCount`) the instant it enters the battlefield
+     *  (`finalizeSpellResolution`). "Was kicked" is a ONE-SHOT fact fixed the
+     *  moment the spell resolves (CR 702.33) — the CR 614.1c "if this
+     *  creature was kicked …" ETB replacement reads it exactly once and
+     *  nothing in the CR ever revisits the answer afterwards, unlike a
+     *  `+1/+1` counter count (which SBAs / `-1/-1` annihilation, CR 704.5q,
+     *  or an unrelated pump spell can change at any later point). That
+     *  difference is what makes this field safe to read from a materialized
+     *  `keyword-grant` `applies` predicate without `dependsOnCounters`,
+     *  where the `+1/+1`-counter-count PROXY it replaces (issue #1716,
+     *  Pouncing Kavu / Duskwalker, `cards/sets/inv/red.ts` /
+     *  `cards/sets/inv/black.ts`) was not: an unkicked creature later pumped
+     *  to 2+ counters would spuriously read as kicked, and a kicked one whose
+     *  counters were later wiped would spuriously read as unkicked. This
+     *  field is set once here and MUST never be recomputed or mutated after
+     *  ETB. Undefined for a permanent cast unkicked / without a Kicker cost. */
+    wasKicked?: boolean;
 };
 
 /** ADR 0026 — clears persistent card knowledge over a Hidden Zone. The single
@@ -4701,6 +4720,18 @@ function finalizeSpellResolution(state: GameState, item: StackItem): void {
         // `PermanentView.notedManaSpentOnCast`).
         if (item.notedManaSpent) {
             item.notedManaSpentOnCast = { ...item.notedManaSpent };
+        }
+        // CR 702.33 / 614.1c (issue #1716) — snapshot the one-shot "was this
+        // kicked" fact onto the permanent, the same `notedManaSpentOnCast`
+        // precedent: the ephemeral `StackItem.kickerCount` is about to be
+        // superseded (a later recast rebuilds a fresh stack item), so a
+        // LATER check-time predicate (a `keyword-grant` `applies`, an
+        // "if this creature was kicked" trigger `condition`) needs a
+        // persistent field on the permanent itself, not the stack item.
+        // See `CardInstanceState.wasKicked`'s doc for why this must never be
+        // recomputed afterward.
+        if ((item.kickerCount ?? 0) >= 1) {
+            item.wasKicked = true;
         }
         controller.battlefield.push(item);
         // CR 121.6 / 614.1c — apply the entry-counters REPLACEMENT before the

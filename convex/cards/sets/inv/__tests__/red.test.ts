@@ -5,6 +5,12 @@
 // convex/gre/__tests__/kicker.test.ts and interpreter.test.ts; here we assert
 // the card's specific thresholds are wired.
 //
+// Pouncing Kavu exercises the kicker → entersWith-counters →
+// wasKicked-gated keyword-grant chain (issue #1716), the exact Duskwalker
+// template (inv/black.ts) — a novel-enough composition to warrant its own
+// assertion, including revert-sensitive regressions for the two failure
+// modes the old counter-count proxy had.
+//
 // First-printing audit (ADR 0041): some cards exercised below were first
 // implemented as part of this INV tranche but are REPRINTS — their
 // definitions now live in their earliest-paper-printing home sets, and INV
@@ -21,6 +27,7 @@ import {
     tribalFlames,
     bendOrBreak,
     standOrFall,
+    pouncingKavu,
 } from "../red";
 import { stun } from "../../tmp/red";
 import { registerTokenDefinition } from "../../..";
@@ -32,6 +39,8 @@ import {
 } from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
+    applySourceStaticEffects,
+    unapplySourceStaticEffects,
     type GameState,
     type StackItem,
 } from "../../../../gre/state";
@@ -666,5 +675,84 @@ describe("Stun (CR 509.1b block restriction + cantrip draw, issue #1285)", () =>
             ]).eligible
         ).toBe(false);
         expect(state.players[0].hand.map((c) => c.id)).toContain("stun-lib-1");
+    });
+});
+
+describe("Pouncing Kavu (Kicker → two +1/+1 counters + haste; CR 702.33 / 122.1 / 702.10, issue #1716)", () => {
+    function enterKicked(kicked: boolean) {
+        const state = makeState();
+        const item = pushSpell(state, pouncingKavu.id, "p1");
+        if (kicked) item.kickerCount = 1;
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    it("kicked: enters with two +1/+1 counters and haste", () => {
+        const state = enterKicked(true);
+        const kavu = state.players[0].battlefield.find(
+            (c) => c.card.id === pouncingKavu.id
+        )!;
+        expect(kavu.counters?.["+1/+1"]).toBe(2);
+        expect(kavu.wasKicked).toBe(true);
+        expect(kavu.staticAbilities).toContain("haste");
+    });
+
+    it("not kicked: no counters, no haste, wasKicked unset", () => {
+        const state = enterKicked(false);
+        const kavu = state.players[0].battlefield.find(
+            (c) => c.card.id === pouncingKavu.id
+        )!;
+        expect(kavu.counters?.["+1/+1"] ?? 0).toBe(0);
+        expect(kavu.wasKicked).toBeUndefined();
+        expect(kavu.staticAbilities).not.toContain("haste");
+    });
+
+    // Revert-sensitive regressions (issue #1716): before the fix, the
+    // `keyword-grant` gated on `(target.counters?.["+1/+1"] ?? 0) >= 2` — an
+    // exact proxy for "was kicked" ONLY at the instant `entersWith` placed the
+    // counters. Forcing a re-materialization (`unapplySourceStaticEffects` +
+    // `applySourceStaticEffects`, what `refreshCounterGatedStatics` does
+    // internally for any counter-dependent grant) exposes the proxy's two
+    // failure modes directly against the real production apply path — these
+    // fail if the `applies` predicate is reverted to read `target.counters`.
+    it("(regression) unkicked, later pumped to 2+ +1/+1 counters externally: still does not gain haste", () => {
+        const state = enterKicked(false);
+        const kavu = state.players[0].battlefield.find(
+            (c) => c.card.id === pouncingKavu.id
+        )!;
+        expect(kavu.staticAbilities).not.toContain("haste");
+        // Simulate an unrelated pump spell (one of 40+ catalogue "+1/+1"
+        // sources) landing 2 counters on the never-kicked Kavu post-ETB.
+        kavu.counters = { "+1/+1": 2 };
+        unapplySourceStaticEffects(state, kavu);
+        applySourceStaticEffects(state, kavu);
+        expect(kavu.staticAbilities).not.toContain("haste");
+    });
+
+    it("(regression) kicked, then all +1/+1 counters annihilated (CR 704.5q): keeps haste", () => {
+        const state = enterKicked(true);
+        const kavu = state.players[0].battlefield.find(
+            (c) => c.card.id === pouncingKavu.id
+        )!;
+        expect(kavu.staticAbilities).toContain("haste");
+        // Simulate -1/-1 counter annihilation wiping the +1/+1 counters.
+        delete kavu.counters?.["+1/+1"];
+        unapplySourceStaticEffects(state, kavu);
+        applySourceStaticEffects(state, kavu);
+        expect(kavu.staticAbilities).toContain("haste");
+    });
+
+    // Wire format (mandatory for a new CardInstanceState field, issue #1716,
+    // `.claude/rules/gre-development.md` § Frontend wiring analysis): the
+    // materialized "haste" keyword — the client-visible effect of
+    // `wasKicked` — must survive `projectPublicState`'s slim reshape.
+    it("kicked haste grant survives projectPublicState (wire format)", () => {
+        const state = enterKicked(true);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.card.id === pouncingKavu.id
+        )!;
+        expect(slim.wasKicked).toBe(true);
+        expect(slim.staticAbilities).toContain("haste");
     });
 });

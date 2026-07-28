@@ -346,6 +346,13 @@ function compactCard(
     ) {
         out.notedManaSpentOnCast = card.notedManaSpentOnCast;
     }
+    // CR 702.33 / 614.1c (issue #1716) — the one-shot "was kicked" marker must
+    // survive a save/load so a later check-time predicate (a `keyword-grant`
+    // `applies`, an "if this creature was kicked" trigger condition) reads
+    // the same fixed answer after a DB round-trip.
+    if (card.wasKicked) {
+        out.wasKicked = card.wasKicked;
+    }
     return out;
 }
 
@@ -658,6 +665,11 @@ function expandCard(
             string,
             number
         >;
+    }
+    // CR 702.33 / 614.1c (issue #1716) — restore the one-shot "was kicked"
+    // marker.
+    if (compact.wasKicked) {
+        result.wasKicked = compact.wasKicked as boolean;
     }
     return result;
 }

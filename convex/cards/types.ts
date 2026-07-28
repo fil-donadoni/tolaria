@@ -4383,6 +4383,21 @@ export interface PermanentView {
      *  #782 — this field is the tracking half of #900 and is otherwise ready
      *  for them). Undefined when the card doesn't opt into `noteManaSpent`. */
     notedManaSpentOnCast?: Record<string, number>;
+    /** CR 702.33 / 614.1c — true iff this permanent's spell was cast with its
+     *  Kicker cost paid, snapshotted from the resolving stack item's
+     *  `kickerCount` the instant it entered the battlefield
+     *  (`finalizeSpellResolution`, `gre/state.ts`). A ONE-SHOT fact fixed at
+     *  resolution (CR 702.33) — nothing in the CR revisits it afterward —
+     *  unlike a `+1/+1` counter count, which can change at any later point
+     *  (a pump spell, `-1/-1` annihilation, CR 704.5q). That difference is
+     *  what lets a materialized `keyword-grant` `applies` predicate gate on
+     *  this field directly, replacing the counter-count PROXY the guard
+     *  allowlisted for Pouncing Kavu / Duskwalker (issue #1716,
+     *  `cards/sets/inv/red.ts` / `cards/sets/inv/black.ts`) — see
+     *  {@link CardInstanceState.wasKicked} (`gre/state.ts`) for the full
+     *  doc. Mirrors `evoked`/`dashed` above. Undefined for a permanent cast
+     *  unkicked / without a Kicker cost. */
+    wasKicked?: boolean;
     /** Raw card definition reference — predicates read manaCost for color, etc. */
     card: Record<string, unknown>;
 }

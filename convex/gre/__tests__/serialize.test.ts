@@ -208,6 +208,15 @@ describe("game_state serialize round-trip", () => {
         expect(got.worldSeq).toBe(3);
     });
 
+    it("preserves the wasKicked marker on a battlefield permanent (CR 702.33 / 614.1c, issue #1716)", () => {
+        const state = freshState();
+        const lion = state.players[1].battlefield[0];
+        lion.wasKicked = true;
+        const expanded = expandState(compactState(state));
+        const got = expanded.players[1].battlefield[0];
+        expect(got.wasKicked).toBe(true);
+    });
+
     it("preserves a depletion counter on a tapped land (ICE depletion duals, CR 122.1)", () => {
         // The depletion-dual untap-lock (#663) stores its state entirely in the
         // existing per-instance `counters` map — no new GameState field. A
