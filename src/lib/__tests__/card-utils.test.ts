@@ -403,6 +403,34 @@ describe("getStackAbilities", () => {
         expect(abilities[0].oracleText).toContain("Destroy all");
     });
 
+    it("offers Dread Wight's granted {4} counter-removal on a paralyzed creature (CR 113.1, #728)", () => {
+        // The grant lives on the VICTIM as `grantedActivatedAbilities`, with
+        // the template on Dread Wight's `grantTemplates` — if the reducer
+        // dropped either, the affordance would be dead on the board.
+        const victim = makeCardInstance({
+            // Grizzly Bears — a creature with no native activated ability.
+            card: { id: "ce2d603a-3231-4a8c-bf39-1617586ea870" },
+            types: ["Creature"],
+            isTapped: true,
+            counters: { paralyzation: 1 },
+            grantedActivatedAbilities: [
+                {
+                    sourceCardId: "65d332e2-4b2d-4131-84f7-862cb138c477",
+                    abilityId: "dread-wight-remove-paralyzation",
+                },
+            ],
+        });
+
+        const abilities = getStackAbilities(victim);
+        expect(abilities.map((a) => a.id)).toContain(
+            "dread-wight-remove-paralyzation"
+        );
+        expect(
+            abilities.find((a) => a.id === "dread-wight-remove-paralyzation")!
+                .oracleText
+        ).toContain("Remove a paralyzation counter");
+    });
+
     it("returns empty when Disk is tapped (tap cost unpayable)", () => {
         const card = makeCardInstance({
             card: { id: "12926dc8-8e6f-4a47-a12b-4d674189615a" },

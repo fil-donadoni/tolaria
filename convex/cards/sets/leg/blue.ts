@@ -878,6 +878,11 @@ export const venarianGold: CardDefinition = {
             // CR 502.1 — grant the host "does-not-untap" only while it carries
             // at least one sleep counter. The untap step reads this keyword.
             kind: "keyword-grant",
+            // CR 613.5 (issue #1711) — the lock is MATERIALIZED onto the host,
+            // so without this declaration it froze at the value the predicate
+            // had when the Aura entered: the upkeep trigger could strip every
+            // sleep counter and the host would still never untap.
+            dependsOnCounters: true,
             applies: (target, source) =>
                 target.id === source.attachedTo &&
                 (target.counters?.sleep ?? 0) > 0,

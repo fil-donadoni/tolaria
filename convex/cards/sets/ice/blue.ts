@@ -4,6 +4,7 @@
 // generic mana is encoded as `X: n` (e.g. {1}{G} → { X: 1, G: 1 }).
 // Cards are classified by the colour identity of their mana cost (CR 202.2).
 import type {
+    ActivatedAbilityContext,
     CardDefinition,
     CardPrint,
     Color,
@@ -145,8 +146,7 @@ function nextUpkeepDrawTrigger(): DelayedTriggerDef {
 //     targets this creature — no "spell targeting source" target filter),
 //     Phantasmal Mount (linked leaves-the-battlefield sacrifices — no delayed
 //     "leaves the battlefield this turn" trigger timing), Essence Vortex (pay
-//     LIFE in a may-pay choice), Soldevi Machinist (mana spendable only on
-//     artifact ABILITIES — ManaRestriction has only spell variants), Merieke Ri
+//     LIFE in a may-pay choice), Merieke Ri
 //     Berit (conditional control + destroy-on-untap), Balduvian Conjurer
 //     (animate a snow land),
 //     Balduvian Shaman / Sleight-of-Mind-style colour-word text change that
@@ -602,16 +602,17 @@ export const enervate: CardDefinition = {
         },
     ],
 };
-// DEFERRED (#628) — re-verified against the current engine (2026-07). Errant
-// Minion's upkeep trigger lets the enchanted creature's controller "pay any
-// amount of mana", then deals 2 damage to them and prevents X of it, X = the
-// amount paid. `mayPay` is a boolean gate over a FIXED cost and `addMana` is a
-// fixed produced amount — neither expresses a VARIABLE-amount payment whose paid
-// total feeds a later prevention value. There is no "pay any amount of mana"
-// choice primitive that captures the amount. Papering this with a resolve() that
-// caps the pay at {2} (paying more is pointless) would misrepresent "any amount"
-// and hard-code the interaction — a card-shaped gap-paper, disallowed. Blocked
-// on: a variable-amount mana-payment value primitive.
+// DEFERRED — re-verified against the current engine for issue #728 (2026-07).
+// Errant Minion's upkeep trigger lets the enchanted creature's controller "pay
+// any amount of mana", then deals 2 damage to them and prevents X of it, X =
+// the amount paid. `mayPay` is a boolean gate over a FIXED cost and `addMana`
+// is a fixed produced amount — neither expresses a VARIABLE-amount payment
+// whose paid total feeds a later prevention value. There is no "pay any amount
+// of mana" choice primitive that captures the amount. Papering this with a
+// resolve() that caps the pay at {2} (paying more is pointless) would
+// misrepresent "any amount" and hard-code the interaction — a card-shaped
+// gap-paper, disallowed. Blocked on a variable-amount mana-payment value
+// primitive: tracked-by: #1701
 // export const errantMinion: CardDefinition = {
 //     id: "61648ddb-6efb-43d0-b2b1-418cc957854c",
 //     name: "Errant Minion",
@@ -2124,28 +2125,45 @@ export const snowfall: CardDefinition = {
         }),
     ],
 };
-// DEFERRED (#628) — re-verified against the current engine (2026-07). Soldevi
-// Machinist's "{T}: Add {C}{C}. Spend this mana only to activate abilities of
-// artifacts" needs a mana RESTRICTION that the shipped `ManaRestriction` union
-// does not model: the three members (`creature-spell`, `artifact-spell`,
-// `cumulative-upkeep`) are all evaluated only at the SPELL-CAST site
-// (`restrictionAllowsSpell` / `restrictedUnitAllowsSpell` take `spellTypes`);
-// there is no restriction eligibility hook at the ABILITY-ACTIVATION payment
-// path, and no "artifact-ability" member. Building "spendable only on artifacts'
-// activated abilities" is a new seam (a union member PLUS activation-payment
-// eligibility keyed on the ability source's card type). Stop-and-issue, not an
-// invented restriction. Blocked on: an ability-activation mana restriction.
-// export const soldeviMachinist: CardDefinition = {
-//     id: "1f0999df-2f94-499e-b9af-fe377d515400",
-//     name: "Soldevi Machinist",
-//     rarity: "uncommon",
-//     oracleText: "{T}: Add {C}{C}. Spend this mana only to activate abilities of artifacts.",
-//     manaCost: { X: 1, U: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Wizard", "Artificer"],
-//     power: 1,
-//     toughness: 1,
-// };
+// Soldevi Machinist — "{T}: Add {C}{C}. Spend this mana only to activate
+// abilities of artifacts." (CR 605.1a mana ability, `useStack: false`;
+// CR 106.6 spend restriction.) The stub's old note is stale: issue #728 shipped
+// the ABILITY-ACTIVATION half of the restricted-mana seam. `ManaRestriction`
+// gained an `artifact-ability` member, and the activation payment path now
+// merges eligible restricted mana exactly as the cast path already did
+// (`spendablePoolForAbility` / `payManaCostForAbility`, `gre/state.ts`), keyed
+// on the effective card types of the ability's SOURCE permanent. All three
+// activation entry points (direct, targeted, and the deferred
+// `pendingActivation` auto-commit) go through it, so the mana is spendable
+// wherever an artifact's ability can be activated — and nowhere else: every
+// pre-existing restriction returns false at the ability path, and
+// `artifact-ability` returns false at every spell-cast site.
+export const soldeviMachinist: CardDefinition = {
+    id: "1f0999df-2f94-499e-b9af-fe377d515400",
+    name: "Soldevi Machinist",
+    rarity: "uncommon",
+    oracleText:
+        "{T}: Add {C}{C}. Spend this mana only to activate abilities of artifacts.",
+    manaCost: { X: 1, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Wizard", "Artificer"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "soldevi-machinist-mana",
+            oracleText:
+                "{T}: Add {C}{C}. Spend this mana only to activate abilities of artifacts.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx: ActivatedAbilityContext) => {
+                ctx.addMana({ C: 2 });
+            },
+            manaProduced: { C: 2 },
+            manaRestriction: "artifact-ability",
+        },
+    ],
+};
 // Soul Barrier — punisher enchantment: whenever an opponent casts a creature
 // spell, it deals 2 to that player unless they pay {2} (CR 603.2 cast trigger,
 // CR 117.3a may-pay, CR 120.1 damage).

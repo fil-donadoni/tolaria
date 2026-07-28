@@ -768,6 +768,10 @@ export const cocoon: CardDefinition = {
             // CR 502.1 — the host doesn't untap while the AURA (source) still
             // holds a pupa counter. Predicate reads the source's counters.
             kind: "keyword-grant",
+            // CR 613.5 (issue #1711) — same materialization gap as Venarian
+            // Gold, with the counters on the SOURCE: `refreshCounterGatedStatics`
+            // re-runs the whole predicate, so either side is covered.
+            dependsOnCounters: true,
             applies: (target, source) =>
                 target.id === source.attachedTo &&
                 (source.counters?.pupa ?? 0) > 0,

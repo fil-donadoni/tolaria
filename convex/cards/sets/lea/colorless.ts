@@ -426,6 +426,11 @@ export const cyclopeanTomb: CardDefinition = {
     staticEffects: [
         {
             kind: "subtype-set",
+            // CR 613.5 (issue #1711) — materialized kind gated on the `mire`
+            // marker counter; declare the dependency so the land actually
+            // becomes a Swamp when the counter lands (and stops being one
+            // when the LTB trigger sweeps the counters off).
+            dependsOnCounters: true,
             applies: (target) => (target.counters?.mire ?? 0) > 0,
             subtypes: ["Swamp"],
         },

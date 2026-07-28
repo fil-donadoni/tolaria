@@ -1415,9 +1415,24 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // move from "need test" into the AFK-ready subset. No closure was
         // added or migrated: total / FREE / X-only / Op-blocked all unchanged,
         // only AFK-ready 282->284.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(464);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(293);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(284);
+        //
+        // #728 (ICE small utilities — Dread Wight, ice/black.ts): a BRAND-NEW
+        // catalogue card, not a migration. Its END_OF_COMBAT trigger is a
+        // `resolve()` closure that walks the combat graph
+        // (`getBlockersByAttacker()` both directions relative to the source) to
+        // find "each creature blocking or blocked by this creature" — the same
+        // gap Kjeldoran Frostbeast documents (no `EffectForEachSelector`
+        // filters permanents by combat role relative to a specific object).
+        // The static clause-mapper reads its body as addCounter + tap
+        // mappable, so it scores FREE, and it ships with a per-card test
+        // (ice/__tests__/black.test.ts → AFK-ready). Soldevi Machinist (the
+        // other card in that PR) is a mana ability's `effect:` shorthand, not a
+        // closure, so it does not enter the census. Net: total 464->465 (+1 new
+        // closure), FREE 293->294, AFK-ready 284->285. X-only / Op-blocked
+        // unchanged. Partition: 294+14+157=465.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(465);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(294);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(285);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(157);
     });

@@ -420,6 +420,10 @@ export const gaeasLiege: CardDefinition = {
         },
         {
             kind: "subtype-set",
+            // CR 613.5 (issue #1711) — `subtype-set` is a MATERIALIZED kind
+            // (written onto the target's `subtypes[]`), so the marker-counter
+            // gate only tracks the counter if the dependency is declared.
+            dependsOnCounters: true,
             applies: (target) => (target.counters?.["gaea-forest"] ?? 0) > 0,
             subtypes: ["Forest"],
         },

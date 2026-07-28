@@ -39,6 +39,8 @@ import {
     validateManaSpendOrder,
     payManaCostForSpell,
     spendablePoolForSpell,
+    payManaCostForAbility,
+    spendablePoolForAbility,
     addRestrictedManaToPool,
     payRemoveCounterCost,
     canPayDiscardLastDrawn,
@@ -2055,6 +2057,31 @@ export function buildPendingActivation(opts: {
     };
 }
 
+/** Effective card types of an activated ability's SOURCE object, used to key
+ *  restricted-mana eligibility at the ACTIVATION payment path (CR 106.6, issue
+ *  #728 — Soldevi Machinist's "spend this mana only to activate abilities of
+ *  artifacts"). Searches every battlefield first (CR 113.3c — the source may
+ *  sit on an opponent's board for an "any player may activate" ability), then
+ *  graveyards (CR 113.6 — Ashen Ghoul-style graveyard activations). Returns an
+ *  empty list when the source can't be found, which makes EVERY restriction
+ *  ineligible — the conservative direction (the payment falls back to the
+ *  fungible pool exactly as it did before the seam existed). */
+function activationSourceTypes(
+    state: GameState,
+    cardInstanceId: string | undefined
+): readonly string[] {
+    if (!cardInstanceId) return [];
+    for (const p of state.players) {
+        const found = p.battlefield.find((c) => c.id === cardInstanceId);
+        if (found) return found.types;
+    }
+    for (const p of state.players) {
+        const found = p.graveyard.find((c) => c.id === cardInstanceId);
+        if (found) return found.types;
+    }
+    return [];
+}
+
 /** If the activator's pool now covers pendingActivation, pay mana, apply the
  *  deferred tap/sacrifice costs on the source, push the ability on the stack,
  *  and swap priority. Mirrors tryAutoCommitPendingCast for abilities. Returns
@@ -2074,9 +2101,13 @@ export function tryAutoCommitPendingActivation(
     if (state.priorityPlayerId !== playerId) return null;
 
     const player = getPlayer(state, playerId);
+    // CR 106.6 (issue #728) — restricted mana eligible for THIS ability's
+    // source (Soldevi Machinist's artifact-ability mana) counts toward
+    // coverage, exactly as `spendablePoolForSpell` does at the cast path.
+    const paSourceTypes = activationSourceTypes(state, pa.cardInstanceId);
     if (
         !isManaCostCovered(
-            player.manaPool,
+            spendablePoolForAbility(player, paSourceTypes),
             pa.manaCost,
             getManaSubstitutions(state, player.id)
         )
@@ -2184,9 +2215,12 @@ export function tryAutoCommitPendingActivation(
     const poolBeforePayment = pa.noteManaSpent
         ? { ...player.manaPool }
         : undefined;
-    payManaCost(
-        player.manaPool,
+    // CR 106.6 (issue #728) — restricted-first settlement, mirroring the cast
+    // path's `payManaCostForSpell`.
+    payManaCostForAbility(
+        player,
         pa.manaCost,
+        paSourceTypes,
         getManaSubstitutions(state, player.id),
         genericSpendOrder
     );
@@ -5057,10 +5091,13 @@ export function finalizeTargetSelection(
         // still needs a player choice (CR 602.1 / 118.5). In the latter case we
         // always defer to selectActivationCost even when mana is covered, so
         // the player picks the sacrifice before the targeted ability commits.
+        // CR 106.6 (issue #728) — restricted mana eligible for an ability of
+        // THIS source (Soldevi Machinist) counts toward coverage.
+        const abilitySourceTypes = card.types;
         const manaUncovered =
             !!manaCost &&
             !isManaCostCovered(
-                player.manaPool,
+                spendablePoolForAbility(player, abilitySourceTypes),
                 manaCost,
                 getManaSubstitutions(state, player.id)
             );
@@ -5173,9 +5210,10 @@ export function finalizeTargetSelection(
                 ? { ...player.manaPool }
                 : undefined;
         if (manaCost) {
-            payManaCost(
-                player.manaPool,
+            payManaCostForAbility(
+                player,
                 manaCost,
+                abilitySourceTypes,
                 getManaSubstitutions(state, player.id)
             );
             commitLandsForCost(player, manaCost);
@@ -11669,10 +11707,14 @@ export function activateAbilityOnState(
     // picks the sacrifice (selectActivationCost); auto-commit applies the
     // deferred tap/sacrifice and pushes the ability on the stack.
     // Tap/sacrifice are DEFERRED so cancel leaves the source untouched.
+    // CR 106.6 (issue #728) — restricted mana eligible for an ability of THIS
+    // source (Soldevi Machinist's artifact-ability mana) counts toward
+    // coverage, exactly as `spendablePoolForSpell` does at the cast path.
+    const abilitySourceTypes = card.types;
     const manaUncovered =
         !!manaCost &&
         !isManaCostCovered(
-            player.manaPool,
+            spendablePoolForAbility(player, abilitySourceTypes),
             manaCost,
             getManaSubstitutions(state, player.id)
         );
@@ -11735,9 +11777,10 @@ export function activateAbilityOnState(
     const poolBeforePayment =
         ability.noteManaSpent && manaCost ? { ...player.manaPool } : undefined;
     if (manaCost) {
-        payManaCost(
-            player.manaPool,
+        payManaCostForAbility(
+            player,
             manaCost,
+            abilitySourceTypes,
             getManaSubstitutions(state, player.id)
         );
         commitLandsForCost(player, manaCost);

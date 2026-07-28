@@ -3112,6 +3112,12 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Dread Wight",
+        "scryfallId": "65d332e2-4b2d-4131-84f7-862cb138c477",
+        "oracleId": "f9078d79-3250-44e8-aba1-ab52e0ba4425",
+        "firstSet": "ice"
+    },
+    {
         "name": "Dream Thrush",
         "scryfallId": "258217df-ae88-4d93-895a-3fd242baacd1",
         "oracleId": "111f3f1c-4387-4e61-8bff-6ebe3b7b9d9f",
@@ -11254,6 +11260,12 @@
         "firstSet": "ice",
         "firstPrintId": "64d35e88-81d3-4a54-aa79-190615abc616",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "Soldevi Machinist",
+        "scryfallId": "1f0999df-2f94-499e-b9af-fe377d515400",
+        "oracleId": "06600efe-1718-4cc1-b1c0-59c82e2efd73",
+        "firstSet": "ice"
     },
     {
         "name": "Soldevi Simulacrum",

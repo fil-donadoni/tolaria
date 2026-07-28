@@ -52,7 +52,7 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { enumerateMoves, type Move } from "../../../../gre/moves";
-import { finalizeCleanup } from "../../../../gre/phases";
+import { finalizeCleanup, untapStep } from "../../../../gre/phases";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import {
     applySourceStaticEffects,
@@ -734,6 +734,46 @@ describe("Cocoon (pupa counters on the Aura + hatch into +1/+1 and flying, CR 12
                 (g) => g.ability === "flying" && !g.duration && !g.auraId
             )
         ).toBe(true);
+    });
+
+    // REAL SEQUENCE (issue #1711). Cocoon's lock reads the counters on the
+    // SOURCE (the Aura), not the target, and is a MATERIALIZED `keyword-grant`:
+    // applied once when the Aura enters and never recomputed. Hand-seeding the
+    // pupa counters and THEN calling `applySourceStaticEffects` (the test
+    // above) hides that — in play the host stayed locked after the last pupa
+    // counter came off. These drive the assertion from the upkeep trigger.
+    it("the upkeep trigger lifts the lock when the last pupa counter goes (CR 502.1 / 613.5)", () => {
+        const { state, host, aura } = setup(1);
+        applySourceStaticEffects(state, aura);
+        expect(host.staticAbilities).toContain("does-not-untap");
+
+        resolveTrigger(state, aura, "cocoon-upkeep", UPKEEP_C5("p1"));
+
+        // No manual re-apply: `SpellContext.removeCounter` re-materializes.
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "cocoon")!
+                .counters?.pupa ?? 0
+        ).toBe(0);
+        expect(host.staticAbilities).not.toContain("does-not-untap");
+    });
+
+    it("a tapped host untaps once the Aura's last pupa counter is removed", () => {
+        const { state, host, aura } = setup(1);
+        host.isTapped = true;
+        applySourceStaticEffects(state, aura);
+
+        state.activePlayerId = "p1";
+        state.priorityPlayerId = "p1";
+        untapStep(state);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "host")!.isTapped
+        ).toBe(true);
+
+        resolveTrigger(state, aura, "cocoon-upkeep", UPKEEP_C5("p1"));
+        untapStep(state);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "host")!.isTapped
+        ).toBe(false);
     });
 });
 

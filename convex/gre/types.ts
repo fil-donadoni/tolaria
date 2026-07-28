@@ -243,11 +243,19 @@ export type RealizedOutcome = {
  *    (CR 702.24 — Adarkar Unicorn / Snowfall, ADR 0042). Unlike the two
  *    spell-cast restrictions this one is NOT eligible at any spell-cast site;
  *    it is consumed only by the cumulative-upkeep `may-pay` payment, which
- *    tags its mana leg with this restriction. */
+ *    tags its mana leg with this restriction.
+ *  - `artifact-ability`: spendable only to activate abilities of artifacts
+ *    (Soldevi Machinist — "Spend this mana only to activate abilities of
+ *    artifacts", issue #728). The first restriction keyed on the ACTIVATION
+ *    payment path rather than the spell-cast one: like `cumulative-upkeep` it
+ *    is never eligible at a spell-cast site, and it is consumed only when the
+ *    ability being activated belongs to a source permanent whose effective
+ *    types include `Artifact` (`restrictionAllowsAbility`). */
 export type ManaRestriction =
     | "creature-spell"
     | "artifact-spell"
-    | "cumulative-upkeep";
+    | "cumulative-upkeep"
+    | "artifact-ability";
 /** Pile-division divide-then-choose family (ADR 0053, CR-generic "separate
  *  into two piles" cycle — Fact or Fiction, Do or Die, …). Two ordered
  *  members driven by ONE `divideIntoPiles` Effect Script Op:

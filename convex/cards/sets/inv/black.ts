@@ -518,6 +518,19 @@ export const duskwalker: CardDefinition = {
     staticEffects: [
         {
             kind: "keyword-grant",
+            // Deliberately NOT `dependsOnCounters` (CR 613.5 / issue #1711).
+            // The counter read above is a PROXY for the one-shot "was kicked"
+            // fact (CR 702.33), fixed as the CR 614.1c ETB replacement
+            // applies — it is not a live condition. Enrolling it in
+            // `refreshCounterGatedStatics` would make the proxy live and
+            // introduce two behaviours Oracle never allows: an UNKICKED
+            // Duskwalker that later accumulates 2+ `+1/+1` counters from any
+            // external source would gain fear, and a KICKED one whose
+            // counters are annihilated by `-1/-1` counters (CR 704.5q) would
+            // lose it. Materialising once at ETB is the correct behaviour
+            // here; the durable fix is to record kicked-ness on the
+            // permanent — tracked-by: #1716. Allowlisted in
+            // `cards/__tests__/counterGatedStatics.test.ts` until then.
             applies: (target, source) =>
                 target.id === source.id &&
                 (target.counters?.["+1/+1"] ?? 0) >= 2,
