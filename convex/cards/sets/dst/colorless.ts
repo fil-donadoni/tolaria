@@ -9,6 +9,7 @@ import {
     leftTrigger,
     wasAttachedToLeaver,
 } from "../../abilities/triggers/leftTrigger";
+import { equipAbility } from "../../abilities/equipment";
 
 // Skullclamp — "Equipped creature gets +1/-1.\nWhenever equipped creature
 // dies, draw two cards.\nEquip {1}." (issue #1306, parent PRD #620; the
@@ -63,20 +64,10 @@ export const skullclamp: CardDefinition = {
         }),
     ],
     activatedAbilities: [
-        {
-            // CR 702.6e — Equip is sorcery-speed-only and targets a creature
-            // its controller controls.
+        equipAbility({
             id: "skullclamp-equip",
+            cost: { generic: 1 },
             oracleText: "Equip {1}",
-            cost: { mana: { generic: 1 } },
-            sorcerySpeedOnly: true,
-            targetRequirement: {
-                type: "Creature",
-                count: 1,
-                controller: "you",
-            },
-            useStack: true,
-            effects: [{ op: "attach", target: { target: 0 } }],
-        },
+        }),
     ],
 };

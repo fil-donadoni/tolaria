@@ -9,6 +9,7 @@ import {
     nthSpellThisTurn,
     spellCastTrigger,
 } from "../../abilities/triggers/spellCastTrigger";
+import { equipAbility } from "../../abilities/equipment";
 
 // Cori-Steel Cutter (TDM #103, issue #1202, parent PRD #620 — split out of
 // #699). Confirmed against Scryfall (the issue's paraphrase was inaccurate on
@@ -138,19 +139,11 @@ export const coriSteelCutter: CardDefinition = {
         }),
     ],
     activatedAbilities: [
-        {
+        equipAbility({
             id: "cori-steel-cutter-equip",
+            cost: { generic: 1, R: 1 },
             oracleText: "Equip {1}{R}",
-            cost: { mana: { generic: 1, R: 1 } },
-            sorcerySpeedOnly: true,
-            targetRequirement: {
-                type: "Creature",
-                count: 1,
-                controller: "you",
-            },
-            useStack: true,
-            effects: [{ op: "attach", target: { target: 0 } }],
-        },
+        }),
     ],
 };
 

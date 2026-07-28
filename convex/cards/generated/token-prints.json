@@ -139,6 +139,12 @@
             "name": "Monk"
         }
     ],
+    "4a0bb5dc-75a6-4bd6-81f8-611197fb0fba": [
+        {
+            "scryfallId": "b53e0681-603e-4180-bc86-3dadf214e61a",
+            "name": "Phyrexian Germ"
+        }
+    ],
     "4c6cf93a-d073-48ac-88db-c46bf3e10beb": [
         {
             "scryfallId": "7ec6f053-96f7-4e57-b2eb-4e7699a40a4f",
@@ -353,6 +359,12 @@
         {
             "scryfallId": "165164e7-5693-4d65-b789-8ed8a222365b",
             "name": "Citizen"
+        }
+    ],
+    "cd114ec3-d286-4c70-a122-3043bc53cc88": [
+        {
+            "scryfallId": "65c65445-1016-4fd3-963e-1c9eb252d4a6",
+            "name": "Phyrexian Germ"
         }
     ],
     "d140c3b7-ca78-483d-baeb-307b624fea8b": [

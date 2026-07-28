@@ -6,6 +6,7 @@
 import type { CardDefinition } from "../../types";
 import { AURA_AFFECTS_HOST } from "../../types";
 import { wardAbility } from "../../abilities/ward";
+import { equipAbility } from "../../abilities/equipment";
 
 // Lavaspur Boots — {1} Artifact — Equipment (Vintage Cube FREE wave 3, issue
 // #1530, parent PRD #1525). "Equipped creature gets +1/+0 and has haste and
@@ -86,20 +87,10 @@ export const lavaspurBoots: CardDefinition = {
         }),
     ],
     activatedAbilities: [
-        {
-            // CR 702.6e — Equip is sorcery-speed-only and targets a creature
-            // its controller controls.
+        equipAbility({
             id: "lavaspur-boots-equip",
+            cost: { generic: 1 },
             oracleText: "Equip {1}",
-            cost: { mana: { generic: 1 } },
-            sorcerySpeedOnly: true,
-            targetRequirement: {
-                type: "Creature",
-                count: 1,
-                controller: "you",
-            },
-            useStack: true,
-            effects: [{ op: "attach", target: { target: 0 } }],
-        },
+        }),
     ],
 };
