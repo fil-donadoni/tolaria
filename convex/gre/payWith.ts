@@ -88,6 +88,17 @@ export function applyGenericOffset(
  *    can't cover the cost (`shortfall`, clamped into `0..max`). `0` when lands
  *    could pay the same pips — a purely tactical choice → **prompt**. A partly
  *    forced choice → **prompt with the minimum pre-seeded**.
+ *  - When `min === max === eligible.length` there is no real branch left
+ *    AT ALL — not "how many" (the count is forced to `max`) and not "which
+ *    ones" (`max` already consumes the whole eligible graveyard, nothing to
+ *    choose FROM) — so the pick auto-resolves: `pickedCardIds` is pre-filled
+ *    with every eligible card and the generic offset is paid down on
+ *    `manaCost` immediately (issue #1660, mirrors
+ *    `buildAlternativeCostHandChoice`'s forced-pick path in
+ *    `alternativeCost.ts`). A forced COUNT with graveyard cards left over
+ *    (`max < eligible.length`) still leaves a real "which ones" decision — a
+ *    genuinely tactical choice about what to keep in the yard — so THAT case
+ *    keeps prompting with the minimum pre-seeded, same as before.
  *
  *  `count` is a nominal 0: the variable-offset mode ignores it (mirrors the
  *  Nethergoyf `minCardTypes` mode's nominal 1). */
@@ -106,11 +117,17 @@ export function buildDelveExileChoice(
     const max = Math.min(eligible.length, genericPortion(manaCost));
     if (max <= 0) return undefined;
     const min = Math.max(0, Math.min(shortfall, max));
-    return {
+    const choice: NonNullable<PendingCast["exileFromGraveyardChoice"]> = {
         count: 0,
         excludeInstanceId: castInstanceId,
         offsetGeneric: { min, max },
     };
+    if (min === max && max === eligible.length) {
+        const pickedCardIds = eligible.map((c) => c.id);
+        applyGenericOffset(manaCost, pickedCardIds.length);
+        return { ...choice, pickedCardIds };
+    }
+    return choice;
 }
 
 // ─── Convoke (CR 702.51 — the coloured `payWith`, issue #1338) ───────────────

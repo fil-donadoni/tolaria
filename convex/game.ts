@@ -5523,6 +5523,18 @@ export function finalizeTargetSelection(
             ...(isDashCost ? { dashed: true } : {}),
         };
         (state.pendingCast as Record<string, unknown>).targets = targets;
+        // CR 601.2g (issue #1660) — `castExileChoice` can come back from
+        // `buildDelveExileChoice` already fully resolved (a forced,
+        // zero-branch delve pick, `pickedCardIds` pre-filled). There is
+        // nothing left for the player to decide, so try to finish the cast
+        // right now instead of leaving a picker-shaped `pendingCast` with no
+        // picker to show. A no-op (stays parked) whenever mana isn't covered
+        // yet or something ELSE genuinely still needs the player's input
+        // (real sacrifice/hand choice, exile picker) — `tryAutoCommitPendingCast`
+        // re-checks every gate itself.
+        if (castExileChoice?.pickedCardIds) {
+            tryAutoCommitPendingCast(state, playerId);
+        }
         return;
     }
 
@@ -6596,6 +6608,19 @@ export const announceCast = mutation({
                     ? { exileFromGraveyardChoice: castExileChoice }
                     : {}),
             };
+
+            // CR 601.2g (issue #1660) — `castExileChoice` can come back from
+            // `buildDelveExileChoice` already fully resolved (a forced,
+            // zero-branch delve pick, `pickedCardIds` pre-filled). There is
+            // nothing left for the player to decide, so try to finish the
+            // cast right now instead of leaving a picker-shaped `pendingCast`
+            // with no picker to show. A no-op (stays parked) whenever mana
+            // isn't covered yet or something ELSE genuinely still needs the
+            // player's input (real sacrifice/hand choice, exile picker) —
+            // `tryAutoCommitPendingCast` re-checks every gate itself.
+            if (castExileChoice?.pickedCardIds) {
+                tryAutoCommitPendingCast(state, args.playerId);
+            }
 
             await saveGameState(
                 ctx,

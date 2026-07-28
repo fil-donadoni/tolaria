@@ -182,6 +182,107 @@ describe("delve picker construction — Arena prompt policy (ADR 0063)", () => {
     });
 });
 
+// issue #1660 — a picker with zero real branch (min === max === every
+// eligible graveyard card) must auto-resolve instead of opening a picker the
+// player can only Confirm or Cancel (Arena-UX auto-resolve, mirrors
+// `buildAlternativeCostHandChoice`'s forced-pick path).
+describe("delve auto-resolve — fully forced pick skips the prompt (issue #1660)", () => {
+    it("min === max === eligible.length pre-fills pickedCardIds and pays the generic cost down immediately", () => {
+        // The issue's exact repro: 6 graveyard cards, {7}{U} Treasure Cruise,
+        // 2 Islands — the caster's mana alone is 6 short, and the graveyard
+        // holds exactly 6 eligible cards, so every one of them MUST be
+        // exiled. No "how many" branch (min === max) and no "which ones"
+        // branch (max === eligible.length) — zero real choice.
+        const { player, spell } = board(2, 6);
+        const cost: Record<string, number> = { X: 7, U: 1 };
+        const choice = buildDelveExileChoice(player, spell, cost, spell.id, 6);
+        expect(choice?.offsetGeneric).toEqual({ min: 6, max: 6 });
+        expect(choice?.pickedCardIds?.slice().sort()).toEqual([
+            "gy0",
+            "gy1",
+            "gy2",
+            "gy3",
+            "gy4",
+            "gy5",
+        ]);
+        // The offset is paid down on the SAME `manaCost` object the caller
+        // holds — no separate `recordCastExileCostPick` round trip needed.
+        expect(cost.X).toBe(1);
+        expect(cost.U).toBe(1);
+    });
+
+    it("min < max still prompts, with the minimum pre-seeded and pickedCardIds unset", () => {
+        const { player, spell } = board(2, 9);
+        const choice = buildDelveExileChoice(
+            player,
+            spell,
+            { X: 4, U: 1 },
+            spell.id,
+            0
+        );
+        expect(choice?.offsetGeneric).toEqual({ min: 0, max: 4 });
+        expect(choice?.pickedCardIds).toBeUndefined();
+    });
+
+    it("a forced COUNT that still leaves cards over keeps prompting — WHICH cards is a real choice", () => {
+        // 9 eligible graveyard cards but only 6 are exiled (the generic
+        // remaining caps it): min === max === 6, so the NUMBER is forced —
+        // but eligible.length (9) > max (6), so WHICH 6 of the 9 to exile is
+        // still a genuinely tactical decision (a cap-style restriction, per
+        // the issue's acceptance criteria — NOT the same as the fully-forced
+        // case above).
+        const { player, spell } = board(2, 9);
+        const choice = buildDelveExileChoice(
+            player,
+            spell,
+            { X: 6, U: 1 },
+            spell.id,
+            6
+        );
+        expect(choice?.offsetGeneric).toEqual({ min: 6, max: 6 });
+        expect(choice?.pickedCardIds).toBeUndefined();
+    });
+
+    it("auto-commits in one shot through tryAutoCommitPendingCast — no separate Confirm round trip", () => {
+        const { state, player, spell } = board(1, 7);
+        const cost: Record<string, number> = { X: 7, U: 1 };
+        const choice = buildDelveExileChoice(player, spell, cost, spell.id, 7)!;
+        expect(choice.pickedCardIds?.slice().sort()).toEqual([
+            "gy0",
+            "gy1",
+            "gy2",
+            "gy3",
+            "gy4",
+            "gy5",
+            "gy6",
+        ]);
+        expect(cost.X).toBe(0);
+        player.manaPool = { W: 0, U: 1, B: 0, R: 0, G: 0, C: 0 };
+        state.pendingCast = {
+            playerId: "p1",
+            cardInstanceId: "cruise",
+            manaCost: cost,
+            tappedLandIds: [],
+            exileFromGraveyardChoice: choice,
+        };
+        tryAutoCommitPendingCast(state, "p1");
+        expect(state.pendingCast).toBeUndefined();
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].card.id).toBe(TREASURE_CRUISE);
+        expect(player.graveyard).toHaveLength(0);
+        expect(player.exile.map((c) => c.id).sort()).toEqual([
+            "gy0",
+            "gy1",
+            "gy2",
+            "gy3",
+            "gy4",
+            "gy5",
+            "gy6",
+        ]);
+        expect(player.manaPool.U).toBe(0);
+    });
+});
+
 describe("genericManaShortfall — the forced-minimum probe (CR 601.2g)", () => {
     it("reports the generic pips mana alone cannot cover", () => {
         const { player, spell } = board(2, 6);
