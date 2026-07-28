@@ -66,6 +66,7 @@ import { recordBlockedAttackers } from "./banding";
 import { enumerateMoves, type Move } from "./moves";
 import { manaValue } from "./constants";
 import { getInstanceManaCost } from "../cards";
+import { applyDelveExileForSearch } from "./applyMove";
 import {
     evaluate,
     evaluateBreakdown,
@@ -560,6 +561,23 @@ export function applyMoveInSearch(
         }
 
         case "cast-spell": {
+            // CR 702.66b / 601.2g (issue #1661) — pay the delve exile BEFORE
+            // the tap plan runs (`applyDelveExileForSearch`'s forced-minimum
+            // calc needs the caster's mana still untapped, mirroring the
+            // real announce-time computation) and before the spell leaves
+            // hand, mirroring `tryAutoCommitPendingCast`'s real-path order
+            // (`convex/game.ts`).
+            const preCastSpell = player.hand.find(
+                (c) => c.id === move.cardInstanceId
+            );
+            if (preCastSpell) {
+                applyDelveExileForSearch(
+                    state,
+                    player,
+                    preCastSpell,
+                    move.chosenX
+                );
+            }
             applyTapPlan(state, playerId, move.tapPlan);
             const spellCard = removeFromZone(
                 player,
