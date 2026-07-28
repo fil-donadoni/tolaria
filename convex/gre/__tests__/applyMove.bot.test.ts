@@ -49,6 +49,14 @@ function oneIsland(id: string, ownerId: string) {
     return makeInstance(ISLAND, { id, controllerId: ownerId });
 }
 
+/** `n` untapped Islands, for the partial/zero-delve fixtures below — plain
+ *  colourless-producing mana sources, no tap-plan ambiguity. */
+function islands(n: number, ownerId: string) {
+    return Array.from({ length: n }, (_, i) =>
+        makeInstance(ISLAND, { id: `isle${i}`, controllerId: ownerId })
+    );
+}
+
 function findCastMove(moves: Move[], cardInstanceId: string) {
     return moves.find(
         (m) => m.kind === "cast-spell" && m.cardInstanceId === cardInstanceId
@@ -189,5 +197,104 @@ describe("applyMoveInSearch — delve pays graveyard, not free mana (issue #1661
         // it was legally castable moments ago against the pre-cast position.
         const movesAfter = enumerateMoves(state, BOT);
         expect(findCastMove(movesAfter, cruise2.id)).toBeUndefined();
+    });
+});
+
+// CR 702.66b / 601.2g (issue #1661 review finding) — the three scenarios
+// above are all the SAME forced-full position (1 Island + 7 fuel → delve
+// exactly all 7 cards). A search leaf that wrongly exiled every eligible
+// graveyard card (instead of the forced-minimum count `genericManaShortfall`
+// actually computes) would pass all three identically, since "all eligible"
+// and "the correct count" coincide when the correct count IS the whole
+// graveyard. These two cases pin down a PARTIAL count and an OPTIONAL
+// (zero) count, so an over-exiling implementation fails both.
+describe("applyMoveInSearch — partial and zero-delve counts (issue #1661 review finding)", () => {
+    it("3 Islands + 7 fuel: the tap plan covers 3, delve is forced for the other 5", () => {
+        const BOT = "p2";
+        const cruise = makeInstance(TREASURE_CRUISE, {
+            id: "cruise1",
+            controllerId: BOT,
+            ownerId: BOT,
+            zone: "hand",
+        });
+        const gyFuel = fuel(7, BOT);
+        // Snapshot ids BEFORE the move runs: `bot.graveyard` below is the
+        // SAME array reference as `gyFuel` (`makePlayer` doesn't clone), and
+        // `applyMoveInSearch` mutates `state` (and therefore this array) IN
+        // PLACE — slicing `gyFuel` itself after the move would read the
+        // already-mutated (post-exile) array, not the original order.
+        const gyFuelIds = gyFuel.map((c) => c.id);
+        const bot = makePlayer(BOT, {
+            hand: [cruise],
+            graveyard: gyFuel,
+            battlefield: islands(3, BOT),
+        });
+        const state = makeState({
+            players: [makePlayer("p1"), bot],
+            activePlayerId: BOT,
+            priorityPlayerId: BOT,
+            phase: "PRECOMBAT_MAIN",
+        });
+
+        // 3 Islands pay the {U} pip plus 2 of the {7} generic, so the tap
+        // plan taps all 3 and the enumerator's own `genericManaShortfall`
+        // forces exactly 7 - 2 = 5 cards onto delve (`moves.ts:599-623`).
+        const castMove = findCastMove(enumerateMoves(state, BOT), cruise.id)!;
+        expect(castMove.kind).toBe("cast-spell");
+        expect(
+            (castMove as Extract<Move, { kind: "cast-spell" }>).tapPlan
+        ).toHaveLength(3);
+
+        applyMoveInSearch(state, BOT, castMove);
+
+        const botAfter = state.players.find((p) => p.id === BOT)!;
+        // Exactly 5 exiled — the front 5 of the graveyard, delve's
+        // deterministic pick policy (`applyDelveExileForSearch`) — and
+        // exactly the other 2 left behind. An "exile everything eligible"
+        // implementation would report 7 exiled / 0 remaining here and fail.
+        expect(botAfter.exile.map((c) => c.id)).toEqual(gyFuelIds.slice(0, 5));
+        expect(botAfter.graveyard.map((c) => c.id)).toEqual(gyFuelIds.slice(5));
+        expect(botAfter.exile).toHaveLength(5);
+        expect(botAfter.graveyard).toHaveLength(2);
+    });
+
+    it("8 Islands + 7 fuel: mana alone covers the cost, delve is optional and pays for nothing", () => {
+        const BOT = "p2";
+        const cruise = makeInstance(TREASURE_CRUISE, {
+            id: "cruise1",
+            controllerId: BOT,
+            ownerId: BOT,
+            zone: "hand",
+        });
+        const gyFuel = fuel(7, BOT);
+        // Snapshot ids before the move for the same reason as the partial
+        // case above — `gyFuel` is the live `graveyard` array reference.
+        const gyFuelIds = gyFuel.map((c) => c.id);
+        const bot = makePlayer(BOT, {
+            hand: [cruise],
+            graveyard: gyFuel,
+            battlefield: islands(8, BOT),
+        });
+        const state = makeState({
+            players: [makePlayer("p1"), bot],
+            activePlayerId: BOT,
+            priorityPlayerId: BOT,
+            phase: "PRECOMBAT_MAIN",
+        });
+
+        // 8 Islands fully pay {7}{U} on their own (`genericManaShortfall`
+        // returns 0), so `offsetGeneric.min === 0` — delve is a purely
+        // tactical, never-forced choice here (CR 702.66a). The
+        // deterministic search-leaf policy makes no tactical delve pick, so
+        // the exile count must be exactly zero, not "some eligible cards".
+        const castMove = findCastMove(enumerateMoves(state, BOT), cruise.id)!;
+        expect(castMove.kind).toBe("cast-spell");
+
+        applyMoveInSearch(state, BOT, castMove);
+
+        const botAfter = state.players.find((p) => p.id === BOT)!;
+        expect(botAfter.exile).toHaveLength(0);
+        expect(botAfter.graveyard.map((c) => c.id)).toEqual(gyFuelIds);
+        expect(botAfter.graveyard).toHaveLength(7);
     });
 });
