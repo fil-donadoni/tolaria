@@ -4,6 +4,14 @@
 // only the Convex transport (useQuery/useMutation); everything else is the real
 // spine. Proves a vs-AI bot enumerates from its own view and submits a legal
 // move on the bot seat.
+//
+// Tick-gated subscription (issue #1778): the driver now subscribes to
+// `getGameTick` first and only mounts `getPublicState` (`currentState`) once
+// the tick names the bot's own seat as the one owing input. The mock
+// synthesizes the tick straight off `currentState` — mirroring the real
+// server's `computeExpectedInput` fallthrough (ADR 0047) for these fixtures,
+// none of which populate pendingChoices/pendingTarget/blockers, so "who owes
+// input" is exactly `priorityPlayerId`.
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { renderHook } from "@testing-library/react";
 import type { Id } from "@convex/_generated/dataModel";
@@ -14,6 +22,10 @@ const MOUNTAIN = getCardByName("Mountain").id;
 const BEARS = getCardByName("Grizzly Bears").id;
 
 const calls: { ref: unknown; args: unknown }[] = [];
+// Every `useQuery` invocation whose args were NOT "skip" — used to prove the
+// fat `getPublicState` subscription never mounts with real args unless the
+// tick says the bot owes input (issue #1778).
+const queryMounts: { ref: unknown; args: unknown }[] = [];
 let currentState: unknown = undefined;
 
 // Tag each mutation/query by a plain string so assertions never touch Convex's
@@ -22,6 +34,7 @@ vi.mock("@convex/_generated/api", () => ({
     api: {
         game: {
             getPublicState: "getPublicState",
+            getGameTick: "getGameTick",
             getGame: "getGame",
             playCard: "playCard",
             summonCompanion: "summonCompanion",
@@ -45,16 +58,32 @@ vi.mock("@convex/_generated/api", () => ({
 }));
 
 vi.mock("convex/react", () => ({
-    useQuery: (ref: unknown, args: unknown) =>
-        args === "skip"
-            ? undefined
-            : // issue #1509 — the driver now also queries `getGame` to source the
-              // bot's own decklist (ownDeck). These tests don't exercise ownDeck,
-              // so return undefined for it: ownDeck stays undefined and the driver
-              // behaves exactly as pre-#1509 (placeholder library path).
-              ref === "getGame"
-              ? undefined
-              : currentState,
+    useQuery: (ref: unknown, args: unknown) => {
+        if (args !== "skip") queryMounts.push({ ref, args });
+        if (args === "skip") return undefined;
+        // issue #1509 — the driver now also queries `getGame` to source the
+        // bot's own decklist (ownDeck). These tests don't exercise ownDeck,
+        // so return undefined for it: ownDeck stays undefined and the driver
+        // behaves exactly as pre-#1509 (placeholder library path).
+        if (ref === "getGame") return undefined;
+        if (ref === "getGameTick") {
+            if (currentState === undefined) return undefined;
+            const s = currentState as {
+                seq: number;
+                priorityPlayerId: string;
+                phase: string;
+            };
+            return {
+                seq: s.seq,
+                priorityPlayerId: s.priorityPlayerId,
+                phase: s.phase,
+                expectedInputKind: "priority",
+                expectedInputPlayerId: s.priorityPlayerId,
+                gameOver: false,
+            };
+        }
+        return currentState;
+    },
     useMutation: (ref: unknown) => (args: unknown) => {
         calls.push({ ref, args });
         return Promise.resolve(null);
@@ -103,6 +132,7 @@ function botState(overrides: Record<string, unknown> = {}) {
 describe("useVsAiDriver (issue #110)", () => {
     beforeEach(() => {
         calls.length = 0;
+        queryMounts.length = 0;
         currentState = undefined;
         vi.useFakeTimers();
         // Deterministic random pick (first move).
@@ -128,6 +158,35 @@ describe("useVsAiDriver (issue #110)", () => {
         renderHook(() => useVsAiDriver(GAME, BOT));
         await vi.runAllTimersAsync();
         expect(calls).toHaveLength(0);
+    });
+
+    // Issue #1778: the driver holds the cheap `getGameTick` subscription
+    // continuously, but must NOT mount the fat `getPublicState` subscription
+    // (real args, not "skip") on a beat the bot does not own.
+    it("never mounts getPublicState with real args while the human holds priority", async () => {
+        currentState = botState({ priorityPlayerId: HUMAN });
+        renderHook(() => useVsAiDriver(GAME, BOT));
+        await vi.runAllTimersAsync();
+
+        expect(queryMounts.some((m) => m.ref === "getGameTick")).toBe(true);
+        expect(queryMounts.some((m) => m.ref === "getPublicState")).toBe(false);
+    });
+
+    // Issue #1778: once the tick names the bot's own seat, the driver DOES
+    // mount `getPublicState` and acts exactly once for that tick.
+    it("mounts getPublicState and acts exactly once when the tick names the bot's seat", async () => {
+        currentState = botState({ priorityPlayerId: BOT });
+        renderHook(() => useVsAiDriver(GAME, BOT));
+        await vi.runAllTimersAsync();
+
+        expect(
+            queryMounts.some(
+                (m) =>
+                    m.ref === "getPublicState" &&
+                    (m.args as { playerId: string }).playerId === BOT
+            )
+        ).toBe(true);
+        expect(calls).toHaveLength(1);
     });
 
     it("keeps a reasonable opening hand during the bot's mulligan window", async () => {

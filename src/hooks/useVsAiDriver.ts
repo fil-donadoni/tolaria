@@ -9,6 +9,20 @@
 // The UI thread is never blocked — enumeration + selection live in the Worker,
 // and submission is a normal async mutation sequence.
 //
+// Tick-gated subscription (PRD #1776 T3, issue #1778): holding a second full
+// `getPublicState` subscription (3-9 KB) alongside the human seat's own meant
+// every write to `gameStates` cost two query re-executions, and the bot's copy
+// was discarded on every beat it didn't own. The driver instead subscribes to
+// the cheap `getGameTick` row (~150 bytes) and only mounts `getPublicState`
+// once `expectedInputPlayerId` names the bot's own seat — i.e. the bot
+// actually owes input (priority, or a pending choice/target addressed to it).
+// The in-flight guard and per-state-version signature key off the TICK's
+// `seq`, not the projected state's — and the decision logic below waits for
+// `botState.seq` to catch up to `tick.seq` before acting — so a `getPublicState`
+// subscription that mounts fresh (returning a momentarily stale cached value)
+// across the tick-driven mount/unmount cycle can never drive the same tick
+// twice, nor act on a state the tick has already superseded.
+//
 // Responsiveness gate (issue #113): before paying for a Worker round-trip + the
 // bounded-time search, a cheap pure `shouldThink` check decides whether the
 // window is worth searching at all. On a trivial priority pass it short-circuits
@@ -49,9 +63,18 @@ export function useVsAiDriver(
     gameId: Id<"games">,
     botId: string | null
 ): VsAiDriverStatus {
+    // Cheap wake-up signal (issue #1778): mount the fat `getPublicState`
+    // subscription only once the tick says the bot's own seat owes input.
+    const tick = useQuery(api.game.getGameTick, botId ? { gameId } : "skip");
+    const botOwesInput = !!(
+        botId &&
+        tick &&
+        !tick.gameOver &&
+        tick.expectedInputPlayerId === botId
+    );
     const botState = useQuery(
         api.game.getPublicState,
-        botId ? { gameId, playerId: botId } : "skip"
+        botId && botOwesInput ? { gameId, playerId: botId } : "skip"
     );
     // The bot's OWN decklist, wired into the search adapter so its simulated
     // library carries real card identities (issue #1509): fetch/tutor subtrees
@@ -125,7 +148,15 @@ export function useVsAiDriver(
     const lastGameId = useRef<Id<"games"> | null>(null);
 
     useEffect(() => {
-        if (!botId || !botState) return;
+        if (!botId || !tick || !botState) return;
+
+        // The tick (cheap) can race ahead of the fuller `getPublicState`
+        // subscription (fat) it just caused to mount — a freshly-mounted
+        // query briefly serves a cached/stale value before catching up. Wait
+        // for `botState` to actually reach the tick that triggered this
+        // window before acting on it; otherwise the driver could decide off
+        // a state the tick has already superseded (issue #1778).
+        if (botState.seq !== tick.seq) return;
 
         // A new game (Restart Solo / rematch / Switch Game) swaps the `gameId`
         // prop WITHOUT remounting this hook, because `game.route` renders the
@@ -148,12 +179,15 @@ export function useVsAiDriver(
         const action = decideBotAction(view);
         if (action.kind === "none") return;
 
-        // De-dupe by state version: act at most once per distinct server state.
-        // Unlike the pass-only bot, the bot may take several actions in one
-        // priority window (play a land, then cast, then pass) — each bumps the
-        // seq, so keying on seq lets the next action fire while still guarding
-        // against double-submitting the same state.
-        const signature = `${gameId}:${botState.seq}`;
+        // De-dupe by TICK version, not the projected state's own `seq` (issue
+        // #1778): the tick is what gates the mount/unmount cycle, so it — not
+        // `botState.seq`, which the guard above already confirmed matches
+        // anyway — is the authoritative "have I already acted on this state"
+        // signature. Unlike the pass-only bot, the bot may take several
+        // actions in one priority window (play a land, then cast, then pass)
+        // — each bumps the seq, so keying on seq lets the next action fire
+        // while still guarding against double-submitting the same state.
+        const signature = `${gameId}:${tick.seq}`;
         if (lastSignature.current === signature) return;
 
         // Combat-damage confirmation (CR 510.1c, multi-block): the gate already
@@ -340,9 +374,9 @@ export function useVsAiDriver(
 
         return () => window.clearTimeout(timer);
         // `mutations` is rebuilt each render but its callables are stable; depend
-        // on the state version and bot id only.
+        // on the state version (tick + the state it gates) and bot id only.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [gameId, botId, botState, ownDeck]);
+    }, [gameId, botId, tick, botState, ownDeck]);
 
     return { thinking };
 }

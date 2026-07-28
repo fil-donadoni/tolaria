@@ -38,6 +38,33 @@ export default defineSchema({
         state: v.any(),
         updatedAt: v.number(),
     }).index("by_gameId", ["gameId", "seq"]),
+    // Tick row (PRD #1776 T3, issue #1778): a ~150-byte cheap wake-up signal
+    // written alongside every `gameStates` write from `saveGameState`
+    // (`convex/game.ts`) so a subscriber that only needs to know "did
+    // something change, and does it need to act" doesn't have to hold a full
+    // 3-9 KB `gameStates` subscription just to find out. One row per game
+    // (patch in place, mirroring `gameStates`' single-row-per-game model),
+    // carrying exactly the fields `useVsAiDriver` needs to decide whether the
+    // bot seat owes input WITHOUT mounting `getPublicState`:
+    // `priorityPlayerId`/`phase`/`expectedInputKind`/`gameOver`. `seq` is the
+    // authoritative "did this actually change" signature — the driver's
+    // in-flight guard keys off THIS `seq`, not the (unsubscribed) full
+    // state's, so the same tick never drives the bot twice.
+    gameTicks: defineTable({
+        gameId: v.id("games"),
+        seq: v.number(),
+        priorityPlayerId: v.optional(v.string()),
+        phase: v.string(),
+        // Mirrors `ExpectedInput["kind"]` (`convex/gre/expectedInput.ts`,
+        // ADR 0047) minus the rest of the union's payload — the driver only
+        // needs to know WHICH kind of input is expected and check
+        // `expectedInputPlayerId` against the bot seat, not the full target
+        // list/choice shape (that still requires the fat state).
+        expectedInputKind: v.optional(v.string()),
+        expectedInputPlayerId: v.optional(v.string()),
+        gameOver: v.optional(v.boolean()),
+        updatedAt: v.number(),
+    }).index("by_gameId", ["gameId"]),
     decks: defineTable({
         presetId: v.string(),
         name: v.string(),

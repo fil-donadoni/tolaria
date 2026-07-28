@@ -538,15 +538,53 @@ async function saveGameState(
             state: stored,
             updatedAt: Date.now(),
         });
-        return;
+    } else {
+        await ctx.db.insert("gameStates", {
+            gameId,
+            seq,
+            state: stored,
+            updatedAt: Date.now(),
+        });
     }
 
-    await ctx.db.insert("gameStates", {
-        gameId,
+    // Companion tick row (PRD #1776 T3, issue #1778): every stable point
+    // flows through this function, so this is the single seam to keep the
+    // cheap wake-up signal coherent with what was just persisted. `state` is
+    // already past `refreshExpectedInput` above, so `expectedInput` is the
+    // settled, authoritative value for this save.
+    await saveGameTick(ctx, gameId, seq, state as GameState);
+}
+
+/** Cheap wake-up-signal companion to `gameStates` (~150 bytes vs. 3-9 KB),
+ *  written alongside every `gameStates` save from `saveGameState`. One row
+ *  per game, patched in place. Exists so a subscriber that only needs to
+ *  know "did anything change, and does it need to act" — the vs-AI driver —
+ *  can hold this instead of a second full `getPublicState` subscription that
+ *  gets discarded on every beat it doesn't own (`getGameTick` below). */
+async function saveGameTick(
+    ctx: Pick<GenericMutationCtx<DataModel>, "db">,
+    gameId: GenericId<"games">,
+    seq: number,
+    state: GameState
+) {
+    const existing = await ctx.db
+        .query("gameTicks")
+        .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
+        .first();
+    const fields = {
         seq,
-        state: stored,
+        priorityPlayerId: state.priorityPlayerId,
+        phase: state.phase,
+        expectedInputKind: state.expectedInput?.kind,
+        expectedInputPlayerId: state.expectedInput?.playerId,
+        gameOver: state.gameOver !== undefined,
         updatedAt: Date.now(),
-    });
+    };
+    if (existing) {
+        await ctx.db.patch(existing._id, fields);
+        return;
+    }
+    await ctx.db.insert("gameTicks", { gameId, ...fields });
 }
 
 /** The Rounds array as the `limitedEvents` schema declares it. `convex/limited/**`
@@ -2829,6 +2867,25 @@ export function tryAutoCommitPendingCast(
 
 // --- Queries ---
 
+/** Cheap wake-up signal (PRD #1776 T3, issue #1778): the `gameTicks` row
+ *  companion to `getPublicState`, ~150 bytes instead of 3-9 KB. A subscriber
+ *  that only needs to know "did the game state change, and does a given seat
+ *  owe input" — the vs-AI driver — subscribes here and only mounts the full
+ *  `getPublicState` query once `expectedInputPlayerId` names its seat,
+ *  instead of holding a second full-state subscription that gets discarded
+ *  on every beat it doesn't own. Returns `null` before the first save. */
+export const getGameTick = query({
+    args: {
+        gameId: v.id("games"),
+    },
+    handler: async (ctx, args) => {
+        return await ctx.db
+            .query("gameTicks")
+            .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
+            .first();
+    },
+});
+
 /** Public view: hides opponent's hand and all library contents. Computes legalActions only for own hand. */
 export const getPublicState = query({
     args: {
@@ -3812,6 +3869,14 @@ export const leaveGame = mutation({
             .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
             .collect();
         for (const s of states) await ctx.db.delete(s._id);
+        // Tick row companion (PRD #1776 T3, issue #1778) — same defensive
+        // cleanup as `gameStates` above, though a "waiting"/"pregame" game
+        // has never reached `saveGameState` so this is normally a no-op.
+        const ticks = await ctx.db
+            .query("gameTicks")
+            .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
+            .collect();
+        for (const t of ticks) await ctx.db.delete(t._id);
         await ctx.db.delete(args.gameId);
         if (game.matchId) {
             const match = await ctx.db.get(game.matchId);

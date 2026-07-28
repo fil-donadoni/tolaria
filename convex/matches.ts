@@ -569,6 +569,13 @@ export async function deleteMatchCascade(
             .withIndex("by_gameId", (q) => q.eq("gameId", game._id))
             .collect();
         for (const s of snapshots) await ctx.db.delete(s._id);
+        // Tick row companion (PRD #1776 T3, issue #1778) — deleted alongside
+        // its `gameStates` row so a finished game leaves no orphan.
+        const ticks = await ctx.db
+            .query("gameTicks")
+            .withIndex("by_gameId", (q) => q.eq("gameId", game._id))
+            .collect();
+        for (const t of ticks) await ctx.db.delete(t._id);
         await ctx.db.delete(game._id);
     }
     await ctx.db.delete(matchId);
