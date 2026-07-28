@@ -234,8 +234,27 @@ export default function BoardBattlefield({
     function renderPhasedCard(card: CardInstance): SpatialItem {
         return {
             key: `phased:${card.id}`,
+            // The slot key is prefixed, so the instance id must be declared
+            // separately or no arrow can point at this permanent.
+            anchorIds: [card.id],
             node: <BoardBattlefieldCard card={card} vs={INERT_VISUAL} phased />,
         };
+    }
+
+    /** Every card-instance id a host slot renders: the host plus its attached
+     *  auras / equipment, recursively (CR 303.4 allows an Aura on an Aura, and
+     *  `renderHostWithAuras` recurses the same way). They share the host's
+     *  placement, so a target arrow to an attachment lands on the cluster —
+     *  without this an enchanted permanent's aura had no anchor at all. Depth
+     *  is bounded exactly like the renderer so a cyclic `attachedTo` chain
+     *  can't spin. */
+    function slotAnchorIds(card: CardInstance, depth = 0): string[] {
+        const ids = [card.id];
+        if (depth >= 4) return ids;
+        for (const aura of attachedAurasByHost.get(card.id) ?? []) {
+            ids.push(...slotAnchorIds(aura, depth + 1));
+        }
+        return ids;
     }
 
     /** Render a single host permanent with its attached auras (CR 303.4) as a
@@ -309,6 +328,7 @@ export default function BoardBattlefield({
             const host = group.members[0];
             return {
                 key: group.key,
+                anchorIds: slotAnchorIds(host),
                 node: renderHostWithAuras(host),
                 // Lift a host with attached satellites over its neighbours so its
                 // corner peek-stack / ×N badge is not hidden behind them.
@@ -321,6 +341,10 @@ export default function BoardBattlefield({
         // tap/untap flies a permanent between the untapped/tapped piles (QA).
         return {
             key: `stack:${group.stackKey ?? group.key}`,
+            // Every fanned member shares the slot's center: a spell targeting
+            // two copies inside one fan (Arc Lightning's divided damage) must
+            // still draw an arrow to each.
+            anchorIds: group.members.map((m) => m.id),
             node: (
                 <BattlefieldStack
                     members={group.members}

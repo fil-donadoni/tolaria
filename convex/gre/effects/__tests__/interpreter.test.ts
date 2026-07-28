@@ -2032,6 +2032,85 @@ describe("Effect Script Op: setIslandSanctuaryProtection (CR 508.1c, issue #1283
     });
 });
 
+// New Op (issue #674) → full per-Op regime: interpreter coverage of the
+// construct combinations it participates in (controller / announced player
+// slot / re-grant), plus a wire-format assertion through projectPublicState.
+// The Op's OBSERVABLE consequences — an untargetable player (CR 702.16b), all
+// damage prevented (CR 702.16e) and the "until your next turn" expiry — only
+// manifest against a LATER spell or damage event, so they live in The One
+// Ring's own test file (cards/sets/ltr/__tests__/colorless.test.ts) alongside
+// the card that drives them.
+describe("Effect Script Op: setProtectionFromEverything (CR 702.16b/e/i, issue #674)", () => {
+    it("grants protection from everything to the resolving controller", () => {
+        const id = registerScript("test-op-protection-everything-controller", [
+            { op: "setProtectionFromEverything", player: "controller" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.playerProtectionFromEverything).toEqual(["p1"]);
+    });
+
+    it("grants it to the announced player target", () => {
+        const id = registerScript(
+            "test-op-protection-everything-target",
+            [{ op: "setProtectionFromEverything", player: { target: 0 } }],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState();
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        expect(state.playerProtectionFromEverything).toEqual(["p2"]);
+    });
+
+    it("APPENDS rather than overwrites, so both players can hold it at once", () => {
+        const id = registerScript("test-op-protection-everything-append", [
+            { op: "setProtectionFromEverything", player: "opponent" },
+        ]);
+        const state = makeState();
+        state.playerProtectionFromEverything = ["p1"];
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // Each player casting their own The One Ring on successive turns
+        // overlaps the two windows — a single-slot field would clobber p1.
+        expect(state.playerProtectionFromEverything).toEqual(["p1", "p2"]);
+    });
+
+    it("is idempotent per player (CR 702.16m — duplicate protection is redundant)", () => {
+        const id = registerScript("test-op-protection-everything-idempotent", [
+            { op: "setProtectionFromEverything", player: "controller" },
+        ]);
+        const state = makeState();
+        state.playerProtectionFromEverything = ["p1"];
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.playerProtectionFromEverything).toEqual(["p1"]);
+    });
+
+    it("the protection survives projection (wire format)", () => {
+        const id = registerScript("test-op-protection-everything-wire", [
+            { op: "setProtectionFromEverything", player: "controller" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // The client's player-nameplate target gate reads this off the wire
+        // (`usePlayerInteraction` → `isPlayerUntargetableByPending`), so a
+        // dropped field would leave a protected player looking clickable.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.playerProtectionFromEverything).toEqual(["p1"]);
+    });
+
+    it("round-trips through compactState/expandState (persisted, not transient)", () => {
+        const state = makeState();
+        state.playerProtectionFromEverything = ["p2"];
+        const restored = expandState(compactState(state));
+        // The window spans the opponent's whole turn, so it MUST survive the
+        // DB writes in between (PERSISTED_OPTIONAL_KEYS, serialize.ts).
+        expect(restored.playerProtectionFromEverything).toEqual(["p2"]);
+    });
+});
+
 // New Op (issue #1149) → full per-Op regime: interpreter coverage of the
 // construct combinations it participates in (default zones / narrowed zones /
 // maxManaValue / idempotent merge), plus a wire-format assertion through

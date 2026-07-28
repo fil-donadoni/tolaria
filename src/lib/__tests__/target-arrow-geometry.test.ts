@@ -349,3 +349,83 @@ describe("resolveArrowHighlight — stack is peer-to-peer (A=bolt, B=bears, C=co
         expect(resolveArrowHighlight(arrows, { nodeId: "Z" })).toBeNull();
     });
 });
+
+// An ability is not the object on the stack — its SOURCE PERMANENT still sits
+// on the battlefield, and that is where the player reads the effect as coming
+// from (Arc Mage shooting its two targets). Arrows therefore leave the source
+// permanent, not the stack row.
+describe("buildTargetArrows — ability arrows leave their source permanent", () => {
+    it("anchors an activated ability at its source permanent (Arc Mage)", () => {
+        // An activated ability's stack item is a clone of the source instance,
+        // so it carries the source's own id.
+        const item = {
+            ...stackItem("arc-mage", [
+                { type: "permanent", id: "bears" },
+                { type: "player", id: "p2" },
+            ]),
+            abilityId: "arc-mage-damage",
+        } as StackItem;
+        const map = anchors({
+            stack: { "arc-mage": { x: 900, y: 40 } },
+            permanent: {
+                "arc-mage": { x: 200, y: 400 },
+                bears: { x: 500, y: 100 },
+            },
+            player: { p2: { x: 600, y: 20 } },
+        });
+        const arrows = buildTargetArrows([item], map);
+        expect(arrows).toHaveLength(2);
+        for (const a of arrows) {
+            expect(a.from).toEqual({ x: 200, y: 400 });
+            expect(a.fromId).toBe("arc-mage");
+        }
+        expect(arrows.map((a) => a.toId).sort()).toEqual(["bears", "p2"]);
+    });
+
+    it("anchors a triggered ability at `triggerSourceId`", () => {
+        const item = {
+            ...stackItem("trig-1", [{ type: "player", id: "p2" }]),
+            triggeredAbilityId: "t0",
+            triggerSourceId: "src-perm",
+        } as StackItem;
+        const map = anchors({
+            stack: { "trig-1": { x: 900, y: 40 } },
+            permanent: { "src-perm": { x: 120, y: 380 } },
+            player: { p2: { x: 600, y: 20 } },
+        });
+        const [arrow] = buildTargetArrows([item], map);
+        expect(arrow.from).toEqual({ x: 120, y: 380 });
+        expect(arrow.fromId).toBe("src-perm");
+    });
+
+    it("falls back to the stack row when the source has left the battlefield", () => {
+        const item = {
+            ...stackItem("trig-1", [{ type: "player", id: "p2" }]),
+            triggeredAbilityId: "t0",
+            triggerSourceId: "gone",
+        } as StackItem;
+        const map = anchors({
+            stack: { "trig-1": { x: 900, y: 40 } },
+            player: { p2: { x: 600, y: 20 } },
+        });
+        const [arrow] = buildTargetArrows([item], map);
+        expect(arrow.from).toEqual({ x: 900, y: 40 });
+        expect(arrow.fromId).toBe("trig-1");
+    });
+
+    it("keeps a spell anchored at its stack row", () => {
+        const item = stackItem("arc-lightning", [
+            { type: "permanent", id: "a" },
+            { type: "permanent", id: "b" },
+            { type: "player", id: "p2" },
+        ]);
+        const map = anchors({
+            stack: { "arc-lightning": { x: 900, y: 40 } },
+            permanent: { a: { x: 10, y: 10 }, b: { x: 20, y: 20 } },
+            player: { p2: { x: 30, y: 30 } },
+        });
+        const arrows = buildTargetArrows([item], map);
+        expect(arrows).toHaveLength(3);
+        for (const a of arrows) expect(a.from).toEqual({ x: 900, y: 40 });
+    });
+});

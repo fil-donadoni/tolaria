@@ -16,7 +16,7 @@ import {
     celestialSword,
     despoticScepter,
     fyndhornBow,
-    icyManipulator,
+    icyManipulatorIce,
     jestersCap,
     pitTrap,
     shieldOfTheAges,
@@ -87,6 +87,9 @@ import {
     glacialChasm,
     hallsOfMist,
 } from "../../ice";
+// Icy Manipulator's home set is Alpha (ADR 0041); ICE ships only the reprint
+// `CardPrint`, so the mechanics come from the LEA definition.
+import { icyManipulator } from "../../lea/colorless";
 import {
     plains,
     island,
@@ -462,8 +465,10 @@ describe("Fyndhorn Bow ({3},{T}: grant first strike, CR 605 / 702.7)", () => {
 });
 
 describe("Icy Manipulator ({1},{T}: tap any of three types, CR 605 / 701.20a)", () => {
-    it("taps the targeted permanent", () => {
-        const icy = makeInstance(icyManipulator.id, {
+    it("taps the targeted permanent — from the ICE reprint print id", () => {
+        // Instantiating the ICE `printId` proves the reprint resolves to the LEA
+        // definition's mechanics (registry printId → definitionId).
+        const icy = makeInstance(icyManipulatorIce.printId, {
             id: "icy",
             controllerId: "p1",
             ownerId: "p1",

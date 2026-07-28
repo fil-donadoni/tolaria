@@ -51,6 +51,13 @@ type GameContext = {
      *  this turn" predicate reads the SAME number the server's CR 603.4
      *  intervening-if does. */
     lifeGainedThisTurn?: Record<string, number>;
+    /** CR 702.16b/i (issue #674, The One Ring) — players who currently have
+     *  protection from everything, forwarded from the wire
+     *  `GameState.playerProtectionFromEverything`. Read by
+     *  `usePlayerInteraction` so a protected player's nameplate stops reading
+     *  as a click-to-target candidate (the server rejects it anyway; the gate
+     *  keeps the Arena-style UX honest, exactly like the shroud gate). */
+    playerProtectionFromEverything?: string[];
     gameOver?: GameOver;
     allPlayers: Player[];
     /** CR 114 (issue #1221) — command-zone emblems, forwarded from the wire

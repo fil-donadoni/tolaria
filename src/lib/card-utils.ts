@@ -143,10 +143,11 @@ export function activeManaSpendChoice(
 }
 
 /** CR 302.1 — a creature with summoning sickness cannot pay the {T} or {Q}
- *  cost of an activated ability. Mirrors `isTapLockedBySummoningSickness`
- *  in convex/gre/constants.ts. */
+ *  cost of an activated ability; CR 702.10b — haste lifts the restriction.
+ *  Mirrors `isTapLockedBySummoningSickness` in convex/gre/constants.ts. */
 export function isTapLockedBySummoningSickness(card: CardInstance): boolean {
-    return !!card.isSummoningSick && isCreature(card);
+    if (!card.isSummoningSick || !isCreature(card)) return false;
+    return !(card.staticAbilities?.includes("haste") ?? false);
 }
 
 /**

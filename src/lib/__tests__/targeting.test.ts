@@ -282,3 +282,29 @@ describe("isPlayerUntargetableByPending — player-scoped shroud (CR 702.18 / 11
         expect(isPlayerUntargetableByPending(players, "p2")).toBe(false);
     });
 });
+
+// The One Ring (#674) — protection from everything bars targeting on the same
+// unconditional terms as shroud, so it folds into the same client gate. Unlike
+// shroud it is NOT derived from a battlefield permanent: it's the wire
+// designation `GameState.playerProtectionFromEverything`, threaded through
+// GameContext into `usePlayerInteraction` / `useDivideTargets`.
+describe("isPlayerUntargetableByPending — protection from everything (CR 702.16b/i / 115.4, #674)", () => {
+    function board(): Player[] {
+        return [player({ id: "p1" }), player({ id: "p2" })];
+    }
+
+    it("marks a protected player as not clickable with no permanent on board", () => {
+        expect(isPlayerUntargetableByPending(board(), "p1", ["p1"])).toBe(true);
+    });
+
+    it("leaves the unprotected player clickable", () => {
+        expect(isPlayerUntargetableByPending(board(), "p2", ["p1"])).toBe(
+            false
+        );
+    });
+
+    it("no designation on the wire leaves both players clickable (no regression)", () => {
+        expect(isPlayerUntargetableByPending(board(), "p1")).toBe(false);
+        expect(isPlayerUntargetableByPending(board(), "p1", [])).toBe(false);
+    });
+});

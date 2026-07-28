@@ -894,31 +894,16 @@ export const iceCauldron: CardDefinition = {
         },
     ],
 };
-// Icy Manipulator — {1}, {T}: Tap target artifact, creature, or land (CR 605
-// activated ability; CR 701.20a tap). The classic tapper; the multi-type target
-// is expressed as a CardType array.
-export const icyManipulator: CardDefinition = {
-    id: "1eda936f-7691-4440-9b83-eb0c6035b109",
-    name: "Icy Manipulator",
+// Icy Manipulator — ICE reprint of the LEA definition (CardPrint, ADR 0014).
+// It was originally duplicated here as a second `CardDefinition`, which both
+// broke the one-definition-per-card rule and claimed ICE as its home set; the
+// card's earliest paper printing is Alpha (ADR 0041), so the mechanics live in
+// `lea/colorless.ts` and ICE declares only this printing.
+export const icyManipulatorIce: CardPrint = {
+    printId: "1eda936f-7691-4440-9b83-eb0c6035b109",
+    definitionId: "29dc1596-a2e7-4d60-9f99-89babaef8a06", // icyManipulator (LEA)
+    setCode: "ice",
     rarity: "uncommon",
-    oracleText: "{1}, {T}: Tap target artifact, creature, or land.",
-    manaCost: { X: 4 },
-    types: ["Artifact"],
-    activatedAbilities: [
-        {
-            id: "icy-manipulator-tap",
-            oracleText: "{1}, {T}: Tap target artifact, creature, or land.",
-            cost: { mana: { X: 1 }, tap: true },
-            useStack: true,
-            targetRequirement: {
-                type: ["Artifact", "Creature", "Land"],
-                count: 1,
-            },
-            // Migrated resolve()→effects[] (ADR 0045, #842): tap the announced
-            // artifact/creature/land target (CR 701.26a).
-            effects: [{ op: "tapUntap", action: "tap", target: { target: 0 } }],
-        },
-    ],
 };
 // Infinite Hourglass — upkeep time-counter accrual + a counter-scaled anthem +
 // an any-player {3} counter-removal restricted to upkeep steps (CR 603.6a phase

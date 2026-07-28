@@ -13,6 +13,7 @@ import ActivatableAbilityMenu from "./activatable-ability-menu";
 import CounterBadges from "./counter-badges";
 import PlaneswalkerLoyaltyBadge from "./planeswalker-loyalty-badge";
 import NotedManaBadge from "./noted-mana-badge";
+import SummoningSicknessBadge from "./summoning-sickness-badge";
 import { useAbilityCardClick } from "~/hooks/useAbilityCardClick";
 
 export type CardVisualState = {
@@ -162,6 +163,7 @@ export default function BattlefieldCard({
             {darkenOverlay}
             {badgeEl}
             <CounterBadges card={card} />
+            <SummoningSicknessBadge card={card} />
             <NotedManaBadge card={card} />
             {ptDamageStack}
             <PlaneswalkerLoyaltyBadge card={card} />

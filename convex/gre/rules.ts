@@ -28,7 +28,10 @@ import {
     manaValue,
 } from "./constants";
 import { STATIC_EFFECT_CTX, getEffectivePower } from "./layers";
-import { isProtectedFromColors } from "./protection";
+import {
+    isProtectedFromColors,
+    playerHasProtectionFromEverything,
+} from "./protection";
 import { isGuardedAgainst, playerHasShroud } from "./permanentGuard";
 import {
     castProhibitionReason,
@@ -92,6 +95,7 @@ export {
     isProtectedFromColors,
     isProtectedFromSource,
     parseProtectionFromColor,
+    playerHasProtectionFromEverything,
 } from "./protection";
 
 // ADR 0068 (PRD #1407, issues #1408 / #1409 / #1410) — the low-level color/
@@ -1789,6 +1793,14 @@ export function getLegalTargets(
             // source-controller exception, so no `actionSource` is threaded.
             // Always-on gate (ADR 0068) — stays outside the registry.
             if (playerHasShroud(state, player.id)) continue;
+            // CR 702.16b/i (applied to a player via CR 115.4) — a player with
+            // protection from everything "can't be the target of spells or
+            // abilities" from ANY source, their own included (The One Ring,
+            // issue #674). Like shroud, an always-on gate with no
+            // source-controller exception, so no `actionSource` is threaded.
+            // `selectTarget` runs the SAME predicate against the submitted
+            // target, so the offered set and the accepted set can't diverge.
+            if (playerHasProtectionFromEverything(state, player.id)) continue;
             targets.push({ type: "player", id: player.id });
         }
     }

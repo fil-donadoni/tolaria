@@ -89,3 +89,24 @@ export function isProtectedFromSource(
 ): boolean {
     return isProtectedFromColors(target, STATIC_EFFECT_CTX.getColors(source));
 }
+
+/** True if `playerId` currently has PROTECTION FROM EVERYTHING (CR 702.16i
+ *  applied to a player via CR 115.4 — The One Ring, issue #674).
+ *
+ *  The SINGLE authority for the player-scoped variant: every consumer reads
+ *  this one predicate — `getLegalTargets` (the offered set) and the
+ *  `selectTarget` mutation (the accepted set) so they can't diverge, plus
+ *  `applyPlayerDamagePrevention` (CR 702.16e). Unlike the colour-parameterized
+ *  card-scoped helpers above, it takes no source characteristics at all:
+ *  protection from EVERYTHING is protection from each and every object
+ *  regardless of its characteristics (CR 702.16i), with no controller
+ *  exception — the protected player's own spells and sources are barred too.
+ *
+ *  Typed structurally (not as `GameState`) so the pure predicate stays
+ *  importable from the client, exactly like `playerHasShroud`. */
+export function playerHasProtectionFromEverything(
+    state: { playerProtectionFromEverything?: readonly string[] },
+    playerId: string
+): boolean {
+    return state.playerProtectionFromEverything?.includes(playerId) ?? false;
+}

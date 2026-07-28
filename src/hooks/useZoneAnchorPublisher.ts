@@ -59,11 +59,15 @@ export function useZoneAnchorPublisher({
         items.forEach((item, i) => {
             const p = placements[i];
             if (!p) return;
-            publish(kind, item.key, {
-                x: offset.x + p.x,
-                y: offset.y + p.y,
-            });
-            publishedIds.push(item.key);
+            const point = { x: offset.x + p.x, y: offset.y + p.y };
+            // The slot key is a LAYOUT identity, which for a fanned permanent
+            // stack / phased slot / aura host is not a card-instance id. Every
+            // instance the slot renders gets the slot's center so a target
+            // arrow to a non-lead member resolves instead of being dropped.
+            for (const id of item.anchorIds ?? [item.key]) {
+                publish(kind, id, point);
+                publishedIds.push(id);
+            }
         });
 
         return () => {

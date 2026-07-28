@@ -309,6 +309,13 @@ export interface StackItem extends CardInstance {
     abilityId?: string;
     /** If set, this stack item is a triggered ability (CR 603). */
     triggeredAbilityId?: string;
+    /** Instance id of the permanent that produced this trigger — the id on the
+     *  battlefield, NOT this synthetic stack item's id. Survives the wire
+     *  projection via `slimCard`; declared here so target arrows can originate
+     *  at the source permanent rather than the stack row
+     *  (`target-arrow-geometry.ts`). Undefined for spells and for triggers with
+     *  no permanent source. */
+    triggerSourceId?: string;
     /** Storm (CR 702.40, ADR 0052) — present only on the synthesized storm
      *  cast-trigger stack item (`triggeredAbilityId === "storm"`): copies
      *  still to be created as this trigger resolves. Useful for a "N copies

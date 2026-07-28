@@ -2951,6 +2951,13 @@ export interface SpellContext {
     /** Sets Island Sanctuary protection: the given player can only be attacked
      *  by creatures with flying or islandwalk until their next turn. */
     setIslandSanctuaryProtection: (playerId: string) => void;
+    /** Grants `playerId` PROTECTION FROM EVERYTHING until their next turn
+     *  (CR 702.16b/e/i applied to a player via CR 115.4 — The One Ring): they
+     *  can't be the target of any spell or ability, and all damage that would
+     *  be dealt to them is prevented. No source exception — their own spells
+     *  and sources are barred too. Idempotent per player (CR 702.16m);
+     *  the grant is dropped at the START of that player's next turn. */
+    setPlayerProtectionFromEverything: (playerId: string) => void;
     /** Adds a one-shot damage cap shield (Forcefield, CR 615). The next time
      *  an unblocked creature deals combat damage to `playerId`, reduce to
      *  `maxDamage`. Consumed on first use; cleared at CLEANUP. */
@@ -9823,6 +9830,31 @@ export type EffectOp =
      *  "generalize, don't add" — nothing else to generalize against yet).
      *  Skipped when the player cannot be resolved (CR 608.2b). */
     | { op: "setIslandSanctuaryProtection"; player: EffectPlayerRef }
+    /** CR 702.16b/e/i (issue #674) — "you gain protection from everything until
+     *  your next turn" (The One Ring). A thin declarative skin over the single
+     *  SpellContext primitive `setPlayerProtectionFromEverything`, one
+     *  execution path (ADR 0045): adds `player`'s id to
+     *  `state.playerProtectionFromEverything`, read by the player-target gate
+     *  (`playerHasProtectionFromEverything`, called by BOTH `getLegalTargets`
+     *  and the `selectTarget` mutation) and by `applyPlayerDamagePrevention`
+     *  (the one chokepoint every player-damage sink routes through), and
+     *  cleared at the START of that player's next turn (`convex/gre/phases.ts`)
+     *  — the same "until your next turn" boundary
+     *  `setIslandSanctuaryProtection` / `grantCastTiming` use, NOT CLEANUP.
+     *
+     *  PLAYER-scoped and unconditional, which is what distinguishes it from
+     *  every other protection surface: the card-scoped keyword
+     *  (`staticAbilities: ["protection from <colour>"]`, `gre/protection.ts`)
+     *  is colour-parameterized and lives on a permanent, and `preventDamage`
+     *  establishes a FINITE / source-matched shield. Protection from
+     *  EVERYTHING is protection from each and every object regardless of
+     *  characteristics (CR 702.16i) with no controller exception, so there is
+     *  nothing to parameterize — hence a single-purpose skin rather than a
+     *  generalized "player gains protection from Q" grammar (ADR 0045
+     *  "generalize, don't add" — The One Ring is the only printed card with
+     *  this shape). Duration is intrinsic, no `duration` field.
+     *  Skipped when the player cannot be resolved (CR 608.2b). */
+    | { op: "setProtectionFromEverything"; player: EffectPlayerRef }
     /** CR 118.4 / 121.1 (issue #1283) — Sylvan Library's single ranged 0..N
      *  "cards drawn this turn" hand pick, with a per-NOT-chosen life cost. A
      *  thin declarative composition over EXISTING SpellContext primitives —

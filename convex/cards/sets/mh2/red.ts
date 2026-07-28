@@ -102,7 +102,7 @@ export const fury: CardDefinition = {
 // or more card types among cards in your graveyard." (Delirium ability word —
 // engine infra, no registry row.)
 export const unholyHeat: CardDefinition = {
-    id: "4e879386-b1f8-4f2a-9820-6e1291746f88",
+    id: "2b73d294-6ab1-4051-9b0f-d8e335d37674",
     rarity: "common",
     name: "Unholy Heat",
     oracleText:

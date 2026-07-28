@@ -30,6 +30,7 @@ import { isUntargetableByPending } from "~/lib/targeting";
 import { activeSacrificeSelection } from "~/lib/sacrifice-selection";
 import { outstandingDamageAssigner } from "~/lib/priority";
 import { extractMutationError, type MutationError } from "~/lib/mutation-error";
+import { trackGameIntent } from "~/lib/pending-intent-store";
 import type { ActivatableAbility } from "~/components/board/battlefield-card";
 import ManaChoicePicker from "~/components/board/mana-choice-picker";
 import CastCostDialog from "~/components/cards/cast-cost-dialog";
@@ -162,7 +163,12 @@ export function useBattlefieldInteraction(player: Player) {
     } | null>(null);
 
     function guardMutation(promise: Promise<unknown>) {
-        promise.catch((err) => {
+        // Registered as an in-flight game intent for the round-trip so the
+        // Space hotkey can't fall through to `passPriority` in the window
+        // between dispatching (e.g. an ability activation) and the payment
+        // banner / prompt actually rendering — that reflex keystroke used to
+        // advance the phase instead (see `pending-intent-store.ts`).
+        trackGameIntent(promise).catch((err) => {
             setValidationError(extractMutationError(err));
         });
     }

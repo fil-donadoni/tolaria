@@ -10,6 +10,7 @@ import { useHandCardCommit } from "~/hooks/useHandCardCommit";
 import { useDragToCommit } from "~/hooks/useDragToCommit";
 import { buildTriggerStateView, getHandStackAbilities } from "~/lib/card-utils";
 import { extractMutationErrorMessage } from "~/lib/mutation-error";
+import { trackGameIntent } from "~/lib/pending-intent-store";
 import CardImage from "../cards/card-image";
 import CardTilt3D from "./card-tilt-3d";
 import SeenByOpponentBadge from "./seen-by-opponent-badge";
@@ -172,13 +173,15 @@ export default function BoardHandCard({
     //    no legal cast at an empty stack — cycles);
     //  - drag always commits the primary play/cast (unchanged).
     const activateHandAbility = (abilityId: string, keepPriority: boolean) => {
-        void activateAbility({
-            gameId,
-            playerId,
-            cardInstanceId: card.id,
-            abilityId,
-            ...(keepPriority ? { keepPriority: true } : {}),
-        }).catch((err) => console.error(extractMutationErrorMessage(err)));
+        void trackGameIntent(
+            activateAbility({
+                gameId,
+                playerId,
+                cardInstanceId: card.id,
+                abilityId,
+                ...(keepPriority ? { keepPriority: true } : {}),
+            })
+        ).catch((err) => console.error(extractMutationErrorMessage(err)));
     };
     const primaryAvailable = canPlay || canCast;
     const optionCount = handAbilities.length + (primaryAvailable ? 1 : 0);

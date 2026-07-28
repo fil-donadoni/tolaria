@@ -32,8 +32,13 @@ export type DivideTargetItem =
  *  (`wantsPlayerTarget` + attacked-this-turn + shroud gate) — so the dialog and
  *  the board agree on the target set. Returns `[]` outside a divide selection. */
 export function useDivideTargets(): DivideTargetItem[] {
-    const { allPlayers, activePlayerId, playerId, pendingTarget } =
-        useGameContext();
+    const {
+        allPlayers,
+        activePlayerId,
+        playerId,
+        pendingTarget,
+        playerProtectionFromEverything,
+    } = useGameContext();
 
     if (
         !pendingTarget ||
@@ -71,13 +76,18 @@ export function useDivideTargets(): DivideTargetItem[] {
     }
 
     // Player targets ("any" / "player") — mirror `usePlayerInteraction`'s
-    // `isTargetable` (CR 506.2 attacked-this-turn gate + CR 702.18 shroud gate).
+    // `isTargetable` (CR 506.2 attacked-this-turn gate + CR 702.18 shroud /
+    // CR 702.16b protection-from-everything gate).
     if (wantsPlayerTarget(pendingTarget.targetType)) {
         for (const p of allPlayers) {
             if (
                 (!pendingTarget.playerAttackedThisTurn ||
                     p.battlefield.some((c) => c.hasAttackedThisTurn)) &&
-                !isPlayerUntargetableByPending(allPlayers, p.id)
+                !isPlayerUntargetableByPending(
+                    allPlayers,
+                    p.id,
+                    playerProtectionFromEverything
+                )
             ) {
                 items.push({
                     type: "player",

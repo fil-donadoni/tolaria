@@ -21,6 +21,16 @@ export type SpatialItem = {
     zIndex?: number;
     /** The card just changed zone — the slot plays the arrival glow. */
     arrivalGlow?: boolean;
+    /** Every card-instance id this ONE slot renders, for the arrow-anchor
+     *  registry. A slot is not always one card: a fanned permanent stack (PRD
+     *  #621) holds N interchangeable copies, and a host slot also carries its
+     *  attached auras / equipment. Its `key` is the slot's layout identity
+     *  (`stack:<identityKey>`, `phased:<id>`, the lead member's id) — NOT
+     *  something a `TargetSelection` can name — so publishing only the key left
+     *  every non-lead instance anchorless and its target arrow silently
+     *  undrawn. Each listed id resolves to this slot's placement center.
+     *  Omitted ⇒ the slot covers exactly `key`. */
+    anchorIds?: string[];
 };
 
 type SpatialZoneProps = {

@@ -3520,6 +3520,16 @@ export const OP_EXECUTORS: {
         if (playerId === undefined) return;
         ctx.setIslandSanctuaryProtection(playerId);
     },
+    // CR 702.16b/e/i (issue #674) — "you gain protection from everything until
+    // your next turn" (The One Ring). A thin declarative skin over the single
+    // SpellContext primitive `setPlayerProtectionFromEverything`, one
+    // execution path (ADR 0045). Skipped when the player cannot be resolved
+    // (CR 608.2b).
+    setProtectionFromEverything(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return;
+        ctx.setPlayerProtectionFromEverything(playerId);
+    },
     // CR 118.4 / 121.1 (issue #1283) — a single ranged 0..N pick over the
     // resolved player's "drawn this turn" hand cards: each NOT selected costs
     // `costPerKept` life (CR 119.4 floor clamp), each selected goes to the

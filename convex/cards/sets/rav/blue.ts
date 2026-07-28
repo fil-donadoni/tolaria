@@ -9,7 +9,7 @@ import type { CardDefinition } from "../../types";
 // unconditional counter + draw — no mayPay/if — so the effect is two Ops in
 // sequence.
 export const remand: CardDefinition = {
-    id: "a5048047-abff-4a1f-8d72-6b758a03542c",
+    id: "581f3780-c480-48c6-b15c-1618f2feccb9",
     rarity: "uncommon",
     name: "Remand",
     oracleText:

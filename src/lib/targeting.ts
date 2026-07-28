@@ -145,7 +145,16 @@ export function isUntargetableByPending(
  *  including the guarded player's own spells/abilities. */
 export function isPlayerUntargetableByPending(
     players: Player[],
-    candidatePlayerId: string
+    candidatePlayerId: string,
+    protectedPlayerIds?: string[]
 ): boolean {
+    // CR 702.16b/i (issue #674, The One Ring) — protection from everything bars
+    // targeting on the same unconditional terms as shroud (no controller
+    // exception, the protected player's own spells included), so it folds into
+    // the same guard. Unlike shroud it isn't derived from a battlefield
+    // permanent's static effect: it's a turn-scoped player designation carried
+    // on the wire as `GameState.playerProtectionFromEverything`, which is why
+    // it arrives as a parameter instead of being read off `players`.
+    if (protectedPlayerIds?.includes(candidatePlayerId)) return true;
     return playerHasShroud(toGuardState(players), candidatePlayerId);
 }

@@ -1084,6 +1084,18 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // Island Sanctuary's hand-written combat test.
             req.skip ??= `Op "setIslandSanctuaryProtection" only manifests at a later declare-attackers step — covered by hand-written tests`;
             return;
+        case "setProtectionFromEverything":
+            // CR 702.16b/e/i (issue #674) — protection from everything is a
+            // GLOBAL player-scoped designation (`GameState.
+            // playerProtectionFromEverything`), not a per-permanent /
+            // per-player-resource delta the canned generator's assertion
+            // vocabulary models (battlefield / graveyard / life / counter).
+            // Its observable effects — an untargetable player, prevented
+            // damage — only manifest against a LATER spell or damage event.
+            // Explicit skip, mirroring `becomeMonarch`; covered by the Op's
+            // own interpreter tests plus The One Ring's hand-written tests.
+            req.skip ??= `Op "setProtectionFromEverything" sets a global player-scoped protection designation — covered by the Op's interpreter tests`;
+            return;
         case "rangedTopdeck":
             // CR 118.4 / 121.1 (issue #1283) — a suspending ranged `choose-
             // hand-card` pick over a "drawn this turn" candidate pool the
@@ -2241,6 +2253,15 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // 1:1 coverage guard; the Op's own interpreter test plus Island
     // Sanctuary's hand-written combat test are the behavioural guarantor.
     setIslandSanctuaryProtection() {
+        return null;
+    },
+    // `setProtectionFromEverything` (CR 702.16b/e/i, issue #674) — never
+    // reached: `analyseOp` skips every script with this Op (a global
+    // player-scoped designation whose effects only manifest against a LATER
+    // spell or damage event). Kept for the 1:1 coverage guard; the Op's own
+    // interpreter tests plus The One Ring's hand-written targeting/damage/
+    // expiry tests are the behavioural guarantor.
+    setProtectionFromEverything() {
         return null;
     },
     // `rangedTopdeck` (CR 118.4 / 121.1, issue #1283) — never reached:

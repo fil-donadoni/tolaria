@@ -87,6 +87,7 @@ const EMBLEM_VALUE = 150; // a durable, uncounterable ultimate-style effect
 const EXTRA_TURN_VALUE = 300; // CR 500.7 — an entire additional turn
 const WIN_GAME_VALUE = 100000; // CR 104.2a — an alternate win condition
 const ISLAND_SANCTUARY_PROTECTION_VALUE = 20; // player-wide "can't be attacked except by flying/islandwalk" — ground-only, tempered protection
+const PROTECTION_FROM_EVERYTHING_VALUE = 45; // player-wide untargetable + ALL damage prevented for a full turn cycle — strictly stronger than Island Sanctuary (no evasion carve-out, covers burn and abilities too)
 const RANGED_TOPDECK_PER_CARD = 3; // Sylvan Library-style selection upside per pool card, smaller than putBack since it's an optional life-gated pick, not a free reorder
 
 // --- Backfill-Op point weights (issue #1515) --------------------------------
@@ -785,6 +786,18 @@ const setIslandSanctuaryProtection: Valuer<
     tags: ["protection"],
 });
 
+// "You gain protection from everything until your next turn" (The One Ring,
+// CR 702.16b/e/i) — the strongest defensive Op in the vocabulary: it blanks
+// EVERY damage source and every targeted removal/burn aimed at the player for
+// a full turn cycle, with no evasion carve-out to play around (contrast
+// `setIslandSanctuaryProtection`, which only stops ground attackers).
+const setProtectionFromEverything: Valuer<
+    "setProtectionFromEverything"
+> = () => ({
+    points: PROTECTION_FROM_EVERYTHING_VALUE,
+    tags: ["protection"],
+});
+
 const reveal: Valuer<"reveal"> = () => ZERO_OP_VALUE;
 
 // A private look at a random hand card grants information, no board material.
@@ -896,6 +909,7 @@ export const OP_VALUERS: {
     grantCastTiming,
     restrictCombat,
     setIslandSanctuaryProtection,
+    setProtectionFromEverything,
     reveal,
     lookRandomHand,
     scryReorder,

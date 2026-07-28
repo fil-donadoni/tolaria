@@ -4,6 +4,7 @@ import { api } from "@convex/_generated/api";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useAttackSequence } from "~/hooks/useAttackSequence";
 import { usePendingChoicePrimaryAction } from "~/hooks/usePendingChoicePrimaryAction";
+import { usePendingGameIntent } from "~/hooks/usePendingGameIntent";
 import { isEditableTarget } from "~/lib/editable-target";
 import { eligibleAttackerIds } from "~/lib/attacker-eligibility";
 import { isPlaneswalker } from "~/lib/card-utils";
@@ -101,6 +102,11 @@ export function useControllerActions(): ControllerState {
     // instead of passing priority (passPriority is rejected while a choice is
     // pending — `assertNoPendingChoices`).
     const pendingChoiceAction = usePendingChoicePrimaryAction();
+
+    // True while a cast / play / activation this client dispatched is still
+    // round-tripping. Gates ONLY the pass-priority / end-turn fall-throughs in
+    // the hotkey handler below — see `pending-intent-store.ts`.
+    const hasPendingIntent = usePendingGameIntent();
 
     const priorityCtx = {
         playerId,
@@ -355,7 +361,14 @@ export function useControllerActions(): ControllerState {
                     if (allDamageAssigned) {
                         confirmDamage({ gameId, playerId });
                     }
-                } else {
+                } else if (!hasPendingIntent) {
+                    // The fall-through — and ONLY the fall-through — is gated on
+                    // "no client intent in flight". Clicking a card to cast it
+                    // opens the payment banner only after the round-trip; a
+                    // Space pressed inside that window still saw no
+                    // `pendingCast` and passed priority instead of auto-tapping,
+                    // silently burning the turn. Drop the keystroke rather than
+                    // reinterpret it (`pending-intent-store.ts`).
                     handlePass();
                 }
             }
@@ -377,7 +390,10 @@ export function useControllerActions(): ControllerState {
                     cancelAttackTax({ gameId, playerId });
                 } else if (isAutoPass || isQueuedEndTurn) {
                     handleCancelAutoPass();
-                } else {
+                } else if (!hasPendingIntent) {
+                    // Same window as Space's fall-through above: Enter meant as
+                    // "cancel the payment I just started" must not end the turn
+                    // because the banner hasn't rendered yet.
                     handleEndTurn();
                 }
             }
@@ -386,6 +402,7 @@ export function useControllerActions(): ControllerState {
         return () => window.removeEventListener("keydown", onKeyDown);
     }, [
         isBusy,
+        hasPendingIntent,
         handlePass,
         handleEndTurn,
         handleCancelAutoPass,

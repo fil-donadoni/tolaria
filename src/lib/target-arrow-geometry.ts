@@ -102,12 +102,45 @@ function resolveTarget(
 }
 
 /**
+ * Where a stack item's target arrows START.
+ *
+ * A **spell** is the object on the stack, so its arrows leave the stack row.
+ * An **ability** is not: its source permanent is still sitting on the
+ * battlefield (CR 602.2a / 603.3), and that is the object the player reads the
+ * effect as coming from — "Arc Mage is shooting these two things", not "row 2
+ * of the stack panel is". So an ability's arrows originate at its source
+ * permanent, falling back to the stack row when the source has no anchor (it
+ * left the battlefield, or the trigger came from a non-permanent source).
+ *
+ * An activated ability's stack item is a clone of its source instance, so it
+ * carries the source's own id; a triggered ability records it separately in
+ * `triggerSourceId` (its stack-item id is synthetic).
+ */
+function resolveArrowSource(
+    item: StackItem,
+    anchors: AnchorMap
+): { id: string; point: AnchorPoint } | null {
+    const isAbility = !!item.abilityId || !!item.triggeredAbilityId;
+    if (isAbility) {
+        const sourceId = item.triggerSourceId ?? item.id;
+        const onBoard = anchors.permanent[sourceId];
+        // The node id follows the endpoint, so hovering the source permanent
+        // lights the arrows it actually emits.
+        if (onBoard) return { id: sourceId, point: onBoard };
+    }
+    const row = anchors.stack[item.id];
+    return row ? { id: item.id, point: row } : null;
+}
+
+/**
  * Build the arrow set for the current stack from resolved anchor points.
  *
- * One arrow per `(stack item → target)` pair. A pair is skipped when either
- * endpoint has no anchor yet (the registry hasn't published it), so partially
- * laid-out boards never draw an arrow into the origin. Arrow keys are stable
- * across renders so React reconciles rather than remounts as placements move.
+ * One arrow per `(stack item → target)` pair — every target, not just the
+ * last: a divide-as-you-choose spell (Arc Lightning's three) draws one arrow
+ * each. A pair is skipped when either endpoint has no anchor yet (the registry
+ * hasn't published it), so partially laid-out boards never draw an arrow into
+ * the origin. Arrow keys are stable across renders so React reconciles rather
+ * than remounts as placements move.
  */
 export function buildTargetArrows(
     stack: StackItem[],
@@ -116,8 +149,9 @@ export function buildTargetArrows(
     const arrows: TargetArrow[] = [];
     for (const item of stack) {
         if (!item.targets || item.targets.length === 0) continue;
-        const from = anchors.stack[item.id];
-        if (!from) continue;
+        const source = resolveArrowSource(item, anchors);
+        if (!source) continue;
+        const from = source.point;
         for (const target of item.targets) {
             const to = resolveTarget(target, anchors);
             if (!to) continue;
@@ -126,7 +160,7 @@ export function buildTargetArrows(
                     target.playerId ?? ""
                 }`,
                 kind: "target",
-                fromId: item.id,
+                fromId: source.id,
                 toId: target.id,
                 from,
                 to,

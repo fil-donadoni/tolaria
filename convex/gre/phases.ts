@@ -2926,6 +2926,20 @@ function advanceTurn(state: GameState): void {
     ) {
         state.islandSanctuaryProtection = undefined;
     }
+    // The One Ring (CR 702.16b/e/i, issue #674) — "you gain protection from
+    // everything UNTIL YOUR NEXT TURN": drop the grantee's entry the moment
+    // their own next turn begins (same boundary as islandSanctuaryProtection /
+    // castTimingFlashGrants, NOT CLEANUP — the protection has to survive the
+    // whole intervening opponent turn, which is the entire point of the card).
+    if (state.playerProtectionFromEverything) {
+        state.playerProtectionFromEverything =
+            state.playerProtectionFromEverything.filter(
+                (id) => id !== state.activePlayerId
+            );
+        if (state.playerProtectionFromEverything.length === 0) {
+            state.playerProtectionFromEverything = undefined;
+        }
+    }
     // Teferi, Time Raveler +1 (CR 601.3e) — a "cast as though it had flash"
     // grant lasts "until your next turn"; drop the grantee's entries the moment
     // their own next turn begins (same boundary as islandSanctuaryProtection).

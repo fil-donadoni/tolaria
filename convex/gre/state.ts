@@ -91,7 +91,10 @@ import {
     openMadnessCastWindow,
 } from "./madness";
 import { markReboundExiled, openReboundCastWindow } from "./rebound";
-import { isProtectedFromSource } from "./protection";
+import {
+    isProtectedFromSource,
+    playerHasProtectionFromEverything,
+} from "./protection";
 import { isGuardedAgainst } from "./permanentGuard";
 import { getEffectiveBlockGraph } from "./banding";
 import { validateBlockerEligibility } from "./combat";
@@ -3080,6 +3083,30 @@ export type GameState = {
      *  by creatures with flying or islandwalk. Cleared at the start of that
      *  player's next turn (via advanceTurn). */
     islandSanctuaryProtection?: string;
+    /** CR 702.16b/e/i (issue #674, The One Ring) — the players who currently
+     *  have PROTECTION FROM EVERYTHING. Protection from everything is protection
+     *  from each and every object regardless of its characteristics
+     *  (CR 702.16i), so for a PLAYER (CR 115.4) exactly two of protection's
+     *  clauses apply and both are unconditional — no source-controller
+     *  exception, the protected player's OWN spells and sources included:
+     *    - CR 702.16b — they can't be the target of any spell or ability
+     *      (`playerHasProtectionFromEverything`, read by BOTH `getLegalTargets`
+     *      and the `selectTarget` mutation so the offered set and the accepted
+     *      set can't diverge).
+     *    - CR 702.16e — all damage that would be dealt to them is prevented
+     *      (`applyPlayerDamagePrevention`, the single chokepoint every
+     *      player-damage sink already routes through). Being ATTACKED is still
+     *      legal — protection prevents the damage, it doesn't bar the attack.
+     *  Protection's remaining clauses (blocked / enchanted / equipped,
+     *  CR 702.16c/d/f) are permanent-only and have no player analogue.
+     *  Each grantee's entry is dropped at the START of THEIR OWN next turn
+     *  (via `advanceTurn`) — the "until your next turn" boundary, mirroring
+     *  `castTimingFlashGrants`, NOT CLEANUP. A LIST rather than a single slot
+     *  (unlike `islandSanctuaryProtection`) because both players can hold the
+     *  protection at once — each casting their own The One Ring on successive
+     *  turns overlaps the two windows, and a single slot would clobber the
+     *  first grant. */
+    playerProtectionFromEverything?: string[];
     /** CR 601.3e (Teferi, Time Raveler +1) — per-player "you may cast spells of
      *  these types as though they had flash" grants. Each entry lets `playerId`
      *  cast a spell whose printed types intersect `cardTypes` (omitted/empty =
@@ -3549,6 +3576,14 @@ export function applyPlayerDamagePrevention(
     sourceStaticAbilities: ReadonlyArray<string> | undefined,
     amount: number
 ): number {
+    // CR 702.16e/i (issue #674, The One Ring) — a player with protection from
+    // everything has ALL damage headed at them prevented, from every source
+    // (their own included: protection from EVERYTHING has no source
+    // exception). Checked BEFORE the shield walk so no finite shield is spent
+    // absorbing damage that was never going to land. Damage flagged
+    // unpreventable bypasses this the same way it bypasses every other
+    // prevention — those call sites skip this function entirely (CR 615.1).
+    if (playerHasProtectionFromEverything(state, playerId)) return 0;
     const shields = state.playerDamagePrevention;
     if (!shields || shields.length === 0) return amount;
     let remaining = amount;
@@ -11348,6 +11383,18 @@ export function buildSpellContext(
 
         setIslandSanctuaryProtection(playerId: string): void {
             state.islandSanctuaryProtection = playerId;
+        },
+
+        setPlayerProtectionFromEverything(playerId: string): void {
+            // CR 702.16b/e/i / 702.16m — "you gain protection from everything
+            // until your next turn" (The One Ring). Idempotent per player:
+            // duplicate instances of protection are redundant (CR 702.16m), so
+            // a re-grant while one is already live is a no-op rather than a
+            // second entry. The window is re-derived from the grantee's next
+            // turn start in `advanceTurn`, so re-arming can't extend it.
+            const list = state.playerProtectionFromEverything ?? [];
+            if (!list.includes(playerId)) list.push(playerId);
+            state.playerProtectionFromEverything = list;
         },
 
         grantCastTiming(playerId: string, cardTypes?: CardType[]): void {

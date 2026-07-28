@@ -1224,6 +1224,7 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "landManaRidersThisTurn",
     "damageCapShields",
     "islandSanctuaryProtection",
+    "playerProtectionFromEverything",
     "castTimingFlashGrants",
     "allCreaturesMustAttack",
     "abilityResolutionCounts",

@@ -127,6 +127,17 @@ describe("isTapLockedBySummoningSickness (CR 302.1)", () => {
         });
         expect(isTapLockedBySummoningSickness(mox)).toBe(false);
     });
+
+    it("does not lock a summoning-sick creature with haste (CR 702.10b)", () => {
+        // Haste lets a creature pay {T}/{Q} the turn it arrives, exactly as it
+        // lets it attack. Reads `staticAbilities`, so `grantAbility`-granted
+        // haste (Ray of Command) counts the same as printed haste.
+        const card = makeInstance("55fe6449-1f23-43dc-adee-d144cd505b5c", {
+            isSummoningSick: true,
+            staticAbilities: ["haste"],
+        });
+        expect(isTapLockedBySummoningSickness(card)).toBe(false);
+    });
 });
 
 // CR 106.4 — "could produce": the set of colors a source could add regardless

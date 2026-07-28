@@ -1,6 +1,7 @@
 // SOC set barrel — re-exports every colour module so the registry's
 // `import * as soc from "./sets/soc"` resolves here unchanged (ADR 0043).
-// colorless.ts is currently stub-only (Staff of the Storyteller, tracked-by
-// #1345).
+// colorless.ts currently holds only the Staff of the Storyteller REPRINT
+// (`CardPrint`); the definition lives in its home set `onc/white.ts` (earliest
+// paper printing, ADR 0041).
 
 export * from "./colorless";

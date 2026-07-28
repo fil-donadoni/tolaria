@@ -170,11 +170,17 @@ export function isCreature(card: CardInstanceState): boolean {
  *  its controller's control continuously since the start of that controller's
  *  most recent turn. Applies to mana abilities and stack abilities alike
  *  (Birds of Paradise, Llanowar Elves, Prodigal Sorcerer). Non-creature
- *  permanents (Mox, Sol Ring, lands) ignore summoning sickness. */
+ *  permanents (Mox, Sol Ring, lands) ignore summoning sickness.
+ *
+ *  CR 702.10b — haste lifts the restriction entirely: a hasty creature may pay
+ *  {T}/{Q} the turn it arrives. Reads `staticAbilities` directly so
+ *  `grantAbility`-granted haste counts too, mirroring the attacker check in
+ *  `combat.ts`. */
 export function isTapLockedBySummoningSickness(
     card: CardInstanceState
 ): boolean {
-    return !!card.isSummoningSick && isCreature(card);
+    if (!card.isSummoningSick || !isCreature(card)) return false;
+    return !card.staticAbilities.includes("haste");
 }
 
 export function isLand(card: CardInstanceState): boolean {

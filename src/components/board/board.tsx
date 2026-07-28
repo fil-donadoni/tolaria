@@ -391,6 +391,8 @@ export default function Board({
                 meleeCombat,
                 cannotActivateAbilitiesThisTurn,
                 lifeGainedThisTurn: state.lifeGainedThisTurn,
+                playerProtectionFromEverything:
+                    state.playerProtectionFromEverything,
                 gameOver,
                 allPlayers,
                 emblems: state.emblems,

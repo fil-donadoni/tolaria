@@ -2,6 +2,7 @@ import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useGameContext } from "~/hooks/useGameContext";
 import { extractMutationErrorMessage } from "~/lib/mutation-error";
+import { trackGameIntent } from "~/lib/pending-intent-store";
 
 /** CR 113.6 / 602.5b — activation affordance for an activated ability whose
  *  source is a card in the viewer's OWN graveyard (Ashen Ghoul's "{B}: Return
@@ -37,12 +38,14 @@ export default function GraveyardActivateButton({
                     type="button"
                     title={a.oracleText}
                     onClick={() => {
-                        activateAbility({
-                            gameId,
-                            playerId,
-                            cardInstanceId,
-                            abilityId: a.id,
-                        }).catch((err) => {
+                        trackGameIntent(
+                            activateAbility({
+                                gameId,
+                                playerId,
+                                cardInstanceId,
+                                abilityId: a.id,
+                            })
+                        ).catch((err) => {
                             // The button is only shown when
                             // `getGraveyardStackAbilities` judged the activation
                             // legal, so a rejection is an unexpected race

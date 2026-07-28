@@ -6,7 +6,7 @@ import type { CardDefinition } from "../../types";
 // + counter shape as Force Spike (leg/blue.ts), just a bigger tax (issue
 // #683).
 export const manaLeak: CardDefinition = {
-    id: "179236d9-6fe2-4db6-bdfb-f851e8d531a2",
+    id: "abcaf16d-aa02-43e2-aa38-bb1835d47a05",
     rarity: "common",
     name: "Mana Leak",
     oracleText: "Counter target spell unless its controller pays {3}.",

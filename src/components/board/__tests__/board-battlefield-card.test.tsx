@@ -403,3 +403,43 @@ describe("BoardBattlefieldCard click wiring (#272)", () => {
         ).toContain("cursor-not-allowed");
     });
 });
+
+// Persistent summoning-sickness marker (CR 302.6 / 702.10b). Sickness used to
+// be legible only while DECLARE_ATTACKERS dimmed ineligible creatures; the
+// badge is the turn-long signal, and haste suppresses it because a hasty
+// creature is under no restriction at all.
+describe("BoardBattlefieldCard summoning-sickness badge (CR 302.6)", () => {
+    beforeEach(() => cleanup());
+
+    const badge = (container: HTMLElement) =>
+        container.querySelector('[data-summoning-sick="true"]');
+
+    it("marks a summoning-sick creature", () => {
+        const { container } = renderCard(
+            makeCreature({ isSummoningSick: true }),
+            NEUTRAL_VS
+        );
+        expect(badge(container)).toBeTruthy();
+    });
+
+    it("does not mark a creature that has been around", () => {
+        const { container } = renderCard(makeCreature(), NEUTRAL_VS);
+        expect(badge(container)).toBeNull();
+    });
+
+    it("does not mark a summoning-sick creature with haste (CR 702.10b)", () => {
+        const { container } = renderCard(
+            makeCreature({ isSummoningSick: true, staticAbilities: ["haste"] }),
+            NEUTRAL_VS
+        );
+        expect(badge(container)).toBeNull();
+    });
+
+    it("does not mark a non-creature permanent that arrived this turn", () => {
+        const { container } = renderCard(
+            makeCreature({ isSummoningSick: true, types: ["Artifact"] }),
+            NEUTRAL_VS
+        );
+        expect(badge(container)).toBeNull();
+    });
+});

@@ -68,6 +68,7 @@ export function usePlayerInteraction(player: Player): PlayerInteraction {
         pendingTarget,
         pendingChoices,
         allPlayers,
+        playerProtectionFromEverything,
     } = useGameContext();
     const isMe = player.id === playerId;
     const hasPriority = player.id === priorityPlayerId;
@@ -92,7 +93,14 @@ export function usePlayerInteraction(player: Player): PlayerInteraction {
         // shrouded player as a click-to-target candidate; the server would
         // reject it anyway (issue #1128, mirrors the battlefield's
         // `isUntargetableByPending` gate for shrouded permanents, #382).
-        !isPlayerUntargetableByPending(allPlayers, player.id);
+        // CR 702.16b/i (issue #674) — same treatment for a player with
+        // protection from everything (The One Ring), folded into the same
+        // guard; it arrives as the wire designation, not a permanent's static.
+        !isPlayerUntargetableByPending(
+            allPlayers,
+            player.id,
+            playerProtectionFromEverything
+        );
 
     // Mid-resolution "any target of an opponent's choice" (CR 115.4 / 608.2,
     // Cuombajj Witches). The chooser (viewer == choice.playerId) may pick a

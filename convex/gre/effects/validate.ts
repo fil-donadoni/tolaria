@@ -2771,6 +2771,12 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     setIslandSanctuaryProtection: {
         required: { player: isPlayerRef },
     },
+    // CR 702.16b/e/i (issue #674) — "you gain protection from everything until
+    // your next turn" (The One Ring). `player` is the protected player; the
+    // duration is intrinsic, so no other fields.
+    setProtectionFromEverything: {
+        required: { player: isPlayerRef },
+    },
     // CR 118.4 / 121.1 (issue #1283) — a single ranged 0..N "drawn this turn"
     // hand pick with a per-NOT-chosen life cost (Sylvan Library). `pool` is
     // the candidate-set discriminator (only `"drawn-this-turn"` today); `max`

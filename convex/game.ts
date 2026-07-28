@@ -96,6 +96,7 @@ import {
     buildHandSpellDemands,
 } from "./gre/autoTapDemands";
 import { isGuardedAgainst, playerHasShroud } from "./gre/permanentGuard";
+import { playerHasProtectionFromEverything } from "./gre/protection";
 import {
     findFlashbackCastable,
     flashbackExileEligibleCount,
@@ -8702,6 +8703,18 @@ export const selectTarget = mutation({
             // guarded player's own). Always-on gate (ADR 0068) — stays
             // outside the registry.
             if (playerHasShroud(state, found.id)) {
+                throw new Error(
+                    "Target can't be the target of spells or abilities"
+                );
+            }
+            // CR 702.16b/i (applied to a player via CR 115.4) — a player with
+            // protection from everything can't be the target of any spell or
+            // ability (The One Ring, issue #674). The SAME predicate
+            // `getLegalTargets` gates the offered set with, so offered and
+            // accepted can't diverge. No source narrowing: protection from
+            // EVERYTHING bars every source, the protected player's own
+            // included. Always-on gate (ADR 0068) — outside the registry.
+            if (playerHasProtectionFromEverything(state, found.id)) {
                 throw new Error(
                     "Target can't be the target of spells or abilities"
                 );

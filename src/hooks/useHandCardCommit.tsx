@@ -4,6 +4,7 @@ import { api } from "@convex/_generated/api";
 import { getDefinition } from "@convex/cards";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
+import { trackGameIntent } from "~/lib/pending-intent-store";
 import {
     affordableAltCostsForCard,
     phyrexianSplitChoices,
@@ -110,13 +111,15 @@ export function useHandCardCommit(
     const onPlayClick = () => {
         // Route a server-side rejection to the shared error toast instead of
         // leaving it as an uncaught promise rejection in the console.
-        Promise.resolve(
-            playCard({
-                gameId,
-                playerId,
-                cardInstanceId: cardInstance.id,
-                skipValidation: debugAllActions || undefined,
-            })
+        trackGameIntent(
+            Promise.resolve(
+                playCard({
+                    gameId,
+                    playerId,
+                    cardInstanceId: cardInstance.id,
+                    skipValidation: debugAllActions || undefined,
+                })
+            )
         ).catch(reportError);
         // The play is dispatched (a land drop has no deferred cost dialog), so
         // the reveal-dialog host may close now.
@@ -133,19 +136,21 @@ export function useHandCardCommit(
         /** CR 107.4f — how many `{C/P}` pips the caster chose to pay with life. */
         phyrexianLifePips?: number | undefined;
     }) {
-        Promise.resolve(
-            announceCast({
-                gameId,
-                playerId,
-                cardInstanceId: cardInstance.id,
-                keepPriority: args.keepPriority,
-                chosenX: args.chosenX,
-                chosenModeId: args.chosenModeId,
-                alternativeCostId: args.alternativeCostId,
-                kickerCount: args.kickerCount,
-                buyback: args.buyback,
-                phyrexianLifePips: args.phyrexianLifePips,
-            })
+        trackGameIntent(
+            Promise.resolve(
+                announceCast({
+                    gameId,
+                    playerId,
+                    cardInstanceId: cardInstance.id,
+                    keepPriority: args.keepPriority,
+                    chosenX: args.chosenX,
+                    chosenModeId: args.chosenModeId,
+                    alternativeCostId: args.alternativeCostId,
+                    kickerCount: args.kickerCount,
+                    buyback: args.buyback,
+                    phyrexianLifePips: args.phyrexianLifePips,
+                })
+            )
         ).catch(reportError);
         // The cast is now dispatched (after any cost dialog / picker sequence),
         // so the reveal-dialog host may close. Firing here — not on click —
