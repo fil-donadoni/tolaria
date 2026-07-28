@@ -58,6 +58,7 @@ import { dismember } from "@convex/cards/sets/nph/black";
 import { gitaxianProbe } from "@convex/cards/sets/nph/blue";
 import { dominate } from "@convex/cards/sets/nem";
 import { fellwarStone, deepWater, gaeasTouch } from "@convex/cards/sets/drk";
+import { disruptingScepter } from "@convex/cards/sets/lea";
 import { powerArmor } from "@convex/cards/sets/inv";
 import { dauthiVoidwalker } from "@convex/cards/sets/mh2/black";
 import { viviOrnitier } from "@convex/cards/sets/fin";
@@ -571,6 +572,45 @@ describe("getStackAbilities", () => {
         const card = makeCardInstance({
             card: { id: dauthiVoidwalker.id },
             types: ["Creature"],
+            isTapped: false,
+        });
+        expect(getStackAbilities(card)).toHaveLength(1);
+    });
+
+    // Disrupting Scepter's "{3}, {T}: Target player discards a card. Activate
+    // only during your turn." (CR 602.5b, issue #1694) — the battlefield
+    // helper must honor `controllerTurnOnly` exactly like its graveyard/hand
+    // siblings (`getGraveyardStackAbilities`, `getHandStackAbilities` below)
+    // already do; before this fix it offered the ability during the
+    // opponent's turn and the server rejected the click. Driven through the
+    // real reducer (`buildTriggerStateView`), not a hand-built view.
+    it("hides a controllerTurnOnly ability during the opponent's turn, shows it on the controller's turn (Disrupting Scepter)", () => {
+        const card = makeCardInstance({
+            card: { id: disruptingScepter.id },
+            types: ["Artifact"],
+            isTapped: false,
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const opponentTurnView = buildTriggerStateView([], "p2");
+        expect(
+            getStackAbilities(card, undefined, true, opponentTurnView)
+        ).toHaveLength(0);
+        const controllerTurnView = buildTriggerStateView([], "p1");
+        const abilities = getStackAbilities(
+            card,
+            undefined,
+            true,
+            controllerTurnView
+        );
+        expect(abilities).toHaveLength(1);
+        expect(abilities[0].id).toBe("disrupting-scepter-discard");
+    });
+
+    it("returns a controllerTurnOnly ability when `activePlayerId` is unknown (fail-open, matches the phase/sorcery-speed discipline)", () => {
+        const card = makeCardInstance({
+            card: { id: disruptingScepter.id },
+            types: ["Artifact"],
             isTapped: false,
         });
         expect(getStackAbilities(card)).toHaveLength(1);
