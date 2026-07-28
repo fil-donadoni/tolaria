@@ -51,7 +51,8 @@ import {
 } from "../../../__tests__/setup";
 import { getCardByName } from "../../..";
 import type { CardInstanceState, GameState } from "../../../../gre/state";
-import type { GameEvent, Phase } from "../../../../gre/types";
+import type { Phase } from "../../../../gre/types";
+import type { GameEvent } from "../../../types";
 import { resolveTopOfStack } from "../../../../gre/state";
 import {
     collectTriggers,
