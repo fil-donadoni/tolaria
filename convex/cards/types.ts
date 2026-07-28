@@ -10462,9 +10462,10 @@ export interface CardDefinition {
      *
      *  Resolved by the frontend-safe oracle `resolveEntersWithCounters`
      *  (`convex/cards/entersWith.ts`) and applied by the GRE at EVERY
-     *  permanent-entry site — `finalizeSpellResolution` (a resolving permanent
-     *  spell) and `stageReanimatedOnBattlefield` (reanimation, a library/hand
-     *  tutor's "put it onto the battlefield"). */
+     *  permanent-entry site — a resolving permanent spell, reanimation /
+     *  put-onto-the-battlefield / blink, token creation, a token COPY (the
+     *  clause is a copiable value, CR 706.2), and every play-a-land path. The
+     *  per-site census lives on that module's header comment. */
     entersWith?: {
         counters?: { type: string; count: number | "X" | "kicker" }[];
     };

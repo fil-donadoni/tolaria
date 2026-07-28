@@ -16,11 +16,34 @@
 // Lives under `convex/cards/` (NOT `convex/gre/`) for the same reason
 // `entersTapped.ts` does: it is a pure read over a `CardDefinition` plus the
 // entering object's cast-time snapshot, so the client can evaluate it too.
-// The GRE calls it at every permanent-entry site (`finalizeSpellResolution`
-// for a resolving spell, `stageReanimatedOnBattlefield` for a
-// reanimated/tutored/put-onto-the-battlefield permanent) so the four sites
-// can never drift out of sync — the same "single oracle" shape
-// `resolveEntersTapped` established for the tapped clause.
+// The GRE calls it — via the shared `applyEntersWithCounters` applier in
+// `gre/state.ts`, which adds the CR 122.1c keyword-counter grant on top — at
+// EVERY permanent-entry site, so the sites can never drift out of sync (the
+// same "single oracle" shape `resolveEntersTapped` established for the tapped
+// clause). The full census (issue #1693):
+//   * `finalizeSpellResolution` — a resolving permanent spell, reading the
+//     cast-time X / kicker tally. Its definition is re-derived from the stack
+//     item AFTER the resolve, so a Clone that copied something during its own
+//     resolution gets the COPIED card's entry counters (CR 707.2);
+//   * `stageReanimatedOnBattlefield` — reanimation, a library/hand tutor's
+//     "put it onto the battlefield", and blink/flicker returns. Applied above
+//     the `entersTappedUnlessPay` early return so a deferred land-entry choice
+//     doesn't skip it;
+//   * `createToken` — a token spec's own `entersWith.counters` (Incubate N);
+//   * `createTokenCopyOf` — a token COPY inherits the copied card's clause,
+//     a copiable value (CR 706.2 / 707.2);
+//   * `settleEnteredLand` (`gre/playLand.ts`) — every play-a-land path
+//     (hand / exile / graveyard / post-pay-choice). Latent: no shipped Land
+//     declares the clause yet.
+// Two sites deliberately do NOT run the applier: `finalizeLandEntry`'s
+// effect-entry branch (the permanent already got its counters when
+// `stageReanimatedOnBattlefield` staged it) and `returnExiledForSource`'s
+// noted-counter restore, which MERGES onto the counters the entry placed
+// rather than overwriting them.
+//
+// `gre/scenarioBuilder.ts` is not an entry site — a debug board PLACES a
+// permanent — but it defaults an entry's counters to this oracle's output so a
+// staged board matches what a real entry would produce.
 
 /** The card-definition surface that declares the replacement. Structurally
  *  identical to `CardDefinition.entersWith` — restated as a bare shape so this
