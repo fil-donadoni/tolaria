@@ -5,7 +5,7 @@
 //  - the buffered selection (usePendingChoiceBuffer) is NEVER touched by the
 //    minimize/restore toggle, so in-progress picks survive the cycle
 //  - minimizing does NOT submit / advance the game (no submit dispatch)
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, fireEvent, cleanup } from "@testing-library/react";
 import type { Player } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
@@ -59,6 +59,14 @@ vi.mock("~/hooks/usePendingChoicePrimaryAction", () => ({
         canConfirm: true,
         confirm: primaryConfirm,
     }),
+}));
+
+// The single seam under test for the positioning describe block below — drive
+// it explicitly so jsdom's flaky matchMedia never decides the branch (same
+// pattern as pile-division-picker.test.tsx / prompt-banner-mobile-position.test.tsx).
+let portrait = false;
+vi.mock("~/hooks/useIsPortrait", () => ({
+    useIsPortrait: () => portrait,
 }));
 
 import PendingChoicePrompt from "../pending-choice-prompt";
@@ -165,6 +173,10 @@ beforeEach(() => {
     cleanup();
 });
 
+afterEach(() => {
+    portrait = false;
+});
+
 describe("PendingChoicePrompt minimize control (issue #315)", () => {
     it("renders a visible minimize button for the chooser", () => {
         const min = makeMinimized();
@@ -258,5 +270,35 @@ describe("buffered selections survive minimize/restore (issue #315)", () => {
         const restored = makeMinimized({ isMinimized: false });
         const { getByText } = renderPrompt(restored, buffer);
         expect(getByText(/1 \/ 2 selected/)).toBeTruthy();
+    });
+});
+
+// Issue #1762 fixup — MinimizedChoiceIndicator's migration to the shared
+// usePromptBannerPosition hook (review finding 3/4's fix) had zero regression
+// coverage: every other banner's portrait/landscape split is asserted in
+// prompt-banner-mobile-position.test.tsx and pile-division-picker.test.tsx,
+// but this badge — the file the widened source sweep was built to catch a
+// regression of — was never itself exercised through a real render with
+// useIsPortrait driven both ways. Mirrors the PileDivisionPicker positioning
+// block one-for-one.
+describe("MinimizedChoiceIndicator — mobile positioning (issue #1762)", () => {
+    it("portrait pins to the safe-area strip instead of centering on the board", () => {
+        portrait = true;
+        const min = makeMinimized({ isMinimized: true });
+        const { container } = renderIndicator(min);
+        const outer = container.firstElementChild as HTMLElement;
+        expect(outer.className).not.toContain("top-1/2");
+        expect(outer.className).not.toContain("left-1/2");
+        expect(outer.className).toContain("fixed");
+        expect(outer.className).toContain("env(safe-area-inset-top)");
+    });
+
+    it("landscape/desktop keeps the dead-center + draggable behavior unchanged", () => {
+        portrait = false;
+        const min = makeMinimized({ isMinimized: true });
+        const { container } = renderIndicator(min);
+        const outer = container.firstElementChild as HTMLElement;
+        expect(outer.className).toContain("top-1/2");
+        expect(outer.className).toContain("left-1/2");
     });
 });

@@ -300,28 +300,37 @@ describe("Prompt banners — landscape/desktop path is unchanged (issue #1762)",
     });
 });
 
-// Issue #1762 review finding 8 — a catalogue-wide, self-maintaining proof
-// that no `src/components/board` source file re-invents the hardcoded
-// `absolute top-1/2 left-1/2` + `useDraggable` dead-center recipe
-// `usePromptBannerPosition` exists to replace (the bug class review findings
-// 3/4 caught — a banner not on the hand-enumerated list above can't fail
-// it). Comments are stripped before matching so a file's own prose EXPLAINING
-// the historical bug (as this fix's own code comments now do, by design)
-// doesn't trip the sweep on itself — only live code counts.
-describe("Prompt banners — no hand-rolled dead-center + useDraggable pair remains (issue #1762)", () => {
+// Issue #1762 review finding 8 (widened) — a catalogue-wide, self-maintaining
+// proof that no `src/components/board` source file re-invents the hardcoded
+// `absolute top-1/2 left-1/2` dead-center recipe `usePromptBannerPosition`
+// exists to replace. The original gate here was `hasDeadCenter &&
+// hasUseDraggable` — but that let a HARDCODED `top-1/2 left-1/2` with NO
+// `useDraggable` call through clean, which is exactly the pre-fix shape of
+// `minimized-choice-indicator.tsx` (dead-center markup with no drag wiring
+// at all). The gate is now `hasDeadCenter && !importsUsePromptBannerPosition`
+// — any board file that dead-centers AND has not adopted the shared hook is
+// an offender, regardless of whether it happens to also call
+// `useDraggable`. Comments are stripped before matching so a file's own
+// prose EXPLAINING the historical bug (as this fix's own code comments now
+// do, by design) doesn't trip the sweep on itself — only live code counts.
+describe("Prompt banners — no hand-rolled dead-center positioning remains (issue #1762)", () => {
     const BOARD_DIR = path.resolve("src/components/board");
 
     // Files that legitimately combine `top-1/2` + `left-1/2` for a REASON
     // OTHER than this bug class, so they are exempt from the sweep. Kept
     // explicit (not "everything not in the hand-enumerated list above") so a
     // future addition here needs a one-line justification, not a silent
-    // pass.
+    // pass. The companion test below asserts every entry here still actually
+    // trips the widened pattern — a stale entry (one that no longer matches)
+    // fails CI as a signal to remove it.
     const ALLOWLIST: Record<string, string> = {
         "counter-badges.tsx":
             "Per-card counter overlay (CR 122) centered ON THE CARD, not the " +
-            "board — decorative, pointer-events-none, no useDraggable import, " +
-            "so it never actually matches the useDraggable half of the pair " +
-            "(kept here for documentation, not because the sweep needs it).",
+            "board — decorative, pointer-events-none, positioned relative to " +
+            "its own battlefield-card container rather than the viewport. " +
+            "It is not a prompt banner, has never called useDraggable, and " +
+            "has no reason to ever adopt usePromptBannerPosition, so it " +
+            "legitimately trips `hasDeadCenter && !importsHook` forever.",
     };
 
     function stripComments(src: string): string {
@@ -342,6 +351,17 @@ describe("Prompt banners — no hand-rolled dead-center + useDraggable pair rema
         return out;
     }
 
+    /** The widened offense predicate (issue #1762 fixup): dead-centered AND
+     *  has not adopted the shared positioning hook. Deliberately does NOT
+     *  also require `useDraggable` — a hardcoded dead-center div with no
+     *  drag wiring at all is still the bug class. */
+    function tripsWidenedPattern(code: string): boolean {
+        const hasDeadCenter =
+            code.includes("top-1/2") && code.includes("left-1/2");
+        const importsHook = code.includes("usePromptBannerPosition");
+        return hasDeadCenter && !importsHook;
+    }
+
     it("every source file under src/components/board is clean (or explicitly allowlisted)", () => {
         const files = collectBoardFiles(BOARD_DIR);
         expect(files.length).toBeGreaterThan(50); // sanity: the sweep is actually walking the tree
@@ -351,22 +371,22 @@ describe("Prompt banners — no hand-rolled dead-center + useDraggable pair rema
             const base = path.basename(file);
             if (base in ALLOWLIST) continue;
             const code = stripComments(fs.readFileSync(file, "utf8"));
-            const hasDeadCenter =
-                code.includes("top-1/2") && code.includes("left-1/2");
-            const hasUseDraggable = code.includes("useDraggable");
-            if (hasDeadCenter && hasUseDraggable) {
+            if (tripsWidenedPattern(code)) {
                 offenders.push(path.relative(BOARD_DIR, file));
             }
         }
         expect(offenders).toEqual([]);
     });
 
-    it("the allowlist itself stays honest — every entry still exists and still matches the pattern it's excused from", () => {
+    it("the allowlist itself stays honest — every entry still exists and still trips the widened pattern it's excused from", () => {
+        const files = collectBoardFiles(BOARD_DIR);
         for (const base of Object.keys(ALLOWLIST)) {
-            const matches = collectBoardFiles(BOARD_DIR).filter(
-                (f) => path.basename(f) === base
-            );
+            const matches = files.filter((f) => path.basename(f) === base);
             expect(matches.length).toBeGreaterThan(0);
+            for (const file of matches) {
+                const code = stripComments(fs.readFileSync(file, "utf8"));
+                expect(tripsWidenedPattern(code)).toBe(true);
+            }
         }
     });
 });
