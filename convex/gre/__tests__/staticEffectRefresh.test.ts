@@ -15,6 +15,14 @@
 //      becoming attached is, CR 613.7d).
 //   3. CR 613 composition — a `subtype-add` contribution survives a
 //      co-located `subtype-set` refresh.
+//
+// The ordering itself is carried by an explicit layer TIMESTAMP: every source
+// is stamped with `staticSeq` when its continuous effects are applied afresh
+// (ETB / aura attach, CR 613.7d) and every layer-4/6 record it writes copies
+// that stamp, so grants, strippers, subtype sets and subtype adds all sort on
+// ONE axis. A counter-gated re-evaluation preserves the stamp — re-running a
+// predicate is not a new timestamp — which is what makes the refresh
+// idempotent instead of "whoever was re-applied last wins".
 import { describe, it, expect } from "vitest";
 import {
     applySourceStaticEffects,
@@ -33,6 +41,8 @@ import { bloodMoon } from "../../cards/sets/drk/red";
 import { cyclopeanTomb } from "../../cards/sets/lea/colorless";
 import { yavimayaCradleOfGrowth } from "../../cards/sets/mh2/colorless";
 import { mishrasFactory } from "../../cards/sets/atq/colorless";
+import { gravitySphere } from "../../cards/sets/leg/red";
+import { flight, airElemental } from "../../cards/sets/lea/blue";
 
 /** Mishra's Factory — a nonbasic land with NO printed land types, so every
  *  subtype seen below comes from a layer-4 source and nothing else. */
@@ -187,6 +197,238 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
             )!;
             expect(slimLand.subtypes).toEqual(["Mountain", "Forest"]);
             expect(slimLand.staticAbilities).not.toContain("does-not-untap");
+        });
+    });
+
+    // ─────────────────────────────────────────────────────────────────────
+    // The ordering invariant the first cut of this fix got backwards: it
+    // treated the mere EXISTENCE of a `removedKeywords` entry as proof the
+    // stripper was later. It is not — that entry is written whenever the
+    // keyword happened to be present when the stripper applied, which is
+    // equally true of a stripper that ran FIRST.
+    // ─────────────────────────────────────────────────────────────────────
+    describe("layer 6 ordering — a grant applied AFTER a live stripper wins (CR 613.1f)", () => {
+        /** Air Elemental (natively flying) with Flight attached, plus a
+         *  Gravity Sphere ("all creatures lose flying"). Sources are applied
+         *  in the order given, so the caller controls the timestamps. */
+        function makeFlyingBoard(): {
+            state: GameState;
+            elemental: CardInstanceState;
+            aura: CardInstanceState;
+            sphere: CardInstanceState;
+        } {
+            const elemental = makeInstance(airElemental.id, { id: "elem-1" });
+            const aura = makeInstance(flight.id, {
+                id: "flight-1",
+                attachedTo: "elem-1",
+            });
+            const sphere = makeInstance(gravitySphere.id, { id: "sphere-1" });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        battlefield: [elemental, aura, sphere],
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+            return { state, elemental, aura, sphere };
+        }
+
+        it("Gravity Sphere then Flight: the creature flies (native flier)", () => {
+            const { state, elemental, aura, sphere } = makeFlyingBoard();
+            expect(elemental.staticAbilities).toEqual(["flying"]);
+
+            // Gravity Sphere lands FIRST and strips the native flying…
+            applySourceStaticEffects(state, sphere);
+            expect(elemental.staticAbilities).toEqual([]);
+            // …then Flight resolves with the LATER timestamp and wins.
+            applySourceStaticEffects(state, aura);
+            expect(elemental.staticAbilities).toEqual(["flying"]);
+        });
+
+        it("Flight, Gravity Sphere, Flight: the later grant still wins (no native flier)", () => {
+            const grizzly = makeInstance(airElemental.id, { id: "elem-1" });
+            grizzly.staticAbilities = [];
+            const aura1 = makeInstance(flight.id, {
+                id: "flight-1",
+                attachedTo: "elem-1",
+            });
+            const aura2 = makeInstance(flight.id, {
+                id: "flight-2",
+                attachedTo: "elem-1",
+            });
+            const sphere = makeInstance(gravitySphere.id, { id: "sphere-1" });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        battlefield: [grizzly, aura1, aura2, sphere],
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+
+            applySourceStaticEffects(state, aura1);
+            applySourceStaticEffects(state, sphere);
+            applySourceStaticEffects(state, aura2);
+            expect(grizzly.staticAbilities).toContain("flying");
+        });
+
+        it("Flight then Gravity Sphere: the LATER stripper wins", () => {
+            const { state, elemental, aura, sphere } = makeFlyingBoard();
+            applySourceStaticEffects(state, aura);
+            // native + granted
+            expect(elemental.staticAbilities).toEqual(["flying", "flying"]);
+            applySourceStaticEffects(state, sphere);
+            expect(elemental.staticAbilities).toEqual(["flying"]);
+        });
+
+        it("an unapply/re-apply round trip of the aura is a no-op (apply and unapply are exact inverses)", () => {
+            // Reachable in production via `reattachAura`, reanimation and the
+            // counter-gated refresh: the pair must not EAT an occurrence.
+            const { state, elemental, aura, sphere } = makeFlyingBoard();
+            applySourceStaticEffects(state, aura);
+            applySourceStaticEffects(state, sphere);
+            const before = [...elemental.staticAbilities];
+            expect(before).toEqual(["flying"]);
+
+            for (let i = 0; i < 3; i++) {
+                unapplySourceStaticEffects(state, aura);
+                applySourceStaticEffects(state, aura);
+            }
+            expect(elemental.staticAbilities).toEqual(before);
+        });
+
+        it("a round trip of the STRIPPER is a no-op too", () => {
+            const { state, elemental, aura, sphere } = makeFlyingBoard();
+            applySourceStaticEffects(state, aura);
+            applySourceStaticEffects(state, sphere);
+            const before = [...elemental.staticAbilities];
+
+            for (let i = 0; i < 3; i++) {
+                unapplySourceStaticEffects(state, sphere);
+                applySourceStaticEffects(state, sphere);
+            }
+            expect(elemental.staticAbilities).toEqual(before);
+        });
+    });
+
+    describe("layer 4 ordering — sets and adds replay on ONE timestamp axis (CR 613.7)", () => {
+        it("set-then-add: the later add survives", () => {
+            const { state, land, sources } = makeBoard({ mire: 1 }, [
+                { id: cyclopeanTomb.id, instanceId: "tomb-1" },
+                { id: yavimayaCradleOfGrowth.id, instanceId: "yavimaya-1" },
+            ]);
+            const [tomb, yavimaya] = sources;
+            applySourceStaticEffects(state, tomb);
+            applySourceStaticEffects(state, yavimaya);
+            expect(land.subtypes).toEqual(["Swamp", "Forest"]);
+
+            const afterZero = [...land.subtypes];
+            for (let i = 0; i < 7; i++) refreshCounterGatedStatics(state);
+            expect(land.subtypes).toEqual(afterZero);
+        });
+
+        it("add-then-set: the later SET overwrites the earlier add", () => {
+            // The reverse of the case above, and the one the first cut of the
+            // composer got wrong: it replayed every add on top of the newest
+            // set unconditionally, so the answer flipped on the first SBA pass.
+            const { state, land, sources } = makeBoard({ mire: 1 }, [
+                { id: yavimayaCradleOfGrowth.id, instanceId: "yavimaya-1" },
+                { id: cyclopeanTomb.id, instanceId: "tomb-1" },
+            ]);
+            const [yavimaya, tomb] = sources;
+            applySourceStaticEffects(state, yavimaya);
+            expect(land.subtypes).toEqual(["Forest"]);
+            applySourceStaticEffects(state, tomb);
+            expect(land.subtypes).toEqual(["Swamp"]);
+
+            const afterZero = [...land.subtypes];
+            for (let i = 0; i < 7; i++) refreshCounterGatedStatics(state);
+            expect(land.subtypes).toEqual(afterZero);
+            expect(land.subtypes).toEqual(["Swamp"]);
+        });
+
+        it("add, set, set: every entry replays in timestamp order, pass-count independent", () => {
+            const { state, land, sources } = makeBoard({ mire: 1 }, [
+                { id: yavimayaCradleOfGrowth.id, instanceId: "yavimaya-1" },
+                { id: cyclopeanTomb.id, instanceId: "tomb-1" },
+                { id: bloodMoon.id, instanceId: "moon-1" },
+            ]);
+            const [yavimaya, tomb, moon] = sources;
+            applySourceStaticEffects(state, yavimaya);
+            applySourceStaticEffects(state, tomb);
+            applySourceStaticEffects(state, moon);
+            // Forest (add) → Swamp (set) → Mountain (set): the newest set wins
+            // outright and the earlier add does NOT come back.
+            expect(land.subtypes).toEqual(["Mountain"]);
+
+            const afterZero = [...land.subtypes];
+            for (let i = 0; i < 7; i++) refreshCounterGatedStatics(state);
+            expect(land.subtypes).toEqual(afterZero);
+        });
+    });
+
+    describe("a counter-gated subtype-set that NEWLY starts applying composes with a live add", () => {
+        it("keeps a later add when the set's source has the earlier timestamp", () => {
+            // Cyclopean Tomb is on the battlefield with NO mire counter yet, so
+            // its `subtype-set` is stamped (its ETB timestamp) but applies to
+            // nothing. Yavimaya enters after it. Placing the mire counter makes
+            // the set START applying — and because a counter re-evaluation is
+            // not a new timestamp (CR 613.7d), the set stays EARLIER than the
+            // add, so the Forest survives.
+            const { state, land, sources } = makeBoard({}, [
+                { id: cyclopeanTomb.id, instanceId: "tomb-1" },
+                { id: yavimayaCradleOfGrowth.id, instanceId: "yavimaya-1" },
+            ]);
+            const [tomb, yavimaya] = sources;
+            applySourceStaticEffects(state, tomb);
+            applySourceStaticEffects(state, yavimaya);
+            expect(land.subtypes).toEqual(["Forest"]);
+
+            land.counters = { ...(land.counters ?? {}), mire: 1 };
+            refreshCounterGatedStatics(state);
+            expect(land.subtypes).toEqual(["Swamp", "Forest"]);
+
+            const afterOne = [...land.subtypes];
+            for (let i = 0; i < 7; i++) refreshCounterGatedStatics(state);
+            expect(land.subtypes).toEqual(afterOne);
+        });
+
+        it("overwrites an earlier add when the set's source has the later timestamp", () => {
+            const { state, land, sources } = makeBoard({}, [
+                { id: yavimayaCradleOfGrowth.id, instanceId: "yavimaya-1" },
+                { id: cyclopeanTomb.id, instanceId: "tomb-1" },
+            ]);
+            const [yavimaya, tomb] = sources;
+            applySourceStaticEffects(state, yavimaya);
+            applySourceStaticEffects(state, tomb);
+            expect(land.subtypes).toEqual(["Forest"]);
+
+            land.counters = { ...(land.counters ?? {}), mire: 1 };
+            refreshCounterGatedStatics(state);
+            expect(land.subtypes).toEqual(["Swamp"]);
+
+            const afterOne = [...land.subtypes];
+            for (let i = 0; i < 7; i++) refreshCounterGatedStatics(state);
+            expect(land.subtypes).toEqual(afterOne);
+        });
+
+        it("releases the add cleanly when the ADD's source leaves play", () => {
+            // The composer must not make an add immortal: `printedSubtypes` is
+            // snapshotted WITHOUT the live add contributions.
+            const { state, land, sources } = makeBoard({ mire: 1 }, [
+                { id: yavimayaCradleOfGrowth.id, instanceId: "yavimaya-1" },
+                { id: cyclopeanTomb.id, instanceId: "tomb-1" },
+            ]);
+            const [yavimaya, tomb] = sources;
+            applySourceStaticEffects(state, tomb);
+            applySourceStaticEffects(state, yavimaya);
+            expect(land.subtypes).toEqual(["Swamp", "Forest"]);
+
+            unapplySourceStaticEffects(state, yavimaya);
+            expect(land.subtypes).toEqual(["Swamp"]);
+            unapplySourceStaticEffects(state, tomb);
+            expect(land.subtypes).toEqual([]);
         });
     });
 });

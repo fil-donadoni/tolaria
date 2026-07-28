@@ -715,10 +715,28 @@ describe("game_state serialize round-trip", () => {
         lion.cantBeBlockedBySubtypesThisTurn = ["Wall"];
         lion.counters = { "+1/+1": 1, "+1/+0": 2 };
         lion.grantedStaticAbilities = [
-            { ability: "flying", auraId: "aura-1" },
+            { ability: "flying", auraId: "aura-1", seq: 3 },
             // CR 611.1b — duration-scoped keyword grant (Wall of Caltrops' EOT
             // banding, #495). Persists across the DB round-trip with its duration.
             { ability: "banding", duration: { phase: "end-of-turn" } },
+            // CR 613.1f (issue #1715) — a grant a strictly-later stripper
+            // outranked: recorded but never materialized. The flag has to
+            // survive the round trip or the next unapply eats an occurrence
+            // that belongs to another source.
+            {
+                ability: "trample",
+                auraId: "aura-2",
+                seq: 1,
+                suppressed: true,
+            },
+        ];
+        // CR 613.7 layer timestamp (issue #1715) — the source stamp every
+        // layer-4/6 record above copies.
+        lion.staticSeq = 4;
+        // Layer-4 ADD grants (CR 305.7 — Yavimaya) carry the same stamp, and
+        // are load-bearing for `composeMaterializedSubtypes` after a reload.
+        lion.grantedSubtypesAdd = [
+            { subtype: "Forest", auraId: "yavimaya-1", seq: 2 },
         ];
         // CR 611.1b — duration-scoped keyword removal (Shelkin Brownie / Tolaria, #381).
         lion.temporaryRemovedKeywords = [
@@ -843,8 +861,18 @@ describe("game_state serialize round-trip", () => {
         expect(got.cantBeBlockedBySubtypesThisTurn).toEqual(["Wall"]);
         expect(got.counters).toEqual({ "+1/+1": 1, "+1/+0": 2 });
         expect(got.grantedStaticAbilities).toEqual([
-            { ability: "flying", auraId: "aura-1" },
+            { ability: "flying", auraId: "aura-1", seq: 3 },
             { ability: "banding", duration: { phase: "end-of-turn" } },
+            {
+                ability: "trample",
+                auraId: "aura-2",
+                seq: 1,
+                suppressed: true,
+            },
+        ]);
+        expect(got.staticSeq).toBe(4);
+        expect(got.grantedSubtypesAdd).toEqual([
+            { subtype: "Forest", auraId: "yavimaya-1", seq: 2 },
         ]);
         expect(got.temporaryRemovedKeywords).toEqual([
             {

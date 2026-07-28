@@ -2505,8 +2505,10 @@ describe("Earthbind (CR 613.1a — keyword-remove: flying + ETB damage)", () => 
         applySourceStaticEffects(state, aura);
 
         expect(flier.staticAbilities).not.toContain("flying");
+        // `seq` is the CR 613.7 layer timestamp the source stamps on every
+        // record it writes (issue #1715) — an implementation detail here.
         expect(flier.removedKeywords).toEqual([
-            { keyword: "flying", sourceId: "eb" },
+            expect.objectContaining({ keyword: "flying", sourceId: "eb" }),
         ]);
     });
 

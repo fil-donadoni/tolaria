@@ -162,6 +162,10 @@ function compactCard(
     // CR 704.5m world-rule timestamp — battlefield-only, must round-trip so a
     // mid-game save/load preserves which World permanent is the newest.
     if (card.worldSeq !== undefined) out.worldSeq = card.worldSeq;
+    // CR 613.7 layer timestamp (issue #1715) — battlefield-only, must
+    // round-trip or a mid-game save/load re-orders every co-applying layer-4/6
+    // static effect the next time one of them is re-applied.
+    if (card.staticSeq !== undefined) out.staticSeq = card.staticSeq;
     if (
         card.activationsThisTurn &&
         Object.keys(card.activationsThisTurn).length > 0
@@ -185,6 +189,13 @@ function compactCard(
     }
     if (card.grantedSubtypes && card.grantedSubtypes.length > 0) {
         out.grantedSubtypes = card.grantedSubtypes;
+    }
+    // Layer-4 ADD grants (CR 305.7 — Urborg / Yavimaya). Load-bearing since
+    // issue #1715: `composeMaterializedSubtypes` replays this record against
+    // `grantedSubtypes` on every re-apply, so dropping it across a save/load
+    // would make the added land type vanish at the next SBA refresh.
+    if (card.grantedSubtypesAdd && card.grantedSubtypesAdd.length > 0) {
+        out.grantedSubtypesAdd = card.grantedSubtypesAdd;
     }
     if (card.printedSubtypes && card.printedSubtypes.length > 0) {
         out.printedSubtypes = card.printedSubtypes;
@@ -494,6 +505,9 @@ function expandCard(
     if (compact.worldSeq !== undefined) {
         result.worldSeq = compact.worldSeq as number;
     }
+    if (compact.staticSeq !== undefined) {
+        result.staticSeq = compact.staticSeq as number;
+    }
     if (compact.activationsThisTurn) {
         result.activationsThisTurn = compact.activationsThisTurn as Record<
             string,
@@ -513,6 +527,10 @@ function expandCard(
     if (compact.suppressedTypes) {
         result.suppressedTypes =
             compact.suppressedTypes as CardInstanceState["suppressedTypes"];
+    }
+    if (compact.grantedSubtypesAdd) {
+        result.grantedSubtypesAdd =
+            compact.grantedSubtypesAdd as CardInstanceState["grantedSubtypesAdd"];
     }
     if (compact.grantedSubtypes) {
         result.grantedSubtypes =

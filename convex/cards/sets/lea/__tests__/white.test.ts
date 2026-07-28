@@ -3298,8 +3298,10 @@ describe("Animate Wall (CR 702.3 — keyword-remove: defender)", () => {
         applySourceStaticEffects(state, aura);
 
         expect(wall.staticAbilities).not.toContain("defender");
+        // `seq` is the CR 613.7 layer timestamp the source stamps on every
+        // record it writes (issue #1715) — an implementation detail here.
         expect(wall.removedKeywords).toEqual([
-            { keyword: "defender", sourceId: "anim" },
+            expect.objectContaining({ keyword: "defender", sourceId: "anim" }),
         ]);
         const result = validateAttackerEligibility(
             wall,
