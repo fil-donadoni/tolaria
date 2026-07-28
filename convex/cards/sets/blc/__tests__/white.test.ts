@@ -9,10 +9,13 @@ import {
 } from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
+    removePermanentTo,
+    putReanimatedSetOnBattlefield,
     type CardInstanceState,
     type GameState,
     type StackItem,
 } from "../../../../gre/state";
+import { emitAttackersDeclaredEvents } from "../../../../gre/phases";
 import { compactState, expandState } from "../../../../gre/serialize";
 import { getEffectivePower } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
@@ -50,22 +53,22 @@ function castForX(x: number): { state: GameState; rabbit: CardInstanceState } {
     return { state, rabbit };
 }
 
-/** Pushes Jacked Rabbit's "whenever this creature attacks" trigger, the shape
- *  `collectTriggers` builds for an `ATTACKERS_DECLARED` event (CR 508.1). */
-function pushAttackTrigger(state: GameState, rabbit: CardInstanceState): void {
-    state.stack.push({
-        ...rabbit,
-        zone: "stack",
-        castById: rabbit.controllerId,
-        triggeredAbilityId: "jacked-rabbit-attack-tokens",
-        triggerSourceId: rabbit.id,
-        triggerEvent: {
-            type: "ATTACKERS_DECLARED",
-            attackingPlayerId: rabbit.controllerId,
-            attackerIds: [rabbit.id],
-        } as StackItem["triggerEvent"],
-        targets: [],
-    });
+/** Declares `attackerIds` as attackers through the REAL production entry
+ *  point (`emitAttackersDeclaredEvents`, CR 508.1) rather than hand-building
+ *  the trigger stack item. A hand-built stack item (the old `pushAttackTrigger`
+ *  shape) never runs `collectTriggers`, so the ability's `matches`
+ *  (`event.attackerIds.includes(self.id)`) is never executed — a `matches`
+ *  that wrongly fired on ANY attacker would pass unchanged. Driving through
+ *  the real scan is what actually exercises it. */
+function declareAttackers(state: GameState, attackerIds: string[]): void {
+    state.phase = "DECLARE_ATTACKERS";
+    state.combat = {
+        attackerIds,
+        confirmed: true,
+        blockerAssignments: {},
+        blockersConfirmed: false,
+    };
+    emitAttackersDeclaredEvents(state);
 }
 
 describe("Jacked Rabbit — card definition (CR 202.1 / 205)", () => {
@@ -157,7 +160,7 @@ describe("Jacked Rabbit — attack trigger (CR 508.1 / 613)", () => {
         const { state, rabbit } = castForX(3);
         expect(getEffectivePower(state, rabbit)).toBe(4);
 
-        pushAttackTrigger(state, rabbit);
+        declareAttackers(state, [rabbit.id]);
         resolveTopOfStack(state);
 
         const tokens = state.players[0].battlefield.filter(
@@ -173,7 +176,7 @@ describe("Jacked Rabbit — attack trigger (CR 508.1 / 613)", () => {
 
     it("a vanilla X=0 Rabbit still makes one token (power 1)", () => {
         const { state, rabbit } = castForX(0);
-        pushAttackTrigger(state, rabbit);
+        declareAttackers(state, [rabbit.id]);
         resolveTopOfStack(state);
         const tokens = state.players[0].battlefield.filter(
             (c) => c.isToken && c.subtypes?.includes("Rabbit")
@@ -188,7 +191,7 @@ describe("Jacked Rabbit — attack trigger (CR 508.1 / 613)", () => {
         const expected = tokenPrintIdFor(jackedRabbit.id, "Rabbit");
         expect(expected).toBeDefined();
         const { state, rabbit } = castForX(0);
-        pushAttackTrigger(state, rabbit);
+        declareAttackers(state, [rabbit.id]);
         resolveTopOfStack(state);
         const token = state.players[0].battlefield.find(
             (c) => c.isToken && c.subtypes?.includes("Rabbit")
@@ -199,12 +202,62 @@ describe("Jacked Rabbit — attack trigger (CR 508.1 / 613)", () => {
             expected
         );
     });
+
+    // `matches` coverage (issue review finding #4): the hand-built stack item
+    // above never exercised `event.attackerIds.includes(self.id)` — a
+    // `matches` that fired on ANY attacker would have passed unchanged. These
+    // two drive REAL multi-attacker combat through `declareAttackers` /
+    // `emitAttackersDeclaredEvents` so the predicate is actually evaluated.
+    it("fires when Jacked Rabbit itself attacks, even alongside another attacker", () => {
+        const { state, rabbit } = castForX(3);
+        const other = makeInstance(grizzlyBears.id, {
+            id: "co-attacker",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        state.players[0].battlefield.push(other);
+
+        declareAttackers(state, [rabbit.id, other.id]);
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].triggeredAbilityId).toBe(
+            "jacked-rabbit-attack-tokens"
+        );
+        resolveTopOfStack(state);
+
+        const tokens = state.players[0].battlefield.filter(
+            (c) => c.isToken && c.subtypes?.includes("Rabbit")
+        );
+        expect(tokens).toHaveLength(4);
+    });
+
+    it("does NOT fire when a different creature attacks and Jacked Rabbit stays back", () => {
+        const { state, rabbit } = castForX(3);
+        const other = makeInstance(grizzlyBears.id, {
+            id: "solo-attacker",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        state.players[0].battlefield.push(other);
+
+        // Only `other` attacks — Jacked Rabbit (`rabbit`) is left home.
+        declareAttackers(state, [other.id]);
+
+        expect(state.stack).toHaveLength(0);
+        const tokens = state.players[0].battlefield.filter(
+            (c) => c.isToken && c.subtypes?.includes("Rabbit")
+        );
+        expect(tokens).toHaveLength(0);
+        // `rabbit` itself is unaffected — sanity that the fixture is wired.
+        expect(
+            state.players[0].battlefield.some((c) => c.id === rabbit.id)
+        ).toBe(true);
+    });
 });
 
 describe("Jacked Rabbit — wire format (projectPublicState)", () => {
     it("counters, effective power and the created tokens survive the projection", () => {
         const { state, rabbit } = castForX(3);
-        pushAttackTrigger(state, rabbit);
+        declareAttackers(state, [rabbit.id]);
         resolveTopOfStack(state);
 
         const tokenIds = state.players[0].battlefield
@@ -228,5 +281,102 @@ describe("Jacked Rabbit — wire format (projectPublicState)", () => {
         for (const t of slimTokens) {
             expect(getEffectivePower(projected, t)).toBe(1);
         }
+    });
+});
+
+// Revert-sensitive regressions (issue #1753 sibling): `chosenXOnCast` (and the
+// stray runtime `chosenX` a resolved stack item still carries) must NOT
+// survive a CR 400.7 zone change. Both drive the real production apply path
+// — `removePermanentTo` / `putReanimatedSetOnBattlefield` (which funnel
+// through `resetBattlefieldTransientState`) and `resolveTopOfStack` (which
+// runs `finalizeSpellResolution`'s ETB snapshot) — not a hand-built view.
+// Mirrors `pouncingKavu`'s `wasKicked` pair in
+// `convex/cards/sets/inv/__tests__/red.test.ts`.
+describe("Jacked Rabbit — CR 400.7 clears the X snapshot on a zone change (issue #1753 precedent)", () => {
+    it("(regression) bounced to hand and recast for X=0: does not inherit stale chosenXOnCast/counters or fire the OLD draw trigger", () => {
+        const { state, rabbit } = castForX(7);
+        expect(rabbit.chosenXOnCast).toBe(7);
+        expect(rabbit.counters?.["+1/+1"]).toBe(7);
+
+        // Resolve the pending Ravenous draw trigger so the stack is clean
+        // before the zone change (avoids the unrelated LKI question of what a
+        // trigger already on the stack does when its source departs).
+        resolveTopOfStack(state);
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[0].hand).toHaveLength(1); // the drawn Grizzly Bears
+        expect(state.players[0].library).toHaveLength(1);
+
+        // CR 400.7 — bounce the X=7 rabbit to hand, the shared
+        // battlefield-departure chokepoint (`removePermanentTo`).
+        const bounced = removePermanentTo(state, rabbit.id, "hand");
+        expect(bounced).not.toBeNull();
+        const handCard = state.players[0].hand.find((c) => c.id === rabbit.id)!;
+        expect(handCard.chosenXOnCast).toBeUndefined();
+        expect((handCard as { chosenX?: number }).chosenX).toBeUndefined();
+        expect(handCard.counters?.["+1/+1"] ?? 0).toBe(0);
+
+        // Recast for X=0, mirroring the real stack-item build
+        // (`announceCast`/`finalizeTargetSelection`, `convex/game.ts`):
+        // `{ ...spellCard, castById, chosenX }` — {X} is a MANDATORY
+        // announcement on this card, so a real recast always supplies a
+        // fresh `chosenX`, unlike kicker's optional `kickerCount`. The real
+        // cast mutation also removes the card from hand before it hits the
+        // stack — mirror that here rather than leaving a duplicate behind.
+        const handIdx = state.players[0].hand.findIndex(
+            (c) => c.id === rabbit.id
+        );
+        state.players[0].hand.splice(handIdx, 1);
+        const recast: StackItem = { ...handCard, castById: "p1", chosenX: 0 };
+        state.stack.push(recast);
+        resolveTopOfStack(state);
+
+        const recastRabbit = state.players[0].battlefield.find(
+            (c) => c.card.id === jackedRabbit.id
+        )!;
+        expect(recastRabbit.counters?.["+1/+1"] ?? 0).toBe(0);
+        expect(recastRabbit.chosenXOnCast).toBe(0);
+        // No Ravenous ETB draw trigger leaking from the OLD X=7 — hand still
+        // holds only the earlier (legitimate) draw, not a second card.
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[0].hand).toHaveLength(1);
+        expect(state.players[0].library).toHaveLength(1);
+    });
+
+    it("(regression) reanimated after being cast for X=7: X is 0 for a permanent that was never cast (CR 601.2b) — no counters, no draw", () => {
+        const { state, rabbit } = castForX(7);
+        // Resolve the pending Ravenous draw trigger before the departure.
+        resolveTopOfStack(state);
+        expect(state.players[0].hand).toHaveLength(1);
+        expect(rabbit.chosenXOnCast).toBe(7);
+
+        // CR 400.7 — send the X=7 rabbit to the graveyard (same
+        // battlefield-departure chokepoint). Unlike the hand/library branch,
+        // `removePermanentTo` deliberately does NOT clear `chosenXOnCast`
+        // here — graveyard/exile preserve historical state — so it is
+        // cleared at REANIMATION time instead, via the real production entry
+        // path (`putReanimatedSetOnBattlefield`).
+        const sent = removePermanentTo(state, rabbit.id, "graveyard");
+        expect(sent).not.toBeNull();
+        expect(sent!.chosenXOnCast).toBe(7);
+
+        const gy = state.players[0].graveyard;
+        const idx = gy.findIndex((c) => c.id === rabbit.id);
+        const [reanimated] = gy.splice(idx, 1);
+        const entered = putReanimatedSetOnBattlefield(state, [
+            { card: reanimated, controllerId: "p1" },
+        ]);
+        expect(entered).toEqual([rabbit.id]);
+
+        const reanimatedRabbit = state.players[0].battlefield.find(
+            (c) => c.card.id === jackedRabbit.id
+        )!;
+        // CR 601.2b — reanimation never announces an X at all (that only
+        // happens when casting), so this permanent's X is 0 (CR 702.156a):
+        // no entry counters, and the "X ≥ 5" draw does not fire off the
+        // stale X=7 from its previous life.
+        expect(reanimatedRabbit.chosenXOnCast).toBeUndefined();
+        expect(reanimatedRabbit.counters?.["+1/+1"] ?? 0).toBe(0);
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[0].hand).toHaveLength(1); // still just the earlier draw
     });
 });
