@@ -8,6 +8,7 @@ import { isSelectableHandChoiceCard } from "~/lib/hand-choice";
 import { isSeenByOpponent } from "~/lib/hand-knowledge";
 import { useHandCardCommit } from "~/hooks/useHandCardCommit";
 import { useDragToCommit } from "~/hooks/useDragToCommit";
+import { useTapStageConfirm } from "~/hooks/useTapStageConfirm";
 import { buildTriggerStateView, getHandStackAbilities } from "~/lib/card-utils";
 import { extractMutationErrorMessage } from "~/lib/mutation-error";
 import { trackGameIntent } from "~/lib/pending-intent-store";
@@ -17,6 +18,11 @@ import SeenByOpponentBadge from "./seen-by-opponent-badge";
 import HandCardActionMenu, {
     type HandCardPrimaryAction,
 } from "./hand-card-action-menu";
+import HandCardConfirmPill from "./hand-card-confirm-pill";
+
+/** Upward travel (px) of a card STAGED by a touch tap (#1767) — the same
+ *  "lifting out of the hand" read as the drag gesture, at a rest offset. */
+const STAGED_LIFT_PX = 18;
 
 type BoardHandCardProps = {
     /** The viewer's own hand card (never null — opponent/back slots render the
@@ -85,6 +91,8 @@ export default function BoardHandCard({
         playerId,
         pendingChoices,
         phase,
+        turn,
+        stackCount,
         activePlayerId,
         allPlayers,
         priorityPlayerId,
@@ -209,6 +217,45 @@ export default function BoardHandCard({
         onCommit: commit,
     });
 
+    // Touch tap = stage + confirm (issue #1767). A touch tap on a card whose
+    // single option is its play/cast NO LONGER dispatches immediately: the first
+    // tap stages the card (lift + confirm pill), the second tap — on the card or
+    // on the pill — commits, and a tap anywhere else cancels. Mouse and pen are
+    // untouched (`consumeClick` returns false on the first call for them), and
+    // the multi-option path is untouched too: it already interposes the
+    // action-sheet, which is the same confirmation step by another shape.
+    //
+    // `resetKey` is the digest of everything the staged action depends on: the
+    // stage is optimistic client state over a card the server can move at any
+    // moment, so a priority / phase / turn / zone / legality / stack change
+    // drops it rather than leaving a card lifted over an action that is no
+    // longer the one the player staged. (A card that LEAVES the hand unmounts
+    // this component outright, which drops the stage with it.)
+    const stageRootRef = useRef<HTMLDivElement>(null);
+    const tapStage = useTapStageConfirm({
+        enabled: commitEnabled,
+        rootRef: stageRootRef,
+        resetKey: [
+            turn,
+            phase,
+            priorityPlayerId,
+            activePlayerId,
+            stackCount,
+            card.zone,
+            legal.join("+"),
+            pendingCast ? "c" : "",
+            pendingActivation ? "a" : "",
+            pendingTarget ? "t" : "",
+        ].join("|"),
+    });
+
+    // A drag is a different gesture with its own commit — it must never leave a
+    // stage standing behind it (or commit twice).
+    const unstage = tapStage.unstage;
+    useEffect(() => {
+        if (state.dragging) unstage();
+    }, [state.dragging, unstage]);
+
     // Drive the hand's drag-reorder from the live pointer x (#271, fix 2): the
     // hand container snaps the dragged card to the slot under the drop position.
     // Notifying via an effect keeps this card a pure consumer of the gesture
@@ -263,9 +310,15 @@ export default function BoardHandCard({
         state.dragging && dragTranslateX && state.pointerX !== null
             ? dragTranslateX(state.pointerX)
             : state.offset.x;
+    // A staged card lifts out of the fan the same way a dragged one does — the
+    // gesture is "this card is about to be played", so it reads as the same
+    // motion. Drag wins while it is running (the two are never simultaneous in
+    // practice: a drag un-stages).
     const lift = state.dragging
         ? `translate(${liftX}px, ${state.offset.y}px) scale(1.06)`
-        : undefined;
+        : tapStage.staged
+          ? `translate(0px, -${STAGED_LIFT_PX}px) scale(1.06)`
+          : undefined;
 
     // Non-drag left click. With a menu, a desktop click falls through to the
     // ContextMenuTrigger (opens the menu) and a touch tap opens the action-sheet;
@@ -285,13 +338,19 @@ export default function BoardHandCard({
             activateHandAbility(handAbilities[0].id, e.ctrlKey || e.metaKey);
             return;
         }
-        if (commitEnabled) commit(e);
+        if (!commitEnabled) return;
+        // Touch: the first tap only stages (#1767). Mouse/pen, and the second
+        // tap on an already-staged card, fall straight through to the commit.
+        if (tapStage.consumeClick()) return;
+        commit(e);
     };
 
     const cardEl = (
         <div
+            ref={stageRootRef}
             data-board-hand-card={card.id}
             data-drag-armed={state.armed ? "true" : undefined}
+            data-tap-staged={tapStage.staged ? "true" : undefined}
             className={
                 optionCount > 0 ? "cursor-pointer touch-none" : "touch-none"
             }
@@ -303,7 +362,10 @@ export default function BoardHandCard({
                       }
                     : undefined
             }
-            onPointerDown={handlers.onPointerDown}
+            onPointerDown={(e) => {
+                tapStage.onPointerDown(e);
+                handlers.onPointerDown(e);
+            }}
             onPointerMove={handlers.onPointerMove}
             onPointerUp={handlers.onPointerUp}
             onPointerCancel={handlers.onPointerCancel}
@@ -343,6 +405,16 @@ export default function BoardHandCard({
                 </div>
             </CardTilt3D>
             {seen && <SeenByOpponentBadge />}
+            {tapStage.staged && (
+                <HandCardConfirmPill
+                    anchorRef={stageRootRef}
+                    label={canPlay ? "Play" : "Cast"}
+                    onConfirm={(e) => {
+                        unstage();
+                        commit(e);
+                    }}
+                />
+            )}
             {modePickerOverlay}
             {altCostPickerOverlay}
             {phyrexianPickerOverlay}
