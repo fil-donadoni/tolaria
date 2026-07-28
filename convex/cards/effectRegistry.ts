@@ -6,6 +6,7 @@
 // two cards (rule of two extraction, see feedback_extract_after_second.md).
 
 import type {
+    AbilityMode,
     ActivatedAbility,
     CardDefinition,
     EffectOp,
@@ -124,5 +125,10 @@ const _actConforms: (a: ActivatedAbility) => ResolveFn | undefined =
     getAbilityEffectFn;
 const _trigConforms: (a: TriggeredAbility) => ResolveFn | undefined =
     getAbilityEffectFn;
+// CR 700.2 / 602.2b (issue #1341) — a modal activated ability's chosen mode
+// resolves through the SAME seam as the ability itself.
+const _abilityModeConforms: (m: AbilityMode) => ResolveFn | undefined =
+    getAbilityEffectFn;
 void _actConforms;
 void _trigConforms;
+void _abilityModeConforms;

@@ -115,7 +115,8 @@ export function describeMove(move: Move, state: GameState): string {
         case "activate-ability": {
             const name = instanceName(state, move.cardInstanceId);
             const x = move.chosenX !== undefined ? ` (X=${move.chosenX})` : "";
-            return `activate ${name}${x}${withTargets(state, move.targets)}`;
+            const mode = move.chosenModeId ? ` [${move.chosenModeId}]` : "";
+            return `activate ${name}${x}${mode}${withTargets(state, move.targets)}`;
         }
         case "declare-attackers":
             return move.attackerIds.length === 0

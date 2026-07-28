@@ -169,6 +169,7 @@ import {
     scheduleRoundDeadline,
 } from "./limitedEvents";
 import type {
+    AbilityMode,
     ActivatedAbility,
     CardDefinition,
     CardType,
@@ -1966,6 +1967,9 @@ export function buildPendingActivation(opts: {
     ability: ActivatedAbility;
     manaCost: Record<string, number> | undefined;
     chosenX?: number;
+    /** CR 700.2c (issue #1341) — mode locked in at announcement for a modal
+     *  activated ability; rides to the stack item at commit. */
+    chosenModeId?: string;
     keepPriority?: boolean;
     grantedSourceCardId?: string;
     fromGraveyard?: boolean;
@@ -1981,6 +1985,7 @@ export function buildPendingActivation(opts: {
         ...(opts.fromGraveyard ? { fromGraveyard: true } : {}),
         ...(opts.fromHand ? { fromHand: true } : {}),
         abilityId: opts.abilityId,
+        ...(opts.chosenModeId ? { chosenModeId: opts.chosenModeId } : {}),
         manaCost: opts.manaCost ?? {},
         tappedLandIds: [],
         tapSource: !!ability.cost.tap,
@@ -2322,6 +2327,7 @@ export function tryAutoCommitPendingActivation(
         zone: "stack" as const,
         castById: playerId,
         abilityId: pa.abilityId,
+        ...(pa.chosenModeId ? { chosenModeId: pa.chosenModeId } : {}),
         ...(pa.targets && pa.targets.length > 0 ? { targets: pa.targets } : {}),
         // CR 601.2d — divide-as-you-choose split forwarded from the deferred
         // payment to the resolving stack item (Arc Mage).
@@ -5071,6 +5077,9 @@ export function finalizeTargetSelection(
                 playerId,
                 cardInstanceId: card.id,
                 abilityId,
+                // CR 700.2c (issue #1341) — carry the announcement-time mode
+                // through the deferred payment onto the stack item.
+                ...(chosenModeId ? { chosenModeId } : {}),
                 manaCost: manaCost ?? {},
                 tappedLandIds: [],
                 tapSource: !!ability.cost.tap,
@@ -5209,6 +5218,7 @@ export function finalizeTargetSelection(
             castById: playerId,
             abilityId,
             targets,
+            ...(chosenModeId ? { chosenModeId } : {}),
             // CR 601.2d / 120.4 — the divide-as-you-choose split rides to
             // resolution so `dealDamageDividedAsChosen` uses the chosen amounts.
             ...(divideAmounts ? { targetAmounts: divideAmounts } : {}),
@@ -11065,6 +11075,35 @@ export const exileFromLibrary = mutation({
  * a plain `return` costs nothing: the caller saves once, whichever way it
  * returned. Throws on any illegal activation, exactly as before.
  */
+/** CR 700.2 / 602.2b (issue #1341) — validates the mode an activation
+ *  announced. A modal ability MUST name one of its declared modes; a
+ *  non-modal ability must name none. Returns the chosen `AbilityMode`, or
+ *  undefined when the ability is not modal. Mirrors `announceCast`'s modal
+ *  prelude so the two announcement paths can't drift. */
+function resolveActivationMode(
+    ability: ActivatedAbility,
+    chosenModeId: string | undefined
+): AbilityMode | undefined {
+    if (!ability.modes || ability.modes.length === 0) {
+        if (chosenModeId) {
+            throw new Error(
+                "Ability is not modal — chosenModeId must not be supplied"
+            );
+        }
+        return undefined;
+    }
+    if (!chosenModeId) {
+        throw new Error("Modal ability — must choose a mode at announcement");
+    }
+    const mode = ability.modes.find((m) => m.id === chosenModeId);
+    if (!mode) {
+        throw new Error(
+            `Unknown mode id "${chosenModeId}" for ability "${ability.id}"`
+        );
+    }
+    return mode;
+}
+
 export function activateAbilityOnState(
     state: GameState,
     args: {
@@ -11075,6 +11114,10 @@ export function activateAbilityOnState(
         keepPriority?: boolean;
         /** Value chosen for X at activation time (CR 107.3 / 601.2b). */
         chosenX?: number;
+        /** CR 700.2 / 602.2b (issue #1341) — the mode chosen at announcement
+         *  for a MODAL activated ability (Umezawa's Jitte). Required when the
+         *  ability declares `modes`, rejected when it does not. */
+        chosenModeId?: string;
     }
 ): void {
     assertGameNotOver(state);
@@ -11252,9 +11295,16 @@ export function activateAbilityOnState(
     // costs. Mana availability is deferred to finalizeTargetSelection
     // (which enters pendingActivation when the pool doesn't cover the
     // cost — mirrors the spell announceCast flow).
-    const baseTargetReq = ability.getTargetRequirement
-        ? ability.getTargetRequirement(card, state)
-        : ability.targetRequirement;
+    // CR 700.2 / 602.2b (issue #1341) — a MODAL activated ability locks its
+    // mode in FIRST (CR 601.2b, before targets), and only the chosen mode's
+    // requirement is declared (CR 700.2d). Mirrors `announceCast`'s modal
+    // prelude for spells.
+    const chosenMode = resolveActivationMode(ability, args.chosenModeId);
+    const baseTargetReq = chosenMode
+        ? chosenMode.targetRequirement
+        : ability.getTargetRequirement
+          ? ability.getTargetRequirement(card, state)
+          : ability.targetRequirement;
     // CR 612.6 — a color-targeted ability follows its source's active
     // color-word changes (Sleight of Mind on a Circle of Protection
     // retargets its "<color> source of your choice"). The substituted
@@ -11382,6 +11432,10 @@ export function activateAbilityOnState(
             keepPriority: args.keepPriority,
             kind: "ability",
             abilityId: args.abilityId,
+            // CR 700.2c (issue #1341) — the mode is locked BEFORE targets, so
+            // it rides the pendingTarget and is forwarded to the stack item /
+            // pendingActivation at finalization.
+            ...(chosenMode ? { chosenModeId: chosenMode.id } : {}),
             ...(abilityDivideTotal !== undefined
                 ? { divideTotal: abilityDivideTotal }
                 : {}),
@@ -11579,6 +11633,7 @@ export function activateAbilityOnState(
             ability,
             manaCost,
             chosenX,
+            ...(chosenMode ? { chosenModeId: chosenMode.id } : {}),
             keepPriority: args.keepPriority,
             grantedSourceCardId,
             fromGraveyard,
@@ -11658,6 +11713,7 @@ export function activateAbilityOnState(
         zone: "stack" as const,
         castById: args.playerId,
         abilityId: args.abilityId,
+        ...(chosenMode ? { chosenModeId: chosenMode.id } : {}),
         ...(chosenX !== undefined ? { chosenX } : {}),
         ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
         ...(immediateSacSnapshot
@@ -11690,6 +11746,10 @@ export const activateAbility = mutation({
          *  their mana cost (CR 107.3 / 601.2b). Ignored for abilities without
          *  X in their cost. */
         chosenX: v.optional(v.number()),
+        /** CR 700.2 / 602.2b (issue #1341) — the mode chosen at announcement
+         *  for a MODAL activated ability (Umezawa's Jitte). Required when the
+         *  ability declares `modes`, rejected otherwise. */
+        chosenModeId: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
         // SECURITY (issue #1645 review): seat-addressed mutation — the

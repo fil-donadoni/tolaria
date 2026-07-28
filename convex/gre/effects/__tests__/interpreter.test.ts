@@ -51,6 +51,7 @@ import { collectTriggers, placeTriggersOnStack } from "../../triggers";
 import { raiseTriggerTargetSelection } from "../../rules";
 import { finalizeTargetSelection } from "../../../game";
 import { INLINE_DELAYED_TRIGGER_ID } from "../interpreter";
+import { validateEffectScript } from "../validate";
 import { getEffectivePower, getEffectiveToughness } from "../../layers";
 import {
     registerEmblemDefinition,
@@ -20583,5 +20584,196 @@ describe("Effect Script Op: revealTopAndRoute (CR 701.20a)", () => {
         resolveTopOfStack(state);
         expect(state.pendingChoices ?? []).toHaveLength(0);
         expect(state.stack).toHaveLength(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// `$host` — the implicit ability-site binding for the source's attachment host
+// (CR 701.3, issue #1341). A structural construct, not an Op, so it earns the
+// full per-Op regime once: the construct combinations it participates in (a
+// bare object selector, a `ref` property read, the unattached / host-gone
+// skips) plus a wire-format assertion. Every later equip/aura ability that
+// acts on its host — Umezawa's Jitte's "+2/+2", a "regenerate enchanted
+// creature" — inherits this coverage for free.
+// ---------------------------------------------------------------------------
+describe("$host implicit binding (CR 701.3, issue #1341)", () => {
+    const HOST_PUMP_ID = "test-host-pump";
+    const HOST_REF_ID = "test-host-ref";
+
+    /** An Equipment-shaped permanent whose activated ability acts on `$host`. */
+    function registerHostCards(): void {
+        registerTokenDefinition({
+            id: HOST_PUMP_ID,
+            name: HOST_PUMP_ID,
+            rarity: "common",
+            manaCost: { generic: 1 },
+            types: ["Artifact"],
+            subtypes: ["Equipment"],
+            activatedAbilities: [
+                {
+                    id: "host-pump",
+                    oracleText:
+                        "{1}: Equipped creature gets +2/+2 until end of turn.",
+                    cost: { mana: { generic: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "pump",
+                            target: { ref: "$host" },
+                            power: 2,
+                            toughness: 2,
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+            ],
+        });
+        registerTokenDefinition({
+            id: HOST_REF_ID,
+            name: HOST_REF_ID,
+            rarity: "common",
+            manaCost: { generic: 1 },
+            types: ["Artifact"],
+            subtypes: ["Equipment"],
+            activatedAbilities: [
+                {
+                    id: "host-ref-drain",
+                    oracleText:
+                        "{1}: You gain life equal to equipped creature's power.",
+                    cost: { mana: { generic: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "gainLife",
+                            player: "controller",
+                            amount: { ref: "$host.power" },
+                        },
+                    ],
+                },
+            ],
+        });
+    }
+
+    /** Equipment `equip1` attached to a 2/2 `bear1`, plus a bystander. */
+    function hostBoard(cardId: string): GameState {
+        const equipment = makeInstance(cardId, {
+            id: "equip1",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "bear1",
+        });
+        const bear = makeInstance(getCardByName("Grizzly Bears").id, {
+            id: "bear1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const bystander = makeInstance(getCardByName("Grizzly Bears").id, {
+            id: "bear2",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        return makeState({
+            players: [
+                makePlayer("p1", { battlefield: [equipment, bear, bystander] }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    function activate(state: GameState, abilityId: string): void {
+        const src = state.players[0].battlefield.find(
+            (c) => c.id === "equip1"
+        )!;
+        state.stack.push({
+            ...src,
+            zone: "stack",
+            castById: "p1",
+            abilityId,
+            targets: [],
+        } as StackItem);
+        resolveTopOfStack(state);
+    }
+
+    it("resolves to the attached host as an object selector, and only it (GRE and wire format)", () => {
+        registerHostCards();
+        const state = hostBoard(HOST_PUMP_ID);
+        activate(state, "host-pump");
+
+        const host = state.players[0].battlefield.find(
+            (c) => c.id === "bear1"
+        )!;
+        const bystander = state.players[0].battlefield.find(
+            (c) => c.id === "bear2"
+        )!;
+        expect(getEffectivePower(state, host)).toBe(4); // 2 + 2
+        expect(getEffectiveToughness(state, host)).toBe(4);
+        // `$host` names ONE permanent — not "every creature you control".
+        expect(getEffectivePower(state, bystander)).toBe(2);
+
+        // The pump has to survive the projection: the client renders the
+        // equipped creature's boosted stats off the slim state.
+        const projected = projectPublicState(state, 1, "p1");
+        const slimHost = projected.players[0].battlefield.find(
+            (c) => c.id === "bear1"
+        )!;
+        expect(getEffectivePower(projected, slimHost)).toBe(4);
+        expect(getEffectiveToughness(projected, slimHost)).toBe(4);
+    });
+
+    it("supports a property read (`$host.power`) like any other snapshot", () => {
+        registerHostCards();
+        const state = hostBoard(HOST_REF_ID);
+        activate(state, "host-ref-drain");
+        expect(state.players[0].life).toBe(22); // 20 + the host's power 2
+    });
+
+    // CR 608.2b — the ability does as much as it can. An Equipment sitting
+    // unattached still resolves; its `$host` Op simply finds nothing.
+    it("skips the Op when the source is unattached", () => {
+        registerHostCards();
+        const state = hostBoard(HOST_PUMP_ID);
+        state.players[0].battlefield.find(
+            (c) => c.id === "equip1"
+        )!.attachedTo = undefined;
+        expect(() => activate(state, "host-pump")).not.toThrow();
+        for (const id of ["bear1", "bear2"]) {
+            const c = state.players[0].battlefield.find((x) => x.id === id)!;
+            expect(getEffectivePower(state, c)).toBe(2);
+        }
+    });
+
+    // CR 603.10 / 608.2b — the host left before the ability resolved. The
+    // stale `attachedTo` link must not resurrect it.
+    it("skips the Op when the host has left the battlefield", () => {
+        registerHostCards();
+        const state = hostBoard(HOST_PUMP_ID);
+        removePermanentTo(state, "bear1", "graveyard");
+        expect(() => activate(state, "host-pump")).not.toThrow();
+        const bystander = state.players[0].battlefield.find(
+            (c) => c.id === "bear2"
+        )!;
+        expect(getEffectivePower(state, bystander)).toBe(2);
+    });
+
+    // A SPELL site has no source permanent, so it has no host either — the
+    // validator rejects `$host` there as a dangling binding.
+    it("is rejected at a spell site by the static validator", () => {
+        const errors = validateEffectScript({
+            id: "test-host-at-spell-site",
+            name: "test-host-at-spell-site",
+            rarity: "common",
+            manaCost: { R: 1 },
+            types: ["Sorcery"],
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$host" },
+                    power: 1,
+                    toughness: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        } as CardDefinition);
+        expect(errors.length).toBeGreaterThan(0);
     });
 });

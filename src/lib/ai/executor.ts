@@ -54,7 +54,13 @@ export type MoveMutations = {
         a: GP & { cardInstanceId: string; manaChoiceIndex?: number }
     ) => Promise<unknown>;
     activateAbility: (
-        a: GP & { cardInstanceId: string; abilityId: string; chosenX?: number }
+        a: GP & {
+            cardInstanceId: string;
+            abilityId: string;
+            chosenX?: number;
+            /** CR 700.2c (issue #1341) — mode of a modal activated ability. */
+            chosenModeId?: string;
+        }
     ) => Promise<unknown>;
     tapForActivationPayment: (
         a: GP & { cardInstanceId: string; manaChoiceIndex?: number }
@@ -263,6 +269,9 @@ export async function executeMove(
                 cardInstanceId: move.cardInstanceId,
                 abilityId: move.abilityId,
                 chosenX: move.chosenX,
+                // CR 700.2c (issue #1341) — a modal activated ability locks its
+                // mode as it is announced, before targets are selected below.
+                chosenModeId: move.chosenModeId,
             });
             for (const t of move.targets) {
                 // See the matching comment in the "cast-spell" branch above.

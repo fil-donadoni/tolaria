@@ -51,7 +51,23 @@ function abilitySites(card: CardDefinition): {
             ? undefined
             : (ability as { event?: string }).event,
     }));
-    return [...activated, ...triggered];
+    // CR 700.2 / 602.2b (issue #1341) — each MODE of a modal ACTIVATED
+    // ability is its own ability-site script: it resolves with the source's
+    // `$source` / `$host` in scope and no firing event, and its `effects` are
+    // mutually exclusive with the mode's own `resolve`. Wrapped as a synthetic
+    // ability so the same validator walks it (the ability-site twin of
+    // `modeSites` below).
+    const abilityModes = (card.activatedAbilities ?? []).flatMap((ability) =>
+        (ability.modes ?? []).map((mode) => ({
+            ability: {
+                id: `${ability.id}#${mode.id}`,
+                effects: mode.effects,
+                resolve: mode.resolve,
+            },
+            label,
+        }))
+    );
+    return [...activated, ...triggered, ...abilityModes];
 }
 
 /** Every cast-time MODE site (CR 700.2 / 601.2c `modes[]`) on a card that

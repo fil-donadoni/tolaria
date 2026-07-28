@@ -9750,6 +9750,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Umezawa's Jitte",
+        "scryfallId": "3b6e5956-f795-451b-bb24-56462d1ced27",
+        "oracleId": "1da10d5c-36a8-473f-a5d4-782ad61d8057",
+        "firstSet": "bok"
+    },
+    {
         "name": "Uncle Istvan",
         "scryfallId": "848ad6d5-3a7e-4d6b-9929-36465796871f",
         "oracleId": "44e855a4-95f9-4515-a868-a8ad7a2db751",

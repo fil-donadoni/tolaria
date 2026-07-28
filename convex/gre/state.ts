@@ -1794,6 +1794,11 @@ export type PendingActivation = {
     fromHand?: boolean;
     /** Ability id on the source's card definition. */
     abilityId: string;
+    /** CR 700.2c / 602.2b (issue #1341) — mode locked in at announcement for a
+     *  MODAL activated ability (Umezawa's Jitte). Propagated to the stack item
+     *  at commit so resolution dispatches the chosen mode's body. Undefined for
+     *  a non-modal ability. */
+    chosenModeId?: string;
     manaCost: Record<string, number>;
     /** Land ids tapped during this payment, for rollback on cancel. */
     tappedLandIds: string[];
@@ -4235,17 +4240,32 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
             }
             delete top.resolutionStep;
         } else if (ability) {
-            // ADR 0045 (issue #803) — Effect Script through the shared
-            // interpreter seam, else the imperative `resolve`.
-            const scriptFn = getAbilityEffectFn(ability);
-            if (scriptFn) {
-                const ctx = buildSpellContext(state, top);
-                scriptFn(ctx);
-                if (resolutionSuspendedOnChoice(state)) return null;
-            } else if (ability.resolve) {
-                const ctx = buildSpellContext(state, top);
-                ability.resolve(ctx);
-                if (resolutionSuspendedOnChoice(state)) return null;
+            // CR 700.2 / 602.2b (issue #1341) — a MODAL activated ability
+            // dispatches the mode locked in at announcement (CR 700.2c), which
+            // rode here as `chosenModeId` through pendingTarget /
+            // pendingActivation. The ability-level effects/resolve are ignored
+            // for a modal ability, exactly as the card-level ones are for a
+            // modal spell (see the spell branch below). A `chosenModeId` that
+            // names no declared mode resolves as nothing (CR 608.2b).
+            const modalTarget =
+                top.chosenModeId && ability.modes && ability.modes.length > 0
+                    ? (ability.modes.find((m) => m.id === top.chosenModeId) ??
+                      null)
+                    : undefined;
+            const body = modalTarget === undefined ? ability : modalTarget;
+            if (body) {
+                // ADR 0045 (issue #803) — Effect Script through the shared
+                // interpreter seam, else the imperative `resolve`.
+                const scriptFn = getAbilityEffectFn(body);
+                if (scriptFn) {
+                    const ctx = buildSpellContext(state, top);
+                    scriptFn(ctx);
+                    if (resolutionSuspendedOnChoice(state)) return null;
+                } else if (body.resolve) {
+                    const ctx = buildSpellContext(state, top);
+                    body.resolve(ctx);
+                    if (resolutionSuspendedOnChoice(state)) return null;
+                }
             }
         }
         delete top.collectedChoices;

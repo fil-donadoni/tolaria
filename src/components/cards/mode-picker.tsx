@@ -1,11 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { SpellMode } from "@convex/cards/types";
+import type { ModeOption } from "@convex/cards/types";
 import GameDialog from "~/components/ui/game-dialog";
 import { Panel } from "@/components/ui/panel";
 
 type ModePickerProps = {
-    modes: SpellMode[];
+    modes: ReadonlyArray<ModeOption>;
     cardName: string;
     variant?: "dialog" | "portal";
     position?: { x: number; y: number };
@@ -17,7 +17,7 @@ function ModeRow({
     mode,
     onSelect,
 }: {
-    mode: SpellMode;
+    mode: ModeOption;
     onSelect: (id: string) => void;
 }) {
     return (
