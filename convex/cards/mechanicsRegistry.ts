@@ -834,7 +834,7 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         status: "implemented",
         binding: "convex/gre/protection.ts",
         bindingPattern: /^protection from /,
-        note: "dedicated convex/gre/protection.ts module (targeting, damage, blocking per CR 702.16b/e/f)",
+        note: 'dedicated convex/gre/protection.ts module (targeting, damage, blocking per CR 702.16b/e/f, plus the Aura clause 702.16c at attach time and via the SBA fall-off pass). TWO quality families are parsed there: the COLOUR/colourless form "protection from <colour>" (CR 702.16a, read through CR 612.6 colour-word text changes — Sleight of Mind), and the PLAYER form "protection from each of your opponents" (CR 702.16j, issue #1748 — Figure of Fable), whose quality is re-derived live from the protected permanent\'s OWN controller so a control-change effect moves it with the permanent. Both flow through the SAME `isProtectedFromColors` predicate, which every consumer reads: `getLegalTargets` (offered set) and the `selectTarget` mutation (accepted set) so they can never diverge, `dealDamage`/`applyAllCombatDamage` (702.16e), `validateBlockerEligibility` (702.16f), and the aura attach + SBA pass (702.16c). The Equipment clause (702.16d) remains unimplemented for BOTH quality families. Distinct from `setProtectionFromEverything`, the separate PLAYER-scoped protection The One Ring grants (CR 115.4).',
     },
     // 702.17 Reach
     {

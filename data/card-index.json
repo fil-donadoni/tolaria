@@ -4048,6 +4048,22 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Figure of Destiny",
+        "scryfallId": "0da69523-cece-425a-b08a-fb27fac29374",
+        "oracleId": "cd51cc2d-0d39-4aba-b0ea-70e8118149bc",
+        "firstSet": "eve",
+        "firstPrintId": "0da69523-cece-425a-b08a-fb27fac29374",
+        "firstPrintSet": "eve"
+    },
+    {
+        "name": "Figure of Fable",
+        "scryfallId": "e0ef33dd-5f6d-48fa-8ef6-a8092868d50f",
+        "oracleId": "5d4ea910-3b16-4f98-89be-c1b2cfff4bf0",
+        "firstSet": "ecl",
+        "firstPrintId": "e0ef33dd-5f6d-48fa-8ef6-a8092868d50f",
+        "firstPrintSet": "ecl"
+    },
+    {
         "name": "Fire and Brimstone",
         "scryfallId": "d5208dbb-63d2-4789-8ef9-f82499a43b3a",
         "oracleId": "b1f857c5-cd22-4a4e-8039-1e7eeb3754d8",

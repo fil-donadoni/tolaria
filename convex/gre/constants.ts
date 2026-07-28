@@ -13,7 +13,14 @@ import type { CardInstanceState, GameState } from "./state";
 import { applySubstitution } from "./textChanges";
 import { getEffectivePower, getEffectiveToughness } from "./layers";
 import type { LayerStateView } from "./layers";
-import { MANA_COLORS, LAND_SUBTYPE_MANA } from "./manaColors";
+import {
+    MANA_COLORS,
+    LAND_SUBTYPE_MANA,
+    hybridCostKey,
+    parseHybridCostKey,
+    normalizedHybridPips,
+    assignHybridPips,
+} from "./manaColors";
 
 /** Sentinel card id for opaque library placeholders the vs-AI Bot's search
  *  world is rehydrated with (issue #136). The wire projects a library as a
@@ -116,6 +123,16 @@ export function isPlaneswalker(card: CardInstanceState): boolean {
  *  re-exported here so every existing `from "../gre/constants"` import site
  *  is unaffected. */
 export { MANA_COLORS };
+
+/** Guild-hybrid pip helpers for a NORMALIZED cost (CR 202.1a, issue #1738).
+ *  Canonical definitions live in the same dependency-free leaf; re-exported
+ *  here so call sites keep importing mana helpers from one module. */
+export {
+    hybridCostKey,
+    parseHybridCostKey,
+    normalizedHybridPips,
+    assignHybridPips,
+};
 
 /** Default number of lands a player may play per turn (CR 305.2). Cards
  *  granting additional drops (Exploration, Azusa) would mutate the per-turn

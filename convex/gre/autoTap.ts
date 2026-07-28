@@ -5,6 +5,7 @@ import {
     getManaTapOptionsDetailed,
     isTapLockedBySummoningSickness,
     MANA_COLORS,
+    normalizedHybridPips,
 } from "./constants";
 import type { CardInstanceState } from "./state";
 import { isManaCostCovered, type ManaSubstitution } from "./state";
@@ -216,6 +217,23 @@ function helpsColoredNeed(
     subs: ManaSubstitution[],
     mana: ManaContribution
 ): boolean {
+    // CR 202.1a (issue #1739) — a guild-hybrid pip is a colour need too: it
+    // must consume one mana of one of its two colours. Purely a search-ORDER
+    // heuristic (the DFS still explores every option), but without it the
+    // solver tries generic-only options first on a hybrid-heavy cost.
+    const hybridPips = normalizedHybridPips(cost);
+    if (hybridPips.length > 0) {
+        const hybridColors = new Set<string>();
+        for (const pip of hybridPips) {
+            hybridColors.add(pip[0]);
+            hybridColors.add(pip[1]);
+        }
+        if (!isManaCostCovered(pool, cost, subs)) {
+            for (const color of MANA_COLORS) {
+                if (mana[color] && hybridColors.has(color)) return true;
+            }
+        }
+    }
     return MANA_COLORS.some((color) => {
         if (!mana[color]) return false;
         // Already covered without this option? Then it only helps generic.

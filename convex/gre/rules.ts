@@ -2014,8 +2014,12 @@ export function getLegalTargets(
                     continue;
                 }
                 // CR 702.16b: protected permanents can't be targeted by
-                // spells/abilities of the stated quality.
-                if (isProtectedFromColors(card, sourceColors)) continue;
+                // spells/abilities of the stated quality — a colour
+                // (CR 702.16a) or, since issue #1748, the PLAYER quality
+                // ("protection from each of your opponents"), for which
+                // `casterId` is the source's controller.
+                if (isProtectedFromColors(card, sourceColors, casterId))
+                    continue;
                 // CR 611 — a continuous `permanent-guard` may bar targeting
                 // entirely (Guardian Beast / shroud: "can't be the target of
                 // spells or abilities"), or narrowed by source quality ("Aura
