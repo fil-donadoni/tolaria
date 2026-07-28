@@ -10281,10 +10281,26 @@ export function buildSpellContext(
                 case "library-top":
                     item.zone = "library";
                     owner.library.unshift(item);
+                    // CR 400.2 / 405.1 (issue #1696) — the countered spell was
+                    // a PUBLIC object on the stack, so every player knows which
+                    // card this is; putting it at a known position in a hidden
+                    // zone does not retroactively un-reveal it. Stamp ADR 0026
+                    // reveal-class knowledge so the card stays face-up to all
+                    // players until an uncertainty event (a shuffle, CR 701.20,
+                    // via `clearKnowledge`) erases it. Identical to the
+                    // `putSpellOnLibrary` (Subtlety) path — one mechanism, not
+                    // a counterspell-specific marker.
+                    grantKnowledgeToAll(state, item.ownerId, [item.id]);
                     break;
                 case "hand":
                     item.zone = "hand";
                     owner.hand.push(item);
+                    // CR 400.2 / 405.1 (issue #1696) — same public→hidden move
+                    // as the library-top branch, into the other hidden zone
+                    // (Remand). The opponent legitimately keeps knowing that
+                    // card is in hand; the projection turns it into the
+                    // per-card `seenByOpponent` eye icon.
+                    grantKnowledgeToAll(state, item.ownerId, [item.id]);
                     break;
                 case "graveyard":
                 default:
