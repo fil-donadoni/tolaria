@@ -8,6 +8,7 @@ import {
     reconcileHandOrder,
     reorderIndexForDragX,
 } from "~/lib/board-layout";
+import { LIFTED_CARD_Z } from "~/lib/board-motion";
 import { useElementSize } from "~/hooks/useElementSize";
 import { GameContext } from "~/hooks/useGameContext";
 import SpatialZone, { type SpatialItem } from "./spatial-zone";
@@ -193,6 +194,17 @@ export default function BoardHand({
         return handGapPlacements(fan, from, dropIndex);
     }, [drag, dropIndex, fan, order]);
 
+    // The card currently STAGED by a touch tap (#1767), if any. Its slot is
+    // raised above its neighbours for the same reason the dragged slot is: the
+    // fan overlaps its cards and a slot's DOM node never reorders, so a card's
+    // own inner z-index cannot lift it over later-painted siblings. Without the
+    // raise, the second tap that confirms the play lands on the neighbouring
+    // card instead — cancelling the stage and staging that neighbour.
+    const [stagedId, setStagedId] = useState<string | null>(null);
+    const reportStaged = useCallback((id: string, staged: boolean) => {
+        setStagedId((cur) => (staged ? id : cur === id ? null : cur));
+    }, []);
+
     const canReorder = interactive && order.length > 1;
     // Arrival glow for cards that just landed in this hand (draw / bounce /
     // graveyard return). Read from GameContext when present (the spatial board
@@ -205,6 +217,7 @@ export default function BoardHand({
                 const card = cardById.get(id) ?? null;
                 return {
                     key: id,
+                    zIndex: id === stagedId ? LIFTED_CARD_Z : undefined,
                     arrivalGlow:
                         card != null && recentArrivals?.has(card.id) === true,
                     node:
@@ -220,6 +233,7 @@ export default function BoardHand({
                                     dragTranslateX(id, pointerX)
                                 }
                                 onDragEnd={endDrag}
+                                onStagedChange={(s) => reportStaged(id, s)}
                             />
                         ) : (
                             <BoardCard card={card} mirror={mirror} />
@@ -236,6 +250,8 @@ export default function BoardHand({
             endDrag,
             mirror,
             recentArrivals,
+            stagedId,
+            reportStaged,
         ]
     );
 

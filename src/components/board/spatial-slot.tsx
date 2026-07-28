@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import type { Placement } from "~/lib/board-layout";
-import { SLOT_SPRING } from "~/lib/board-motion";
+import { LIFTED_CARD_Z, SLOT_SPRING } from "~/lib/board-motion";
 import ArrivalGlow from "./arrival-glow";
 
 type SpatialSlotProps = {
@@ -99,7 +99,7 @@ export default function SpatialSlot({
                 // lift over later-painted slots). Otherwise a host with attached
                 // satellites uses its resting `zIndex` so its overhanging
                 // peek-stack / badge is not covered by neighbouring cards.
-                zIndex: snap ? 50 : zIndex,
+                zIndex: snap ? LIFTED_CARD_Z : zIndex,
             }}
         >
             <motion.div

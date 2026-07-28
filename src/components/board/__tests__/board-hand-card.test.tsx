@@ -688,6 +688,45 @@ describe("BoardHandCard touch tap = stage + confirm (#1767)", () => {
         expect(pill()).toBeNull();
     });
 
+    // Review finding: every overlay the card opens (cost dialog, mode /
+    // alt-cost / Phyrexian picker) is a PORTAL — outside the card in the DOM,
+    // but still a CHILD of it in the React tree, so React bubbles its clicks
+    // back into the card's own onClick. After a cast-with-dialog on touch, the
+    // dialog's confirm therefore re-entered the commit path and RE-STAGED the
+    // card that had just been cast (the touch pointer type from the tap is
+    // still on record) — a stray floating "Cast" pill whose tap fired a SECOND
+    // commit.
+    it("confirming the portaled cost dialog does NOT re-stage the just-cast card", () => {
+        cardDef = { name: "X Spell", manaCost: { X: "X" } };
+        renderCard(makeCard("xspell", ["cast"]));
+        tap(el(), "touch"); // stage
+        tap(el(), "touch"); // confirm → opens the X cost dialog
+        expect(announceCast).not.toHaveBeenCalled();
+
+        fireEvent.click(screen.getByTestId("cost-confirm"));
+
+        expect(announceCast).toHaveBeenCalledTimes(1);
+        expect(el().getAttribute("data-tap-staged")).toBeNull();
+        expect(pill()).toBeNull();
+    });
+
+    it("choosing a mode in the portaled picker does NOT re-stage the just-cast card", () => {
+        cardDef = { name: "Modal Spell", modes: [{ id: "mode-1" }] };
+        renderCard(makeCard("modal", ["cast"]));
+        tap(el(), "touch"); // stage
+        tap(el(), "touch"); // confirm → opens the mode picker
+        expect(announceCast).not.toHaveBeenCalled();
+
+        fireEvent.click(screen.getByTestId("mode-pick"));
+
+        expect(announceCast).toHaveBeenCalledTimes(1);
+        expect(announceCast.mock.calls[0][0]).toMatchObject({
+            chosenModeId: "mode-1",
+        });
+        expect(el().getAttribute("data-tap-staged")).toBeNull();
+        expect(pill()).toBeNull();
+    });
+
     it("an inert card (no legal action) never stages on a touch tap", () => {
         renderCard(makeCard("inert", []));
         tap(el(), "touch");

@@ -12,6 +12,7 @@ import { useTapStageConfirm } from "~/hooks/useTapStageConfirm";
 import { buildTriggerStateView, getHandStackAbilities } from "~/lib/card-utils";
 import { extractMutationErrorMessage } from "~/lib/mutation-error";
 import { trackGameIntent } from "~/lib/pending-intent-store";
+import { LIFTED_CARD_Z } from "~/lib/board-motion";
 import CardImage from "../cards/card-image";
 import CardTilt3D from "./card-tilt-3d";
 import SeenByOpponentBadge from "./seen-by-opponent-badge";
@@ -47,6 +48,14 @@ type BoardHandCardProps = {
     /** Forwarded to CardImage. The landscape hand (120px) is a mid slot, so it
      *  excludes `thumb` (default false); the portrait hand (76px) keeps it. */
     includeThumb?: boolean;
+    /** Called whenever this card's touch STAGE (#1767) opens or closes, so the
+     *  hand can raise the card's whole SLOT above its neighbours. The card's own
+     *  inner `zIndex` is enough for the portrait row (plain flow siblings), but
+     *  NOT for the spatial fan: the slot's DOM node never reorders (the same
+     *  reason the dragged slot needs `snap`), so an inner z-index can't lift it
+     *  over later-painted siblings — only the slot can. Omitted by hands that
+     *  don't stack their cards. */
+    onStagedChange?: (staged: boolean) => void;
 };
 
 /** Interactive hand card for the spatial board (PRD #249, slice #254; UX fixes
@@ -85,6 +94,7 @@ export default function BoardHandCard({
     dragTranslateX,
     sizes = "120px",
     includeThumb = false,
+    onStagedChange,
 }: BoardHandCardProps) {
     const {
         gameId,
@@ -256,6 +266,19 @@ export default function BoardHandCard({
         if (state.dragging) unstage();
     }, [state.dragging, unstage]);
 
+    // Report the stage upward so the hand can raise this card's whole SLOT (see
+    // `onStagedChange`). The cleanup also fires when the card unmounts while
+    // staged (it was played — it leaves the hand), so the raise is never left
+    // pinned to a card that is gone.
+    const staged = tapStage.staged;
+    useEffect(() => {
+        if (!onStagedChange) return;
+        onStagedChange(staged);
+        return () => {
+            if (staged) onStagedChange(false);
+        };
+    }, [staged, onStagedChange]);
+
     // Drive the hand's drag-reorder from the live pointer x (#271, fix 2): the
     // hand container snaps the dragged card to the slot under the drop position.
     // Notifying via an effect keeps this card a pure consumer of the gesture
@@ -325,6 +348,19 @@ export default function BoardHandCard({
     // with a single option the click performs it directly (cycling-only card, or
     // the normal play/cast commit).
     const onRootClick = (e: React.MouseEvent) => {
+        // Every overlay this card opens — the cost dialog (X / kicker /
+        // buyback), the mode / alt-cost / Phyrexian pickers, the confirm pill —
+        // is a PORTAL: outside the card in the DOM, but still a CHILD of it in
+        // the React tree, so React bubbles its clicks straight back into this
+        // handler. A click on one of them is never this card's click. Letting it
+        // through re-entered the commit path after a cast-with-dialog and, on
+        // touch, RE-STAGED the card that had just been cast (`consumeClick`
+        // sees the touch pointer type left by the tap) — a stray floating
+        // "Cast" pill over a card no longer in hand, whose tap fired a SECOND
+        // commit. The same guard the drag pipeline already applies to its
+        // click-swallow (`useDragToCommit.onClickCapture`): only a click
+        // PHYSICALLY inside the card counts.
+        if (!e.currentTarget.contains(e.target as Node)) return;
         if (useMenu) {
             if (isTouchRef.current) {
                 isTouchRef.current = false;
@@ -380,7 +416,13 @@ export default function BoardHandCard({
                 transition: state.dragging
                     ? "none"
                     : "transform 220ms cubic-bezier(0.22, 1, 0.36, 1)",
-                zIndex: state.dragging ? 50 : undefined,
+                // A LIFTED card (dragged, or staged by a touch tap) paints over
+                // its neighbours — the hand overlaps its cards, so without the
+                // raise the confirming second tap lands on the neighbour that
+                // covers a third of the staged card (#1767 review). This inner
+                // raise carries the portrait row (plain flow siblings); the
+                // spatial fan's slot is raised by the hand via `onStagedChange`.
+                zIndex: state.dragging || staged ? LIFTED_CARD_Z : undefined,
                 position: "relative",
             }}
         >

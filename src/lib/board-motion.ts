@@ -31,6 +31,19 @@ export const SLOT_SPRING = {
 } as const;
 
 /**
+ * Stack level a hand card is raised to while it is LIFTED out of the hand —
+ * dragged toward the commit line (#254), or staged by a touch tap (#1767).
+ *
+ * A lifted card MUST paint above its neighbours, because both hand layouts
+ * overlap their cards: the portrait row overlaps by 26px of a 76px card (~34%
+ * of every card is covered by the next one) and the spatial fan overlaps
+ * likewise. Without the raise, the "second tap on the card" that confirms a
+ * staged play lands on the NEIGHBOUR — cancelling the stage and staging the
+ * neighbour instead — on exactly the layout the touch flow targets.
+ */
+export const LIFTED_CARD_Z = 50;
+
+/**
  * Arena-style hover tilt constants for the spatial board (PRD #249, slice #253).
  *
  * The validated core (from the throwaway prototype `card-tilt.tsx`): on
