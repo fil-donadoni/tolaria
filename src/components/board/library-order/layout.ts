@@ -4,13 +4,12 @@
 // lands on. All positions are strip-local px — no React, no side effects, so the
 // drag math is a pure function of committed order + live pointer.
 import {
-    CARD_W,
     REVEAL,
     GAP_FUSED,
     GAP_DETACHED,
     LIB_OVERLAP,
+    deckWidthFor,
 } from "./constants";
-import { DECK_W } from "./deck-mock";
 
 export type Zone = "second" | "top";
 
@@ -30,9 +29,10 @@ export type StripLayout = {
     center: (zone: Zone, index: number) => number;
 };
 
-/** Visual width of a `n`-card overlapped fan (0 for an empty fan). */
-function zoneWidth(n: number): number {
-    return n <= 0 ? 0 : (n - 1) * REVEAL + CARD_W;
+/** Visual width of a `n`-card overlapped fan at tile width `cardW` (0 for an
+ *  empty fan). */
+function zoneWidth(n: number, cardW: number): number {
+    return n <= 0 ? 0 : (n - 1) * REVEAL + cardW;
 }
 
 export function computeLayout(
@@ -43,27 +43,32 @@ export function computeLayout(
     /** Detach the RIGHT zone from the library mock (distribute HAND, QA
      *  Narset): a real gap replaces the fused under-deck tuck, so the hand
      *  zone never reads as "top of library". */
-    detachRight = false
+    detachRight: boolean,
+    /** Tile width (issue #1765) — responsive, fitted by the caller
+     *  (`fitTileWidth`, `~/lib/reorder-strip-width`) to the live viewport, so
+     *  no hardcoded card size lives in this geometry. */
+    cardW: number
 ): StripLayout {
     const secondStart = 0;
     // Reserve at least one card of room so an EMPTY second zone is still a real,
     // visible drop target (and the library doesn't slam against x=0).
     const secondSlotW = hasSecond
-        ? Math.max(zoneWidth(secondCount), CARD_W)
+        ? Math.max(zoneWidth(secondCount, cardW), cardW)
         : 0;
     const gapL = hasSecond ? (detached ? GAP_DETACHED : GAP_FUSED) : 0;
     const libStart = secondSlotW + gapL;
-    const libCenter = libStart + DECK_W / 2;
+    const deckW = deckWidthFor(cardW);
+    const libCenter = libStart + deckW / 2;
     // The top fan tucks under the library's right edge (Arena fuse) — unless
     // the right zone is detached (distribute HAND).
     const topStart = detachRight
-        ? libStart + DECK_W + GAP_DETACHED
-        : libStart + DECK_W - LIB_OVERLAP;
-    const stripW = topStart + Math.max(zoneWidth(topCount), CARD_W);
+        ? libStart + deckW + GAP_DETACHED
+        : libStart + deckW - LIB_OVERLAP;
+    const stripW = topStart + Math.max(zoneWidth(topCount, cardW), cardW);
 
     const center = (zone: Zone, index: number): number => {
         const start = zone === "second" ? secondStart : topStart;
-        return start + index * REVEAL + CARD_W / 2;
+        return start + index * REVEAL + cardW / 2;
     };
 
     return {

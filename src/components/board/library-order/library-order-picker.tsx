@@ -29,9 +29,19 @@ import {
 import { SLOT_SPRING } from "~/lib/board-motion";
 import { Minus, Hand, Layers, Skull } from "lucide-react";
 import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
+import { useViewportWidth } from "~/hooks/useViewportWidth";
+import { fitTileWidth, modalChromePaddingX } from "~/lib/reorder-strip-width";
 import OrderCard from "./order-card";
-import DeckMock, { DECK_W, DECK_H } from "./deck-mock";
-import { CARD_W, CARD_H, LIFT, DRAG_START_PX, REVEAL } from "./constants";
+import DeckMock from "./deck-mock";
+import {
+    CARD_W as CARD_W_NATURAL,
+    MIN_CARD_W,
+    cardHeightFor,
+    deckWidthFor,
+    LIFT,
+    DRAG_START_PX,
+    REVEAL,
+} from "./constants";
 import { computeLayout, insertionIndex, type Zone } from "./layout";
 
 /** Zone label chrome (phase 2, winner A): every picker zone declares its name
@@ -281,6 +291,42 @@ export default function LibraryOrderPicker({
         return clientX - (rect?.left ?? 0);
     }, []);
 
+    // Responsive tile width (issue #1765): a 5+ card scry strip at the
+    // natural CARD_W overflows a 390px phone viewport and gets cut off on the
+    // right. Shrink the tile width so the strip's CURRENT (non-drag) shape
+    // fits the live viewport, floored at MIN_CARD_W for readability — below
+    // the floor the strip stops shrinking and its own horizontal scroll
+    // (`overflow-x-auto`) is the fallback instead. `fitTileWidth` only needs
+    // this layout's OWN footprint function (its docs: the total strip width is
+    // affine in the tile width regardless of the zones/gaps below), so no
+    // hardcoded pixel width lives in this component's math. `availableWidth`
+    // is derived from `modalChromePaddingX` (review fix, issue #1765) — the
+    // SAME source the overlay's `p-2 sm:p-6` and the strip wrapper's
+    // `px-0 sm:px-10` classes below render with, so a 390px phone's actually-
+    // smaller chrome, not a desktop-shaped fixed constant, feeds the fit —
+    // otherwise even a 2-4 card scry always bottomed out at MIN_CARD_W and
+    // deferred to scroll.
+    const viewportW = useViewportWidth();
+    const cardW = useMemo(
+        () =>
+            fitTileWidth({
+                stripWidthAt: (w) =>
+                    computeLayout(
+                        second.length,
+                        top.length,
+                        hasSecond,
+                        detached,
+                        detachRight,
+                        w
+                    ).stripW,
+                naturalTileW: CARD_W_NATURAL,
+                minTileW: MIN_CARD_W,
+                availableWidth: viewportW - modalChromePaddingX(viewportW),
+            }),
+        [second.length, top.length, hasSecond, detached, detachRight, viewportW]
+    );
+    const cardH = cardHeightFor(cardW);
+
     // ---- Live drop resolution (pure; recomputed each render while dragging) ----
     const view = useMemo(() => {
         if (!drag) {
@@ -289,7 +335,8 @@ export default function LibraryOrderPicker({
                 top.length,
                 hasSecond,
                 detached,
-                detachRight
+                detachRight,
+                cardW
             );
             const place = new Map<string, { x: number; z: number }>();
             second.forEach((id, i) =>
@@ -317,7 +364,8 @@ export default function LibraryOrderPicker({
             top0.length,
             hasSecond,
             detached,
-            detachRight
+            detachRight,
+            cardW
         );
         let destZone: Zone =
             hasSecond && drag.pointerX < hit.libCenter ? "second" : "top";
@@ -373,7 +421,8 @@ export default function LibraryOrderPicker({
             nextTop.length,
             hasSecond,
             detached,
-            detachRight
+            detachRight,
+            cardW
         );
         const place = new Map<string, { x: number; z: number }>();
         nextSecond.forEach((id, i) =>
@@ -385,8 +434,8 @@ export default function LibraryOrderPicker({
 
         const dragX = clamp(
             drag.pointerX - drag.grabOffsetX,
-            CARD_W / 2,
-            layout.stripW - CARD_W / 2
+            cardW / 2,
+            layout.stripW - cardW / 2
         );
 
         return {
@@ -408,6 +457,7 @@ export default function LibraryOrderPicker({
         topCap,
         eligibleIds,
         categories,
+        cardW,
     ]);
 
     // ---- Gesture (mirrors the hand's activation feel; no cast branch) ----
@@ -421,7 +471,8 @@ export default function LibraryOrderPicker({
                 top.length,
                 hasSecond,
                 detached,
-                detachRight
+                detachRight,
+                cardW
             );
             const center = layout.center(zone, idx);
             press.current = {
@@ -433,7 +484,16 @@ export default function LibraryOrderPicker({
                 active: false,
             };
         },
-        [top, second, hasSecond, detached, detachRight, localX, submitting]
+        [
+            top,
+            second,
+            hasSecond,
+            detached,
+            detachRight,
+            cardW,
+            localX,
+            submitting,
+        ]
     );
 
     const onPointerMove = useCallback(
@@ -526,7 +586,7 @@ export default function LibraryOrderPicker({
         onConfirm(topTopmostFirst, hasSecond ? second : []);
     };
 
-    const containerH = CARD_H + LIFT;
+    const containerH = cardH + LIFT;
 
     // Portalled to <body>: on the portrait board this picker mounts inside
     // BoardPileChips' `sr-only` wrapper (1px clip box), and `fixed` does NOT
@@ -536,7 +596,7 @@ export default function LibraryOrderPicker({
     // path (desktop pile column, portrait chips, PutBackPicker).
     return createPortal(
         <div
-            className={`fixed inset-0 z-modal items-center justify-center bg-scrim p-6 ${
+            className={`fixed inset-0 z-modal items-center justify-center bg-scrim p-2 sm:p-6 ${
                 isMinimized ? "hidden" : "flex"
             }`}
         >
@@ -568,10 +628,27 @@ export default function LibraryOrderPicker({
                     <ZoneLabel meta={rightMeta} accent={detachRight} />
                 </div>
 
-                {/* overflow-hidden (not auto): a dragged card lifted to the edge
-                    must never spawn a scrollbar. Horizontal padding gives the
-                    scaled edge cards + their drop-shadow room to breathe. */}
-                <div className="flex justify-center overflow-hidden px-10 py-8">
+                {/* overflow-x-auto (issue #1765): the strip shrinks its tile
+                    width to fit first (`fitTileWidth`), but a strip that still
+                    can't fit even at the readability floor (MIN_CARD_W) falls
+                    back to an obvious horizontal scroll rather than clipping
+                    cards off-screen — mirrors TriggerOrderPrompt's own
+                    fallback. The dragged card's `dragX` is clamped within
+                    `stripW` (never past either strip edge), so a drag never
+                    fights the scroll. Horizontal padding gives the scaled edge
+                    cards + their drop-shadow room to breathe (shrunk to 0 on
+                    mobile, review fix issue #1765, so a narrow phone spends
+                    that room on tile width instead — `modalChromePaddingX`
+                    above already accounts for it).
+                    `justify-center-safe` (not `justify-center`, review fix):
+                    plain `justify-center` on an overflowing flex child clamps
+                    `scrollLeft` at 0 the moment the centered content is wider
+                    than the viewport, making the LEFT half of the strip —
+                    the BOTTOM/GRAVEYARD drop zone — permanently unreachable
+                    by scroll. `safe center` (CR-of-CSS: falls back to `start`
+                    alignment when the content overflows) keeps both ends
+                    scrollable. */}
+                <div className="flex justify-center-safe overflow-x-auto overflow-y-hidden px-0 sm:px-10 py-8">
                     <div
                         ref={containerRef}
                         className="relative shrink-0 touch-none select-none"
@@ -591,7 +668,7 @@ export default function LibraryOrderPicker({
                                     left: view.layout.secondStart - 10,
                                     top: LIFT - 6,
                                     width: view.layout.secondSlotW + 20,
-                                    height: CARD_H + 12,
+                                    height: cardH + 12,
                                     zIndex: 0,
                                 }}
                             />
@@ -607,10 +684,10 @@ export default function LibraryOrderPicker({
                                     top: LIFT - 6,
                                     width:
                                         Math.max(
-                                            (top.length - 1) * REVEAL + CARD_W,
-                                            CARD_W
+                                            (top.length - 1) * REVEAL + cardW,
+                                            cardW
                                         ) + 20,
-                                    height: CARD_H + 12,
+                                    height: cardH + 12,
                                     zIndex: 0,
                                 }}
                             />
@@ -621,12 +698,12 @@ export default function LibraryOrderPicker({
                             style={{
                                 left: view.layout.libStart,
                                 top: LIFT,
-                                width: DECK_W,
-                                height: DECK_H,
+                                width: deckWidthFor(cardW),
+                                height: cardH,
                                 zIndex: 100,
                             }}
                         >
-                            <DeckMock />
+                            <DeckMock cardW={cardW} cardH={cardH} />
                         </div>
 
                         {lookedAt.map((c) => {
@@ -648,9 +725,9 @@ export default function LibraryOrderPicker({
                                     style={{
                                         left: 0,
                                         top: LIFT,
-                                        width: CARD_W,
+                                        width: cardW,
                                         zIndex: z,
-                                        transform: `translate(${x - CARD_W / 2}px, ${
+                                        transform: `translate(${x - cardW / 2}px, ${
                                             isDrag ? -LIFT : 0
                                         }px) scale(${isDrag ? 1.05 : 1})`,
                                         transition: isDrag
@@ -661,7 +738,11 @@ export default function LibraryOrderPicker({
                                             : undefined,
                                     }}
                                 >
-                                    <OrderCard defId={defById[c.instanceId]} />
+                                    <OrderCard
+                                        defId={defById[c.instanceId]}
+                                        cardW={cardW}
+                                        cardH={cardH}
+                                    />
                                 </div>
                             );
                         })}

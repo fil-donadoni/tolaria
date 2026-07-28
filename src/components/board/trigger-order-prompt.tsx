@@ -7,6 +7,8 @@ import type { PendingChoice, StackItem } from "~/types/game";
 import { getStackAbilityOracleText } from "~/lib/card-utils";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
+import { useViewportWidth } from "~/hooks/useViewportWidth";
+import { fitTileWidth, modalChromePaddingX } from "~/lib/reorder-strip-width";
 import { SLOT_SPRING } from "~/lib/board-motion";
 import StackAbilityTile from "./stack-ability-tile";
 
@@ -31,13 +33,23 @@ import StackAbilityTile from "./stack-ability-tile";
  *  the projected off-stack `pendingTriggerBatch` (CR 603.3b — the triggers are
  *  public). */
 
-const TILE_W = 152;
-const GAP = 20;
-const SLOT = TILE_W + GAP;
+/** Natural (desktop) tile width. Shrunk responsively (issue #1765, shared
+ *  `fitTileWidth`) to fit a narrow phone viewport, floored at MIN_TILE_W.
+ *  Exported (review fix, issue #1765) so tests import the REAL constants
+ *  instead of re-declaring the same literals — a re-declared copy can drift
+ *  from this file silently. */
+export const NATURAL_TILE_W = 152;
+/** Readability floor for the responsive fit — below it the strip's own
+ *  horizontal scroll (`overflow-x-auto`, already in place) takes over instead
+ *  of shrinking the tile further. */
+export const MIN_TILE_W = 96;
+export const GAP = 20;
 const LIFT = 18;
 const DRAG_START_PX = 6;
 // StackAbilityTile is an art-crop (ART_CROP_RATIO) plus a two/three-line oracle
-// footer; this fixed height comfortably clears the tallest footer at TILE_W.
+// footer; this fixed height comfortably clears the tallest footer down to
+// MIN_TILE_W (issue #1765 — the responsive floor is close enough to
+// NATURAL_TILE_W, ~63%, that the footer still wraps within this budget).
 const STRIP_H = 260;
 
 const clamp = (v: number, lo: number, hi: number) =>
@@ -96,8 +108,39 @@ export default function TriggerOrderPrompt({
         return clientX - (rect?.left ?? 0);
     }, []);
 
-    const center = (i: number) => i * SLOT + TILE_W / 2;
-    const stripW = order.length * SLOT - GAP;
+    // Responsive tile width (issue #1765): a 5+ tile ordering strip at the
+    // natural width overflows a 390px phone viewport. Shrink the tile width
+    // so the strip's footprint fits the live viewport, floored at
+    // MIN_TILE_W — below the floor the strip stops shrinking and its own
+    // horizontal scroll (`overflow-x-auto`, below) is the fallback instead.
+    // `stripWidthAt` is the same `order.length * (w + GAP) - GAP` the render
+    // below uses, just parametrized on `w` — no hardcoded pixel width lives
+    // in the gesture math.
+    const viewportW = useViewportWidth();
+    const tileW = useMemo(
+        () =>
+            fitTileWidth({
+                stripWidthAt: (w) => order.length * (w + GAP) - GAP,
+                naturalTileW: NATURAL_TILE_W,
+                minTileW: MIN_TILE_W,
+                // `modalChromePaddingX` (review fix, issue #1765): derives the
+                // same padding numbers the `p-2 sm:p-6` / `px-0 sm:px-10`
+                // classes below actually render with, instead of a fixed
+                // desktop-shaped constant that left a 390px phone with no
+                // real room to shrink into.
+                availableWidth: viewportW - modalChromePaddingX(viewportW),
+            }),
+        [order.length, viewportW]
+    );
+    const slot = tileW + GAP;
+    const stripW = order.length * slot - GAP;
+    // Stable across renders unless `tileW` itself changes (a resize) — lets
+    // `view`/`onPointerDown` below declare it as a normal dependency instead
+    // of re-deriving `slot`/`tileW` inline.
+    const center = useCallback(
+        (i: number) => i * slot + tileW / 2,
+        [slot, tileW]
+    );
 
     // ---- Live drop resolution (pure; recomputed each render while dragging) ----
     const view = useMemo(() => {
@@ -109,7 +152,7 @@ export default function TriggerOrderPrompt({
         const rest = order.filter((id) => id !== drag.id);
         const draggedCenter = drag.pointerX - drag.grabOffsetX;
         const dropIndex = clamp(
-            Math.round((draggedCenter - TILE_W / 2) / SLOT),
+            Math.round((draggedCenter - tileW / 2) / slot),
             0,
             rest.length
         );
@@ -117,9 +160,9 @@ export default function TriggerOrderPrompt({
         next.splice(dropIndex, 0, drag.id);
         const place = new Map<string, number>();
         next.forEach((id, i) => place.set(id, center(i)));
-        const dragX = clamp(draggedCenter, TILE_W / 2, stripW - TILE_W / 2);
+        const dragX = clamp(draggedCenter, tileW / 2, stripW - tileW / 2);
         return { place, dragX, _commit: dropIndex };
-    }, [drag, order, stripW]);
+    }, [drag, order, stripW, tileW, slot, center]);
 
     // ---- Gesture (deferred commit + pointer capture, mirrors the hand) ----
     const onPointerDown = useCallback(
@@ -135,7 +178,7 @@ export default function TriggerOrderPrompt({
                 active: false,
             };
         },
-        [order, localX, submitting]
+        [order, center, localX, submitting]
     );
 
     const onPointerMove = useCallback(
@@ -222,7 +265,7 @@ export default function TriggerOrderPrompt({
 
     return (
         <div
-            className={`fixed inset-0 z-modal items-center justify-center bg-scrim p-6 ${
+            className={`fixed inset-0 z-modal items-center justify-center bg-scrim p-2 sm:p-6 ${
                 isMinimized ? "hidden" : "flex"
             }`}
         >
@@ -243,8 +286,15 @@ export default function TriggerOrderPrompt({
                 </p>
 
                 {/* overflow-hidden (not auto): a lifted tile must never spawn a
-                    scrollbar. Padding gives the lifted/scaled tile room. */}
-                <div className="flex justify-center overflow-x-auto overflow-y-hidden px-10 py-6">
+                    scrollbar. Padding gives the lifted/scaled tile room
+                    (shrunk to 0 on mobile, review fix issue #1765 —
+                    `modalChromePaddingX` accounts for it). `justify-center-safe`
+                    (not `justify-center`, review fix): plain `justify-center`
+                    on an overflowing flex child clamps `scrollLeft` at 0,
+                    making the LEFT half of the strip permanently unreachable
+                    by scroll; `safe center` falls back to `start` alignment
+                    when the content overflows, keeping both ends scrollable. */}
+                <div className="flex justify-center-safe overflow-x-auto overflow-y-hidden px-0 sm:px-10 py-6">
                     <div
                         ref={containerRef}
                         className="relative shrink-0 touch-none select-none"
@@ -281,9 +331,9 @@ export default function TriggerOrderPrompt({
                                     style={{
                                         left: 0,
                                         top: LIFT,
-                                        width: TILE_W,
+                                        width: tileW,
                                         zIndex: isDrag ? 999 : 1,
-                                        transform: `translate(${dx - TILE_W / 2}px, ${
+                                        transform: `translate(${dx - tileW / 2}px, ${
                                             isDrag ? -LIFT : 0
                                         }px) scale(${isDrag ? 1.05 : 1})`,
                                         transition: isDrag

@@ -1,14 +1,33 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, fireEvent } from "@testing-library/react";
 import type { ReactElement } from "react";
 import LibraryOrderPicker from "../library-order-picker";
 import { MinimizedChoiceContext } from "~/hooks/useMinimizedChoice";
+import { fitTileWidth, modalChromePaddingX } from "~/lib/reorder-strip-width";
+import { computeLayout, insertionIndex } from "../layout";
+import { CARD_W as CARD_W_NATURAL, MIN_CARD_W } from "../constants";
 
 const looked = [
     { instanceId: "a", defId: "def-a" },
     { instanceId: "b", defId: "def-b" },
     { instanceId: "c", defId: "def-c" },
 ];
+
+const looked5 = [
+    { instanceId: "a", defId: "def-a" },
+    { instanceId: "b", defId: "def-b" },
+    { instanceId: "c", defId: "def-c" },
+    { instanceId: "d", defId: "def-d" },
+    { instanceId: "e", defId: "def-e" },
+];
+
+const setInnerWidth = (w: number) => {
+    Object.defineProperty(window, "innerWidth", {
+        configurable: true,
+        writable: true,
+        value: w,
+    });
+};
 
 // Issue #315 — the picker reads `useMinimizedChoice` (minimize-to-board). The
 // board mounts the real provider; these tests only need a no-op so the hook
@@ -26,6 +45,35 @@ const renderPicker = (ui: ReactElement) =>
     );
 
 describe("LibraryOrderPicker", () => {
+    // The touch-capture regression test below overwrites
+    // `Element.prototype.{set,release,has}PointerCapture` globally (jsdom has
+    // no real pointer-capture implementation to fake with). Save the originals
+    // once and restore them after EVERY test in this file — not just the one
+    // that mutates them — so a test appended later never inherits the mocked
+    // prototype methods from a prior run.
+    const proto = Element.prototype as Element & {
+        setPointerCapture: unknown;
+        releasePointerCapture: unknown;
+        hasPointerCapture: unknown;
+    };
+    const originalSetPointerCapture = proto.setPointerCapture;
+    const originalReleasePointerCapture = proto.releasePointerCapture;
+    const originalHasPointerCapture = proto.hasPointerCapture;
+
+    afterEach(() => {
+        proto.setPointerCapture = originalSetPointerCapture;
+        proto.releasePointerCapture = originalReleasePointerCapture;
+        proto.hasPointerCapture = originalHasPointerCapture;
+    });
+
+    // Issue #1765 — the picker reads `window.innerWidth` (`useViewportWidth`)
+    // to fit its tile width; restore the real value after every test so a
+    // mobile-viewport test never leaks into a later one.
+    const originalInnerWidth = window.innerWidth;
+    afterEach(() => {
+        setInnerWidth(originalInnerWidth);
+    });
+
     it("confirming without dragging preserves the current top order and keeps everything on top", () => {
         // `lookedAt` is top-to-bottom (a = current top). No drag → the submit
         // must reproduce that order (topmost first) with nothing sent away.
@@ -248,11 +296,6 @@ describe("LibraryOrderPicker", () => {
     // on phones). The spurious bubbled event here reproduces the transfer; the
     // drag must survive it and the release must still apply the reorder.
     it("a card→container capture transfer does not kill an active drag (touch)", () => {
-        const proto = Element.prototype as Element & {
-            setPointerCapture: unknown;
-            releasePointerCapture: unknown;
-            hasPointerCapture: unknown;
-        };
         proto.setPointerCapture = vi.fn();
         proto.releasePointerCapture = vi.fn();
         proto.hasPointerCapture = vi.fn(() => true);
@@ -301,5 +344,141 @@ describe("LibraryOrderPicker", () => {
         const submittedTop = onConfirm.mock.calls[0][0] as string[];
         expect(submittedTop).not.toEqual(["a", "b", "c"]);
         expect([...submittedTop].sort()).toEqual(["a", "b", "c"]);
+    });
+
+    // Issue #1765 — a 5-card scry strip at the natural CARD_W overflows a
+    // 390px phone viewport. The picker must shrink its tile width to the SAME
+    // fit `fitTileWidth` computes (mirrored here rather than hardcoding a
+    // pixel number, so this test tracks the real component math, not a
+    // snapshot of it) — and its horizontal-scroll fallback must stay in place
+    // regardless, satisfying "fully visible OR obviously scrollable".
+    it("shrinks the tile width to fit a 5-card strip at a 390px mobile viewport", () => {
+        setInnerWidth(390);
+        const { baseElement } = renderPicker(
+            <LibraryOrderPicker
+                lookedAt={looked5}
+                destination="library-bottom"
+                prompt="Scry"
+                submitting={false}
+                onConfirm={vi.fn()}
+            />
+        );
+
+        // Mirrors the picker's own fit for this exact mount: scry mode starts
+        // with an empty second (bottom) zone (reserved slot) and all 5 cards
+        // on top.
+        const expectedCardW = fitTileWidth({
+            stripWidthAt: (w) =>
+                computeLayout(0, 5, true, false, false, w).stripW,
+            naturalTileW: CARD_W_NATURAL,
+            minTileW: MIN_CARD_W,
+            availableWidth: 390 - modalChromePaddingX(390),
+        });
+        expect(expectedCardW).toBeLessThan(CARD_W_NATURAL);
+
+        const cards = baseElement.querySelectorAll(".cursor-grab");
+        expect(cards.length).toBe(5);
+        for (const card of cards) {
+            expect((card as HTMLElement).style.width).toBe(
+                `${expectedCardW}px`
+            );
+        }
+
+        // The strip's own horizontal-scroll fallback (issue #1765) stays
+        // available even after shrinking, for whatever the fit can't fit.
+        const scrollWrapper = baseElement.querySelector(".overflow-x-auto");
+        expect(scrollWrapper).not.toBeNull();
+    });
+
+    // Issue #1765 — the touch drag-capture regression (above) must keep
+    // working when the tile size is the RESPONSIVE (shrunk) one, not just the
+    // natural desktop size — the gesture math (slot centers, drop index,
+    // grabOffsetX) must follow the dynamic width.
+    //
+    // Review fix: the original version of this test dropped at `clientX: 0`,
+    // which lands at drop index 0 at ANY tile width (jsdom zeroes every
+    // element's bounding rect, so `localX` is just the raw `clientX`) — it
+    // could never have caught a regression back to a hardcoded NATURAL_CARD_W
+    // in the gesture math. `library-bottom` (Scry) reserves a full tile of
+    // room for the still-empty BOTTOM zone even before anything is dragged
+    // there, so at 390px it shrinks all the way to MIN_CARD_W (72) — a much
+    // bigger gap from the natural width (116) than `none` mode's, big enough
+    // that a real mid-strip x resolves to a DIFFERENT drop index depending on
+    // which width the math actually uses. The expected index/order below is
+    // derived by mirroring the component's own `computeLayout`/`insertionIndex`
+    // at the FITTED width — not hardcoded — so this test tracks the real
+    // component math and asserts the EXACT submitted order.
+    it("drag-to-reorder computes the drop index from the actual (fitted) tile width, not a hardcoded one", () => {
+        setInnerWidth(390);
+        proto.setPointerCapture = vi.fn();
+        proto.releasePointerCapture = vi.fn();
+        proto.hasPointerCapture = vi.fn(() => true);
+
+        const fittedCardW = fitTileWidth({
+            stripWidthAt: (w) =>
+                computeLayout(0, 3, true, false, false, w).stripW,
+            naturalTileW: CARD_W_NATURAL,
+            minTileW: MIN_CARD_W,
+            availableWidth: 390 - modalChromePaddingX(390),
+        });
+        expect(fittedCardW).toBeLessThan(CARD_W_NATURAL);
+
+        const onConfirm = vi.fn();
+        const { getByText, baseElement } = renderPicker(
+            <LibraryOrderPicker
+                lookedAt={looked}
+                destination="library-bottom"
+                prompt="Scry"
+                submitting={false}
+                onConfirm={onConfirm}
+            />
+        );
+        // DOM order follows `lookedAt` ([a, b, c]) — VISUAL order is the top
+        // array [c, b, a] via transforms, so cards[0] ("a") is the rightmost
+        // (top) card. Dragging it to the far left must reorder.
+        const cards = baseElement.querySelectorAll(".cursor-grab");
+        expect(cards.length).toBe(3);
+        const rightmost = cards[0] as HTMLElement;
+        const strip = rightmost.parentElement as HTMLElement;
+
+        fireEvent.pointerDown(rightmost, {
+            pointerId: 1,
+            button: 0,
+            clientX: 300,
+            clientY: 50,
+        });
+        fireEvent.pointerMove(strip, {
+            pointerId: 1,
+            clientX: 280,
+            clientY: 50,
+        });
+        // Implicit-capture transfer fires lostpointercapture ON THE CARD
+        // (target ≠ container) — must not commit the drag.
+        fireEvent.lostPointerCapture(rightmost, { pointerId: 1 });
+        // Mid-strip x = 250: at the FITTED width (72) this resolves to drop
+        // index 1 among the two remaining top cards; at the NATURAL width
+        // (116) the very same x would resolve to drop index 0 — the two
+        // widths genuinely disagree here, unlike `clientX: 0`.
+        fireEvent.pointerMove(strip, {
+            pointerId: 1,
+            clientX: 250,
+            clientY: 50,
+        });
+        fireEvent.pointerUp(strip, { pointerId: 1, clientX: 250, clientY: 50 });
+
+        fireEvent.click(getByText("Done"));
+        expect(onConfirm).toHaveBeenCalledTimes(1);
+
+        // Mirrors the component's own drop-resolution math (`view`'s `hit` /
+        // `insertionIndex` in library-order-picker.tsx) at the FITTED width,
+        // then simulates the same splice + reverse-for-submit the component
+        // performs on confirm.
+        const hit = computeLayout(0, 2, true, false, false, fittedCardW);
+        const expectedDropIndex = insertionIndex(hit, "top", 2, 250);
+        const top0 = ["c", "b"]; // top minus the dragged "a"
+        top0.splice(expectedDropIndex, 0, "a");
+        const expectedTop = [...top0].reverse();
+
+        expect(onConfirm).toHaveBeenCalledWith(expectedTop, []);
     });
 });
