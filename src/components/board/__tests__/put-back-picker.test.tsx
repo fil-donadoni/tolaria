@@ -106,9 +106,10 @@ describe("PutBackPicker (Brainstorm put-back, CR 401.4)", () => {
         });
         const props = pickerSpy.mock.calls.at(-1)?.[0] as {
             lookedAt: { instanceId: string; defId: string }[];
-            putBack?: { keep: number };
+            putBack?: { keep: number; min?: number };
         };
-        expect(props.putBack).toEqual({ keep: 2 });
+        // Brainstorm's put-back is EXACT: min === keep === 2.
+        expect(props.putBack).toEqual({ keep: 2, min: 2 });
         expect(props.lookedAt).toEqual([
             { instanceId: "h1", defId: "def-h1" },
             { instanceId: "h2", defId: "def-h2" },
@@ -141,6 +142,34 @@ describe("PutBackPicker (Brainstorm put-back, CR 401.4)", () => {
                 cardInstanceIds: ["h1", "h3"],
             })
         );
+    });
+
+    it("narrows the pool to `candidateIds` and honours a ranged count (Sylvan Library, issue #1691)", () => {
+        pickerSpy.mockClear();
+        const choices = putBackChoice();
+        choices![0] = {
+            ...choices![0],
+            choiceId: "ranged-topdeck",
+            count: { min: 0, max: 2 },
+            candidateIds: ["h1", "h3"],
+        };
+        renderWith({
+            allPlayers: [
+                makePlayer("me", [
+                    makeCard("h1", "me"),
+                    makeCard("h2", "me"),
+                    makeCard("h3", "me"),
+                ]),
+            ],
+            pendingChoices: choices,
+        });
+        const props = pickerSpy.mock.calls.at(-1)?.[0] as {
+            lookedAt: { instanceId: string }[];
+            putBack?: { keep: number; min?: number };
+        };
+        // h2 is not in the allow-list → not selectable.
+        expect(props.lookedAt.map((c) => c.instanceId)).toEqual(["h1", "h3"]);
+        expect(props.putBack).toEqual({ keep: 2, min: 0 });
     });
 
     it("renders nothing for a plain own-hand pick without putOnTop", () => {
