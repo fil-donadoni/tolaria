@@ -2343,7 +2343,6 @@ export function tryAutoCommitPendingActivation(
     state.passCount = 0;
     state.priorityPlayerId = getOpponentId(state, playerId);
     state.singleShotAutoPass = keepPriority ? undefined : playerId;
-    drainAutoPasses(state);
 
     // CR 603.2b (issue #1265) — a DEFERRED-payment targeted ability locks its
     // targets as it finally reaches the stack; fire "becomes the target of an
@@ -2351,8 +2350,12 @@ export function tryAutoCommitPendingActivation(
     emitBecameTargetEvents(state, pa.targets, playerId, stackItem.id);
     // CR 603.2 — flush PERMANENT_TAPPED events queued during payment so
     // mana-tap triggers (Manabarbs / Mana Flare / Wild Growth) land on top
-    // of the freshly-pushed activated ability.
+    // of the freshly-pushed activated ability. BEFORE the auto-pass drain,
+    // which may otherwise start resolving the ability first (see
+    // `commitPendingCast`).
     processPendingActionTriggers(state);
+
+    drainAutoPasses(state);
 
     return {
         cardInstanceId: pa.cardInstanceId,
@@ -2762,13 +2765,19 @@ export function tryAutoCommitPendingCast(
     state.passCount = 0;
     state.priorityPlayerId = getOpponentId(state, playerId);
     state.singleShotAutoPass = keepPriority ? undefined : playerId;
-    drainAutoPasses(state);
 
-    // CR 601.2i — the spell is now on the stack. Emit SPELL_CAST and run a
-    // trigger pass so abilities like Verduran Enchantress and the sphere
-    // cycle land on top before either player gets priority.
+    // CR 601.2i / 603.3 — the spell is now on the stack. Emit SPELL_CAST and
+    // run the trigger pass BEFORE draining auto-passes: cast triggers
+    // (Verduran Enchantress, the sphere cycle, Ledger Shredder's connive) must
+    // be on the stack ABOVE the spell before any player receives priority. The
+    // drain can reach two consecutive passes and call `resolveTopOfStack`, so
+    // draining first would resolve — or suspend mid-resolution on a choice —
+    // the very spell whose trigger has not been placed yet, then bury the
+    // half-resolved spell under its own trigger.
     emitSpellCastEvent(state, stackItem);
     processPendingActionTriggers(state);
+
+    drainAutoPasses(state);
 
     return { cardInstanceId: spellCard.id, cardName };
 }
@@ -5226,15 +5235,16 @@ export function finalizeTargetSelection(
         state.passCount = 0;
         state.priorityPlayerId = getOpponentId(state, playerId);
         state.singleShotAutoPass = keepPriority ? undefined : playerId;
-        drainAutoPasses(state);
         // CR 603.2b (issue #1265) — the ability's targets are locked onto its
         // stack item; fire "becomes the target of an ability" triggers
         // (Leovold) alongside the ABILITY_ACTIVATED flush below.
         emitBecameTargetEvents(state, targets, playerId, stackItem.id);
         // CR 603.3 — flush ABILITY_ACTIVATED queued by recordActivation so the
         // "non-tap ability activated" punisher lands on top of the freshly
-        // pushed ability (resolves first). No-op for {T} abilities.
+        // pushed ability (resolves first). No-op for {T} abilities. BEFORE the
+        // auto-pass drain (see `commitPendingCast`).
         processPendingActionTriggers(state);
+        drainAutoPasses(state);
         return;
     }
 
@@ -5598,9 +5608,12 @@ export function finalizeTargetSelection(
         state.passCount = 0;
         state.priorityPlayerId = getOpponentId(state, playerId);
         state.singleShotAutoPass = keepPriority ? undefined : playerId;
-        drainAutoPasses(state);
+        // CR 601.2i / 603.3 — cast triggers go on the stack above the spell
+        // before any player gets priority, so BEFORE the auto-pass drain (which
+        // may otherwise start resolving the spell). See `commitPendingCast`.
         emitSpellCastEvent(state, stackItem);
         processPendingActionTriggers(state);
+        drainAutoPasses(state);
     } else {
         state.pendingCast = {
             playerId,
@@ -6345,9 +6358,11 @@ export const announceCast = mutation({
             state.singleShotAutoPass = args.keepPriority
                 ? undefined
                 : args.playerId;
-            drainAutoPasses(state);
+            // CR 601.2i / 603.3 — cast triggers before the auto-pass drain
+            // (see `commitPendingCast`).
             emitSpellCastEvent(state, stackItem);
             processPendingActionTriggers(state);
+            drainAutoPasses(state);
             await saveGameState(
                 ctx,
                 args.gameId,
@@ -6655,9 +6670,11 @@ export const announceCast = mutation({
             state.singleShotAutoPass = args.keepPriority
                 ? undefined
                 : args.playerId;
-            drainAutoPasses(state);
+            // CR 601.2i / 603.3 — cast triggers before the auto-pass drain
+            // (see `commitPendingCast`).
             emitSpellCastEvent(state, stackItem);
             processPendingActionTriggers(state);
+            drainAutoPasses(state);
         } else {
             // Enter payment phase for remaining mana
             state.pendingCast = {
@@ -11670,11 +11687,14 @@ export function activateAbilityOnState(
     state.passCount = 0;
     state.priorityPlayerId = getOpponentId(state, args.playerId);
     state.singleShotAutoPass = args.keepPriority ? undefined : args.playerId;
-    drainAutoPasses(state);
     // CR 603.3 — flush ABILITY_ACTIVATED queued by recordActivation so the
     // "non-tap ability activated" punisher lands on top of the freshly
-    // pushed ability (resolves first). No-op for {T} abilities.
+    // pushed ability (resolves first). No-op for {T} abilities. Runs BEFORE
+    // the auto-pass drain, which may otherwise reach two consecutive passes
+    // and start resolving the ability before its own trigger is placed (see
+    // `commitPendingCast`).
     processPendingActionTriggers(state);
+    drainAutoPasses(state);
 }
 
 /** Activate a non-mana ability on a permanent (CR 602.2). Pays costs and puts ability on stack. */
