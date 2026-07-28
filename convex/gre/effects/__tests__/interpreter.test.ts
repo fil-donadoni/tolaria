@@ -6615,6 +6615,93 @@ describe("Effect Script Op: grantAbility (CR 611.1b / 613.1f, layer 6, issue #84
         pushSpell(state, id, "p1", []);
         expect(() => resolveTopOfStack(state)).not.toThrow();
     });
+
+    // CR 113.1 / 611.1b (issue #1665) — the THIRD payload: `grantedTriggeredId`
+    // names a template on the RESOLVING source's `triggeredGrantTemplates[]`,
+    // the triggered-ability sibling of `grantedActivatedId`. Guardian
+    // Scalelord's Backup 1 (CR 702.165c) is the catalogue caller.
+    it("grants a TRIGGERED ability from the source's triggeredGrantTemplates and it fires off the RECIPIENT", () => {
+        const id = registerScript(
+            "test-op-grantability-triggered",
+            [
+                {
+                    op: "grantAbility",
+                    grantedTriggeredId: "granted-attack-lifegain",
+                    target: { target: 0 },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+            {
+                triggeredGrantTemplates: [
+                    {
+                        id: "granted-attack-lifegain",
+                        oracleText:
+                            "Whenever this creature attacks, you gain 2 life.",
+                        event: "ATTACKERS_DECLARED",
+                        matches: (event, self) =>
+                            event.type === "ATTACKERS_DECLARED" &&
+                            event.attackerIds.includes(self.id),
+                        effects: [
+                            { op: "gainLife", player: "controller", amount: 2 },
+                        ],
+                    },
+                ],
+            }
+        );
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "bearTriggerGrant",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "permanent", id: "bearTriggerGrant" },
+        ]);
+        resolveTopOfStack(state);
+        const granted = state.players[0].battlefield.find(
+            (c) => c.id === "bearTriggerGrant"
+        )!;
+        expect(granted.grantedTriggeredAbilities).toEqual([
+            {
+                sourceCardId: id,
+                abilityId: "granted-attack-lifegain",
+                duration: { phase: "end-of-turn" },
+            },
+        ]);
+        // The client renders a permanent's granted triggers off the slimmed
+        // wire state (`src/lib/card-utils.ts`), so the projection must keep the
+        // reference intact.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "bearTriggerGrant"
+        )!;
+        expect(slim.grantedTriggeredAbilities).toEqual(
+            granted.grantedTriggeredAbilities
+        );
+        // `effectiveTriggeredAbilities` unions the template in, so the REAL
+        // trigger collector scans and resolves it as if printed on the bear.
+        const triggers = collectTriggers(state, [
+            {
+                type: "ATTACKERS_DECLARED",
+                attackingPlayerId: "p1",
+                attackerIds: ["bearTriggerGrant"],
+            } as GameEvent,
+        ]);
+        expect(triggers).toHaveLength(1);
+        placeTriggersOnStack(state, triggers);
+        const lifeBefore = state.players[0].life;
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(lifeBefore + 2);
+        // CR 611.2 / 514.2 — the grant expires with the turn.
+        state.phase = "CLEANUP";
+        finalizeCleanup(state);
+        expect(granted.grantedTriggeredAbilities).toBeUndefined();
+    });
 });
 
 describe("Effect Script Op: addSubtype (CR 613.1d, layer 4, issue #1194)", () => {
