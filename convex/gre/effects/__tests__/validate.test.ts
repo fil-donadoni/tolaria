@@ -2245,7 +2245,7 @@ describe("validateEffectScript — moveZone target → library position (issue #
         expect(errors).toEqual([]);
     });
 
-    it('requires "position" with target and to: "library"', () => {
+    it('accepts an omitted "position" with to: "library" (top default / graveyard shuffle-in path)', () => {
         const errors = validateEffectScript(
             host({
                 effects: [
@@ -2257,7 +2257,7 @@ describe("validateEffectScript — moveZone target → library position (issue #
                 ],
             })
         );
-        expect(errors.join("\n")).toContain('field "position" is required');
+        expect(errors).toEqual([]);
     });
 
     it('rejects "position" with a non-library destination', () => {

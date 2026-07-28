@@ -2014,8 +2014,9 @@ export const OP_EXECUTORS: {
                 ctx.returnToHand(target);
             } else if (op.to === "library") {
                 // issue #1726 — "put target … into its owner's library third
-                // from the top" (Teferi, Hero of Dominaria's −3). `position`
-                // is validator-required with this destination.
+                // from the top" (Teferi, Hero of Dominaria's −3). An omitted
+                // `position` puts the permanent on TOP (the "put on top of
+                // its owner's library" default).
                 if (op.bind) bindSnapshot(ctx, op.bind, target);
                 ctx.putIntoLibraryFromBattlefield(target, op.position ?? 1);
             }

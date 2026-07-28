@@ -8430,10 +8430,12 @@ export type EffectOp =
           tapped?: boolean;
           /** issue #1726 — battlefield → library at a POSITION (1-based from
            *  the top; 3 = "third from the top", Teferi, Hero of Dominaria's
-           *  −3). Valid — and required — only with `to: "library"` on this
-           *  shape (validator-enforced): the destination alone doesn't say
-           *  WHERE in the library, and an implicit default would silently
-           *  mis-order. Routes through the SpellContext primitive
+           *  −3). Valid only with `to: "library"` on this shape
+           *  (validator-enforced). Omitted, a battlefield permanent goes on
+           *  TOP (position 1 — the "put on top of its owner's library"
+           *  default), and a graveyard-card target keeps the historical
+           *  `moveCardById` path (Worldspine Wurm's shuffle-in). Routes
+           *  through the SpellContext primitive
            *  `putIntoLibraryFromBattlefield` (the same LTB funnel as a
            *  bounce); a library shorter than the position puts the card on
            *  the bottom (the official Teferi ruling). */
