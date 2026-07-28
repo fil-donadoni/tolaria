@@ -1737,6 +1737,9 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         optional: {
             window: (v: unknown) => v === "this-turn" || v === "while-exiled",
             withoutPayingManaCost: isBoolean,
+            // CR 305.9 (issue #1689) — true iff the grant's Oracle text says
+            // "play" (land-inclusive), never for a "cast"-only grant.
+            includesLand: isBoolean,
         },
     },
     // CR 601.3e / 117.6-analog (issue #1344) — grant cast permission (+

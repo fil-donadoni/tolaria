@@ -70,10 +70,10 @@ function makeGameState(overrides: Partial<GameState> = {}): GameState {
 
 describe("getLegalActions", () => {
     describe("lands (CR 305.2)", () => {
-        it('land cards have "play" action', () => {
+        it('land cards in HAND have "play" action', () => {
             const state = makeGameState();
-            const player = makePlayer();
             const land = card(plains.id);
+            const player = makePlayer({ hand: [land] });
 
             const actions = getLegalActions(state, player, land);
             expect(actions).toContain("play");
@@ -81,29 +81,89 @@ describe("getLegalActions", () => {
 
         it('land cards do NOT have "cast" action (CR 305.1 — lands are not spells)', () => {
             const state = makeGameState();
-            const player = makePlayer();
             const land = card(plains.id);
+            const player = makePlayer({ hand: [land] });
 
             const actions = getLegalActions(state, player, land);
             expect(actions).not.toContain("cast");
         });
 
         it('blocks "play" once the per-turn land drop is spent (CR 305.2)', () => {
-            const state = makeGameState();
-            const player = makePlayer({ landsPlayedThisTurn: 1 });
             const land = card(plains.id);
+            const state = makeGameState();
+            const player = makePlayer({
+                hand: [land],
+                landsPlayedThisTurn: 1,
+            });
 
             const actions = getLegalActions(state, player, land);
             expect(actions).not.toContain("play");
         });
 
         it("treats undefined landsPlayedThisTurn as 0 (CR 305.2)", () => {
-            const state = makeGameState();
-            const player = makePlayer({ landsPlayedThisTurn: undefined });
             const land = card(plains.id);
+            const state = makeGameState();
+            const player = makePlayer({
+                hand: [land],
+                landsPlayedThisTurn: undefined,
+            });
 
             const actions = getLegalActions(state, player, land);
             expect(actions).toContain("play");
+        });
+
+        // CR 305.9 (issue #1689) — a land can be played ONLY from hand
+        // unless an effect explicitly grants otherwise. A land sitting in
+        // ANY other zone with no such permission must expose no "play"
+        // action, even when timing/lock/drop-count would otherwise allow it.
+        it('a land NOT in any zone (no hand/graveyard-permission/exile-grant) has NO "play" action', () => {
+            const state = makeGameState();
+            const player = makePlayer();
+            const land = card(plains.id);
+
+            const actions = getLegalActions(state, player, land);
+            expect(actions).not.toContain("play");
+        });
+
+        it('a land in the GRAVEYARD with no play-from-graveyard permission has NO "play" action', () => {
+            const land = card(plains.id, { zone: "graveyard" });
+            const state = makeGameState();
+            const player = makePlayer({ graveyard: [land] });
+
+            const actions = getLegalActions(state, player, land);
+            expect(actions).not.toContain("play");
+        });
+
+        it('a land in the EXILE zone with no cast-from-exile grant has NO "play" action', () => {
+            const land = card(plains.id, { zone: "exile" });
+            const state = makeGameState();
+            const player = makePlayer({ exile: [land] });
+
+            const actions = getLegalActions(state, player, land);
+            expect(actions).not.toContain("play");
+        });
+
+        it('a land in the EXILE zone under a CAST-ONLY grant (no castableFromExileIncludesLand) has NO "play" action', () => {
+            const land = card(plains.id, {
+                zone: "exile",
+                castableFromExileBy: "p1",
+            });
+            const state = makeGameState();
+            const player = makePlayer({ exile: [land] });
+
+            const actions = getLegalActions(state, player, land);
+            expect(actions).not.toContain("play");
+            expect(actions).not.toContain("cast");
+        });
+
+        it('a land in an OPPONENT\'s hand has NO "play" action for the viewing player', () => {
+            const land = card(plains.id, { zone: "hand" });
+            const state = makeGameState();
+            // `land` lives in p2's hand; `player` (p1) has no zone containing it.
+            const player = makePlayer({ id: "p1" });
+
+            const actions = getLegalActions(state, player, land);
+            expect(actions).not.toContain("play");
         });
     });
 
@@ -499,8 +559,8 @@ describe("getLegalActions", () => {
 describe("assertLegalAction", () => {
     it("does not throw for a legal action", () => {
         const state = makeGameState();
-        const player = makePlayer();
         const land = card(plains.id);
+        const player = makePlayer({ hand: [land] });
 
         expect(() =>
             assertLegalAction(state, player, land, "play")

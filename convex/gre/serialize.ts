@@ -256,6 +256,13 @@ function compactCard(
     if (card.castFromExileWithoutPayingManaCost) {
         out.castFromExileWithoutPayingManaCost = true;
     }
+    // CR 305.9 (issue #1689) — the land-inclusive marker rides
+    // `castableFromExileBy`'s permission window and must survive a save/load
+    // the same way, so a reloaded exiled land under a "play"-worded grant
+    // (Headliner Scarlett et al.) stays playable.
+    if (card.castableFromExileIncludesLand) {
+        out.castableFromExileIncludesLand = true;
+    }
     // CR 111 (issue #791) — the per-source exile provenance link (Currency
     // Converter's "exiled with this artifact") must survive a save/load so the
     // retrieval ability still finds its linked cards after a round-trip.
@@ -581,6 +588,9 @@ function expandCard(
     }
     if (compact.castFromExileWithoutPayingManaCost) {
         result.castFromExileWithoutPayingManaCost = true;
+    }
+    if (compact.castableFromExileIncludesLand) {
+        result.castableFromExileIncludesLand = true;
     }
     if (compact.exiledBySourceId) {
         result.exiledBySourceId = compact.exiledBySourceId as string;

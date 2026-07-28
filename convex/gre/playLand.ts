@@ -200,6 +200,9 @@ export function applyPlayLandFromExile(
     // permission window; a land has no mana cost to waive, but drop the stale
     // flag for hygiene, mirroring `removeFromZone`'s spell-side cleanup.
     delete card.castFromExileWithoutPayingManaCost;
+    // CR 305.9 (issue #1689) — the land-inclusive marker rides the same
+    // permission window; drop it too now that the grant is consumed.
+    delete card.castableFromExileIncludesLand;
     return settleEnteredLand(state, player, card, willEnterTapped);
 }
 

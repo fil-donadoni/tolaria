@@ -2276,13 +2276,26 @@ export interface SpellContext {
      *  `CardInstanceState.castFromExileWithoutPayingManaCost` alongside the
      *  permission flag. Omitted/false is the historical permission-only
      *  shape (Ice Cauldron, Robber of the Rich — cast for the normal
-     *  printed cost). */
+     *  printed cost).
+     *
+     *  `opts.includesLand` (CR 305.9, issue #1689) — true iff the GRANTING
+     *  Oracle text says "play" rather than "cast" (Headliner Scarlett:
+     *  "you may look at and play that card this turn"; Expressive
+     *  Iteration; Elkin Bottle; Inti, Seneschal of the Sun; Laelia, the
+     *  Blade Reforged; Dauthi Voidwalker). Stamps `CardInstanceState.
+     *  castableFromExileIncludesLand` alongside the permission flag, the
+     *  ONLY thing that makes a LAND under the grant a legal "play" source
+     *  (`getLegalActions`'s land branch, `gre/rules.ts`). Omitted/false
+     *  (the default) is a CAST-only grant (Ice Cauldron, Robber of the
+     *  Rich, Ragavan, Nimble Pilferer) — a land under it exposes no action
+     *  at all, matching CR 305.9's default posture that a land can only be
+     *  played from hand unless an effect EXPLICITLY says otherwise. */
     grantCastFromExile: (
         cardInstanceId: string,
         playerId: string,
         zoneOwnerId?: string,
         window?: "this-turn" | "while-exiled" | "until-next-end-step",
-        opts?: { withoutPayingManaCost?: boolean }
+        opts?: { withoutPayingManaCost?: boolean; includesLand?: boolean }
     ) => void;
     /** Play-from-graveyard grant for a SPECIFIC card (CR 601.3e /
      *  117.6-analog, issue #1344 — Malcolm, Alluring Scoundrel: "you may
@@ -8115,14 +8128,20 @@ export type EffectOp =
      *  Voidwalker passes `"this-turn"` ("you may play it THIS TURN").
      *  `withoutPayingManaCost` (default false) is Dauthi's differentiator
      *  from Ice Cauldron/Robber of the Rich, which grant permission only.
-     *  Skipped when `player` can't be resolved, the picks binding was never
-     *  captured, or the picked card is no longer in any exile (CR 608.2b). */
+     *  `includesLand` (default false, CR 305.9, issue #1689) — true when
+     *  the granting Oracle text says "play" rather than "cast" (Dauthi
+     *  Voidwalker: "you may play it this turn..."); only then does a LAND
+     *  under the grant become playable — see `SpellContext.grantCastFromExile`'s
+     *  doc. Skipped when `player` can't be resolved, the picks binding was
+     *  never captured, or the picked card is no longer in any exile (CR
+     *  608.2b). */
     | {
           op: "grantCastFromExile";
           card: EffectRef;
           player: EffectPlayerRef;
           window?: "this-turn" | "while-exiled";
           withoutPayingManaCost?: boolean;
+          includesLand?: boolean;
       }
     /** CR 601.3e / 117.6-analog (issue #1344) — grant `player` permission to
      *  cast the GRAVEYARD card a preceding Op bound (typically the

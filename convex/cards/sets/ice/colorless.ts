@@ -596,8 +596,12 @@ export const elkinBottle: CardDefinition = {
                 const cardId = top[0];
                 // CR 406.3 — exiled hidden to the opponent, known to controller.
                 ctx.exileFaceDown(ctx.caster, cardId, "library", ctx.caster);
-                // CR 601.3e — the controller may cast it from exile.
-                ctx.grantCastFromExile(cardId, ctx.caster);
+                // CR 601.3e — the controller may play/cast it from exile.
+                // CR 305.9 (issue #1689) — oracle says "you may play that
+                // card", land-inclusive.
+                ctx.grantCastFromExile(cardId, ctx.caster, undefined, undefined, {
+                    includesLand: true,
+                });
             },
         },
     ],

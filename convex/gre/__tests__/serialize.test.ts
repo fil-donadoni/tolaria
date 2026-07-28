@@ -788,6 +788,9 @@ describe("game_state serialize round-trip", () => {
         // issue #1156 (CR 601.3e / 117.6) — the free-cast waiver riding the
         // exile permission above (Dauthi Voidwalker) must survive a save/load.
         lion.castFromExileWithoutPayingManaCost = true;
+        // issue #1689 (CR 305.9) — the land-inclusive marker riding the exile
+        // permission above (Headliner Scarlett et al.) must survive a save/load.
+        lion.castableFromExileIncludesLand = true;
         // #698 (CR 702.35c) — the madness-exile marker on a discarded-and-exiled
         // card must survive a save/load so the cast window + cleanup sweep hold.
         lion.madnessExiled = true;
@@ -899,6 +902,7 @@ describe("game_state serialize round-trip", () => {
         expect(got.castableFromExileBy).toBe("p1");
         expect(got.castableFromExileUntilTurn).toBe(7);
         expect(got.castFromExileWithoutPayingManaCost).toBe(true);
+        expect(got.castableFromExileIncludesLand).toBe(true);
         expect(got.madnessExiled).toBe(true);
         expect(got.castableFromGraveyardBy).toBe("p1");
         expect(got.castableFromGraveyardUntilTurn).toBe(9);

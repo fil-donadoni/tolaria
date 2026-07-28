@@ -869,11 +869,32 @@ export type CardInstanceState = {
     notedMana?: { mana: Record<string, number>; castableCardId?: string };
     /** Cast-from-exile permission (CR 601.3e — Ice Cauldron: "You may cast that
      *  card for as long as it remains exiled"). When set on a card in the exile
-     *  zone, the named player may PLAY it from exile as if it were in their hand
-     *  — cast it if it's a spell, or play it as a land if it's a land (CR
-     *  305.2). Cleared when the card leaves exile. Persisted so the permission
-     *  survives a DB round-trip. */
+     *  zone, the named player may CAST it from exile as if it were in their
+     *  hand. CR 305.9 / 116.2a (issue #1689): a cast permission alone does
+     *  NOT also authorize playing a LAND — a land is never cast, so this
+     *  flag is meaningless for one unless {@link
+     *  castableFromExileIncludesLand} is ALSO set (see that field's doc for
+     *  which grants qualify). Cleared when the card leaves exile. Persisted
+     *  so the permission survives a DB round-trip. */
     castableFromExileBy?: string;
+    /** CR 305.9 (issue #1689) — rides alongside {@link castableFromExileBy};
+     *  true iff the GRANTING effect's Oracle text explicitly says "play"
+     *  (not merely "cast") that card, e.g. "You may look at and play that
+     *  card this turn" (Headliner Scarlett), "You may play the exiled card
+     *  this turn" (Expressive Iteration), "you may play it this turn
+     *  without paying its mana cost" (Dauthi Voidwalker). ONLY then does a
+     *  LAND sitting in exile under the grant become a legal "play" source
+     *  (`getLegalActions`'s land branch, `gre/rules.ts`) — mirroring how CR
+     *  305.9 restricts land plays to hand unless an effect EXPLICITLY says
+     *  otherwise. A grant whose Oracle text says "cast" instead (Ice
+     *  Cauldron, Robber of the Rich, Ragavan, Nimble Pilferer) never sets
+     *  this flag — `SpellContext.grantCastFromExile`'s `includesLand` opt
+     *  defaults to false/omitted, so a land under one of those grants is
+     *  simply unusable (no play, no cast — a land can't be cast either).
+     *  Meaningless (and never read) for a non-land card. Cleared alongside
+     *  `castableFromExileBy` wherever that field is cleared. Persisted so
+     *  the flag survives a DB round-trip. */
+    castableFromExileIncludesLand?: boolean;
     /** Turn-scoped expiry marker for {@link castableFromExileBy} (CR 514.2 /
      *  608.2g). When set, the play permission is an "until end of turn" impulse
      *  window (Headliner Scarlett, Expressive Iteration — "play that card this
@@ -10374,6 +10395,19 @@ export function buildSpellContext(
                  *  historical permission-only shape (Ice Cauldron, Robber of
                  *  the Rich — cast for the normal printed cost). */
                 withoutPayingManaCost?: boolean;
+                /** CR 305.9 (issue #1689) — true iff the GRANTING Oracle
+                 *  text says "play" rather than "cast" (Headliner Scarlett,
+                 *  Expressive Iteration, Elkin Bottle, Inti, Laelia, Dauthi
+                 *  Voidwalker). Stamps {@link
+                 *  CardInstanceState.castableFromExileIncludesLand}
+                 *  alongside `castableFromExileBy` so a LAND under this
+                 *  grant becomes a legal "play" source (`getLegalActions`'s
+                 *  land branch). Omitted/false (the default) is a CAST-only
+                 *  grant (Ice Cauldron, Robber of the Rich, Ragavan, Nimble
+                 *  Pilferer) — a land under it is never playable NOR
+                 *  castable (CR 116.2a — a land can't be cast either), the
+                 *  exact bug class issue #1689 closes. */
+                includesLand?: boolean;
             }
         ): void {
             // CR 601.3e — Ice Cauldron: mark a card in `zoneOwnerId`'s exile
@@ -10414,6 +10448,16 @@ export function buildSpellContext(
                 card.castFromExileWithoutPayingManaCost = true;
             } else {
                 delete card.castFromExileWithoutPayingManaCost;
+            }
+            // CR 305.9 (issue #1689) — only a grant whose Oracle text says
+            // "play" ALSO authorizes a LAND under it; see the field's own
+            // doc. A cast-only grant (the default) leaves this cleared, so
+            // a land stamped `castableFromExileBy` by one is still correctly
+            // read as unplayable by `getLegalActions`.
+            if (opts?.includesLand) {
+                card.castableFromExileIncludesLand = true;
+            } else {
+                delete card.castableFromExileIncludesLand;
             }
         },
         grantCastFromGraveyard(
@@ -14311,6 +14355,9 @@ export function removeFromZone(
     // CR 601.3e (issue #1156) — the free-cast waiver (Dauthi Voidwalker) rides
     // the SAME permission window as `castableFromExileBy`; consumed together.
     delete card.castFromExileWithoutPayingManaCost;
+    // CR 305.9 (issue #1689) — the land-inclusive marker rides the SAME
+    // permission window as `castableFromExileBy`; consumed together.
+    delete card.castableFromExileIncludesLand;
     // CR 601.3e / 117.6-analog (issue #1344) — the per-card cast-from-
     // graveyard grant (Malcolm, Alluring Scoundrel) is consumed once the card
     // leaves the graveyard for the stack; clear the stale flags and expiry
