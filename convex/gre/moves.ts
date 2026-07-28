@@ -560,6 +560,20 @@ function enumerateCastMoves(
     // the mana-paid pips into the colored cost below and reports the life owed.
     const phyPips = phyrexianPipCount(rawCost);
 
+    // CR 601.2f (ADR 0063, issue #1337, perf hoist issue #1663) — hoisted out
+    // of the mode×X loop below: `getCostModifiers` scans the FULL battlefield
+    // of both players for cost-modifier static effects, and its result is
+    // mode/X-invariant — no shipped `appliesToSpell` predicate reads the
+    // spell's chosen mode or X (they only read the announced card's static
+    // characteristics, board state and the modifier's own carrier permanent).
+    // Computing it once per candidate card instead of once per (mode, X)
+    // avoids N+1 redundant full-battlefield scans for an X spell, which
+    // matters here since `enumerateCastMoves` runs inside the ISMCTS search
+    // loop. If a future `appliesToSpell` predicate becomes mode/X-dependent,
+    // this hoist must be revisited (move the call back inside the loop).
+    const costModifiers =
+        phyPips === 0 ? getCostModifiers(state, card, "spell") : undefined;
+
     const moves: Move[] = [];
     for (const { modeId, req } of modeVariants) {
         for (const x of xValues) {
@@ -575,12 +589,12 @@ function enumerateCastMoves(
             // — the bot could never cast a spell whose affordability depends
             // on a reduction. Phyrexian costs keep the pre-existing
             // unmodified path: no shipped card combines the two (mirrors the
-            // same carve-out in `canPotentiallyPayCost`).
-            if (phyPips === 0) {
-                applyCostModifiers(
-                    normCost,
-                    getCostModifiers(state, card, "spell")
-                );
+            // same carve-out in `canPotentiallyPayCost`). `costModifiers` is
+            // hoisted above the loop (see comment there) — only
+            // `applyCostModifiers` (mutating the per-iteration `normCost`)
+            // stays here.
+            if (costModifiers) {
+                applyCostModifiers(normCost, costModifiers);
             }
             let payLife = 0;
             if (phyPips > 0) {
