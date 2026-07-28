@@ -8,6 +8,12 @@
 // `staticEffects[]` P/T CDAs (Crusading Knight, Ruham Djinn), plus a few
 // closures (cost-modifier, replacement redirect/clamp, keyword-grant) that
 // the catalogue smoke sweep can't meaningfully exercise on its own.
+//
+// First-printing audit (ADR 0041): some cards exercised below were first
+// implemented as part of this INV tranche but are REPRINTS — their
+// definitions now live in their earliest-paper-printing home sets, and INV
+// keeps only a `CardPrint`. The behaviour suites stay with the tranche that
+// authored them and import the definition from its home module.
 
 import { describe, it, expect } from "vitest";
 import {
@@ -21,10 +27,10 @@ import {
     restrain,
     reyaDawnbringer,
     ruhamDjinn,
-    shackles,
     strengthOfUnity,
     wayfaringGiant,
 } from "../white";
+import { shackles } from "../../exo/white";
 import { balduvianBears } from "../../ice/green";
 import { psionicBlast } from "../../lea/blue";
 import {

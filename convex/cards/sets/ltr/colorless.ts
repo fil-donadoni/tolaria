@@ -32,7 +32,11 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 // one chokepoint every player-damage sink routes through). The Op
 // `setProtectionFromEverything` is its declarative skin.
 export const theOneRing: CardDefinition = {
-    id: "93de9042-cc62-4ade-8d8d-68fdbc84bfae",
+    // The BASE LTR printing (collector #246, black border, no `boosterfun`).
+    // The stub's id was the serialized 1-of-1 (collector #0, `serialized` +
+    // borderless) — a promo treatment, not the card's first/normal print, so it
+    // would have pulled the wrong art.
+    id: "d5806e68-1054-458e-866d-1f2470f682b2",
     name: "The One Ring",
     rarity: "mythic",
     oracleText:

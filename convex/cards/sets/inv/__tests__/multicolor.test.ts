@@ -5,6 +5,12 @@
 // per the new-construct regime (ADR 0045) — the tests here assert the
 // CARD-level wiring: Ordered Migration's Domain-scaled token count, and
 // Coalition Victory's compound win predicate (both clauses required).
+//
+// First-printing audit (ADR 0041): some cards exercised below were first
+// implemented as part of this INV tranche but are REPRINTS — their
+// definitions now live in their earliest-paper-printing home sets, and INV
+// keeps only a `CardPrint`. The behaviour suites stay with the tranche that
+// authored them and import the definition from its home module.
 
 import { describe, it, expect } from "vitest";
 import type { CardDefinition, CardType, TargetSelection } from "../../../types";
@@ -37,7 +43,6 @@ import {
     huntingKavu,
     meteorStorm,
     ragingKavu,
-    simoon,
     voraciousCobra,
     yavimayaBarbarian,
     yavimayaKavu,
@@ -75,9 +80,10 @@ import {
     sterlingGrove,
     revivingVapors,
     barrinsSpite,
-    lobotomy,
     seersVision,
 } from "../multicolor";
+import { lobotomy } from "../../tmp/multicolor";
+import { simoon } from "../../vis/multicolor";
 import {
     makeInstance,
     makePlayer,

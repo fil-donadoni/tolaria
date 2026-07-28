@@ -11,7 +11,6 @@ import type {
 } from "../../types";
 import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
-import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 
 // Blurred Mongoose — "This spell can't be countered. Shroud (This creature
 // can't be the target of spells or abilities.)" (CR 701.5c can't-be-countered
@@ -272,39 +271,15 @@ export const explosiveGrowth: CardDefinition = {
     ],
 };
 
-// Harrow — {2}{G} Instant. "As an additional cost to cast this spell,
-// sacrifice a land. Search your library for up to two basic land cards, put
-// them onto the battlefield, then shuffle." (CR 601.2b / 117.9 additional
-// sacrifice cost; CR 401.4 search; CR 701.20 shuffle.)
-export const harrow: CardDefinition = {
-    id: "ed0f633e-7238-4d02-ad8b-06dd20453030",
+// harrow — INV reprint of the Tempest definition (CardPrint).
+// The card was first implemented here, against this printing; its home set is
+// its earliest paper printing (ADR 0041), so the mechanics live in
+// `tmp/green.ts`.
+export const harrowInv: CardPrint = {
+    printId: "ed0f633e-7238-4d02-ad8b-06dd20453030", // INV 183
+    definitionId: "3c207142-4880-4935-9827-b91bc7d9d643", // harrow (Tempest)
+    setCode: "inv",
     rarity: "common",
-    name: "Harrow",
-    oracleText:
-        "As an additional cost to cast this spell, sacrifice a land.\nSearch your library for up to two basic land cards, put them onto the battlefield, then shuffle.",
-    manaCost: { X: 2, G: 1 },
-    types: ["Instant"],
-    additionalCosts: { sacrificeFilter: { types: "Land" } },
-    effects: [
-        {
-            op: "choice",
-            kind: "search-library",
-            player: "controller",
-            zone: "library",
-            filter: { type: "Land", supertype: "Basic" },
-            count: { min: 0, max: 2 },
-            prompt: "Search your library for up to two basic land cards.",
-            bind: "$lands",
-        },
-        {
-            op: "moveZone",
-            cards: { ref: "$lands" },
-            player: "controller",
-            from: "library",
-            to: "battlefield",
-        },
-        { op: "libraryLook", action: "shuffle", player: "controller" },
-    ],
 };
 
 // Jade Leech — {2}{G}{G} Creature — Leech, 5/5. "Green spells you cast cost
@@ -1087,73 +1062,15 @@ export const whipSilk: CardDefinition = {
     ],
 };
 
-// Fertile Ground — {1}{G} Enchantment — Aura, enchant land. "Whenever
-// enchanted land is tapped for mana, its controller adds an additional one
-// mana of any color." (CR 303.4 aura attachment, CR 603.2 PERMANENT_TAPPED
-// trigger, CR 605 mana ability.)
-//
-// NOT DSL-migratable (ADR 0045, twin of Wild Growth, `lea/green.ts`, same
-// tranche convention; re-verified against the current engine, 2026-07):
-// `tappedTrigger` now DOES have an `effects[]` site, but its script only
-// binds the SOURCE's controller (`ctx.controller`) and `$source` — the
-// tapped permanent's last-known-info (id, controller, subtypes) is a
-// separate payload never threaded into the script (`TappedTriggerArgs.effects`
-// doc, `tappedTrigger.ts`). Fertile Ground's recipient is the ENCHANTED
-// LAND's controller, who can differ from the Aura's own controller (no
-// controller-filter on the target), so this still needs the imperative
-// `resolve` callback's `tapped.controllerId`.
-// Blocked on: an event-field player ref reachable from a `tappedTrigger`
-// script (same gap Wild Growth's own comment documents). The runtime colour
-// choice reuses the `requestOptionChoice` picker Kavu Chameleon uses above.
-const FERTILE_GROUND_COLOR_OPTIONS: { id: Color; label: string }[] = [
-    { id: "W", label: "White" },
-    { id: "U", label: "Blue" },
-    { id: "B", label: "Black" },
-    { id: "R", label: "Red" },
-    { id: "G", label: "Green" },
-];
-export const fertileGround: CardDefinition = {
-    id: "789e3582-b541-4916-ac7e-015214d7a27a",
+// fertileGround — INV reprint of the Urza's Saga definition (CardPrint).
+// The card was first implemented here, against this printing; its home set is
+// its earliest paper printing (ADR 0041), so the mechanics live in
+// `usg/green.ts`.
+export const fertileGroundInv: CardPrint = {
+    printId: "789e3582-b541-4916-ac7e-015214d7a27a", // INV 180
+    definitionId: "091dda35-59e5-456d-8804-61513a610aed", // fertileGround (Urza's Saga)
+    setCode: "inv",
     rarity: "common",
-    name: "Fertile Ground",
-    oracleText:
-        "Enchant land\nWhenever enchanted land is tapped for mana, its controller adds an additional one mana of any color.",
-    manaCost: { X: 1, G: 1 },
-    types: ["Enchantment"],
-    subtypes: ["Aura"],
-    targetRequirement: { type: "Land", count: 1 },
-    triggeredAbilities: [
-        tappedTrigger({
-            id: "fertile-ground-extra-mana",
-            oracleText:
-                "Whenever enchanted land is tapped for mana, its controller adds an additional one mana of any color.",
-            scope: "any",
-            forMana: true,
-            manaAbility: true, // CR 605.1b / 605.4 — resolves without the stack
-            // CR 605.4 — predictive extra-mana descriptor: the enchanted land
-            // yields one additional mana of any colour (chosen at resolve). The
-            // castability gate models it as fully flexible; the auto-tap solver
-            // treats it as generic (it can't pre-encode the colour choice).
-            manaBonusForPotential: {
-                appliesTo: "host",
-                amount: { kind: "anyColor", count: 1 },
-            },
-            condition: (event, self) =>
-                !!self.attachedTo && event.permanentId === self.attachedTo,
-            resolve: (ctx, _event, tapped) => {
-                const chosen = ctx.requestOptionChoice({
-                    playerId: tapped.controllerId,
-                    choiceId: `fertile-ground-${ctx.sourceInstanceId}`,
-                    options: FERTILE_GROUND_COLOR_OPTIONS,
-                    prompt: "Fertile Ground: add one mana of which color?",
-                });
-                if (chosen === undefined) return; // suspended
-                ctx.addManaTo(tapped.controllerId, {
-                    [chosen as Color]: 1,
-                });
-            },
-        }),
-    ],
 };
 
 // ─────────────────────────────────────────────────────────────────────────

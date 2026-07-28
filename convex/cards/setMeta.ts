@@ -19,6 +19,8 @@ const SET_NAMES: Record<string, string> = {
     c19: "Commander 2019",
     all: "Alliances",
     pcy: "Prophecy",
+    por: "Portal",
+    p02: "Portal Second Age",
 };
 
 /** Full set name for a code, falling back to the upper-cased code when the set

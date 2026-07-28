@@ -8,6 +8,7 @@
 // (ADR 0014).
 
 import type { CardDefinition, CardPrint } from "../../types";
+import { AURA_AFFECTS_HOST } from "../../types";
 
 // Time Warp — {3}{U}{U} Sorcery. "Target player takes an extra turn after
 // this one." (CR 500.7, Vintage Cube FREE tranche, issue #686.) DSL-first
@@ -35,4 +36,44 @@ export const counterspellTmp: CardPrint = {
     definitionId: "0df55e3f-14de-46ef-b6b1-616618724d9e", // Counterspell
     setCode: "tmp",
     rarity: "common",
+};
+
+// Shimmering Wings — {U} Enchantment — Aura, enchant creature. "Enchanted
+// creature has flying. {U}: Return this Aura to its owner's hand." (CR 702.9
+// continuous keyword grant via `keyword-grant` + `AURA_AFFECTS_HOST`, and the
+// shipped self-bounce activated-ability template — ice/black.ts Leshrac's
+// Sigil: "{cost}: Return this enchantment to its owner's hand".)
+//
+// Home set = earliest paper printing (ADR 0041) = Tempest; it was first
+// implemented against the INV reprint, which filed it under the
+// wrong home set and rendered the wrong art. That printing now rides along
+// as a `CardPrint` in `inv/blue.ts`.
+export const shimmeringWings: CardDefinition = {
+    id: "a6a8dc46-04c7-479a-90c1-b55e6c67e0e3", // TMP 87
+    name: "Shimmering Wings",
+    rarity: "common",
+    oracleText:
+        "Enchant creature (Target a creature as you cast this. This card enters attached to that creature.)\nEnchanted creature has flying. (It can't be blocked except by creatures with flying or reach.)\n{U}: Return this Aura to its owner's hand.",
+    manaCost: { U: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            applies: AURA_AFFECTS_HOST,
+            keyword: "flying",
+        },
+    ],
+    activatedAbilities: [
+        {
+            id: "shimmering-wings-return",
+            oracleText: "{U}: Return this Aura to its owner's hand.",
+            cost: { mana: { U: 1 } },
+            useStack: true,
+            effects: [
+                { op: "moveZone", target: { ref: "$source" }, to: "hand" },
+            ],
+        },
+    ],
 };

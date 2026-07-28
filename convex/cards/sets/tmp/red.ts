@@ -4,6 +4,7 @@
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 import type { CardDefinition } from "../../types";
 import { damageTakenTrigger } from "../../abilities/triggers/damageTakenTrigger";
+import type { SpellContext } from "../../types";
 
 // Goblin Bombardment — "Sacrifice a creature: This enchantment deals 1
 // damage to any target." (CR 701.16 sacrifice cost, CR 120.1 damage.) The
@@ -113,5 +114,86 @@ export const jackalPup: CardDefinition = {
                 );
             },
         }),
+    ],
+};
+
+// Crown of Flames — {R} Enchantment — Aura, enchant creature. "{R}: Enchanted
+// creature gets +1/+0 until end of turn. {R}: Return this Aura to its owner's
+// hand." (CR 303.4 Aura, CR 117 activated ability cost.) The bounce ability is
+// a plain DSL `moveZone($source → hand)`. The pump ability is NOT
+// DSL-migratable (ADR 0045, Thrull Retainer precedent, fem/black.ts): it
+// targets the Aura's ENCHANTED HOST via `getAttachedToId` — the object-selector
+// grammar has no attached-host ("enchanted permanent") ref; the `pump` Op
+// itself is available, only the target selector is missing.
+//
+// Home set = earliest paper printing (ADR 0041) = Tempest; it was first
+// implemented against the INV reprint, which filed it under the
+// wrong home set and rendered the wrong art. That printing now rides along
+// as a `CardPrint` in `inv/red.ts`.
+export const crownOfFlames: CardDefinition = {
+    id: "f2c82741-2869-41f9-82f4-6ed88756e2fd", // TMP 169
+    rarity: "common",
+    name: "Crown of Flames",
+    oracleText:
+        "Enchant creature\n{R}: Enchanted creature gets +1/+0 until end of turn.\n{R}: Return this Aura to its owner's hand.",
+    manaCost: { R: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    activatedAbilities: [
+        {
+            id: "crown-of-flames-pump",
+            oracleText: "{R}: Enchanted creature gets +1/+0 until end of turn.",
+            cost: { mana: { R: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                const hostId = ctx.getAttachedToId();
+                if (!hostId) return;
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: hostId },
+                    1,
+                    0,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+        {
+            id: "crown-of-flames-bounce",
+            oracleText: "{R}: Return this Aura to its owner's hand.",
+            cost: { mana: { R: 1 } },
+            useStack: true,
+            effects: [
+                { op: "moveZone", target: { ref: "$source" }, to: "hand" },
+            ],
+        },
+    ],
+};
+
+// Stun — {1}{R} Instant. "Target creature can't block this turn. Draw a
+// card." Migrated resolve()→effects[] (ADR 0045, issue #1285): "can't block"
+// via the ADR 0053 `restrictCombat` Op (CR 509.1b block restriction on an
+// ANNOUNCED target, `restriction: "cant-block"`, same shape Panic uses in
+// `ice/red.ts`), then an immediate `draw` (unlike Panic's delayed
+// next-upkeep cantrip, Stun's draw fires right away as part of resolution).
+//
+// Home set = earliest paper printing (ADR 0041) = Tempest; it was first
+// implemented against the INV reprint, which filed it under the
+// wrong home set and rendered the wrong art. That printing now rides along
+// as a `CardPrint` in `inv/red.ts`.
+export const stun: CardDefinition = {
+    id: "c09c0da6-37a7-42ba-b264-18898ee372f0", // TMP 207
+    rarity: "common",
+    name: "Stun",
+    oracleText: "Target creature can't block this turn.\nDraw a card.",
+    manaCost: { X: 1, R: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "Creature", count: 1 },
+    effects: [
+        {
+            op: "restrictCombat",
+            restriction: "cant-block",
+            target: { target: 0 },
+        },
+        { op: "draw", player: "controller", count: 1 },
     ],
 };

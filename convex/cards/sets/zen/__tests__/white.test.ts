@@ -1,4 +1,8 @@
-// M11 (Magic 2011) — white behavior tests (ADR 0043 colour split).
+// ZEN (Zendikar) — white behavior tests (ADR 0043 colour split).
+//
+// Day of Judgment's home set is Zendikar, its earliest paper printing (ADR
+// 0041); the M11 reprint it was first implemented against now rides along as a
+// `CardPrint` in `m11/white.ts`.
 
 import { describe, it, expect } from "vitest";
 import { dayOfJudgment } from "../white";

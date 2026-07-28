@@ -4,6 +4,12 @@
 // kicked. The generic kicker/value mechanics are proven once in
 // convex/gre/__tests__/kicker.test.ts and interpreter.test.ts; here we assert
 // the card's specific thresholds are wired.
+//
+// First-printing audit (ADR 0041): some cards exercised below were first
+// implemented as part of this INV tranche but are REPRINTS — their
+// definitions now live in their earliest-paper-printing home sets, and INV
+// keeps only a `CardPrint`. The behaviour suites stay with the tranche that
+// authored them and import the definition from its home module.
 
 import { describe, it, expect } from "vitest";
 import {
@@ -15,8 +21,8 @@ import {
     tribalFlames,
     bendOrBreak,
     standOrFall,
-    stun,
 } from "../red";
+import { stun } from "../../tmp/red";
 import { registerTokenDefinition } from "../../..";
 import {
     makeInstance,

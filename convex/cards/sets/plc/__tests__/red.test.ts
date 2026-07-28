@@ -1,4 +1,8 @@
-// M11 (Magic 2011) — red behavior tests (ADR 0043 colour split).
+// PLC (Planar Chaos) — red behavior tests (ADR 0043 colour split).
+//
+// Prodigal Pyromancer's home set is Planar Chaos, its earliest paper printing
+// (ADR 0041); the M11 reprint it was first implemented against now rides along
+// as a `CardPrint` in `m11/red.ts`.
 
 import { describe, it, expect } from "vitest";
 import { prodigalPyromancer } from "../red";

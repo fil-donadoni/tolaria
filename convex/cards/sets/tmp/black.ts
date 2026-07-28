@@ -80,3 +80,27 @@ export const reanimate: CardDefinition = {
 //     types: ["Instant"],
 //     buyback: { X: 2 },
 // };
+
+// Reckless Spite — {1}{B}{B} Instant. "Destroy two target nonblack
+// creatures. You lose 5 life." (CR 701.8 destroy, CR 601.2c "two target" —
+// exact count, not "up to two".) Two announced targets addressed by
+// position (Force of Vigor precedent, mh1/green.ts).
+//
+// Home set = earliest paper printing (ADR 0041) = Tempest; it was first
+// implemented against the INV reprint, which filed it under the
+// wrong home set and rendered the wrong art. That printing now rides along
+// as a `CardPrint` in `inv/black.ts`.
+export const recklessSpite: CardDefinition = {
+    id: "9141daea-1f4f-4227-b7d7-20753e3cb4d4", // TMP 152
+    rarity: "uncommon",
+    name: "Reckless Spite",
+    oracleText: "Destroy two target nonblack creatures. You lose 5 life.",
+    manaCost: { X: 1, B: 2 },
+    types: ["Instant"],
+    targetRequirement: { type: "Creature", count: 2, excludeColors: "B" },
+    effects: [
+        { op: "destroy", target: { target: 0 } },
+        { op: "destroy", target: { target: 1 } },
+        { op: "loseLife", player: "controller", amount: 5 },
+    ],
+};

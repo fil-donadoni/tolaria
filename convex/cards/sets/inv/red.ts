@@ -4,12 +4,8 @@
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 // Modern Scryfall oracle text is authoritative (ADR 0004).
 
-import type { CardDefinition, ManaCost, SpellContext } from "../../types";
-import {
-    AURA_AFFECTS_HOST,
-    countDomain,
-    EFFECT_AFFECTS_SELF,
-} from "../../types";
+import type { CardDefinition, ManaCost, SpellContext, CardPrint } from "../../types";
+import { countDomain, EFFECT_AFFECTS_SELF } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
@@ -334,51 +330,15 @@ export const chaoticStrike: CardDefinition = {
     ],
 };
 
-// Crown of Flames — {R} Enchantment — Aura, enchant creature. "{R}: Enchanted
-// creature gets +1/+0 until end of turn. {R}: Return this Aura to its owner's
-// hand." (CR 303.4 Aura, CR 117 activated ability cost.) The bounce ability is
-// a plain DSL `moveZone($source → hand)`. The pump ability is NOT
-// DSL-migratable (ADR 0045, Thrull Retainer precedent, fem/black.ts): it
-// targets the Aura's ENCHANTED HOST via `getAttachedToId` — the object-selector
-// grammar has no attached-host ("enchanted permanent") ref; the `pump` Op
-// itself is available, only the target selector is missing.
-export const crownOfFlames: CardDefinition = {
-    id: "5a46239c-3de7-48ca-8f5c-b51f307fd0e5",
+// crownOfFlames — INV reprint of the Tempest definition (CardPrint).
+// The card was first implemented here, against this printing; its home set is
+// its earliest paper printing (ADR 0041), so the mechanics live in
+// `tmp/red.ts`.
+export const crownOfFlamesInv: CardPrint = {
+    printId: "5a46239c-3de7-48ca-8f5c-b51f307fd0e5", // INV 138
+    definitionId: "f2c82741-2869-41f9-82f4-6ed88756e2fd", // crownOfFlames (Tempest)
+    setCode: "inv",
     rarity: "common",
-    name: "Crown of Flames",
-    oracleText:
-        "Enchant creature\n{R}: Enchanted creature gets +1/+0 until end of turn.\n{R}: Return this Aura to its owner's hand.",
-    manaCost: { R: 1 },
-    types: ["Enchantment"],
-    subtypes: ["Aura"],
-    targetRequirement: { type: "Creature", count: 1 },
-    activatedAbilities: [
-        {
-            id: "crown-of-flames-pump",
-            oracleText: "{R}: Enchanted creature gets +1/+0 until end of turn.",
-            cost: { mana: { R: 1 } },
-            useStack: true,
-            resolve: (ctx: SpellContext) => {
-                const hostId = ctx.getAttachedToId();
-                if (!hostId) return;
-                ctx.addTemporaryPTBuff(
-                    { type: "permanent", id: hostId },
-                    1,
-                    0,
-                    { phase: "end-of-turn" }
-                );
-            },
-        },
-        {
-            id: "crown-of-flames-bounce",
-            oracleText: "{R}: Return this Aura to its owner's hand.",
-            cost: { mana: { R: 1 } },
-            useStack: true,
-            effects: [
-                { op: "moveZone", target: { ref: "$source" }, to: "hand" },
-            ],
-        },
-    ],
 };
 
 // Halam Djinn — {5}{R} Creature — Djinn, 6/5. "Haste. This creature gets
@@ -511,31 +471,15 @@ export const kavuMonarch: CardDefinition = {
     ],
 };
 
-// Maniacal Rage — {1}{R} Enchantment — Aura, enchant creature. "Enchanted
-// creature gets +2/+2 and can't block." (CR 303.4 Aura via `AURA_AFFECTS_HOST`
-// for the pt-buff; CR 509.1b block restriction collected from an Aura and
-// applied to its host per CR 303.4 — same collection model as Errantry's
-// declared-attack-restriction, `attack-restriction` doc note.)
-export const maniacalRage: CardDefinition = {
-    id: "3d17886c-fffd-4f0d-b4da-4b5fba18b811",
+// maniacalRage — INV reprint of the Exodus definition (CardPrint).
+// The card was first implemented here, against this printing; its home set is
+// its earliest paper printing (ADR 0041), so the mechanics live in
+// `exo/red.ts`.
+export const maniacalRageInv: CardPrint = {
+    printId: "3d17886c-fffd-4f0d-b4da-4b5fba18b811", // INV 151
+    definitionId: "f3aa840f-6a70-4674-acb7-ded0ea4397d8", // maniacalRage (Exodus)
+    setCode: "inv",
     rarity: "common",
-    name: "Maniacal Rage",
-    oracleText:
-        "Enchant creature\nEnchanted creature gets +2/+2 and can't block.",
-    manaCost: { X: 1, R: 1 },
-    types: ["Enchantment"],
-    subtypes: ["Aura"],
-    targetRequirement: { type: "Creature", count: 1 },
-    staticEffects: [
-        { kind: "pt-buff", applies: AURA_AFFECTS_HOST, power: 2, toughness: 2 },
-        {
-            kind: "block-restriction",
-            id: "maniacal-rage-cant-block",
-            side: "blocker",
-            predicate: () => false,
-            oracleText: "Enchanted creature can't block.",
-        },
-    ],
 };
 
 // Pouncing Kavu — {1}{R} Creature — Kavu, 1/1. "Kicker {2}{R}. First strike.
@@ -928,28 +872,15 @@ export const slimyKavu: CardDefinition = {
     ],
 };
 
-// Stun — {1}{R} Instant. "Target creature can't block this turn. Draw a
-// card." Migrated resolve()→effects[] (ADR 0045, issue #1285): "can't block"
-// via the ADR 0053 `restrictCombat` Op (CR 509.1b block restriction on an
-// ANNOUNCED target, `restriction: "cant-block"`, same shape Panic uses in
-// `ice/red.ts`), then an immediate `draw` (unlike Panic's delayed
-// next-upkeep cantrip, Stun's draw fires right away as part of resolution).
-export const stun: CardDefinition = {
-    id: "d22f3ae8-a40b-4dab-abf4-3ab7b05191f7",
+// stun — INV reprint of the Tempest definition (CardPrint).
+// The card was first implemented here, against this printing; its home set is
+// its earliest paper printing (ADR 0041), so the mechanics live in
+// `tmp/red.ts`.
+export const stunInv: CardPrint = {
+    printId: "d22f3ae8-a40b-4dab-abf4-3ab7b05191f7", // INV 162
+    definitionId: "c09c0da6-37a7-42ba-b264-18898ee372f0", // stun (Tempest)
+    setCode: "inv",
     rarity: "common",
-    name: "Stun",
-    oracleText: "Target creature can't block this turn.\nDraw a card.",
-    manaCost: { X: 1, R: 1 },
-    types: ["Instant"],
-    targetRequirement: { type: "Creature", count: 1 },
-    effects: [
-        {
-            op: "restrictCombat",
-            restriction: "cant-block",
-            target: { target: 0 },
-        },
-        { op: "draw", player: "controller", count: 1 },
-    ],
 };
 
 // Tectonic Instability — {2}{R} Enchantment. "Whenever a land enters, tap

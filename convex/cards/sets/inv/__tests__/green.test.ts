@@ -1,9 +1,14 @@
 // Per-card behavior tests for INV green cards (`convex/cards/sets/inv/green.ts`).
+//
+// First-printing audit (ADR 0041): some cards exercised below were first
+// implemented as part of this INV tranche but are REPRINTS — their
+// definitions now live in their earliest-paper-printing home sets, and INV
+// keeps only a `CardPrint`. The behaviour suites stay with the tranche that
+// authored them and import the definition from its home module.
 
 import { describe, it, expect } from "vitest";
 import {
     blurredMongoose,
-    fertileGround,
     kavuChameleon,
     kavuLair,
     wanderingStream,
@@ -181,77 +186,6 @@ describe("Wandering Stream (CR 119.3a life gain, Domain, issue #1066)", () => {
         pushSpell(state, wanderingStream.id, "p1");
         resolveTopOfStack(state);
         expect(state.players[0].life).toBe(20);
-    });
-});
-
-// resolve() card (twin of Wild Growth, `lea/green.ts` — see the card's own
-// justification comment). Full engine integration: attach → tap the
-// enchanted land for mana → the `PERMANENT_TAPPED` trigger fires → suspends
-// on the runtime colour choice → resumes → adds the chosen colour on top of
-// the land's own mana.
-describe("Fertile Ground (CR 603.2 tapped-for-mana trigger, additional mana of chosen color)", () => {
-    it("matches only the attached host's mana tap (Wild Growth precedent)", () => {
-        const trig = fertileGround.triggeredAbilities?.[0];
-        expect(trig).toBeDefined();
-        const self = {
-            id: "fg",
-            controllerId: "p1",
-            ownerId: "p1",
-            types: ["Enchantment"] as const,
-            subtypes: ["Aura"],
-            isTapped: false,
-            attachedTo: "host-forest",
-            card: {},
-        };
-        const host = {
-            type: "PERMANENT_TAPPED" as const,
-            permanentId: "host-forest",
-            controllerId: "p1",
-            permanentTypes: ["Land"] as const,
-            permanentSubtypes: ["Forest"],
-            forMana: true,
-            manaProduced: { G: 1 },
-        };
-        expect(
-            trig!.matches(host as never, self as never, undefined as never)
-        ).toBe(true);
-        expect(
-            trig!.matches(
-                { ...host, permanentId: "other-forest" } as never,
-                self as never,
-                undefined as never
-            )
-        ).toBe(false);
-    });
-
-    it("adds one mana of the chosen color on top of the land's own tap", () => {
-        const land = makeInstance(forest.id, {
-            id: "host-forest",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const aura = makeInstance(fertileGround.id, {
-            id: "fg",
-            controllerId: "p1",
-            ownerId: "p1",
-            attachedTo: "host-forest",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [land, aura] }),
-                makePlayer("p2"),
-            ],
-        });
-
-        emitPermanentTapped(state, land, true, { G: 1 });
-        // CR 605.4 — Fertile Ground's tap trigger is a mana ability: it
-        // resolves immediately off the stack. The colour pick is made as it
-        // resolves (CR 605.4b), so processing suspends on that choice rather
-        // than parking the trigger on the stack for a later priority pass.
-        processPendingActionTriggers(state);
-        answer(state, ["W"]);
-
-        expect(state.players[0].manaPool.W).toBe(1);
     });
 });
 

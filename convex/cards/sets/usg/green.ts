@@ -2,6 +2,8 @@
 
 import type { CardDefinition } from "../../types";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
+import type { Color } from "../../types";
+import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 
 // Argothian Enchantress — "Shroud. Whenever you cast an enchantment spell,
 // draw a card." (CR 702.18 shroud; CR 603.2 + 601.2i spell-cast trigger; CR
@@ -50,4 +52,79 @@ export const exploration: CardDefinition = {
     manaCost: { G: 1 },
     types: ["Enchantment"],
     extraLandDrops: 1,
+};
+
+// Fertile Ground — {1}{G} Enchantment — Aura, enchant land. "Whenever
+// enchanted land is tapped for mana, its controller adds an additional one
+// mana of any color." (CR 303.4 aura attachment, CR 603.2 PERMANENT_TAPPED
+// trigger, CR 605 mana ability.)
+//
+// NOT DSL-migratable (ADR 0045, twin of Wild Growth, `lea/green.ts`, same
+// tranche convention; re-verified against the current engine, 2026-07):
+// `tappedTrigger` now DOES have an `effects[]` site, but its script only
+// binds the SOURCE's controller (`ctx.controller`) and `$source` — the
+// tapped permanent's last-known-info (id, controller, subtypes) is a
+// separate payload never threaded into the script (`TappedTriggerArgs.effects`
+// doc, `tappedTrigger.ts`). Fertile Ground's recipient is the ENCHANTED
+// LAND's controller, who can differ from the Aura's own controller (no
+// controller-filter on the target), so this still needs the imperative
+// `resolve` callback's `tapped.controllerId`.
+// Blocked on: an event-field player ref reachable from a `tappedTrigger`
+// script (same gap Wild Growth's own comment documents). The runtime colour
+// choice reuses the `requestOptionChoice` picker Kavu Chameleon uses above.
+const FERTILE_GROUND_COLOR_OPTIONS: { id: Color; label: string }[] = [
+    { id: "W", label: "White" },
+    { id: "U", label: "Blue" },
+    { id: "B", label: "Black" },
+    { id: "R", label: "Red" },
+    { id: "G", label: "Green" },
+];
+
+//
+// Home set = earliest paper printing (ADR 0041) = Urza's Saga; it was first
+// implemented against the INV reprint, which filed it under the
+// wrong home set and rendered the wrong art. That printing now rides along
+// as a `CardPrint` in `inv/green.ts`.
+export const fertileGround: CardDefinition = {
+    id: "091dda35-59e5-456d-8804-61513a610aed", // USG 252
+    rarity: "common",
+    name: "Fertile Ground",
+    oracleText:
+        "Enchant land\nWhenever enchanted land is tapped for mana, its controller adds an additional one mana of any color.",
+    manaCost: { X: 1, G: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Land", count: 1 },
+    triggeredAbilities: [
+        tappedTrigger({
+            id: "fertile-ground-extra-mana",
+            oracleText:
+                "Whenever enchanted land is tapped for mana, its controller adds an additional one mana of any color.",
+            scope: "any",
+            forMana: true,
+            manaAbility: true, // CR 605.1b / 605.4 — resolves without the stack
+            // CR 605.4 — predictive extra-mana descriptor: the enchanted land
+            // yields one additional mana of any colour (chosen at resolve). The
+            // castability gate models it as fully flexible; the auto-tap solver
+            // treats it as generic (it can't pre-encode the colour choice).
+            manaBonusForPotential: {
+                appliesTo: "host",
+                amount: { kind: "anyColor", count: 1 },
+            },
+            condition: (event, self) =>
+                !!self.attachedTo && event.permanentId === self.attachedTo,
+            resolve: (ctx, _event, tapped) => {
+                const chosen = ctx.requestOptionChoice({
+                    playerId: tapped.controllerId,
+                    choiceId: `fertile-ground-${ctx.sourceInstanceId}`,
+                    options: FERTILE_GROUND_COLOR_OPTIONS,
+                    prompt: "Fertile Ground: add one mana of which color?",
+                });
+                if (chosen === undefined) return; // suspended
+                ctx.addManaTo(tapped.controllerId, {
+                    [chosen as Color]: 1,
+                });
+            },
+        }),
+    ],
 };

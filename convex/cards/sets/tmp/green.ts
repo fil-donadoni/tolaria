@@ -99,3 +99,43 @@ export const earthcraft: CardDefinition = {
         },
     ],
 };
+
+// Harrow — {2}{G} Instant. "As an additional cost to cast this spell,
+// sacrifice a land. Search your library for up to two basic land cards, put
+// them onto the battlefield, then shuffle." (CR 601.2b / 117.9 additional
+// sacrifice cost; CR 401.4 search; CR 701.20 shuffle.)
+//
+// Home set = earliest paper printing (ADR 0041) = Tempest; it was first
+// implemented against the INV reprint, which filed it under the
+// wrong home set and rendered the wrong art. That printing now rides along
+// as a `CardPrint` in `inv/green.ts`.
+export const harrow: CardDefinition = {
+    id: "3c207142-4880-4935-9827-b91bc7d9d643", // TMP 230
+    rarity: "uncommon",
+    name: "Harrow",
+    oracleText:
+        "As an additional cost to cast this spell, sacrifice a land.\nSearch your library for up to two basic land cards, put them onto the battlefield, then shuffle.",
+    manaCost: { X: 2, G: 1 },
+    types: ["Instant"],
+    additionalCosts: { sacrificeFilter: { types: "Land" } },
+    effects: [
+        {
+            op: "choice",
+            kind: "search-library",
+            player: "controller",
+            zone: "library",
+            filter: { type: "Land", supertype: "Basic" },
+            count: { min: 0, max: 2 },
+            prompt: "Search your library for up to two basic land cards.",
+            bind: "$lands",
+        },
+        {
+            op: "moveZone",
+            cards: { ref: "$lands" },
+            player: "controller",
+            from: "library",
+            to: "battlefield",
+        },
+        { op: "libraryLook", action: "shuffle", player: "controller" },
+    ],
+};

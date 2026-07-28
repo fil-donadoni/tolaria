@@ -22,7 +22,11 @@ function KeywordRow({
     return (
         <div className={KEYWORD_STATE_CLASS[state]}>
             {prefix}
-            {capitalizeKeyword(name)}
+            {/* Parametrized keywords carry mana in their name ("ward {1}",
+                "protection from {R}"), so the row goes through the oracle-text
+                formatter to render the mana symbol instead of a literal
+                "{1}". */}
+            {formatOracleText(capitalizeKeyword(name))}
         </div>
     );
 }

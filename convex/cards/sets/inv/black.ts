@@ -327,26 +327,15 @@ export const cryptAngel: CardDefinition = {
     ],
 };
 
-// Cursed Flesh — {B} Aura. "Enchant creature. Enchanted creature gets -1/-1
-// and has fear." (CR 613.4c pt-buff, CR 702.36 fear keyword-grant.)
-export const cursedFlesh: CardDefinition = {
-    id: "fb151ae8-9281-434d-ba8d-9ce34f0875eb", // INV 98
+// cursedFlesh — INV reprint of the Exodus definition (CardPrint).
+// The card was first implemented here, against this printing; its home set is
+// its earliest paper printing (ADR 0041), so the mechanics live in
+// `exo/black.ts`.
+export const cursedFleshInv: CardPrint = {
+    printId: "fb151ae8-9281-434d-ba8d-9ce34f0875eb", // INV 98
+    definitionId: "7433b9bf-ee6e-41fe-b826-0d20584198b1", // cursedFlesh (Exodus)
+    setCode: "inv",
     rarity: "common",
-    name: "Cursed Flesh",
-    oracleText: "Enchant creature\nEnchanted creature gets -1/-1 and has fear.",
-    manaCost: { B: 1 },
-    types: ["Enchantment"],
-    subtypes: ["Aura"],
-    targetRequirement: { type: "Creature", count: 1 },
-    staticEffects: [
-        {
-            kind: "pt-buff",
-            applies: AURA_AFFECTS_HOST,
-            power: -1,
-            toughness: -1,
-        },
-        { kind: "keyword-grant", applies: AURA_AFFECTS_HOST, keyword: "fear" },
-    ],
 };
 
 // STOP-AND-ISSUE (tracked-by: #1405) — Defiling Tears: "Until end of turn,
@@ -1032,64 +1021,26 @@ export const plagueSpitter: CardDefinition = {
     ],
 };
 
-// Ravenous Rats — {1}{B} 1/1. "When this creature enters, target opponent
-// discards a card." (CR 603.6a ETB, CR 701.9 discard.) "Target opponent" in
-// a 2-player game is a relative `EffectPlayerRef`, so no `choice-as-target`
-// substitute is needed at all — `player: "opponent"` addresses it directly
-// (the discarding player also chooses which card, CR 701.8a default).
-export const ravenousRats: CardDefinition = {
-    id: "89e29069-add5-4099-b800-9f1e4402cc1a", // INV 120
+// ravenousRats — INV reprint of the Portal Second Age definition (CardPrint).
+// The card was first implemented here, against this printing; its home set is
+// its earliest paper printing (ADR 0041), so the mechanics live in
+// `p02/black.ts`.
+export const ravenousRatsInv: CardPrint = {
+    printId: "89e29069-add5-4099-b800-9f1e4402cc1a", // INV 120
+    definitionId: "8899244b-737a-43a9-9241-15a650b47bed", // ravenousRats (Portal Second Age)
+    setCode: "inv",
     rarity: "common",
-    name: "Ravenous Rats",
-    oracleText: "When this creature enters, target opponent discards a card.",
-    manaCost: { X: 1, B: 1 },
-    types: ["Creature"],
-    subtypes: ["Rat"],
-    power: 1,
-    toughness: 1,
-    triggeredAbilities: [
-        enteredTrigger({
-            id: "ravenous-rats-etb",
-            oracleText:
-                "When this creature enters, target opponent discards a card.",
-            scope: "self",
-            effects: [
-                {
-                    op: "choice",
-                    kind: "discard-hand",
-                    player: "opponent",
-                    zone: "hand",
-                    count: 1,
-                    prompt: "Discard a card.",
-                    bind: "$picked",
-                },
-                {
-                    op: "discard",
-                    player: "opponent",
-                    cards: { ref: "$picked" },
-                },
-            ],
-        }),
-    ],
 };
 
-// Reckless Spite — {1}{B}{B} Instant. "Destroy two target nonblack
-// creatures. You lose 5 life." (CR 701.8 destroy, CR 601.2c "two target" —
-// exact count, not "up to two".) Two announced targets addressed by
-// position (Force of Vigor precedent, mh1/green.ts).
-export const recklessSpite: CardDefinition = {
-    id: "2412497b-cae5-444d-9beb-7761d15cd5c5", // INV 121
+// recklessSpite — INV reprint of the Tempest definition (CardPrint).
+// The card was first implemented here, against this printing; its home set is
+// its earliest paper printing (ADR 0041), so the mechanics live in
+// `tmp/black.ts`.
+export const recklessSpiteInv: CardPrint = {
+    printId: "2412497b-cae5-444d-9beb-7761d15cd5c5", // INV 121
+    definitionId: "9141daea-1f4f-4227-b7d7-20753e3cb4d4", // recklessSpite (Tempest)
+    setCode: "inv",
     rarity: "uncommon",
-    name: "Reckless Spite",
-    oracleText: "Destroy two target nonblack creatures. You lose 5 life.",
-    manaCost: { X: 1, B: 2 },
-    types: ["Instant"],
-    targetRequirement: { type: "Creature", count: 2, excludeColors: "B" },
-    effects: [
-        { op: "destroy", target: { target: 0 } },
-        { op: "destroy", target: { target: 1 } },
-        { op: "loseLife", player: "controller", amount: 5 },
-    ],
 };
 
 // Recover — {2}{B} Sorcery. "Return target creature card from your

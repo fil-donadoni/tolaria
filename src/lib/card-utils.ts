@@ -1637,7 +1637,34 @@ export function getDisplayAbilities(
         });
     }
 
-    return { keywords, activated, triggered };
+    // A granted KEYWORD is often implemented as a keyword row plus the
+    // triggered/activated ability that gives it its rules text (granting ward
+    // adds both `staticAbilities: ["ward {1}"]` and the "Whenever this
+    // permanent becomes the target …" trigger). Printing both lists the same
+    // ability twice — once bare, once with its reminder text. The keyword row
+    // is the canonical, compact one, so drop any ability row that merely
+    // restates a keyword already shown.
+    // Scoped to GRANTED rows on both sides: a card's own printed text is its
+    // author's business (a native ability is never a duplicate of a native
+    // keyword row by accident), and narrowing keeps the filter from ever
+    // swallowing a real printed ability that happens to open with a keyword
+    // word.
+    const grantedKeywords = keywords
+        .filter((k) => k.state === "granted")
+        .map((k) => capitalizeKeyword(k.name).toLowerCase());
+    const restatesGrantedKeyword = (state: string, oracleText: string) =>
+        state === "granted" &&
+        grantedKeywords.some((kw) => oracleText.toLowerCase().startsWith(kw));
+
+    return {
+        keywords,
+        activated: activated.filter(
+            (a) => !restatesGrantedKeyword(a.state, a.oracleText)
+        ),
+        triggered: triggered.filter(
+            (t) => !restatesGrantedKeyword(t.state, t.oracleText)
+        ),
+    };
 }
 
 /** The abilities the card preview should render below the type line.

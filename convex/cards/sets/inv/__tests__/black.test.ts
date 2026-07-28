@@ -16,6 +16,12 @@
 //     fem/black.ts) + its activated pump;
 //   - Duskwalker's kicker → entersWith-counters → keyword-grant-proxy chain,
 //     a novel-enough composition to warrant its own assertion.
+//
+// First-printing audit (ADR 0041): some cards exercised below were first
+// implemented as part of this INV tranche but are REPRINTS — their
+// definitions now live in their earliest-paper-printing home sets, and INV
+// keeps only a `CardPrint`. The behaviour suites stay with the tranche that
+// authored them and import the definition from its home module.
 
 import { describe, it, expect } from "vitest";
 import {
@@ -25,7 +31,6 @@ import {
     bogInitiate,
     cremate,
     cryptAngel,
-    cursedFlesh,
     desperateResearch,
     devouringStrossus,
     doOrDie,
@@ -43,8 +48,6 @@ import {
     phyrexianReaper,
     phyrexianSlayer,
     plagueSpitter,
-    ravenousRats,
-    recklessSpite,
     recover,
     scavengedWeaponry,
     soulBurnInv,
@@ -54,6 +57,9 @@ import {
     urborgShambler,
     urborgSkeleton,
 } from "../black";
+import { recklessSpite } from "../../tmp/black";
+import { ravenousRats } from "../../p02/black";
+import { cursedFlesh } from "../../exo/black";
 import { getCardByName } from "../../../index";
 import {
     plains,

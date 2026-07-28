@@ -1,4 +1,8 @@
-// M11 (Magic 2011) — black behavior tests (ADR 0043 colour split).
+// POR (Portal) — black behavior tests (ADR 0043 colour split).
+//
+// Mind Rot's home set is Portal, its earliest paper printing (ADR 0041); the
+// M11 reprint it was first implemented against now rides along as a `CardPrint`
+// in `m11/black.ts`.
 
 import { describe, it, expect } from "vitest";
 import { mindRot } from "../black";

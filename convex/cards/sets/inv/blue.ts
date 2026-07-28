@@ -34,6 +34,7 @@ import type {
     ManaCost,
     PermanentView,
     StaticEffectContext,
+    CardPrint,
 } from "../../types";
 import {
     AURA_AFFECTS_HOST,
@@ -110,38 +111,15 @@ export const opt: CardDefinition = {
     ],
 };
 
-// Disrupt — {U} Instant. "Counter target instant or sorcery spell unless its
-// controller pays {1}. Draw a card." (CR 701.5a counter/punisher pattern +
-// CR 121.1 draw.) `mayPay` + `if` on the outcome is the shipped punisher
-// template (leg/blue.ts Force Spike / fem/blue.ts Vodalian Mage).
-export const disrupt: CardDefinition = {
-    id: "c000a02f-6b7e-4925-a938-59e645e980d7",
-    name: "Disrupt",
+// disrupt — INV reprint of the Weatherlight definition (CardPrint).
+// The card was first implemented here, against this printing; its home set is
+// its earliest paper printing (ADR 0041), so the mechanics live in
+// `wth/blue.ts`.
+export const disruptInv: CardPrint = {
+    printId: "c000a02f-6b7e-4925-a938-59e645e980d7", // INV 60
+    definitionId: "c6cc89b0-9acf-452b-ac1a-bc7e90eb32fc", // disrupt (Weatherlight)
+    setCode: "inv",
     rarity: "uncommon",
-    oracleText:
-        "Counter target instant or sorcery spell unless its controller pays {1}.\nDraw a card.",
-    manaCost: { U: 1 },
-    types: ["Instant"],
-    targetRequirement: {
-        type: "spell",
-        count: 1,
-        spellTypeFilter: ["Instant", "Sorcery"],
-    },
-    effects: [
-        {
-            op: "mayPay",
-            player: { controllerOf: { target: 0 } },
-            cost: { X: 1 },
-            prompt: "Pay {1} or your spell is countered (Disrupt)?",
-            bind: "$paid",
-        },
-        {
-            op: "if",
-            predicate: { not: { binding: "$paid" } },
-            then: [{ op: "counter", target: { target: 0 } }],
-        },
-        { op: "draw", player: "controller", count: 1 },
-    ],
 };
 
 // Empress Galina — {3}{U}{U} Legendary Creature — Merfolk Noble, 1/3.
@@ -307,39 +285,15 @@ export const sapphireLeech: CardDefinition = {
     ],
 };
 
-// Shimmering Wings — {U} Enchantment — Aura, enchant creature. "Enchanted
-// creature has flying. {U}: Return this Aura to its owner's hand." (CR 702.9
-// continuous keyword grant via `keyword-grant` + `AURA_AFFECTS_HOST`, and the
-// shipped self-bounce activated-ability template — ice/black.ts Leshrac's
-// Sigil: "{cost}: Return this enchantment to its owner's hand".)
-export const shimmeringWings: CardDefinition = {
-    id: "9615a6c2-1732-4a04-9be1-cc0a8d39de3f",
-    name: "Shimmering Wings",
+// shimmeringWings — INV reprint of the Tempest definition (CardPrint).
+// The card was first implemented here, against this printing; its home set is
+// its earliest paper printing (ADR 0041), so the mechanics live in
+// `tmp/blue.ts`.
+export const shimmeringWingsInv: CardPrint = {
+    printId: "9615a6c2-1732-4a04-9be1-cc0a8d39de3f", // INV 84
+    definitionId: "a6a8dc46-04c7-479a-90c1-b55e6c67e0e3", // shimmeringWings (Tempest)
+    setCode: "inv",
     rarity: "common",
-    oracleText:
-        "Enchant creature (Target a creature as you cast this. This card enters attached to that creature.)\nEnchanted creature has flying. (It can't be blocked except by creatures with flying or reach.)\n{U}: Return this Aura to its owner's hand.",
-    manaCost: { U: 1 },
-    types: ["Enchantment"],
-    subtypes: ["Aura"],
-    targetRequirement: { type: "Creature", count: 1 },
-    staticEffects: [
-        {
-            kind: "keyword-grant",
-            applies: AURA_AFFECTS_HOST,
-            keyword: "flying",
-        },
-    ],
-    activatedAbilities: [
-        {
-            id: "shimmering-wings-return",
-            oracleText: "{U}: Return this Aura to its owner's hand.",
-            cost: { mana: { U: 1 } },
-            useStack: true,
-            effects: [
-                { op: "moveZone", target: { ref: "$source" }, to: "hand" },
-            ],
-        },
-    ],
 };
 
 // Sky Weaver — {1}{U} Creature — Metathran Wizard, 2/1. "{2}: Target white or

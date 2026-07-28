@@ -264,6 +264,12 @@
         "firstSet": "inv"
     },
     {
+        "name": "Angel of Mercy",
+        "scryfallId": "dac5c913-4eb5-4cfb-9c24-223f14f07064",
+        "oracleId": "a2daaf32-dbfe-4618-892e-0da24f63a44a",
+        "firstSet": "p02"
+    },
+    {
         "name": "Angelic Shield",
         "scryfallId": "5aaa3e4e-4e08-4df2-9e0c-66e15a10fec4",
         "oracleId": "05b020fd-21be-495d-ae45-7de3b1224e6d",
@@ -1842,6 +1848,12 @@
         "firstSet": "inv"
     },
     {
+        "name": "Crown of Flames",
+        "scryfallId": "f2c82741-2869-41f9-82f4-6ed88756e2fd",
+        "oracleId": "f14fb965-5ebc-427a-a5b8-149f54c64171",
+        "firstSet": "tmp"
+    },
+    {
         "name": "Crown of the Ages",
         "scryfallId": "fce2991f-48e1-4cfe-af0a-18b6d9400493",
         "oracleId": "0b772ef2-b760-400b-8e5b-f4b98e6c935d",
@@ -1912,6 +1924,12 @@
         "scryfallId": "fb151ae8-9281-434d-ba8d-9ce34f0875eb",
         "oracleId": "96e244ef-21b9-4795-a881-c3db23b60cc9",
         "firstSet": "inv"
+    },
+    {
+        "name": "Cursed Flesh",
+        "scryfallId": "7433b9bf-ee6e-41fe-b826-0d20584198b1",
+        "oracleId": "96e244ef-21b9-4795-a881-c3db23b60cc9",
+        "firstSet": "exo"
     },
     {
         "name": "Cursed Land",
@@ -2010,6 +2028,12 @@
         "firstSet": "fin"
     },
     {
+        "name": "Dark Confidant",
+        "scryfallId": "94f7a441-bf2d-46fb-a7b6-9bd6137f86d9",
+        "oracleId": "2068185c-1b50-47d0-aa3f-bf505d199428",
+        "firstSet": "rav"
+    },
+    {
         "name": "Dark Heart of the Wood",
         "scryfallId": "e3d3df64-1e90-4aef-86ae-0062aa23ff30",
         "oracleId": "c44f40da-867e-4237-b4b1-ed6feb1f37b7",
@@ -2050,6 +2074,12 @@
         "scryfallId": "03f6b25f-d11c-483a-a3e9-6b801d333482",
         "oracleId": "d057289d-5e28-43d5-8ff3-4a1bc723477d",
         "firstSet": "m11"
+    },
+    {
+        "name": "Day of Judgment",
+        "scryfallId": "2aa98fca-972b-46c2-bdec-6ace35c988d5",
+        "oracleId": "d057289d-5e28-43d5-8ff3-4a1bc723477d",
+        "firstSet": "zen"
     },
     {
         "name": "Daze",
@@ -2248,6 +2278,12 @@
         "scryfallId": "c000a02f-6b7e-4925-a938-59e645e980d7",
         "oracleId": "76347258-71d5-4874-adde-ff7aa932b808",
         "firstSet": "inv"
+    },
+    {
+        "name": "Disrupt",
+        "scryfallId": "c6cc89b0-9acf-452b-ac1a-bc7e90eb32fc",
+        "oracleId": "76347258-71d5-4874-adde-ff7aa932b808",
+        "firstSet": "wth"
     },
     {
         "name": "Disrupting Scepter",
@@ -3010,6 +3046,12 @@
         "scryfallId": "789e3582-b541-4916-ac7e-015214d7a27a",
         "oracleId": "cf14d4e5-5965-45ad-97f7-26facf2884b5",
         "firstSet": "inv"
+    },
+    {
+        "name": "Fertile Ground",
+        "scryfallId": "091dda35-59e5-456d-8804-61513a610aed",
+        "oracleId": "cf14d4e5-5965-45ad-97f7-26facf2884b5",
+        "firstSet": "usg"
     },
     {
         "name": "Fiery Justice",
@@ -4030,6 +4072,12 @@
         "scryfallId": "ed0f633e-7238-4d02-ad8b-06dd20453030",
         "oracleId": "705509e9-a034-4a5a-9c65-66f58748b8a2",
         "firstSet": "inv"
+    },
+    {
+        "name": "Harrow",
+        "scryfallId": "3c207142-4880-4935-9827-b91bc7d9d643",
+        "oracleId": "705509e9-a034-4a5a-9c65-66f58748b8a2",
+        "firstSet": "tmp"
     },
     {
         "name": "Harsh Judgment",
@@ -5484,6 +5532,12 @@
         "firstSet": "inv"
     },
     {
+        "name": "Lobotomy",
+        "scryfallId": "ee7ba92d-d327-4b1c-be40-708c5abb27df",
+        "oracleId": "a7ebe748-c3de-402f-8a6e-236a6413c0f8",
+        "firstSet": "tmp"
+    },
+    {
         "name": "Loran of the Third Path",
         "scryfallId": "59faa45d-868b-4bc7-934c-0e077642e129",
         "oracleId": "b3d81980-76f2-44e2-b1c9-01e30c726312",
@@ -5652,6 +5706,12 @@
         "firstSet": "2x2"
     },
     {
+        "name": "Mana Leak",
+        "scryfallId": "abcaf16d-aa02-43e2-aa38-bb1835d47a05",
+        "oracleId": "c61fe162-2202-4e56-9ba0-393547f9875f",
+        "firstSet": "sth"
+    },
+    {
         "name": "Mana Matrix",
         "scryfallId": "a3eedc11-0b47-430c-8391-577a2d05c2ae",
         "oracleId": "256cea34-4691-4367-a789-17d15460f664",
@@ -5692,6 +5752,12 @@
         "scryfallId": "3d17886c-fffd-4f0d-b4da-4b5fba18b811",
         "oracleId": "b5dbb212-0399-475b-a831-921f7c76cdc4",
         "firstSet": "inv"
+    },
+    {
+        "name": "Maniacal Rage",
+        "scryfallId": "f3aa840f-6a70-4674-acb7-ded0ea4397d8",
+        "oracleId": "b5dbb212-0399-475b-a831-921f7c76cdc4",
+        "firstSet": "exo"
     },
     {
         "name": "Manifold Key",
@@ -5938,6 +6004,12 @@
         "scryfallId": "5e117056-030a-4ec6-a669-dbe6c7ccb840",
         "oracleId": "ad44cf74-b717-48fb-9fa2-77512024d76a",
         "firstSet": "m11"
+    },
+    {
+        "name": "Mind Rot",
+        "scryfallId": "b91d355d-8409-4f0b-87ce-7590a8b9ebc0",
+        "oracleId": "ad44cf74-b717-48fb-9fa2-77512024d76a",
+        "firstSet": "por"
     },
     {
         "name": "Mind Stone",
@@ -7098,6 +7170,12 @@
         "firstSet": "m11"
     },
     {
+        "name": "Prodigal Pyromancer",
+        "scryfallId": "97787109-408e-42d3-acc5-300f5f5bf2ff",
+        "oracleId": "29b3cb3e-aeb1-43eb-8095-9f7881aa34bd",
+        "firstSet": "plc"
+    },
+    {
         "name": "Prodigal Sorcerer",
         "scryfallId": "e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a",
         "oracleId": "5e961d15-5972-4e4b-9385-1cd7cd7c6bbe",
@@ -7338,6 +7416,12 @@
         "firstSet": "inv"
     },
     {
+        "name": "Ravenous Rats",
+        "scryfallId": "8899244b-737a-43a9-9241-15a650b47bed",
+        "oracleId": "2fa1bbfd-92b5-482c-b32d-4cdc286474c4",
+        "firstSet": "p02"
+    },
+    {
         "name": "Ray of Command",
         "scryfallId": "638abe5f-2a8a-42ca-bcdf-a52a3df66946",
         "oracleId": "adf41d29-403d-4936-9689-3148d103e700",
@@ -7396,6 +7480,12 @@
         "scryfallId": "2412497b-cae5-444d-9beb-7761d15cd5c5",
         "oracleId": "a684df3a-5441-4daa-86d1-c47a91b35e6a",
         "firstSet": "inv"
+    },
+    {
+        "name": "Reckless Spite",
+        "scryfallId": "9141daea-1f4f-4227-b7d7-20753e3cb4d4",
+        "oracleId": "a684df3a-5441-4daa-86d1-c47a91b35e6a",
+        "firstSet": "tmp"
     },
     {
         "name": "Reclamation",
@@ -7480,6 +7570,12 @@
         "scryfallId": "a5048047-abff-4a1f-8d72-6b758a03542c",
         "oracleId": "d71cd08e-3e84-41ff-b9db-9e343c0af6b4",
         "firstSet": "rvr"
+    },
+    {
+        "name": "Remand",
+        "scryfallId": "581f3780-c480-48c6-b15c-1618f2feccb9",
+        "oracleId": "d71cd08e-3e84-41ff-b9db-9e343c0af6b4",
+        "firstSet": "rav"
     },
     {
         "name": "Remove Enchantments",
@@ -8076,6 +8172,12 @@
         "firstSet": "inv"
     },
     {
+        "name": "Shackles",
+        "scryfallId": "c5315668-b8ef-49ab-a8f5-144adc7bcd84",
+        "oracleId": "05861ff2-ec85-43d1-b641-c5d2da819c03",
+        "firstSet": "exo"
+    },
+    {
         "name": "Shadowy Backstreet",
         "scryfallId": "69c1b656-1d67-499c-bf0f-417682a86c7d",
         "oracleId": "216a2a92-9ca3-4ca3-8af7-686c13b04290",
@@ -8160,6 +8262,12 @@
         "firstSet": "inv"
     },
     {
+        "name": "Shimmering Wings",
+        "scryfallId": "a6a8dc46-04c7-479a-90c1-b55e6c67e0e3",
+        "oracleId": "7d892d61-5a69-4500-9fb2-7cf50728aedd",
+        "firstSet": "tmp"
+    },
+    {
         "name": "Shivan Dragon",
         "scryfallId": "fefbf149-f988-4f8b-9f53-56f5878116a6",
         "oracleId": "711eea87-0fa3-46e0-a42b-fa5a86455f04",
@@ -8218,6 +8326,12 @@
         "scryfallId": "84b1930d-2e4b-472f-98a9-008fd632f3be",
         "oracleId": "128e201a-f520-4917-a1a4-2f3836f1f92d",
         "firstSet": "inv"
+    },
+    {
+        "name": "Simoon",
+        "scryfallId": "642d9239-82e0-4696-ad99-10796042d1f8",
+        "oracleId": "128e201a-f520-4917-a1a4-2f3836f1f92d",
+        "firstSet": "vis"
     },
     {
         "name": "Simulacrum",
@@ -8676,6 +8790,12 @@
         "firstSet": "soc"
     },
     {
+        "name": "Staff of the Storyteller",
+        "scryfallId": "ab1d1461-1625-4163-aacd-a939f4871fad",
+        "oracleId": "0c4e2c90-c17b-42cc-b4d7-cf75970fbe90",
+        "firstSet": "onc"
+    },
+    {
         "name": "Staff of Zegon",
         "scryfallId": "a6bf858d-bba9-4a16-9045-55384b1de633",
         "oracleId": "52c53132-146a-4912-8e0f-1d4d9937fff3",
@@ -8866,6 +8986,12 @@
         "scryfallId": "d22f3ae8-a40b-4dab-abf4-3ab7b05191f7",
         "oracleId": "d3491972-44c5-4962-a680-42b79357a189",
         "firstSet": "inv"
+    },
+    {
+        "name": "Stun",
+        "scryfallId": "c09c0da6-37a7-42ba-b264-18898ee372f0",
+        "oracleId": "d3491972-44c5-4962-a680-42b79357a189",
+        "firstSet": "tmp"
     },
     {
         "name": "Stunted Growth",
@@ -9217,7 +9343,7 @@
     },
     {
         "name": "The One Ring",
-        "scryfallId": "93de9042-cc62-4ade-8d8d-68fdbc84bfae",
+        "scryfallId": "d5806e68-1054-458e-866d-1f2470f682b2",
         "oracleId": "3aa83ed2-f48b-4ce6-a614-2c54ddf50538",
         "firstSet": "ltr"
     },
@@ -9802,6 +9928,12 @@
         "scryfallId": "4e879386-b1f8-4f2a-9820-6e1291746f88",
         "oracleId": "b23cba46-6ed2-442d-bc39-7c4933f6b083",
         "firstSet": "otc"
+    },
+    {
+        "name": "Unholy Heat",
+        "scryfallId": "2b73d294-6ab1-4051-9b0f-d8e335d37674",
+        "oracleId": "b23cba46-6ed2-442d-bc39-7c4933f6b083",
+        "firstSet": "mh2"
     },
     {
         "name": "Unholy Strength",

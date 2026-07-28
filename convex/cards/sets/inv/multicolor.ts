@@ -14,6 +14,7 @@ import type {
     EffectOp,
     PermanentView,
     StaticKeywordGrant,
+    CardPrint,
 } from "../../types";
 import {
     AURA_AFFECTS_HOST,
@@ -958,64 +959,15 @@ export const barrinsSpite: CardDefinition = {
     ],
 };
 
-// Lobotomy — {2}{U}{B} Sorcery. "Target player reveals their hand, then you
-// choose a card other than a basic land card from it. Search that player's
-// graveyard, hand, and library for all cards with the same name as the
-// chosen card and exile them. Then that player shuffles." (CR 201.2 dynamic
-// same-name filter + CR 400.7 multi-zone sweep, issue #1104 gap 2.) The
-// `choice(zone: "hand", zoneOwnerId: { target: 0 })` Op is the shipped
-// Thoughtseize/Duress template — it reveals the target's hand to the chooser
-// AND records the pick in one step (no separate `reveal` Op needed).
-// `EffectCardFilter.name`'s bare-ref form now ALSO accepts a `choice`
-// binding (not just `nameCard`'s own name-string binding) — `resolveNameRef`
-// resolves the picked INSTANCE ID to its live name via the new
-// `SpellContext.getCardName`. `moveZone`'s new FOURTH shape (`fromZones` +
-// `filter`, no prior choice needed) sweeps all three zones — graveyard,
-// hand, library — in one filtered pass to `exile`.
-export const lobotomy: CardDefinition = {
-    id: "ff307dbb-4ab6-457b-be56-47106864bf61",
-    name: "Lobotomy",
+// lobotomy — INV reprint of the Tempest definition (CardPrint).
+// The card was first implemented here, against this printing; its home set is
+// its earliest paper printing (ADR 0041), so the mechanics live in
+// `tmp/multicolor.ts`.
+export const lobotomyInv: CardPrint = {
+    printId: "ff307dbb-4ab6-457b-be56-47106864bf61", // INV 258
+    definitionId: "ee7ba92d-d327-4b1c-be40-708c5abb27df", // lobotomy (Tempest)
+    setCode: "inv",
     rarity: "uncommon",
-    oracleText:
-        "Target player reveals their hand, then you choose a card other than a basic land card from it. Search that player's graveyard, hand, and library for all cards with the same name as the chosen card and exile them. Then that player shuffles.",
-    manaCost: { X: 2, U: 1, B: 1 },
-    types: ["Sorcery"],
-    targetRequirement: { type: "player", count: 1 },
-    effects: [
-        // CR 701.20a — "reveals their hand" is a PUBLIC reveal to every
-        // player (not merely exposed to the chooser for the duration of the
-        // pick, which the `choice` Op's own transient exposure would give
-        // for free) — an explicit `reveal` Op, same as every other
-        // Thoughtseize-family "target player reveals their hand" card.
-        {
-            op: "reveal",
-            player: { target: 0 },
-            zone: "hand",
-        },
-        {
-            op: "choice",
-            kind: "choose-hand-card",
-            player: "controller",
-            zone: "hand",
-            zoneOwnerId: { target: 0 },
-            filter: { excludeSupertype: "Basic" },
-            count: 1,
-            prompt: "Choose a card other than a basic land card",
-            bind: "$chosen",
-        },
-        {
-            op: "moveZone",
-            player: { target: 0 },
-            fromZones: ["graveyard", "hand", "library"],
-            filter: { name: { ref: "$chosen" } },
-            to: "exile",
-        },
-        {
-            op: "libraryLook",
-            action: "shuffle",
-            player: { target: 0 },
-        },
-    ],
 };
 
 // Seer's Vision — {2}{U}{B} Enchantment. "Your opponents play with their
@@ -1795,33 +1747,15 @@ export const ragingKavu: CardDefinition = {
     staticAbilities: ["flash", "haste"],
 };
 
-// Simoon — {R}{G} Instant. "Simoon deals 1 damage to each creature target
-// opponent controls." (CR 115 `controller: "opponent"` player target, CR
-// 120.1 damage — a `forEach` battlefield sweep scoped to the TARGETED
-// player via the `{ target: 0 }` `EffectPlayerRef` shape, the Do or Die
-// `controller: { target: 0 }` `divideIntoPiles.objects` precedent
-// generalized to a plain `forEach` selector, `inv/black.ts`.)
-export const simoon: CardDefinition = {
-    id: "84b1930d-2e4b-472f-98a9-008fd632f3be",
-    rarity: "common",
-    name: "Simoon",
-    oracleText:
-        "Simoon deals 1 damage to each creature target opponent controls.",
-    manaCost: { R: 1, G: 1 },
-    types: ["Instant"],
-    targetRequirement: { type: "player", count: 1, controller: "opponent" },
-    effects: [
-        {
-            op: "forEach",
-            select: {
-                set: "permanents",
-                zone: "battlefield",
-                controller: { target: 0 },
-                filter: { type: "Creature" },
-            },
-            effects: [{ op: "dealDamage", amount: 1, to: { ref: "$each" } }],
-        },
-    ],
+// simoon — INV reprint of the Visions definition (CardPrint).
+// The card was first implemented here, against this printing; its home set is
+// its earliest paper printing (ADR 0041), so the mechanics live in
+// `vis/multicolor.ts`.
+export const simoonInv: CardPrint = {
+    printId: "84b1930d-2e4b-472f-98a9-008fd632f3be", // INV 279
+    definitionId: "642d9239-82e0-4696-ad99-10796042d1f8", // simoon (Visions)
+    setCode: "inv",
+    rarity: "uncommon",
 };
 
 // Voracious Cobra — {2}{R}{G} Creature — Snake, 2/2. "First strike.

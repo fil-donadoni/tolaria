@@ -15,13 +15,18 @@
 // own test") or carries a `staticEffects[]` continuous effect, which the
 // project's testing convention mandates a hand-written GRE + wire-format test
 // for regardless of DSL/resolve status.
+//
+// First-printing audit (ADR 0041): some cards exercised below were first
+// implemented as part of this INV tranche but are REPRINTS — their
+// definitions now live in their earliest-paper-printing home sets, and INV
+// keeps only a `CardPrint`. The behaviour suites stay with the tranche that
+// authored them and import the definition from its home module.
 
 import { describe, it, expect } from "vitest";
 import {
     blindSeer,
     collectiveRestraint,
     distortingWake,
-    disrupt,
     dreamThrush,
     empressGalina,
     exclude,
@@ -34,7 +39,6 @@ import {
     rainbowCrow,
     repulse,
     sapphireLeech,
-    shimmeringWings,
     skyWeaver,
     swayOfIllusion,
     tidalVisionary,
@@ -46,6 +50,8 @@ import {
     worldlyCounsel,
     zanamDjinn,
 } from "../blue";
+import { shimmeringWings } from "../../tmp/blue";
+import { disrupt } from "../../wth/blue";
 import { island, plains, swamp } from "../../lea/colorless";
 import { lightningBolt } from "../../lea/red";
 import { grizzlyBears } from "../../lea/green";
