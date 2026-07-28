@@ -1,5 +1,9 @@
 import { FastForward } from "lucide-react";
 import type { ControllerCommandSlots } from "~/lib/controller-action-slots";
+import {
+    CONTROLLER_PRIMARY_TONE,
+    CONTROLLER_SECONDARY_TONE,
+} from "~/lib/controller-action-tone";
 
 /** Shared geometry for the centre slot. Every state — actionable CTA, status
  *  pill, or the disabled placeholder — renders at exactly this size, which is
@@ -48,9 +52,7 @@ export default function ControllerCommandRow({
                     onClick={action.onClick}
                     disabled={action.disabled}
                     className={`h-9 min-w-0 max-w-full truncate rounded-full border px-4 text-xs font-semibold shadow-lg backdrop-blur-md transition-opacity disabled:opacity-40 ${
-                        action.tone === "destructive"
-                            ? "border-danger/50 bg-surface-base/85 text-danger-strong"
-                            : "border-border-accent/50 bg-surface-base/85 text-accent-strong"
+                        CONTROLLER_SECONDARY_TONE[action.tone]
                     }`}
                 >
                     {action.label}
@@ -84,9 +86,7 @@ export default function ControllerCommandRow({
                         onClick={primary?.onClick}
                         disabled={!primary || primary.disabled}
                         className={`${CENTRE_SLOT} truncate font-beleren text-sm font-bold tracking-wide shadow-[0_4px_18px_rgba(0,0,0,0.45)] transition-all disabled:opacity-40 disabled:shadow-none ${
-                            primary?.tone === "destructive"
-                                ? "border border-danger/60 bg-surface-base/90 text-danger-strong backdrop-blur-md"
-                                : "bg-gradient-to-b from-accent-strong to-accent text-surface-base"
+                            CONTROLLER_PRIMARY_TONE[primary?.tone ?? "primary"]
                         }`}
                     >
                         {primary?.label ?? "Pass"}
