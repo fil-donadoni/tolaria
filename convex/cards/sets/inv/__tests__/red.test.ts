@@ -28,6 +28,7 @@ import {
     bendOrBreak,
     standOrFall,
     pouncingKavu,
+    kavuRunner,
 } from "../red";
 import { stun } from "../../tmp/red";
 import { registerTokenDefinition } from "../../..";
@@ -41,6 +42,7 @@ import {
     resolveTopOfStack,
     applySourceStaticEffects,
     unapplySourceStaticEffects,
+    refreshCounterGatedStatics,
     removePermanentTo,
     putReanimatedSetOnBattlefield,
     type GameState,
@@ -832,5 +834,90 @@ describe("Pouncing Kavu (Kicker → two +1/+1 counters + haste; CR 702.33 / 122.
         )!;
         expect(slim.wasKicked).toBe(true);
         expect(slim.staticAbilities).toContain("haste");
+    });
+});
+
+describe("Kavu Runner (board-state-conditional haste; CR 611.2c, issue #1095)", () => {
+    function makeKavuRunnerState() {
+        const kavu = makeInstance(kavuRunner.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "kavu-runner",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [kavu] }),
+                makePlayer("p2"),
+            ],
+        });
+        applySourceStaticEffects(state, kavu);
+        return { state, kavu };
+    }
+
+    function addOpponentLions(state: GameState) {
+        const lions = makeInstance(savannahLions.id, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "opp-lions",
+        });
+        state.players[1].battlefield.push(lions);
+        return lions;
+    }
+
+    it("has haste when no opponent controls a white or blue creature", () => {
+        const { kavu } = makeKavuRunnerState();
+        expect(kavu.staticAbilities).toContain("haste");
+    });
+
+    // `keyword-grant` is MATERIALIZED at apply time (not recomputed at every
+    // read like `pt-buff`), so the "as long as" gate only stays live because
+    // `refreshCounterGatedStatics` (generalized issue #1095 to also sweep
+    // `keyword-grant`s that declare a `condition`) re-runs `applies`/
+    // `condition` on this real production path every SBA pass.
+    it("loses haste once an opponent controls a white creature (re-evaluated via refreshCounterGatedStatics)", () => {
+        const { state, kavu } = makeKavuRunnerState();
+        expect(kavu.staticAbilities).toContain("haste");
+
+        addOpponentLions(state);
+        refreshCounterGatedStatics(state);
+
+        expect(kavu.staticAbilities).not.toContain("haste");
+    });
+
+    it("regains haste once the opposing white creature leaves the battlefield", () => {
+        const { state, kavu } = makeKavuRunnerState();
+        addOpponentLions(state);
+        refreshCounterGatedStatics(state);
+        expect(kavu.staticAbilities).not.toContain("haste");
+
+        state.players[1].battlefield = state.players[1].battlefield.filter(
+            (c) => c.id !== "opp-lions"
+        );
+        refreshCounterGatedStatics(state);
+
+        expect(kavu.staticAbilities).toContain("haste");
+    });
+
+    // Wire format (mandatory, `.claude/rules/gre-development.md` § Frontend
+    // wiring analysis): the materialized "haste" keyword must survive
+    // `projectPublicState`'s slim reshape, both while present and once the
+    // board-state gate has removed it.
+    it("haste presence/absence survives projectPublicState (wire format)", () => {
+        const { state, kavu } = makeKavuRunnerState();
+
+        const projectedWithHaste = projectPublicState(state, 1, "p1");
+        const slimWithHaste = projectedWithHaste.players[0].battlefield.find(
+            (c) => c.id === kavu.id
+        )!;
+        expect(slimWithHaste.staticAbilities).toContain("haste");
+
+        addOpponentLions(state);
+        refreshCounterGatedStatics(state);
+
+        const projectedNoHaste = projectPublicState(state, 2, "p1");
+        const slimNoHaste = projectedNoHaste.players[0].battlefield.find(
+            (c) => c.id === kavu.id
+        )!;
+        expect(slimNoHaste.staticAbilities).not.toContain("haste");
     });
 });
