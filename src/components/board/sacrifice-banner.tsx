@@ -17,8 +17,11 @@ export default function SacrificeBanner({
 }: {
     selection: SacrificeSelection;
 }) {
+    // Issue #1813 — always pinned: the legal lands are highlighted/clickable
+    // ON THE BATTLEFIELD (see docstring above), so a vertically centered
+    // panel would sit directly on top of what the player must tap.
     const { outerClassName, outerStyle, innerClassName, dragHandlers } =
-        usePromptBannerPosition();
+        usePromptBannerPosition({ pinned: true });
 
     return (
         <div className={outerClassName} style={outerStyle}>

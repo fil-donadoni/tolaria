@@ -113,9 +113,11 @@ const noopBuffer: PendingChoiceBuffer = {
 
 /** Asserts the FIRST child of `container` — every one of these banners
  *  renders exactly one top-level positioning `div` — never centers on the
- *  board (`top-1/2`/`left-1/2`) and always uses the safe-area-aware fixed
- *  strip in portrait (issue #1762 acceptance criterion: never covers the
- *  board center or the bottom controls). */
+ *  board via the OLD dead-center recipe (`top-1/2`/`left-1/2`) and always
+ *  uses the safe-area-aware fixed strip in portrait (issue #1762 original
+ *  acceptance criterion). Issue #1813 narrowed WHICH banners this applies
+ *  to: only ones whose own interaction routes clicks to the mid-board — see
+ *  `expectPortraitCenteredPosition` below for the new default. */
 function expectPortraitSafePosition(container: HTMLElement) {
     const outer = container.firstElementChild as HTMLElement | null;
     expect(outer).not.toBeNull();
@@ -126,7 +128,33 @@ function expectPortraitSafePosition(container: HTMLElement) {
     expect(className).toContain("env(safe-area-inset-top)");
 }
 
-describe("Prompt banners — portrait never centers on the board (issue #1762)", () => {
+/** Issue #1813 — the new portrait DEFAULT for a prompt banner with nothing
+ *  on the mid-board for the player to tap: vertically (and horizontally)
+ *  centered, never the safe-area strip (that would waste the centered
+ *  screen real estate) and never the OLD dead-center `top-1/2`/`left-1/2`
+ *  recipe either (this is a DIFFERENT, flex-centered implementation — see
+ *  `usePromptBannerPosition`). */
+function expectPortraitCenteredPosition(container: HTMLElement) {
+    const outer = container.firstElementChild as HTMLElement | null;
+    expect(outer).not.toBeNull();
+    const className = outer!.className;
+    expect(className).not.toContain("top-1/2");
+    expect(className).not.toContain("left-1/2");
+    expect(className).toContain("fixed");
+    // `inset-0` is THE class that centers vertically (full-viewport box, then
+    // `items-center` centers within it) — the pinned branch is `inset-x-0
+    // top-[...]` (no `inset-0`), so this line is what actually distinguishes
+    // the two branches. Its absence here was a review finding on #1823: the
+    // assertion below (`items-center`/`justify-center`) alone can't tell
+    // "vertically centered" from "pinned but also flex-centered
+    // horizontally" — only `inset-0` proves the vertical placement.
+    expect(className).toContain("inset-0");
+    expect(className).toContain("items-center");
+    expect(className).toContain("justify-center");
+    expect(className).not.toContain("env(safe-area-inset-top)");
+}
+
+describe("Prompt banners — portrait pins to the safe-area strip when board taps are required (issues #1762, #1813)", () => {
     it("TargetSelectionBanner", () => {
         const pendingTarget: PendingTarget = {
             playerId: "me",
@@ -143,53 +171,6 @@ describe("Prompt banners — portrait never centers on the board (issue #1762)",
                 gameId={"g1" as never}
                 playerId="me"
             />
-        );
-        expectPortraitSafePosition(container);
-    });
-
-    it("PendingChoicePrompt", () => {
-        const choice: PendingChoice = {
-            stackItemId: "stk",
-            step: 0,
-            choiceId: "me",
-            playerId: "me",
-            kind: "search-library",
-            zone: "library",
-            count: 1,
-            prompt: "Search your library for a card.",
-        } as PendingChoice;
-        const value = {
-            gameId: "g1" as never,
-            playerId: "me",
-            activePlayerId: "me",
-            priorityPlayerId: "me",
-            phase: "PRECOMBAT_MAIN",
-            turn: 1,
-            stackCount: 0,
-            allPlayers: [{ id: "me", name: "Me" }],
-            showAllCards: false,
-            debugAllActions: false,
-            onSwitchGame: () => {},
-            pendingChoices: [choice],
-        } as unknown as React.ContextType<typeof GameContext>;
-        const { container } = render(
-            <GameContext value={value}>
-                <PendingChoiceBufferContext value={noopBuffer}>
-                    <MinimizedChoiceContext
-                        value={{
-                            isMinimized: false,
-                            minimize: () => {},
-                            restore: () => {},
-                        }}
-                    >
-                        <PendingChoicePrompt
-                            choice={choice}
-                            playerId="me"
-                            gameId={"g1" as never}
-                        />
-                    </MinimizedChoiceContext>
-                </PendingChoiceBufferContext>
-            </GameContext>
         );
         expectPortraitSafePosition(container);
     });
@@ -227,22 +208,6 @@ describe("Prompt banners — portrait never centers on the board (issue #1762)",
         expectPortraitSafePosition(container);
     });
 
-    it("MulliganPrompt", () => {
-        const mulligan: MulliganState = {
-            declaringPlayerId: "me",
-            mulligansTaken: [0, 0],
-        } as MulliganState;
-        const { container } = render(
-            <MulliganPrompt
-                gameId={"g1" as never}
-                viewerId="me"
-                mulligan={mulligan}
-                allPlayers={[player()]}
-            />
-        );
-        expectPortraitSafePosition(container);
-    });
-
     it("AttackManaTaxBanner", () => {
         const payment: AttackManaTaxPayment = {
             playerId: "me",
@@ -256,6 +221,191 @@ describe("Prompt banners — portrait never centers on the board (issue #1762)",
                 playerId="me"
                 payment={payment}
             />
+        );
+        expectPortraitSafePosition(container);
+    });
+
+    // PendingChoicePrompt is dynamic — it pins ONLY when the choice itself
+    // routes clicks to the battlefield (`zone: "battlefield"`, e.g. a
+    // may-pay sacrifice leg or `choose-aura-host`). This exercises that
+    // branch; the non-battlefield branch is covered in the centered describe
+    // block below.
+    it("PendingChoicePrompt — a battlefield-zone choice", () => {
+        const choice: PendingChoice = {
+            stackItemId: "stk",
+            step: 0,
+            choiceId: "me",
+            playerId: "me",
+            kind: "choose-permanents",
+            zone: "battlefield",
+            count: 1,
+            prompt: "Choose a permanent.",
+        } as PendingChoice;
+        const value = {
+            gameId: "g1" as never,
+            playerId: "me",
+            activePlayerId: "me",
+            priorityPlayerId: "me",
+            phase: "PRECOMBAT_MAIN",
+            turn: 1,
+            stackCount: 0,
+            allPlayers: [{ id: "me", name: "Me" }],
+            showAllCards: false,
+            debugAllActions: false,
+            onSwitchGame: () => {},
+            pendingChoices: [choice],
+        } as unknown as React.ContextType<typeof GameContext>;
+        const { container } = render(
+            <GameContext value={value}>
+                <PendingChoiceBufferContext value={noopBuffer}>
+                    <MinimizedChoiceContext
+                        value={{
+                            isMinimized: false,
+                            minimize: () => {},
+                            restore: () => {},
+                        }}
+                    >
+                        <PendingChoicePrompt
+                            choice={choice}
+                            playerId="me"
+                            gameId={"g1" as never}
+                        />
+                    </MinimizedChoiceContext>
+                </PendingChoiceBufferContext>
+            </GameContext>
+        );
+        expectPortraitSafePosition(container);
+    });
+});
+
+// Issue #1813 — the new portrait default: a prompt with nothing on the
+// mid-board for the player to tap renders vertically centered instead of
+// pinned to the safe-area strip.
+describe("Prompt banners — portrait centers vertically when no board tap is required (issue #1813)", () => {
+    it("MulliganPrompt", () => {
+        const mulligan: MulliganState = {
+            declaringPlayerId: "me",
+            mulligansTaken: [0, 0],
+        } as MulliganState;
+        const { container } = render(
+            <MulliganPrompt
+                gameId={"g1" as never}
+                viewerId="me"
+                mulligan={mulligan}
+                allPlayers={[player()]}
+            />
+        );
+        expectPortraitCenteredPosition(container);
+    });
+
+    // A zone-less `may-pay` choice with a LIFE-only cost (no mana leg) — the
+    // review-fixup replacement for the old `search-library` case (issue
+    // #1823): a library pick's real dialog surface is the full-screen pile
+    // modal, which sits ON TOP of this banner (behind its scrim) in the real
+    // app, so asserting this banner's OWN position there proved little. A
+    // pure life-cost may-pay renders as a bare centered banner with nothing
+    // else competing for the screen, so it is the meaningful example of "a
+    // choice with genuinely nothing on the mid-board to cover".
+    it("PendingChoicePrompt — a may-pay choice with a life-only cost (no mana leg)", () => {
+        const choice: PendingChoice = {
+            stackItemId: "stk",
+            step: 0,
+            choiceId: "me",
+            playerId: "me",
+            kind: "may-pay",
+            count: 1,
+            cost: { life: 2 },
+            prompt: "Pay 2 life?",
+        } as PendingChoice;
+        const value = {
+            gameId: "g1" as never,
+            playerId: "me",
+            activePlayerId: "me",
+            priorityPlayerId: "me",
+            phase: "PRECOMBAT_MAIN",
+            turn: 1,
+            stackCount: 0,
+            allPlayers: [player()],
+            showAllCards: false,
+            debugAllActions: false,
+            onSwitchGame: () => {},
+            pendingChoices: [choice],
+        } as unknown as React.ContextType<typeof GameContext>;
+        const { container } = render(
+            <GameContext value={value}>
+                <PendingChoiceBufferContext value={noopBuffer}>
+                    <MinimizedChoiceContext
+                        value={{
+                            isMinimized: false,
+                            minimize: () => {},
+                            restore: () => {},
+                        }}
+                    >
+                        <PendingChoicePrompt
+                            choice={choice}
+                            playerId="me"
+                            gameId={"g1" as never}
+                        />
+                    </MinimizedChoiceContext>
+                </PendingChoiceBufferContext>
+            </GameContext>
+        );
+        expectPortraitCenteredPosition(container);
+    });
+});
+
+// Issue #1823 review finding 1 — regression coverage: a `may-pay` whose cost
+// has a MANA leg (Echo, cumulative upkeep, "unless you pay {mana}") is
+// zone-less BY DESIGN (`requestMayPay` only sets `zone` for a real
+// sacrifice/discard victim pick), so `zone === "battlefield"` alone used to
+// miss it entirely — it rendered centered even though the player must tap
+// lands with the prompt open (there is no auto-tap; the Pay button only
+// enables once the pool already covers the cost). It must now pin to the
+// safe-area strip like any other board-tap choice.
+describe("Prompt banners — a may-pay with a mana leg pins even though it carries no zone (issue #1823 review finding 1)", () => {
+    it("PendingChoicePrompt — a may-pay choice with a mana cost", () => {
+        const choice: PendingChoice = {
+            stackItemId: "stk",
+            step: 0,
+            choiceId: "me",
+            playerId: "me",
+            kind: "may-pay",
+            count: 1,
+            cost: { R: 1 },
+            prompt: "Pay echo ({R}) to keep this permanent?",
+        } as PendingChoice;
+        const value = {
+            gameId: "g1" as never,
+            playerId: "me",
+            activePlayerId: "me",
+            priorityPlayerId: "me",
+            phase: "PRECOMBAT_MAIN",
+            turn: 1,
+            stackCount: 0,
+            allPlayers: [player()],
+            showAllCards: false,
+            debugAllActions: false,
+            onSwitchGame: () => {},
+            pendingChoices: [choice],
+        } as unknown as React.ContextType<typeof GameContext>;
+        const { container } = render(
+            <GameContext value={value}>
+                <PendingChoiceBufferContext value={noopBuffer}>
+                    <MinimizedChoiceContext
+                        value={{
+                            isMinimized: false,
+                            minimize: () => {},
+                            restore: () => {},
+                        }}
+                    >
+                        <PendingChoicePrompt
+                            choice={choice}
+                            playerId="me"
+                            gameId={"g1" as never}
+                        />
+                    </MinimizedChoiceContext>
+                </PendingChoiceBufferContext>
+            </GameContext>
         );
         expectPortraitSafePosition(container);
     });

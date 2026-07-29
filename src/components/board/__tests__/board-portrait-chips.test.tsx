@@ -4,6 +4,7 @@
 // count, and TAPPING a chip opens the EXISTING reveal / stack view (the same
 // dialog / panel the desktop board uses) — nothing is rebuilt.
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
 import {
     render,
     screen,
@@ -43,8 +44,18 @@ vi.mock("../../cards/selectable-card", () => ({
 // The stack panel pulls in draggable / arrow-highlight wiring irrelevant here;
 // stub it down to a marker that surfaces the item count it was handed.
 vi.mock("../game-stack", () => ({
-    default: ({ stack }: { stack: StackItem[] }) => (
-        <div data-testid="stack-view" data-count={stack.length} />
+    default: ({
+        stack,
+        elevated,
+    }: {
+        stack: StackItem[];
+        elevated?: boolean;
+    }) => (
+        <div
+            data-testid="stack-view"
+            data-count={stack.length}
+            data-elevated={elevated ?? false}
+        />
     ),
 }));
 
@@ -238,5 +249,72 @@ describe("BoardPortraitChips (#336)", () => {
         // Tap again closes it.
         fireEvent.click(screen.getByTestId("chip-stack"));
         expect(screen.queryByTestId("stack-view")).toBeNull();
+    });
+
+    it("review fixup round 2 (#1813/#1823) — the stack chip and an opened stack overlay sit at `z-chip`, strictly between the centered banner's `z-banner` and a blocking modal's `z-modal`", () => {
+        // Round 1 put both at `z-modal-top` so they'd out-rank a centered
+        // pending-choice banner (then also `z-modal`) — but `z-modal-top`
+        // also out-ranks every BLOCKING modal (trigger-order-prompt,
+        // mana-choice-picker, the reveal overlays), leaving the chip tappable
+        // through their scrim. The fix: the banner moved DOWN to `z-banner`
+        // (below `z-chip`), the chip stays at the new `z-chip` tier — NOT
+        // `z-modal-top`, NOT the old `z-30`, and NOT `z-modal` itself, so a
+        // real blocking modal still wins outright.
+        const me = makePlayer("me");
+        const opp = makePlayer("opp");
+        const stack = [
+            { id: "s1", card: { id: "def-s1" } },
+        ] as unknown as StackItem[];
+        renderChips(opp, me, stack);
+
+        const rowClassName = screen.getByTestId("stack-chip-row").className;
+        expect(rowClassName).toContain("z-chip");
+        expect(rowClassName).not.toMatch(/\bz-30\b/);
+        expect(rowClassName).not.toContain("z-modal-top");
+        expect(rowClassName).not.toMatch(/\bz-modal\b(?!-)/);
+
+        fireEvent.click(screen.getByTestId("chip-stack"));
+        expect(
+            screen.getByTestId("stack-view").getAttribute("data-elevated")
+        ).toBe("true");
+    });
+
+    it("pins the numeric ordering in src/index.css: banner < chip < modal", () => {
+        // This is the actual bug from #1823 round 1: `--z-modal-top` (110) sat
+        // ABOVE `--z-modal` (100), so raising the chip past `--z-modal` let it
+        // paint over a real blocking modal's scrim. jsdom in this test suite
+        // never loads `src/index.css` (no `getComputedStyle` signal to assert
+        // on), so read the source of truth directly — a future edit that
+        // re-breaks the ordering fails HERE, not only visually.
+        //
+        // The `import.meta.url` indirection through `moduleUrl` (rather than
+        // the literal `new URL("../../../index.css", import.meta.url)`) is
+        // load-bearing: Vite's import-analysis plugin pattern-matches that
+        // exact literal as a static-asset reference and rewrites it to the
+        // DEV-SERVER url (`http://localhost:3000/src/index.css`) instead of
+        // leaving it as a runtime `file://` URL — which then makes
+        // `readFileSync` throw ("The URL must be of scheme file"). Assigning
+        // to a variable first defeats that static rewrite and keeps this
+        // cwd-independent (no `process.cwd()` assumption about where the
+        // test runner was launched from).
+        const moduleUrl = import.meta.url;
+        const css = readFileSync(
+            new URL("../../../index.css", moduleUrl),
+            "utf8"
+        );
+        const valueOf = (name: string): number => {
+            const match = css.match(new RegExp(`--${name}:\\s*(\\d+);`));
+            if (!match) throw new Error(`--${name} not found in index.css`);
+            return Number(match[1]);
+        };
+
+        const banner = valueOf("z-banner");
+        const chip = valueOf("z-chip");
+        const modal = valueOf("z-modal");
+        const modalTop = valueOf("z-modal-top");
+
+        expect(banner).toBeLessThan(chip);
+        expect(chip).toBeLessThan(modal);
+        expect(modal).toBeLessThan(modalTop);
     });
 });

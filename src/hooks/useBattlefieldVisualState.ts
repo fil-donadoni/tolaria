@@ -21,6 +21,7 @@ import {
     pendingCastHasImprovise,
     pendingCastRemainingGeneric,
 } from "~/lib/card-utils";
+import { pendingChoiceRoutesToBattlefield } from "~/lib/pending-choice-labels";
 import { isUntargetableByPending } from "~/lib/targeting";
 import {
     activeSacrificeSelection,
@@ -99,7 +100,7 @@ export function useBattlefieldVisualState(player: Player) {
         : undefined;
     const isSelectingChoice =
         isViewerChoosing &&
-        activeChoice!.zone === "battlefield" &&
+        pendingChoiceRoutesToBattlefield(activeChoice!) &&
         (activeChoice!.allControllers === true ||
             choiceZoneOwnerId === player.id);
 

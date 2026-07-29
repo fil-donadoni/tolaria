@@ -54,8 +54,12 @@ type Props = {
 );
 
 export default function PaymentBanner(props: Props) {
+    // Issue #1813 — always pinned: paying this cost routes clicks to the
+    // battlefield (lands to tap for mana, `tapOtherChoice`/`additionalCost`
+    // permanent picks — `useBattlefieldVisualState`), so a vertically
+    // centered panel would sit directly on top of what the player must tap.
     const { outerClassName, outerStyle, innerClassName, dragHandlers } =
-        usePromptBannerPosition();
+        usePromptBannerPosition({ pinned: true });
     const autoTap = useMutation(api.game.autoTapForPayment);
     const [busy, setBusy] = useState(false);
 

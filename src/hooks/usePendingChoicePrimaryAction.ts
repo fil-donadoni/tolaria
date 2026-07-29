@@ -9,6 +9,7 @@ import {
     mayPayDiscardPickSatisfied,
 } from "~/lib/card-utils";
 import { isZonePickConfirmEnabled } from "~/lib/pending-choice-confirm";
+import { pendingChoiceRoutesToBattlefield } from "~/lib/pending-choice-labels";
 import { useGameContext } from "./useGameContext";
 import { usePendingChoiceBuffer } from "./usePendingChoiceBuffer";
 
@@ -60,10 +61,9 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
                 // `zone: "battlefield"`; the chosen victims are the picks the
                 // player accumulated in the shared choice buffer. A plain
                 // yes/no (or auto-resolving) may-pay carries no zone → no ids.
-                const sacrificeIds =
-                    choice.zone === "battlefield"
-                        ? bufferCtx.buffer
-                        : undefined;
+                const sacrificeIds = pendingChoiceRoutesToBattlefield(choice)
+                    ? bufferCtx.buffer
+                    : undefined;
                 // CR 701.9 / 118.3 (issue #899) — a discard leg with a real
                 // card choice sets `zone: "hand"`; the chosen cards are the
                 // picks the player accumulated in the same shared buffer.
@@ -137,7 +137,7 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
         // victims satisfy the leg: a fixed count, or (threshold mode, Phyrexian
         // Dreadnought) enough summed power to reach `minTotalPower`.
         const sacrificePickSatisfied =
-            choice.zone !== "battlefield" ||
+            !pendingChoiceRoutesToBattlefield(choice) ||
             mayPaySacrificePickSatisfied(
                 choice.cost,
                 bufferCtx.buffer,
