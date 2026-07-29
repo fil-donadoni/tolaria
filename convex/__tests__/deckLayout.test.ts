@@ -29,6 +29,7 @@ import {
     setCardPin,
     setGrouping,
     setOrdering,
+    toManualColumnId,
     type ColumnLayout,
     type ColumnLayoutAdapter,
     type GroupingKind,
@@ -385,6 +386,67 @@ describe("manual Columns (ADR 0075 §2, issue #1618)", () => {
         );
         expect(layout.manualColumns).toEqual([manual]);
     });
+
+    it("forces a generated-namespace id into `custom:`, so it can never collide with a generated Column", () => {
+        const layout = addManualColumn(createColumnLayout(), {
+            id: "mv:3",
+            label: "Sneaky",
+        });
+        expect(layout.manualColumns).toEqual([
+            { id: "custom:mv:3", label: "Sneaky" },
+        ]);
+        expect(toManualColumnId("mv:3")).toBe("custom:mv:3");
+
+        // The generated `mv:3` still exists, exactly once, and the manual
+        // Column is a SEPARATE entry — no duplicate id, no card rendered twice.
+        const columns = resolve(layout, ["angel"]);
+        const ids = columns.map((c) => c.id);
+        expect(new Set(ids).size).toBe(ids.length);
+        expect(ids.filter((id) => id === "mv:3")).toEqual(["mv:3"]);
+        expect(column(columns, "mv:3").kind).toBe("generated");
+        expect(column(columns, "custom:mv:3").kind).toBe("manual");
+        // The one MV-3 card lands in the generated Column only.
+        expect(idsIn(columns, "custom:mv:3")).toEqual([]);
+    });
+
+    it("namespaces an unnamespaced id, including the reserved Catch-All id", () => {
+        expect(toManualColumnId("combo")).toBe("custom:combo");
+        expect(toManualColumnId(CATCH_ALL_COLUMN_ID)).toBe(
+            `custom:${CATCH_ALL_COLUMN_ID}`
+        );
+        const columns = resolve(
+            addManualColumn(createColumnLayout(), {
+                id: CATCH_ALL_COLUMN_ID,
+                label: "Impostor",
+            }),
+            ["bolt"]
+        );
+        // The real Catch-All is still the single last Column.
+        expect(column(columns, CATCH_ALL_COLUMN_ID).kind).toBe("catchAll");
+        expect(columns[columns.length - 1].id).toBe(CATCH_ALL_COLUMN_ID);
+        expect(column(columns, `custom:${CATCH_ALL_COLUMN_ID}`).kind).toBe(
+            "manual"
+        );
+    });
+
+    it("leaves an already-`custom:` id alone", () => {
+        expect(toManualColumnId("custom:combo")).toBe("custom:combo");
+    });
+
+    it("does not record a `custom:` id it does not know in `removedColumnIds`", () => {
+        // `removedColumnIds` only ever filters GENERATED Columns, so a stray
+        // `custom:` entry there is inert — but it is persisted forever on
+        // `userDecks.layout`, so it must never be written.
+        const base = createColumnLayout();
+        expect(removeColumn(base, "custom:a")).toEqual(base);
+        expect(removeColumn(base, "custom:a").removedColumnIds).toEqual([]);
+
+        // Removing a manual Column that DOES exist still drops it, and still
+        // writes nothing to `removedColumnIds`.
+        const removed = removeColumn(addManualColumn(base, manual), manual.id);
+        expect(removed.manualColumns).toEqual([]);
+        expect(removed.removedColumnIds).toEqual([]);
+    });
 });
 
 // ── AC: claiming order ──────────────────────────────────────────────────────
@@ -515,6 +577,25 @@ describe("deleting a column then re-introducing a matching card (issue #1618)", 
         const restored = restoreColumn(removed, "mv:5");
         expect(restored.removedColumnIds).toEqual([]);
         expect(columnOf(resolve(restored, ["angel"]), "angel")).toBe("mv:5");
+    });
+
+    it("keeps a PIN naming the deleted column, and `restoreColumn` resurrects it (ADR 0075 §3)", () => {
+        // Bolt is MV 1, pinned into the MV-5 column.
+        const pinned = setCardPin(createColumnLayout(), "bolt", "mv", "mv:5");
+        expect(columnOf(resolve(pinned, ["bolt"]), "bolt")).toBe("mv:5");
+
+        // Deleting mv:5 does NOT erase the pin — it just stops applying, so
+        // bolt falls through to the predicate's column.
+        const removed = removeColumn(pinned, "mv:5");
+        expect(removed.pins).toEqual(pinned.pins);
+        expect(removed.pins.bolt).toEqual({ mv: "mv:5" });
+        expect(columnOf(resolve(removed, ["bolt"]), "bolt")).toBe("mv:1");
+
+        // Restoring the column makes the surviving pin apply again.
+        const restored = restoreColumn(removed, "mv:5");
+        expect(restored.pins.bolt).toEqual({ mv: "mv:5" });
+        expect(columnOf(resolve(restored, ["bolt"]), "bolt")).toBe("mv:5");
+        expect(idsIn(resolve(restored, ["bolt"]), "mv:1")).toEqual([]);
     });
 });
 

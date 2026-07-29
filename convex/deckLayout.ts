@@ -23,7 +23,7 @@
 import { getDefinition } from "./cards";
 import { getCardColorIdentity } from "./cards/colors";
 import type { CardDefinition, CardType, Color, Rarity } from "./cards/types";
-import { manaValue } from "./gre/constants";
+import { isLandDefinition, manaValue } from "./gre/constants";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Vocabulary types
@@ -163,10 +163,6 @@ export interface GeneratedColumn {
     claims: (def: CardDefinition) => boolean;
 }
 
-function isLandDefinition(def: CardDefinition): boolean {
-    return def.types.includes("Land");
-}
-
 function landsColumn(namespace: PinNamespace): GeneratedColumn {
     return {
         id: makeColumnId(namespace, "lands"),
@@ -195,20 +191,29 @@ const COLOR_COLUMN_LABEL: Record<Color, string> = {
     C: "Colourless",
 };
 
-/** Card types that get their own Column under the `type` Grouping, in claiming
- *  order. `Land` is absent on purpose — lands are claimed by the Lands Column,
- *  which is generated under every Grouping. An Artifact Creature is claimed by
- *  the first Column in this order that matches it, i.e. Creature. */
-const TYPE_COLUMN_ORDER: CardType[] = [
-    "Creature",
-    "Planeswalker",
-    "Instant",
-    "Sorcery",
-    "Artifact",
-    "Enchantment",
-    "Battle",
-    "Kindred",
-];
+/** Claiming rank of every card type that gets its own Column under the `type`
+ *  Grouping. `Land` is `Exclude`d on purpose — lands are claimed by the Lands
+ *  Column, which is generated under every Grouping. An Artifact Creature is
+ *  claimed by the first Column in this order that matches it, i.e. Creature.
+ *
+ *  Typed as a TOTAL `Record` rather than an array so `tsc` fails the moment a
+ *  new `CardType` member is added without a rank here — an unranked type would
+ *  otherwise silently route its cards to the Catch-All. */
+const TYPE_COLUMN_RANK: Record<Exclude<CardType, "Land">, number> = {
+    Creature: 0,
+    Planeswalker: 1,
+    Instant: 2,
+    Sorcery: 3,
+    Artifact: 4,
+    Enchantment: 5,
+    Battle: 6,
+    Kindred: 7,
+};
+
+/** {@link TYPE_COLUMN_RANK} flattened into claiming order. */
+const TYPE_COLUMN_ORDER: CardType[] = (
+    Object.keys(TYPE_COLUMN_RANK) as Exclude<CardType, "Land">[]
+).sort((a, b) => TYPE_COLUMN_RANK[a] - TYPE_COLUMN_RANK[b]);
 
 /** The Columns a Grouping generates for `defs`, in render order. Only `type`
  *  actually depends on the cards present; the other Groupings emit a fixed
@@ -360,12 +365,34 @@ export function pinCardToColumn(
     return setCardPin(layout, pinKey, parsed.namespace, columnId);
 }
 
+/** Forces an id into the `custom:` namespace, which is the ONLY namespace a
+ *  manual Column may live in. A generated-namespace id (`mv:3`) or an
+ *  unnamespaced one (`combo`, the Catch-All) is re-prefixed rather than
+ *  rejected: `parseColumnId` splits on the FIRST colon, so `mv:3` becomes
+ *  `custom:mv:3` — a `custom` Column whose key happens to read `mv:3`, and
+ *  therefore collision-free against every generated id by construction. */
+export function toManualColumnId(id: ColumnId): ColumnId {
+    return parseColumnId(id)?.namespace === "custom"
+        ? id
+        : makeColumnId("custom", id);
+}
+
+/** Adds a user-created Column. The id is normalised through
+ *  {@link toManualColumnId} first: a manual Column that shared an id with a
+ *  generated one would resolve into TWO `ResolvedColumn` entries with the same
+ *  id, both holding the same card — duplicate React keys and a card rendered
+ *  twice. Returns the layout unchanged when the normalised id is already
+ *  present. */
 export function addManualColumn(
     layout: ColumnLayout,
     column: ManualColumn
 ): ColumnLayout {
-    if (layout.manualColumns.some((c) => c.id === column.id)) return layout;
-    return { ...layout, manualColumns: [...layout.manualColumns, column] };
+    const id = toManualColumnId(column.id);
+    if (layout.manualColumns.some((c) => c.id === id)) return layout;
+    return {
+        ...layout,
+        manualColumns: [...layout.manualColumns, { ...column, id }],
+    };
 }
 
 /** Deletes a Column: a manual one drops out of the list, a generated one is
@@ -388,6 +415,11 @@ export function removeColumn(
             ),
         };
     }
+    // A `custom:` id names a manual Column and nothing else. If it isn't in
+    // `manualColumns` it is simply gone — recording it in `removedColumnIds`
+    // (which only ever filters GENERATED Columns) would be inert but PERSISTED
+    // forever on `userDecks.layout` / `poolArrangement`, accumulating junk.
+    if (parseColumnId(columnId)?.namespace === "custom") return layout;
     if (layout.removedColumnIds.includes(columnId)) return layout;
     return {
         ...layout,
