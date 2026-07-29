@@ -58,6 +58,7 @@ export default function BoardPileChips({
                 data-testid={`chip-graveyard-${player.id}`}
                 data-arrow-anchor-graveyard={player.id}
                 compact={compact || vertical}
+                grow={compact}
             />
             <PileChip
                 label="LIB"
@@ -65,6 +66,7 @@ export default function BoardPileChips({
                 onClick={() => toggle("library")}
                 data-testid={`chip-library-${player.id}`}
                 compact={compact || vertical}
+                grow={compact}
             />
             <PileChip
                 label="EXL"
@@ -72,6 +74,7 @@ export default function BoardPileChips({
                 onClick={() => toggle("exile")}
                 data-testid={`chip-exile-${player.id}`}
                 compact={compact || vertical}
+                grow={compact}
             />
 
             {/* Pile components in controlled-open mode: they render ONLY their

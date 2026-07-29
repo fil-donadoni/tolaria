@@ -69,8 +69,9 @@ type BoardPortraitChipsProps = {
  *  right-edge control column. The space-eating pile columns and the always-on
  *  floating stack panel are gone; instead:
  *
- *  - opponent's graveyard / library / exile collapse to a chip row pinned
- *    top-left (clear of the opponent life pill on the top-right),
+ *  - opponent's graveyard / library / exile collapse to a vertical chip
+ *    column pinned top-right (#1867 — a horizontal top-left row overlapped
+ *    the top-CENTER compact nameplate on phone widths),
  *  - a stack chip sits at the right of the midline — the neutral band between
  *    the two battlefields — and toggles the EXISTING {@link GameStack} overlay,
  *    which is OPEN BY DEFAULT the instant the stack is non-empty (issue
