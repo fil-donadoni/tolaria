@@ -38,11 +38,15 @@ export default function ErrorToast({
     }
 
     return (
-        // Mobile (#1819): capped to `w-[calc(100vw-2rem)] max-w-sm` so the
-        // toast always keeps a 1rem margin from both screen edges on a
-        // narrow phone (390px) instead of the old unbounded-content width,
-        // which could run edge-to-edge (or past it) with a long error
-        // title. Anchored via {@link ABOVE_CONTROLLER_BAR} — the SAME
+        // Mobile (#1819): capped to `w-[calc(100vw-2rem)] max-w-sm` — but
+        // ONLY below `sm` (`max-sm:` prefix on both) — so the toast keeps a
+        // 1rem margin from both screen edges on a narrow phone (390px)
+        // instead of the old unbounded-content width, which could run
+        // edge-to-edge (or past it) with a long error title. At `sm` and up
+        // NEITHER class applies, so desktop/landscape stays exactly
+        // content-hugging, as it was before #1819 (review fixup: an
+        // unprefixed cap turned desktop from content-hugging into a fixed
+        // 384px box). Anchored via {@link ABOVE_CONTROLLER_BAR} — the SAME
         // measured-seam pattern `bug-report-button.tsx` uses — so it clears
         // the portrait bottom bar whatever height it currently measures
         // (a wrapped, two-line DECLARE_ATTACKERS bar is taller than the old
@@ -50,7 +54,7 @@ export default function ErrorToast({
         // the EXACT prior desktop/landscape inset, where no bar is mounted
         // and the CSS var falls back to its unrelated default.
         <div
-            className={`fixed left-1/2 -translate-x-1/2 z-modal w-[calc(100vw-2rem)] max-w-sm ${ABOVE_CONTROLLER_BAR} md:bottom-24`}
+            className={`fixed left-1/2 -translate-x-1/2 z-modal max-sm:w-[calc(100vw-2rem)] max-sm:max-w-sm ${ABOVE_CONTROLLER_BAR} md:bottom-24`}
         >
             <Banner
                 tone="danger"
@@ -58,13 +62,26 @@ export default function ErrorToast({
                 className="gap-1.5 px-2 py-1.5 sm:gap-2 sm:px-3 sm:py-2"
             >
                 <span className="flex min-w-0 items-center gap-2 sm:gap-3">
-                    <p className="min-w-0 flex-1 truncate font-beleren text-xs tracking-wide px-1 sm:px-2 sm:text-sm">
+                    {/* line-clamp-2, not truncate (review fixup): a real GRE
+                        error title (~53 chars) ellipsizes mid-word under
+                        `truncate` at the 390px/text-xs target width (~40
+                        chars fit). The Copy button already puts the FULL
+                        `error.detail` (not just the truncated title) on the
+                        clipboard, so wrapping to a second line here loses
+                        nothing the user couldn't already recover, while
+                        showing strictly more of the title in place. */}
+                    <p className="min-w-0 flex-1 line-clamp-2 font-beleren text-xs tracking-wide px-1 sm:px-2 sm:text-sm">
                         {error.title}
                     </p>
                     <button
                         type="button"
                         onClick={handleCopy}
-                        className="shrink-0 font-beleren text-xs tracking-wide border border-danger/45 rounded-sm px-1.5 py-0.5 hover:bg-danger/20 transition-colors sm:px-2"
+                        // min-h-6/min-w-6 (review fixup, WCAG 2.5.8 / #1770
+                        // sweep): guarantee a >=24x24 hit area on mobile
+                        // without growing the VISIBLE compact px-1.5/py-0.5
+                        // recipe — the padding stays tight, min-h/min-w just
+                        // floor the layout box.
+                        className="inline-flex shrink-0 min-h-6 min-w-6 items-center justify-center font-beleren text-xs tracking-wide border border-danger/45 rounded-sm px-1.5 py-0.5 hover:bg-danger/20 transition-colors sm:px-2"
                     >
                         {copied ? "Copied!" : "Copy"}
                     </button>
@@ -72,7 +89,10 @@ export default function ErrorToast({
                         type="button"
                         onClick={onDismiss}
                         aria-label="Dismiss error"
-                        className="shrink-0 font-beleren text-sm leading-none px-1 hover:text-parchment transition-colors"
+                        // Same >=24x24 hit-area floor as Copy above — the
+                        // bare "×" glyph with px-1/leading-none alone was
+                        // ~18x14, well under the WCAG 2.5.8 minimum.
+                        className="inline-flex shrink-0 min-h-6 min-w-6 items-center justify-center font-beleren text-sm leading-none px-1 hover:text-parchment transition-colors"
                     >
                         ×
                     </button>

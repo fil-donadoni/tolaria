@@ -8,6 +8,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 import type { Id } from "@convex/_generated/dataModel";
+import { ABOVE_CONTROLLER_BAR } from "~/lib/controller-bar-metrics";
 
 vi.mock("convex/react", () => ({
     useMutation: () => async () => {},
@@ -58,15 +59,25 @@ describe("ErrorToast mobile compaction (issue #1819)", () => {
     it("clears the controller bar via the measured seam, preserving the prior desktop inset", () => {
         const { container } = renderToast();
         const outer = container.firstElementChild as HTMLElement;
-        // Same spelling `ABOVE_CONTROLLER_BAR` publishes
-        // (controller-bar-metrics.ts) — pins the mobile anchor to the
+        // Import the SAME constant `controller-bar-metrics.ts` publishes
+        // rather than re-typing its literal — pins the mobile anchor to the
         // bar's MEASURED height instead of a hardcoded inset that a
-        // wrapped, two-line bar could grow past.
-        expect(outer.className).toContain(
-            "bottom-[calc(var(--controller-bar-h,8rem)+0.5rem)]"
-        );
+        // wrapped, two-line bar could grow past, and can't drift from the
+        // source of truth if the expression ever changes.
+        expect(outer.className).toContain(ABOVE_CONTROLLER_BAR);
         // Desktop/landscape (no bar mounted) keeps the EXACT prior inset.
         expect(outer.className).toContain("md:bottom-24");
+    });
+
+    it("caps the width only below `sm` (`max-sm:`), so desktop stays content-hugging like before #1819", () => {
+        const { container } = renderToast();
+        const outer = container.firstElementChild as HTMLElement;
+        expect(outer.className).toContain("max-sm:w-[calc(100vw-2rem)]");
+        expect(outer.className).toContain("max-sm:max-w-sm");
+        // Mutation-proof: an unprefixed cap would silently turn desktop
+        // into a fixed 384px box again (review fixup).
+        expect(outer.className).not.toMatch(/(^|\s)w-\[calc\(100vw-2rem\)\]/);
+        expect(outer.className).not.toMatch(/(^|\s)max-w-sm(\s|$)/);
     });
 
     it("the error title uses a smaller mobile font and less horizontal padding than the desktop size", () => {
@@ -83,6 +94,19 @@ describe("ErrorToast mobile compaction (issue #1819)", () => {
         expect(title.className).toContain("sm:px-2");
         expect(title.className).not.toMatch(/(^|\s)text-sm(\s|$)/);
         expect(title.className).not.toMatch(/(^|\s)px-2(\s|$)/);
+    });
+
+    it("wraps the title (line-clamp-2), never `truncate`s it to a single ellipsized line", () => {
+        // Review fixup: a real GRE error title (~53 chars) ellipsizes
+        // mid-word under `truncate` at the 390px/text-xs target width
+        // (~40 chars fit) — `line-clamp-2` shows strictly more of the
+        // title instead of throwing text away. Mutation-proof: fails if
+        // `truncate` comes back, and fails if `line-clamp-2` is dropped
+        // without a replacement wrapping strategy.
+        const { getByText } = renderToast();
+        const title = getByText("Not enough mana.");
+        expect(title.className).toContain("line-clamp-2");
+        expect(title.className).not.toMatch(/(^|\s)truncate(\s|$)/);
     });
 
     it("the banner shell itself uses reduced mobile padding, restored at sm:", () => {
