@@ -11,8 +11,14 @@ import ControllerPhaseRow from "./controller-phase-row";
  *  — only its presentation moved out of the cramped left rail. */
 export default function ControllerPhaseList({
     onClose,
+    showCompactDecoder = false,
 }: {
     onClose: () => void;
+    /** Forwarded to every {@link ControllerPhaseRow} — see its doc comment.
+     *  Defaults off (the desktop pod's panel, and any other bare mount of
+     *  this list, has no compact tab to decode); `ControllerPhaseSheet` is
+     *  the sole caller that turns it on (#1860 review round 3, finding 2). */
+    showCompactDecoder?: boolean;
 }) {
     const { phase, turn } = useGameContext();
     const { prefs, toggle } = useSkipPhasePreferences();
@@ -71,6 +77,7 @@ export default function ControllerPhaseList({
                                     skippable={isSkippablePhase(step.id)}
                                     prefs={prefs}
                                     onToggle={toggle}
+                                    showCompactDecoder={showCompactDecoder}
                                 />
                             );
                         })}

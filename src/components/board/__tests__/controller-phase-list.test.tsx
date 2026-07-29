@@ -44,6 +44,8 @@ const { default: ControllerPhaseList } =
     await import("../controller-phase-list");
 const { default: ControllerPhasePanel } =
     await import("../controller-phase-panel");
+const { default: ControllerPhaseSheet } =
+    await import("../controller-phase-sheet");
 
 type CtxOverrides = Partial<React.ContextType<typeof GameContext>>;
 
@@ -190,6 +192,22 @@ describe("ControllerPhasePanel — non-modal click-away", () => {
         // the board. The non-modal panel must not render one.
         const blockers = container.querySelectorAll(".inset-0");
         expect(blockers.length).toBe(0);
+    });
+});
+
+describe("ControllerPhaseRow — compact decoder scoped to the portrait sheet (#1860 review round 3, finding 2)", () => {
+    it("the portrait sheet renders the tab's compact step word next to the long label", () => {
+        renderWith(<ControllerPhaseSheet onClose={() => {}} />);
+        const dialog = screen.getByRole("dialog", { name: "Turn phases" });
+        // Deleting the decoder left this suite at 60/60 green (zero coverage,
+        // #1860 review round 3 finding 1) — this pins its rendered output.
+        expect(within(dialog).getByText("(1ST DMG)")).toBeTruthy();
+    });
+
+    it("the desktop pod's panel does NOT render the compact decoder (no width budget for it, and its tab already shows the unabridged label)", () => {
+        renderWith(<ControllerPhasePanel onClose={() => {}} />);
+        const dialog = screen.getByRole("dialog", { name: "Turn phases" });
+        expect(within(dialog).queryByText("(1ST DMG)")).toBeNull();
     });
 });
 

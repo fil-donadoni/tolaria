@@ -23,6 +23,14 @@ type ControllerPhaseRowProps = {
     skippable: boolean;
     prefs: PhaseSkipPrefs;
     onToggle: (phase: Phase, side: Side) => void;
+    /** Whether to render the `({compact})` decoder next to the label. True
+     *  only in the portrait bottom sheet, where the bar's Phase tab actually
+     *  shows the abbreviated `compact` word this decodes — the desktop pod's
+     *  panel (`w-[248px]`) has no width budget for it AND doesn't need it,
+     *  since its own tab there already shows the unabridged label (#1860
+     *  review round 3, finding 2). Threaded from {@link ControllerPhaseList}
+     *  via one prop; `ControllerPhaseSheet` is the only caller that sets it. */
+    showCompactDecoder: boolean;
 };
 
 function stopTooltip(phase: Phase, side: Side, stopOn: boolean) {
@@ -54,6 +62,7 @@ export default function ControllerPhaseRow({
     skippable,
     prefs,
     onToggle,
+    showCompactDecoder,
 }: ControllerPhaseRowProps) {
     const selfStop = !isPhaseSkipped(prefs, phase, "self");
     const opponentStop = !isPhaseSkipped(prefs, phase, "opponent");
@@ -89,10 +98,16 @@ export default function ControllerPhaseRow({
                 {/* The tab's compact step word, alongside the long label —
                  *  auto-decodes the tab's abbreviated value row from here
                  *  (#1818 review fixup, finding 4). A leaf span of its own so
-                 *  it never merges into the `label` text node above. */}
-                <span className="text-[9px] uppercase tracking-wide text-text-disabled">
-                    ({compact})
-                </span>
+                 *  it never merges into the `label` text node above. Sheet-only
+                 *  (#1860 review round 3, finding 2): the desktop panel's
+                 *  `w-[248px]` list has no width budget for it, and its own
+                 *  tab already shows the unabridged label, so the decoder
+                 *  would just wrap the row without decoding anything new. */}
+                {showCompactDecoder && (
+                    <span className="text-[9px] uppercase tracking-wide text-text-disabled">
+                        ({compact})
+                    </span>
+                )}
             </span>
             <span className="grid h-6 w-6 place-items-center shrink-0">
                 {skippable && (

@@ -184,7 +184,11 @@ export default function ControllerPhaseSheet({
                 >
                     <div className="h-1 w-10 rounded-full bg-border-accent" />
                 </div>
-                <ControllerPhaseList onClose={onClose} />
+                {/* The bottom bar's Phase tab shows the abbreviated
+                 *  `compact` step word in this portrait context, so the
+                 *  sheet is the one place the row's `({compact})` decoder
+                 *  earns its keep (#1860 review round 3, finding 2). */}
+                <ControllerPhaseList onClose={onClose} showCompactDecoder />
             </div>
         </div>
     );
