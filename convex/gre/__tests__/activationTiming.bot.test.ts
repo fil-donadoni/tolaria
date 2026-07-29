@@ -7,44 +7,58 @@
 // protection at sorcery speed with nothing to protect against, and animated
 // Mishra's Factory after its own combat.
 //
-// Four seams, four sections below:
+// Five sections below:
 //   1. `isDeferrableStackAbility` — the per-card-agnostic timing predicate.
 //   2. `isDiscouragedRolloutMove` — the rollout default-policy guardrail.
 //   3. `selectRootMove` — the hold-the-option tie-break, outcome-equality only.
-//   4. `evaluate`'s flexibility term — the POSITIVE reason to hold up.
+//   4. `isTransientOnlyAbility` — the narrowing that keeps section 3 honest.
+//   5. The NEGATIVE CONTROL, at the level it can actually fail: the bot's
+//      CHOICE in a reactive window.
 //
-// The two cards are used as FIXTURES, never as special cases: nothing under test
-// reads a card name. Mother of Runes supplies a `{T}` instant-speed ability and
-// Mishra's Factory an `animatesSelf` one; any card with the same shape behaves
-// identically.
+// NOT here, and deliberately: issue #1890 item 3, a board-side `evaluate`
+// flexibility term for a permanent offering a live instant-speed option. It is
+// blocked on issue #1920 (`applyMoveInSearch` applies an activation's costs and
+// never its effect, so spending an option shows no payoff at any depth) — a
+// symmetric credit for holding one converts the pre-existing exact tie in the
+// REACTIVE window into a deterministic decline, which section 5 is the pin
+// against.
+//
+// The cards are used as FIXTURES, never as special cases: nothing under test
+// reads a card name. Mother of Runes supplies a `{T}` instant-speed ability whose
+// effect expires this turn, Prodigal Sorcerer a `{T}` one that BUILDS permanent
+// material, and Mishra's Factory an `animatesSelf` one; any card with the same
+// shape behaves identically.
 import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../cards";
 import {
     isDiscouragedRolloutMove,
+    selectRolloutMove,
     selectRootMove,
     type Edge,
     type Node,
 } from "../search";
 import {
     effectiveAbilityOf,
-    hasLiveInstantSpeedAbility,
     isDeferrableStackAbility,
+    isTransientOnlyAbility,
 } from "../ai/abilityTiming";
-import { evaluate } from "../evaluate";
 import type { Move } from "../moves";
 import {
     makeInstance,
     makePlayer,
     makeState,
+    pushSpell,
 } from "../../cards/__tests__/setup";
 import type { CardInstanceState, GameState } from "../state";
 
 const MOTHER = getCardByName("Mother of Runes").id;
 const FACTORY = getCardByName("Mishra's Factory").id;
-const MOUNTAIN = getCardByName("Mountain").id;
+const SORCERER = getCardByName("Prodigal Sorcerer").id;
+const BOLT = getCardByName("Lightning Bolt").id;
 const GIANT = getCardByName("Hill Giant").id;
 
 const MOTHER_ABILITY = "mother-of-runes-protect";
+const SORCERER_ZAP = "prodigal-sorcerer-zap";
 const FACTORY_ANIMATE = "mishras-factory-animate";
 const FACTORY_MANA = "mishras-factory-mana";
 
@@ -85,9 +99,9 @@ function botAt(
 }
 
 // ---------------------------------------------------------------------------
-// 1. The timing predicate (CR 602.2a / 602.5)
+// 1. The timing predicate (CR 602.5a / 602.5d)
 // ---------------------------------------------------------------------------
-describe("isDeferrableStackAbility — instant-speed activation (CR 602.2a)", () => {
+describe("isDeferrableStackAbility — instant-speed activation (CR 602.5a)", () => {
     it("accepts a plain {T} stack ability (Mother of Runes)", () => {
         const mother = perm(MOTHER, "mom");
         const ability = effectiveAbilityOf(mother, MOTHER_ABILITY);
@@ -108,7 +122,7 @@ describe("isDeferrableStackAbility — instant-speed activation (CR 602.2a)", ()
         expect(isDeferrableStackAbility(mana!)).toBe(false);
     });
 
-    it("rejects an 'activate only as a sorcery' ability (CR 602.3b)", () => {
+    it("rejects an 'activate only as a sorcery' ability (CR 602.5d)", () => {
         const ability = effectiveAbilityOf(perm(MOTHER, "mom"), MOTHER_ABILITY);
         expect(
             isDeferrableStackAbility({ ...ability!, sorcerySpeedOnly: true })
@@ -152,6 +166,23 @@ describe("isDiscouragedRolloutMove — activated abilities (issue #1890)", () =>
 
     it("does NOT flag the same activation in a reactive window (declare blockers)", () => {
         const state = botAt("DECLARE_BLOCKERS", [perm(MOTHER, "mom")]);
+        expect(
+            isDiscouragedRolloutMove(
+                state,
+                "p1",
+                activation("mom", MOTHER_ABILITY)
+            )
+        ).toBe(false);
+    });
+
+    it("does NOT flag the activation in the mover's own main phase with a NON-EMPTY stack", () => {
+        // The fetchland-charter shape, and the reason the sorcery window is
+        // asked of `isSorceryTimingFor` rather than the phase alone: a main
+        // phase with something ON the stack is already a RESPONSE window, which
+        // is exactly where an activation belongs. Without the empty-stack clause
+        // this branch fired here too and turned the answer into a `pass`.
+        const state = botAt("PRECOMBAT_MAIN", [perm(MOTHER, "mom")]);
+        pushSpell(state, BOLT, "p2", [{ type: "permanent", id: "mom" }]);
         expect(
             isDiscouragedRolloutMove(
                 state,
@@ -324,6 +355,23 @@ describe("selectRootMove — hold an instant-speed activation (issue #1890)", ()
         );
     });
 
+    it("NO-FIRE: a value-building activation at sorcery speed is left alone", () => {
+        // The Sandstorm Salvager shape, and the reason `isTransientOnlyAbility`
+        // exists: Prodigal Sorcerer's ping moves PERMANENT material (damage
+        // marked on a creature / a player's life), banked the moment it
+        // resolves, whenever that is. Without the transience clause this rule
+        // swallowed the whole build-a-board class along with the tricks.
+        const ZAP = activation("tim", SORCERER_ZAP);
+        const state = botAt("PRECOMBAT_MAIN", [perm(SORCERER, "tim")]);
+        const root = rootOf([
+            { move: ZAP, meanReward: 0.6635, meanMargin: 330 },
+            { move: PASS, meanReward: 0.6631, meanMargin: 327 },
+        ]);
+        expect(selectRootMove(root, [ZAP, PASS], state, "p1").kind).toBe(
+            "activate-ability"
+        );
+    });
+
     it("NO-FIRE: outside the mover's main phase the tie-break is silent", () => {
         // A reactive window is exactly where an activation belongs; the material
         // tie-break decides it, not the hold rule.
@@ -354,41 +402,113 @@ describe("selectRootMove — hold an instant-speed activation (issue #1890)", ()
 });
 
 // ---------------------------------------------------------------------------
-// 4. Flexibility: the POSITIVE reason to hold up (issue #1890 item 3)
+// 4. The transience narrowing (issue #1890 item 2)
 // ---------------------------------------------------------------------------
-describe("evaluate flexibility — battlefield activation options (issue #1890)", () => {
-    it("an UNTAPPED instant-speed source is a live option; a tapped one is not", () => {
-        expect(hasLiveInstantSpeedAbility(perm(MOTHER, "mom"), 0)).toBe(true);
+describe("isTransientOnlyAbility — Op-derived, fail-closed (issue #1890)", () => {
+    const mother = effectiveAbilityOf(perm(MOTHER, "mom"), MOTHER_ABILITY)!;
+    const zap = effectiveAbilityOf(perm(SORCERER, "tim"), SORCERER_ZAP)!;
+
+    it("TRUE for an until-end-of-turn effect, through a structural construct", () => {
+        // Mother's script is an `optionChoice` whose every mode grants
+        // protection with `duration: { phase: "end-of-turn" }` — so this also
+        // exercises the recursion into a construct's branches.
+        expect(isTransientOnlyAbility(mother)).toBe(true);
+    });
+
+    it("FALSE for an ability that BUILDS permanent material", () => {
+        // `dealDamage` carries no `duration` at all: it is banked on resolution.
+        expect(isTransientOnlyAbility(zap)).toBe(false);
+    });
+
+    it("FALSE with no Effect Script to read — fail closed", () => {
+        expect(isTransientOnlyAbility({ ...mother, effects: undefined })).toBe(
+            false
+        );
+        expect(isTransientOnlyAbility({ ...mother, effects: [] })).toBe(false);
+    });
+
+    it("FALSE when ONE Op of the script is lasting", () => {
         expect(
-            hasLiveInstantSpeedAbility(
-                perm(MOTHER, "mom", { isTapped: true }),
-                0
-            )
+            isTransientOnlyAbility({
+                ...mother,
+                effects: [...mother.effects!, ...zap.effects!],
+            })
         ).toBe(false);
     });
 
-    it("a mana-cost ability is a live option only while the mana is affordable", () => {
-        // A TAPPED Mishra's Factory has only its {1} animate left (its two {T}
-        // abilities are unpayable), so it is live with one mana available and
-        // dead with none. This is what makes tapping out COST something.
-        const tappedFactory = perm(FACTORY, "fac", { isTapped: true });
-        expect(hasLiveInstantSpeedAbility(tappedFactory, 1)).toBe(true);
-        expect(hasLiveInstantSpeedAbility(tappedFactory, 0)).toBe(false);
+    it("FALSE when ONE BRANCH of a construct is lasting", () => {
+        const script = mother.effects![0];
+        if (script.op !== "optionChoice") throw new Error("fixture changed");
+        expect(
+            isTransientOnlyAbility({
+                ...mother,
+                effects: [
+                    {
+                        ...script,
+                        modes: [
+                            ...script.modes,
+                            { ...script.modes[0], effects: zap.effects! },
+                        ],
+                    },
+                ],
+            })
+        ).toBe(false);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// 5. NEGATIVE CONTROL, at the level where it can actually fail: the bot's
+//    CHOICE in the reactive window (issue #1890, gap tracked by #1920)
+// ---------------------------------------------------------------------------
+describe("selectRolloutMove — the reactive window is never muted (issue #1890)", () => {
+    const ACTIVATE = activation("mom", MOTHER_ABILITY);
+    const PASS: Move = { kind: "pass" };
+
+    /** The opponent's turn, their removal on the stack aimed at the bot's Mother
+     *  of Runes, the bot holding priority: the window the ability EXISTS for. */
+    function underRemoval(): GameState {
+        const state = makeState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p2",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [perm(MOTHER, "mom")] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, BOLT, "p2", [{ type: "permanent", id: "mom" }]);
+        return state;
+    }
+
+    it("carries no rollout-policy penalty in the response window", () => {
+        expect(isDiscouragedRolloutMove(underRemoval(), "p1", ACTIVATE)).toBe(
+            false
+        );
     });
 
-    it("evaluate scores an untapped Mother of Runes ABOVE the same board tapped", () => {
-        const untapped = botAt("PRECOMBAT_MAIN", [
-            perm(MOTHER, "mom"),
-            perm(MOUNTAIN, "m"),
-        ]);
-        const tapped = botAt("PRECOMBAT_MAIN", [
-            perm(MOTHER, "mom", { isTapped: true }),
-            perm(MOUNTAIN, "m"),
-        ]);
-        // Tapping a 1/1 changes no material term the evaluator reads except the
-        // flexibility option it just spent — so this delta IS the new term.
-        expect(evaluate(untapped, "p1")).toBeGreaterThan(
-            evaluate(tapped, "p1")
-        );
+    it("the default policy does not DECLINE the activation", () => {
+        // The pin the blade entries structurally cannot provide: both of them
+        // assert ENUMERATION (the move is still offered, unpenalised), and the
+        // failure mode this guards is a CHOICE — the policy ranking `pass`
+        // strictly above an activation it is supposed to be neutral on.
+        //
+        // `selectRolloutMove` takes an EXACT-EQUALITY argmax: ties share the
+        // `rng`-picked bucket, so `() => 0` returns the first tied candidate.
+        // Any evaluator term that makes spending a board option cost something
+        // the search cannot repay — issue #1890 item 3 on top of the #1920
+        // payoff gap — drops the activation out of the bucket entirely, and
+        // then NO `rng` value can return it. Deliberately asserted as "not
+        // ranked below `pass`", not as an exact tie, so a future fix that makes
+        // the activation genuinely WIN here strengthens the test instead of
+        // breaking it.
+        expect(
+            selectRolloutMove(
+                underRemoval(),
+                "p1",
+                "p1",
+                [ACTIVATE, PASS],
+                () => 0
+            )
+        ).toEqual(ACTIVATE);
     });
 });

@@ -46,14 +46,22 @@ function pruningKeepsACast(
  *  produces no body. No blade entry can therefore make the bot CHOOSE an
  *  activation for its payoff; the payoff is invisible by construction, and
  *  closing that hole is a separate change to the search's simulation, not a
- *  timing rule. (It is also the deeper reason issue #1890's symptoms exist at
- *  all: with no payoff visible, every activation ties `pass` inside
- *  `OUTCOME_EPS` and the pick falls to rollout noise.)
+ *  timing rule — TRACKED BY ISSUE #1920. (It is also the deeper reason issue
+ *  #1890's symptoms exist at all: with no payoff visible, every activation ties
+ *  `pass` inside `OUTCOME_EPS` and the pick falls to rollout noise.)
  *
- *  What IS assertable, deterministically, is the property the negative control
- *  actually guards: in a window where the activation belongs, it is still
- *  ENUMERATED (the timing rules never touch legality) and carries NO rollout
- *  policy penalty. If items 1-2 ever widen into a mute button, this goes red. */
+ *  What IS assertable here, deterministically, is the property the negative
+ *  control actually guards: in a window where the activation belongs, it is
+ *  still ENUMERATED (the timing rules never touch legality) and carries NO
+ *  rollout policy penalty. If items 1-2 ever widen into a mute button, this goes
+ *  red.
+ *
+ *  ENUMERATION is all a blade can see, and that is a real blind spot: a change
+ *  could leave the move enumerated and unpenalised while making the bot's CHOICE
+ *  in that window deterministically decline it (any evaluator term that prices
+ *  an unspent option, over the #1920 payoff gap, does exactly that). That half
+ *  is pinned at the choice level by `selectRolloutMove — the reactive window is
+ *  never muted` in `convex/gre/__tests__/activationTiming.bot.test.ts`. */
 function activationStaysAvailable(
     state: GameState,
     seat: BladeSeat,
@@ -1229,7 +1237,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
             describe:
                 "the Mother activation is still enumerated in the response window and carries no rollout-policy penalty",
         },
-        note: "Issue #1890 NEGATIVE CONTROL for the entry above — the same ability in the window where it BELONGS: a red removal spell on the stack aimed at its own source, on the opponent's turn. Asserted on the POSITION rather than the chosen move, and not for convenience: `applyMoveInSearch` is documented not to put an activated ability's EFFECT on the stack at all, so in the search's world this activation taps a 1/1 and grants nothing. No blade can make the bot CHOOSE it for a payoff the simulation cannot produce (see `activationStaysAvailable`); what this entry pins is that the timing rules never touched legality and never penalised the reactive window. NOT DISCRIMINATING by construction — it is green before and after — which is exactly the job of a mute-button guard. The fire/no-fire boundary itself is pinned deterministically in `convex/gre/__tests__/activationTiming.bot.test.ts`.",
+        note: "Issue #1890 NEGATIVE CONTROL for the entry above — the same ability in the window where it BELONGS: a red removal spell on the stack aimed at its own source, on the opponent's turn. Asserted on the POSITION rather than the chosen move, and not for convenience: `applyMoveInSearch` is documented not to put an activated ability's EFFECT on the stack at all, so in the search's world this activation taps a 1/1 and grants nothing. No blade can make the bot CHOOSE it for a payoff the simulation cannot produce (see `activationStaysAvailable`); what this entry pins is that the timing rules never touched legality and never penalised the reactive window. NOT DISCRIMINATING by construction — it is green before and after — which is exactly the job of a mute-button guard. Note what it CANNOT see: it asserts enumeration, so a regression that leaves the move offered but makes the bot CHOOSE `pass` here would slip past it. That half is pinned at the choice level by `selectRolloutMove — the reactive window is never muted`; the fire/no-fire boundary itself is pinned deterministically in the same file, `convex/gre/__tests__/activationTiming.bot.test.ts`. The underlying payoff blindness is tracked by issue #1920.",
     },
     {
         label: "activation timing: does not animate Mishra's Factory after its own combat",

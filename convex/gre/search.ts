@@ -59,6 +59,7 @@ import {
     applyAllCombatDamage,
     buildAutoDamageAssignments,
     finalizeDrawReplacementPay,
+    isSorceryTimingFor,
 } from "./phases";
 import { cloneGameState } from "./clone";
 import { predictCombatOutcome } from "./dangerClock";
@@ -616,6 +617,14 @@ export function applyMoveInSearch(
         }
 
         case "activate-ability": {
+            // KNOWN GAP — tracked by issue #1920. Unlike `cast-spell` above,
+            // this applies the COSTS only: the ability never reaches the stack,
+            // so no depth of search ever sees its PAYOFF (`policyValue`'s
+            // one-resolution lookahead has nothing to resolve). Every activation
+            // therefore evaluates at best equal to `pass`. Anything that makes
+            // holding an activation pay — the board-side flexibility term of
+            // issue #1890 item 3 — is blocked on closing this, or it converts
+            // that tie into a deterministic decline in the REACTIVE window.
             applyTapPlan(state, playerId, move.tapPlan);
             const src = player.battlefield.find(
                 (c) => c.id === move.cardInstanceId
@@ -850,26 +859,24 @@ export function isDiscouragedRolloutMove(
         // #1890 item 4, shared with the root tie-break.
         if (isPointlessSelfAnimation(state, pid, move)) return true;
 
-        // (b) Sorcery-speed window: the mover is the active player at a main
-        // phase WITH AN EMPTY STACK — the CR 307.5 sorcery timing template
-        // (CR 602.3b uses it verbatim), where an instant-speed activation could
-        // instead be kept for a reactive moment (the opponent's removal, a
-        // declared block). Mother of Runes' protection spent in the precombat
-        // main with nothing to protect against is the observed misplay.
+        // (b) Sorcery-speed window: the mover is in ITS OWN sorcery window — a
+        // main phase of its own turn, empty stack, holding priority (CR 307.5,
+        // the template CR 602.5d's "activate only as a sorcery" points at).
+        // There an instant-speed activation could instead be kept for a reactive
+        // moment (the opponent's removal, a declared block); Mother of Runes'
+        // protection spent in the precombat main with nothing to protect against
+        // is the observed misplay.
         //
-        // The empty-stack clause is load-bearing, not decoration: a main phase
-        // with something ON the stack is already a RESPONSE window, and that is
-        // exactly where an activation belongs (cracking a fetchland in response
-        // to a trigger — the `blade` charter entry). Without it this branch fired
-        // there too and turned the answer into a `pass`.
-        if (
-            pid === state.activePlayerId &&
-            state.stack.length === 0 &&
-            (state.phase === "PRECOMBAT_MAIN" ||
-                state.phase === "POSTCOMBAT_MAIN")
-        ) {
-            return true;
-        }
+        // `isSorceryTimingFor` is the engine's single authority on that window
+        // (`phases.ts`, already the gate `moves.ts` applies to `sorcerySpeedOnly`)
+        // — re-deriving it here is how the two drift apart.
+        //
+        // The empty-stack clause inside it is load-bearing, not decoration: a
+        // main phase with something ON the stack is already a RESPONSE window,
+        // and that is exactly where an activation belongs (cracking a fetchland
+        // in response to a trigger — the `blade` charter entry). Without it this
+        // branch fired there too and turned the answer into a `pass`.
+        if (isSorceryTimingFor(state, pid)) return true;
 
         // (c) Premature use before blocks (ADR 0021 slice 3, the same case the
         // `cast-spell` branch calls out): an activation that could ambush a
@@ -2096,10 +2103,11 @@ export function selectRootMove(
  *  2. **An instant-speed ACTIVATION spent at sorcery speed for no material
  *     gain** (issue #1890 item 2) — a `useStack: true` ability with no timing
  *     restriction that would stop it being used later
- *     (`isDeferrableStackAbility`), activated by the active player at a main
- *     phase with an EMPTY STACK (the CR 307.5 timing template; a main phase with
- *     something on the stack is a response window, which is where an activation
- *     belongs), and whose whole effect EXPIRES THIS TURN
+ *     (`isDeferrableStackAbility`), activated by the active player inside its
+ *     OWN sorcery window (`isSorceryTimingFor` — the engine's single authority
+ *     on the CR 307.5 template: own main phase, empty stack, holding priority;
+ *     a main phase with something on the stack is a response window, which is
+ *     where an activation belongs), and whose whole effect EXPIRES THIS TURN
  *     (`isTransientOnlyAbility`).
  *
  *     That last clause IS case 1's `aiCombatHint.pump` narrowing, stated
@@ -2115,12 +2123,16 @@ export function selectRootMove(
  *
  *  Pure. */
 function isSorcerySpeedTrickDump(state: GameState, move: Move): boolean {
-    const atSorcerySpeed =
-        state.phase === "PRECOMBAT_MAIN" || state.phase === "POSTCOMBAT_MAIN";
-    if (!atSorcerySpeed) return false;
     const player = state.players.find((p) => p.id === state.activePlayerId);
     if (!player) return false;
     if (move.kind === "cast-spell") {
+        // Pre-existing scope (issue #229): the phase alone, deliberately NOT the
+        // full sorcery window — a cast in a main phase with a stack is still the
+        // dump this rule was written against.
+        const atSorcerySpeed =
+            state.phase === "PRECOMBAT_MAIN" ||
+            state.phase === "POSTCOMBAT_MAIN";
+        if (!atSorcerySpeed) return false;
         const card = player.hand.find((c) => c.id === move.cardInstanceId);
         if (!card || !card.types.includes("Instant")) return false;
         const cardId = (card.card as { id?: string } | undefined)?.id;
@@ -2128,7 +2140,7 @@ function isSorcerySpeedTrickDump(state: GameState, move: Move): boolean {
         return !!def?.aiCombatHint?.pump;
     }
     if (move.kind === "activate-ability") {
-        if (state.stack.length > 0) return false;
+        if (!isSorceryTimingFor(state, player.id)) return false;
         const source = player.battlefield.find(
             (c) => c.id === move.cardInstanceId
         );

@@ -13,19 +13,31 @@
 // This module is the single, per-card-agnostic authority for the one question all
 // three sites need answered: **could this activation just as well happen in a
 // later, better-informed window?** It is keyed purely on the ability's declared
-// TIMING (CR 602.2a/602.5) — never on a card name, never on what the ability
+// TIMING (CR 602.5a/602.5d) — never on a card name, never on what the ability
 // does.
+//
+// NOT here: the BOARD-SIDE flexibility term (issue #1890 item 3 — an `evaluate`
+// bonus for a permanent that currently offers a live instant-speed activated
+// option, the mirror of the hand-side bonus for a holdable instant). It is
+// deliberately NOT shipped, and is blocked on issue #1920: `applyMoveInSearch`
+// applies an activation's COSTS only and never its effect, so in the search's
+// world spending an option has no payoff. A symmetric credit for holding it
+// therefore turns the pre-existing exact tie between "activate in response to
+// removal" and `pass` into a deterministic loss for the activation — a net
+// regression in exactly the REACTIVE window this module must never touch. No
+// scoping of the term repairs that while the payoff stays invisible (the leaf
+// reached after `pass` legitimately has the option unspent), so the term waits
+// for #1920 rather than shipping backwards.
 //
 // PURE: reads state, mutates nothing.
 
 import type { ActivatedAbility, EffectOp } from "../../cards/types";
-import type { CardInstanceState, PlayerState } from "../state";
+import type { CardInstanceState } from "../state";
 import { getEffectiveActivatedAbilities } from "../activatedAbilities";
-import { manaValue } from "../constants";
 
 /** Whether `ability` may be activated at INSTANT SPEED, and therefore in some
- *  window LATER than the mover's own main phase (CR 602.2a — an activated
- *  ability may be activated any time its controller has priority, unless a
+ *  window LATER than the mover's own main phase (CR 602.5a — a player may
+ *  activate an activated ability any time they have priority, unless a
  *  restriction says otherwise).
  *
  *  Every `false` branch below is a restriction that makes "activate it later"
@@ -35,7 +47,7 @@ import { manaValue } from "../constants";
  *    * `!useStack` — a mana ability (CR 605.3a). It resolves immediately, is
  *      payment plumbing rather than a play, and is out of scope by the issue's
  *      own terms.
- *    * `sorcerySpeedOnly` (CR 602.3b) and a loyalty cost (CR 606.3) — the
+ *    * `sorcerySpeedOnly` (CR 602.5d) and a loyalty cost (CR 606.3) — the
  *      ability is ALREADY restricted to a main phase with an empty stack, so
  *      "hold it for the combat step" is not a thing it can do.
  *    * `activationPhaseRestriction` (CR 602.5, Jade Statue's "only during
@@ -129,43 +141,4 @@ export function effectiveAbilityOf(
     return getEffectiveActivatedAbilities(card).find(
         ({ ability }) => ability.id === abilityId
     )?.ability;
-}
-
-/** Whether `perm` currently offers its controller a LIVE instant-speed
- *  activated option: a deferrable stack ability (above) whose {T} component the
- *  permanent can still pay (it is untapped) and whose mana component fits in
- *  `availableMana`.
- *
- *  This is the battlefield mirror of `hasInstantTiming(card) && affordable` on a
- *  hand card, and it is what the flexibility term pays for: an UNTAPPED Mother
- *  of Runes is a live answer, a tapped one is not, so spending her taps the
- *  option away and the evaluator can finally see the difference. */
-export function hasLiveInstantSpeedAbility(
-    perm: CardInstanceState,
-    availableMana: number
-): boolean {
-    for (const { ability } of getEffectiveActivatedAbilities(perm)) {
-        if (!isDeferrableStackAbility(ability)) continue;
-        if (ability.cost.tap && perm.isTapped) continue;
-        if (manaValue(ability.cost.mana) > availableMana) continue;
-        return true;
-    }
-    return false;
-}
-
-/** How many of `player`'s permanents currently offer a live instant-speed
- *  activated option, capped at `cap`. The board-side count `evaluate`'s
- *  flexibility term adds to its hand-side one. */
-export function liveInstantSpeedAbilityCount(
-    player: PlayerState,
-    availableMana: number,
-    cap: number
-): number {
-    let n = 0;
-    for (const perm of player.battlefield) {
-        if (!hasLiveInstantSpeedAbility(perm, availableMana)) continue;
-        n += 1;
-        if (n === cap) break;
-    }
-    return n;
 }
