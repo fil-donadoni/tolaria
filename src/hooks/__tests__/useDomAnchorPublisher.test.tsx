@@ -218,17 +218,25 @@ describe("useDomAnchorPublisher — degenerate rect skip (#1766 fixup)", () => {
 // `document` and merged into the SAME board-relative coordinate space.
 function SecondRootHarness({
     mountBar,
+    /** Whether the hook call itself passes the extra-root selector — `false`
+     *  models "the caller omitted the argument entirely" (nit: #1815 review
+     *  fixup round 3, finding 3), distinct from `mountBar={false}` (argument
+     *  passed, but nothing in the DOM matches it). */
+    passSelector = true,
+    /** Also mount a same-id anchor INSIDE the board root, so both sources
+     *  publish for id `"me"` — documents which one wins. */
+    alsoMountInBoardRoot = false,
 }: {
-    /** Whether the bar sibling (and its anchor chip) is mounted at all — the
-     *  `false` case models "no extra root selector matched anything". */
     mountBar: boolean;
+    passSelector?: boolean;
+    alsoMountInBoardRoot?: boolean;
 }) {
     const ref = useRef<HTMLDivElement>(null);
     useDomAnchorPublisher(
         ref,
         ["graveyard"],
         "rev",
-        "[data-controller-bottom-bar]"
+        passSelector ? "[data-controller-bottom-bar]" : undefined
     );
     return (
         <>
@@ -240,6 +248,16 @@ function SecondRootHarness({
                 }}
             >
                 <div ref={ref} />
+                {alsoMountInBoardRoot && (
+                    <div
+                        data-testid="board-root-graveyard-chip"
+                        data-arrow-anchor-graveyard="me"
+                        ref={(el) => {
+                            if (el)
+                                el.getBoundingClientRect = () => rect(10, 10);
+                        }}
+                    />
+                )}
             </div>
             {/* A SIBLING of `data-board-root`, not a descendant — exactly the
                 shape `ControllerBottomBar` mounts in `board.tsx`. */}
@@ -280,5 +298,42 @@ describe("useDomAnchorPublisher — second root (#1815 review fixup round 2)", (
             </ArrowAnchorContext.Provider>
         );
         expect(value.anchors.graveyard.me).toBeUndefined();
+    });
+
+    // NIT (#1815 review fixup round 3, finding 3): distinct from
+    // `mountBar={false}` above (selector passed, nothing matches it) — here
+    // the CALLER omits the 4th argument entirely (`extraRootSelector`
+    // undefined), which must be a no-op even though a
+    // `[data-controller-bottom-bar]` element with a matching anchor exists in
+    // the DOM. `useDomAnchorPublisher` only scans the second root when a
+    // selector was actually passed (`extraRootSelector ? ... : []`).
+    it("selector omitted: does not scan a data-controller-bottom-bar sibling that IS present", () => {
+        const { value } = makeRegistry();
+        render(
+            <ArrowAnchorContext.Provider value={value}>
+                <SecondRootHarness mountBar passSelector={false} />
+            </ArrowAnchorContext.Provider>
+        );
+        expect(value.anchors.graveyard.me).toBeUndefined();
+    });
+
+    // NIT (#1815 review fixup round 3, finding 3): documents the resolution
+    // when the SAME anchor id is published from both roots at once — not a
+    // real steady-state (board-level pile chips and the portrait bar chip are
+    // never both visible together), but worth pinning so a refactor doesn't
+    // silently flip the winner. `measure()` queries the board root first,
+    // then the extra root, and calls `publish` for each element in that
+    // array order — the LAST call for a given id wins, so the extra-root
+    // (bar) anchor overwrites the board-root one.
+    it("same id under both roots: the extra-root (bar) anchor wins over the board-root one", () => {
+        const { value } = makeRegistry();
+        render(
+            <ArrowAnchorContext.Provider value={value}>
+                <SecondRootHarness mountBar alsoMountInBoardRoot />
+            </ArrowAnchorContext.Provider>
+        );
+        // Board-root chip center would be (60, 30); bar chip center is
+        // (100, 80) — the published point is the bar's, not the board's.
+        expect(value.anchors.graveyard.me).toEqual({ x: 100, y: 80 });
     });
 });

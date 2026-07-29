@@ -10,8 +10,17 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { render, cleanup, act } from "@testing-library/react";
 import { useEffect } from "react";
 import { ArrowAnchorProvider } from "~/hooks/useArrowAnchors";
-import { useArrowAnchors, type AnchorKind } from "~/hooks/arrowAnchorContext";
-import type { AnchorPoint } from "~/lib/target-arrow-geometry";
+import {
+    ArrowAnchorContext,
+    useArrowAnchors,
+    type AnchorKind,
+    type ArrowAnchorContextValue,
+} from "~/hooks/arrowAnchorContext";
+import {
+    emptyAnchorMap,
+    type AnchorMap,
+    type AnchorPoint,
+} from "~/lib/target-arrow-geometry";
 import type { StackItem } from "~/types/game";
 import BoardArrows from "../board-arrows";
 
@@ -153,5 +162,84 @@ describe("BoardArrows (#257)", () => {
         )!;
         expect(svg.getAttribute("aria-hidden")).toBe("true");
         expect(svg.getAttribute("class")).toContain("pointer-events-none");
+    });
+});
+
+/** A fixed-size rect anchored at (x, y) — center is (x + 50, y + 20). */
+function fixedRect(x: number, y: number): DOMRect {
+    return {
+        left: x,
+        top: y,
+        width: 100,
+        height: 40,
+        right: x + 100,
+        bottom: y + 40,
+        x,
+        y,
+        toJSON: () => ({}),
+    } as DOMRect;
+}
+
+describe("BoardArrows — sibling zone-chip anchor wiring (#1815 review fixup round 3, finding 2)", () => {
+    // `BoardArrows` hardcodes `extraRootSelector="[data-controller-bottom-bar]"`
+    // in its own `useDomAnchorPublisher` call (see that call's comment in
+    // `board-arrows.tsx`) so the portrait bar's viewer zone chips — mounted as
+    // a SIBLING of `data-board-root` in `board.tsx`, not a descendant of it —
+    // still get scanned for `data-arrow-anchor-graveyard`. Before this test,
+    // removing that argument left all other tests green: the hook itself is
+    // covered (`useDomAnchorPublisher.test.tsx`'s "second root" describe
+    // block, using a hand-built harness) and `BoardArrows` is covered (this
+    // file, using manual `registry.publish` calls, never the DOM scan) — but
+    // nothing exercised the two TOGETHER through the real component. Mutation
+    // target: delete the `"[data-controller-bottom-bar]"` argument from
+    // `board-arrows.tsx`'s `useDomAnchorPublisher` call and THIS test goes
+    // red while every other test in this file and in
+    // `useDomAnchorPublisher.test.tsx` stays green.
+    it("publishes the viewer's graveyard anchor from a data-controller-bottom-bar sibling of data-board-root", () => {
+        const anchors: AnchorMap = emptyAnchorMap();
+        const value: ArrowAnchorContextValue = {
+            publish: (kind, id, point) => {
+                anchors[kind][id] = point;
+            },
+            unpublish: (kind, id) => {
+                delete anchors[kind][id];
+            },
+            anchors,
+        };
+
+        render(
+            <ArrowAnchorContext.Provider value={value}>
+                {/* The board root — `BoardArrows`' own `<svg>` mounts here,
+                    and its internal `useDomAnchorPublisher` call resolves
+                    THIS element as `board` via `.closest("[data-board-root]")`. */}
+                <div
+                    data-board-root
+                    ref={(el) => {
+                        if (el)
+                            el.getBoundingClientRect = () => fixedRect(0, 0);
+                    }}
+                >
+                    <BoardArrows stack={[]} />
+                </div>
+                {/* A SIBLING of `data-board-root`, not a descendant — exactly
+                    the shape `ControllerBottomBar` mounts in `board.tsx`
+                    (#1815 review fixup round 2). */}
+                <div data-controller-bottom-bar>
+                    <div
+                        data-arrow-anchor-graveyard="me"
+                        ref={(el) => {
+                            if (el)
+                                el.getBoundingClientRect = () =>
+                                    fixedRect(150, 250);
+                        }}
+                    />
+                </div>
+            </ArrowAnchorContext.Provider>
+        );
+
+        // Board root rect is (0,0); the chip's center (150+50, 250+20) is
+        // published unchanged — a valid, non-degenerate rect reaching the
+        // registry from OUTSIDE the board root.
+        expect(anchors.graveyard.me).toEqual({ x: 200, y: 270 });
     });
 });
