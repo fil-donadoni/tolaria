@@ -37,6 +37,9 @@ import * as revised from "./sets/3ed";
 // home sets routed to earliest paper printing (ADR 0041).
 import * as lrw from "./sets/lrw";
 import * as m11 from "./sets/m11";
+// Vintage Cube clone cluster residue (issue #1563, split off #1528) — home
+// set routed to earliest paper printing (ADR 0041): Phantasmal Image.
+import * as m12 from "./sets/m12";
 import * as dft from "./sets/dft";
 import * as dka from "./sets/dka";
 import * as ulg from "./sets/ulg";
@@ -280,6 +283,7 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     // Vintage Cube card-draw tranche (issue #674).
     { code: "lrw", exports: lrw },
     { code: "m11", exports: m11 },
+    { code: "m12", exports: m12 },
     { code: "dft", exports: dft },
     { code: "dka", exports: dka },
     { code: "ulg", exports: ulg },

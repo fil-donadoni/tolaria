@@ -48,7 +48,10 @@ export function applyCopy(
     recipient.card = { ...(recipient.card as object), id: sourceDefId };
 
     recipient.types = [...def.types, ...(opts.additionalTypes ?? [])];
-    recipient.subtypes = [...(def.subtypes ?? [])];
+    recipient.subtypes = [
+        ...(def.subtypes ?? []),
+        ...(opts.additionalSubtypes ?? []),
+    ];
     recipient.power = def.power;
     recipient.toughness = def.toughness;
     recipient.staticAbilities = [...(def.staticAbilities ?? [])];
@@ -57,6 +60,28 @@ export function applyCopy(
         // CR 707.9d "except it doesn't copy that creature's color": keep the
         // recipient's own colors via a layer-5 override.
         recipient.colorOverride = [...(opts.ownColors ?? [])];
+    }
+
+    // CR 707.2 "except" clause granting a NEW triggered ability (Phantasmal
+    // Image's self-sacrifice trigger) — routed through the existing
+    // anthem-style grant machinery (`grantedTriggeredAbilities`,
+    // `effectiveTriggeredAbilities` below) so the trigger scan picks it up
+    // with no new code path. Sourced from the recipient's OWN printed id
+    // (`printedId`, just anchored above) so the ability rides the copy
+    // regardless of what gets copied. Recomputed from `opts` every call —
+    // same idempotency shape as `additionalTypes`/`additionalSubtypes` — by
+    // dropping any prior own-sourced entries first.
+    if (opts.additionalTriggeredAbilityIds) {
+        const others = (recipient.grantedTriggeredAbilities ?? []).filter(
+            (g) => g.sourceCardId !== printedId
+        );
+        const mine = opts.additionalTriggeredAbilityIds.map((abilityId) => ({
+            sourceCardId: printedId,
+            abilityId,
+        }));
+        const merged = [...others, ...mine];
+        recipient.grantedTriggeredAbilities =
+            merged.length > 0 ? merged : undefined;
     }
 }
 
@@ -75,6 +100,17 @@ export function revertCopy(card: CardInstanceState): void {
         card.power = def.power;
         card.toughness = def.toughness;
         card.staticAbilities = [...(def.staticAbilities ?? [])];
+    }
+    // Drop any triggered-ability grant the copy effect itself installed
+    // (`CopyEffectOptions.additionalTriggeredAbilityIds` — Phantasmal Image's
+    // self-sacrifice trigger). Sourced from this permanent's OWN printed id,
+    // so filterable independent of anthem-style grants from OTHER sources
+    // (`auraId`), which are left untouched.
+    if (card.grantedTriggeredAbilities) {
+        const kept = card.grantedTriggeredAbilities.filter(
+            (g) => g.sourceCardId !== printedId
+        );
+        card.grantedTriggeredAbilities = kept.length > 0 ? kept : undefined;
     }
     delete card.copiedFrom;
     delete card.colorOverride;
