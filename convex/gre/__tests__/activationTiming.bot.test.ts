@@ -99,9 +99,9 @@ function botAt(
 }
 
 // ---------------------------------------------------------------------------
-// 1. The timing predicate (CR 602.5a / 602.5d)
+// 1. The timing predicate (CR 117.1b / 602.5d)
 // ---------------------------------------------------------------------------
-describe("isDeferrableStackAbility — instant-speed activation (CR 602.5a)", () => {
+describe("isDeferrableStackAbility — instant-speed activation (CR 117.1b)", () => {
     it("accepts a plain {T} stack ability (Mother of Runes)", () => {
         const mother = perm(MOTHER, "mom");
         const ability = effectiveAbilityOf(mother, MOTHER_ABILITY);

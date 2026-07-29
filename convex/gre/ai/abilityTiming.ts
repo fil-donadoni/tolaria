@@ -13,7 +13,7 @@
 // This module is the single, per-card-agnostic authority for the one question all
 // three sites need answered: **could this activation just as well happen in a
 // later, better-informed window?** It is keyed purely on the ability's declared
-// TIMING (CR 602.5a/602.5d) — never on a card name, never on what the ability
+// TIMING (CR 117.1b/602.5d) — never on a card name, never on what the ability
 // does.
 //
 // NOT here: the BOARD-SIDE flexibility term (issue #1890 item 3 — an `evaluate`
@@ -36,9 +36,9 @@ import type { CardInstanceState } from "../state";
 import { getEffectiveActivatedAbilities } from "../activatedAbilities";
 
 /** Whether `ability` may be activated at INSTANT SPEED, and therefore in some
- *  window LATER than the mover's own main phase (CR 602.5a — a player may
- *  activate an activated ability any time they have priority, unless a
- *  restriction says otherwise).
+ *  window LATER than the mover's own main phase (CR 117.1b — a player may
+ *  activate an activated ability any time they have priority; CR 602.5 is the
+ *  umbrella for the prohibitions that take that away).
  *
  *  Every `false` branch below is a restriction that makes "activate it later"
  *  either impossible or not obviously available, so the deferral reasoning the
