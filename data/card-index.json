@@ -4504,6 +4504,14 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Fractured Identity",
+        "scryfallId": "b2f73f5d-1aad-48c2-9e74-5f7bdd87900f",
+        "oracleId": "1515b0c2-1b55-4cd4-ad81-fb6b1f3e8188",
+        "firstSet": "c17",
+        "firstPrintId": "b2f73f5d-1aad-48c2-9e74-5f7bdd87900f",
+        "firstPrintSet": "c17"
+    },
+    {
         "name": "Frantic Search",
         "scryfallId": "1904db14-6df7-424f-afa5-e3dfab31300a",
         "oracleId": "16e015b2-f8a3-4b1a-80be-58a8f5fb5e8c",

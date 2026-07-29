@@ -884,17 +884,34 @@ function isControllerOfRef(value: unknown): boolean {
     );
 }
 
-/** `"controller" | "opponent" | { target: n } | { controllerOf } | { ref }`
- *  (EffectPlayerRef). The ref may be a property ref (`"$x.controller"`) or —
- *  inside a players-set forEach body (issue #807) — the bare
- *  `{ ref: "$each" }`; which of the two is legal WHERE is decided by the
- *  ordered ref pass. */
+/** `{ opponentOf: EffectPlayerRef }` — the controller-relative complement of
+ *  an ARBITRARY resolved player ref (issue #1568), generalizing `"opponent"`
+ *  (which only ever complements the resolving controller). Recursive: the
+ *  wrapped value is itself validated as a full `EffectPlayerRef`, most
+ *  commonly `{ controllerOf: { target: n } }` (Fractured Identity — "each
+ *  player other than ITS controller"). */
+function isOpponentOfRef(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    return (
+        keys.length === 1 &&
+        keys[0] === "opponentOf" &&
+        isPlayerRef((value as { opponentOf: unknown }).opponentOf)
+    );
+}
+
+/** `"controller" | "opponent" | { target: n } | { controllerOf } |
+ *  { opponentOf } | { ref }` (EffectPlayerRef). The ref may be a property ref
+ *  (`"$x.controller"`) or — inside a players-set forEach body (issue #807) —
+ *  the bare `{ ref: "$each" }`; which of the two is legal WHERE is decided by
+ *  the ordered ref pass. */
 function isPlayerRef(value: unknown): boolean {
     return (
         value === "controller" ||
         value === "opponent" ||
         isTargetRef(value) ||
         isControllerOfRef(value) ||
+        isOpponentOfRef(value) ||
         isRefValue(value) ||
         isBareRef(value)
     );
@@ -3301,6 +3318,16 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
         keys[0] === "of"
     ) {
         collectRefUses(obj.of, "player", out);
+        return;
+    }
+    // `{ opponentOf: EffectPlayerRef }` (issue #1568) — the wrapped ref
+    // occupies the EXACT SAME player position as the wrapping key (it is
+    // still a player selector, just phrased as "the opponent of ..."), so it
+    // must recurse with the SAME `keyHint` — NOT the child key name
+    // "opponentOf", which the generic fallback below would otherwise use and
+    // mis-tag as `kind: "number"`.
+    if (keys.length === 1 && keys[0] === "opponentOf") {
+        collectRefUses(obj.opponentOf, keyHint, out);
         return;
     }
     for (const [k, v] of Object.entries(obj)) collectRefUses(v, k, out);

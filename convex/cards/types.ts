@@ -7542,6 +7542,9 @@ export type EffectShorthand = "destroy-target" | PumpCombatEffect;
  *  execution time:
  *  - `"controller"` — the resolving spell/ability's controller (CR 109.5).
  *  - `"opponent"` — the controller's opponent (two-player games, CR 102.2).
+ *    Sugar for `{ opponentOf: "controller" }` below — kept as its own literal
+ *    because it is overwhelmingly the common case and predates the general
+ *    form (issue #1568).
  *  - `{ target: n }` — the spell's n-th announced target (CR 601.2c order),
  *    which must have been chosen as a player target; if the announced target
  *    is missing or is not a player, the Op is skipped (CR 608.2b — the spell
@@ -7566,6 +7569,36 @@ export type EffectPlayerRef =
      *  "its controller pays" selector (Force Spike, issue #806). Skipped when
      *  the slot is missing at resolution (CR 608.2b). */
     | { controllerOf: EffectTargetRef }
+    /** The controller-relative complement of an ARBITRARY resolved player ref
+     *  (issue #1568) — "each player OTHER THAN <ref>", generalizing
+     *  `"opponent"` (which only ever complements the resolving `"controller"`)
+     *  to any `EffectPlayerRef`, most importantly `{ controllerOf }` — "each
+     *  player other than ITS controller" (Fractured Identity: "Exile target
+     *  nonland permanent. Each player other than its controller creates a
+     *  token that's a copy of it" — the target has no controller
+     *  restriction, so its controller may be either seat). `"opponent"` is
+     *  exactly `{ opponentOf: "controller" }`.
+     *
+     *  PRIMITIVE-REUSE NOTE: this generalizes the existing "opponent"
+     *  primitive (parametrizing WHOSE opponent, rather than adding a second
+     *  card-shaped selector) per the primitive-reuse mandate
+     *  (`.claude/rules/gre-development.md` § Primitive reuse) — a
+     *  `forEach`-with-exclusion alternative was considered and rejected: it
+     *  would need a NEW per-player exclusion field on `EffectForEachSelector`
+     *  (a second construct) to solve a problem this one-line ref variant
+     *  already solves, and would still need `opponentOf`'s own resolution
+     *  logic to compute the excluded id in the first place.
+     *
+     *  TWO-PLAYER SCOPE (CLAUDE.md § Out of Scope — no 3+ player
+     *  multiplayer): this resolves to "the OTHER of exactly two seats", via
+     *  `ctx.allPlayerIds.find(id => id !== resolved)` — the same lookup
+     *  `"opponent"` already performs. It is NOT a genuine N-player
+     *  complement (which would need to return a SET of players, not a single
+     *  id) — read literally, "each player other than X" is a plural
+     *  selector that only degenerates to one well-defined id because this
+     *  engine never has a third seat. A future 3+ player mode would need a
+     *  different (multi-valued) construct, not a bigger `allPlayerIds.find`. */
+    | { opponentOf: EffectPlayerRef }
     | EffectRef;
 
 /** Object selector for object-scoped Ops: the spell's n-th announced target
