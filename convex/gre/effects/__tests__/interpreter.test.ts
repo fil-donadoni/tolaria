@@ -20613,6 +20613,85 @@ describe("Effect Script Op: discardAtRandom (CR 701.8a)", () => {
             ).toBe(true);
         });
 
+        // Mutation-guard: every OTHER case in this describe block uses a
+        // 1-card hand with an EMPTY graveyard, so "bind the card discarded
+        // THIS resolution" and "bind whatever's in the graveyard" are
+        // indistinguishable — the bound id is the only candidate either way.
+        // This case adds a SECOND hand card (proving the bind tracks the
+        // actual random pick, not "the only candidate") and a PRE-EXISTING
+        // graveyard occupant (a plausible WRONG answer for a bind that
+        // mistakenly reads "the first card in the graveyard" instead of "the
+        // card this Op just discarded"): `moveCard` (`gre/state.ts`) pushes
+        // the freshly-discarded card onto the END of the graveyard array, so
+        // the pre-existing decoy sits at `graveyard[0]` while the real
+        // target lands at `graveyard[1]` — exactly backwards from what a
+        // `getGraveyardCards(playerId)[0]`-style mistake would read.
+        it("binds the card discarded THIS resolution, not a pre-existing graveyard occupant", () => {
+            const id = registerScript("test-op-discardrand-bind-identity", [
+                {
+                    op: "discardAtRandom",
+                    player: "controller",
+                    count: 1,
+                    bind: "$disc",
+                },
+                { op: "moveZone", target: { ref: "$disc" }, to: "battlefield" },
+            ]);
+            const decoyBear = makeInstance(BEAR_ID, {
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "graveyard",
+                id: "decoyBear",
+            });
+            const targetBear = makeInstance(BEAR_ID, {
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+                id: "targetBear",
+            });
+            const otherHandCard = makeInstance(BLACK_CARD_ID, {
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+                id: "otherHandCard",
+            });
+            const state = makeState({
+                // Empirically (verified against `randomInt`, `gre/rng.ts`):
+                // seed 0 (also `makeState`'s own default — named explicitly
+                // here so the determinism is documented, mirroring the
+                // coinFlip tests' WIN_SEED/LOSE_SEED convention) draws index
+                // 0 from a 2-candidate pool on the FIRST `randomInt` call a
+                // fresh resolution makes — i.e. `targetBear` (hand slot 0),
+                // never `otherHandCard` (slot 1).
+                rngSeed: 0,
+                players: [
+                    makePlayer("p1", {
+                        hand: [targetBear, otherHandCard],
+                        graveyard: [decoyBear],
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+            pushSpell(state, id, "p1");
+            resolveTopOfStack(state);
+            // The random pick landed on `targetBear`; the other hand card is
+            // untouched.
+            expect(
+                state.players[0].hand.some((c) => c.id === "otherHandCard")
+            ).toBe(true);
+            // The reanimated permanent is the card THIS resolution
+            // discarded — never the pre-existing graveyard occupant, which
+            // stays put, untouched, in the graveyard.
+            expect(
+                state.players[0].battlefield.some((c) => c.id === "targetBear")
+            ).toBe(true);
+            expect(
+                state.players[0].battlefield.some((c) => c.id === "decoyBear")
+            ).toBe(false);
+            expect(
+                state.players[0].graveyard.some((c) => c.id === "decoyBear")
+            ).toBe(true);
+        });
+
         it("leaves the binding uncaptured on an empty hand — a later ref/if reads as skipped (CR 608.2b)", () => {
             const id = registerScript("test-op-discardrand-bind-empty", [
                 {

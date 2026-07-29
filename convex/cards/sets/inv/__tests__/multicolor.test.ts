@@ -3346,6 +3346,72 @@ describe("Aether Rift (CR 701.8a random discard, CR 603.2 upkeep trigger, CR 117
         expect(state.players[1].life).toBe(20);
     });
 
+    // Mutation-guard (same shape as the Op's own permanent test in
+    // interpreter.test.ts): every OTHER case above uses a 1-card hand with
+    // an EMPTY graveyard, so "reanimate the card discarded THIS upkeep" and
+    // "reanimate whatever's in the graveyard" read identically. This case
+    // adds a SECOND hand card (proving the random pick — not "the only
+    // candidate" — is what gets tracked) and a PRE-EXISTING graveyard
+    // occupant (a plausible wrong answer, sitting at `graveyard[0]` while
+    // the freshly-discarded creature lands at `graveyard[1]` — `moveCard`,
+    // `gre/state.ts`, pushes onto the end).
+    it("reanimates the SPECIFIC creature discarded this upkeep, not a pre-existing graveyard occupant", () => {
+        const rift = makeInstance(aetherRift.id, {
+            id: "rift-identity",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const decoyBear = makeInstance(grizzlyBears.id, {
+            id: "ar-decoy-bear",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const targetBear = makeInstance(grizzlyBears.id, {
+            id: "ar-target-bear",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const otherLand = makeInstance(plains.id, {
+            id: "ar-other-land",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            // Empirically (see the Op's own identity-guard test in
+            // interpreter.test.ts): seed 0 draws hand index 0 —
+            // `targetBear`, never `otherLand`.
+            rngSeed: 0,
+            activePlayerId: "p1",
+            phase: "UPKEEP",
+            players: [
+                makePlayer("p1", {
+                    battlefield: [rift],
+                    hand: [targetBear, otherLand],
+                    graveyard: [decoyBear],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveTrigger(state, rift, "aether-rift-upkeep-discard", upkeep);
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        expect(
+            state.players[0].hand.some((c) => c.id === "ar-other-land")
+        ).toBe(true);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "ar-target-bear")
+        ).toBe(true);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "ar-decoy-bear")
+        ).toBe(false);
+        expect(
+            state.players[0].graveyard.some((c) => c.id === "ar-decoy-bear")
+        ).toBe(true);
+    });
+
     it("stays in the graveyard when the CONTROLLER pays 5 life (opponent is never even asked)", () => {
         const bear = makeInstance(grizzlyBears.id, {
             id: "ar-bear-4",
