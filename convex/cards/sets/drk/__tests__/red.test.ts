@@ -56,7 +56,8 @@ import {
     unapplySourceStaticEffects,
 } from "../../../../gre/state";
 import { getCardByName } from "../../../index";
-import { stripMine } from "../../atq";
+import { stripMine, urzasMine } from "../../atq";
+import { startingTown } from "../../fin";
 import { mountain, tropicalIsland } from "../../lea";
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -197,6 +198,77 @@ describe("Blood Moon ({2}{R} Enchantment — CR 305.7 subtype-set + CR 613.1f ab
         const options = getProducibleManaOptions(land);
         expect([...options.keys()]).toEqual(["R"]);
         expect(options.has("C")).toBe(false);
+    });
+
+    // CR 305.7 narrowing (issue #1883): "If an effect sets a land's subtype
+    // to one or more of the basic land types, the land no longer has its old
+    // land type[s]" — ONLY the land types are removed. A subtype belonging to
+    // a different card type (Saga, CR 205.3h) survives. Urza's Saga itself
+    // isn't shipped yet (#1884); this synthetic `Enchantment Land — Urza's
+    // Saga`-shaped fixture proves the narrowing independent of that card.
+    it("keeps a non-land subtype (Saga) and replaces only the land type — CR 305.7 (issue #1883)", () => {
+        const state = makeState();
+        const moon = makeInstance(bloodMoon.id, {
+            id: "moon-1",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        const sagaLand = makeInstance(tropicalIsland.id, {
+            id: "saga-land-1",
+            controllerId: "p2",
+            zone: "battlefield",
+            types: ["Land", "Enchantment"],
+            subtypes: ["Urza's", "Saga"],
+        });
+        state.players[0].battlefield.push(moon);
+        state.players[1].battlefield.push(sagaLand);
+        applySourceStaticEffects(state, moon);
+        // Urza's (a land type, CR 205.3i) is gone, replaced by Mountain.
+        expect(sagaLand.subtypes).toContain("Mountain");
+        expect(sagaLand.subtypes).not.toContain("Urza's");
+        // Saga (an enchantment type, CR 205.3h) is untouched.
+        expect(sagaLand.subtypes).toContain("Saga");
+        expect(sagaLand.subtypes).toHaveLength(2);
+        expect(getBasicLandMana(sagaLand)).toBe("R");
+
+        // Wire format (MANDATORY): the surviving Saga subtype must cross the
+        // projection to the client along with the new Mountain type.
+        const projected = projectPublicState(state, 1, "p2");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "saga-land-1"
+        )!;
+        expect(slim.subtypes).toContain("Mountain");
+        expect(slim.subtypes).toContain("Saga");
+        expect(slim.subtypes).not.toContain("Urza's");
+    });
+
+    // Regression (issue #1883 review finding): a REAL shipped Urza land
+    // (`atq/colorless.ts`) stores its subtype as the two CR 205.3i tokens
+    // `["Urza's", "Mine"/"Power-Plant"/"Tower"]` — not the compound
+    // `"Urza's Mine"` string this PR's predecessor shipped, which never
+    // matched `LAND_TYPES` and let the Urza subtype (and its now-invalid
+    // mana ability) survive underneath the new Mountain type. Exercises the
+    // production path end to end: `applySourceStaticEffects` + Blood Moon on
+    // an actual `CardDefinition`, not a synthetic fixture.
+    it("strips a REAL Urza land's subtype down to just Mountain (issue #1883 regression)", () => {
+        const { land } = withBloodMoon(urzasMine.id);
+        expect(land.subtypes).toEqual(["Mountain"]);
+        expect(land.subtypes).not.toContain("Urza's");
+        expect(land.subtypes).not.toContain("Mine");
+        expect(abilitiesSuppressed(land)).toBe(true);
+        expect(getActivatedManaAbility(land)).toBeNull();
+        expect(getBasicLandMana(land)).toBe("R");
+    });
+
+    // Regression (issue #1883 review finding): Starting Town (FIN) carries
+    // "Town" — a CR 205.3i land type omitted from `LAND_TYPES` by this PR's
+    // predecessor. Same production path as the Urza-land case above.
+    it("strips Starting Town's subtype down to just Mountain (issue #1883 regression)", () => {
+        const { land } = withBloodMoon(startingTown.id);
+        expect(land.subtypes).toEqual(["Mountain"]);
+        expect(land.subtypes).not.toContain("Town");
+        expect(abilitiesSuppressed(land)).toBe(true);
+        expect(getBasicLandMana(land)).toBe("R");
     });
 
     // Wire format (MANDATORY for staticEffects): the Mountain subtype and the

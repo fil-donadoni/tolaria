@@ -2472,39 +2472,41 @@ describe("Mishra's Workshop (restricted mana 'artifact-spell', CR 106.6)", () =>
 // ---------------------------------------------------------------------------
 
 describe("Urza land trio (board-conditional mana, CR 106.1)", () => {
+    // CR 205.3i — "Urza's" and "Mine"/"Power-Plant"/"Tower" are SEPARATE land
+    // types (Scryfall prints each as two subtype tokens, not one compound
+    // string); `subtype` below is the member-discriminating token only,
+    // since "Urza's" alone doesn't distinguish between the three (issue
+    // #1883 regression: a compound "Urza's Mine" string never matched
+    // `LAND_TYPES` and silently survived a Blood-Moon-style CR 305.7 reset).
     const TRIO = [
         {
             def: urzasMine,
             name: "Urza's Mine",
-            subtype: "Urza's Mine",
+            subtype: "Mine",
             assembled: 2,
         },
         {
             def: urzasPowerPlant,
             name: "Urza's Power Plant",
-            subtype: "Urza's Power-Plant",
+            subtype: "Power-Plant",
             assembled: 2,
         },
         {
             def: urzasTower,
             name: "Urza's Tower",
-            subtype: "Urza's Tower",
+            subtype: "Tower",
             assembled: 3,
         },
     ] as const;
 
     /** The controller's battlefield holding the named subset of the trio. */
     function battlefieldWith(
-        subtypes: readonly (
-            | "Urza's Mine"
-            | "Urza's Power-Plant"
-            | "Urza's Tower"
-        )[]
+        subtypes: readonly ("Mine" | "Power-Plant" | "Tower")[]
     ): CardInstanceState[] {
         const bySubtype = {
-            "Urza's Mine": urzasMine.id,
-            "Urza's Power-Plant": urzasPowerPlant.id,
-            "Urza's Tower": urzasTower.id,
+            Mine: urzasMine.id,
+            "Power-Plant": urzasPowerPlant.id,
+            Tower: urzasTower.id,
         } as const;
         return subtypes.map((s) => makeInstance(bySubtype[s]));
     }
@@ -2514,7 +2516,7 @@ describe("Urza land trio (board-conditional mana, CR 106.1)", () => {
             const looked = getDefinition(def.id);
             expect(looked.name).toBe(name);
             expect(looked.types).toEqual(["Land"]);
-            expect(looked.subtypes).toEqual([subtype]);
+            expect(looked.subtypes).toEqual(["Urza's", subtype]);
             const ability = looked.activatedAbilities?.[0];
             expect(ability?.cost.tap).toBe(true);
             expect(ability?.useStack).toBe(false);
@@ -2534,7 +2536,7 @@ describe("Urza land trio (board-conditional mana, CR 106.1)", () => {
 
     it("two of the trio still tap for only {C} (set not assembled)", () => {
         // Mine + Tower in play, but no Power Plant: Mine and Tower each lone-tap.
-        const battlefield = battlefieldWith(["Urza's Mine", "Urza's Tower"]);
+        const battlefield = battlefieldWith(["Mine", "Tower"]);
         const mine = battlefield[0];
         const tower = battlefield[1];
         expect(getFixedManaAmount(mine, "C", battlefield)).toBe(1);
@@ -2542,11 +2544,7 @@ describe("Urza land trio (board-conditional mana, CR 106.1)", () => {
     });
 
     it("the assembled trio scales each land's output (2 / 2 / 3)", () => {
-        const battlefield = battlefieldWith([
-            "Urza's Mine",
-            "Urza's Power-Plant",
-            "Urza's Tower",
-        ]);
+        const battlefield = battlefieldWith(["Mine", "Power-Plant", "Tower"]);
         for (const { def, assembled } of TRIO) {
             const land = battlefield.find(
                 (c) => (c.card as { id: string }).id === def.id
@@ -2565,11 +2563,7 @@ describe("Urza land trio (board-conditional mana, CR 106.1)", () => {
     });
 
     it("output recomputes from current board: losing one member drops the rest to {C}", () => {
-        const battlefield = battlefieldWith([
-            "Urza's Mine",
-            "Urza's Power-Plant",
-            "Urza's Tower",
-        ]);
+        const battlefield = battlefieldWith(["Mine", "Power-Plant", "Tower"]);
         const tower = battlefield[2];
         expect(getFixedManaAmount(tower, "C", battlefield)).toBe(3);
         // Power Plant leaves the battlefield → set disassembled.
@@ -2580,18 +2574,14 @@ describe("Urza land trio (board-conditional mana, CR 106.1)", () => {
     it("the condition is per-controller: opponent's Urza lands don't assemble yours", () => {
         // p1 has only the Tower; p2 has Mine + Power Plant. The Tower keys off
         // p1's own battlefield, so it stays at {C}.
-        const p1Battlefield = battlefieldWith(["Urza's Tower"]);
+        const p1Battlefield = battlefieldWith(["Tower"]);
         expect(getFixedManaAmount(p1Battlefield[0], "C", p1Battlefield)).toBe(
             1
         );
     });
 
     it("auto-tap solver reflects the assembled (not base) yield", () => {
-        const battlefield = battlefieldWith([
-            "Urza's Mine",
-            "Urza's Power-Plant",
-            "Urza's Tower",
-        ]);
+        const battlefield = battlefieldWith(["Mine", "Power-Plant", "Tower"]);
         const sources = buildAutoTapSources(battlefield);
         // Every Urza land is solver-visible (unrestricted, single colorless).
         expect(sources).toHaveLength(3);
@@ -2606,11 +2596,7 @@ describe("Urza land trio (board-conditional mana, CR 106.1)", () => {
         // Mirrors the tapUntap fixed-mana branch (game.ts): on tap the dynamic
         // amount is snapshotted onto `chosenMana`; on untap the refund reads the
         // snapshot, so a mid-float board change can't desync the pool.
-        const battlefield = battlefieldWith([
-            "Urza's Mine",
-            "Urza's Power-Plant",
-            "Urza's Tower",
-        ]);
+        const battlefield = battlefieldWith(["Mine", "Power-Plant", "Tower"]);
         const player = makePlayer("p1", { battlefield });
         const tower = battlefield[2];
 
@@ -2639,9 +2625,9 @@ describe("Urza land trio (board-conditional mana, CR 106.1)", () => {
             players: [
                 makePlayer("p1", {
                     battlefield: battlefieldWith([
-                        "Urza's Mine",
-                        "Urza's Power-Plant",
-                        "Urza's Tower",
+                        "Mine",
+                        "Power-Plant",
+                        "Tower",
                     ]),
                 }),
                 makePlayer("p2"),
