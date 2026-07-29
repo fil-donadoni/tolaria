@@ -217,18 +217,30 @@ describe("canPayAlternativeCost — life & hand legs (CR 118.4 / 118.9)", () => 
     // `return true` — matching EVERY hand card (fail OPEN), the identical
     // shape issue #1898 fixed for `matchesCardFilter`. Ornithopter ({0}
     // Artifact) is the only hand card whose printed cost structurally equals
-    // `{}`: the Island must NOT match (a Land has NO mana cost, CR 202.1 —
-    // proves `handCardMatchesFilter` reuses the same Land carve-out via
-    // `manaCostForCardFilter`, not just a raw `def.manaCost` read), and
-    // Lightning Bolt ({R}) / Counterspell ({U}{U}) must not match either.
-    it("matchingHandCardsForAltCost honors manaCostEquals — excludes non-{0} cards AND a Land (issue #1881/#1898)", () => {
+    // `{}`. Two lands prove the carve-out is real and not incidental: the
+    // Island (no `manaCost` field at all — a bare `def.manaCost` read would
+    // also be `undefined` there, so it proves nothing) must NOT match, and
+    // Mishra's Factory (a Land that DOES carry a printed `manaCost: {}`,
+    // `atq/colorless.ts`) must ALSO not match — only that second card
+    // actually exercises `manaCostForCardFilter`'s Land carve-out rather than
+    // an early `undefined` exit. Lightning Bolt ({R}) / Counterspell ({U}{U})
+    // must not match either.
+    it("matchingHandCardsForAltCost honors manaCostEquals — excludes non-{0} cards AND Lands (issue #1881/#1898)", () => {
         const ornithopter = getCardByName("Ornithopter");
         const ornithopterInst = handCard(ornithopter.id, "orn");
         const islandInst = handCard(island.id, "isl");
+        const mishrasFactory = getCardByName("Mishra's Factory");
+        const mishrasFactoryInst = handCard(mishrasFactory.id, "fac");
         const boltInst = handCard(lightningBolt.id, "bolt");
         const counterspellInst = handCard(counterspell.id, "ctr");
         const player = makePlayer("p1", {
-            hand: [ornithopterInst, islandInst, boltInst, counterspellInst],
+            hand: [
+                ornithopterInst,
+                islandInst,
+                mishrasFactoryInst,
+                boltInst,
+                counterspellInst,
+            ],
         });
         const matches = matchingHandCardsForAltCost(
             player,
