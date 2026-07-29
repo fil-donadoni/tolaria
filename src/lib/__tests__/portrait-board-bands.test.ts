@@ -23,6 +23,8 @@ import {
     PORTRAIT_NAMEPLATE_BOTTOM_VAR,
     PORTRAIT_NAMEPLATE_MAX_H,
     PORTRAIT_NAMEPLATE_SAFETY_PX,
+    PORTRAIT_OPP_HAND_BAND_H,
+    PORTRAIT_OPP_HAND_BAND_VAR,
     PORTRAIT_OPPONENT_BF_BOTTOM_VAR,
     PORTRAIT_VIEWER_BF_BOTTOM_VAR,
     portraitBandVars,
@@ -106,6 +108,10 @@ function resolve(value: string, board: Board): number {
             vars[PORTRAIT_HAND_BAND_VAR] as string
         )
         .replace(
+            new RegExp(`var\\(${PORTRAIT_OPP_HAND_BAND_VAR}\\)`, "g"),
+            vars[PORTRAIT_OPP_HAND_BAND_VAR] as string
+        )
+        .replace(
             new RegExp(`var\\(${PORTRAIT_NAMEPLATE_BAND_VAR}\\)`, "g"),
             vars[PORTRAIT_NAMEPLATE_BAND_VAR] as string
         )
@@ -117,6 +123,7 @@ function resolve(value: string, board: Board): number {
 function bandBoxes(board: Board) {
     const vars = portraitBandVars() as Record<string, string>;
     const handH = resolve(vars[PORTRAIT_HAND_BAND_VAR] as string, board);
+    const oppHandH = resolve(vars[PORTRAIT_OPP_HAND_BAND_VAR] as string, board);
     const midline = resolve(vars[PORTRAIT_MIDLINE_VAR] as string, board);
     const oppBfBottom = resolve(
         vars[PORTRAIT_OPPONENT_BF_BOTTOM_VAR] as string,
@@ -132,9 +139,11 @@ function bandBoxes(board: Board) {
     );
     const clearance = resolve(`calc${CONTROLLER_BAR_CLEARANCE_EXPR}`, board);
     return {
-        opponentHand: { top: 0, bottom: handH },
+        // The opponent's strip is its OWN, smaller band since #1875 —
+        // backs only, so the viewer-sized band wasted board height on it.
+        opponentHand: { top: 0, bottom: oppHandH },
         opponentBattlefield: {
-            top: handH,
+            top: oppHandH,
             bottom: board.height - oppBfBottom,
         },
         viewerBattlefield: {
@@ -266,42 +275,23 @@ describe("portrait band budget tiles without overlap (#1760)", () => {
         }
     });
 
-    // #1814 round-2 review, finding 4: the original version of this pair
-    // filtered the 667px board out of the ">80px" check with a bare
-    // `PHONE.filter((b) => b.height !== 667)` and gave the excluded board a
-    // (40, 80) window with ~23px of slack either side of its actual value —
-    // a silent skip plus a bound loose enough to hide almost any regression.
-    // With the compact nameplate's much smaller reservation the two taller
-    // (844px) phones and the 667×106 phone are named EXPLICITLY below —
-    // nothing is dropped via a generic filter — and the 667×106 bound is the
-    // board's REAL computed row height ±1px, not a wide, un-earned window.
-    const TALL_PHONE: Board[] = [PHONE[0]!, PHONE[1]!]; // the two 844px combos
-
-    it("leaves the viewer battlefield a usable (>80px) band on the two 844px phones", () => {
-        for (const board of TALL_PHONE) {
+    // #1814 round-2 review, finding 4: the original version of this check
+    // filtered the 667px board out of the ">80px" sweep with a bare
+    // `PHONE.filter(...)` and gave the excluded board a loose window — a
+    // silent skip. The 667×106 phone then sat a few px under 80 as a
+    // documented shortfall; #1875 (the smaller opponent hand band folds
+    // ~half the freed space into each battlefield, ~+11.7px per row on this
+    // board) lifted it to ~90px, so ALL PHONE combos now clear the target
+    // and no board needs a carve-out here at all.
+    it.each(PHONE)(
+        "leaves the viewer battlefield a usable (>80px) band (h=$height bar=$barHeight)",
+        (board) => {
             const b = bandBoxes(board);
             const rowHeight =
                 (b.viewerBattlefield.bottom - b.viewerBattlefield.top) / 2;
             expect(rowHeight).toBeGreaterThan(80);
         }
-    });
-
-    it("documents the accepted usable-band shortfall on the 667×106 phone (#1814 round-2 review — tight bound, not a filtered-out board)", () => {
-        // This board's row still falls a few px short of the 80px legibility
-        // target (a SOFTER, best-effort target than the 44px hard
-        // touch-target floor the dedicated describe block below checks —
-        // that one this board DOES clear, see the "hard constraint"
-        // describe block). Bound tight to the real computed value (not the
-        // old 40-80 window) so a regression that moved this further away
-        // from 80px — rather than the tiny, accepted, documented shortfall —
-        // still fails here.
-        const board = { height: 667, barHeight: 106 };
-        const b = bandBoxes(board);
-        const rowHeight =
-            (b.viewerBattlefield.bottom - b.viewerBattlefield.top) / 2;
-        expect(rowHeight).toBeGreaterThan(74);
-        expect(rowHeight).toBeLessThan(80);
-    });
+    );
 
     it("the reserved band is at least the compact nameplate's OWN worst-case box, not merely self-consistent with the battlefield inset (#1814 round-2 review, finding 3)", () => {
         // The bug this closes: the OLD version of this suite defined
@@ -365,9 +355,30 @@ describe("band budget is derived, not hand-tuned", () => {
         expect(inset).not.toMatch(/\d+px/);
     });
 
-    it("uses one hand band height for both seats", () => {
+    it("publishes each seat's hand band as its own named constant (#1875 — the opponent's is deliberately smaller)", () => {
+        // Pre-#1875 the two strips shared one band; the opponent's hand only
+        // ever renders backs, so it now gets a smaller band of its own. Both
+        // published values must be the module's exported constants (no
+        // inline literal drift), and the opponent's must actually be the
+        // smaller of the two — equal bands would silently undo the reclaim.
         const vars = portraitBandVars() as Record<string, string>;
         expect(vars[PORTRAIT_HAND_BAND_VAR]).toBe(PORTRAIT_HAND_BAND_H);
+        expect(vars[PORTRAIT_OPP_HAND_BAND_VAR]).toBe(PORTRAIT_OPP_HAND_BAND_H);
+        expect(parseFloat(PORTRAIT_OPP_HAND_BAND_H)).toBeLessThan(
+            parseFloat(PORTRAIT_HAND_BAND_H)
+        );
+    });
+
+    it("folds the hand-band difference into the midline split, so both battlefields stay equal (#1875)", () => {
+        // Same shape as the nameplate-band fold below: the viewer's inset
+        // alone carries the full (taller) viewer hand band, so the midline
+        // must absorb half the DIFFERENCE between the two hand bands or the
+        // viewer battlefield ends up shorter than the opponent's.
+        const vars = portraitBandVars() as Record<string, string>;
+        const midline = vars[PORTRAIT_MIDLINE_VAR] as string;
+        expect(midline).toContain(`var(${PORTRAIT_HAND_BAND_VAR})`);
+        expect(midline).toContain(`- var(${PORTRAIT_OPP_HAND_BAND_VAR})`);
+        expect(midline).toContain("/ 2");
     });
 
     it("publishes the nameplate band height as its own named constant, not re-typed inline (#1814 fixup)", () => {
@@ -447,6 +458,29 @@ describe("portrait hand card metrics (#1770 follow-up from #1790)", () => {
         expect(overlap).toBeGreaterThanOrEqual(0);
         expect(overlap).toBeLessThan(cardWidth);
     });
+
+    it("derives the opponent seat's backs from its OWN smaller band (#1875)", () => {
+        // Same math, the opponent's fraction: the card can never be taller
+        // than the band that hosts it (#1790), which since #1875 is
+        // `PORTRAIT_OPP_HAND_BAND_H` for the opponent's strip. On every
+        // supported board the derived back is strictly smaller than the
+        // viewer's card at the same height.
+        for (const h of [844, 667, 600]) {
+            const viewer = portraitHandMetrics(h);
+            const opp = portraitHandMetrics(h, "opponent");
+            const oppBandPx = h * (parseFloat(PORTRAIT_OPP_HAND_BAND_H) / 100);
+            expect((opp.cardWidth * 7) / 5).toBeLessThanOrEqual(oppBandPx);
+            expect(opp.cardWidth).toBeLessThan(viewer.cardWidth);
+            expect(opp.cardWidth).toBeGreaterThan(0);
+            expect(opp.overlap).toBe(Math.round(opp.cardWidth * (26 / 76)));
+        }
+    });
+
+    it("the explicit viewer seat is the default (existing callers keep their sizing)", () => {
+        expect(portraitHandMetrics(844, "viewer")).toEqual(
+            portraitHandMetrics(844)
+        );
+    });
 });
 
 describe("short-viewport wrap combo (#1770 follow-up from #1790)", () => {
@@ -454,8 +488,8 @@ describe("short-viewport wrap combo (#1770 follow-up from #1790)", () => {
     // shortest phone this budget targets) combined with the bar's WRAPPED
     // two-line state (150px, e.g. mid DECLARE_ATTACKERS). Tiling still holds
     // — the bands are arithmetically FORCED to, whatever the absolute sizes
-    // — but the battlefield row shrinks to ~74px, under the ~80px legibility
-    // floor the other three PHONE combos clear.
+    // — but the battlefield row shrinks to ~79px (since #1875; ~67px
+    // before), just under the ~80px legibility floor the PHONE combos clear.
     //
     // Properly restoring the floor here means shrinking the hand band below
     // its flat `PORTRAIT_HAND_BAND_H` fraction for this one state, which in
@@ -489,13 +523,13 @@ describe("short-viewport wrap combo (#1770 follow-up from #1790)", () => {
         expect(order.at(-1)!.bottom).toBeCloseTo(SHORT_WRAPPED.height, 5);
     });
 
-    it("documents the accepted floor shortfall — battlefield rows dip well below 80px", () => {
+    it("documents the accepted floor shortfall — battlefield rows still dip below 80px", () => {
         // The reserved nameplate band (`PORTRAIT_NAMEPLATE_BAND_H`) stacks on
-        // top of the wrapped-bar shortfall this combo already accepted,
-        // pushing the row to ~67px — still a usable, non-degenerate row,
-        // just further below the ~80px floor the two 844px PHONE combos
-        // comfortably clear. A regression that pushed this to near-zero (or
-        // negative) should still fail here.
+        // top of the wrapped-bar shortfall this combo already accepted. The
+        // #1875 hand-band reclaim lifted the row from ~67px to ~79px — a
+        // hair under the ~80px floor every PHONE combo now clears. A
+        // regression that pushed this back toward near-zero (or negative)
+        // should still fail here.
         const b = bandBoxes(SHORT_WRAPPED);
         const rowHeight =
             (b.viewerBattlefield.bottom - b.viewerBattlefield.top) / 2;
@@ -503,20 +537,16 @@ describe("short-viewport wrap combo (#1770 follow-up from #1790)", () => {
         expect(rowHeight).toBeLessThan(80);
     });
 
-    it("documents the accepted card-width shortfall on this combo (#1814 round-2 review — explicit bound, never a silent filter)", () => {
-        // The one combo the 44px hard touch-target floor (see "battlefield
-        // card width stays tappable" describe block, `portrait-board-bands`
-        // main PHONE array) does NOT clear even after the round-2
-        // compaction: a two-line bar on the shortest supported phone, a
-        // transient state (mid `DECLARE_ATTACKERS`). Documented here with a
-        // dedicated, bounded assertion — never by silently excluding this
-        // board from the main sweep via a filter. Still a real, tappable-ish
-        // (~38px), non-degenerate card; tiling and no-overlap hold
-        // unconditionally regardless (see the tests above).
+    it("clears the 44px card floor even on this combo since #1875 (previously the one documented ~38px shortfall)", () => {
+        // This used to be the ONE combo under the 44px hard touch-target
+        // floor (a two-line bar on the shortest supported phone, mid
+        // `DECLARE_ATTACKERS`) — documented at ~38px rather than silently
+        // filtered. The smaller opponent hand band (#1875) returns ~11.7px
+        // to each battlefield row on this board, lifting the card to ~46px:
+        // the floor now holds on EVERY supported combo, including this one.
         const b = bandBoxes(SHORT_WRAPPED);
         const bfHeight = b.viewerBattlefield.bottom - b.viewerBattlefield.top;
         const cardWidth = bandedCardWidth(bfHeight / 2);
-        expect(cardWidth).toBeGreaterThan(30);
-        expect(cardWidth).toBeLessThan(44);
+        expect(cardWidth).toBeGreaterThanOrEqual(44);
     });
 });

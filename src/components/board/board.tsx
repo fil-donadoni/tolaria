@@ -577,6 +577,7 @@ export default function Board({
                                                                         boardHeight={
                                                                             viewportHeight
                                                                         }
+                                                                        seat="opponent"
                                                                         data-testid="zone-opponent-hand"
                                                                     />
                                                                 ) : (
