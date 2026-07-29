@@ -17,6 +17,11 @@ import {
     tangle,
     wanderingStream,
 } from "../green";
+// Quirion Elves — INV reprint (`quirionElvesInv`, a `CardPrint` in
+// `../green`); first printed in Mirage, so the mechanics live in
+// `mir/green.ts` (ADR 0041 home-set rule). This test stays with the INV
+// tranche that authored it (issue #1097 gap 4).
+import { quirionElves } from "../../mir/green";
 import {
     makeInstance,
     makePlayer,
@@ -27,6 +32,7 @@ import { registerTokenDefinition } from "../../..";
 import {
     processPendingActionTriggers,
     resolveTopOfStack,
+    type CardInstanceState,
     type GameState,
     type StackItem,
 } from "../../../../gre/state";
@@ -36,6 +42,13 @@ import {
     applyPendingChoiceSubmit,
 } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
+import {
+    getActivatedManaColor,
+    getDynamicManaChoices,
+    getEffectiveManaChoices,
+    getManaTapOptionsDetailed,
+    hasManaAbility,
+} from "../../../../gre/constants";
 import { STATIC_EFFECT_CTX } from "../../../../gre/layers";
 import { isGuardedAgainst } from "../../../../gre/permanentGuard";
 import { getLegalTargets } from "../../../../gre/rules";
@@ -746,5 +759,171 @@ describe("Tangle (CR 615 all-combat prevention + CR 508.1/502.1 attacker untap-l
             (c) => c.id === "tangle-wire-bystander"
         )!;
         expect(slimBystander.skipNextUntap).toBeUndefined();
+    });
+});
+
+describe("Quirion Elves (CR 700.2c ETB colour choice + CR 605.1a two mana abilities, issue #1097)", () => {
+    it("is a 1/1 Elf for {1}{G} with a 5-mode ETB colour choice", () => {
+        expect(quirionElves.manaCost).toEqual({ X: 1, G: 1 });
+        expect(quirionElves.types).toEqual(["Creature"]);
+        expect(quirionElves.subtypes).toEqual(["Elf", "Druid"]);
+        expect(quirionElves.power).toBe(1);
+        expect(quirionElves.toughness).toBe(1);
+        expect(quirionElves.modes?.map((m) => m.id)).toEqual([
+            "W",
+            "U",
+            "B",
+            "R",
+            "G",
+        ]);
+        // No mode carries its own resolve/effects body (Prismatic Ward
+        // idiom) — the choice is purely stored as `chosenModeId`.
+        for (const mode of quirionElves.modes ?? []) {
+            expect(mode.resolve).toBeUndefined();
+            expect(mode.effects).toBeUndefined();
+        }
+    });
+
+    it("declares two separate {T} mana abilities: fixed {G} and chosen-colour", () => {
+        const [green, chosen] = quirionElves.activatedAbilities ?? [];
+        expect(green.cost).toEqual({ tap: true });
+        expect(green.useStack).toBe(false);
+        expect(green.manaProduced).toEqual({ G: 1 });
+        expect(chosen.cost).toEqual({ tap: true });
+        expect(chosen.useStack).toBe(false);
+        // Fallback list (no live instance) is every colour it could have
+        // chosen at ETB (CR 106.4 "could produce").
+        expect(chosen.manaChoices).toEqual([
+            { W: 1 },
+            { U: 1 },
+            { B: 1 },
+            { R: 1 },
+            { G: 1 },
+        ]);
+    });
+
+    it("getActivatedManaColor resolves the FIXED {G} ability (first manaProduced ability)", () => {
+        const elf = makeInstance(quirionElves.id, {
+            id: "qe-color",
+            chosenModeId: "R",
+        });
+        expect(hasManaAbility(elf)).toBe(true);
+        expect(getActivatedManaColor(elf)).toBe("G");
+    });
+
+    it.each([
+        ["W", { W: 1 }],
+        ["U", { U: 1 }],
+        ["B", { B: 1 }],
+        ["R", { R: 1 }],
+        ["G", { G: 1 }],
+    ] as const)(
+        "getDynamicManaChoices reads the stored chosenModeId (%s)",
+        (color, expected) => {
+            const elf = makeInstance(quirionElves.id, {
+                id: "qe-dyn",
+                chosenModeId: color,
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", { battlefield: [elf] }),
+                    makePlayer("p2"),
+                ],
+            });
+            const battlefields = state.players.map((p) => ({
+                playerId: p.id,
+                battlefield: p.battlefield,
+            }));
+            expect(getDynamicManaChoices(elf, "p1", battlefields)).toEqual([
+                expected,
+            ]);
+            expect(getEffectiveManaChoices(elf, "p1", battlefields)).toEqual([
+                expected,
+            ]);
+        }
+    );
+
+    it("falls back to {G} when no colour was ever stored (defensive — real casts always lock a mode)", () => {
+        const elf = makeInstance(quirionElves.id, { id: "qe-no-choice" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [elf] }),
+                makePlayer("p2"),
+            ],
+        });
+        const battlefields = state.players.map((p) => ({
+            playerId: p.id,
+            battlefield: p.battlefield,
+        }));
+        expect(getDynamicManaChoices(elf, "p1", battlefields)).toEqual([
+            { G: 1 },
+        ]);
+    });
+
+    it("getManaTapOptionsDetailed unifies both abilities into one 2-option tap picker", () => {
+        const elf = makeInstance(quirionElves.id, {
+            id: "qe-options",
+            chosenModeId: "U",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [elf] }),
+                makePlayer("p2"),
+            ],
+        });
+        const battlefields = state.players.map((p) => ({
+            playerId: p.id,
+            battlefield: p.battlefield,
+        }));
+        const options = getManaTapOptionsDetailed(elf, "p1", battlefields);
+        expect(options).toEqual([
+            {
+                mana: { G: 1 },
+                source: { kind: "activated", abilityId: "quirion-elves-green" },
+            },
+            {
+                mana: { U: 1 },
+                source: {
+                    kind: "activated",
+                    abilityId: "quirion-elves-chosen-color",
+                    choiceIndex: 0,
+                },
+            },
+        ]);
+    });
+
+    it("wire format: chosenModeId + the derived mana choices survive projectPublicState", () => {
+        const elf = makeInstance(quirionElves.id, {
+            id: "qe-wire",
+            controllerId: "p1",
+            chosenModeId: "B",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [elf] }),
+                makePlayer("p2"),
+            ],
+        });
+        const battlefields = state.players.map((p) => ({
+            playerId: p.id,
+            battlefield: p.battlefield,
+        }));
+        const onFat = getEffectiveManaChoices(elf, "p1", battlefields);
+        expect(onFat).toEqual([{ B: 1 }]);
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slimElf = projected.players[0].battlefield.find(
+            (c) => c.id === "qe-wire"
+        )! as unknown as CardInstanceState;
+        expect(slimElf.chosenModeId).toBe("B");
+        const onWire = getEffectiveManaChoices(
+            slimElf,
+            "p1",
+            projected.players.map((p) => ({
+                playerId: p.id,
+                battlefield: p.battlefield as unknown as CardInstanceState[],
+            }))
+        );
+        expect(onWire).toEqual(onFat);
     });
 });

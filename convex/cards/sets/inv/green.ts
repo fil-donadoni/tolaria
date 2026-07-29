@@ -1349,6 +1349,27 @@ export const elfhameSanctuary: CardDefinition = {
 // runtime colour choice substituting for the land's normal output — no
 // existing primitive replaces a land's produced mana type, only adds to it
 // or fixes it (`addManaTo`) or restricts its spend (`addRestrictedMana`).
+//
+// Confirmed still blocked (issue #1097 gap 4/3 pass, deliberately deferred —
+// a smaller correct PR beats a large speculative one). Gap 4 (Quirion Elves)
+// closed via the EXISTING `manaChoices`/`getManaChoices` board-conditional-
+// choice machinery, but that machinery only ever attaches to a PRINTED
+// `ActivatedAbility` on the tapped permanent ITSELF. Pulse of Llanowar needs
+// to retrofit a choice onto every BASIC LAND'S intrinsic subtype-mana tap —
+// which `getManaTapOptionsDetailed` (`gre/constants.ts`) currently emits as
+// ONE fixed `{ [color]: 1 }` entry per distinct basic subtype
+// (`{ kind: "basic"; subtype }` in `ManaTapOptionSource` — "has no riders",
+// per its own doc comment) with no choice branch at all. Closing this
+// properly needs: (1) a new choice-bearing shape for the "basic" provenance
+// kind (today it carries only `subtype`, never a colour option list); (2) a
+// matching branch in `resolveManaTapChoice` (`convex/game.ts`) to resolve the
+// picked colour; (3) `getProducibleColors`/`producibleColorsFromAbilities`
+// (CR 106.4 "could produce") updated so deck-analysis / castability callers
+// see "any colour" while Pulse is in play, not just the land's printed
+// colour; (4) the CLIENT tap picker (`src/lib/card-utils.ts`, which shares
+// the same resolver) exercising a picker for BASIC lands, which it has never
+// needed to do before. That is real, cross-cutting engine surface for one
+// uncommon enchantment — out of scope for this pass.
 // tracked-by: #1097
 // export const pulseOfLlanowar: CardDefinition = {
 //     id: "db09afe5-5f01-4f77-a239-12d7a6e59024",
@@ -1358,23 +1379,19 @@ export const elfhameSanctuary: CardDefinition = {
 //     types: ["Enchantment"],
 // };
 
-// Quirion Elves — "As this creature enters, choose a color. {T}: Add {G}.
-// {T}: Add one mana of the chosen color." The fixed-{G} ability is free, but
-// the second mana ability needs to read a per-instance ETB colour choice
-// (`getChosenModeId()`/`chosenModeId`) — and a MANA ability's `effect`
-// context (`ActivatedAbilityContext`) exposes ONLY `addMana`, with no way to
-// read ANY instance/game state (not even via the board-conditional
-// `manaAmount` hook, whose `PermanentView` carries no `chosenModeId` field
-// either). No existing seam lets a mana ability react to a stored per-
-// instance choice.
-// tracked-by: #1097
-// export const quirionElves: CardDefinition = {
-//     id: "c660a748-82a9-4d6a-8023-56aeafe1bdce",
-//     name: "Quirion Elves",
-//     rarity: "common",
-//     manaCost: { X: 1, G: 1 },
-//     types: ["Creature"],
-// };
+// quirionElvesInv — INV reprint of the Mirage definition (CardPrint, ADR
+// 0041). First printed in Mirage — the mechanics (closing issue #1097 gap 4:
+// the ETB colour choice + two mana abilities) live in `mir/green.ts`,
+// authored against THIS printing (issue #1097's INV free-tranche audit is
+// where the gap was originally surfaced). Behaviour tests stay with this INV
+// tranche (`inv/__tests__/green.test.ts`), importing the definition from its
+// home module.
+export const quirionElvesInv: CardPrint = {
+    printId: "c660a748-82a9-4d6a-8023-56aeafe1bdce", // INV 203
+    definitionId: "be9a64fb-1e8d-4ed8-b4c5-3d44db9c1d3b", // Quirion Elves (Mirage)
+    setCode: "inv",
+    rarity: "common",
+};
 
 // Restock — "Return two target cards from your graveyard to your hand.
 // Exile Restock." (CR 400.7 zone change; CR 608.2 "Exile ~".) The return

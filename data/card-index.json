@@ -9656,6 +9656,14 @@
         "firstPrintSet": "sos"
     },
     {
+        "name": "Quirion Elves",
+        "scryfallId": "be9a64fb-1e8d-4ed8-b4c5-3d44db9c1d3b",
+        "oracleId": "e2975a88-5a5a-462a-90b9-d8c00150b6d3",
+        "firstSet": "mir",
+        "firstPrintId": "be9a64fb-1e8d-4ed8-b4c5-3d44db9c1d3b",
+        "firstPrintSet": "mir"
+    },
+    {
         "name": "Quirion Sentinel",
         "scryfallId": "2fc639ea-a925-4f1e-879f-b8fcb12bf257",
         "oracleId": "70bb2690-653b-4787-bdd1-d1739a8ae545",
