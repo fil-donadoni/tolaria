@@ -213,11 +213,13 @@ describe("Controller seam (#335)", () => {
 describe("Portrait bottom bar — same controls, same mutations", () => {
     it("shows the fixed-width phase tab and a primary Pass action", () => {
         renderController();
-        // Compact `T<n>·<short>` form (#1815 review fixup round 3, finding 1)
-        // — see `controller-bottom-bar.tsx`'s doc comment for the char/px
-        // budget this satisfies. The full step name (which varies in width)
-        // stays inside the sheet.
-        expect(screen.getByText("T1·M1")).toBeTruthy();
+        // Caption `T<n>·<groupShort>` form (#1818, `controller-phase-tab.tsx`)
+        // — see that component's doc comment for the char/px budget this
+        // satisfies. The full step name (which varies in width) stays inside
+        // the sheet.
+        expect(screen.getByText("T1·MAI")).toBeTruthy();
+        // The granular step code is now its own prominent value element.
+        expect(screen.getByText("M1")).toBeTruthy();
         // The primary action is the SAME "Pass" the desktop pod renders.
         fireEvent.click(screen.getByText(/^Pass$/));
         const pass = calls.find((c) => c.ref === "passPriority");
@@ -346,7 +348,7 @@ describe("Bottom bar tab set (#1815 review fixup, finding 4; widened round 2)", 
     });
 });
 
-describe("Phase tab label — compact, untruncated at the 320px floor (#1815 review fixup round 3, finding 1)", () => {
+describe("Phase tab caption — compact, untruncated at the 320px floor (#1815 review fixup round 3, finding 1)", () => {
     // Char/px budget: at `grid-cols-6` the Phase tab is 1/6 of the bar — ~53px
     // @320px, ~65px @390px (see `controller-bottom-bar.tsx`'s module doc
     // comment). `ControllerTabButton`'s label span's own `px-1` eats ~8px,
@@ -354,30 +356,66 @@ describe("Phase tab label — compact, untruncated at the 320px floor (#1815 rev
     // `tracking-[0.14em]` (~1.26px letter-spacing/char atop a ~5-6px average
     // glyph advance) that usable width fits ~7 characters at the 320px floor.
     // The old `T{turn} · {phaseGroupLabel}` form was 11 chars for EVERY group
-    // ("T1 · MAIN 1", "T1 · MAIN 2", "T1 · COMBAT") — well past that budget,
-    // truncating mid-word and losing the Main 1 vs Main 2 digit. The compact
-    // `T{turn}·{phaseShort}` form is 5 chars for a single-digit turn, inside
-    // the ~7-char budget, so every phase below renders a DISTINCT,
-    // untruncated code — Main 1 vs Main 2, and all six combat sub-steps.
+    // ("T1 · MAIN 1", "T1 · MAIN 2", "T1 · COMBAT") — well past that budget.
+    // #1818's `T{turn}·{phaseGroupShort}` form is at most 7 chars ("T1·COM",
+    // "T1·MAI", "T1·BEG", "T1·END") — inside the same budget every one of
+    // these earlier fixups established.
     it.each([
-        ["PRECOMBAT_MAIN", "T1·M1"],
-        ["POSTCOMBAT_MAIN", "T1·M2"],
-        ["BEGINNING_OF_COMBAT", "T1·BC"],
-        ["DECLARE_ATTACKERS", "T1·DA"],
-        ["DECLARE_BLOCKERS", "T1·DB"],
-        ["FIRST_STRIKE_DAMAGE", "T1·FD"],
-        ["COMBAT_DAMAGE", "T1·CD"],
-        ["END_OF_COMBAT", "T1·EC"],
+        ["PRECOMBAT_MAIN", "T1·MAI"],
+        ["POSTCOMBAT_MAIN", "T1·MAI"],
+        ["BEGINNING_OF_COMBAT", "T1·COM"],
+        ["DECLARE_ATTACKERS", "T1·COM"],
+        ["DECLARE_BLOCKERS", "T1·COM"],
+        ["FIRST_STRIKE_DAMAGE", "T1·COM"],
+        ["COMBAT_DAMAGE", "T1·COM"],
+        ["END_OF_COMBAT", "T1·COM"],
     ] as const)(
-        "renders %s as the distinct compact label %s",
-        (phase, label) => {
+        "renders %s's caption as the untruncated %s",
+        (phase, caption) => {
             renderController({ phase: phase as Phase });
-            expect(screen.getByText(label)).toBeTruthy();
-            // Every compact label stays at or under the ~7-char budget derived
-            // above — the whole point of the fix.
-            expect(label.length).toBeLessThanOrEqual(7);
+            expect(screen.getByText(caption)).toBeTruthy();
+            // Every caption stays at or under the ~7-char budget derived above.
+            expect(caption.length).toBeLessThanOrEqual(7);
         }
     );
+});
+
+describe("Phase tab step value — visible difference between the 5 combat sub-steps (#1818)", () => {
+    // The granular step code (`phaseShort`) is now its own prominent element
+    // (`data-controller-phase-step`), distinct from the compact group caption
+    // tested above — see `controller-phase-tab.tsx`'s doc comment. This is
+    // the AC this issue exists for: a player must be able to tell Declare
+    // Attackers from Declare Blockers from Combat Damage WITHOUT opening the
+    // phase sheet.
+    it.each([
+        ["BEGINNING_OF_COMBAT", "BC"],
+        ["DECLARE_ATTACKERS", "DA"],
+        ["DECLARE_BLOCKERS", "DB"],
+        ["FIRST_STRIKE_DAMAGE", "FD"],
+        ["COMBAT_DAMAGE", "CD"],
+        ["END_OF_COMBAT", "EC"],
+    ] as const)("renders %s's step value as the distinct %s", (phase, step) => {
+        const { container } = renderController({ phase: phase as Phase });
+        const stepEl = container.querySelector("[data-controller-phase-step]");
+        expect(stepEl?.textContent).toBe(step);
+    });
+
+    it("Declare Attackers and Declare Blockers render visibly different step values, not just different DOM attributes", () => {
+        const attackers = renderController({ phase: "DECLARE_ATTACKERS" });
+        const attackersStep = attackers.container.querySelector(
+            "[data-controller-phase-step]"
+        )?.textContent;
+        attackers.unmount();
+
+        const blockers = renderController({ phase: "DECLARE_BLOCKERS" });
+        const blockersStep = blockers.container.querySelector(
+            "[data-controller-phase-step]"
+        )?.textContent;
+
+        expect(attackersStep).toBe("DA");
+        expect(blockersStep).toBe("DB");
+        expect(attackersStep).not.toBe(blockersStep);
+    });
 });
 
 describe("Zone chips, inline in the bar (#1815 review fixup)", () => {

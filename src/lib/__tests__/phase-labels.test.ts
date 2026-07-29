@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
     PHASE_GROUPS,
     phaseGroupLabel,
+    phaseGroupShort,
     phaseLabel,
     phaseShort,
 } from "~/lib/phase-labels";
@@ -48,6 +49,35 @@ describe("phase-labels (#331)", () => {
         expect(phaseGroupLabel("DECLARE_BLOCKERS")).toBe("Combat");
         expect(phaseGroupLabel("UPKEEP")).toBe("Beginning");
         expect(phaseGroupLabel("END_STEP")).toBe("Ending");
+    });
+
+    it("derives a 3-letter group abbreviation from phaseGroupLabel, not a hardcoded table (#1818)", () => {
+        // All six combat sub-steps share the same group short code — the
+        // caption's job is "which broad group", not step disambiguation
+        // (phaseShort already owns that).
+        for (const step of [
+            "BEGINNING_OF_COMBAT",
+            "DECLARE_ATTACKERS",
+            "DECLARE_BLOCKERS",
+            "FIRST_STRIKE_DAMAGE",
+            "COMBAT_DAMAGE",
+            "END_OF_COMBAT",
+        ] as const) {
+            expect(phaseGroupShort(step)).toBe("COM");
+        }
+        expect(phaseGroupShort("UPKEEP")).toBe("BEG");
+        expect(phaseGroupShort("END_STEP")).toBe("END");
+        // Main 1 and Main 2 share a group short (the digit is stripped by the
+        // letters-only slice) — again, phaseShort ("M1"/"M2") is what
+        // disambiguates them, not this caption.
+        expect(phaseGroupShort("PRECOMBAT_MAIN")).toBe("MAI");
+        expect(phaseGroupShort("POSTCOMBAT_MAIN")).toBe("MAI");
+        // Every group short is exactly 3 uppercase letters — the char/px
+        // budget the portrait bottom bar's Phase tab caption relies on.
+        for (const group of PHASE_GROUPS) {
+            const short = phaseGroupShort(group.steps[0].id);
+            expect(short).toMatch(/^[A-Z]{3}$/);
+        }
     });
 
     it("covers all turn phases across its groups", () => {

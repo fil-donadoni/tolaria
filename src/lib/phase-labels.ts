@@ -94,10 +94,26 @@ export function phaseGroupLabel(phase: Phase): string {
 /** Two-letter step code for a phase (e.g. "M1", "DA") — {@link PhaseStep.short}.
  *  Falls back to the first two letters of the phase id for anything not in the
  *  table. Used by the portrait bottom bar's Phase tab (#1815 review fixup
- *  round 3) to keep the collapsed label from truncating at the 320px floor —
- *  see that component's doc comment for the char/px budget. */
+ *  round 3; promoted to the tab's prominent step value by #1818) to keep the
+ *  collapsed label from truncating at the 320px floor — see that component's
+ *  doc comment for the char/px budget. */
 export function phaseShort(phase: Phase): string {
     const step = STEP_BY_ID[phase];
     if (step) return step.short;
     return phase.slice(0, 2).toUpperCase();
+}
+
+/** Three-letter, uppercase abbreviation of a phase's GROUP label (e.g.
+ *  "Combat" -> "COM", "Beginning" -> "BEG", "Main 1"/"Main 2" -> "MAI" for
+ *  both — the trailing digit is dropped since {@link phaseShort} already
+ *  disambiguates Main 1 vs Main 2 at the step level). Derived from
+ *  {@link phaseGroupLabel} by a generic slice/uppercase transform rather than
+ *  a hardcoded per-phase table, so it carries no new phase-specific strings.
+ *  Used by the portrait bottom bar's Phase tab (#1818) as the compact caption
+ *  alongside the granular {@link phaseShort} step code, so the tab shows both
+ *  "which broad group" (small caption) and "which specific step" (prominent
+ *  value) without growing past the tab's char/px budget. */
+export function phaseGroupShort(phase: Phase): string {
+    const letters = phaseGroupLabel(phase).replace(/[^A-Za-z]/g, "");
+    return letters.slice(0, 3).toUpperCase();
 }
