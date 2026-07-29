@@ -284,6 +284,17 @@ registerTokenDefinition({
 
 describe("Canopy Surge (Kicker {2}, CR 702.33 / 120.1, issue #1097)", () => {
     function castCanopySurge(kicked: boolean): GameState {
+        // A flying creature under the CASTER's OWN control (p1) — proves the
+        // sweep is controller-agnostic ("each creature with flying", not
+        // "each creature YOUR OPPONENT controls"). Without this fixture, a
+        // controller-scoped regression (e.g. the sweep accidentally reading
+        // only the non-active player's battlefield) would slip through even
+        // though every other assertion here stayed green.
+        const casterFlyer = makeInstance(FLYER_ID, {
+            id: "surge-caster-flyer",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
         const flyer = makeInstance(FLYER_ID, {
             id: "surge-flyer",
             controllerId: "p2",
@@ -297,7 +308,7 @@ describe("Canopy Surge (Kicker {2}, CR 702.33 / 120.1, issue #1097)", () => {
         });
         const state = makeState({
             players: [
-                makePlayer("p1"),
+                makePlayer("p1", { battlefield: [casterFlyer] }),
                 makePlayer("p2", { battlefield: [flyer, grounded] }),
             ],
         });
@@ -311,6 +322,10 @@ describe("Canopy Surge (Kicker {2}, CR 702.33 / 120.1, issue #1097)", () => {
         const state = castCanopySurge(false);
         expect(state.players[0].life).toBe(19);
         expect(state.players[1].life).toBe(19);
+        const casterFlyer = state.players[0].battlefield.find(
+            (c) => c.id === "surge-caster-flyer"
+        )!;
+        expect(casterFlyer.damageMarked ?? 0).toBe(1);
         const flyer = state.players[1].battlefield.find(
             (c) => c.id === "surge-flyer"
         )!;
@@ -325,6 +340,10 @@ describe("Canopy Surge (Kicker {2}, CR 702.33 / 120.1, issue #1097)", () => {
         const state = castCanopySurge(true);
         expect(state.players[0].life).toBe(16);
         expect(state.players[1].life).toBe(16);
+        const casterFlyer = state.players[0].battlefield.find(
+            (c) => c.id === "surge-caster-flyer"
+        )!;
+        expect(casterFlyer.damageMarked ?? 0).toBe(4);
         const flyer = state.players[1].battlefield.find(
             (c) => c.id === "surge-flyer"
         )!;

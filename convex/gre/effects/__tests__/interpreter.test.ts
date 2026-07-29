@@ -27,6 +27,7 @@ import {
     markEnteredThisTurn,
     applyControlChange,
     createTokenPermanents,
+    buildSpellContext,
 } from "../../state";
 import type { CardInstanceState, GameState, StackItem } from "../../state";
 import {
@@ -50,7 +51,7 @@ import {
 import { collectTriggers, placeTriggersOnStack } from "../../triggers";
 import { raiseTriggerTargetSelection } from "../../rules";
 import { finalizeTargetSelection } from "../../../game";
-import { INLINE_DELAYED_TRIGGER_ID } from "../interpreter";
+import { INLINE_DELAYED_TRIGGER_ID, runEffectScript } from "../interpreter";
 import { getEffectivePower, getEffectiveToughness } from "../../layers";
 import {
     registerEmblemDefinition,
@@ -8221,21 +8222,28 @@ describe("Effect Script Op: exileSelf (CR 608.2, issue #1097)", () => {
         expect(state.players[0].exile.map((c) => c.id)).toContain(item.id);
     });
 
-    // A copy of the spell (CR 707.10) ceases to exist on resolution instead of
-    // being exiled anywhere — mirrors `shuffleSelfIntoLibrary`'s copy no-op
-    // exactly.
-    it("does not exile a COPY of the spell (CR 707.10 — a copy ceases to exist)", () => {
+    // A copy of the spell (CR 707.10) never arms the self-redirect at all —
+    // this exercises the PRIMITIVE's own copy guard
+    // (`SpellContext.exileSelf`, `gre/state.ts`), not `finalizeSpellResolution`'s
+    // separate, EARLIER `if (item.isCopy) return;` (CR 707.10 / 112.5 — a copy
+    // never reaches the graveyard-vs-exile decision at all). Asserting only
+    // "the copy didn't end up in exile or the graveyard" is true regardless
+    // of whether this primitive's guard exists — `finalizeSpellResolution`
+    // returns before ever reading `exileOnResolve` for a copy either way (the
+    // reviewer proved this: deleting the primitive's guard left all exileSelf
+    // tests passing). So instead run the Op directly via `runEffectScript`
+    // (bypassing `finalizeSpellResolution` entirely) and assert on the flag
+    // the primitive itself is responsible for: it must stay unset.
+    it("does not arm exileOnResolve when the Op runs on a COPY of the spell (CR 707.10 — a copy ceases to exist)", () => {
         const id = registerScript("test-op-exileself-copy", [
             { op: "exileSelf" },
         ]);
         const state = makeState();
         const item = pushSpell(state, id, "p1");
         item.isCopy = true;
-        resolveTopOfStack(state);
-        expect(state.players[0].exile.map((c) => c.id)).not.toContain(item.id);
-        expect(
-            state.players[0].graveyard.find((c) => c.id === item.id)
-        ).toBeUndefined();
+        const ctx = buildSpellContext(state, item);
+        runEffectScript(ctx, [{ op: "exileSelf" }]);
+        expect(item.exileOnResolve).toBeUndefined();
     });
 
     // Wire format (mandatory for a new Op, `.claude/rules/gre-development.md`):

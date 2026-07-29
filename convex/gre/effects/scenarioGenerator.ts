@@ -2165,6 +2165,16 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     exileWithAttachments() {
         return null;
     },
+    // `exileSelf` (CR 608.2, issue #1097) — never reached: `analyseOp` skips
+    // every script with this Op (the canned generator's assertion vocabulary
+    // — battlefield/graveyard/life/counter deltas — has no hook for "where
+    // did the resolving spell card itself land", same rationale as
+    // `shuffleSelfIntoLibrary` below, just a different destination zone).
+    // Kept for the 1:1 coverage guard; the self-redirect is covered by the
+    // Op's own interpreter tests.
+    exileSelf() {
+        return null;
+    },
     // `returnExiledForSource` (CR 603.7a / ADR 0028) — never reached:
     // `analyseOp` skips every script with it (its outcome is only observable
     // after a prior `exileWithAttachments` armed a bundle, which the generator
