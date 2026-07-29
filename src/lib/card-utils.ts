@@ -18,6 +18,7 @@ import {
     crewPowerContribution,
 } from "@convex/gre/tapOtherCost";
 import type {
+    ActivatedAbility,
     AlternativeCost,
     CardDefinition,
     EffectCardFilter,
@@ -214,6 +215,28 @@ export function getLandManaColor(card: CardInstance): Color | null {
         if (color) return color;
     }
     return null;
+}
+
+/** Every activated ability actually available on this permanent POST-LAYER —
+ *  native AND GRANTED (CR 113.1 / 611.1b, issue #1880) — as the CLIENT sees it
+ *  (a projected `CardInstance` is structurally a `CardInstanceState` here;
+ *  `grantedActivatedAbilities` survives the wire because `slimCard` spreads the
+ *  instance). The ONE place the board's tap / mana / ability-menu path may
+ *  resolve an ability id or scan a permanent's abilities.
+ *
+ *  Reading `getDefinition(card.card.id).activatedAbilities` there instead makes
+ *  a GRANTED ability invisible to the click handler, with two shipped-bug
+ *  shapes: the menu entry dispatches `activateAbility` (which throws "Use
+ *  tapUntap for mana abilities"), or — worse — a cost-bearing granted mana
+ *  ability gets no explicit menu entry at all and the permanent falls through
+ *  to the silent left-click tap that charges its mana cost with no prompt
+ *  (CR 601.2f / 605.3c, issue #1179). */
+export function getEffectiveClientAbilities(
+    card: CardInstance
+): ActivatedAbility[] {
+    return getEffectiveActivatedAbilities(
+        card as unknown as CardInstanceState
+    ).map(({ ability }) => ability);
 }
 
 /** The mana ability this permanent exposes, native OR granted (CR 113.1 /
