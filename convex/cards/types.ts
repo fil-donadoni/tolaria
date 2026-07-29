@@ -4426,7 +4426,11 @@ export interface StaticEffectStateView {
          *  so a self-referential board-state condition can find "you" inside
          *  `players[]` rather than assuming array position (issue #1379:
          *  Carnage Interpreter's "as long as YOU have one or fewer cards in
-         *  hand"). */
+         *  hand"). Required, NOT optional like `hand` below: both literal
+         *  constructors of this view (`gre/constants.ts`'s `manaLayerView`,
+         *  `src/lib/effective-stats.ts`'s `toLayerState`) always have a real
+         *  player id on hand at their call site — unlike hand data, there is
+         *  no call site that would have to fabricate one. */
         id: string;
         battlefield: ReadonlyArray<PermanentView>;
         /** Cards in this player's graveyard, exposed for graveyard-counting
@@ -4444,8 +4448,22 @@ export interface StaticEffectStateView {
          *  projection unchanged: `PublicGameState.players[].hand` is
          *  `(SlimHandCard | null)[]` for an opponent (identity hidden, but the
          *  SAME length) and `SlimHandCard[]` for the owner, so `.length`
-         *  reads identically server-side and after `projectPublicState`. */
-        hand: { readonly length: number };
+         *  reads identically server-side and after `projectPublicState`.
+         *
+         *  OPTIONAL — same "read best-effort" shape as `activePlayerId` below
+         *  — because NOT every call site building this view from scratch has
+         *  real hand data to offer (`gre/constants.ts`'s `manaLayerView`
+         *  builds a battlefields-only view for a mana ability's P/T read and
+         *  has no hand to report). A fabricated `{ length: 0 }` placeholder
+         *  here was a real bug, not an inert stand-in: 0 is the TRUE answer
+         *  for "≤ N cards in hand" for any N ≥ 0, so a hand-size `condition`
+         *  silently read as satisfied at a call site that never had hand data
+         *  to check. Every `condition`/`canActivate` closure reading this
+         *  field MUST treat `undefined` as "unknown" and resolve the gate to
+         *  `false` — the conservative direction for a "you have this few
+         *  cards" claim the engine cannot currently verify — never fall back
+         *  to a numeric default that could flip the predicate true. */
+        hand?: { readonly length: number };
     }>;
     /** The player whose turn it currently is (CR 102.1). Optional because the
      *  layer system reads it best-effort: it is a top-level `GameState` field
