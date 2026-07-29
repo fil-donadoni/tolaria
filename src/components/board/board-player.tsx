@@ -2,7 +2,7 @@ import type { Player } from "~/types/game";
 import { usePlayerInteraction } from "~/hooks/usePlayerInteraction";
 import { useIsPortrait } from "~/hooks/useIsPortrait";
 import { useViewportMode } from "~/hooks/useViewportMode";
-import { PORTRAIT_MIDLINE_TOP } from "~/lib/portrait-board-bands";
+import { PORTRAIT_VIEWER_NAMEPLATE_BOTTOM } from "~/lib/portrait-board-bands";
 import {
     LANDSCAPE_OPPONENT_SEAT_ANCHOR,
     LANDSCAPE_VIEWER_SEAT_ANCHOR,
@@ -18,20 +18,26 @@ type BoardPlayerProps = {
 
 /** Where this seat's chrome anchors on the board.
  *
- *  Portrait moves the VIEWER's nameplate off the bottom edge: the variant-D
- *  bottom bar (#1759) owns that edge and used to bury the nameplate underneath
- *  it — life unreadable, self-target untappable (#1758 audit). It relocates to
- *  the left of the midline, i.e. the top-left corner of the viewer's own half,
- *  mirroring how the opponent's portrait pile chips sit at the top-left of
- *  theirs. Own life stays permanently visible on the bar's "You" tab, which is
- *  also the self-target surface; the nameplate keeps carrying the arrow anchor
- *  and the mana pool. Landscape/desktop are unchanged.
- *
- *  "Midline" is the SHARED portrait band boundary ({@link PORTRAIT_MIDLINE_TOP},
- *  #1760), not the geometric half of the viewport: the boundary sits half the
- *  bottom bar's clearance above centre so both battlefields get equal height.
- *  Anchoring to a literal `top-1/2` would drop the nameplate inside the
- *  viewer's creature row instead of on its top edge.
+ *  Portrait mirrors the two nameplates top/bottom (#1814): the opponent stays
+ *  top-center (`top-1`, unchanged since #1759/#1760), and the viewer's
+ *  nameplate anchors bottom-center at {@link PORTRAIT_VIEWER_NAMEPLATE_BOTTOM}
+ *  — the SAME `play-area-center-x -translate-x-1/2` horizontal centering as
+ *  the opponent, just flipped to the bottom edge. That constant is the top
+ *  edge of the viewer's hand band (= the battlefield's own bottom inset), not
+ *  the bar's measured clearance directly: the portrait hand
+ *  (`BoardHandPortrait`) bottom-aligns its cards to the bar-side edge of that
+ *  band for thumb reach (#1759), so anchoring at the bar clearance itself
+ *  would drop the nameplate straight onto the interactive hand fan. Anchoring
+ *  at the band's OTHER edge instead sits it in the battlefield's own
+ *  territory, clear of the fan by construction and still fully derived from
+ *  the bar's measured height — no hardcoded pixel offset. This superseded an
+ *  earlier iteration (#1759/#1760) that parked the viewer's nameplate at the
+ *  shared portrait midline, left-aligned, purely to get it off the bottom
+ *  edge the bar used to bury it under; this revision restores the
+ *  symmetric top/bottom placement now that the hand-band boundary gives it
+ *  a collision-free bottom anchor. Own life stays permanently visible on the
+ *  bar's "You" tab too, which is also the self-target surface; the nameplate
+ *  keeps carrying the arrow anchor and the mana pool. Desktop is unchanged.
  *
  *  Landscape-compact (#1768) moves BOTH seats' chrome into the board's left
  *  rail, stacked around the landscape midline. On a phone held sideways the
@@ -49,7 +55,8 @@ function seatAnchorClass(
             ? LANDSCAPE_OPPONENT_SEAT_ANCHOR
             : LANDSCAPE_VIEWER_SEAT_ANCHOR;
     if (side === "top") return "play-area-center-x -translate-x-1/2 top-1";
-    if (isPortrait) return `left-2 ${PORTRAIT_MIDLINE_TOP} mt-1`;
+    if (isPortrait)
+        return `play-area-center-x -translate-x-1/2 ${PORTRAIT_VIEWER_NAMEPLATE_BOTTOM} mb-1`;
     return "play-area-center-x -translate-x-1/2 bottom-1";
 }
 

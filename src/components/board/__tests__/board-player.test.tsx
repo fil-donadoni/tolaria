@@ -10,7 +10,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, fireEvent, cleanup } from "@testing-library/react";
 import type { Player } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
-import { PORTRAIT_MIDLINE_TOP } from "~/lib/portrait-board-bands";
+import { PORTRAIT_VIEWER_NAMEPLATE_BOTTOM } from "~/lib/portrait-board-bands";
 import {
     PendingChoiceBufferContext,
     type PendingChoiceBuffer,
@@ -117,7 +117,7 @@ beforeEach(() => {
 /** The top-EDGE anchor exactly — `top-1`, never a midline anchor. */
 const TOP_EDGE_ANCHOR = /\btop-1\b(?!\/)/;
 
-describe("seat anchoring — nothing under the portrait bottom bar (#1759)", () => {
+describe("seat anchoring — nothing under the portrait bottom bar (#1759, #1814)", () => {
     function anchorClass(side: "top" | "bottom") {
         const { container } = renderSpatial(
             makePlayer("p2"),
@@ -127,14 +127,19 @@ describe("seat anchoring — nothing under the portrait bottom bar (#1759)", () 
         return (container.firstElementChild as HTMLElement).className;
     }
 
-    it("portrait lifts the VIEWER's chrome off the bottom edge the bar owns", () => {
+    it("portrait anchors the VIEWER's chrome bottom-center, clear of the bar's fixed edge", () => {
         portrait = true;
         const className = anchorClass("bottom");
         expect(className).not.toContain("bottom-1");
-        // It relocates to the top-left of the viewer's own half — pinned to the
-        // SHARED band midline (#1760), which sits half the bar's clearance
-        // above the viewport centre, not to a literal `top-1/2`.
-        expect(className).toContain(PORTRAIT_MIDLINE_TOP);
+        // #1814: mirrors the opponent's top-center placement onto the bottom
+        // edge — same horizontal centering utility, anchored at the hand
+        // band's own top edge (derived from the bar's measured clearance,
+        // never a hardcoded offset) so it can never land on the interactive
+        // hand fan below it.
+        expect(className).toContain(PORTRAIT_VIEWER_NAMEPLATE_BOTTOM);
+        expect(className).toContain("play-area-center-x");
+        expect(className).toContain("-translate-x-1/2");
+        expect(className).not.toContain("left-2");
     });
 
     it("landscape/desktop keep the classic bottom-edge anchor", () => {
@@ -151,6 +156,19 @@ describe("seat anchoring — nothing under the portrait bottom bar (#1759)", () 
         cleanup();
         portrait = false;
         expect(anchorClass("top")).toMatch(TOP_EDGE_ANCHOR);
+    });
+
+    it("portrait: both seats share the SAME horizontal centering utility — a true mirror", () => {
+        // #1814 acceptance: "symmetric anchors" / "same horizontal alignment
+        // ... as the opponent's" — assert both anchor strings agree on the
+        // centering classes, differing only in which edge they pin to.
+        portrait = true;
+        const top = anchorClass("top");
+        const bottom = anchorClass("bottom");
+        expect(top).toContain("play-area-center-x");
+        expect(top).toContain("-translate-x-1/2");
+        expect(bottom).toContain("play-area-center-x");
+        expect(bottom).toContain("-translate-x-1/2");
     });
 });
 

@@ -98,9 +98,27 @@ export const PORTRAIT_VIEWER_BATTLEFIELD_BAND =
  *  its height is now the shared band the battlefield above reserves. */
 export const PORTRAIT_VIEWER_HAND_BAND = `absolute left-0 right-0 ${ABOVE_CONTROLLER_BAR} h-[var(--portrait-hand-h)]`;
 
-/** For board chrome that must sit ON the midline (viewer nameplate, stack
- *  chip) rather than at the geometric half of the viewport. */
+/** For board chrome that must sit ON the midline (stack chip) rather than at
+ *  the geometric half of the viewport. */
 export const PORTRAIT_MIDLINE_TOP = "top-[var(--portrait-midline)]";
+
+/** For the VIEWER nameplate in portrait (#1814): sits right above the whole
+ *  hand band — the same boundary {@link PORTRAIT_VIEWER_BATTLEFIELD_BAND}
+ *  already stops at — mirroring the opponent's top-center nameplate onto the
+ *  bottom edge without a hardcoded pixel offset.
+ *
+ *  Why this boundary and not {@link ABOVE_CONTROLLER_BAR} directly: the hand
+ *  band's OWN bottom edge is `ABOVE_CONTROLLER_BAR`, and the portrait hand
+ *  (`BoardHandPortrait`, `items-end`) bottom-aligns its cards to that same
+ *  edge — cards hug the bar for thumb reach (#1759), the opposite of the
+ *  opponent's non-interactive hand, which hugs the battlefield boundary
+ *  instead. Anchoring the nameplate at the bar clearance would therefore
+ *  land it directly on top of the interactive hand fan; anchoring it at the
+ *  hand band's TOP edge (this constant) sits it entirely within the
+ *  battlefield's own territory, clear of the fan by construction, whatever
+ *  height the bar or the hand band currently have. */
+export const PORTRAIT_VIEWER_NAMEPLATE_BOTTOM =
+    "bottom-[var(--portrait-viewer-bf-bottom)]";
 
 // ── Portrait hand card metrics (#336, #1770 follow-up from #1790) ──────────
 //
