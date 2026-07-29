@@ -158,9 +158,23 @@ export default function GameStack({ stack, elevated, narrow }: GameStackProps) {
             // box's height as AT MOST the gap between them — it cannot run
             // under the hand strip or the bottom bar the way the vh-based cap
             // could on a short phone.
+            // `pointer-events-none` on the narrow branch only (review fixup
+            // round 4, finding 1): this outer div is `position: absolute`
+            // with BOTH `top` and `bottom` pinned, so per CSS's auto-height
+            // resolution it spans the FULL clearance between them regardless
+            // of the Panel's actual (smaller) content height — a transparent
+            // hit-testing column sitting over the battlefield viewer wherever
+            // the Panel doesn't fill it, swallowing taps meant for the
+            // permanents underneath (the permanent branch of
+            // spell-or-permanent targeting was unreachable through it).
+            // `pointer-events-auto` is restored on the `Panel` below so the
+            // drag handle and the clickable stack rows — both DOM
+            // descendants of `Panel`, not of this div — stay interactive.
+            // Desktop (`!narrow`) is untouched: its box is centered/vh-capped,
+            // not edge-pinned, so it never grows past its own content.
             className={`absolute ${
                 narrow
-                    ? `${PORTRAIT_STACK_PANEL_TOP} ${NARROW_BOTTOM_CLASS}`
+                    ? `${PORTRAIT_STACK_PANEL_TOP} ${NARROW_BOTTOM_CLASS} pointer-events-none`
                     : "top-1/2"
             } ${elevated ? "z-chip" : "z-modal"}`}
             style={{
@@ -217,24 +231,29 @@ export default function GameStack({ stack, elevated, narrow }: GameStackProps) {
                 //
                 // Pointer-events check (asked for explicitly in review):
                 // giving this wrapper a real `h-full` box does NOT create a
-                // new dead click-catching area over the board. The OUTER
-                // div above is `position: absolute` with BOTH `top` and
-                // `bottom` set — per CSS's auto-height resolution for
-                // absolutely positioned boxes, that already forces the outer
-                // div's own box to span the full clearance regardless of
-                // this wrapper's height, background-free or not. This
-                // wrapper's `h-full` box exactly coincides with a region the
-                // outer div already occupied; no additional page area
-                // becomes hit-testable that wasn't already. No
-                // `pointer-events-none` is added because there is no new
-                // regression to guard against.
+                // new dead click-catching area over the board beyond what the
+                // OUTER div already occupied. The OUTER div above is
+                // `position: absolute` with BOTH `top` and `bottom` set —
+                // per CSS's auto-height resolution for absolutely positioned
+                // boxes, that already forces the outer div's own box to span
+                // the full clearance regardless of this wrapper's height,
+                // background-free or not. This wrapper's `h-full` box exactly
+                // coincides with a region the outer div already occupied; no
+                // additional page area becomes hit-testable that wasn't
+                // already. That outer box IS, however, hit-testable itself
+                // wherever it's transparent (the actual bug fixed at its own
+                // definition site above, review fixup round 4 finding 1) —
+                // this wrapper carries no `pointer-events` class of its own
+                // and doesn't need one: it inherits `pointer-events-none`
+                // from the outer div, and `Panel` below overrides back to
+                // `pointer-events-auto` for itself and its descendants.
                 className={`relative overflow-visible ${narrow ? "h-full" : ""}`}
             >
                 <Panel
                     density="compact"
                     className={`${
                         narrow
-                            ? "flex max-h-full w-72 flex-col"
+                            ? "flex max-h-full w-72 flex-col pointer-events-auto"
                             : "max-h-[80vh] w-96"
                     } max-w-[92vw] overflow-visible p-0`}
                 >

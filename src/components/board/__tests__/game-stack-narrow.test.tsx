@@ -188,6 +188,39 @@ describe("GameStack narrow/portrait variant (issue #1816)", () => {
         });
     });
 
+    describe("issue #1816 review fixup round 4 finding 1 — narrow outer div is pointer-events-transparent, Panel restores interactivity", () => {
+        it("the narrow outer div carries pointer-events-none so it doesn't swallow taps on the battlefield viewer beneath it", () => {
+            const { container } = renderStack([makeStackItem("only")], {
+                narrow: true,
+            });
+            const outer = container.firstElementChild as HTMLElement;
+
+            expect(outer.className).toContain("pointer-events-none");
+        });
+
+        it("the Panel restores pointer-events-auto, so the drag handle and stack rows (both Panel descendants) stay interactive", () => {
+            const { container } = renderStack([makeStackItem("only")], {
+                narrow: true,
+            });
+            const panel = container.querySelector(
+                '[data-slot="panel"]'
+            ) as HTMLElement;
+
+            expect(panel.className).toContain("pointer-events-auto");
+        });
+
+        it("the desktop (no `narrow`) branch is unaffected — neither pointer-events class appears", () => {
+            const { container } = renderStack([makeStackItem("only")]);
+            const outer = container.firstElementChild as HTMLElement;
+            const panel = outer.querySelector(
+                '[data-slot="panel"]'
+            ) as HTMLElement;
+
+            expect(outer.className).not.toContain("pointer-events-none");
+            expect(panel.className).not.toContain("pointer-events-auto");
+        });
+    });
+
     describe("issue #1816 review fixup finding 6 — NARROW_BOTTOM_CLASS is the literal, guarded against the shared constant it must match", () => {
         it("is a literal Tailwind class, not built from a template at this call site", () => {
             // The historical bug: `` `bottom-[var(${VAR})]` `` compiled only

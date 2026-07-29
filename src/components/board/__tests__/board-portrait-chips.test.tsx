@@ -667,9 +667,7 @@ describe("BoardPortraitChips (#336)", () => {
 
         const chip = screen.getByTestId("chip-stack");
         expect(screen.queryByTestId("stack-view")).toBeNull();
-        // Tap the chip once (or twice — either way an ignored tap can't
-        // "toggle back") while the board-tap flow is still live.
-        fireEvent.click(chip);
+        // Tap the chip once while the board-tap flow is still live.
         fireEvent.click(chip);
         expect(screen.queryByTestId("stack-view")).toBeNull();
 
