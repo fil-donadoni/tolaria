@@ -165,7 +165,7 @@ export function BannersSection() {
                                 Not enough mana.
                             </p>
                         </div>
-                        <Where>error-toast:41 · cast-error-toast:27</Where>
+                        <Where>error-toast</Where>
                     </Specimen>
                     <Specimen label="Black-glass combat panels" tone="now">
                         <div className="rounded-lg border border-white/20 bg-black/90 p-3 text-white">
