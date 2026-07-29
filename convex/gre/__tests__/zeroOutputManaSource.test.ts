@@ -35,6 +35,7 @@ import {
 } from "../../cards/__tests__/setup";
 import { everflowingChalice } from "../../cards/sets/wwk";
 import { icatianStore } from "../../cards/sets/fem";
+import { fellwarStone } from "../../cards/sets/drk";
 import { mountain, forest } from "../../cards/sets/lea";
 import { solRing } from "../../cards/sets/lea";
 
@@ -332,5 +333,51 @@ describe("wire format — the same answer survives projectPublicState (issue #18
         ).toEqual([]);
         expect(isUntappedManaSource(pZero, pBattlefield)).toBe(false);
         expect(isUntappedManaSource(pTwo, pBattlefield)).toBe(true);
+    });
+});
+
+// The empty-option-list fall-through (`manaTapNeedsChoice` returns false when
+// `getManaTapOptionsDetailed` is empty) is NOT a silent zero-output tap for a
+// choice-ONLY source. Fellwar Stone declares no `manaProduced`, so the fixed
+// branch's `getBasicLandMana(card) ?? getActivatedManaColor(card)` is null
+// (`getActivatedManaColor` requires `manaProduced`) and `tapSourceIntoPayment`
+// rejects the tap with "Card does not produce mana" — the same rejection a
+// zero-output fixed source gets, instead of the "Must choose a mana color" the
+// client structurally cannot satisfy (its `getManaChoices` mirror returns null
+// on an empty list and submits no index). Nothing is tapped, no mana is added.
+describe("a choice-only source with an EMPTY option list is rejected, not silently tapped (CR 605.1a, issue #1889)", () => {
+    it("Fellwar Stone facing no colour-producing opponent land throws 'Card does not produce mana'", () => {
+        const rock = makeInstance(fellwarStone.id, {
+            id: "fellwar",
+            controllerId: "p1",
+        });
+        const player = makePlayer("p1", { battlefield: [rock] });
+        const state = makeState({
+            players: [
+                player,
+                // The opponent controls a mana source, but not a LAND that
+                // could produce a colour — Fellwar Stone reads lands only.
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(solRing.id, {
+                            id: "opp-ring",
+                            controllerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+        });
+
+        // Precondition: the unified option list really is empty, so the tap
+        // falls through the choice branch rather than prompting.
+        expect(getManaTapOptionsDetailed(rock, "p1", bf(state))).toEqual([]);
+
+        // No index submitted — exactly what the client sends here.
+        expect(() =>
+            tapSourceIntoPayment(state, player, rock, undefined, [])
+        ).toThrow("Card does not produce mana");
+
+        expect(rock.isTapped).toBeFalsy();
+        expect(Object.values(player.manaPool).every((n) => !n)).toBe(true);
     });
 });
