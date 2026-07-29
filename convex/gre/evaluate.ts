@@ -38,6 +38,9 @@ import {
     getProducibleColors,
     manaValue,
 } from "./constants";
+// Board-side option value (issue #1890 item 3) — the activated-ability mirror of
+// a holdable instant in hand.
+import { liveInstantSpeedAbilityCount } from "./ai/abilityTiming";
 import {
     getInstanceManaCost,
     getInstanceAiValue,
@@ -92,6 +95,17 @@ const W_MANA = 12;
 // dominate genuine material — it only ever tips otherwise-close lines.
 const W_FLEX = 6; // bonus per castable held instant (small: < a land drop's +9)
 const FLEX_CARD_CAP = 3; // at most this many instants contribute (bound the term)
+// Board side of the same option value (issue #1890 item 3). A permanent whose
+// ACTIVATED ability can be used at instant speed and is affordable RIGHT NOW is
+// a live answer in exactly the sense a holdable instant in hand is — an untapped
+// Mother of Runes answers a removal spell, a manland can ambush a block. Counting
+// only hand cards made that whole class invisible: the evaluator saw no
+// difference between an untapped Mother and a tapped one, so activating her at
+// sorcery speed for nothing was free, and holding up mana for her read as idle
+// mana. Its own small budget rather than a share of `FLEX_CARD_CAP`, so a hand
+// full of instants cannot zero out the board signal (and vice versa); the cap is
+// tighter because a board option is rarely more than one or two permanents.
+const FLEX_ABILITY_CAP = 2;
 
 // --- Latent `cardValue` primitive (ADR 0018, issue #195) -------------------
 // The worth of a specific card while it is NOT in play (hand / library /
@@ -180,8 +194,9 @@ export type EvalTerms = {
     creatures: number;
     permanents: number;
     mana: number;
-    /** Reactive flexibility (ADR 0021 slice 1): bounded option-value bonus for
-     *  holdable instants in hand the player can afford to cast this turn. */
+    /** Reactive flexibility (ADR 0021 slice 1, issue #1890): bounded option-value
+     *  bonus for holdable instants in hand the player can afford to cast this
+     *  turn, PLUS permanents offering a live instant-speed activated option. */
     flexibility: number;
 };
 
@@ -231,12 +246,22 @@ export function hasCastableInstant(
     );
 }
 
-/** The reactive-flexibility bonus for one player (ADR 0021 slice 1, issue #221).
- *  Counts holdable instants in hand the player has enough open mana to cast THIS
- *  turn (`availableMana` ≥ the card's mana value — the same color-blind proxy the
- *  `mana` term uses), capped at `FLEX_CARD_CAP`. Castability-gated so a tapped-out
- *  hand scores no flexibility, and additive to the latent `cardValue` already in
- *  the `hand` term so the two never double-count. */
+/** The reactive-flexibility bonus for one player (ADR 0021 slice 1, issue #221;
+ *  board half added by issue #1890 item 3). Two additive counts, each castability
+ *  / affordability gated against the SAME color-blind `availableMana` proxy the
+ *  `mana` term uses, and each separately capped so neither can dominate genuine
+ *  material:
+ *
+ *    * HAND — holdable instants the player can afford to cast this turn, capped
+ *      at `FLEX_CARD_CAP`. Additive to the latent `cardValue` already in the
+ *      `hand` term, so the two never double-count.
+ *    * BOARD — permanents offering a live instant-speed ACTIVATED option
+ *      (`hasLiveInstantSpeedAbility`: a deferrable stack ability whose {T} and
+ *      mana components are payable right now), capped at `FLEX_ABILITY_CAP`.
+ *      This is the term that makes SPENDING such an option cost something: an
+ *      activation that taps its source, or eats the mana its cost needs, drops
+ *      the count — which is the positive reason to hold up that the rollout
+ *      guardrail and the root tie-break (issue #1890 items 1-2) otherwise lack. */
 function flexibilityTerm(player: PlayerState, availableMana: number): number {
     let castable = 0;
     for (const card of player.hand) {
@@ -245,7 +270,12 @@ function flexibilityTerm(player: PlayerState, availableMana: number): number {
         castable += 1;
         if (castable === FLEX_CARD_CAP) break;
     }
-    return castable * W_FLEX;
+    const boardOptions = liveInstantSpeedAbilityCount(
+        player,
+        availableMana,
+        FLEX_ABILITY_CAP
+    );
+    return (castable + boardOptions) * W_FLEX;
 }
 
 /** The weighted contributions of one player's resources, from their own
