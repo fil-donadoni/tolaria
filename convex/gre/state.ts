@@ -10941,8 +10941,8 @@ export function buildSpellContext(
             playerId: string,
             amount: number,
             requireType?: CardType
-        ): void {
-            discardCardsAtRandom(state, playerId, amount, requireType);
+        ): string[] {
+            return discardCardsAtRandom(state, playerId, amount, requireType);
         },
         addMana(cost: CardManaCost): void {
             const player = getPlayer(state, item.castById);
@@ -15303,13 +15303,23 @@ export function discardToGraveyard(
  *  the game's seeded PRNG so replays reproduce the same picks. Clamped to the
  *  hand size. Routes each discard through the discard-replacement layer
  *  (CR 614 — Library of Leng). Shared by `SpellContext.discardAtRandom` (an
- *  effect) and `payDiscardAtRandomCost` (an activation cost, CR 118.3). */
+ *  effect) and `payDiscardAtRandomCost` (an activation cost, CR 118.3).
+ *
+ *  Returns the discarded cards' instance ids, in discard order (issue #1123 —
+ *  the `discardAtRandom` Op's optional `bind` reads the first one back). A
+ *  discard redirected elsewhere by a replacement (Library of Leng's "put it on
+ *  top of library instead", Yawgmoth's Will / Dauthi Voidwalker's graveyard
+ *  redirect, a Madness exile) is still reported here — the id WAS the random
+ *  pick — but no longer sits in the graveyard; a later `bind`-reading Op
+ *  resolves it as whatever zone it actually landed in (or fails to find it in
+ *  the graveyard specifically, CR 608.2b — the effect does as much as it
+ *  can). */
 export function discardCardsAtRandom(
     state: GameState,
     playerId: string,
     amount: number,
     requireType?: CardType
-): void {
+): string[] {
     const player = getPlayer(state, playerId);
     // CR 701.8a — when a type is required (Rag Man: "a creature card at
     // random"), the random pick is drawn only from the matching subset.
@@ -15327,6 +15337,7 @@ export function discardCardsAtRandom(
         return matching[randomInt(state, matching.length)].id;
     };
     const picks = Math.min(amount, player.hand.length);
+    const discardedIds: string[] = [];
     for (let i = 0; i < picks; i++) {
         const cardId = candidateId();
         if (cardId === undefined) break;
@@ -15334,12 +15345,14 @@ export function discardCardsAtRandom(
         // intercepts each discard inside discardToGraveyard; on a real discard
         // it emits CARD_DISCARDED (CR 701.8 — Necropotence).
         discardToGraveyard(state, playerId, cardId);
+        discardedIds.push(cardId);
     }
     // ADR 0026 (revised): a random discard does NOT clear knowledge of the
     // remaining hand. Each discarded card is revealed into the public graveyard
     // and knowledge is per-instance, so the cards left behind stay identifiable
     // to any prior knower — no uncertainty is introduced. Only shuffle / hidden
     // return to library revokes hand knowledge.
+    return discardedIds;
 }
 
 /** Pays a "discard N cards at random" activation cost (CR 118.3 / 701.8 —

@@ -1478,12 +1478,31 @@ export const OP_EXECUTORS: {
     // primitive owns the seeded-PRNG selection (deterministic replays); the
     // `discard` Op discards a player-CHOSEN or whole-hand set instead. Skipped
     // when the player is gone (CR 608.2b); an empty hand is a no-op.
+    //
+    // Optional `bind` (issue #1123, Aether Rift) snapshots the FIRST
+    // discarded card as a `"graveyard-card"` object right after the discard —
+    // the card is already sitting in the (public) graveyard by construction,
+    // so this is a live read, not last-known information (mirrors `digToHand`'s
+    // post-move `"hand-card"` bind, not `destroy`/`exile`'s pre-move one). A
+    // later `if` (`boundMatchesFilter`) can test what was discarded, and a
+    // later `moveZone { target: { ref }, to: "battlefield" }` reanimates it
+    // straight off the binding via that Op's existing graveyard-source
+    // recovery path (issue #1469 — it re-derives the id from ANY snapshot,
+    // not just destroy/exile's). Uncaptured when nothing was discarded (an
+    // empty hand, CR 608.2b).
     discardAtRandom(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return;
         const count = resolveValue(ctx, op.count);
         if (count === undefined || count <= 0) return;
-        ctx.discardAtRandom(playerId, count);
+        const discardedIds = ctx.discardAtRandom(playerId, count);
+        if (op.bind && discardedIds.length > 0) {
+            bindSnapshot(ctx, op.bind, {
+                type: "graveyard-card",
+                id: discardedIds[0],
+                playerId,
+            });
+        }
     },
     // CR 500.7 (issue #686) — schedule an extra turn for `player` (Time
     // Warp). Skipped when the player cannot be resolved (CR 608.2b).

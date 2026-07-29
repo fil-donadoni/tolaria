@@ -20500,6 +20500,162 @@ describe("Effect Script Op: discardAtRandom (CR 701.8a)", () => {
         const projected = projectPublicState(state, 1, "p1");
         expect(projected.players[1].graveyard).toHaveLength(2);
     });
+
+    // `bind` (issue #1123, Aether Rift) — snapshots the FIRST discarded card
+    // as a `"graveyard-card"` object right after the discard, mirroring
+    // `destroy`/`exile`'s bind shape. This Op-combination's own permanent
+    // test (bind → boundMatchesFilter → moveZone, the exact construct chain
+    // Aether Rift needs); any later card reusing it inherits this coverage
+    // free (PRD #795's per-Op regime).
+    describe("bind (issue #1123)", () => {
+        /** A single-card hand makes the random pick deterministic (no RNG
+         *  seeding needed) — there is exactly one card to draw. */
+        function soloHand(card: CardInstanceState): GameState {
+            return makeState({
+                players: [makePlayer("p1", { hand: [card] }), makePlayer("p2")],
+            });
+        }
+
+        it("boundMatchesFilter reads TRUE for a discarded creature card", () => {
+            const id = registerScript("test-op-discardrand-bind-creature", [
+                {
+                    op: "discardAtRandom",
+                    player: "controller",
+                    count: 1,
+                    bind: "$disc",
+                },
+                {
+                    op: "if",
+                    predicate: {
+                        boundMatchesFilter: { ref: "$disc" },
+                        filter: { type: "Creature" },
+                    },
+                    then: [{ op: "gainLife", player: "controller", amount: 7 }],
+                },
+            ]);
+            const bear = makeInstance(BEAR_ID, {
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+                id: "bindBear1",
+            });
+            const state = soloHand(bear);
+            pushSpell(state, id, "p1");
+            resolveTopOfStack(state);
+            expect(
+                state.players[0].graveyard.some((c) => c.id === "bindBear1")
+            ).toBe(true);
+            expect(state.players[0].life).toBe(27); // creature branch fired
+        });
+
+        it("boundMatchesFilter reads FALSE for a discarded non-creature card", () => {
+            const id = registerScript("test-op-discardrand-bind-noncreature", [
+                {
+                    op: "discardAtRandom",
+                    player: "controller",
+                    count: 1,
+                    bind: "$disc",
+                },
+                {
+                    op: "if",
+                    predicate: {
+                        boundMatchesFilter: { ref: "$disc" },
+                        filter: { type: "Creature" },
+                    },
+                    then: [
+                        {
+                            op: "gainLife",
+                            player: "controller",
+                            amount: 7,
+                        },
+                    ],
+                },
+            ]);
+            const instant = makeInstance(BLACK_CARD_ID, {
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+                id: "bindInstant1",
+            });
+            const state = soloHand(instant);
+            pushSpell(state, id, "p1");
+            resolveTopOfStack(state);
+            expect(
+                state.players[0].graveyard.some((c) => c.id === "bindInstant1")
+            ).toBe(true);
+            expect(state.players[0].life).toBe(20); // unchanged
+        });
+
+        it("moveZone reanimates the bound card straight off the graveyard-card binding", () => {
+            const id = registerScript("test-op-discardrand-bind-reanimate", [
+                {
+                    op: "discardAtRandom",
+                    player: "controller",
+                    count: 1,
+                    bind: "$disc",
+                },
+                { op: "moveZone", target: { ref: "$disc" }, to: "battlefield" },
+            ]);
+            const bear = makeInstance(BEAR_ID, {
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+                id: "bindBear2",
+            });
+            const state = soloHand(bear);
+            pushSpell(state, id, "p1");
+            resolveTopOfStack(state);
+            expect(
+                state.players[0].graveyard.some((c) => c.id === "bindBear2")
+            ).toBe(false);
+            expect(
+                state.players[0].battlefield.some((c) => c.id === "bindBear2")
+            ).toBe(true);
+        });
+
+        it("leaves the binding uncaptured on an empty hand — a later ref/if reads as skipped (CR 608.2b)", () => {
+            const id = registerScript("test-op-discardrand-bind-empty", [
+                {
+                    op: "discardAtRandom",
+                    player: "controller",
+                    count: 1,
+                    bind: "$disc",
+                },
+                { op: "moveZone", target: { ref: "$disc" }, to: "battlefield" },
+            ]);
+            const state = makeState();
+            pushSpell(state, id, "p1");
+            expect(() => resolveTopOfStack(state)).not.toThrow();
+            expect(state.players[0].battlefield).toHaveLength(0);
+        });
+
+        it("the reanimated permanent survives the wire projection (wire format)", () => {
+            const id = registerScript("test-op-discardrand-bind-wire", [
+                {
+                    op: "discardAtRandom",
+                    player: "controller",
+                    count: 1,
+                    bind: "$disc",
+                },
+                { op: "moveZone", target: { ref: "$disc" }, to: "battlefield" },
+            ]);
+            const bear = makeInstance(BEAR_ID, {
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+                id: "bindBear3",
+            });
+            const state = soloHand(bear);
+            pushSpell(state, id, "p1");
+            resolveTopOfStack(state);
+            const projected = projectPublicState(state, 1, "p1");
+            expect(
+                projected.players[0].battlefield.some(
+                    (c) => c.id === "bindBear3"
+                )
+            ).toBe(true);
+        });
+    });
 });
 
 describe("Effect Script Op: preventRegeneration (CR 701.15c)", () => {

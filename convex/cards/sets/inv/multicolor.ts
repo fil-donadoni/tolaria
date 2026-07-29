@@ -2054,19 +2054,122 @@ export const shivanOasis: CardDefinition = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────
-// Deferred (engine capability gaps) — RG (issue #1078, tracked-by #1123)
+// RG gold (issue #1078) — Aether Rift shipped (issue #1123), Overabundance
+// still deferred
 // ─────────────────────────────────────────────────────────────────────────
 
 // Aether Rift — {1}{R}{G} Enchantment. "At the beginning of your upkeep,
-// discard a card at random. If you discard a creature card this way,
-// return it from your graveyard to the battlefield unless any player pays
-// 5 life." tracked-by: #1123 (three separate gaps: (1) no random-discard
-// Effect Script Op — `discardAtRandom` only exists as an ACTIVATION COST
-// (Coral Helm), never as a triggered-ability EFFECT; (2) no `bind` on a
-// random discard to read the discarded card's type back for the "if you
-// discard a creature card" `if`; (3) `mayPay`'s `player` is a single named
-// ref (CR 117.3a) — "unless ANY player pays" lets EITHER player respond,
-// a different (first-responder) shape `mayPay` doesn't express.)
+// discard a card at random. If you discard a creature card this way, return
+// it from your graveyard to the battlefield unless any player pays 5 life."
+// (CR 701.8a random discard, CR 603.2 upkeep trigger, CR 117.3a "unless a
+// player pays", CR 400.7 graveyard→battlefield zone change. Closes issue
+// #1123's three sub-gaps against Aether Rift.)
+//
+// Gap 1+2 (random discard as an EFFECT, with a bind to read the discarded
+// card back): `discardAtRandom` previously existed only as an ACTIVATION COST
+// primitive (Coral Helm's `cost.discardAtRandom`) with no Effect Script Op
+// exposing it inside `effects[]`, and no way to snapshot which card came up.
+// Both close together: the Op grew an optional `bind` (mirrors `destroy`/
+// `exile`'s `bind` shape — `bindSnapshot`) that snapshots the FIRST discarded
+// card as a `"graveyard-card"` object right after the discard (it is already
+// sitting in the public graveyard, CR 400.2 — a live read, not last-known
+// information). `$discarded` then answers "was it a creature card?" via the
+// existing `boundMatchesFilter` predicate (Minsc & Boo's own snapshot-typed
+// `if`, no new predicate needed) and, if the card stays put, is reanimated
+// straight off the SAME binding by `moveZone`'s pre-existing graveyard-source
+// recovery path (issue #1469 — it re-derives ANY snapshot's id from the
+// graveyard, not just `destroy`/`exile`'s own bind).
+//
+// Gap 3 ("unless ANY player pays" — CR 117.3a, MTGJSON ruling 2009-10-01:
+// "in turn order, each player is given the option to pay 5 life"): tried
+// composing `forEach { set: "players" } + mayPay` first, per the DSL-first
+// stop-and-compose discipline — it does NOT compose cleanly. `mayPay`'s
+// pending-choice key is `${resolutionStep}:${choiceId}` (`requestMayPay`,
+// `gre/state.ts`); `scopedContext`'s forEach iteration-scoping (`gre/effects/
+// interpreter.ts`) rewrites `noteChoice`/`recallChoice`/`requestChoice`
+// per-iteration but NOT `requestMayPay`, so two `mayPay` calls at the same
+// script position from different forEach members would collide on the exact
+// same key — the second player's answer would either overwrite the first's
+// or silently replay it. Composed instead with TWO SEQUENTIAL `mayPay` Ops
+// (no forEach) + nested `if`s: this engine is 2-player/solo-only by design
+// (CLAUDE.md "Out of Scope — 3+ player multiplayer"), so "ask each player in
+// APNAP order, stop at the first yes" is exactly "ask controller, then
+// (nested) ask opponent only if controller declined" — CR 101.4's APNAP order
+// starts with the active player, which here IS Aether Rift's controller
+// (the ability only fires at their own upkeep). Reanimation is nested three
+// `if`s deep ("neither paid"), so no AND-of-two-bindings predicate is needed
+// either — a second reusable primitive gap avoided along with the first.
+export const aetherRift: CardDefinition = {
+    id: "692c186a-997c-4f7e-a339-bf84884e1019",
+    rarity: "rare",
+    name: "Aether Rift",
+    oracleText:
+        "At the beginning of your upkeep, discard a card at random. If you discard a creature card this way, return it from your graveyard to the battlefield unless any player pays 5 life.",
+    manaCost: { X: 1, R: 1, G: 1 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        {
+            id: "aether-rift-upkeep-discard",
+            oracleText:
+                "At the beginning of your upkeep, discard a card at random. If you discard a creature card this way, return it from your graveyard to the battlefield unless any player pays 5 life.",
+            event: "PHASE_BEGIN",
+            matches: (event, self) =>
+                event.type === "PHASE_BEGIN" &&
+                event.phase === "UPKEEP" &&
+                event.activePlayerId === self.controllerId,
+            effects: [
+                {
+                    op: "discardAtRandom",
+                    player: "controller",
+                    count: 1,
+                    bind: "$discarded",
+                },
+                {
+                    op: "if",
+                    predicate: {
+                        boundMatchesFilter: { ref: "$discarded" },
+                        filter: { type: "Creature" },
+                    },
+                    then: [
+                        {
+                            op: "mayPay",
+                            player: "controller",
+                            cost: { life: 5 },
+                            prompt: "Pay 5 life, or the discarded creature returns to the battlefield (Aether Rift)?",
+                            bind: "$p1Paid",
+                        },
+                        {
+                            op: "if",
+                            predicate: { not: { binding: "$p1Paid" } },
+                            then: [
+                                {
+                                    op: "mayPay",
+                                    player: "opponent",
+                                    cost: { life: 5 },
+                                    prompt: "Pay 5 life, or the discarded creature returns to the battlefield (Aether Rift)?",
+                                    bind: "$p2Paid",
+                                },
+                                {
+                                    op: "if",
+                                    predicate: {
+                                        not: { binding: "$p2Paid" },
+                                    },
+                                    then: [
+                                        {
+                                            op: "moveZone",
+                                            target: { ref: "$discarded" },
+                                            to: "battlefield",
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    ],
+};
 
 // Overabundance — {1}{R}{G} Enchantment. "Whenever a player taps a land
 // for mana, that player adds one mana of any type that land produced, and

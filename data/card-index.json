@@ -152,6 +152,14 @@
         "firstPrintSet": "leg"
     },
     {
+        "name": "Aether Rift",
+        "scryfallId": "692c186a-997c-4f7e-a339-bf84884e1019",
+        "oracleId": "2577ef8e-d85e-47af-ac34-629f31992751",
+        "firstSet": "inv",
+        "firstPrintId": "692c186a-997c-4f7e-a339-bf84884e1019",
+        "firstPrintSet": "inv"
+    },
+    {
         "name": "Aether Spellbomb",
         "scryfallId": "f3792e8b-4ad7-4e2d-994c-c4eaac0fa55f",
         "oracleId": "4b033a0a-c1ae-44d7-9662-72cbbfda024b",
