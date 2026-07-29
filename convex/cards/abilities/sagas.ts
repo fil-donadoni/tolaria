@@ -6,9 +6,11 @@
 // What the expander injects, per CR 714:
 //
 //   - 714.3a — "this Saga enters with a lore counter on it": one `entersWith`
-//     lore counter. (See ADR 0078 §9 for the tracked divergence: `entersWith`
-//     is not suppressed under ability-loss, a pre-existing engine-wide gap
-//     covering fading/vanishing/ravenous too — tracked-by: #1882.)
+//     lore counter. Suppressed under a layer-6 ability-loss like every other
+//     CR 614.1c entry-counter clause (issue #1882): a Saga entering while
+//     Humility / Blood Moon is already out gets ZERO lore counters — 714.3a is
+//     an ability, and the gate lives at the shared `applyEntersWithCounters`
+//     choke point, so no Saga-specific code is involved.
 //   - 714.2b — "{rN} — [Effect]" means "When one or more lore counters are put
 //     onto this Saga, if the number of lore counters on it was less than N and
 //     became at least N, [effect]". Built on the shipped `counterAddedTrigger`
