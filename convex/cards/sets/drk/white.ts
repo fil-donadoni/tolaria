@@ -418,7 +418,7 @@ export const martyrsCry: CardDefinition = {
     // NOT DSL-migratable (ADR 0045): "all white creatures" needs a colour
     // filter (EffectCardFilter is type/subtype only), and the per-controller
     // draw count is a snapshot the value grammar can't express. Stays
-    // resolve(). tracked-by: #1283
+    // resolve(). tracked-by: #1841
     resolve: (ctx: SpellContext) => {
         // Snapshot per-controller white creatures first (CR 608.2g — the count
         // is fixed by what is exiled, not by post-exile board state).

@@ -354,7 +354,7 @@ export const loreholdCharm: CardDefinition = {
 // less" as the exact NOT-expressible case) — there is no DYNAMIC (chosen-X)
 // mana-value ceiling for a `forEach`/battlefield-sweep filter. Do not invent
 // a name or paper over the gap with `resolve()`.
-// tracked-by: #898
+// tracked-by: #1841
 // export const viciousRivalry: CardDefinition = {
 //     id: "6fa9cd18-3181-4373-ab65-49bf9de9487f",
 //     name: "Vicious Rivalry",

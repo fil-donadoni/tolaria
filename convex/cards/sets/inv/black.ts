@@ -48,8 +48,11 @@
 //         stacked with #1120's hand-sweep gap, and a pay-more-for-flash
 //         cast-timing rider, respectively — setColor itself, #1085's own
 //         Op, shipped and is no longer these cards' blocker).
-//       - Yawgmoth's Agenda → tracked-by #686 (graveyard-cast permission +
-//         replacement capability, already an open issue before this tranche).
+//       - Yawgmoth's Agenda → tracked-by #1238 (graveyard-cast permission +
+//         replacement capability. Was #686, which has since closed without
+//         building it; #1238 "[engine] Yawgmoth's Agenda: indefinite
+//         graveyard-cast permission + one-spell-per-turn cap" is the live
+//         owner).
 // ═════════════════════════════════════════════════════════════════════════════
 
 import type {

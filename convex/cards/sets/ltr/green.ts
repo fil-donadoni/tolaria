@@ -35,10 +35,11 @@
 // Generous Ent — "Reach. When this creature enters, create a Food token.
 // Forestcycling {1} ({1}, Discard this card: Search your library for a
 // Forest card, reveal it, put it into your hand, then shuffle.)" Blocked:
-// Forestcycling (CR 702.29, a `[Subtype]cycling` variant) is `status:
-// "planned"` in mechanicsRegistry.ts (tracked-by #689) — no cycling special
-// action exists yet. Kept as a whole-card stub rather than a partial ship.
-// tracked-by: #689
+// Forestcycling (CR 702.29c, a `[Subtype]cycling` variant) has no Mechanics
+// Registry row at all — plain Cycling is `implemented`, the typecycling
+// variant is uncensused and unbuilt. Kept as a whole-card stub rather than a
+// partial ship (the ETB Food token is free today).
+// tracked-by: #1839
 // export const generousEnt: CardDefinition = {
 //     id: "85d22d5d-3875-42ff-b51e-c6e21db201f5",
 //     name: "Generous Ent",

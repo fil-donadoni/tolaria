@@ -23,14 +23,15 @@
 // Troll of Khazad-dûm — "This creature can't be blocked except by three or
 // more creatures. Swampcycling {1} ({1}, Discard this card: Search your
 // library for a Swamp card, reveal it, put it into your hand, then
-// shuffle.)" Blocked: Swampcycling (CR 702.29, a `[Subtype]cycling` variant)
-// is `status: "planned"` in mechanicsRegistry.ts (tracked-by #689) — no
-// cycling special action exists yet. Kept as a whole-card stub rather than a
+// shuffle.)" Blocked: Swampcycling (CR 702.29c, a `[Subtype]cycling` variant)
+// has no Mechanics Registry row at all — plain Cycling is `implemented`, the
+// typecycling variant is uncensused and unbuilt.
+// Kept as a whole-card stub rather than a
 // partial ship (its "can't be blocked except by three or more creatures"
 // static is a generalization of the existing menace minimum-blocker
 // threshold, `gre/combat.ts` `getMinimumBlockers` — distinct, non-tutor-
 // related combat-system work tangential to this issue's tutor/fetch scope).
-// tracked-by: #689
+// tracked-by: #1839
 // export const trollOfKhazadDum: CardDefinition = {
 //     id: "a6539e26-b63b-4725-9407-caaf451de084",
 //     name: "Troll of Khazad-dûm",

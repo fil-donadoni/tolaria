@@ -129,8 +129,9 @@ export const showAndTell: CardDefinition = {
 // and "untap up to six lands" (a ranged 0..6 cross-battlefield pick), neither
 // of which has been re-assessed against the current Op vocabulary — left
 // unmigrated here to stay in scope for #1279 (whole-zone-move only).
-// tracked-by: #1279 (closed — informational only, the remaining blockers
-// above are untracked; flag a fresh issue before attempting migration)
+// tracked-by: #1841 (#1279, which shipped the whole-zone move, is closed —
+// the two blockers above outlived it and had no owner; #1841 owns them until
+// they are split out)
 //
 // Two more clauses ride the same `resolveSteps` body (CR 608.2) rather than a
 // bare `resolve`, since the seven-card draws are IRREVERSIBLE and must run

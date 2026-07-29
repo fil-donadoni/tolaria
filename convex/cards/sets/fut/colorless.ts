@@ -64,10 +64,13 @@ export const horizonCanopy: CardDefinition = {
 // Sword of the Meek — {2} Artifact — Equipment. "Equipped creature gets
 // +1/+2. Equip {2}. Whenever a 1/1 creature you control enters, you may
 // return this card from your graveyard to the battlefield, then attach it to
-// that creature." Blocked: "return this card from your graveyard, then
-// attach it to that creature" needs an Equipment attach Op — already tracked
-// by #776 ([engine] Equipment subsystem: equip cost, attach/detach, SBA).
-// tracked-by: #776
+// that creature." Its original blocker — "needs an Equipment attach Op" —
+// is GONE: the Equipment spine shipped (#1349 `attach` Op + Equip ability +
+// detach SBA, #1350 equipped-creature-dies last-known, ADR 0065), and #776
+// is closed. This stub is therefore a RE-AUDIT candidate, not a capability
+// gap: the remaining question is only whether the graveyard→battlefield
+// return composes with `attach` in one Effect Script. Ship it or re-file.
+// tracked-by: #920
 // export const swordOfTheMeek: CardDefinition = {
 //     id: "e9f13705-6ede-4c29-a2b4-a082bf69e9c5",
 //     name: "Sword of the Meek",

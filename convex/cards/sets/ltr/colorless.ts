@@ -8,7 +8,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
 // TODO(needs-triage): implement — needs a new engine capability.
-// tracked-by: #674
+// tracked-by: #1841
 // export const palantROfOrthanc: CardDefinition = {
 //     id: "6efb6a69-562c-4d95-858d-b067444cfd7e",
 //     name: "Palantír of Orthanc",

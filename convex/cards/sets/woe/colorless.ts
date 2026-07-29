@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-// TODO(tracked-by: tolaria#917) — Agatha's Soul Cauldron: "Creatures you
+// TODO(tracked-by: tolaria#1324) — Agatha's Soul Cauldron: "Creatures you
 // control with +1/+1 counters on them have all activated abilities of all
 // creature cards exiled with [this]" is an ability-copying-from-arbitrary-
 // exiled-cards mechanism; "spend mana as though it were mana of any color to

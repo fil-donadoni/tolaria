@@ -1088,7 +1088,7 @@ export const fertileGroundInv: CardPrint = {
 // (`inv/blue.ts`): `grantAbility`'s `duration` is mandatory, and
 // `entersWith` is counters-only. Never ships a silent partial (counters
 // without trample), so the whole card stays a stub.
-// tracked-by: #1083
+// tracked-by: #1841
 // export const kavuTitan: CardDefinition = {
 //     id: "2c5fb86d-1d9a-4da2-bb5b-4266faa20197",
 //     name: "Kavu Titan",
@@ -1099,14 +1099,14 @@ export const fertileGroundInv: CardPrint = {
 
 // Rooting Kavu — "When this creature dies, you may exile it. If you do,
 // shuffle all creature cards from your graveyard into your library." The
-// "you may" gate is buildable (`mayPay` with no `cost`, issue #680), but the
-// second clause is a BULK graveyard-set move (all creature cards, no per-card
-// choice) — no `forEach`/`moveZone` selector iterates a graveyard set at all,
-// only `players`, `permanents` (battlefield), and `bound`. Same gap Gaea's
-// Blessing's mill-shuffle trigger hit (`wth/green.ts`, `resolve()` there
-// because it needed the WHOLE graveyard, no filter); this needs a FILTERED
-// bulk move, an even narrower case of the same open design.
-// tracked-by: #1056
+// "you may" gate is buildable (`mayPay` with no `cost`, issue #680). The
+// second clause was a BULK graveyard-set move with no selector — that gap is
+// now CLOSED: `EffectForEachSelector` has `{ set: "graveyard", controller?,
+// filter? }` (issue #1056, shipped; see `convex/cards/types.ts`), which is
+// exactly the FILTERED bulk move this needed. RE-AUDIT candidate: the card is
+// probably free today (forEach graveyard creature cards → moveZone to library
+// → shuffle, under a `mayPay` exile-self gate).
+// tracked-by: #1841
 // export const rootingKavu: CardDefinition = {
 //     id: "12c25a4c-d93a-402b-999f-0b9919123cc5",
 //     name: "Rooting Kavu",
@@ -1121,8 +1121,9 @@ export const fertileGroundInv: CardPrint = {
 // (`createToken` + a battlefield `count`), but the "pay {N} more to cast
 // with flash" cast-timing rider has no home — `AlternativeCost` REPLACES the
 // mana cost rather than adding to it. Same gap as Twilight's Call
-// (`inv/black.ts` issue #1085).
-// tracked-by: #1085
+// (`inv/black.ts`), which #1405 owns (the flash-surcharge cast rider split
+// out of #1085 when that closed).
+// tracked-by: #1405
 // export const saprolingSymbiosis: CardDefinition = {
 //     id: "2bb63748-5c84-43a0-8f17-a2a17f658337",
 //     name: "Saproling Symbiosis",

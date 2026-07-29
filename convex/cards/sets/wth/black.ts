@@ -14,7 +14,7 @@
 // "in any order" ordering choice Doomsday needs for its five chosen cards —
 // still missing. Not a `resolve()` card — each remaining gap is a
 // missing-Op stop-and-issue case, not a justified escape hatch.
-// tracked-by: #1125
+// tracked-by: #1841
 // export const doomsday: CardDefinition = {
 //     id: "5b3c6d87-9383-450b-bba5-33435b6b0d08",
 //     name: "Doomsday",
