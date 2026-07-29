@@ -71,6 +71,39 @@ const BOT_GLOB_NODE = ["convex/**/*.bot.test.ts", "scripts/**/*.bot.test.ts"];
 const BOT_GLOB_JSDOM = ["src/**/*.bot.test.{ts,tsx}"];
 
 // ─────────────────────────────────────────────────────────────────────────────
+// BOT FAST LANE — `TOLARIA_BOT_FAST=1` (issue #1912).
+//
+// The light pre-PR gate (`check:pr`) ran no tests at all, and the bot suite is
+// the one place catalogue-wide GUARDS live: `aiEffectsGuard` (a new
+// `resolve()`/`resolveSteps` card with no AI valuation), `pickRatings` (a cube
+// card with no pick rating), `opValuerCoverage` (a new Op with no valuer), the
+// `moves`/`cardProfile` censuses. Shipping a card trips them routinely — and
+// three consecutive card PRs reached a green `check:pr` while red in the bot
+// suite, each caught only by human/agent review or by CI after the fact.
+//
+// So `check:pr` now runs the bot suite too — minus a DENY-LIST of the few
+// genuinely expensive files. The cost distribution makes this cheap: measured
+// per-file, `ai-diagnosis.bot.test.ts` alone is 163s of the suite's 188s, and
+// the remaining 65 files total ~25s of test time.
+//
+// DENY-list, not an allow-list of guards, on purpose: an allow-list silently
+// stops covering every guard added after it was written — the hand-maintained
+// list anti-pattern this repo has already paid for elsewhere. With a deny-list
+// a NEW bot guard is picked up for free, and only a new genuinely-slow file
+// needs a decision here.
+//
+// The deny-listed files still run in the full gate (`bun run test:bot`) — this
+// lane defers them, it never drops them.
+// ─────────────────────────────────────────────────────────────────────────────
+const HEAVY_BOT_GLOB = [
+    // Real ISMCTS ladder episodes at up to 20k iterations — 163s on its own,
+    // i.e. ~87% of the entire bot suite's runtime.
+    "**/ai-diagnosis.bot.test.ts",
+];
+const BOT_FAST = process.env.TOLARIA_BOT_FAST === "1";
+const botExclude = BOT_FAST ? [...exclude, ...HEAVY_BOT_GLOB] : exclude;
+
+// ─────────────────────────────────────────────────────────────────────────────
 // WORKER CAP — CPU admission control (see scripts/gate.ts for the full rationale).
 //
 // Vitest defaults to `ncpu - 1` workers per invocation. That is correct for ONE
@@ -121,7 +154,7 @@ export default defineConfig({
                     name: "bot-node",
                     environment: "node",
                     include: BOT_GLOB_NODE,
-                    exclude,
+                    exclude: botExclude,
                     isolate: false,
                     // A bot test runs a real ISMCTS search (the ai-diagnosis
                     // ladder tops out at 20k iterations, and since ADR 0015
@@ -139,7 +172,7 @@ export default defineConfig({
                     environment: "jsdom",
                     setupFiles: ["./vitest.setup.ts"],
                     include: BOT_GLOB_JSDOM,
-                    exclude,
+                    exclude: botExclude,
                     testTimeout: 60_000,
                 },
             },
