@@ -127,7 +127,7 @@ export const sandstormSalvager: CardDefinition = {
 // Ancient Cornucopia — "Whenever you cast a spell that's one or more colors,
 // you may gain 1 life for each of that spell's colors. Do this only once
 // each turn.\n{T}: Add one mana of any color." STOP-AND-ISSUE
-// (tracked-by: #675): the mana ability alone is trivial (the established
+// (tracked-by: #1841): the mana ability alone is trivial (the established
 // any-colour `manaChoices` shape), but the triggered life-gain needs the
 // firing SPELL_CAST event's `colors.length` (an Effect Script trigger site
 // does NOT thread the firing event in — only `resolve()` reads it — so this

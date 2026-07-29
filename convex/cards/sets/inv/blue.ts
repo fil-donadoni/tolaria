@@ -26,7 +26,7 @@
 // reveal-and-compare retarget protocol, and creature-type protection — the
 // last, Shoreline Raider, was never in #1083's own gap list; it hits an
 // unrelated CR 702.16k protection-from-creature-type engine gap) and stay
-// commented stubs, each still tagged `// tracked-by: #1083` — a
+// commented stubs, each still tagged `// tracked-by: #1841` — a
 // stop-and-issue case (not an invented Op, not a `resolve()` paper-over).
 import type {
     CardDefinition,
@@ -723,7 +723,7 @@ export const factOrFiction: CardDefinition = {
 // supports a boolean-binding test or a numeric comparison of two EffectValues
 // (no colour-census value member) — the continuous-CDA closure form that
 // covers Zanam Djinn above does not apply to a one-shot conditional.
-// tracked-by: #1083
+// tracked-by: #1841
 // export const barrinsUnmaking: CardDefinition = {
 //     id: "4d4cecb0-12b5-4678-b5e7-8cec8fc86cef",
 //     name: "Barrin's Unmaking",
@@ -773,7 +773,7 @@ export const blindSeer: CardDefinition = {
 // creatures." No AlternativeCost shape for a "cast as flash for {N} more" cost
 // (a cast-time rule, not a resolve()-body fix), and no `if`-predicate form
 // reads a permanent's own tapped state to branch a per-member toggle.
-// tracked-by: #1083
+// tracked-by: #1841
 // export const breakingWave: CardDefinition = {
 //     id: "1b39cd77-97aa-4099-8405-366f82079758",
 //     name: "Breaking Wave",
@@ -786,7 +786,7 @@ export const blindSeer: CardDefinition = {
 // all instances of one color word with another or one basic land type with
 // another until end of turn. Draw a card." No Op or sanctioned protocol wraps
 // a one-shot text-changing effect (CR 613.1c) on an arbitrary target.
-// tracked-by: #1083
+// tracked-by: #1841
 // export const crystalSpray: CardDefinition = {
 //     id: "8798a4f1-34bb-449d-a8cc-faf8bda8e0ab",
 //     name: "Crystal Spray",
@@ -877,7 +877,7 @@ export const dreamThrush: CardDefinition = {
 // unless you pay its mana cost.'" The granted trigger's `mayPay` cost would
 // need to read the ENCHANTED PERMANENT's own printed mana cost dynamically;
 // `MayPayCost` is a static literal with no such dynamic form.
-// tracked-by: #1083
+// tracked-by: #1841
 // export const essenceLeak: CardDefinition = {
 //     id: "9099b2e6-9ed8-4a9c-97ca-77cc47678228",
 //     name: "Essence Leak",
@@ -894,7 +894,7 @@ export const dreamThrush: CardDefinition = {
 // only the flying clause, which needs a PERMANENT (non-duration) ability grant
 // on a conditional ETB — `grantAbility`'s `duration` is mandatory and
 // `grantStaticAbilityPermanent` has no Op wrapper.
-// tracked-by: #1083
+// tracked-by: #1841
 // export const faerieSquadron: CardDefinition = {
 //     id: "4c707c81-dbbd-43be-a79a-7bc92a584839",
 //     name: "Faerie Squadron",
@@ -907,7 +907,7 @@ export const dreamThrush: CardDefinition = {
 // most recently cast this turn." No game-state field tracks the most
 // recently cast spell for a `StaticCastRestriction.forbids` predicate to
 // read (`StaticEffectStateView` has no such history).
-// tracked-by: #1083
+// tracked-by: #1841
 // export const manaMaze: CardDefinition = {
 //     id: "3323b377-4f9c-55b1-b969-7e3a271344a4",
 //     name: "Mana Maze",
@@ -1036,7 +1036,7 @@ export const metathranTransport: CardDefinition = {
 // card with the greatest mana value may change the target or targets. ..."
 // A full new continuous reveal-and-compare-mana-value retargeting protocol —
 // no existing primitive comes close.
-// tracked-by: #1083
+// tracked-by: #1841
 // export const psychicBattle: CardDefinition = {
 //     id: "8758ca24-e613-43bf-be58-4cf557f82d0c",
 //     name: "Psychic Battle",
@@ -1081,7 +1081,7 @@ export const rainbowCrow: CardDefinition = {
 // parses "protection from <color|colorless>" — creature-type protection
 // (CR 702.16k) is not engine-enforced; shipping the string as decorative-only
 // staticAbilities would silently diverge from the printed rules text.
-// tracked-by: #1083
+// tracked-by: #1841
 // export const shorelineRaider: CardDefinition = {
 //     id: "d895b3b8-2acc-4c9f-8341-f651c1255b7c",
 //     name: "Shoreline Raider",
@@ -1136,7 +1136,7 @@ export const swayOfIllusion: CardDefinition = {
 // this way, destroy that permanent. Draw two cards." No target requirement
 // expresses "spell or ability that targets a land you control", and
 // countering an ACTIVATED/TRIGGERED ability (not just a spell) is unbuilt.
-// tracked-by: #1083
+// tracked-by: #1841
 // export const teferisResponse: CardDefinition = {
 //     id: "f3bb2df8-c559-4a34-83b0-d48fbc694cc8",
 //     name: "Teferi's Response",
@@ -1151,7 +1151,7 @@ export const swayOfIllusion: CardDefinition = {
 // player's upkeep, remove all hourglass counters from permanents that player
 // controls." A bespoke marker-counter-driven untap lock (CR 502.3) with no
 // existing primitive.
-// tracked-by: #1083
+// tracked-by: #1841
 // export const temporalDistortion: CardDefinition = {
 //     id: "74bd0d14-8d26-403f-9405-d0dcdecd1a49",
 //     name: "Temporal Distortion",

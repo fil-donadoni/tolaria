@@ -7,7 +7,7 @@
 // Mox Diamond — "If this artifact would enter, you may discard a land card
 // instead. If you do, put this artifact onto the battlefield. If you don't,
 // put it into its owner's graveyard.\n{T}: Add one mana of any color."
-// STOP-AND-ISSUE (tracked-by: #675): the mana ability itself (any-colour
+// STOP-AND-ISSUE (tracked-by: #1841): the mana ability itself (any-colour
 // choice) is trivial, but the ETB replacement redirects the resolving
 // permanent to a DIFFERENT zone (graveyard, not battlefield) based on a
 // discard choice made AT RESOLUTION — no existing spell/ability site can

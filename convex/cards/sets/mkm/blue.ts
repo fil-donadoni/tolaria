@@ -4,7 +4,7 @@
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
 // TODO(needs-triage): implement — needs a new engine capability.
-// tracked-by: #674
+// tracked-by: #1841
 // export const forensicGadgeteer: CardDefinition = {
 //     id: "97d08a15-e61c-4421-a541-c68a4f87cb74",
 //     name: "Forensic Gadgeteer",
@@ -17,7 +17,7 @@
 // };
 
 // TODO(needs-triage): implement — needs a new engine capability.
-// tracked-by: #674
+// tracked-by: #1841
 // export const proftsEideticMemory: CardDefinition = {
 //     id: "af5b29b3-974c-4200-8df8-b072c11e1600",
 //     name: "Proft's Eidetic Memory",

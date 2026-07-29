@@ -1068,7 +1068,7 @@ export const gravebind: CardDefinition = {
     // with a draw body, which the `scheduleDelayedTrigger` Op vocabulary
     // doesn't yet express as a self-contained effect.
     // Blocked on: a delayed-trigger-with-draw-body Op skin.
-    // tracked-by: #1283
+    // tracked-by: #1841
     resolve: (ctx: SpellContext) => {
         const t = ctx.targets[0];
         if (t?.type === "permanent") {
@@ -1922,7 +1922,7 @@ export const limDLsCohort: CardDefinition = {
             // Blocked on: a CONDITIONAL `$event.<field>`-style object selector
             // (the OTHER creature in the pair) for a plain (non-factory)
             // triggered ability.
-            // tracked-by: #1283
+            // tracked-by: #1841
             resolve: (ctx: SpellContext, event: GameEvent) => {
                 if (event.type !== "BLOCKERS_CONFIRMED") return;
                 const ev = event as BlockersConfirmedEvent;

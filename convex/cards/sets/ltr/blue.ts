@@ -8,10 +8,11 @@ import type { CardDefinition } from "../../types";
 // ({1}, Discard this card: Search your library for an Island card, reveal
 // it, put it into your hand, then shuffle.)" SIMPLIFIED (documented
 // deviation): only the main sorcery effect (CR 121.1 draw) ships here.
-// Islandcycling (CR 702.29, a `[Subtype]cycling` variant) is `status:
-// "planned"` in mechanicsRegistry.ts — no cycling special action exists yet
-// (tracked-by #689). The card is otherwise fully correct as a plain "Draw
-// three cards" sorcery; it just lacks its extra alternate-cast mode.
+// Islandcycling (CR 702.29c, a `[Subtype]cycling` variant) has no Mechanics
+// Registry row at all — plain Cycling is `implemented`, the typecycling
+// variant is uncensused and unbuilt (tracked-by: #1839). The card is
+// otherwise fully correct as a plain "Draw three cards" sorcery; it just
+// lacks its extra alternate-cast mode.
 export const lorienRevealed: CardDefinition = {
     id: "0ce44270-a684-4489-9077-521456e6dfaa",
     name: "Lórien Revealed",
