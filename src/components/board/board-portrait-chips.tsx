@@ -54,9 +54,15 @@ export default function BoardPortraitChips({
             {/* The midline is the shared band boundary (#1760), which sits
                 half the bottom bar's clearance above the viewport centre — not
                 a literal `top-1/2`, or the chip would drift into the viewer's
-                battlefield. */}
+                battlefield.
+                z-modal-top (issue #1813 review fixup, #1823), not z-30: a
+                centered pending-choice banner shares the board's `z-modal`
+                tier and, mounted later in `board.tsx`, would otherwise paint
+                over this chip and swallow its taps. The chip is the player's
+                only way to reach the stack on portrait, so it must stay
+                tappable regardless of what prompt is showing. */}
             <div
-                className={`absolute right-2 ${PORTRAIT_MIDLINE_TOP} z-30 -translate-y-1/2`}
+                className={`absolute right-2 ${PORTRAIT_MIDLINE_TOP} z-modal-top -translate-y-1/2`}
                 data-testid="stack-chip-row"
             >
                 <StackChip
@@ -67,9 +73,12 @@ export default function BoardPortraitChips({
             </div>
 
             {/* The stack overlay is the EXISTING panel, toggled by the chip
-                instead of being always-on. */}
+                instead of being always-on. `elevated` (issue #1813 review
+                fixup, #1823) — opening the stack is an explicit player
+                action; it must paint above a same-tier pending-choice
+                banner, not lose the DOM-order tiebreak to it. */}
             {stackOpen && stackItems.length > 0 && (
-                <GameStack stack={stackItems} />
+                <GameStack stack={stackItems} elevated />
             )}
         </>
     );

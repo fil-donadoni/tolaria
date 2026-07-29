@@ -2,10 +2,7 @@ import { Maximize2 } from "lucide-react";
 import type { PendingChoice } from "~/types/game";
 import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
 import { usePromptBannerPosition } from "~/hooks/usePromptBannerPosition";
-import {
-    pendingChoiceLabel,
-    pendingChoiceRequiresBoardTap,
-} from "~/lib/pending-choice-labels";
+import { pendingChoiceLabel } from "~/lib/pending-choice-labels";
 
 /** Collapsed stand-in for a minimized blocking choice dialog (issue #315).
  *  Rendered on the board while the chooser has minimized the prompt to
@@ -22,12 +19,17 @@ import {
  *  permanent to sacrifice/tap). Desktop is unchanged (dead center, though the
  *  badge itself never actually drags — its whole clickable area IS the drag
  *  handle, and `useDraggable` never starts a drag from a `button` target).
- *  Portrait (issue #1813): pinned to the same safe-area strip only when the
- *  underlying choice itself routes clicks to the mid-board
- *  (`pendingChoiceRequiresBoardTap` — same rule `pending-choice-prompt.tsx`
- *  uses for the full dialog, since minimizing just swaps which surface
- *  renders the SAME `PendingChoice`); otherwise it centers like any other
- *  non-targeting prompt. */
+ *  Portrait: **always** `pinned: true` (review fixup on #1813/#1823) — never
+ *  the dynamic `pendingChoiceRequiresBoardTap(choice)` branch the full dialog
+ *  uses. Minimizing exists SPECIFICALLY to free up the board (see this
+ *  docstring's own opening line) for whatever the player needs to tap next —
+ *  a centered badge defeats that purpose for EVERY choice, not just the ones
+ *  requiring a board tap: it still renders `w-full max-w-[22rem]
+ *  pointer-events-auto`, a 352px-wide clickable target sitting dead center of
+ *  the board, which reopens the full dialog on a tap meant for a card
+ *  underneath. The full dialog can legitimately center (nothing to click
+ *  behind an unminimized modal the player is actively reading), but the
+ *  whole point of THIS collapsed badge is to get out of the way. */
 export default function MinimizedChoiceIndicator({
     choice,
 }: {
@@ -36,9 +38,7 @@ export default function MinimizedChoiceIndicator({
     const { restore } = useMinimizedChoice();
     const label = pendingChoiceLabel(choice.kind);
     const { outerClassName, outerStyle, innerClassName, dragHandlers } =
-        usePromptBannerPosition({
-            pinned: pendingChoiceRequiresBoardTap(choice),
-        });
+        usePromptBannerPosition({ pinned: true });
 
     return (
         <div className={outerClassName} style={outerStyle}>

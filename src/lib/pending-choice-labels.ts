@@ -1,5 +1,7 @@
 import type { PendingChoiceKind } from "@convex/gre/types";
 import type { PendingChoice } from "~/types/game";
+import type { MayPayCost } from "@convex/cards/types";
+import { normalizeMayPayCost } from "~/lib/card-utils";
 
 /** UI label shown as the source tag on a pending choice prompt
  *  (the bold leading word, e.g. "Sacrifice — choose ...").
@@ -68,19 +70,68 @@ export function pendingChoiceLabel(kind: PendingChoiceKind): string {
     return PENDING_CHOICE_KIND_LABELS[kind];
 }
 
-/** Issue #1813 — does resolving this choice require the chooser to tap a
- *  permanent on the mid-board? `zone: "battlefield"` (`PendingChoice.zone`)
- *  is the authoritative signal: the UI routes clicks to battlefield
- *  permanents for every such pick — a may-pay sacrifice/threshold leg
- *  (`needsSacrificePick` / `sacrificeThreshold`, `pending-choice-prompt.tsx`),
- *  `keep-permanents` / `sacrifice-permanents` / `choose-permanents`, the
- *  non-cast Aura host choice (`choose-aura-host`, CR 303.4f), etc. A `hand`,
- *  `library`, `graveyard` or `exile` zone pick (or a zone-less choice —
- *  `may-pay` with no sacrifice leg, `option-pick`, `name-card`, yes/no) has
- *  nothing on the mid-board to cover, so it's safe to vertically center on
- *  portrait like any other non-targeting prompt. Shared by
- *  `pending-choice-prompt.tsx` and `minimized-choice-indicator.tsx` — both
- *  render the SAME `PendingChoice` and must agree on whether it pins. */
-export function pendingChoiceRequiresBoardTap(choice: PendingChoice): boolean {
+/** True when a `may-pay` cost's mana leg demands an actual payment — at least
+ *  one non-zero colored/generic pip or a variable `{X}` — as opposed to no
+ *  mana leg at all (a pure life/sacrifice/discard/energy cost) or a
+ *  degenerate all-zero mana leg. `xFactor` is a multiplier on `X`, never a pip
+ *  by itself, so it never trips this on its own. */
+function mayPayCostHasPayableManaLeg(cost: MayPayCost | undefined): boolean {
+    if (!cost) return false;
+    const norm = normalizeMayPayCost(cost);
+    if (!norm.mana) return false;
+    return Object.entries(norm.mana).some(([key, value]) => {
+        if (key === "xFactor") return false;
+        if (key === "X") return value !== undefined && value !== 0;
+        return typeof value === "number" && value > 0;
+    });
+}
+
+/** Issue #1813 — does resolving this choice route clicks to a battlefield
+ *  permanent? `zone: "battlefield"` (`PendingChoice.zone`) is the
+ *  authoritative signal: the UI routes clicks to battlefield permanents for
+ *  every such pick — a may-pay sacrifice/threshold leg (`needsSacrificePick` /
+ *  `sacrificeThreshold`, `pending-choice-prompt.tsx`), `keep-permanents` /
+ *  `sacrifice-permanents` / `choose-permanents`, the non-cast Aura host choice
+ *  (`choose-aura-host`, CR 303.4f), etc. This is the click-ROUTING predicate
+ *  only — see {@link pendingChoiceRequiresBoardTap} for the (wider) pinning
+ *  predicate built on top of it. Shared with `useBattlefieldVisualState.ts`,
+ *  `useBattlefieldInteraction.tsx` and `usePendingChoicePrimaryAction.ts`,
+ *  which used to each inline `choice.zone === "battlefield"` separately
+ *  (review fixup on #1813/#1823) — those sites want ONLY the routing
+ *  semantics (does a click on a battlefield card feed this choice?), never
+ *  the mana-leg clause below, so they stay on this narrower predicate. */
+export function pendingChoiceRoutesToBattlefield(
+    choice: PendingChoice
+): boolean {
     return choice.zone === "battlefield";
+}
+
+/** Issue #1813 (review fixup, #1823) — does resolving this choice require the
+ *  chooser to tap a permanent on the mid-board WHILE THE PROMPT IS OPEN? Built
+ *  on {@link pendingChoiceRoutesToBattlefield} (every zone==="battlefield"
+ *  choice qualifies — nothing new there) PLUS a case that predicate misses
+ *  entirely: a `may-pay` whose cost has a payable MANA leg. Those choices are
+ *  zone-less BY DESIGN (`convex/gre/state.ts`'s `requestMayPay` only sets
+ *  `zone` when the cost's sacrifice/discard leg admits a real victim/card
+ *  pick — a mana leg never sets it) — Echo
+ *  (`convex/cards/abilities/echo.ts`), cumulative upkeep
+ *  (`convex/cards/abilities/cumulativeUpkeep.ts`), and "unless you pay
+ *  {mana}" triggers (Sunken City, `convex/cards/sets/drk/blue.ts`) all land
+ *  here. Critically, there is NO auto-tap for these: the Pay button only
+ *  enables once the mana pool already covers the cost
+ *  (`usePendingChoicePrimaryAction.ts`'s `mayPayCanAfford` gate), so the
+ *  player MUST tap lands with the prompt still open — a centered banner sits
+ *  right over the permanents they need to click. A `hand`/`library`/
+ *  `graveyard`/`exile` zone pick, or a truly costless/non-mana zone-less
+ *  choice (`option-pick`, `name-card`, plain yes/no, a life-only or
+ *  sacrifice/discard-only may-pay), has nothing on the mid-board to cover, so
+ *  it's safe to vertically center on portrait like any other non-targeting
+ *  prompt. Shared by `pending-choice-prompt.tsx` and
+ *  `minimized-choice-indicator.tsx` — both render the SAME `PendingChoice` and
+ *  must agree on whether it pins. */
+export function pendingChoiceRequiresBoardTap(choice: PendingChoice): boolean {
+    return (
+        pendingChoiceRoutesToBattlefield(choice) ||
+        (choice.kind === "may-pay" && mayPayCostHasPayableManaLeg(choice.cost))
+    );
 }

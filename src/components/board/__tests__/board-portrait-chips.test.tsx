@@ -43,8 +43,18 @@ vi.mock("../../cards/selectable-card", () => ({
 // The stack panel pulls in draggable / arrow-highlight wiring irrelevant here;
 // stub it down to a marker that surfaces the item count it was handed.
 vi.mock("../game-stack", () => ({
-    default: ({ stack }: { stack: StackItem[] }) => (
-        <div data-testid="stack-view" data-count={stack.length} />
+    default: ({
+        stack,
+        elevated,
+    }: {
+        stack: StackItem[];
+        elevated?: boolean;
+    }) => (
+        <div
+            data-testid="stack-view"
+            data-count={stack.length}
+            data-elevated={elevated ?? false}
+        />
     ),
 }));
 
@@ -238,5 +248,30 @@ describe("BoardPortraitChips (#336)", () => {
         // Tap again closes it.
         fireEvent.click(screen.getByTestId("chip-stack"));
         expect(screen.queryByTestId("stack-view")).toBeNull();
+    });
+
+    it("review fixup (#1813/#1823) — the stack chip and an opened stack overlay both out-rank a same-tier pending-choice banner", () => {
+        // A centered pending-choice banner shares the board's `z-modal` tier
+        // and, mounted later in board.tsx, would otherwise win the DOM-order
+        // tiebreak and paint over both the chip and the panel it opens. Both
+        // must sit at the higher `z-modal-top` tier instead.
+        const me = makePlayer("me");
+        const opp = makePlayer("opp");
+        const stack = [
+            { id: "s1", card: { id: "def-s1" } },
+        ] as unknown as StackItem[];
+        renderChips(opp, me, stack);
+
+        expect(screen.getByTestId("stack-chip-row").className).toContain(
+            "z-modal-top"
+        );
+        expect(screen.getByTestId("stack-chip-row").className).not.toMatch(
+            /\bz-30\b/
+        );
+
+        fireEvent.click(screen.getByTestId("chip-stack"));
+        expect(
+            screen.getByTestId("stack-view").getAttribute("data-elevated")
+        ).toBe("true");
     });
 });

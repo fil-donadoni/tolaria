@@ -308,11 +308,17 @@ describe("MinimizedChoiceIndicator — mobile positioning (issue #1762)", () => 
         expect(outer.className).toContain("left-1/2");
     });
 
-    // Issue #1813 — a minimized choice whose underlying pick is NOT on the
-    // battlefield (e.g. a library/hand zone pick) has nothing on the
-    // mid-board for the badge to cover, so it follows the hook's new
-    // default: vertically centered, not pinned to the safe-area strip.
-    it("centers vertically in portrait when the underlying choice is not a battlefield pick", () => {
+    // Issue #1823 review fixup (finding 2) — SUPERSEDES the original #1813
+    // behavior this test used to assert (a non-battlefield choice's minimized
+    // badge centered like the full dialog). The full dialog may legitimately
+    // center when there's nothing on the board to cover, but the minimized
+    // badge is a DIFFERENT surface with a different job: minimizing exists
+    // SPECIFICALLY to free up the board, and a centered badge still renders
+    // `w-full max-w-[22rem] pointer-events-auto` — a 352px clickable target
+    // dead center of the board that reopens the dialog on a tap meant for a
+    // card underneath, for EVERY choice kind, not only board-tap ones. The
+    // badge is now ALWAYS pinned regardless of the underlying choice.
+    it("stays pinned to the safe-area strip even when the underlying choice is not a battlefield pick", () => {
         portrait = true;
         const min = makeMinimized({ isMinimized: true });
         const { container } = render(
@@ -336,8 +342,6 @@ describe("MinimizedChoiceIndicator — mobile positioning (issue #1762)", () => 
         expect(outer.className).not.toContain("top-1/2");
         expect(outer.className).not.toContain("left-1/2");
         expect(outer.className).toContain("fixed");
-        expect(outer.className).toContain("items-center");
-        expect(outer.className).toContain("justify-center");
-        expect(outer.className).not.toContain("env(safe-area-inset-top)");
+        expect(outer.className).toContain("env(safe-area-inset-top)");
     });
 });
