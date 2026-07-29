@@ -4,7 +4,7 @@ import { useGameContext } from "~/hooks/useGameContext";
 import { useControllerActions } from "~/hooks/useControllerActions";
 import { useControllerBarHeight } from "~/hooks/useControllerBarHeight";
 import { selectCommandSlots } from "~/lib/controller-action-slots";
-import { phaseGroupLabel } from "~/lib/phase-labels";
+import { phaseShort } from "~/lib/phase-labels";
 import BoardPileChips from "./board-pile-chips";
 import ControllerCommandRow from "./controller-command-row";
 import ControllerLifeTab from "./controller-life-tab";
@@ -67,6 +67,34 @@ import AttackAllConfirmDialog from "./attack-all-confirm-dialog";
  *  still well above the 44px floor for a single (non-subdivided) tap target,
  *  and their labels already truncate (`ControllerTabButton`) rather than
  *  reflow the bar.
+ *
+ *  **The Phase tab's label is compacted, not just left to truncate (#1815
+ *  review fixup round 3, finding 1).** At `grid-cols-6` the Phase tab is a
+ *  single column — ~53px @320px, ~65px @390px — and `ControllerTabButton`'s
+ *  label span eats ~8px of that in its own `px-1`, leaving ~45-57px of usable
+ *  text. At `text-[9px]` uppercase with `tracking-[0.14em]` (~1.26px of
+ *  letter-spacing per character on top of a ~5-6px average glyph advance),
+ *  that usable width holds only ~7 characters at the 320px floor. The old
+ *  `T{turn} · {phaseGroupLabel}` form was 11 characters for both Main phases
+ *  ("T1 · MAIN 1", "T1 · MAIN 2") and for Combat ("T1 · COMBAT") — well past
+ *  the ~7-char budget, so it truncated mid-word and lost the Main 1 vs Main 2
+ *  digit entirely. The compact `T{turn}·{phaseShort(phase)}` form
+ *  (`phase-labels.ts`'s `PhaseStep.short`, 2 letters) is 5 characters for a
+ *  single-digit turn — "T1·M1" / "T1·M2" for the two mains, "T1·BC" /
+ *  "T1·DA" / "T1·DB" / "T1·FD" / "T1·CD" / "T1·EC" for the six combat
+ *  sub-steps — comfortably inside the budget, so every one of those stays
+ *  distinct and untruncated at 320px. This only compacts today's label; it
+ *  does NOT anticipate #1818's extended sub-step surface.
+ *
+ *  **NIT (round 3, finding 4, comment-only): the zone-chips cell's 3×
+ *  `min-w-11` floor has its own lower bound.** `pile-chip.tsx`'s `compact`
+ *  math assumes the `col-span-3` cell has room for 3 × 44px (132px); below
+ *  ~304px total bar width the cell can't give all three chips their
+ *  `min-w-11` floor and they overflow their row instead of shrinking under
+ *  it (an overflow reads better than a silently-too-small tap target, but is
+ *  still a visual regression). 320px (the supported floor elsewhere in this
+ *  file and `pile-chip.tsx`) stays comfortably above that ~304px line, so no
+ *  code change — this is the documented margin, not a live bug.
  *
  *  It stays a pure presentation fork of {@link ControllerPod}: it reads the SAME
  *  `useControllerActions` descriptors, so every control dispatches the IDENTICAL
@@ -146,7 +174,10 @@ export default function ControllerBottomBar({
                     )}
 
                     <ControllerTabButton
-                        label={`T${turn} · ${phaseGroupLabel(phase)}`}
+                        // Compact `T{turn}·{short}` form (#1815 review fixup
+                        // round 3, finding 1) — see the module doc comment
+                        // below for the char/px budget this satisfies.
+                        label={`T${turn}·${phaseShort(phase)}`}
                         ariaLabel="Toggle phase list"
                         ariaExpanded={sheetOpen}
                         active={sheetOpen}

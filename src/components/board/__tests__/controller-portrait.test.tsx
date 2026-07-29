@@ -213,9 +213,11 @@ describe("Controller seam (#335)", () => {
 describe("Portrait bottom bar — same controls, same mutations", () => {
     it("shows the fixed-width phase tab and a primary Pass action", () => {
         renderController();
-        // Fixed-width `T<n> · <group>` form — the step name (which varies in
-        // width) stays inside the sheet.
-        expect(screen.getByText("T1 · Main 1")).toBeTruthy();
+        // Compact `T<n>·<short>` form (#1815 review fixup round 3, finding 1)
+        // — see `controller-bottom-bar.tsx`'s doc comment for the char/px
+        // budget this satisfies. The full step name (which varies in width)
+        // stays inside the sheet.
+        expect(screen.getByText("T1·M1")).toBeTruthy();
         // The primary action is the SAME "Pass" the desktop pod renders.
         fireEvent.click(screen.getByText(/^Pass$/));
         const pass = calls.find((c) => c.ref === "passPriority");
@@ -342,6 +344,40 @@ describe("Bottom bar tab set (#1815 review fixup, finding 4; widened round 2)", 
         const menuTab = screen.getByLabelText("Open game menu");
         expect(row.children[3]).toBe(menuTab);
     });
+});
+
+describe("Phase tab label — compact, untruncated at the 320px floor (#1815 review fixup round 3, finding 1)", () => {
+    // Char/px budget: at `grid-cols-6` the Phase tab is 1/6 of the bar — ~53px
+    // @320px, ~65px @390px (see `controller-bottom-bar.tsx`'s module doc
+    // comment). `ControllerTabButton`'s label span's own `px-1` eats ~8px,
+    // leaving ~45-57px of usable text width. At `text-[9px]` uppercase with
+    // `tracking-[0.14em]` (~1.26px letter-spacing/char atop a ~5-6px average
+    // glyph advance) that usable width fits ~7 characters at the 320px floor.
+    // The old `T{turn} · {phaseGroupLabel}` form was 11 chars for EVERY group
+    // ("T1 · MAIN 1", "T1 · MAIN 2", "T1 · COMBAT") — well past that budget,
+    // truncating mid-word and losing the Main 1 vs Main 2 digit. The compact
+    // `T{turn}·{phaseShort}` form is 5 chars for a single-digit turn, inside
+    // the ~7-char budget, so every phase below renders a DISTINCT,
+    // untruncated code — Main 1 vs Main 2, and all six combat sub-steps.
+    it.each([
+        ["PRECOMBAT_MAIN", "T1·M1"],
+        ["POSTCOMBAT_MAIN", "T1·M2"],
+        ["BEGINNING_OF_COMBAT", "T1·BC"],
+        ["DECLARE_ATTACKERS", "T1·DA"],
+        ["DECLARE_BLOCKERS", "T1·DB"],
+        ["FIRST_STRIKE_DAMAGE", "T1·FD"],
+        ["COMBAT_DAMAGE", "T1·CD"],
+        ["END_OF_COMBAT", "T1·EC"],
+    ] as const)(
+        "renders %s as the distinct compact label %s",
+        (phase, label) => {
+            renderController({ phase: phase as Phase });
+            expect(screen.getByText(label)).toBeTruthy();
+            // Every compact label stays at or under the ~7-char budget derived
+            // above — the whole point of the fix.
+            expect(label.length).toBeLessThanOrEqual(7);
+        }
+    );
 });
 
 describe("Zone chips, inline in the bar (#1815 review fixup)", () => {

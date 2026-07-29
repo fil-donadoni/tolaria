@@ -90,3 +90,14 @@ export function phaseLabel(phase: Phase): string {
 export function phaseGroupLabel(phase: Phase): string {
     return GROUP_BY_STEP[phase]?.label ?? phaseLabel(phase);
 }
+
+/** Two-letter step code for a phase (e.g. "M1", "DA") — {@link PhaseStep.short}.
+ *  Falls back to the first two letters of the phase id for anything not in the
+ *  table. Used by the portrait bottom bar's Phase tab (#1815 review fixup
+ *  round 3) to keep the collapsed label from truncating at the 320px floor —
+ *  see that component's doc comment for the char/px budget. */
+export function phaseShort(phase: Phase): string {
+    const step = STEP_BY_ID[phase];
+    if (step) return step.short;
+    return phase.slice(0, 2).toUpperCase();
+}
