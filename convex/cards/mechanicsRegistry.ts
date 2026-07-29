@@ -2634,6 +2634,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         note: 'Effect Script Op for the CR 701 keyword action "Exile" — moves the target to its owner\'s exile zone (CR 406). Supports `bind` to snapshot the permanent\'s power/toughness/controller before it leaves (Swords to Plowshares reads the exiled creature\'s power, CR 608.2h). The bind SURVIVES into exile (issue #1401, the "blink" primitive): `resolveObjectRef` learns an exile-zone fallback, so a LATER `moveZone { target: { ref: "$c" }, to: "battlefield" }` in the same script can still resolve the ref and return the just-exiled card in one resolution — see `moveZone`\'s own note.',
     },
     {
+        op: "exileSelf",
+        status: "implemented",
+        cr: "608.2",
+        binding: "SpellContext.exileSelf",
+        note: 'The resolving spell exiles ITSELF instead of going to its owner\'s graveyard (CR 608.2m default, issue #1097: "Exile Restock" / "Exile Recall"). A thin declarative skin over the pre-existing SpellContext primitive `exileSelf` (previously reachable only from a `resolve()` closure — Recall, `leg/blue.ts`), one execution path (ADR 0045): the primitive flags the CURRENTLY-RESOLVING stack item (`exileOnResolve`), which `finalizeSpellResolution` (convex/gre/state.ts) checks BEFORE the normal graveyard placement. Mirrors `shuffleSelfIntoLibrary` (issue #898) exactly, but redirects to exile instead of a shuffled library — the two are the library/exile siblings of the same self-redirect design. No parameters: it always applies to the currently-resolving spell card; no-op for an ability (no card to move) or a spell copy (CR 707.10 — a copy ceases to exist, it is never exiled).',
+    },
+    {
         op: "exileWithAttachments",
         status: "implemented",
         cr: "701.18",

@@ -9,8 +9,10 @@
 import { describe, it, expect } from "vitest";
 import {
     blurredMongoose,
+    canopySurge,
     kavuChameleon,
     kavuLair,
+    restock,
     wanderingStream,
 } from "../green";
 import {
@@ -19,6 +21,7 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
+import { registerTokenDefinition } from "../../..";
 import {
     processPendingActionTriggers,
     resolveTopOfStack,
@@ -259,5 +262,166 @@ describe("Kavu Lair (CR 603.6a ETB, power 4+ creature, controller draws)", () =>
         ];
         processPendingActionTriggers(state);
         expect(state.stack.length).toBe(0);
+    });
+});
+
+// A flying creature with toughness high enough that 4 damage (the kicked
+// mode) stays observable as marked damage rather than tripping the lethal-
+// damage SBA (which this test deliberately doesn't drive, per the interpreter
+// suite's `dealDamage` convention).
+const FLYER_ID = "test-inv-green-canopy-flyer";
+registerTokenDefinition({
+    id: FLYER_ID,
+    name: FLYER_ID,
+    rarity: "common",
+    manaCost: { X: 1, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Bird"],
+    power: 1,
+    toughness: 6,
+    staticAbilities: ["flying"],
+});
+
+describe("Canopy Surge (Kicker {2}, CR 702.33 / 120.1, issue #1097)", () => {
+    function castCanopySurge(kicked: boolean): GameState {
+        const flyer = makeInstance(FLYER_ID, {
+            id: "surge-flyer",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        // Blurred Mongoose has no flying — proves the sweep is selective.
+        const grounded = makeInstance(blurredMongoose.id, {
+            id: "surge-grounded",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [flyer, grounded] }),
+            ],
+        });
+        const item = pushSpell(state, canopySurge.id, "p1");
+        if (kicked) item.kickerCount = 1;
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    it("unkicked deals 1 damage to each creature with flying and each player", () => {
+        const state = castCanopySurge(false);
+        expect(state.players[0].life).toBe(19);
+        expect(state.players[1].life).toBe(19);
+        const flyer = state.players[1].battlefield.find(
+            (c) => c.id === "surge-flyer"
+        )!;
+        expect(flyer.damageMarked ?? 0).toBe(1);
+        const grounded = state.players[1].battlefield.find(
+            (c) => c.id === "surge-grounded"
+        )!;
+        expect(grounded.damageMarked ?? 0).toBe(0);
+    });
+
+    it("kicked deals 4 damage to each creature with flying and each player instead", () => {
+        const state = castCanopySurge(true);
+        expect(state.players[0].life).toBe(16);
+        expect(state.players[1].life).toBe(16);
+        const flyer = state.players[1].battlefield.find(
+            (c) => c.id === "surge-flyer"
+        )!;
+        expect(flyer.damageMarked ?? 0).toBe(4);
+        const grounded = state.players[1].battlefield.find(
+            (c) => c.id === "surge-grounded"
+        )!;
+        expect(grounded.damageMarked ?? 0).toBe(0);
+    });
+
+    it("declares the kicker cost {2}", () => {
+        expect(canopySurge.kicker?.cost).toEqual({ X: 2 });
+    });
+
+    it("wire format — damage to the flying creature and both players survives projectPublicState", () => {
+        const state = castCanopySurge(false);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].life).toBe(19);
+        expect(projected.players[1].life).toBe(19);
+        const slimFlyer = projected.players[1].battlefield.find(
+            (c) => c.id === "surge-flyer"
+        )!;
+        expect(slimFlyer.damageMarked ?? 0).toBe(1);
+    });
+});
+
+describe("Restock (CR 400.7 return, CR 608.2 exile-self, issue #1097)", () => {
+    it("returns both targeted graveyard cards to hand and exiles itself instead of the graveyard", () => {
+        const gyCardA = makeInstance(blurredMongoose.id, {
+            id: "restock-gyA",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const gyCardB = makeInstance(kavuLair.id, {
+            id: "restock-gyB",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [gyCardA, gyCardB] }),
+                makePlayer("p2"),
+            ],
+        });
+        const item = pushSpell(state, restock.id, "p1", [
+            { type: "graveyard-card", id: "restock-gyA", playerId: "p1" },
+            { type: "graveyard-card", id: "restock-gyB", playerId: "p1" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.map((c) => c.id).sort()).toEqual([
+            "restock-gyA",
+            "restock-gyB",
+        ]);
+        // Exiled, not put into the graveyard (CR 608.2 "Exile ~").
+        expect(
+            state.players[0].graveyard.find((c) => c.id === item.id)
+        ).toBeUndefined();
+        expect(state.players[0].exile.map((c) => c.id)).toContain(item.id);
+    });
+
+    it("declares a two-card own-graveyard target requirement", () => {
+        expect(restock.targetRequirement).toEqual({
+            type: "card",
+            count: 2,
+            zone: "graveyard",
+            controller: "you",
+        });
+    });
+
+    it("wire format — the returned cards and the self-exile survive projectPublicState", () => {
+        const gyCardA = makeInstance(blurredMongoose.id, {
+            id: "restock-wireA",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const gyCardB = makeInstance(kavuLair.id, {
+            id: "restock-wireB",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [gyCardA, gyCardB] }),
+                makePlayer("p2"),
+            ],
+        });
+        const item = pushSpell(state, restock.id, "p1", [
+            { type: "graveyard-card", id: "restock-wireA", playerId: "p1" },
+            { type: "graveyard-card", id: "restock-wireB", playerId: "p1" },
+        ]);
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].hand).toHaveLength(2);
+        expect(projected.players[0].exile.map((c) => c.id)).toContain(item.id);
     });
 });

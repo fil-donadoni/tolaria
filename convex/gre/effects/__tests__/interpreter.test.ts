@@ -59,6 +59,7 @@ import {
 import type { GameEvent } from "../../../cards/types";
 import { backupTrigger } from "../../../cards/abilities/triggers/backupTrigger";
 import { spellCastTrigger } from "../../../cards/abilities/triggers/spellCastTrigger";
+import { flight } from "../../../cards/sets/lea/blue";
 
 /** Registers a synthetic DSL-only sorcery under a stable test id. Uses the
  *  registry's injection seam (`registerTokenDefinition` — idempotent
@@ -7661,6 +7662,149 @@ describe("EffectCardFilter.enteredThisTurn (CR 400.7, issue #1458)", () => {
     });
 });
 
+describe("EffectCardFilter.hasAbility (CR 702, issue #1097)", () => {
+    // Reads the LIVE `staticAbilities` array (propagated onto
+    // `PermanentFilter.requireAbility` by `toPermanentFilter`) — printed
+    // keywords AND any keyword GRANTED by a static effect (CR 611/113.1),
+    // since a `keyword-grant` is MATERIALIZED directly into that array at
+    // apply time (`applySourceStaticEffects`, `gre/state.ts`) rather than
+    // computed at read time, so no separate "effective abilities" helper is
+    // needed. Per the per-Op regime, this is the FIELD's own test (a new
+    // `EffectCardFilter` clause); Canopy Surge (issue #1097, `inv/green.ts`)
+    // reuses it for free.
+    const FLYER_ID = "test-effects-flyer";
+    registerTokenDefinition({
+        id: FLYER_ID,
+        name: FLYER_ID,
+        rarity: "common",
+        manaCost: { X: 1, G: 1 },
+        types: ["Creature"],
+        subtypes: ["Bird"],
+        power: 1,
+        toughness: 1,
+        staticAbilities: ["flying"],
+    });
+
+    it('destroys a creature WITH (printed) flying but NOT a creature without it ("forEach" construct)', () => {
+        const id = registerScript("test-hasability-foreach", [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    filter: { type: "Creature", hasAbility: "flying" },
+                },
+                effects: [{ op: "destroy", target: { ref: "$each" } }],
+            },
+        ]);
+        const flyer = makeInstance(FLYER_ID, {
+            id: "flyerA",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const grounded = makeInstance(BEAR_ID, {
+            id: "groundedA",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [flyer, grounded] }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield.map((c) => c.id)).toEqual([
+            "groundedA",
+        ]);
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual(["flyerA"]);
+    });
+
+    it("matches a creature GRANTED flying by a static effect, not only printed flying (Flight aura, CR 611)", () => {
+        const id = registerScript("test-hasability-granted-foreach", [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    filter: { type: "Creature", hasAbility: "flying" },
+                },
+                effects: [{ op: "destroy", target: { ref: "$each" } }],
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            id: "bear-granted",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        // Attach Flight (LEA Aura, CR 611.2 keyword-grant) via the REAL cast
+        // path — materializes "flying" onto the host's staticAbilities, not
+        // merely the printed card definition.
+        pushSpell(state, flight.id, "p2", [
+            { type: "permanent", id: "bear-granted" },
+        ]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bear-granted")!
+                .staticAbilities
+        ).toContain("flying");
+
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // The destroyed bear leaves the battlefield (its now-orphaned Flight
+        // aura is a separate CR 704.5n SBA this test doesn't drive).
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bear-granted")
+        ).toBeUndefined();
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain(
+            "bear-granted"
+        );
+    });
+
+    it("wire format — the hasAbility destroy sweep survives projectPublicState", () => {
+        const id = registerScript("test-hasability-wire", [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    filter: { type: "Creature", hasAbility: "flying" },
+                },
+                effects: [{ op: "destroy", target: { ref: "$each" } }],
+            },
+        ]);
+        const flyer = makeInstance(FLYER_ID, {
+            id: "flyerWire",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const grounded = makeInstance(BEAR_ID, {
+            id: "groundedWire",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [flyer, grounded] }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[1].battlefield.map((c) => c.id)).toEqual([
+            "groundedWire",
+        ]);
+    });
+});
+
 describe("Effect Script Op: animate (CR 208.2 / 611.1, issue #1317)", () => {
     // A LAND (not the BEAR_ID creature fixture) becomes a creature — the
     // canonical Earthbend N shape (Badgermole Cub, tla/green.ts): base 0/0,
@@ -8016,6 +8160,98 @@ describe("Effect Script Op: shuffleSelfIntoLibrary (CR 608.2 / 701.24, issue #89
         const opp = projectPublicState(state, 1, "p2");
         const oppLib = opp.players[0].library as unknown as { count: number };
         expect(oppLib.count).toBe(5);
+    });
+});
+
+describe("Effect Script Op: exileSelf (CR 608.2, issue #1097)", () => {
+    // The resolving spell exiles ITSELF instead of going to the graveyard
+    // (Recall / Restock). Proof of the redirect: the card is NOT in the
+    // graveyard, IS in the owner's exile zone.
+    it("exiles the resolving spell instead of putting it in the graveyard", () => {
+        const id = registerScript("test-op-exileself", [{ op: "exileSelf" }]);
+        const state = makeState();
+        const item = pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // Not in the graveyard (the normal CR 608.2m destination is skipped).
+        expect(
+            state.players[0].graveyard.find((c) => c.id === item.id)
+        ).toBeUndefined();
+        // In the owner's exile zone instead.
+        expect(state.players[0].exile.map((c) => c.id)).toContain(item.id);
+    });
+
+    // Combined with a preceding effect (Restock's actual shape): the earlier
+    // Ops still run normally, then the spell redirects itself at the end.
+    it("composes with a preceding moveZone Op (Restock's actual shape)", () => {
+        const gyCardA = makeInstance(BEAR_ID, {
+            id: "restock-gyA",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const gyCardB = makeInstance(BEAR_ID, {
+            id: "restock-gyB",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const id = registerScript("test-op-exileself-composed", [
+            { op: "moveZone", target: { target: 0 }, to: "hand" },
+            { op: "moveZone", target: { target: 1 }, to: "hand" },
+            { op: "exileSelf" },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [gyCardA, gyCardB] }),
+                makePlayer("p2"),
+            ],
+        });
+        const item = pushSpell(state, id, "p1", [
+            { type: "graveyard-card", id: "restock-gyA", playerId: "p1" },
+            { type: "graveyard-card", id: "restock-gyB", playerId: "p1" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.map((c) => c.id).sort()).toEqual([
+            "restock-gyA",
+            "restock-gyB",
+        ]);
+        expect(
+            state.players[0].graveyard.find((c) => c.id === item.id)
+        ).toBeUndefined();
+        expect(state.players[0].exile.map((c) => c.id)).toContain(item.id);
+    });
+
+    // A copy of the spell (CR 707.10) ceases to exist on resolution instead of
+    // being exiled anywhere — mirrors `shuffleSelfIntoLibrary`'s copy no-op
+    // exactly.
+    it("does not exile a COPY of the spell (CR 707.10 — a copy ceases to exist)", () => {
+        const id = registerScript("test-op-exileself-copy", [
+            { op: "exileSelf" },
+        ]);
+        const state = makeState();
+        const item = pushSpell(state, id, "p1");
+        item.isCopy = true;
+        resolveTopOfStack(state);
+        expect(state.players[0].exile.map((c) => c.id)).not.toContain(item.id);
+        expect(
+            state.players[0].graveyard.find((c) => c.id === item.id)
+        ).toBeUndefined();
+    });
+
+    // Wire format (mandatory for a new Op, `.claude/rules/gre-development.md`):
+    // the redirected card's presence in `exile` (a full array, not a `{
+    // count }` slim projection) survives projectPublicState for both viewers.
+    it("the exiled spell survives projection in the exile zone (wire format)", () => {
+        const id = registerScript("test-op-exileself-wire", [
+            { op: "exileSelf" },
+        ]);
+        const state = makeState();
+        const item = pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const own = projectPublicState(state, 1, "p1");
+        expect(own.players[0].exile.map((c) => c.id)).toContain(item.id);
+        const opp = projectPublicState(state, 1, "p2");
+        expect(opp.players[0].exile.map((c) => c.id)).toContain(item.id);
     });
 });
 

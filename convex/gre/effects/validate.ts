@@ -277,6 +277,12 @@ function isCardFilter(value: unknown): boolean {
         if (k === "any") {
             return Array.isArray(v) && v.length > 0 && v.every(isCardFilter);
         }
+        // CR 702 (issue #1097) — "with <keyword>" (Canopy Surge's "each
+        // creature with flying"). A non-empty keyword string, shape mirrors
+        // `name`'s literal-string branch.
+        if (k === "hasAbility") {
+            return typeof v === "string" && v.length > 0;
+        }
         return false;
     });
 }
@@ -1837,6 +1843,11 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         required: { target: isObjectSelector },
         optional: { bind: isBindingName },
     },
+    // CR 608.2 (issue #1097) — the resolving spell exiles ITSELF instead of
+    // going to the graveyard (Recall / Restock). No fields — it always
+    // redirects the currently-resolving stack item. Mirrors
+    // `shuffleSelfIntoLibrary`'s empty-required shape exactly.
+    exileSelf: { required: {} },
     // CR 603.7a / 701.18 / ADR 0028 — exile the announced target keyed to
     // `$source`, arming the exile-and-return bundle (O-Ring / Banishing Light /
     // Tawnos's Coffin). `returnTapped` returns the host tapped; `includeAttachments`

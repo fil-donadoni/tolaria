@@ -79,6 +79,7 @@ const RESTRICT_COMBAT_VALUE = 45; // a targeted "can't attack/block" soft remova
 const SET_BASE_PT_VALUE = 45; // a base-P/T set (CR 613.4b) — mostly a shrink/neutralize
 const PUT_BACK_PER_CARD = 5; // Brainstorm-style card-selection upside, per card
 const SHUFFLE_SELF_VALUE = 10; // dodges the graveyard — small recursion-adjacent upside
+const EXILE_SELF_VALUE = -5; // opposite of shuffleSelfIntoLibrary — forfeits graveyard recursion (Regrowth-style) on the resolving card itself, a small downside
 const TAP_UNTAP_VALUE = 20; // Icy Manipulator-style tempo swing
 const SKIP_UNTAP_VALUE = 18; // a one-shot "doesn't untap" lock — a delayed tap
 const TRANSFORM_VALUE = 30; // a self-directed flip, assumed net-beneficial
@@ -241,6 +242,15 @@ const exile: Valuer<"exile"> = (op) => ({
     tags: isAnnouncedTarget(op.target)
         ? ["boardRemoval", "targeted"]
         : ["boardRemoval", "board-scaling"],
+});
+
+// CR 608.2 (issue #1097) — the resolving spell redirects itself from the
+// graveyard to exile (Restock, Recall). Opposite sign from
+// `shuffleSelfIntoLibrary`: it forfeits future graveyard recursion on THIS
+// card rather than gaining any, a small downside rather than an upside.
+const exileSelf: Valuer<"exileSelf"> = () => ({
+    points: EXILE_SELF_VALUE,
+    tags: [],
 });
 
 // CR 603.7a / 701.18 / ADR 0028 — the exile half of the O-Ring / Banishing
@@ -858,6 +868,7 @@ export const OP_VALUERS: {
     loseLife,
     destroy,
     exile,
+    exileSelf,
     exileWithAttachments,
     returnExiledForSource,
     counter,
