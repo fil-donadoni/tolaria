@@ -286,3 +286,98 @@ describe("CardsPile — collapsed stack flights + depth (zone-change animations)
         ).toHaveLength(0);
     });
 });
+
+// Column math (issue #1817), verified against the real classes read off
+// GameDialog/Panel at the time of writing:
+//   dialog width  = min(100vw - 32px, 90vw)              → 90vw binds above ~320px
+//   Panel padding  = p-6 (24px each side)                  = 48px total
+//   reveal wrapper = game-dialog.tsx "p-[0.2rem]"          = 6.4px total
+//   grid padding   = PILE_GRID_H_PADDING ("px-0 sm:px-2")  = 0px on mobile
+//   grid gap       = PILE_GRID_ROW_CLASS ("gap-1 sm:gap-2")= 4px per gap on mobile
+// available = dialogWidth - 48 - 6.4 - gridPadding
+//   390px viewport: dialogWidth = 0.9*390 = 351   → available = 296.6px
+//   360px viewport: dialogWidth = 0.9*360 = 324   → available = 269.6px
+// 4 tiles @ 64px (w-16) + 3 gaps @ 4px = 256 + 12 = 268px
+//   390px: 268 <= 296.6  (28.6px to spare)
+//   360px: 268 <= 269.6  (1.6px to spare — the binding case)
+// A 96px (w-24, pre-#1817) or 80px (w-20) tile does NOT fit 4-per-row within
+// this same chrome (4*96+3*8=336, 4*80+3*8=344, both far over 269.6px at
+// 360px) without also shrinking the shared Panel/GameDialog padding used by
+// ~10 other "wide" dialogs — out of scope for this issue's target file
+// (cards-pile.tsx only), so 64px (w-16) is the largest tile that reliably
+// gets a REAL (not just visually-implied) 4-per-row at both widths.
+describe("CardsPile — grid layout mobile density (issue #1817)", () => {
+    it("grid tile: shrinks the mobile width (w-16), keeps sm:w-28 unchanged", () => {
+        const card = makeCard("card-1");
+        const { baseElement } = render(
+            <CardsPile
+                cards={[card]}
+                isFaceDown={false}
+                layout="grid"
+                forceOpen
+                onCardClick={vi.fn()}
+            />
+        );
+        const wrapper = findCardWrapper(baseElement, "card-1");
+        // wrapper = the clickable/dimmed node inside "relative w-full
+        // aspect-5/7"; its grandparent is the tile root carrying the width
+        // classes (GridCard's outer `flex w-16 sm:w-28 ...` div).
+        const tileRoot = wrapper?.parentElement?.parentElement;
+        expect(tileRoot?.className).toContain("w-16");
+        expect(tileRoot?.className).toContain("sm:w-28");
+        expect(tileRoot?.className).not.toContain("w-24");
+    });
+
+    it("grid row: shrinks the mobile gap/padding, restores today's spacing at sm:", () => {
+        const cards = [makeCard("a"), makeCard("b")];
+        const { baseElement } = render(
+            <CardsPile
+                cards={cards}
+                isFaceDown={false}
+                layout="grid"
+                forceOpen
+                onCardClick={vi.fn()}
+            />
+        );
+        const wrapper = findCardWrapper(baseElement, "a");
+        // wrapper -> "relative w-full aspect-5/7" -> tile root (w-16 sm:w-28)
+        // -> the row div (PILE_GRID_ROW_CLASS + PILE_GRID_H_PADDING).
+        const rowDiv = wrapper?.parentElement?.parentElement?.parentElement;
+        expect(rowDiv?.className).toContain("gap-1");
+        expect(rowDiv?.className).toContain("sm:gap-2");
+        expect(rowDiv?.className).toContain("px-0");
+        expect(rowDiv?.className).toContain("sm:px-2");
+    });
+
+    it("categorized sections reuse the identical row/tile classes as the flat grid (shared constant, not a per-variant copy)", () => {
+        const cards = [makeCard("keeper"), makeCard("other")];
+        const categories = [{ label: "Creatures", cardIds: ["keeper"] }];
+        const { baseElement } = render(
+            <CardsPile
+                cards={cards}
+                isFaceDown={false}
+                layout="grid"
+                forceOpen
+                onCardClick={vi.fn()}
+                categories={categories}
+            />
+        );
+
+        const keeperWrapper = findCardWrapper(baseElement, "keeper");
+        const keeperTile = keeperWrapper?.parentElement?.parentElement;
+        const keeperRow = keeperTile?.parentElement;
+        expect(keeperTile?.className).toContain("w-16");
+        expect(keeperTile?.className).toContain("sm:w-28");
+        expect(keeperRow?.className).toContain("gap-1");
+        expect(keeperRow?.className).toContain("sm:gap-2");
+
+        // "other" matches no category → falls into the trailing "Not
+        // keepable" section, same shared row class.
+        const otherWrapper = findCardWrapper(baseElement, "other");
+        const otherTile = otherWrapper?.parentElement?.parentElement;
+        const otherRow = otherTile?.parentElement;
+        expect(otherTile?.className).toContain("w-16");
+        expect(otherRow?.className).toContain("gap-1");
+        expect(otherRow?.className).toContain("sm:gap-2");
+    });
+});

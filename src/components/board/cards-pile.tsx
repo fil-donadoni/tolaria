@@ -347,11 +347,13 @@ function GridCard({
             {faceDown ? (
                 <CardBack />
             ) : (
-                // Grid dialog cards render w-24 sm:w-28 (96–112px) — a mid
-                // slot, no `thumb`; hint at the upper bound.
+                // Grid dialog cards render w-16 sm:w-28 (64–112px, issue
+                // #1817) — a mid slot, no `thumb`; hint at both bounds so the
+                // browser doesn't over-fetch the 112px source on a phone
+                // rendering the 64px mobile tile.
                 <CardImage
                     card={cardInstance}
-                    sizes="112px"
+                    sizes="(min-width: 640px) 112px, 64px"
                     includeThumb={false}
                 />
             )}
@@ -364,7 +366,7 @@ function GridCard({
     const action = renderCardAction?.(cardInstance, onClose);
     const caption = faceDown ? null : captionFor?.(cardInstance);
     return (
-        <div className="flex w-24 sm:w-28 shrink-0 flex-col gap-1">
+        <div className={`flex ${PILE_GRID_TILE_W} shrink-0 flex-col gap-1`}>
             <div className="relative w-full aspect-5/7">
                 {clickable ? (
                     <button
@@ -395,6 +397,32 @@ function GridCard({
         </div>
     );
 }
+
+/** Grid-layout pile tile width (issue #1817 — denser mobile pile browser).
+ *  96px (`w-24`) is only 3-per-row on a ~360-390px phone once the dialog's
+ *  Panel chrome (24px padding each side) and the reveal wrapper are
+ *  accounted for; 64px (`w-16`) gets a real 4-per-row at both widths (see the
+ *  column math in `__tests__/cards-pile.test.tsx`). `sm:` and above keep
+ *  today's 112px unchanged per the acceptance criteria. Shared by the flat
+ *  grid AND every categorized section (`GridLayout` below) so every pile
+ *  browser variant (library, graveyard, exile) gets identical sizing — no
+ *  per-variant copy to drift out of sync. */
+const PILE_GRID_TILE_W = "w-16 sm:w-28";
+
+/** Grid-layout row of tiles (issue #1817). The horizontal gap shrinks on
+ *  mobile (4px vs 8px) alongside `PILE_GRID_TILE_W` so 4 columns fit at
+ *  360-390px phone widths; `sm:` and above keep today's `gap-2`. Shared by
+ *  the flat grid and every categorized section — same reuse rationale as
+ *  `PILE_GRID_TILE_W`. */
+const PILE_GRID_ROW_CLASS = "flex flex-wrap gap-1 sm:gap-2 justify-center";
+
+/** Grid-layout horizontal padding (issue #1817). Zeroed on mobile — the
+ *  dialog's own Panel chrome already provides generous clearance from the
+ *  screen edge — and restored to today's `px-2` at `sm:` and above. Shared
+ *  by the flat grid's outer wrapper and the categorized layout's outer
+ *  wrapper (both play the same "outer padding" role; the categorized layout
+ *  additionally nests one `PILE_GRID_ROW_CLASS` row per section). */
+const PILE_GRID_H_PADDING = "px-0 sm:px-2";
 
 /** A category header above a section of the categorized grid (issue #1364).
  *  Mirrors the picker's ZoneLabel chrome (uppercase, muted) so the reveal reads
@@ -454,7 +482,9 @@ function GridLayout({
 
     if (!categories) {
         return (
-            <div className="flex flex-wrap gap-2 justify-center py-4 px-2">
+            <div
+                className={`${PILE_GRID_ROW_CLASS} py-4 ${PILE_GRID_H_PADDING}`}
+            >
                 {cards.map((cardInstance) => (
                     <GridCard
                         key={cardInstance.id}
@@ -468,14 +498,14 @@ function GridLayout({
 
     const { sections, ungrouped } = buildCategorySections(cards, categories);
     return (
-        <div className="flex flex-col gap-3 py-4 px-2">
+        <div className={`flex flex-col gap-3 py-4 ${PILE_GRID_H_PADDING}`}>
             {sections.map((section) => (
                 <div key={section.label} className="flex flex-col gap-1.5">
                     <CategoryHeader
                         label={section.label}
                         count={section.cards.length}
                     />
-                    <div className="flex flex-wrap gap-2 justify-center">
+                    <div className={PILE_GRID_ROW_CLASS}>
                         {section.cards.map((cardInstance) => (
                             <GridCard
                                 key={cardInstance.id}
@@ -492,7 +522,7 @@ function GridLayout({
                         label="Not keepable"
                         count={ungrouped.length}
                     />
-                    <div className="flex flex-wrap gap-2 justify-center">
+                    <div className={PILE_GRID_ROW_CLASS}>
                         {ungrouped.map((cardInstance) => (
                             <GridCard
                                 key={cardInstance.id}
