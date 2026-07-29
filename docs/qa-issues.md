@@ -58,6 +58,7 @@ Fable of the mirror-breaker
 - tangle e altre carte che danno "non stappa nel prossimo untap" funzionano, ma non c'è il dato di questa abilità ritardata nell'oracle text della card-preview. bisogna che il giocatore lo veda sempre
 - restock: il testo della choiche dialog dice una carta, ma selezionandone 2 ne recupero 2, correttamente. correggere la ux
 - quando ho messo il companion in mano, la zona companion puo' anche scomparire per il resto del game
+- quirion elves: la scelta deve essere scritta nell'oracle text della card-preview, come per chromatic armor
 
 # Bug gameplay
 
