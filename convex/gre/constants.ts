@@ -166,6 +166,82 @@ export function manaValue(cost?: ManaCost): number {
     return total;
 }
 
+/** Exact STRUCTURAL comparison of two printed mana costs (CR 202, issue
+ *  #1881, ADR 0078 decision 8) — `EffectCardFilter.manaCostEquals`'s reader.
+ *  Distinct from `manaValue` right above, which collapses a cost to one
+ *  number and therefore can't tell `{X}` (mana value 0) from `{0}`, or `{W}`
+ *  (mana value 1) from `{1}`.
+ *
+ *  A VARIABLE `{X}` cost (`X: "X"`) never equals a FIXED one (CR 202.3b):
+ *  Chalice of the Void's `{X}` and Engineered Explosives' `{X}{X}` both have
+ *  mana value 0 but match neither `{0}` (`{}`) nor `{1}` (`{X: 1}` /
+ *  `{generic: 1}`); `{X}` != `{X}{X}` either (different `xFactor`).
+ *
+ *  A numeric `X` and `generic` are the SAME characteristic — the fixed
+ *  portion of the cost, split only to coexist with a variable `{X}` in the
+ *  same cost (Soul Burn's `{X}{2}{B}`, see `ManaCost.generic`'s own doc
+ *  comment) — so they're folded into one total before comparing: `{X: 1}`
+ *  and `{generic: 1}` both mean the printed cost `{1}` and compare equal.
+ *
+ *  `phyrexian`/`hybrid` pips (CR 107.4f / 202.1a) are compared as per-colour
+ *  / per-pair-shape MULTISETS — pip order never matters (CR 202.2) — reusing
+ *  `hybridCostKey` so `{B/G}{B/G}` and `{G/B}{B/G}` (two spellings of the
+ *  same pair) compare equal. */
+export function manaCostsEqual(a: ManaCost, b: ManaCost): boolean {
+    for (const color of MANA_COLORS) {
+        if ((a[color] ?? 0) !== (b[color] ?? 0)) return false;
+    }
+    const aVariable = a.X === "X";
+    const bVariable = b.X === "X";
+    if (aVariable !== bVariable) return false;
+    // A numeric `X` doubles as the generic slot (see doc comment above) — fold
+    // both fields into one fixed-generic total before comparing. This runs on
+    // BOTH branches (issue #1881 review finding 1): `generic` can coexist with
+    // a variable `{X}` marker too (Soul Burn `{X}{2}{B}` = `{X:"X", generic:2,
+    // B:1}`), so folding it only in the `else` let `{X}{R}` wrongly equal
+    // `{X}{2}{R}` (a fixed `generic` was compared against nothing on the
+    // variable path).
+    const aGeneric = (typeof a.X === "number" ? a.X : 0) + (a.generic ?? 0);
+    const bGeneric = (typeof b.X === "number" ? b.X : 0) + (b.generic ?? 0);
+    if (aGeneric !== bGeneric) return false;
+    if (aVariable) {
+        // CR 107.3 — {X}{X}-style multiplier; defaults to 1 ({X} alone).
+        if ((a.xFactor ?? 1) !== (b.xFactor ?? 1)) return false;
+    }
+    for (const color of MANA_COLORS) {
+        if ((a.phyrexian?.[color] ?? 0) !== (b.phyrexian?.[color] ?? 0)) {
+            return false;
+        }
+    }
+    if (!hybridPipsEqual(a.hybrid, b.hybrid)) return false;
+    return true;
+}
+
+/** Per-pair-shape multiset equality of two `ManaCost.hybrid` pip arrays
+ *  (issue #1881) — reuses `hybridCostKey` (`gre/manaColors.ts`) so pip order
+ *  within a pair, and pip ORDER within the array, never matter, only how
+ *  many of EACH pair shape are present (Hogaak's two `{B/G}` pips). */
+function hybridPipsEqual(
+    a: Array<[Color, Color]> | undefined,
+    b: Array<[Color, Color]> | undefined
+): boolean {
+    const countsOf = (pips: Array<[Color, Color]> | undefined) => {
+        const counts = new Map<string, number>();
+        for (const [x, y] of pips ?? []) {
+            const key = hybridCostKey(x, y);
+            counts.set(key, (counts.get(key) ?? 0) + 1);
+        }
+        return counts;
+    };
+    const aCounts = countsOf(a);
+    const bCounts = countsOf(b);
+    if (aCounts.size !== bCounts.size) return false;
+    for (const [key, count] of aCounts) {
+        if (bCounts.get(key) !== count) return false;
+    }
+    return true;
+}
+
 /** Returns the mana color a land produces via basic land subtype, or null.
  *  Reads the text-change-rewritten subtypes (CR 612 / CR 305.6) so a land
  *  whose type was changed (Magical Hack) taps for the new color. */

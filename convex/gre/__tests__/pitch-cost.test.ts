@@ -208,6 +208,47 @@ describe("canPayAlternativeCost — life & hand legs (CR 118.4 / 118.9)", () => 
         );
         expect(matches.map((c) => c.id).sort()).toEqual(["bolt", "isl"]);
     });
+
+    // `EffectCardFilter.manaCostEquals` (issue #1881 / #1898 finding 2, PR
+    // #1898 second fixup round) — the hand-leg sibling of
+    // `matchesCardFilter`'s own `manaCostEquals` branch. Before the fix,
+    // `handCardMatchesFilter` had no `manaCostEquals` case, so a
+    // `discardFilter`/hand-leg filter carrying it fell straight through to
+    // `return true` — matching EVERY hand card (fail OPEN), the identical
+    // shape issue #1898 fixed for `matchesCardFilter`. Ornithopter ({0}
+    // Artifact) is the only hand card whose printed cost structurally equals
+    // `{}`. Two lands prove the carve-out is real and not incidental: the
+    // Island (no `manaCost` field at all — a bare `def.manaCost` read would
+    // also be `undefined` there, so it proves nothing) must NOT match, and
+    // Mishra's Factory (a Land that DOES carry a printed `manaCost: {}`,
+    // `atq/colorless.ts`) must ALSO not match — only that second card
+    // actually exercises `manaCostForCardFilter`'s Land carve-out rather than
+    // an early `undefined` exit. Lightning Bolt ({R}) / Counterspell ({U}{U})
+    // must not match either.
+    it("matchingHandCardsForAltCost honors manaCostEquals — excludes non-{0} cards AND Lands (issue #1881/#1898)", () => {
+        const ornithopter = getCardByName("Ornithopter");
+        const ornithopterInst = handCard(ornithopter.id, "orn");
+        const islandInst = handCard(island.id, "isl");
+        const mishrasFactory = getCardByName("Mishra's Factory");
+        const mishrasFactoryInst = handCard(mishrasFactory.id, "fac");
+        const boltInst = handCard(lightningBolt.id, "bolt");
+        const counterspellInst = handCard(counterspell.id, "ctr");
+        const player = makePlayer("p1", {
+            hand: [
+                ornithopterInst,
+                islandInst,
+                mishrasFactoryInst,
+                boltInst,
+                counterspellInst,
+            ],
+        });
+        const matches = matchingHandCardsForAltCost(
+            player,
+            { manaCostEquals: [{}] },
+            "foil"
+        );
+        expect(matches.map((c) => c.id)).toEqual(["orn"]);
+    });
 });
 
 describe("buildAlternativeCostHandChoice — auto-resolve vs park (CR 118.9 / 601.2h)", () => {

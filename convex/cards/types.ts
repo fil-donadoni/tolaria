@@ -3980,6 +3980,16 @@ export interface SpellContext {
         supertypes: CardSupertype[];
         manaValue: number;
         colors: Color[];
+        /** Full printed mana cost (issue #1881 — `EffectCardFilter.
+         *  manaCostEquals`'s exact structural comparison, CR 202). `undefined`
+         *  for a definition-less instance, an unprinted `manaCost`, OR a Land
+         *  (CR 202.1 — no printed land has a mana cost; issue #1898 finding
+         *  2, `manaCostForCardFilter` in `gre/state.ts`) — `{}` stays a
+         *  DISTINCT real encoding of the printed cost `{0}` for a non-land
+         *  card (Ornithopter — Mishra's Factory/Workshop are Lands, the
+         *  OPPOSITE branch). `matchesCardFilter` fails CLOSED
+         *  on `undefined`. */
+        cost: ManaCost | undefined;
     }>;
 
     /** Characteristics of every card in `playerId`'s library, read from the
@@ -4003,6 +4013,12 @@ export interface SpellContext {
         supertypes: CardSupertype[];
         colors: Color[];
         manaValue: number;
+        /** Full printed mana cost (issue #1881 — `manaCostEquals`, CR 202).
+         *  `undefined` for a definition-less instance, an unprinted
+         *  `manaCost`, or a Land (see `getHandCards`'s `cost` doc for the
+         *  full rationale, issue #1898 finding 2). This is the field Urza's
+         *  Saga III's `choice(zone: "library")` search restriction reads. */
+        cost: ManaCost | undefined;
     }>;
 
     /** Characteristics of every card in `playerId`'s graveyard, read from the
@@ -4017,6 +4033,11 @@ export interface SpellContext {
         subtypes: string[];
         manaValue: number;
         colors: Color[];
+        /** Full printed mana cost (issue #1881 — `manaCostEquals`, CR 202).
+         *  `undefined` for a definition-less instance, an unprinted
+         *  `manaCost`, or a Land (see `getHandCards`'s `cost` doc, issue
+         *  #1898 finding 2). */
+        cost: ManaCost | undefined;
     }>;
     /** CR 404 / 400.7 — owner of the graveyard currently holding `id`, or
      *  undefined when the card isn't in any graveyard. Lets the interpreter
@@ -4039,6 +4060,11 @@ export interface SpellContext {
         manaValue: number;
         colors: Color[];
         counters: Record<string, number>;
+        /** Full printed mana cost (issue #1881 — `manaCostEquals`, CR 202).
+         *  `undefined` for a definition-less instance, an unprinted
+         *  `manaCost`, or a Land (see `getHandCards`'s `cost` doc, issue
+         *  #1898 finding 2). */
+        cost: ManaCost | undefined;
     }>;
     /** CR 400.7 — owner of the exile zone currently holding `id`, or undefined
      *  when the card isn't in any exile. Mirrors `getGraveyardCardOwner`. */
@@ -7805,6 +7831,35 @@ export interface EffectCardFilter {
      *  not-forbidden combination — the two are independent ceiling/exact
      *  constraints). */
     manaValueEquals?: number | EffectXValue;
+    /** Exact structural MANA-COST match (CR 202, issue #1881, ADR 0078
+     *  decision 8) — distinct from `manaValueEquals`, which folds a cost down
+     *  to one number. Urza's Saga III reads "an artifact card with **mana
+     *  cost** {0} or {1}", NOT mana value: `manaValueAtMost: 1` wrongly
+     *  admits 141 cards — 18 costed `{X}` (Chalice of the Void, Engineered
+     *  Explosives: mana value 0, cost `{X}`, never `{0}`) and 123 coloured
+     *  mana-value-1 artifacts (cost `{W}`, never `{1}`). Compared structurally
+     *  by `manaCostsEqual` (`gre/constants.ts`) against the card's FULL
+     *  printed `ManaCost`, folding in every characteristic CR 202 cares
+     *  about: WUBRGC pip counts, the combined fixed-generic total (a numeric
+     *  `X` and `generic` are the SAME characteristic, split only to coexist
+     *  with a variable `{X}` — see `ManaCost.generic`'s own doc comment),
+     *  whether `X` is the VARIABLE marker `"X"` (a variable cost never
+     *  equals a fixed one, CR 202.3b — `{X}` != `{0}`/`{1}`/anything fixed),
+     *  its `xFactor` when variable (`{X}` != `{X}{X}`), and the
+     *  `phyrexian`/`hybrid` pip multisets (CR 107.4f / 202.1a). `{0}` is
+     *  `{}`, `{1}` is `{ X: 1 }` (or `{ generic: 1 }` — both normalize to the
+     *  same fixed-generic total), `{X}` is `{ X: "X" }`. A single `ManaCost`
+     *  or a non-empty ARRAY of them (OR, mirroring `subtype`'s own array
+     *  semantics, issue #677); the `ManaCost | ManaCost[]` two-shape mirrors
+     *  `manaValueEquals`'s `number | EffectXValue` naming convention — one
+     *  scalar clause, or a disjunctive list of them. Meaningful only for a
+     *  card shape that carries its FULL printed cost (today: hand/library/
+     *  graveyard/exile snapshots via `matchesCardFilter`) — a CR 608.2h
+     *  characteristics snapshot (`boundMatchesFilter`) has no cost slot and
+     *  fails CLOSED (never matches), the same convention every other field
+     *  here uses for a card shape that lacks the data it needs. ANDed with
+     *  every other field, including `manaValueEquals` itself. */
+    manaCostEquals?: ManaCost | ManaCost[];
     isToken?: boolean;
     /** "Entered the battlefield this turn" (CR 400.7, issue #1458) — a
      *  battlefield permanent matches if it ENTERED the battlefield during the
@@ -10631,7 +10686,13 @@ export interface EffectBoundMatchesFilterPredicate {
  *  `false` when the object has left the battlefield or isn't a permanent
  *  (CR 608.2b). Filter fields the battlefield matcher has no counterpart for
  *  (`manaValueAtMost`, `hasCounter`, `excludeColor`) do not constrain — the
- *  same asymmetry every other battlefield-scoped filter site already carries. */
+ *  same asymmetry every other battlefield-scoped filter site already carries.
+ *  `manaCostEquals` (issue #1881) is a step further than a merely-unconstrained
+ *  field, though: it's an EXACT structural match, so "no counterpart" means
+ *  it would match every permanent rather than none — a genuine fail-open
+ *  (issue #1898 finding 3). Unlike the three above, the validator (`gre/
+ *  effects/validate.ts`) REJECTS `manaCostEquals` on this predicate's `filter`
+ *  outright (`rejectManaCostEquals`) rather than accepting the silent gap. */
 export interface EffectObjectMatchesFilterPredicate {
     objectMatchesFilter: EffectObjectSelector;
     filter: EffectCardFilter;
