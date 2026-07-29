@@ -1502,6 +1502,14 @@ export type StackItem = CardInstanceState & {
      *  type and amount of mana spent"). Per-colour counts. Undefined for the
      *  overwhelming majority of activations that don't note their mana. */
     notedManaSpent?: Record<string, number>;
+    /** CR 106.6 / 701.13 (issue #1559, Delighted Halfling) — set at cast-cost
+     *  commit when ANY mana leg spent on this spell carried the
+     *  `RestrictedMana.cantBeCounteredRider` (`payManaCostForSpell`'s return
+     *  value). Read by `counter()` alongside the static per-definition
+     *  `CardDefinition.cantBeCountered`: either one makes the counter attempt
+     *  fizzle (the spell stays on the stack). Per-CAST, not per-card — the
+     *  same spell cast without spending that mana is perfectly counterable. */
+    dynamicCantBeCountered?: boolean;
     /** If set, this stack item is an activated ability (not a spell). Source permanent stays on battlefield. */
     abilityId?: string;
     /** When the activated ability was GRANTED to the source by another card
@@ -2175,6 +2183,17 @@ export type RestrictedMana = {
      *  is that exact instance, regardless of card type. Mutually exclusive with
      *  `restriction`. */
     castableCardId?: string;
+    /** CR 106.6 rider (Delighted Halfling, issue #1559 — Cavern of Souls
+     *  carries the same rider on its own, still-unbuilt restriction) — a
+     *  spell paid for with this mana can't be countered. Orthogonal to
+     *  `restriction`: it never changes which spells the mana is ELIGIBLE to
+     *  pay for (that's `restriction`'s job), only what happens to the spell
+     *  once mana carrying it is actually spent on it. Detected at payment by
+     *  `payManaCostForSpell`, which reports back whether any spent unit
+     *  carried it so the caller can stamp `StackItem.dynamicCantBeCountered`;
+     *  read at counter time by `counter()` alongside the static
+     *  `CardDefinition.cantBeCountered`. */
+    cantBeCounteredRider?: true;
 };
 
 /** Mid-resolution player choice requested by a spell/ability's resolve step
@@ -10958,7 +10977,15 @@ export function buildSpellContext(
             // flag, so only a spell (a card id) can carry this.
             const foundCardId = (found.card as { id?: string }).id;
             const foundDef = foundCardId ? tryGetDefinition(foundCardId) : null;
-            if (foundDef?.cantBeCountered) return;
+            // CR 106.6 rider (issue #1559, Delighted Halfling) — a spell CAST
+            // with mana carrying `cantBeCounteredRider` fizzles a counter
+            // attempt exactly like the static per-definition flag, but the
+            // flag lives on THIS stack item (`dynamicCantBeCountered`,
+            // stamped at cast-cost commit by `payManaCostForSpell`'s return
+            // value), not on the card's definition — the same card cast
+            // WITHOUT spending that mana stays perfectly counterable.
+            if (foundDef?.cantBeCountered || found.dynamicCantBeCountered)
+                return;
             const [item] = state.stack.splice(idx, 1);
             const owner = getPlayer(state, item.ownerId);
             // Abilities on the stack are not cards: activated (CR 113.7a),
@@ -14422,6 +14449,10 @@ export function buildSpellContext(
                 }
             }
 
+            // CR 106.6 rider (issue #1559) — whether the mana paid below
+            // carried `cantBeCounteredRider`; stamped onto the pushed stack
+            // item further down. Stays false on a free cast (no mana paid).
+            let usedRiderMana = false;
             // CR 601.2b (issue #1477) — a free cast ("without paying its mana
             // cost", Malcolm) waives the mana cost entirely: no auto-tap, no
             // payment, and X in the waived cost is 0 (CR 107.3b, the Op never
@@ -14469,7 +14500,15 @@ export function buildSpellContext(
                 // CR 601.2g — pay the cost from the controlled player's pool
                 // only.
                 if (Object.keys(cost).length > 0) {
-                    payManaCostForSpell(owner, cost, def.types, subs);
+                    usedRiderMana = payManaCostForSpell(
+                        owner,
+                        cost,
+                        def.types,
+                        subs,
+                        undefined,
+                        undefined,
+                        def.supertypes ?? []
+                    );
                     commitLandsForCost(owner, cost);
                 }
             }
@@ -14518,6 +14557,7 @@ export function buildSpellContext(
                 zone: "stack",
                 castById: controllerId,
                 actingPlayerId,
+                ...(usedRiderMana ? { dynamicCantBeCountered: true } : {}),
             };
             // CR 601.2c — the targets chosen by the Acting Player ride onto the
             // stack item so the spell resolves against them, exactly like a
@@ -15790,14 +15830,19 @@ export function manaSpentDelta(
 }
 
 /** True if restricted mana with `restriction` may pay for a spell with the
- *  given card types (CR 106.6). Modelled restrictions:
+ *  given card types / supertypes (CR 106.6). Modelled restrictions:
  *  - `creature-spell` — spendable solely on creature spells (Metamorphosis).
  *  - `artifact-spell` — spendable solely on artifact spells (Mishra's
- *    Workshop). Exhaustive `switch` over the union: a new member must add a
- *    case here (and the compiler enforces it). */
+ *    Workshop).
+ *  - `legendary-spell` — spendable solely on a spell with the SUPERTYPE
+ *    "Legendary" (Delighted Halfling, issue #1559) — the one member keyed on
+ *    `spellSupertypes` rather than `spellTypes`. Exhaustive `switch` over the
+ *    union: a new member must add a case here (and the compiler enforces
+ *    it). */
 export function restrictionAllowsSpell(
     restriction: ManaRestriction,
-    spellTypes: readonly string[]
+    spellTypes: readonly string[],
+    spellSupertypes: readonly string[] = []
 ): boolean {
     switch (restriction) {
         case "creature-spell":
@@ -15814,6 +15859,10 @@ export function restrictionAllowsSpell(
             // it is consumed only at the ability-activation payment path
             // (`restrictionAllowsAbility`).
             return false;
+        case "legendary-spell":
+            // CR 106.6 / 205.4a (issue #1559, Delighted Halfling) — keyed on
+            // the SUPERTYPE "Legendary", not a card type.
+            return spellSupertypes.includes("Legendary");
     }
 }
 
@@ -15834,6 +15883,9 @@ export function restrictionAllowsAbility(
         case "creature-spell":
         case "artifact-spell":
         case "cumulative-upkeep":
+        case "legendary-spell":
+            // CR 106.6 (issue #1559) — a SPELL-cast restriction, like
+            // creature-spell/artifact-spell, never permits an ACTIVATION.
             return false;
         case "artifact-ability":
             return sourceTypes.includes("Artifact");
@@ -15936,13 +15988,18 @@ export function payManaCostForAbility(
 export function restrictedUnitAllowsSpell(
     unit: RestrictedMana,
     spellTypes: readonly string[],
-    spellCardId?: string
+    spellCardId?: string,
+    spellSupertypes: readonly string[] = []
 ): boolean {
     if (unit.castableCardId !== undefined) {
         return spellCardId !== undefined && unit.castableCardId === spellCardId;
     }
     if (unit.restriction !== undefined) {
-        return restrictionAllowsSpell(unit.restriction, spellTypes);
+        return restrictionAllowsSpell(
+            unit.restriction,
+            spellTypes,
+            spellSupertypes
+        );
     }
     return true;
 }
@@ -15958,7 +16015,8 @@ export function addRestrictedManaToPool(
     color: string,
     amount: number,
     restriction: ManaRestriction | undefined,
-    castableCardId?: string
+    castableCardId?: string,
+    cantBeCounteredRider?: boolean
 ): void {
     if (amount <= 0) return;
     const list = player.restrictedMana ?? [];
@@ -15966,13 +16024,19 @@ export function addRestrictedManaToPool(
         (r) =>
             r.color === color &&
             r.restriction === restriction &&
-            r.castableCardId === castableCardId
+            r.castableCardId === castableCardId &&
+            !!r.cantBeCounteredRider === !!cantBeCounteredRider
     );
     if (existing) existing.amount += amount;
     else {
         const unit: RestrictedMana = { color, amount };
         if (restriction !== undefined) unit.restriction = restriction;
         if (castableCardId !== undefined) unit.castableCardId = castableCardId;
+        // CR 106.6 rider (issue #1559) — Delighted Halfling's mana carries
+        // this alongside `restriction`; kept in the merge key so a unit WITH
+        // the rider never silently merges into one without it (or vice
+        // versa) even if a future card floats both shapes of the same color.
+        if (cantBeCounteredRider) unit.cantBeCounteredRider = true;
         list.push(unit);
     }
     player.restrictedMana = list;
@@ -15985,11 +16049,19 @@ export function addRestrictedManaToPool(
 export function spendablePoolForSpell(
     player: PlayerState,
     spellTypes: readonly string[],
-    spellCardId?: string
+    spellCardId?: string,
+    spellSupertypes: readonly string[] = []
 ): Record<string, number> {
     const pool = { ...player.manaPool };
     for (const r of player.restrictedMana ?? []) {
-        if (restrictedUnitAllowsSpell(r, spellTypes, spellCardId)) {
+        if (
+            restrictedUnitAllowsSpell(
+                r,
+                spellTypes,
+                spellCardId,
+                spellSupertypes
+            )
+        ) {
             pool[r.color] = (pool[r.color] ?? 0) + r.amount;
         }
     }
@@ -16002,21 +16074,28 @@ export function spendablePoolForSpell(
  *  a payment illegal, since coverage was already confirmed against the merged
  *  pool. Reuses `payManaCost` semantics by paying a merged pool then
  *  reassigning who paid each color. Caller must pass the spell's card types
- *  (drives which restricted mana is eligible). */
+ *  (drives which restricted mana is eligible).
+ *
+ *  Returns whether ANY consumed restricted unit carried
+ *  `RestrictedMana.cantBeCounteredRider` (CR 106.6 rider, issue #1559,
+ *  Delighted Halfling) — the caller stamps `StackItem.dynamicCantBeCountered`
+ *  with it when pushing the resulting spell onto the stack. `false` for the
+ *  overwhelming majority of casts that spend no rider-carrying mana. */
 export function payManaCostForSpell(
     player: PlayerState,
     cost: Record<string, number>,
     spellTypes: readonly string[],
     substitutions: ManaSubstitution[] = [],
     spellCardId?: string,
-    genericSpendOrder?: readonly string[]
-): void {
+    genericSpendOrder?: readonly string[],
+    spellSupertypes: readonly string[] = []
+): boolean {
     const eligible = (player.restrictedMana ?? []).filter((r) =>
-        restrictedUnitAllowsSpell(r, spellTypes, spellCardId)
+        restrictedUnitAllowsSpell(r, spellTypes, spellCardId, spellSupertypes)
     );
     if (eligible.length === 0) {
         payManaCost(player.manaPool, cost, substitutions, genericSpendOrder);
-        return;
+        return false;
     }
 
     // Merge eligible restricted mana into a working copy of the pool, pay
@@ -16031,6 +16110,7 @@ export function payManaCostForSpell(
     const before = { ...merged };
     payManaCost(merged, cost, substitutions, genericSpendOrder);
 
+    let usedRiderMana = false;
     for (const color of MANA_COLORS) {
         const consumed = (before[color] ?? 0) - (merged[color] ?? 0);
         if (consumed <= 0) continue;
@@ -16041,6 +16121,7 @@ export function payManaCostForSpell(
             if (fromRestricted <= 0) break;
             if (r.color !== color) continue;
             const take = Math.min(r.amount, fromRestricted);
+            if (take > 0 && r.cantBeCounteredRider) usedRiderMana = true;
             r.amount -= take;
             fromRestricted -= take;
         }
@@ -16050,6 +16131,7 @@ export function payManaCostForSpell(
     // Drop emptied entries; clear the field entirely when nothing remains.
     const remaining = (player.restrictedMana ?? []).filter((r) => r.amount > 0);
     player.restrictedMana = remaining.length > 0 ? remaining : undefined;
+    return usedRiderMana;
 }
 
 /**

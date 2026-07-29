@@ -250,12 +250,26 @@ export type RealizedOutcome = {
  *    payment path rather than the spell-cast one: like `cumulative-upkeep` it
  *    is never eligible at a spell-cast site, and it is consumed only when the
  *    ability being activated belongs to a source permanent whose effective
- *    types include `Artifact` (`restrictionAllowsAbility`). */
+ *    types include `Artifact` (`restrictionAllowsAbility`).
+ *  - `legendary-spell`: spendable only to cast a spell with the SUPERTYPE
+ *    "Legendary" (Delighted Halfling — "Spend this mana only to cast a
+ *    legendary spell", issue #1559). The first restriction keyed on a
+ *    supertype rather than a card TYPE: `restrictionAllowsSpell` takes a
+ *    parallel `spellSupertypes` channel alongside `spellTypes` for exactly
+ *    this member (every other member ignores it). Like the type-keyed
+ *    restrictions it IS eligible at a spell-cast site (never at an
+ *    activation, `restrictionAllowsAbility` returns false). Orthogonal to
+ *    the "can't be countered" rider Delighted Halfling's mana ALSO carries
+ *    (`RestrictedMana.cantBeCounteredRider`) — the restriction decides WHICH
+ *    spells the mana may pay for, the rider decides what happens to the
+ *    spell once mana carrying it is actually spent; a unit can carry either,
+ *    both, or neither. */
 export type ManaRestriction =
     | "creature-spell"
     | "artifact-spell"
     | "cumulative-upkeep"
-    | "artifact-ability";
+    | "artifact-ability"
+    | "legendary-spell";
 /** Pile-division divide-then-choose family (ADR 0053, CR-generic "separate
  *  into two piles" cycle — Fact or Fiction, Do or Die, …). Two ordered
  *  members driven by ONE `divideIntoPiles` Effect Script Op:

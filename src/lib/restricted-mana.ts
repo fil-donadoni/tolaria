@@ -8,10 +8,14 @@ import type { RestrictedMana } from "~/types/game";
  *
  *  - `castableCardId` (Ice Cauldron, CR 601.3e): mana spendable only to cast
  *    one specific exiled card. Resolves the card's printed name for the label.
- *  - `restriction` (Mishra's Workshop / Adarkar Unicorn, etc.): a spell-class
- *    or cumulative-upkeep restriction.
+ *  - `restriction` (Mishra's Workshop / Adarkar Unicorn / Delighted Halfling,
+ *    etc.): a spell-class, supertype, or cumulative-upkeep restriction.
+ *  - `cantBeCounteredRider` (Delighted Halfling, issue #1559): appended to
+ *    whichever base label applies — orthogonal to `restriction`, so it can
+ *    combine with any of them.
  *
- *  Falls back to a generic "Restricted" label when neither is set. */
+ *  Falls back to a generic "Restricted" label when neither `restriction` nor
+ *  `castableCardId` is set. */
 export function restrictedManaLabel(
     unit: RestrictedMana,
     resolveCardName?: (instanceId: string) => string | undefined
@@ -20,18 +24,23 @@ export function restrictedManaLabel(
         const name = resolveCardName?.(unit.castableCardId);
         return name ? `Only: ${name}` : "Only: exiled card";
     }
-    switch (unit.restriction) {
-        case "creature-spell":
-            return "Creature spells only";
-        case "artifact-spell":
-            return "Artifact spells only";
-        case "cumulative-upkeep":
-            return "Cumulative upkeep only";
-        case "artifact-ability":
-            return "Artifact abilities only";
-        default:
-            return "Restricted";
-    }
+    const base = (() => {
+        switch (unit.restriction) {
+            case "creature-spell":
+                return "Creature spells only";
+            case "artifact-spell":
+                return "Artifact spells only";
+            case "cumulative-upkeep":
+                return "Cumulative upkeep only";
+            case "artifact-ability":
+                return "Artifact abilities only";
+            case "legendary-spell":
+                return "Legendary spells only";
+            default:
+                return "Restricted";
+        }
+    })();
+    return unit.cantBeCounteredRider ? `${base} — can't be countered` : base;
 }
 
 /** Resolves the printed name of a card definition id (NOT an instance id) for

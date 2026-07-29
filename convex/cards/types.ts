@@ -1014,6 +1014,15 @@ export interface ActivatedAbility {
      *  restriction permits (Mishra's Workshop — "Spend this mana only to cast
      *  artifact spells"). Only meaningful on fixed `manaProduced` abilities. */
     manaRestriction?: ManaRestriction;
+    /** CR 106.6 rider (issue #1559, Delighted Halfling — "…and that spell
+     *  can't be countered") carried by the mana this ability produces,
+     *  orthogonal to `manaRestriction`: it never changes which spells the
+     *  mana may pay for, only that a spell actually paid for with it can't be
+     *  countered (`StackItem.dynamicCantBeCountered`, stamped at cast-cost
+     *  commit). Threaded onto the deposited `RestrictedMana` unit exactly
+     *  like `manaRestriction` — meaningful only alongside it (or alongside
+     *  `manaChoices`, for a choice ability), never alone. */
+    manaCantBeCounteredRider?: true;
     /** Multiple mana options the player can choose from (e.g. Talisman: "{T}: Add {U} or {B}"). */
     manaChoices?: ManaCost[];
     /** Counter type whose removal is the *scaling* part of a mana-choice cost

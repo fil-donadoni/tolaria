@@ -1287,6 +1287,14 @@ function coloredCostLeftover(
     const cantSpendMana =
         tryGetDefinition((card.card as { id?: string }).id ?? "")
             ?.cantSpendManaToCast ?? false;
+    // CR 106.6 / 205.4a (issue #1559) — the printed supertypes of the card
+    // being cast, for the `legendary-spell` restriction's eligibility check
+    // below (Delighted Halfling). `CardInstanceState` doesn't carry a mutable
+    // `supertypes` field the way it does `types`, so this reads the
+    // definition directly — same source `restrictedUnitAllowsSpell` expects.
+    const spellSupertypes =
+        tryGetDefinition((card.card as { id?: string }).id ?? "")?.supertypes ??
+        [];
     // CR 202.1a — guild-hybrid pips are read off the printed cost and matched by
     // the shared greedy below (a real source or a convoke creature of either
     // colour pays each). Orthogonal to Phyrexian pips — no card carries both.
@@ -1317,7 +1325,14 @@ function coloredCostLeftover(
         // before payment. Mirrors `spendablePoolForSpell` at the payment site;
         // `card.id` is the instance id that instance-keyed mana is gated on.
         for (const r of player.restrictedMana ?? []) {
-            if (restrictedUnitAllowsSpell(r, card.types, card.id)) {
+            if (
+                restrictedUnitAllowsSpell(
+                    r,
+                    card.types,
+                    card.id,
+                    spellSupertypes
+                )
+            ) {
                 for (let i = 0; i < r.amount; i++) {
                     sources.push(new Set<Color>([r.color as Color]));
                 }

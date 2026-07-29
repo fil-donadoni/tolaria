@@ -71,4 +71,36 @@ describe("restrictedManaLabel (#754, CR 106.6)", () => {
         const unit: RestrictedMana = { color: "R", amount: 1 };
         expect(restrictedManaLabel(unit)).toBe("Restricted");
     });
+
+    it("labels the legendary-spell restriction (Delighted Halfling, #1559)", () => {
+        const unit: RestrictedMana = {
+            color: "W",
+            amount: 1,
+            restriction: "legendary-spell",
+        };
+        expect(restrictedManaLabel(unit)).toBe("Legendary spells only");
+    });
+
+    it("appends the can't-be-countered rider to any base label (#1559)", () => {
+        const withRestriction: RestrictedMana = {
+            color: "W",
+            amount: 1,
+            restriction: "legendary-spell",
+            cantBeCounteredRider: true,
+        };
+        expect(restrictedManaLabel(withRestriction)).toBe(
+            "Legendary spells only — can't be countered"
+        );
+
+        // The rider is orthogonal to `restriction` — it also combines with
+        // the generic fallback when no restriction is set at all.
+        const noRestriction: RestrictedMana = {
+            color: "W",
+            amount: 1,
+            cantBeCounteredRider: true,
+        };
+        expect(restrictedManaLabel(noRestriction)).toBe(
+            "Restricted — can't be countered"
+        );
+    });
 });

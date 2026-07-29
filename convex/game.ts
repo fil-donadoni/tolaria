@@ -2733,9 +2733,19 @@ export function tryAutoCommitPendingCast(
         ? tryGetDefinition((castCard.card as { id: string }).id)
         : undefined;
     const castTypes = castDef?.types ?? [];
+    // CR 106.6 / 205.4a (issue #1559) — the printed supertypes of the spell
+    // being cast, for the `legendary-spell` restriction's eligibility check
+    // (Delighted Halfling). Instances don't carry a mutable `supertypes`
+    // field the way they do `types`, so this reads the definition directly.
+    const castSupertypes = castDef?.supertypes ?? [];
     if (
         !isManaCostCovered(
-            spendablePoolForSpell(player, castTypes, castInstanceId),
+            spendablePoolForSpell(
+                player,
+                castTypes,
+                castInstanceId,
+                castSupertypes
+            ),
             state.pendingCast.manaCost,
             getManaSubstitutions(state, player.id)
         )
@@ -2791,7 +2801,12 @@ export function tryAutoCommitPendingCast(
     // coverage check above.
     if (!genericSpendOrder) {
         const ambiguity = genericSpendAmbiguityForPayment(
-            spendablePoolForSpell(player, castTypes, castInstanceId),
+            spendablePoolForSpell(
+                player,
+                castTypes,
+                castInstanceId,
+                castSupertypes
+            ),
             state.pendingCast.manaCost,
             getManaSubstitutions(state, player.id)
         );
@@ -2810,13 +2825,14 @@ export function tryAutoCommitPendingCast(
     const castPoolBeforePayment = castDef?.noteManaSpent
         ? { ...player.manaPool }
         : undefined;
-    payManaCostForSpell(
+    const castUsedRiderMana = payManaCostForSpell(
         player,
         state.pendingCast.manaCost,
         castTypes,
         getManaSubstitutions(state, player.id),
         castInstanceId,
-        genericSpendOrder
+        genericSpendOrder,
+        castSupertypes
     );
     const castNotedManaSpent = castPoolBeforePayment
         ? manaSpentDelta(castPoolBeforePayment, player.manaPool)
@@ -2968,6 +2984,10 @@ export function tryAutoCommitPendingCast(
         ...(pendingChosenModeId ? { chosenModeId: pendingChosenModeId } : {}),
         ...(additionalSacrificeSnapshot ? { additionalSacrificeSnapshot } : {}),
         ...(castNotedManaSpent ? { notedManaSpent: castNotedManaSpent } : {}),
+        // CR 106.6 rider (issue #1559) — mana spent on this cast carried
+        // `cantBeCounteredRider` (Delighted Halfling); `counter()` reads this
+        // alongside the static `CardDefinition.cantBeCountered`.
+        ...(castUsedRiderMana ? { dynamicCantBeCountered: true } : {}),
         // CR 702.74a — a parked Evoke cast (real hand-cost choice) carries the
         // marker through `PendingCast.evoked` (set at announcement) so it
         // still lands on the stack item once the picker completes.
@@ -5724,26 +5744,39 @@ export function finalizeTargetSelection(
     // creature mana (Metamorphosis) or artifact mana (Mishra's Workshop) —
     // in addition to the fungible pool. Eligibility is decided from the
     // spell's card types in restrictionAllowsSpell.
+    // CR 205.4a (issue #1559) — the spell's printed supertypes, for the
+    // `legendary-spell` restriction's eligibility check (Delighted Halfling).
+    const cardSupertypes = cardDef.supertypes ?? [];
     if (
         Object.keys(manaCost).length === 0 ||
         isManaCostCovered(
-            spendablePoolForSpell(player, cardDef.types, cardInstanceId),
+            spendablePoolForSpell(
+                player,
+                cardDef.types,
+                cardInstanceId,
+                cardSupertypes
+            ),
             manaCost,
             getManaSubstitutions(state, player.id)
         )
     ) {
         // CR 106.4 / 202.3 — cast-path mana-spent tracking (Soul Burn).
         let immediateNotedManaSpent: Record<string, number> | undefined;
+        // CR 106.6 rider (issue #1559) — whether the mana paid below carried
+        // `cantBeCounteredRider`; stamped onto the pushed stack item below.
+        let immediateUsedRiderMana = false;
         if (Object.keys(manaCost).length > 0) {
             const poolBeforePayment = cardDef.noteManaSpent
                 ? { ...player.manaPool }
                 : undefined;
-            payManaCostForSpell(
+            immediateUsedRiderMana = payManaCostForSpell(
                 player,
                 manaCost,
                 cardDef.types,
                 getManaSubstitutions(state, player.id),
-                cardInstanceId
+                cardInstanceId,
+                undefined,
+                cardSupertypes
             );
             immediateNotedManaSpent = poolBeforePayment
                 ? manaSpentDelta(poolBeforePayment, player.manaPool)
@@ -5798,6 +5831,9 @@ export function finalizeTargetSelection(
             ...(immediateNotedManaSpent
                 ? { notedManaSpent: immediateNotedManaSpent }
                 : {}),
+            // CR 106.6 rider (issue #1559) — see the matching comment on the
+            // `tryAutoCommitPendingCast` stack item above.
+            ...(immediateUsedRiderMana ? { dynamicCantBeCountered: true } : {}),
             ...(isEvokeCost ? { evoked: true } : {}),
             ...(isDashCost ? { dashed: true } : {}),
             ...graveyardCastStackFlags(state, card, castZone),
@@ -6160,6 +6196,10 @@ export const announceCast = mutation({
         const castFromZone = castSource.zone;
 
         const cardDef = getDefinition((cardInHand.card as { id: string }).id);
+        // CR 205.4a (issue #1559) — the spell's printed supertypes, for the
+        // `legendary-spell` restriction's eligibility check (Delighted
+        // Halfling). Shared by every mana-coverage/payment call below.
+        const cardSupertypes = cardDef.supertypes ?? [];
 
         // CR 118.9 — the caster opted into an ALTERNATIVE casting cost (return /
         // sacrifice lands, Gush/Thwart/Fireblast). Validate the variant exists
@@ -6474,7 +6514,8 @@ export const announceCast = mutation({
                     spendablePoolForSpell(
                         player,
                         cardDef.types,
-                        args.cardInstanceId
+                        args.cardInstanceId,
+                        cardSupertypes
                     ),
                     altManaCost,
                     getManaSubstitutions(state, player.id)
@@ -6515,13 +6556,17 @@ export const announceCast = mutation({
             }
             // Forced/fungible choice AND mana already covered: pay + apply +
             // commit now.
+            // CR 106.6 rider (issue #1559) — stamped onto the stack item below.
+            let altUsedRiderMana = false;
             if (Object.keys(altManaCost).length > 0) {
-                payManaCostForSpell(
+                altUsedRiderMana = payManaCostForSpell(
                     player,
                     altManaCost,
                     cardDef.types,
                     getManaSubstitutions(state, player.id),
-                    args.cardInstanceId
+                    args.cardInstanceId,
+                    undefined,
+                    cardSupertypes
                 );
                 commitLandsForCost(player, altManaCost);
             }
@@ -6548,6 +6593,9 @@ export const announceCast = mutation({
                 ...(args.chosenModeId
                     ? { chosenModeId: args.chosenModeId }
                     : {}),
+                // CR 106.6 rider (issue #1559) — see the matching comment on
+                // the `tryAutoCommitPendingCast` stack item.
+                ...(altUsedRiderMana ? { dynamicCantBeCountered: true } : {}),
                 ...(isEvokeCost ? { evoked: true } : {}),
                 ...(isDashCost ? { dashed: true } : {}),
             };
@@ -6835,19 +6883,24 @@ export const announceCast = mutation({
                 spendablePoolForSpell(
                     player,
                     cardDef.types,
-                    args.cardInstanceId
+                    args.cardInstanceId,
+                    cardSupertypes
                 ),
                 manaCost,
                 getManaSubstitutions(state, player.id)
             )
         ) {
+            // CR 106.6 rider (issue #1559) — stamped onto the stack item below.
+            let normalUsedRiderMana = false;
             if (Object.keys(manaCost).length > 0) {
-                payManaCostForSpell(
+                normalUsedRiderMana = payManaCostForSpell(
                     player,
                     manaCost,
                     cardDef.types,
                     getManaSubstitutions(state, player.id),
-                    args.cardInstanceId
+                    args.cardInstanceId,
+                    undefined,
+                    cardSupertypes
                 );
                 commitLandsForCost(player, manaCost);
             }
@@ -6884,6 +6937,11 @@ export const announceCast = mutation({
                     : {}),
                 ...(additionalSacrificeSnapshot
                     ? { additionalSacrificeSnapshot }
+                    : {}),
+                // CR 106.6 rider (issue #1559) — see the matching comment on
+                // the `tryAutoCommitPendingCast` stack item.
+                ...(normalUsedRiderMana
+                    ? { dynamicCantBeCountered: true }
                     : {}),
                 ...graveyardCastStackFlags(state, card, castFromZone),
                 ...reboundCastStackFlags(card, castFromZone),
@@ -12337,6 +12395,9 @@ export const tapUntap = mutation({
                 // pool, so it pays only the costs the restriction permits. A
                 // basic-subtype pick (effAbility null) has no restriction.
                 const choiceRestriction = effAbility?.manaRestriction;
+                // CR 106.6 rider (issue #1559, Delighted Halfling) — carried
+                // alongside `manaRestriction` onto the deposited unit.
+                const choiceRider = effAbility?.manaCantBeCounteredRider;
                 for (const [color, amount] of Object.entries(chosen)) {
                     if (
                         color !== "X" &&
@@ -12348,7 +12409,9 @@ export const tapUntap = mutation({
                                 player,
                                 color,
                                 amount,
-                                choiceRestriction
+                                choiceRestriction,
+                                undefined,
+                                choiceRider
                             );
                         } else {
                             player.manaPool[
@@ -12379,7 +12442,42 @@ export const tapUntap = mutation({
                 // Untap: refund exactly the mana that was chosen on tap.
                 // Falls back to manaProduced for legacy instances (pre-chosenMana).
                 const refund = card.chosenMana;
-                const choiceRestriction = ability?.manaRestriction;
+                // CR 106.6 (issue #1559) — `ability` above is only the FIRST
+                // mana ability `getActivatedManaAbility` finds on this card; a
+                // card whose RESTRICTED ability is NOT that first one
+                // (Delighted Halfling: "{T}: Add {C}." is found first, but the
+                // second, distinct ability is the one that floats restricted
+                // mana) would otherwise reverse the wrong pool — decrementing
+                // the fungible `manaPool` while the actual deposit sits
+                // untouched in `restrictedMana`. Re-resolve the ability that
+                // ACTUALLY produced `refund` by matching its exact shape
+                // against every non-useStack mana ability's declared output;
+                // correct as long as no two mana abilities on the same card
+                // produce byte-identical mana (true of every card in the
+                // catalogue today). Falls back to `ability` when nothing
+                // matches (single-mana-ability cards — the previously-only
+                // supported shape — always hit their own ability here).
+                const manaShapesEqual = (a: ManaCost, b: ManaCost): boolean =>
+                    MANA_COLORS.every((c) => (a[c] ?? 0) === (b[c] ?? 0));
+                const cardDefForUntap = getDefinition(card.card.id as string);
+                const producingAbility =
+                    (refund &&
+                        cardDefForUntap.activatedAbilities?.find(
+                            (a) =>
+                                !a.useStack &&
+                                (a.manaChoices?.some((m) =>
+                                    manaShapesEqual(m, refund)
+                                ) ??
+                                    (a.manaProduced
+                                        ? manaShapesEqual(
+                                              a.manaProduced,
+                                              refund
+                                          )
+                                        : false))
+                        )) ||
+                    ability;
+                const choiceRestriction = producingAbility?.manaRestriction;
+                const choiceRider = producingAbility?.manaCantBeCounteredRider;
                 if (refund) {
                     for (const [color, amount] of Object.entries(refund)) {
                         if (
@@ -12393,7 +12491,9 @@ export const tapUntap = mutation({
                                 const entry = list.find(
                                     (r) =>
                                         r.color === color &&
-                                        r.restriction === choiceRestriction
+                                        r.restriction === choiceRestriction &&
+                                        !!r.cantBeCounteredRider ===
+                                            !!choiceRider
                                 );
                                 if (entry) {
                                     entry.amount = Math.max(
