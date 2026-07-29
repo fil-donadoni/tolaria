@@ -1,6 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { spawnSync } from "node:child_process";
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 
 /**
@@ -69,6 +70,109 @@ describe("pre-commit hook", () => {
             "utf8"
         );
         expect(hook).toMatch(/^\s*lint-staged\s*$/m);
+    });
+});
+
+describe("pre-push hook", () => {
+    const HOOK = path.join(REPO_ROOT, ".husky", "pre-push");
+
+    it("is tracked by git", () => {
+        // `.husky/pre-commit` was deleted on 2026-06-17 inside a MERGE commit
+        // (3ca58ca6 / 5cdbf196) and nobody noticed for six weeks, because a
+        // missing hook is silent by design. Same exposure here.
+        const r = spawnSync("git", ["ls-files", "--error-unmatch", HOOK], {
+            cwd: REPO_ROOT,
+            encoding: "utf8",
+        });
+        expect(r.status).toBe(0);
+    });
+
+    it("checks only the pushed diff, never the whole repo", () => {
+        // A full `format:check` costs ~43s. In front of every push that is a
+        // gate people disable, so the hook must stay diff-scoped.
+        const code = fs
+            .readFileSync(HOOK, "utf8")
+            .split("\n")
+            .filter((l) => !/^\s*#/.test(l))
+            .join("\n");
+        expect(code).toMatch(/prettier --check/);
+        expect(code).toMatch(/git diff --name-only/);
+        expect(code).not.toMatch(/format:check/);
+    });
+
+    // Functional exercise in a throwaway repo. The hook is POSIX sh run as
+    // `sh -e` by husky's shim, where an `&&` guard returning non-zero is an
+    // easy way to abort the whole script by accident — the kind of bug that is
+    // invisible until a push silently stops being checked.
+    describe("run against a scratch repo", () => {
+        let tmp: string;
+        let base: string;
+        let drifted: string;
+        let clean: string;
+
+        const git = (...args: string[]) => {
+            const r = spawnSync("git", args, { cwd: tmp, encoding: "utf8" });
+            expect(r.status, `git ${args.join(" ")}: ${r.stderr}`).toBe(0);
+            return r.stdout.trim();
+        };
+
+        /** Feed the hook one ref line, exactly as git does on push. */
+        const runHook = (remoteSha: string, localSha: string) =>
+            spawnSync("sh", ["-e", HOOK], {
+                cwd: tmp,
+                encoding: "utf8",
+                input: `refs/heads/main ${localSha} refs/heads/main ${remoteSha}\n`,
+                env: {
+                    ...process.env,
+                    PATH: `${path.join(REPO_ROOT, "node_modules", ".bin")}:${process.env.PATH}`,
+                },
+            });
+
+        beforeAll(() => {
+            tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tolaria-prepush-"));
+            git("init", "-q", "-b", "main");
+            git("config", "user.email", "test@example.com");
+            git("config", "user.name", "test");
+            // No prettier config above a tmpdir, so prettier applies its
+            // defaults — under which these two files are unambiguously
+            // formatted / unformatted regardless of this repo's .prettierrc.
+            fs.writeFileSync(path.join(tmp, "a.ts"), "const a = 1;\n");
+            git("add", "-A");
+            git("commit", "-qm", "base");
+            base = git("rev-parse", "HEAD");
+
+            fs.writeFileSync(path.join(tmp, "b.ts"), "const   b   =    2;\n");
+            git("add", "-A");
+            git("commit", "-qm", "drift");
+            drifted = git("rev-parse", "HEAD");
+
+            fs.writeFileSync(path.join(tmp, "c.ts"), "const c = 3;\n");
+            git("add", "-A");
+            git("commit", "-qm", "clean");
+            clean = git("rev-parse", "HEAD");
+        });
+
+        afterAll(() => {
+            fs.rmSync(tmp, { recursive: true, force: true });
+        });
+
+        it("rejects a push whose commits carry formatting drift", () => {
+            const r = runHook(base, drifted);
+            expect(r.status).toBe(1);
+            expect(`${r.stdout}${r.stderr}`).toMatch(/bun run format/);
+        });
+
+        it("passes a push whose commits are clean", () => {
+            // drifted..clean touches only c.ts — b.ts is already on the remote,
+            // so this push is not the one that introduced it.
+            const r = runHook(drifted, clean);
+            expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+        });
+
+        it("passes a push that changes no checkable file", () => {
+            const r = runHook(clean, clean);
+            expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+        });
     });
 });
 
