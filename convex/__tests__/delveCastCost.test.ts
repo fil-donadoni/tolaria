@@ -34,7 +34,9 @@ import type { PendingCast, PendingTarget } from "../gre/state";
 import { projectPublicState } from "../gameProjections";
 import { compactState, expandState } from "../gre/serialize";
 import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
-import { getCardByName } from "../cards";
+import { getCardByName, tryGetDefinition } from "../cards";
+import { mvOfStackItem } from "../gre/targetFilters";
+import { manaValue } from "../gre/constants";
 
 const TREASURE_CRUISE = "7a59d4b1-6cf4-44ec-8a96-1bb7094fea21"; // {7}{U} Sorcery, delve
 const DISRUPT = "c000a02f-6b7e-4925-a938-59e645e980d7"; // {U} Instant, no delve
@@ -664,6 +666,73 @@ describe("delve commit (CR 601.2g — reduce → payWith → mana)", () => {
         expect(state.stack).toHaveLength(1);
         expect(player.exile).toHaveLength(3);
         expect(player.manaPool.U).toBe(0); // 4 generic + 1 coloured
+    });
+});
+
+// Found during the pre-merge review of PR #1655 (issue #1336, delve) —
+// issue #1662. CR 702.66c: exiling cards for delve reduces what the caster
+// PAYS, it never changes the spell's mana value. That invariant already
+// holds *by construction* today: `CardInstanceState.card` (and therefore the
+// stack item's `card`) only ever carries the slim `{ id }` reference (see
+// `makeInstance` in `cards/__tests__/setup.ts`) — mana value is always
+// re-derived from the CATALOGUE definition behind that id
+// (`tryGetDefinition`, `gre/targetFilters.ts`'s `mvOfStackItem`), never from
+// `pendingCast.manaCost` (the thing delve actually mutates down to 0 for the
+// generic portion). Nothing in the suite asserted this, though, so a future
+// refactor that started deriving mana value from the paid cost — or that
+// started stashing the paid cost onto the stack item and reading THAT —
+// would regress it silently.
+describe("delve does not change mana value (CR 702.66c)", () => {
+    it("Treasure Cruise's mana value stays 8 after delve pays down the whole generic portion", () => {
+        // 1 Island + fully-forced delve of 7 graveyard cards: the {7} generic
+        // is paid entirely by exile, only the {U} pip comes from mana.
+        const { state, player, spell } = board(1, 7);
+        const cost: Record<string, number> = { X: 7, U: 1 };
+        const choice = buildDelveExileChoice(player, spell, cost, spell.id, 7)!;
+        collapseForcedDelvePick(player, spell.id, choice, cost);
+        expect(cost.X).toBe(0); // the generic portion is fully paid down by delve
+
+        player.manaPool = { W: 0, U: 1, B: 0, R: 0, G: 0, C: 0 };
+        state.pendingCast = {
+            playerId: "p1",
+            cardInstanceId: "cruise",
+            manaCost: cost,
+            tappedLandIds: [],
+            exileFromGraveyardChoice: choice,
+        };
+        tryAutoCommitPendingCast(state, "p1");
+        expect(state.pendingCast).toBeUndefined();
+        expect(state.stack).toHaveLength(1);
+
+        // Independent derivation (does NOT call `mvOfStackItem`, so this
+        // isn't tautological with the assertion below): look up the printed
+        // CardDefinition behind the stack item's `{ id }` and compute mana
+        // value straight from its ORIGINAL `manaCost` ({7}{U} = 8). If mana
+        // value were ever (wrongly) derived from the exhausted `cost`
+        // variable above instead — the thing delve actually mutated — this
+        // would report 1 ({U} only) rather than 8.
+        const stackItemDef = tryGetDefinition(
+            (state.stack[0]!.card as { id: string }).id
+        );
+        expect(manaValue(stackItemDef?.manaCost)).toBe(8);
+
+        // `mvOfStackItem` (convex/gre/targetFilters.ts) is the real,
+        // already-tested consumer a CMC-gated spell-target filter
+        // (`TargetRequirement.mvFilter`, e.g. a Spell Pierce-style "mana
+        // value N or less" counter) reads to decide whether Treasure Cruise
+        // is a legal target — it must see 8, not 8 minus the delved count.
+        expect(mvOfStackItem(state.stack[0]!)).toBe(8);
+
+        // Wire format (mandatory, .claude/rules/gre-development.md): the
+        // projection carries the stack item across un-slimmed with respect
+        // to mana value (its `card` was already just `{ id }` pre-projection
+        // — there is no fat `manaCost` field to strip here), so re-running
+        // the exact same consumer against the projected state must still see
+        // 8. A hand-built state would mask exactly the bug this test guards
+        // against, which is why the assertion is re-run post-projection.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.stack).toHaveLength(1);
+        expect(mvOfStackItem(projected.stack[0]!)).toBe(8);
     });
 });
 
