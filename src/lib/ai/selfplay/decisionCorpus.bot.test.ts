@@ -183,7 +183,13 @@ describe.runIf(RUN)("decision-telemetry corpus (runner)", () => {
             budget: { iterations },
         };
         const selfPlay = collectSelfPlayDecisions(config);
-        const blade = collectBladeDecisions();
+        // Sharding: parallel self-play shards differ only by seed; exactly
+        // one shard includes the (deterministic, seed-independent) blade
+        // corpus so a merged run never double-counts it.
+        const blade =
+            ENV.DECISION_CORPUS_BLADE === "0"
+                ? { records: [], scenarios: 0 }
+                : collectBladeDecisions();
         const out = {
             meta: {
                 gamesPerPairing,
@@ -203,6 +209,10 @@ describe.runIf(RUN)("decision-telemetry corpus (runner)", () => {
                 ...selfPlay.records,
                 ...blade.records,
             ]),
+            // Raw records so parallel shards can be merged and re-summarized
+            // exactly (and percentiles computed) offline.
+            selfPlayRecords: selfPlay.records,
+            bladeRecords: blade.records,
         };
         console.log(
             "\nDECISION_CORPUS_JSON_BEGIN\n" +
