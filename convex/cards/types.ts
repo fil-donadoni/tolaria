@@ -4422,6 +4422,12 @@ export interface PermanentView {
  *  full GameState so layer computation stays pure. */
 export interface StaticEffectStateView {
     players: ReadonlyArray<{
+        /** Opaque player handle (`controllerId`/`ownerId`, CR 102.1) — exposed
+         *  so a self-referential board-state condition can find "you" inside
+         *  `players[]` rather than assuming array position (issue #1379:
+         *  Carnage Interpreter's "as long as YOU have one or fewer cards in
+         *  hand"). */
+        id: string;
         battlefield: ReadonlyArray<PermanentView>;
         /** Cards in this player's graveyard, exposed for graveyard-counting
          *  characteristic-defining abilities (CR 604.3) — e.g. Lhurgoyf, whose
@@ -4431,6 +4437,15 @@ export interface StaticEffectStateView {
          *  stripping only `.card`), so the count is identical server-side and
          *  after `projectPublicState`. */
         graveyard: ReadonlyArray<{ readonly types: readonly CardType[] }>;
+        /** This player's hand, exposed ONLY as a count (mirrors
+         *  `TriggerStateView.hand`, issue #1379) for a "you have N or fewer
+         *  cards in hand" board-state gate — e.g. a `pt-buff`/`keyword-grant`
+         *  `condition` (CR 611.2c "as long as ..."). Survives the wire
+         *  projection unchanged: `PublicGameState.players[].hand` is
+         *  `(SlimHandCard | null)[]` for an opponent (identity hidden, but the
+         *  SAME length) and `SlimHandCard[]` for the owner, so `.length`
+         *  reads identically server-side and after `projectPublicState`. */
+        hand: { readonly length: number };
     }>;
     /** The player whose turn it currently is (CR 102.1). Optional because the
      *  layer system reads it best-effort: it is a top-level `GameState` field

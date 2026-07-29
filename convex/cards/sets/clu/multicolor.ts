@@ -18,19 +18,25 @@
 // omitted below (mirrors the Manamorphose/Deathrite Shaman stubs) since #782
 // leaves no faithful encoding to write.
 //
-// (Separately, BOTH ability clauses have their own real gaps worth noting
-// for whoever revisits this card once #782 lands: the ETB's "discard your
-// hand" gap is now CLOSED — #1279 shipped the `discard` Op's bulk whole-hand
-// shape, the Wheel of Fortune / Anje's Ravager shape those cards migrated to
-// `effects[]` on; and the static ability's "and has menace" half
-// needs a live-recomputed conditional keyword grant — `StaticKeywordGrant`
-// mutation-syncs only on battlefield enter/leave, never on a hand-size
-// change alone — tracked-by #1379 (which also covers the small
-// `StaticEffectStateView` hand-size plumbing the +2/+2 half alone would
-// still need before it could read via `pt-buff`'s existing `condition`
-// gate). None of that unblocks the card while #782 blocks the cost, so it
-// stays a stub until #782 lands.)
-// tracked-by: #782, #1279, #1379
+// (Separately, both ability clauses' OWN gaps that once blocked them are
+// now CLOSED, for whoever revisits this card once #782 lands: the ETB's
+// "discard your hand" gap — #1279 shipped the `discard` Op's bulk
+// whole-hand shape, the Wheel of Fortune / Anje's Ravager shape those cards
+// migrated to `effects[]` on; and the static ability's "and has menace"
+// half — #1379 confirmed the existing SBA re-apply sweep
+// (`refreshCounterGatedStatics`, `gre/state.ts`, called every
+// `checkStateBasedActions` pass, `gre/sba.ts`) already re-evaluates a
+// `keyword-grant.condition` gated on NON-battlefield state (hand size) live,
+// the same way it does for Kavu Runner's board-state gate (issue #1095) —
+// no new live-read path was needed, just the small `id`/`hand` plumbing on
+// `StaticEffectStateView` (`cards/types.ts`) so a hand-size predicate can be
+// written with the same signature. Once #782 unblocks the cost, both
+// clauses attach with the SAME hand-size `condition` closure: `pt-buff` for
+// +2/+2 (mirrors Jihad, `arn/white.ts`) and `keyword-grant` for menace
+// (mirrors Kavu Runner, `inv/red.ts`) — see
+// `gre/__tests__/keywordGrantHandSizeCondition.test.ts` for the proof.
+// #782 (hybrid mana cost) remains the SOLE blocker.)
+// tracked-by: #782
 // export const carnageInterpreter: CardDefinition = {
 //     id: "f6fb576e-a4a4-496b-b553-3f81cc651210", // CLU 26
 //     name: "Carnage Interpreter",

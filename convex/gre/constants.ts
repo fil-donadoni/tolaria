@@ -309,8 +309,15 @@ function manaLayerView(
 ): LayerStateView {
     return {
         players: battlefields.map((b) => ({
+            id: b.playerId,
             battlefield: b.battlefield as unknown as readonly PermanentView[],
             graveyard: [],
+            // Not tracked by this battlefields-only view either (same
+            // rationale as the empty `graveyard` above) — no shipped mana
+            // ability's P/T scaling depends on hand size, so `length: 0` is
+            // an inert placeholder, not a real read. A future one would need
+            // a real `GameState` threaded to this call site instead.
+            hand: { length: 0 },
         })),
     };
 }
