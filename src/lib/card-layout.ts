@@ -82,3 +82,50 @@ export const fanCardOpponentClassName =
  *  different aspect than the populated Graveyard beside it — the audit finding.
  *  Both renderings now spell their box exactly once, here. */
 export const PILE_TILE_BOX = "w-(--card-w-sm) aspect-5/7";
+
+/** Pixel breakpoint below which a pile/picker card grid switches to its
+ *  mobile-compact tile (issue #1817, opus review round 2). Below this width:
+ *  the tile drops to `PILE_GRID_TILE_PX`, `GameDialog`'s opt-in
+ *  `density="compact-mobile"` (`panel.tsx`) shrinks the surrounding Panel
+ *  padding, and `cards-pile.tsx`'s `PILE_GRID_ROW_CLASS` / `PILE_GRID_H_PADDING`
+ *  shrink their gap/padding. At/above it every one of those reverts to the
+ *  pre-#1817 sizing (96px tile, `p-6` Panel padding, `gap-2`/`px-2`) — the
+ *  420–639px band must read identically to before this issue.
+ *
+ *  MUST stay in sync with the literal `min-[420px]` arbitrary-variant text
+ *  baked into `PILE_GRID_TILE_W` below and the analogous breakpoints in
+ *  `panel.tsx` / `cards-pile.tsx` — Tailwind's JIT scanner needs the literal
+ *  text in source, so it can't be interpolated from this constant. This is a
+ *  cross-reference for authors and the executable fit assertion in
+ *  `cards-pile.test.tsx`, not a live binding. */
+export const PILE_GRID_COMPACT_BREAKPOINT_PX = 420;
+
+/** Grid-layout pile/picker tile width (issue #1817). At/above
+ *  {@link PILE_GRID_COMPACT_BREAKPOINT_PX} this is unchanged from before the
+ *  issue: `w-24` (96px) up to `sm:` (640px), `w-28` (112px) at `sm:` and up.
+ *  BELOW the compact breakpoint ("phone held upright" territory) it drops to
+ *  a fixed 68px (`PILE_GRID_TILE_PX`) — chosen so 4 tiles + 3
+ *  `PILE_GRID_GAP_PX` gaps fit the available dialog width at BOTH 360px and
+ *  390px viewports once `GameDialog`'s `density="compact-mobile"` shrinks the
+ *  surrounding Panel padding (see the executable arithmetic assertion in
+ *  `__tests__/cards-pile.test.tsx`).
+ *
+ *  Shared by `cards-pile.tsx`'s flat grid, every categorized section
+ *  (`GridLayout`), AND the 5 sibling cost/target-picker dialogs that render
+ *  an analogous card grid in a `size="wide"` `GameDialog`
+ *  (`cast-exile-cost-dialog.tsx`, `cast-alternative-hand-cost-dialog.tsx`,
+ *  `discard-cost-dialog.tsx`, `convoke-creature-dialog.tsx`,
+ *  `graveyard-card-picker.tsx`) — one constant so every pile/picker grid on
+ *  the same phone renders the SAME tile size instead of drifting (opus
+ *  review round 2 finding: the pile browser rendered 76px tiles while the
+ *  graveyard-target picker, on the same phone, still hardcoded 96px). */
+export const PILE_GRID_TILE_PX = 68;
+export const PILE_GRID_TILE_W = "w-[68px] min-[420px]:w-24 sm:w-28";
+
+/** Horizontal gap between grid tiles below
+ *  {@link PILE_GRID_COMPACT_BREAKPOINT_PX} (issue #1817). `gap-1` = 4px; kept
+ *  in sync with `PILE_GRID_TILE_W`'s fit math — see its comment. Only
+ *  `cards-pile.tsx`'s own `PILE_GRID_ROW_CLASS` uses this (the 5 sibling
+ *  pickers lay their grid out with a plain `flex flex-wrap gap-2`, unchanged;
+ *  they share the TILE width, not the row/gap treatment). */
+export const PILE_GRID_GAP_PX = 4;

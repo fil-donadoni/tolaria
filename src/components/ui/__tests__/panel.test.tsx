@@ -45,6 +45,16 @@ describe("Panel", () => {
         expect(panel.className).not.toContain("p-6");
     });
 
+    // issue #1817, opus review round 2: a MOBILE-ONLY padding reduction —
+    // distinct from flat "compact" (p-2 at every width, used by ~15
+    // small banners/pickers that must keep tight padding everywhere).
+    it("applies compact-mobile density: p-3 below 420px, p-6 at/above it", () => {
+        const { container } = render(<Panel density="compact-mobile">x</Panel>);
+        const panel = container.querySelector('[data-slot="panel"]')!;
+        expect(panel.className).toContain("p-3");
+        expect(panel.className).toContain("min-[420px]:p-6");
+    });
+
     it("applies size classes", () => {
         const { container } = render(<Panel size="wide">x</Panel>);
         const panel = container.querySelector('[data-slot="panel"]')!;

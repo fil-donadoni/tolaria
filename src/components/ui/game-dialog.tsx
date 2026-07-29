@@ -7,7 +7,7 @@ import {
     DialogDescription,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { Panel, SunburstIcon } from "@/components/ui/panel";
+import { Panel, SunburstIcon, type PanelDensity } from "@/components/ui/panel";
 
 type GameDialogSize = "default" | "wide";
 
@@ -32,6 +32,12 @@ type GameDialogProps = {
      *  blocking library-pick modal so the chooser can collapse it to the board
      *  indicator without dismissing the underlying Pending Choice. */
     onMinimize?: () => void;
+    /** Panel padding passthrough (issue #1817, opus review round 2). Opt-in —
+     *  defaults to `"default"` (`p-6` at every width, unchanged for the ~10
+     *  other `size="wide"` dialogs). The pile browser passes
+     *  `"compact-mobile"` so its grid gets more room on a phone without
+     *  touching anyone else. See `Panel`'s `PanelDensity` doc. */
+    density?: PanelDensity;
     className?: string;
     children: React.ReactNode;
 };
@@ -68,6 +74,7 @@ export default function GameDialog({
     dismissable = true,
     showCloseButton = false,
     onMinimize,
+    density = "default",
     className,
     children,
 }: GameDialogProps) {
@@ -99,6 +106,7 @@ export default function GameDialog({
             >
                 <Panel
                     tone="neutral"
+                    density={density}
                     className="max-w-full min-w-64 overflow-hidden sm:min-w-80"
                 >
                     <div

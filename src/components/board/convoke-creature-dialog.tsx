@@ -9,6 +9,7 @@ import { STATIC_EFFECT_CTX } from "@convex/gre/layers";
 import { coverColoredAndHybridPips } from "@convex/gre/payWith";
 import GameDialog from "~/components/ui/game-dialog";
 import CardImage from "~/components/cards/card-image";
+import { PILE_GRID_TILE_W } from "~/lib/card-layout";
 
 /** CR 702.51 (`payWith`, ADR 0063 — issue #1338) — the Convoke creature picker.
  *  Active when this player's `pendingCast` is waiting for them to tap creatures
@@ -188,7 +189,7 @@ export default function ConvokeCreatureDialog({
                             disabled={isPending}
                             onClick={() => toggle(card.id)}
                             title={getDefinition(card.card.id).name}
-                            className={`relative w-24 sm:w-28 aspect-5/7 rounded-sm overflow-hidden ring-1 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                            className={`relative ${PILE_GRID_TILE_W} aspect-5/7 rounded-sm overflow-hidden ring-1 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                                 isSel
                                     ? "ring-2 ring-accent"
                                     : "ring-transparent hover:ring-2 hover:ring-accent"
