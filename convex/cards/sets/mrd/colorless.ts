@@ -6,6 +6,7 @@ import type { CardDefinition, SpellContext } from "../../types";
 import { AURA_AFFECTS_HOST } from "../../types";
 import { makeTalisman } from "../../abilities";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+import { affinityForArtifacts } from "../../abilities/affinity";
 
 const CHROME_MOX_ID = "6a058e68-70af-4a64-859c-c881e5578368";
 const CHROME_MOX_COLORS = ["W", "U", "B", "R", "G"] as const;
@@ -248,4 +249,33 @@ export const lightningGreaves: CardDefinition = {
             effects: [{ op: "attach", target: { target: 0 } }],
         },
     ],
+};
+
+// Frogmite — {4} Artifact Creature — Frog, 2/2 (MRD 172). "Affinity for
+// artifacts (This spell costs {1} less to cast for each artifact you
+// control.)" Modern Scryfall oracle text is authoritative (ADR 0004).
+//
+// The Affinity KEYWORD (CR 702.41, PRD #702 / ADR 0063) in its purest form:
+// the card has no other rules text at all. `affinityForArtifacts()` spreads
+// both the `staticAbilities` reminder string and the `selfCostReduction` that
+// enforces it (see `convex/cards/abilities/affinity.ts`).
+//
+// Frogmite is the card that proves a spell NEVER counts ITSELF: affinity
+// functions while the spell is on the stack (702.41a), and
+// `resolveCostReductionGeneric` counts the announcing player's BATTLEFIELD, so
+// the Frogmite being cast is not among the artifacts it counts. With four
+// other artifacts out it costs {0} — there is no `minTotalMana` floor
+// (CR 601.2f lets a reduction reach zero).
+export const frogmite: CardDefinition = {
+    id: "ff504dcb-2eb8-4b3c-a8b9-29697739b649", // MRD 172
+    name: "Frogmite",
+    rarity: "common",
+    oracleText:
+        "Affinity for artifacts (This spell costs {1} less to cast for each artifact you control.)",
+    manaCost: { X: 4 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Frog"],
+    power: 2,
+    toughness: 2,
+    ...affinityForArtifacts(),
 };

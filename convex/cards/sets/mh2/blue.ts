@@ -2,6 +2,7 @@
 import type { CardDefinition, SpellContext } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { evokeTrigger } from "../../abilities/evoke";
+import { affinityForArtifacts } from "../../abilities/affinity";
 
 // Subtlety — {2}{U}{U} Creature — Elemental Incarnation, 3/3 (MH2, issue #1205).
 // "Flash. Flying. When this creature enters, choose up to one target creature
@@ -107,5 +108,49 @@ export const subtlety: CardDefinition = {
 //     manaCost: { X: 1, U: 1 },
 //     types: ["Instant"],
 // };
+
+// Thought Monitor — {6}{U} Artifact Creature — Construct, 2/2 (MH2 71).
+// "Affinity for artifacts (This spell costs {1} less to cast for each artifact
+// you control.) Flying. When this creature enters, draw two cards." Modern
+// Scryfall oracle text is authoritative (ADR 0004).
+//
+// Affinity KEYWORD (CR 702.41, PRD #702 / ADR 0063) via
+// `affinityForArtifacts()`. Third consumer alongside Frogmite and Thoughtcast
+// (both `mrd/`); this one proves the keyword COMPOSES — it rides alongside a
+// second `staticAbilities` keyword (flying) and an ordinary `enteredTrigger`,
+// with no interaction between them: affinity functions only while the spell is
+// on the stack (702.41a), flying only once the permanent is on the battlefield.
+//
+// Home set = earliest paper printing (ADR 0041). Scryfall's earliest paper
+// print is the PMH2 prerelease promo (2021-05-06, #71s) rather than MH2 proper
+// (2021-06-18, #71) — the promo is the SAME card with a date stamp, and
+// `scripts/backfill-card-index.ts` does not exclude `set_type: "promo"`, so the
+// lockfile's `firstPrintId` is the promo's. The id below follows the lockfile
+// so `check:index` stays green; the set module is `mh2/` because that is the
+// real set. The promo exclusion is tracked by #1844 — when it lands this id
+// becomes MH2 71 (996c1952-8d10-4296-8960-ff8993833649) and this paragraph
+// goes away.
+// tracked-by: #1844
+export const thoughtMonitor: CardDefinition = {
+    id: "c5b53f25-25e7-47db-b356-65e93e3b0059", // PMH2 71s (= MH2 71)
+    name: "Thought Monitor",
+    rarity: "rare",
+    oracleText:
+        "Affinity for artifacts (This spell costs {1} less to cast for each artifact you control.)\nFlying\nWhen this creature enters, draw two cards.",
+    manaCost: { X: 6, U: 1 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Construct"],
+    power: 2,
+    toughness: 2,
+    ...affinityForArtifacts(["flying"]),
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "thought-monitor-etb-draw",
+            oracleText: "When this creature enters, draw two cards.",
+            scope: "self",
+            effects: [{ op: "draw", player: "controller", count: 2 }],
+        }),
+    ],
+};
 
 export {};
