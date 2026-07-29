@@ -15,7 +15,10 @@ import {
     mayPayRequiredDiscards,
 } from "~/lib/card-utils";
 import { formatOracleText } from "~/lib/oracle-text";
-import { pendingChoiceLabel } from "~/lib/pending-choice-labels";
+import {
+    pendingChoiceLabel,
+    pendingChoiceRequiresBoardTap,
+} from "~/lib/pending-choice-labels";
 import {
     pendingChoiceMin,
     pendingChoiceMax,
@@ -53,8 +56,16 @@ export default function PendingChoicePrompt({
     gameId: Id<"games">;
 }) {
     const { allPlayers } = useGameContext();
+    // Issue #1813 — pin only when THIS choice routes clicks to the
+    // mid-board (`zone: "battlefield"` — a may-pay sacrifice/threshold leg,
+    // `choose-aura-host`, a zone-pick from the battlefield). Every other
+    // kind (hand/library/graveyard/exile zone picks, option-pick, name-card,
+    // plain yes/no) has nothing on the board to cover, so it centers like
+    // any other non-targeting prompt.
     const { outerClassName, outerStyle, innerClassName, dragHandlers } =
-        usePromptBannerPosition();
+        usePromptBannerPosition({
+            pinned: pendingChoiceRequiresBoardTap(choice),
+        });
     const submitMayPay = useMutation(api.game.submitMayPay);
     const submitLandEntryChoice = useMutation(api.game.submitLandEntryChoice);
     const submitDrawReplacementPay = useMutation(

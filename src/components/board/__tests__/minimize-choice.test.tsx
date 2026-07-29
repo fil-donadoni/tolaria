@@ -307,4 +307,37 @@ describe("MinimizedChoiceIndicator — mobile positioning (issue #1762)", () => 
         expect(outer.className).toContain("top-1/2");
         expect(outer.className).toContain("left-1/2");
     });
+
+    // Issue #1813 — a minimized choice whose underlying pick is NOT on the
+    // battlefield (e.g. a library/hand zone pick) has nothing on the
+    // mid-board for the badge to cover, so it follows the hook's new
+    // default: vertically centered, not pinned to the safe-area strip.
+    it("centers vertically in portrait when the underlying choice is not a battlefield pick", () => {
+        portrait = true;
+        const min = makeMinimized({ isMinimized: true });
+        const { container } = render(
+            <GameContext value={makeContext()}>
+                <PendingChoiceBufferContext value={makeBuffer()}>
+                    <MinimizedChoiceContext value={min}>
+                        <MinimizedChoiceIndicator
+                            choice={
+                                {
+                                    ...CHOICE,
+                                    kind: "search-library",
+                                    zone: "library",
+                                } as never
+                            }
+                        />
+                    </MinimizedChoiceContext>
+                </PendingChoiceBufferContext>
+            </GameContext>
+        );
+        const outer = container.firstElementChild as HTMLElement;
+        expect(outer.className).not.toContain("top-1/2");
+        expect(outer.className).not.toContain("left-1/2");
+        expect(outer.className).toContain("fixed");
+        expect(outer.className).toContain("items-center");
+        expect(outer.className).toContain("justify-center");
+        expect(outer.className).not.toContain("env(safe-area-inset-top)");
+    });
 });

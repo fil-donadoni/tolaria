@@ -132,7 +132,13 @@ describe("PileDivisionPicker — pick mode", () => {
 // `absolute top-1/2 left-1/2` + `useDraggable` recipe (the same dead-center
 // bug the small prompt banners had), AND the 560px-wide 3-zone stage
 // (`STAGE_W`, layout.ts) had no cap, overflowing a 390px portrait viewport.
-describe("PileDivisionPicker — mobile positioning (issue #1762)", () => {
+//
+// Issue #1813 — this dialog's own drag stage never routes a click to a
+// battlefield permanent (its candidates/piles are cards INSIDE the dialog,
+// not on the mid-board), so it never opts into `pinned` and now rides the
+// hook's default portrait behavior: vertically centered, same as the
+// desktop composition minus the drag offset.
+describe("PileDivisionPicker — mobile positioning (issues #1762, #1813)", () => {
     const choice = {
         stackItemId: "s1",
         step: 0,
@@ -145,7 +151,7 @@ describe("PileDivisionPicker — mobile positioning (issue #1762)", () => {
         prompt: "Separate into two piles.",
     } as unknown as PendingChoice;
 
-    it("routes positioning through the shared hook — never centers on the board in portrait", () => {
+    it("routes positioning through the shared hook — centers vertically in portrait, never the old dead-center recipe", () => {
         portrait = true;
         const { container } = render(
             <PileDivisionPicker
@@ -159,7 +165,11 @@ describe("PileDivisionPicker — mobile positioning (issue #1762)", () => {
         expect(outer.className).not.toContain("top-1/2");
         expect(outer.className).not.toContain("left-1/2");
         expect(outer.className).toContain("fixed");
-        expect(outer.className).toContain("env(safe-area-inset-top)");
+        expect(outer.className).toContain("items-center");
+        expect(outer.className).toContain("justify-center");
+        // Not pinned to the safe-area strip — this dialog has nothing on
+        // the mid-board for a centered panel to cover.
+        expect(outer.className).not.toContain("env(safe-area-inset-top)");
     });
 
     it("keeps the desktop/landscape centered + draggable behavior unchanged", () => {

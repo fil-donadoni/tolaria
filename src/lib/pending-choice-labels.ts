@@ -1,4 +1,5 @@
 import type { PendingChoiceKind } from "@convex/gre/types";
+import type { PendingChoice } from "~/types/game";
 
 /** UI label shown as the source tag on a pending choice prompt
  *  (the bold leading word, e.g. "Sacrifice — choose ...").
@@ -65,4 +66,21 @@ const PENDING_CHOICE_KIND_LABELS: Record<PendingChoiceKind, string> = {
 
 export function pendingChoiceLabel(kind: PendingChoiceKind): string {
     return PENDING_CHOICE_KIND_LABELS[kind];
+}
+
+/** Issue #1813 — does resolving this choice require the chooser to tap a
+ *  permanent on the mid-board? `zone: "battlefield"` (`PendingChoice.zone`)
+ *  is the authoritative signal: the UI routes clicks to battlefield
+ *  permanents for every such pick — a may-pay sacrifice/threshold leg
+ *  (`needsSacrificePick` / `sacrificeThreshold`, `pending-choice-prompt.tsx`),
+ *  `keep-permanents` / `sacrifice-permanents` / `choose-permanents`, the
+ *  non-cast Aura host choice (`choose-aura-host`, CR 303.4f), etc. A `hand`,
+ *  `library`, `graveyard` or `exile` zone pick (or a zone-less choice —
+ *  `may-pay` with no sacrifice leg, `option-pick`, `name-card`, yes/no) has
+ *  nothing on the mid-board to cover, so it's safe to vertically center on
+ *  portrait like any other non-targeting prompt. Shared by
+ *  `pending-choice-prompt.tsx` and `minimized-choice-indicator.tsx` — both
+ *  render the SAME `PendingChoice` and must agree on whether it pins. */
+export function pendingChoiceRequiresBoardTap(choice: PendingChoice): boolean {
+    return choice.zone === "battlefield";
 }

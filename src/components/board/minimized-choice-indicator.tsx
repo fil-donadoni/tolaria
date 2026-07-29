@@ -2,7 +2,10 @@ import { Maximize2 } from "lucide-react";
 import type { PendingChoice } from "~/types/game";
 import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
 import { usePromptBannerPosition } from "~/hooks/usePromptBannerPosition";
-import { pendingChoiceLabel } from "~/lib/pending-choice-labels";
+import {
+    pendingChoiceLabel,
+    pendingChoiceRequiresBoardTap,
+} from "~/lib/pending-choice-labels";
 
 /** Collapsed stand-in for a minimized blocking choice dialog (issue #315).
  *  Rendered on the board while the chooser has minimized the prompt to
@@ -18,9 +21,13 @@ import { pendingChoiceLabel } from "~/lib/pending-choice-labels";
  *  a portrait player minimizes the dialog TO reach: a creature to target, a
  *  permanent to sacrifice/tap). Desktop is unchanged (dead center, though the
  *  badge itself never actually drags — its whole clickable area IS the drag
- *  handle, and `useDraggable` never starts a drag from a `button` target);
- *  portrait pins it to the same safe-area strip every other prompt banner
- *  uses instead of the board center. */
+ *  handle, and `useDraggable` never starts a drag from a `button` target).
+ *  Portrait (issue #1813): pinned to the same safe-area strip only when the
+ *  underlying choice itself routes clicks to the mid-board
+ *  (`pendingChoiceRequiresBoardTap` — same rule `pending-choice-prompt.tsx`
+ *  uses for the full dialog, since minimizing just swaps which surface
+ *  renders the SAME `PendingChoice`); otherwise it centers like any other
+ *  non-targeting prompt. */
 export default function MinimizedChoiceIndicator({
     choice,
 }: {
@@ -29,7 +36,9 @@ export default function MinimizedChoiceIndicator({
     const { restore } = useMinimizedChoice();
     const label = pendingChoiceLabel(choice.kind);
     const { outerClassName, outerStyle, innerClassName, dragHandlers } =
-        usePromptBannerPosition();
+        usePromptBannerPosition({
+            pinned: pendingChoiceRequiresBoardTap(choice),
+        });
 
     return (
         <div className={outerClassName} style={outerStyle}>

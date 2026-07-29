@@ -113,9 +113,11 @@ const noopBuffer: PendingChoiceBuffer = {
 
 /** Asserts the FIRST child of `container` — every one of these banners
  *  renders exactly one top-level positioning `div` — never centers on the
- *  board (`top-1/2`/`left-1/2`) and always uses the safe-area-aware fixed
- *  strip in portrait (issue #1762 acceptance criterion: never covers the
- *  board center or the bottom controls). */
+ *  board via the OLD dead-center recipe (`top-1/2`/`left-1/2`) and always
+ *  uses the safe-area-aware fixed strip in portrait (issue #1762 original
+ *  acceptance criterion). Issue #1813 narrowed WHICH banners this applies
+ *  to: only ones whose own interaction routes clicks to the mid-board — see
+ *  `expectPortraitCenteredPosition` below for the new default. */
 function expectPortraitSafePosition(container: HTMLElement) {
     const outer = container.firstElementChild as HTMLElement | null;
     expect(outer).not.toBeNull();
@@ -126,7 +128,25 @@ function expectPortraitSafePosition(container: HTMLElement) {
     expect(className).toContain("env(safe-area-inset-top)");
 }
 
-describe("Prompt banners — portrait never centers on the board (issue #1762)", () => {
+/** Issue #1813 — the new portrait DEFAULT for a prompt banner with nothing
+ *  on the mid-board for the player to tap: vertically (and horizontally)
+ *  centered, never the safe-area strip (that would waste the centered
+ *  screen real estate) and never the OLD dead-center `top-1/2`/`left-1/2`
+ *  recipe either (this is a DIFFERENT, flex-centered implementation — see
+ *  `usePromptBannerPosition`). */
+function expectPortraitCenteredPosition(container: HTMLElement) {
+    const outer = container.firstElementChild as HTMLElement | null;
+    expect(outer).not.toBeNull();
+    const className = outer!.className;
+    expect(className).not.toContain("top-1/2");
+    expect(className).not.toContain("left-1/2");
+    expect(className).toContain("fixed");
+    expect(className).toContain("items-center");
+    expect(className).toContain("justify-center");
+    expect(className).not.toContain("env(safe-area-inset-top)");
+}
+
+describe("Prompt banners — portrait pins to the safe-area strip when board taps are required (issues #1762, #1813)", () => {
     it("TargetSelectionBanner", () => {
         const pendingTarget: PendingTarget = {
             playerId: "me",
@@ -147,7 +167,134 @@ describe("Prompt banners — portrait never centers on the board (issue #1762)",
         expectPortraitSafePosition(container);
     });
 
-    it("PendingChoicePrompt", () => {
+    it("SacrificeBanner", () => {
+        const selection: SacrificeSelection = {
+            playerId: "me",
+            reason: "Green creatures can't attack unless their controller sacrifices a land",
+            requirements: [{ filter: { types: "Land" }, count: 1 }],
+            picked: [],
+        };
+        const { container } = render(<SacrificeBanner selection={selection} />);
+        expectPortraitSafePosition(container);
+    });
+
+    it("PaymentBanner", () => {
+        const pa: PendingActivation = {
+            playerId: "me",
+            cardInstanceId: "src",
+            abilityId: "ability",
+            manaCost: { R: 1 },
+            tappedLandIds: [],
+            tapSource: false,
+            sacrificeSource: false,
+        };
+        const { container } = render(
+            <PaymentBanner
+                kind="activation"
+                pendingActivation={pa}
+                me={player()}
+                gameId={"g1" as never}
+                playerId="me"
+            />
+        );
+        expectPortraitSafePosition(container);
+    });
+
+    it("AttackManaTaxBanner", () => {
+        const payment: AttackManaTaxPayment = {
+            playerId: "me",
+            reason: "Propaganda",
+            cost: { generic: 2 },
+            tappedLandIds: [],
+        };
+        const { container } = render(
+            <AttackManaTaxBanner
+                gameId={"g1" as never}
+                playerId="me"
+                payment={payment}
+            />
+        );
+        expectPortraitSafePosition(container);
+    });
+
+    // PendingChoicePrompt is dynamic — it pins ONLY when the choice itself
+    // routes clicks to the battlefield (`zone: "battlefield"`, e.g. a
+    // may-pay sacrifice leg or `choose-aura-host`). This exercises that
+    // branch; the non-battlefield branch is covered in the centered describe
+    // block below.
+    it("PendingChoicePrompt — a battlefield-zone choice", () => {
+        const choice: PendingChoice = {
+            stackItemId: "stk",
+            step: 0,
+            choiceId: "me",
+            playerId: "me",
+            kind: "choose-permanents",
+            zone: "battlefield",
+            count: 1,
+            prompt: "Choose a permanent.",
+        } as PendingChoice;
+        const value = {
+            gameId: "g1" as never,
+            playerId: "me",
+            activePlayerId: "me",
+            priorityPlayerId: "me",
+            phase: "PRECOMBAT_MAIN",
+            turn: 1,
+            stackCount: 0,
+            allPlayers: [{ id: "me", name: "Me" }],
+            showAllCards: false,
+            debugAllActions: false,
+            onSwitchGame: () => {},
+            pendingChoices: [choice],
+        } as unknown as React.ContextType<typeof GameContext>;
+        const { container } = render(
+            <GameContext value={value}>
+                <PendingChoiceBufferContext value={noopBuffer}>
+                    <MinimizedChoiceContext
+                        value={{
+                            isMinimized: false,
+                            minimize: () => {},
+                            restore: () => {},
+                        }}
+                    >
+                        <PendingChoicePrompt
+                            choice={choice}
+                            playerId="me"
+                            gameId={"g1" as never}
+                        />
+                    </MinimizedChoiceContext>
+                </PendingChoiceBufferContext>
+            </GameContext>
+        );
+        expectPortraitSafePosition(container);
+    });
+});
+
+// Issue #1813 — the new portrait default: a prompt with nothing on the
+// mid-board for the player to tap renders vertically centered instead of
+// pinned to the safe-area strip.
+describe("Prompt banners — portrait centers vertically when no board tap is required (issue #1813)", () => {
+    it("MulliganPrompt", () => {
+        const mulligan: MulliganState = {
+            declaringPlayerId: "me",
+            mulligansTaken: [0, 0],
+        } as MulliganState;
+        const { container } = render(
+            <MulliganPrompt
+                gameId={"g1" as never}
+                viewerId="me"
+                mulligan={mulligan}
+                allPlayers={[player()]}
+            />
+        );
+        expectPortraitCenteredPosition(container);
+    });
+
+    // A non-battlefield-zone choice (library, here) — the chooser's pick
+    // happens inside a full-screen modal/picker elsewhere, never a
+    // battlefield permanent, so this banner has nothing on the mid-board to
+    // cover.
+    it("PendingChoicePrompt — a non-battlefield-zone choice", () => {
         const choice: PendingChoice = {
             stackItemId: "stk",
             step: 0,
@@ -191,73 +338,7 @@ describe("Prompt banners — portrait never centers on the board (issue #1762)",
                 </PendingChoiceBufferContext>
             </GameContext>
         );
-        expectPortraitSafePosition(container);
-    });
-
-    it("SacrificeBanner", () => {
-        const selection: SacrificeSelection = {
-            playerId: "me",
-            reason: "Green creatures can't attack unless their controller sacrifices a land",
-            requirements: [{ filter: { types: "Land" }, count: 1 }],
-            picked: [],
-        };
-        const { container } = render(<SacrificeBanner selection={selection} />);
-        expectPortraitSafePosition(container);
-    });
-
-    it("PaymentBanner", () => {
-        const pa: PendingActivation = {
-            playerId: "me",
-            cardInstanceId: "src",
-            abilityId: "ability",
-            manaCost: { R: 1 },
-            tappedLandIds: [],
-            tapSource: false,
-            sacrificeSource: false,
-        };
-        const { container } = render(
-            <PaymentBanner
-                kind="activation"
-                pendingActivation={pa}
-                me={player()}
-                gameId={"g1" as never}
-                playerId="me"
-            />
-        );
-        expectPortraitSafePosition(container);
-    });
-
-    it("MulliganPrompt", () => {
-        const mulligan: MulliganState = {
-            declaringPlayerId: "me",
-            mulligansTaken: [0, 0],
-        } as MulliganState;
-        const { container } = render(
-            <MulliganPrompt
-                gameId={"g1" as never}
-                viewerId="me"
-                mulligan={mulligan}
-                allPlayers={[player()]}
-            />
-        );
-        expectPortraitSafePosition(container);
-    });
-
-    it("AttackManaTaxBanner", () => {
-        const payment: AttackManaTaxPayment = {
-            playerId: "me",
-            reason: "Propaganda",
-            cost: { generic: 2 },
-            tappedLandIds: [],
-        };
-        const { container } = render(
-            <AttackManaTaxBanner
-                gameId={"g1" as never}
-                playerId="me"
-                payment={payment}
-            />
-        );
-        expectPortraitSafePosition(container);
+        expectPortraitCenteredPosition(container);
     });
 });
 
