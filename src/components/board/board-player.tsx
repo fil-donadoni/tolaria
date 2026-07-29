@@ -23,21 +23,32 @@ type BoardPlayerProps = {
  *  nameplate anchors bottom-center at {@link PORTRAIT_VIEWER_NAMEPLATE_BOTTOM}
  *  — the SAME `play-area-center-x -translate-x-1/2` horizontal centering as
  *  the opponent, just flipped to the bottom edge. That constant is the top
- *  edge of the viewer's hand band (= the battlefield's own bottom inset), not
- *  the bar's measured clearance directly: the portrait hand
- *  (`BoardHandPortrait`) bottom-aligns its cards to the bar-side edge of that
- *  band for thumb reach (#1759), so anchoring at the bar clearance itself
- *  would drop the nameplate straight onto the interactive hand fan. Anchoring
- *  at the band's OTHER edge instead sits it in the battlefield's own
- *  territory, clear of the fan by construction and still fully derived from
- *  the bar's measured height — no hardcoded pixel offset. This superseded an
- *  earlier iteration (#1759/#1760) that parked the viewer's nameplate at the
- *  shared portrait midline, left-aligned, purely to get it off the bottom
- *  edge the bar used to bury it under; this revision restores the
- *  symmetric top/bottom placement now that the hand-band boundary gives it
- *  a collision-free bottom anchor. Own life stays permanently visible on the
- *  bar's "You" tab too, which is also the self-target surface; the nameplate
- *  keeps carrying the arrow anchor and the mana pool. Desktop is unchanged.
+ *  edge of the viewer's hand band, not the bar's measured clearance directly:
+ *  the portrait hand (`BoardHandPortrait`) bottom-aligns its cards to the
+ *  bar-side edge of that band for thumb reach (#1759), so anchoring at the
+ *  bar clearance itself would drop the nameplate straight onto the
+ *  interactive hand fan. Anchoring at the band's OTHER edge instead keeps it
+ *  clear of the fan by construction and still fully derived from the bar's
+ *  measured height — no hardcoded pixel offset.
+ *
+ *  **Post-review fixup:** the nameplate grows UPWARD from that anchor and
+ *  used to grow straight into the battlefield's own bottom inset — dead
+ *  center, exactly where `splitRowLayout` centers the back row (lands) from
+ *  turn 1. The battlefield's bottom inset (`PORTRAIT_VIEWER_BF_BOTTOM_VAR`,
+ *  `portrait-board-bands.ts`) now reserves a whole extra band
+ *  (`PORTRAIT_NAMEPLATE_BAND_H`) ABOVE the nameplate's anchor for exactly
+ *  that growth — the same "rail" move `LANDSCAPE_SIDE_GUTTER` makes
+ *  laterally for landscape-compact seat chrome — so the nameplate has its
+ *  own collision-free territory rather than merely a usually-small overlap.
+ *  This superseded an earlier iteration (#1759/#1760) that parked the
+ *  viewer's nameplate at the shared portrait midline, left-aligned, purely to
+ *  get it off the bottom edge the bar used to bury it under; this revision
+ *  restores the symmetric top/bottom placement now that both the hand-band
+ *  boundary AND the reserved nameplate band give it a collision-free bottom
+ *  anchor. Own life stays permanently visible on the bar's "You" tab too,
+ *  which is also the self-target surface; the nameplate keeps carrying the
+ *  arrow anchor and the mana pool (the latter `pointer-events-none` — see
+ *  `player-mana-pool.tsx`). Desktop is unchanged.
  *
  *  Landscape-compact (#1768) moves BOTH seats' chrome into the board's left
  *  rail, stacked around the landscape midline. On a phone held sideways the

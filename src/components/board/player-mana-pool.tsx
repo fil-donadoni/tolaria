@@ -40,9 +40,16 @@ export default function PlayerManaPool({ player }: { player: Player }) {
         ? "left-0 bottom-full mb-2"
         : "right-0 top-full mt-2";
 
+    // Purely informational (no click handler, anywhere) — floating above the
+    // nameplate it can still visually stray into the battlefield's own
+    // territory (e.g. several colors + restricted mana units stacked), which
+    // the reserved portrait nameplate band does not size for. `pointer-events-
+    // none` (review fixup, #1814) makes that harmless: a click always falls
+    // through to whatever card is underneath instead of the pool silently
+    // eating the tap (the same class of bug the nameplate collision was).
     return (
         <div
-            className={`absolute ${positionClass} z-20 inline-flex w-max flex-col gap-1 bg-black/60 px-2 py-1 rounded-md whitespace-nowrap`}
+            className={`pointer-events-none absolute ${positionClass} z-20 inline-flex w-max flex-col gap-1 bg-black/60 px-2 py-1 rounded-md whitespace-nowrap`}
         >
             {colorsWithMana.length > 0 && (
                 <div className="inline-flex gap-2">

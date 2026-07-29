@@ -158,17 +158,29 @@ describe("seat anchoring — nothing under the portrait bottom bar (#1759, #1814
         expect(anchorClass("top")).toMatch(TOP_EDGE_ANCHOR);
     });
 
-    it("portrait: both seats share the SAME horizontal centering utility — a true mirror", () => {
+    it("portrait: both seats' anchors differ ONLY in which edge they pin to — a true mirror", () => {
         // #1814 acceptance: "symmetric anchors" / "same horizontal alignment
-        // ... as the opponent's" — assert both anchor strings agree on the
-        // centering classes, differing only in which edge they pin to.
+        // ... as the opponent's". Tests (1) and (3) above already assert each
+        // anchor string CONTAINS the centering classes individually — this
+        // assertion is deliberately distinct (and can fail on its own): strip
+        // each anchor's vertical-anchor tokens and compare what's LEFT, so a
+        // regression that gives one seat extra/different horizontal classes
+        // (not just a missing centering class) is caught too.
         portrait = true;
-        const top = anchorClass("top");
-        const bottom = anchorClass("bottom");
+        const stripVerticalAnchor = (className: string) =>
+            className
+                .replace(TOP_EDGE_ANCHOR, "")
+                .replace(PORTRAIT_VIEWER_NAMEPLATE_BOTTOM, "")
+                .replace(/\bmb-1\b/, "")
+                .split(/\s+/)
+                .filter(Boolean)
+                .sort()
+                .join(" ");
+        const top = stripVerticalAnchor(anchorClass("top"));
+        const bottom = stripVerticalAnchor(anchorClass("bottom"));
+        expect(top).toBe(bottom);
         expect(top).toContain("play-area-center-x");
         expect(top).toContain("-translate-x-1/2");
-        expect(bottom).toContain("play-area-center-x");
-        expect(bottom).toContain("-translate-x-1/2");
     });
 });
 
