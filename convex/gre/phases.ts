@@ -710,23 +710,18 @@ export function untapStep(state: GameState): void {
  *  (mirroring the untap step's phase-level prompt); `finalizeDrawLookKeep`
  *  reorders the library and performs the actual draw on commit.
  *
- *  CR 504.1 (issue #1097 — Elfhame Sanctuary): a one-shot per-player
- *  `state.skipDrawStepThisTurn` flag, armed by an EARLIER step's effect
- *  (upkeep) and consumed here, skips the draw outright with no replacement
- *  choice. Distinct from `hasDrawSkipReplacement` (Fasting's
- *  `drawStepReplacement`): that is a static per-card flag re-checked every
- *  turn that hands off to its OWN DRAW-phase trigger for an interactive
- *  may-skip decision; this flag is consumed directly, with no trigger
- *  involved, and checked first so a player who armed it never sees Fasting's
- *  (or a future card's) replacement offered on top. */
+ *  CR 504.1 / 500.8 (issue #1097 — Elfhame Sanctuary): a player whose
+ *  `state.skipDrawStepThisTurn` flag is armed never reaches this function at
+ *  all — `advancePhase` intercepts the DRAW step for that player BEFORE
+ *  calling `performPhaseEntry` (which is `drawStep`'s only caller), so the
+ *  whole step is skipped (no draw, no beginning-of-step triggers), not just
+ *  the draw itself. See `drawStepSkippedForActivePlayer` there. Distinct
+ *  from `hasDrawSkipReplacement` (Fasting's `drawStepReplacement`): that is a
+ *  static per-card flag re-checked every turn that hands off to its OWN
+ *  DRAW-phase trigger for an interactive may-skip decision made at THIS
+ *  function, not upstream of it. */
 function drawStep(state: GameState): void {
     if (state.turn === 1) return;
-    const skipList = state.skipDrawStepThisTurn;
-    if (skipList?.includes(state.activePlayerId)) {
-        const rest = skipList.filter((id) => id !== state.activePlayerId);
-        state.skipDrawStepThisTurn = rest.length > 0 ? rest : undefined;
-        return;
-    }
     if (hasDrawSkipReplacement(state, state.activePlayerId)) return;
 
     const armed = state.drawLookReplacements ?? [];
@@ -2768,6 +2763,14 @@ function tickAllDurations(state: GameState): void {
     // Fog-style blanket combat-damage prevention (CR 615). Only meaningful
     // at CLEANUP — the flag is set at resolution time and lasts until end of
     // turn. Cleared unconditionally so it doesn't persist across turns.
+    // KNOWN GAP (issue #1864, found reviewing Tangle in PR #1858, pre-existing
+    // for Fog too): `tickAllDurations` also runs from `endCombatStep` (CR
+    // 511.3), which fires at the end of EVERY combat phase — so this
+    // unconditional clear wipes the flag after the FIRST combat phase, not
+    // surviving into a second/extra combat phase the same turn, even though
+    // "this turn" should cover it. Should mirror `cannotCastSpellsThisTurn`
+    // just below (gated on `view.phase === "CLEANUP"`) instead of clearing
+    // on every tick. tracked-by: #1864
     if (state.preventAllCombatDamageThisTurn) {
         state.preventAllCombatDamageThisTurn = undefined;
     }
@@ -3077,14 +3080,37 @@ export function advancePhase(state: GameState): Phase[] {
     // still present when entering END_OF_COMBAT — attackers stay attacking
     // through the step per CR 511.2.)
     const hadAttackers = !!state.combat && state.combat.attackerIds.length > 0;
-    performPhaseEntry(state);
 
-    // CR 603.6a: fire "at the beginning of ~" triggers after the step's
-    // turn-based actions. Skipped on auto-phases (UNTAP/CLEANUP) which don't
-    // grant priority — triggers scoped to those steps are out of scope for
-    // now and would need to be held until the next priority window.
-    if (!AUTO_PHASES.has(state.phase)) {
-        firePhaseBeginTriggers(state);
+    // CR 504.1 / 500.8 (issue #1097 — Elfhame Sanctuary): a step an effect
+    // says is "skipped" doesn't happen AT ALL — not merely "no draw". That
+    // means no turn-based draw, no CR 504.2 "at the beginning of the draw
+    // step" delayed triggers, and no CR 603.6a beginning-of-step triggers
+    // (Howling Mine, Sylvan Library, Island Sanctuary all fire on the same
+    // PHASE_BEGIN event `firePhaseBeginTriggers` scans for). Both live inside
+    // `performPhaseEntry`'s DRAW case / the `firePhaseBeginTriggers` call
+    // below, so the whole step is skipped by not calling either and instead
+    // falling into the same no-priority auto-advance path as UNTAP/CLEANUP
+    // (see `drawStepSkippedForActivePlayer` below). The one-shot flag is
+    // consumed here since `drawStep` (which used to consume it) is never
+    // reached on this path.
+    const drawStepSkippedForActivePlayer =
+        state.phase === "DRAW" &&
+        !!state.skipDrawStepThisTurn?.includes(state.activePlayerId);
+    if (drawStepSkippedForActivePlayer) {
+        const rest = state.skipDrawStepThisTurn!.filter(
+            (id) => id !== state.activePlayerId
+        );
+        state.skipDrawStepThisTurn = rest.length > 0 ? rest : undefined;
+    } else {
+        performPhaseEntry(state);
+
+        // CR 603.6a: fire "at the beginning of ~" triggers after the step's
+        // turn-based actions. Skipped on auto-phases (UNTAP/CLEANUP) which don't
+        // grant priority — triggers scoped to those steps are out of scope for
+        // now and would need to be held until the next priority window.
+        if (!AUTO_PHASES.has(state.phase)) {
+            firePhaseBeginTriggers(state);
+        }
     }
 
     const skipEmptyCombat =
@@ -3174,12 +3200,14 @@ export function advancePhase(state: GameState): Phase[] {
     if (
         !blockerConfirmPushedTriggers &&
         (AUTO_PHASES.has(state.phase) ||
+            drawStepSkippedForActivePlayer ||
             skipEmptyCombat ||
             skipUnblockableCombat ||
             skipCamouflageBlockers ||
             skipFirstStrikeDamage)
     ) {
-        // Auto-phase or empty combat: skip straight through (no priority given)
+        // Auto-phase, empty combat, or a fully-skipped draw step (CR 500.8):
+        // skip straight through (no priority given).
         traversed.push(...advancePhase(state));
     } else {
         // Priority phase: active player gets priority

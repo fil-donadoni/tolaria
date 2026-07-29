@@ -316,7 +316,7 @@ function isCardFilter(
             if (!allowHasAbility) return false;
             return typeof v === "string" && v.length > 0;
         }
-        // CR 508.1 (issue #1097 — Tangle's "each creature that's attacking").
+        // CR 508.1 (issue #1097 — Tangle's "each attacking creature").
         // Same battlefield-only honesty rule as `hasAbility` right above: a
         // hidden-zone/snapshot card shape carries no combat role at all, so
         // `allowIsAttacking` is threaded in ONLY from the same
@@ -1613,7 +1613,7 @@ function isForEachSelector(value: unknown): boolean {
     if ("controller" in s && !isPlayerRef(s.controller)) return false;
     // `zone` is confirmed "battlefield" above — `hasAbility` reads the LIVE
     // `staticAbilities` array and `isAttacking` (issue #1097 — Tangle's "each
-    // creature that's attacking") reads the live combat-role flag, both via
+    // attacking creature") reads the live combat-role flag, both via
     // `toPermanentFilter` / `matchesPermanentFilter` here, unlike the
     // graveyard branch above (which has no live battlefield object to read
     // either off of).

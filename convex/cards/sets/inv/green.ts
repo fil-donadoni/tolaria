@@ -1266,9 +1266,11 @@ export const canopySurge: CardDefinition = {
 // no `skipDrawStepThisTurn` flag/primitive existed anywhere in `GameState`/
 // `phases.ts`. Closed by a new one-shot per-player `GameState
 // .skipDrawStepThisTurn` array (`SpellContext.skipDrawStepThisTurn`, the
-// `skipDrawStepThisTurn` Op) armed here at upkeep and consumed by `drawStep`
-// (`gre/phases.ts`) the next time this player's draw step is reached, later
-// the SAME turn. Kept DELIBERATELY SEPARATE from the one existing
+// `skipDrawStepThisTurn` Op) armed here at upkeep and consumed by
+// `advancePhase` (`gre/phases.ts`) the next time this player's DRAW step is
+// entered, later the SAME turn — per CR 500.8 the whole step is skipped (no
+// draw, no beginning-of-step triggers), not merely the draw. Kept
+// DELIBERATELY SEPARATE from the one existing
 // draw-step-skip precedent, Fasting (`drk/white.ts`, CR 504/614): Fasting is
 // a STATIC per-card `drawStepReplacement` flag re-checked every turn, which
 // hands off to its OWN DRAW-phase trigger for an INTERACTIVE may-skip choice
@@ -1439,7 +1441,7 @@ export const restock: CardDefinition = {
 // };
 
 // Tangle — "Prevent all combat damage that would be dealt this turn. Each
-// creature that's attacking doesn't untap during its controller's next untap
+// attacking creature doesn't untap during its controller's next untap
 // step." (CR 615 damage prevention; CR 508.1/502.1 untap-step lock, issue
 // #1097.)
 //
@@ -1466,7 +1468,7 @@ export const tangle: CardDefinition = {
     name: "Tangle",
     rarity: "uncommon",
     oracleText:
-        "Prevent all combat damage that would be dealt this turn. Each creature that's attacking doesn't untap during its controller's next untap step.",
+        "Prevent all combat damage that would be dealt this turn.\nEach attacking creature doesn't untap during its controller's next untap step.",
     manaCost: { X: 1, G: 1 },
     types: ["Instant"],
     effects: [

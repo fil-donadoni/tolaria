@@ -90,6 +90,8 @@ const WIN_GAME_VALUE = 100000; // CR 104.2a — an alternate win condition
 const ISLAND_SANCTUARY_PROTECTION_VALUE = 20; // player-wide "can't be attacked except by flying/islandwalk" — ground-only, tempered protection
 const PROTECTION_FROM_EVERYTHING_VALUE = 45; // player-wide untargetable + ALL damage prevented for a full turn cycle — strictly stronger than Island Sanctuary (no evasion carve-out, covers burn and abilities too)
 const RANGED_TOPDECK_PER_CARD = 3; // Sylvan Library-style selection upside per pool card, smaller than putBack since it's an optional life-gated pick, not a free reorder
+const SKIP_DRAW_STEP_SELF_VALUE = -40; // CR 504.1/500.8 — forfeiting your OWN draw step is a real cost, a hair under -CARD_VALUE (the shipped card, Elfhame Sanctuary, pairs it with a land-to-hand upside elsewhere in the script)
+const SKIP_DRAW_STEP_DISRUPTION_VALUE = 40; // the mirror case — denying ANOTHER player's draw step is turn-based card denial, worth the same one card, signed positive
 
 // --- Backfill-Op point weights (issue #1515) --------------------------------
 // castDuringResolution (CR 608.2f) and createTokenCopy (CR 707.2 + CR 111.1)
@@ -840,6 +842,29 @@ const skipNextUntap: Valuer<"skipNextUntap"> = (op) => ({
     tags: isAnnouncedTarget(op.target) ? ["tempo", "targeted"] : ["tempo"],
 });
 
+// CR 504.1 / 500.8 (issue #1097 — Elfhame Sanctuary's "you skip your draw
+// step this turn"). Signs by direction, same discipline as `sacrifice`
+// (issue #1521): the one shipped card self-targets via the plain
+// `"controller"` literal, and there the skip is the DOWNSIDE half of a
+// value exchange (a land fetched into hand, paid for by forfeiting this
+// turn's draw) — a real cost, valued negatively with a `self-cost` tag. Any
+// OTHER player selector (`"opponent"`, an announced target slot, a
+// `controllerOf` ref) denies someone else's draw instead — turn-based card
+// denial, valued like the `disruption`-tagged Ops (`restrictActivation`/
+// `restrictCasting`) just above.
+const skipDrawStepThisTurn: Valuer<"skipDrawStepThisTurn"> = (op) => {
+    if (op.player === "controller") {
+        return {
+            points: SKIP_DRAW_STEP_SELF_VALUE,
+            tags: ["cardAdvantage", "self-cost"],
+        };
+    }
+    return {
+        points: SKIP_DRAW_STEP_DISRUPTION_VALUE,
+        tags: ["disruption"],
+    };
+};
+
 const transform: Valuer<"transform"> = (op) => ({
     points: TRANSFORM_VALUE,
     tags: isAnnouncedTarget(op.target) ? ["pump", "targeted"] : ["pump"],
@@ -929,6 +954,7 @@ export const OP_VALUERS: {
     shuffleSelfIntoLibrary,
     tapUntap,
     skipNextUntap,
+    skipDrawStepThisTurn,
     transform,
     unattach,
     winGame,

@@ -529,11 +529,20 @@ describe("Elfhame Sanctuary (CR 504.1 skip-draw-step, CR 603.6a upkeep, issue #1
             ownerId: "p1",
             zone: "library",
         });
+        // A second library card left behind by the search (which only
+        // fetches "sanct-land-2") — makes the assertion below sensitive to
+        // whether the draw step actually happens: if the skip didn't fire,
+        // the turn-based draw would put THIS card into the hand too.
+        const filler = makeInstance(kavuChameleon.id, {
+            id: "sanct-land-2-filler",
+            ownerId: "p1",
+            zone: "library",
+        });
         const state = makeState({
             players: [
                 makePlayer("p1", {
                     battlefield: [sanctuary],
-                    library: [land],
+                    library: [land, filler],
                 }),
                 makePlayer("p2"),
             ],
@@ -556,16 +565,20 @@ describe("Elfhame Sanctuary (CR 504.1 skip-draw-step, CR 603.6a upkeep, issue #1
         expect(state.players[0].hand.map((c) => c.id)).toEqual([
             "sanct-land-2",
         ]);
-        expect(state.players[0].library).toHaveLength(0);
+        expect(state.players[0].library).toHaveLength(1);
         expect(state.skipDrawStepThisTurn).toEqual(["p1"]);
 
-        advancePhase(state); // UPKEEP → DRAW: the armed skip consumes here.
-        expect(state.phase).toBe("DRAW");
-        // Still just the one hand card — no additional draw happened, and the
-        // flag is spliced back out (one-shot).
+        advancePhase(state); // UPKEEP → DRAW: the armed skip consumes here,
+        // and (CR 500.8) the whole step is bypassed — no priority window for
+        // it — so the engine lands straight on PRECOMBAT_MAIN.
+        expect(state.phase).toBe("PRECOMBAT_MAIN");
+        // Still just the one hand card — no additional draw happened (the
+        // filler is still sitting in the library), and the flag is spliced
+        // back out (one-shot).
         expect(state.players[0].hand.map((c) => c.id)).toEqual([
             "sanct-land-2",
         ]);
+        expect(state.players[0].library).toHaveLength(1);
         expect(state.skipDrawStepThisTurn).toBeUndefined();
     });
 
@@ -607,8 +620,10 @@ describe("Elfhame Sanctuary (CR 504.1 skip-draw-step, CR 603.6a upkeep, issue #1
         // armed regardless of the empty find.
         expect(state.skipDrawStepThisTurn).toEqual(["p1"]);
 
-        advancePhase(state); // UPKEEP → DRAW
-        expect(state.phase).toBe("DRAW");
+        advancePhase(state); // UPKEEP → DRAW: fully skipped (CR 500.8), so the
+        // engine lands straight on PRECOMBAT_MAIN with no priority window for
+        // the (never-entered) draw step.
+        expect(state.phase).toBe("PRECOMBAT_MAIN");
         expect(state.players[0].hand).toHaveLength(0);
     });
 
@@ -668,8 +683,8 @@ describe("Tangle (CR 615 all-combat prevention + CR 508.1/502.1 attacker untap-l
             ownerId: "p2",
         });
         // An attacker under the CASTER's own control too — proves the sweep
-        // is controller-agnostic ("each creature that's attacking", not
-        // "each creature your opponent attacked with").
+        // is controller-agnostic ("each attacking creature", not "each
+        // creature your opponent attacked with").
         const casterAttacker = makeInstance(blurredMongoose.id, {
             id: "tangle-caster-attacker",
             controllerId: "p1",

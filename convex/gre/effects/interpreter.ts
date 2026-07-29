@@ -598,7 +598,7 @@ function toPermanentFilter(
         // `isToken`'s own mapping exactly (battlefield-only, no hidden-zone
         // counterpart in `matchesCardFilter`).
         enteredThisTurn: filter.enteredThisTurn,
-        // CR 508.1 (issue #1097 — Tangle's "each creature that's attacking"),
+        // CR 508.1 (issue #1097 — Tangle's "each attacking creature"),
         // propagated 1:1 onto `PermanentFilter.isAttacking`
         // (`convex/cards/filters.ts`), already read by combat-scoped choice
         // pickers — `CardInstanceState.isAttacking` is spread verbatim into

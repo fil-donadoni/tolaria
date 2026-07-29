@@ -8245,21 +8245,24 @@ export type EffectOp =
      *  and cleared at CLEANUP (CR 514.2). Skipped when the player cannot be
      *  resolved (CR 608.2b). */
     | { op: "restrictActivation"; player: EffectPlayerRef }
-    /** CR 504.1 (issue #1097 — Elfhame Sanctuary's "you skip your draw step
-     *  this turn"). A thin declarative skin over
+    /** CR 504.1 / 500.8 (issue #1097 — Elfhame Sanctuary's "you skip your
+     *  draw step this turn"). A thin declarative skin over
      *  `SpellContext.skipDrawStepThisTurn`, one execution path (ADR 0045):
      *  `player` names whose draw step to skip — the resolving controller for
      *  every shipped card, but an announced slot / relative player is not
      *  precluded by the grammar. The player's id is added to
-     *  `state.skipDrawStepThisTurn`, consumed the next time `drawStep`
-     *  (`gre/phases.ts`) reaches that player this turn (skipping the draw
-     *  outright, no replacement choice) and cleared unconditionally at
-     *  CLEANUP as a turn-1 safety net. Skipped when the player cannot be
-     *  resolved (CR 608.2b). Distinct from `drawStepReplacement`
-     *  (`CardDefinition`, Fasting): that is a static per-card flag offering an
-     *  interactive may-skip choice AT the draw step itself; this Op arms a
-     *  plain one-shot flag from a DIFFERENT step's effect, with no choice
-     *  left once armed. */
+     *  `state.skipDrawStepThisTurn`, consumed by `advancePhase`
+     *  (`gre/phases.ts`) the next time the DRAW step is entered for that
+     *  player this turn — per CR 500.8 a skipped step doesn't happen at all,
+     *  so the whole step (turn-based draw, CR 504.2 delayed triggers, and
+     *  CR 603.6a beginning-of-step triggers like Howling Mine) is bypassed,
+     *  not merely the draw — and cleared unconditionally at CLEANUP as a
+     *  turn-1 safety net. Skipped when the player cannot be resolved (CR
+     *  608.2b). Distinct from `drawStepReplacement` (`CardDefinition`,
+     *  Fasting): that is a static per-card flag offering an interactive
+     *  may-skip choice AT the draw step itself; this Op arms a plain
+     *  one-shot flag from a DIFFERENT step's effect, with no choice left
+     *  once armed. */
     | { op: "skipDrawStepThisTurn"; player: EffectPlayerRef }
     /** CR 601.3e (Teferi, Time Raveler +1: "Until your next turn, you may cast
      *  sorcery spells as though they had flash") — grant `player` a per-player
