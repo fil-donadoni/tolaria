@@ -4520,6 +4520,14 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Frogmite",
+        "scryfallId": "ff504dcb-2eb8-4b3c-a8b9-29697739b649",
+        "oracleId": "a927fd33-f183-48d9-b582-55d379d70e13",
+        "firstSet": "mrd",
+        "firstPrintId": "ff504dcb-2eb8-4b3c-a8b9-29697739b649",
+        "firstPrintSet": "mrd"
+    },
+    {
         "name": "Frost Giant",
         "scryfallId": "6955d54f-7b37-4e43-8183-51677fb1ee11",
         "oracleId": "56ed6af3-8f85-4907-9364-eca71f21bb11",
@@ -12456,12 +12464,28 @@
         "firstPrintSet": "dsk"
     },
     {
+        "name": "Thought Monitor",
+        "scryfallId": "c5b53f25-25e7-47db-b356-65e93e3b0059",
+        "oracleId": "9deded8b-cec4-4ede-a50b-131404d456d4",
+        "firstSet": "pmh2",
+        "firstPrintId": "c5b53f25-25e7-47db-b356-65e93e3b0059",
+        "firstPrintSet": "pmh2"
+    },
+    {
         "name": "Thought Scour",
         "scryfallId": "88bf1ebb-9d85-4b9b-a614-c7f965c0893d",
         "oracleId": "83101ba8-a569-4827-8c53-9ca0dfcd59a7",
         "firstSet": "dka",
         "firstPrintId": "88bf1ebb-9d85-4b9b-a614-c7f965c0893d",
         "firstPrintSet": "dka"
+    },
+    {
+        "name": "Thoughtcast",
+        "scryfallId": "efb965a7-877a-4302-b507-25b0a9e32d9b",
+        "oracleId": "cce9bbff-82dc-4b2f-addd-d6715588de20",
+        "firstSet": "mrd",
+        "firstPrintId": "efb965a7-877a-4302-b507-25b0a9e32d9b",
+        "firstPrintSet": "mrd"
     },
     {
         "name": "Thoughtlace",
