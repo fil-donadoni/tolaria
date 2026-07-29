@@ -1,4 +1,8 @@
-import { BASIC_LAND_SUBTYPES } from "@convex/cards/types";
+// The canonical Basic land subtype vocabulary (CR 305.6) — declared once in
+// `src/lib/basicLands.ts` and re-exported by `src/components/deckbuilder/basicLands.ts`
+// for that component's consumers; this module only needs the type, to shape
+// the per-subtype art-preference functions below.
+import type { BasicLandSubtype } from "~/lib/basicLands";
 
 /**
  * Deckbuilder view preferences (PRD #1617, ADR 0075 §4 "Persistence: layout on
@@ -33,7 +37,8 @@ export type DeckZone = "main" | "side";
  * shared engine module consumes it yet — ADR 0075's `convex/deckLayout.ts`
  * (the future pure column-identity/claiming-order authority) does not exist
  * as of issue #1620, whose scope is only this localStorage seam. Once that
- * module ships, this alias should move there and be re-exported from here.
+ * module ships, this alias should move there and be re-exported from here
+ * (tracked-by: #1618).
  */
 export const GROUPINGS = ["mv", "color", "type", "none"] as const;
 export type Grouping = (typeof GROUPINGS)[number];
@@ -46,19 +51,6 @@ export const DEFAULT_GROUPING: Grouping = "mv";
 export const ORDERINGS = ["name", "mv", "color", "rarity"] as const;
 export type Ordering = (typeof ORDERINGS)[number];
 export const DEFAULT_ORDERING: Ordering = "name";
-
-/** The five Basic land subtypes (CR 305.6) — reuses the canonical list from
- *  `convex/cards/types.ts` (`BASIC_LAND_SUBTYPES`) rather than declaring a
- *  fourth copy; that export is typed `readonly string[]` (not `as const`), so
- *  the literal union below mirrors it for call-site type safety while the
- *  runtime vocabulary check below validates against the imported array
- *  itself. */
-export type BasicLandSubtype =
-    | "Plains"
-    | "Island"
-    | "Swamp"
-    | "Mountain"
-    | "Forest";
 
 const KEY_PREFIX = "tolaria:deckViewPrefs:";
 const GROUPING_KEY_PREFIX = KEY_PREFIX + "grouping:";
@@ -129,7 +121,7 @@ function removePref(storage: Storage, key: string): void {
  *  out of vocabulary. */
 export function loadGrouping(
     zone: DeckZone,
-    storage: Storage = localStorage
+    storage: Storage = window.localStorage
 ): Grouping {
     return readPref(
         storage,
@@ -142,7 +134,7 @@ export function loadGrouping(
 export function saveGrouping(
     zone: DeckZone,
     grouping: Grouping,
-    storage: Storage = localStorage
+    storage: Storage = window.localStorage
 ): void {
     writePref(storage, GROUPING_KEY_PREFIX + zone, grouping);
 }
@@ -151,7 +143,7 @@ export function saveGrouping(
  *  out of vocabulary. */
 export function loadOrdering(
     zone: DeckZone,
-    storage: Storage = localStorage
+    storage: Storage = window.localStorage
 ): Ordering {
     return readPref(
         storage,
@@ -164,7 +156,7 @@ export function loadOrdering(
 export function saveOrdering(
     zone: DeckZone,
     ordering: Ordering,
-    storage: Storage = localStorage
+    storage: Storage = window.localStorage
 ): void {
     writePref(storage, ORDERING_KEY_PREFIX + zone, ordering);
 }
@@ -180,7 +172,7 @@ export function saveOrdering(
  */
 export function loadBasicLandPrintId(
     subtype: BasicLandSubtype,
-    storage: Storage = localStorage
+    storage: Storage = window.localStorage
 ): string | null {
     return readPref(
         storage,
@@ -193,7 +185,7 @@ export function loadBasicLandPrintId(
 export function saveBasicLandPrintId(
     subtype: BasicLandSubtype,
     printId: string,
-    storage: Storage = localStorage
+    storage: Storage = window.localStorage
 ): void {
     writePref(storage, BASIC_LAND_ART_KEY_PREFIX + subtype, printId);
 }
@@ -202,12 +194,7 @@ export function saveBasicLandPrintId(
  *  no-override heuristic. */
 export function clearBasicLandPrintId(
     subtype: BasicLandSubtype,
-    storage: Storage = localStorage
+    storage: Storage = window.localStorage
 ): void {
     removePref(storage, BASIC_LAND_ART_KEY_PREFIX + subtype);
 }
-
-// Re-exported so callers validating a subtype string (e.g. a future basic-
-// land art picker) have one canonical vocabulary to check against, without
-// re-importing `convex/cards/types` themselves just for this constant.
-export { BASIC_LAND_SUBTYPES };

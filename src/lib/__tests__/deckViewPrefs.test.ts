@@ -273,7 +273,7 @@ describe("default localStorage argument", () => {
     it("uses window.localStorage when no storage is injected", () => {
         localStorage.clear();
         expect(loadGrouping("main")).toBe(DEFAULT_GROUPING);
-        saveGrouping("main", "type", localStorage);
+        saveGrouping("main", "type");
         expect(loadGrouping("main")).toBe("type");
         localStorage.clear();
     });

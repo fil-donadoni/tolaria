@@ -1,17 +1,12 @@
 import { tryGetCardByName, tryGetDefinition } from "@convex/cards";
 import type { LimitedPoolCard } from "@convex/limited/eventTypes";
+import { BASIC_LAND_SUBTYPES, type BasicLandSubtype } from "~/lib/basicLands";
 
-/** The five Basic land subtypes, in WUBRG order — the only card names a
- *  Limited deck can add in unlimited quantity (CR 305.2, ADR 0054/0055). */
-export const BASIC_LAND_SUBTYPES = [
-    "Plains",
-    "Island",
-    "Swamp",
-    "Mountain",
-    "Forest",
-] as const;
-
-export type BasicLandSubtype = (typeof BASIC_LAND_SUBTYPES)[number];
+/** Re-exported for this module's own consumers (`pool-basic-lands-bar.tsx`)
+ *  — the canonical declaration lives in `src/lib/basicLands.ts` (CR 305.2,
+ *  ADR 0054/0055: the only card names a Limited deck can add in unlimited
+ *  quantity), shared with `src/lib/deckViewPrefs.ts`. */
+export { BASIC_LAND_SUBTYPES, type BasicLandSubtype };
 
 /**
  * The cardId to use for each Basic subtype, ALWAYS one per subtype (issue
