@@ -1150,8 +1150,19 @@ export type EnumerateMovesOptions = {
      *  `legalActions` (the human affordance surface) and scripted setup
      *  realisation must keep seeing the complete legal set, since the server
      *  stays the sole authority on legality and a dominated move is still
-     *  perfectly LEGAL — just never worth searching. */
+     *  perfectly LEGAL — just never worth searching.
+     *
+     *  COST: a probe is three `cloneGameState`s plus a whole-`GameState` deep
+     *  compare, ~6× the cost of the enumeration itself on a hand of cheap
+     *  instants. Enable it ONCE per decision, never per tree node — see
+     *  `searchWithTrace`, which prunes at the root and reuses the verdict for
+     *  the root layer of every iteration (issue #1905 review finding 3). */
     pruneDominatedNoOps?: boolean;
+    /** Called with each move `pruneDominatedNoOps` dropped, in enumeration
+     *  order. Lets a caller reuse the (expensive) verdict elsewhere instead of
+     *  re-probing — `searchWithTrace` turns it into the deny-set that keeps the
+     *  dominated move out of the tree's root layer too. */
+    onPruned?: (move: Move) => void;
 };
 
 /** The complete set of legal macro-moves for `playerId` at the current decision
@@ -1272,9 +1283,10 @@ export function enumerateMoves(
     // probe candidate, so the floor can never be emptied — the filter can only
     // ever remove strictly-dominated alternatives.
     if (!options?.pruneDominatedNoOps) return moves;
-    return moves.filter(
-        (m) =>
-            !isProbeEligibleMove(state, playerId, m) ||
-            !isDominatedNoOpMove(state, playerId, m)
-    );
+    return moves.filter((m) => {
+        if (!isProbeEligibleMove(state, playerId, m)) return true;
+        if (!isDominatedNoOpMove(state, playerId, m)) return true;
+        options.onPruned?.(m);
+        return false;
+    });
 }

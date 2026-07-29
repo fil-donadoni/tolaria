@@ -11,8 +11,25 @@
 // The historical patch shape was another narrow root tie-break in
 // `selectRootMove` (there are six). This module is the generic replacement: ONE
 // per-card-agnostic seam that PROVES a move is dominated by `pass` and drops it
-// from `enumerateMoves`, so the search never spends an iteration on it and the
-// freed iterations deepen every other line.
+// from `enumerateMoves`, so the search never spends an iteration on it.
+//
+// ── Where it runs, and what it costs ──────────────────────────────────────
+// A probe is expensive: three `cloneGameState`s and a whole-`GameState` deep
+// compare, ~6× the cost of the enumeration it filters. So it is paid ONCE per
+// decision — `searchWithTrace` proves the root move set, then reuses the
+// verdict as a deny-set for the tree's root layer on every iteration
+// (`iterate`'s `prunedRootKeys`). In-tree enumeration (`keyedMovesFor`) does
+// NOT probe. Probing there measured 42.6% of a 300-iteration search's wall
+// clock (1682 probed enumerations) — and since the budget is ITERATION-based
+// that is not "freed iterations deepen every other line", it is a straight
+// ~1.75× think-time regression (issue #1905 review finding 3).
+//
+// The accepted tradeoff of proving only at the root: a move that becomes
+// provably futile DEEPER in the tree is still searched. That is the cheap side
+// of the trade — the bot's actual PICK is a root decision, and the root layer
+// is where a no-op stole visits from real lines.
+// `dominanceProbeStats().probes` pins this: it is a function of the root move
+// list alone, asserted equal for a 40- and a 400-iteration search.
 //
 // ── The proof ─────────────────────────────────────────────────────────────
 // A move is dominated by `pass` when, applied and resolved to completion on a
@@ -39,8 +56,11 @@
 //   * Nothing is probed while a `pendingChoice` / `pendingCast` /
 //     `pendingTarget` / `pendingActivation` is live — those windows return early
 //     from `enumerateMoves` anyway.
-//   * Mana abilities (`useStack: false`) are never probed: their whole point is
-//     the mana pool, which is on the ignore list.
+//   * Mana abilities (`useStack: false`) are never probed: they never touch the
+//     stack, so there is nothing for the probe to resolve.
+//   * The mover's MANA POOL is compared, not ignored (issue #1905 review): the
+//     probe never credits or debits the pool, so a difference there is mana the
+//     RESOLUTION made. A ritual is never prunable.
 //   * An activated ability whose cost is anything other than tap + mana is never
 //     probed — a sacrifice / discard / exile / life / counter cost can itself be
 //     the payoff (a death trigger, a graveyard filler), and the probe models
@@ -50,7 +70,8 @@
 //
 // ── Documented narrowings ─────────────────────────────────────────────────
 // The probe pays costs coarsely (tap plan marks sources tapped, no pool
-// accounting — the same model `applyMoveInSearch`/`applyMoveForSearch` use), and
+// accounting — the same model `applyMoveInSearch`/`applyMoveForSearch` use; this
+// is precisely what makes a pool DIFFERENCE attributable to the resolution), and
 // does not emit ABILITY_ACTIVATED (`recordActivation` is private to `game.ts`).
 // It DOES emit SPELL_CAST and flush the resulting cast triggers, so a
 // Guttersnipe-style "whenever you cast" payoff is seen and blocks the prune.
@@ -93,6 +114,35 @@ const MAX_CHOICE_DEPTH = 1;
  *  that enumerates moves; without this a probe could probe itself. */
 let probing = false;
 
+/** Work accounting, for the two things about this module that must stay pinned.
+ *
+ *  `probes` — how many probes actually RAN (past every cheap gate). A probe is
+ *  three `cloneGameState`s plus a whole-`GameState` deep compare, the single
+ *  dominant cost here, so its COUNT is what a cost guard should assert on:
+ *  unlike a wall-clock budget it is deterministic and machine-independent.
+ *  `search.ts` probes ONCE per search (at the root, `searchWithTrace`) and the
+ *  guard fails if that ever starts scaling with the iteration budget again
+ *  (issue #1905 review finding 3).
+ *
+ *  `choiceBranches` — how many mid-resolution CHOICE branches the all-branches
+ *  quantifier opened. A test asserting only the verdict can't tell "every mode
+ *  proved a no-op" from "the probe never reached a choice at all"; this counter
+ *  is what makes the quantifier's coverage observable (review finding 2). */
+let stats = { probes: 0, choiceBranches: 0 };
+
+/** Work done since {@link resetDominanceProbeStats}. Test/diagnostic seam. */
+export function dominanceProbeStats(): {
+    probes: number;
+    choiceBranches: number;
+} {
+    return { ...stats };
+}
+
+/** Zero the counters. Test/diagnostic seam. */
+export function resetDominanceProbeStats(): void {
+    stats = { probes: 0, choiceBranches: 0 };
+}
+
 // ---------------------------------------------------------------------------
 // Public seam
 // ---------------------------------------------------------------------------
@@ -124,6 +174,7 @@ export function isDominatedNoOpMove(
     if (!state.players.some((p) => p.id === pid)) return false;
 
     probing = true;
+    stats.probes++;
     try {
         const baseline = state;
         const probe = cloneGameState(state);
@@ -148,8 +199,12 @@ export function isDominatedNoOpMove(
 // so this module stays off `moves.ts`' runtime import graph)
 // ---------------------------------------------------------------------------
 
-/** Mark the planned mana sources tapped. Coarse by design (no pool
- *  accounting) — mana is a cost, and costs are the ignored terms. */
+/** Mark the planned mana sources tapped. Coarse by design: the probe neither
+ *  credits the pool from the tapped sources nor debits the spell's cost, so the
+ *  mover's pool is untouched by cost payment — which is exactly what lets
+ *  `isNoOpDelta` COMPARE the pool and see only what the resolution added. The
+ *  tap itself is forgiven there (untapped → tapped is a cost, untapping is a
+ *  delta). */
 function applyTapPlan(
     state: GameState,
     pid: string,
@@ -282,6 +337,7 @@ function branchesAllNoOp(
         const candidates = choiceCandidates(probe, head, MAX_CHOICE_BRANCHES);
         if (candidates.length === 0) return false;
         for (const candidate of candidates) {
+            stats.choiceBranches++;
             const branch = cloneGameState(probe);
             if (!applyProbeChoice(branch, moverId, candidate.move))
                 return false;
@@ -375,10 +431,15 @@ const IGNORED_INSTANCE_KEYS = [
     "triggersThisTurn",
 ] as const;
 
-/** The mover's own cost ledger. */
+/** The mover's own cast bookkeeping. Deliberately NOT here: `manaPool` and
+ *  `restrictedMana`. The probe pays mana costs by MARKING SOURCES TAPPED and
+ *  never credits or debits the pool (`applyTapPlan`), so on the probe side the
+ *  pool moves for exactly one reason — the RESOLUTION produced mana. Ignoring
+ *  it made every ritual (Dark Ritual, Cabal Ritual: `effects: [{ op: "addMana"
+ *  }]`) "provably" a no-op and pruned the bot's whole ramp package. Comparing
+ *  it is both cheaper and stricter than scanning a script for `addMana`: any
+ *  future Op that touches the pool is caught by the fail-closed default. */
 const IGNORED_MOVER_PLAYER_KEYS = [
-    "manaPool",
-    "restrictedMana",
     "spellsCastThisTurn",
     "qualifyingActionThisTurn",
 ] as const;

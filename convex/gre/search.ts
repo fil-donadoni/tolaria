@@ -1109,9 +1109,13 @@ export function keyedMovesFor(
     }
     const seen = new Set<string>();
     const keyed: KeyedMove[] = [];
-    for (const move of enumerateMoves(state, pid, {
-        pruneDominatedNoOps: true,
-    })) {
+    // NOT pruned (issue #1905 review finding 3). This runs at EVERY tree node
+    // of every iteration; probing here cost 42.6% of a 300-iteration search's
+    // wall clock — an iteration-budgeted search, so a straight ~1.75× think-time
+    // regression. Dominance pruning happens ONCE, at the root
+    // (`searchWithTrace`), and the root verdict is carried into the tree's root
+    // layer as a deny-set — see `iterate`'s `prunedRootKeys`.
+    for (const move of enumerateMoves(state, pid)) {
         const key = priorityMoveKey(state, pid, botId, move);
         if (seen.has(key)) continue;
         seen.add(key);
@@ -1120,12 +1124,23 @@ export function keyedMovesFor(
     return keyed;
 }
 
-/** Grow the tree by one iteration on a freshly-determinized world. */
+/** Grow the tree by one iteration on a freshly-determinized world.
+ *
+ *  `prunedRootKeys` are the tree keys of the bot's provably-dominated root moves
+ *  (issue #1887), proved ONCE by `searchWithTrace` against the real root state
+ *  and reused here for every iteration. Applying them at depth 0 is what makes
+ *  the prune bite: `selectRootMove` picks among the root's CHILD EDGES, so a
+ *  dominated move merely missing from the root `moves` list would still be
+ *  opened as a child, still collect visits, and still be selectable. Filtering
+ *  the depth-0 candidate set removes it from the tree instead — the same
+ *  outcome the old per-node probing bought, at 1/1682 of the probe cost
+ *  (issue #1905 review finding 3). */
 function iterate(
     root: Node,
     rootState: GameState,
     botId: string,
-    rng: () => number
+    rng: () => number,
+    prunedRootKeys?: ReadonlySet<string>
 ): void {
     const world = determinize(rootState, botId, rng);
     const path: Edge[] = [];
@@ -1134,7 +1149,14 @@ function iterate(
     for (let depth = 0; depth < MAX_TREE_DEPTH; depth++) {
         const pid = decidingPlayer(world);
         if (!pid) break;
-        const keyed = keyedMovesFor(world, pid, botId);
+        let keyed = keyedMovesFor(world, pid, botId);
+        // Deny-set, never an allow-set, and never emptying: a world-specific
+        // move the root enumeration never saw stays available, and `pass` is
+        // never a dominance candidate so the floor always holds.
+        if (depth === 0 && pid === botId && prunedRootKeys?.size) {
+            const kept = keyed.filter((k) => !prunedRootKeys.has(k.key));
+            if (kept.length > 0) keyed = kept;
+        }
         if (keyed.length === 0) break;
 
         const untried = keyed.filter((k) => !node.children.has(k.key));
@@ -1891,8 +1913,15 @@ export function searchWithTrace(
     const decider = decidingPlayer(state);
     if (decider !== playerId) return { move: null, trace: null };
 
+    // Dominance pruning (issue #1887) runs EXACTLY ONCE per search, here, on
+    // the real root state — not at every tree node (issue #1905 review finding
+    // 3: that cost 42.6% of the wall clock of an iteration-budgeted search).
+    // The dropped moves become a deny-set for the tree's root layer, so the
+    // proof is paid for once and honoured everywhere it matters.
+    const dominatedAtRoot: Move[] = [];
     const moves = enumerateMoves(state, playerId, {
         pruneDominatedNoOps: true,
+        onPruned: (m) => dominatedAtRoot.push(m),
     });
     if (moves.length === 0) return { move: null, trace: null };
     // No real decision (e.g. a forced mulligan window) — return immediately
@@ -1909,9 +1938,15 @@ export function searchWithTrace(
     const now = budget.now ?? (() => performance.now());
     const start = timeMs !== undefined ? now() : 0;
 
+    const prunedRootKeys = new Set(
+        dominatedAtRoot.map((m) =>
+            priorityMoveKey(state, playerId, playerId, m)
+        )
+    );
+
     let i = 0;
     while (i < maxIter) {
-        iterate(root, state, playerId, rng);
+        iterate(root, state, playerId, rng, prunedRootKeys);
         i++;
         if (timeMs !== undefined && now() - start >= timeMs) break;
     }
