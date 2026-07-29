@@ -7553,6 +7553,66 @@ describe("EffectCardFilter.manaCostEquals (issue #1881, ADR 0078 decision 8)", (
         expect(head.candidateIds).toContain("mc0");
         expect(head.candidateIds).not.toContain("land1");
     });
+
+    // Second re-review of #1898 finding 2: the test above registers a Land
+    // with NO `manaCost` field at all, so it is excluded at the earlier
+    // `def.manaCost === undefined` check in `manaCostForCardFilter` — it
+    // never reaches the `isLandDefinition` carve-out one line below, so it
+    // does NOT prove that branch. This test registers a Land that DOES carry
+    // a printed `manaCost: {}` (the real Mishra's Factory / Ancient Tomb
+    // shape — both write `manaCost: {}` themselves alongside `types:
+    // ["Land"]`) so `def.manaCost === undefined` is false and the ONLY thing
+    // that can exclude it is `isLandDefinition`.
+    const LAND_ZERO_COST_ID = "test-effects-manacost-land-zero-cost";
+    registerTokenDefinition({
+        id: LAND_ZERO_COST_ID,
+        name: LAND_ZERO_COST_ID,
+        rarity: "common",
+        // Printed `{}`, same as Mishra's Factory/Ancient Tomb — exercises
+        // the `isLandDefinition` carve-out itself, not the earlier
+        // `manaCost === undefined` early-exit the sibling test above hits.
+        manaCost: {},
+        types: ["Land"],
+    });
+
+    it("excludes a Land carrying a printed manaCost: {} (Mishra's Factory / Ancient Tomb shape) from candidateIds under manaCostEquals: [{}] — proves the isLandDefinition carve-out itself", () => {
+        const id = registerScript(
+            "test-op-choice-manacost-equals-vs-land-zero-cost",
+            [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    filter: { manaCostEquals: [{}] },
+                    count: { min: 0, max: 1 },
+                    prompt: "Search your library for a card with mana cost {0}.",
+                    bind: "$picked",
+                },
+            ]
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: [
+                        ...libraryArtifacts("p1"),
+                        makeInstance(LAND_ZERO_COST_ID, {
+                            id: "landZero1",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "library",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        expect(head.candidateIds).toContain("mc0");
+        expect(head.candidateIds).not.toContain("landZero1");
+    });
 });
 
 describe("EffectCardFilter.enteredThisTurn (CR 400.7, issue #1458)", () => {

@@ -32,7 +32,8 @@ import type {
 import { matchesPermanentFilter } from "../cards/filters";
 import { cardHasColor } from "../cards/colors";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
-import { getPlayer } from "./state";
+import { getPlayer, manaCostForCardFilter } from "./state";
+import { manaCostsEqual } from "./constants";
 import { liveSupertypesOf } from "./snow";
 import { STATIC_EFFECT_CTX } from "./layers";
 import { getDefinition, tryGetDefinition } from "../cards";
@@ -132,6 +133,27 @@ export function handCardMatchesFilter(
               )
             : 0;
         if (mv > filter.manaValueAtMost) return false;
+    }
+    // issue #1881 / #1898 finding 2 (PR #1898 second fixup round) — exact
+    // structural MANA-COST match (CR 202), the hand-leg sibling of
+    // `matchesCardFilter`'s own `manaCostEquals` branch
+    // (`gre/effects/interpreter.ts`). Reuses `manaCostForCardFilter` for the
+    // identical Land / unprinted-cost fail-closed convention (a Land, or a
+    // card with no printed `manaCost`, never matches `manaCostEquals`), then
+    // `manaCostsEqual` for the same structural comparison. Before this
+    // branch, `discardFilter: { filter: { manaCostEquals: … } }` fell
+    // straight through to `return true` below — the identical fail-open
+    // shape as `matchesCardFilter` before issue #1898's fix, at this
+    // separate hand-card matcher.
+    if (filter.manaCostEquals !== undefined) {
+        const cost = manaCostForCardFilter(def);
+        if (cost === undefined) return false;
+        const clauses = Array.isArray(filter.manaCostEquals)
+            ? filter.manaCostEquals
+            : [filter.manaCostEquals];
+        if (!clauses.some((clause) => manaCostsEqual(cost, clause))) {
+            return false;
+        }
     }
     // issue #897 — OR ACROSS filter dimensions. A filter carrying ONLY `any`
     // (no other field set) must not fail open (match every hand card) — every

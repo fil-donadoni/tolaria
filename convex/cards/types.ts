@@ -3986,7 +3986,8 @@ export interface SpellContext {
          *  (CR 202.1 — no printed land has a mana cost; issue #1898 finding
          *  2, `manaCostForCardFilter` in `gre/state.ts`) — `{}` stays a
          *  DISTINCT real encoding of the printed cost `{0}` for a non-land
-         *  card (Mishra's Factory/Workshop). `matchesCardFilter` fails CLOSED
+         *  card (Ornithopter — Mishra's Factory/Workshop are Lands, the
+         *  OPPOSITE branch). `matchesCardFilter` fails CLOSED
          *  on `undefined`. */
         cost: ManaCost | undefined;
     }>;
