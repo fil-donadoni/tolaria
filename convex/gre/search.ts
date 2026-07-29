@@ -103,6 +103,11 @@ import {
     isDeferrableStackAbility,
     isTransientOnlyAbility,
 } from "./ai/abilityTiming";
+// Root-decision telemetry (issue #1893, map #1892) — off by default.
+import {
+    getRootDecisionSink,
+    type RootDecisionMechanism,
+} from "./ai/decisionTelemetry";
 import {
     applyLandEntrySubmit,
     applyMayPaySubmit,
@@ -193,6 +198,13 @@ const TERMINAL_BAND = 0.25;
  *  0018): a vanilla 2/2 is worth ~170, so this cap (~3 creatures) keeps one
  *  creature's worth a meaningful, non-saturating fraction of the band. */
 const MATERIAL_FULL = 500;
+/** Reward gained per `evaluate` margin point in the OPEN band of
+ *  `rewardFromValue` — its linear slope, `(1 − 2·TERMINAL_BAND) / (2·
+ *  MATERIAL_FULL)`. Exported for the decision telemetry (issue #1893, map
+ *  #1892 evidence 1): dividing a reward gap by this converts it back into
+ *  margin points, the currency `evaluate` and the map reason in. */
+export const REWARD_PER_MARGIN_POINT =
+    (1 - 2 * TERMINAL_BAND) / (2 * MATERIAL_FULL);
 
 /** Map a material margin to [-1, 1], linear (constant slope) until it saturates
  *  at ±`MATERIAL_FULL`. Linear is deliberate: the discriminating quantity is a
@@ -1855,6 +1867,47 @@ export function selectRootMove(
         if (meanMargin(edge) > meanMargin(best)) best = edge;
     }
 
+    // Decision telemetry (issue #1893, map #1892) — records HOW the final
+    // pick was decided, never changes it. `mechanism` tracks the last rule
+    // that CHANGED the selected edge; with a single `OUTCOME_EPS` contender
+    // the search's own argmax decided, with several the material tie-break
+    // did. `finish` is the single exit: it emits the record (only when a
+    // sink is installed — live play pays a null check) and returns exactly
+    // what every return site returned before, `rootMoveFor(edge, rootState)`.
+    // The degenerate empty-pool return above is deliberately not recorded —
+    // there was no decision to classify.
+    const sink = getRootDecisionSink();
+    let mechanism: RootDecisionMechanism =
+        contenders.length > 1 ? "material-tiebreak" : "mean-reward";
+    const finish = (edge: Edge, mech: RootDecisionMechanism): Move => {
+        if (sink) {
+            const meansDesc = explored
+                .map((e) => mean(e))
+                .sort((a, b) => b - a);
+            const gapReward =
+                meansDesc.length >= 2 ? meansDesc[0] - meansDesc[1] : null;
+            sink({
+                phase: rootState?.phase ?? "unknown",
+                moveKind: edge.move.kind,
+                choiceNode: (rootState?.pendingChoices?.length ?? 0) > 0,
+                poolSize: pool.length,
+                exploredSize: explored.length,
+                contenderCount: contenders.length,
+                bestMean,
+                chosenMean: mean(edge),
+                gapReward,
+                gapMarginPoints:
+                    gapReward === null
+                        ? null
+                        : gapReward / REWARD_PER_MARGIN_POINT,
+                chosenDeficitReward: bestMean - mean(edge),
+                mechanism: mech,
+                pickIsMeanArgmax: mean(edge) === bestMean,
+            });
+        }
+        return rootMoveFor(edge, rootState);
+    };
+
     // Extra-turn structural credit (issue #244). A granted extra turn is washed
     // out of the rollout (ADR 0015 horizon + `extraTurns` popped at the turn
     // crossing), so the move is BOTH low-reward and under-visited — it falls
@@ -1881,7 +1934,7 @@ export function selectRootMove(
                 credited(e) > credited(m) ? e : m
             );
             if (credited(bestGrant) > credited(best))
-                return rootMoveFor(bestGrant, rootState);
+                return finish(bestGrant, "extra-turn-credit");
         }
     }
 
@@ -1909,9 +1962,11 @@ export function selectRootMove(
                 !isWastefulAttack(rootState, e.move)
         );
         if (productive.length > 0) {
+            const prev = best;
             best = productive.reduce((m, e) =>
                 meanMargin(e) > meanMargin(m) ? e : m
             );
+            if (best !== prev) mechanism = "wasteful-attack";
         }
     }
 
@@ -1932,12 +1987,14 @@ export function selectRootMove(
                 mean(e) >= bestMean - OUTCOME_EPS
         );
         if (blocks.length > 0) {
+            const prev = best;
             best = blocks
                 .map((e) => ({
                     e,
                     delta: blockDeltaOf(rootState, e.move, botId),
                 }))
                 .reduce((m, x) => (x.delta > m.delta ? x : m)).e;
+            if (best !== prev) mechanism = "block-quality";
         }
     }
 
@@ -1984,7 +2041,10 @@ export function selectRootMove(
                 isCastVariantOf(e.move, best.move)
         );
         for (const edge of variants) {
-            if (scoreOf(edge) > scoreOf(best)) best = edge;
+            if (scoreOf(edge) > scoreOf(best)) {
+                best = edge;
+                mechanism = "announcement-variant";
+            }
         }
 
         // Self-harm hold (issue #365, unchanged). No sibling variant improved on
@@ -2002,7 +2062,7 @@ export function selectRootMove(
                 (e) =>
                     e.move.kind === "pass" && mean(e) >= bestMean - OUTCOME_EPS
             );
-            if (hold) return rootMoveFor(hold, rootState);
+            if (hold) return finish(hold, "self-harm-removal");
         }
     }
 
@@ -2040,7 +2100,7 @@ export function selectRootMove(
                         (isFreeManaSourceCast(rootState, e.move, botId) ||
                             isManaDorkCast(rootState, e.move, botId))))
         );
-        if (develop) return rootMoveFor(develop, rootState);
+        if (develop) return finish(develop, "free-development");
     }
 
     // Hold-the-trick tie-break (ADR 0021, issue #229). The mirror image of the
@@ -2078,9 +2138,9 @@ export function selectRootMove(
         const hold = pool.find(
             (e) => e.move.kind === "pass" && mean(e) >= bestMean - OUTCOME_EPS
         );
-        if (hold) return rootMoveFor(hold, rootState);
+        if (hold) return finish(hold, "hold-trick");
     }
-    return rootMoveFor(best, rootState);
+    return finish(best, mechanism);
 }
 
 /** Whether `move` spends a REACTIVE OPTION in a window where the same option
