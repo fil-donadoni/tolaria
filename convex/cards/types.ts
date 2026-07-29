@@ -3981,10 +3981,14 @@ export interface SpellContext {
         manaValue: number;
         colors: Color[];
         /** Full printed mana cost (issue #1881 — `EffectCardFilter.
-         *  manaCostEquals`'s exact structural comparison, CR 202). `{}` for a
-         *  definition-less instance (mirrors `manaValue`'s own `?? {}` via
-         *  `manaValue(def?.manaCost)`'s undefined-cost-is-0 fallback). */
-        cost: ManaCost;
+         *  manaCostEquals`'s exact structural comparison, CR 202). `undefined`
+         *  for a definition-less instance, an unprinted `manaCost`, OR a Land
+         *  (CR 202.1 — no printed land has a mana cost; issue #1898 finding
+         *  2, `manaCostForCardFilter` in `gre/state.ts`) — `{}` stays a
+         *  DISTINCT real encoding of the printed cost `{0}` for a non-land
+         *  card (Mishra's Factory/Workshop). `matchesCardFilter` fails CLOSED
+         *  on `undefined`. */
+        cost: ManaCost | undefined;
     }>;
 
     /** Characteristics of every card in `playerId`'s library, read from the
@@ -4009,9 +4013,11 @@ export interface SpellContext {
         colors: Color[];
         manaValue: number;
         /** Full printed mana cost (issue #1881 — `manaCostEquals`, CR 202).
-         *  `{}` for a definition-less instance. This is the field Urza's
+         *  `undefined` for a definition-less instance, an unprinted
+         *  `manaCost`, or a Land (see `getHandCards`'s `cost` doc for the
+         *  full rationale, issue #1898 finding 2). This is the field Urza's
          *  Saga III's `choice(zone: "library")` search restriction reads. */
-        cost: ManaCost;
+        cost: ManaCost | undefined;
     }>;
 
     /** Characteristics of every card in `playerId`'s graveyard, read from the
@@ -4027,8 +4033,10 @@ export interface SpellContext {
         manaValue: number;
         colors: Color[];
         /** Full printed mana cost (issue #1881 — `manaCostEquals`, CR 202).
-         *  `{}` for a definition-less instance. */
-        cost: ManaCost;
+         *  `undefined` for a definition-less instance, an unprinted
+         *  `manaCost`, or a Land (see `getHandCards`'s `cost` doc, issue
+         *  #1898 finding 2). */
+        cost: ManaCost | undefined;
     }>;
     /** CR 404 / 400.7 — owner of the graveyard currently holding `id`, or
      *  undefined when the card isn't in any graveyard. Lets the interpreter
@@ -4052,8 +4060,10 @@ export interface SpellContext {
         colors: Color[];
         counters: Record<string, number>;
         /** Full printed mana cost (issue #1881 — `manaCostEquals`, CR 202).
-         *  `{}` for a definition-less instance. */
-        cost: ManaCost;
+         *  `undefined` for a definition-less instance, an unprinted
+         *  `manaCost`, or a Land (see `getHandCards`'s `cost` doc, issue
+         *  #1898 finding 2). */
+        cost: ManaCost | undefined;
     }>;
     /** CR 400.7 — owner of the exile zone currently holding `id`, or undefined
      *  when the card isn't in any exile. Mirrors `getGraveyardCardOwner`. */
@@ -10675,7 +10685,13 @@ export interface EffectBoundMatchesFilterPredicate {
  *  `false` when the object has left the battlefield or isn't a permanent
  *  (CR 608.2b). Filter fields the battlefield matcher has no counterpart for
  *  (`manaValueAtMost`, `hasCounter`, `excludeColor`) do not constrain — the
- *  same asymmetry every other battlefield-scoped filter site already carries. */
+ *  same asymmetry every other battlefield-scoped filter site already carries.
+ *  `manaCostEquals` (issue #1881) is a step further than a merely-unconstrained
+ *  field, though: it's an EXACT structural match, so "no counterpart" means
+ *  it would match every permanent rather than none — a genuine fail-open
+ *  (issue #1898 finding 3). Unlike the three above, the validator (`gre/
+ *  effects/validate.ts`) REJECTS `manaCostEquals` on this predicate's `filter`
+ *  outright (`rejectManaCostEquals`) rather than accepting the silent gap. */
 export interface EffectObjectMatchesFilterPredicate {
     objectMatchesFilter: EffectObjectSelector;
     filter: EffectCardFilter;

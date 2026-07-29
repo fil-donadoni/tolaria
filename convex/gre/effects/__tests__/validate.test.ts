@@ -1333,6 +1333,178 @@ describe("EffectCardFilter.isAttacking — rejected outside a live battlefield r
     });
 });
 
+// --- EffectCardFilter.manaCostEquals — REJECTED on a live battlefield read
+// (issue #1898 finding 3) ----------------------------------------------------
+//
+// The INVERSE of the `hasAbility`/`isAttacking` describe blocks right above:
+// those two fields are honest ONLY for `zone: "battlefield"` and rejected
+// elsewhere; `manaCostEquals` is honest ONLY for a hidden-zone card shape
+// (`matchesCardFilter`'s `card.cost`, read off the registry by `getHandCards`/
+// `getLibraryCards`/`getGraveyardCards`/`getExileCards`) and must be REJECTED
+// for `zone: "battlefield"` — `toPermanentFilter` (`gre/effects/
+// interpreter.ts`) has no mapping for it at all, so an unguarded acceptance
+// would validate cleanly and then silently match EVERY permanent at runtime
+// (the exact fail-open hole this ticket exists to close). Pins the same
+// selector sites `hasAbility`/`isAttacking` pin, PLUS `objectMatchesFilter`
+// (always a live battlefield read, no zone field to switch on at all).
+describe("EffectCardFilter.manaCostEquals — rejected on a live battlefield read (issue #1898 finding 3)", () => {
+    it("accepts manaCostEquals on a forEach graveyard selector", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "forEach",
+                select: {
+                    set: "graveyard",
+                    controller: "controller",
+                    filter: { type: "Creature", manaCostEquals: {} },
+                },
+                effects: [
+                    {
+                        op: "moveZone",
+                        target: { ref: "$each" },
+                        to: "hand",
+                    },
+                ],
+            },
+        ];
+        expect(validateEffectScript(host({ effects }))).toEqual([]);
+    });
+
+    it("rejects manaCostEquals on a forEach permanents (battlefield) selector", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    filter: { type: "Artifact", manaCostEquals: {} },
+                },
+                effects: [
+                    { op: "dealDamage", amount: 1, to: { ref: "$each" } },
+                ],
+            },
+        ];
+        const errors = validateEffectScript(host({ effects }));
+        expect(errors.some((e) => /field "select"/.test(e))).toBe(true);
+    });
+
+    it("accepts manaCostEquals on a count construct's graveyard zone", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "draw",
+                player: "controller",
+                count: {
+                    count: {
+                        zone: "graveyard",
+                        controller: "controller",
+                        filter: { type: "Creature", manaCostEquals: {} },
+                    },
+                },
+            },
+        ];
+        expect(validateEffectScript(host({ effects }))).toEqual([]);
+    });
+
+    it("rejects manaCostEquals on a count construct's battlefield zone", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "draw",
+                player: "controller",
+                count: {
+                    count: {
+                        zone: "battlefield",
+                        controller: "controller",
+                        filter: { type: "Artifact", manaCostEquals: {} },
+                    },
+                },
+            },
+        ];
+        const errors = validateEffectScript(host({ effects }));
+        expect(errors.length).toBeGreaterThan(0);
+    });
+
+    it("accepts manaCostEquals on a choice Op scoped to zone: library", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "choice",
+                kind: "search-library",
+                player: "controller",
+                zone: "library",
+                filter: { manaCostEquals: {} },
+                count: { min: 0, max: 1 },
+                prompt: "Search your library for a card.",
+                bind: "$picked",
+            },
+        ];
+        expect(validateEffectScript(host({ effects }))).toEqual([]);
+    });
+
+    it("rejects manaCostEquals on a choice Op scoped to zone: battlefield — the Urza's Saga III near-miss", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "choice",
+                kind: "sacrifice-permanents",
+                player: { target: 0 },
+                zone: "battlefield",
+                filter: { type: "Artifact", manaCostEquals: {} },
+                count: 1,
+                prompt: "Sacrifice an artifact with mana cost {0}.",
+                bind: "$sac",
+            },
+        ];
+        const errors = validateEffectScript(host({ effects }));
+        expect(
+            errors.some((e) =>
+                /filter\.manaCostEquals.*zone: "battlefield"/.test(e)
+            )
+        ).toBe(true);
+    });
+
+    it("rejects manaCostEquals on an objectMatchesFilter predicate (always a live battlefield read, Figure of Destiny shape)", () => {
+        const errors = validateAbilityEffectScript(
+            {
+                id: "ability",
+                effects: [
+                    {
+                        op: "if",
+                        predicate: {
+                            objectMatchesFilter: { ref: "$source" },
+                            filter: { manaCostEquals: {} },
+                        },
+                        then: [
+                            { op: "gainLife", player: "controller", amount: 1 },
+                        ],
+                    },
+                ],
+            },
+            "Test (id)"
+        );
+        expect(errors.length).toBeGreaterThan(0);
+    });
+
+    it("accepts an equivalent boundMatchesFilter predicate (CR 608.2h snapshot, unaffected)", () => {
+        const errors = validateAbilityEffectScript(
+            {
+                id: "ability",
+                effects: [
+                    { op: "exile", target: { target: 0 }, bind: "$gone" },
+                    {
+                        op: "if",
+                        predicate: {
+                            boundMatchesFilter: { ref: "$gone" },
+                            filter: { manaCostEquals: {} },
+                        },
+                        then: [
+                            { op: "gainLife", player: "controller", amount: 1 },
+                        ],
+                    },
+                ],
+            },
+            "Test (id)"
+        );
+        expect(errors).toEqual([]);
+    });
+});
+
 // --- if construct + mayPay / counter Ops (ADR 0045, issue #806) --------------
 
 describe("validateEffectScript — if construct + mayPay/counter (issue #806)", () => {

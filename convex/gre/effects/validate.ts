@@ -192,13 +192,28 @@ function isValueOrArray(
  *  every other `EffectXValue` site uses). */
 function isCardFilter(
     value: unknown,
-    opts?: { allowHasAbility?: boolean; allowIsAttacking?: boolean }
+    opts?: {
+        allowHasAbility?: boolean;
+        allowIsAttacking?: boolean;
+        rejectManaCostEquals?: boolean;
+    }
 ): boolean {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
         return false;
     }
     const allowHasAbility = opts?.allowHasAbility ?? false;
     const allowIsAttacking = opts?.allowIsAttacking ?? false;
+    // issue #1898 finding 3 — `manaCostEquals` is honest ONLY on a hidden-zone
+    // card shape (`matchesCardFilter`'s `card.cost`, read from the registry by
+    // `getHandCards`/`getLibraryCards`/`getGraveyardCards`/`getExileCards`).
+    // `toPermanentFilter` (`gre/effects/interpreter.ts`) does NOT map this
+    // field onto `PermanentFilter` — so a battlefield-guaranteed selector
+    // (`choice`/`count`/`forEach`/`divideIntoPiles` with `zone:
+    // "battlefield"`, or `objectMatchesFilter`'s live-permanent read) would
+    // validate cleanly and then silently match EVERY permanent at runtime
+    // (fail OPEN), inverted from `hasAbility`/`isAttacking`'s opt-IN gate:
+    // this field opt-OUTs at exactly those same battlefield-guaranteed sites.
+    const rejectManaCostEquals = opts?.rejectManaCostEquals ?? false;
     const entries = Object.entries(value);
     return entries.every(([k, v]) => {
         if (k === "type" || k === "subtype" || k === "excludeType") {
@@ -248,11 +263,14 @@ function isCardFilter(
         // issue #1881 (ADR 0078 decision 8) — exact structural MANA-COST
         // match (CR 202), distinct from `manaValueEquals` above. A single
         // `ManaCost` value or a non-empty array of them (OR, mirroring
-        // `type`/`subtype`/`color`'s own array semantics). No allow-flag
-        // needed (unlike `hasAbility`/`isAttacking`): `matchesCardFilter`
-        // fails CLOSED for a card shape with no `cost` slot, so this field
-        // is honest everywhere it's accepted, exactly like `manaValueEquals`.
+        // `type`/`subtype`/`color`'s own array semantics). Honest on a
+        // hidden-zone card shape (`matchesCardFilter` fails CLOSED for a card
+        // shape with no `cost` slot) but NOT on a live battlefield permanent
+        // (`toPermanentFilter` has no mapping for it, issue #1898 finding 3)
+        // — `rejectManaCostEquals` opts a battlefield-guaranteed site OUT,
+        // the inverse of `hasAbility`/`isAttacking`'s opt-IN gate above.
         if (k === "manaCostEquals") {
+            if (rejectManaCostEquals) return false;
             return isValueOrArray(v, isManaCostFilterValue);
         }
         if (k === "isToken") {
@@ -302,7 +320,11 @@ function isCardFilter(
                 Array.isArray(v) &&
                 v.length > 0 &&
                 v.every((clause) =>
-                    isCardFilter(clause, { allowHasAbility, allowIsAttacking })
+                    isCardFilter(clause, {
+                        allowHasAbility,
+                        allowIsAttacking,
+                        rejectManaCostEquals,
+                    })
                 )
             );
         }
@@ -373,6 +395,29 @@ function filterUsesIsAttacking(value: unknown): boolean {
     return (
         Array.isArray(f.any) &&
         f.any.some((clause) => filterUsesIsAttacking(clause))
+    );
+}
+
+/** Whether an `EffectCardFilter` uses `manaCostEquals`, directly or nested
+ *  inside an `any` clause (issue #1898 finding 3) — the INVERTED sibling of
+ *  `filterUsesHasAbility`/`filterUsesIsAttacking`: those two gate a field IN
+ *  for `zone: "battlefield"`, this one gates `manaCostEquals` OUT there,
+ *  because `toPermanentFilter` has no mapping for it (would fail OPEN,
+ *  matching every permanent) — the `choice` Op's cross-field `check` is the
+ *  one call site (`filter`'s field-level validation can't see the sibling
+ *  `zone` value the field-level `isCardFilter` call there is field-level
+ *  permissive for the very same reason `hasAbility`/`isAttacking` are). */
+function filterUsesManaCostEquals(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    const f = value as Record<string, unknown>;
+    if (f.manaCostEquals !== undefined) {
+        return true;
+    }
+    return (
+        Array.isArray(f.any) &&
+        f.any.some((clause) => filterUsesManaCostEquals(clause))
     );
 }
 
@@ -708,11 +753,15 @@ function isCountValue(value: unknown): boolean {
     // path there, but falls back to `matchesCardFilter` for the "graveyard"
     // branch, which has no ability or combat-role data for a hidden-zone card
     // at all.
+    // `manaCostEquals` (issue #1898 finding 3) is the INVERSE gate: honest
+    // for the "graveyard" branch (`matchesCardFilter` via `getGraveyardCards`)
+    // but not "battlefield" (`toPermanentFilter` has no mapping for it).
     if (
         "filter" in s &&
         !isCardFilter(s.filter, {
             allowHasAbility: s.zone === "battlefield",
             allowIsAttacking: s.zone === "battlefield",
+            rejectManaCostEquals: s.zone === "battlefield",
         })
     ) {
         return false;
@@ -1593,12 +1642,18 @@ function isPredicate(value: unknown): boolean {
         // `false` rather than falling through to this filter. So `filter`
         // here is ALWAYS tested against a live battlefield object —
         // `hasAbility` / `isAttacking` (issue #1097) are honest here the same
-        // way they are for a `forEach { set: "permanents" }` member.
+        // way they are for a `forEach { set: "permanents" }` member, and
+        // (issue #1898 finding 3) `manaCostEquals` is REJECTED here for the
+        // same reason: `toPermanentFilter` (the reader this form actually
+        // uses, `interpreter.ts`'s `objectMatchesFilter` branch) has no
+        // mapping for it — it would validate but silently match every
+        // permanent at runtime.
         return (
             isObjectSelector(obj.objectMatchesFilter) &&
             isCardFilter(obj.filter, {
                 allowHasAbility: true,
                 allowIsAttacking: true,
+                rejectManaCostEquals: true,
             })
         );
     }
@@ -1731,12 +1786,15 @@ function isForEachSelector(value: unknown): boolean {
     // attacking creature") reads the live combat-role flag, both via
     // `toPermanentFilter` / `matchesPermanentFilter` here, unlike the
     // graveyard branch above (which has no live battlefield object to read
-    // either off of).
+    // either off of). `manaCostEquals` is rejected here (issue #1898 finding
+    // 3) for the mirror-image reason — `toPermanentFilter` has NO mapping for
+    // it, so it would validate but silently match every permanent.
     if (
         "filter" in s &&
         !isCardFilter(s.filter, {
             allowHasAbility: true,
             allowIsAttacking: true,
+            rejectManaCostEquals: true,
         })
     ) {
         return false;
@@ -1778,12 +1836,14 @@ function isPileObjectSelector(value: unknown): boolean {
         if (s.zone !== "battlefield") return false;
         if (!isPlayerRef(s.controller)) return false;
         // `zone` is confirmed "battlefield" above — see the matching
-        // `isForEachSelector` permanents-branch comment (issue #1097).
+        // `isForEachSelector` permanents-branch comment (issue #1097, and
+        // issue #1898 finding 3 for `rejectManaCostEquals`).
         if (
             "filter" in s &&
             !isCardFilter(s.filter, {
                 allowHasAbility: true,
                 allowIsAttacking: true,
+                rejectManaCostEquals: true,
             })
         ) {
             return false;
@@ -2936,6 +2996,20 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             ) {
                 errors.push(
                     '"filter.isAttacking" is valid only with zone: "battlefield" — a hand/library/graveyard/exile card carries no combat-role data to match against'
+                );
+            }
+            // `manaCostEquals` (issue #1898 finding 3) is the INVERSE of
+            // `hasAbility`/`isAttacking` right above: honest ONLY for a
+            // hidden-zone `zone` (hand/library/graveyard/exile), NOT for
+            // "battlefield" — `toPermanentFilter` has no mapping for it, so a
+            // battlefield `choice` would validate cleanly and then match
+            // EVERY permanent at runtime (fail OPEN).
+            if (
+                entry.zone === "battlefield" &&
+                filterUsesManaCostEquals(entry.filter)
+            ) {
+                errors.push(
+                    '"filter.manaCostEquals" is not valid with zone: "battlefield" — a live permanent has no printed-cost slot in the battlefield matcher (toPermanentFilter); use a hand/library/graveyard/exile zone instead'
                 );
             }
             if (

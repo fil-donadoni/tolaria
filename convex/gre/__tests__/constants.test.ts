@@ -64,6 +64,24 @@ describe("manaCostsEqual (CR 202, issue #1881, ADR 0078 decision 8)", () => {
         ).toBe(true);
     });
 
+    it("folds `generic` into the comparison on the VARIABLE {X} path too (issue #1898 finding 1)", () => {
+        // Fireball {X}{R} vs Comet Storm {X}{2}{R} — same variable marker,
+        // different fixed-generic addend (`generic: 2`) riding alongside it.
+        // Must NOT compare equal even though both are `X: "X"`.
+        expect(
+            manaCostsEqual({ X: "X", R: 1 }, { X: "X", generic: 2, R: 1 })
+        ).toBe(false);
+        // {X} vs {X}{2} — same shape, no colored pips.
+        expect(manaCostsEqual({ X: "X" }, { X: "X", generic: 2 })).toBe(false);
+        // Symmetric `generic` on both sides still compares equal.
+        expect(
+            manaCostsEqual(
+                { X: "X", generic: 2, B: 1 },
+                { X: "X", generic: 2, B: 1 }
+            )
+        ).toBe(true);
+    });
+
     it("does not match a colored cost against a generic one of equal value", () => {
         // {W} has mana value 1, same as {1} — but they're different costs.
         expect(manaCostsEqual({ W: 1 }, { X: 1 })).toBe(false);

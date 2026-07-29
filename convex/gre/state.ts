@@ -80,6 +80,7 @@ import {
     getBasicLandMana,
     isAura,
     isDamageablePermanent,
+    isLandDefinition,
     isPlaneswalker,
     LAND_DROPS_PER_TURN,
     manaValue,
@@ -9282,6 +9283,29 @@ function untilNextEndStepTurn(state: GameState, playerId: string): number {
     return isOwnTurn ? state.turn + 2 : state.turn + 1;
 }
 
+/** CR 202.1 / 202.3b — the printed mana cost for `EffectCardFilter
+ *  .manaCostEquals`'s exact structural match (issue #1898 finding 2), across
+ *  `getHandCards`/`getLibraryCards`/`getGraveyardCards`/`getExileCards`. A
+ *  card has NO mana cost — not mana cost `{0}` — when the definition is
+ *  missing (unregistered id), `manaCost` itself is undefined (LEA basics omit
+ *  it entirely), OR the card is a Land (no printed land has a mana cost,
+ *  CR 202.1): those all return `undefined` here, which `matchesCardFilter`
+ *  fails CLOSED on. `{}` is a DISTINCT, real encoding of the printed cost
+ *  `{0}` some non-land cards use (Mishra's Factory/Workshop write
+ *  `manaCost: {}` themselves, `atq/colorless.ts`) — so `{}` is passed through
+ *  unchanged for a non-land card, never collapsed to `undefined`. Without the
+ *  Land carve-out, `manaCostEquals: [{}]` (Urza's Saga III's "artifact card
+ *  with mana cost {0} or {1}") would also admit a Land — the classic "Saga
+ *  can't find artifact lands" ruling gap, currently masked only by chapter
+ *  III's own `type: "Artifact"` guard. */
+function manaCostForCardFilter(
+    def: CardDefinition | null | undefined
+): CardManaCost | undefined {
+    if (!def || def.manaCost === undefined) return undefined;
+    if (isLandDefinition(def)) return undefined;
+    return def.manaCost;
+}
+
 /** Builds a SpellContext with primitives bound to the current game state. */
 export function buildSpellContext(
     state: GameState,
@@ -13854,7 +13878,7 @@ export function buildSpellContext(
             supertypes: CardSupertype[];
             manaValue: number;
             colors: Color[];
-            cost: CardManaCost;
+            cost: CardManaCost | undefined;
         }> {
             return getPlayer(state, playerId).hand.map((c) => {
                 const cardId = (c.card as { id?: string }).id;
@@ -13875,7 +13899,7 @@ export function buildSpellContext(
                     // CR 202 (issue #1881) — full printed cost for
                     // `EffectCardFilter.manaCostEquals`'s exact structural
                     // comparison.
-                    cost: def?.manaCost ?? {},
+                    cost: manaCostForCardFilter(def),
                 };
             });
         },
@@ -13892,7 +13916,7 @@ export function buildSpellContext(
             supertypes: CardSupertype[];
             colors: Color[];
             manaValue: number;
-            cost: CardManaCost;
+            cost: CardManaCost | undefined;
         }> {
             return getPlayer(state, playerId).library.map((c) => {
                 const cardId = (c.card as { id?: string }).id;
@@ -13912,7 +13936,7 @@ export function buildSpellContext(
                     // CR 202 (issue #1881) — full printed cost for
                     // `EffectCardFilter.manaCostEquals`'s exact structural
                     // comparison (Urza's Saga III's "mana cost {0} or {1}").
-                    cost: def?.manaCost ?? {},
+                    cost: manaCostForCardFilter(def),
                 };
             });
         },
@@ -13926,7 +13950,7 @@ export function buildSpellContext(
             subtypes: string[];
             manaValue: number;
             colors: Color[];
-            cost: CardManaCost;
+            cost: CardManaCost | undefined;
         }> {
             return getPlayer(state, playerId).graveyard.map((c) => {
                 const cardId = (c.card as { id?: string }).id;
@@ -13943,7 +13967,7 @@ export function buildSpellContext(
                     // CR 202 (issue #1881) — full printed cost for
                     // `EffectCardFilter.manaCostEquals`'s exact structural
                     // comparison.
-                    cost: def?.manaCost ?? {},
+                    cost: manaCostForCardFilter(def),
                 };
             });
         },
@@ -13972,7 +13996,7 @@ export function buildSpellContext(
             manaValue: number;
             colors: Color[];
             counters: Record<string, number>;
-            cost: CardManaCost;
+            cost: CardManaCost | undefined;
         }> {
             return getPlayer(state, playerId).exile.map((c) => {
                 const cardId = (c.card as { id?: string }).id;
@@ -13988,7 +14012,7 @@ export function buildSpellContext(
                     // CR 202 (issue #1881) — full printed cost for
                     // `EffectCardFilter.manaCostEquals`'s exact structural
                     // comparison.
-                    cost: def?.manaCost ?? {},
+                    cost: manaCostForCardFilter(def),
                 };
             });
         },

@@ -7497,6 +7497,62 @@ describe("EffectCardFilter.manaCostEquals (issue #1881, ADR 0078 decision 8)", (
             expect(state.pendingChoices![0].candidateIds).toEqual(["mc0"]);
         }
     });
+
+    // CR 202.1 / 202.3b (issue #1898 finding 2) — a Land has NO mana cost, not
+    // mana cost {0}. Before the fix, `getLibraryCards`'s `def?.manaCost ?? {}`
+    // fallback made a Land indistinguishable from a real `{0}`-cost card
+    // (Mishra's Factory/Workshop) — `manaCostEquals: [{}]` wrongly admitted
+    // it. This is precisely the "Urza's Saga can't find artifact lands"
+    // ruling gap: chapter III's own `type: "Artifact"` guard happens to mask
+    // it today, but a `manaCostEquals`-only filter (no type clause) must not
+    // resurrect it once an artifact land ships.
+    const LAND_NO_COST_ID = "test-effects-manacost-land-no-cost";
+    registerTokenDefinition({
+        id: LAND_NO_COST_ID,
+        name: LAND_NO_COST_ID,
+        rarity: "common",
+        // No `manaCost` at all — mirrors a LEA basic land's definition.
+        types: ["Land"],
+    });
+
+    it("excludes a Land from candidateIds under manaCostEquals: [{}] — a Land has NO mana cost, not {0}", () => {
+        const id = registerScript("test-op-choice-manacost-equals-vs-land", [
+            {
+                op: "choice",
+                kind: "search-library",
+                player: "controller",
+                zone: "library",
+                // Deliberately no `type` clause — proves the LAND carve-out
+                // itself, not the `type: "Artifact"` guard that (accidentally)
+                // masks the bug on Urza's Saga III today.
+                filter: { manaCostEquals: [{}] },
+                count: { min: 0, max: 1 },
+                prompt: "Search your library for a card with mana cost {0}.",
+                bind: "$picked",
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: [
+                        ...libraryArtifacts("p1"),
+                        makeInstance(LAND_NO_COST_ID, {
+                            id: "land1",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "library",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        expect(head.candidateIds).toContain("mc0");
+        expect(head.candidateIds).not.toContain("land1");
+    });
 });
 
 describe("EffectCardFilter.enteredThisTurn (CR 400.7, issue #1458)", () => {

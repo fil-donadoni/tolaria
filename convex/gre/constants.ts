@@ -194,15 +194,19 @@ export function manaCostsEqual(a: ManaCost, b: ManaCost): boolean {
     const aVariable = a.X === "X";
     const bVariable = b.X === "X";
     if (aVariable !== bVariable) return false;
+    // A numeric `X` doubles as the generic slot (see doc comment above) — fold
+    // both fields into one fixed-generic total before comparing. This runs on
+    // BOTH branches (issue #1881 review finding 1): `generic` can coexist with
+    // a variable `{X}` marker too (Soul Burn `{X}{2}{B}` = `{X:"X", generic:2,
+    // B:1}`), so folding it only in the `else` let `{X}{R}` wrongly equal
+    // `{X}{2}{R}` (a fixed `generic` was compared against nothing on the
+    // variable path).
+    const aGeneric = (typeof a.X === "number" ? a.X : 0) + (a.generic ?? 0);
+    const bGeneric = (typeof b.X === "number" ? b.X : 0) + (b.generic ?? 0);
+    if (aGeneric !== bGeneric) return false;
     if (aVariable) {
         // CR 107.3 — {X}{X}-style multiplier; defaults to 1 ({X} alone).
         if ((a.xFactor ?? 1) !== (b.xFactor ?? 1)) return false;
-    } else {
-        // A numeric `X` doubles as the generic slot (see doc comment above)
-        // — fold both fields into one fixed-generic total before comparing.
-        const aGeneric = (typeof a.X === "number" ? a.X : 0) + (a.generic ?? 0);
-        const bGeneric = (typeof b.X === "number" ? b.X : 0) + (b.generic ?? 0);
-        if (aGeneric !== bGeneric) return false;
     }
     for (const color of MANA_COLORS) {
         if ((a.phyrexian?.[color] ?? 0) !== (b.phyrexian?.[color] ?? 0)) {
