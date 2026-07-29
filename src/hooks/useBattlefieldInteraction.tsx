@@ -31,6 +31,7 @@ import { activeSacrificeSelection } from "~/lib/sacrifice-selection";
 import { outstandingDamageAssigner } from "~/lib/priority";
 import { extractMutationError, type MutationError } from "~/lib/mutation-error";
 import { trackGameIntent } from "~/lib/pending-intent-store";
+import { isTapOtherChoicePaid } from "@convex/gre/tapOtherCost";
 import type { ActivatableAbility } from "~/components/board/battlefield-card";
 import ManaChoicePicker from "~/components/board/mana-choice-picker";
 import CastCostDialog from "~/components/cards/cast-cost-dialog";
@@ -291,8 +292,7 @@ export function useBattlefieldInteraction(player: Player) {
         !!pendingActivation &&
         pendingActivation.playerId === playerId &&
         !!pendingActivation.tapOtherChoice &&
-        pendingActivation.tapOtherChoice.pickedIds.length <
-            pendingActivation.tapOtherChoice.count;
+        !isTapOtherChoicePaid(pendingActivation.tapOtherChoice);
 
     const isSelectingAttackers =
         phase === "DECLARE_ATTACKERS" &&

@@ -1988,17 +1988,28 @@ export type PendingActivation = {
         pickedGraveyardOwnerId?: string;
         pickedCardIds?: string[];
     };
-    /** In-progress "tap N untapped permanents matching <filter> you control"
+    /** In-progress "tap untapped permanents matching <filter> you control"
      *  cost picker (CR 602.1, 118.8 — Hand of Justice "Tap three untapped white
-     *  creatures you control"). Set when the ability has `cost.tapOtherFilter`.
-     *  `pickedIds` accumulates the player's choices via `selectActivationCost`;
-     *  commit is blocked until `pickedIds.length === count` regardless of mana
-     *  coverage. On commit each picked permanent is tapped (distinct from the
-     *  source's own {T}). The source is never a legal pick. */
+     *  creatures you control"; CR 702.122a Crew N "tap any number of untapped
+     *  creatures you control with total power N or greater"). Set when the
+     *  ability has `cost.tapOtherFilter`. `pickedIds` accumulates the player's
+     *  choices via `selectActivationCost`; commit is blocked until
+     *  `isTapOtherSelectionComplete` (`gre/tapOtherCost.ts`) says the cost is
+     *  paid, regardless of mana coverage. On commit each picked permanent is
+     *  tapped (distinct from the source's own {T}). The source is never a legal
+     *  pick.
+     *
+     *  `count` and `totalPower` mirror the declared `cost.tapOtherFilter`
+     *  shapes (exactly one is set). `pickedPower` is the running sum of the
+     *  picks' crew contributions (effective power + `crewPowerBonus`, CR
+     *  702.122b), recomputed server-side on every pick so the client can render
+     *  the remaining-power hint without re-deriving effective power itself. */
     tapOtherChoice?: {
         filter: PermanentFilter;
-        count: number;
+        count?: number;
+        totalPower?: number;
         pickedIds: string[];
+        pickedPower?: number;
     };
     /** Counter-removal cost (CR 122.6 — "Remove a [type] counter from this
      *  creature"). Applied at commit. */

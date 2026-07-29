@@ -42,7 +42,8 @@ import {
     spellHasDelve,
 } from "./payWith";
 import { PHYREXIAN_LIFE_PER_PIP, phyrexianPipCount } from "./phyrexian";
-import { STATIC_EFFECT_CTX } from "./layers";
+import { STATIC_EFFECT_CTX, getEffectivePower } from "./layers";
+import { canPayTapOtherCost, crewPowerContribution } from "./tapOtherCost";
 import {
     MANA_COLORS,
     isPlaneswalker,
@@ -866,17 +867,29 @@ function enumerateAbilityMoves(
         // control" cost is unpayable without N matching untapped permanents
         // other than the source (Hand of Justice).
         if (ability.cost.tapOtherFilter) {
-            const { filter, count } = ability.cost.tapOtherFilter;
-            const available = player.battlefield.filter(
-                (c) =>
-                    c.id !== perm.id &&
-                    !c.isTapped &&
-                    matchesPermanentFilter(c, filter, {
-                        selfControllerId: player.id,
-                        supertypesOf: liveSupertypesOf,
-                    })
-            ).length;
-            if (available < count) continue;
+            const { filter } = ability.cost.tapOtherFilter;
+            const available = player.battlefield
+                .filter(
+                    (c) =>
+                        c.id !== perm.id &&
+                        !c.isTapped &&
+                        matchesPermanentFilter(c, filter, {
+                            selfControllerId: player.id,
+                            supertypesOf: liveSupertypesOf,
+                        })
+                )
+                .map((c) => ({
+                    id: c.id,
+                    // CR 702.122a/b — crew contribution (effective power plus
+                    // the creature's own `crewPowerBonus`).
+                    power: crewPowerContribution(
+                        getEffectivePower(state, c),
+                        tryGetDefinition((c.card as { id?: string }).id ?? "")
+                            ?.crewPowerBonus ?? 0
+                    ),
+                }));
+            if (!canPayTapOtherCost(ability.cost.tapOtherFilter, available))
+                continue;
         }
         // Mana cost: must be payable. The {T} part of the cost is paid by the
         // activate mutation itself, not by the tap plan.

@@ -37,6 +37,11 @@ import type {
 } from "@convex/cards/types";
 import type { CardInstance } from "../../types/game";
 import { getStackAbilities, buildTriggerStateView } from "../card-utils";
+import {
+    matchesPermanentFilter,
+    type PermanentFilter,
+} from "@convex/cards/filters";
+import { getColorsFromCost } from "@convex/cards/colors";
 
 /** The activation-cost shapes with a `getStackAbilities` affordability gate
  *  that a client-side reducer (or the projection) can silently break. Scalar
@@ -47,7 +52,8 @@ type Shape =
     | "life"
     | "removeCounter"
     | "discardFilter"
-    | "loyalty";
+    | "loyalty"
+    | "tapOtherFilter";
 
 /** Finds a REAL catalogue card definition matching an `EffectCardFilter`'s
  *  `type`/`subtype` fields (the two dimensions a `discardFilter` cost is
@@ -155,6 +161,63 @@ function gvCard(id: string, ownerId: string): CardInstance {
     };
 }
 
+/** A REAL catalogue creature matching a `tapOtherFilter`'s `PermanentFilter`,
+ *  with power >= 1 so it can move a `totalPower` (crew) total. The gate weighs
+ *  the view entries `buildTriggerStateView` produces, so the fixture must be a
+ *  real card id (the reducer derives colours — and `crewPowerBonus` — from the
+ *  definition). Returns null when the catalogue has no such card, which the
+ *  sweep reports as a skip rather than a failure. */
+function findMatchingPermanentCardId(
+    filter: PermanentFilter
+): { id: string; power: number } | null {
+    for (const def of getAllCards()) {
+        if (!def.types.includes("Creature")) continue;
+        if (def.power === undefined || def.power < 1) continue;
+        const view = {
+            id: "probe",
+            controllerId: VIEWER,
+            ownerId: VIEWER,
+            types: def.types,
+            subtypes: def.subtypes ?? [],
+            supertypes: def.supertypes ?? [],
+            staticAbilities: def.staticAbilities ?? [],
+            power: def.power,
+            toughness: def.toughness,
+            isTapped: false,
+            colors: getColorsFromCost(def.manaCost),
+        };
+        if (
+            matchesPermanentFilter(view, filter, { selfControllerId: VIEWER })
+        ) {
+            return { id: def.id, power: def.power };
+        }
+    }
+    return null;
+}
+
+/** An untapped creature the viewer controls, built from a real card id so the
+ *  reducer can derive its colours / crew bonus. */
+function crewHelper(
+    id: string,
+    cardId: string,
+    def: CardDefinition
+): CardInstance {
+    return {
+        id,
+        card: { id: cardId },
+        controllerId: VIEWER,
+        ownerId: VIEWER,
+        zone: "battlefield",
+        isTapped: false,
+        isSummoningSick: false,
+        types: def.types,
+        subtypes: def.subtypes ?? [],
+        staticAbilities: def.staticAbilities ?? [],
+        power: def.power,
+        toughness: def.toughness,
+    };
+}
+
 /** Which affordability shapes an ability declares (only the enumerable ones). */
 function shapesOf(a: ActivatedAbility): Shape[] {
     const out: Shape[] = [];
@@ -162,6 +225,11 @@ function shapesOf(a: ActivatedAbility): Shape[] {
     if (a.cost.life !== undefined) out.push("life");
     if (a.cost.removeCounter) out.push("removeCounter");
     if (a.cost.discardFilter) out.push("discardFilter");
+    // CR 602.1 / 118.8 + CR 702.122a (issue #777) — "tap untapped permanents
+    // you control" (Hand of Justice's fixed three) and Crew N's total-power
+    // shape both have a `getStackAbilities` gate that weighs the viewer's own
+    // battlefield through `buildTriggerStateView`.
+    if (a.cost.tapOtherFilter) out.push("tapOtherFilter");
     // CR 606 — a loyalty ability (signed `cost.loyalty`) has a frontend
     // affordability hint in `getStackAbilities` (once-per-turn / sorcery-speed /
     // not-below-0), so it joins the sweep (issue #700).
@@ -173,6 +241,12 @@ function shapesOf(a: ActivatedAbility): Shape[] {
  *  generically satisfy — reported as a skip rather than a failure. */
 function skipReason(a: ActivatedAbility): string | null {
     if (a.canActivate) return "canActivate predicate";
+    if (
+        a.cost.tapOtherFilter &&
+        findMatchingPermanentCardId(a.cost.tapOtherFilter.filter) === null
+    ) {
+        return "no catalogue creature matches the tapOtherFilter";
+    }
     if (a.getTargetRequirement) return "getTargetRequirement predicate";
     // CR 602.2b — the no-legal-target gate needs a candidate on the board. The
     // generic `targetDummy` covers every card TYPE, but not a subtype-narrowed
@@ -270,13 +344,43 @@ function env(c: Case, broken: boolean) {
         const matchId = findMatchingCardId(filter);
         for (let i = 0; i < n; i++) hand.push(handCard(`hc${i}`, matchId));
     }
+    // CR 602.1 / 118.8 + CR 702.122a — untapped matching creatures the viewer
+    // controls, enough to cover the cost (`count` picks, or `totalPower` worth
+    // of power). The break removes exactly one, dropping the pool below what
+    // the cost demands.
+    const tapHelpers: CardInstance[] = [];
+    if (ability.cost.tapOtherFilter) {
+        const spec = ability.cost.tapOtherFilter;
+        const match = findMatchingPermanentCardId(spec.filter)!;
+        const helperDef = getAllCards().find((d) => d.id === match.id)!;
+        const needed =
+            spec.totalPower !== undefined
+                ? Math.ceil(spec.totalPower / match.power)
+                : (spec.count ?? 0);
+        const n = broken && shape === "tapOtherFilter" ? needed - 1 : needed;
+        for (let i = 0; i < n; i++) {
+            tapHelpers.push(crewHelper(`tap${i}`, match.id, helperDef));
+        }
+    }
     const view = buildTriggerStateView(
         [
             {
                 id: VIEWER,
                 life: payerLife,
                 hand: [],
-                battlefield: [source, targetDummy("dummy-you", VIEWER)],
+                battlefield: [
+                    source,
+                    // For a tapOtherFilter case the viewer's target dummy is
+                    // TAPPED: it is a legal target either way (CR 115.4 — tap
+                    // state doesn't gate targeting), but an untapped one would
+                    // itself be counted as a payment candidate and mask the
+                    // break case.
+                    {
+                        ...targetDummy("dummy-you", VIEWER),
+                        isTapped: ability.cost.tapOtherFilter !== undefined,
+                    },
+                    ...tapHelpers,
+                ],
                 graveyard: viewerGrave,
             },
             {

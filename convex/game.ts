@@ -212,6 +212,13 @@ import {
     phyrexianPipCount,
 } from "./gre/phyrexian";
 import { STATIC_EFFECT_CTX, getEffectivePower } from "./gre/layers";
+import {
+    canPayTapOtherCost,
+    crewPowerContribution,
+    isTapOtherSelectionComplete,
+    totalTapOtherPower,
+    type TapOtherCandidate,
+} from "./gre/tapOtherCost";
 import { projectFullState, projectPublicState } from "./gameProjections";
 import {
     canPayAlternativeCost,
@@ -1649,6 +1656,67 @@ function tapOtherCandidates(
     });
 }
 
+/** A permanent's contribution toward a `tapOtherFilter.totalPower` cost
+ *  (CR 702.122a, Crew N): its EFFECTIVE power (layer 7, CR 613.4 — a crewing
+ *  creature that's been pumped counts the pumped value) plus its own
+ *  `crewPowerBonus` (CR 702.122b — Shorikai's Pilot token "crews Vehicles as
+ *  though its power were 2 greater"). */
+function tapOtherContribution(
+    state: GameState,
+    card: CardInstanceState
+): TapOtherCandidate {
+    const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
+    return {
+        id: card.id,
+        power: crewPowerContribution(
+            getEffectivePower(state, card),
+            def?.crewPowerBonus ?? 0
+        ),
+    };
+}
+
+/** A tap-other picker's current picks as weighed candidates, recomputed from
+ *  the LIVE battlefield (a pick that has since been pumped/shrunk counts at its
+ *  current value, CR 608.2 — the cost isn't locked until it's paid). A pick
+ *  that has left the battlefield stays in the list at power 0 so the
+ *  fixed-cardinal shape keeps its historical `pickedIds.length` semantics;
+ *  commit re-validates every pick and aborts on a vanished one. */
+function tapOtherPickedCandidates(
+    state: GameState,
+    player: PlayerState,
+    pickedIds: readonly string[]
+): TapOtherCandidate[] {
+    return pickedIds.map((id) => {
+        const perm = player.battlefield.find((c) => c.id === id);
+        return perm ? tapOtherContribution(state, perm) : { id, power: 0 };
+    });
+}
+
+/** Running crew total of a tap-other picker's picks (CR 702.122a). */
+function tapOtherPickedPower(
+    state: GameState,
+    player: PlayerState,
+    pickedIds: readonly string[]
+): number {
+    return totalTapOtherPower(
+        tapOtherPickedCandidates(state, player, pickedIds)
+    );
+}
+
+/** True once the picker's picks fully pay the declared tap-other cost — the
+ *  ONE gate both `tryAutoCommitPendingActivation` and `selectActivationCost`
+ *  consult (CR 602.1 / 118.8, CR 702.122a). */
+function isTapOtherPaid(
+    state: GameState,
+    player: PlayerState,
+    toc: NonNullable<PendingActivation["tapOtherChoice"]>
+): boolean {
+    return isTapOtherSelectionComplete(
+        toc,
+        tapOtherPickedCandidates(state, player, toc.pickedIds)
+    );
+}
+
 /** Cast-from-exile lookup (CR 601.3e — Ice Cauldron: "You may cast that card
  *  for as long as it remains exiled"). Returns the card carrying
  *  `castableFromExileBy === casterId` and matching `instanceId`, or undefined.
@@ -2108,7 +2176,16 @@ export function buildPendingActivation(opts: {
             ? {
                   tapOtherChoice: {
                       filter: ability.cost.tapOtherFilter.filter,
-                      count: ability.cost.tapOtherFilter.count,
+                      ...(ability.cost.tapOtherFilter.count !== undefined
+                          ? { count: ability.cost.tapOtherFilter.count }
+                          : {}),
+                      ...(ability.cost.tapOtherFilter.totalPower !== undefined
+                          ? {
+                                totalPower:
+                                    ability.cost.tapOtherFilter.totalPower,
+                                pickedPower: 0,
+                            }
+                          : {}),
                       pickedIds: [],
                   },
               }
@@ -2208,11 +2285,13 @@ export function tryAutoCommitPendingActivation(
     ) {
         return null;
     }
-    // CR 602.1 / 118.8 — commit is blocked until all N "tap an untapped
-    // permanent matching <filter> you control" picks are in (Hand of Justice).
+    // CR 602.1 / 118.8 — commit is blocked until the "tap untapped permanents
+    // matching <filter> you control" cost is fully paid: all N picks for the
+    // fixed-cardinal shape (Hand of Justice), or enough total power for the
+    // CR 702.122a crew shape (Crew N).
     if (
         pa.tapOtherChoice &&
-        pa.tapOtherChoice.pickedIds.length < pa.tapOtherChoice.count
+        !isTapOtherPaid(state, player, pa.tapOtherChoice)
     ) {
         return null;
     }
@@ -5114,7 +5193,12 @@ export function finalizeTargetSelection(
                 card.id,
                 ability.cost.tapOtherFilter.filter
             );
-            if (candidates.length < ability.cost.tapOtherFilter.count) {
+            if (
+                !canPayTapOtherCost(
+                    ability.cost.tapOtherFilter,
+                    candidates.map((c) => tapOtherContribution(state, c))
+                )
+            ) {
                 throw new Error(
                     "Not enough untapped permanents to pay the tap cost"
                 );
@@ -7951,6 +8035,79 @@ export const cancelActivation = mutation({
  *  once per chosen permanent; commit fires once `count` ids are picked. Mirrors
  *  selectAdditionalCost for the spell path. Commit fires via
  *  tryAutoCommitPendingActivation once the choice and the mana are both in. */
+/** Pure core of `selectActivationCost` — records ONE pick on the live
+ *  `pendingActivation.tapOtherChoice` and attempts the commit (CR 602.1 /
+ *  118.8; CR 702.122a for the crew shape). Extracted so tests drive the REAL
+ *  validation branch order rather than a hand-mirrored copy. */
+export function selectActivationCostOnState(
+    state: GameState,
+    args: { playerId: string; cardInstanceId: string }
+): void {
+    assertGameNotOver(state);
+    assertExpectedInput(state, {
+        playerId: args.playerId,
+        expect: "priority",
+    });
+
+    const pa = state.pendingActivation;
+    if (!pa) throw new Error("No ability being activated");
+    if (pa.playerId !== args.playerId) {
+        throw new Error("Not your pending activation");
+    }
+    const player = getPlayer(state, args.playerId);
+    const candidate = player.battlefield.find(
+        (c) => c.id === args.cardInstanceId
+    );
+    if (!candidate) {
+        throw new Error("Selected permanent not on your battlefield");
+    }
+
+    // CR 602.1 / 118.8 — tap-other-creatures picker (Hand of Justice's fixed
+    // three; CR 702.122a Crew N's "any number with total power N or greater").
+    // One call per chosen permanent; each must match the filter, be untapped,
+    // not be the source, and not already be picked.
+    const toc = pa.tapOtherChoice;
+    if (!toc) {
+        // CR 701.21a — the ability's sacrifice cost migrated to the unified
+        // sacrifice picker (selectSacrifice). selectActivationCost now handles
+        // only the tap-other cost.
+        throw new Error("This ability has no tap cost picker");
+    }
+    if (isTapOtherPaid(state, player, toc)) {
+        throw new Error("Tap cost already paid");
+    }
+    if (candidate.id === pa.cardInstanceId) {
+        throw new Error("Cannot tap the ability's own source");
+    }
+    if (candidate.isTapped) {
+        throw new Error("Selected permanent is already tapped");
+    }
+    if (toc.pickedIds.includes(candidate.id)) {
+        throw new Error("Permanent already selected to tap");
+    }
+    const view = {
+        ...candidate,
+        colors: STATIC_EFFECT_CTX.getColors(candidate),
+    };
+    if (
+        !matchesPermanentFilter(view, toc.filter, {
+            selfControllerId: player.id,
+        })
+    ) {
+        throw new Error(
+            "Selected permanent does not match the tap cost filter"
+        );
+    }
+    toc.pickedIds.push(candidate.id);
+    // CR 702.122a — keep the running crew total on the picker so the client can
+    // render "N more power" without re-deriving effective power (and each
+    // crewing creature's `crewPowerBonus`) itself.
+    if (toc.totalPower !== undefined) {
+        toc.pickedPower = tapOtherPickedPower(state, player, toc.pickedIds);
+    }
+    tryAutoCommitPendingActivation(state, args.playerId);
+}
+
 export const selectActivationCost = mutation({
     args: {
         gameId: v.id("games"),
@@ -7965,71 +8122,17 @@ export const selectActivationCost = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        assertGameNotOver(state);
-        assertExpectedInput(state, {
+        selectActivationCostOnState(state, {
             playerId: args.playerId,
-            expect: "priority",
+            cardInstanceId: args.cardInstanceId,
         });
-
-        const pa = state.pendingActivation;
-        if (!pa) throw new Error("No ability being activated");
-        if (pa.playerId !== args.playerId) {
-            throw new Error("Not your pending activation");
-        }
-        const player = getPlayer(state, args.playerId);
-        const candidate = player.battlefield.find(
-            (c) => c.id === args.cardInstanceId
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
         );
-        if (!candidate) {
-            throw new Error("Selected permanent not on your battlefield");
-        }
-
-        // CR 602.1 / 118.8 — tap-other-creatures picker (Hand of Justice). One
-        // call per chosen permanent; each must match the filter, be untapped,
-        // not be the source, and not already be picked.
-        const toc = pa.tapOtherChoice;
-        if (toc) {
-            if (toc.pickedIds.length >= toc.count) {
-                throw new Error("Tap cost already paid");
-            }
-            if (candidate.id === pa.cardInstanceId) {
-                throw new Error("Cannot tap the ability's own source");
-            }
-            if (candidate.isTapped) {
-                throw new Error("Selected permanent is already tapped");
-            }
-            if (toc.pickedIds.includes(candidate.id)) {
-                throw new Error("Permanent already selected to tap");
-            }
-            const view = {
-                ...candidate,
-                colors: STATIC_EFFECT_CTX.getColors(candidate),
-            };
-            if (
-                !matchesPermanentFilter(view, toc.filter, {
-                    selfControllerId: player.id,
-                })
-            ) {
-                throw new Error(
-                    "Selected permanent does not match the tap cost filter"
-                );
-            }
-            toc.pickedIds.push(candidate.id);
-            tryAutoCommitPendingActivation(state, args.playerId);
-            await saveGameState(
-                ctx,
-                args.gameId,
-                gameState.seq + 1,
-                state,
-                gameState
-            );
-            return;
-        }
-
-        // CR 701.21a — the ability's sacrifice cost migrated to the unified
-        // sacrifice picker (selectSacrifice). selectActivationCost now handles
-        // only the tap-other cost above.
-        throw new Error("This ability has no tap cost picker");
     },
 });
 
@@ -11836,7 +11939,12 @@ export function activateAbilityOnState(
             card.id,
             ability.cost.tapOtherFilter.filter
         );
-        if (candidates.length < ability.cost.tapOtherFilter.count) {
+        if (
+            !canPayTapOtherCost(
+                ability.cost.tapOtherFilter,
+                candidates.map((c) => tapOtherContribution(state, c))
+            )
+        ) {
             throw new Error(
                 "Not enough untapped permanents to pay the tap cost"
             );
