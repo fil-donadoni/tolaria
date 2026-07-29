@@ -31,6 +31,14 @@
 // `dominanceProbeStats().probes` pins this: it is a function of the root move
 // list alone, asserted equal for a 40- and a 400-iteration search.
 //
+// The CHOICE-level probe (`isNoOpChoiceAnswer`, issue #1888) is reached from a
+// prior function that DOES run at every in-tree choice-node visit, so it obeys
+// the same invariant by a memo instead of a deny-set: one verdict per choice
+// IDENTITY per decision, held for exactly one `searchWithTrace` call. It shares
+// `stats.probes`, and the guard asserts the 40-vs-400 equality on a CHOICE-node
+// scenario as well as a priority-node one — a scenario without a choice node
+// cannot see this seam regress (PR #1914 review finding 1).
+//
 // ── The proof ─────────────────────────────────────────────────────────────
 // A move is dominated by `pass` when, applied and resolved to completion on a
 // CLONE, the resulting position is byte-identical to the untouched baseline in
@@ -87,7 +95,12 @@
 // A cast whose ONLY value is raising the storm count is therefore prunable —
 // accepted, and the storm payoff itself (a cast trigger) is not affected.
 
-import type { CardInstanceState, GameState, StackItem } from "../state";
+import type {
+    CardInstanceState,
+    GameState,
+    PendingChoice,
+    StackItem,
+} from "../state";
 import {
     emitSpellCastEvent,
     processPendingActionTriggers,
@@ -227,7 +240,7 @@ export function isDominatedNoOpMove(
  *  throw, an unsupported move kind, an unsettled stack — returns `false`. */
 export function isNoOpChoiceAnswer(
     state: GameState,
-    choice: { playerId: string },
+    choice: PendingChoice,
     move: Move
 ): boolean {
     if (probing) return false;
@@ -237,6 +250,111 @@ export function isNoOpChoiceAnswer(
         return false;
     }
 
+    // Once per DECISION, not once per iteration (PR #1914 review finding 1).
+    // The guards above are transient / per-world and are re-run every call; the
+    // PROBE below is what costs, so only it is memoized. A memo MISS is what
+    // increments `stats.probes`, which is precisely what lets the O(root
+    // decisions) guard in `dominance.bot.test.ts` see a regression here.
+    const memo = choiceProbeMemo;
+    const key = memo ? choiceAnswerIdentity(state, choice, move) : undefined;
+    if (memo && key !== undefined) {
+        const cached = memo.get(key);
+        if (cached !== undefined) return cached;
+    }
+    const verdict = probeNoOpChoiceAnswer(state, choice, move);
+    if (memo && key !== undefined) memo.set(key, verdict);
+    return verdict;
+}
+
+// ---------------------------------------------------------------------------
+// Per-decision memo for the choice probe (PR #1914 review finding 1)
+// ---------------------------------------------------------------------------
+//
+// `isNoOpChoiceAnswer` is reached from `dslChoicePrior` (`choicePriors.ts`),
+// which `choiceCandidates` calls for EVERY candidate at EVERY choice-node visit
+// — tree descent and rollout alike. Unmemoized that is O(iterations): measured
+// 42 probes at 40 iterations vs 401 at 400 on a live `choose-hand-card` node,
+// the exact #1905 review-finding-3 shape this module's header forbids ("In-tree
+// enumeration does NOT probe … 42.6% of a 300-iteration search's wall clock").
+//
+// The fix is the same shape as `searchWithTrace`'s `prunedRootKeys` deny-set:
+// prove it ONCE per decision and reuse the verdict for the whole search. The
+// memo lives for exactly one `searchWithTrace` call (`beginDominanceDecision` /
+// `endDominanceDecision`, called in a `finally`), so a verdict never outlives
+// the position it was proved against.
+//
+// The key is the choice's IDENTITY, deliberately NOT the world state: every
+// iteration re-determinizes, so a state-keyed memo would never hit. Identity is
+// (source card definition, resolution step, choice id, kind, chooser, answer) —
+// all stable across determinizations of the same logical choice node, and
+// stable too when the SAME node is reached by casting the source inside the
+// tree (where the stack item id is freshly minted each iteration and therefore
+// useless as a key).
+//
+// The accepted narrowing, and why it is cheap: two determinized worlds could in
+// principle disagree about whether the same answer is a no-op, and the memo
+// reports the first world's verdict for both. That is the identical tradeoff
+// the root deny-set already makes (a root verdict reused for every iteration) —
+// and the stake here is strictly lower: this feeds a PRIOR, an ordering bias
+// that decays with visits and never changes legality, not a pruning decision.
+// Outside a decision scope (`choiceProbeMemo === null` — a direct unit-test
+// call, the client-side Brain) nothing is cached and every call probes.
+
+let choiceProbeMemo: Map<string, boolean> | null = null;
+
+/** Open a decision scope: `isNoOpChoiceAnswer` proves each distinct choice
+ *  answer at most once until {@link endDominanceDecision}. Called by
+ *  `searchWithTrace`; re-entrant calls simply reopen an empty scope. */
+export function beginDominanceDecision(): void {
+    choiceProbeMemo = new Map();
+}
+
+/** Close the decision scope opened by {@link beginDominanceDecision} and drop
+ *  every cached verdict. MUST run in a `finally` — a leaked scope would carry
+ *  verdicts into the next, unrelated position. */
+export function endDominanceDecision(): void {
+    choiceProbeMemo = null;
+}
+
+/** The memo key: what makes two choice answers "the same decision" across
+ *  determinized worlds. Returns `undefined` when no stable identity can be
+ *  built, which disables caching for that call rather than risking a collision.
+ *
+ *  The stack item's CARD DEFINITION id is used, never its instance id: the
+ *  instance id is minted afresh every time the source is cast inside the tree,
+ *  so keying on it would be a guaranteed miss (and put probes back on
+ *  O(iterations)). Definition + step + `choiceId` is exactly the tuple the
+ *  engine itself uses to key `StackItem.collectedChoices`. */
+function choiceAnswerIdentity(
+    state: GameState,
+    choice: PendingChoice,
+    move: Move
+): string | undefined {
+    // Only the `resolution-choice` shape has a world-STABLE answer identity (a
+    // set of card instance ids, empty for the degenerate branch this is asked
+    // about). Any other move kind names world-local ids with no stable
+    // counterpart, so it is left uncached rather than keyed unsoundly.
+    if (move.kind !== "resolution-choice") return undefined;
+    const item = state.stack.find((s) => s.id === choice.stackItemId);
+    const defId = (item?.card as { id?: string } | undefined)?.id;
+    if (!defId) return undefined;
+    const ids = move.cardInstanceIds ?? [];
+    return [
+        defId,
+        choice.kind,
+        choice.step,
+        choice.choiceId,
+        choice.playerId,
+        ids.length === 0 ? "<none>" : [...ids].sort().join(","),
+    ].join("|");
+}
+
+/** The probe itself — everything {@link isNoOpChoiceAnswer} memoizes. */
+function probeNoOpChoiceAnswer(
+    state: GameState,
+    choice: PendingChoice,
+    move: Move
+): boolean {
     probing = true;
     stats.probes++;
     try {

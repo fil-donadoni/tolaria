@@ -276,7 +276,15 @@ const DEGENERATE_PRIOR = PRIOR_MIN;
  *  the probe costs a clone plus a whole-`GameState` deep compare, and priors are
  *  scored for every candidate at every choice ply, so it may only ever be paid
  *  for the at-most-one candidate per node that could plausibly be degenerate.
- *  A non-empty answer moves cards by construction and can never prove out. */
+ *  A non-empty answer moves cards by construction and can never prove out.
+ *
+ *  That shape gate bounds the probe per VISIT; what bounds it per SEARCH is
+ *  `dominance.ts`' per-decision memo (`beginDominanceDecision`, opened by
+ *  `searchWithTrace`). This function runs at every in-tree choice-node visit of
+ *  every iteration — without the memo the probe count would be O(iterations),
+ *  the #1905 review-finding-3 regression (PR #1914 review finding 1). With it,
+ *  each distinct choice identity is proved once per decision and every later
+ *  visit reads the cached verdict. */
 function isDegenerateChoiceCandidate(
     state: GameState,
     choice: PendingChoice,

@@ -1,4 +1,4 @@
-// Who does this spell HELP? — per-target beneficence for a cast (issue #1888).
+// Who does this ANNOUNCEMENT help? — per-target beneficence (issue #1888).
 //
 // The bot used to hand Wild Growth to its opponent. Nothing in the pipeline had
 // an opinion: `getLegalTargets` correctly offers every land (CR 115.4), the
@@ -14,8 +14,24 @@
 // per-card knowledge (the settled principle of the closed wayfinder map
 // #1254):
 //
-//     for each ANNOUNCED TARGET SLOT of a cast, is the card's effect on the
-//     player at the other end a GIFT, an ATTACK, or neither?
+//     for each ANNOUNCED TARGET SLOT, is the effect on the player at the other
+//     end a GIFT, an ATTACK, or neither?
+//
+// "Announced" covers BOTH sites the bot chooses targets at: a cast (CR 601.2c)
+// and an activated ability (CR 602.2b). They are the same read — `move.targets`
+// against an `EffectOp[]` (ADR 0045) — so they share one derivation and one
+// entry point (`misdirectedTargetCount`). Garruk Wildspeaker's "+1: Untap two
+// target lands" is the ability-side case: `tapUntap action: "untap"` is
+// beneficial, the tuples all tie inside `OUTCOME_EPS`, and without a sign the
+// bot untaps the OPPONENT's lands on rollout noise.
+//
+// SCOPE. This axis is about the ANNOUNCEMENT — the targets a move names. A
+// recipient the effect picks LATER is a different mechanism with its own seam:
+// a `forEach` body's recipients are derived, not chosen (there is nothing to
+// redirect), and a mid-resolution `choice` recipient is answered at a choice
+// NODE, ranked by `choicePriors.ts`. Both are reached by `collectScriptSigns`
+// here only insofar as they carry an announced `{ target: n }` slot, which is
+// exactly the set of decisions this ranking can act on.
 //
 // Two derivations, both mechanism-keyed:
 //
@@ -38,6 +54,7 @@
 // play, so every ambiguity resolves to "no opinion".
 
 import type {
+    ActivatedAbility,
     CardDefinition,
     EffectOp,
     TargetSelection,
@@ -171,6 +188,21 @@ function auraAttachmentSign(def: CardDefinition): Beneficence {
     return sign;
 }
 
+/** The sign an Effect Script carries for the controller of whatever fills
+ *  announced target slot `slot`. The one derivation both effect SITES share —
+ *  a spell's `effects` and an `ActivatedAbility.effects` are the identical
+ *  `EffectOp[]` shape (ADR 0045), so nothing but the source of the script
+ *  differs between them. */
+function scriptSlotSign(
+    effects: readonly EffectOp[] | undefined,
+    slot: number
+): Beneficence {
+    if (!effects) return "neutral";
+    const signs = new Map<number, Beneficence>();
+    collectScriptSigns(effects, signs);
+    return signs.get(slot) ?? "neutral";
+}
+
 /** The sign of `def`'s effect on the controller of whatever fills announced
  *  target slot `slot`, under chosen mode `modeId` (CR 700.2c). */
 export function targetSlotBeneficence(
@@ -178,17 +210,32 @@ export function targetSlotBeneficence(
     modeId: string | undefined,
     slot: number
 ): Beneficence {
-    const signs = new Map<number, Beneficence>();
     const mode = modeId ? def.modes?.find((m) => m.id === modeId) : undefined;
-    const effects = mode ? mode.effects : def.effects;
-    if (effects) collectScriptSigns(effects, signs);
-    const scripted = signs.get(slot) ?? "neutral";
+    const scripted = scriptSlotSign(mode ? mode.effects : def.effects, slot);
     if (scripted !== "neutral") return scripted;
     // CR 303.4 — an Aura's single target slot IS its "enchant" slot.
     if (slot === 0 && def.subtypes?.includes("Aura")) {
         return auraAttachmentSign(def);
     }
     return "neutral";
+}
+
+/** The sign of an ACTIVATED ability's effect on the controller of whatever
+ *  fills its announced target slot `slot` (CR 602.2b). Same Op-keyed
+ *  derivation, read off `ability.effects`. There is no aura fallback: an
+ *  ability's payoff is its own script, never an attachment.
+ *
+ *  This is issue #1888 item 1's "uniformly to targets" clause reaching the
+ *  other half of the announcement surface. Garruk Wildspeaker's `+1: Untap two
+ *  target lands` is the live case — `tapUntap action: "untap"` is `beneficial`,
+ *  the two target slots enumerate one sibling move per tuple, and every tuple
+ *  ties inside `OUTCOME_EPS`, so without this the bot untaps the OPPONENT's
+ *  lands on rollout noise. */
+export function abilityTargetSlotBeneficence(
+    ability: ActivatedAbility,
+    slot: number
+): Beneficence {
+    return scriptSlotSign(ability.effects, slot);
 }
 
 /** Who is on the receiving end of `target`: the player whose stake the
@@ -211,31 +258,88 @@ function recipientOf(
     return target.playerId;
 }
 
+/** The card definition behind `instanceId`, wherever the instance currently
+ *  lives. An ability's source is normally a battlefield permanent, but the
+ *  enumerator also activates abilities from the graveyard and the hand, so all
+ *  three zones are scanned. Undefined when the instance or its definition can't
+ *  be resolved — which makes the caller fall back to "no opinion". */
+function definitionOfInstance(
+    state: GameState,
+    instanceId: string
+): CardDefinition | undefined {
+    for (const p of state.players) {
+        for (const zone of [p.battlefield, p.graveyard, p.hand]) {
+            const found = zone.find((c) => c.id === instanceId);
+            if (found) {
+                const id = (found.card as { id?: string } | undefined)?.id;
+                return (id ? tryGetDefinition(id) : undefined) ?? undefined;
+            }
+        }
+    }
+    return undefined;
+}
+
+/** Per-slot sign function for `move`'s announcement, or `undefined` when the
+ *  move announces no targets or its source script can't be read. ONE seam for
+ *  both announcement sites — a cast (CR 601.2c) and an activation (CR 602.2b) —
+ *  so a caller never has to know which kind it holds. */
+function slotSignerFor(
+    state: GameState,
+    move: Move,
+    botId: string
+): ((slot: number) => Beneficence) | undefined {
+    if (move.kind === "cast-spell") {
+        if (move.targets.length === 0) return undefined;
+        const player = state.players.find((p) => p.id === botId);
+        const card = player?.hand.find((c) => c.id === move.cardInstanceId);
+        const defId = (card?.card as { id?: string } | undefined)?.id;
+        const def = defId ? tryGetDefinition(defId) : undefined;
+        if (!def) return undefined;
+        return (slot) => targetSlotBeneficence(def, move.chosenModeId, slot);
+    }
+    if (move.kind === "activate-ability") {
+        if (move.targets.length === 0) return undefined;
+        const def = definitionOfInstance(state, move.cardInstanceId);
+        const ability = def?.activatedAbilities?.find(
+            (a) => a.id === move.abilityId
+        );
+        if (!ability) return undefined;
+        return (slot) => abilityTargetSlotBeneficence(ability, slot);
+    }
+    return undefined;
+}
+
 /** How many of `move`'s announced targets are MISDIRECTED for `botId` — a
  *  beneficial slot pointed at the OPPONENT, or a harmful one pointed at the
- *  bot's own side. 0 for a non-cast, a targetless cast, or any slot the
+ *  bot's own side. 0 for a move that announces no targets, and for any slot the
  *  derivation has no opinion about.
+ *
+ *  Covers BOTH announcement sites (PR #1914 review finding 3): a cast
+ *  (CR 601.2c) and an activated ability (CR 602.2b). The two reads are
+ *  identical — `move.targets` plus an `EffectOp[]` — so narrowing to casts left
+ *  every activated ability's targets unranked, Garruk Wildspeaker's "untap two
+ *  target lands" among them.
  *
  *  A COUNT rather than a boolean so a multi-target spell that misdirects two
  *  slots ranks below one that misdirects one — the ranking in `search.ts` is a
- *  preference among cast variants, never a legality change. */
+ *  preference among sibling variants, never a legality change. */
 export function misdirectedTargetCount(
     state: GameState,
     move: Move,
     botId: string
 ): number {
-    if (move.kind !== "cast-spell" || move.targets.length === 0) return 0;
-    const player = state.players.find((p) => p.id === botId);
-    const card = player?.hand.find((c) => c.id === move.cardInstanceId);
-    const defId = (card?.card as { id?: string } | undefined)?.id;
-    const def = defId ? tryGetDefinition(defId) : undefined;
-    if (!def) return 0;
+    const signOf = slotSignerFor(state, move, botId);
+    if (!signOf) return 0;
+    const targets =
+        move.kind === "cast-spell" || move.kind === "activate-ability"
+            ? move.targets
+            : [];
 
     let count = 0;
-    for (let slot = 0; slot < move.targets.length; slot++) {
-        const sign = targetSlotBeneficence(def, move.chosenModeId, slot);
+    for (let slot = 0; slot < targets.length; slot++) {
+        const sign = signOf(slot);
         if (sign === "neutral") continue;
-        const recipient = recipientOf(state, move.targets[slot]);
+        const recipient = recipientOf(state, targets[slot]);
         if (recipient === undefined) continue;
         const mine = recipient === botId;
         if (sign === "beneficial" ? !mine : mine) count++;

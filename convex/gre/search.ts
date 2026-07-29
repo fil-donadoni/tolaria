@@ -94,6 +94,7 @@ import {
     type ChoiceCandidate,
 } from "./ai/choiceCandidates";
 import { misdirectedTargetCount } from "./ai/beneficence";
+import { beginDominanceDecision, endDominanceDecision } from "./ai/dominance";
 import {
     applyLandEntrySubmit,
     applyMayPaySubmit,
@@ -1650,9 +1651,11 @@ function isSelfHarmRemovalCast(
 // opponent) has no sibling to be redirected to and is cast unchanged.
 const MISDIRECTION_WEIGHT = 1_000_000;
 
-/** Rank of one cast variant for `botId`: resolved material payoff, minus a
- *  dominating penalty per misdirected target slot. Compared only against other
- *  variants of the SAME `cardInstanceId`, so the absolute scale is irrelevant. */
+/** Rank of one announcement variant for `botId`: resolved material payoff,
+ *  minus a dominating penalty per misdirected target slot. Compared only
+ *  against other variants of the SAME announcement, so the absolute scale is
+ *  irrelevant. Both terms are move-kind-agnostic, so this ranks an activated
+ *  ability's target tuples exactly as it ranks a cast's. */
 function castVariantScore(state: GameState, move: Move, botId: string): number {
     return (
         resolvedMarginDelta(state, move, botId) -
@@ -1660,13 +1663,28 @@ function castVariantScore(state: GameState, move: Move, botId: string): number {
     );
 }
 
-/** Whether `move` casts the SAME card as `ref` — its sibling variant in the
- *  (mode × X × target-tuple) enumeration. Mode is deliberately NOT required to
- *  match (issue #1888 item 4): a modal spell's modes are candidates to be
- *  ranked, not a partition. */
+/** Whether `move` is a SIBLING VARIANT of `ref` — the same announcement with a
+ *  different answer to one of the questions it asks (mode × X × target-tuple).
+ *
+ *  A cast's identity is its `cardInstanceId`; an activation's is that PLUS the
+ *  `abilityId`, since one permanent's several abilities are genuinely different
+ *  announcements, not variants of each other (Garruk's +1 and −1 must not be
+ *  ranked against one another here — that is the search's job).
+ *
+ *  Mode is deliberately NOT required to match (issue #1888 item 4): a modal
+ *  spell's modes are candidates to be ranked, not a partition. */
 function isCastVariantOf(move: Move, ref: Move): boolean {
-    if (move.kind !== "cast-spell" || ref.kind !== "cast-spell") return false;
-    return move.cardInstanceId === ref.cardInstanceId;
+    if (move.kind !== ref.kind) return false;
+    if (move.kind === "cast-spell" && ref.kind === "cast-spell") {
+        return move.cardInstanceId === ref.cardInstanceId;
+    }
+    if (move.kind === "activate-ability" && ref.kind === "activate-ability") {
+        return (
+            move.cardInstanceId === ref.cardInstanceId &&
+            move.abilityId === ref.abilityId
+        );
+    }
+    return false;
 }
 
 /** The move an edge names in the ROOT world — the only world whose instance ids
@@ -1805,22 +1823,34 @@ export function selectRootMove(
         }
     }
 
-    // Cast-variant tie-break (issue #1888, generalises issue #365). When the
-    // robust pick is a cast, rank it against every outcome-equal SIBLING cast of
-    // the same card — the other targets, the other X values, the other modes —
-    // by `castVariantScore` and take the best. This subsumes the #365
-    // friendly-vs-enemy redirect (a self-targeted removal scores below its
-    // enemy-targeted sibling on the resolved margin term) and adds the
-    // beneficial mirror the margin is blind to (an aura handed to the opponent
-    // scores below the same aura on the bot's own permanent, on the beneficence
-    // term).
+    // Announcement-variant tie-break (issue #1888, generalises issue #365).
+    // When the robust pick names targets, rank it against every outcome-equal
+    // SIBLING variant of the same announcement — the other targets, the other X
+    // values, the other modes — by `castVariantScore` and take the best. This
+    // subsumes the #365 friendly-vs-enemy redirect (a self-targeted removal
+    // scores below its enemy-targeted sibling on the resolved margin term) and
+    // adds the beneficial mirror the margin is blind to (an aura handed to the
+    // opponent scores below the same aura on the bot's own permanent, on the
+    // beneficence term).
+    //
+    // Both announcement sites qualify (PR #1914 review finding 3): a cast
+    // (CR 601.2c) and an ACTIVATED ability (CR 602.2b). Every term is
+    // move-kind-agnostic — `resolvedMarginDelta` probes any move,
+    // `misdirectedTargetCount` reads `move.targets` against an `EffectOp[]` —
+    // so restricting to casts only left Garruk Wildspeaker's "+1: Untap two
+    // target lands" free to untap the OPPONENT's lands on rollout noise.
     //
     // Pulled from the FULL `pool` on outcome-equality alone (not the visit
     // band), as the land-drop / hold-trick rules are: the alternative is the
     // lower-variance, lower-visit line. Because it fires ONLY among
     // outcome-equal siblings, a variant with REAL value out-rewards the field
     // and never reaches here.
-    if (rootState && botId && best.move.kind === "cast-spell") {
+    if (
+        rootState &&
+        botId &&
+        (best.move.kind === "cast-spell" ||
+            best.move.kind === "activate-ability")
+    ) {
         const scoreCache = new Map<Edge, number>();
         const scoreOf = (e: Edge) => {
             let s = scoreCache.get(e);
@@ -1845,6 +1875,10 @@ export function selectRootMove(
         // shape alone — a beneficence misdirection with no better sibling (a
         // "target opponent draws" punisher, which can only point at the
         // opponent) must still be castable, so it never triggers a hold.
+        // `isSelfHarmRemovalCast` stays CAST-only by construction
+        // (`targetsOnlyOwnPermanents` rejects any other kind): "hold it for
+        // later" is a spell-in-hand affordance, and an already-on-board ability
+        // that only hurts the bot loses on reward, not by being held.
         if (isSelfHarmRemovalCast(rootState, best.move, botId)) {
             const hold = pool.find(
                 (e) =>
@@ -1957,6 +1991,27 @@ function isSorcerySpeedTrickDump(state: GameState, move: Move): boolean {
  *  trace is null when there was no real decision to explain (no action owed, or
  *  a single forced move). */
 export function searchWithTrace(
+    state: GameState,
+    playerId: string,
+    budget: SearchBudget,
+    seed: number
+): { move: Move | null; trace: DecisionTrace | null } {
+    // The DECISION scope for `dominance.ts`' choice-level probe (PR #1914
+    // review finding 1). The cast-level probe is already once-per-decision by
+    // construction (it runs at the root only, below); the choice-level one is
+    // reached from a PRIOR that the tree evaluates at every choice-node visit,
+    // so it is held to the same invariant by a per-decision memo. Opened here
+    // and closed in a `finally` so a verdict can never outlive the position it
+    // was proved against.
+    beginDominanceDecision();
+    try {
+        return runSearchWithTrace(state, playerId, budget, seed);
+    } finally {
+        endDominanceDecision();
+    }
+}
+
+function runSearchWithTrace(
     state: GameState,
     playerId: string,
     budget: SearchBudget,

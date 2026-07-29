@@ -498,6 +498,17 @@ const searchLibraryCandidates: ChoiceCandidateGenerator = (state, choice) => {
     return out;
 };
 
+/** The applicability gate `handPickCandidates` declines on — hoisted out so the
+ *  gate and the generator are ONE predicate, never two that can drift (PR #1914
+ *  review finding 2). Registered in {@link CHOICE_GENERATOR_APPLIES}, which is
+ *  what `isSearchableChoiceNode` consults. */
+function handPickIsSearchable(choice: PendingChoice): boolean {
+    return (
+        getPendingChoiceMin(choice.count) === 0 &&
+        getPendingChoiceMax(choice.count) > 0
+    );
+}
+
 /** `choose-hand-card` (CR 608.2b), OPTIONAL picks only — issue #1888.
  *
  *  Scoped deliberately to `min === 0`: the "you MAY exile a card" shape, whose
@@ -520,9 +531,8 @@ const searchLibraryCandidates: ChoiceCandidateGenerator = (state, choice) => {
  *  the best-worth prefix rather than enumerating combinations, the same
  *  "best set led by this card" containment `searchLibraryCandidates` uses. */
 const handPickCandidates: ChoiceCandidateGenerator = (state, choice) => {
-    if (getPendingChoiceMin(choice.count) > 0) return [];
+    if (!handPickIsSearchable(choice)) return [];
     const max = getPendingChoiceMax(choice.count);
-    if (max <= 0) return [];
 
     const owner = getPlayer(state, choice.zoneOwnerId ?? choice.playerId);
     const allow = choice.candidateIds ? new Set(choice.candidateIds) : null;
@@ -598,9 +608,45 @@ export const CHOICE_CANDIDATE_GENERATORS: Partial<
     "choose-hand-card": handPickCandidates,
 };
 
-/** Whether `kind` is an in-tree choice node (has a registered generator). */
+/** Per-kind APPLICABILITY predicate, read from the `PendingChoice` alone.
+ *
+ *  Registry membership answers "is this KIND ever an in-tree node?"; a
+ *  registered generator may still legitimately decline a PARTICULAR choice —
+ *  `handPickCandidates` returns `[]` for a MANDATORY (`min > 0`) hand pick. The
+ *  authority on "will this generator emit anything" is the generator's output
+ *  (`decidingPlayer` / `keyedMovesFor` have always used it), but the CLIENT-side
+ *  `searchable` gate (`src/lib/ai/bot-view.ts`) only ever holds the projected
+ *  wire state and so cannot run a generator. This table is the state-free
+ *  restatement it can run — and it is not a second copy of the rule: the
+ *  generator itself calls the SAME predicate, so the two cannot disagree
+ *  (PR #1914 review finding 2).
+ *
+ *  A kind with no entry applies unconditionally, which is the historical
+ *  behavior of every pre-#1888 tranche. */
+const CHOICE_GENERATOR_APPLIES: Partial<
+    Record<PendingChoiceKind, (choice: PendingChoice) => boolean>
+> = {
+    "choose-hand-card": handPickIsSearchable,
+};
+
+/** Whether `kind` is an in-tree choice node (has a registered generator).
+ *  Membership only — see {@link isSearchableChoiceNode} for the per-choice
+ *  test the `searchable` gate must use. */
 export function hasChoiceCandidateGenerator(kind: PendingChoiceKind): boolean {
     return CHOICE_CANDIDATE_GENERATORS[kind] !== undefined;
+}
+
+/** Whether THIS choice is an in-tree decision node the ISMCTS search must
+ *  answer: a registered generator that also applies to it. The single authority
+ *  for the client-side `searchable` gate (`buildOwedChoice`,
+ *  `src/lib/ai/bot-view.ts`) — gating on bare registry membership instead sent
+ *  every mandatory hand pick (a Brainstorm putback, a discard cost) on a Worker
+ *  round-trip that enumerates nothing and lands on the driver's emergency
+ *  fallback (PR #1914 review finding 2). */
+export function isSearchableChoiceNode(choice: PendingChoice): boolean {
+    if (CHOICE_CANDIDATE_GENERATORS[choice.kind] === undefined) return false;
+    const applies = CHOICE_GENERATOR_APPLIES[choice.kind];
+    return applies ? applies(choice) : true;
 }
 
 /** Stable-sort by prior, highest first, then take the top K. Ties keep

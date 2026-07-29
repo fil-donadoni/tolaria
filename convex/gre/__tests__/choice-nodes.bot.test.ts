@@ -32,6 +32,7 @@ import {
     CHOICE_TOP_K,
     choiceCandidates,
     hasChoiceCandidateGenerator,
+    isSearchableChoiceNode,
     selectOpeningCandidate,
     stableCardIdentity,
     stableSetIdentity,
@@ -184,6 +185,43 @@ describe("choice-node candidate contract (CR 608.2 / ADR 0016, issue #1425)", ()
         // by design: no generator means the historical no-decision behavior.
         expect(hasChoiceCandidateGenerator("discard-hand")).toBe(false);
         expect(Object.keys(CHOICE_CANDIDATE_GENERATORS).length).toBe(7);
+    });
+
+    it("searchable is per-CHOICE, not per-kind: a mandatory hand pick is not a node (PR #1914 review finding 2)", () => {
+        // The bug this pins: `searchable` (`buildOwedChoice`,
+        // `src/lib/ai/bot-view.ts`) gated on bare registry MEMBERSHIP, which
+        // `choose-hand-card` now has for every count shape — while
+        // `handPickCandidates` emits nothing for a mandatory pick. Every
+        // Brainstorm putback / discard-cost pick therefore became
+        // `{kind:"search-choice"}`: a Worker round-trip plus `THINK_DELAY_MS`,
+        // enumerating zero moves, landing on the driver's emergency fallback.
+        const optional = stateWithChoice({
+            kind: "choose-hand-card",
+            zone: "hand",
+            count: { min: 0, max: 1 },
+        });
+        const mandatory = stateWithChoice({
+            kind: "choose-hand-card",
+            zone: "hand",
+            count: 2,
+        });
+        expect(isSearchableChoiceNode(optional.pendingChoices![0])).toBe(true);
+        expect(isSearchableChoiceNode(mandatory.pendingChoices![0])).toBe(
+            false
+        );
+
+        // The invariant itself: the gate and the ENUMERATOR must agree, choice
+        // by choice. Registry membership alone provably does not.
+        for (const state of [optional, mandatory]) {
+            const choice = state.pendingChoices![0];
+            expect(isSearchableChoiceNode(choice)).toBe(
+                choiceCandidates(state, choice).length > 0
+            );
+        }
+        expect(hasChoiceCandidateGenerator(mandatory.pendingChoices![0].kind))
+            // …and this is exactly the condition that used to be read as
+            // "searchable", which is why it can't be.
+            .toBe(true);
     });
 
     it("may-pay (CR 117.3a): a cost-less choice offers both answers", () => {

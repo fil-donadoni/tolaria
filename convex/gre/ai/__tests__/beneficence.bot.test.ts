@@ -4,9 +4,11 @@
 // deterministically:
 //
 //  1. `opBeneficence` — the sign of one Op for its recipient.
-//  2. `misdirectedTargetCount` — that sign applied to a real cast's announced
-//     targets, including the AURA derivation (an aura has no resolution script
-//     at all, so its sign comes from what it grants its host).
+//  2. `misdirectedTargetCount` — that sign applied to a real announcement's
+//     targets, at BOTH sites the bot chooses them (a cast, CR 601.2c, and an
+//     activated ability, CR 602.2b), including the AURA derivation (an aura has
+//     no resolution script at all, so its sign comes from what it grants its
+//     host).
 //  3. `selectRootMove` — the negative control the blade suite structurally
 //     cannot express: a MISDIRECTED variant that strictly out-rewards its
 //     siblings must still be chosen. The rule is a preference among
@@ -334,6 +336,122 @@ function edge(move: Move, mover: string, reward: number, visits = 100): Edge {
 function nodeOf(edges: Edge[]): Node {
     return { children: new Map(edges.map((e) => [e.key, e])) };
 }
+
+// ---------------------------------------------------------------------------
+// The OTHER announcement site: activated abilities (PR #1914 review finding 3)
+// ---------------------------------------------------------------------------
+
+describe("activated-ability targets are ranked too (CR 602.2b, PR #1914 review finding 3)", () => {
+    /** Jandor's Saddlebags — "{3}, {T}: Untap target creature." (`arn/colorless.ts`).
+     *  A tapped creature on EACH side, so both a correctly-directed and a
+     *  misdirected activation are enumerated, and three untapped lands to pay.
+     *
+     *  Garruk Wildspeaker's "+1: Untap two target lands" is the same shape but
+     *  is not reachable from here yet: `enumerateMoves` skips every ability with
+     *  a `cost.loyalty` (`gre/moves.ts`, pending the loyalty framework's
+     *  enumeration slice, issue #700). Ranking it is therefore latent, not live
+     *  — this test pins the mechanism on an ability the bot can actually
+     *  announce, and Garruk inherits it for free the day loyalty abilities are
+     *  enumerated. */
+    function saddlebagsBoard(): GameState {
+        return build({
+            cards: [
+                {
+                    name: "Jandor's Saddlebags",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            libraryCount: 20,
+        });
+    }
+
+    function untapActivations(state: GameState) {
+        return enumerateMoves(state, me(state)).filter(
+            (m): m is Extract<Move, { kind: "activate-ability" }> =>
+                m.kind === "activate-ability" &&
+                m.abilityId === "jandors-saddlebags-untap"
+        );
+    }
+
+    /** The two announcements, split by whose creature they point at. */
+    function split(state: GameState) {
+        const theirs = new Set(state.players[1].battlefield.map((c) => c.id));
+        const moves = untapActivations(state);
+        return {
+            mine: moves.find((m) => !theirs.has(m.targets[0].id))!,
+            theirs: moves.find((m) => theirs.has(m.targets[0].id))!,
+        };
+    }
+
+    it("scores an untap aimed at the OPPONENT's creature as misdirected", () => {
+        const state = saddlebagsBoard();
+        const botId = me(state);
+        const { mine, theirs } = split(state);
+        expect(mine).toBeDefined();
+        expect(theirs).toBeDefined();
+
+        // `tapUntap action: "untap"` is `beneficial` (`opValuers.ts`), so the
+        // sign comes off the ABILITY's Effect Script with zero per-card
+        // knowledge — the identical derivation the cast side uses.
+        expect(misdirectedTargetCount(state, theirs, botId)).toBe(1);
+        expect(misdirectedTargetCount(state, mine, botId)).toBe(0);
+    });
+
+    it("returns 0 for an activation the derivation has no opinion about", () => {
+        // Fail-open, same as the cast side: an unresolvable ability id yields no
+        // signal rather than a fabricated one.
+        const state = saddlebagsBoard();
+        const { theirs } = split(state);
+        expect(
+            misdirectedTargetCount(
+                state,
+                { ...theirs, abilityId: "not-a-real-ability" },
+                me(state)
+            )
+        ).toBe(0);
+    });
+
+    it("redirects an outcome-equal misdirected activation to its own-side sibling", () => {
+        const state = saddlebagsBoard();
+        const botId = me(state);
+        const { mine, theirs } = split(state);
+
+        // The live bug: every target tuple ties inside `OUTCOME_EPS`, so the
+        // pick fell to rollout noise and could untap the OPPONENT's creature.
+        const tied = [edge(mine, botId, 0.5), edge(theirs, botId, 0.5)];
+        expect(
+            selectRootMove(nodeOf(tied), [mine, theirs], state, botId)
+        ).toEqual(mine);
+
+        // Same negative control as the cast side: a strictly better-rewarding
+        // misdirected activation is a preference loser, never a filtered move.
+        const gapped = [edge(mine, botId, 0.1), edge(theirs, botId, 0.9)];
+        expect(
+            selectRootMove(nodeOf(gapped), [mine, theirs], state, botId)
+        ).toEqual(theirs);
+    });
+});
 
 describe("selectRootMove NEGATIVE CONTROL — the rule is a preference, not a filter (issue #1888)", () => {
     it("keeps a misdirected cast that strictly out-rewards its sibling", () => {

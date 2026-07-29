@@ -19,7 +19,10 @@
 
 import { describe, expect, it } from "vitest";
 import type { GameState, PendingChoice } from "@convex/gre";
-import { CHOICE_CANDIDATE_GENERATORS } from "@convex/gre/ai/choiceCandidates";
+import {
+    CHOICE_CANDIDATE_GENERATORS,
+    choiceCandidates,
+} from "@convex/gre/ai/choiceCandidates";
 import type { PendingChoiceKind } from "@convex/gre";
 import { projectPublicState } from "@convex/gameProjections";
 import {
@@ -143,6 +146,28 @@ const FIXTURES: Partial<Record<PendingChoiceKind, () => GameState>> = {
     // single-candidate acknowledge. The outcome is already drawn and persisted;
     // the search's only legal answer is the ack, which the driver submits.
     "random-reveal": () => stateWithBotChoice({ kind: "random-reveal" }),
+    // CR 608.2b (issue #1888) — an OPTIONAL hand pick ("you may exile a card",
+    // Chrome Mox's imprint). Only the `min === 0` shape is an in-tree node; the
+    // mandatory shape is pinned as NOT searchable below.
+    "choose-hand-card": () =>
+        stateWithBotChoice(
+            {
+                kind: "choose-hand-card",
+                zone: "hand",
+                count: { min: 0, max: 1 },
+                prompt: "You may exile a card from your hand.",
+            },
+            {
+                hand: [
+                    makeInstance(getCardByName("Lightning Bolt").id, {
+                        id: "hand-1",
+                        controllerId: BOT,
+                        ownerId: BOT,
+                        zone: "hand",
+                    }),
+                ],
+            }
+        ),
 };
 
 describe("root pending choices route to the ISMCTS search (issue #1506)", () => {
@@ -256,6 +281,51 @@ describe("kinds with NO candidate generator keep the ADR 0016 heuristic", () => 
         expect(action.kind).toBe("resolution-choice");
         expect(botActionRealisation(action.kind)).toBe("executor");
         expect(botActionToMove(action, publicState, BOT)).not.toBeNull();
+    });
+
+    it("a MANDATORY choose-hand-card is not searchable, though its kind has a generator (PR #1914 review finding 2)", () => {
+        // Registry membership is not the gate. `handPickCandidates` emits
+        // nothing for a `min > 0` pick (a Brainstorm putback, a discard cost),
+        // so gating on the KIND made every one of them `search-choice`: a
+        // Worker round-trip plus `THINK_DELAY_MS` that enumerates zero moves
+        // and lands on the driver's emergency fallback, which exists for
+        // exceptional cases only. Driven through the real reducers
+        // (`projectPublicState` → `buildBotView`), never a hand-built view.
+        const state = stateWithBotChoice(
+            {
+                kind: "choose-hand-card",
+                zone: "hand",
+                count: 2,
+                prompt: "Put two cards from your hand on top of your library.",
+            },
+            {
+                hand: ["p1", "p2", "p3"].map((id) =>
+                    makeInstance(getCardByName("Lightning Bolt").id, {
+                        id,
+                        controllerId: BOT,
+                        ownerId: BOT,
+                        zone: "hand",
+                    })
+                ),
+            }
+        );
+        const publicState = projectPublicState(state, 1, BOT);
+        const view = buildBotView(publicState, BOT);
+
+        expect(view.owedChoice?.kind).toBe("choose-hand-card");
+        expect(view.owedChoice?.searchable).toBe(false);
+        // …and the ADR 0016 heuristic answers it on the main thread, as before.
+        const action = decideBotAction(view);
+        expect(action.kind).toBe("resolution-choice");
+        expect(botActionRealisation(action.kind)).toBe("executor");
+        expect(botActionToMove(action, publicState, BOT)).not.toBeNull();
+
+        // The invariant the gate exists to hold: it agrees with the ENUMERATOR
+        // choice-by-choice, not kind-by-kind.
+        const rehydrated = projectedToGameState(publicState);
+        expect(
+            choiceCandidates(rehydrated, rehydrated.pendingChoices![0]).length
+        ).toBe(0);
     });
 
     it("madness-cast (no generator) still declines rather than searching", () => {
