@@ -1,7 +1,7 @@
 import type { Color } from "../cards/types";
 import {
     getActivatedManaAbility,
-    getActivatedManaRestriction,
+    getManaTapOptionRestriction,
     getManaTapOptionsDetailed,
     isTapLockedBySummoningSickness,
     MANA_COLORS,
@@ -146,11 +146,6 @@ export function buildAutoTapSources(
 
         // Side-effect mana abilities stay manual (sacrifice, e.g. Black Lotus).
         if (ability?.cost.sacrifice === true) continue;
-        // Restricted mana (CR 106.6, e.g. Mishra's Workshop) can pay only for
-        // certain spells; the solver reasons over the fungible pool and can't
-        // model that constraint, so leave those sources manual (the player
-        // floats the restricted mana, then casts an eligible spell).
-        if (getActivatedManaRestriction(card)) continue;
         // Summoning-sick creature mana dorks can't pay a {T} cost (CR 302.1).
         if (ability && isTapLockedBySummoningSickness(card)) continue;
         // A board-derived choice list (Fellwar Stone's `getManaChoices` reads
@@ -168,9 +163,28 @@ export function buildAutoTapSources(
         // actually demands one (`manaTapNeedsChoice`): 2+ options, or a
         // choice-based ability even with a single entry.
         const needsIndex = options.length >= 2 || !!ability?.manaChoices;
+        // CR 106.6 — restricted mana (Mishra's Workshop; the SECOND, legendary-
+        // spell-only ability on Delighted Halfling) can pay only for certain
+        // spells; the solver reasons over the fungible pool and can't model
+        // that constraint, so it drops restricted OPTIONS from its candidate
+        // set — per-OPTION, not per-source (issue #1559 review), so a card
+        // mixing a free ability with a restricted one (Halfling's OTHER,
+        // unrestricted "{T}: Add {C}.") stays auto-tappable on its free
+        // option; only Mishra's-Workshop-style wholly-restricted sources end
+        // up excluded entirely (their only option is filtered out below).
+        // Indices are kept against the FULL unified `options` list — the same
+        // list `tapSourceIntoPayment` / `resolveManaTapChoice` resolve
+        // `manaChoiceIndex` against — so filtering never renumbers them.
+        const usable = options
+            .map((opt, index) => ({ opt, index }))
+            .filter(
+                ({ opt }) =>
+                    getManaTapOptionRestriction(card, opt.source) === null
+            );
+        if (usable.length === 0) continue; // wholly restricted: leave manual
         sources.push({
             cardId: card.id,
-            options: options.map((opt, index) => ({
+            options: usable.map(({ opt, index }) => ({
                 ...(needsIndex ? { manaChoiceIndex: index } : {}),
                 mana: withTapBonus(battlefield, card, toContribution(opt.mana)),
             })),

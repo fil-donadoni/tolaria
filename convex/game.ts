@@ -42,6 +42,7 @@ import {
     payManaCostForAbility,
     spendablePoolForAbility,
     addRestrictedManaToPool,
+    reverseRestrictedManaFromPool,
     payRemoveCounterCost,
     canPayDiscardLastDrawn,
     payDiscardLastDrawn,
@@ -248,7 +249,7 @@ import {
 } from "./gre/phases";
 import { freshSeed, seededShuffle } from "./gre/rng";
 import { makeMulliganState, recordDeclaration } from "./gre/mulligan";
-import type { Phase } from "./gre/types";
+import type { Phase, ManaRestriction } from "./gre/types";
 // CR 611.1b / 613.1f (issue #1880) — the post-layer activated-ability set now
 // lives at GRE level so the leaf `gre/constants.ts` mana probes can reach it
 // without importing this module; re-exported below for back-compat with every
@@ -1278,6 +1279,149 @@ function realizeAndStampTapBonus(
     }
 }
 
+/** CR 106.6 (issue #1559 review) — deposits mana produced by tapping a source
+ *  into the correct pool: the fungible `manaPool` when `restriction` is
+ *  undefined, or the parallel `restrictedMana` pool (carrying `rider`, CR
+ *  106.6 "can't be countered") when the producing ability declares one
+ *  (Mishra's Workshop, Adarkar Unicorn, Delighted Halfling's legendary-spell
+ *  ability). Shared by every tap-for-mana path — `tapUntap`'s priority tap and
+ *  `tapSourceIntoPayment`'s payment tap — so a restricted ability's output
+ *  never reaches the fungible pool no matter which mutation taps it. Fixes
+ *  the bug found in the #1559 PR review: `tapSourceIntoPayment` added
+ *  restricted mana straight to `manaPool`, so the restriction was entirely
+ *  unenforced (CR 106.6 — the mana paid for anything) and the "can't be
+ *  countered" rider was silently dropped, on the payment-tap path — the
+ *  auto-tap / click-to-pay UX that is the DEFAULT way to cast a spell. */
+function depositTappedMana(
+    player: PlayerState,
+    chosen: ManaCost,
+    restriction: ManaRestriction | undefined,
+    rider: boolean | undefined
+): void {
+    for (const [color, amount] of Object.entries(chosen)) {
+        if (color !== "X" && typeof amount === "number" && amount > 0) {
+            if (restriction) {
+                addRestrictedManaToPool(
+                    player,
+                    color,
+                    amount,
+                    restriction,
+                    undefined,
+                    rider
+                );
+            } else {
+                player.manaPool[color] = (player.manaPool[color] ?? 0) + amount;
+            }
+        }
+    }
+}
+
+/** CR 106.6 (issue #1559 review) — resolves the activated mana ability that
+ *  ACTUALLY produced `refund` (a `card.chosenMana` snapshot) by matching its
+ *  exact shape against every one of the card's non-useStack mana abilities'
+ *  declared output. `getActivatedManaAbility` returns only the FIRST such
+ *  ability on the card, which is wrong when the chosen output came from a
+ *  SECOND, distinct ability (Delighted Halfling: "{T}: Add {C}." is found
+ *  first, but the actual restricted deposit can come from the separate
+ *  legendary-spell ability) — reversing against the wrong ability corrupts
+ *  state (decrementing a pool that was never credited while the real deposit
+ *  sits untouched in `restrictedMana`). Correct as long as no two mana
+ *  abilities on the same card produce byte-identical mana (true of every card
+ *  in the catalogue today). Falls back to `fallback` (the card's single/first
+ *  ability) when nothing matches — the previously-only-supported single-mana-
+ *  ability shape. Shared by every untap/refund site that reverses a
+ *  `chosenMana` snapshot: `tapUntap`'s untap toggle, `untapSourceFromPayment`,
+ *  `untapForPayment`'s toggle, and `rollbackPendingCast`'s bulk undo. */
+function resolveManaAbilityByOutput(
+    card: CardInstanceState,
+    refund: ManaCost,
+    fallback: ActivatedAbility | null
+): ActivatedAbility | null {
+    const manaShapesEqual = (a: ManaCost, b: ManaCost): boolean =>
+        MANA_COLORS.every((c) => (a[c] ?? 0) === (b[c] ?? 0));
+    const cardDef = getDefinition(card.card.id as string);
+    return (
+        cardDef.activatedAbilities?.find(
+            (a) =>
+                !a.useStack &&
+                (a.manaChoices?.some((m) => manaShapesEqual(m, refund)) ??
+                    (a.manaProduced
+                        ? manaShapesEqual(a.manaProduced, refund)
+                        : false))
+        ) ?? fallback
+    );
+}
+
+/** CR 106.4/106.6 (issue #1559 review) — refunds mana a payment tap produced,
+ *  restriction-aware: reverses the parallel `restrictedMana` deposit (with its
+ *  rider) when the producing ability was restricted, instead of always
+ *  assuming the fungible `manaPool` like every one of these sites used to. The
+ *  `card.chosenMana` half of the split below — refunds a manaChoices-based
+ *  ability's snapshotted output, resolving which ability actually produced it
+ *  via `resolveManaAbilityByOutput` (more than one ability can be in play on
+ *  the same card — Delighted Halfling). No-op if `chosenMana` is unset (the
+ *  caller is expected to check first, matching each call site's own "which
+ *  branch applies" logic — a bulk rollback vs. a single-tap undo differ on
+ *  what to do in the OTHER (fixed-ability) branch, so that half is kept
+ *  separate below as `refundFixedManaOutput` rather than folded in here). */
+function refundChosenManaOutput(
+    player: PlayerState,
+    card: CardInstanceState
+): void {
+    const refund = card.chosenMana;
+    if (!refund) return;
+    const producingAbility = resolveManaAbilityByOutput(
+        card,
+        refund,
+        getActivatedManaAbility(card)
+    );
+    const restriction = producingAbility?.manaRestriction;
+    const rider = producingAbility?.manaCantBeCounteredRider;
+    for (const [color, amount] of Object.entries(refund)) {
+        if (color !== "X" && typeof amount === "number" && amount > 0) {
+            if (restriction) {
+                reverseRestrictedManaFromPool(
+                    player,
+                    color,
+                    amount,
+                    restriction,
+                    rider
+                );
+            } else {
+                player.manaPool[color] = Math.max(
+                    0,
+                    (player.manaPool[color] ?? 0) - amount
+                );
+            }
+        }
+    }
+    card.chosenMana = undefined;
+}
+
+/** The FIXED-ability sibling of {@link refundChosenManaOutput} — refunds a
+ *  single-mana-ability card (a land / Mishra's Workshop) whose output was
+ *  never snapshotted onto `chosenMana` (the non-dynamic, non-substituted
+ *  case). `manaColor` is the caller's already-resolved
+ *  `getBasicLandMana ?? getActivatedManaColor` result — callers differ on
+ *  what to do when that's absent (throw vs. silently skip), so this assumes
+ *  a valid color was already found. */
+function refundFixedManaOutput(
+    player: PlayerState,
+    card: CardInstanceState,
+    manaColor: Color
+): void {
+    const amount = getFixedManaAmount(card, manaColor);
+    const restriction = getActivatedManaRestriction(card);
+    if (restriction) {
+        reverseRestrictedManaFromPool(player, manaColor, amount, restriction);
+    } else {
+        player.manaPool[manaColor] = Math.max(
+            0,
+            (player.manaPool[manaColor] ?? 0) - amount
+        );
+    }
+}
+
 export function tapSourceIntoPayment(
     state: GameState,
     player: PlayerState,
@@ -1385,11 +1529,18 @@ export function tapSourceIntoPayment(
                 };
             }
         }
-        for (const [color, amount] of Object.entries(chosen)) {
-            if (color !== "X" && typeof amount === "number" && amount > 0) {
-                player.manaPool[color] = (player.manaPool[color] ?? 0) + amount;
-            }
-        }
+        // CR 106.6 (issue #1559 review) — deposit into the parallel
+        // `restrictedMana` pool (with its rider) when the resolved ability is
+        // restricted (Adarkar Unicorn, Delighted Halfling's legendary-spell
+        // ability), instead of always crediting the fungible pool. Previously
+        // this path (the payment-tap / auto-tap default UX) ignored the
+        // restriction entirely.
+        depositTappedMana(
+            player,
+            chosen,
+            effAbility?.manaRestriction,
+            effAbility?.manaCantBeCounteredRider
+        );
         // CR 603.7a / ADR 0040 — arm a control-change-on-tap rider (Rainbow
         // Vale) when this source is tapped for mana during a payment.
         if (!isSacrifice)
@@ -1464,11 +1615,16 @@ export function tapSourceIntoPayment(
     ) {
         card.chosenMana = added;
     }
-    for (const [color, count] of Object.entries(added)) {
-        if (color !== "X" && typeof count === "number" && count > 0) {
-            player.manaPool[color] = (player.manaPool[color] ?? 0) + count;
-        }
-    }
+    // CR 106.6 (issue #1559 review) — deposit into the parallel
+    // `restrictedMana` pool when this FIXED mana ability is restricted
+    // (Mishra's Workshop), instead of always crediting the fungible pool.
+    // Mirrors `tapUntap`'s already-fixed fixed-ability tap branch.
+    depositTappedMana(
+        player,
+        added,
+        getActivatedManaRestriction(card) ?? undefined,
+        undefined
+    );
     // CR 605.2 — emit "tapped for mana" before the sacrifice moves the card off
     // the battlefield, so leaves-the-battlefield triggers see the mana added and
     // the event carries the permanent's pre-sacrifice characteristics.
@@ -1546,24 +1702,15 @@ function untapSourceFromPayment(
 ): void {
     discardPermanentTappedEvent(state, card.id);
     refundTapBonusMana(player, card);
+    // CR 106.6 (issue #1559 review) — restriction-aware refund: reverses the
+    // parallel `restrictedMana` deposit (with its rider) instead of always
+    // assuming the fungible pool.
     if (card.chosenMana) {
-        for (const [color, amount] of Object.entries(card.chosenMana)) {
-            if (color !== "X" && typeof amount === "number" && amount > 0) {
-                player.manaPool[color] = Math.max(
-                    0,
-                    (player.manaPool[color] ?? 0) - amount
-                );
-            }
-        }
-        card.chosenMana = undefined;
+        refundChosenManaOutput(player, card);
     } else {
         const manaColor = getBasicLandMana(card) ?? getActivatedManaColor(card);
         if (!manaColor) throw new Error("Card does not produce mana");
-        const amount = getFixedManaAmount(card, manaColor);
-        player.manaPool[manaColor] = Math.max(
-            0,
-            (player.manaPool[manaColor] ?? 0) - amount
-        );
+        refundFixedManaOutput(player, card, manaColor);
     }
     // CR 122.6 — restore the charge counters removed to pay a Mana Battery's
     // scaling cost when the payment tap is reversed.
@@ -2606,26 +2753,15 @@ function rollbackPendingCast(state: GameState): void {
         card.isTapped = false;
         // CR 605.4 — refund the Wild-Growth-style bonus mana this tap added.
         refundTapBonusMana(player, card);
+        // CR 106.6 (issue #1559 review) — restriction-aware refund: reverses
+        // the parallel `restrictedMana` deposit (with its rider) instead of
+        // always assuming the fungible pool.
         if (card.chosenMana) {
-            for (const [color, amount] of Object.entries(card.chosenMana)) {
-                if (color !== "X" && typeof amount === "number" && amount > 0) {
-                    player.manaPool[color] = Math.max(
-                        0,
-                        (player.manaPool[color] ?? 0) - amount
-                    );
-                }
-            }
-            card.chosenMana = undefined;
+            refundChosenManaOutput(player, card);
         } else {
             const manaColor =
                 getBasicLandMana(card) ?? getActivatedManaColor(card);
-            if (manaColor) {
-                const amount = getFixedManaAmount(card, manaColor);
-                player.manaPool[manaColor] = Math.max(
-                    0,
-                    (player.manaPool[manaColor] ?? 0) - amount
-                );
-            }
+            if (manaColor) refundFixedManaOutput(player, card, manaColor);
         }
     }
     // CR 702.126 — Improvise: undo every artifact tapped toward this cast's
@@ -2733,9 +2869,24 @@ export function tryAutoCommitPendingCast(
         ? tryGetDefinition((castCard.card as { id: string }).id)
         : undefined;
     const castTypes = castDef?.types ?? [];
+    // CR 106.6 / 205.4a (issue #1559) — the printed supertypes of the spell
+    // being cast, for the `legendary-spell` restriction's eligibility check
+    // (Delighted Halfling). Reads the DEFINITION's printed supertypes rather
+    // than the live overlay (`liveSupertypesOf`, `cards/snowReads.ts` —
+    // `CardInstanceState` DOES carry a mutable overlay via
+    // `grantedSupertypes`/`removedSupertypes`, contrary to an earlier,
+    // inaccurate version of this comment). Matches `sba.ts`'s legend rule
+    // (also printed-only) — no card grants/removes "Legendary" on a card
+    // sitting in hand, so the two coincide for every real spell today.
+    const castSupertypes = castDef?.supertypes ?? [];
     if (
         !isManaCostCovered(
-            spendablePoolForSpell(player, castTypes, castInstanceId),
+            spendablePoolForSpell(
+                player,
+                castTypes,
+                castInstanceId,
+                castSupertypes
+            ),
             state.pendingCast.manaCost,
             getManaSubstitutions(state, player.id)
         )
@@ -2791,7 +2942,12 @@ export function tryAutoCommitPendingCast(
     // coverage check above.
     if (!genericSpendOrder) {
         const ambiguity = genericSpendAmbiguityForPayment(
-            spendablePoolForSpell(player, castTypes, castInstanceId),
+            spendablePoolForSpell(
+                player,
+                castTypes,
+                castInstanceId,
+                castSupertypes
+            ),
             state.pendingCast.manaCost,
             getManaSubstitutions(state, player.id)
         );
@@ -2810,13 +2966,14 @@ export function tryAutoCommitPendingCast(
     const castPoolBeforePayment = castDef?.noteManaSpent
         ? { ...player.manaPool }
         : undefined;
-    payManaCostForSpell(
+    const castUsedRiderMana = payManaCostForSpell(
         player,
         state.pendingCast.manaCost,
         castTypes,
         getManaSubstitutions(state, player.id),
         castInstanceId,
-        genericSpendOrder
+        genericSpendOrder,
+        castSupertypes
     );
     const castNotedManaSpent = castPoolBeforePayment
         ? manaSpentDelta(castPoolBeforePayment, player.manaPool)
@@ -2968,6 +3125,10 @@ export function tryAutoCommitPendingCast(
         ...(pendingChosenModeId ? { chosenModeId: pendingChosenModeId } : {}),
         ...(additionalSacrificeSnapshot ? { additionalSacrificeSnapshot } : {}),
         ...(castNotedManaSpent ? { notedManaSpent: castNotedManaSpent } : {}),
+        // CR 106.6 rider (issue #1559) — mana spent on this cast carried
+        // `cantBeCounteredRider` (Delighted Halfling); `counter()` reads this
+        // alongside the static `CardDefinition.cantBeCountered`.
+        ...(castUsedRiderMana ? { dynamicCantBeCountered: true } : {}),
         // CR 702.74a — a parked Evoke cast (real hand-cost choice) carries the
         // marker through `PendingCast.evoked` (set at announcement) so it
         // still lands on the stack item once the picker completes.
@@ -5724,26 +5885,39 @@ export function finalizeTargetSelection(
     // creature mana (Metamorphosis) or artifact mana (Mishra's Workshop) —
     // in addition to the fungible pool. Eligibility is decided from the
     // spell's card types in restrictionAllowsSpell.
+    // CR 205.4a (issue #1559) — the spell's printed supertypes, for the
+    // `legendary-spell` restriction's eligibility check (Delighted Halfling).
+    const cardSupertypes = cardDef.supertypes ?? [];
     if (
         Object.keys(manaCost).length === 0 ||
         isManaCostCovered(
-            spendablePoolForSpell(player, cardDef.types, cardInstanceId),
+            spendablePoolForSpell(
+                player,
+                cardDef.types,
+                cardInstanceId,
+                cardSupertypes
+            ),
             manaCost,
             getManaSubstitutions(state, player.id)
         )
     ) {
         // CR 106.4 / 202.3 — cast-path mana-spent tracking (Soul Burn).
         let immediateNotedManaSpent: Record<string, number> | undefined;
+        // CR 106.6 rider (issue #1559) — whether the mana paid below carried
+        // `cantBeCounteredRider`; stamped onto the pushed stack item below.
+        let immediateUsedRiderMana = false;
         if (Object.keys(manaCost).length > 0) {
             const poolBeforePayment = cardDef.noteManaSpent
                 ? { ...player.manaPool }
                 : undefined;
-            payManaCostForSpell(
+            immediateUsedRiderMana = payManaCostForSpell(
                 player,
                 manaCost,
                 cardDef.types,
                 getManaSubstitutions(state, player.id),
-                cardInstanceId
+                cardInstanceId,
+                undefined,
+                cardSupertypes
             );
             immediateNotedManaSpent = poolBeforePayment
                 ? manaSpentDelta(poolBeforePayment, player.manaPool)
@@ -5798,6 +5972,9 @@ export function finalizeTargetSelection(
             ...(immediateNotedManaSpent
                 ? { notedManaSpent: immediateNotedManaSpent }
                 : {}),
+            // CR 106.6 rider (issue #1559) — see the matching comment on the
+            // `tryAutoCommitPendingCast` stack item above.
+            ...(immediateUsedRiderMana ? { dynamicCantBeCountered: true } : {}),
             ...(isEvokeCost ? { evoked: true } : {}),
             ...(isDashCost ? { dashed: true } : {}),
             ...graveyardCastStackFlags(state, card, castZone),
@@ -6160,6 +6337,10 @@ export const announceCast = mutation({
         const castFromZone = castSource.zone;
 
         const cardDef = getDefinition((cardInHand.card as { id: string }).id);
+        // CR 205.4a (issue #1559) — the spell's printed supertypes, for the
+        // `legendary-spell` restriction's eligibility check (Delighted
+        // Halfling). Shared by every mana-coverage/payment call below.
+        const cardSupertypes = cardDef.supertypes ?? [];
 
         // CR 118.9 — the caster opted into an ALTERNATIVE casting cost (return /
         // sacrifice lands, Gush/Thwart/Fireblast). Validate the variant exists
@@ -6474,7 +6655,8 @@ export const announceCast = mutation({
                     spendablePoolForSpell(
                         player,
                         cardDef.types,
-                        args.cardInstanceId
+                        args.cardInstanceId,
+                        cardSupertypes
                     ),
                     altManaCost,
                     getManaSubstitutions(state, player.id)
@@ -6515,13 +6697,17 @@ export const announceCast = mutation({
             }
             // Forced/fungible choice AND mana already covered: pay + apply +
             // commit now.
+            // CR 106.6 rider (issue #1559) — stamped onto the stack item below.
+            let altUsedRiderMana = false;
             if (Object.keys(altManaCost).length > 0) {
-                payManaCostForSpell(
+                altUsedRiderMana = payManaCostForSpell(
                     player,
                     altManaCost,
                     cardDef.types,
                     getManaSubstitutions(state, player.id),
-                    args.cardInstanceId
+                    args.cardInstanceId,
+                    undefined,
+                    cardSupertypes
                 );
                 commitLandsForCost(player, altManaCost);
             }
@@ -6548,6 +6734,9 @@ export const announceCast = mutation({
                 ...(args.chosenModeId
                     ? { chosenModeId: args.chosenModeId }
                     : {}),
+                // CR 106.6 rider (issue #1559) — see the matching comment on
+                // the `tryAutoCommitPendingCast` stack item.
+                ...(altUsedRiderMana ? { dynamicCantBeCountered: true } : {}),
                 ...(isEvokeCost ? { evoked: true } : {}),
                 ...(isDashCost ? { dashed: true } : {}),
             };
@@ -6835,19 +7024,24 @@ export const announceCast = mutation({
                 spendablePoolForSpell(
                     player,
                     cardDef.types,
-                    args.cardInstanceId
+                    args.cardInstanceId,
+                    cardSupertypes
                 ),
                 manaCost,
                 getManaSubstitutions(state, player.id)
             )
         ) {
+            // CR 106.6 rider (issue #1559) — stamped onto the stack item below.
+            let normalUsedRiderMana = false;
             if (Object.keys(manaCost).length > 0) {
-                payManaCostForSpell(
+                normalUsedRiderMana = payManaCostForSpell(
                     player,
                     manaCost,
                     cardDef.types,
                     getManaSubstitutions(state, player.id),
-                    args.cardInstanceId
+                    args.cardInstanceId,
+                    undefined,
+                    cardSupertypes
                 );
                 commitLandsForCost(player, manaCost);
             }
@@ -6884,6 +7078,11 @@ export const announceCast = mutation({
                     : {}),
                 ...(additionalSacrificeSnapshot
                     ? { additionalSacrificeSnapshot }
+                    : {}),
+                // CR 106.6 rider (issue #1559) — see the matching comment on
+                // the `tryAutoCommitPendingCast` stack item.
+                ...(normalUsedRiderMana
+                    ? { dynamicCantBeCountered: true }
                     : {}),
                 ...graveyardCastStackFlags(state, card, castFromZone),
                 ...reboundCastStackFlags(card, castFromZone),
@@ -7079,25 +7278,16 @@ export const untapForPayment = mutation({
             throw new Error("Cannot undo: source was sacrificed");
         }
 
+        // CR 106.6 (issue #1559 review) — restriction-aware refund: reverses
+        // the parallel `restrictedMana` deposit (with its rider) instead of
+        // always assuming the fungible pool.
         if (card.chosenMana) {
-            for (const [color, amount] of Object.entries(card.chosenMana)) {
-                if (color !== "X" && typeof amount === "number" && amount > 0) {
-                    player.manaPool[color] = Math.max(
-                        0,
-                        (player.manaPool[color] ?? 0) - amount
-                    );
-                }
-            }
-            card.chosenMana = undefined;
+            refundChosenManaOutput(player, card);
         } else {
             const manaColor =
                 getBasicLandMana(card) ?? getActivatedManaColor(card);
             if (!manaColor) throw new Error("Card does not produce mana");
-            const amount = getFixedManaAmount(card, manaColor);
-            player.manaPool[manaColor] = Math.max(
-                0,
-                (player.manaPool[manaColor] ?? 0) - amount
-            );
+            refundFixedManaOutput(player, card, manaColor);
         }
 
         // CR 605.4 — refund the Wild-Growth-style bonus mana this tap added.
@@ -12337,6 +12527,9 @@ export const tapUntap = mutation({
                 // pool, so it pays only the costs the restriction permits. A
                 // basic-subtype pick (effAbility null) has no restriction.
                 const choiceRestriction = effAbility?.manaRestriction;
+                // CR 106.6 rider (issue #1559, Delighted Halfling) — carried
+                // alongside `manaRestriction` onto the deposited unit.
+                const choiceRider = effAbility?.manaCantBeCounteredRider;
                 for (const [color, amount] of Object.entries(chosen)) {
                     if (
                         color !== "X" &&
@@ -12348,7 +12541,9 @@ export const tapUntap = mutation({
                                 player,
                                 color,
                                 amount,
-                                choiceRestriction
+                                choiceRestriction,
+                                undefined,
+                                choiceRider
                             );
                         } else {
                             player.manaPool[
@@ -12377,47 +12572,19 @@ export const tapUntap = mutation({
                 applyDepletionCounterOnTap(effAbility, card);
             } else {
                 // Untap: refund exactly the mana that was chosen on tap.
-                // Falls back to manaProduced for legacy instances (pre-chosenMana).
-                const refund = card.chosenMana;
-                const choiceRestriction = ability?.manaRestriction;
-                if (refund) {
-                    for (const [color, amount] of Object.entries(refund)) {
-                        if (
-                            color !== "X" &&
-                            typeof amount === "number" &&
-                            amount > 0
-                        ) {
-                            if (choiceRestriction) {
-                                // Reverse the restricted-pool deposit (CR 106.4).
-                                const list = player.restrictedMana ?? [];
-                                const entry = list.find(
-                                    (r) =>
-                                        r.color === color &&
-                                        r.restriction === choiceRestriction
-                                );
-                                if (entry) {
-                                    entry.amount = Math.max(
-                                        0,
-                                        entry.amount - amount
-                                    );
-                                }
-                                player.restrictedMana = list.filter(
-                                    (r) => r.amount > 0
-                                );
-                                if (player.restrictedMana.length === 0) {
-                                    player.restrictedMana = undefined;
-                                }
-                            } else {
-                                const key =
-                                    color as keyof typeof player.manaPool;
-                                player.manaPool[key] = Math.max(
-                                    0,
-                                    (player.manaPool[key] ?? 0) - amount
-                                );
-                            }
-                        }
-                    }
-                }
+                // CR 106.6 (issue #1559 review) — restriction-aware refund via
+                // the shared `refundChosenManaOutput` (also used by the
+                // payment-tap untap paths): `ability` above is only the FIRST
+                // mana ability `getActivatedManaAbility` finds on this card, so
+                // a card whose RESTRICTED ability is NOT that first one
+                // (Delighted Halfling: "{T}: Add {C}." is found first, but the
+                // second, distinct ability is the one that floats restricted
+                // mana) would otherwise reverse the wrong pool — the helper
+                // re-resolves the ability that ACTUALLY produced the snapshot
+                // by matching its exact shape against every non-useStack mana
+                // ability's declared output. No-op when `card.chosenMana` is
+                // unset (legacy pre-chosenMana instances).
+                refundChosenManaOutput(player, card);
                 // CR 122.6 — untapping before the mana is spent reverses the
                 // whole activation, so the charge counters removed to pay the
                 // scaling cost are restored to the source.
@@ -12494,18 +12661,12 @@ export const tapUntap = mutation({
                             producedThisActivation
                         );
                     } else {
-                        const list = player.restrictedMana ?? [];
-                        const entry = list.find(
-                            (r) =>
-                                r.color === manaColor &&
-                                r.restriction === restriction
+                        reverseRestrictedManaFromPool(
+                            player,
+                            manaColor,
+                            amount,
+                            restriction
                         );
-                        if (entry) {
-                            entry.amount = Math.max(0, entry.amount - amount);
-                        }
-                        const remaining = list.filter((r) => r.amount > 0);
-                        player.restrictedMana =
-                            remaining.length > 0 ? remaining : undefined;
                     }
                 } else if (!wasTapped) {
                     // CR 614 — Deep Water rewrites a land's produced mana to

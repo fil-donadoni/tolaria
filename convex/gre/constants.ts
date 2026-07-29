@@ -1100,6 +1100,32 @@ export function getActivatedManaRestriction(
     return ability?.manaRestriction ?? null;
 }
 
+/** Spend restriction (CR 106.6) carried by the SPECIFIC ability that offers a
+ *  `getManaTapOptionsDetailed` option (`ManaTapOption.source`), or null when
+ *  that particular option is unrestricted. Unlike `getActivatedManaRestriction`
+ *  above (which inspects only the FIRST tap mana ability on the card — correct
+ *  for a single-ability source like Mishra's Workshop, but blind to a SECOND,
+ *  distinct ability), this resolves the EXACT ability behind `source` so a
+ *  card mixing a free ability with a restricted one reports restriction
+ *  per-OPTION, not per-card (Delighted Halfling, issue #1559 review: "{T}: Add
+ *  {C}." is unrestricted, the separate "{T}: Add one mana of any color. Spend
+ *  this mana only to cast a legendary spell..." is). A `"basic"` intrinsic
+ *  basic-land-subtype pick (CR 305.6) carries no restriction. Used by the
+ *  auto-tap solver (`autoTap.ts`) to exclude only the actually-restricted
+ *  options from its candidate set, instead of the whole source. */
+export function getManaTapOptionRestriction(
+    card: CardInstanceState,
+    source: ManaTapOptionSource
+): ManaRestriction | null {
+    if (source.kind !== "activated") return null;
+    const cardId = (card.card as { id?: string }).id;
+    const cardDef = cardId ? tryGetDefinition(cardId) : undefined;
+    const ability = cardDef?.activatedAbilities?.find(
+        (a) => a.id === source.abilityId
+    );
+    return ability?.manaRestriction ?? null;
+}
+
 /** Returns the activated mana ability definition for a card, or null.
  *
  *  CR 602.5b (issue #947) — when the found ability declares its own

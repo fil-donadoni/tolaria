@@ -2848,6 +2848,14 @@
         "firstPrintSet": "fem"
     },
     {
+        "name": "Delighted Halfling",
+        "scryfallId": "71384418-173a-4f77-adab-56e52fa23692",
+        "oracleId": "f9d3b046-0b95-4103-a630-4b3fb88bb60b",
+        "firstSet": "ltr",
+        "firstPrintId": "71384418-173a-4f77-adab-56e52fa23692",
+        "firstPrintSet": "ltr"
+    },
+    {
         "name": "Demonic Consultation",
         "scryfallId": "8d727b9b-6114-414d-9172-16b6e1db41cc",
         "oracleId": "9a1412db-45ad-46ea-8f12-a85d203113d8",

@@ -470,6 +470,30 @@ describe("game_state serialize round-trip", () => {
         expect(normal.stack[0].actingPlayerId).toBeUndefined();
     });
 
+    it("preserves a stack item's dynamicCantBeCountered rider (CR 106.6/701.13, issue #1559)", () => {
+        // State is saved at every stable point, including immediately after a
+        // spell is cast and BEFORE the opponent gets priority to try to
+        // counter it — so the per-cast "can't be countered" rider (Delighted
+        // Halfling's restricted mana) must survive that round-trip or the
+        // flag is silently gone by the time counter() reads it.
+        const state = freshState();
+        const spell = state.players[0].hand[0];
+        state.stack = [
+            {
+                ...spell,
+                zone: "stack",
+                castById: "p1",
+                dynamicCantBeCountered: true,
+            },
+        ];
+        const expanded = expandState(compactState(state));
+        expect(expanded.stack[0].dynamicCantBeCountered).toBe(true);
+        // Absent on a normal cast (omitted rather than serialized).
+        state.stack[0].dynamicCantBeCountered = undefined;
+        const normal = expandState(compactState(state));
+        expect(normal.stack[0].dynamicCantBeCountered).toBeUndefined();
+    });
+
     it("preserves a fired inline delayed trigger's body on the stack item (ADR 0048, CR 603.7a)", () => {
         const state = freshState();
         const spell = state.players[0].hand[0];
