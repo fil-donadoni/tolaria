@@ -138,6 +138,17 @@ describe("Phantasmal Image (copy + Illusion subtype + self-sac trigger, CR 707.2
         expect(state.players[0].graveyard.some((c) => c.id === "image1")).toBe(
             true
         );
+        // The self-sac trigger's own grant is dropped by `revertCopy`
+        // (`gre/copy.ts`) on this exact departure — `sacrifice` is a
+        // battlefield→graveyard move, the branch
+        // `resetBattlefieldTransientState` does NOT cover (it only clears
+        // grants for a hand/library move). Asserting this here is the whole
+        // point: this test already runs the grant-drop code path, it just
+        // never checked its outcome before.
+        const gyCard = state.players[0].graveyard.find(
+            (c) => c.id === "image1"
+        )!;
+        expect(gyCard.grantedTriggeredAbilities).toBeUndefined();
     });
 
     it("the trigger's matches() admits ANY spell or ability — no opponent-only restriction (unlike Ward)", () => {

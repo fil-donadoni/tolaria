@@ -80,6 +80,27 @@ export const phantasmalImage: CardDefinition = {
     // creature on ETB — a wasted cast (enters a 0/0 that dies to SBA) when
     // no creature is in play.
     copySourceFilter: { types: "Creature" },
+    // aiValue (PRD #1423, issue #1431) — NOT an `aiEffects` shadow script:
+    // this is a CREATURE whose top-level resolution is `resolveSteps`, and
+    // `latentValue`'s CREATURE branch (`gre/cardValue.ts`) only ever
+    // consults `aiValue` or the ability-script value derived from
+    // `activatedAbilities`/`triggeredAbilities` (`dslAbilityScriptValue`) —
+    // it NEVER reads a creature's own card-level `effects`/`aiEffects`
+    // (`dslSpellScriptValue` feeds only the NON-creature branch). A
+    // top-level `aiEffects` sketch here would pass the catalogue guard but
+    // be silently inert for valuation, which is exactly the class of bug
+    // this mechanism exists to prevent — so the scalar override is the only
+    // lever that actually moves this card off its printed 0/0 body.
+    // Magnitude: a representative 2/2 body at this card's own mana value
+    // (LATENT_DISCOUNT × creatureValueRaw(2, 2, 2, []) ≈ 143) — the same
+    // "unknown copied body" representative stat `createTokenCopy`'s
+    // `COPY_TOKEN_REPRESENTATIVE_STAT` uses for the analogous "copies an
+    // unknowable creature" shape (`gre/ai/opValuers.ts`). Deliberately an
+    // "average vanilla" figure rather than a bomb-sized one: it stands in
+    // for "becomes a copy of a good but unpredictable creature", tempered by
+    // the sacrifice-on-becoming-a-target drawback and the (rarer) whiff when
+    // no legal copy target exists.
+    aiValue: 143,
     // The granted trigger's template lives here (kept off `triggeredAbilities`
     // — the `StaticTriggeredGrant`/`grantedTriggeredAbilities` convention —
     // so the un-copied base card doesn't fire it), referenced by
