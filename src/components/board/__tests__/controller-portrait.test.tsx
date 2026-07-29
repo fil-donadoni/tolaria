@@ -1,7 +1,7 @@
 // Portrait controller (#335), redesigned as variant D (#1759): the right
 // control column collapses to a fixed app tab bar (You · Zones · Phase · Menu)
-// plus a morphing command row, below the `md:` breakpoint. The contracts tested
-// here are the acceptance criteria:
+// plus a morphing command row, below the `md:` breakpoint. The contracts
+// tested here are the acceptance criteria:
 //   1. The portrait branch (`Controller` with `useIsPortrait` = true) renders
 //      the bottom bar, NOT the desktop right-edge pod.
 //   2. Each rendered action dispatches the SAME mutation, with the same args, as
@@ -12,19 +12,20 @@
 //      bar — exactly one, so the shortcut/mutation hook never doubles.
 //   5. Zero layout shift: exactly one fixed-size primary slot, Pass Turn always
 //      mounted (disabled-aware), own life always on the bar.
-//   6. The viewer's zone chips — which used to sit UNDER the bar — are reachable
-//      again from the Zones tab.
+//   6. The viewer's zone chips (GY/LIB/EXL) render INLINE in the bar's own
+//      "Zones" cell (#1815 review fixup) — not a board-level row, not a
+//      toggled drawer. #1815 first tried the board-level mirror; reviewed and
+//      reverted (portrait's vertical budget has no spare band for a 44px chip
+//      row without overlapping the battlefield). Always mounted, always
+//      visible: no tap needed to reach them, unlike the pre-#1815 drawer.
 //   7. The You tab is a REAL self-target surface (#1766): a pending player
 //      target dispatches the SAME `selectTarget` mutation the nameplate would,
 //      with the viewer's own id, and wears the same pulsing ring while
 //      targetable.
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { render, fireEvent, screen } from "@testing-library/react";
+import { render, fireEvent, screen, within } from "@testing-library/react";
 import { GameContext } from "~/hooks/useGameContext";
-import {
-    ABOVE_CONTROLLER_BAR,
-    CONTROLLER_BAR_HEIGHT_VAR,
-} from "~/lib/controller-bar-metrics";
+import { CONTROLLER_BAR_HEIGHT_VAR } from "~/lib/controller-bar-metrics";
 import {
     PendingChoiceBufferContext,
     type PendingChoiceBuffer,
@@ -74,11 +75,11 @@ vi.mock("~/hooks/useViewportMode", () => ({
 // Chrome irrelevant to these contracts.
 vi.mock("../hotkeys-legend", () => ({ default: () => <div /> }));
 vi.mock("../pause-menu-button", () => ({ default: () => <button /> }));
-// `BoardPileChips` itself is NOT mocked: it is the reducer under test here (it
-// is the sole portrait mount of PlayerLibrary / PlayerGraveyard / PlayerExile,
-// which own the blocking choice surfaces), and a stub would mask exactly the
-// softlock these tests exist to prevent. Only the leaf card renderers — pure
-// art — are stubbed out.
+// `BoardPileChips` itself is NOT mocked: the bar's "Zones" cell is the sole
+// portrait mount of PlayerLibrary / PlayerGraveyard / PlayerExile for the
+// viewer, which own the blocking pile choice surfaces, and a stub would mask
+// exactly the softlock the tests below exist to prevent. Only the leaf card
+// renderers — pure art — are stubbed out.
 vi.mock("../../cards/card-image", () => ({
     default: ({ card }: { card: CardInstance }) => (
         <div data-testid="card-image" data-card-id={card.id} />
@@ -302,42 +303,102 @@ describe("Variant D bar — no layout shift, nothing buried (#1759)", () => {
         }).container.querySelector("[data-controller-priority-hairline]");
         expect(other?.className).toContain("via-signal-opponent");
     });
+});
 
-    it("Zones tab toggles the drawer's VISIBILITY — the viewer's real pile chips stay mounted", () => {
-        // Driven through the REAL BoardPileChips (no stub): it is the sole
-        // portrait mount of PlayerLibrary / PlayerGraveyard / PlayerExile, and
-        // those own the blocking choice surfaces. Unmounting the drawer while
-        // closed therefore softlocks a scry / search / graveyard pick, so the
-        // contract is mounted-always, hidden-when-closed.
+describe("Bottom bar tab set (#1815 review fixup, finding 4; widened round 2)", () => {
+    it("pins 4 cells (You / Zones-chips / Phase / Menu) to a grid-cols-6, the zone-chips cell spanning 3", () => {
+        // Round 2: the zone-chips cell went from an equal quarter
+        // (`grid-cols-4`) to HALF the bar (`grid-cols-6` + `col-span-3`) — it
+        // holds THREE chips, so it needs 3x a single tap target's width, not
+        // 1x. See `controller-bottom-bar.tsx`'s module doc comment and
+        // `pile-chip.tsx`'s `compact` doc comment for the touch-target math
+        // this fixes (#1815 review fixup round 2, finding 1).
         const { container } = renderController();
-        const drawer = () =>
-            container.querySelector(
-                "[data-controller-zones-drawer]"
-            ) as HTMLElement;
+        const row = container.querySelector(
+            "[data-controller-bottom-bar] .grid"
+        ) as HTMLElement;
+        expect(row.className).toContain("grid-cols-6");
+        expect(row.children.length).toBe(4);
 
-        expect(drawer()).toBeTruthy();
-        expect(drawer().dataset.open).toBe("false");
-        expect(drawer().className).toContain("hidden");
-        expect(drawer().getAttribute("aria-hidden")).toBe("true");
-        // Mounted, not merely present: the real chip row is inside it.
+        // Cell 1: You (life tab) — `ControllerTabButton` IS the grid cell
+        // itself (the aria-label lives on the cell, not a descendant), so
+        // identify each cell by reference rather than `within(cell)`.
+        const youTab = screen.getByLabelText(/Your life total/);
+        expect(youTab.parentElement).toBe(row);
+        expect(row.children[0]).toBe(youTab);
+
+        // Cell 2: the viewer's zone chips, inline — the testid is on the
+        // cell itself, not a descendant. `col-span-3` gives it half the bar.
+        const zoneChipsCell = screen.getByTestId("controller-bar-zone-chips");
+        expect(row.children[1]).toBe(zoneChipsCell);
+        expect(zoneChipsCell.className).toContain("col-span-3");
+        expect(within(zoneChipsCell).getByTestId(`pile-chips-me`)).toBeTruthy();
+
+        // Cell 3: Phase.
+        const phaseTab = screen.getByLabelText("Toggle phase list");
+        expect(row.children[2]).toBe(phaseTab);
+
+        // Cell 4: Menu.
+        const menuTab = screen.getByLabelText("Open game menu");
+        expect(row.children[3]).toBe(menuTab);
+    });
+});
+
+describe("Zone chips, inline in the bar (#1815 review fixup)", () => {
+    it("mounts the viewer's real pile chips ALWAYS visible — no toggle, no drawer", () => {
+        // Driven through the REAL BoardPileChips (no stub): it is the sole
+        // portrait mount of PlayerLibrary / PlayerGraveyard / PlayerExile for
+        // the viewer, and those own the blocking choice surfaces. Always
+        // mounted AND always visible this time — there is no `hidden` wrapper
+        // and no toggle state to drive.
+        const { container } = renderController();
+        const cell = container.querySelector(
+            "[data-testid='controller-bar-zone-chips']"
+        ) as HTMLElement;
+        expect(cell).toBeTruthy();
         expect(screen.getByTestId("pile-chips-me")).toBeTruthy();
         expect(screen.getByTestId("chip-library-me")).toBeTruthy();
-
-        fireEvent.click(screen.getByLabelText("Toggle your zones"));
-        expect(drawer().dataset.open).toBe("true");
-        expect(drawer().className).not.toContain("hidden");
-        expect(drawer().getAttribute("aria-hidden")).toBe("false");
-        expect(screen.getByTestId("pile-chips-me")).toBeTruthy();
-
-        fireEvent.click(screen.getByLabelText("Toggle your zones"));
-        expect(drawer().dataset.open).toBe("false");
-        expect(screen.getByTestId("pile-chips-me")).toBeTruthy();
     });
 
-    it("a blocking graveyard pick surfaces its picker with the Zones drawer closed", () => {
+    it("tapping the viewer's graveyard chip opens the EXISTING reveal view directly", () => {
+        renderController({
+            allPlayers: [
+                makePlayer({
+                    id: "me",
+                    graveyard: [
+                        {
+                            id: "g1",
+                            card: { id: "def-g1" },
+                            controllerId: "me",
+                            ownerId: "me",
+                            zone: "graveyard",
+                            isTapped: false,
+                        } as CardInstance,
+                        {
+                            id: "g2",
+                            card: { id: "def-g2" },
+                            controllerId: "me",
+                            ownerId: "me",
+                            zone: "graveyard",
+                            isTapped: false,
+                        } as CardInstance,
+                    ],
+                }),
+            ],
+        });
+
+        fireEvent.click(screen.getByTestId("chip-graveyard-me"));
+
+        const dialog = screen.getByRole("dialog");
+        expect(
+            within(dialog).getAllByText(/Graveyard \(2\)/).length
+        ).toBeGreaterThan(0);
+    });
+
+    it("a blocking graveyard pick surfaces its picker with zero taps — no drawer to open first", () => {
         // The softlock regression, end to end through the real components:
         // PendingChoicePrompt renders nothing for a pile-owned choice, so if
-        // the drawer is unmounted while closed the chooser gets NO UI.
+        // this cell were ever hidden the chooser would get NO UI. It never is.
         const choice = {
             kind: "choose-graveyard-card",
             playerId: "me",
@@ -368,17 +429,85 @@ describe("Variant D bar — no layout shift, nothing buried (#1759)", () => {
             pendingChoices: [choice],
         });
 
-        // Never opened the Zones tab — the pick's own modal is up anyway.
         const dialog = screen.getByRole("dialog");
         expect(dialog.textContent).toContain(
             "Choose a card from your graveyard"
         );
-        // …and the drawer forces itself open so the chips behind it are usable.
-        expect(
-            screen
-                .getByLabelText("Toggle your zones")
-                .getAttribute("aria-expanded")
-        ).toBe("true");
+    });
+
+    it("a blocking exile pick (choose-exile-card, CR 608.2) surfaces its picker with zero taps", () => {
+        const choice = {
+            kind: "choose-exile-card",
+            playerId: "me",
+            zone: "exile",
+            count: 1,
+            prompt: "Choose an exiled card",
+            stackItemId: "s1",
+            step: 0,
+            choiceId: "c1",
+        } as unknown as PendingChoice;
+
+        renderController({
+            allPlayers: [
+                makePlayer({
+                    id: "me",
+                    exile: [
+                        {
+                            id: "x1",
+                            card: { id: "def-x1" },
+                            controllerId: "me",
+                            ownerId: "me",
+                            zone: "exile",
+                            isTapped: false,
+                        } as CardInstance,
+                    ],
+                }),
+            ],
+            pendingChoices: [choice],
+        });
+
+        const dialog = screen.getByRole("dialog");
+        expect(dialog.textContent).toContain("Choose an exiled card");
+    });
+
+    it("a blocking library order pick (order-top, CR 701.22 scry) surfaces the drag picker with zero taps", () => {
+        // `order-top`/`reorder-library` route through `LibraryOrderPicker`
+        // (`createPortal` to `document.body`, not a GameDialog `role=dialog`)
+        // — the one force-open branch the pre-fixup coverage never exercised
+        // (#1815 review finding 3).
+        const choice = {
+            kind: "order-top",
+            playerId: "me",
+            zone: "library",
+            count: 1,
+            prompt: "Order the top of your library",
+            stackItemId: "s1",
+            step: 0,
+            choiceId: "c1",
+            destination: "none",
+        } as unknown as PendingChoice;
+
+        renderController({
+            allPlayers: [
+                makePlayer({
+                    id: "me",
+                    libraryPeek: [
+                        {
+                            id: "l1",
+                            card: { id: "def-l1" },
+                            controllerId: "me",
+                            ownerId: "me",
+                            zone: "library",
+                            isTapped: false,
+                        } as CardInstance,
+                    ],
+                }),
+            ],
+            pendingChoices: [choice],
+        });
+
+        expect(screen.getByText("Order the top of your library")).toBeTruthy();
+        expect(screen.getByLabelText("Minimize choice dialog")).toBeTruthy();
     });
 });
 
@@ -462,9 +591,12 @@ describe("Bar height reservation follows the measured height (#1759)", () => {
     // The bar's command row WRAPS, so the bar grows: ~106px on one line, ~150px
     // once DECLARE_ATTACKERS pushes the side pills onto their own line. Anything
     // reserving a fixed inset (the old `bottom-32` = 128px) is then wrong — the
-    // grown bar covered the hand strip's bottom edge (eating taps) and the Zones
-    // drawer's own edge. The bar therefore PUBLISHES what it measures and the
-    // consumers anchor to that variable.
+    // grown bar covered the hand strip's bottom edge (eating taps) and (pre
+    // #1815) the Zones drawer's own edge; the viewer's zone chips are back in
+    // the bar itself now (#1815 review fixup), so they need no separate
+    // consumer of this variable any more — only the hand strip does. The bar
+    // therefore PUBLISHES what it measures and the consumer anchors to that
+    // variable.
     //
     // jsdom does no layout, so the contract under test is the plumbing, not
     // pixels: the bar is observed, the observed height is what gets written, and
@@ -530,16 +662,6 @@ describe("Bar height reservation follows the measured height (#1759)", () => {
         // class's own default.
         unmount();
         expect(root.style.getPropertyValue(CONTROLLER_BAR_HEIGHT_VAR)).toBe("");
-    });
-
-    it("anchors the Zones drawer to the variable, not a fixed inset", () => {
-        const { container } = renderController();
-        const drawer = container.querySelector(
-            "[data-controller-zones-drawer]"
-        ) as HTMLElement;
-        expect(drawer.className).toContain(ABOVE_CONTROLLER_BAR);
-        expect(drawer.className).toContain(CONTROLLER_BAR_HEIGHT_VAR);
-        expect(drawer.className).not.toContain("bottom-32");
     });
 });
 

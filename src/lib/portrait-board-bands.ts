@@ -233,6 +233,19 @@ export const PORTRAIT_MIDLINE_TOP = "top-[var(--portrait-midline)]";
 export const PORTRAIT_VIEWER_NAMEPLATE_BOTTOM =
     "bottom-[var(--portrait-nameplate-bottom)]";
 
+// NOTE (#1815 review fixup): an earlier revision of this module published
+// `PORTRAIT_VIEWER_CHIPS_BOTTOM` to anchor the viewer's pile-chip row just
+// above the hand band, ON THE BOARD. Reviewed and reverted: on a 667×106
+// phone the reserved band for a foldable-safe inset tops out at ~37px, while
+// the chip row (min-h-11 = 44px) does not fit there without starving the
+// battlefield's own card-width floor (≥44px, enforced below) — the row would
+// sit ON TOP of the back battlefield row instead of above it, reopening the
+// #1760 bug class from a new angle. The viewer's chips now render INLINE in
+// the controller bottom bar instead (`controller-bottom-bar.tsx`,
+// `board-pile-chips.tsx`'s `compact` mode) — zero extra vertical budget,
+// zero overlap with the battlefield, at the cost of asymmetry with the
+// opponent's board-level row (documented at the call site).
+
 // ── Portrait hand card metrics (#336, #1770 follow-up from #1790) ──────────
 //
 // `BoardHandPortrait` used to hard-code a 76px card width — 106.4px tall at

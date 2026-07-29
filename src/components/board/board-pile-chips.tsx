@@ -16,32 +16,49 @@ type OpenZone = "graveyard" | "library" | "exile" | null;
  *  reveal dialog of the corresponding pile component in controlled-open mode —
  *  the pile renders only its dialog (collapsed card stack suppressed), so all
  *  its real behaviour (target clicks, draw / mill / search context menu,
- *  inertial-scroll fan / grid) is reused unchanged. View layer only. */
-export default function BoardPileChips({ player }: { player: Player }) {
+ *  inertial-scroll fan / grid) is reused unchanged. View layer only.
+ *
+ *  `compact` (#1815 review fixup): the VIEWER's row mounts inline in the
+ *  controller bottom bar (`controller-bottom-bar.tsx`) rather than floating
+ *  on the board — see that module's doc comment for why. The opponent's row
+ *  stays board-level and non-compact. */
+export default function BoardPileChips({
+    player,
+    compact = false,
+}: {
+    player: Player;
+    compact?: boolean;
+}) {
     const [openZone, setOpenZone] = useState<OpenZone>(null);
     const toggle = (zone: Exclude<OpenZone, null>) =>
         setOpenZone((cur) => (cur === zone ? null : zone));
 
     return (
-        <div className="flex gap-1" data-testid={`pile-chips-${player.id}`}>
+        <div
+            className={compact ? "flex w-full gap-0.5" : "flex gap-1"}
+            data-testid={`pile-chips-${player.id}`}
+        >
             <PileChip
                 label="GY"
                 count={player.graveyard.length}
                 onClick={() => toggle("graveyard")}
                 data-testid={`chip-graveyard-${player.id}`}
                 data-arrow-anchor-graveyard={player.id}
+                compact={compact}
             />
             <PileChip
                 label="LIB"
                 count={libraryCount(player.library)}
                 onClick={() => toggle("library")}
                 data-testid={`chip-library-${player.id}`}
+                compact={compact}
             />
             <PileChip
                 label="EXL"
                 count={player.exile.length}
                 onClick={() => toggle("exile")}
                 data-testid={`chip-exile-${player.id}`}
+                compact={compact}
             />
 
             {/* Pile components in controlled-open mode: they render ONLY their
@@ -59,11 +76,24 @@ export default function BoardPileChips({ player }: { player: Player }) {
 
                 `display:none` also zeroes `getBoundingClientRect()`, so
                 `PlayerGraveyard`'s `data-arrow-anchor-graveyard` below is a
-                degenerate anchor while hidden (useDomAnchorPublisher now
-                skips zero-rect anchors rather than publish a wrong one) — the
-                GY chip above carries the SAME attribute so graveyard-card
-                target arrows (Regrowth, Raise Dead, Animate Dead) have a real,
-                visible anchor to land on. */}
+                degenerate anchor while hidden (useDomAnchorPublisher skips
+                zero-rect anchors rather than publish a wrong one) — the GY
+                chip above carries the SAME attribute so graveyard-card
+                target arrows (Regrowth, Raise Dead, Animate Dead) have a
+                real, visible anchor to land on instead.
+
+                That claim held for the opponent's board-level row (mounted
+                inside `data-board-root`, where `useDomAnchorPublisher`
+                scans) but was FALSE for the viewer's `compact` chip once
+                #1815 moved it into `ControllerBottomBar` — that bar mounts
+                as a sibling of `data-board-root` in `board.tsx` (outside
+                both the root div and `ArrowAnchorProvider`), so the chip's
+                anchor was never actually published: no arrow ever reached a
+                graveyard-card target on the viewer's own graveyard on
+                portrait (#1815 review fixup round 2). Fixed at the source —
+                `useDomAnchorPublisher` now also scans an optional second
+                root (`board-arrows.tsx` passes
+                `[data-controller-bottom-bar]`) — not by moving this chip. */}
             <div className="hidden">
                 <PlayerGraveyard
                     player={player}

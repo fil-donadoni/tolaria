@@ -100,7 +100,8 @@ function makePlayer(id: string, overrides: Partial<Player> = {}): Player {
 function renderChips(
     opponent: Player,
     me: Player,
-    stackItems: StackItem[] = []
+    stackItems: StackItem[] = [],
+    ctxOverrides: Partial<React.ContextType<typeof GameContext>> = {}
 ) {
     const value = {
         gameId: "game-id" as never,
@@ -114,6 +115,7 @@ function renderChips(
         showAllCards: false,
         debugAllActions: false,
         onSwitchGame: () => {},
+        ...ctxOverrides,
     } as React.ContextType<typeof GameContext>;
     return render(
         <GameContext value={value}>
@@ -152,33 +154,80 @@ describe("BoardPortraitChips (#336)", () => {
         ).toContain("30");
     });
 
-    it("relocates the VIEWER's chips off the bottom bar band without dropping them (#1759)", () => {
-        // The viewer's row used to sit at `bottom-24`, i.e. underneath the
-        // variant-D bottom bar — untappable. The fix RELOCATES it: the same
-        // BoardPileChips row is now mounted permanently by the bar's Zones
-        // drawer, which toggles visibility only (asserted through the REAL
-        // component in controller-portrait.test.tsx). Two things must hold
-        // HERE: this overlay carries exactly one row — the opponent's, so the
-        // viewer's piles are never mounted twice — and nothing it renders may
-        // be anchored into the band the bar owns.
+    it("does NOT mount the viewer's own pile-chip row — that lives in the controller bottom bar now (#1815 review fixup)", () => {
+        // #1815 first mirrored the opponent's row to the bottom-left, on the
+        // board — reviewed and reverted (portrait's vertical budget has no
+        // spare ~44px band for a chip row without either overlapping the
+        // battlefield's back row or starving its own ≥44px card-width floor).
+        // The viewer's chips now render inline in `ControllerBottomBar`
+        // instead (`controller-bottom-bar.test.tsx`); this component mounts
+        // ONLY the opponent's board-level row plus the stack chip.
         const me = makePlayer("me", {
             graveyard: [makeCard("g1", "graveyard")],
+            library: { count: 12 },
         });
-        const { container } = renderChips(makePlayer("opp"), me);
+        const opp = makePlayer("opp", { library: { count: 30 } });
+        const { container } = renderChips(opp, me);
 
         const rows = [
             ...container.querySelectorAll("[data-testid^='pile-chips-']"),
         ]
             .map((el) => el.getAttribute("data-testid"))
-            .filter((id) => id !== "pile-chips-row-opponent");
+            .filter((id) => !id?.startsWith("pile-chips-row-"));
         expect(rows).toEqual(["pile-chips-opp"]);
+        expect(screen.queryByTestId("pile-chips-me")).toBeNull();
+        expect(screen.queryByTestId("pile-chips-row-viewer")).toBeNull();
 
-        // No bottom-edge anchor anywhere on the overlay: the opponent row is
-        // pinned top-left, the stack chip to the midline.
-        expect(container.querySelectorAll("[class*='bottom-']").length).toBe(0);
+        // Opponent stays pinned top-left.
         expect(
             screen.getByTestId("pile-chips-row-opponent").className
         ).toContain("top-2");
+    });
+
+    it("derives the opponent by IDENTITY (viewer id from context), not array position (#1815 review fixup, finding 5)", () => {
+        // The bug this guards: `orderedPlayers` is built upstream as
+        // `[opponent, me].filter(Boolean)` (`board.tsx`) — with no opponent
+        // seat yet, that collapses to a ONE-element array whose sole entry
+        // is the VIEWER's own state. A positional `const [opponent] =
+        // orderedPlayers` would then render the viewer's own pile-chip row
+        // mislabeled as the opponent's board-level row. Deriving by identity
+        // (`playerId` from context) instead means a missing opponent seat
+        // renders no opponent row at all — never a mislabeled one.
+        const me = makePlayer("me", {
+            graveyard: [makeCard("g1", "graveyard")],
+        });
+        const value = {
+            gameId: "game-id" as never,
+            playerId: "me",
+            activePlayerId: "me",
+            priorityPlayerId: "me",
+            phase: "PRECOMBAT_MAIN",
+            turn: 1,
+            stackCount: 0,
+            allPlayers: [me],
+            showAllCards: false,
+            debugAllActions: false,
+            onSwitchGame: () => {},
+        } as React.ContextType<typeof GameContext>;
+        render(
+            <GameContext value={value}>
+                <PendingChoiceBufferContext value={noopBuffer}>
+                    <MinimizedChoiceContext value={noopMinimized}>
+                        {/* Only ONE entry — the viewer's own state, standing
+                            in for the "no opponent seat yet" shape that used
+                            to trip the positional destructure. */}
+                        <BoardPortraitChips
+                            orderedPlayers={[me]}
+                            stackItems={[]}
+                        />
+                    </MinimizedChoiceContext>
+                </PendingChoiceBufferContext>
+            </GameContext>
+        );
+
+        expect(screen.queryByTestId("pile-chips-row-opponent")).toBeNull();
+        expect(screen.queryByTestId("pile-chips-opp")).toBeNull();
+        expect(screen.queryByTestId("pile-chips-me")).toBeNull();
     });
 
     it("no reveal dialog is open until a chip is tapped", () => {

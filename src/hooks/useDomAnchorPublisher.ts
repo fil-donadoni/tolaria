@@ -32,13 +32,31 @@ type Published = { kind: AnchorKind; id: string };
  * stack keeps its arrows attached. It only ever unpublishes anchors it
  * published itself (tracked in a ref), so it never fights the zone publishers
  * over a shared bucket.
+ *
+ * `extraRootSelector` (#1815 review fixup round 2): every anchor used to live
+ * inside `data-board-root`, the coordinate space `board.getBoundingClientRect()`
+ * measures from — but `ControllerBottomBar` (the portrait bar) mounts as a
+ * SIBLING of that root in `board.tsx`, outside both it and
+ * `ArrowAnchorProvider`. The viewer's compact zone-chip anchor
+ * (`data-arrow-anchor-graveyard` on the bar's GY chip, `pile-chip.tsx`) lives
+ * there, so a scan scoped to `board` alone never finds it — no arrow ever
+ * reached a graveyard-card target on the viewer's own graveyard on portrait.
+ * An optional second selector, resolved against `document` and merged into the
+ * same coordinate space (both rects are viewport-relative from
+ * `getBoundingClientRect()`, so subtracting the same `rootRect` origin works
+ * regardless of which root an anchor element lives under), closes that gap
+ * without moving the chip or duplicating the scan logic per caller.
  */
 export function useDomAnchorPublisher(
     boardRef: RefObject<Element | null>,
     kinds: AnchorKind[],
     /** Bump this when the set of anchored elements changes (e.g. stack length)
      *  so freshly-mounted anchors get measured. */
-    revision: unknown
+    revision: unknown,
+    /** CSS selector for a second root to scan for anchor elements, in addition
+     *  to `data-board-root` — e.g. `"[data-controller-bottom-bar]"` for the
+     *  portrait bar's inline zone chips, which mount outside the board root. */
+    extraRootSelector?: string
 ): void {
     const registry = useArrowAnchors();
     // `publish` / `unpublish` are stable (defined with empty-dep useCallback in
@@ -67,7 +85,18 @@ export function useDomAnchorPublisher(
             for (const kind of kinds) {
                 seen[kind] = new Set();
                 const attr = ANCHOR_ATTR[kind];
-                const els = board.querySelectorAll<HTMLElement>(`[${attr}]`);
+                // Merge the board root's own anchors with any published under
+                // the optional second root (e.g. the portrait bottom bar) —
+                // both rects are viewport-relative, so subtracting the SAME
+                // `rootRect` origin below works for either source.
+                const els = [
+                    ...board.querySelectorAll<HTMLElement>(`[${attr}]`),
+                    ...(extraRootSelector
+                        ? document.querySelectorAll<HTMLElement>(
+                              `${extraRootSelector} [${attr}]`
+                          )
+                        : []),
+                ];
                 els.forEach((el) => {
                     const id = el.getAttribute(attr);
                     if (!id) return;
@@ -135,8 +164,8 @@ export function useDomAnchorPublisher(
             ownedRef.current = [];
         };
         // Re-run only when the board ref, the anchored-element set (revision),
-        // or the kind list changes — NOT on every publish (publish/unpublish
-        // are stable).
+        // the kind list, or the extra-root selector changes — NOT on every
+        // publish (publish/unpublish are stable).
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [boardRef, revision, kindsKey, publish, unpublish]);
+    }, [boardRef, revision, kindsKey, extraRootSelector, publish, unpublish]);
 }

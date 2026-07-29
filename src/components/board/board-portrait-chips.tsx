@@ -1,12 +1,18 @@
 import { useState } from "react";
 import type { Player, StackItem } from "~/types/game";
+import { useGameContext } from "~/hooks/useGameContext";
 import { PORTRAIT_MIDLINE_TOP } from "~/lib/portrait-board-bands";
 import BoardPileChips from "./board-pile-chips";
 import StackChip from "./stack-chip";
 import GameStack from "./game-stack";
 
 type BoardPortraitChipsProps = {
-    /** Opponent first, viewer second (same ordering as the rest of Board). */
+    /** Opponent and viewer, in either order — the opponent is looked up by
+     *  IDENTITY (viewer id from context), never by array position (#1815
+     *  review fixup, finding 5): a missing opponent seat left `orderedPlayers`
+     *  a 1-element array whose sole (viewer's own) entry landed in the
+     *  positional `opponent` slot, mislabeling the viewer's chips as the
+     *  opponent's board-level row. */
     orderedPlayers: Player[];
     stackItems: StackItem[];
 };
@@ -20,14 +26,27 @@ type BoardPortraitChipsProps = {
  *  - a stack chip sits at the right of the midline — the neutral band between
  *    the two battlefields — and toggles the EXISTING {@link GameStack} overlay.
  *
- *  The VIEWER's own pile chips are RELOCATED, not removed: they used to float
- *  at `bottom-24`, which the variant-D bottom bar (#1759) now covers, making
- *  them untappable. The same {@link BoardPileChips} row — same component, same
- *  reveal dialogs — is now mounted by that bar's Zones drawer
- *  ({@link ControllerZonesDrawer}), permanently and for the whole game; the
- *  Zones tab toggles only its VISIBILITY, because the row is the sole portrait
- *  mount of the pile components that own the blocking choice surfaces.
- *  Nothing on this overlay may sit in the bar's band any more.
+ *  **The VIEWER's own graveyard / library / exile are NOT mounted here any
+ *  more (#1815 review fixup).** An earlier revision mirrored the opponent's
+ *  row to the bottom-left, anchored above the hand band — reviewed and
+ *  reverted: on a 667×106 phone the reserved band tops out at ~37px while the
+ *  chip row needs 44px (`min-h-11`), so it either overlapped the battlefield's
+ *  own back row or starved the card-width floor (≥44px) that same band
+ *  budget guarantees elsewhere (`portrait-board-bands.ts`). The viewer's row
+ *  now mounts INLINE in the controller bottom bar instead
+ *  (`controller-bottom-bar.tsx`, `BoardPileChips`'s `compact` mode) — see that
+ *  module's doc comment for the full account, including the accepted
+ *  opponent-top / viewer-in-bar asymmetry.
+ *
+ *  This is still the sole portrait mount of {@link BoardPileChips} for the
+ *  OPPONENT'S seat. The viewer's own mount (in the bottom bar) is likewise the
+ *  sole mount of `PlayerLibrary` / `PlayerGraveyard` / `PlayerExile` for that
+ *  seat, which matters beyond display: those own the BLOCKING pile choice
+ *  surfaces (`LibraryOrderPicker`, the `forceOpen` pile grids for library
+ *  search / graveyard / exile picks). Because the bar is always mounted AND
+ *  always visible (no `hidden` wrapper, no drawer to open), those surfaces
+ *  are on-screen the instant a choice goes pending — no force-open plumbing
+ *  needed; there is nothing to force open any more.
  *
  *  Every chip opens the EXISTING reveal / stack view (the pile components in
  *  controlled-open mode, the stack panel toggled) — nothing is rebuilt. Mounted
@@ -37,7 +56,8 @@ export default function BoardPortraitChips({
     orderedPlayers,
     stackItems,
 }: BoardPortraitChipsProps) {
-    const [opponent] = orderedPlayers;
+    const { playerId } = useGameContext();
+    const opponent = orderedPlayers.find((p) => p.id !== playerId);
     const [stackOpen, setStackOpen] = useState(false);
 
     return (
