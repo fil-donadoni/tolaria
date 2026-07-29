@@ -29,7 +29,7 @@ import { KNIGHT_TOKEN } from "../../sharedTokens";
 export const historyOfBenalia: CardDefinition = {
     id: "d134385d-b01c-41c7-bb2d-30722b44dc5a",
     name: "History of Benalia",
-    rarity: "rare",
+    rarity: "mythic",
     oracleText:
         "(As this Saga enters and after your draw step, add a lore counter. Sacrifice after III.)\nI, II — Create a 2/2 white Knight creature token with vigilance.\nIII — Knights you control get +2/+1 until end of turn.",
     manaCost: { X: 1, W: 2 },

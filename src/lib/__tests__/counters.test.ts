@@ -1,6 +1,16 @@
 import { describe, it, expect } from "vitest";
+import { projectPublicState } from "@convex/gameProjections";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "@convex/cards/__tests__/setup";
 import { getCounterDisplays, isPTCounter } from "../counters";
 import type { CardInstance } from "~/types/game";
+
+/** History of Benalia (dom) — the shipped Saga, so the projected card in the
+ *  wire test below is a real catalogue permanent carrying lore counters. */
+const HISTORY_OF_BENALIA = "d134385d-b01c-41c7-bb2d-30722b44dc5a";
 
 function makeCard(counters?: Record<string, number>): CardInstance {
     return {
@@ -99,8 +109,35 @@ describe("lore counters render generically (CR 714.3)", () => {
     });
 
     it("survives the wire projection's counter shape", () => {
-        // The projection keeps `counters` verbatim on a battlefield card; a
-        // Saga past chapter II therefore reaches the client with its count.
-        expect(getCounterDisplays(makeCard({ lore: 3 }))[0].count).toBe(3);
+        // Driven THROUGH the reducer, per `gre-development.md` § Frontend
+        // wiring analysis item 4: a hand-built card literal would mask a
+        // projection that dropped `counters`, so the badge is computed from
+        // the card `projectPublicState` actually emits.
+        const saga = makeInstance(HISTORY_OF_BENALIA, {
+            id: "saga1",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { lore: 3 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [saga] }),
+                makePlayer("p2"),
+            ],
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "saga1"
+        )!;
+        expect(slim).toBeDefined();
+
+        const [badge] = getCounterDisplays(slim as unknown as CardInstance);
+        expect(badge).toEqual({
+            type: "lore",
+            count: 3,
+            label: "Lore",
+            short: "LOR",
+            tone: "neutral",
+        });
     });
 });

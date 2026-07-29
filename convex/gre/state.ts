@@ -4557,47 +4557,23 @@ export function applyEntersWithCounters(
     card: CardInstanceState,
     def: { entersWith?: EntersWithDeclaration } | undefined,
     cast: EntersWithCastValues,
-    /** When supplied, a `COUNTER_ADDED` event is queued for every entry counter
-     *  (ADR 0078 §7). Optional only so a hand-built fixture can call the pure
-     *  mutation; EVERY production entry site passes it. */
+    /** When supplied, the `COUNTER_ADDED` events for the entry counters are
+     *  queued immediately (ADR 0078 §7). Omit it at an entry site whose CR 614
+     *  chokepoint runs LATER — `createTokenPermanents` does, and emits the
+     *  events itself via `emitEntersWithCounterEvents` once the permanent has
+     *  actually reached the battlefield — or in a hand-built fixture calling
+     *  the pure mutation. */
     state?: GameState
-): void {
+): Record<string, number> {
     const delta = resolveEntersWithCounters(def, cast);
     const types = Object.keys(delta);
-    if (types.length === 0) return;
+    if (types.length === 0) return {};
     const before = card.counters ?? {};
     const counters: Record<string, number> = { ...before };
     for (const type of types)
         counters[type] = (counters[type] ?? 0) + delta[type];
     card.counters = counters;
-    // CR 121.1 / 603.2 (ADR 0078 §7) — counters put on a permanent AS it
-    // enters ARE put onto it, so "whenever one or more counters are put on ~"
-    // abilities fire. This path used to mutate `card.counters` silently while
-    // `addCounterToCard` emitted, which meant a Saga's chapter I never
-    // triggered — invisibly, since nothing collects a trigger that was never
-    // emitted. Emitted for EVERY entry counter type, not just `lore`: the
-    // general rule, not a card-shaped one.
-    //
-    // The event lands in `pendingEvents` alongside `PERMANENT_ENTERED`, so the
-    // two are simultaneous and APNAP-ordered (CR 603.3b). That is the correct
-    // semantics — do not try to sequence them.
-    if (state) {
-        for (const type of types) {
-            state.pendingEvents = [
-                ...(state.pendingEvents ?? []),
-                {
-                    type: "COUNTER_ADDED",
-                    instanceId: card.id,
-                    controllerId: card.controllerId,
-                    counterType: type,
-                    added: delta[type],
-                    total: counters[type],
-                    types: [...card.types],
-                    subtypes: [...card.subtypes],
-                },
-            ];
-        }
-    }
+    if (state) emitEntersWithCounterEvents(state, card, delta);
     // CR 122.1c / 613.4d (issue #1194, closing an ETB gap for issue #1318) —
     // an entry counter whose TYPE names an implemented keyword ability grants
     // that keyword the same way `SpellContext.addCounter` does for a resolving
@@ -4610,6 +4586,48 @@ export function applyEntersWithCounters(
         if ((before[type] ?? 0) === 0 && counters[type] > 0) {
             applyKeywordCounterGrant(card, type);
         }
+    }
+    return delta;
+}
+
+/** CR 121.1 / 603.2 (ADR 0078 §7) — queue the `COUNTER_ADDED` events for a set
+ *  of ENTRY counters (`delta` as returned by `applyEntersWithCounters`).
+ *
+ *  Counters put on a permanent AS it enters ARE put onto it, so "whenever one
+ *  or more counters are put on ~" abilities fire. The entry path used to mutate
+ *  `card.counters` silently while `addCounterToCard` emitted, which meant a
+ *  Saga's chapter I never triggered — invisibly, since nothing collects a
+ *  trigger that was never emitted. Emitted for EVERY entry counter type, not
+ *  just `lore`: the general rule, not a card-shaped one.
+ *
+ *  The event lands in `pendingEvents` alongside `PERMANENT_ENTERED`, so the two
+ *  are simultaneous and APNAP-ordered (CR 603.3b). That is the correct
+ *  semantics — do not try to sequence them.
+ *
+ *  Split out of `applyEntersWithCounters` so an entry site whose CR 614
+ *  chokepoint runs AFTER the counters are stamped (`createTokenPermanents`,
+ *  which needs the keyword-counter grant applied before the replacement loop
+ *  reads the token) can DEFER the emit: a token redirected to exile never
+ *  entered the battlefield, and must not announce counters put onto it. */
+export function emitEntersWithCounterEvents(
+    state: GameState,
+    card: CardInstanceState,
+    delta: Record<string, number>
+): void {
+    for (const type of Object.keys(delta)) {
+        state.pendingEvents = [
+            ...(state.pendingEvents ?? []),
+            {
+                type: "COUNTER_ADDED",
+                instanceId: card.id,
+                controllerId: card.controllerId,
+                counterType: type,
+                added: delta[type],
+                total: card.counters?.[type] ?? delta[type],
+                types: [...card.types],
+                subtypes: [...card.subtypes],
+            },
+        ];
     }
 }
 
@@ -14701,11 +14719,15 @@ export function createTokenPermanents(
         // Routing it through `applyEntersWithCounters` is exactly the drift the
         // single-oracle design exists to prevent. No cast-time values exist for
         // a token (CR 107.3b; a token was never kicked).
-        applyEntersWithCounters(
+        //
+        // The COUNTER_ADDED emit is DEFERRED (no `state` argument here) until
+        // after the CR 614 chokepoint below: a token this loop redirects to
+        // exile never entered the battlefield, so it must not announce counters
+        // put onto it (ADR 0078 §7).
+        const entryCounters = applyEntersWithCounters(
             token,
             { entersWith: spec.entersWith },
-            {},
-            state
+            {}
         );
         // CR 614 (issue #1148) — enters-the-battlefield replacement chokepoint.
         const enterDestination = enterBattlefieldDestinationFor(
@@ -14733,6 +14755,9 @@ export function createTokenPermanents(
             token.isTapped = true;
         }
         owner.battlefield.push(token);
+        // The token really entered — NOW announce its entry counters (see the
+        // deferral note on `applyEntersWithCounters` above, ADR 0078 §7).
+        emitEntersWithCounterEvents(state, token, entryCounters);
         // CR 508.4 (issue #1195) — the token enters the battlefield ALREADY
         // ATTACKING: join the CURRENT combat directly through the shared
         // `markAttacking` helper (`gre/combat.ts`) instead of running the
