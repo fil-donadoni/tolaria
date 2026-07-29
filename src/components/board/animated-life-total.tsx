@@ -17,7 +17,18 @@ type Pop = { id: number; delta: number };
  * settled number). Drop-in replacement for the static life `<div>` inside
  * {@link PlayerNameplate}.
  */
-export default function AnimatedLifeTotal({ life }: { life: number }) {
+export default function AnimatedLifeTotal({
+    life,
+    compact = false,
+}: {
+    life: number;
+    /** Portrait compact nameplate (#1814 round-2 fixup): a smaller,
+     *  `leading-none` line-height EXACTLY `1.125rem` (18px) — see
+     *  `PORTRAIT_NAMEPLATE_ROW_PX` in `portrait-board-bands.ts`, whose value
+     *  this class must stay in lockstep with (that constant documents the
+     *  full box-height derivation the reserved band is sized from). */
+    compact?: boolean;
+}) {
     const { delta, tick } = useLifeDelta(life);
     const reduce = useReducedMotion();
     const color = delta === 0 ? REST : delta > 0 ? GAIN : LOSS;
@@ -41,7 +52,7 @@ export default function AnimatedLifeTotal({ life }: { life: number }) {
         <div className="relative">
             <motion.div
                 key={tick}
-                className="text-3xl font-bold leading-none tabular-nums"
+                className={`${compact ? "text-lg" : "text-3xl"} font-bold leading-none tabular-nums`}
                 initial={reduce ? false : { color, scale: 1 }}
                 animate={
                     reduce

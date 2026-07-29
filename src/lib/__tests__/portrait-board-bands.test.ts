@@ -12,6 +12,7 @@ import {
     ABOVE_CONTROLLER_BAR,
     CONTROLLER_BAR_CLEARANCE_EXPR,
 } from "~/lib/controller-bar-metrics";
+import { BAND_V_PAD, CARD_HEIGHT, CARD_WIDTH } from "~/lib/board-layout";
 import {
     PORTRAIT_HAND_BAND_H,
     PORTRAIT_HAND_BAND_VAR,
@@ -20,11 +21,30 @@ import {
     PORTRAIT_NAMEPLATE_BAND_H,
     PORTRAIT_NAMEPLATE_BAND_VAR,
     PORTRAIT_NAMEPLATE_BOTTOM_VAR,
+    PORTRAIT_NAMEPLATE_MAX_H,
+    PORTRAIT_NAMEPLATE_SAFETY_PX,
     PORTRAIT_OPPONENT_BF_BOTTOM_VAR,
     PORTRAIT_VIEWER_BF_BOTTOM_VAR,
     portraitBandVars,
     portraitHandMetrics,
 } from "~/lib/portrait-board-bands";
+
+/** The battlefield's OWN scale-from-height math (`bandedRowsLayout`,
+ *  `board-layout.ts`): two bands (the creature row + the split lands/other
+ *  back row) share the battlefield's height equally, each capped to a
+ *  `maxScale` so a full-height card fits its slice, and the card renders at
+ *  `CARD_WIDTH * maxScale`. This is the SAME computation
+ *  `board-battlefield.tsx`'s `layout()` calls — converting a row height to an
+ *  on-screen card width via this function (rather than eyeballing row-height
+ *  thresholds) is what makes the 44px touch-target assertions below a REAL
+ *  check of tappability, not a proxy. */
+function bandedCardWidth(bandHeightPx: number): number {
+    const maxScale = Math.max(
+        0.1,
+        Math.min(1, (bandHeightPx - BAND_V_PAD) / CARD_HEIGHT)
+    );
+    return CARD_WIDTH * maxScale;
+}
 
 // ── A minimal CSS length evaluator ────────────────────────────────────────────
 // Handles exactly the grammar this module emits: calc(), parentheses, + - * /,
@@ -246,12 +266,19 @@ describe("portrait band budget tiles without overlap (#1760)", () => {
         }
     });
 
-    it("leaves the viewer battlefield a usable band on the two taller phones", () => {
-        // Two rows share the band; a row thinner than ~80px renders cards too
-        // small to identify. Excludes the 667px board deliberately — see the
-        // dedicated "accepted floor shortfall" test below for why the
-        // nameplate reservation (#1814 fixup) costs THAT board specifically.
-        for (const board of PHONE.filter((b) => b.height !== 667)) {
+    // #1814 round-2 review, finding 4: the original version of this pair
+    // filtered the 667px board out of the ">80px" check with a bare
+    // `PHONE.filter((b) => b.height !== 667)` and gave the excluded board a
+    // (40, 80) window with ~23px of slack either side of its actual value —
+    // a silent skip plus a bound loose enough to hide almost any regression.
+    // With the compact nameplate's much smaller reservation the two taller
+    // (844px) phones and the 667×106 phone are named EXPLICITLY below —
+    // nothing is dropped via a generic filter — and the 667×106 bound is the
+    // board's REAL computed row height ±1px, not a wide, un-earned window.
+    const TALL_PHONE: Board[] = [PHONE[0]!, PHONE[1]!]; // the two 844px combos
+
+    it("leaves the viewer battlefield a usable (>80px) band on the two 844px phones", () => {
+        for (const board of TALL_PHONE) {
             const b = bandBoxes(board);
             const rowHeight =
                 (b.viewerBattlefield.bottom - b.viewerBattlefield.top) / 2;
@@ -259,27 +286,70 @@ describe("portrait band budget tiles without overlap (#1760)", () => {
         }
     });
 
-    it("documents the accepted floor shortfall on the 667px phone (#1814 fixup)", () => {
-        // Before the nameplate reservation this board's row was ALREADY
-        // marginal (~85px, only ~5px above the 80px floor with zero
-        // nameplate budget spent). Reserving genuine space for a real
-        // nameplate (life total + name, ~62px at an absolute minimum) costs
-        // more than that ~5px of headroom on this one board — there is no
-        // reservation size that both closes the #1814 overlap AND keeps
-        // THIS board's row above 80px; something has to give. The trade
-        // mirrors the SAME disposition the "short-viewport wrap combo" block
-        // below already accepts for the 667px + wrapped-bar combo:
-        // correctness (no overlap, no collision — see the tiling and
-        // back-row tests above, which still hold for this board) is
-        // unconditional; the row-height floor is a softer, best-effort
-        // target this one narrow phone dips under.
+    it("documents the accepted usable-band shortfall on the 667×106 phone (#1814 round-2 review — tight bound, not a filtered-out board)", () => {
+        // This board's row still falls a few px short of the 80px legibility
+        // target (a SOFTER, best-effort target than the 44px hard
+        // touch-target floor the dedicated describe block below checks —
+        // that one this board DOES clear, see the "hard constraint"
+        // describe block). Bound tight to the real computed value (not the
+        // old 40-80 window) so a regression that moved this further away
+        // from 80px — rather than the tiny, accepted, documented shortfall —
+        // still fails here.
         const board = { height: 667, barHeight: 106 };
         const b = bandBoxes(board);
         const rowHeight =
             (b.viewerBattlefield.bottom - b.viewerBattlefield.top) / 2;
-        expect(rowHeight).toBeGreaterThan(40);
+        expect(rowHeight).toBeGreaterThan(74);
         expect(rowHeight).toBeLessThan(80);
     });
+
+    it("the reserved band is at least the compact nameplate's OWN worst-case box, not merely self-consistent with the battlefield inset (#1814 round-2 review, finding 3)", () => {
+        // The bug this closes: the OLD version of this suite defined
+        // `viewerNameplate`'s box straight off the SAME `calc()` expression
+        // the reservation itself publishes (battlefield bottom = nameplate
+        // top, nameplate bottom = hand top), so every assertion about the
+        // nameplate box reduced to comparing the reservation against
+        // itself — it passed even with a 1px band. Nothing tied the
+        // reservation's SIZE to what `PlayerNameplate`'s `compact` variant
+        // actually renders. `PORTRAIT_NAMEPLATE_MAX_H` is that independent
+        // tie: built from named sub-constants that mirror the component's
+        // real classes (border width, `py-0.5` padding, the one content
+        // row's `leading-none` line-height) — never derived from
+        // `portraitBandVars()` or `bandBoxes()` at all.
+        const bandHeightPx = parseFloat(PORTRAIT_NAMEPLATE_BAND_H) * 16;
+        expect(bandHeightPx).toBeGreaterThanOrEqual(
+            PORTRAIT_NAMEPLATE_MAX_H + PORTRAIT_NAMEPLATE_SAFETY_PX
+        );
+        // And the reservation isn't padded far beyond that real box either —
+        // an oversized reservation would silently re-eat the card-width
+        // headroom the compaction (this same review round) exists to win
+        // back. Generous but not open-ended: at most a few px of slack.
+        expect(bandHeightPx).toBeLessThan(
+            PORTRAIT_NAMEPLATE_MAX_H + PORTRAIT_NAMEPLATE_SAFETY_PX + 4
+        );
+    });
+});
+
+describe("battlefield card width stays tappable (#1814 round-2 review — hard constraint)", () => {
+    // Finding 1 of the round-2 review: a fixed WORST-CASE reservation sized
+    // to the desktop nameplate (5.5rem/88px) shrank the viewer battlefield's
+    // rows to ~63px on a 667×106 phone — a 120×168 card scaled down to
+    // 35×49px, under the 44px touch-target floor. `bandedCardWidth` (above)
+    // runs the SAME row-height → card-width math `board-battlefield.tsx`
+    // does, so this is a real tappability check, not a row-height proxy.
+    it.each(PHONE)(
+        "renders battlefield cards >= 44px wide (h=$height bar=$barHeight)",
+        (board) => {
+            const b = bandBoxes(board);
+            const bfHeight =
+                b.viewerBattlefield.bottom - b.viewerBattlefield.top;
+            // Two bands (creature row + the split lands/other back row)
+            // share the battlefield equally — the same split
+            // `board-battlefield.tsx`'s `bandedRowsLayout` call uses.
+            const rowHeight = bfHeight / 2;
+            expect(bandedCardWidth(rowHeight)).toBeGreaterThanOrEqual(44);
+        }
+    );
 });
 
 describe("band budget is derived, not hand-tuned", () => {
@@ -420,11 +490,10 @@ describe("short-viewport wrap combo (#1770 follow-up from #1790)", () => {
     });
 
     it("documents the accepted floor shortfall — battlefield rows dip well below 80px", () => {
-        // #1814 fixup: the reserved nameplate band (`PORTRAIT_NAMEPLATE_BAND_H`)
-        // stacks on top of the wrapped-bar shortfall this combo already
-        // accepted, pushing the row further down than the ~74px this test
-        // used to document (pre-fixup) — still a usable, non-degenerate row,
-        // just further below the ~80px floor the two taller PHONE combos
+        // The reserved nameplate band (`PORTRAIT_NAMEPLATE_BAND_H`) stacks on
+        // top of the wrapped-bar shortfall this combo already accepted,
+        // pushing the row to ~67px — still a usable, non-degenerate row,
+        // just further below the ~80px floor the two 844px PHONE combos
         // comfortably clear. A regression that pushed this to near-zero (or
         // negative) should still fail here.
         const b = bandBoxes(SHORT_WRAPPED);
@@ -432,5 +501,22 @@ describe("short-viewport wrap combo (#1770 follow-up from #1790)", () => {
             (b.viewerBattlefield.bottom - b.viewerBattlefield.top) / 2;
         expect(rowHeight).toBeGreaterThan(40);
         expect(rowHeight).toBeLessThan(80);
+    });
+
+    it("documents the accepted card-width shortfall on this combo (#1814 round-2 review — explicit bound, never a silent filter)", () => {
+        // The one combo the 44px hard touch-target floor (see "battlefield
+        // card width stays tappable" describe block, `portrait-board-bands`
+        // main PHONE array) does NOT clear even after the round-2
+        // compaction: a two-line bar on the shortest supported phone, a
+        // transient state (mid `DECLARE_ATTACKERS`). Documented here with a
+        // dedicated, bounded assertion — never by silently excluding this
+        // board from the main sweep via a filter. Still a real, tappable-ish
+        // (~38px), non-degenerate card; tiling and no-overlap hold
+        // unconditionally regardless (see the tests above).
+        const b = bandBoxes(SHORT_WRAPPED);
+        const bfHeight = b.viewerBattlefield.bottom - b.viewerBattlefield.top;
+        const cardWidth = bandedCardWidth(bfHeight / 2);
+        expect(cardWidth).toBeGreaterThan(30);
+        expect(cardWidth).toBeLessThan(44);
     });
 });

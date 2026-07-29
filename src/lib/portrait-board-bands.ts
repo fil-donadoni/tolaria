@@ -101,17 +101,64 @@ export const PORTRAIT_VIEWER_BF_BOTTOM_VAR = "--portrait-viewer-bf-bottom";
  *  grows upward — but the battlefield's own bottom inset now stops one whole
  *  band above that, so the back row can never land underneath it.
  *
- *  Sized from `PlayerNameplate`'s actual box, WORST case (both poison and
- *  energy badges shown): 1px×2 border + `py-2` (0.5rem×2) padding + the life
- *  total's `text-3xl leading-none` line (1.875rem) + the name's `mt-0.5` gap
- *  plus its `text-[10px]` line (≈3.9rem base) + a poison counter row and an
- *  energy counter row (each `mt-0.5` + `text-[11px] leading-none`) ≈ 5.5rem
- *  total. Sized for the WORST case rather than the common one (unlike
- *  `LANDSCAPE_SIDE_GUTTER`'s "generous but not exhaustive" reservation)
- *  because this dimension is the scarce one in portrait — a leftover gap
- *  under an ordinary nameplate costs nothing, while an under-reservation
- *  reopens the exact overlap this band exists to close. */
-export const PORTRAIT_NAMEPLATE_BAND_H = "5.5rem";
+ *  **Round-2 review fixup — the fixed 5.5rem (88px) reservation above was
+ *  itself a bug, just a different one.** Sized to the DESKTOP nameplate's
+ *  worst case (life + name on separate lines, a poison row, an energy row),
+ *  it traded the #1814 overlap for a worse regression: on a 667×106 phone it
+ *  left the viewer battlefield's two rows ~63px tall each — a 120×168 card
+ *  scales down to **35×49px**, under the 44px touch-target floor, so the
+ *  fix made lands untappable via the OTHER mechanism (too small to hit
+ *  instead of hidden under the nameplate). It also folded half its 88px into
+ *  the midline split (see {@link PORTRAIT_MIDLINE_VAR}), shrinking the
+ *  OPPONENT's battlefield from 169.8px to 125.8px too, for a card the
+ *  opponent's own chrome never needed to be that tall for.
+ *
+ *  The real fix is a SMALLER worst case, not a bigger reservation:
+ *  `PlayerNameplate`'s `compact` variant (portrait only, `player-nameplate.tsx`)
+ *  puts life + name + BOTH counter badges on ONE row instead of up to five,
+ *  with an explicit `leading-none` (or a fixed-height glyph) on every piece —
+ *  no inherited/ambiguous line-height, no anonymous-inline-box strut, so the
+ *  row's height is exactly its tallest child's font-size and nothing else.
+ *  {@link PORTRAIT_NAMEPLATE_MAX_H} is that compact box's derivation, in px,
+ *  built from named sub-constants that mirror the component's own classes —
+ *  this constant and the compact JSX are meant to be read side by side, and
+ *  a change to one that isn't mirrored in the other is exactly what
+ *  `PORTRAIT_NAMEPLATE_MAX_H`'s dedicated test (`portrait-board-bands.test.ts`)
+ *  exists to catch. */
+
+/** `border` (1px × 2 edges) on the nameplate box. */
+export const PORTRAIT_NAMEPLATE_BORDER_PX = 2;
+/** Compact-variant vertical padding: `py-0.5` = 0.125rem × 2 edges × 16px. */
+export const PORTRAIT_NAMEPLATE_PADDING_PX = 4;
+/** The compact variant's ONE content row (life + name + both counter badges,
+ *  all inline, `flex` not `inline-flex` so none of them sit in an anonymous
+ *  line box that would otherwise take a strut from an inherited line-height).
+ *  The row's height is its TALLEST child's own explicit line box: the life
+ *  total's `text-lg leading-none` = 1.125rem × 1 × 16px = 18px. Name
+ *  (`text-[9px] leading-none` = 9px) and each counter badge (`text-[11px]
+ *  leading-none` = 11px) are both shorter, so they never grow the row —
+ *  unlike the pre-fixup name line, which had NO `leading-*` utility and so
+ *  silently inherited the ambient 1.5 line-height (`text-[10px]` rendering at
+ *  15px, not 10) — finding 2 of the round-2 review. */
+export const PORTRAIT_NAMEPLATE_ROW_PX = 18;
+/** The compact box's total content height (border + padding + the one row),
+ *  in px — the real worst case `PlayerNameplate`'s `compact` variant can
+ *  render, derived from the sub-constants above rather than eyeballed. */
+export const PORTRAIT_NAMEPLATE_MAX_H =
+    PORTRAIT_NAMEPLATE_BORDER_PX +
+    PORTRAIT_NAMEPLATE_PADDING_PX +
+    PORTRAIT_NAMEPLATE_ROW_PX;
+/** Rendering-tolerance safety margin (sub-pixel rounding, browser font-metric
+ *  variance at `line-height: 1`) — a small FIXED buffer on top of the exact
+ *  box math above, not a hand-tuned fudge chosen to hit a target size. */
+export const PORTRAIT_NAMEPLATE_SAFETY_PX = 2;
+/** The published reservation: the compact box's real worst case plus the
+ *  safety margin, expressed in rem (so it scales with the root font size like
+ *  every other length in this budget) rather than retyped as a literal. At a
+ *  16px root this is exactly `(24 + 2) / 16 = 1.625rem` — no rounding. */
+export const PORTRAIT_NAMEPLATE_BAND_H = `${
+    (PORTRAIT_NAMEPLATE_MAX_H + PORTRAIT_NAMEPLATE_SAFETY_PX) / 16
+}rem`;
 export const PORTRAIT_NAMEPLATE_BAND_VAR = "--portrait-nameplate-h";
 
 /** Bottom inset of the nameplate band itself — the boundary the nameplate

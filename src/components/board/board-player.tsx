@@ -50,6 +50,14 @@ type BoardPlayerProps = {
  *  arrow anchor and the mana pool (the latter `pointer-events-none` — see
  *  `player-mana-pool.tsx`). Desktop is unchanged.
  *
+ *  **Round-2 fixup:** the anchor no longer carries an `mb-1` margin between
+ *  the nameplate and the hand band's top edge. That 4px gap used to be spent
+ *  OUTSIDE `PORTRAIT_NAMEPLATE_BAND_H`'s own accounting — a real cost the
+ *  reservation math silently didn't budget for (review round 2, finding 2).
+ *  Dropping it removes the gap entirely rather than tracking it twice; the
+ *  nameplate now sits flush on the hand band's own top edge, same as the
+ *  opponent's `top-1` sits flush against the viewport edge.
+ *
  *  Landscape-compact (#1768) moves BOTH seats' chrome into the board's left
  *  rail, stacked around the landscape midline. On a phone held sideways the
  *  desktop anchors (`play-area-center-x` at the top/bottom edge) land squarely
@@ -67,7 +75,7 @@ function seatAnchorClass(
             : LANDSCAPE_VIEWER_SEAT_ANCHOR;
     if (side === "top") return "play-area-center-x -translate-x-1/2 top-1";
     if (isPortrait)
-        return `play-area-center-x -translate-x-1/2 ${PORTRAIT_VIEWER_NAMEPLATE_BOTTOM} mb-1`;
+        return `play-area-center-x -translate-x-1/2 ${PORTRAIT_VIEWER_NAMEPLATE_BOTTOM}`;
     return "play-area-center-x -translate-x-1/2 bottom-1";
 }
 
@@ -101,7 +109,11 @@ export default function BoardPlayer({ player, side }: BoardPlayerProps) {
             )}`}
         >
             <PlayerManaPool player={player} />
-            <PlayerNameplate player={player} interaction={interaction} />
+            <PlayerNameplate
+                player={player}
+                interaction={interaction}
+                compact={isPortrait}
+            />
         </div>
     );
 }

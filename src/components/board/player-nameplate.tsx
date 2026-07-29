@@ -11,6 +11,9 @@ type PlayerNameplateProps = {
     /** Extra classes appended by the layout (e.g. absolute positioning on the
      *  spatial board). */
     className?: string;
+    /** Portrait-only compact variant (#1814 round-2 fixup) — see the
+     *  dedicated doc block below `PlayerNameplate` for the full account. */
+    compact?: boolean;
 };
 
 /** Box-shadow ring/glow for the nameplate, by interaction state, using only
@@ -52,11 +55,28 @@ function nameplateShadow(
  *
  *  Carries `data-arrow-anchor-player` so a spell/ability that targets a player
  *  (e.g. Lightning Bolt to the face) can attach its arrow
- *  (`target-arrows-overlay.tsx` / `board-arrows.tsx`). */
+ *  (`target-arrows-overlay.tsx` / `board-arrows.tsx`).
+ *
+ *  **`compact` (#1814 round-2 fixup).** Portrait's viewer nameplate grows
+ *  UPWARD out of a band the battlefield's own inset must reserve for it
+ *  (`PORTRAIT_NAMEPLATE_BAND_H`, `portrait-board-bands.ts`) — review round 1
+ *  sized that reservation to the DESKTOP nameplate's worst case (~91px:
+ *  life + name on separate lines, each counter its own row) and paid for it
+ *  by shrinking the battlefield to unusably small (untappable, <44px wide)
+ *  cards on a 667px phone. `compact` is the fix: ONE row — life, name, and
+ *  BOTH counter badges inline, every piece with an explicit `leading-none`
+ *  (or a fixed-height glyph) so the row's height is exactly the tallest
+ *  child's font-size, never an inherited/ambiguous line-height. Collapsing
+ *  three-to-five rows into one is what lets the reserved band shrink from
+ *  ~91px to `PORTRAIT_NAMEPLATE_BAND_H` (~26px content + a small rendering
+ *  safety margin, see that constant for the exact box math) while still
+ *  showing every field the desktop nameplate shows. Desktop/landscape and the
+ *  classic `player-life.tsx` never pass `compact` — their box is unchanged. */
 export default function PlayerNameplate({
     player,
     interaction,
     className = "",
+    compact = false,
 }: PlayerNameplateProps) {
     const { hasPriority, isTargetable, isDamageTargetPickable } = interaction;
 
@@ -74,21 +94,49 @@ export default function PlayerNameplate({
             data-arrow-anchor-player={player.id}
             onClick={interaction.handleClick}
             style={{ boxShadow }}
-            className={`relative shrink-0 rounded-sm bg-surface/90 border border-border-subtle/80 px-5 py-2 text-center backdrop-blur-md transition-shadow duration-200 ${
-                interactive ? "cursor-pointer" : ""
-            } ${className}`}
+            className={`relative shrink-0 rounded-sm bg-surface/90 border border-border-subtle/80 text-center backdrop-blur-md transition-shadow duration-200 ${
+                compact ? "px-3 py-0.5" : "px-5 py-2"
+            } ${interactive ? "cursor-pointer" : ""} ${className}`}
         >
             <CornerFiligreeFrame overlay size={14} subtle />
             {/* key by player.id so a solo-mode viewer swap (different player
              *  rendered at the same seat position) remounts the animator with a
              *  fresh baseline instead of animating a phantom life delta — the
              *  swap is only a change of view, not a real life change. */}
-            <AnimatedLifeTotal key={player.id} life={player.life} />
-            <div className="mt-0.5 text-[10px] uppercase tracking-[0.2em] text-text-muted">
-                {player.name}
-            </div>
-            <PlayerPoisonCounters count={player.poisonCounters} />
-            <PlayerEnergyCounters count={player.energyCounters} />
+            {compact ? (
+                // Single row — see the `compact` doc above. `flex-nowrap` so a
+                // long name never wraps the row onto a second line (which
+                // would blow the reserved band's exact height budget); a name
+                // that doesn't fit truncates instead via `truncate` + a max
+                // width, not by growing taller.
+                <div className="flex flex-nowrap items-center justify-center gap-1.5">
+                    <AnimatedLifeTotal
+                        key={player.id}
+                        life={player.life}
+                        compact
+                    />
+                    <span className="max-w-16 truncate text-[9px] leading-none uppercase tracking-[0.15em] text-text-muted">
+                        {player.name}
+                    </span>
+                    <PlayerPoisonCounters
+                        count={player.poisonCounters}
+                        compact
+                    />
+                    <PlayerEnergyCounters
+                        count={player.energyCounters}
+                        compact
+                    />
+                </div>
+            ) : (
+                <>
+                    <AnimatedLifeTotal key={player.id} life={player.life} />
+                    <div className="mt-0.5 text-[10px] uppercase tracking-[0.2em] text-text-muted">
+                        {player.name}
+                    </div>
+                    <PlayerPoisonCounters count={player.poisonCounters} />
+                    <PlayerEnergyCounters count={player.energyCounters} />
+                </>
+            )}
             {/* The Monarch designation moved off the nameplate to a marker-card
              *  tile beside the piles (`player-monarch-tile.tsx`, #1305). */}
             {/* CR 601.2d — a divide-target player keeps its candidate ring (via

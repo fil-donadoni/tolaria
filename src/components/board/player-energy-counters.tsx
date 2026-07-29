@@ -7,16 +7,22 @@
 type PlayerEnergyCountersProps = {
     /** Energy counters on the player. Absent / zero hides the badge. */
     count: number | undefined;
+    /** Portrait compact nameplate (#1814 round-2 fixup) — mirrors
+     *  {@link PlayerPoisonCounters}'s `compact`: renders inline in the SAME
+     *  row as life/name/poison, no own `mt-0.5`, spacing from the parent
+     *  row's `gap` instead. */
+    compact?: boolean;
 };
 
 export default function PlayerEnergyCounters({
     count,
+    compact = false,
 }: PlayerEnergyCountersProps) {
     if (!count || count <= 0) return null;
 
     return (
         <div
-            className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-semibold leading-none text-accent-strong"
+            className={`${compact ? "" : "mt-0.5"} inline-flex items-center gap-1 text-[11px] font-semibold leading-none text-accent-strong`}
             title={`${count} energy counter${count === 1 ? "" : "s"} ({E})`}
             aria-label={`${count} energy counters`}
         >
