@@ -103,7 +103,7 @@ if (
             "",
             "    Run the light pre-PR gate instead:",
             "      bunx vitest run <paths touched by the diff>",
-            "      bun run check:ts && bun run lint",
+            "      bun run check:pr    # same checks as check:all, no mutex",
             "",
             "    Genuinely need the full suite here? TOLARIA_ALLOW_FULL_SUITE=1 bun run test",
             "",
