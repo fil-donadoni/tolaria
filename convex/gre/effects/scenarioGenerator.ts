@@ -434,6 +434,16 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // landing in state.cannotActivateAbilitiesThisTurn (asserted below).
             analysePlayer(op.player, req, false);
             return;
+        case "skipDrawStepThisTurn":
+            // CR 504.1 (issue #1097 — Elfhame Sanctuary) — a one-shot
+            // draw-step-skip flag on a player; the deterministic outcome is
+            // the player id landing in state.skipDrawStepThisTurn (asserted
+            // below). The shipped card always wraps this Op behind a
+            // `mayPay`, which already skips the WHOLE script upstream — this
+            // case only fires for a hypothetical future card that uses the
+            // Op bare.
+            analysePlayer(op.player, req, false);
+            return;
         case "grantGraveyardPlay":
             // CR 305.1-analog / 601 (issue #1149) — a turn-scoped graveyard
             // play/cast permission grant on a player; the deterministic
@@ -1445,6 +1455,24 @@ const OP_ASSERTORS: Record<string, Assertor> = {
                 return {
                     ok: locked && !wasLocked,
                     detail: `locked=${locked} (was ${wasLocked})`,
+                };
+            },
+        };
+    },
+    // `skipDrawStepThisTurn` (CR 504.1, issue #1097 — Elfhame Sanctuary) — a
+    // deterministic same-resolution state change: the named player's id
+    // lands in state.skipDrawStepThisTurn. Asserted directly.
+    skipDrawStepThisTurn(rawOp, _scenario, pre) {
+        const op = rawOp as Extract<EffectOp, { op: "skipDrawStepThisTurn" }>;
+        const pid = assertionPlayerId(op.player);
+        const wasArmed = pre.skipDrawStepThisTurn?.includes(pid) ?? false;
+        return {
+            label: `skipDrawStepThisTurn arms player ${pid} to skip their draw step this turn`,
+            check: (post) => {
+                const armed = post.skipDrawStepThisTurn?.includes(pid) ?? false;
+                return {
+                    ok: armed && !wasArmed,
+                    detail: `armed=${armed} (was ${wasArmed})`,
                 };
             },
         };

@@ -2928,6 +2928,24 @@ export interface SpellContext {
      *  which only ever handles non-mana (`useStack: true`) abilities — mana
      *  abilities go through `tapUntap` and are structurally unaffected. */
     restrictAbilityActivation: (playerId: string) => void;
+    /** CR 504.1 (issue #1097 — Elfhame Sanctuary's "you skip your draw step
+     *  this turn") — marks `playerId` to skip their OWN draw step the next
+     *  time it is reached this turn. A one-shot flag armed at whatever step
+     *  the resolving effect runs (Elfhame Sanctuary arms it at upkeep,
+     *  earlier in the SAME turn than the draw step it consumes) and
+     *  CONSUMED — spliced back out — the first time `drawStep`
+     *  (`gre/phases.ts`) reaches that player, which simply skips the draw
+     *  outright (no replacement choice, no card drawn). Distinct from
+     *  `drawStepReplacement` (Fasting, `CardDefinition`): that is a STATIC
+     *  per-card flag re-evaluated every turn, offering an interactive
+     *  may-skip choice AT the draw step itself via its own DRAW phase
+     *  trigger; this is a plain per-turn player flag set by a DIFFERENT
+     *  step's effect, with no choice left to make once armed. Idempotent;
+     *  cleared unconditionally at CLEANUP as a safety net for turn 1 (CR
+     *  103.8a skips only the DRAW step, not UPKEEP, so a flag armed on
+     *  turn 1 would otherwise never be consumed and must not survive to a
+     *  later turn). */
+    skipDrawStepThisTurn: (playerId: string) => void;
     /** CR 601.3e — grants `playerId` a per-player casting-timing permission:
      *  they may cast spells whose printed types intersect `cardTypes` as though
      *  they had flash (Teferi, Time Raveler's +1: "Until your next turn, you
@@ -7661,6 +7679,22 @@ export interface EffectCardFilter {
      *  keywords); a future OR-across-keywords need is `any` (already OR
      *  across filter dimensions) wrapping two single-`hasAbility` clauses. */
     hasAbility?: string;
+    /** "That's attacking" (CR 508.1, issue #1097 — Tangle's "each creature
+     *  that's attacking"). Matches a BATTLEFIELD permanent whose live combat
+     *  role is attacker, mirroring `PermanentFilter.isAttacking`
+     *  (`convex/cards/filters.ts`, already read by combat-scoped choice
+     *  pickers) — `toPermanentFilter` maps this field onto it 1:1, and
+     *  `CardInstanceState.isAttacking` is already spread verbatim into every
+     *  `getBattlefieldIds` candidate, so no new engine read is needed, only
+     *  the DSL filter surface. Meaningful only for the battlefield shape (a
+     *  hand/library/graveyard card in `matchesCardFilter` has no combat role
+     *  at all — this field is a no-op there), mirroring `hasAbility`'s own
+     *  battlefield-only scope exactly. ANDed with every other field. A single
+     *  boolean, not `"attacking" | "blocking"` like
+     *  `TargetRequirement.combatRoleFilter`: no shipped card needs an
+     *  attacking-OR-blocking forEach sweep yet (`any` already covers that
+     *  disjunction if one ever does). */
+    isAttacking?: boolean;
     /** OR ACROSS filter dimensions (issue #897) — a disjunctive clause list.
      *  Every other field on this interface is ANDed together (and each of
      *  `type`/`subtype`/`color` is itself an OR-WITHIN-that-field array,
@@ -8211,6 +8245,25 @@ export type EffectOp =
      *  and cleared at CLEANUP (CR 514.2). Skipped when the player cannot be
      *  resolved (CR 608.2b). */
     | { op: "restrictActivation"; player: EffectPlayerRef }
+    /** CR 504.1 / 500.8 (issue #1097 — Elfhame Sanctuary's "you skip your
+     *  draw step this turn"). A thin declarative skin over
+     *  `SpellContext.skipDrawStepThisTurn`, one execution path (ADR 0045):
+     *  `player` names whose draw step to skip — the resolving controller for
+     *  every shipped card, but an announced slot / relative player is not
+     *  precluded by the grammar. The player's id is added to
+     *  `state.skipDrawStepThisTurn`, consumed by `advancePhase`
+     *  (`gre/phases.ts`) the next time the DRAW step is entered for that
+     *  player this turn — per CR 500.8 a skipped step doesn't happen at all,
+     *  so the whole step (turn-based draw, CR 504.2 delayed triggers, and
+     *  CR 603.6a beginning-of-step triggers like Howling Mine) is bypassed,
+     *  not merely the draw — and cleared unconditionally at CLEANUP as a
+     *  turn-1 safety net. Skipped when the player cannot be resolved (CR
+     *  608.2b). Distinct from `drawStepReplacement` (`CardDefinition`,
+     *  Fasting): that is a static per-card flag offering an interactive
+     *  may-skip choice AT the draw step itself; this Op arms a plain
+     *  one-shot flag from a DIFFERENT step's effect, with no choice left
+     *  once armed. */
+    | { op: "skipDrawStepThisTurn"; player: EffectPlayerRef }
     /** CR 601.3e (Teferi, Time Raveler +1: "Until your next turn, you may cast
      *  sorcery spells as though they had flash") — grant `player` a per-player
      *  casting-timing PERMISSION: they may cast spells whose printed types

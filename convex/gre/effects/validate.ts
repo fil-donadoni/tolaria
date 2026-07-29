@@ -192,12 +192,13 @@ function isValueOrArray(
  *  every other `EffectXValue` site uses). */
 function isCardFilter(
     value: unknown,
-    opts?: { allowHasAbility?: boolean }
+    opts?: { allowHasAbility?: boolean; allowIsAttacking?: boolean }
 ): boolean {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
         return false;
     }
     const allowHasAbility = opts?.allowHasAbility ?? false;
+    const allowIsAttacking = opts?.allowIsAttacking ?? false;
     const entries = Object.entries(value);
     return entries.every(([k, v]) => {
         if (k === "type" || k === "subtype" || k === "excludeType") {
@@ -290,7 +291,9 @@ function isCardFilter(
             return (
                 Array.isArray(v) &&
                 v.length > 0 &&
-                v.every((clause) => isCardFilter(clause, { allowHasAbility }))
+                v.every((clause) =>
+                    isCardFilter(clause, { allowHasAbility, allowIsAttacking })
+                )
             );
         }
         // CR 702 (issue #1097) — "with <keyword>" (Canopy Surge's "each
@@ -313,6 +316,15 @@ function isCardFilter(
             if (!allowHasAbility) return false;
             return typeof v === "string" && v.length > 0;
         }
+        // CR 508.1 (issue #1097 — Tangle's "each attacking creature").
+        // Same battlefield-only honesty rule as `hasAbility` right above: a
+        // hidden-zone/snapshot card shape carries no combat role at all, so
+        // `allowIsAttacking` is threaded in ONLY from the same
+        // battlefield-guaranteed selector sites `hasAbility` already uses.
+        if (k === "isAttacking") {
+            if (!allowIsAttacking) return false;
+            return typeof v === "boolean";
+        }
         return false;
     });
 }
@@ -333,6 +345,24 @@ function filterUsesHasAbility(value: unknown): boolean {
     return (
         Array.isArray(f.any) &&
         f.any.some((clause) => filterUsesHasAbility(clause))
+    );
+}
+
+/** Whether an `EffectCardFilter` uses `isAttacking`, directly or nested
+ *  inside an `any` clause (issue #1097) — the `isAttacking` sibling of
+ *  `filterUsesHasAbility` right above, same rationale and same single call
+ *  site (the `choice` Op's cross-field `check`). */
+function filterUsesIsAttacking(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    const f = value as Record<string, unknown>;
+    if (typeof f.isAttacking === "boolean") {
+        return true;
+    }
+    return (
+        Array.isArray(f.any) &&
+        f.any.some((clause) => filterUsesIsAttacking(clause))
     );
 }
 
@@ -656,14 +686,18 @@ function isCountValue(value: unknown): boolean {
     } else if (!isPlayerRef(s.controller)) {
         return false;
     }
-    // `hasAbility` (issue #1097) is honest only on the "battlefield" branch —
-    // `countZoneForPlayer` (`gre/effects/interpreter.ts`) reads it via the
-    // LIVE `toPermanentFilter`/`requireAbility` path there, but falls back to
-    // `matchesCardFilter` for the "graveyard" branch, which has no ability
-    // data for a hidden-zone card at all.
+    // `hasAbility` / `isAttacking` (issue #1097) are honest only on the
+    // "battlefield" branch — `countZoneForPlayer` (`gre/effects/interpreter.ts`)
+    // reads them via the LIVE `toPermanentFilter`/`requireAbility`/`isAttacking`
+    // path there, but falls back to `matchesCardFilter` for the "graveyard"
+    // branch, which has no ability or combat-role data for a hidden-zone card
+    // at all.
     if (
         "filter" in s &&
-        !isCardFilter(s.filter, { allowHasAbility: s.zone === "battlefield" })
+        !isCardFilter(s.filter, {
+            allowHasAbility: s.zone === "battlefield",
+            allowIsAttacking: s.zone === "battlefield",
+        })
     ) {
         return false;
     }
@@ -1442,12 +1476,15 @@ function isPredicate(value: unknown): boolean {
         // `target.type === "permanent"` AND battlefield membership before
         // matching — a non-permanent or off-battlefield resolution reads
         // `false` rather than falling through to this filter. So `filter`
-        // here is ALWAYS tested against a live battlefield object — `hasAbility`
-        // (issue #1097) is honest here the same way it is for a `forEach { set:
-        // "permanents" }` member.
+        // here is ALWAYS tested against a live battlefield object —
+        // `hasAbility` / `isAttacking` (issue #1097) are honest here the same
+        // way they are for a `forEach { set: "permanents" }` member.
         return (
             isObjectSelector(obj.objectMatchesFilter) &&
-            isCardFilter(obj.filter, { allowHasAbility: true })
+            isCardFilter(obj.filter, {
+                allowHasAbility: true,
+                allowIsAttacking: true,
+            })
         );
     }
     // Comparison form.
@@ -1574,11 +1611,19 @@ function isForEachSelector(value: unknown): boolean {
     // CR 110.1 — permanents only exist on the battlefield.
     if (s.zone !== "battlefield") return false;
     if ("controller" in s && !isPlayerRef(s.controller)) return false;
-    // `zone` is confirmed "battlefield" above — `hasAbility` (issue #1097)
-    // reads the LIVE `staticAbilities` array via `toPermanentFilter` /
-    // `matchesPermanentFilter` here, unlike the graveyard branch above (which
-    // has no live battlefield object to read a granted keyword off of).
-    if ("filter" in s && !isCardFilter(s.filter, { allowHasAbility: true })) {
+    // `zone` is confirmed "battlefield" above — `hasAbility` reads the LIVE
+    // `staticAbilities` array and `isAttacking` (issue #1097 — Tangle's "each
+    // attacking creature") reads the live combat-role flag, both via
+    // `toPermanentFilter` / `matchesPermanentFilter` here, unlike the
+    // graveyard branch above (which has no live battlefield object to read
+    // either off of).
+    if (
+        "filter" in s &&
+        !isCardFilter(s.filter, {
+            allowHasAbility: true,
+            allowIsAttacking: true,
+        })
+    ) {
         return false;
     }
     return true;
@@ -1621,7 +1666,10 @@ function isPileObjectSelector(value: unknown): boolean {
         // `isForEachSelector` permanents-branch comment (issue #1097).
         if (
             "filter" in s &&
-            !isCardFilter(s.filter, { allowHasAbility: true })
+            !isCardFilter(s.filter, {
+                allowHasAbility: true,
+                allowIsAttacking: true,
+            })
         ) {
             return false;
         }
@@ -1802,6 +1850,10 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // CR 602.1 / 605.1a (issue #1124) — a turn-scoped per-player "can't
     // activate non-mana abilities" lock (Abeyance). `player` names whom to lock.
     restrictActivation: { required: { player: isPlayerRef } },
+    // CR 504.1 (issue #1097 — Elfhame Sanctuary) — a one-shot per-player
+    // "skip your draw step this turn" flag. `player` names whose draw step
+    // to skip.
+    skipDrawStepThisTurn: { required: { player: isPlayerRef } },
     // CR 601.3e (Teferi, Time Raveler +1) — grant a per-player "cast as though
     // it had flash" timing permission. `player` names the grantee; `cardTypes`
     // (optional) narrows the grant to those card types (Teferi: ["Sorcery"]);
@@ -2715,7 +2767,11 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             // field validator only sees its own value) — permissive at the
             // field level, gated below in `check` instead, mirroring the
             // `candidates` ⇒ battlefield rule right below.
-            filter: (v) => isCardFilter(v, { allowHasAbility: true }),
+            filter: (v) =>
+                isCardFilter(v, {
+                    allowHasAbility: true,
+                    allowIsAttacking: true,
+                }),
             zoneOwnerId: isPlayerRef,
             id: isNonEmptyString,
             candidates: (v) =>
@@ -2746,6 +2802,17 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             ) {
                 errors.push(
                     '"filter.hasAbility" is valid only with zone: "battlefield" — a hand/library/graveyard/exile card carries no ability data to match against'
+                );
+            }
+            // `isAttacking` (issue #1097) — the `hasAbility` rule right above,
+            // applied to combat role instead of keywords: a hand/library/
+            // graveyard/exile card has no combat role at all.
+            if (
+                entry.zone !== "battlefield" &&
+                filterUsesIsAttacking(entry.filter)
+            ) {
+                errors.push(
+                    '"filter.isAttacking" is valid only with zone: "battlefield" — a hand/library/graveyard/exile card carries no combat-role data to match against'
                 );
             }
             if (

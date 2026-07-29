@@ -11,6 +11,7 @@ import type {
 } from "../../types";
 import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
 // Blurred Mongoose — "This spell can't be countered. Shroud (This creature
 // can't be the target of spells or abilities.)" (CR 701.5c can't-be-countered
@@ -1248,22 +1249,98 @@ export const canopySurge: CardDefinition = {
 
 // Elfhame Sanctuary — "At the beginning of your upkeep, you may search your
 // library for a basic land card, reveal that card, put it into your hand,
-// then shuffle. If you do, you skip your draw step this turn." The "you may…
-// if you do" gate is buildable (`mayPay` with no `cost`, issue #680), but
-// "skip your draw step this turn" has no primitive: no `skipDrawStepThisTurn`
-// flag exists anywhere in `GameState`/`phases.ts`. The one existing
-// draw-step-skip precedent (Fasting, `drk/white.ts`) is a DIFFERENT shape — a
-// replacement decision made AT the draw step itself ("if you would begin your
-// draw step, you may skip it"), not a flag SET earlier (at upkeep) and
-// consumed later (at draw).
-// tracked-by: #1097
-// export const elfhameSanctuary: CardDefinition = {
-//     id: "6ab9a90c-5fd8-4f8c-b692-f98a2974810c",
-//     name: "Elfhame Sanctuary",
-//     rarity: "uncommon",
-//     manaCost: { X: 1, G: 1 },
-//     types: ["Enchantment"],
-// };
+// then shuffle. If you do, you skip your draw step this turn." (CR 603.6a
+// upkeep trigger; 117.3a/608.2b cost-free "you may"; 701.19 search/reveal;
+// 504.1 draw-step skip, issue #1097.)
+//
+// The "you may … if you do" gate is the pre-existing cost-free `mayPay`
+// (issue #680) + `if` shape (Formidable Speaker, `ecl/green.ts`) — bind
+// `$searched` on the bare may-decision, then gate the WHOLE search/reveal/
+// hand/shuffle/skip sequence on it. "If you do" is the entire preceding
+// compound action (searching — even one that finds no basic land — reveals,
+// puts into hand, and shuffles), NOT "if you found a land": the skip fires
+// whenever the player chooses to search, mirroring how Formidable Speaker's
+// own "if you do" gates on having discarded, not on finding a creature.
+//
+// The remaining gap (issue #1097) was "skip your draw step this turn" itself:
+// no `skipDrawStepThisTurn` flag/primitive existed anywhere in `GameState`/
+// `phases.ts`. Closed by a new one-shot per-player `GameState
+// .skipDrawStepThisTurn` array (`SpellContext.skipDrawStepThisTurn`, the
+// `skipDrawStepThisTurn` Op) armed here at upkeep and consumed by
+// `advancePhase` (`gre/phases.ts`) the next time this player's DRAW step is
+// entered, later the SAME turn — per CR 500.8 the whole step is skipped (no
+// draw, no beginning-of-step triggers), not merely the draw. Kept
+// DELIBERATELY SEPARATE from the one existing
+// draw-step-skip precedent, Fasting (`drk/white.ts`, CR 504/614): Fasting is
+// a STATIC per-card `drawStepReplacement` flag re-checked every turn, which
+// hands off to its OWN DRAW-phase trigger for an INTERACTIVE may-skip choice
+// made AT the draw step itself (the choice AND the skip happen at the same
+// step). Elfhame Sanctuary's skip is already DECIDED at upkeep — nothing is
+// asked again at the draw step — so unifying it with Fasting's replacement
+// shape would mean inventing a fake "replacement" with no choice to offer,
+// contorting a different mechanic to fit. A plain armed flag consumed
+// directly is the honest shape for "if you do [something earlier], you skip
+// [a later step] — no further decision".
+export const elfhameSanctuary: CardDefinition = {
+    id: "6ab9a90c-5fd8-4f8c-b692-f98a2974810c",
+    name: "Elfhame Sanctuary",
+    rarity: "uncommon",
+    oracleText:
+        "At the beginning of your upkeep, you may search your library for a basic land card, reveal that card, put it into your hand, then shuffle. If you do, you skip your draw step this turn.",
+    manaCost: { X: 1, G: 1 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "elfhame-sanctuary-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, you may search your library for a basic land card, reveal that card, put it into your hand, then shuffle. If you do, you skip your draw step this turn.",
+            phase: "UPKEEP",
+            scope: "your",
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
+                    prompt: "Search your library for a basic land card? If you do, you skip your draw step this turn.",
+                    bind: "$searched",
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$searched" },
+                    then: [
+                        {
+                            op: "choice",
+                            kind: "search-library",
+                            player: "controller",
+                            zone: "library",
+                            filter: { type: "Land", supertype: "Basic" },
+                            count: { min: 0, max: 1 },
+                            prompt: "Search your library for a basic land card.",
+                            bind: "$found",
+                        },
+                        {
+                            op: "reveal",
+                            player: "controller",
+                            cards: { ref: "$found" },
+                        },
+                        {
+                            op: "moveZone",
+                            cards: { ref: "$found" },
+                            player: "controller",
+                            from: "library",
+                            to: "hand",
+                        },
+                        {
+                            op: "libraryLook",
+                            action: "shuffle",
+                            player: "controller",
+                        },
+                        { op: "skipDrawStepThisTurn", player: "controller" },
+                    ],
+                },
+            ],
+        }),
+    ],
+};
 
 // Pulse of Llanowar — "If a basic land you control is tapped for mana, it
 // produces mana of a color of your choice instead of any other type." A
@@ -1365,19 +1442,48 @@ export const restock: CardDefinition = {
 
 // Tangle — "Prevent all combat damage that would be dealt this turn. Each
 // attacking creature doesn't untap during its controller's next untap
-// step." The prevention half is free (`preventDamage` mode "all-combat"),
-// but the untap-lock half needs `skipNextUntap` (the Barl's Cage precedent,
-// `drk/colorless.ts`, `resolve()`-only) — its Op skin (`lockUntap`) is
-// `status: "planned"` in `EFFECT_OP_BACKLOG` (`mechanicsRegistry.ts`), not
-// registered, so it isn't usable DSL vocabulary yet.
-// tracked-by: #1097
-// export const tangle: CardDefinition = {
-//     id: "6b37e39c-8aa4-4938-a492-7dac5de98dfb",
-//     name: "Tangle",
-//     rarity: "uncommon",
-//     manaCost: { X: 1, G: 1 },
-//     types: ["Instant"],
-// };
+// step." (CR 615 damage prevention; CR 508.1/502.1 untap-step lock, issue
+// #1097.)
+//
+// The prevention half is the already-shipped `preventDamage` mode
+// "all-combat" (Fog precedent). The untap-lock half's Op, `skipNextUntap`
+// (CR 302.6/502.1, PRD #795 — Barl's Cage, `drk/colorless.ts`), ALSO already
+// shipped and explicitly supports a `forEach` `$each` target — it is NOT the
+// gap the original issue text named. `lockUntap` (`EFFECT_OP_BACKLOG`,
+// `mechanicsRegistry.ts`) is a DIFFERENT, still-`planned` mechanic: the
+// CONTINUOUS source-linked "doesn't untap AS LONG AS … remains tapped" (CR
+// 502.3), not Tangle's ONE-SHOT "doesn't untap during its controller's NEXT
+// untap step" — registering `lockUntap` for this card would have been the
+// wrong name for the wrong mechanic. The actual remaining gap was narrower:
+// `EffectCardFilter` (the `forEach` battlefield selector's filter) had no
+// combat-role field, so "each creature that's ATTACKING" couldn't be
+// expressed — the same shape of gap Canopy Surge's `hasAbility` field closed
+// for "each creature WITH FLYING" (issue #1097). Closed the same way: a new
+// `isAttacking` filter field (mirrors `PermanentFilter.isAttacking`,
+// `convex/cards/filters.ts`, already read by combat-scoped choice pickers),
+// not a new Op — `forEach` selects the live attacking set, and each member
+// feeds the SAME already-exercised `skipNextUntap` Op via `{ ref: "$each" }`.
+export const tangle: CardDefinition = {
+    id: "6b37e39c-8aa4-4938-a492-7dac5de98dfb",
+    name: "Tangle",
+    rarity: "uncommon",
+    oracleText:
+        "Prevent all combat damage that would be dealt this turn.\nEach attacking creature doesn't untap during its controller's next untap step.",
+    manaCost: { X: 1, G: 1 },
+    types: ["Instant"],
+    effects: [
+        { op: "preventDamage", mode: "all-combat" },
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                filter: { type: "Creature", isAttacking: true },
+            },
+            effects: [{ op: "skipNextUntap", target: { ref: "$each" } }],
+        },
+    ],
+};
 
 // Verdeloth the Ancient — "Kicker {X}. Saproling creatures and other
 // Treefolk creatures get +1/+1. When Verdeloth enters, if it was kicked,

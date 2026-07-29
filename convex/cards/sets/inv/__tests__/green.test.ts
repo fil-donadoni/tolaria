@@ -10,9 +10,11 @@ import { describe, it, expect } from "vitest";
 import {
     blurredMongoose,
     canopySurge,
+    elfhameSanctuary,
     kavuChameleon,
     kavuLair,
     restock,
+    tangle,
     wanderingStream,
 } from "../green";
 import {
@@ -28,8 +30,11 @@ import {
     type GameState,
     type StackItem,
 } from "../../../../gre/state";
-import { finalizeCleanup } from "../../../../gre/phases";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
+import { advancePhase, finalizeCleanup } from "../../../../gre/phases";
+import {
+    applyMayPaySubmit,
+    applyPendingChoiceSubmit,
+} from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
 import { STATIC_EFFECT_CTX } from "../../../../gre/layers";
 import { isGuardedAgainst } from "../../../../gre/permanentGuard";
@@ -442,5 +447,304 @@ describe("Restock (CR 400.7 return, CR 608.2 exile-self, issue #1097)", () => {
         const projected = projectPublicState(state, 1, "p1");
         expect(projected.players[0].hand).toHaveLength(2);
         expect(projected.players[0].exile.map((c) => c.id)).toContain(item.id);
+    });
+});
+
+describe("Elfhame Sanctuary (CR 504.1 skip-draw-step, CR 603.6a upkeep, issue #1097)", () => {
+    /** Fires the upkeep trigger by advancing UNTAP → UPKEEP (mirrors Fasting's
+     *  harness, `drk/__tests__/white.test.ts`): the phase-begin trigger scan
+     *  places `elfhame-sanctuary-upkeep` on the stack, suspended at the head of
+     *  the priority window. */
+    function enterUpkeep(state: GameState): void {
+        advancePhase(state);
+        expect(state.phase).toBe("UPKEEP");
+    }
+
+    function makeSanctuary() {
+        return makeInstance(elfhameSanctuary.id, {
+            id: "sanctuary",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+    }
+
+    it("snapshot: card definition wiring (oracle + upkeep trigger)", () => {
+        expect(elfhameSanctuary.types).toEqual(["Enchantment"]);
+        expect(elfhameSanctuary.manaCost).toEqual({ X: 1, G: 1 });
+        const ids = (elfhameSanctuary.triggeredAbilities ?? []).map(
+            (t) => t.id
+        );
+        expect(ids).toContain("elfhame-sanctuary-upkeep");
+    });
+
+    it("decline: no search, no skip — draws normally next draw step (CR 608.2b)", () => {
+        const sanctuary = makeSanctuary();
+        const land = makeInstance(plains.id, {
+            id: "sanct-land",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const filler = makeInstance(kavuChameleon.id, {
+            id: "sanct-filler",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [sanctuary],
+                    library: [filler, land],
+                }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            turn: 2,
+            phase: "UNTAP",
+        });
+        enterUpkeep(state);
+        expect(
+            state.stack.some(
+                (s) => s.triggeredAbilityId === "elfhame-sanctuary-upkeep"
+            )
+        ).toBe(true);
+        resolveTopOfStack(state); // suspends at the cost-free may-pay
+        expect(state.pendingChoices?.[0]?.kind).toBe("may-pay");
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[0].hand).toHaveLength(0);
+        expect(state.skipDrawStepThisTurn).toBeUndefined();
+
+        advancePhase(state); // UPKEEP → DRAW
+        expect(state.phase).toBe("DRAW");
+        // Turn-based draw fires normally (no skip armed).
+        expect(state.players[0].hand.map((c) => c.id)).toEqual([
+            "sanct-filler",
+        ]);
+    });
+
+    it("accept + found: reveals, hands the land, shuffles, and skips the draw step", () => {
+        const sanctuary = makeSanctuary();
+        const land = makeInstance(plains.id, {
+            id: "sanct-land-2",
+            ownerId: "p1",
+            zone: "library",
+        });
+        // A second library card left behind by the search (which only
+        // fetches "sanct-land-2") — makes the assertion below sensitive to
+        // whether the draw step actually happens: if the skip didn't fire,
+        // the turn-based draw would put THIS card into the hand too.
+        const filler = makeInstance(kavuChameleon.id, {
+            id: "sanct-land-2-filler",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [sanctuary],
+                    library: [land, filler],
+                }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            turn: 2,
+            phase: "UNTAP",
+        });
+        enterUpkeep(state);
+        resolveTopOfStack(state);
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        expect(state.pendingChoices?.[0]?.kind).toBe("search-library");
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["sanct-land-2"],
+        });
+        expect(state.players[0].hand.map((c) => c.id)).toEqual([
+            "sanct-land-2",
+        ]);
+        expect(state.players[0].library).toHaveLength(1);
+        expect(state.skipDrawStepThisTurn).toEqual(["p1"]);
+
+        advancePhase(state); // UPKEEP → DRAW: the armed skip consumes here,
+        // and (CR 500.8) the whole step is bypassed — no priority window for
+        // it — so the engine lands straight on PRECOMBAT_MAIN.
+        expect(state.phase).toBe("PRECOMBAT_MAIN");
+        // Still just the one hand card — no additional draw happened (the
+        // filler is still sitting in the library), and the flag is spliced
+        // back out (one-shot).
+        expect(state.players[0].hand.map((c) => c.id)).toEqual([
+            "sanct-land-2",
+        ]);
+        expect(state.players[0].library).toHaveLength(1);
+        expect(state.skipDrawStepThisTurn).toBeUndefined();
+    });
+
+    it('accept + no basic land found: still shuffles and STILL skips the draw step (CR 608.2b — "if you do" gates on having searched, not on finding a land)', () => {
+        const sanctuary = makeSanctuary();
+        // No basic land in the library at all — the search comes up empty.
+        const filler = makeInstance(kavuChameleon.id, {
+            id: "sanct-nofind-filler",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [sanctuary],
+                    library: [filler],
+                }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            turn: 2,
+            phase: "UNTAP",
+        });
+        enterUpkeep(state);
+        resolveTopOfStack(state);
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        expect(state.pendingChoices?.[0]?.kind).toBe("search-library");
+        const head = state.pendingChoices![0];
+        expect(head.candidateIds).toEqual([]);
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: [],
+        });
+        expect(state.players[0].hand).toHaveLength(0);
+        // Searched (found nothing), so "if you do" still fires — the skip is
+        // armed regardless of the empty find.
+        expect(state.skipDrawStepThisTurn).toEqual(["p1"]);
+
+        advancePhase(state); // UPKEEP → DRAW: fully skipped (CR 500.8), so the
+        // engine lands straight on PRECOMBAT_MAIN with no priority window for
+        // the (never-entered) draw step.
+        expect(state.phase).toBe("PRECOMBAT_MAIN");
+        expect(state.players[0].hand).toHaveLength(0);
+    });
+
+    it("wire format — the armed skip flag survives projectPublicState (Omit-based passthrough)", () => {
+        const sanctuary = makeSanctuary();
+        const land = makeInstance(plains.id, {
+            id: "sanct-land-wire",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [sanctuary], library: [land] }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            turn: 2,
+            phase: "UNTAP",
+        });
+        enterUpkeep(state);
+        resolveTopOfStack(state);
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["sanct-land-wire"],
+        });
+        expect(state.skipDrawStepThisTurn).toEqual(["p1"]);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.skipDrawStepThisTurn).toEqual(["p1"]);
+    });
+});
+
+describe("Tangle (CR 615 all-combat prevention + CR 508.1/502.1 attacker untap-lock, issue #1097)", () => {
+    it("prevents all combat damage this turn", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        pushSpell(state, tangle.id, "p1");
+        resolveTopOfStack(state);
+        expect(state.preventAllCombatDamageThisTurn).toBe(true);
+    });
+
+    it("arms skipNextUntap on each ATTACKING creature, leaving a non-attacker untouched", () => {
+        const attacker = makeInstance(blurredMongoose.id, {
+            id: "tangle-attacker",
+            controllerId: "p2",
+            ownerId: "p2",
+            isAttacking: true,
+        });
+        const bystander = makeInstance(kavuChameleon.id, {
+            id: "tangle-bystander",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        // An attacker under the CASTER's own control too — proves the sweep
+        // is controller-agnostic ("each attacking creature", not "each
+        // creature your opponent attacked with").
+        const casterAttacker = makeInstance(blurredMongoose.id, {
+            id: "tangle-caster-attacker",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [casterAttacker] }),
+                makePlayer("p2", { battlefield: [attacker, bystander] }),
+            ],
+        });
+        pushSpell(state, tangle.id, "p1");
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find(
+                (c) => c.id === "tangle-attacker"
+            )!.skipNextUntap
+        ).toBe(true);
+        expect(
+            state.players[0].battlefield.find(
+                (c) => c.id === "tangle-caster-attacker"
+            )!.skipNextUntap
+        ).toBe(true);
+        expect(
+            state.players[1].battlefield.find(
+                (c) => c.id === "tangle-bystander"
+            )!.skipNextUntap
+        ).toBeUndefined();
+    });
+
+    it("wire format — the armed skipNextUntap flags survive projectPublicState", () => {
+        const attacker = makeInstance(blurredMongoose.id, {
+            id: "tangle-wire-attacker",
+            controllerId: "p2",
+            ownerId: "p2",
+            isAttacking: true,
+        });
+        const bystander = makeInstance(kavuChameleon.id, {
+            id: "tangle-wire-bystander",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [attacker, bystander] }),
+            ],
+        });
+        pushSpell(state, tangle.id, "p1");
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.preventAllCombatDamageThisTurn).toBe(true);
+        const slimAttacker = projected.players[1].battlefield.find(
+            (c) => c.id === "tangle-wire-attacker"
+        )!;
+        expect(slimAttacker.skipNextUntap).toBe(true);
+        const slimBystander = projected.players[1].battlefield.find(
+            (c) => c.id === "tangle-wire-bystander"
+        )!;
+        expect(slimBystander.skipNextUntap).toBeUndefined();
     });
 });
