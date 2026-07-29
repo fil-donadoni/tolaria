@@ -62,7 +62,7 @@ export default function RandomRevealOverlay({
     }
 
     return (
-        <div className="absolute inset-0 z-modal flex items-center justify-center bg-scrim backdrop-blur-sm">
+        <div className="absolute inset-0 z-modal flex items-center justify-center modal-scrim">
             <Panel
                 density="compact"
                 className="flex flex-col items-center gap-4 px-8 py-6"

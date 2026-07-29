@@ -60,7 +60,10 @@ export default function PhyrexianPicker({
 
     return createPortal(
         <>
-            <div className="fixed inset-0 z-hud" onMouseDown={onCancel} />
+            <div
+                className="fixed inset-0 z-hud modal-scrim"
+                onMouseDown={onCancel}
+            />
             {/* `Panel` forwards no props, so the positioning `style`, the
                 clamp-measure `ref` and the board-ESC `data-slot` tag stay on
                 a plain fixed wrapper; Panel supplies the chrome (bezel +

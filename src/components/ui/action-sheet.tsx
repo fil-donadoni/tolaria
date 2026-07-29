@@ -60,7 +60,11 @@ export default function ActionSheet({
     return createPortal(
         <div
             ref={backdropRef}
-            className={`z-modal fixed inset-0 transition-colors duration-200 ${animIn ? "bg-scrim" : "bg-transparent"}`}
+            // `modal-scrim` (#1891): shared scrim + heavy backdrop blur. The
+            // `transition-colors` still animates the scrim COLOR in; the blur
+            // itself pops (backdrop-filter is not color-transitionable) —
+            // accepted, the sheet slides in over it in the same frame.
+            className={`z-modal fixed inset-0 transition-colors duration-200 ${animIn ? "modal-scrim" : "bg-transparent"}`}
             onClick={handleClose}
             onTouchEnd={(e) => {
                 e.preventDefault();

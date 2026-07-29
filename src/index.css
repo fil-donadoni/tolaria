@@ -758,6 +758,29 @@
     .z-modal-top {
         z-index: var(--z-modal-top);
     }
+
+    /* The ONE modal scrim treatment (#1891) — scrim color + a HEAVY backdrop
+       blur. The choice/placement overlays keep translucent boxes over a live
+       board; without a strong blur the stack panel / cards behind bleed
+       through and the picker is unreadable on a phone. Every full-screen
+       modal scrim uses THIS class instead of a bare `bg-scrim` (+ ad-hoc
+       per-file `backdrop-blur-*` drift — xs here, sm there, none on the
+       pickers). A guard test (`modal-scrim.guard.test.ts`) fails on any bare
+       `bg-scrim` left in a component. Where `backdrop-filter` is
+       unsupported the blur silently no-ops, so the fallback darkens the
+       scrim itself to restore contrast. */
+    .modal-scrim {
+        background-color: var(--color-scrim);
+        -webkit-backdrop-filter: blur(16px);
+        backdrop-filter: blur(16px);
+    }
+    @supports not (
+        (backdrop-filter: blur(0)) or (-webkit-backdrop-filter: blur(0))
+    ) {
+        .modal-scrim {
+            background-color: rgb(0 0 0 / 0.85);
+        }
+    }
     .z-modal-peak {
         z-index: var(--z-modal-peak);
     }

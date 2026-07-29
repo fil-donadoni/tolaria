@@ -596,7 +596,7 @@ export default function LibraryOrderPicker({
     // (desktop pile column, portrait chips, PutBackPicker).
     return createPortal(
         <div
-            className={`fixed inset-0 z-modal items-center justify-center bg-scrim p-2 sm:p-6 ${
+            className={`fixed inset-0 z-modal items-center justify-center modal-scrim p-2 sm:p-6 ${
                 isMinimized ? "hidden" : "flex"
             }`}
         >
