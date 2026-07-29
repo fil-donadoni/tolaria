@@ -81,3 +81,26 @@ describe("getCounterDisplays hides internal bookkeeping counters", () => {
         expect(out.map((c) => c.type)).toEqual(["charge"]);
     });
 });
+
+// CR 714.3 (ADR 0078, issue #1879) — lore counters need no dedicated UI work:
+// `getCounterDisplays` is generic over counter type. This asserts that through
+// the real function rather than by inspection, so a future special-case list
+// that forgets `lore` fails here instead of on a live board.
+describe("lore counters render generically (CR 714.3)", () => {
+    it("renders a lore counter as a neutral named badge", () => {
+        const [c] = getCounterDisplays(makeCard({ lore: 2 }));
+        expect(c).toEqual({
+            type: "lore",
+            count: 2,
+            label: "Lore",
+            short: "LOR",
+            tone: "neutral",
+        });
+    });
+
+    it("survives the wire projection's counter shape", () => {
+        // The projection keeps `counters` verbatim on a battlefield card; a
+        // Saga past chapter II therefore reaches the client with its count.
+        expect(getCounterDisplays(makeCard({ lore: 3 }))[0].count).toBe(3);
+    });
+});

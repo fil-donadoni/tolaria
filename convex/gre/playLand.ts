@@ -278,7 +278,8 @@ function settleEnteredLand(
     applyEntersWithCounters(
         card,
         cardId ? (tryGetDefinition(cardId) ?? undefined) : undefined,
-        {}
+        {},
+        state
     );
 
     // CR 611.2 — two-way static-effect reconciliation (see step 5 above).

@@ -22,6 +22,7 @@ import { matchesPermanentFilter } from "../../filters";
 import type {
     CardType,
     CounterAddedEvent,
+    EffectOp,
     GameEvent,
     PermanentView,
     SpellContext,
@@ -72,12 +73,19 @@ export interface CounterAddedTriggerArgs {
         state?: TriggerStateView
     ) => boolean;
     /** Resolution effect. Receives the typed event plus a flattened payload
-     *  so card bodies never re-narrow `event.type`. */
-    resolve: (
+     *  so card bodies never re-narrow `event.type`. Mutually exclusive with
+     *  `effects` — supply exactly one. */
+    resolve?: (
         ctx: SpellContext,
         event: CounterAddedEvent,
         placed: CounterAddedInfo
     ) => void;
+    /** DSL-first alternative to `resolve` (ADR 0045): the resolution effect as
+     *  a declarative Effect Script, executed by the interpreter through the
+     *  same path as every other trigger-site script. A chapter ability
+     *  (CR 714.2, ADR 0078) always uses this leg — its effect never needs to
+     *  inspect the firing event. Mutually exclusive with `resolve`. */
+    effects?: EffectOp[];
 }
 
 export function counterAddedTrigger(
@@ -124,6 +132,13 @@ export function counterAddedTrigger(
         return true;
     };
 
+    if ((args.resolve === undefined) === (args.effects === undefined)) {
+        throw new Error(
+            `counterAddedTrigger(${args.id}): supply exactly one of resolve / effects`
+        );
+    }
+
+    const imperative = args.resolve;
     const ability: TriggeredAbility = {
         id: args.id,
         oracleText: args.oracleText,
@@ -132,9 +147,12 @@ export function counterAddedTrigger(
             if (event.type !== "COUNTER_ADDED") return false;
             return counterAddedMatches(event, self, state);
         },
-        resolve: (ctx, event) => {
+    };
+
+    if (imperative) {
+        ability.resolve = (ctx, event) => {
             if (event.type !== "COUNTER_ADDED") return;
-            args.resolve(ctx, event, {
+            imperative(ctx, event, {
                 id: event.instanceId,
                 controllerId: event.controllerId,
                 types: event.types,
@@ -143,8 +161,10 @@ export function counterAddedTrigger(
                 added: event.added,
                 total: event.total,
             });
-        },
-    };
+        };
+    } else {
+        ability.effects = args.effects;
+    }
 
     if (args.interveningIf) {
         const cb = args.interveningIf;

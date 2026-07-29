@@ -6817,6 +6817,34 @@ export interface TriggerStateView {
     gazeOfPainActiveThisTurn?: ReadonlyArray<string>;
 }
 
+/** CR 714.2 — one Oracle chapter line on a Saga, declared as data (ADR 0078).
+ *
+ *  `chapters: [1, 2]` is CR 714.2c's "I, II —": ONE entry, therefore ONE
+ *  synthesized `TriggeredAbility` and one Oracle line on the stack / in the
+ *  inspector — the same "one Oracle line = one TriggeredAbility" standard the
+ *  multi-event trigger convention enforces (two abilities would render the
+ *  line twice).
+ *
+ *  DIVERGENCE, deliberate and bounded: because it is one ability, a placement
+ *  that crosses SEVERAL of its chapters at once (0 → 2 lore counters in a
+ *  single event) fires it ONCE, where CR 714.2c's expansion into two separate
+ *  triggered abilities would fire it twice. Lore counters arrive one at a time
+ *  on every path the engine has (the CR 714.3a entry counter, the CR 714.3c
+ *  turn-based action, proliferate), so the multi-crossing case is unreachable
+ *  in normal play; a Saga with SINGLE-chapter entries is unaffected and fires
+ *  once per crossed chapter, which the expander's per-entry ability shape
+ *  gives for free. Out of scope for the Saga framework slice — reopening it
+ *  means a per-ability trigger multiplicity hook in `collectTriggers`. */
+export interface ChapterAbilityDefinition {
+    /** Chapter number(s) this line is introduced by (CR 714.2b/714.2c).
+     *  `[1]` for "I —", `[1, 2]` for "I, II —". */
+    chapters: number[];
+    /** Oracle text of the chapter line, shown on the stack (CR 603.3a). */
+    oracleText: string;
+    /** The chapter's effect as an Effect Script (ADR 0045). */
+    effects: EffectOp[];
+}
+
 export interface TriggeredAbility {
     id: string;
     /** Oracle text shown on the stack and in context menus. */
@@ -6937,6 +6965,18 @@ export interface TriggeredAbility {
      *  draw-step "draw two, then pay-or-topdeck each" is the first consumer.
      *  Steps receive only `ctx`; read the trigger scope via `ctx.controller`. */
     resolveSteps?: ((ctx: SpellContext) => void)[];
+    /** CR 714.2 — the chapter number(s) this ability is introduced by on a
+     *  Saga ("I —", "I, II —"). Set ONLY by the `chapterAbilities` expander
+     *  (`convex/cards/abilities/sagas.ts`); never hand-written on a card.
+     *
+     *  Load-bearing twice over, which is why the tag lives on the ability
+     *  rather than being re-derived: `finalChapter` (CR 714.2d) takes the max
+     *  over the EFFECTIVE chapter-tagged abilities, and the CR 714.4 sacrifice
+     *  SBA uses it to tell "a chapter ability of this Saga is on the stack"
+     *  from "any trigger sourced from this Saga" (a granted trigger must not
+     *  defer the sacrifice). Because the tag travels on the ability object, it
+     *  survives copy, grant and ability-loss suppression for free. */
+    chapterNumbers?: number[];
     /** Retained when this permanent becomes a copy of another (CR 707.9d —
      *  "except it has this ability"). Vesuvan Doppelganger's upkeep re-copy
      *  trigger sets this so it keeps functioning after the copy overwrites the
@@ -10977,6 +11017,15 @@ export interface CardDefinition {
     entersWith?: {
         counters?: { type: string; count: number | "X" | "kicker" }[];
     };
+    /** CR 714.2 — a Saga's chapter abilities, declared as data (ADR 0078).
+     *  The `getDefinition` seam (`expandChapterAbilities`,
+     *  `convex/cards/abilities/sagas.ts`) desugars each entry into a
+     *  `counterAddedTrigger`-built `TriggeredAbility` tagged with its
+     *  `chapterNumbers`, and injects the CR 714.3a `entersWith` lore counter.
+     *  The card never hand-writes the "was less than N and became at least N"
+     *  condition, and never declares a `finalChapter` — that is derived from
+     *  the EFFECTIVE abilities (CR 714.2d, `convex/gre/sagas.ts`). */
+    chapterAbilities?: ChapterAbilityDefinition[];
     staticAbilities?: string[];
     /** Continuous static effects (CR 611). Applied at stat-read time by the layer system. */
     staticEffects?: StaticEffect[];

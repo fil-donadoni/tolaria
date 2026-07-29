@@ -4556,7 +4556,11 @@ export function shouldEnterTapped(
 export function applyEntersWithCounters(
     card: CardInstanceState,
     def: { entersWith?: EntersWithDeclaration } | undefined,
-    cast: EntersWithCastValues
+    cast: EntersWithCastValues,
+    /** When supplied, a `COUNTER_ADDED` event is queued for every entry counter
+     *  (ADR 0078 §7). Optional only so a hand-built fixture can call the pure
+     *  mutation; EVERY production entry site passes it. */
+    state?: GameState
 ): void {
     const delta = resolveEntersWithCounters(def, cast);
     const types = Object.keys(delta);
@@ -4566,6 +4570,34 @@ export function applyEntersWithCounters(
     for (const type of types)
         counters[type] = (counters[type] ?? 0) + delta[type];
     card.counters = counters;
+    // CR 121.1 / 603.2 (ADR 0078 §7) — counters put on a permanent AS it
+    // enters ARE put onto it, so "whenever one or more counters are put on ~"
+    // abilities fire. This path used to mutate `card.counters` silently while
+    // `addCounterToCard` emitted, which meant a Saga's chapter I never
+    // triggered — invisibly, since nothing collects a trigger that was never
+    // emitted. Emitted for EVERY entry counter type, not just `lore`: the
+    // general rule, not a card-shaped one.
+    //
+    // The event lands in `pendingEvents` alongside `PERMANENT_ENTERED`, so the
+    // two are simultaneous and APNAP-ordered (CR 603.3b). That is the correct
+    // semantics — do not try to sequence them.
+    if (state) {
+        for (const type of types) {
+            state.pendingEvents = [
+                ...(state.pendingEvents ?? []),
+                {
+                    type: "COUNTER_ADDED",
+                    instanceId: card.id,
+                    controllerId: card.controllerId,
+                    counterType: type,
+                    added: delta[type],
+                    total: counters[type],
+                    types: [...card.types],
+                    subtypes: [...card.subtypes],
+                },
+            ];
+        }
+    }
     // CR 122.1c / 613.4d (issue #1194, closing an ETB gap for issue #1318) —
     // an entry counter whose TYPE names an implemented keyword ability grants
     // that keyword the same way `SpellContext.addCounter` does for a resolving
@@ -4846,13 +4878,18 @@ function finalizeSpellResolution(state: GameState, item: StackItem): void {
         // layer system runs, so effective P/T reads include them immediately
         // (Clockwork Beast) and before `emitPermanentEntered` below scans
         // triggers, so nothing ever observes the permanent with zero counters.
-        applyEntersWithCounters(item, cardDef, {
-            chosenX: item.chosenX,
-            // CR 702.33e — "a charge counter for each time it was kicked"
-            // (Everflowing Chalice) reads the Multikicker tally snapshotted on
-            // the resolving stack item.
-            kickerCount: item.kickerCount,
-        });
+        applyEntersWithCounters(
+            item,
+            cardDef,
+            {
+                chosenX: item.chosenX,
+                // CR 702.33e — "a charge counter for each time it was kicked"
+                // (Everflowing Chalice) reads the Multikicker tally snapshotted
+                // on the resolving stack item.
+                kickerCount: item.kickerCount,
+            },
+            state
+        );
         // CR 306.5b — a planeswalker enters with a number of loyalty counters
         // equal to its printed starting loyalty (`CardDefinition.loyalty`).
         // Loyalty counters reuse the generic `counters` map (same shape as the
@@ -8596,7 +8633,7 @@ function stageReanimatedOnBattlefield(
     // shock-land-style permanent put onto the battlefield by an effect. The
     // deferred `finalizeLandEntry` completion does not re-apply it either, so
     // the counters would simply have been lost.
-    applyEntersWithCounters(card, putDef ?? undefined, {});
+    applyEntersWithCounters(card, putDef ?? undefined, {}, state);
     if (putDef?.entersTappedUnlessPay) {
         card.isTapped = true;
         getPlayer(state, controllerId).battlefield.push(card);
@@ -11644,7 +11681,8 @@ export function buildSpellContext(
             applyEntersWithCounters(
                 token,
                 tryGetDefinition(presentedDefId(token)) ?? undefined,
-                {}
+                {},
+                state
             );
             // CR 611 — re-apply existing grants / source static effects after
             // the copy rewrites the token's characteristics so anthem-style and
@@ -14663,7 +14701,12 @@ export function createTokenPermanents(
         // Routing it through `applyEntersWithCounters` is exactly the drift the
         // single-oracle design exists to prevent. No cast-time values exist for
         // a token (CR 107.3b; a token was never kicked).
-        applyEntersWithCounters(token, { entersWith: spec.entersWith }, {});
+        applyEntersWithCounters(
+            token,
+            { entersWith: spec.entersWith },
+            {},
+            state
+        );
         // CR 614 (issue #1148) — enters-the-battlefield replacement chokepoint.
         const enterDestination = enterBattlefieldDestinationFor(
             state,

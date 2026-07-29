@@ -248,3 +248,42 @@ describe("counterAddedTrigger fires end-to-end (issue #1319 foundation)", () => 
         ).toBeUndefined();
     });
 });
+
+// ADR 0078 — the factory grew a DSL leg so a Saga's chapter ability can be an
+// Effect Script (the DSL-first default) instead of a `resolve()` closure.
+describe("counterAddedTrigger authoring legs (ADR 0045 / ADR 0078)", () => {
+    it("builds an `effects` ability with no `resolve`", () => {
+        const ability = counterAddedTrigger({
+            id: "dsl-leg",
+            oracleText: "Whenever a counter is put on this, draw a card.",
+            scope: "self",
+            effects: [{ op: "draw", player: "controller", count: 1 }],
+        });
+        expect(ability.effects).toEqual([
+            { op: "draw", player: "controller", count: 1 },
+        ]);
+        expect(ability.resolve).toBeUndefined();
+    });
+
+    it("rejects supplying both resolve and effects", () => {
+        expect(() =>
+            counterAddedTrigger({
+                id: "both",
+                oracleText: "x",
+                scope: "self",
+                resolve: () => {},
+                effects: [],
+            })
+        ).toThrow(/exactly one of resolve \/ effects/);
+    });
+
+    it("rejects supplying neither", () => {
+        expect(() =>
+            counterAddedTrigger({
+                id: "neither",
+                oracleText: "x",
+                scope: "self",
+            })
+        ).toThrow(/exactly one of resolve \/ effects/);
+    });
+});

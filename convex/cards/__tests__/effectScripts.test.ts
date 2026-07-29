@@ -14,6 +14,7 @@ import {
     validateEffectScript,
 } from "../../gre/effects/validate";
 import { getAbilityEffectFn, getResolveFn } from "../effectRegistry";
+import { chapterAbilityId } from "../abilities/sagas";
 import type { CardDefinition } from "../types";
 
 /** Every ability site (activated + triggered) on a card that can carry an
@@ -51,7 +52,17 @@ function abilitySites(card: CardDefinition): {
             ? undefined
             : (ability as { event?: string }).event,
     }));
-    return [...activated, ...triggered];
+    // CR 714.2 (ADR 0078) — a Saga's chapter lines are declared as
+    // `chapterAbilities[]` and desugared into `COUNTER_ADDED` triggers at the
+    // `getDefinition` seam, which `getAllCards()` does NOT go through. Sweep
+    // the declared entries directly, otherwise every chapter's Effect Script
+    // would be invisible to this guard.
+    const chapters = (card.chapterAbilities ?? []).map((entry) => ({
+        ability: { id: chapterAbilityId(entry.chapters), ...entry },
+        label,
+        triggerEventType: "COUNTER_ADDED",
+    }));
+    return [...activated, ...triggered, ...chapters];
 }
 
 /** Every cast-time MODE site (CR 700.2 / 601.2c `modes[]`) on a card that
