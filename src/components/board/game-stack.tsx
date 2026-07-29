@@ -17,8 +17,22 @@ import { useArrowHighlight } from "~/hooks/arrowHighlightContext";
 import { useDraggable } from "~/hooks/useDraggable";
 import { repositionAnchors } from "~/hooks/anchor-reposition";
 import { Panel } from "~/components/ui/panel";
+import {
+    PORTRAIT_MIDLINE_TOP,
+    PORTRAIT_VIEWER_BF_BOTTOM_VAR,
+} from "~/lib/portrait-board-bands";
 import DragHandle from "./drag-handle";
 import StackRow from "./stack-row";
+
+/** Portrait's clearance-bound bottom edge, as a Tailwind arbitrary-value
+ *  class referencing the SAME published var the viewer battlefield band
+ *  anchors to (`portrait-board-bands.ts`) — never a re-typed literal. Pinning
+ *  the panel's bottom here (rather than a vh-based `max-h`) makes "never
+ *  overlaps the controller bar or the viewer's hand" an arithmetic guarantee:
+ *  that var already bakes in the bar's MEASURED clearance, the hand band, and
+ *  the reserved nameplate band, so the stack panel stops exactly where the
+ *  viewer's own battlefield does. */
+const NARROW_BOTTOM_CLASS = `bottom-[var(${PORTRAIT_VIEWER_BF_BOTTOM_VAR})]`;
 
 type GameStackProps = {
     stack: StackItem[];
@@ -34,6 +48,26 @@ type GameStackProps = {
      *  desktop's always-on mount leaves this unset (unchanged `z-modal` —
      *  no chip, no centered-banner collision to fix there). */
     elevated?: boolean;
+    /** Issue #1816 — portrait's `BoardPortraitChips` now opens this panel by
+     *  DEFAULT whenever the stack is non-empty (not only after a tap), so it
+     *  is on-screen far more of the time than the old tap-to-reveal panel.
+     *  Two changes, both portrait-only (desktop's always-on mount leaves this
+     *  unset and is byte-for-byte unchanged):
+     *
+     *  1. Narrower: `w-96` (384px, the desktop width, unchanged for desktop)
+     *     shrinks to `w-72` (288px) — still wide enough for a readable
+     *     `StackRow` (art tile + name/mana/oracle column), but leaves more of
+     *     a ~390px phone's board visible behind it.
+     *  2. Re-anchored: the desktop panel is vertically CENTERED
+     *     (`top-1/2` + a `-50%` translate) with a `max-h-[80vh]` soft cap —
+     *     tall enough on a short phone to run under the hand strip and the
+     *     bottom bar. The narrow panel instead anchors between the midline
+     *     (`PORTRAIT_MIDLINE_TOP` — where the stack chip already sits) and
+     *     {@link NARROW_BOTTOM_CLASS} (the viewer battlefield's own bottom
+     *     inset, i.e. clear of the bar, the hand band AND the nameplate
+     *     band) — both edges pinned, so the browser computes its height as
+     *     the gap between them and it can never grow into either. */
+    narrow?: boolean;
 };
 
 /** How many top rows the collapsed list shows before the "N more" expander. */
@@ -48,7 +82,7 @@ const COLLAPSED_ROWS = 3;
  *  Kept from the old cascade: shared-layout flights (hand → stack →
  *  destination, layoutId per item), the draggable panel (re-anchoring arrows
  *  via the shared reposition event), spell-target clicks, arrival glow. */
-export default function GameStack({ stack, elevated }: GameStackProps) {
+export default function GameStack({ stack, elevated, narrow }: GameStackProps) {
     const {
         gameId,
         playerId,
@@ -98,25 +132,49 @@ export default function GameStack({ stack, elevated }: GameStackProps) {
             // to sit under every play-area-centered dialog (card placement,
             // pickers). Pushing it fully right clears them; the panel is
             // draggable if a pile underneath needs a look.
-            className={`absolute top-1/2 ${elevated ? "z-chip" : "z-modal"}`}
+            //
+            // `narrow` (portrait, #1816) swaps the desktop's vertical-center
+            // anchor (`top-1/2` + a `-50%` translate, `max-h-[80vh]` soft cap)
+            // for a BOUNDED one: `PORTRAIT_MIDLINE_TOP` down to
+            // `NARROW_BOTTOM_CLASS`, both pinned, so the browser derives the
+            // box's height as exactly the gap between them — it cannot run
+            // under the hand strip or the bottom bar the way the vh-based cap
+            // could on a short phone.
+            className={`absolute ${
+                narrow
+                    ? `${PORTRAIT_MIDLINE_TOP} ${NARROW_BOTTOM_CLASS}`
+                    : "top-1/2"
+            } ${elevated ? "z-chip" : "z-modal"}`}
             style={{
                 right: "0.5rem",
-                transform: `translate(${offset.x}px, calc(-50% + ${offset.y}px))`,
+                transform: narrow
+                    ? `translate(${offset.x}px, ${offset.y}px)`
+                    : `translate(${offset.x}px, calc(-50% + ${offset.y}px))`,
             }}
         >
             {/* overflow-visible, NOT -hidden: a spell flying in from the hand
                 mounts inside this panel, and clipping it to the panel box would
                 hide the flight until it crosses the boundary. */}
-            <div className="relative overflow-visible">
+            <div
+                className={`relative overflow-visible ${narrow ? "h-full" : ""}`}
+            >
                 <Panel
                     density="compact"
-                    className="max-h-[80vh] w-96 max-w-[92vw] overflow-visible p-0"
+                    className={`${
+                        narrow
+                            ? "flex h-full max-h-full w-72 flex-col"
+                            : "max-h-[80vh] w-96"
+                    } max-w-[92vw] overflow-visible p-0`}
                 >
                     <DragHandle
                         label={`Stack (${stack.length})`}
                         handlers={dragHandlers}
                     />
-                    <div className="flex max-h-[70vh] flex-col gap-2 overflow-y-auto p-2">
+                    <div
+                        className={`flex ${
+                            narrow ? "min-h-0 flex-1" : "max-h-[70vh]"
+                        } flex-col gap-2 overflow-y-auto p-2`}
+                    >
                         {visible.map((item, i) => {
                             const isTargetable =
                                 canTargetSpell &&

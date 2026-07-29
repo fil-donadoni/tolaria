@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Player, StackItem } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
 import { PORTRAIT_MIDLINE_TOP } from "~/lib/portrait-board-bands";
@@ -24,7 +24,11 @@ type BoardPortraitChipsProps = {
  *  - opponent's graveyard / library / exile collapse to a chip row pinned
  *    top-left (clear of the opponent life pill on the top-right),
  *  - a stack chip sits at the right of the midline — the neutral band between
- *    the two battlefields — and toggles the EXISTING {@link GameStack} overlay.
+ *    the two battlefields — and toggles the EXISTING {@link GameStack} overlay,
+ *    which is OPEN BY DEFAULT the instant the stack is non-empty (issue
+ *    #1816): the chip only tracks whether the player explicitly collapsed
+ *    THIS stack run, a preference that resets — panel open again — the next
+ *    time the stack refills after emptying.
  *
  *  **The VIEWER's own graveyard / library / exile are NOT mounted here any
  *  more (#1815 review fixup).** An earlier revision mirrored the opponent's
@@ -58,7 +62,26 @@ export default function BoardPortraitChips({
 }: BoardPortraitChipsProps) {
     const { playerId } = useGameContext();
     const opponent = orderedPlayers.find((p) => p.id !== playerId);
-    const [stackOpen, setStackOpen] = useState(false);
+    // Issue #1816 — the panel is OPEN BY DEFAULT whenever the stack is
+    // non-empty; the chip only tracks whether the player has explicitly
+    // collapsed THIS stack run. `userClosed` starts false, so a fresh mount
+    // with an already non-empty stack (the common case: navigating onto a
+    // board mid-resolution) shows the panel with no tap required.
+    const [userClosed, setUserClosed] = useState(false);
+    // Reset the collapse preference the instant a NEW stack run begins (the
+    // stack count going 0 → >0) — "collapsed preference need not persist
+    // across stack clears" (issue spec). A ref (not state) tracks the
+    // previous length purely to detect that one transition; it never drives
+    // a render itself.
+    const prevStackLenRef = useRef(stackItems.length);
+    useEffect(() => {
+        const prevLen = prevStackLenRef.current;
+        prevStackLenRef.current = stackItems.length;
+        if (prevLen === 0 && stackItems.length > 0) {
+            setUserClosed(false);
+        }
+    }, [stackItems.length]);
+    const stackOpen = stackItems.length > 0 && !userClosed;
 
     return (
         <>
@@ -92,7 +115,7 @@ export default function BoardPortraitChips({
                 <StackChip
                     count={stackItems.length}
                     open={stackOpen}
-                    onToggle={() => setStackOpen((v) => !v)}
+                    onToggle={() => setUserClosed((v) => !v)}
                 />
             </div>
 
@@ -101,9 +124,14 @@ export default function BoardPortraitChips({
                 fixup, #1823) puts it at the SAME `z-chip` tier as the chip
                 above — opening the stack is an explicit player action; it
                 must out-rank the (lower) centered pending-choice banner, but
-                — like the chip — stay below any real blocking modal. */}
+                — like the chip — stay below any real blocking modal.
+                `narrow` (issue #1816) is the SAME portrait-only distinction:
+                since this panel is now open by DEFAULT (not only after a
+                tap), it renders narrower and clearance-bound to the midline /
+                viewer-battlefield-bottom instead of the desktop's vertically
+                centered, vh-capped box — see `GameStack`'s own doc comment. */}
             {stackOpen && stackItems.length > 0 && (
-                <GameStack stack={stackItems} elevated />
+                <GameStack stack={stackItems} elevated narrow />
             )}
         </>
     );

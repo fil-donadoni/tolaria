@@ -47,14 +47,17 @@ vi.mock("../game-stack", () => ({
     default: ({
         stack,
         elevated,
+        narrow,
     }: {
         stack: StackItem[];
         elevated?: boolean;
+        narrow?: boolean;
     }) => (
         <div
             data-testid="stack-view"
             data-count={stack.length}
             data-elevated={elevated ?? false}
+            data-narrow={narrow ?? false}
         />
     ),
 }));
@@ -269,11 +272,11 @@ describe("BoardPortraitChips (#336)", () => {
         expect(screen.getByRole("dialog")).toBeTruthy();
     });
 
-    it("renders the stack chip only when the stack is non-empty and toggles the EXISTING stack view", () => {
+    it("renders the stack chip only when the stack is non-empty, OPEN BY DEFAULT with no tap (issue #1816), and the chip toggles it", () => {
         const me = makePlayer("me");
         const opp = makePlayer("opp");
 
-        // Empty stack: no chip.
+        // Empty stack: no chip, no panel.
         const { unmount } = renderChips(opp, me, []);
         expect(screen.queryByTestId("chip-stack")).toBeNull();
         expect(screen.queryByTestId("stack-view")).toBeNull();
@@ -285,19 +288,79 @@ describe("BoardPortraitChips (#336)", () => {
         ] as unknown as StackItem[];
         renderChips(opp, me, stack);
 
-        // Chip present, stack view hidden until tapped.
+        // Issue #1816: the panel is visible the instant the stack is
+        // non-empty — NO tap required.
         const chip = screen.getByTestId("chip-stack");
         expect(chip.textContent).toContain("2");
-        expect(screen.queryByTestId("stack-view")).toBeNull();
-
-        // Tap opens the existing stack panel with the same items.
-        fireEvent.click(chip);
         const view = screen.getByTestId("stack-view");
         expect(view.getAttribute("data-count")).toBe("2");
 
-        // Tap again closes it.
+        // Tap collapses it.
+        fireEvent.click(chip);
+        expect(screen.queryByTestId("stack-view")).toBeNull();
+
+        // Tap again re-opens it (same stack run).
+        fireEvent.click(screen.getByTestId("chip-stack"));
+        expect(
+            screen.getByTestId("stack-view").getAttribute("data-count")
+        ).toBe("2");
+    });
+
+    it("a stack that empties then refills starts OPEN again, even if the player had collapsed the previous run (issue #1816)", () => {
+        const me = makePlayer("me");
+        const opp = makePlayer("opp");
+        const firstRun = [
+            { id: "s1", card: { id: "def-s1" } },
+        ] as unknown as StackItem[];
+        const { rerender } = renderChips(opp, me, firstRun);
+
+        // Open by default — collapse it explicitly.
         fireEvent.click(screen.getByTestId("chip-stack"));
         expect(screen.queryByTestId("stack-view")).toBeNull();
+
+        // Stack empties: no chip, no panel.
+        const rerenderChips = (stackItems: StackItem[]) =>
+            rerender(
+                <GameContext
+                    value={
+                        {
+                            gameId: "game-id" as never,
+                            playerId: "me",
+                            activePlayerId: "me",
+                            priorityPlayerId: "me",
+                            phase: "PRECOMBAT_MAIN",
+                            turn: 1,
+                            stackCount: stackItems.length,
+                            allPlayers: [opp, me],
+                            showAllCards: false,
+                            debugAllActions: false,
+                            onSwitchGame: () => {},
+                        } as React.ContextType<typeof GameContext>
+                    }
+                >
+                    <PendingChoiceBufferContext value={noopBuffer}>
+                        <MinimizedChoiceContext value={noopMinimized}>
+                            <BoardPortraitChips
+                                orderedPlayers={[opp, me]}
+                                stackItems={stackItems}
+                            />
+                        </MinimizedChoiceContext>
+                    </PendingChoiceBufferContext>
+                </GameContext>
+            );
+        rerenderChips([]);
+        expect(screen.queryByTestId("chip-stack")).toBeNull();
+        expect(screen.queryByTestId("stack-view")).toBeNull();
+
+        // A NEW stack run begins — the collapsed preference does not carry
+        // over, so the panel opens again with no tap.
+        const secondRun = [
+            { id: "s2", card: { id: "def-s2" } },
+        ] as unknown as StackItem[];
+        rerenderChips(secondRun);
+        expect(
+            screen.getByTestId("stack-view").getAttribute("data-count")
+        ).toBe("1");
     });
 
     it("review fixup round 2 (#1813/#1823) — the stack chip and an opened stack overlay sit at `z-chip`, strictly between the centered banner's `z-banner` and a blocking modal's `z-modal`", () => {
@@ -322,10 +385,13 @@ describe("BoardPortraitChips (#336)", () => {
         expect(rowClassName).not.toContain("z-modal-top");
         expect(rowClassName).not.toMatch(/\bz-modal\b(?!-)/);
 
-        fireEvent.click(screen.getByTestId("chip-stack"));
-        expect(
-            screen.getByTestId("stack-view").getAttribute("data-elevated")
-        ).toBe("true");
+        // Issue #1816: the panel is open by default (no tap needed) — assert
+        // `elevated` on the already-mounted view directly, and that the
+        // portrait mount passes `narrow` (the desktop mount in `board.tsx`
+        // never does).
+        const view = screen.getByTestId("stack-view");
+        expect(view.getAttribute("data-elevated")).toBe("true");
+        expect(view.getAttribute("data-narrow")).toBe("true");
     });
 
     it("pins the numeric ordering in src/index.css: banner < chip < modal", () => {
