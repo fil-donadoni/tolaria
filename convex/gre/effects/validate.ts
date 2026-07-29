@@ -245,6 +245,16 @@ function isCardFilter(
                 isXValue(v)
             );
         }
+        // issue #1881 (ADR 0078 decision 8) — exact structural MANA-COST
+        // match (CR 202), distinct from `manaValueEquals` above. A single
+        // `ManaCost` value or a non-empty array of them (OR, mirroring
+        // `type`/`subtype`/`color`'s own array semantics). No allow-flag
+        // needed (unlike `hasAbility`/`isAttacking`): `matchesCardFilter`
+        // fails CLOSED for a card shape with no `cost` slot, so this field
+        // is honest everywhere it's accepted, exactly like `manaValueEquals`.
+        if (k === "manaCostEquals") {
+            return isValueOrArray(v, isManaCostFilterValue);
+        }
         if (k === "isToken") {
             return typeof v === "boolean";
         }
@@ -1267,6 +1277,66 @@ function isManaCost(value: unknown): boolean {
                 !(typeof v === "number" && Number.isInteger(v) && v >= 0)
             ) {
                 return false;
+            }
+            continue;
+        }
+        if (!MANA_PIP_KEYS.has(k)) return false;
+        if (!(typeof v === "number" && Number.isInteger(v) && v >= 0)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/** A full `ManaCost` value for `EffectCardFilter.manaCostEquals`'s exact
+ *  structural comparison (issue #1881, ADR 0078 decision 8) — unlike
+ *  `isManaCost` right above (the narrower token-ability-cost shape with no
+ *  Phyrexian/hybrid pips), this accepts every `ManaCost` key the comparison
+ *  folds in (`gre/constants.ts::manaCostsEqual`): WUBRGC + `generic` +
+ *  `xFactor` (non-negative integers), `X` (a non-negative integer OR the
+ *  variable marker `"X"`), `phyrexian` (a colour-keyed non-negative-integer
+ *  map, CR 107.4f), and `hybrid` (an array of two-colour pip pairs, CR
+ *  202.1a). Fails CLOSED (returns false) on any unrecognised key or
+ *  malformed value, matching every other field in this validator. */
+function isManaCostFilterValue(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    for (const [k, v] of Object.entries(value)) {
+        if (k === "X") {
+            if (
+                v !== "X" &&
+                !(typeof v === "number" && Number.isInteger(v) && v >= 0)
+            ) {
+                return false;
+            }
+            continue;
+        }
+        if (k === "phyrexian") {
+            if (typeof v !== "object" || v === null || Array.isArray(v)) {
+                return false;
+            }
+            for (const [pk, pv] of Object.entries(v)) {
+                if (!TOKEN_COLORS.has(pk)) return false;
+                if (
+                    !(typeof pv === "number" && Number.isInteger(pv) && pv >= 0)
+                ) {
+                    return false;
+                }
+            }
+            continue;
+        }
+        if (k === "hybrid") {
+            if (!Array.isArray(v)) return false;
+            for (const pair of v) {
+                if (!Array.isArray(pair) || pair.length !== 2) return false;
+                if (
+                    !pair.every(
+                        (c) => typeof c === "string" && TOKEN_COLORS.has(c)
+                    )
+                ) {
+                    return false;
+                }
             }
             continue;
         }

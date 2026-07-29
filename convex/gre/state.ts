@@ -13854,6 +13854,7 @@ export function buildSpellContext(
             supertypes: CardSupertype[];
             manaValue: number;
             colors: Color[];
+            cost: CardManaCost;
         }> {
             return getPlayer(state, playerId).hand.map((c) => {
                 const cardId = (c.card as { id?: string }).id;
@@ -13871,6 +13872,10 @@ export function buildSpellContext(
                     manaValue: manaValue(def?.manaCost),
                     // CR 202.2 — mana-cost-derived colors of the hand card.
                     colors: getColorsFromCost(def?.manaCost),
+                    // CR 202 (issue #1881) — full printed cost for
+                    // `EffectCardFilter.manaCostEquals`'s exact structural
+                    // comparison.
+                    cost: def?.manaCost ?? {},
                 };
             });
         },
@@ -13887,6 +13892,7 @@ export function buildSpellContext(
             supertypes: CardSupertype[];
             colors: Color[];
             manaValue: number;
+            cost: CardManaCost;
         }> {
             return getPlayer(state, playerId).library.map((c) => {
                 const cardId = (c.card as { id?: string }).id;
@@ -13903,6 +13909,10 @@ export function buildSpellContext(
                     // CR 202.2 — mana-cost-derived colors of the library card.
                     colors: getColorsFromCost(def?.manaCost),
                     manaValue: manaValue(def?.manaCost),
+                    // CR 202 (issue #1881) — full printed cost for
+                    // `EffectCardFilter.manaCostEquals`'s exact structural
+                    // comparison (Urza's Saga III's "mana cost {0} or {1}").
+                    cost: def?.manaCost ?? {},
                 };
             });
         },
@@ -13916,6 +13926,7 @@ export function buildSpellContext(
             subtypes: string[];
             manaValue: number;
             colors: Color[];
+            cost: CardManaCost;
         }> {
             return getPlayer(state, playerId).graveyard.map((c) => {
                 const cardId = (c.card as { id?: string }).id;
@@ -13929,6 +13940,10 @@ export function buildSpellContext(
                     subtypes: def?.subtypes ?? c.subtypes,
                     manaValue: manaValue(def?.manaCost),
                     colors: getColorsFromCost(def?.manaCost),
+                    // CR 202 (issue #1881) — full printed cost for
+                    // `EffectCardFilter.manaCostEquals`'s exact structural
+                    // comparison.
+                    cost: def?.manaCost ?? {},
                 };
             });
         },
@@ -13957,6 +13972,7 @@ export function buildSpellContext(
             manaValue: number;
             colors: Color[];
             counters: Record<string, number>;
+            cost: CardManaCost;
         }> {
             return getPlayer(state, playerId).exile.map((c) => {
                 const cardId = (c.card as { id?: string }).id;
@@ -13969,6 +13985,10 @@ export function buildSpellContext(
                     manaValue: manaValue(def?.manaCost),
                     colors: getColorsFromCost(def?.manaCost),
                     counters: c.counters ?? {},
+                    // CR 202 (issue #1881) — full printed cost for
+                    // `EffectCardFilter.manaCostEquals`'s exact structural
+                    // comparison.
+                    cost: def?.manaCost ?? {},
                 };
             });
         },

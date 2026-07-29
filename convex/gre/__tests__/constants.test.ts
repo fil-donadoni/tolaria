@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
     isTapLockedBySummoningSickness,
     manaValue,
+    manaCostsEqual,
     getDefinitionProducibleColors,
     getProducibleColors,
 } from "../constants";
@@ -32,6 +33,89 @@ describe("manaValue (CR 202.3)", () => {
 
     it("returns 0 for the empty cost (Mox)", () => {
         expect(manaValue({})).toBe(0);
+    });
+});
+
+describe("manaCostsEqual (CR 202, issue #1881, ADR 0078 decision 8)", () => {
+    it("matches {0} as the empty cost", () => {
+        expect(manaCostsEqual({}, {})).toBe(true);
+    });
+
+    it("matches {1} whether encoded as a numeric X or as generic", () => {
+        expect(manaCostsEqual({ X: 1 }, { X: 1 })).toBe(true);
+        expect(manaCostsEqual({ X: 1 }, { generic: 1 })).toBe(true);
+        expect(manaCostsEqual({ generic: 1 }, { X: 1 })).toBe(true);
+    });
+
+    it("never matches a VARIABLE {X} against a fixed cost, even mana-value-equal ones (CR 202.3b)", () => {
+        // Engineered Explosives / Chalice of the Void shape: mana value 0,
+        // but the cost is {X}, never {0}.
+        expect(manaCostsEqual({ X: "X" }, {})).toBe(false);
+        expect(manaCostsEqual({}, { X: "X" })).toBe(false);
+        // {X} vs {1} — mana value would differ too (1 vs 0), still must be false.
+        expect(manaCostsEqual({ X: "X" }, { X: 1 })).toBe(false);
+    });
+
+    it("distinguishes {X} from {X}{X} by xFactor", () => {
+        expect(manaCostsEqual({ X: "X" }, { X: "X" })).toBe(true);
+        expect(manaCostsEqual({ X: "X" }, { X: "X", xFactor: 2 })).toBe(false);
+        expect(
+            manaCostsEqual({ X: "X", xFactor: 2 }, { X: "X", xFactor: 2 })
+        ).toBe(true);
+    });
+
+    it("does not match a colored cost against a generic one of equal value", () => {
+        // {W} has mana value 1, same as {1} — but they're different costs.
+        expect(manaCostsEqual({ W: 1 }, { X: 1 })).toBe(false);
+        // {C} likewise.
+        expect(manaCostsEqual({ C: 1 }, { X: 1 })).toBe(false);
+    });
+
+    it("compares phyrexian pips per colour", () => {
+        expect(
+            manaCostsEqual({ X: 1, B: 2 }, { generic: 1, phyrexian: { B: 2 } })
+        ).toBe(false); // B: 2 (real pips) != phyrexian B: 2 (different characteristic)
+        expect(
+            manaCostsEqual(
+                { generic: 1, phyrexian: { B: 2 } },
+                { generic: 1, phyrexian: { B: 2 } }
+            )
+        ).toBe(true);
+    });
+
+    it("compares hybrid pips as a multiset, ignoring pip order and pair spelling", () => {
+        // Hogaak: {5}{B/G}{B/G} — two identical hybrid pips.
+        expect(
+            manaCostsEqual(
+                {
+                    generic: 5,
+                    hybrid: [
+                        ["B", "G"],
+                        ["B", "G"],
+                    ],
+                },
+                {
+                    generic: 5,
+                    hybrid: [
+                        ["G", "B"],
+                        ["B", "G"],
+                    ],
+                }
+            )
+        ).toBe(true);
+        // A single pip does not equal two.
+        expect(
+            manaCostsEqual(
+                { generic: 5, hybrid: [["B", "G"]] },
+                {
+                    generic: 5,
+                    hybrid: [
+                        ["B", "G"],
+                        ["B", "G"],
+                    ],
+                }
+            )
+        ).toBe(false);
     });
 });
 

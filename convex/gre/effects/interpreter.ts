@@ -99,6 +99,7 @@ import {
     categorizedEligibleIds,
     maxCategorizedPicks,
 } from "../categorizedPick";
+import { manaCostsEqual } from "../constants";
 
 type OpOf<K extends EffectOp["op"]> = Extract<EffectOp, { op: K }>;
 
@@ -654,6 +655,11 @@ function matchesCardFilter(
         colors?: readonly string[];
         manaValue: number;
         counters?: Readonly<Record<string, number>>;
+        // issue #1881 — full printed cost, for `manaCostEquals`'s exact
+        // structural match. `undefined` for a card shape with no cost slot
+        // (the CR 608.2h `boundMatchesFilter` snapshot) — fails CLOSED
+        // below, never open.
+        cost?: ManaCost;
     },
     filter: EffectCardFilter
 ): boolean {
@@ -752,6 +758,22 @@ function matchesCardFilter(
     if (filter.manaValueEquals !== undefined) {
         const exact = resolveValue(ctx, filter.manaValueEquals);
         if (exact === undefined || card.manaValue !== exact) return false;
+    }
+    // issue #1881 (ADR 0078 decision 8) — exact structural MANA-COST match
+    // (CR 202), distinct from `manaValueEquals` right above. A card shape
+    // with no `cost` slot (the CR 608.2h snapshot) fails CLOSED — never
+    // matches — the same convention `manaValueAtMost`/`manaValueEquals` use
+    // for an unresolvable dynamic value. A single `ManaCost` clause or an OR
+    // across a non-empty array of them (mirrors `type`/`subtype`/`color`'s
+    // own OR-within-a-field array semantics, issue #677).
+    if (filter.manaCostEquals !== undefined) {
+        if (card.cost === undefined) return false;
+        const clauses = Array.isArray(filter.manaCostEquals)
+            ? filter.manaCostEquals
+            : [filter.manaCostEquals];
+        if (!clauses.some((clause) => manaCostsEqual(card.cost!, clause))) {
+            return false;
+        }
     }
     // issue #897 — OR ACROSS filter dimensions. Every other field above is
     // ANDed; `any` is the one disjunctive clause list this filter supports:

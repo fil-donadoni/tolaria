@@ -7319,6 +7319,186 @@ describe("EffectCardFilter.manaValueEquals (issue #1083)", () => {
     });
 });
 
+describe("EffectCardFilter.manaCostEquals (issue #1881, ADR 0078 decision 8)", () => {
+    // Urza's Saga III's "an artifact card with mana cost {0} or {1}" — NOT
+    // mana value. `manaValueAtMost: 1` would wrongly admit an `{X}`-costed
+    // artifact (mana value 0, Chalice of the Void / Engineered Explosives
+    // shape) and any coloured mana-value-1 artifact (cost `{W}`, never
+    // `{1}`); this filter compares the FULL printed cost structurally.
+    const ARTIFACT_COST_0_ID = "test-effects-manacost-artifact-0"; // {0}
+    registerTokenDefinition({
+        id: ARTIFACT_COST_0_ID,
+        name: ARTIFACT_COST_0_ID,
+        rarity: "common",
+        manaCost: {},
+        types: ["Artifact"],
+    });
+    const ARTIFACT_COST_1_ID = "test-effects-manacost-artifact-1"; // {1}
+    registerTokenDefinition({
+        id: ARTIFACT_COST_1_ID,
+        name: ARTIFACT_COST_1_ID,
+        rarity: "common",
+        manaCost: { X: 1 },
+        types: ["Artifact"],
+    });
+    // Engineered Explosives shape — mana value 0, cost {X}, never {0}.
+    const ARTIFACT_COST_X_ID = "test-effects-manacost-artifact-x";
+    registerTokenDefinition({
+        id: ARTIFACT_COST_X_ID,
+        name: ARTIFACT_COST_X_ID,
+        rarity: "common",
+        manaCost: { X: "X" },
+        types: ["Artifact"],
+    });
+    // Chalice of the Void shape — {X}{X}, distinct from {X} by xFactor.
+    const ARTIFACT_COST_XX_ID = "test-effects-manacost-artifact-xx";
+    registerTokenDefinition({
+        id: ARTIFACT_COST_XX_ID,
+        name: ARTIFACT_COST_XX_ID,
+        rarity: "common",
+        manaCost: { X: "X", xFactor: 2 },
+        types: ["Artifact"],
+    });
+    const ARTIFACT_COST_W_ID = "test-effects-manacost-artifact-w"; // {W}
+    registerTokenDefinition({
+        id: ARTIFACT_COST_W_ID,
+        name: ARTIFACT_COST_W_ID,
+        rarity: "common",
+        manaCost: { W: 1 },
+        types: ["Artifact"],
+    });
+    const ARTIFACT_COST_C_ID = "test-effects-manacost-artifact-c"; // {C}
+    registerTokenDefinition({
+        id: ARTIFACT_COST_C_ID,
+        name: ARTIFACT_COST_C_ID,
+        rarity: "common",
+        manaCost: { C: 1 },
+        types: ["Artifact"],
+    });
+
+    const libraryArtifacts = (owner: "p1" | "p2") => [
+        makeInstance(ARTIFACT_COST_0_ID, {
+            id: "mc0",
+            controllerId: owner,
+            ownerId: owner,
+            zone: "library",
+        }),
+        makeInstance(ARTIFACT_COST_1_ID, {
+            id: "mc1",
+            controllerId: owner,
+            ownerId: owner,
+            zone: "library",
+        }),
+        makeInstance(ARTIFACT_COST_X_ID, {
+            id: "mcX",
+            controllerId: owner,
+            ownerId: owner,
+            zone: "library",
+        }),
+        makeInstance(ARTIFACT_COST_XX_ID, {
+            id: "mcXX",
+            controllerId: owner,
+            ownerId: owner,
+            zone: "library",
+        }),
+        makeInstance(ARTIFACT_COST_W_ID, {
+            id: "mcW",
+            controllerId: owner,
+            ownerId: owner,
+            zone: "library",
+        }),
+        makeInstance(ARTIFACT_COST_C_ID, {
+            id: "mcC",
+            controllerId: owner,
+            ownerId: owner,
+            zone: "library",
+        }),
+    ];
+
+    it("restricts a search-library choice's candidateIds to EXACTLY {0} or {1}, rejecting {X}, {X}{X}, {W}, and {C} (Urza's Saga III shape) — hidden-zone proof", () => {
+        const id = registerScript("test-op-choice-manacost-equals-array", [
+            {
+                op: "choice",
+                kind: "search-library",
+                player: "controller",
+                zone: "library",
+                filter: {
+                    type: "Artifact",
+                    manaCostEquals: [{}, { X: 1 }],
+                },
+                count: { min: 0, max: 1 },
+                prompt: "Search your library for an artifact card with mana cost {0} or {1}.",
+                bind: "$picked",
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libraryArtifacts("p1") }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        // The hidden-zone proof: assert the REJECTED candidates are ABSENT
+        // from candidateIds, not merely that picking a matching card
+        // succeeds — a happy-path-only assertion passes under the fail-open
+        // bug (an unthreaded filter field matches every library card).
+        expect(head.candidateIds).toHaveLength(2);
+        expect(head.candidateIds).toEqual(
+            expect.arrayContaining(["mc0", "mc1"])
+        );
+        expect(head.candidateIds).not.toContain("mcX");
+        expect(head.candidateIds).not.toContain("mcXX");
+        expect(head.candidateIds).not.toContain("mcW");
+        expect(head.candidateIds).not.toContain("mcC");
+    });
+
+    it("a single-element array behaves as the scalar form", () => {
+        const scalarId = registerScript(
+            "test-op-choice-manacost-equals-scalar",
+            [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    filter: { type: "Artifact", manaCostEquals: {} },
+                    count: { min: 0, max: 1 },
+                    prompt: "Search your library for an artifact card with mana cost {0}.",
+                    bind: "$picked",
+                },
+            ]
+        );
+        const arrayId = registerScript(
+            "test-op-choice-manacost-equals-array-of-one",
+            [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    filter: { type: "Artifact", manaCostEquals: [{}] },
+                    count: { min: 0, max: 1 },
+                    prompt: "Search your library for an artifact card with mana cost {0}.",
+                    bind: "$picked",
+                },
+            ]
+        );
+        for (const scriptId of [scalarId, arrayId]) {
+            const state = makeState({
+                players: [
+                    makePlayer("p1", { library: libraryArtifacts("p1") }),
+                    makePlayer("p2"),
+                ],
+            });
+            pushSpell(state, scriptId, "p1");
+            resolveTopOfStack(state);
+            expect(state.pendingChoices![0].candidateIds).toEqual(["mc0"]);
+        }
+    });
+});
+
 describe("EffectCardFilter.enteredThisTurn (CR 400.7, issue #1458)", () => {
     // The clause reads the REAL entry stamp `CardInstanceState.enteredOnTurn`
     // (written by `markEnteredThisTurn` / `createTokenPermanents`) compared

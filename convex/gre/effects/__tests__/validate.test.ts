@@ -947,6 +947,150 @@ describe("validateEffectScript — choice Op (CR 608.2 / 101.4, issue #805)", ()
     });
 });
 
+// --- EffectCardFilter.manaCostEquals (issue #1881, ADR 0078 decision 8) ----
+
+describe("validateEffectScript — EffectCardFilter.manaCostEquals (issue #1881)", () => {
+    const libraryChoiceOp = (filter: Record<string, unknown>): EffectOp =>
+        ({
+            op: "choice",
+            kind: "search-library",
+            player: "controller",
+            zone: "library",
+            filter,
+            count: { min: 0, max: 1 },
+            prompt: "Search your library for a card.",
+            bind: "$picked",
+        }) as never;
+
+    it("accepts a scalar ManaCost clause, including generic/xFactor/phyrexian/hybrid pips", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [libraryChoiceOp({ manaCostEquals: {} })],
+                })
+            )
+        ).toEqual([]);
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [libraryChoiceOp({ manaCostEquals: { X: 1 } })],
+                })
+            )
+        ).toEqual([]);
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [libraryChoiceOp({ manaCostEquals: { X: "X" } })],
+                })
+            )
+        ).toEqual([]);
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        libraryChoiceOp({
+                            manaCostEquals: {
+                                generic: 2,
+                                B: 1,
+                                xFactor: 2,
+                                phyrexian: { U: 1 },
+                                hybrid: [["B", "G"]],
+                            },
+                        }),
+                    ],
+                })
+            )
+        ).toEqual([]);
+    });
+
+    it("accepts a non-empty array clause (OR, mirroring subtype/type/color)", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        libraryChoiceOp({
+                            manaCostEquals: [{}, { X: 1 }],
+                        }),
+                    ],
+                })
+            )
+        ).toEqual([]);
+    });
+
+    it("rejects an empty array clause", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [libraryChoiceOp({ manaCostEquals: [] })],
+            })
+        );
+        expect(errors.some((e) => /field "filter"/.test(e))).toBe(true);
+    });
+
+    it("rejects a malformed pip (negative / non-integer)", () => {
+        const negative = validateEffectScript(
+            host({
+                effects: [libraryChoiceOp({ manaCostEquals: { W: -1 } })],
+            })
+        );
+        expect(negative.some((e) => /field "filter"/.test(e))).toBe(true);
+
+        const fractional = validateEffectScript(
+            host({
+                effects: [libraryChoiceOp({ manaCostEquals: { W: 1.5 } })],
+            })
+        );
+        expect(fractional.some((e) => /field "filter"/.test(e))).toBe(true);
+    });
+
+    it("rejects an unrecognised key inside the ManaCost value (fail closed)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    libraryChoiceOp({ manaCostEquals: { notAManaKey: 1 } }),
+                ],
+            })
+        );
+        expect(errors.some((e) => /field "filter"/.test(e))).toBe(true);
+    });
+
+    it("rejects a malformed hybrid pip (wrong arity / non-colour entry)", () => {
+        const wrongArity = validateEffectScript(
+            host({
+                effects: [
+                    libraryChoiceOp({
+                        manaCostEquals: { hybrid: [["B"]] },
+                    }),
+                ],
+            })
+        );
+        expect(wrongArity.some((e) => /field "filter"/.test(e))).toBe(true);
+
+        const notAColor = validateEffectScript(
+            host({
+                effects: [
+                    libraryChoiceOp({
+                        manaCostEquals: { hybrid: [["B", "Z"]] },
+                    }),
+                ],
+            })
+        );
+        expect(notAColor.some((e) => /field "filter"/.test(e))).toBe(true);
+    });
+
+    it("rejects a malformed phyrexian pip map", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    libraryChoiceOp({
+                        manaCostEquals: { phyrexian: { Z: 1 } },
+                    }),
+                ],
+            })
+        );
+        expect(errors.some((e) => /field "filter"/.test(e))).toBe(true);
+    });
+});
+
 // --- EffectCardFilter.hasAbility — battlefield-only (issue #1097) -----------
 //
 // `hasAbility` reads the LIVE `staticAbilities` array via `toPermanentFilter`
