@@ -44,13 +44,13 @@ import { checkStateBasedActions } from "../../../../gre/sba";
 import { applyPlayLand } from "../../../../gre/playLand";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { buildAutoTapSources } from "../../../../gre/autoTap";
-import { planManaPayment } from "../../../../gre/moves";
 import { getLegalActions } from "../../../../gre/rules";
 import {
     getEffectivePower,
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
+import { sagaBoard, tickChapter } from "./urzasSagaFixtures";
 
 describe("Yavimaya, Cradle of Growth ({T}: Add {G} via basic-land inference — CR 305.7, 611)", () => {
     it("declares exactly one subtype-add static effect matching every land", () => {
@@ -109,44 +109,10 @@ describe("Yavimaya, Cradle of Growth ({T}: Add {G} via basic-land inference — 
 // the real SBA sweep (`checkStateBasedActions`).
 // ───────────────────────────────────────────────────────────────────────────
 
-/** The Saga on the battlefield with `lore` counters already on it, plus any
- *  extra permanents / library. Built through the shared fixtures so the state
- *  carries a real Expected Input (ADR 0047). */
-function sagaBoard(opts: {
-    lore?: number;
-    battlefield?: CardInstanceState[];
-    library?: CardInstanceState[];
-    opponentBattlefield?: CardInstanceState[];
-}): { state: GameState; saga: CardInstanceState } {
-    const saga = makeInstance(urzasSaga.id, {
-        id: "saga-1",
-        controllerId: "p1",
-        ownerId: "p1",
-        zone: "battlefield",
-        ...(opts.lore !== undefined
-            ? { counters: { [LORE_COUNTER]: opts.lore } }
-            : {}),
-    });
-    const state = makeState({
-        players: [
-            makePlayer("p1", {
-                battlefield: [saga, ...(opts.battlefield ?? [])],
-                library: opts.library ?? [],
-            }),
-            makePlayer("p2", { battlefield: opts.opponentBattlefield ?? [] }),
-        ],
-    });
-    return { state, saga: state.players[0].battlefield[0] };
-}
-
-/** One CR 714.3c turn-based lore counter, the chapter trigger it raises put on
- *  the stack (CR 603.2), and that chapter resolved — the exact pair
- *  `performPhaseEntry`'s PRECOMBAT_MAIN case runs. */
-function tickChapter(state: GameState): void {
-    advanceSagasAtPrecombatMain(state);
-    processPendingActionTriggers(state);
-    resolveTopOfStack(state);
-}
+/** `sagaBoard` / `tickChapter` are shared with `colorless.bot.test.ts` (the
+ *  REAL payment-planner assertion lives there — `convex/gre/moves` is
+ *  bot-only) via `./urzasSagaFixtures`, so both suites drive the same
+ *  fixtures instead of two copies drifting apart. */
 
 /** Resolves a GRANTED activated ability of `source` through the real stack
  *  path. `grantedSourceCardId` is what makes `resolveTopOfStack` read the
@@ -315,18 +281,11 @@ describe('chapter I — indefinite "{T}: Add {C}" grant (CR 611.2c / 605.1a, #18
         expect(sources.map((s) => s.cardId)).toEqual([saga.id]);
     });
 
-    it("makes an otherwise-unpayable {1} spell payable through the REAL payment planner", () => {
-        // `planManaPayment` (gre/moves.ts) is the production auto-tap payment
-        // path — it emits the concrete taps the server commits, not a
-        // legality hint. Before chapter I the Saga produces nothing, so a {1}
-        // cost cannot be covered at all.
-        const { state, saga } = sagaBoard({ lore: 0 });
-        expect(planManaPayment(state, state.players[0], { X: 1 })).toBeNull();
-        tickChapter(state);
-        const taps = planManaPayment(state, state.players[0], { X: 1 });
-        expect(taps).not.toBeNull();
-        expect(taps!.map((t) => t.cardInstanceId)).toEqual([saga.id]);
-    });
+    // The REAL payment-planner assertion ("makes an otherwise-unpayable {1}
+    // spell payable through the REAL payment planner") lives in
+    // `colorless.bot.test.ts` — `planManaPayment` (gre/moves.ts) is a
+    // bot-only module (`scripts/__tests__/bot-suite-boundary.test.ts`), so an
+    // application-suite file may not import it.
 });
 
 describe("chapter II — the Construct maker (CR 604.3 CDA)", () => {
