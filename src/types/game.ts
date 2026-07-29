@@ -156,6 +156,10 @@ export interface CardInstance {
         abilityId: string;
         auraId?: string;
         duration?: unknown;
+        /** CR 613.7 layer timestamp of the grant. Read against
+         *  `abilitiesSuppressedBy[].seq` so the client marks exactly the
+         *  abilities the engine drops (see `abilityLossTimestamp`). */
+        seq?: number;
     }[];
     /** Static keywords granted to this permanent by another card (CR 113.1,
      *  611 — landwalk via a granting permanent, etc.). Each entry is also
@@ -180,7 +184,15 @@ export interface CardInstance {
         abilityId: string;
         auraId?: string;
         duration?: unknown;
+        /** CR 613.7 layer timestamp — see `grantedActivatedAbilities`. */
+        seq?: number;
     }[];
+    /** "Loses all abilities" statics currently applying to this permanent
+     *  (CR 613.1f — Blood Moon on a nonbasic land, Humility, Titania's Song),
+     *  each with the source's layer timestamp. The preview marks a printed or
+     *  earlier-granted ability LOST from this; without it the zoom panel keeps
+     *  printing a Moon'd land's oracle text as if it still functioned. */
+    abilitiesSuppressedBy?: { sourceId: string; seq: number }[];
     /** Counters on this permanent (CR 122). Map of counter type → count.
      *  Layer 7d folds P/T-modifying types into effective stats; non-PT types
      *  (corpse, mire, vitality, ...) are inert to layers and read by

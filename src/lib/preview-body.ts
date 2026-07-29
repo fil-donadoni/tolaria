@@ -118,7 +118,18 @@ export function buildPreviewBody(
     const types = cardInstance?.types ?? def?.types ?? [];
     const subtypes = cardInstance?.subtypes ?? def?.subtypes ?? [];
     const isCreatureCard = types.includes("Creature");
-    const showOracleText = shouldShowOracleText(def, types, subtypes);
+    // CR 613.1f — while a "loses all abilities" static applies (Blood Moon on a
+    // nonbasic land, Humility, Titania's Song) the PRINTED oracle text states
+    // the opposite of the card's current state. Suppressing it hands the rules
+    // box to the structured ability block, which `getDisplayAbilities` has
+    // already marked row by row: printed abilities and grants that predate the
+    // stripper render struck-through, a grant with a later timestamp stays
+    // live (CR 613.7). Showing the printed paragraphs instead would tell the
+    // player a Moon'd Urza's Saga still has its chapters and its own granted
+    // "{T}: Add {C}" — neither of which the engine will honour.
+    const abilitiesStripped = !!cardInstance?.abilitiesSuppressedBy?.length;
+    const showOracleText =
+        shouldShowOracleText(def, types, subtypes) && !abilitiesStripped;
     const oracleParagraphs = showOracleText
         ? resolveChosenMode(
               resolveChosenSubtypes(

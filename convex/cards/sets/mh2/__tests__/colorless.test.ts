@@ -49,6 +49,7 @@ import {
     getEffectivePower,
     getEffectiveToughness,
 } from "../../../../gre/layers";
+import { getEffectiveActivatedAbilities } from "../../../../gre/activatedAbilities";
 import { projectPublicState } from "../../../../gameProjections";
 import { sagaBoard, tickChapter } from "./urzasSagaFixtures";
 
@@ -226,7 +227,11 @@ describe("entering the battlefield (CR 714.3a, CR 305.9)", () => {
         expect(state.stack[0].triggeredAbilityId).toBe(chapterAbilityId([1]));
         resolveTopOfStack(state);
         expect(entered.grantedActivatedAbilities).toEqual([
-            { sourceCardId: urzasSaga.id, abilityId: "urzas-saga-mana" },
+            {
+                sourceCardId: urzasSaga.id,
+                abilityId: "urzas-saga-mana",
+                seq: expect.any(Number), // CR 613.7 layer timestamp
+            },
         ]);
     });
 
@@ -253,7 +258,11 @@ describe('chapter I — indefinite "{T}: Add {C}" grant (CR 611.2c / 605.1a, #18
         tickChapter(state);
         expect(saga.counters?.[LORE_COUNTER]).toBe(1);
         expect(saga.grantedActivatedAbilities).toEqual([
-            { sourceCardId: urzasSaga.id, abilityId: "urzas-saga-mana" },
+            {
+                sourceCardId: urzasSaga.id,
+                abilityId: "urzas-saga-mana",
+                seq: expect.any(Number), // CR 613.7 layer timestamp
+            },
         ]);
         // CR 611.2c — an indefinite grant carries no `duration` key at all.
         expect(
@@ -315,6 +324,20 @@ describe("chapter II — the Construct maker (CR 604.3 CDA)", () => {
         expect(getEffectiveToughness(state, token)).toBe(1);
         checkStateBasedActions(state);
         expect(state.players[0].battlefield).toContain(token);
+    });
+
+    it("carries its CDA as a KEY in the token id, so a cold registry rebuilds it", () => {
+        // The token's def id is what crosses the wire and what any process
+        // that never ran `registerTokenDefinition` (a cold Convex isolate, the
+        // client-side engine) decodes back into a definition. A CDA written as
+        // an inline closure cannot ride that string: the Construct decoded as
+        // a bare 0/0 and died to the CR 704.5f SBA. The key can — see
+        // `cards/tokenStaticEffects.ts`, whose codec test proves every key
+        // rebuilds a working effect on a registry MISS.
+        const { state, saga } = throughChapterTwo();
+        resolveGrantedAbility(state, saga, "urzas-saga-construct");
+        const token = state.players[0].battlefield.find((c) => c.isToken)!;
+        expect(token.card.id).toContain("pt-cda-artifacts-you-control");
     });
 
     it("scales with every artifact its controller controls, and ignores the opponent's", () => {
@@ -539,6 +562,50 @@ describe("under Blood Moon (CR 305.7 + the 2026 CR 714 gates, #1882)", () => {
         expect(state.players[0].battlefield).toContain(saga);
     });
 
+    it("loses a mana ability its OWN chapter I granted earlier (CR 613.1f / 613.7)", () => {
+        // The timestamp half of layer 6. Chapter I resolves first and grants
+        // "{T}: Add {C}"; Blood Moon lands after and strips it, because layer 6
+        // applies grants and removals in TIMESTAMP order. The engine used to
+        // drop only PRINTED abilities under a stripper and keep every grant
+        // unconditionally, so a Moon'd Saga still tapped for {C} — and, being a
+        // Mountain, for {R} as well.
+        const { state, saga } = sagaBoard({ lore: 0 });
+        tickChapter(state); // I — grants "{T}: Add {C}"
+        expect(
+            getEffectiveActivatedAbilities(saga).map((e) => e.ability.id)
+        ).toEqual(["urzas-saga-mana"]);
+
+        const bloodMoonInstance = moon();
+        state.players[1].battlefield.push(bloodMoonInstance);
+        applySourceStaticEffects(state, bloodMoonInstance);
+
+        expect(getEffectiveActivatedAbilities(saga)).toEqual([]);
+        // The grant is still RECORDED — it is removed by a continuous effect,
+        // not undone, so it returns the moment the Moon leaves (CR 613.1f).
+        expect(saga.grantedActivatedAbilities).toHaveLength(1);
+        expect(getBasicLandMana(saga)).toBe("R"); // only the Mountain ability
+    });
+
+    it("keeps a grant that lands AFTER the stripper (CR 613.7 timestamp order)", () => {
+        const { state, saga } = sagaBoard({ lore: 0 });
+        const bloodMoonInstance = moon();
+        state.players[1].battlefield.push(bloodMoonInstance);
+        applySourceStaticEffects(state, bloodMoonInstance);
+        // A grant stamped after the Moon's own timestamp survives it — the
+        // Humility-then-Fire-Whip shape, asserted here on the same board so the
+        // two directions can't drift apart.
+        saga.grantedActivatedAbilities = [
+            {
+                sourceCardId: urzasSaga.id,
+                abilityId: "urzas-saga-mana",
+                seq: (bloodMoonInstance.staticSeq ?? 0) + 1,
+            },
+        ];
+        expect(
+            getEffectiveActivatedAbilities(saga).map((e) => e.ability.id)
+        ).toEqual(["urzas-saga-mana"]);
+    });
+
     it("is still a Saga, and taps for {R} as a Mountain", () => {
         const { state, saga } = sagaBoard({
             lore: 1,
@@ -569,7 +636,14 @@ describe("wire format — lore counters and the granted abilities cross the proj
         )!;
         expect(slim.counters?.[LORE_COUNTER]).toBe(1);
         expect(slim.grantedActivatedAbilities).toEqual([
-            { sourceCardId: urzasSaga.id, abilityId: "urzas-saga-mana" },
+            {
+                sourceCardId: urzasSaga.id,
+                abilityId: "urzas-saga-mana",
+                // CR 613.7 layer timestamp — the wire carries it because a
+                // client ability view has to make the same "was this granted
+                // before the stripper?" call the engine makes.
+                seq: expect.any(Number),
+            },
         ]);
         // …and the projected instance is still a live {C} source server-side.
         expect(

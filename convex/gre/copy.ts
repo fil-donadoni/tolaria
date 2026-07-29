@@ -13,6 +13,10 @@
 
 import { getDefinition, tryGetDefinition } from "../cards";
 import type { CopyEffectOptions, TriggeredAbility } from "../cards/types";
+import {
+    abilityLossTimestamp,
+    grantOutrankedByAbilityLoss,
+} from "./activatedAbilities";
 import type { CardInstanceState } from "./state";
 
 /** Re-exported alias so engine call sites import copy-option typing from the
@@ -124,14 +128,17 @@ export function revertCopy(card: CardInstanceState): void {
 export function effectiveTriggeredAbilities(
     card: CardInstanceState
 ): TriggeredAbility[] {
-    // CR 613.1f — a permanent that "loses all abilities" (Titania's Song) has
-    // no triggered abilities while suppressed (including granted ones).
-    if (card.abilitiesSuppressedBy && card.abilitiesSuppressedBy.length > 0) {
-        return [];
-    }
+    // CR 613.1f / 613.7 — a permanent that "loses all abilities" (Titania's
+    // Song, Blood Moon) loses its PRINTED triggers outright, and every trigger
+    // GRANTED to it before the stripper applied; a grant with a later timestamp
+    // survives. This used to return [] on any suppression, dropping later
+    // grants the engine's activated-ability reader kept — the two authorities
+    // disagreed about the same rule.
+    const strippedAt = abilityLossTimestamp(card);
+    const granted = grantedTriggeredAbilities(card, strippedAt);
+    if (strippedAt !== null) return granted;
     const presented = tryGetDefinition(presentedDefId(card));
     const base = presented?.triggeredAbilities ?? [];
-    const granted = grantedTriggeredAbilities(card);
     if (!card.copiedFrom) return [...base, ...granted];
     const printed = tryGetDefinition(card.copiedFrom);
     const retained =
@@ -146,12 +153,14 @@ export function effectiveTriggeredAbilities(
  *  (`findTriggeredAbility`) observe the granted trigger as if it were printed
  *  on the recipient. Templates that no longer exist (def changed) are skipped. */
 function grantedTriggeredAbilities(
-    card: CardInstanceState
+    card: CardInstanceState,
+    strippedAt: number | null
 ): TriggeredAbility[] {
     const grants = card.grantedTriggeredAbilities;
     if (!grants || grants.length === 0) return [];
     const out: TriggeredAbility[] = [];
     for (const grant of grants) {
+        if (grantOutrankedByAbilityLoss(grant.seq, strippedAt)) continue;
         const grantingDef = tryGetDefinition(grant.sourceCardId);
         const template = grantingDef?.triggeredGrantTemplates?.find(
             (a) => a.id === grant.abilityId

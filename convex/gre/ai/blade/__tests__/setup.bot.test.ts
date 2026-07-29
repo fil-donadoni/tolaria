@@ -448,7 +448,9 @@ describe("blade setup — `activate` resolves post-layer abilities (issue #1522)
         // Simulate a "loses all abilities" continuous effect (Titania's Song
         // shape) already applied to this permanent — the same field
         // `applySourceStaticEffects` writes for a live suppression source.
-        delta.abilitiesSuppressedBy = ["some-suppressing-source-id"];
+        delta.abilitiesSuppressedBy = [
+            { sourceId: "some-suppressing-source-id", seq: 1 },
+        ];
 
         expect(() =>
             applyBladeSetup(state, {

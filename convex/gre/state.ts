@@ -41,6 +41,7 @@ import {
     tryGetDefinition,
     isPrintedInSet as isCardPrintedInSet,
 } from "../cards";
+import { resolveTokenStaticEffects } from "../cards/tokenStaticEffects";
 import { getEmblemDefinition, tryGetEmblemDefinition } from "../cards/emblems";
 import { tokenPrintIdFor } from "../cards/tokenPrintLookup";
 import { getKeywordCounterGrant } from "../cards/mechanicsRegistry";
@@ -405,6 +406,10 @@ export type CardInstanceState = {
         abilityId: string;
         auraId?: string;
         duration?: Duration;
+        /** Layer timestamp of the grant (CR 613.7). Read against
+         *  `abilitiesSuppressedBy[].seq` so a grant that PREDATES a "loses all
+         *  abilities" stripper is removed by it while a later one survives. */
+        seq?: number;
     }[];
     /** Triggered abilities granted to this permanent by an anthem-style static
      *  effect (CR 113.1, 611). Each entry references a triggered-ability
@@ -426,6 +431,9 @@ export type CardInstanceState = {
         abilityId: string;
         auraId?: string;
         duration?: Duration;
+        /** Layer timestamp of the grant (CR 613.7) — see the same field on
+         *  `grantedActivatedAbilities`. */
+        seq?: number;
     }[];
     /** Keywords suppressed by a keyword-remove static effect (CR 613.1a
      *  layer 6). Each entry records the removed keyword and the source that
@@ -450,15 +458,24 @@ export type CardInstanceState = {
      *  `removedKeywords`, which is source-keyed and tied to a continuous static
      *  effect's lifetime rather than a fixed duration. */
     temporaryRemovedKeywords?: { keyword: string; duration: Duration }[];
-    /** Instance ids of `ability-loss` static-effect sources that have stripped
-     *  this permanent of ALL its abilities (CR 613.1f — "loses all abilities",
-     *  Titania's Song). While non-empty: native activated abilities don't
-     *  resolve, triggered abilities are excluded from the trigger scan, and the
-     *  intrinsic mana ability is unavailable. Keyword abilities are stripped
-     *  imperatively into `removedKeywords` (so the existing restore path
-     *  rebuilds them). Multiple sources stack; the last source to unapply
-     *  clears the suppression. */
-    abilitiesSuppressedBy?: string[];
+    /** `ability-loss` static-effect sources that have stripped this permanent
+     *  of ALL its abilities (CR 613.1f — "loses all abilities", Titania's Song;
+     *  Blood Moon strips a nonbasic land before setting its type). While
+     *  non-empty: native activated abilities don't resolve, native triggered
+     *  abilities are excluded from the trigger scan, and the intrinsic mana
+     *  ability is unavailable. Keyword abilities are stripped imperatively into
+     *  `removedKeywords` (so the existing restore path rebuilds them). Multiple
+     *  sources stack; the last source to unapply clears the suppression.
+     *
+     *  `seq` is the source's layer timestamp (`staticSeq`), because layer 6
+     *  applies grants and removals in TIMESTAMP order (CR 613.7): an ability
+     *  GRANTED to this permanent before the stripper applied is removed by it,
+     *  one granted after survives (Humility, then Fire Whip). Stored per source
+     *  — not as a bare id list — so `getEffectiveActivatedAbilities` /
+     *  `effectiveTriggeredAbilities` can make that comparison at read time,
+     *  which they could not while the field held ids alone (a Blood Moon'd
+     *  Urza's Saga kept the mana ability its own chapter I had granted it). */
+    abilitiesSuppressedBy?: { sourceId: string; seq: number }[];
     /** Damage marked on the creature this turn (CR 120.3). Accumulates across
      *  damage events; checked against effective toughness for lethal damage
      *  (CR 704.5g). Removed at CLEANUP (CR 514.2). */
@@ -5339,13 +5356,27 @@ function unapplyKeywordCounterGrant(
  *  only ever relative among LIVE records — once every stamped permanent has
  *  left, there is nothing left to order and restarting at 1 is observationally
  *  identical. */
+/** Next layer timestamp (CR 613.7). Derived from the board rather than kept in
+ *  a counter field, so it survives serialization for free.
+ *
+ *  It must consider EVERY stamp this function has handed out, not just the
+ *  per-source `staticSeq`: a grant minted by a resolving ability
+ *  (`grantActivatedAbilityPermanent` — Urza's Saga chapter I) is stamped from
+ *  here but has no permanent of its own to hang a `staticSeq` on. Counting only
+ *  `staticSeq` made the next caller mint the SAME number, so a Blood Moon
+ *  entering after that grant tied with it instead of outranking it and the
+ *  Saga kept the mana ability the Moon should have stripped (CR 613.1f). */
 function allocStaticTimestamp(state: GameState): number {
     let max = 0;
+    const bump = (seq: number | undefined) => {
+        if (seq !== undefined && seq > max) max = seq;
+    };
     for (const player of state.players) {
         for (const card of player.battlefield) {
-            if (card.staticSeq !== undefined && card.staticSeq > max) {
-                max = card.staticSeq;
-            }
+            bump(card.staticSeq);
+            for (const g of card.grantedActivatedAbilities ?? []) bump(g.seq);
+            for (const g of card.grantedTriggeredAbilities ?? []) bump(g.seq);
+            for (const s of card.abilitiesSuppressedBy ?? []) bump(s.seq);
         }
     }
     return max + 1;
@@ -5434,6 +5465,7 @@ export function applySourceStaticEffects(
                             sourceCardId: cardId,
                             abilityId: effect.abilityId,
                             auraId: source.id,
+                            seq,
                         },
                     ];
                 } else if (effect.kind === "triggered-grant" && cardId) {
@@ -5446,6 +5478,7 @@ export function applySourceStaticEffects(
                             sourceCardId: cardId,
                             abilityId: effect.abilityId,
                             auraId: source.id,
+                            seq,
                         },
                     ];
                 } else if (effect.kind === "type-add") {
@@ -5616,9 +5649,9 @@ export function applySourceStaticEffects(
                     if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
                         continue;
                     }
-                    const already = (
-                        target.abilitiesSuppressedBy ?? []
-                    ).includes(source.id);
+                    const already = (target.abilitiesSuppressedBy ?? []).some(
+                        (s) => s.sourceId === source.id
+                    );
                     if (already) continue;
                     // Strip every keyword into `removedKeywords` (source-keyed),
                     // reusing the keyword-remove restore path on unapply.
@@ -5633,7 +5666,7 @@ export function applySourceStaticEffects(
                         removed.length > 0 ? removed : undefined;
                     target.abilitiesSuppressedBy = [
                         ...(target.abilitiesSuppressedBy ?? []),
-                        source.id,
+                        { sourceId: source.id, seq },
                     ];
                 }
             }
@@ -5922,7 +5955,9 @@ export function unapplySourceStaticEffects(
             // activated/triggered/mana abilities function once no source holds.
             const suppressors = target.abilitiesSuppressedBy;
             if (suppressors && suppressors.length > 0) {
-                const keptS = suppressors.filter((id) => id !== source.id);
+                const keptS = suppressors.filter(
+                    (s) => s.sourceId !== source.id
+                );
                 target.abilitiesSuppressedBy =
                     keptS.length > 0 ? keptS : undefined;
             }
@@ -6105,6 +6140,7 @@ export function applyExistingGrantsTo(
                         sourceCardId: cardId,
                         abilityId: effect.abilityId,
                         auraId: source.id,
+                        seq,
                     },
                 ];
             } else if (effect.kind === "triggered-grant" && cardId) {
@@ -6117,6 +6153,7 @@ export function applyExistingGrantsTo(
                         sourceCardId: cardId,
                         abilityId: effect.abilityId,
                         auraId: source.id,
+                        seq,
                     },
                 ];
             } else if (effect.kind === "type-add") {
@@ -6230,9 +6267,9 @@ export function applyExistingGrantsTo(
                 if (!effect.applies(newPermanent, source, STATIC_EFFECT_CTX)) {
                     continue;
                 }
-                const already = (
-                    newPermanent.abilitiesSuppressedBy ?? []
-                ).includes(source.id);
+                const already = (newPermanent.abilitiesSuppressedBy ?? []).some(
+                    (s) => s.sourceId === source.id
+                );
                 if (already) continue;
                 const removed = newPermanent.removedKeywords ?? [];
                 for (const kw of newPermanent.staticAbilities) {
@@ -6245,7 +6282,7 @@ export function applyExistingGrantsTo(
                     removed.length > 0 ? removed : undefined;
                 newPermanent.abilitiesSuppressedBy = [
                     ...(newPermanent.abilitiesSuppressedBy ?? []),
-                    source.id,
+                    { sourceId: source.id, seq },
                 ];
             }
         }
@@ -11890,6 +11927,10 @@ export function buildSpellContext(
                     sourceCardId,
                     abilityId,
                     duration: resolveDuration(duration, item.castById, state),
+                    // CR 613.7 — a grant from a RESOLVING ability takes a layer
+                    // timestamp at resolution, so a "loses all abilities"
+                    // stripper already on the battlefield does NOT remove it.
+                    seq: allocStaticTimestamp(state),
                 },
             ];
         },
@@ -11926,7 +11967,8 @@ export function buildSpellContext(
             if (already) return;
             found.card.grantedActivatedAbilities = [
                 ...(found.card.grantedActivatedAbilities ?? []),
-                { sourceCardId, abilityId },
+                // CR 613.7 timestamp — see `grantActivatedAbility` above.
+                { sourceCardId, abilityId, seq: allocStaticTimestamp(state) },
             ];
         },
         // CR 113.1 / 611.1b: grants a triggered ability for a limited duration.
@@ -11951,6 +11993,8 @@ export function buildSpellContext(
                     sourceCardId,
                     abilityId,
                     duration: resolveDuration(duration, item.castById, state),
+                    // CR 613.7 timestamp — see `grantActivatedAbility`.
+                    seq: allocStaticTimestamp(state),
                 },
             ];
         },
@@ -11983,7 +12027,8 @@ export function buildSpellContext(
             if (already) return;
             found.card.grantedTriggeredAbilities = [
                 ...(found.card.grantedTriggeredAbilities ?? []),
-                { sourceCardId, abilityId },
+                // CR 613.7 timestamp — see `grantActivatedAbility`.
+                { sourceCardId, abilityId, seq: allocStaticTimestamp(state) },
             ];
         },
         // CR 614.1c — persistent leave-the-battlefield → exile replacement on a
@@ -14810,6 +14855,7 @@ export function createTokenPermanents(
     // display data through the registry exactly like printed cards. The id is
     // content-derived so replays are deterministic.
     const defId = tokenDefinitionId(spec);
+    const entryStaticEffects = resolveTokenStaticEffects(spec.staticEffectKeys);
     registerTokenDefinition({
         id: defId,
         name: spec.name,
@@ -14833,10 +14879,14 @@ export function createTokenPermanents(
             : {}),
         ...(spec.imagePrintId ? { imagePrintId: spec.imagePrintId } : {}),
         // CR 611 — register the token's continuous static effects on its
-        // synthesized definition so def-keyed readers (isGuardedAgainst for the
-        // Tetravite "can't be enchanted" guard) observe them.
-        ...(spec.staticEffects && spec.staticEffects.length > 0
-            ? { staticEffects: [...spec.staticEffects] }
+        // synthesized definition so def-keyed readers (the layer system for a
+        // token's CDA, isGuardedAgainst for the Tetravite "can't be enchanted"
+        // guard) observe them. Built from the spec's KEYS through the shared
+        // factory table, the same call `maybeSynthesizeToken` makes when it
+        // rebuilds this definition from the id alone — one table, so a cold
+        // isolate never sees a weaker token than the one that was registered.
+        ...(entryStaticEffects.length > 0
+            ? { staticEffects: entryStaticEffects }
             : {}),
         // CR 712 (issue #1210, ADR 0067) — a double-faced token's back face
         // (the Incubator's "{2}: Transform this artifact" → a Construct

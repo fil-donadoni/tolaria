@@ -577,8 +577,16 @@ function expandCard(
             compact.temporaryRemovedKeywords as CardInstanceState["temporaryRemovedKeywords"];
     }
     if (compact.abilitiesSuppressedBy) {
-        result.abilitiesSuppressedBy =
-            compact.abilitiesSuppressedBy as CardInstanceState["abilitiesSuppressedBy"];
+        // Rows persisted before the field carried a layer timestamp hold bare
+        // source-id STRINGS (CR 613.7 ordering was added later). Coerce them to
+        // seq 0 — the earliest possible stamp, so every grant on that permanent
+        // reads as later and survives, matching the pre-change behaviour for a
+        // game already in flight.
+        result.abilitiesSuppressedBy = (
+            compact.abilitiesSuppressedBy as unknown[]
+        ).map((s) =>
+            typeof s === "string" ? { sourceId: s, seq: 0 } : s
+        ) as CardInstanceState["abilitiesSuppressedBy"];
     }
     if (compact.damagedBySources) {
         result.damagedBySources = compact.damagedBySources as string[];

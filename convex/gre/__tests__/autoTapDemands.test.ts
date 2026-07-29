@@ -191,7 +191,7 @@ describe("buildBoardAbilityDemands — on-board activated abilities (issue #476,
             id: "shiv",
             controllerId: "p1",
             zone: "battlefield",
-            abilitiesSuppressedBy: ["humility"],
+            abilitiesSuppressedBy: [{ sourceId: "humility", seq: 1 }],
         });
         expect(buildBoardAbilityDemands([suppressed], myTurn)).toHaveLength(0);
     });

@@ -1399,8 +1399,13 @@ export interface CardBackFace {
     colors?: Color[];
     /** Static (keyword) abilities the back face has. */
     staticAbilities?: string[];
-    /** Continuous static effects the back face has (CR 611). */
-    staticEffects?: StaticEffect[];
+    /** Continuous static effects the back face has (CR 611), named by
+     *  {@link TokenStaticEffectKey}. Keys rather than closures for the same
+     *  reason as `TokenSpec.staticEffectKeys`: a back face is registered through
+     *  the SAME content-derived-id codec (`backFaceAsTokenSpec` →
+     *  `tokenDefinitionId`), so anything that can't be encoded in the id is lost
+     *  the first time a decoder rebuilds the definition. */
+    staticEffectKeys?: TokenStaticEffectKey[];
     /** Activated abilities the back face has (e.g. a transform-back ability
      *  on a card that flips both directions). */
     activatedAbilities?: ActivatedAbility[];
@@ -1432,6 +1437,24 @@ export interface EffectCardBackFace {
 
 // --- Token specification (CR 111, 707.1) ---
 
+/** Stable key naming one continuous static effect a token (or a synthesized
+ *  back face) can carry, CR 611. The union is the AUTHORITY: the factory table
+ *  in `cards/tokenStaticEffects.ts` is typed `Record<TokenStaticEffectKey, …>`,
+ *  so adding a member here without a factory (or a factory without a member) is
+ *  a compile error.
+ *
+ *  Why a key and not the `StaticEffect` itself: a token's whole identity is the
+ *  content-derived string `tokenDefinitionId` builds, and `maybeSynthesizeToken`
+ *  decodes that string back into a definition on every registry miss (cold
+ *  isolate, client-side engine run). A `StaticEffect` is a pair of closures and
+ *  cannot ride a string — a key can, and both sides rebuild through the same
+ *  factory. See `cards/tokenStaticEffects.ts` for the full rationale and the
+ *  bug this shape closes (Urza's Saga's Construct decoding as a bare 0/0 and
+ *  dying to the CR 704.5f SBA). */
+export type TokenStaticEffectKey =
+    | "cant-be-enchanted-self"
+    | "pt-cda-artifacts-you-control";
+
 /** Structural definition of a token permanent created at resolution time
  *  (CR 707.1 — a token is created in the form described by the effect that
  *  creates it). All fields are static for the token's lifetime; tokens
@@ -1456,14 +1479,22 @@ export interface TokenSpec {
     colors?: Color[];
     /** Static abilities the token enters with (e.g. `["flying"]`). */
     staticAbilities?: string[];
-    /** Continuous static effects the token enters with (CR 611). Registered
-     *  onto the synthesized token CardDefinition so battlefield-wide readers
-     *  that key off the card def — e.g. `isGuardedAgainst` for a
-     *  `permanent-guard` — observe them. Used by Tetravite tokens ("This token
-     *  can't be enchanted", a self-targeting `cantBeEnchanted` guard). Folded
-     *  into the token's content-derived definition id so a token WITH a static
-     *  effect gets a distinct def from one without. */
-    staticEffects?: StaticEffect[];
+    /** Continuous static effects the token enters with (CR 611), named by
+     *  {@link TokenStaticEffectKey} — Tetravite's "This token can't be
+     *  enchanted", Urza's Saga's Construct "+1/+1 for each artifact you
+     *  control". Resolved to real `StaticEffect`s through
+     *  `resolveTokenStaticEffects` (`cards/tokenStaticEffects.ts`) and
+     *  registered onto the synthesized token CardDefinition, so battlefield-wide
+     *  readers that key off the card def (the layer system, `isGuardedAgainst`)
+     *  observe them.
+     *
+     *  KEYS, not the effects themselves, because the keys are what survive the
+     *  round trip: they are folded into the token's content-derived definition
+     *  id (`tokenDefinitionId`) and rebuilt from it by `maybeSynthesizeToken` on
+     *  any registry miss. Closures cannot ride that string; before this field
+     *  existed the decoder rebuilt from a hand-maintained kind list and silently
+     *  dropped every effect not on it. */
+    staticEffectKeys?: TokenStaticEffectKey[];
     /** Optional Scryfall id of a printed token card. Used by the image layer
      *  to fetch real token art (e.g. The Hive's Wasp print from 10E:
      *  `09921372-126f-4c81-b6d8-ea50b1d0eb44`). When omitted, the renderer

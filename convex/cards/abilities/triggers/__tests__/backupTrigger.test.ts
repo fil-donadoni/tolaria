@@ -339,6 +339,7 @@ describe("Backup N — real trigger path (CR 702.165, issue #1692)", () => {
                     sourceCardId: guardianScalelord.id,
                     abilityId: "guardian-scalelord-attack",
                     duration: { phase: "end-of-turn" },
+                    seq: expect.any(Number), // CR 613.7 layer timestamp
                 },
             ]);
             // The client reads granted triggers off the instance

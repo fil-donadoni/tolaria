@@ -3,7 +3,6 @@
 // artifacts (no coloured cost) live here per the colour-split convention.
 
 import type { CardDefinition, SpellContext, TokenSpec } from "../../types";
-import { EFFECT_AFFECTS_SELF } from "../../types";
 
 // Yavimaya, Cradle of Growth — "Each land is a Forest in addition to its
 // other land types." (CR 305.7, 611 — layer 4 subtype addition.) Same
@@ -45,6 +44,13 @@ export const yavimayaCradleOfGrowth: CardDefinition = {
  *  `sets/inv/white.ts`). The token IS an artifact, so it counts ITSELF: a lone
  *  Construct is 1/1 and never dies to the CR 704.5f zero-toughness SBA.
  *
+ *  The CDA is named by KEY, not written inline: a token's definition is
+ *  rebuilt from its content-derived id string on every registry miss (a cold
+ *  Convex isolate, a client-side engine run), and closures cannot ride a
+ *  string. Written inline the Construct decoded as a bare 0/0 and died to the
+ *  SBA the moment the registry went cold. See `cards/tokenStaticEffects.ts`,
+ *  which holds the factory this key resolves to.
+ *
  *  `imagePrintId` is pinned by hand, not left to the `token-prints.json`
  *  lockfile: this spec is handed to `SpellContext.createToken` from a
  *  `resolve()` closure, which the DSL art guard
@@ -59,24 +65,7 @@ const URZAS_SAGA_CONSTRUCT_TOKEN: TokenSpec = {
     power: 0,
     toughness: 0,
     imagePrintId: "a7caaf39-8f16-4f1d-bee6-a45674306319",
-    staticEffects: [
-        {
-            kind: "pt-cda",
-            applies: EFFECT_AFFECTS_SELF,
-            compute: (source, state) => {
-                let artifacts = 0;
-                for (const player of state.players) {
-                    for (const permanent of player.battlefield) {
-                        if (permanent.controllerId !== source.controllerId) {
-                            continue;
-                        }
-                        if (permanent.types.includes("Artifact")) artifacts++;
-                    }
-                }
-                return { power: artifacts, toughness: artifacts };
-            },
-        },
-    ],
+    staticEffectKeys: ["pt-cda-artifacts-you-control"],
 };
 
 /** Chapter II's granted ability body.
@@ -91,7 +80,7 @@ const URZAS_SAGA_CONSTRUCT_TOKEN: TokenSpec = {
  *  serializability invariant the whole Effect Script grammar rests on. This is
  *  NOT the "the Op I need doesn't exist yet" case: `createToken` exists and is
  *  used everywhere; what cannot be expressed as JSON is a CDA, by definition.
- *  `TokenSpec.staticEffects` + `SpellContext.createToken` is the shipped
+ *  `TokenSpec.staticEffectKeys` + `SpellContext.createToken` is the shipped
  *  mechanism for exactly this (`ncc/colorless.ts` precedent). */
 function createUrzasSagaConstruct(ctx: SpellContext): void {
     ctx.createToken(URZAS_SAGA_CONSTRUCT_TOKEN, ctx.controller, 1);

@@ -59,9 +59,12 @@ Fable of the mirror-breaker
 - restock: il testo della choiche dialog dice una carta, ma selezionandone 2 ne recupero 2, correttamente. correggere la ux
 - quando ho messo il companion in mano, la zona companion puo' anche scomparire per il resto del game
 - quirion elves: la scelta deve essere scritta nell'oracle text della card-preview, come per chromatic armor
+- filtri deckbuilder: aggiungi anche la direzione del sorting oltre a campo di sorting
+- Titania's Song toglie le abilità, ma posso ancora vedere un'abilità attivata e cliccarci sopra, per poi ricevere un errore server. il client deve essere sempr sincronizzato su questi casi e non mostarare le abilità che la carta ha perso per stato di gioco
 
 # Bug gameplay
 
+- quando dalla pagina scenarios clicco su test, se c'è già una partita in corso non deve comparire l'errore ma un dialog che mi chiede se voglio concedere quella partita, indicando tipologia e giocatore/bot avversario
 - gli scenari che specificano carte nella library non funzionano, mi ritrovo sempre e solo terre base nella libraryi invece delle carte indicate.
 
 # Bug bot

@@ -28,7 +28,11 @@ import type {
     TargetRequirement,
     TriggerStateView,
 } from "@convex/cards/types";
-import { getEffectiveActivatedAbilities } from "@convex/gre/activatedAbilities";
+import {
+    abilityLossTimestamp,
+    getEffectiveActivatedAbilities,
+    grantOutrankedByAbilityLoss,
+} from "@convex/gre/activatedAbilities";
 import {
     DAMAGEABLE_PERMANENT_TYPES,
     LAND_SUBTYPE_MANA,
@@ -2024,9 +2028,14 @@ export function getStackModeLines(item: {
 /** Display state for a card ability in the zoom panel.
  *  - "native": present on the CardDefinition and still effective.
  *  - "granted": added at runtime by an aura/effect (not on the def).
- *  - "lost": present on the CardDefinition but removed at runtime
- *    (e.g. a Wall losing Defender). Computed by diffing native vs
- *    instance.staticAbilities — backend has no explicit field for this. */
+ *  - "lost": present on the card (printed OR granted earlier) but not
+ *    effective right now. For a keyword that is a diff of native vs
+ *    `instance.staticAbilities` (a Wall losing Defender — the backend has no
+ *    explicit field). For an activated/triggered ability it is a "loses all
+ *    abilities" static (CR 613.1f — Blood Moon, Humility, Titania's Song),
+ *    read off `abilitiesSuppressedBy` with the CR 613.7 timestamp comparison,
+ *    so a grant that landed BEFORE the stripper reads lost and one that landed
+ *    after does not. */
 export type AbilityDisplayState = "native" | "granted" | "lost";
 
 export type DisplayKeyword = {
@@ -2037,13 +2046,13 @@ export type DisplayKeyword = {
 export type DisplayActivated = {
     id: string;
     oracleText: string;
-    state: "native" | "granted";
+    state: AbilityDisplayState;
 };
 
 export type DisplayTriggered = {
     id: string;
     oracleText: string;
-    state: "native" | "granted";
+    state: AbilityDisplayState;
 };
 
 export type DisplayAbilities = {
@@ -2146,12 +2155,25 @@ export function getDisplayAbilities(
         if (!nativeSet.has(k)) keywords.push({ name: k, state: "granted" });
     }
 
+    // CR 613.1f — a live "loses all abilities" static (Blood Moon on a nonbasic
+    // land, Humility, Titania's Song). Its layer timestamp decides which GRANTS
+    // it reached (CR 613.7): the SAME comparison the engine's effective-ability
+    // readers make, imported rather than re-derived so the preview can never
+    // claim an ability the board won't offer.
+    const strippedAt = instance
+        ? abilityLossTimestamp(instance as unknown as CardInstanceState)
+        : null;
+    const grantState = (seq: number | undefined): AbilityDisplayState =>
+        grantOutrankedByAbilityLoss(seq, strippedAt) ? "lost" : "granted";
+    const nativeState: AbilityDisplayState =
+        strippedAt === null ? "native" : "lost";
+
     const activated: DisplayActivated[] = (def.activatedAbilities ?? [])
         .filter((a) => a.oracleText)
         .map((a) => ({
             id: a.id,
             oracleText: a.oracleText,
-            state: "native" as const,
+            state: nativeState,
         }));
     for (const grant of instance?.grantedActivatedAbilities ?? []) {
         const sourceDef = tryGetDefinition(grant.sourceCardId);
@@ -2162,7 +2184,7 @@ export function getDisplayAbilities(
         activated.push({
             id: tmpl.id,
             oracleText: tmpl.oracleText,
-            state: "granted",
+            state: grantState(grant.seq),
         });
     }
 
@@ -2171,7 +2193,7 @@ export function getDisplayAbilities(
         .map((a) => ({
             id: a.id,
             oracleText: a.oracleText,
-            state: "native" as const,
+            state: nativeState,
         }));
     // CR 113.1 — anthem-granted triggers (Energy Flux) live on the granting
     // card's `triggeredGrantTemplates`, not on this card's def.
@@ -2184,7 +2206,7 @@ export function getDisplayAbilities(
         triggered.push({
             id: tmpl.id,
             oracleText: tmpl.oracleText,
-            state: "granted",
+            state: grantState(grant.seq),
         });
     }
 
@@ -2235,8 +2257,11 @@ export function resolvePreviewAbilities(
     if (!showOracleText) return abilities;
     return {
         keywords: abilities.keywords.filter((k) => k.state !== "native"),
-        activated: abilities.activated.filter((a) => a.state === "granted"),
-        triggered: abilities.triggered.filter((t) => t.state === "granted"),
+        // `!== "native"` on all three, not `=== "granted"`: a LOST row is a
+        // runtime delta too (CR 613.1f), and the printed text above it says the
+        // opposite of the truth while it applies.
+        activated: abilities.activated.filter((a) => a.state !== "native"),
+        triggered: abilities.triggered.filter((t) => t.state !== "native"),
     };
 }
 

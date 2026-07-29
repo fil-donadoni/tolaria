@@ -5,7 +5,7 @@ import {
 } from "~/lib/card-utils";
 import { formatOracleText } from "~/lib/oracle-text";
 
-const KEYWORD_STATE_CLASS: Record<AbilityDisplayState, string> = {
+const ABILITY_STATE_CLASS: Record<AbilityDisplayState, string> = {
     native: "text-text",
     granted: "text-success-strong",
     lost: "text-text-muted line-through opacity-70",
@@ -20,7 +20,7 @@ function KeywordRow({
 }) {
     const prefix = state === "granted" ? "[+] " : "";
     return (
-        <div className={KEYWORD_STATE_CLASS[state]}>
+        <div className={ABILITY_STATE_CLASS[state]}>
             {prefix}
             {/* Parametrized keywords carry mana in their name ("ward {1}",
                 "protection from {R}"), so the row goes through the oracle-text
@@ -31,17 +31,20 @@ function KeywordRow({
     );
 }
 
+/** An activated / triggered ability line. `lost` uses the SAME struck-through
+ *  treatment as a lost keyword (CR 613.1f — a Blood Moon'd land, a permanent
+ *  under Humility): the text stays readable so the player can see WHAT was
+ *  removed, which a hidden row cannot convey. */
 function AbilityRow({
     text,
     state,
 }: {
     text: string;
-    state: "native" | "granted";
+    state: AbilityDisplayState;
 }) {
-    const cls = state === "granted" ? "text-success-strong" : "text-text";
     const prefix = state === "granted" ? "[+] " : "";
     return (
-        <div className={cls}>
+        <div className={ABILITY_STATE_CLASS[state]}>
             {prefix}
             {formatOracleText(text)}
         </div>

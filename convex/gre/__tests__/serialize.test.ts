@@ -814,7 +814,10 @@ describe("game_state serialize round-trip", () => {
         lion.copiedFrom = "printed-clone-id";
         // CR 613.1f — "loses all abilities" suppression source list
         // (Titania's Song, #288).
-        lion.abilitiesSuppressedBy = ["song-1", "song-2"];
+        lion.abilitiesSuppressedBy = [
+            { sourceId: "song-1", seq: 1 },
+            { sourceId: "song-2", seq: 2 },
+        ];
         // CR 205.4a — supertype mutation markers (Melting / Arcum's
         // Weathervane, #661): source-keyed adds/removes must round-trip so the
         // live snow status survives a mid-game save/load.
@@ -954,7 +957,10 @@ describe("game_state serialize round-trip", () => {
         expect(got.chosenPlayerId).toBe("p2");
         expect(got.chosenSubtypes).toEqual(["Forest", "Island"]);
         expect(got.copiedFrom).toBe("printed-clone-id");
-        expect(got.abilitiesSuppressedBy).toEqual(["song-1", "song-2"]);
+        expect(got.abilitiesSuppressedBy).toEqual([
+            { sourceId: "song-1", seq: 1 },
+            { sourceId: "song-2", seq: 2 },
+        ]);
         expect(got.grantedSupertypes).toEqual([
             { supertype: "Snow", sourceId: "indefinite" },
         ]);

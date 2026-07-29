@@ -112,7 +112,8 @@ registerTokenDefinition({
 });
 
 /** A recipient that DOES have a native activated ability, so the
- *  `abilitiesSuppressedBy` drop is observable as "native gone, granted kept". */
+ *  `abilitiesSuppressedBy` drop is observable as "native gone, and the granted
+ *  one kept or dropped depending on its layer timestamp" (CR 613.7). */
 const NATIVE_ABILITY_ID = "test-1880-native-pump";
 const ABILITY_HOST_ID = "test-1880-ability-host";
 registerTokenDefinition({
@@ -246,6 +247,9 @@ describe("grantAbility: indefinite activated-ability grant (CR 611.2c, issue #18
             {
                 sourceCardId: INDEFINITE_GRANTER_ID,
                 abilityId: MANA_TEMPLATE_ID,
+                // CR 613.7 — the grant's layer timestamp, read against a
+                // "loses all abilities" stripper's own.
+                seq: expect.any(Number),
             },
         ]);
 
@@ -258,6 +262,7 @@ describe("grantAbility: indefinite activated-ability grant (CR 611.2c, issue #18
             {
                 sourceCardId: INDEFINITE_GRANTER_ID,
                 abilityId: MANA_TEMPLATE_ID,
+                seq: expect.any(Number),
             },
         ]);
     });
@@ -394,7 +399,11 @@ describe("granted mana abilities reach the mana probes (CR 605.1a, issue #1880)"
 
     it("a permanent under `abilitiesSuppressedBy` has NO mana ability (CR 613.1f)", () => {
         const { state, recipient } = boardWithGrant(INDEFINITE_GRANTER_ID);
-        recipient.abilitiesSuppressedBy = ["titanias-song"];
+        // The stripper applies AFTER the grant (CR 613.7), so it removes it.
+        for (const g of recipient.grantedActivatedAbilities ?? []) g.seq = 1;
+        recipient.abilitiesSuppressedBy = [
+            { sourceId: "titanias-song", seq: 2 },
+        ];
         expect(hasManaAbility(recipient)).toBe(false);
         expect(getActivatedManaAbility(recipient)).toBeNull();
         expect(
@@ -440,22 +449,41 @@ describe("getEffectiveActivatedAbilities moved to gre/activatedAbilities (issue 
         ]);
     });
 
-    it("drops the NATIVE abilities under `abilitiesSuppressedBy` (CR 613.1f) — the drop survived the move", () => {
+    it("drops the NATIVE abilities under `abilitiesSuppressedBy` (CR 613.1f), keeping a LATER grant", () => {
         const host = makeInstance(ABILITY_HOST_ID, {
             id: "host",
             controllerId: "p1",
             ownerId: "p1",
-            abilitiesSuppressedBy: ["titanias-song"],
+            abilitiesSuppressedBy: [{ sourceId: "titanias-song", seq: 1 }],
             grantedActivatedAbilities: [
                 {
                     sourceCardId: INDEFINITE_GRANTER_ID,
                     abilityId: MANA_TEMPLATE_ID,
+                    // Granted AFTER the stripper — CR 613.7 keeps it.
+                    seq: 2,
                 },
             ],
         });
         expect(
             getEffectiveActivatedAbilities(host).map((e) => e.ability.id)
         ).toEqual([MANA_TEMPLATE_ID]);
+    });
+
+    it("drops a grant that PREDATES the stripper too (CR 613.7 timestamp order)", () => {
+        const host = makeInstance(ABILITY_HOST_ID, {
+            id: "host",
+            controllerId: "p1",
+            ownerId: "p1",
+            abilitiesSuppressedBy: [{ sourceId: "titanias-song", seq: 2 }],
+            grantedActivatedAbilities: [
+                {
+                    sourceCardId: INDEFINITE_GRANTER_ID,
+                    abilityId: MANA_TEMPLATE_ID,
+                    seq: 1,
+                },
+            ],
+        });
+        expect(getEffectiveActivatedAbilities(host)).toEqual([]);
     });
 
     it("ignores a grant whose template id doesn't exist on the granting card", () => {

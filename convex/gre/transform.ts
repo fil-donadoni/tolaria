@@ -43,6 +43,7 @@ import {
     tokenDefinitionId,
     tryGetDefinition,
 } from "../cards";
+import { resolveTokenStaticEffects } from "../cards/tokenStaticEffects";
 import type { CardBackFace, ManaCost, TokenSpec } from "../cards/types";
 import type { CardInstanceState } from "./state";
 
@@ -71,7 +72,7 @@ function backFaceAsTokenSpec(backFace: CardBackFace): TokenSpec {
         toughness: backFace.toughness,
         colors: backFace.colors,
         staticAbilities: backFace.staticAbilities,
-        staticEffects: backFace.staticEffects,
+        staticEffectKeys: backFace.staticEffectKeys,
         activatedAbilities: backFace.activatedAbilities,
         imagePrintId: backFace.imagePrintId,
         ...(backFace.imagePrintId ? { imagePrintFace: "back" as const } : {}),
@@ -96,6 +97,9 @@ function registerBackFaceDefinition(backFace: CardBackFace): string {
     for (const c of spec.colors ?? []) {
         manaCost[c] = (manaCost[c] ?? 0) + 1;
     }
+    const backFaceStaticEffects = resolveTokenStaticEffects(
+        spec.staticEffectKeys
+    );
     registerTokenDefinition({
         id,
         name: spec.name,
@@ -115,8 +119,10 @@ function registerBackFaceDefinition(backFace: CardBackFace): string {
         ...(spec.activatedAbilities
             ? { activatedAbilities: [...spec.activatedAbilities] }
             : {}),
-        ...(spec.staticEffects
-            ? { staticEffects: [...spec.staticEffects] }
+        // CR 611 — rebuilt from the spec's keys through the shared factory
+        // table, the same call `maybeSynthesizeToken` makes decoding `id`.
+        ...(backFaceStaticEffects.length > 0
+            ? { staticEffects: backFaceStaticEffects }
             : {}),
         ...(backFace.oracleText ? { oracleText: backFace.oracleText } : {}),
         // issue #1595 — read back off `spec` (never re-derived ad hoc here):

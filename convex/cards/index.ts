@@ -13,7 +13,7 @@ import type {
     StaticEffect,
     TokenSpec,
 } from "./types";
-import { cantBeEnchantedSelfGuard } from "./types";
+import { resolveTokenStaticEffects } from "./tokenStaticEffects";
 // CR 114 (issue #1221) — side-effect import so the emblem registry
 // (`convex/cards/emblems.ts`) is populated whenever the card catalogue loads.
 import "./emblems";
@@ -602,15 +602,19 @@ export function tokenDefinitionId(spec: TokenSpec): string {
         // existing decoders that read `parts[8]` as the image print id are
         // unaffected.
         spec.imagePrintId ?? "",
-        // 10th segment (index 9): CR 611 static-effect kinds present on the
-        // token (Tetravite's "can't be enchanted" guard). A token carrying a
-        // static effect is a distinct definition shape, so its presence must
-        // feed the content hash — keyed by the effect kinds (the guard
-        // predicates are closures and can't be serialized, but the kind set
-        // uniquely distinguishes the token shapes in the current catalog).
-        // Empty when the token has no continuous effects (back-compat: a 9-
-        // segment id without this trailing segment decodes as "no effects").
-        (spec.staticEffects ?? []).map((e) => e.kind).join(","),
+        // 10th segment (index 9): CR 611 static-effect KEYS present on the
+        // token (`TokenStaticEffectKey` — Tetravite's "can't be enchanted"
+        // guard, the Construct's artifact-count CDA). A token carrying a static
+        // effect is a distinct definition shape, so its presence must feed the
+        // content hash. Keys, not effect KINDS as this segment once held: the
+        // predicates are closures and can't be serialized, so the decoder has
+        // to rebuild them from a named factory, and a bare kind ("pt-cda") does
+        // not name one — it decoded to NOTHING for every shape but the single
+        // hand-mapped guard. `resolveTokenStaticEffects` reads this same
+        // segment back through the one shared table. Empty when the token has
+        // no continuous effects (back-compat: a 9-segment id without this
+        // trailing segment decodes as "no effects").
+        (spec.staticEffectKeys ?? []).join(","),
         // 11th segment (index 10, issues #1191 + #778): the token's activated
         // abilities (Investigate's Clue: "{2}, Sacrifice this token: Draw a
         // card."; a functional Treasure's sacrifice-for-mana ability),
@@ -760,7 +764,7 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
         colorsRaw,
         staticAbilitiesRaw,
         imagePrintIdRaw,
-        // CR 611 — static-effect kinds present on the token (see
+        // CR 611 — static-effect KEYS present on the token (see
         // `tokenDefinitionId`). Trailing 10th segment; empty / absent for
         // tokens without continuous effects (back-compat with the pre-Tetravus
         // 9-segment ids, which have no trailing effects segment).
@@ -797,19 +801,17 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
         imagePrintIdRaw && imagePrintIdRaw.length > 0
             ? imagePrintIdRaw
             : undefined;
-    // Rebuild any continuous static effects encoded in the id. Each closure
-    // predicate is reconstructed from a named factory (the closure can't ride
-    // the serialized id) — currently only Tetravite's "can't be enchanted"
-    // self-guard. Deterministic so server registration and post-round-trip
-    // rehydration produce an identical def (CR 611).
-    const staticEffectKinds = (staticEffectsRaw ?? "")
-        .split(",")
-        .filter(Boolean);
-    const staticEffects: StaticEffect[] = staticEffectKinds.includes(
-        "permanent-guard"
-    )
-        ? [cantBeEnchantedSelfGuard()]
-        : [];
+    // Rebuild any continuous static effects encoded in the id. Each closure is
+    // reconstructed from a named factory (the closure can't ride the serialized
+    // id) through the SAME table the server registered from
+    // (`cards/tokenStaticEffects.ts`), so registration and post-round-trip
+    // rehydration produce an identical def (CR 611). This used to be a
+    // hand-written `kinds.includes("permanent-guard")` branch, which silently
+    // decoded every OTHER effect shape as "no static effects" — Urza's Saga's
+    // Construct arrived as a bare 0/0 and died to the CR 704.5f SBA.
+    const staticEffects: StaticEffect[] = resolveTokenStaticEffects(
+        (staticEffectsRaw ?? "").split(",").filter(Boolean)
+    );
     // Rebuild activated abilities encoded in the id (issue #1191). These are
     // plain data (a token's `EffectTokenSpec.activatedAbilities` are DSL-only
     // — no closures), so unlike `staticEffects` above they round-trip through

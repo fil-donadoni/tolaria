@@ -42,15 +42,16 @@ export function getEffectiveActivatedAbilities(
     card: CardInstanceState
 ): EffectiveActivatedAbility[] {
     const cardId = (card.card as { id?: string }).id;
-    const suppressed = (card.abilitiesSuppressedBy?.length ?? 0) > 0;
+    const strippedAt = abilityLossTimestamp(card);
     const out: EffectiveActivatedAbility[] = [];
-    if (cardId && !suppressed) {
+    if (cardId && strippedAt === null) {
         for (const ability of tryGetDefinition(cardId)?.activatedAbilities ??
             []) {
             out.push({ ability });
         }
     }
     for (const grant of card.grantedActivatedAbilities ?? []) {
+        if (grantOutrankedByAbilityLoss(grant.seq, strippedAt)) continue;
         const tmpl = tryGetDefinition(grant.sourceCardId)?.grantTemplates?.find(
             (a) => a.id === grant.abilityId
         );
@@ -62,4 +63,34 @@ export function getEffectiveActivatedAbilities(
         }
     }
     return out;
+}
+
+/** The LATEST layer timestamp among the live "loses all abilities" sources on
+ *  `card` (CR 613.1f), or `null` when none apply. The single reader of
+ *  `abilitiesSuppressedBy`'s ordering, shared by this module and
+ *  `effectiveTriggeredAbilities` (`gre/copy.ts`) so activated and triggered
+ *  abilities can never disagree about what a stripper removed. */
+export function abilityLossTimestamp(card: CardInstanceState): number | null {
+    const suppressors = card.abilitiesSuppressedBy;
+    if (!suppressors?.length) return null;
+    let latest = 0;
+    for (const s of suppressors) latest = Math.max(latest, s.seq ?? 0);
+    return latest;
+}
+
+/** CR 613.7 — layer 6 applies grants and removals in timestamp order, so a
+ *  "loses all abilities" effect removes only the abilities granted BEFORE it.
+ *  A grant with a strictly later timestamp survives (Humility, then Fire Whip);
+ *  a grant that predates it — or one written before grants carried a timestamp
+ *  at all, which reads as 0 — is removed.
+ *
+ *  Exported so the CLIENT ability views (`src/lib/card-utils.ts`) mark exactly
+ *  the same rows lost as the engine drops; a preview that recomputed the rule
+ *  would drift from the board. */
+export function grantOutrankedByAbilityLoss(
+    grantSeq: number | undefined,
+    strippedAt: number | null
+): boolean {
+    if (strippedAt === null) return false;
+    return (grantSeq ?? 0) < strippedAt;
 }

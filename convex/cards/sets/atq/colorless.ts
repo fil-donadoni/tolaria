@@ -21,7 +21,7 @@ import type {
     TokenSpec,
     TriggeredAbility,
 } from "../../types";
-import { cantBeEnchantedSelfGuard, PERMANENT_TYPES } from "../../types";
+import { PERMANENT_TYPES } from "../../types";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
@@ -2096,10 +2096,10 @@ const TETRAVITE_TOKEN: TokenSpec = {
     power: 1,
     toughness: 1,
     staticAbilities: ["flying"],
-    // CR 303.4 — "This token can't be enchanted." Self-targeting guard,
-    // reconstructed deterministically from the token id (closures can't ride
-    // the serialized id).
-    staticEffects: [cantBeEnchantedSelfGuard()],
+    // CR 303.4 — "This token can't be enchanted." Self-targeting guard, named
+    // by key so it is reconstructed deterministically from the token id
+    // (closures can't ride the serialized id — `cards/tokenStaticEffects.ts`).
+    staticEffectKeys: ["cant-be-enchanted-self"],
 };
 
 // Tetravus — {6} Artifact Creature — Construct, 1/1 flying, enters with three

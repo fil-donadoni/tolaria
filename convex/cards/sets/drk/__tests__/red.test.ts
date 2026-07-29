@@ -109,7 +109,9 @@ describe("Blood Moon ({2}{R} Enchantment — CR 305.7 subtype-set + CR 613.1f ab
     it("strips the dual land's printed activated mana ability — CR 613.1f", () => {
         const { land } = withBloodMoon();
         expect(abilitiesSuppressed(land)).toBe(true);
-        expect(land.abilitiesSuppressedBy).toEqual(["moon-1"]);
+        expect(land.abilitiesSuppressedBy).toEqual([
+            { sourceId: "moon-1", seq: expect.any(Number) },
+        ]);
         // Its original {T}: Add {G} or {U} choice ability no longer functions.
         expect(getActivatedManaAbility(land)).toBeNull();
         // It still HAS a mana ability — the intrinsic Mountain one.
@@ -166,7 +168,9 @@ describe("Blood Moon ({2}{R} Enchantment — CR 305.7 subtype-set + CR 613.1f ab
         state.players[0].battlefield.push(newLand);
         applyExistingGrantsTo(state, newLand);
         expect(newLand.subtypes).toEqual(["Mountain"]);
-        expect(newLand.abilitiesSuppressedBy).toEqual(["moon-1"]);
+        expect(newLand.abilitiesSuppressedBy).toEqual([
+            { sourceId: "moon-1", seq: expect.any(Number) },
+        ]);
         expect(getBasicLandMana(newLand)).toBe("R");
     });
 

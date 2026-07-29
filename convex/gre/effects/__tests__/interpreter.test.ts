@@ -6726,6 +6726,7 @@ describe("Effect Script Op: grantAbility (CR 611.1b / 613.1f, layer 6, issue #84
                 sourceCardId: id,
                 abilityId: "granted-attack-lifegain",
                 duration: { phase: "end-of-turn" },
+                seq: expect.any(Number), // CR 613.7 layer timestamp
             },
         ]);
         // The client renders a permanent's granted triggers off the slimmed

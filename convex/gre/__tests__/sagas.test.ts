@@ -185,7 +185,7 @@ describe("finalChapter is DERIVED from effective abilities (CR 714.2d)", () => {
 
     it("collapses to 0 when the Saga's abilities are suppressed (CR 613.1f)", () => {
         const { saga } = sagaOnBattlefield({
-            abilitiesSuppressedBy: ["humility"],
+            abilitiesSuppressedBy: [{ sourceId: "humility", seq: 1 }],
         });
         expect(isSaga(saga)).toBe(true); // still a Saga — identity is the SUBTYPE
         expect(effectiveChapterAbilities(saga)).toHaveLength(0);
@@ -411,7 +411,7 @@ describe("ability-stripped Saga (2026 CR 714.3c / 714.4 gates)", () => {
     it("gets NO lore counter at precombat main, and is NOT sacrificed", () => {
         const { state, saga } = sagaOnBattlefield({
             counters: { [LORE_COUNTER]: 2 },
-            abilitiesSuppressedBy: ["humility"],
+            abilitiesSuppressedBy: [{ sourceId: "humility", seq: 1 }],
         });
 
         advanceSagasAtPrecombatMain(state);
@@ -424,7 +424,7 @@ describe("ability-stripped Saga (2026 CR 714.3c / 714.4 gates)", () => {
     it("is not sacrificed even at/past what WOULD be its final chapter", () => {
         const { state, saga } = sagaOnBattlefield({
             counters: { [LORE_COUNTER]: 5 },
-            abilitiesSuppressedBy: ["blood-moon"],
+            abilitiesSuppressedBy: [{ sourceId: "blood-moon", seq: 1 }],
         });
         checkStateBasedActions(state);
         expect(state.players[0].battlefield).toContain(saga);
@@ -434,7 +434,7 @@ describe("ability-stripped Saga (2026 CR 714.3c / 714.4 gates)", () => {
     it("resumes advancing once the suppression is lifted", () => {
         const { state, saga } = sagaOnBattlefield({
             counters: { [LORE_COUNTER]: 2 },
-            abilitiesSuppressedBy: ["humility"],
+            abilitiesSuppressedBy: [{ sourceId: "humility", seq: 1 }],
         });
         advanceSagasAtPrecombatMain(state);
         expect(saga.counters?.[LORE_COUNTER]).toBe(2);

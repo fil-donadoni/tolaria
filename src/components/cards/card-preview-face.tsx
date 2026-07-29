@@ -68,9 +68,25 @@ export default function CardPreviewFace({
         <>
             {/* Fixed ART_CROP_RATIO box: the `art` WebP (626×457) and the
                 art_crop JPG (563×451) differ slightly in aspect, so the img
-                object-covers the box and the layout never shifts on fallback. */}
+                object-covers the box and the layout never shifts on fallback.
+
+                The img is taken OUT OF FLOW (`absolute inset-0`) and the box
+                clips — not a detail. Every preview surface (dock, anchored,
+                mobile overlay) is a COLUMN FLEX container, so this box is a
+                flex item with `min-height: auto`: its automatic minimum size is
+                its content's min-content height, which overrides the
+                aspect-ratio height. An in-flow img can't resolve `h-full`
+                against that indefinite height, falls back to its intrinsic
+                aspect, and stretches the box — `object-fit` never gets a say,
+                since the element is sized TO the image. Landscape art (nearly
+                the whole catalogue) lands close enough to 563/451 that nothing
+                shows; a Saga's art_crop is PORTRAIT (Urza's Saga is 312×752)
+                and blew the preview into a tall column. Out of flow the
+                min-content height is 0, so the ratio is authoritative again and
+                `object-cover` centre-crops whatever aspect the source has.
+                Same shape as `stack-row.tsx`, which already had it right. */}
             <div
-                className="relative w-full"
+                className="relative w-full overflow-hidden"
                 style={{ aspectRatio: ART_CROP_RATIO }}
             >
                 {imageSrc ? (
@@ -81,11 +97,10 @@ export default function CardPreviewFace({
                                     ? (imageFallbackSrc ?? imageSrc)
                                     : imageSrc
                             }
-                            className="w-full h-full block select-none"
+                            className="absolute inset-0 w-full h-full block select-none object-cover"
                             alt={cardName}
                             decoding="async"
                             style={{
-                                objectFit: "cover",
                                 WebkitTouchCallout: "none",
                             }}
                             onLoad={onImageLoaded}

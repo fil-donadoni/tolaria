@@ -640,7 +640,9 @@ describe("Titania's Song ({3}{G} Enchantment — CR 613.1f ability-loss + CR 205
 
     it("strips all abilities: the Sol Ring's mana ability stops functioning", () => {
         const { ring } = withTitaniasSong();
-        expect(ring.abilitiesSuppressedBy).toEqual(["song-1"]);
+        expect(ring.abilitiesSuppressedBy).toEqual([
+            { sourceId: "song-1", seq: expect.any(Number) },
+        ]);
         expect(hasManaAbility(ring)).toBe(false);
         expect(getActivatedManaAbility(ring)).toBeNull();
     });
@@ -702,7 +704,9 @@ describe("Titania's Song ({3}{G} Enchantment — CR 613.1f ability-loss + CR 205
         state.players[1].battlefield.push(newRing);
         applyExistingGrantsTo(state, newRing);
         expect(newRing.types).toContain("Creature");
-        expect(newRing.abilitiesSuppressedBy).toEqual(["song-1"]);
+        expect(newRing.abilitiesSuppressedBy).toEqual([
+            { sourceId: "song-1", seq: expect.any(Number) },
+        ]);
         expect(getEffectivePower(state, newRing)).toBe(1);
     });
 

@@ -37,15 +37,19 @@ export default function StackAbilityTile({
 
     return (
         <div className="w-full flex flex-col rounded-lg shadow-lg bg-surface overflow-hidden ring-1 ring-border-accent">
+            {/* Absolute + clip so the ratio box stays authoritative for
+                PORTRAIT art too (a Saga's art_crop is 312×752) — an in-flow img
+                resolves `h-full` against an `auto`-height parent and stretches
+                the box instead. Same shape as `stack-row.tsx`. */}
             <div
-                className="relative w-full"
+                className="relative w-full overflow-hidden"
                 style={{ aspectRatio: ART_CROP_RATIO }}
             >
                 {imageSrc ? (
                     <img
                         src={imageSrc}
                         alt={name}
-                        className="w-full h-full block object-cover"
+                        className="absolute inset-0 w-full h-full block object-cover"
                         draggable={false}
                     />
                 ) : (
