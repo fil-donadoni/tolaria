@@ -69,6 +69,9 @@ import { substituteColorFilter } from "./textChanges";
 // `PendingChoice` becomes an in-tree decision node whose candidate answers this
 // enumerator surfaces.
 import { choiceCandidates } from "./ai/choiceCandidates";
+// Dominance pruning (issue #1887) — the generic "this move is provably
+// dominated by `pass`" seam. Opt-in per caller (see `EnumerateMovesOptions`).
+import { isDominatedNoOpMove, isProbeEligibleMove } from "./ai/dominance";
 
 /** One land tap the executor must perform to fund a cast/activation. */
 export type ManaTap = { cardInstanceId: string; manaChoiceIndex?: number };
@@ -1139,9 +1142,25 @@ function findCard(state: GameState, id: string): CardInstanceState | undefined {
 // Entry point
 // ---------------------------------------------------------------------------
 
+/** Per-caller knobs for {@link enumerateMoves}. */
+export type EnumerateMovesOptions = {
+    /** Drop moves that are PROVABLY dominated by `pass` — a cast/activation
+     *  whose full resolution changes nothing but the mover's own cost
+     *  (Damnation on a creature-free board, issue #1887). BOT paths only:
+     *  `legalActions` (the human affordance surface) and scripted setup
+     *  realisation must keep seeing the complete legal set, since the server
+     *  stays the sole authority on legality and a dominated move is still
+     *  perfectly LEGAL — just never worth searching. */
+    pruneDominatedNoOps?: boolean;
+};
+
 /** The complete set of legal macro-moves for `playerId` at the current decision
  *  point. Empty when the player owes no action right now. Pure. */
-export function enumerateMoves(state: GameState, playerId: string): Move[] {
+export function enumerateMoves(
+    state: GameState,
+    playerId: string,
+    options?: EnumerateMovesOptions
+): Move[] {
     if (state.gameOver) return [];
     const player = state.players.find((p) => p.id === playerId);
     if (!player) return [];
@@ -1249,5 +1268,13 @@ export function enumerateMoves(state: GameState, playerId: string): Move[] {
             );
         }
     }
-    return moves;
+    // Dominance pruning (issue #1887). `pass` is `moves[0]` and is never a
+    // probe candidate, so the floor can never be emptied — the filter can only
+    // ever remove strictly-dominated alternatives.
+    if (!options?.pruneDominatedNoOps) return moves;
+    return moves.filter(
+        (m) =>
+            !isProbeEligibleMove(state, playerId, m) ||
+            !isDominatedNoOpMove(state, playerId, m)
+    );
 }

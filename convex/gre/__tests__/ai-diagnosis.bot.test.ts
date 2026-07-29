@@ -699,9 +699,12 @@ describe("AI diagnosis harness (Forge comparison)", () => {
                 "p1"
             );
 
-            // (1) At the real play budget the bot never makes the X=0 waste cast,
-            // and `pass` STRICTLY out-rewards every X=0 line (a clear margin, not
-            // the old near-tie).
+            // (1) At the real play budget the bot never makes the X=0 waste
+            // cast. Since issue #1887 it is not even OFFERED: Braingeyser with
+            // X=0 draws nothing, so `isDominatedNoOpMove` proves it dominated by
+            // `pass` and `enumerateMoves` drops it before the tree is grown —
+            // strictly stronger than the old "pass out-rewards it" margin, and
+            // the freed iterations go into the real lines.
             const { trace: playTrace } = searchWithTrace(
                 state,
                 "p1",
@@ -718,10 +721,7 @@ describe("AI diagnosis harness (Forge comparison)", () => {
                 (c) => c.move.kind === "cast-spell" && c.move.chosenX === 0
             );
             expect(pass).toBeDefined();
-            expect(wasteX0.length).toBeGreaterThan(0);
-            for (const waste of wasteX0) {
-                expect(pass!.meanReward).toBeGreaterThan(waste.meanReward);
-            }
+            expect(wasteX0).toHaveLength(0);
 
             // (2) Latent ordering: a hand holding a 3/3 bomb evaluates strictly
             // higher than the same hand holding a spare basic land.

@@ -1109,7 +1109,9 @@ export function keyedMovesFor(
     }
     const seen = new Set<string>();
     const keyed: KeyedMove[] = [];
-    for (const move of enumerateMoves(state, pid)) {
+    for (const move of enumerateMoves(state, pid, {
+        pruneDominatedNoOps: true,
+    })) {
         const key = priorityMoveKey(state, pid, botId, move);
         if (seen.has(key)) continue;
         seen.add(key);
@@ -1889,7 +1891,9 @@ export function searchWithTrace(
     const decider = decidingPlayer(state);
     if (decider !== playerId) return { move: null, trace: null };
 
-    const moves = enumerateMoves(state, playerId);
+    const moves = enumerateMoves(state, playerId, {
+        pruneDominatedNoOps: true,
+    });
     if (moves.length === 0) return { move: null, trace: null };
     // No real decision (e.g. a forced mulligan window) — return immediately
     // without paying for search (and with no trace to explain).

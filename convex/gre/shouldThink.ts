@@ -45,7 +45,9 @@ export function shouldThink(state: GameState, playerId: string): boolean {
     if (decidingPlayer(state) !== playerId) return false;
 
     // Only a bare pass is available → nothing to deliberate over.
-    const moves = enumerateMoves(state, playerId);
+    const moves = enumerateMoves(state, playerId, {
+        pruneDominatedNoOps: true,
+    });
     if (!moves.some((m) => m.kind !== "pass")) return false;
 
     // Mulligan keep/mull and combat declarations are always real decisions.
