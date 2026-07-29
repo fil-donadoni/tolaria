@@ -24,6 +24,7 @@
 // card.
 
 import type { CardDefinition, EffectChoiceKind } from "../../cards/types";
+import { PERMANENT_TYPES } from "../../cards/types";
 import {
     getEventFieldRow,
     isRegisteredEffectOp,
@@ -43,7 +44,14 @@ export type EffectScriptHost = Pick<
     | "effect"
     | "modes"
     | "aiEffects"
->;
+> &
+    // CR 300.1 permanent types (issue #1097) — read ONLY by the
+    // exileSelf/shuffleSelfIntoLibrary permanent-spell gate below; every
+    // other check in this module is type-agnostic. Optional (unlike
+    // `CardDefinition.types` itself, which is required) so synthetic test
+    // hosts (`host()` in `validate.test.ts`) that omit it are unaffected — an
+    // absent `types` simply skips that one gate.
+    Partial<Pick<CardDefinition, "types">>;
 
 /** Field schema for one Op: required fields (each must be present and valid)
  *  plus optional fields (validated only when present). Any field NOT listed
@@ -182,10 +190,14 @@ function isValueOrArray(
  *  dynamic chosen-cost `{ X: true }` (issue #898, Green Sun's Zenith's "mana
  *  value X or less", resolved via `ctx.getX()` at resolution — the same shape
  *  every other `EffectXValue` site uses). */
-function isCardFilter(value: unknown): boolean {
+function isCardFilter(
+    value: unknown,
+    opts?: { allowHasAbility?: boolean }
+): boolean {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
         return false;
     }
+    const allowHasAbility = opts?.allowHasAbility ?? false;
     const entries = Object.entries(value);
     return entries.every(([k, v]) => {
         if (k === "type" || k === "subtype" || k === "excludeType") {
@@ -275,10 +287,53 @@ function isCardFilter(value: unknown): boolean {
         // itself carry `any` — recursion is harmless, unused by any shipped
         // card, but not worth forbidding for a "generalize, don't add" shape).
         if (k === "any") {
-            return Array.isArray(v) && v.length > 0 && v.every(isCardFilter);
+            return (
+                Array.isArray(v) &&
+                v.length > 0 &&
+                v.every((clause) => isCardFilter(clause, { allowHasAbility }))
+            );
+        }
+        // CR 702 (issue #1097) — "with <keyword>" (Canopy Surge's "each
+        // creature with flying"). A non-empty keyword string, shape mirrors
+        // `name`'s literal-string branch. MEANINGFUL ONLY on a live
+        // battlefield permanent read (`toPermanentFilter` → `requireAbility`,
+        // `matchesPermanentFilter`) — a hidden-zone/snapshot card shape
+        // (`matchesCardFilter`, hand/library/graveyard/exile cards, or a CR
+        // 608.2h characteristics snapshot) carries no ability data at all, so
+        // silently accepting the field there would fail OPEN: it would
+        // validate but match every card at runtime (the #897 failure class
+        // this repo already caught once). `allowHasAbility` is threaded in
+        // ONLY from the battlefield-guaranteed selector sites
+        // (`objectMatchesFilter`, a `forEach`/pile `{ set: "permanents",
+        // zone: "battlefield" }` selector, and a `count`/`choice` site whose
+        // sibling `zone` is confirmed `"battlefield"`) — every other site
+        // rejects it as a static authoring error instead of a silent runtime
+        // wrong answer.
+        if (k === "hasAbility") {
+            if (!allowHasAbility) return false;
+            return typeof v === "string" && v.length > 0;
         }
         return false;
     });
+}
+
+/** Whether an `EffectCardFilter` uses `hasAbility`, directly or nested inside
+ *  an `any` clause (issue #1097) — used by the `choice` Op's cross-field
+ *  `check` to reject it outside `zone: "battlefield"` (the field-level
+ *  `isCardFilter` call there is deliberately permissive since it can't see
+ *  the sibling `zone` field; this is the zone-aware second pass). */
+function filterUsesHasAbility(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    const f = value as Record<string, unknown>;
+    if (typeof f.hasAbility === "string" && f.hasAbility.length > 0) {
+        return true;
+    }
+    return (
+        Array.isArray(f.any) &&
+        f.any.some((clause) => filterUsesHasAbility(clause))
+    );
 }
 
 /** Valid `EffectTokenSpec.types` members (CR 300.1). Mirrors the `CardType`
@@ -601,7 +656,17 @@ function isCountValue(value: unknown): boolean {
     } else if (!isPlayerRef(s.controller)) {
         return false;
     }
-    if ("filter" in s && !isCardFilter(s.filter)) return false;
+    // `hasAbility` (issue #1097) is honest only on the "battlefield" branch —
+    // `countZoneForPlayer` (`gre/effects/interpreter.ts`) reads it via the
+    // LIVE `toPermanentFilter`/`requireAbility` path there, but falls back to
+    // `matchesCardFilter` for the "graveyard" branch, which has no ability
+    // data for a hidden-zone card at all.
+    if (
+        "filter" in s &&
+        !isCardFilter(s.filter, { allowHasAbility: s.zone === "battlefield" })
+    ) {
+        return false;
+    }
     return true;
 }
 
@@ -1373,9 +1438,16 @@ function isPredicate(value: unknown): boolean {
         keys.includes("objectMatchesFilter") &&
         keys.includes("filter")
     ) {
+        // The interpreter (issue #1747) resolves the ref, then hard-requires
+        // `target.type === "permanent"` AND battlefield membership before
+        // matching — a non-permanent or off-battlefield resolution reads
+        // `false` rather than falling through to this filter. So `filter`
+        // here is ALWAYS tested against a live battlefield object — `hasAbility`
+        // (issue #1097) is honest here the same way it is for a `forEach { set:
+        // "permanents" }` member.
         return (
             isObjectSelector(obj.objectMatchesFilter) &&
-            isCardFilter(obj.filter)
+            isCardFilter(obj.filter, { allowHasAbility: true })
         );
     }
     // Comparison form.
@@ -1502,7 +1574,13 @@ function isForEachSelector(value: unknown): boolean {
     // CR 110.1 — permanents only exist on the battlefield.
     if (s.zone !== "battlefield") return false;
     if ("controller" in s && !isPlayerRef(s.controller)) return false;
-    if ("filter" in s && !isCardFilter(s.filter)) return false;
+    // `zone` is confirmed "battlefield" above — `hasAbility` (issue #1097)
+    // reads the LIVE `staticAbilities` array via `toPermanentFilter` /
+    // `matchesPermanentFilter` here, unlike the graveyard branch above (which
+    // has no live battlefield object to read a granted keyword off of).
+    if ("filter" in s && !isCardFilter(s.filter, { allowHasAbility: true })) {
+        return false;
+    }
     return true;
 }
 
@@ -1539,7 +1617,14 @@ function isPileObjectSelector(value: unknown): boolean {
         if (!Object.keys(s).every((k) => allowed.has(k))) return false;
         if (s.zone !== "battlefield") return false;
         if (!isPlayerRef(s.controller)) return false;
-        if ("filter" in s && !isCardFilter(s.filter)) return false;
+        // `zone` is confirmed "battlefield" above — see the matching
+        // `isForEachSelector` permanents-branch comment (issue #1097).
+        if (
+            "filter" in s &&
+            !isCardFilter(s.filter, { allowHasAbility: true })
+        ) {
+            return false;
+        }
         return true;
     }
     if (s.set === "library-top") {
@@ -1837,6 +1922,11 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         required: { target: isObjectSelector },
         optional: { bind: isBindingName },
     },
+    // CR 608.2 (issue #1097) — the resolving spell exiles ITSELF instead of
+    // going to the graveyard (Recall / Restock). No fields — it always
+    // redirects the currently-resolving stack item. Mirrors
+    // `shuffleSelfIntoLibrary`'s empty-required shape exactly.
+    exileSelf: { required: {} },
     // CR 603.7a / 701.18 / ADR 0028 — exile the announced target keyed to
     // `$source`, arming the exile-and-return bundle (O-Ring / Banishing Light /
     // Tawnos's Coffin). `returnTapped` returns the host tapped; `includeAttachments`
@@ -2621,7 +2711,11 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         // which no announced slot can name because which slot it is depends on
         // the choice.
         optional: {
-            filter: isCardFilter,
+            // `filter`'s shape can't see the sibling `zone` field here (each
+            // field validator only sees its own value) — permissive at the
+            // field level, gated below in `check` instead, mirroring the
+            // `candidates` ⇒ battlefield rule right below.
+            filter: (v) => isCardFilter(v, { allowHasAbility: true }),
             zoneOwnerId: isPlayerRef,
             id: isNonEmptyString,
             candidates: (v) =>
@@ -2638,6 +2732,20 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             ) {
                 errors.push(
                     '"candidates" is valid only with zone: "battlefield" — the other zones are hidden or unordered, so nothing in them can be named ahead of the pick'
+                );
+            }
+            // `hasAbility` (issue #1097) is honest only for `zone:
+            // "battlefield"` — the interpreter reads it via the LIVE
+            // `toPermanentFilter` path there, but falls back to
+            // `matchesCardFilter` for hand/library/graveyard/exile, which has
+            // no ability data for a hidden-zone card at all (would fail OPEN
+            // — validate but match every card at runtime).
+            if (
+                entry.zone !== "battlefield" &&
+                filterUsesHasAbility(entry.filter)
+            ) {
+                errors.push(
+                    '"filter.hasAbility" is valid only with zone: "battlefield" — a hand/library/graveyard/exile card carries no ability data to match against'
                 );
             }
             if (
@@ -4186,6 +4294,48 @@ function findCreateTokenOps(
     for (const v of Object.values(obj)) findCreateTokenOps(v, out);
 }
 
+/** Deep-scans an arbitrary (already-parsed) Op subtree for every node whose
+ *  `op` is a member of `names`, regardless of nesting depth — the same
+ *  fully-generic walk as `findCreateTokenOps` above, parametrized. Used by
+ *  the permanent-spell self-redirect gate (issue #1097) to catch `exileSelf`
+ *  / `shuffleSelfIntoLibrary` wherever it appears in a script (top level, an
+ *  `if` branch, a `forEach` body, …), not just at the top level. */
+function findOpsWithNames(
+    value: unknown,
+    names: ReadonlySet<string>,
+    out: Record<string, unknown>[]
+): void {
+    if (value === null || typeof value !== "object") return;
+    if (Array.isArray(value)) {
+        for (const v of value) findOpsWithNames(v, names, out);
+        return;
+    }
+    const obj = value as Record<string, unknown>;
+    if (typeof obj.op === "string" && names.has(obj.op)) out.push(obj);
+    for (const v of Object.values(obj)) findOpsWithNames(v, names, out);
+}
+
+/** `exileSelf` / `shuffleSelfIntoLibrary` (CR 608.2, issues #898 / #1097) both
+ *  redirect the RESOLVING SPELL's own post-resolution destination — but only
+ *  `finalizeSpellResolution`'s NON-permanent branch (`gre/state.ts`) ever
+ *  reads either flag. A PERMANENT spell (Creature/Artifact/Enchantment/
+ *  Planeswalker/Battle/Land, CR 300.1) resolves through the OTHER branch,
+ *  which enters the permanent onto the battlefield and never looks at
+ *  `exileOnResolve`/`shuffleIntoLibraryOnResolve` at all — the flag is set
+ *  and then silently rides onto the resulting permanent, doing nothing. No
+ *  shipped card hits this (both Ops are inherited from
+ *  `shuffleSelfIntoLibrary`'s original instant/sorcery-only shape), but a
+ *  future permanent card reaching for either Op would get a functional-
+ *  looking no-op instead of a validation error — the same "ships
+ *  functional-looking but is silently inert" class Guard A/B in
+ *  `.claude/rules/gre-development.md` exist to catch for keywords/divergence
+ *  markers. Caught here instead: a permanent card declaring either Op
+ *  ANYWHERE in its spell-resolution `effects[]` is a static authoring error. */
+const SELF_REDIRECT_OPS: ReadonlySet<string> = new Set([
+    "exileSelf",
+    "shuffleSelfIntoLibrary",
+]);
+
 function validateEffectOpList(
     effects: unknown,
     label: string,
@@ -4269,6 +4419,24 @@ export function validateEffectScript(def: EffectScriptHost): string[] {
     // A spell's source is the stack item, not a permanent — no `$source`; and a
     // spell has no firing event, so `$event` is illegal (ADR 0049).
     validateEffectOpList(def.effects, label, EMPTY_BINDINGS, errors, undefined);
+
+    // exileSelf / shuffleSelfIntoLibrary on a PERMANENT spell (issue #1097) —
+    // see `SELF_REDIRECT_OPS`'s own doc comment: the flag they set is never
+    // read by a permanent's resolution branch, so it silently no-ops instead
+    // of doing what the card author intended.
+    if (
+        def.types?.some((t) =>
+            (PERMANENT_TYPES as readonly string[]).includes(t)
+        )
+    ) {
+        const hits: Record<string, unknown>[] = [];
+        findOpsWithNames(def.effects, SELF_REDIRECT_OPS, hits);
+        for (const hit of hits) {
+            errors.push(
+                `${label}: declares "${String(hit.op)}" but is a permanent card (types: ${def.types!.join("/")}) — CR 608.2m's self-redirect (graveyard→exile/library) is only ever read by finalizeSpellResolution's NON-permanent branch; a permanent spell resolves onto the battlefield instead, so this flag is silently never consumed`
+            );
+        }
+    }
     return errors;
 }
 

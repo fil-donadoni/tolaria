@@ -477,6 +477,16 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // Op's own hand-written interpreter + card tests (per-Op regime).
             req.skip ??= `Op "exileWithAttachments" arms an exile-and-return bundle whose observable outcome needs a later source-leaves/untaps return — covered by the Op's interpreter tests`;
             return;
+        case "exileSelf":
+            // CR 608.2 (issue #1097) — redirects the RESOLVING spell's own
+            // destination from graveyard to exile. The canned generator's
+            // assertion vocabulary (battlefield/graveyard/life/counter deltas)
+            // has no hook for "where did the resolving spell card itself
+            // land" — same rationale as `shuffleSelfIntoLibrary` below, just a
+            // different destination zone. Explicit skip — covered by the Op's
+            // own interpreter tests (per-Op regime).
+            req.skip ??= `Op "exileSelf" redirects the resolving spell's own destination to exile — covered by the Op's interpreter tests`;
+            return;
         case "returnExiledForSource":
             // CR 603.7a / ADR 0028 — the return half only has an observable
             // outcome if a PRIOR `exileWithAttachments` already armed a bundle
@@ -2153,6 +2163,16 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // step). Kept for the 1:1 coverage guard; the Op's own interpreter tests
     // are the behavioural guarantor.
     exileWithAttachments() {
+        return null;
+    },
+    // `exileSelf` (CR 608.2, issue #1097) — never reached: `analyseOp` skips
+    // every script with this Op (the canned generator's assertion vocabulary
+    // — battlefield/graveyard/life/counter deltas — has no hook for "where
+    // did the resolving spell card itself land", same rationale as
+    // `shuffleSelfIntoLibrary` below, just a different destination zone).
+    // Kept for the 1:1 coverage guard; the self-redirect is covered by the
+    // Op's own interpreter tests.
+    exileSelf() {
         return null;
     },
     // `returnExiledForSource` (CR 603.7a / ADR 0028) — never reached:

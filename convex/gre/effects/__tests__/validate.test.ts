@@ -947,6 +947,130 @@ describe("validateEffectScript — choice Op (CR 608.2 / 101.4, issue #805)", ()
     });
 });
 
+// --- EffectCardFilter.hasAbility — battlefield-only (issue #1097) -----------
+//
+// `hasAbility` reads the LIVE `staticAbilities` array via `toPermanentFilter`
+// / `matchesPermanentFilter` (`gre/effects/interpreter.ts`) — a hidden-zone
+// card shape (`matchesCardFilter`, hand/library/graveyard/exile) carries no
+// ability data at all, so the field is REJECTED there as a static authoring
+// error rather than silently validating and matching every card at runtime
+// (the #897 fail-open class this repo already caught once). Pins the
+// behaviour at the three sites the field is threaded through:
+// `forEach`/`count`'s battlefield-vs-graveyard branch and `choice`'s
+// zone-conditional filter.
+describe("EffectCardFilter.hasAbility — rejected outside a live battlefield read (issue #1097)", () => {
+    it("accepts hasAbility on a forEach permanents (battlefield) selector", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    filter: { type: "Creature", hasAbility: "flying" },
+                },
+                effects: [
+                    { op: "dealDamage", amount: 1, to: { ref: "$each" } },
+                ],
+            },
+        ];
+        expect(validateEffectScript(host({ effects }))).toEqual([]);
+    });
+
+    it("rejects hasAbility on a forEach graveyard selector", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "forEach",
+                select: {
+                    set: "graveyard",
+                    controller: "controller",
+                    filter: { type: "Creature", hasAbility: "flying" },
+                },
+                effects: [
+                    {
+                        op: "moveZone",
+                        target: { ref: "$each" },
+                        to: "hand",
+                    },
+                ],
+            },
+        ];
+        const errors = validateEffectScript(host({ effects }));
+        expect(errors.some((e) => /field "select"/.test(e))).toBe(true);
+    });
+
+    it("accepts hasAbility on a count construct's battlefield zone", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "draw",
+                player: "controller",
+                count: {
+                    count: {
+                        zone: "battlefield",
+                        controller: "controller",
+                        filter: { type: "Creature", hasAbility: "flying" },
+                    },
+                },
+            },
+        ];
+        expect(validateEffectScript(host({ effects }))).toEqual([]);
+    });
+
+    it("rejects hasAbility on a count construct's graveyard zone", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "draw",
+                player: "controller",
+                count: {
+                    count: {
+                        zone: "graveyard",
+                        controller: "controller",
+                        filter: { type: "Creature", hasAbility: "flying" },
+                    },
+                },
+            },
+        ];
+        const errors = validateEffectScript(host({ effects }));
+        expect(errors.length).toBeGreaterThan(0);
+    });
+
+    it("accepts hasAbility on a choice Op scoped to zone: battlefield", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "choice",
+                kind: "sacrifice-permanents",
+                player: { target: 0 },
+                zone: "battlefield",
+                filter: { type: "Creature", hasAbility: "flying" },
+                count: 1,
+                prompt: "Sacrifice a creature with flying.",
+                bind: "$sac",
+            },
+        ];
+        expect(validateEffectScript(host({ effects }))).toEqual([]);
+    });
+
+    it("rejects hasAbility on a choice Op scoped to zone: graveyard", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "choice",
+                kind: "choose-graveyard-card",
+                player: { target: 0 },
+                zone: "graveyard",
+                filter: { type: "Creature", hasAbility: "flying" },
+                count: 1,
+                prompt: "Choose a creature card with flying.",
+                bind: "$picked",
+            },
+        ];
+        const errors = validateEffectScript(host({ effects }));
+        expect(
+            errors.some((e) =>
+                /filter\.hasAbility.*zone: "battlefield"/.test(e)
+            )
+        ).toBe(true);
+    });
+});
+
 // --- if construct + mayPay / counter Ops (ADR 0045, issue #806) --------------
 
 describe("validateEffectScript — if construct + mayPay/counter (issue #806)", () => {
@@ -2539,5 +2663,76 @@ describe("validateEffectScript — choice candidates / bindOther", () => {
             })
         );
         expect(errors.join("\n")).toContain("re-declares an existing binding");
+    });
+});
+
+// --- exileSelf / shuffleSelfIntoLibrary on a PERMANENT spell (issue #1097) --
+//
+// Both Ops redirect the resolving SPELL's own post-resolution destination —
+// but only `finalizeSpellResolution`'s non-permanent branch (`gre/state.ts`)
+// ever reads either flag. A permanent card (Creature/Artifact/Enchantment/
+// Planeswalker/Battle/Land, CR 300.1) declaring either Op in its
+// spell-resolution `effects[]` would get a functional-looking no-op instead
+// of the redirect it names — caught here as a static authoring error instead.
+describe("validateEffectScript — exileSelf/shuffleSelfIntoLibrary rejected on a permanent spell (issue #1097)", () => {
+    it("rejects exileSelf on a Creature card", () => {
+        const errors = validateEffectScript(
+            host({
+                types: ["Creature"],
+                effects: [{ op: "exileSelf" }],
+            })
+        );
+        expect(
+            errors.some(
+                (e) => /"exileSelf"/.test(e) && /permanent card/.test(e)
+            )
+        ).toBe(true);
+    });
+
+    it("rejects shuffleSelfIntoLibrary on an Artifact card", () => {
+        const errors = validateEffectScript(
+            host({
+                types: ["Artifact"],
+                effects: [{ op: "shuffleSelfIntoLibrary" }],
+            })
+        );
+        expect(
+            errors.some(
+                (e) =>
+                    /"shuffleSelfIntoLibrary"/.test(e) &&
+                    /permanent card/.test(e)
+            )
+        ).toBe(true);
+    });
+
+    it("catches the Op nested inside an if branch, not just at the top level", () => {
+        const errors = validateEffectScript(
+            host({
+                types: ["Enchantment"],
+                effects: [
+                    {
+                        op: "if",
+                        predicate: { left: 1, op: "ge", right: 1 },
+                        then: [{ op: "exileSelf" }],
+                        else: [],
+                    },
+                ],
+            })
+        );
+        expect(errors.some((e) => /"exileSelf"/.test(e))).toBe(true);
+    });
+
+    it("accepts exileSelf on an Instant/Sorcery (Restock's own shape, issue #1097)", () => {
+        const errors = validateEffectScript(
+            host({
+                types: ["Sorcery"],
+                effects: [
+                    { op: "moveZone", target: { target: 0 }, to: "hand" },
+                    { op: "moveZone", target: { target: 1 }, to: "hand" },
+                    { op: "exileSelf" },
+                ],
+            })
+        );
+        expect(errors).toEqual([]);
     });
 });

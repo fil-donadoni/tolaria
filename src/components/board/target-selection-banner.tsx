@@ -111,8 +111,11 @@ export default function TargetSelectionBanner({
     const cancelTarget = useMutation(api.game.cancelTarget);
     const confirmTargets = useMutation(api.game.confirmTargets);
     const [isBusy, setIsBusy] = useState(false);
+    // Issue #1813 — always pinned: the whole point of this banner is to
+    // route taps to targets on the mid-board (CR 601.2c), so a vertically
+    // centered panel would sit directly on top of what the player must tap.
     const { outerClassName, outerStyle, innerClassName, dragHandlers } =
-        usePromptBannerPosition();
+        usePromptBannerPosition({ pinned: true });
     const divide = useDivideBuffer();
 
     // CR 707.10b — a copy-retarget selection points at a spell copy on the

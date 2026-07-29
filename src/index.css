@@ -668,6 +668,34 @@
         --z-dev-overlay: 45;
         --z-sheet: 50;
         --z-arrows: 60;
+        /* Issue #1813/#1823 review fixup round 2 — `<main>` (board.tsx) never
+           sets its own z-index, so it establishes no stacking context: every
+           descendant below competes on this ONE flat scale regardless of DOM
+           nesting. Round 1 put the portrait stack chip / opened stack panel
+           at `--z-modal-top` so they'd out-rank the centered pending-choice
+           banner (both were `--z-modal`) — but `--z-modal-top` also out-ranks
+           every BLOCKING modal (`trigger-order-prompt`, `mana-choice-picker`,
+           `random-reveal-overlay`, `reveal-notification-overlay`, the
+           library/pile-division pickers), none of which are portalled or
+           `inert`-guarded. The chip ended up tappable THROUGH those modals'
+           scrim. The fix is a 3-rung sub-scale instead of raising the chip
+           past the modal band entirely:
+             --z-banner (70) < --z-chip (90) < --z-modal (100)
+           `--z-banner` is the CENTERED pending-choice / prompt banner only
+           (`usePromptBannerPosition`'s non-`pinned` portrait branch) — an
+           informational overlay with nothing blocking behind it that must
+           still lose to the portrait chip chrome. `--z-chip` is that chrome
+           itself (`BoardPortraitChips`'s stack-chip row and the `elevated`
+           `GameStack` it opens) — always-reachable chrome that must win over
+           the banner but MUST NOT climb into the modal band, since a real
+           blocking modal needs to sit on top of it, scrim included. The
+           PINNED banner variant (top safe-area strip — routes clicks to the
+           mid-board itself) is UNCHANGED at `--z-modal`: it is not part of
+           this bug (nothing paints over it), and desktop/landscape's centered
+           banner + always-on `GameStack` are also unchanged at `--z-modal`
+           (no chip, no portrait-only collision to fix there). */
+        --z-banner: 70;
+        --z-chip: 90;
         --z-modal: 100;
         --z-modal-top: 110;
         --z-modal-peak: 120;
@@ -707,6 +735,12 @@
     }
     .z-arrows {
         z-index: var(--z-arrows);
+    }
+    .z-banner {
+        z-index: var(--z-banner);
+    }
+    .z-chip {
+        z-index: var(--z-chip);
     }
     .z-modal {
         z-index: var(--z-modal);

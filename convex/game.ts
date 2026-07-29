@@ -65,6 +65,7 @@ import {
     tapPermanent,
     dealDamageFromPermanentToPlayer,
     loseLifeEmitting,
+    refreshCounterGatedStatics,
 } from "./gre/state";
 import {
     selectCompanion,
@@ -526,6 +527,30 @@ async function saveGameState(
     state: GameState | Record<string, unknown>,
     existing: Doc<"gameStates"> | null
 ) {
+    // Issue #1379 review finding — `checkStateBasedActions` is NOT on every
+    // path that reaches here: `announceCast`/`tryAutoCommitPendingCast` move a
+    // card hand→stack, `summonCompanion` pushes one into hand, and
+    // `declareMulligan` redraws a hand, all with ZERO SBA pass before
+    // `saveGameState`. A `keyword-grant.condition` gated on non-battlefield
+    // state (hand size, CR 611.2c "as long as ...", issue #1095's mechanism)
+    // is materialized into `staticAbilities` only when re-swept — so a
+    // persisted, priority-awaiting state could carry a STALE keyword for the
+    // entire window a spell sits on the stack, which is exactly the window
+    // the opponent responds in. `saveGameState` is the SOLE writer of the
+    // `gameStates` row (every other write in this file is `gameTicks`/other
+    // tables), so it is the one choke point every stable position must pass
+    // through regardless of which caller reached it. Re-running the sweep
+    // here — NOT `checkStateBasedActions` itself, just the static-effect
+    // re-materialization it already runs unconditionally on every pass —
+    // makes "a persisted state always has freshly-materialized conditional
+    // statics" an invariant of persistence itself, not of any particular
+    // caller remembering to call SBAs first. `refreshCounterGatedStatics`
+    // performs no state-based actions, moves no cards, and is idempotent
+    // (documented at its definition, `gre/state.ts`) — a no-op sweep of the
+    // battlefield for every board where no source declares
+    // `dependsOnCounters` or a conditioned `keyword-grant`, so this adds no
+    // duplicate/skipped SBA behavior and is cheap on the common case.
+    refreshCounterGatedStatics(state as GameState);
     // ADR 0047 — maintain the authoritative Expected Input at the persistence
     // seam. Every stable point flows through `saveGameState`, so recomputing
     // here keeps the persisted + projected field coherent with the settled

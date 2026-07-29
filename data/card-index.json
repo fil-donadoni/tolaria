@@ -1736,6 +1736,14 @@
         "firstPrintSet": "atq"
     },
     {
+        "name": "Canopy Surge",
+        "scryfallId": "2e19d68e-7554-4627-a316-beb1f75fa494",
+        "oracleId": "a151c45f-0b9e-41af-90b3-fafa12e3bbce",
+        "firstSet": "inv",
+        "firstPrintId": "2e19d68e-7554-4627-a316-beb1f75fa494",
+        "firstPrintSet": "inv"
+    },
+    {
         "name": "Capashen Unicorn",
         "scryfallId": "ec3e5741-88d7-4837-9b43-ba8304d9ee74",
         "oracleId": "52793400-bc83-402a-9609-928a4d3ac812",
@@ -4518,6 +4526,14 @@
         "firstSet": "ice",
         "firstPrintId": "b11cd2e0-9419-4267-807e-5b73915c748a",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "Frogmite",
+        "scryfallId": "ff504dcb-2eb8-4b3c-a8b9-29697739b649",
+        "oracleId": "a927fd33-f183-48d9-b582-55d379d70e13",
+        "firstSet": "mrd",
+        "firstPrintId": "ff504dcb-2eb8-4b3c-a8b9-29697739b649",
+        "firstPrintSet": "mrd"
     },
     {
         "name": "Frost Giant",
@@ -10064,6 +10080,14 @@
         "firstPrintSet": "leg"
     },
     {
+        "name": "Restock",
+        "scryfallId": "11a013ff-7c99-445a-b9e0-0fc45036f068",
+        "oracleId": "8b641cd3-bb08-4f2e-9dad-24f58a9c32e1",
+        "firstSet": "inv",
+        "firstPrintId": "11a013ff-7c99-445a-b9e0-0fc45036f068",
+        "firstPrintSet": "inv"
+    },
+    {
         "name": "Restrain",
         "scryfallId": "f6b5c765-619c-4db9-b509-91892fb65e8f",
         "oracleId": "5aa66cb0-86b9-4e85-9a17-df78416d682d",
@@ -12456,12 +12480,28 @@
         "firstPrintSet": "dsk"
     },
     {
+        "name": "Thought Monitor",
+        "scryfallId": "c5b53f25-25e7-47db-b356-65e93e3b0059",
+        "oracleId": "9deded8b-cec4-4ede-a50b-131404d456d4",
+        "firstSet": "pmh2",
+        "firstPrintId": "c5b53f25-25e7-47db-b356-65e93e3b0059",
+        "firstPrintSet": "pmh2"
+    },
+    {
         "name": "Thought Scour",
         "scryfallId": "88bf1ebb-9d85-4b9b-a614-c7f965c0893d",
         "oracleId": "83101ba8-a569-4827-8c53-9ca0dfcd59a7",
         "firstSet": "dka",
         "firstPrintId": "88bf1ebb-9d85-4b9b-a614-c7f965c0893d",
         "firstPrintSet": "dka"
+    },
+    {
+        "name": "Thoughtcast",
+        "scryfallId": "efb965a7-877a-4302-b507-25b0a9e32d9b",
+        "oracleId": "cce9bbff-82dc-4b2f-addd-d6715588de20",
+        "firstSet": "mrd",
+        "firstPrintId": "efb965a7-877a-4302-b507-25b0a9e32d9b",
+        "firstPrintSet": "mrd"
     },
     {
         "name": "Thoughtlace",

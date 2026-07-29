@@ -48,8 +48,11 @@ export default function AttackManaTaxBanner({
     playerId,
     payment,
 }: Props) {
+    // Issue #1813 — always pinned: paying the tax routes clicks to mana
+    // sources on the battlefield (see docstring above), so a vertically
+    // centered panel would sit directly on top of what the player must tap.
     const { outerClassName, outerStyle, innerClassName, dragHandlers } =
-        usePromptBannerPosition();
+        usePromptBannerPosition({ pinned: true });
     const autoTap = useMutation(api.game.autoTapForAttackTax);
     const cancel = useMutation(api.game.cancelAttackTax);
     const [busy, setBusy] = useState(false);

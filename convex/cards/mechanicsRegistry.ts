@@ -1088,7 +1088,11 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Affinity",
         kind: "keyword-ability",
         cr: "702.41",
-        status: "planned",
+        status: "implemented",
+        bindingPattern: /^affinity for /,
+        binding:
+            "convex/cards/abilities/affinity.ts affinity({quality, filter}) factory + CardDefinition.selfCostReduction",
+        note: 'Cost-system capability (engine/cost infra, NOT an Effect Script Op), PRD #702 / ADR 0063 — the KEYWORD form of the count-driven CR 601.2f self-host reduction Emry shipped as authored data in #1337. "Affinity for [text]" = "this spell costs {1} less to cast for each [text] you control" (702.41a), a static ability functioning while the spell is ON THE STACK. Parametrized, so the declared string ("affinity for artifacts", "affinity for Islands") is matched by bindingPattern, the protection/ward/landwalk mechanism. The `affinity({quality, filter})` factory (convex/cards/abilities/affinity.ts) emits BOTH halves from one call — the board-visible staticAbilities reminder string AND the `CardDefinition.selfCostReduction` that enforces it — so a card can never print the keyword and enforce nothing (the deathtouch/hexproof shape Guard A catches). Enforcement is entirely pre-existing: `getCostModifiers` (gre/state.ts) reads `selfCostReduction` off the announced card\'s own definition at the SELF-HOST 601.2f apply site (a spell on the stack is not a permanent, so no battlefield staticEffects scan can find its own reducer) and `resolveCostReductionGeneric` counts `countFilter`-matching permanents on the ANNOUNCING player\'s battlefield only. Three properties fall out for free rather than needing affinity-specific code: GENERIC-ONLY (applyCostModifiers only reduces manaCost.X, so Thoughtcast keeps its {U} at any artifact count); NEVER COUNTS ITSELF (the scan reads player.battlefield while the spell is on the stack, so Frogmite cannot discount itself); CUMULATIVE per 702.41b (getCostModifiers accumulates one `reductionGeneric +=`). No minTotalMana floor — Frogmite at four artifacts costs {0}. Castability (rules.ts coloredCostLeftover path), payment (announceCast parks an ALREADY-reduced pendingCast.manaCost so solveSmartAutoTap taps the right lands) and bot move enumeration (moves.ts, per-X candidate) all route through the same applyCostModifiers call, so there is no client work and no BotAction kind: unlike Delve/Convoke (`payWith`, CR 601.2g) affinity is a passive `reduce` with no player choice and no picker. Used by Frogmite + Thoughtcast (mrd) and Thought Monitor (mh2).',
     },
     // 702.42 Entwine
     {
@@ -2635,6 +2639,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         binding: "SpellContext.exile",
         mechanicId: "exile",
         note: 'Effect Script Op for the CR 701 keyword action "Exile" — moves the target to its owner\'s exile zone (CR 406). Supports `bind` to snapshot the permanent\'s power/toughness/controller before it leaves (Swords to Plowshares reads the exiled creature\'s power, CR 608.2h). The bind SURVIVES into exile (issue #1401, the "blink" primitive): `resolveObjectRef` learns an exile-zone fallback, so a LATER `moveZone { target: { ref: "$c" }, to: "battlefield" }` in the same script can still resolve the ref and return the just-exiled card in one resolution — see `moveZone`\'s own note.',
+    },
+    {
+        op: "exileSelf",
+        status: "implemented",
+        cr: "608.2",
+        binding: "SpellContext.exileSelf",
+        note: 'The resolving spell exiles ITSELF instead of going to its owner\'s graveyard (CR 608.2m default, issue #1097: "Exile Restock" / "Exile Recall"). A thin declarative skin over the pre-existing SpellContext primitive `exileSelf` (previously reachable only from a `resolve()` closure — Recall, `leg/blue.ts`), one execution path (ADR 0045): the primitive flags the CURRENTLY-RESOLVING stack item (`exileOnResolve`), which `finalizeSpellResolution` (convex/gre/state.ts) checks BEFORE the normal graveyard placement. Mirrors `shuffleSelfIntoLibrary` (issue #898) exactly, but redirects to exile instead of a shuffled library — the two are the library/exile siblings of the same self-redirect design. No parameters: it always applies to the currently-resolving spell card; no-op for an ability (no card to move) or a spell copy (CR 707.10 — a copy ceases to exist, it is never exiled).',
     },
     {
         op: "exileWithAttachments",

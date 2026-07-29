@@ -25,6 +25,7 @@ import {
     hasManaAbility,
     pendingCastHasImprovise,
 } from "~/lib/card-utils";
+import { pendingChoiceRoutesToBattlefield } from "~/lib/pending-choice-labels";
 import { isUntargetableByPending } from "~/lib/targeting";
 import { activeSacrificeSelection } from "~/lib/sacrifice-selection";
 import { outstandingDamageAssigner } from "~/lib/priority";
@@ -251,7 +252,7 @@ export function useBattlefieldInteraction(player: Player) {
     // below still restricts which cards are clickable.
     const isSelectingChoice =
         isViewerChoosing &&
-        activeChoice!.zone === "battlefield" &&
+        pendingChoiceRoutesToBattlefield(activeChoice!) &&
         (activeChoice!.allControllers === true ||
             choiceZoneOwnerId === player.id);
 

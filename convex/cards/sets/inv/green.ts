@@ -1166,19 +1166,84 @@ export const fertileGroundInv: CardPrint = {
 
 // Canopy Surge — "Kicker {2}. Canopy Surge deals 1 damage to each creature
 // with flying and each player. If this spell was kicked, it deals 4 damage
-// to each creature with flying and each player instead." `EffectCardFilter`
-// (the `forEach` battlefield selector's filter) has no ability/keyword field
-// (type/subtype/supertype/color/manaValueAtMost/isToken/excludeType/name
-// only) — "each creature WITH FLYING" can't be expressed as a `forEach`
-// filter today.
-// tracked-by: #1097
-// export const canopySurge: CardDefinition = {
-//     id: "2e19d68e-7554-4627-a316-beb1f75fa494",
-//     name: "Canopy Surge",
-//     rarity: "uncommon",
-//     manaCost: { X: 1, G: 1 },
-//     types: ["Sorcery"],
-// };
+// to each creature with flying and each player instead." (CR 702.33 Kicker;
+// CR 120.1 damage to each creature/player.) Unblocked by issue #1097's
+// `EffectCardFilter.hasAbility` field (`convex/cards/types.ts`) — "each
+// creature WITH FLYING" is now `filter: { type: "Creature", hasAbility:
+// "flying" }` on a `forEach { set: "permanents" }` selector, propagated onto
+// `PermanentFilter.requireAbility` by `toPermanentFilter`
+// (`convex/gre/effects/interpreter.ts`), which already reads the LIVE/
+// materialized `staticAbilities` array (a keyword GRANT, e.g. an Aura giving
+// flying, is spliced directly into it — CR 611/113.1 — so a granted flying is
+// hit exactly like printed flying). The "if kicked, 4 instead of 1" branch is
+// the standard `{ kickerCount: true } >= 1` gate (Overload, `inv/red.ts`);
+// each branch pairs a creature-flying sweep with a `forEach { set: "players"
+// }` sweep, both feeding the SAME already-exercised `dealDamage` Op — no new
+// Op, just the new filter field.
+export const canopySurge: CardDefinition = {
+    id: "2e19d68e-7554-4627-a316-beb1f75fa494",
+    rarity: "uncommon",
+    name: "Canopy Surge",
+    oracleText:
+        "Kicker {2} (You may pay an additional {2} as you cast this spell.)\nCanopy Surge deals 1 damage to each creature with flying and each player. If this spell was kicked, it deals 4 damage to each creature with flying and each player instead.",
+    manaCost: { X: 1, G: 1 },
+    types: ["Sorcery"],
+    kicker: { cost: { X: 2 } },
+    effects: [
+        {
+            op: "if",
+            predicate: { left: { kickerCount: true }, op: "ge", right: 1 },
+            then: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        filter: { type: "Creature", hasAbility: "flying" },
+                    },
+                    effects: [
+                        { op: "dealDamage", amount: 4, to: { ref: "$each" } },
+                    ],
+                },
+                {
+                    op: "forEach",
+                    select: { set: "players" },
+                    effects: [
+                        {
+                            op: "dealDamage",
+                            amount: 4,
+                            to: { player: { ref: "$each" } },
+                        },
+                    ],
+                },
+            ],
+            else: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        filter: { type: "Creature", hasAbility: "flying" },
+                    },
+                    effects: [
+                        { op: "dealDamage", amount: 1, to: { ref: "$each" } },
+                    ],
+                },
+                {
+                    op: "forEach",
+                    select: { set: "players" },
+                    effects: [
+                        {
+                            op: "dealDamage",
+                            amount: 1,
+                            to: { player: { ref: "$each" } },
+                        },
+                    ],
+                },
+            ],
+        },
+    ],
+};
 
 // Elfhame Sanctuary — "At the beginning of your upkeep, you may search your
 // library for a basic land card, reveal that card, put it into your hand,
@@ -1234,21 +1299,33 @@ export const fertileGroundInv: CardPrint = {
 // };
 
 // Restock — "Return two target cards from your graveyard to your hand.
-// Exile Restock." The return clause is free (`moveZone` targeting graveyard
-// cards), but "Exile Restock" (CR 608.2 — the resolving SPELL instructs
-// itself to be exiled instead of hitting the graveyard) has no Op:
-// `SpellContext.exileSelf()` exists (Recall, `leg/blue.ts`, `resolve()`) but
-// is not wired to the interpreter — no Op calls it, and the DSL `exile` Op
-// only moves an announced PERMANENT/graveyard-card target, never the
-// resolving stack object itself.
-// tracked-by: #1097
-// export const restock: CardDefinition = {
-//     id: "11a013ff-7c99-445a-b9e0-0fc45036f068",
-//     name: "Restock",
-//     rarity: "rare",
-//     manaCost: { X: 3, G: 2 },
-//     types: ["Sorcery"],
-// };
+// Exile Restock." (CR 400.7 zone change; CR 608.2 "Exile ~".) The return
+// clause is the standard Regrowth-shaped `moveZone` pair (`lea/green.ts`);
+// "Exile Restock" is unblocked by issue #1097's new `exileSelf` Op
+// (`convex/cards/types.ts`) — a thin declarative skin over the pre-existing
+// `SpellContext.exileSelf()` primitive (Recall, `leg/blue.ts`, `resolve()`),
+// now wired into the interpreter so a DSL card can redirect its own
+// resolution destination from the graveyard to exile.
+export const restock: CardDefinition = {
+    id: "11a013ff-7c99-445a-b9e0-0fc45036f068",
+    rarity: "rare",
+    name: "Restock",
+    oracleText:
+        "Return two target cards from your graveyard to your hand. Exile Restock.",
+    manaCost: { X: 3, G: 2 },
+    types: ["Sorcery"],
+    targetRequirement: {
+        type: "card",
+        count: 2,
+        zone: "graveyard",
+        controller: "you",
+    },
+    effects: [
+        { op: "moveZone", target: { target: 0 }, to: "hand" },
+        { op: "moveZone", target: { target: 1 }, to: "hand" },
+        { op: "exileSelf" },
+    ],
+};
 
 // Saproling Infestation — "Whenever a player kicks a spell, you create a 1/1
 // green Saproling creature token." No trigger EVENT exists anywhere in the

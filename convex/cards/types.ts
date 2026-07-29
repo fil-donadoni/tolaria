@@ -4422,6 +4422,16 @@ export interface PermanentView {
  *  full GameState so layer computation stays pure. */
 export interface StaticEffectStateView {
     players: ReadonlyArray<{
+        /** Opaque player handle (`controllerId`/`ownerId`, CR 102.1) — exposed
+         *  so a self-referential board-state condition can find "you" inside
+         *  `players[]` rather than assuming array position (issue #1379:
+         *  Carnage Interpreter's "as long as YOU have one or fewer cards in
+         *  hand"). Required, NOT optional like `hand` below: both literal
+         *  constructors of this view (`gre/constants.ts`'s `manaLayerView`,
+         *  `src/lib/effective-stats.ts`'s `toLayerState`) always have a real
+         *  player id on hand at their call site — unlike hand data, there is
+         *  no call site that would have to fabricate one. */
+        id: string;
         battlefield: ReadonlyArray<PermanentView>;
         /** Cards in this player's graveyard, exposed for graveyard-counting
          *  characteristic-defining abilities (CR 604.3) — e.g. Lhurgoyf, whose
@@ -4431,6 +4441,29 @@ export interface StaticEffectStateView {
          *  stripping only `.card`), so the count is identical server-side and
          *  after `projectPublicState`. */
         graveyard: ReadonlyArray<{ readonly types: readonly CardType[] }>;
+        /** This player's hand, exposed ONLY as a count (mirrors
+         *  `TriggerStateView.hand`, issue #1379) for a "you have N or fewer
+         *  cards in hand" board-state gate — e.g. a `pt-buff`/`keyword-grant`
+         *  `condition` (CR 611.2c "as long as ..."). Survives the wire
+         *  projection unchanged: `PublicGameState.players[].hand` is
+         *  `(SlimHandCard | null)[]` for an opponent (identity hidden, but the
+         *  SAME length) and `SlimHandCard[]` for the owner, so `.length`
+         *  reads identically server-side and after `projectPublicState`.
+         *
+         *  OPTIONAL — same "read best-effort" shape as `activePlayerId` below
+         *  — because NOT every call site building this view from scratch has
+         *  real hand data to offer (`gre/constants.ts`'s `manaLayerView`
+         *  builds a battlefields-only view for a mana ability's P/T read and
+         *  has no hand to report). A fabricated `{ length: 0 }` placeholder
+         *  here was a real bug, not an inert stand-in: 0 is the TRUE answer
+         *  for "≤ N cards in hand" for any N ≥ 0, so a hand-size `condition`
+         *  silently read as satisfied at a call site that never had hand data
+         *  to check. Every `condition`/`canActivate` closure reading this
+         *  field MUST treat `undefined` as "unknown" and resolve the gate to
+         *  `false` — the conservative direction for a "you have this few
+         *  cards" claim the engine cannot currently verify — never fall back
+         *  to a numeric default that could flip the predicate true. */
+        hand?: { readonly length: number };
     }>;
     /** The player whose turn it currently is (CR 102.1). Optional because the
      *  layer system reads it best-effort: it is a top-level `GameState` field
@@ -7606,6 +7639,28 @@ export interface EffectCardFilter {
      *  `counters` field fails closed (0 counters of any type). ANDed with
      *  every other field. */
     hasCounter?: { type: string; min?: number };
+    /** "With <keyword>" (CR 702, issue #1097 — Canopy Surge's "each creature
+     *  with flying"). Matches a BATTLEFIELD permanent whose `staticAbilities`
+     *  contains this keyword string, case-sensitively (mirrors
+     *  `PermanentFilter.requireAbility`, `convex/cards/filters.ts`, which
+     *  `toPermanentFilter` maps this field onto 1:1 — the `count`/`forEach
+     *  { set: "permanents" }` battlefield sites). Reads the LIVE/EFFECTIVE
+     *  ability set, not merely the printed one: a `staticAbilities` grant
+     *  (`StaticKeywordGrant`, CR 611/113.1 — an Aura granting flying, a
+     *  board-conditional keyword grant) is MATERIALIZED directly onto the
+     *  permanent's `staticAbilities` array at apply time
+     *  (`applySourceStaticEffects`, `gre/state.ts`), so a plain
+     *  `card.staticAbilities.includes(...)` check — which is exactly what
+     *  `matchesPermanentFilter` already does for `requireAbility` — observes
+     *  a granted keyword with no separate "effective abilities" helper
+     *  needed. Meaningful only for the battlefield shape (a hand/library/
+     *  graveyard card in `matchesCardFilter` carries no `staticAbilities` on
+     *  its structural type — this field is a no-op there, mirroring
+     *  `isToken`/`enteredThisTurn`'s own battlefield-only scope). ANDed with
+     *  every other field. Single keyword only (Canopy Surge needs no OR of
+     *  keywords); a future OR-across-keywords need is `any` (already OR
+     *  across filter dimensions) wrapping two single-`hasAbility` clauses. */
+    hasAbility?: string;
     /** OR ACROSS filter dimensions (issue #897) — a disjunctive clause list.
      *  Every other field on this interface is ANDed together (and each of
      *  `type`/`subtype`/`color` is itself an OR-WITHIN-that-field array,
@@ -8376,6 +8431,19 @@ export type EffectOp =
      *  (issue #1106) BEFORE it leaves the battlefield, so a later `ref` reads
      *  its last-known values (Swords to Plowshares, CR 608.2h). */
     | { op: "exile"; target: EffectObjectSelector; bind?: string }
+    /** CR 608.2 (issue #1097) — the resolving spell instructs itself to be
+     *  EXILED instead of going to its owner's graveyard (CR 608.2m default),
+     *  as the last thing it does ("Exile ~", Recall / Restock). A thin
+     *  declarative skin over the pre-existing SpellContext primitive
+     *  `exileSelf` (previously reachable only from a `resolve()` closure —
+     *  Recall, `leg/blue.ts`), one execution path (ADR 0045). No
+     *  parameters — the primitive flags the CURRENTLY-RESOLVING stack item
+     *  (`exileOnResolve`), which `finalizeSpellResolution` (`gre/state.ts`)
+     *  checks BEFORE the normal graveyard placement; no-op for an ability (no
+     *  card to move) or a spell copy (CR 707.10 — a copy ceases to exist, it
+     *  is never exiled). Mirrors `shuffleSelfIntoLibrary` (issue #898)
+     *  exactly, but redirects to exile instead of a shuffled library. */
+    | { op: "exileSelf" }
     /** CR 603.7a / 701.18 / ADR 0028 — exile the announced target permanent
      *  keyed to `$source` (the resolving ability's source), arming an
      *  exile-and-return bundle a later `returnExiledForSource` Op restores.

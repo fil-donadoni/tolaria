@@ -10,7 +10,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, fireEvent, cleanup } from "@testing-library/react";
 import type { Player } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
-import { PORTRAIT_MIDLINE_TOP } from "~/lib/portrait-board-bands";
+import { PORTRAIT_VIEWER_NAMEPLATE_BOTTOM } from "~/lib/portrait-board-bands";
 import {
     PendingChoiceBufferContext,
     type PendingChoiceBuffer,
@@ -117,7 +117,7 @@ beforeEach(() => {
 /** The top-EDGE anchor exactly — `top-1`, never a midline anchor. */
 const TOP_EDGE_ANCHOR = /\btop-1\b(?!\/)/;
 
-describe("seat anchoring — nothing under the portrait bottom bar (#1759)", () => {
+describe("seat anchoring — nothing under the portrait bottom bar (#1759, #1814)", () => {
     function anchorClass(side: "top" | "bottom") {
         const { container } = renderSpatial(
             makePlayer("p2"),
@@ -127,14 +127,19 @@ describe("seat anchoring — nothing under the portrait bottom bar (#1759)", () 
         return (container.firstElementChild as HTMLElement).className;
     }
 
-    it("portrait lifts the VIEWER's chrome off the bottom edge the bar owns", () => {
+    it("portrait anchors the VIEWER's chrome bottom-center, clear of the bar's fixed edge", () => {
         portrait = true;
         const className = anchorClass("bottom");
         expect(className).not.toContain("bottom-1");
-        // It relocates to the top-left of the viewer's own half — pinned to the
-        // SHARED band midline (#1760), which sits half the bar's clearance
-        // above the viewport centre, not to a literal `top-1/2`.
-        expect(className).toContain(PORTRAIT_MIDLINE_TOP);
+        // #1814: mirrors the opponent's top-center placement onto the bottom
+        // edge — same horizontal centering utility, anchored at the hand
+        // band's own top edge (derived from the bar's measured clearance,
+        // never a hardcoded offset) so it can never land on the interactive
+        // hand fan below it.
+        expect(className).toContain(PORTRAIT_VIEWER_NAMEPLATE_BOTTOM);
+        expect(className).toContain("play-area-center-x");
+        expect(className).toContain("-translate-x-1/2");
+        expect(className).not.toContain("left-2");
     });
 
     it("landscape/desktop keep the classic bottom-edge anchor", () => {
@@ -151,6 +156,76 @@ describe("seat anchoring — nothing under the portrait bottom bar (#1759)", () 
         cleanup();
         portrait = false;
         expect(anchorClass("top")).toMatch(TOP_EDGE_ANCHOR);
+    });
+
+    it("portrait: both seats' anchors differ ONLY in which edge they pin to — a true mirror", () => {
+        // #1814 acceptance: "symmetric anchors" / "same horizontal alignment
+        // ... as the opponent's". Tests (1) and (3) above already assert each
+        // anchor string CONTAINS the centering classes individually — this
+        // assertion is deliberately distinct (and can fail on its own): strip
+        // each anchor's vertical-anchor tokens and compare what's LEFT, so a
+        // regression that gives one seat extra/different horizontal classes
+        // (not just a missing centering class) is caught too.
+        portrait = true;
+        const stripVerticalAnchor = (className: string) =>
+            className
+                .replace(TOP_EDGE_ANCHOR, "")
+                .replace(PORTRAIT_VIEWER_NAMEPLATE_BOTTOM, "")
+                .split(/\s+/)
+                .filter(Boolean)
+                .sort()
+                .join(" ");
+        const top = stripVerticalAnchor(anchorClass("top"));
+        const bottom = stripVerticalAnchor(anchorClass("bottom"));
+        expect(top).toBe(bottom);
+        expect(top).toContain("play-area-center-x");
+        expect(top).toContain("-translate-x-1/2");
+    });
+});
+
+describe("compact nameplate variant follows the portrait seam (#1814 round-3 fixup)", () => {
+    // `BoardPlayer` passes `compact={isPortrait}` straight through to
+    // `PlayerNameplate` (board-player.tsx), which is what shrinks the box
+    // `PORTRAIT_NAMEPLATE_BAND_H` reserves a band for
+    // (`portrait-board-bands.ts`). The exact class strings pinned here —
+    // `py-0.5` / `border` (nameplate box) and `text-lg` (life total) — are
+    // what `PORTRAIT_NAMEPLATE_PADDING_PX` / `PORTRAIT_NAMEPLATE_BORDER_PX` /
+    // `PORTRAIT_NAMEPLATE_ROW_PX` derive from (see the comment at their use
+    // site in `player-nameplate.tsx`); pinning the literal strings here — not
+    // just "a compact variant renders" — is the mechanical link a class
+    // rename would trip, since the numeric constants can't catch that on
+    // their own. Mutation check: dropping `compact={isPortrait}` from
+    // `board-player.tsx` makes both tests below fail.
+    it("portrait renders the compact box (py-0.5, border, text-lg life total)", () => {
+        portrait = true;
+        const { container } = renderSpatial(
+            makePlayer("p2", { life: 20 }),
+            { playerId: "p2" },
+            "bottom"
+        );
+        const plate = container.querySelector<HTMLElement>(
+            '[data-arrow-anchor-player="p2"]'
+        )!;
+        expect(plate.className).toContain("py-0.5");
+        expect(plate.className).toContain("border");
+        const lifeNode = plate.querySelector(".font-bold.tabular-nums")!;
+        expect(lifeNode.className).toContain("text-lg");
+    });
+
+    it("landscape/desktop renders the full box (py-2, text-3xl life total)", () => {
+        portrait = false;
+        const { container } = renderSpatial(
+            makePlayer("p2", { life: 20 }),
+            { playerId: "p2" },
+            "bottom"
+        );
+        const plate = container.querySelector<HTMLElement>(
+            '[data-arrow-anchor-player="p2"]'
+        )!;
+        expect(plate.className).toContain("py-2");
+        expect(plate.className).not.toContain("py-0.5");
+        const lifeNode = plate.querySelector(".font-bold.tabular-nums")!;
+        expect(lifeNode.className).toContain("text-3xl");
     });
 });
 

@@ -13,7 +13,11 @@ const STARTING_HAND_SIZE = 7;
  *  while the engine is in `phase === "MULLIGAN"` and not yet in the bottoming
  *  step. The currently-declaring player sees Keep / Mulligan-to-N buttons;
  *  the opponent sees a "waiting for X" message. Bottoming is handled by the
- *  generic `PendingChoicePrompt` (kind: "mulligan-bottom"). */
+ *  generic `PendingChoicePrompt` (kind: "mulligan-bottom").
+ *
+ *  Issue #1813 — no board tap is ever needed to decide Keep/Mulligan, so
+ *  this stays on the default (non-`pinned`) `usePromptBannerPosition` call:
+ *  vertically centered on portrait like any other non-targeting prompt. */
 export default function MulliganPrompt({
     gameId,
     viewerId,

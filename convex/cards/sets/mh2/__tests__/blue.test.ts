@@ -7,11 +7,17 @@ import {
 } from "../../../__tests__/setup";
 import { getCardByName } from "../../../index";
 import type { GameState, StackItem } from "../../../../gre/state";
-import { resolveTopOfStack } from "../../../../gre/state";
+import {
+    applyCostModifiers,
+    getCostModifiers,
+    normalizeManaCost,
+    resolveTopOfStack,
+} from "../../../../gre/state";
+import { solRing } from "../../lea";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
 import type { TargetSelection } from "../../../types";
-import { subtlety } from "../blue";
+import { subtlety, thoughtMonitor } from "../blue";
 import { projectPublicState } from "../../../../gameProjections";
 
 // Subtlety — {2}{U}{U} 3/3, flash/flying, blue evoke. First TARGETED trigger
@@ -194,5 +200,82 @@ describe("Subtlety — targeted trigger over a stack spell (CR 603.3d / 113, #12
         // No option-pick raised; the creature spell is still on the stack.
         expect(state.pendingChoices ?? []).toHaveLength(0);
         expect(state.stack.some((s) => s.id === creatureSpell.id)).toBe(true);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Thought Monitor — Affinity for artifacts (CR 702.41a, PRD #702 / ADR 0063).
+// The keyword's shared behaviour lives in `mrd/__tests__/blue.test.ts`
+// (Thoughtcast) and its self-count / no-floor properties in
+// `mrd/__tests__/colorless.test.ts` (Frogmite). Thought Monitor is the witness
+// for COMPOSITION: affinity riding alongside a second printed keyword and an
+// ETB trigger, with no interference — affinity functions only while the spell
+// is on the stack (702.41a), flying only once it is a permanent.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("Thought Monitor — Affinity for artifacts + flying + ETB draw (CR 702.41a)", () => {
+    it("definition: {6}{U} Artifact Creature — Construct 2/2", () => {
+        expect(thoughtMonitor.manaCost).toEqual({ X: 6, U: 1 });
+        expect(thoughtMonitor.types).toEqual(["Artifact", "Creature"]);
+        expect(thoughtMonitor.subtypes).toEqual(["Construct"]);
+        expect(thoughtMonitor.power).toBe(2);
+        expect(thoughtMonitor.toughness).toBe(2);
+        expect(getCardByName("Thought Monitor")?.id).toBe(thoughtMonitor.id);
+    });
+
+    it("declares BOTH keywords — the affinity factory must not swallow flying", () => {
+        // The failure this guards: spreading `affinityForArtifacts()` and then
+        // re-declaring `staticAbilities` for flying would drop the affinity
+        // string, leaving the reduction unannounced on the board (and Guard A
+        // silent, since the surviving keyword is implemented).
+        expect(thoughtMonitor.staticAbilities).toContain(
+            "affinity for artifacts"
+        );
+        expect(thoughtMonitor.staticAbilities).toContain("flying");
+    });
+
+    it("costs {1} less per artifact, coloured pip untouched, floored at {U}", () => {
+        const costWithArtifacts = (n: number) => {
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        battlefield: Array.from({ length: n }, (_, i) =>
+                            makeInstance(solRing.id, {
+                                id: `art-${i}`,
+                                controllerId: "p1",
+                            })
+                        ),
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+            const spellView = makeInstance(thoughtMonitor.id, {
+                id: "tm-spell-view",
+                controllerId: "p1",
+                zone: "hand",
+            });
+            const cost = normalizeManaCost(thoughtMonitor.manaCost ?? {});
+            applyCostModifiers(
+                cost,
+                getCostModifiers(state, spellView, "spell")
+            );
+            return cost;
+        };
+        expect(costWithArtifacts(0)).toEqual({ X: 6, U: 1 });
+        expect(costWithArtifacts(2)).toEqual({ X: 4, U: 1 });
+        expect(costWithArtifacts(6)).toEqual({ U: 1 });
+        expect(costWithArtifacts(9)).toEqual({ U: 1 });
+    });
+
+    it("ETB triggered ability draws two cards (CR 603.6a)", () => {
+        // `draw` is an already-exercised Op (gre-development.md § per-Op
+        // regime): a definition-level assertion covers the wiring, the Op's
+        // behaviour is the interpreter suite's.
+        const trigger = thoughtMonitor.triggeredAbilities?.find((t) =>
+            t.oracleText?.includes("draw two cards")
+        );
+        expect(trigger).toBeDefined();
+        expect(trigger?.effects).toEqual([
+            { op: "draw", player: "controller", count: 2 },
+        ]);
     });
 });

@@ -6,6 +6,7 @@ import {
     talismanOfDominance,
     chromeMox,
     lightningGreaves,
+    frogmite,
 } from "../colorless";
 import { balduvianBears } from "../../ice/green";
 import { grizzlyBears } from "../../lea/green";
@@ -20,6 +21,13 @@ import {
 } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { isGuardedAgainst } from "../../../../gre/permanentGuard";
+import {
+    applyCostModifiers,
+    getCostModifiers,
+    normalizeManaCost,
+} from "../../../../gre/state";
+import { getLegalActions } from "../../../../gre/rules";
+import { solRing } from "../../lea";
 
 // Talisman cycle (issue #675) — same painland shape as ICE's Adarkar Wastes
 // cycle (`convex/cards/sets/ice/__tests__/colorless.test.ts`): one choice
@@ -387,5 +395,91 @@ describe("Lightning Greaves (MRD #199, issue #1530)", () => {
         expect(
             isGuardedAgainst(projected, slimBear, "cantBeTargeted", oppSrc)
         ).toBe(true);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Frogmite — Affinity for artifacts (CR 702.41a, PRD #702 / ADR 0063). The
+// keyword's shared behaviour is covered once in `mrd/__tests__/blue.test.ts`
+// (Thoughtcast, the coloured witness). Frogmite is the witness for the two
+// properties only a COLOURLESS ARTIFACT spell can prove: that a spell with
+// affinity never counts ITSELF, and that the reduction can reach {0} because
+// affinity declares no `minTotalMana` floor.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("Frogmite — Affinity for artifacts (CR 702.41a)", () => {
+    function costWith(
+        battlefield: CardInstanceState[]
+    ): Record<string, number> {
+        const state = makeState({
+            players: [makePlayer("p1", { battlefield }), makePlayer("p2")],
+        });
+        const spellView = makeInstance(frogmite.id, {
+            id: "frogmite-spell-view",
+            controllerId: "p1",
+            zone: "hand",
+        });
+        const cost = normalizeManaCost(frogmite.manaCost ?? {});
+        applyCostModifiers(cost, getCostModifiers(state, spellView, "spell"));
+        return cost;
+    }
+
+    const artifacts = (n: number) =>
+        Array.from({ length: n }, (_, i) =>
+            makeInstance(solRing.id, { id: `art-${i}`, controllerId: "p1" })
+        );
+
+    it("definition: {4} Artifact Creature — Frog 2/2 declaring the affinity keyword", () => {
+        expect(frogmite.manaCost).toEqual({ X: 4 });
+        expect(frogmite.types).toEqual(["Artifact", "Creature"]);
+        expect(frogmite.subtypes).toEqual(["Frog"]);
+        expect(frogmite.power).toBe(2);
+        expect(frogmite.toughness).toBe(2);
+        expect(frogmite.staticAbilities).toEqual(["affinity for artifacts"]);
+    });
+
+    it("reduces to {0} at four artifacts — affinity has NO minTotalMana floor", () => {
+        expect(costWith(artifacts(4))).toEqual({});
+        expect(frogmite.selfCostReduction?.minTotalMana).toBeUndefined();
+    });
+
+    it("clamps at {0} rather than going negative (10 artifacts, only {4} to reduce)", () => {
+        expect(costWith(artifacts(10))).toEqual({});
+    });
+
+    it("does NOT count itself: affinity functions on the STACK, the count reads the battlefield (CR 702.41a)", () => {
+        // The Frogmite being cast is in hand/on the stack, never on the
+        // battlefield, so it cannot discount itself: an empty board leaves the
+        // full {4}.
+        expect(costWith([])).toEqual({ X: 4 });
+        // A DIFFERENT Frogmite already on the battlefield IS an artifact and
+        // does count — proving the exclusion is positional (zone), not a
+        // name/self special case.
+        const otherFrogmite = makeInstance(frogmite.id, {
+            id: "other-frogmite",
+            controllerId: "p1",
+        });
+        expect(costWith([otherFrogmite])).toEqual({ X: 3 });
+    });
+
+    it("castability: the server offers 'cast' on an EMPTY mana pool once four artifacts zero the cost", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [
+                        makeInstance(frogmite.id, {
+                            id: "frogmite-hand",
+                            controllerId: "p1",
+                            zone: "hand",
+                        }),
+                    ],
+                    battlefield: artifacts(4),
+                    manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(
+            getLegalActions(state, state.players[0], state.players[0].hand[0])
+        ).toContain("cast");
     });
 });
