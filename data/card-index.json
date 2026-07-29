@@ -12465,11 +12465,11 @@
     },
     {
         "name": "Thought Monitor",
-        "scryfallId": "c5b53f25-25e7-47db-b356-65e93e3b0059",
+        "scryfallId": "996c1952-8d10-4296-8960-ff8993833649",
         "oracleId": "9deded8b-cec4-4ede-a50b-131404d456d4",
-        "firstSet": "pmh2",
-        "firstPrintId": "c5b53f25-25e7-47db-b356-65e93e3b0059",
-        "firstPrintSet": "pmh2"
+        "firstSet": "mh2",
+        "firstPrintId": "996c1952-8d10-4296-8960-ff8993833649",
+        "firstPrintSet": "mh2"
     },
     {
         "name": "Thought Scour",

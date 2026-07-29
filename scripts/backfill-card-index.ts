@@ -42,10 +42,34 @@ type Entry = {
 };
 
 /** Printings that are never a card's "first edition": Scryfall set types that
- *  are not real releases. Digital-only printings are excluded separately via
- *  the `digital` flag (ADR 0041 excludes digital-only, gold-border, oversized
- *  and non-tournament printings). */
-const NON_PRINT_SET_TYPES = new Set(["token", "memorabilia", "minigame"]);
+ *  are not real releases of the card. Digital-only printings are excluded
+ *  separately via the `digital` flag (ADR 0041 excludes digital-only,
+ *  gold-border, oversized and non-tournament printings).
+ *
+ *  `promo` matters more than it looks (issue #1844). A prerelease promo is the
+ *  SAME card with a date stamp and a set-symbol overlay, and Scryfall dates it
+ *  ~6 weeks BEFORE its set — so for every modern rare it sorts first and
+ *  becomes the resolved "earliest paper printing". That both files the card's
+ *  home under a set that is not a set (`pmh2`) and, because the definition id
+ *  is what resolves card art, renders the stamped promo on the board. Thought
+ *  Monitor shipped that way; it is the only entry in the lockfile affected,
+ *  but every MH2-era rare has such a print waiting.
+ *
+ *  `masterpiece` is the same shape one step further out (Expeditions,
+ *  Inventions, Invocations): a special-art insert distributed WITH a set, not
+ *  a release of the card. Excluded pre-emptively — no current lockfile entry
+ *  resolves to one.
+ *
+ *  Deliberately NOT excluded: `funny` (Un-sets are real releases, so a card
+ *  first printed in one legitimately homes there) and `alchemy` /
+ *  `treasure_chest` (digital, already dropped by the `digital` flag). */
+const NON_PRINT_SET_TYPES = new Set([
+    "token",
+    "memorabilia",
+    "minigame",
+    "promo",
+    "masterpiece",
+]);
 
 const SCRYFALL = "https://api.scryfall.com";
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

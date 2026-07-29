@@ -121,18 +121,12 @@ export const subtlety: CardDefinition = {
 // with no interaction between them: affinity functions only while the spell is
 // on the stack (702.41a), flying only once the permanent is on the battlefield.
 //
-// Home set = earliest paper printing (ADR 0041). Scryfall's earliest paper
-// print is the PMH2 prerelease promo (2021-05-06, #71s) rather than MH2 proper
-// (2021-06-18, #71) — the promo is the SAME card with a date stamp, and
-// `scripts/backfill-card-index.ts` does not exclude `set_type: "promo"`, so the
-// lockfile's `firstPrintId` is the promo's. The id below follows the lockfile
-// so `check:index` stays green; the set module is `mh2/` because that is the
-// real set. The promo exclusion is tracked by #1844 — when it lands this id
-// becomes MH2 71 (996c1952-8d10-4296-8960-ff8993833649) and this paragraph
-// goes away.
-// tracked-by: #1844
+// Home set = earliest paper printing (ADR 0041) = MH2 71. (Scryfall lists a
+// PMH2 prerelease promo dated ~6 weeks earlier; `set_type: "promo"` is not a
+// real release of the card and is excluded by `backfill-card-index.ts` —
+// issue #1844.)
 export const thoughtMonitor: CardDefinition = {
-    id: "c5b53f25-25e7-47db-b356-65e93e3b0059", // PMH2 71s (= MH2 71)
+    id: "996c1952-8d10-4296-8960-ff8993833649", // MH2 71
     name: "Thought Monitor",
     rarity: "rare",
     oracleText:
