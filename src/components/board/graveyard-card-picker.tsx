@@ -1,6 +1,7 @@
 import { getDefinition } from "@convex/cards";
 import type { CardInstance } from "~/types/game";
 import CardImage from "~/components/cards/card-image";
+import { PILE_GRID_TILE_W } from "~/lib/card-layout";
 
 /** Card-selection step of the graveyard target dialog (issue #314). Lists the
  *  legal cards in one graveyard face-up; clicking a card submits it as the
@@ -28,9 +29,16 @@ export default function GraveyardCardPicker({
                     disabled={isPending}
                     onClick={() => onPick(card.id)}
                     title={getDefinition(card.card.id).name}
-                    className="relative w-24 sm:w-28 aspect-5/7 shrink-0 rounded-sm overflow-hidden ring-1 ring-transparent hover:ring-2 hover:ring-accent disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
+                    className={`relative ${PILE_GRID_TILE_W} aspect-5/7 shrink-0 rounded-sm overflow-hidden ring-1 ring-transparent hover:ring-2 hover:ring-accent disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer`}
                 >
-                    {/* 96–112px mid slot — no `thumb`; hint at the upper bound. */}
+                    {/* PILE_GRID_TILE_W renders 68px below the compact
+                        breakpoint, 96-112px at/above it (card-layout.ts).
+                        `sizes`/`includeThumb` stay a static MID-slot hint
+                        here (unlike cards-pile.tsx's GridCard, which reads
+                        the live viewport for issue #1817 round 2) — this
+                        picker's card count is small (one graveyard's legal
+                        targets), so the over-fetch risk that motivated the
+                        cards-pile.tsx fix doesn't apply here. */}
                     <CardImage card={card} sizes="112px" includeThumb={false} />
                 </button>
             ))}

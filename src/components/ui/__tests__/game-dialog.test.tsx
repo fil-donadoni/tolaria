@@ -93,6 +93,32 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
         expect(popup.className).toContain("play-area-center-x");
     });
 
+    // issue #1817, opus review round 2: Panel already exposed a `density`
+    // prop but GameDialog never forwarded it. Opt-in, default unchanged for
+    // the ~10 other `size="wide"` call sites.
+    it("forwards density to the inner Panel (opt-in, default unchanged)", () => {
+        const { baseElement, rerender } = render(
+            <GameDialog open title="Default density">
+                <p>body</p>
+            </GameDialog>
+        );
+        const panelDefault = baseElement.querySelector('[data-slot="panel"]')!;
+        expect(panelDefault.className).toContain("p-6");
+
+        rerender(
+            <GameDialog
+                open
+                title="Compact-mobile density"
+                density="compact-mobile"
+            >
+                <p>body</p>
+            </GameDialog>
+        );
+        const panelCompact = baseElement.querySelector('[data-slot="panel"]')!;
+        expect(panelCompact.className).toContain("p-3");
+        expect(panelCompact.className).toContain("min-[420px]:p-6");
+    });
+
     it("does not dismiss on overlay close when not dismissable", () => {
         const onOpenChange = vi.fn();
         render(

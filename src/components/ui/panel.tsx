@@ -7,12 +7,28 @@ import SubtitleFlourish from "./subtitle-flourish";
 
 type PanelSize = "default" | "wide" | "full";
 type PanelTone = "neutral" | "accent";
-type PanelDensity = "default" | "compact";
+/** `"compact-mobile"` (issue #1817, opus review round 2): a MOBILE-ONLY
+ *  padding reduction — `p-3` below `min-[420px]`, reverting to the default
+ *  `p-6` at and above it. Distinct from flat `"compact"` (`p-2` at every
+ *  width, used by ~15 small banners/pickers that want tight padding
+ *  everywhere): those callers must keep their unconditional padding, so this
+ *  is a new value rather than a redefinition of `"compact"`. Opt-in via
+ *  `GameDialog`'s `density` passthrough — every other wide dialog keeps
+ *  `"default"` (unchanged, `p-6` at every width). See
+ *  `PILE_GRID_COMPACT_BREAKPOINT_PX` (`src/lib/card-layout.ts`) for the
+ *  breakpoint this must stay in sync with. */
+type PanelDensity = "default" | "compact" | "compact-mobile";
 
 const SIZE_CLASSES: Record<PanelSize, string> = {
     default: "",
     wide: "max-w-[90vw]",
     full: "w-full",
+};
+
+const DENSITY_CLASSES: Record<PanelDensity, string> = {
+    default: "p-6",
+    compact: "p-2",
+    "compact-mobile": "p-3 min-[420px]:p-6",
 };
 
 /**
@@ -52,7 +68,7 @@ function Panel({
             data-slot="panel"
             className={cn(
                 "panel-physical relative rounded-md border text-text select-none",
-                density === "compact" ? "p-2" : "p-6",
+                DENSITY_CLASSES[density],
                 tone === "accent" ? "border-accent/40" : "border-border-subtle",
                 SIZE_CLASSES[size],
                 className
@@ -180,3 +196,4 @@ function PanelFooter({
 }
 
 export { Panel, PanelHeader, PanelBody, PanelFooter, SunburstIcon };
+export type { PanelDensity };

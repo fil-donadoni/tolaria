@@ -2,9 +2,15 @@ import { useContext, useEffect, useMemo, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import type { CardInstance } from "~/types/game";
 import { useInertialScroll } from "~/hooks/useInertialScroll";
+import { useViewportWidth } from "~/hooks/useViewportWidth";
 import { GameContext } from "~/hooks/useGameContext";
 import { SLOT_SPRING } from "~/lib/board-motion";
-import { PILE_TILE_BOX } from "~/lib/card-layout";
+import {
+    PILE_TILE_BOX,
+    PILE_GRID_COMPACT_BREAKPOINT_PX,
+    PILE_GRID_TILE_PX,
+    PILE_GRID_TILE_W,
+} from "~/lib/card-layout";
 import GameDialog from "~/components/ui/game-dialog";
 import ArrivalGlow from "./arrival-glow";
 import CardTilt3D from "./card-tilt-3d";
@@ -313,6 +319,34 @@ function FanLayout({
     );
 }
 
+/** `CardImage` `sizes`/`includeThumb` for the grid pile/picker tile, derived
+ *  from the LIVE viewport width (issue #1817, opus review round 2). Mirrors
+ *  `PILE_GRID_TILE_W`'s own breakpoints so the hint describes the REAL
+ *  rendered width instead of a media-conditional `sizes` string the browser
+ *  can't act on — the previous `sizes="(min-width:640px) 112px, 64px"` was a
+ *  no-op: with `includeThumb: false` the smallest available srcset candidate
+ *  is `grid` 488w regardless of which branch of the hint "wins"
+ *  (`src/lib/images.ts:46-52`). Below the compact breakpoint the tile is a
+ *  genuinely SMALL slot (≤96px, `images.ts`'s own bucketing), so
+ *  `includeThumb` flips back to `true` there — a 60-card library browse on a
+ *  phone must fetch 146w thumbs, not 60×488w `grid` renditions. At/above it
+ *  the tile is `images.ts`'s MID slot ("pickers ~112px, pile dialogs") and
+ *  keeps `includeThumb: false` as before. */
+function gridImageSizing(viewportWidth: number): {
+    sizes: string;
+    includeThumb: boolean;
+} {
+    if (viewportWidth < PILE_GRID_COMPACT_BREAKPOINT_PX) {
+        return { sizes: `${PILE_GRID_TILE_PX}px`, includeThumb: true };
+    }
+    // Tailwind's `sm:` breakpoint (640px) — matches PILE_GRID_TILE_W's w-24 →
+    // sm:w-28 step.
+    if (viewportWidth < 640) {
+        return { sizes: "96px", includeThumb: false };
+    }
+    return { sizes: "112px", includeThumb: false };
+}
+
 /** One selectable grid card — shared by the flat grid and the per-category
  *  sections so both render identical affordances (ring, dim, counters, action). */
 function GridCard({
@@ -325,6 +359,7 @@ function GridCard({
     selectedIds,
     eligibleIds,
     captionFor,
+    imageSizing,
 }: {
     cardInstance: CardInstance;
     isFaceDown: boolean;
@@ -338,6 +373,10 @@ function GridCard({
     selectedIds?: string[];
     eligibleIds?: ReadonlySet<string>;
     captionFor?: (card: CardInstance) => string | null;
+    /** Computed once per dialog open by `GridLayout` (not per-card — a 60-card
+     *  library browse would otherwise subscribe 60 `resize` listeners) via
+     *  `gridImageSizing`. */
+    imageSizing: { sizes: string; includeThumb: boolean };
 }) {
     const faceDown = isCardFaceDown(cardInstance, isFaceDown, faceUpIds);
     // Tilt + glare on hover, exactly like a board card (QA — uniform card
@@ -347,12 +386,10 @@ function GridCard({
             {faceDown ? (
                 <CardBack />
             ) : (
-                // Grid dialog cards render w-24 sm:w-28 (96–112px) — a mid
-                // slot, no `thumb`; hint at the upper bound.
                 <CardImage
                     card={cardInstance}
-                    sizes="112px"
-                    includeThumb={false}
+                    sizes={imageSizing.sizes}
+                    includeThumb={imageSizing.includeThumb}
                 />
             )}
         </CardTilt3D>
@@ -364,7 +401,7 @@ function GridCard({
     const action = renderCardAction?.(cardInstance, onClose);
     const caption = faceDown ? null : captionFor?.(cardInstance);
     return (
-        <div className="flex w-24 sm:w-28 shrink-0 flex-col gap-1">
+        <div className={`flex ${PILE_GRID_TILE_W} shrink-0 flex-col gap-1`}>
             <div className="relative w-full aspect-5/7">
                 {clickable ? (
                     <button
@@ -395,6 +432,28 @@ function GridCard({
         </div>
     );
 }
+
+// PILE_GRID_TILE_W now lives in `~/lib/card-layout` (issue #1817 round 2) —
+// shared with the 5 sibling cost/target-picker dialogs, not just this file's
+// own two grid modes. See its doc comment there for the fit math.
+
+/** Grid-layout row of tiles (issue #1817). The horizontal gap shrinks below
+ *  `PILE_GRID_COMPACT_BREAKPOINT_PX` (4px vs 8px) alongside `PILE_GRID_TILE_W`
+ *  so 4 columns fit at 360-390px phone widths (see the executable fit
+ *  assertion in `__tests__/cards-pile.test.tsx`); at/above it keeps today's
+ *  `gap-2`, unchanged from before issue #1817. Shared by the flat grid and
+ *  every categorized section — same reuse rationale as `PILE_GRID_TILE_W`. */
+const PILE_GRID_ROW_CLASS =
+    "flex flex-wrap gap-1 min-[420px]:gap-2 justify-center";
+
+/** Grid-layout horizontal padding (issue #1817). Zeroed below
+ *  `PILE_GRID_COMPACT_BREAKPOINT_PX` — the dialog's own Panel chrome already
+ *  provides generous clearance from the screen edge — and restored to
+ *  today's `px-2` at/above it, unchanged from before issue #1817. Shared by
+ *  the flat grid's outer wrapper and the categorized layout's outer wrapper
+ *  (both play the same "outer padding" role; the categorized layout
+ *  additionally nests one `PILE_GRID_ROW_CLASS` row per section). */
+const PILE_GRID_H_PADDING = "px-0 min-[420px]:px-2";
 
 /** A category header above a section of the categorized grid (issue #1364).
  *  Mirrors the picker's ZoneLabel chrome (uppercase, muted) so the reveal reads
@@ -441,6 +500,10 @@ function GridLayout({
     categories?: PileCategory[];
     captionFor?: (card: CardInstance) => string | null;
 }) {
+    // One viewport read for the whole dialog (not per-card — see
+    // `gridImageSizing`'s doc comment on the listener-count rationale).
+    const viewportWidth = useViewportWidth();
+    const imageSizing = gridImageSizing(viewportWidth);
     const cardProps = {
         isFaceDown,
         faceUpIds,
@@ -450,11 +513,14 @@ function GridLayout({
         selectedIds,
         eligibleIds,
         captionFor,
+        imageSizing,
     };
 
     if (!categories) {
         return (
-            <div className="flex flex-wrap gap-2 justify-center py-4 px-2">
+            <div
+                className={`${PILE_GRID_ROW_CLASS} py-4 ${PILE_GRID_H_PADDING}`}
+            >
                 {cards.map((cardInstance) => (
                     <GridCard
                         key={cardInstance.id}
@@ -468,14 +534,14 @@ function GridLayout({
 
     const { sections, ungrouped } = buildCategorySections(cards, categories);
     return (
-        <div className="flex flex-col gap-3 py-4 px-2">
+        <div className={`flex flex-col gap-3 py-4 ${PILE_GRID_H_PADDING}`}>
             {sections.map((section) => (
                 <div key={section.label} className="flex flex-col gap-1.5">
                     <CategoryHeader
                         label={section.label}
                         count={section.cards.length}
                     />
-                    <div className="flex flex-wrap gap-2 justify-center">
+                    <div className={PILE_GRID_ROW_CLASS}>
                         {section.cards.map((cardInstance) => (
                             <GridCard
                                 key={cardInstance.id}
@@ -492,7 +558,7 @@ function GridLayout({
                         label="Not keepable"
                         count={ungrouped.length}
                     />
-                    <div className="flex flex-wrap gap-2 justify-center">
+                    <div className={PILE_GRID_ROW_CLASS}>
                         {ungrouped.map((cardInstance) => (
                             <GridCard
                                 key={cardInstance.id}
@@ -685,6 +751,13 @@ export default function CardsPile({
                 dismissable={!forceOpen}
                 showCloseButton={!forceOpen}
                 onMinimize={forceOpen ? onMinimize : undefined}
+                // Mobile-only Panel padding reduction (issue #1817 round 2) —
+                // gives the grid's 4-per-row math the room it needs on a
+                // phone; unchanged (p-6 at every width) at/above
+                // PILE_GRID_COMPACT_BREAKPOINT_PX, and unchanged for every
+                // OTHER `size="wide"` GameDialog (this prop defaults to
+                // "default" elsewhere).
+                density="compact-mobile"
             >
                 {layout === "fan" ? (
                     <FanLayout
