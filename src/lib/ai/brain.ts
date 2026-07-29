@@ -16,7 +16,7 @@
 //    and `enumerateMoves` surfaces the candidate submissions. `buildOwedChoice`
 //    marks such a choice `searchable`, and the gate answers `search-choice` —
 //    a WORKER-realised action, so the SEARCH picks the answer.
-//  * A kind with NO generator (`hasChoiceCandidateGenerator` → false) is still
+//  * A choice no generator applies to (`isSearchableChoiceNode` → false) is still
 //    resolved RIGHT HERE on the main thread, like the mulligan heuristic:
 //    `chooseOwedChoiceAction` / `chooseResolution` give the bot a
 //    weak-but-legal default for every `PendingChoiceKind`, so the game always
@@ -229,9 +229,11 @@ export const LAND_LIGHT_LANDS_IN_PLAY = 4;
 export type OwedChoice = {
     kind: PendingChoiceKind;
     /** Whether this choice is an in-tree ISMCTS decision node the SEARCH should
-     *  answer instead of the ADR 0016 heuristic (issue #1506). True iff the kind
-     *  has a registered candidate generator (`hasChoiceCandidateGenerator`, the
-     *  single authority) AND no mid-flight cast/target/activation/companion
+     *  answer instead of the ADR 0016 heuristic (issue #1506). True iff a
+     *  registered candidate generator APPLIES to this choice
+     *  (`isSearchableChoiceNode`, the single authority — registry membership
+     *  alone is not enough, PR #1914 review finding 2) AND no mid-flight
+     *  cast/target/activation/companion
      *  continuation is parked — the exact conditions under which
      *  `enumerateMoves` surfaces the choice's candidate answers. Undefined /
      *  false → the heuristic answers it, exactly as before. */
@@ -877,7 +879,7 @@ export function decideBotAction(view: BotView): BotAction {
     // A GENERATOR-COVERED choice is a real ISMCTS decision node (PRD #1423,
     // issue #1506) — hand it to the Worker instead of answering it with the
     // ADR 0016 minimal default. The gate is `OwedChoice.searchable`, computed in
-    // `buildOwedChoice` from `hasChoiceCandidateGenerator` (the single
+    // `buildOwedChoice` from `isSearchableChoiceNode` (the single
     // authority), so a kind that gains a generator stops being heuristic-
     // answered with no edit here.
     if (view.owedChoice) {

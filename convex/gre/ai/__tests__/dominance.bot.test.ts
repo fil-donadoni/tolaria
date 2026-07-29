@@ -462,6 +462,63 @@ describe("probe cost is O(root moves), not O(iterations) (issue #1905)", () => {
         expect(short).toBe(dominanceProbeStats().probes);
     }, 60000);
 
+    // The scenario above has NO choice node, so it can only ever see the
+    // CAST-level probe. `isNoOpChoiceAnswer` (issue #1888) shares
+    // `stats.probes` but is reached from `dslChoicePrior`, which runs at every
+    // in-tree choice-node visit of every iteration — it went back to
+    // O(iterations) (42 probes @ 40 vs 401 @ 400) while this describe stayed
+    // green, which is exactly why the invariant needs a choice-node scenario to
+    // be pinned at all (PR #1914 review finding 1).
+    it("…including at a live CHOICE node, which the priors visit every iteration", () => {
+        // Chrome Mox's imprint trigger resolved: "you MAY exile a nonartifact,
+        // nonland card from your hand" (CR 608.2b) — a live `choose-hand-card`
+        // node at the ROOT, so every iteration descends through it and scores
+        // its candidates' priors.
+        const state = buildBladeState({
+            label: "dominance-unit-imprint",
+            spec: {
+                cards: [
+                    { name: "Chrome Mox", owner: "me", zone: "battlefield" },
+                    { name: "Lightning Bolt", owner: "me", zone: "hand" },
+                    { name: "Dark Ritual", owner: "me", zone: "hand" },
+                    {
+                        name: "Mountain",
+                        owner: "me",
+                        zone: "battlefield",
+                        count: 2,
+                    },
+                ],
+                phase: "PRECOMBAT_MAIN",
+                turn: 3,
+                libraryCount: 20,
+            },
+            setup: [
+                { kind: "etb-trigger", card: "Chrome Mox" },
+                { kind: "resolve-top" },
+            ],
+            bot: "me",
+            budget: { iterations: 1 },
+            tier: "must",
+            expect: { moves: [{ kind: "pass" }] },
+        });
+        const pid = me(state);
+        // Guard the guard: without a live choice node this test would be the
+        // same blind spot it exists to close.
+        expect(state.pendingChoices?.[0]?.kind).toBe("choose-hand-card");
+        expect(state.pendingChoices?.[0]?.playerId).toBe(pid);
+
+        resetDominanceProbeStats();
+        searchWithTrace(state, pid, { iterations: 40 }, 7);
+        const short = dominanceProbeStats().probes;
+
+        resetDominanceProbeStats();
+        searchWithTrace(state, pid, { iterations: 400 }, 7);
+        const long = dominanceProbeStats().probes;
+
+        expect(short).toBeGreaterThan(0);
+        expect(long).toBe(short);
+    }, 60000);
+
     it("the dominated move is kept out of the TREE, not just the move list", () => {
         // `selectRootMove` picks among the root's CHILD EDGES, so pruning the
         // root `moves` list alone would leave the no-op openable, visited and

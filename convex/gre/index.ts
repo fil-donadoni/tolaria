@@ -47,7 +47,10 @@ export type { Move, ManaTap } from "./moves";
 // registry `enumerateMoves` / `decidingPlayer` consult. Exported so the client
 // bot gate (`buildOwedChoice` → `decideBotAction`) can route a generator-covered
 // root choice to the search instead of answering it with the ADR 0016 heuristic.
-export { hasChoiceCandidateGenerator } from "./ai/choiceCandidates";
+export {
+    hasChoiceCandidateGenerator,
+    isSearchableChoiceNode,
+} from "./ai/choiceCandidates";
 
 // Expected-Input-driven legal action enumeration (ADR 0047, issue #801). The
 // gate's dual: yields the concrete action set for the acting player, derived

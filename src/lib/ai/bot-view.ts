@@ -19,7 +19,7 @@ import {
     normalizeManaCost,
     isManaCostCovered,
     normalizeMayPayCost,
-    hasChoiceCandidateGenerator,
+    isSearchableChoiceNode,
 } from "@convex/gre";
 import { cardValueById } from "@convex/gre";
 import { manaValue } from "@convex/gre/constants";
@@ -538,7 +538,7 @@ function buildOwedChoice(
     return {
         kind: head.kind,
         // issue #1506 — is this an in-tree ISMCTS decision node the SEARCH must
-        // answer, rather than the ADR 0016 heuristic? `hasChoiceCandidateGenerator`
+        // answer, rather than the ADR 0016 heuristic? `isSearchableChoiceNode`
         // is the single authority (the same registry `enumerateMoves` and
         // `decidingPlayer` consult), and the parked-continuation guard mirrors
         // `enumerateMoves` exactly: with a cast / target / activation / companion
@@ -546,8 +546,15 @@ function buildOwedChoice(
         // choice, so routing to the Worker there would stall the bot. Keeping
         // the two conditions identical is what stops the gate and the enumerator
         // disagreeing.
+        //
+        // PR #1914 review finding 2 — the test is the WHOLE choice, not just its
+        // kind: a registered generator may decline a particular choice
+        // (`choose-hand-card` emits nothing for a MANDATORY `min > 0` pick, so
+        // every Brainstorm putback / discard cost gated on bare kind membership
+        // paid a Worker round-trip plus `THINK_DELAY_MS` and then landed on the
+        // driver's emergency fallback).
         searchable:
-            hasChoiceCandidateGenerator(head.kind) &&
+            isSearchableChoiceNode(head) &&
             !state.pendingCast &&
             !state.pendingTarget &&
             !state.pendingActivation &&

@@ -34,6 +34,7 @@ import {
     scriptOpValueOf,
 } from "./candidateValue";
 import type { GroundingContext } from "./grounding";
+import { isNoOpChoiceAnswer } from "./dominance";
 
 /** A candidate as seen by a prior function: its stable identity key, the move
  *  it would play, and the generator's structural hints (what the candidate
@@ -255,6 +256,50 @@ function dslSearchLibraryPrior(
     return clampPrior(SEARCH_FIND_PRIOR_FLOOR + worth / MATERIAL_PRIOR_SCALE);
 }
 
+// ---------------------------------------------------------------------------
+// Degenerate-branch penalty (issue #1888 item 3)
+// ---------------------------------------------------------------------------
+
+/** Prior for a candidate PROVED to resolve to no change at all — an empty
+ *  selection on an optional pick that nothing downstream reads (Chrome Mox
+ *  resolving its imprint trigger having imprinted nothing). Pinned to the band
+ *  floor rather than removed: this is still an ordering score, so the branch
+ *  opens LAST and the search can still choose it on reward. Was `NEUTRAL_PRIOR`
+ *  — indistinguishable from every answer that does something. */
+const DEGENERATE_PRIOR = PRIOR_MIN;
+
+/** Whether this candidate is the provably-does-nothing branch of the choice.
+ *
+ *  The probe is the `dominance.ts` one (issue #1887), applied one level down —
+ *  the SAME exact-equality proof on a clone, not a second parallel prober. It
+ *  is deliberately gated to the EMPTY-SELECTION shape before any clone is made:
+ *  the probe costs a clone plus a whole-`GameState` deep compare, and priors are
+ *  scored for every candidate at every choice ply, so it may only ever be paid
+ *  for the at-most-one candidate per node that could plausibly be degenerate.
+ *  A non-empty answer moves cards by construction and can never prove out.
+ *
+ *  That shape gate bounds the probe per VISIT; what bounds it per SEARCH is
+ *  `dominance.ts`' per-decision memo (`beginDominanceDecision`, opened by
+ *  `searchWithTrace`). This function runs at every in-tree choice-node visit of
+ *  every iteration — without the memo the probe count would be O(iterations),
+ *  the #1905 review-finding-3 regression (PR #1914 review finding 1). With it,
+ *  each distinct choice identity is proved once per decision and every later
+ *  visit reads the cached verdict. */
+function isDegenerateChoiceCandidate(
+    state: GameState,
+    choice: PendingChoice,
+    candidate: PriorCandidate
+): boolean {
+    const move = candidate.move;
+    if (move.kind !== "resolution-choice") return false;
+    if ((move.cardInstanceIds?.length ?? 0) > 0) return false;
+    // CR 701.19c — "fail to find" always SHUFFLES, so a search-library empty
+    // pick is never a no-op. Skipping the probe for that kind keeps the one
+    // high-traffic choice node free of a clone it can only ever answer "no".
+    if (choice.kind === "search-library") return false;
+    return isNoOpChoiceAnswer(state, choice, move);
+}
+
 /** v2 prior (issue #1433): reads `OP_VALUERS` context-aware for the choice
  *  kind whose candidates carry real card material with no cheaper structural
  *  hint to lean on (`search-library`'s finds — a library card's worth is
@@ -271,6 +316,9 @@ function dslSearchLibraryPrior(
  *  This IS the "heuristics may remain as fallback where no Op maps" the
  *  acceptance criteria call for, not a separate escape hatch. */
 export const dslChoicePrior: ChoicePriorFn = (state, choice, candidate) => {
+    if (isDegenerateChoiceCandidate(state, choice, candidate)) {
+        return DEGENERATE_PRIOR;
+    }
     switch (choice.kind) {
         case "search-library":
             return dslSearchLibraryPrior(state, choice, candidate);
