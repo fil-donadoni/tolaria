@@ -187,12 +187,17 @@ export default function BoardPortraitChips({
 
     return (
         <>
+            {/* #1867 — vertical column pinned top-RIGHT, not a horizontal
+                top-left row: the row (~180px of `min-w-14` chips) overlapped
+                the opponent's top-center compact nameplate on phone widths.
+                Top-right is clear of it, and clear of the stack chip too
+                (that sits at the midline, well below this ~140px column). */}
             {opponent && (
                 <div
-                    className="absolute left-2 top-2 z-30"
+                    className="absolute right-2 top-2 z-30"
                     data-testid="pile-chips-row-opponent"
                 >
-                    <BoardPileChips player={opponent} />
+                    <BoardPileChips player={opponent} vertical />
                 </div>
             )}
 

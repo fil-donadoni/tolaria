@@ -213,10 +213,20 @@ describe("BoardPortraitChips (#336)", () => {
         expect(screen.queryByTestId("pile-chips-me")).toBeNull();
         expect(screen.queryByTestId("pile-chips-row-viewer")).toBeNull();
 
-        // Opponent stays pinned top-left.
-        expect(
-            screen.getByTestId("pile-chips-row-opponent").className
-        ).toContain("top-2");
+        // Opponent column pinned top-RIGHT (#1867 — a horizontal top-left
+        // row overlapped the top-center compact nameplate on phone widths),
+        // laid out vertically with the stacked chip style so each chip keeps
+        // the 44px touch floor on BOTH axes.
+        const oppRow = screen.getByTestId("pile-chips-row-opponent");
+        expect(oppRow.className).toContain("top-2");
+        expect(oppRow.className).toContain("right-2");
+        expect(oppRow.className).not.toContain("left-2");
+        expect(screen.getByTestId("pile-chips-opp").className).toContain(
+            "flex-col"
+        );
+        const gyChip = screen.getByTestId("chip-graveyard-opp");
+        expect(gyChip.className).toContain("min-w-11");
+        expect(gyChip.className).toContain("min-h-11");
     });
 
     it("derives the opponent by IDENTITY (viewer id from context), not array position (#1815 review fixup, finding 5)", () => {
