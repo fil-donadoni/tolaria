@@ -177,16 +177,35 @@ describe("pre-push hook", () => {
 });
 
 describe("light pre-PR gate", () => {
-    it("`check:pr` runs the same checks as `check:all`, without the mutex", () => {
+    it("`check:pr` runs every `check:all` check, plus the bot guards, without the mutex", () => {
         // check:index / check:ids / check:stubs cost <0.2s each. Leaving them
         // out of the pre-PR gate saved nothing and cost a merge-train re-gate
         // on every card-shipping PR (the card-index lockfile drift guard).
+        //
+        // `check:guards` (issue #1912) is the pre-PR gate's ONE addition over
+        // `check:all`: the catalogue-wide guards (aiEffectsGuard, pickRatings,
+        // opValuerCoverage, the moves/cardProfile censuses) all live in the BOT
+        // suite, which the light gate never ran — three consecutive card PRs
+        // reached a green `check:pr` while red in the bot suite. `check:all`
+        // does NOT need it: it is followed by the full `bun run test`, which
+        // runs the bot suite in full.
         const scripts = readPkg().scripts;
         expect(scripts["check:pr"]).toBe(
-            "bun scripts/gate.ts light 'bun run check:all:inner'"
+            "bun scripts/gate.ts light 'bun run check:all:inner && bun run check:guards'"
         );
         expect(scripts["check:all"]).toBe(
             "bun scripts/gate.ts heavy 'bun run check:all:inner'"
         );
+        // The lane must stay the FAST one — a plain `vitest run` over the bot
+        // projects would drag `ai-diagnosis.bot.test.ts` (163s of the suite's
+        // 188s) into every pre-PR gate.
+        expect(scripts["check:guards"]).toContain("TOLARIA_BOT_FAST=1");
+        // …and it must also cover this directory. `scripts/__tests__` holds the
+        // repo's own hygiene guards — including THIS test, which asserts the
+        // shape of `check:pr` itself. Those live in the APPLICATION suite, so
+        // before #1912 a change to the gate's own wiring could not be caught by
+        // running the gate: this very assertion went red in CI while `check:pr`
+        // reported green locally. 12 files, ~4s.
+        expect(scripts["check:guards"]).toContain("scripts/__tests__");
     });
 });
