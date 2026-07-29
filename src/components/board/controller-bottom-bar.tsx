@@ -5,6 +5,7 @@ import { useControllerActions } from "~/hooks/useControllerActions";
 import { useControllerBarHeight } from "~/hooks/useControllerBarHeight";
 import { selectCommandSlots } from "~/lib/controller-action-slots";
 import { phaseGroupLabel } from "~/lib/phase-labels";
+import BoardPileChips from "./board-pile-chips";
 import ControllerCommandRow from "./controller-command-row";
 import ControllerLifeTab from "./controller-life-tab";
 import ControllerTabButton from "./controller-tab-button";
@@ -15,22 +16,42 @@ import AttackAllConfirmDialog from "./attack-all-confirm-dialog";
  *  (#1758/#1759, user-approved from the `prototype/mobile-bottom-bar` audit).
  *
  *  An app tab bar owns the bottom edge — **You** (own life, opponent's as a
- *  `vs N` subline) · **Phase** · **Menu** — with a floating command row above
- *  it. The three complaints the audit raised are structural, not cosmetic, so
- *  the layout answers each one directly:
+ *  `vs N` subline) · **Zones** (the viewer's GY/LIB/EXL chips, inline) ·
+ *  **Phase** · **Menu** — with a floating command row above it. The three
+ *  complaints the audit raised are structural, not cosmetic, so the layout
+ *  answers each one directly:
  *
  *  - *Own life and the zone chips were buried under the bar.* Life is now ON
- *    the bar (and is the self-target surface). The viewer's pile chips are no
- *    longer bar chrome at all — #1815 moved them onto the BOARD itself
- *    ({@link BoardPortraitChips}), always visible and mirroring the
- *    opponent's, so there is no "Zones" tab left to reflow or reach through.
+ *    the bar (and is the self-target surface).
  *  - *Buttons appeared and disappeared, so the bar reflowed constantly.* There
  *    is exactly ONE fixed-size primary slot that morphs (see
  *    {@link selectCommandSlots}), Pass Turn is always mounted and merely greys
- *    out, and every tab is a fixed third of the width — the phase label
+ *    out, and every tab is a fixed quarter of the width — the phase label
  *    truncates instead of resizing its neighbours.
  *  - *The priority border was a chunky colour slab.* Priority is a 2px gradient
  *    hairline on the bar's top edge.
+ *
+ *  **Zone chips, inline, not a drawer (#1815, review fixup).** #1815 first
+ *  tried mounting the viewer's GY/LIB/EXL row on the BOARD itself, mirroring
+ *  the opponent's top-left placement to the bottom-left. Reviewed and
+ *  reverted: portrait's vertical budget is fully accounted for
+ *  (`portrait-board-bands.ts`) and has no spare ~44px band for a chip row
+ *  without either overlapping the battlefield's back row or starving its
+ *  ≥44px card-width floor (the #1760 bug class, from a new angle). The
+ *  second-place slot this freed up — this bar's own third tab, "Zones" before
+ *  #1815 removed it — is where the chips land instead: {@link BoardPileChips}
+ *  in `compact` mode, mounted directly in the grid cell, ALWAYS visible (no
+ *  toggle, no drawer to open — the previous "Zones" tab opened a floating
+ *  drawer; this is simpler, one tap fewer). That makes the bar asymmetric
+ *  with the board (opponent's row lives on the board, the viewer's lives in
+ *  the bar) — accepted: a true mirror is geometrically impossible without
+ *  starving the battlefield, and the asymmetry this ticket actually needed to
+ *  kill was the EXTRA TAP through a drawer, not the chips' screen position.
+ *  Because the cell is always mounted and always visible, the pile
+ *  components' own blocking choice surfaces (`LibraryOrderPicker`, the
+ *  `forceOpen` pile grids) are on-screen the instant a choice goes pending —
+ *  no force-open plumbing needed, unlike the old drawer (which had to force
+ *  itself open past a `hidden` wrapper).
  *
  *  It stays a pure presentation fork of {@link ControllerPod}: it reads the SAME
  *  `useControllerActions` descriptors, so every control dispatches the IDENTICAL
@@ -48,8 +69,7 @@ export default function ControllerBottomBar({
     const [sheetOpen, setSheetOpen] = useState(false);
     // The bar's height is state-dependent (the command row wraps), so nothing
     // may reserve a fixed inset for it — it publishes what it measures and the
-    // hand strip / viewer pile chips anchor to that. See
-    // controller-bar-metrics.ts.
+    // hand strip anchors to that. See controller-bar-metrics.ts.
     const barRef = useControllerBarHeight<HTMLDivElement>();
 
     // Same derivation the board uses; the context's `playerId` IS the viewer.
@@ -77,17 +97,32 @@ export default function ControllerBottomBar({
                 />
 
                 <div
-                    className="grid grid-cols-3 bg-gradient-to-t from-surface-base to-surface-base/85 backdrop-blur-xl"
+                    className="grid grid-cols-4 bg-gradient-to-t from-surface-base to-surface-base/85 backdrop-blur-xl"
                     style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
                 >
                     {/* A missing viewer seat is not a real game state, but the
-                        placeholder keeps the grid at three cells regardless. */}
+                        placeholder keeps the grid at four cells regardless. */}
                     {me ? (
                         <ControllerLifeTab
                             me={me}
                             opponent={opponent}
                             isMyTurn={isMyTurn}
                         />
+                    ) : (
+                        <span />
+                    )}
+
+                    {/* The viewer's zone chips, inline (#1815 review fixup —
+                        see the module doc comment). Always mounted, always
+                        visible: no toggle state, unlike the other three
+                        tabs. */}
+                    {me ? (
+                        <div
+                            className="flex h-[3.25rem] items-center justify-center px-1"
+                            data-testid="controller-bar-zone-chips"
+                        >
+                            <BoardPileChips player={me} compact />
+                        </div>
                     ) : (
                         <span />
                     )}

@@ -16,32 +16,49 @@ type OpenZone = "graveyard" | "library" | "exile" | null;
  *  reveal dialog of the corresponding pile component in controlled-open mode —
  *  the pile renders only its dialog (collapsed card stack suppressed), so all
  *  its real behaviour (target clicks, draw / mill / search context menu,
- *  inertial-scroll fan / grid) is reused unchanged. View layer only. */
-export default function BoardPileChips({ player }: { player: Player }) {
+ *  inertial-scroll fan / grid) is reused unchanged. View layer only.
+ *
+ *  `compact` (#1815 review fixup): the VIEWER's row mounts inline in the
+ *  controller bottom bar (`controller-bottom-bar.tsx`) rather than floating
+ *  on the board — see that module's doc comment for why. The opponent's row
+ *  stays board-level and non-compact. */
+export default function BoardPileChips({
+    player,
+    compact = false,
+}: {
+    player: Player;
+    compact?: boolean;
+}) {
     const [openZone, setOpenZone] = useState<OpenZone>(null);
     const toggle = (zone: Exclude<OpenZone, null>) =>
         setOpenZone((cur) => (cur === zone ? null : zone));
 
     return (
-        <div className="flex gap-1" data-testid={`pile-chips-${player.id}`}>
+        <div
+            className={compact ? "flex w-full gap-0.5" : "flex gap-1"}
+            data-testid={`pile-chips-${player.id}`}
+        >
             <PileChip
                 label="GY"
                 count={player.graveyard.length}
                 onClick={() => toggle("graveyard")}
                 data-testid={`chip-graveyard-${player.id}`}
                 data-arrow-anchor-graveyard={player.id}
+                compact={compact}
             />
             <PileChip
                 label="LIB"
                 count={libraryCount(player.library)}
                 onClick={() => toggle("library")}
                 data-testid={`chip-library-${player.id}`}
+                compact={compact}
             />
             <PileChip
                 label="EXL"
                 count={player.exile.length}
                 onClick={() => toggle("exile")}
                 data-testid={`chip-exile-${player.id}`}
+                compact={compact}
             />
 
             {/* Pile components in controlled-open mode: they render ONLY their

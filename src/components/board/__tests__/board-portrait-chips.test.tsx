@@ -12,14 +12,8 @@ import {
     fireEvent,
     within,
 } from "@testing-library/react";
-import type {
-    CardInstance,
-    PendingChoice,
-    Player,
-    StackItem,
-} from "~/types/game";
+import type { CardInstance, Player, StackItem } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
-import { PORTRAIT_VIEWER_CHIPS_BOTTOM } from "~/lib/portrait-board-bands";
 import {
     PendingChoiceBufferContext,
     type PendingChoiceBuffer,
@@ -160,13 +154,14 @@ describe("BoardPortraitChips (#336)", () => {
         ).toContain("30");
     });
 
-    it("renders the VIEWER's pile-chip row too — always visible, mirrored bottom-left (#1815)", () => {
-        // The viewer's row used to sit at `bottom-24` (untappable once the
-        // variant-D bottom bar, #1759, covers that band), then got relocated
-        // behind a "Zones" tab (#1759) — a redundant extra tap the opponent's
-        // row never needed. #1815 mounts it HERE instead, unconditionally
-        // visible, mirroring the opponent's top-left placement: exactly one
-        // row per seat, no drawer, no toggle.
+    it("does NOT mount the viewer's own pile-chip row — that lives in the controller bottom bar now (#1815 review fixup)", () => {
+        // #1815 first mirrored the opponent's row to the bottom-left, on the
+        // board — reviewed and reverted (portrait's vertical budget has no
+        // spare ~44px band for a chip row without either overlapping the
+        // battlefield's back row or starving its own ≥44px card-width floor).
+        // The viewer's chips now render inline in `ControllerBottomBar`
+        // instead (`controller-bottom-bar.test.tsx`); this component mounts
+        // ONLY the opponent's board-level row plus the stack chip.
         const me = makePlayer("me", {
             graveyard: [makeCard("g1", "graveyard")],
             library: { count: 12 },
@@ -179,75 +174,60 @@ describe("BoardPortraitChips (#336)", () => {
         ]
             .map((el) => el.getAttribute("data-testid"))
             .filter((id) => !id?.startsWith("pile-chips-row-"));
-        expect(rows.sort()).toEqual(["pile-chips-me", "pile-chips-opp"].sort());
+        expect(rows).toEqual(["pile-chips-opp"]);
+        expect(screen.queryByTestId("pile-chips-me")).toBeNull();
+        expect(screen.queryByTestId("pile-chips-row-viewer")).toBeNull();
 
-        // Opponent stays pinned top-left...
+        // Opponent stays pinned top-left.
         expect(
             screen.getByTestId("pile-chips-row-opponent").className
         ).toContain("top-2");
-        // ...the viewer mirrors it at the bottom-left, anchored above the
-        // hand fan via the measured clearance var, never a hardcoded inset.
-        const viewerRow = screen.getByTestId("pile-chips-row-viewer");
-        expect(viewerRow.className).toContain("left-2");
-        expect(viewerRow.className).toContain(PORTRAIT_VIEWER_CHIPS_BOTTOM);
-
-        // Real counts, not a stub — the viewer's own chip row.
-        const meChips = screen.getByTestId("pile-chips-me");
-        expect(
-            within(meChips).getByTestId("chip-library-me").textContent
-        ).toContain("12");
     });
 
-    it("tapping the viewer's graveyard chip opens the EXISTING reveal view directly — no drawer step", () => {
-        renderChips(
-            makePlayer("opp"),
-            makePlayer("me", {
-                graveyard: [
-                    makeCard("g1", "graveyard"),
-                    makeCard("g2", "graveyard"),
-                ],
-            })
-        );
-
-        fireEvent.click(screen.getByTestId("chip-graveyard-me"));
-
-        const dialog = screen.getByRole("dialog");
-        expect(
-            within(dialog).getAllByText(/Graveyard \(2\)/).length
-        ).toBeGreaterThan(0);
-    });
-
-    it("a pending graveyard pick owed to the viewer surfaces its picker automatically, no tap required (#1815 force-open)", () => {
-        // The regression the old Zones drawer's forced-open plumbing existed
-        // to prevent: PendingChoicePrompt renders nothing for a pile-owned
-        // choice kind, so the chooser needs the pile's OWN forceOpen modal on
-        // screen without any interaction. Now that this row is unconditionally
-        // mounted AND visible (no drawer, no toggle), the modal simply
-        // appears — nothing needs to force anything open any more.
-        const choice = {
-            kind: "choose-graveyard-card",
+    it("derives the opponent by IDENTITY (viewer id from context), not array position (#1815 review fixup, finding 5)", () => {
+        // The bug this guards: `orderedPlayers` is built upstream as
+        // `[opponent, me].filter(Boolean)` (`board.tsx`) — with no opponent
+        // seat yet, that collapses to a ONE-element array whose sole entry
+        // is the VIEWER's own state. A positional `const [opponent] =
+        // orderedPlayers` would then render the viewer's own pile-chip row
+        // mislabeled as the opponent's board-level row. Deriving by identity
+        // (`playerId` from context) instead means a missing opponent seat
+        // renders no opponent row at all — never a mislabeled one.
+        const me = makePlayer("me", {
+            graveyard: [makeCard("g1", "graveyard")],
+        });
+        const value = {
+            gameId: "game-id" as never,
             playerId: "me",
-            zone: "graveyard",
-            count: 1,
-            prompt: "Choose a card from your graveyard",
-            stackItemId: "s1",
-            step: 0,
-            choiceId: "c1",
-        } as unknown as PendingChoice;
-
-        renderChips(
-            makePlayer("opp"),
-            makePlayer("me", {
-                graveyard: [makeCard("g1", "graveyard")],
-            }),
-            [],
-            { pendingChoices: [choice] }
+            activePlayerId: "me",
+            priorityPlayerId: "me",
+            phase: "PRECOMBAT_MAIN",
+            turn: 1,
+            stackCount: 0,
+            allPlayers: [me],
+            showAllCards: false,
+            debugAllActions: false,
+            onSwitchGame: () => {},
+        } as React.ContextType<typeof GameContext>;
+        render(
+            <GameContext value={value}>
+                <PendingChoiceBufferContext value={noopBuffer}>
+                    <MinimizedChoiceContext value={noopMinimized}>
+                        {/* Only ONE entry — the viewer's own state, standing
+                            in for the "no opponent seat yet" shape that used
+                            to trip the positional destructure. */}
+                        <BoardPortraitChips
+                            orderedPlayers={[me]}
+                            stackItems={[]}
+                        />
+                    </MinimizedChoiceContext>
+                </PendingChoiceBufferContext>
+            </GameContext>
         );
 
-        const dialog = screen.getByRole("dialog");
-        expect(dialog.textContent).toContain(
-            "Choose a card from your graveyard"
-        );
+        expect(screen.queryByTestId("pile-chips-row-opponent")).toBeNull();
+        expect(screen.queryByTestId("pile-chips-opp")).toBeNull();
+        expect(screen.queryByTestId("pile-chips-me")).toBeNull();
     });
 
     it("no reveal dialog is open until a chip is tapped", () => {

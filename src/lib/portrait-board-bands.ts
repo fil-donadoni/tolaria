@@ -246,7 +246,6 @@ export const PORTRAIT_VIEWER_NAMEPLATE_BOTTOM =
 // zero overlap with the battlefield, at the cost of asymmetry with the
 // opponent's board-level row (documented at the call site).
 
-
 // ── Portrait hand card metrics (#336, #1770 follow-up from #1790) ──────────
 //
 // `BoardHandPortrait` used to hard-code a 76px card width — 106.4px tall at
