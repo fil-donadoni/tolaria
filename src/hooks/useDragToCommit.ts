@@ -177,9 +177,30 @@ export function useDragToCommit(opts: {
     // this card and the lift would stick forever. Resetting on capture loss keeps
     // the gesture from getting wedged in the dragging state (#294 fix 2). It is a
     // no-op when capture is released normally by `onPointerUp` (already reset).
-    const onLostPointerCapture = useCallback(() => {
-        if (press.current) reset();
-    }, [reset]);
+    //
+    // Touch-only trap (same shape as `LibraryOrderPicker` / `TriggerOrderPrompt`,
+    // issue #1772 — issue #1820 is this same bug class in the hand-card drag):
+    // a touch `pointerdown` grants the deepest hit-tested DESCENDANT (the
+    // card's tilt/preview/image subtree under this root) IMPLICIT pointer
+    // capture. The first `setPointerCapture` call above, in `onPointerMove` —
+    // on `e.currentTarget` (THIS root) — transfers capture away from that
+    // descendant, which fires `lostpointercapture` ON THE DESCENDANT. It
+    // bubbles here even though capture just moved TO this element, not away
+    // from it, and the unguarded handler used to read every bubbled
+    // `lostpointercapture` as "capture lost mid-drag" and `reset()` — on
+    // touch, that fired on the very first qualifying move (the same move that
+    // just called `setPointerCapture`), wiping the drag before it could ever
+    // reach the commit threshold: an upward swipe never committed. Only a
+    // `lostpointercapture` whose target IS this root (this element itself
+    // losing its OWN capture, e.g. the hand's drag-reorder re-keying the slot
+    // mid-drag, #294 fix 2) should reset.
+    const onLostPointerCapture = useCallback(
+        (e: React.PointerEvent<HTMLElement>) => {
+            if (e.target !== e.currentTarget) return;
+            if (press.current) reset();
+        },
+        [reset]
+    );
 
     const onClickCapture = useCallback((e: React.MouseEvent<HTMLElement>) => {
         if (!swallowNextClick.current) return;
