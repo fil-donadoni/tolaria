@@ -1440,9 +1440,22 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // adds one more Op-blocked closure onto the existing `becomeCopyOf`
         // bucket. Net: total 465->466 (+1 new closure), Op-blocked 157->158.
         // FREE / AFK-ready / X-only unchanged. Partition: 294+14+158=466.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(466);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(294);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(285);
+        //
+        // #1884 (Urza's Saga, mh2/colorless.ts): a BRAND-NEW catalogue card,
+        // not a migration. Chapter II's GRANTED ability body is a `resolve()`
+        // closure because the Construct token it makes carries a
+        // characteristic-defining P/T (`pt-cda`, a `compute` CLOSURE) and the
+        // DSL's `EffectTokenSpec` is a JSON-pure allowlist with no
+        // `staticEffects` slot (ADR 0046). The static clause-mapper only sees
+        // the `createToken` call, which IS a covered Op, so it scores FREE —
+        // a false positive the census tolerates (it is a heuristic over call
+        // shapes, not a purity checker); the card ships with a per-card test
+        // file, so it lands in the AFK-ready subset. Net: total 466->467
+        // (+1 new closure), FREE 294->295, AFK-ready 285->286. X-only /
+        // Op-blocked unchanged. Partition: 295+14+158=467.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(467);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(295);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(286);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(158);
     });

@@ -30,13 +30,21 @@ import { LAND_TYPES } from "../../gre/constants";
  *  (`types` includes "Land" plus another card type) and must NOT be flagged
  *  as an uncovered land type — they belong to the OTHER card type's own
  *  subtype vocabulary (Saga, CR 205.3h; Aura, CR 205.3g), which is exactly
- *  what CR 305.7 / `applyLandTypeReplacement` preserve on purpose. Empty
- *  today (no shipped card is `["Land", "Enchantment"]` yet — Urza's Saga is
- *  tracked separately, issue #1884); add a narrow `{ cardId, subtype }` row
- *  here, not a `LAND_TYPES` entry, the day a multi-typed land ships with one. */
+ *  what CR 305.7 / `applyLandTypeReplacement` preserve on purpose. Add a
+ *  narrow `${cardId}:${subtype}` row here, NOT a `LAND_TYPES` entry, the day
+ *  a multi-typed land ships with one. */
 const NON_LAND_SUBTYPE_ALLOWLIST: ReadonlySet<string> = new Set(
     // `${cardId}:${subtype}`
-    []
+    [
+        // Urza's Saga (mh2, issue #1884) — `Enchantment Land — Urza's Saga`,
+        // the catalogue's first `["Enchantment", "Land"]` card. "Urza's" IS a
+        // CR 205.3i land type and is covered by `LAND_TYPES`; "Saga" is an
+        // ENCHANTMENT subtype (CR 205.3h) riding along on the other card type,
+        // and CR 305.7 must NOT strip it — a Blood-Moon'd Urza's Saga is still
+        // a Saga (it merely loses its abilities, which is what closes both
+        // CR 714 gates — ADR 0078 §3).
+        "c1e0f201-42cb-46a1-901a-65bb4fc18f6c:Saga",
+    ]
 );
 
 describe("LAND_TYPES catalogue coverage (CR 205.3i, issue #1883)", () => {
