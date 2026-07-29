@@ -59,6 +59,7 @@ import {
     applyAllCombatDamage,
     buildAutoDamageAssignments,
     finalizeDrawReplacementPay,
+    isSorceryTimingFor,
 } from "./phases";
 import { cloneGameState } from "./clone";
 import { predictCombatOutcome } from "./dangerClock";
@@ -93,6 +94,15 @@ import {
     selectOpeningCandidate,
     type ChoiceCandidate,
 } from "./ai/choiceCandidates";
+import { misdirectedTargetCount } from "./ai/beneficence";
+import { beginDominanceDecision, endDominanceDecision } from "./ai/dominance";
+// Activation-timing discipline (issue #1890): the single authority on whether an
+// activation could just as well happen in a later, better-informed window.
+import {
+    effectiveAbilityOf,
+    isDeferrableStackAbility,
+    isTransientOnlyAbility,
+} from "./ai/abilityTiming";
 import {
     applyLandEntrySubmit,
     applyMayPaySubmit,
@@ -607,6 +617,14 @@ export function applyMoveInSearch(
         }
 
         case "activate-ability": {
+            // KNOWN GAP — tracked by issue #1920. Unlike `cast-spell` above,
+            // this applies the COSTS only: the ability never reaches the stack,
+            // so no depth of search ever sees its PAYOFF (`policyValue`'s
+            // one-resolution lookahead has nothing to resolve). Every activation
+            // therefore evaluates at best equal to `pass`. Anything that makes
+            // holding an activation pay — the board-side flexibility term of
+            // issue #1890 item 3 — is blocked on closing this, or it converts
+            // that tie into a deterministic decline in the REACTIVE window.
             applyTapPlan(state, playerId, move.tapPlan);
             const src = player.battlefield.find(
                 (c) => c.id === move.cardInstanceId
@@ -823,7 +841,109 @@ export function isDiscouragedRolloutMove(
             combat.attackerIds.length > 0;
         return preBlockAsAttacker;
     }
+    if (move.kind === "activate-ability") {
+        // Activated-ability mirror of the two `cast-spell` cases above (issue
+        // #1890 item 1). The reasoning is IDENTICAL and so is the scope: this is
+        // never a per-card rule — the only inputs are the ability's declared
+        // timing (`useStack`, `sorcerySpeedOnly`, a loyalty cost, a phase
+        // restriction; `isDeferrableStackAbility`) and, for the third case, the
+        // engine's own `animatesSelf` marker.
+        const source = findPermanentOnBattlefield(state, move.cardInstanceId);
+        if (!source) return false;
+        const ability = effectiveAbilityOf(source, move.abilityId);
+        // A mana ability is payment plumbing, not a play (CR 605.3a), and an
+        // ability that CANNOT be used later carries nothing to defer.
+        if (!ability || !isDeferrableStackAbility(ability)) return false;
+
+        // (a) Pointless self-animation after the mover's own combat — issue
+        // #1890 item 4, shared with the root tie-break.
+        if (isPointlessSelfAnimation(state, pid, move)) return true;
+
+        // (b) Sorcery-speed window: the mover is in ITS OWN sorcery window — a
+        // main phase of its own turn, empty stack, holding priority (CR 307.5,
+        // the template CR 602.5d's "activate only as a sorcery" points at).
+        // There an instant-speed activation could instead be kept for a reactive
+        // moment (the opponent's removal, a declared block); Mother of Runes'
+        // protection spent in the precombat main with nothing to protect against
+        // is the observed misplay.
+        //
+        // `isSorceryTimingFor` is the engine's single authority on that window
+        // (`phases.ts`, already the gate `moves.ts` applies to `sorcerySpeedOnly`)
+        // — re-deriving it here is how the two drift apart.
+        //
+        // The empty-stack clause inside it is load-bearing, not decoration: a
+        // main phase with something ON the stack is already a RESPONSE window,
+        // and that is exactly where an activation belongs (cracking a fetchland
+        // in response to a trigger — the `blade` charter entry). Without it this
+        // branch fired there too and turned the answer into a `pass`.
+        if (isSorceryTimingFor(state, pid)) return true;
+
+        // (c) Premature use before blocks (ADR 0021 slice 3, the same case the
+        // `cast-spell` branch calls out): an activation that could ambush a
+        // block is worse spent before blockers are declared.
+        const combat = state.combat;
+        return (
+            pid === state.activePlayerId &&
+            !!combat &&
+            combat.confirmed &&
+            !combat.blockersConfirmed &&
+            combat.attackerIds.length > 0
+        );
+    }
     return false;
+}
+
+/** Whether `move` animates its own source (`ActivatedAbility.animatesSelf` — the
+ *  manland marker the move enumerator already reads) at a point in `pid`'s OWN
+ *  turn where the resulting body can no longer matter (issue #1890 item 4).
+ *
+ *  An `animatesSelf` ability buys a creature BODY and nothing else, so it is
+ *  worth something only while that body can still attack or block. Once the
+ *  mover is the ACTIVE player and the turn has reached `END_OF_COMBAT` or later,
+ *  there is no attack left this turn (their combat is over) and an active player
+ *  never blocks on their own turn; the animation only exposes a land to removal
+ *  and combat damage. This is the observed "Mishra's Factory animated after its
+ *  own combat" misplay, and the reason it wins on noise is that the saturating
+ *  reward band cannot see that small negative.
+ *
+ *  Deliberately NOT expressed as a refinement of `ai/dominance.ts` (issue #1887).
+ *  That module's contract is an EXACT-EQUALITY proof: a move is dropped only when
+ *  applying it changes nothing but the mover's own cost. An animation genuinely
+ *  changes the board — a land becomes a 2/2 — so calling it futile is a judgement
+ *  about the remainder of the turn, not a proof. Admitting that reasoning there
+ *  would regress the very property #1887 exists to hold, so it lives here, in the
+ *  policy guardrail and the outcome-equality tie-break, where "probably not worth
+ *  it" is the stated currency. Per-card-agnostic: the only inputs are the engine's
+ *  `animatesSelf` marker, the phase, and who is active. Pure. */
+function isPointlessSelfAnimation(
+    state: GameState,
+    pid: string,
+    move: Move
+): boolean {
+    if (move.kind !== "activate-ability") return false;
+    if (pid !== state.activePlayerId) return false;
+    if (
+        state.phase !== "END_OF_COMBAT" &&
+        state.phase !== "POSTCOMBAT_MAIN" &&
+        state.phase !== "END_STEP"
+    ) {
+        return false;
+    }
+    const source = findPermanentOnBattlefield(state, move.cardInstanceId);
+    if (!source) return false;
+    return effectiveAbilityOf(source, move.abilityId)?.animatesSelf === true;
+}
+
+/** The permanent `instanceId` names, on either battlefield, or undefined. */
+function findPermanentOnBattlefield(
+    state: GameState,
+    instanceId: string
+): CardInstanceState | undefined {
+    for (const p of state.players) {
+        const found = p.battlefield.find((c) => c.id === instanceId);
+        if (found) return found;
+    }
+    return undefined;
 }
 
 /** The combat-aware leaf value the rollout policy scores a probed move on, from
@@ -1604,7 +1724,12 @@ function resolvedMarginDelta(
  *  #365). Effect-keyed (the resolved margin drop), NOT a per-card list, so it
  *  covers Disenchant, Swords to Plowshares, and any future one-sided removal —
  *  while a beneficial self-target (a sacrifice-for-value, removing a liability)
- *  raises or holds the margin and is correctly NOT flagged. */
+ *  raises or holds the margin and is correctly NOT flagged.
+ *
+ *  Kept as the narrow HOLD trigger only (see the tie-break below). The
+ *  friendly-vs-enemy REDIRECT it used to drive is now one term of the general
+ *  `castVariantScore` (issue #1888), which also covers the beneficial mirror
+ *  (an aura/ramp handed to the opponent) the margin can't see. */
 function isSelfHarmRemovalCast(
     state: GameState,
     move: Move,
@@ -1614,23 +1739,70 @@ function isSelfHarmRemovalCast(
     return resolvedMarginDelta(state, move, botId) < 0;
 }
 
-/** Whether `move` casts the SAME card as `ref` (same `cardInstanceId` and chosen
- *  mode) but at a DIFFERENT, non-self-harming target — the enemy-target variant
- *  of the self-targeted removal. The friendly-vs-enemy preference: when both a
- *  self-target and an enemy-target cast of the same Spell are outcome-equal, take
- *  the enemy one (issue #365). */
-function isAlternativeTargetCast(
-    state: GameState,
-    move: Move,
-    ref: Move,
-    botId: string
-): boolean {
-    if (move.kind !== "cast-spell" || ref.kind !== "cast-spell") return false;
-    if (move.cardInstanceId !== ref.cardInstanceId) return false;
-    if (move.chosenModeId !== ref.chosenModeId) return false;
-    if (move.targets.length === 0) return false;
-    // Not itself self-harm (an enemy target, or a beneficial own target).
-    return !isSelfHarmRemovalCast(state, move, botId);
+// --- Cast-variant ranking (issue #1888, generalises issue #365) -------------
+// `enumerateCastMoves` emits one Move per (mode × X × target-tuple), so every
+// answer a spell's announcement asks for — which target, which X, which mode —
+// arrives at the root as a SIBLING move of the same card. Nothing then ranked
+// them: they saturate the reward band together, tie inside `OUTCOME_EPS`, and
+// the pick falls to rollout noise. That is one bug with four faces (Wild Growth
+// on the opponent's land, Flash of Insight at X = 0, a Vision Charm mode chosen
+// by declaration order, the issue-#365 self-targeted removal).
+//
+// One score ranks them all, and it is deliberately two terms because the two
+// signals are blind to different things:
+//
+//   * `resolvedMarginDelta` — the immediate, deterministic material payoff of
+//     THIS variant, probed on a clone. Sees X (more cards drawn / more damage)
+//     and mode (mill four vs. a land-type change that moves no material). Blind
+//     to a payoff that accrues later.
+//   * `misdirectedTargetCount` — the per-Op beneficence sign (`beneficence.ts`).
+//     Sees exactly what the margin cannot: an aura whose mana accrues to the
+//     HOST's controller is worth the same to the evaluator whichever land it
+//     lands on, because the aura permanent is the bot's either way.
+//
+// The misdirection term is weighted to dominate: among outcome-equal variants
+// of the SAME spell, a correctly-directed one is always preferred to a
+// misdirected one, whatever the material noise between them. This is a
+// PREFERENCE among already-legal, already-outcome-equal siblings — never a
+// legality change, and never a suppression: a spell with no correctly-directed
+// variant (a "target opponent draws" punisher, which can only point at the
+// opponent) has no sibling to be redirected to and is cast unchanged.
+const MISDIRECTION_WEIGHT = 1_000_000;
+
+/** Rank of one announcement variant for `botId`: resolved material payoff,
+ *  minus a dominating penalty per misdirected target slot. Compared only
+ *  against other variants of the SAME announcement, so the absolute scale is
+ *  irrelevant. Both terms are move-kind-agnostic, so this ranks an activated
+ *  ability's target tuples exactly as it ranks a cast's. */
+function castVariantScore(state: GameState, move: Move, botId: string): number {
+    return (
+        resolvedMarginDelta(state, move, botId) -
+        MISDIRECTION_WEIGHT * misdirectedTargetCount(state, move, botId)
+    );
+}
+
+/** Whether `move` is a SIBLING VARIANT of `ref` — the same announcement with a
+ *  different answer to one of the questions it asks (mode × X × target-tuple).
+ *
+ *  A cast's identity is its `cardInstanceId`; an activation's is that PLUS the
+ *  `abilityId`, since one permanent's several abilities are genuinely different
+ *  announcements, not variants of each other (Garruk's +1 and −1 must not be
+ *  ranked against one another here — that is the search's job).
+ *
+ *  Mode is deliberately NOT required to match (issue #1888 item 4): a modal
+ *  spell's modes are candidates to be ranked, not a partition. */
+function isCastVariantOf(move: Move, ref: Move): boolean {
+    if (move.kind !== ref.kind) return false;
+    if (move.kind === "cast-spell" && ref.kind === "cast-spell") {
+        return move.cardInstanceId === ref.cardInstanceId;
+    }
+    if (move.kind === "activate-ability" && ref.kind === "activate-ability") {
+        return (
+            move.cardInstanceId === ref.cardInstanceId &&
+            move.abilityId === ref.abilityId
+        );
+    }
+    return false;
 }
 
 /** The move an edge names in the ROOT world — the only world whose instance ids
@@ -1769,37 +1941,69 @@ export function selectRootMove(
         }
     }
 
-    // Self-harm removal tie-break (issue #365). A one-sided removal / destruction
-    // Spell aimed at the bot's OWN beneficial Permanent is pure self-harm: it
-    // loses a useful Permanent for no upside. The eval now registers that loss
-    // (evaluate.ts), but a thin loss can still tie `pass` (or an enemy-target
-    // cast) inside `OUTCOME_EPS` on rollout noise — the reported destroy-own-
-    // Castle case. When the robust pick IS such a self-harm cast, redirect it:
-    //   1. prefer an outcome-equal cast of the SAME Spell at a non-self-harming
-    //      (enemy / beneficial) target — the friendly-vs-enemy preference; else
-    //   2. prefer an outcome-equal `pass` — hold the Spell over destroying own
-    //      board.
-    // Pulled from the FULL `pool` on outcome-equality alone (not the visit band),
-    // as the land-drop / hold-trick rules are: the alternative is the
-    // lower-variance, lower-visit line. Fires ONLY among outcome-equal
-    // contenders, so a self-target with REAL value (a genuine sacrifice-for-
-    // value) is NOT flagged by `isSelfHarmRemovalCast` (its resolved margin does
-    // not drop) and never reaches here.
+    // Announcement-variant tie-break (issue #1888, generalises issue #365).
+    // When the robust pick names targets, rank it against every outcome-equal
+    // SIBLING variant of the same announcement — the other targets, the other X
+    // values, the other modes — by `castVariantScore` and take the best. This
+    // subsumes the #365 friendly-vs-enemy redirect (a self-targeted removal
+    // scores below its enemy-targeted sibling on the resolved margin term) and
+    // adds the beneficial mirror the margin is blind to (an aura handed to the
+    // opponent scores below the same aura on the bot's own permanent, on the
+    // beneficence term).
+    //
+    // Both announcement sites qualify (PR #1914 review finding 3): a cast
+    // (CR 601.2c) and an ACTIVATED ability (CR 602.2b). Every term is
+    // move-kind-agnostic — `resolvedMarginDelta` probes any move,
+    // `misdirectedTargetCount` reads `move.targets` against an `EffectOp[]` —
+    // so restricting to casts only left Garruk Wildspeaker's "+1: Untap two
+    // target lands" free to untap the OPPONENT's lands on rollout noise.
+    //
+    // Pulled from the FULL `pool` on outcome-equality alone (not the visit
+    // band), as the land-drop / hold-trick rules are: the alternative is the
+    // lower-variance, lower-visit line. Because it fires ONLY among
+    // outcome-equal siblings, a variant with REAL value out-rewards the field
+    // and never reaches here.
     if (
         rootState &&
         botId &&
-        isSelfHarmRemovalCast(rootState, best.move, botId)
+        (best.move.kind === "cast-spell" ||
+            best.move.kind === "activate-ability")
     ) {
-        const enemyTarget = pool.find(
+        const scoreCache = new Map<Edge, number>();
+        const scoreOf = (e: Edge) => {
+            let s = scoreCache.get(e);
+            if (s === undefined) {
+                s = castVariantScore(rootState, e.move, botId);
+                scoreCache.set(e, s);
+            }
+            return s;
+        };
+        const variants = pool.filter(
             (e) =>
                 mean(e) >= bestMean - OUTCOME_EPS &&
-                isAlternativeTargetCast(rootState, e.move, best.move, botId)
+                isCastVariantOf(e.move, best.move)
         );
-        if (enemyTarget) return rootMoveFor(enemyTarget, rootState);
-        const hold = pool.find(
-            (e) => e.move.kind === "pass" && mean(e) >= bestMean - OUTCOME_EPS
-        );
-        if (hold) return rootMoveFor(hold, rootState);
+        for (const edge of variants) {
+            if (scoreOf(edge) > scoreOf(best)) best = edge;
+        }
+
+        // Self-harm hold (issue #365, unchanged). No sibling variant improved on
+        // a cast that only lowers the bot's own material margin: hold the Spell
+        // rather than destroy its own board. Deliberately keyed on the MARGIN
+        // shape alone — a beneficence misdirection with no better sibling (a
+        // "target opponent draws" punisher, which can only point at the
+        // opponent) must still be castable, so it never triggers a hold.
+        // `isSelfHarmRemovalCast` stays CAST-only by construction
+        // (`targetsOnlyOwnPermanents` rejects any other kind): "hold it for
+        // later" is a spell-in-hand affordance, and an already-on-board ability
+        // that only hurts the bot loses on reward, not by being held.
+        if (isSelfHarmRemovalCast(rootState, best.move, botId)) {
+            const hold = pool.find(
+                (e) =>
+                    e.move.kind === "pass" && mean(e) >= bestMean - OUTCOME_EPS
+            );
+            if (hold) return rootMoveFor(hold, rootState);
+        }
     }
 
     // Free-development tie-break (ADR 0020 §1, issue #206; extended for free
@@ -1851,7 +2055,17 @@ export function selectRootMove(
     // the low-variance dump would otherwise win the material tie-break). Fires
     // ONLY on outcome-equality, so a dump with REAL value (a lethal pump, a
     // must-cast answer) wins on mean reward and never reaches this branch.
-    if (rootState && isSorcerySpeedTrickDump(rootState, best.move)) {
+    //
+    // Extended to ACTIVATIONS by issue #1890 (items 2 and 4): an instant-speed
+    // activated ability is the battlefield mirror of a held instant, and a
+    // manland animation with the mover's own combat already behind it is the
+    // same shape with no window left at all. Both are pulled from the full pool
+    // on outcome-equality alone, exactly as the cast case is.
+    if (
+        rootState &&
+        (isSorcerySpeedTrickDump(rootState, best.move) ||
+            (!!botId && isPointlessSelfAnimation(rootState, botId, best.move)))
+    ) {
         // Hold (`pass`) qualifies when it is outcome-equal on MEAN REWARD (within
         // `OUTCOME_EPS`) — NOT gated on the `VISIT_TOL` visit count the land-drop
         // rule uses. The held line is intrinsically lower-visit / higher-variance
@@ -1869,30 +2083,75 @@ export function selectRootMove(
     return rootMoveFor(best, rootState);
 }
 
-/** Whether `move` dumps a held combat TRICK (a `pump` hint) at sorcery speed
- *  (ADR 0021, issue #229) — a `cast-spell` of an Instant whose `aiCombatHint`
- *  declares a pump, cast by the active player at a main phase (the window where
- *  it could instead be held for the combat-step ambush). Used by the
- *  hold-the-trick selection tie-break.
+/** Whether `move` spends a REACTIVE OPTION in a window where the same option
+ *  would still be available later — the predicate the hold-the-trick tie-break
+ *  fires on. Two shapes, one rule:
  *
- *  Scoped to PUMP tricks only — NOT removal. A pump's sole use is combat, so
- *  spending it pre-combat is dominated by holding it whenever the two are
- *  outcome-equal (the land-drop analogy: no reason to commit early). Removal is
- *  deliberately excluded: a removal cast at sorcery speed can be the correct,
- *  decisive play (killing a blocker, going face for lethal — e.g. a lethal
- *  Lightning Bolt), so it must be left to win or lose on mean reward, never
- *  redirected to `pass`. Pure. */
+ *  1. **A held combat TRICK dumped at sorcery speed** (ADR 0021, issue #229) — a
+ *     `cast-spell` of an Instant whose `aiCombatHint` declares a pump, cast by
+ *     the active player at a main phase (the window where it could instead be
+ *     held for the combat-step ambush).
+ *
+ *     Scoped to PUMP tricks only — NOT removal. A pump's sole use is combat, so
+ *     spending it pre-combat is dominated by holding it whenever the two are
+ *     outcome-equal (the land-drop analogy: no reason to commit early). Removal
+ *     is deliberately excluded: a removal cast at sorcery speed can be the
+ *     correct, decisive play (killing a blocker, going face for lethal — e.g. a
+ *     lethal Lightning Bolt), so it must be left to win or lose on mean reward,
+ *     never redirected to `pass`.
+ *
+ *  2. **An instant-speed ACTIVATION spent at sorcery speed for no material
+ *     gain** (issue #1890 item 2) — a `useStack: true` ability with no timing
+ *     restriction that would stop it being used later
+ *     (`isDeferrableStackAbility`), activated by the active player inside its
+ *     OWN sorcery window (`isSorceryTimingFor` — the engine's single authority
+ *     on the CR 307.5 template: own main phase, empty stack, holding priority;
+ *     a main phase with something on the stack is a response window, which is
+ *     where an activation belongs), and whose whole effect EXPIRES THIS TURN
+ *     (`isTransientOnlyAbility`).
+ *
+ *     That last clause IS case 1's `aiCombatHint.pump` narrowing, stated
+ *     generally. A pump qualifies in case 1 precisely because it moves no
+ *     PERMANENT material (`evaluateCreature` reads permanent effective P/T, so
+ *     an until-end-of-turn buff is invisible to it) — its entire worth is the
+ *     window it is held for, so spending it early is strictly dominated. An
+ *     until-end-of-turn ACTIVATED effect (Mother of Runes' protection) is the
+ *     same object. An ability that BUILDS something instead (Sandstorm
+ *     Salvager's permanent +1/+1 counters, a fetchland's search) has banked its
+ *     value the moment it resolves, whenever that is, and must be left to win or
+ *     lose on mean reward. Without the clause this rule swallowed the latter.
+ *
+ *  Pure. */
 function isSorcerySpeedTrickDump(state: GameState, move: Move): boolean {
-    if (move.kind !== "cast-spell") return false;
-    const atSorcerySpeed =
-        state.phase === "PRECOMBAT_MAIN" || state.phase === "POSTCOMBAT_MAIN";
-    if (!atSorcerySpeed) return false;
     const player = state.players.find((p) => p.id === state.activePlayerId);
-    const card = player?.hand.find((c) => c.id === move.cardInstanceId);
-    if (!card || !card.types.includes("Instant")) return false;
-    const cardId = (card.card as { id?: string } | undefined)?.id;
-    const def = cardId ? tryGetDefinition(cardId) : undefined;
-    return !!def?.aiCombatHint?.pump;
+    if (!player) return false;
+    if (move.kind === "cast-spell") {
+        // Pre-existing scope (issue #229): the phase alone, deliberately NOT the
+        // full sorcery window — a cast in a main phase with a stack is still the
+        // dump this rule was written against.
+        const atSorcerySpeed =
+            state.phase === "PRECOMBAT_MAIN" ||
+            state.phase === "POSTCOMBAT_MAIN";
+        if (!atSorcerySpeed) return false;
+        const card = player.hand.find((c) => c.id === move.cardInstanceId);
+        if (!card || !card.types.includes("Instant")) return false;
+        const cardId = (card.card as { id?: string } | undefined)?.id;
+        const def = cardId ? tryGetDefinition(cardId) : undefined;
+        return !!def?.aiCombatHint?.pump;
+    }
+    if (move.kind === "activate-ability") {
+        if (!isSorceryTimingFor(state, player.id)) return false;
+        const source = player.battlefield.find(
+            (c) => c.id === move.cardInstanceId
+        );
+        if (!source) return false;
+        const ability = effectiveAbilityOf(source, move.abilityId);
+        if (!ability) return false;
+        return (
+            isDeferrableStackAbility(ability) && isTransientOnlyAbility(ability)
+        );
+    }
+    return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -1905,6 +2164,27 @@ function isSorcerySpeedTrickDump(state: GameState, move: Move): boolean {
  *  trace is null when there was no real decision to explain (no action owed, or
  *  a single forced move). */
 export function searchWithTrace(
+    state: GameState,
+    playerId: string,
+    budget: SearchBudget,
+    seed: number
+): { move: Move | null; trace: DecisionTrace | null } {
+    // The DECISION scope for `dominance.ts`' choice-level probe (PR #1914
+    // review finding 1). The cast-level probe is already once-per-decision by
+    // construction (it runs at the root only, below); the choice-level one is
+    // reached from a PRIOR that the tree evaluates at every choice-node visit,
+    // so it is held to the same invariant by a per-decision memo. Opened here
+    // and closed in a `finally` so a verdict can never outlive the position it
+    // was proved against.
+    beginDominanceDecision();
+    try {
+        return runSearchWithTrace(state, playerId, budget, seed);
+    } finally {
+        endDominanceDecision();
+    }
+}
+
+function runSearchWithTrace(
     state: GameState,
     playerId: string,
     budget: SearchBudget,

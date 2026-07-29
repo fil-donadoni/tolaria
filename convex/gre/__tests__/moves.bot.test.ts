@@ -1239,7 +1239,7 @@ describe("enumerateCastMoves — getCostModifiers hoisted out of the mode×X loo
 });
 
 // ---------------------------------------------------------------------------
-// Sorcery-speed activated abilities (CR 602.3b / 307.5)
+// Sorcery-speed activated abilities (CR 602.5d / 307.5)
 // ---------------------------------------------------------------------------
 
 describe("enumerateAbilityMoves — zone-restricted abilities (CR 113.6 / 702.29a)", () => {
@@ -1290,7 +1290,7 @@ describe("enumerateAbilityMoves — zone-restricted abilities (CR 113.6 / 702.29
     });
 });
 
-describe("enumerateAbilityMoves — sorcerySpeedOnly timing (CR 602.3b)", () => {
+describe("enumerateAbilityMoves — sorcerySpeedOnly timing (CR 602.5d)", () => {
     const SKULLCLAMP = getCardByName("Skullclamp").id;
 
     function clampBoard(): GameState {

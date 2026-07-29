@@ -806,7 +806,7 @@ function enumerateAbilityMoves(
         if (ability.controllerTurnOnly && state.activePlayerId !== player.id) {
             continue;
         }
-        // CR 602.3b / 307.5 — "activate only as a sorcery" (Equip is the
+        // CR 602.5d / 307.5 — "activate only as a sorcery" (Equip is the
         // canonical shape). Without this the enumerator hands the bot an
         // Equip move in DECLARE_ATTACKERS; the server rejects it, but a
         // TARGETED ability rejected mid-chain leaves the bot's `activateAbility

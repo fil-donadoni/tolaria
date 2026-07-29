@@ -31,6 +31,14 @@
 // `dominanceProbeStats().probes` pins this: it is a function of the root move
 // list alone, asserted equal for a 40- and a 400-iteration search.
 //
+// The CHOICE-level probe (`isNoOpChoiceAnswer`, issue #1888) is reached from a
+// prior function that DOES run at every in-tree choice-node visit, so it obeys
+// the same invariant by a memo instead of a deny-set: one verdict per choice
+// IDENTITY per decision, held for exactly one `searchWithTrace` call. It shares
+// `stats.probes`, and the guard asserts the 40-vs-400 equality on a CHOICE-node
+// scenario as well as a priority-node one — a scenario without a choice node
+// cannot see this seam regress (PR #1914 review finding 1).
+//
 // ── The proof ─────────────────────────────────────────────────────────────
 // A move is dominated by `pass` when, applied and resolved to completion on a
 // CLONE, the resulting position is byte-identical to the untouched baseline in
@@ -87,7 +95,12 @@
 // A cast whose ONLY value is raising the storm count is therefore prunable —
 // accepted, and the storm payoff itself (a cast trigger) is not affected.
 
-import type { CardInstanceState, GameState, StackItem } from "../state";
+import type {
+    CardInstanceState,
+    GameState,
+    PendingChoice,
+    StackItem,
+} from "../state";
 import {
     emitSpellCastEvent,
     processPendingActionTriggers,
@@ -207,6 +220,184 @@ export function isDominatedNoOpMove(
     } finally {
         probing = false;
     }
+}
+
+/** The choice-level counterpart of {@link isDominatedNoOpMove} (issue #1888
+ *  item 3): is `move` — one candidate answer to the LIVE head choice `choice` —
+ *  provably a no-op? Same probe, one level down.
+ *
+ *  `isDominatedNoOpMove` asks "would casting this change anything?"; by the time
+ *  a mid-resolution choice is live the cast is already paid for and the only
+ *  question left is whether THIS answer does anything. So the comparison drops
+ *  the cost bookkeeping (there is no cost to forgive — an answer that taps a
+ *  permanent has DONE something) and drops the two terms that necessarily move
+ *  when a choice is answered: the `stack` (the item that raised the choice
+ *  resolves away) and `pendingChoices` (the choice is consumed). Both are
+ *  length-checked first, so an answer that leaves a NEW choice or puts a new
+ *  item on the stack is never called a no-op.
+ *
+ *  Conservative and pure, exactly like its cast-level sibling: any doubt — a
+ *  throw, an unsupported move kind, an unsettled stack — returns `false`. */
+export function isNoOpChoiceAnswer(
+    state: GameState,
+    choice: PendingChoice,
+    move: Move
+): boolean {
+    if (probing) return false;
+    if (state.gameOver) return false;
+    if ((state.pendingChoices?.length ?? 0) === 0) return false;
+    if (state.pendingCast || state.pendingTarget || state.pendingActivation) {
+        return false;
+    }
+
+    // Once per DECISION, not once per iteration (PR #1914 review finding 1).
+    // The guards above are transient / per-world and are re-run every call; the
+    // PROBE below is what costs, so only it is memoized. A memo MISS is what
+    // increments `stats.probes`, which is precisely what lets the O(root
+    // decisions) guard in `dominance.bot.test.ts` see a regression here.
+    const memo = choiceProbeMemo;
+    const key = memo ? choiceAnswerIdentity(state, choice, move) : undefined;
+    if (memo && key !== undefined) {
+        const cached = memo.get(key);
+        if (cached !== undefined) return cached;
+    }
+    const verdict = probeNoOpChoiceAnswer(state, choice, move);
+    if (memo && key !== undefined) memo.set(key, verdict);
+    return verdict;
+}
+
+// ---------------------------------------------------------------------------
+// Per-decision memo for the choice probe (PR #1914 review finding 1)
+// ---------------------------------------------------------------------------
+//
+// `isNoOpChoiceAnswer` is reached from `dslChoicePrior` (`choicePriors.ts`),
+// which `choiceCandidates` calls for EVERY candidate at EVERY choice-node visit
+// — tree descent and rollout alike. Unmemoized that is O(iterations): measured
+// 42 probes at 40 iterations vs 401 at 400 on a live `choose-hand-card` node,
+// the exact #1905 review-finding-3 shape this module's header forbids ("In-tree
+// enumeration does NOT probe … 42.6% of a 300-iteration search's wall clock").
+//
+// The fix is the same shape as `searchWithTrace`'s `prunedRootKeys` deny-set:
+// prove it ONCE per decision and reuse the verdict for the whole search. The
+// memo lives for exactly one `searchWithTrace` call (`beginDominanceDecision` /
+// `endDominanceDecision`, called in a `finally`), so a verdict never outlives
+// the position it was proved against.
+//
+// The key is the choice's IDENTITY, deliberately NOT the world state: every
+// iteration re-determinizes, so a state-keyed memo would never hit. Identity is
+// (source card definition, resolution step, choice id, kind, chooser, answer) —
+// all stable across determinizations of the same logical choice node, and
+// stable too when the SAME node is reached by casting the source inside the
+// tree (where the stack item id is freshly minted each iteration and therefore
+// useless as a key).
+//
+// The accepted narrowing, and why it is cheap: two determinized worlds could in
+// principle disagree about whether the same answer is a no-op, and the memo
+// reports the first world's verdict for both. That is the identical tradeoff
+// the root deny-set already makes (a root verdict reused for every iteration) —
+// and the stake here is strictly lower: this feeds a PRIOR, an ordering bias
+// that decays with visits and never changes legality, not a pruning decision.
+// Outside a decision scope (`choiceProbeMemo === null` — a direct unit-test
+// call, the client-side Brain) nothing is cached and every call probes.
+
+let choiceProbeMemo: Map<string, boolean> | null = null;
+
+/** Open a decision scope: `isNoOpChoiceAnswer` proves each distinct choice
+ *  answer at most once until {@link endDominanceDecision}. Called by
+ *  `searchWithTrace`; re-entrant calls simply reopen an empty scope. */
+export function beginDominanceDecision(): void {
+    choiceProbeMemo = new Map();
+}
+
+/** Close the decision scope opened by {@link beginDominanceDecision} and drop
+ *  every cached verdict. MUST run in a `finally` — a leaked scope would carry
+ *  verdicts into the next, unrelated position. */
+export function endDominanceDecision(): void {
+    choiceProbeMemo = null;
+}
+
+/** The memo key: what makes two choice answers "the same decision" across
+ *  determinized worlds. Returns `undefined` when no stable identity can be
+ *  built, which disables caching for that call rather than risking a collision.
+ *
+ *  The stack item's CARD DEFINITION id is used, never its instance id: the
+ *  instance id is minted afresh every time the source is cast inside the tree,
+ *  so keying on it would be a guaranteed miss (and put probes back on
+ *  O(iterations)). Definition + step + `choiceId` is exactly the tuple the
+ *  engine itself uses to key `StackItem.collectedChoices`. */
+function choiceAnswerIdentity(
+    state: GameState,
+    choice: PendingChoice,
+    move: Move
+): string | undefined {
+    // Only the `resolution-choice` shape has a world-STABLE answer identity (a
+    // set of card instance ids, empty for the degenerate branch this is asked
+    // about). Any other move kind names world-local ids with no stable
+    // counterpart, so it is left uncached rather than keyed unsoundly.
+    if (move.kind !== "resolution-choice") return undefined;
+    const item = state.stack.find((s) => s.id === choice.stackItemId);
+    const defId = (item?.card as { id?: string } | undefined)?.id;
+    if (!defId) return undefined;
+    const ids = move.cardInstanceIds ?? [];
+    return [
+        defId,
+        choice.kind,
+        choice.step,
+        choice.choiceId,
+        choice.playerId,
+        ids.length === 0 ? "<none>" : [...ids].sort().join(","),
+    ].join("|");
+}
+
+/** The probe itself — everything {@link isNoOpChoiceAnswer} memoizes. */
+function probeNoOpChoiceAnswer(
+    state: GameState,
+    choice: PendingChoice,
+    move: Move
+): boolean {
+    probing = true;
+    stats.probes++;
+    try {
+        const probe = cloneGameState(state);
+        if (!applyProbeChoice(probe, choice.playerId, move)) return false;
+        let steps = 0;
+        while (probe.stack.length >= state.stack.length) {
+            if (steps++ >= MAX_SETTLE_STEPS) return false;
+            if ((probe.pendingChoices?.length ?? 0) > 0) return false;
+            if (
+                probe.pendingCast ||
+                probe.pendingTarget ||
+                probe.pendingActivation ||
+                probe.gameOver
+            ) {
+                return false;
+            }
+            resolveTopOfStack(probe);
+            checkStateBasedActions(probe);
+        }
+        if ((probe.pendingChoices?.length ?? 0) > 0) return false;
+        if (probe.stack.length !== state.stack.length - 1) return false;
+        return isNoOpChoiceDelta(state, probe);
+    } catch {
+        return false;
+    } finally {
+        probing = false;
+    }
+}
+
+/** Exact-equality test for a settled choice answer: everything except the two
+ *  terms answering a choice necessarily moves (`stack`, `pendingChoices`,
+ *  already length-checked by the caller) plus the module's standard bookkeeping
+ *  ignore lists. Fail-closed by the same construction as `isNoOpDelta`. */
+function isNoOpChoiceDelta(baseline: GameState, probe: GameState): boolean {
+    const a = normalize(cloneGameState(baseline), "", undefined, "base");
+    const b = normalize(cloneGameState(probe), "", undefined, "probe");
+    if (!a || !b) return false;
+    for (const side of [a, b] as unknown as Record<string, unknown>[]) {
+        delete side.stack;
+        delete side.pendingChoices;
+    }
+    return deepEqual(a, b);
 }
 
 // ---------------------------------------------------------------------------
@@ -578,6 +769,30 @@ export function deepEqual(a: unknown, b: unknown): boolean {
 // Eligibility (cheap gate, runs before any clone)
 // ---------------------------------------------------------------------------
 
+/** `additionalCosts` members that are owed ONLY when the spell is cast from the
+ *  GRAVEYARD for its flashback cost (CR 702.34e / 118.5). `applyProbeCast`
+ *  takes the card out of the HAND, so on that path these are not owed at all
+ *  and their presence must not refuse the probe — refusing it is what left
+ *  Flash of Insight's provably-empty X = 0 branch (`digToHand look: 0`) in the
+ *  move list, issue #1888 item 2. Every OTHER member is owed on a plain cast
+ *  and `applyProbeCast` pays none of them, so any of them still fails closed. */
+const FLASHBACK_ONLY_ADDITIONAL_COST_KEYS = new Set([
+    "flashbackExileFromGraveyard",
+]);
+
+/** True when `costs` obliges nothing on a cast FROM HAND — either absent, or
+ *  made up exclusively of flashback-only members. Keyed on the set of PRESENT
+ *  keys rather than a list of "safe" ones, so a member added tomorrow is
+ *  unknown and fails CLOSED (the probe is refused), matching the fail-closed
+ *  default the whole module is built on. */
+function additionalCostsAreVacuousFromHand(costs: object | undefined): boolean {
+    if (costs === undefined) return true;
+    return Object.entries(costs).every(
+        ([key, value]) =>
+            value === undefined || FLASHBACK_ONLY_ADDITIONAL_COST_KEYS.has(key)
+    );
+}
+
 /** Cheap pre-filter: is `move` even the SHAPE of thing a dominance probe may
  *  drop? Exported so `enumerateMoves` can skip the clone entirely for the
  *  overwhelming majority of moves. */
@@ -614,7 +829,8 @@ export function isProbeEligibleMove(
         // so a member added tomorrow fails CLOSED — the same fail-closed
         // default `isNoOpDelta`'s whole-state compare uses.
         const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
-        if (def?.additionalCosts !== undefined) return false;
+        if (!additionalCostsAreVacuousFromHand(def?.additionalCosts))
+            return false;
         // The two OTHER unmodelled cast costs the enumerator can actually
         // announce, both the same shape as the activation gate's
         // `cost.life !== undefined`:
