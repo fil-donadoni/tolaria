@@ -18,6 +18,7 @@ import {
     crewPowerContribution,
 } from "@convex/gre/tapOtherCost";
 import type {
+    ActivatedAbility,
     AlternativeCost,
     CardDefinition,
     EffectCardFilter,
@@ -27,6 +28,7 @@ import type {
     TargetRequirement,
     TriggerStateView,
 } from "@convex/cards/types";
+import { getEffectiveActivatedAbilities } from "@convex/gre/activatedAbilities";
 import {
     DAMAGEABLE_PERMANENT_TYPES,
     LAND_SUBTYPE_MANA,
@@ -215,6 +217,48 @@ export function getLandManaColor(card: CardInstance): Color | null {
     return null;
 }
 
+/** Every activated ability actually available on this permanent POST-LAYER —
+ *  native AND GRANTED (CR 113.1 / 611.1b, issue #1880) — as the CLIENT sees it
+ *  (a projected `CardInstance` is structurally a `CardInstanceState` here;
+ *  `grantedActivatedAbilities` survives the wire because `slimCard` spreads the
+ *  instance). The ONE place the board's tap / mana / ability-menu path may
+ *  resolve an ability id or scan a permanent's abilities.
+ *
+ *  Reading `getDefinition(card.card.id).activatedAbilities` there instead makes
+ *  a GRANTED ability invisible to the click handler, with two shipped-bug
+ *  shapes: the menu entry dispatches `activateAbility` (which throws "Use
+ *  tapUntap for mana abilities"), or — worse — a cost-bearing granted mana
+ *  ability gets no explicit menu entry at all and the permanent falls through
+ *  to the silent left-click tap that charges its mana cost with no prompt
+ *  (CR 601.2f / 605.3c, issue #1179). */
+export function getEffectiveClientAbilities(
+    card: CardInstance
+): ActivatedAbility[] {
+    return getEffectiveActivatedAbilities(
+        card as unknown as CardInstanceState
+    ).map(({ ability }) => ability);
+}
+
+/** The mana ability this permanent exposes, native OR granted (CR 113.1 /
+ *  611.1b, issue #1880). Reads the SAME post-layer effective set the server's
+ *  mana probes use (`getEffectiveActivatedAbilities`, `gre/activatedAbilities`)
+ *  rather than `cardDef.activatedAbilities` alone — a permanent granted a
+ *  "{T}: Add …" (Urza's Saga chapter I) is a real mana source, and reading
+ *  only the printed list left the board with no tap-for-mana affordance for
+ *  one the server's auto-tap solver would happily use. Client hint only —
+ *  server validation stays authoritative (#436). */
+function findClientManaAbility(card: CardInstance) {
+    return (
+        getEffectiveActivatedAbilities(
+            card as unknown as CardInstanceState
+        ).find(
+            ({ ability: a }) =>
+                !a.useStack &&
+                (a.manaProduced || a.manaChoices || a.getManaChoices)
+        )?.ability ?? null
+    );
+}
+
 /** Returns true if a card has a tap mana ability (basic land subtype or
  *  activated), consulting the activated ability's own `canActivate`
  *  precondition when present (CR 602.5b, issue #947) — an un-imprinted
@@ -228,11 +272,7 @@ export function hasManaAbility(
     stateView?: TriggerStateView
 ): boolean {
     if (getLandManaColor(card) !== null) return true;
-    const cardDef = getDefinition(card.card.id);
-    const ability = cardDef.activatedAbilities?.find(
-        (a) =>
-            !a.useStack && (a.manaProduced || a.manaChoices || a.getManaChoices)
-    );
+    const ability = findClientManaAbility(card);
     if (!ability) return false;
     if (ability.canActivate) {
         const view: TriggerStateView = stateView ?? { players: [] };
@@ -254,11 +294,7 @@ export function getActivatedManaMenuEntry(
     card: CardInstance,
     stateView?: TriggerStateView
 ): { id: string; oracleText: string } | null {
-    const cardDef = getDefinition(card.card.id);
-    const ability = cardDef.activatedAbilities?.find(
-        (a) =>
-            !a.useStack && (a.manaProduced || a.manaChoices || a.getManaChoices)
-    );
+    const ability = findClientManaAbility(card);
     if (!ability) return null;
     if (ability.canActivate) {
         const view: TriggerStateView = stateView ?? { players: [] };
@@ -282,10 +318,11 @@ export function canRefundManaTap(
     manaPool: ManaPool
 ): boolean {
     if (!card.isTapped || card.manaCommitted) return false;
-    const cardDef = getDefinition(card.card.id);
-    const ability = cardDef.activatedAbilities?.find(
-        (a) => !a.useStack && a.manaProduced
-    );
+    // POST-LAYER set (CR 113.1 / 611.1b, issue #1880) — a source tapped for
+    // mana via a GRANTED fixed ability offers the same refund affordance.
+    const ability = getEffectiveActivatedAbilities(
+        card as unknown as CardInstanceState
+    ).find(({ ability: a }) => !a.useStack && a.manaProduced)?.ability;
     if (!ability?.manaProduced) return false;
     for (const [color, amount] of Object.entries(ability.manaProduced)) {
         if (color === "X" || typeof amount !== "number" || amount <= 0)
@@ -319,9 +356,13 @@ export function getManaChoices(
             battlefield: p.battlefield as unknown as CardInstanceState[],
         }))
     );
-    const cardDef = getDefinition(card.card.id);
-    const hasChoiceAbility = !!cardDef.activatedAbilities?.some(
-        (a) => !a.useStack && (a.manaChoices || a.getManaChoices)
+    // POST-LAYER set (issue #1880) — a GRANTED choice-based mana ability
+    // prompts exactly like a printed one, keeping this in lockstep with the
+    // server's `manaTapNeedsChoice`.
+    const hasChoiceAbility = getEffectiveActivatedAbilities(
+        card as unknown as CardInstanceState
+    ).some(
+        ({ ability: a }) => !a.useStack && (a.manaChoices || a.getManaChoices)
     );
     if (options.length >= 2 || hasChoiceAbility) {
         return options.length > 0 ? options : null;
@@ -345,14 +386,18 @@ export function getNonTapManaChoices(
     card: CardInstance,
     players?: ReadonlyArray<{ id: string; battlefield: CardInstance[] }>
 ): ManaCost[] | null {
-    const cardDef = getDefinition(card.card.id);
-    const ability = cardDef.activatedAbilities?.find(
-        (a) =>
+    // POST-LAYER set (CR 113.1 / 611.1b, issue #1880) — the gate matches the
+    // effective list `getEffectiveManaChoices` below resolves against, so a
+    // GRANTED non-tap chooser is not silently gated out of the picker.
+    const ability = getEffectiveActivatedAbilities(
+        card as unknown as CardInstanceState
+    ).find(
+        ({ ability: a }) =>
             !a.useStack &&
             !a.cost.tap &&
             !a.cost.sacrifice &&
             (a.manaChoices || a.getManaChoices)
-    );
+    )?.ability;
     if (!ability) return null;
     return getEffectiveManaChoices(
         card as unknown as CardInstanceState,
@@ -364,12 +409,16 @@ export function getNonTapManaChoices(
     );
 }
 
-/** Returns the mana color produced by an activated tap ability, or null. */
+/** Returns the mana color produced by an activated tap ability, or null.
+ *  POST-LAYER set (CR 113.1 / 611.1b, issue #1880) — mirrors the engine's
+ *  `getActivatedManaColor`, so the battlefield's "taps for mana" visual cue
+ *  (`useBattlefieldVisualState`) lights up for a GRANTED `{T}: Add …` too. */
 export function getActivatedManaColor(card: CardInstance): Color | null {
-    const cardDef = getDefinition(card.card.id);
-    const ability = cardDef.activatedAbilities?.find(
-        (a) => a.cost.tap && !a.useStack && a.manaProduced
-    );
+    const ability = getEffectiveActivatedAbilities(
+        card as unknown as CardInstanceState
+    ).find(
+        ({ ability: a }) => a.cost.tap && !a.useStack && a.manaProduced
+    )?.ability;
     if (!ability?.manaProduced) return null;
     const colors = Object.entries(ability.manaProduced)
         .filter(([k, v]) => k !== "X" && typeof v === "number" && v > 0)
