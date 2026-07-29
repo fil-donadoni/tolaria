@@ -1,0 +1,213 @@
+import { BASIC_LAND_SUBTYPES } from "@convex/cards/types";
+
+/**
+ * Deckbuilder view preferences (PRD #1617, ADR 0075 §4 "Persistence: layout on
+ * the deck, view preferences on the user"). Per-Zone **Grouping** and
+ * **Ordering**, plus the preferred basic-land printing per subtype, are the
+ * user's own settings — they apply to every deck the user opens, unlike the
+ * **Column Layout** (manual Columns + Card Pins), which is deck data
+ * (`userDecks.layout` / `limitedEvents.poolArrangement`) and is handled
+ * elsewhere.
+ *
+ * This module establishes the `tolaria:` key naming and the read/fallback
+ * discipline for the new preferences, mirroring the existing per-zone
+ * `localStorage` hooks (`useCardZoom.ts`, `useSplitRatio.ts`): one key per
+ * (preference, zone-or-subtype) pair, degrading to a documented default on
+ * any absent, corrupt, out-of-vocabulary or inaccessible (private mode,
+ * quota) storage — never throwing.
+ *
+ * No UI reads/writes these yet — the Grouping/Ordering controls and the
+ * basic-land art picker arrive in later PRD #1617 slices.
+ */
+
+/** The two Zones a Column Layout applies to (ADR 0075 §2) — Maindeck and
+ *  Sideboard, kept fully independent so "Maindeck by Mana Value, Sideboard by
+ *  colour" is expressible. Mirrors the `"main"` / `"side"` zone suffixes
+ *  already used by `useCardZoom`/`useSplitRatio`
+ *  (`src/components/lobby/deck-builder/`). */
+export type DeckZone = "main" | "side";
+
+/**
+ * Column-generation axis (ADR 0075 §2: "a Grouping … that generates
+ * predicate-carrying Columns"). Declared here, not in `convex/`, because no
+ * shared engine module consumes it yet — ADR 0075's `convex/deckLayout.ts`
+ * (the future pure column-identity/claiming-order authority) does not exist
+ * as of issue #1620, whose scope is only this localStorage seam. Once that
+ * module ships, this alias should move there and be re-exported from here.
+ */
+export const GROUPINGS = ["mv", "color", "type", "none"] as const;
+export type Grouping = (typeof GROUPINGS)[number];
+/** Mirrors the pre-unification default (Maindeck bucketed into Mana Value
+ *  piles) so an unset preference reproduces today's behavior. */
+export const DEFAULT_GROUPING: Grouping = "mv";
+
+/** Intra-Column sort axis (ADR 0075 §2), orthogonal to `Grouping`. Same
+ *  provisional-home note as `Grouping` above. */
+export const ORDERINGS = ["name", "mv", "color", "rarity"] as const;
+export type Ordering = (typeof ORDERINGS)[number];
+export const DEFAULT_ORDERING: Ordering = "name";
+
+/** The five Basic land subtypes (CR 305.6) — reuses the canonical list from
+ *  `convex/cards/types.ts` (`BASIC_LAND_SUBTYPES`) rather than declaring a
+ *  fourth copy; that export is typed `readonly string[]` (not `as const`), so
+ *  the literal union below mirrors it for call-site type safety while the
+ *  runtime vocabulary check below validates against the imported array
+ *  itself. */
+export type BasicLandSubtype =
+    | "Plains"
+    | "Island"
+    | "Swamp"
+    | "Mountain"
+    | "Forest";
+
+const KEY_PREFIX = "tolaria:deckViewPrefs:";
+const GROUPING_KEY_PREFIX = KEY_PREFIX + "grouping:";
+const ORDERING_KEY_PREFIX = KEY_PREFIX + "ordering:";
+const BASIC_LAND_ART_KEY_PREFIX = KEY_PREFIX + "basicLandArt:";
+
+function isGrouping(value: unknown): value is Grouping {
+    return (
+        typeof value === "string" &&
+        (GROUPINGS as readonly string[]).includes(value)
+    );
+}
+
+function isOrdering(value: unknown): value is Ordering {
+    return (
+        typeof value === "string" &&
+        (ORDERINGS as readonly string[]).includes(value)
+    );
+}
+
+function isNonEmptyString(value: unknown): value is string {
+    return typeof value === "string" && value.length > 0;
+}
+
+/**
+ * Reads a JSON-encoded value at `key`, applying `guard` to validate its
+ * shape/vocabulary. Degrades to `fallback` — never throws — when: the key is
+ * absent, the stored content is not valid JSON, the parsed value is JSON but
+ * of the wrong type, the parsed value fails the vocabulary guard, or
+ * `storage` itself throws (private browsing, quota exceeded).
+ */
+function readPref<T>(
+    storage: Storage,
+    key: string,
+    guard: (value: unknown) => value is T,
+    fallback: T
+): T {
+    try {
+        const raw = storage.getItem(key);
+        if (raw === null) return fallback;
+        const parsed = JSON.parse(raw) as unknown;
+        return guard(parsed) ? parsed : fallback;
+    } catch {
+        return fallback;
+    }
+}
+
+/** Best-effort write — a throwing `storage` (quota exceeded, private
+ *  browsing) is swallowed silently rather than surfaced. */
+function writePref(storage: Storage, key: string, value: unknown): void {
+    try {
+        storage.setItem(key, JSON.stringify(value));
+    } catch {
+        // best-effort persistence — quota/serialization errors are ignored
+    }
+}
+
+/** Best-effort removal — mirrors `writePref`'s swallow-on-throw discipline. */
+function removePref(storage: Storage, key: string): void {
+    try {
+        storage.removeItem(key);
+    } catch {
+        // best-effort — nothing to clean up if storage is unavailable
+    }
+}
+
+/** The Zone's current Grouping, or `DEFAULT_GROUPING` when unset, corrupt, or
+ *  out of vocabulary. */
+export function loadGrouping(
+    zone: DeckZone,
+    storage: Storage = localStorage
+): Grouping {
+    return readPref(
+        storage,
+        GROUPING_KEY_PREFIX + zone,
+        isGrouping,
+        DEFAULT_GROUPING
+    );
+}
+
+export function saveGrouping(
+    zone: DeckZone,
+    grouping: Grouping,
+    storage: Storage = localStorage
+): void {
+    writePref(storage, GROUPING_KEY_PREFIX + zone, grouping);
+}
+
+/** The Zone's current Ordering, or `DEFAULT_ORDERING` when unset, corrupt, or
+ *  out of vocabulary. */
+export function loadOrdering(
+    zone: DeckZone,
+    storage: Storage = localStorage
+): Ordering {
+    return readPref(
+        storage,
+        ORDERING_KEY_PREFIX + zone,
+        isOrdering,
+        DEFAULT_ORDERING
+    );
+}
+
+export function saveOrdering(
+    zone: DeckZone,
+    ordering: Ordering,
+    storage: Storage = localStorage
+): void {
+    writePref(storage, ORDERING_KEY_PREFIX + zone, ordering);
+}
+
+/**
+ * The user's preferred printing id for a Basic land subtype (ADR 0075
+ * "Basic-land art"), or `null` when no override is stored — including on
+ * corrupt/wrong-type content or a throwing `storage`. `null` means "no
+ * override": callers fall back to the existing heuristic (Pool printing,
+ * then catalogue — `resolveBasicLandCardIds` in
+ * `src/components/deckbuilder/basicLands.ts`), which is unchanged by this
+ * module.
+ */
+export function loadBasicLandPrintId(
+    subtype: BasicLandSubtype,
+    storage: Storage = localStorage
+): string | null {
+    return readPref(
+        storage,
+        BASIC_LAND_ART_KEY_PREFIX + subtype,
+        isNonEmptyString,
+        null
+    );
+}
+
+export function saveBasicLandPrintId(
+    subtype: BasicLandSubtype,
+    printId: string,
+    storage: Storage = localStorage
+): void {
+    writePref(storage, BASIC_LAND_ART_KEY_PREFIX + subtype, printId);
+}
+
+/** Clears a stored basic-land art preference, reverting the subtype to the
+ *  no-override heuristic. */
+export function clearBasicLandPrintId(
+    subtype: BasicLandSubtype,
+    storage: Storage = localStorage
+): void {
+    removePref(storage, BASIC_LAND_ART_KEY_PREFIX + subtype);
+}
+
+// Re-exported so callers validating a subtype string (e.g. a future basic-
+// land art picker) have one canonical vocabulary to check against, without
+// re-importing `convex/cards/types` themselves just for this constant.
+export { BASIC_LAND_SUBTYPES };
