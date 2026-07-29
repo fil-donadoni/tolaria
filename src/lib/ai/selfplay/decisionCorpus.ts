@@ -6,10 +6,11 @@
 // records for `summarizeRootDecisions` / the findings doc
 // (`docs/research/decision-telemetry.md`):
 //
-//   * the blade registry — every scenario run through the production
-//     `runBladeScenario` (fixed synthetic decks, fixed seeds);
 //   * bot-vs-bot self-play over preset decks — full games through the
-//     production `runHeadlessGame`, seeded per game.
+//     production `runHeadlessGame`, seeded per game (this module);
+//   * the blade registry — every scenario run through the production
+//     `runBladeScenario` (`convex/gre/ai/blade/decisionCorpus.ts`; see the
+//     NOTE below on why it cannot live here).
 //
 // A measurement, not a fix: nothing here changes any search behaviour, and
 // the sink is always uninstalled (try/finally) so no record-building cost
@@ -19,32 +20,15 @@ import {
     setRootDecisionSink,
     type RootDecisionRecord,
 } from "@convex/gre/ai/decisionTelemetry";
-import {
-    BLADE_SCENARIOS,
-    runBladeScenario,
-    type BladeScenario,
-} from "@convex/gre/ai/blade";
 import { createInitialGameState, type SearchBudget } from "@convex/gre";
 import { presetToPlayerInput } from "./decks";
 import { runHeadlessGame, type GameEndReason } from "./playGame";
 
-/** Collect one record per root decision made while running `scenarios`
- *  through the production blade runner. Deterministic: the blade runner's
- *  own fixed-deck / fixed-seed contract carries over unchanged. */
-export function collectBladeDecisions(
-    scenarios: BladeScenario[] = BLADE_SCENARIOS
-): { records: RootDecisionRecord[]; scenarios: number } {
-    const records: RootDecisionRecord[] = [];
-    setRootDecisionSink((r) => records.push(r));
-    try {
-        for (const scenario of scenarios) {
-            runBladeScenario(scenario);
-        }
-    } finally {
-        setRootDecisionSink(null);
-    }
-    return { records, scenarios: scenarios.length };
-}
+// NOTE: the blade half of the corpus (`collectBladeDecisions`) lives in
+// `convex/gre/ai/blade/decisionCorpus.ts`, not here: the blade runner's setup
+// chain reaches `convex/auth` (server-only), and this module is client code
+// under the bundle-purity guard (ADR 0074). Only the bot test — excluded from
+// that scan — may import it.
 
 export type SelfPlayCorpusConfig = {
     /** Preset-deck pairings to play (e.g. `[["mono-red-burn", "white-weenie"]]`). */

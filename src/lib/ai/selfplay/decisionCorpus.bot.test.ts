@@ -24,8 +24,8 @@ import {
 } from "@convex/gre/ai/decisionTelemetry";
 import { REWARD_PER_MARGIN_POINT } from "@convex/gre";
 import { BLADE_SCENARIOS } from "@convex/gre/ai/blade";
+import { collectBladeDecisions } from "@convex/gre/ai/blade/decisionCorpus";
 import {
-    collectBladeDecisions,
     collectSelfPlayDecisions,
     type SelfPlayCorpusConfig,
 } from "./decisionCorpus";

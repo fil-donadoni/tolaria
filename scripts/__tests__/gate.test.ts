@@ -37,7 +37,13 @@ function run(
 ) {
     return spawnSync("bun", [GATE, ...args], {
         encoding: "utf8",
-        cwd: opts.cwd,
+        // Default to the neutral temp dir, NOT the checkout this suite runs
+        // in: the suite itself may be running inside a `feat/issue-N`
+        // worktree (the light `check:guards` gate runs there routinely), and
+        // with an inherited cwd every heavy-tier spawn would trip gate.ts's
+        // issue-worktree guard and fail the suite. The guard's own tests pass
+        // an explicit cwd to exercise exactly that behaviour.
+        cwd: opts.cwd ?? lockRoot,
         env: opts.env ?? env(),
     });
 }
@@ -92,7 +98,7 @@ describe("gate.ts — machine-wide mutex", () => {
         const first = spawn(
             "bun",
             [GATE, "heavy", `${stamp("A-end")}; sleep 2; ${stamp("A-out")}`],
-            { encoding: "utf8", env: env() } as never
+            { encoding: "utf8", cwd: lockRoot, env: env() } as never
         );
         let outA = "";
         first.stdout!.on("data", (d) => (outA += d));
