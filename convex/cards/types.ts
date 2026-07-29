@@ -715,20 +715,31 @@ export interface ActivatedAbility {
          *  engines (Atog, Ashnod's Altar, Orcish Mechanics, Sage of Lat-Nam,
          *  Priest of Yawgmoth, Dwarven Weaponsmith, Gate to Phyrexia). */
         sacrificeFilter?: PermanentFilter;
-        /** "Tap N untapped permanents matching <filter> you control" as an
+        /** "Tap untapped permanents matching <filter> you control" as an
          *  activation cost (CR 602.1, 118.8). The activating player chooses
-         *  which `count` untapped permanents to tap while paying the cost; the
-         *  activation is illegal unless at least `count` untapped permanents on
-         *  their battlefield match the filter. Distinct from `tap` (which taps
-         *  THIS source): the source is excluded from the candidate pool, so a
-         *  card with both `tap: true` and `tapOtherFilter` taps itself PLUS the
-         *  chosen others (Hand of Justice — "{T}, Tap three untapped white
-         *  creatures you control: Destroy target creature"). The filter is
-         *  evaluated with the activating player as the controller-relation
-         *  reference, so `controllerRelation: "you"` resolves to the activator.
-         *  Reused by FEM's Vodalian War Machine ("Tap an untapped Merfolk you
-         *  control"). */
-        tapOtherFilter?: { filter: PermanentFilter; count: number };
+         *  which untapped permanents to tap while paying the cost; the
+         *  activation is illegal unless the candidate pool can cover the cost.
+         *  Distinct from `tap` (which taps THIS source): the source is excluded
+         *  from the candidate pool, so a card with both `tap: true` and
+         *  `tapOtherFilter` taps itself PLUS the chosen others (Hand of Justice
+         *  — "{T}, Tap three untapped white creatures you control: Destroy
+         *  target creature"). The filter is evaluated with the activating
+         *  player as the controller-relation reference, so
+         *  `controllerRelation: "you"` resolves to the activator.
+         *
+         *  Two mutually-exclusive shapes (see `gre/tapOtherCost.ts`, the single
+         *  authority for both predicates):
+         *   - `count` — a FIXED cardinal: tap exactly N matching permanents
+         *     (Hand of Justice's three; FEM's Vodalian War Machine's one).
+         *   - `totalPower` — "tap ANY NUMBER … with total power N or greater"
+         *     (CR 702.122a, Crew N). The pick set is unbounded in size and the
+         *     cost is paid once the picks' summed EFFECTIVE power (plus each
+         *     creature's `crewPowerBonus`, CR 702.122b) reaches N. */
+        tapOtherFilter?: {
+            filter: PermanentFilter;
+            count?: number;
+            totalPower?: number;
+        };
         /** Life payment (CR 118.4). Legal while `player.life >= life`; SBA
          *  handles the loss if payment takes life to 0 or below. */
         life?: number;
@@ -4354,6 +4365,12 @@ export interface PermanentView {
     isTapped: boolean;
     power?: number;
     toughness?: number;
+    /** CR 702.122b — this creature's "crews Vehicles as though its power were N
+     *  greater" bonus (`CardDefinition.crewPowerBonus`), carried on the VIEW so
+     *  the client's crew affordability hint (`getStackAbilities`) can weigh a
+     *  candidate exactly as the server does. Populated by
+     *  `buildTriggerStateView` from the definition; absent = 0. */
+    crewPowerBonus?: number;
     /** Set on auras attached to another permanent (CR 303.4b). Predicates
      *  for keyword-grant effects typically use `target.id === source.attachedTo`. */
     attachedTo?: string;
@@ -6706,6 +6723,12 @@ export interface TriggerStateView {
             types: ReadonlyArray<string>;
             subtypes: ReadonlyArray<string>;
             staticAbilities: ReadonlyArray<string>;
+            /** P/T as the reader should weigh it. The frontend reducer
+             *  (`buildTriggerStateView`) fills these with EFFECTIVE values —
+             *  the CR 613.4 layer pipeline applied, counters (7c) and
+             *  anthems/pump (7d) included — so an affordability hint agrees
+             *  with the server's own `getEffectivePower` instead of diverging
+             *  on base P/T (the Crew N divergence, CR 702.122a). */
             power?: number;
             toughness?: number;
             /** True for tokens (CR 111). Exposed so state-trigger conditions
@@ -6725,6 +6748,11 @@ export interface TriggerStateView {
              *  `tapOtherFilter` colour clause ("white creatures") reads the same
              *  colour the rest of the engine sees. */
             colors?: ReadonlyArray<Color>;
+            /** CR 702.122b — "crews Vehicles as though its power were N
+             *  greater" (`CardDefinition.crewPowerBonus`). Exposed so the
+             *  frontend's Crew N affordability hint weighs a candidate exactly
+             *  as the server's `tapOtherContribution` does. */
+            crewPowerBonus?: number;
         }>;
         hand: { readonly length: number };
         landsPlayedThisTurn?: number;
@@ -10671,6 +10699,14 @@ export interface CardDefinition {
      *  `CardInstanceState.counters` map (same shape as Age/Fade/charge). Only
      *  meaningful on a card whose `types` include "Planeswalker". */
     loyalty?: number;
+    /** CR 702.122b — "This creature crews Vehicles as though its power were N
+     *  greater" (Shorikai's Pilot token, the Pilot/Vehicle cycle). A static
+     *  characteristic of the CREW-ING creature, not of the Vehicle: it is added
+     *  to this creature's effective power ONLY when it is tapped to pay a
+     *  `tapOtherFilter.totalPower` (crew) cost, never anywhere else — the
+     *  creature's real power, and every other rule that reads it, are
+     *  untouched. Read by `crewPowerContribution` (`gre/tapOtherCost.ts`). */
+    crewPowerBonus?: number;
     /** AI valuation override (ADR 0018, the Forge `SVar:AI*` analog). When set,
      *  the shared `cardValue` primitive returns this Forge-scale worth verbatim
      *  instead of deriving one from the card's characteristics — the escape

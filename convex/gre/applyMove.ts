@@ -47,6 +47,8 @@ import {
 } from "./state";
 import { matchesPermanentFilter } from "../cards/filters";
 import { isPlaneswalker } from "./constants";
+import { getEffectivePower } from "./layers";
+import { crewPowerContribution, pickTapOtherPayment } from "./tapOtherCost";
 import { handCardMatchesFilter } from "./alternativeCost";
 import { liveSupertypesOf } from "./snow";
 import { checkStateBasedActions } from "./sba";
@@ -462,19 +464,37 @@ export function applyMoveForSearch(
                         const owner = next.players.find((p) =>
                             p.battlefield.some((c) => c.id === src!.id)
                         );
-                        const { filter, count } = ability.cost.tapOtherFilter;
-                        const picks = (owner?.battlefield ?? [])
-                            .filter(
-                                (c) =>
-                                    c.id !== src!.id &&
-                                    !c.isTapped &&
-                                    matchesPermanentFilter(c, filter, {
-                                        selfControllerId: owner?.id,
-                                        supertypesOf: liveSupertypesOf,
-                                    })
-                            )
-                            .slice(0, count);
-                        for (const perm of picks) tapPermanent(next, perm);
+                        const { filter } = ability.cost.tapOtherFilter;
+                        const candidates = (owner?.battlefield ?? []).filter(
+                            (c) =>
+                                c.id !== src!.id &&
+                                !c.isTapped &&
+                                matchesPermanentFilter(c, filter, {
+                                    selfControllerId: owner?.id,
+                                    supertypesOf: liveSupertypesOf,
+                                })
+                        );
+                        // CR 702.122a — the crew shape taps the fewest
+                        // (highest-power) creatures that reach the threshold;
+                        // the fixed-cardinal shape keeps the first-N pick.
+                        const picked = pickTapOtherPayment(
+                            ability.cost.tapOtherFilter,
+                            candidates.map((c) => ({
+                                id: c.id,
+                                power: crewPowerContribution(
+                                    getEffectivePower(next, c),
+                                    tryGetDefinition(
+                                        (c.card as { id?: string }).id ?? ""
+                                    )?.crewPowerBonus ?? 0
+                                ),
+                            }))
+                        );
+                        const pickedIds = new Set(picked.map((c) => c.id));
+                        for (const perm of candidates) {
+                            if (pickedIds.has(perm.id)) {
+                                tapPermanent(next, perm);
+                            }
+                        }
                     }
                     // CR 602.1 / 118.3 — "discard a card matching <filter>"
                     // cost (Survival of the Fittest): discard the lowest-

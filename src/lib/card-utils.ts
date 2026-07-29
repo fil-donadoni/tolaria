@@ -9,6 +9,14 @@ import type {
 } from "~/types/game";
 import type { CardType, Color, ManaCost } from "~/types/cards";
 import type { Phase } from "@convex/gre/types";
+import {
+    matchesPermanentFilter as matchesEnginePermanentFilter,
+    type PermanentFilter,
+} from "@convex/cards/filters";
+import {
+    canPayTapOtherCost,
+    crewPowerContribution,
+} from "@convex/gre/tapOtherCost";
 import type {
     AlternativeCost,
     CardDefinition,
@@ -51,6 +59,7 @@ import {
     controlsLandWithSupertype,
     negatedLandwalkSubtypes,
 } from "@convex/cards/landwalkNegation";
+import { effectivePower, effectiveToughness } from "./effective-stats";
 
 export function isLand(card: CardInstance): boolean {
     return card.types?.includes("Land") ?? false;
@@ -1007,8 +1016,17 @@ export function buildTriggerStateView(
                 types: c.types ?? [],
                 subtypes: c.subtypes ?? [],
                 staticAbilities: c.staticAbilities ?? [],
-                power: c.power,
-                toughness: c.toughness,
+                // CR 613.4 — EFFECTIVE P/T, not the instance's base values.
+                // Counters (layer 7c) and anthems/pump (7d) are applied at
+                // READ time by the layer system and are never baked into
+                // `c.power`, so weighing the base value here made the crew
+                // affordability hint disagree with the server's own
+                // `getEffectivePower` (a creature pumped over the Crew N
+                // threshold had the ability hidden; a shrunk one was offered
+                // and then rejected). Same computation as the server's, via
+                // the shared client-side layer projection.
+                power: effectivePower(players, c),
+                toughness: effectiveToughness(players, c),
                 isTapped: c.isTapped === true,
                 // CR 202.2 / 613.1d — effective colours for a tapOtherFilter
                 // colour clause (Hand of Justice): layer-5 override wins, else
@@ -1016,6 +1034,11 @@ export function buildTriggerStateView(
                 colors:
                     (c.colorOverride as Color[] | undefined) ??
                     getColorsFromCost(tryGetDefinition(c.card.id)?.manaCost),
+                // CR 702.122b — "crews Vehicles as though its power were N
+                // greater" (Shorikai's Pilot token) feeds the Crew N
+                // affordability hint below; without it a board that CAN crew
+                // only thanks to the bonus would never be offered the ability.
+                crewPowerBonus: tryGetDefinition(c.card.id)?.crewPowerBonus,
             })),
         })),
         activePlayerId,
@@ -1220,6 +1243,13 @@ export function getStackAbilities(
                 cardType?: CardType;
                 owner?: "you";
             };
+            /** CR 602.1 / 118.8 + CR 702.122a — "tap untapped permanents you
+             *  control" (fixed `count`) / Crew N (`totalPower`). */
+            tapOtherFilter?: {
+                filter: PermanentFilter;
+                count?: number;
+                totalPower?: number;
+            };
         };
         activationPhaseRestriction?: ReadonlyArray<Phase>;
         sorcerySpeedOnly?: boolean;
@@ -1327,6 +1357,40 @@ export function getStackAbilities(
         if (a.cost.removeCounter) {
             const have = card.counters?.[a.cost.removeCounter.type] ?? 0;
             if (have < a.cost.removeCounter.count) return false;
+        }
+        // CR 602.1 / 118.8 — "tap untapped permanents matching <filter> you
+        // control" (Hand of Justice) and CR 702.122a Crew N ("total power N or
+        // greater"): both are unactivatable when the controller's own untapped,
+        // filter-matching permanents (the source itself never counts) can't
+        // cover the cost. Weighed through the SAME shared predicate the server
+        // uses (`gre/tapOtherCost.ts`), off the view's `power` +
+        // `crewPowerBonus`. Without the `stateView` there is no board to weigh,
+        // so the ability stays offered and the server rejects it.
+        if (a.cost.tapOtherFilter && stateView) {
+            const mine = stateView.players.find(
+                (p) => p.id === card.controllerId
+            );
+            const candidates = (mine?.battlefield ?? [])
+                .filter(
+                    (c) =>
+                        c.id !== card.id &&
+                        !c.isTapped &&
+                        matchesEnginePermanentFilter(
+                            c,
+                            a.cost.tapOtherFilter!.filter,
+                            { selfControllerId: card.controllerId }
+                        )
+                )
+                .map((c) => ({
+                    id: c.id,
+                    power: crewPowerContribution(
+                        c.power ?? 0,
+                        c.crewPowerBonus ?? 0
+                    ),
+                }));
+            if (!canPayTapOtherCost(a.cost.tapOtherFilter, candidates)) {
+                return false;
+            }
         }
         // CR 606 — a LOYALTY ABILITY (signed `cost.loyalty`) is offered only as
         // a UI hint when its three restrictions can be met; the `activateAbility`

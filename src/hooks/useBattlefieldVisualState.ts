@@ -23,6 +23,7 @@ import {
 } from "~/lib/card-utils";
 import { pendingChoiceRoutesToBattlefield } from "~/lib/pending-choice-labels";
 import { isUntargetableByPending } from "~/lib/targeting";
+import { isTapOtherChoicePaid } from "@convex/gre/tapOtherCost";
 import {
     activeSacrificeSelection,
     nextSacrificeRequirement,
@@ -144,8 +145,7 @@ export function useBattlefieldVisualState(player: Player) {
         !!pendingActivation &&
         pendingActivation.playerId === playerId &&
         !!pendingActivation.tapOtherChoice &&
-        pendingActivation.tapOtherChoice.pickedIds.length <
-            pendingActivation.tapOtherChoice.count;
+        !isTapOtherChoicePaid(pendingActivation.tapOtherChoice);
 
     /** Eligibility check for the tap-other cost picker — one permanent per call,
      *  gating BOTH `canInteract` (click-through) and the gold ring highlight so
@@ -155,7 +155,7 @@ export function useBattlefieldVisualState(player: Player) {
     function matchesActivationCostPick(card: CardInstance): boolean {
         if (!pendingActivation) return false;
         const toc = pendingActivation.tapOtherChoice;
-        if (toc && toc.pickedIds.length < toc.count) {
+        if (toc && !isTapOtherChoicePaid(toc)) {
             return (
                 !card.isTapped &&
                 card.id !== pendingActivation.cardInstanceId &&

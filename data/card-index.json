@@ -11208,6 +11208,14 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Smuggler's Copter",
+        "scryfallId": "7832abb5-5107-4603-904e-491b221bd3e3",
+        "oracleId": "49136bdc-bc50-49a2-999a-1ef9c16ea130",
+        "firstSet": "kld",
+        "firstPrintId": "7832abb5-5107-4603-904e-491b221bd3e3",
+        "firstPrintSet": "kld"
+    },
+    {
         "name": "Snapcaster Mage",
         "scryfallId": "9e5b279e-4670-4a1e-87d0-3cab7e4f9e58",
         "oracleId": "2bb2eda7-3b38-4c56-870f-c3218a1056f5",

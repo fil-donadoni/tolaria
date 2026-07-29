@@ -74,7 +74,8 @@ function pickTapOther(
     const candidate = player.battlefield.find((c) => c.id === instanceId);
     if (!candidate) throw new Error("Pick not on battlefield");
     const toc = pa.tapOtherChoice;
-    if (toc.pickedIds.length >= toc.count) throw new Error("Tap cost paid");
+    if (toc.pickedIds.length >= (toc.count ?? 0))
+        throw new Error("Tap cost paid");
     if (candidate.id === pa.cardInstanceId)
         throw new Error("Cannot tap source");
     if (candidate.isTapped) throw new Error("Already tapped");

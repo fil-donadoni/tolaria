@@ -9,6 +9,10 @@ import { Panel } from "~/components/ui/panel";
 import { Button } from "~/components/ui/button";
 import { isManaCostCovered } from "~/lib/card-utils";
 import {
+    isTapOtherChoicePaid,
+    tapOtherRemaining,
+} from "@convex/gre/tapOtherCost";
+import {
     describeSacrificeChoice,
     formatFilterLabel,
     isSacrificeComplete,
@@ -21,9 +25,21 @@ import {
  *  activation would already have auto-committed server-side by then). */
 function describeActivationCostChoice(pa: PendingActivation): string {
     const toc = pa.tapOtherChoice;
-    if (toc && toc.pickedIds.length < toc.count) {
-        const remaining = toc.count - toc.pickedIds.length;
+    if (toc && !isTapOtherChoicePaid(toc)) {
         const label = formatFilterLabel(toc.filter);
+        const outstanding = tapOtherRemaining(
+            toc,
+            toc.pickedIds.length,
+            toc.pickedPower ?? 0
+        );
+        // CR 702.122a (Crew N) — the total-power shape has no fixed number of
+        // picks, so the prompt counts down POWER, not permanents.
+        if (outstanding.kind === "power") {
+            const bare = label.replace(/^an? /, "");
+            const plural = bare.endsWith("s") ? bare : `${bare}s`;
+            return `tap ${plural} with total power ${outstanding.remaining} or more`;
+        }
+        const remaining = outstanding.remaining;
         if (remaining > 1) {
             // Strip the leading article ("a"/"an") before pluralizing —
             // formatFilterLabel returns "a creature", and "tap 3 more a

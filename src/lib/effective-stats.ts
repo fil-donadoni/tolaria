@@ -1,4 +1,4 @@
-import type { CardInstance, Player } from "~/types/game";
+import type { CardInstance } from "~/types/game";
 import type {
     CardType,
     EmblemInstance,
@@ -31,8 +31,21 @@ function toPermanentView(card: CardInstance): PermanentView {
     };
 }
 
+/** The minimum player shape the layer projection reads: id, battlefield, the
+ *  graveyard's card TYPES and the hand's SIZE. Deliberately wider than
+ *  `Player[]` so a caller holding a narrower structural player list —
+ *  `buildTriggerStateView`'s, which is the crew/affordability hint's input —
+ *  can feed the SAME computation instead of re-deriving P/T off base `power`
+ *  (the hint-vs-server divergence class). `Player[]` is assignable to it. */
+export type LayerPlayersInput = ReadonlyArray<{
+    id: string;
+    battlefield: ReadonlyArray<CardInstance>;
+    graveyard?: ReadonlyArray<CardInstance>;
+    hand: ReadonlyArray<unknown>;
+}>;
+
 function toLayerState(
-    players: Player[],
+    players: LayerPlayersInput,
     emblems?: EmblemInstance[]
 ): LayerStateView {
     return {
@@ -41,7 +54,7 @@ function toLayerState(
             battlefield: p.battlefield.map(toPermanentView),
             // Graveyard cards feed graveyard-counting CDAs (Lhurgoyf). Only
             // `.types` is read; the projected client state carries it.
-            graveyard: p.graveyard.map((c) => ({
+            graveyard: (p.graveyard ?? []).map((c) => ({
                 types: (c.types ?? []) as CardType[],
             })),
             // Hand-size-gated conditions (CR 611.2c, issue #1379 — Carnage
@@ -63,7 +76,7 @@ function toLayerState(
 }
 
 export function effectivePower(
-    allPlayers: Player[],
+    allPlayers: LayerPlayersInput,
     card: CardInstance,
     emblems?: EmblemInstance[]
 ): number {
@@ -74,7 +87,7 @@ export function effectivePower(
 }
 
 export function effectiveToughness(
-    allPlayers: Player[],
+    allPlayers: LayerPlayersInput,
     card: CardInstance,
     emblems?: EmblemInstance[]
 ): number {
