@@ -2328,12 +2328,15 @@ export interface SpellContext {
      *  `requireType` restricts the candidate pool to cards whose printed types
      *  include that type (CR 701.8a — Rag Man: "discards a creature card at
      *  random"); the random pick is taken only from matching cards, and the
-     *  effect is a no-op when none match. */
+     *  effect is a no-op when none match. Returns the discarded cards'
+     *  instance ids, in discard order (issue #1123 — the `discardAtRandom` Op's
+     *  optional `bind` snapshots the first one so a later `if` can test what
+     *  was discarded). */
     discardAtRandom: (
         playerId: string,
         amount: number,
         requireType?: CardType
-    ) => void;
+    ) => string[];
     /** Adds mana to the caster's mana pool (CR 106.1, 605.4). Mirrors the
      *  mana-ability primitive; used by "add ~" spells like Dark Ritual. */
     addMana: (cost: ManaCost) => void;
@@ -10006,8 +10009,26 @@ export type EffectOp =
      *  filtered variant (The Fallen's "discards a CREATURE card at random",
      *  which also reveals the hand first) stays resolve() until a filter
      *  parameter is warranted. Skipped when `player` cannot be resolved
-     *  (CR 608.2b); an empty hand is a no-op. */
-    | { op: "discardAtRandom"; player: EffectPlayerRef; count: EffectValue }
+     *  (CR 608.2b); an empty hand is a no-op.
+     *
+     *  Optional `bind` (issue #1123, Aether Rift) snapshots the FIRST
+     *  discarded card as a `"graveyard-card"` object (mirrors `destroy`/
+     *  `exile`'s `bind` shape, `bindSnapshot`) — the card is ALREADY in the
+     *  graveyard (a public zone, CR 400.2) by the time the snapshot is taken,
+     *  so this is a live characteristics read, not last-known information. A
+     *  later `if` can test what was discarded via `boundMatchesFilter`
+     *  ("If you discard a creature card this way …", Aether Rift), and a
+     *  later `moveZone { target: { ref }, to: "battlefield" }` can reanimate
+     *  it straight from the binding — `moveZone`'s existing graveyard-source
+     *  recovery path (issue #1469) re-derives the id from ANY snapshot
+     *  binding, not just `destroy`/`exile`'s. Uncaptured when nothing was
+     *  discarded (an empty hand, CR 608.2b) — a later `ref` simply misses. */
+    | {
+          op: "discardAtRandom";
+          player: EffectPlayerRef;
+          count: EffectValue;
+          bind?: string;
+      }
     /** CR 117.3a / 118.4 — an optional "you may pay {cost}" decision offered to
      *  a player (issue #806), OR a bare cost-free "you may …" decision (issue
      *  #680 — `cost` omitted). Maps 1:1 onto `SpellContext.requestMayPay`,

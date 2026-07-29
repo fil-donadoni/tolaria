@@ -20500,6 +20500,241 @@ describe("Effect Script Op: discardAtRandom (CR 701.8a)", () => {
         const projected = projectPublicState(state, 1, "p1");
         expect(projected.players[1].graveyard).toHaveLength(2);
     });
+
+    // `bind` (issue #1123, Aether Rift) — snapshots the FIRST discarded card
+    // as a `"graveyard-card"` object right after the discard, mirroring
+    // `destroy`/`exile`'s bind shape. This Op-combination's own permanent
+    // test (bind → boundMatchesFilter → moveZone, the exact construct chain
+    // Aether Rift needs); any later card reusing it inherits this coverage
+    // free (PRD #795's per-Op regime).
+    describe("bind (issue #1123)", () => {
+        /** A single-card hand makes the random pick deterministic (no RNG
+         *  seeding needed) — there is exactly one card to draw. */
+        function soloHand(card: CardInstanceState): GameState {
+            return makeState({
+                players: [makePlayer("p1", { hand: [card] }), makePlayer("p2")],
+            });
+        }
+
+        it("boundMatchesFilter reads TRUE for a discarded creature card", () => {
+            const id = registerScript("test-op-discardrand-bind-creature", [
+                {
+                    op: "discardAtRandom",
+                    player: "controller",
+                    count: 1,
+                    bind: "$disc",
+                },
+                {
+                    op: "if",
+                    predicate: {
+                        boundMatchesFilter: { ref: "$disc" },
+                        filter: { type: "Creature" },
+                    },
+                    then: [{ op: "gainLife", player: "controller", amount: 7 }],
+                },
+            ]);
+            const bear = makeInstance(BEAR_ID, {
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+                id: "bindBear1",
+            });
+            const state = soloHand(bear);
+            pushSpell(state, id, "p1");
+            resolveTopOfStack(state);
+            expect(
+                state.players[0].graveyard.some((c) => c.id === "bindBear1")
+            ).toBe(true);
+            expect(state.players[0].life).toBe(27); // creature branch fired
+        });
+
+        it("boundMatchesFilter reads FALSE for a discarded non-creature card", () => {
+            const id = registerScript("test-op-discardrand-bind-noncreature", [
+                {
+                    op: "discardAtRandom",
+                    player: "controller",
+                    count: 1,
+                    bind: "$disc",
+                },
+                {
+                    op: "if",
+                    predicate: {
+                        boundMatchesFilter: { ref: "$disc" },
+                        filter: { type: "Creature" },
+                    },
+                    then: [
+                        {
+                            op: "gainLife",
+                            player: "controller",
+                            amount: 7,
+                        },
+                    ],
+                },
+            ]);
+            const instant = makeInstance(BLACK_CARD_ID, {
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+                id: "bindInstant1",
+            });
+            const state = soloHand(instant);
+            pushSpell(state, id, "p1");
+            resolveTopOfStack(state);
+            expect(
+                state.players[0].graveyard.some((c) => c.id === "bindInstant1")
+            ).toBe(true);
+            expect(state.players[0].life).toBe(20); // unchanged
+        });
+
+        it("moveZone reanimates the bound card straight off the graveyard-card binding", () => {
+            const id = registerScript("test-op-discardrand-bind-reanimate", [
+                {
+                    op: "discardAtRandom",
+                    player: "controller",
+                    count: 1,
+                    bind: "$disc",
+                },
+                { op: "moveZone", target: { ref: "$disc" }, to: "battlefield" },
+            ]);
+            const bear = makeInstance(BEAR_ID, {
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+                id: "bindBear2",
+            });
+            const state = soloHand(bear);
+            pushSpell(state, id, "p1");
+            resolveTopOfStack(state);
+            expect(
+                state.players[0].graveyard.some((c) => c.id === "bindBear2")
+            ).toBe(false);
+            expect(
+                state.players[0].battlefield.some((c) => c.id === "bindBear2")
+            ).toBe(true);
+        });
+
+        // Mutation-guard: every OTHER case in this describe block uses a
+        // 1-card hand with an EMPTY graveyard, so "bind the card discarded
+        // THIS resolution" and "bind whatever's in the graveyard" are
+        // indistinguishable — the bound id is the only candidate either way.
+        // This case adds a SECOND hand card (proving the bind tracks the
+        // actual random pick, not "the only candidate") and a PRE-EXISTING
+        // graveyard occupant (a plausible WRONG answer for a bind that
+        // mistakenly reads "the first card in the graveyard" instead of "the
+        // card this Op just discarded"): `moveCard` (`gre/state.ts`) pushes
+        // the freshly-discarded card onto the END of the graveyard array, so
+        // the pre-existing decoy sits at `graveyard[0]` while the real
+        // target lands at `graveyard[1]` — exactly backwards from what a
+        // `getGraveyardCards(playerId)[0]`-style mistake would read.
+        it("binds the card discarded THIS resolution, not a pre-existing graveyard occupant", () => {
+            const id = registerScript("test-op-discardrand-bind-identity", [
+                {
+                    op: "discardAtRandom",
+                    player: "controller",
+                    count: 1,
+                    bind: "$disc",
+                },
+                { op: "moveZone", target: { ref: "$disc" }, to: "battlefield" },
+            ]);
+            const decoyBear = makeInstance(BEAR_ID, {
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "graveyard",
+                id: "decoyBear",
+            });
+            const targetBear = makeInstance(BEAR_ID, {
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+                id: "targetBear",
+            });
+            const otherHandCard = makeInstance(BLACK_CARD_ID, {
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+                id: "otherHandCard",
+            });
+            const state = makeState({
+                // Empirically (verified against `randomInt`, `gre/rng.ts`):
+                // seed 0 (also `makeState`'s own default — named explicitly
+                // here so the determinism is documented, mirroring the
+                // coinFlip tests' WIN_SEED/LOSE_SEED convention) draws index
+                // 0 from a 2-candidate pool on the FIRST `randomInt` call a
+                // fresh resolution makes — i.e. `targetBear` (hand slot 0),
+                // never `otherHandCard` (slot 1).
+                rngSeed: 0,
+                players: [
+                    makePlayer("p1", {
+                        hand: [targetBear, otherHandCard],
+                        graveyard: [decoyBear],
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+            pushSpell(state, id, "p1");
+            resolveTopOfStack(state);
+            // The random pick landed on `targetBear`; the other hand card is
+            // untouched.
+            expect(
+                state.players[0].hand.some((c) => c.id === "otherHandCard")
+            ).toBe(true);
+            // The reanimated permanent is the card THIS resolution
+            // discarded — never the pre-existing graveyard occupant, which
+            // stays put, untouched, in the graveyard.
+            expect(
+                state.players[0].battlefield.some((c) => c.id === "targetBear")
+            ).toBe(true);
+            expect(
+                state.players[0].battlefield.some((c) => c.id === "decoyBear")
+            ).toBe(false);
+            expect(
+                state.players[0].graveyard.some((c) => c.id === "decoyBear")
+            ).toBe(true);
+        });
+
+        it("leaves the binding uncaptured on an empty hand — a later ref/if reads as skipped (CR 608.2b)", () => {
+            const id = registerScript("test-op-discardrand-bind-empty", [
+                {
+                    op: "discardAtRandom",
+                    player: "controller",
+                    count: 1,
+                    bind: "$disc",
+                },
+                { op: "moveZone", target: { ref: "$disc" }, to: "battlefield" },
+            ]);
+            const state = makeState();
+            pushSpell(state, id, "p1");
+            expect(() => resolveTopOfStack(state)).not.toThrow();
+            expect(state.players[0].battlefield).toHaveLength(0);
+        });
+
+        it("the reanimated permanent survives the wire projection (wire format)", () => {
+            const id = registerScript("test-op-discardrand-bind-wire", [
+                {
+                    op: "discardAtRandom",
+                    player: "controller",
+                    count: 1,
+                    bind: "$disc",
+                },
+                { op: "moveZone", target: { ref: "$disc" }, to: "battlefield" },
+            ]);
+            const bear = makeInstance(BEAR_ID, {
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+                id: "bindBear3",
+            });
+            const state = soloHand(bear);
+            pushSpell(state, id, "p1");
+            resolveTopOfStack(state);
+            const projected = projectPublicState(state, 1, "p1");
+            expect(
+                projected.players[0].battlefield.some(
+                    (c) => c.id === "bindBear3"
+                )
+            ).toBe(true);
+        });
+    });
 });
 
 describe("Effect Script Op: preventRegeneration (CR 701.15c)", () => {

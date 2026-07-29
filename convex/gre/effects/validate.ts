@@ -1859,6 +1859,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     draw: { required: { player: isPlayerRef, count: isEffectValue } },
     discardAtRandom: {
         required: { player: isPlayerRef, count: isEffectValue },
+        optional: { bind: isBindingName },
     },
     gainLife: { required: { player: isPlayerRef, amount: isEffectValue } },
     getEnergy: { required: { player: isPlayerRef, amount: isEffectValue } },

@@ -81,6 +81,7 @@ import {
     revivingVapors,
     barrinsSpite,
     seersVision,
+    aetherRift,
 } from "../multicolor";
 import { lobotomy } from "../../tmp/multicolor";
 import { simoon } from "../../vis/multicolor";
@@ -3241,5 +3242,232 @@ describe("Seer's Vision (CR 702-adjacent opponents-hand-reveal static + sac-for-
         ]);
         expect(state.pendingChoices ?? []).toHaveLength(0);
         expect(state.stack).toHaveLength(0);
+    });
+});
+
+describe("Aether Rift (CR 701.8a random discard, CR 603.2 upkeep trigger, CR 117.3a unless-a-player-pays, issue #1123)", () => {
+    const upkeep = {
+        type: "PHASE_BEGIN" as const,
+        phase: "UPKEEP" as const,
+        activePlayerId: "p1",
+    };
+
+    /** p1 controls Aether Rift with exactly ONE card in hand — a fixed hand
+     *  size makes `discardAtRandom`'s pick deterministic (no RNG variance to
+     *  account for) without needing to seed the PRNG. */
+    function withHand(handCard: ReturnType<typeof makeInstance>): GameState {
+        const rift = makeInstance(aetherRift.id, {
+            id: "rift",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        return makeState({
+            activePlayerId: "p1",
+            phase: "UPKEEP",
+            players: [
+                makePlayer("p1", { battlefield: [rift], hand: [handCard] }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    function fireUpkeep(state: GameState): void {
+        const rift = state.players[0].battlefield.find((c) => c.id === "rift")!;
+        resolveTrigger(state, rift, "aether-rift-upkeep-discard", upkeep);
+    }
+
+    it("discards a card at random from the controller's hand", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "ar-bear-1",
+            zone: "hand",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = withHand(bear);
+        fireUpkeep(state);
+        expect(state.players[0].hand).toHaveLength(0);
+        expect(
+            state.players[0].graveyard.some((c) => c.id === "ar-bear-1")
+        ).toBe(true);
+    });
+
+    it('does NOT offer a may-pay when the discarded card is not a creature ("if you discard a creature card this way")', () => {
+        const land = makeInstance(plains.id, {
+            id: "ar-land-1",
+            zone: "hand",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = withHand(land);
+        fireUpkeep(state);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.stack).toHaveLength(0);
+        expect(
+            state.players[0].graveyard.some((c) => c.id === "ar-land-1")
+        ).toBe(true);
+    });
+
+    it("offers the controller first, then the opponent, to pay 5 life (CR 101.4 APNAP)", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "ar-bear-2",
+            zone: "hand",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = withHand(bear);
+        fireUpkeep(state);
+        let head = state.pendingChoices![0];
+        expect(head.kind).toBe("may-pay");
+        expect(head.playerId).toBe("p1");
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+        head = state.pendingChoices![0];
+        expect(head.kind).toBe("may-pay");
+        expect(head.playerId).toBe("p2");
+    });
+
+    it("returns the discarded creature to the battlefield when BOTH players decline to pay", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "ar-bear-3",
+            zone: "hand",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = withHand(bear);
+        fireUpkeep(state);
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "ar-bear-3")
+        ).toBe(true);
+        expect(
+            state.players[0].graveyard.some((c) => c.id === "ar-bear-3")
+        ).toBe(false);
+        expect(state.players[0].life).toBe(20);
+        expect(state.players[1].life).toBe(20);
+    });
+
+    // Mutation-guard (same shape as the Op's own permanent test in
+    // interpreter.test.ts): every OTHER case above uses a 1-card hand with
+    // an EMPTY graveyard, so "reanimate the card discarded THIS upkeep" and
+    // "reanimate whatever's in the graveyard" read identically. This case
+    // adds a SECOND hand card (proving the random pick — not "the only
+    // candidate" — is what gets tracked) and a PRE-EXISTING graveyard
+    // occupant (a plausible wrong answer, sitting at `graveyard[0]` while
+    // the freshly-discarded creature lands at `graveyard[1]` — `moveCard`,
+    // `gre/state.ts`, pushes onto the end).
+    it("reanimates the SPECIFIC creature discarded this upkeep, not a pre-existing graveyard occupant", () => {
+        const rift = makeInstance(aetherRift.id, {
+            id: "rift-identity",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const decoyBear = makeInstance(grizzlyBears.id, {
+            id: "ar-decoy-bear",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const targetBear = makeInstance(grizzlyBears.id, {
+            id: "ar-target-bear",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const otherLand = makeInstance(plains.id, {
+            id: "ar-other-land",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            // Empirically (see the Op's own identity-guard test in
+            // interpreter.test.ts): seed 0 draws hand index 0 —
+            // `targetBear`, never `otherLand`.
+            rngSeed: 0,
+            activePlayerId: "p1",
+            phase: "UPKEEP",
+            players: [
+                makePlayer("p1", {
+                    battlefield: [rift],
+                    hand: [targetBear, otherLand],
+                    graveyard: [decoyBear],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveTrigger(state, rift, "aether-rift-upkeep-discard", upkeep);
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        expect(
+            state.players[0].hand.some((c) => c.id === "ar-other-land")
+        ).toBe(true);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "ar-target-bear")
+        ).toBe(true);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "ar-decoy-bear")
+        ).toBe(false);
+        expect(
+            state.players[0].graveyard.some((c) => c.id === "ar-decoy-bear")
+        ).toBe(true);
+    });
+
+    it("stays in the graveyard when the CONTROLLER pays 5 life (opponent is never even asked)", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "ar-bear-4",
+            zone: "hand",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = withHand(bear);
+        fireUpkeep(state);
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        expect(state.players[0].life).toBe(15);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "ar-bear-4")
+        ).toBe(false);
+        expect(
+            state.players[0].graveyard.some((c) => c.id === "ar-bear-4")
+        ).toBe(true);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("stays in the graveyard when the OPPONENT pays 5 life after the controller declines", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "ar-bear-5",
+            zone: "hand",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = withHand(bear);
+        fireUpkeep(state);
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+        applyMayPaySubmit(state, { playerId: "p2", accept: true });
+        expect(state.players[1].life).toBe(15);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "ar-bear-5")
+        ).toBe(false);
+        expect(
+            state.players[0].graveyard.some((c) => c.id === "ar-bear-5")
+        ).toBe(true);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("the reanimated creature survives the wire projection (wire format)", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "ar-bear-6",
+            zone: "hand",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = withHand(bear);
+        fireUpkeep(state);
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        const projected = projectPublicState(state, 1, "p1");
+        expect(
+            projected.players[0].battlefield.some((c) => c.id === "ar-bear-6")
+        ).toBe(true);
     });
 });
