@@ -221,6 +221,14 @@ The full gate is **mandatory before a task is marked done / before merge** — n
     1. `bun run check:all` — format + lint + type-check (zero errors)
     2. `bun run test` — full vitest suite (zero failures)
 
+**`check:all` VERIFIES formatting, it does not fix it.** Its first step is
+`format:check` (`prettier --check`). On drift it fails with a pointer to
+`bun run format` — fix it and re-run. It used to call `bun run format`
+(`prettier --write`), which silently repaired drift and therefore could never
+fail on it: CI's `quality` job sat red on `main` for days with 20 unformatted
+files while every local gate reported green. A gate that repairs what it is
+supposed to check is not a gate.
+
 **Two test suites: application and bot.** `bun run test` runs both, in sequence, and is still the one gate command — but they are separate vitest invocations:
 
 | Command            | Covers                                                                                                      |
