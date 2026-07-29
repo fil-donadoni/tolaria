@@ -254,11 +254,31 @@ const draftPackCardValidator = v.object({
 });
 
 // Pool Arrangement (ADR 0060, issue #1247; Lands as a manual column target,
-// issue #1573) — see `PoolArrangementEntry`'s doc comment in
-// `convex/limited/eventTypes.ts`.
+// issue #1573; namespaced Card Pins, issue #1621) — see
+// `PoolArrangementEntry`'s doc comment in `convex/limited/eventTypes.ts`.
+//
+// This is a RETURNS validator (it is reached through
+// `limitedEventViewValidator` below), and Convex rejects a returned object
+// carrying a field the validator doesn't declare — AT RUNTIME, invisibly to
+// `tsc`. `pins` therefore had to land here in the same change that made
+// `upsertPoolArrangementEntry` emit it; `column` stays declared because an
+// in-flight event's rows still carry it (tolerant read, ADR 0075 §5).
+// `convex/__tests__/limitedEventViewValidator.test.ts` walks this validator
+// over the REAL projection output and fails on any such drift.
 const poolArrangementEntryValidator = v.object({
     poolIndex: v.number(),
+    // DEPRECATED, read-only (issue #1621) — never written any more.
     column: v.optional(v.union(v.number(), v.literal("lands"))),
+    // Namespaced Card Pins, in the Column Layout engine's id vocabulary
+    // (`convex/deckLayout.ts`): `mv:5`, `mv:lands`, `color:R`, `custom:<slug>`.
+    pins: v.optional(
+        v.object({
+            mv: v.optional(v.string()),
+            color: v.optional(v.string()),
+            type: v.optional(v.string()),
+            custom: v.optional(v.string()),
+        })
+    ),
     sideboard: v.optional(v.boolean()),
 });
 
@@ -1721,7 +1741,12 @@ export const startLimitedEvent = mutation({
  *  fixed shape (unlike `pickId`, no separate authoritative list to check
  *  membership against). Column-override DRAG is wired by issue #1248; this
  *  mutation already accepts `column` so that later change needs no API
- *  change, only a new caller. */
+ *  change, only a new caller.
+ *
+ *  The `column` ARG is unchanged (every caller still speaks it), but what gets
+ *  PERSISTED is the namespaced Card Pin map — `upsertPoolArrangementEntry`
+ *  emits `pins` and never the deprecated `column` field, so each entry an
+ *  active seat touches migrates itself (ADR 0075 §5, issue #1621). */
 export const setPoolArrangementEntry = mutation({
     args: {
         eventId: v.id("limitedEvents"),

@@ -6,13 +6,14 @@
 // `poolCount` that drifts from the Pool it counts), never an exception.
 //
 // The project has no convex-test harness (see `convex/__tests__/decks.test.ts`)
-// so this drives the real store against a minimal in-memory `db` implementing
-// exactly the surface it uses: `get`/`patch`/`insert`/`replace`/`delete` plus
+// so this drives the real store against the shared minimal in-memory `db`
+// (`fixtures/inMemoryDb.ts`), which implements exactly the surface the store
+// uses: `get`/`patch`/`insert`/`replace`/`delete` plus
 // `query(table).withIndex(name, q => q.eq(...)).unique()/.collect()`.
 import { describe, it, expect } from "vitest";
 import type { Doc, Id } from "../_generated/dataModel";
-import type { MutationCtx } from "../_generated/server";
 import type { LimitedEventSeat, LimitedPoolCard } from "../limited/eventTypes";
+import { makeInMemoryDb, type InMemoryRow } from "./fixtures/inMemoryDb";
 import { projectLimitedEvent } from "../limited/eventProjection";
 import {
     deleteSeats,
@@ -26,102 +27,14 @@ import {
 
 // --- In-memory db ------------------------------------------------------------
 
-interface Row {
-    _id: string;
-    [key: string]: unknown;
-}
+type Row = InMemoryRow;
 
+/** The shared in-memory ctx (`fixtures/inMemoryDb.ts`), plus the two accessors
+ *  this file's assertions are written against. */
 function makeDb(initial: Record<string, Row[]>) {
-    const tables: Record<string, Row[]> = {};
-    for (const [name, rows] of Object.entries(initial)) {
-        tables[name] = rows.map((r) => structuredClone(r));
-    }
-    let nextId = 1000;
-    // Counts writes so a test can assert the dirty check actually skipped a
-    // seat, rather than merely producing the right final state by luck.
-    const writes: { table: string; id: string }[] = [];
-
-    const db = {
-        get: async (id: string) => {
-            for (const rows of Object.values(tables)) {
-                const found = rows.find((r) => r._id === id);
-                if (found) return structuredClone(found);
-            }
-            return null;
-        },
-        query: (table: string) => ({
-            withIndex: (
-                _name: string,
-                build?: (q: {
-                    eq: (field: string, value: unknown) => unknown;
-                }) => unknown
-            ) => {
-                const filters: [string, unknown][] = [];
-                if (build) {
-                    const q = {
-                        eq(field: string, value: unknown) {
-                            filters.push([field, value]);
-                            return q;
-                        },
-                    };
-                    build(q);
-                }
-                const matching = () =>
-                    (tables[table] ?? [])
-                        .filter((row) =>
-                            filters.every(
-                                ([field, value]) => row[field] === value
-                            )
-                        )
-                        .map((r) => structuredClone(r));
-                return {
-                    unique: async () => matching()[0] ?? null,
-                    collect: async () => matching(),
-                    take: async (n: number) => matching().slice(0, n),
-                };
-            },
-        }),
-        insert: async (table: string, doc: Record<string, unknown>) => {
-            const _id = `${table}-${nextId++}`;
-            (tables[table] ??= []).push(structuredClone({ ...doc, _id }));
-            writes.push({ table, id: _id });
-            return _id;
-        },
-        replace: async (id: string, doc: Record<string, unknown>) => {
-            for (const [table, rows] of Object.entries(tables)) {
-                const i = rows.findIndex((r) => r._id === id);
-                if (i !== -1) {
-                    rows[i] = structuredClone({ ...doc, _id: id });
-                    writes.push({ table, id });
-                    return;
-                }
-            }
-            throw new Error(`replace: no row ${id}`);
-        },
-        patch: async (id: string, doc: Record<string, unknown>) => {
-            for (const [table, rows] of Object.entries(tables)) {
-                const i = rows.findIndex((r) => r._id === id);
-                if (i !== -1) {
-                    rows[i] = structuredClone({ ...rows[i], ...doc });
-                    writes.push({ table, id });
-                    return;
-                }
-            }
-            throw new Error(`patch: no row ${id}`);
-        },
-        delete: async (id: string) => {
-            for (const rows of Object.values(tables)) {
-                const i = rows.findIndex((r) => r._id === id);
-                if (i !== -1) {
-                    rows.splice(i, 1);
-                    return;
-                }
-            }
-        },
-    };
-
+    const { ctx, tables, writes } = makeInMemoryDb(initial);
     return {
-        ctx: { db } as unknown as MutationCtx,
+        ctx,
         tables,
         writes,
         seatRows: () => tables.limitedSeats ?? [],

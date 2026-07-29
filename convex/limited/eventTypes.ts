@@ -3,6 +3,12 @@
 // (`eventProjection.ts`) and the thin Convex mutation/query shell
 // (`convex/limitedEvents.ts`) — kept in one place so all three agree on the
 // seat/pool shape without re-declaring it.
+//
+// `CardPins` is imported as a TYPE only: the Column Layout engine
+// (`convex/deckLayout.ts`) is the single authority on the Pin/Column-id
+// vocabulary (issue #1621 AC), and a type-only import keeps this module free
+// of the runtime card-registry dependency that engine carries.
+import type { CardPins } from "../deckLayout";
 
 /** One physical card opened into a seat's Pool (ADR 0054/0055): the exact
  *  printing drawn from a Booster (`scryfallId`) plus the canonical Card ID
@@ -170,13 +176,26 @@ export interface LimitedRound {
  *  migration. */
 export interface PoolArrangementEntry {
     poolIndex: number;
-    /** Manual override of the auto Mana-Value column, OR the literal
-     *  `"lands"` to pin the card into the Lands column regardless of its own
-     *  type (issue #1573: column placement is player organization, not a
-     *  rules statement — any card can be manually parked in Lands). Absent =
-     *  auto (a Land card's own type routes it to Lands; every other card
-     *  routes to its own Mana Value). */
+    /** @deprecated Read-only legacy shape (issue #1621) — superseded by
+     *  {@link PoolArrangementEntry.pins}. The pre-#1621 single manual override
+     *  of the auto Mana-Value column, OR the literal `"lands"` to pin the card
+     *  into the Lands column regardless of its own type (issue #1573: column
+     *  placement is player organization, not a rules statement — any card can
+     *  be manually parked in Lands). Still READ (an in-flight draft's
+     *  Arrangement was written in this shape) but never WRITTEN: every write
+     *  goes through `upsertPoolArrangementEntry`, which emits `pins` only, and
+     *  every read goes through `readEntryPins`
+     *  (`convex/limited/poolArrangement.ts`) — no coordinated migration, no
+     *  broken draft (ADR 0075 §5, "schema evolution by tolerant read"). */
     column?: number | "lands";
+    /** Card Pins (ADR 0075 §3): the namespaced column this card is pinned to,
+     *  one entry per Pin namespace, in the Column Layout engine's own id
+     *  vocabulary (`convex/deckLayout.ts` — `mv:5`, `mv:lands`, `color:R`,
+     *  `custom:<slug>`). Namespaced so switching the Grouping never destroys
+     *  an arrangement built over a 45-minute draft: a `mv` Pin simply does not
+     *  apply while grouping by colour, and applies again on the way back.
+     *  Absent = no Pin at all (the card sits in whichever column claims it). */
+    pins?: CardPins;
     /** true = Sideboard, false/absent = Maindeck. */
     sideboard?: boolean;
 }
