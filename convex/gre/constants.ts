@@ -204,6 +204,15 @@ export function isLand(card: CardInstanceState): boolean {
     return card.types.includes("Land");
 }
 
+/** Definition-level sibling of {@link isLand} (CR 305.1) — for callers that
+ *  only hold a `CardDefinition` (deckbuilder surfaces: the Column Layout
+ *  engine, pool columns, deck grouping) and never an in-game instance. Lives
+ *  here so those surfaces stop keeping private copies of
+ *  `def.types.includes("Land")`. */
+export function isLandDefinition(def: CardDefinition): boolean {
+    return def.types.includes("Land");
+}
+
 /** Whether a card can be cast at **instant speed** (CR 601.3a / 702.8) — an
  *  Instant, or any card with the Flash keyword. Sorcery-speed-only cards
  *  (creatures, sorceries, and non-flash permanents) return false: they may be
