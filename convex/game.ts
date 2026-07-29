@@ -8786,6 +8786,7 @@ export function applyOneTargetSelection(
                 toughnessFilter: pt.toughnessFilter,
                 mvFilter: pt.mvFilter,
                 sameController: pt.sameController,
+                isToken: pt.isToken,
             }
         );
         if (filterViolation) throw new Error(filterViolation);

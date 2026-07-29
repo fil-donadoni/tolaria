@@ -2573,6 +2573,10 @@ export type PendingTarget = {
      *  (`game.ts`) alongside `selected` to compute the sibling's live
      *  controllerId via `siblingControllerIdFor`. */
     sameController?: boolean;
+    /** Restricts legal permanent targets by token-ness (CR 111.5, issue
+     *  #1195). `true` keeps ONLY tokens; `false` keeps ONLY nontoken
+     *  permanents. Propagated from TargetRequirement.isToken. */
+    isToken?: boolean;
     /** Targets already selected. */
     selected: TargetSelection[];
     /** Divide-as-you-choose budget (CR 601.2d / 120.4). When set, this spell
@@ -11573,13 +11577,21 @@ export function buildSpellContext(
             if (!source) return undefined;
             // Minimal placeholder body: a 0/0 creature token. `applyCopy`
             // immediately replaces every copiable field, so the placeholder is
-            // never observed on the battlefield.
+            // never observed on the battlefield. CR 508.4 (issue #1195) —
+            // `opts.entersTapped`/`entersAttacking` (Satya, Aetherflux
+            // Genius) ride straight onto this placeholder spec so the SAME
+            // `createTokenPermanents` tap/combat-join handling a plain
+            // `createToken` gets applies here too, BEFORE `applyCopy`
+            // overwrites the token's copiable characteristics below — entry
+            // state is independent of what gets copied.
             const [tokenId] = ctx.createToken(
                 {
                     name: "Copy",
                     types: ["Creature"],
                     power: 0,
                     toughness: 0,
+                    ...(opts?.entersTapped ? { entersTapped: true } : {}),
+                    ...(opts?.entersAttacking ? { entersAttacking: true } : {}),
                 },
                 controllerId,
                 1,
@@ -14639,9 +14651,25 @@ export function createTokenPermanents(
             continue;
         }
         // CR 614.1c + 110.5b — Kismet-style replacement taps an
-        // opponent-controlled artifact/creature/land token as it enters.
-        if (shouldEnterTapped(state, token)) token.isTapped = true;
+        // opponent-controlled artifact/creature/land token as it enters. OR'd
+        // with the CR 508.4 authored "enters tapped" flag (issue #1195,
+        // Satya, Aetherflux Genius) — either reason taps the token.
+        if (spec.entersTapped || shouldEnterTapped(state, token)) {
+            token.isTapped = true;
+        }
         owner.battlefield.push(token);
+        // CR 508.4 (issue #1195) — the token enters the battlefield ALREADY
+        // ATTACKING: join the CURRENT combat directly (mutating
+        // `combat.attackerIds`) instead of running the normal declare-
+        // attackers action. Deliberately does NOT emit an ATTACKERS_DECLARED
+        // event — CR 508.4 is explicit that such a token is "attacking" but
+        // never "attacked" for trigger purposes, so "whenever a creature
+        // attacks" abilities (including this token's own, if it has one)
+        // correctly never see this entry. No-op if there's no active combat
+        // to join (defensive — see `TokenSpec.entersAttacking`'s doc).
+        if (spec.entersAttacking && state.combat) {
+            state.combat.attackerIds = [...state.combat.attackerIds, id];
+        }
         applyExistingGrantsTo(state, token);
         applySourceStaticEffects(state, token);
         ids.push(id);

@@ -10480,6 +10480,14 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Satya, Aetherflux Genius",
+        "scryfallId": "3b964bbe-54cc-425c-9cc6-c877f82af7ba",
+        "oracleId": "ce8af7dd-49df-4419-9776-4157efc60b0f",
+        "firstSet": "m3c",
+        "firstPrintId": "3b964bbe-54cc-425c-9cc6-c877f82af7ba",
+        "firstPrintSet": "m3c"
+    },
+    {
         "name": "Satyr Wayfinder",
         "scryfallId": "13c5a1ce-932a-4b3d-8b86-ed920e646afc",
         "oracleId": "ead4c01a-e2ae-49c9-95d9-651d81005907",

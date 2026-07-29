@@ -87,6 +87,9 @@ function makeCard(
         zone: overrides.zone ?? "battlefield",
         isTapped: overrides.isTapped ?? false,
         ...(overrides.counters ? { counters: overrides.counters } : {}),
+        ...(overrides.isToken !== undefined
+            ? { isToken: overrides.isToken }
+            : {}),
     };
 }
 
@@ -520,6 +523,85 @@ describe("target exclusion filters (CR 109.1 / 601.2c, Phelia)", () => {
         };
         const ids = getLegalTargets(state, req, [], "p1").map((t) => t.id);
         expect(ids).toEqual(["other"]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Token-ness filter (CR 111.5, issue #1195) — Satya, Aetherflux Genius / Dance
+// of Many: "target NONTOKEN creature". `isToken: false` keeps only nontoken
+// permanents; `isToken: true` (the inverse, unused by any shipped card yet)
+// keeps only tokens. Closes the DIVERGENCE Dance of Many's ETB has documented
+// since #1459 ("TargetRequirement has no token filter field").
+// ---------------------------------------------------------------------------
+
+describe("isToken target filter (CR 111.5, issue #1195)", () => {
+    const NONTOKEN = makeCard({
+        id: "nontoken-creature",
+        types: ["Creature"],
+        controllerId: "p1",
+    });
+    const TOKEN = makeCard({
+        id: "token-creature",
+        types: ["Creature"],
+        controllerId: "p1",
+        isToken: true,
+    });
+    const state = makeGameState({
+        players: [
+            makePlayer({ id: "p1", battlefield: [NONTOKEN, TOKEN] }),
+            makePlayer({ id: "p2" }),
+        ],
+    });
+
+    it("isToken: false — offered set excludes the token creature", () => {
+        const req: TargetRequirement = {
+            type: "Creature",
+            count: 1,
+            isToken: false,
+        };
+        const ids = getLegalTargets(state, req, [], "p1").map((t) => t.id);
+        expect(ids).toEqual(["nontoken-creature"]);
+    });
+
+    it("isToken: true — offered set keeps ONLY the token creature", () => {
+        const req: TargetRequirement = {
+            type: "Creature",
+            count: 1,
+            isToken: true,
+        };
+        const ids = getLegalTargets(state, req, [], "p1").map((t) => t.id);
+        expect(ids).toEqual(["token-creature"]);
+    });
+
+    it("omitted — both are legal (no filter applied)", () => {
+        const req: TargetRequirement = { type: "Creature", count: 2 };
+        const ids = getLegalTargets(state, req, [], "p1").map((t) => t.id);
+        expect(ids).toEqual(
+            expect.arrayContaining(["nontoken-creature", "token-creature"])
+        );
+    });
+
+    it("intrinsicPermanentTargetViolation: rejects a token for isToken:false, allows a nontoken permanent", () => {
+        expect(
+            intrinsicPermanentTargetViolation(state, TOKEN, {
+                isToken: false,
+            })
+        ).not.toBeNull();
+        expect(
+            intrinsicPermanentTargetViolation(state, NONTOKEN, {
+                isToken: false,
+            })
+        ).toBeNull();
+    });
+
+    it("the raised PendingTarget carries isToken (offered/accepted parity, ADR 0068)", () => {
+        const req: TargetRequirement = {
+            type: "Creature",
+            count: { min: 0, max: 1 },
+            isToken: false,
+        };
+        const pt = pendingTargetFiltersFromRequirement(req, undefined);
+        expect(pt.isToken).toBe(false);
     });
 });
 
@@ -2198,13 +2280,15 @@ describe("checkCardTargetFilters — shared offered/accepted gate (ADR 0068, iss
 describe("target-filter registry — FilterKey exhaustiveness keystone (ADR 0068, issue #1411)", () => {
     it("REGISTRY is non-empty and covers every filter migrated by T1-T3", () => {
         const keys = Object.keys(REGISTRY);
-        // 19 permanent + 8 spell-only + 1 player-only (T1 + T2 + T3) — see
+        // 20 permanent + 8 spell-only + 1 player-only (T1 + T2 + T3) — see
         // PERMANENT_FILTER_KEYS / SPELL_ONLY_FILTER_KEYS / PLAYER_ONLY_FILTER_KEYS
         // in targetFilters.ts. Card-kind reuses `controller`/`mvFilter`, both
         // already counted under the permanent set — no additional keys.
         // (`requireAbilityAny` joined the permanent set with Minsc & Boo;
-        // `sameController` joined it with Barrin's Spite, issue #1104.)
-        expect(keys.length).toBe(28);
+        // `sameController` joined it with Barrin's Spite, issue #1104;
+        // `isToken` joined it with Satya, Aetherflux Genius / Dance of Many,
+        // issue #1195.)
+        expect(keys.length).toBe(29);
     });
 
     it("every registered filter has a `lower` function and at least one `checks` predicate", () => {
