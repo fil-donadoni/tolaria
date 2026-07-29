@@ -16,6 +16,20 @@
  */
 
 import type { BladeScenario } from "./types";
+import { enumerateMoves } from "../../moves";
+
+/** "The dominance pruner (issue #1887) still leaves the bot a cast to make" —
+ *  the negative control for a position where the CHOSEN move is not a stable
+ *  expectation (holding an instant through your own main phase is legitimate
+ *  play, ADR 0021) but the surviving LEGAL SET is. */
+function pruningKeepsACast(
+    state: Parameters<typeof enumerateMoves>[0]
+): boolean {
+    const pid = state.players[0].id;
+    return enumerateMoves(state, pid, { pruneDominatedNoOps: true }).some(
+        (m) => m.kind === "cast-spell"
+    );
+}
 
 export const BLADE_SCENARIOS: BladeScenario[] = [
     {
@@ -764,6 +778,159 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
             moves: [{ kind: "cast-spell", card: "Incinerate" }],
         },
         note: "Issue #1889 regression guard, in the reported shape: the bot holds a castable removal spell, the board has a 0-counter Everflowing Chalice plus JUST ENOUGH lands, and the bot must cast rather than stall. A mana ability whose CURRENT output is zero is not a payment source: `getManaTapOptionsDetailed` drops the option, so `buildAutoTapSources` never enumerates the 0-counter Everflowing Chalice, and the board-aware `isUntappedManaSource` stops counting it as one available mana in `evaluate`. Support is exactly zero on any board with no board-conditional (`manaAmount`) source — the same narrow-support discipline #1499 used for the fetchland. It is a POSITION guard, not a discriminator: measured at authoring time it also passes on the pre-#1889 engine, because the search-side payment planner (`getProducibleManaOptions`, rules.ts) already filtered zero-AMOUNT colours out of its map even while `getManaTapOptionsDetailed` still emitted the option. The engine paths that did NOT filter — `buildAutoTapSources` (autoTap.ts, the real server auto-tap the bot driver calls) and the coarse `isUntappedManaSource` proxy in `evaluate` — are pinned by the discriminating unit regressions in `convex/gre/__tests__/zeroOutputManaSource.test.ts`. This entry exists so the whole position stays solved end to end through the real search.",
+    },
+
+    // ── Dominance pruning (issue #1887) ──────────────────────────────────
+    // The bot used to spend a card, the mana and the turn on a cast whose
+    // resolution is a PROVABLE no-op, because the reward band saturates and a
+    // no-op cast ties `pass` inside `OUTCOME_EPS`. `isDominatedNoOpMove`
+    // (`gre/ai/dominance.ts`) proves the tie away at ENUMERATION, so the search
+    // never sees the move. Each futile entry below is paired with a NEGATIVE
+    // CONTROL in the same position shape but with the futility removed — the
+    // pruning must have exactly-zero effect there.
+    {
+        label: "dominance: does not cast Damnation into an empty board",
+        spec: {
+            cards: [{ name: "Damnation", owner: "me", zone: "hand" }],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 6,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { forbidden: [{ kind: "cast-spell", card: "Damnation" }] },
+        note: "Issue #1887, symptom 1. With no creature on either battlefield, resolving Damnation changes nothing but the mover's own hand/graveyard/mana — dominated by `pass` by construction, so the move never reaches the tree.",
+    },
+    {
+        label: "dominance NEGATIVE CONTROL: still casts Damnation into a real board",
+        spec: {
+            cards: [
+                { name: "Damnation", owner: "me", zone: "hand" },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                    count: 3,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 6,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "cast-spell", card: "Damnation" }] },
+        note: "Issue #1887 negative control. Three Craw Wurms is 18 power of incoming; the sweeper is not close. Guards the dominance seam against over-pruning — the probe must find a real delta (three permanents leave the battlefield) and keep the move.",
+    },
+    {
+        label: "dominance: does not cast Sheoldred's Edict at an empty opponent",
+        spec: {
+            cards: [{ name: "Sheoldred's Edict", owner: "me", zone: "hand" }],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 6,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "cast-spell", card: "Sheoldred's Edict" }],
+        },
+        note: "Issue #1887, symptom 2. Modal (CR 700.2d): the mode is chosen at cast, so each mode is a separate enumerated move and EVERY one of them proves a no-op against an opponent with no creature and no planeswalker.",
+    },
+    {
+        label: "dominance NEGATIVE CONTROL: still casts the Edict at a real creature",
+        spec: {
+            cards: [
+                { name: "Sheoldred's Edict", owner: "me", zone: "hand" },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 6,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (_move, state) => pruningKeepsACast(state),
+            describe: "the dominance pruner leaves a castable Edict mode",
+        },
+        note: 'Issue #1887 negative control for the modal shape (CR 700.2d — the mode is chosen at cast, so each mode is its own enumerated move). The "sacrifice a creature" mode makes the opponent lose its only creature, so it is NOT a no-op and must survive; the "sacrifice a planeswalker" mode against an opponent with no planeswalker still IS one and is correctly dropped — which is why this asserts a surviving cast rather than a byte-identical move list. Asserted on the legal set rather than on the chosen move because the Edict is an INSTANT: holding it through the bot\'s own main phase is legitimate play (the ADR 0021 hold-the-trick rule), so the pick is seed-sensitive while the legal set is not.',
+    },
+    {
+        label: "dominance: does not activate Sandstorm Salvager with no tokens out",
+        spec: {
+            cards: [
+                {
+                    name: "Sandstorm Salvager",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 4,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                { kind: "activate-ability", card: "Sandstorm Salvager" },
+            ],
+        },
+        note: 'Issue #1887, symptom 3. "{2}, {T}: Put a +1/+1 counter on each creature token you control" over an EMPTY token set: the forEach body never runs, so the activation costs a tap and {2} for nothing.',
+    },
+    {
+        label: "dominance NEGATIVE CONTROL: activates the Salvager once a token exists",
+        spec: {
+            cards: [
+                {
+                    name: "Sandstorm Salvager",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 4,
+            libraryCount: 20,
+        },
+        // The Golem arrives through the card's OWN ETB trigger, resolved by the
+        // real engine — never a hand-seeded token (ADR 0070 §4).
+        setup: [
+            { kind: "etb-trigger", card: "Sandstorm Salvager" },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "activate-ability", card: "Sandstorm Salvager" }],
+        },
+        note: "Issue #1887 negative control for the activated-ability shape: with a 3/3 Golem token out the same activation adds a +1/+1 counter and trample — a real delta the probe must find, so the move survives enumeration and the search takes the free upside.",
     },
 ];
 

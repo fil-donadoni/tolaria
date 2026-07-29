@@ -27,7 +27,9 @@ export function greedySelectMove(
     playerId: string,
     rand = 0
 ): Move | null {
-    const moves = enumerateMoves(state, playerId);
+    const moves = enumerateMoves(state, playerId, {
+        pruneDominatedNoOps: true,
+    });
     if (moves.length === 0) return null;
 
     let bestScore = -Infinity;
