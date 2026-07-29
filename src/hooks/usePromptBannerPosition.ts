@@ -100,16 +100,21 @@ export function usePromptBannerPosition(
 
         return {
             // `z-banner`, not `z-modal` (issue #1813/#1823 review fixup round
-            // 2): this centered variant shares the board with the portrait
-            // stack chip / opened stack panel (`--z-chip`, `BoardPortraitChips`
-            // / `GameStack`'s `elevated` prop) and a real blocking modal
-            // (`--z-modal` — trigger-order-prompt, mana-choice-picker, the
-            // reveal overlays). It must lose to BOTH: the chip stays reachable
-            // while this banner is open, and a blocking modal still owns the
-            // whole screen including this banner's scrim area. See
-            // `src/index.css`'s `--z-banner`/`--z-chip`/`--z-modal` comment for
-            // the full 3-rung rationale. The `pinned` branch above is
-            // deliberately UNCHANGED at `z-modal` — nothing paints over it.
+            // 2, refined by #1885): this centered variant shares the board
+            // with the portrait stack chip ROW (`--z-chip`,
+            // `BoardPortraitChips`), the opened stack PANEL (`--z-stack`,
+            // `GameStack`'s `elevated` prop — BELOW this banner since #1885:
+            // a choice surface always wins over the default-open stack) and a
+            // real blocking modal (`--z-modal` — trigger-order-prompt,
+            // mana-choice-picker, the reveal overlays). This banner must WIN
+            // over the panel, but lose to the chip (which stays reachable
+            // while the banner is open — the outer container is
+            // `pointer-events-none` regardless, so it never eats taps) and to
+            // a blocking modal, which owns the whole screen including this
+            // banner's scrim area. See `src/index.css`'s
+            // `--z-stack`/`--z-banner`/`--z-chip`/`--z-modal` comment for the
+            // full rationale. The `pinned` branch above is deliberately
+            // UNCHANGED at `z-modal` — nothing paints over it.
             outerClassName:
                 "fixed inset-0 z-banner flex items-center justify-center px-3 pointer-events-none",
             outerStyle: {},

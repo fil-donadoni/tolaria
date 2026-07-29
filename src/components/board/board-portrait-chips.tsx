@@ -207,15 +207,18 @@ export default function BoardPortraitChips({
                 a literal `top-1/2`, or the chip would drift into the viewer's
                 battlefield.
                 z-chip (issue #1813 review fixup round 2, #1823) — NOT
-                z-modal-top. A centered pending-choice banner now renders at
-                the lower `z-banner` tier (`usePromptBannerPosition`), and
-                `z-chip` sits one rung above it so this chip stays tappable
-                regardless of what prompt is showing — but strictly BELOW
-                `z-modal`, so a real blocking modal (trigger-order-prompt,
+                z-modal-top. A centered pending-choice banner renders at the
+                lower `z-banner` tier (`usePromptBannerPosition`), and
+                `z-chip` sits above it so this chip stays tappable regardless
+                of what prompt is showing — but strictly BELOW `z-modal`, so
+                a real blocking modal (trigger-order-prompt,
                 mana-choice-picker, the reveal overlays) still wins outright
-                rather than the chip painting through its scrim. See
-                `src/index.css`'s `--z-banner`/`--z-chip`/`--z-modal` comment
-                for the full 3-rung rationale. */}
+                rather than the chip painting through its scrim. The CHIP
+                keeps this tier; the open PANEL it toggles dropped to
+                `z-stack`, BELOW the banner (#1885 — a choice surface must
+                never be covered by the stack). See `src/index.css`'s
+                `--z-stack`/`--z-banner`/`--z-chip`/`--z-modal` comment for
+                the full rationale. */}
             <div
                 className={`absolute right-2 ${PORTRAIT_MIDLINE_TOP} z-chip -translate-y-1/2`}
                 data-testid="stack-chip-row"
@@ -247,10 +250,12 @@ export default function BoardPortraitChips({
 
             {/* The stack overlay is the EXISTING panel, toggled by the chip
                 instead of being always-on. `elevated` (issue #1813 review
-                fixup, #1823) puts it at the SAME `z-chip` tier as the chip
-                above — opening the stack is an explicit player action; it
-                must out-rank the (lower) centered pending-choice banner, but
-                — like the chip — stay below any real blocking modal.
+                fixup #1823, re-tiered by #1885) puts it at `z-stack`, one
+                rung BELOW the centered pending-choice banner: open by
+                default (#1816) it is ambient chrome, and a choice surface
+                always wins over it — never the other way around. The chip
+                above keeps `z-chip` (over the banner), and everything stays
+                below any real blocking modal.
                 `narrow` (issue #1816) is the SAME portrait-only distinction:
                 since this panel is now open by DEFAULT (not only after a
                 tap), it renders narrower and clearance-bound to the midline /
