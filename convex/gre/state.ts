@@ -16042,6 +16042,35 @@ export function addRestrictedManaToPool(
     player.restrictedMana = list;
 }
 
+/** Reverses one `addRestrictedManaToPool` deposit (CR 106.4 — untapping a
+ *  source before its mana is spent undoes the whole activation). Finds the
+ *  unit matching `color` + `restriction` + `cantBeCounteredRider` (the same
+ *  merge key `addRestrictedManaToPool` uses) and decrements it, dropping the
+ *  entry once its amount hits 0 and clearing `restrictedMana` entirely once
+ *  nothing remains — mirrors `addRestrictedManaToPool`'s bookkeeping exactly.
+ *  Silently no-ops if no matching unit is found (the caller — `tapUntap`'s
+ *  untap toggle, `untapForPayment` — has already validated a legal reversal
+ *  window via the `manaCommitted` / `tapTriggerCommitted` guards, so this
+ *  should always find its unit on a correct call site; issue #1559 review). */
+export function reverseRestrictedManaFromPool(
+    player: PlayerState,
+    color: string,
+    amount: number,
+    restriction: ManaRestriction | undefined,
+    cantBeCounteredRider?: boolean
+): void {
+    const list = player.restrictedMana ?? [];
+    const entry = list.find(
+        (r) =>
+            r.color === color &&
+            r.restriction === restriction &&
+            !!r.cantBeCounteredRider === !!cantBeCounteredRider
+    );
+    if (entry) entry.amount = Math.max(0, entry.amount - amount);
+    const remaining = list.filter((r) => r.amount > 0);
+    player.restrictedMana = remaining.length > 0 ? remaining : undefined;
+}
+
 /** Builds the spendable pool for casting a spell: the base `manaPool` plus any
  *  restricted mana whose restriction permits this spell (CR 106.6). Used for
  *  the affordability check at spell-cast sites — callers pass whether the

@@ -1173,6 +1173,13 @@ function compactStackItem(item: StackItem, ctx: CompactCtx): CompactCard {
     // Acting Player (ADR 0037): persist the controlled-cast override so a
     // suspended Word of Command resolution survives a DB round-trip.
     if (item.actingPlayerId) base.actingPlayerId = item.actingPlayerId;
+    // CR 106.6 / 701.13 (issue #1559, Delighted Halfling) — persist the
+    // per-cast "can't be countered" rider so it survives the save taken
+    // immediately after cast (before the opponent gets priority to counter).
+    // Without this, `counter()` never sees the flag on a reloaded stack item.
+    if (item.dynamicCantBeCountered) {
+        base.dynamicCantBeCountered = item.dynamicCantBeCountered;
+    }
     return base;
 }
 
@@ -1311,6 +1318,11 @@ function expandStackItem(compact: CompactCard, ctx?: ExpandCtx): StackItem {
     // Acting Player (ADR 0037) — rehydrate the controlled-cast override.
     if (compact.actingPlayerId) {
         item.actingPlayerId = compact.actingPlayerId as string;
+    }
+    // CR 106.6 / 701.13 (issue #1559, Delighted Halfling) — rehydrate the
+    // per-cast "can't be countered" rider.
+    if (compact.dynamicCantBeCountered) {
+        item.dynamicCantBeCountered = compact.dynamicCantBeCountered as boolean;
     }
     return item;
 }

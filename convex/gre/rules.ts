@@ -1105,11 +1105,19 @@ export function getProducibleManaOptions(
  *  rewrite: this list only tracks which raw colours a source could ever
  *  produce, not whether the resulting mana is legally spendable on a given
  *  spell. Restricted mana is honoured only once it reaches the pool, at
- *  `coloredCostLeftover` below (CR 106.6). A future permanent combining an
- *  UNRESTRICTED `{C}` tap ability with a SEPARATE RESTRICTED-colour tap
- *  ability would leak the restricted colour into this gate as if it were
- *  freely spendable — no such card exists yet (all three `manaRestriction`
- *  cards have exactly one mana ability). tracked-by: #1733 */
+ *  `coloredCostLeftover` below (CR 106.6). Delighted Halfling (issue #1559)
+ *  IS now exactly the previously-hypothetical shape: an UNRESTRICTED `{C}`
+ *  tap ability combined with a SEPARATE, RESTRICTED-any-colour tap ability
+ *  ("Spend this mana only to cast a legendary spell..."). The leak is real
+ *  and live: this gate unions both abilities' colours with no restriction
+ *  awareness, so the castability check (whatever consumes
+ *  `getProducibleManaUnits`, e.g. offering "Cast" on a spell) treats the
+ *  restricted any-colour mana as freely spendable, and will offer "cast" for
+ *  a NON-legendary spell the restricted mana can't legally pay for (CR 106.6
+ *  is still enforced correctly at actual payment time —
+ *  `payManaCostForSpell` / `spendablePoolForSpell` — so no illegal cast can
+ *  ever actually commit; this is a castability-AFFORDANCE overcount, not a
+ *  legality hole). tracked-by: #1733 */
 function getProducibleManaUnits(
     card: CardInstanceState,
     /** CR 602.5b / 605.1a (issue #1695 re-review, regression fix) — the
@@ -1289,9 +1297,18 @@ function coloredCostLeftover(
             ?.cantSpendManaToCast ?? false;
     // CR 106.6 / 205.4a (issue #1559) — the printed supertypes of the card
     // being cast, for the `legendary-spell` restriction's eligibility check
-    // below (Delighted Halfling). `CardInstanceState` doesn't carry a mutable
-    // `supertypes` field the way it does `types`, so this reads the
-    // definition directly — same source `restrictedUnitAllowsSpell` expects.
+    // below (Delighted Halfling). This reads the DEFINITION's printed
+    // supertypes rather than the live overlay (`liveSupertypesOf`,
+    // `cards/snowReads.ts` — `CardInstanceState` DOES carry a mutable overlay
+    // via `grantedSupertypes`/`removedSupertypes`, contrary to an earlier,
+    // inaccurate version of this comment). That's a deliberate match to how
+    // `sba.ts`'s legend rule (CR 704.5j, `isLegendary`) reads supertypes
+    // today — also printed-only, via `permanentDefinition(card)?.supertypes`
+    // — not a gap: no card in the catalogue currently grants/removes
+    // "Legendary" on a card sitting in hand (only on a permanent), so the
+    // live overlay and the printed value coincide for every real spell this
+    // restriction can apply to. Same source `restrictedUnitAllowsSpell`
+    // expects.
     const spellSupertypes =
         tryGetDefinition((card.card as { id?: string }).id ?? "")?.supertypes ??
         [];
