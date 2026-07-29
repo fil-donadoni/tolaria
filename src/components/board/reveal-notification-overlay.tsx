@@ -81,7 +81,7 @@ export default function RevealNotificationOverlay() {
 
     return (
         <div
-            className="absolute inset-0 z-modal flex items-center justify-center bg-scrim backdrop-blur-sm"
+            className="absolute inset-0 z-modal flex items-center justify-center modal-scrim"
             role="button"
             tabIndex={0}
             onClick={dismiss}

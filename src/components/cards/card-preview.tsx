@@ -284,7 +284,7 @@ export default function CardPreview({
             {showOverlay &&
                 createPortal(
                     <div
-                        className="fixed inset-0 z-modal flex items-center justify-center bg-scrim backdrop-blur-sm"
+                        className="fixed inset-0 z-modal flex items-center justify-center modal-scrim"
                         // Portal'd, yet a REACT descendant of the card — isolate
                         // every pointer/mouse event so the card instance's own
                         // handlers (tap, cast, ability context menu) never fire
