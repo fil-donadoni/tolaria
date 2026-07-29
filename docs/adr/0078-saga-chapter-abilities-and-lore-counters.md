@@ -188,7 +188,11 @@ counters must fire chapters 1..N) and the enters-with-zero case.
 - **Saga creatures** (CR 714.1a, new in the 2026 rules) are out of scope. The
   next consumer is known and already in the pool: Fable of the Mirror-Breaker is
   in `vintageCubeNames.ts`, and permanent-level transform shipped in ADR 0067.
-- **`entersWith` suppression under ability-loss.** 714.3a is now an intrinsic
+- **`entersWith` suppression under ability-loss.** _(Resolved by issue #1882 —
+  the gate now lives at `applyEntersWithCounters` and covers every entry site;
+  the divergence marker in `cards/abilities/sagas.ts` is gone. The paragraph
+  below is kept as the record of why it was deferred out of the Saga slice.)_
+  714.3a is now an intrinsic
   ability, so a Saga entering while Blood Moon or Humility is already out should
   enter with _zero_ lore counters; `entersWith` is read from the definition with
   no suppression gate. Shipped ungated with a tracked divergence marker. The
