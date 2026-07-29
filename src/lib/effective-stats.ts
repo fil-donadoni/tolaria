@@ -37,12 +37,20 @@ function toLayerState(
 ): LayerStateView {
     return {
         players: players.map((p) => ({
+            id: p.id,
             battlefield: p.battlefield.map(toPermanentView),
             // Graveyard cards feed graveyard-counting CDAs (Lhurgoyf). Only
             // `.types` is read; the projected client state carries it.
             graveyard: p.graveyard.map((c) => ({
                 types: (c.types ?? []) as CardType[],
             })),
+            // Hand-size-gated conditions (CR 611.2c, issue #1379 — Carnage
+            // Interpreter's "as long as you have one or fewer cards in
+            // hand") only need the COUNT. The opponent's hand projects as
+            // `(CardInstance | null)[]` (identity hidden, ADR 0026) but the
+            // array LENGTH survives unchanged, so this reads identically to
+            // the server-side `.hand.length`.
+            hand: { length: p.hand.length },
         })),
         // CR 114 (issue #1221) — command-zone emblems contribute source-less,
         // owner-scoped continuous statics (Sorin, Lord of Innistrad's +1/+0

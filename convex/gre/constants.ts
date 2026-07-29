@@ -309,8 +309,21 @@ function manaLayerView(
 ): LayerStateView {
     return {
         players: battlefields.map((b) => ({
+            id: b.playerId,
             battlefield: b.battlefield as unknown as readonly PermanentView[],
             graveyard: [],
+            // Not tracked by this battlefields-only view: `hand` is OPTIONAL
+            // on `StaticEffectStateView` precisely for call sites like this
+            // one (issue #1379 review finding) that have no real hand data.
+            // `{ length: 0 }` used to be fabricated here, which is NOT inert
+            // like the empty `graveyard` above — 0 is the TRUE answer to "≤ N
+            // cards in hand" for any N ≥ 0, so a hand-size `condition` would
+            // read as silently SATISFIED at this mana-ability call site
+            // rather than "unknown". Omitting the field lets every
+            // `condition` closure see `undefined` and resolve conservatively
+            // (false) instead. A future mana ability whose scaling genuinely
+            // depends on hand size would need a real `GameState` threaded to
+            // this call site instead of this battlefields-only shortcut.
         })),
     };
 }
