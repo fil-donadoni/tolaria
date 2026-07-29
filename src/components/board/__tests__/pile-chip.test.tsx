@@ -1,6 +1,6 @@
 // #1770 mobile QA sweep — touch-target audit. `PileChip` backs the portrait
-// GY/LIB/EXL/STACK chips (`board-portrait-chips.tsx`'s opponent row, the
-// Zones drawer's viewer row via `board-pile-chips.tsx`, and the stack chip).
+// GY/LIB/EXL/STACK chips (`board-portrait-chips.tsx`'s opponent AND viewer
+// rows, both via `board-pile-chips.tsx`, and the stack chip).
 // Its `py-1 text-[10px]` content rendered at roughly 24-26px tall — well
 // under the 44px touch-target floor every other bar/pill control in the
 // portrait and landscape-compact controls meets.

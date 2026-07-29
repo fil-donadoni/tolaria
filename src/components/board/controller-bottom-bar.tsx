@@ -1,15 +1,13 @@
 import { useState } from "react";
-import { Flag, Layers, Menu } from "lucide-react";
+import { Flag, Menu } from "lucide-react";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useControllerActions } from "~/hooks/useControllerActions";
 import { useControllerBarHeight } from "~/hooks/useControllerBarHeight";
 import { selectCommandSlots } from "~/lib/controller-action-slots";
-import { pileChoiceNeedsViewerZones } from "~/lib/pile-choice-surface";
 import { phaseGroupLabel } from "~/lib/phase-labels";
 import ControllerCommandRow from "./controller-command-row";
 import ControllerLifeTab from "./controller-life-tab";
 import ControllerTabButton from "./controller-tab-button";
-import ControllerZonesDrawer from "./controller-zones-drawer";
 import ControllerPhaseSheet from "./controller-phase-sheet";
 import AttackAllConfirmDialog from "./attack-all-confirm-dialog";
 
@@ -17,17 +15,19 @@ import AttackAllConfirmDialog from "./attack-all-confirm-dialog";
  *  (#1758/#1759, user-approved from the `prototype/mobile-bottom-bar` audit).
  *
  *  An app tab bar owns the bottom edge — **You** (own life, opponent's as a
- *  `vs N` subline) · **Zones** · **Phase** · **Menu** — with a floating command
- *  row above it. The three complaints the audit raised are structural, not
- *  cosmetic, so the layout answers each one directly:
+ *  `vs N` subline) · **Phase** · **Menu** — with a floating command row above
+ *  it. The three complaints the audit raised are structural, not cosmetic, so
+ *  the layout answers each one directly:
  *
  *  - *Own life and the zone chips were buried under the bar.* Life is now ON
- *    the bar (and is the self-target surface); the viewer's pile chips moved
- *    into the Zones drawer, which floats clear of it.
+ *    the bar (and is the self-target surface). The viewer's pile chips are no
+ *    longer bar chrome at all — #1815 moved them onto the BOARD itself
+ *    ({@link BoardPortraitChips}), always visible and mirroring the
+ *    opponent's, so there is no "Zones" tab left to reflow or reach through.
  *  - *Buttons appeared and disappeared, so the bar reflowed constantly.* There
  *    is exactly ONE fixed-size primary slot that morphs (see
  *    {@link selectCommandSlots}), Pass Turn is always mounted and merely greys
- *    out, and every tab is a fixed quarter of the width — the phase label
+ *    out, and every tab is a fixed third of the width — the phase label
  *    truncates instead of resizing its neighbours.
  *  - *The priority border was a chunky colour slab.* Priority is a 2px gradient
  *    hairline on the bar's top edge.
@@ -42,20 +42,14 @@ export default function ControllerBottomBar({
 }: {
     onOpenMenu: () => void;
 }) {
-    const {
-        phase,
-        turn,
-        activePlayerId,
-        playerId,
-        allPlayers,
-        pendingChoices,
-    } = useGameContext();
+    const { phase, turn, activePlayerId, playerId, allPlayers } =
+        useGameContext();
     const { cue, actions, attackAllConfirm } = useControllerActions();
     const [sheetOpen, setSheetOpen] = useState(false);
-    const [zonesOpen, setZonesOpen] = useState(false);
     // The bar's height is state-dependent (the command row wraps), so nothing
     // may reserve a fixed inset for it — it publishes what it measures and the
-    // hand strip / Zones drawer anchor to that. See controller-bar-metrics.ts.
+    // hand strip / viewer pile chips anchor to that. See
+    // controller-bar-metrics.ts.
     const barRef = useControllerBarHeight<HTMLDivElement>();
 
     // Same derivation the board uses; the context's `playerId` IS the viewer.
@@ -63,15 +57,6 @@ export default function ControllerBottomBar({
     const opponent = allPlayers.find((p) => p.id !== playerId);
     const isMyTurn = activePlayerId === playerId;
     const slots = selectCommandSlots(actions);
-
-    // A blocking choice whose only UI is one of the viewer's own piles forces
-    // the drawer open — the player must never have to guess that a scry /
-    // search / graveyard pick is hiding behind the Zones tab.
-    const zonesForced = pileChoiceNeedsViewerZones(
-        pendingChoices?.[0],
-        playerId
-    );
-    const zonesVisible = zonesOpen || zonesForced;
 
     return (
         <>
@@ -92,11 +77,11 @@ export default function ControllerBottomBar({
                 />
 
                 <div
-                    className="grid grid-cols-4 bg-gradient-to-t from-surface-base to-surface-base/85 backdrop-blur-xl"
+                    className="grid grid-cols-3 bg-gradient-to-t from-surface-base to-surface-base/85 backdrop-blur-xl"
                     style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
                 >
                     {/* A missing viewer seat is not a real game state, but the
-                        placeholder keeps the grid at four cells regardless. */}
+                        placeholder keeps the grid at three cells regardless. */}
                     {me ? (
                         <ControllerLifeTab
                             me={me}
@@ -106,22 +91,6 @@ export default function ControllerBottomBar({
                     ) : (
                         <span />
                     )}
-
-                    {/* No count on this tab: the drawer holds the viewer's
-                        graveyard / library / exile only. The STACK has its own
-                        chip on the portrait board midline
-                        ({@link BoardPortraitChips}), so a `Zones · N` stack
-                        count here would advertise an affordance the drawer
-                        does not have. */}
-                    <ControllerTabButton
-                        label="Zones"
-                        ariaLabel="Toggle your zones"
-                        ariaExpanded={zonesVisible}
-                        active={zonesVisible}
-                        onClick={() => setZonesOpen((v) => !v)}
-                    >
-                        <Layers className="h-[1.1rem] w-[1.1rem]" aria-hidden />
-                    </ControllerTabButton>
 
                     <ControllerTabButton
                         label={`T${turn} · ${phaseGroupLabel(phase)}`}
@@ -142,16 +111,6 @@ export default function ControllerBottomBar({
                     </ControllerTabButton>
                 </div>
             </div>
-
-            {/* Mounted for the whole game, never conditionally — the drawer's
-                `BoardPileChips` is the SOLE portrait mount of the viewer's
-                library / graveyard / exile, and those components own the
-                blocking choice surfaces (`LibraryOrderPicker`, the `forceOpen`
-                pile grids) that `PendingChoicePrompt` deliberately renders
-                nothing for. Unmounting it while closed left a scry / search /
-                graveyard pick with NO UI at all — a softlock. Only visibility
-                toggles. */}
-            {me && <ControllerZonesDrawer player={me} open={zonesVisible} />}
 
             {sheetOpen && (
                 <ControllerPhaseSheet onClose={() => setSheetOpen(false)} />

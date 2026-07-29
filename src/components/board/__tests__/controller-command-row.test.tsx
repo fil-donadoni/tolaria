@@ -162,9 +162,10 @@ describe("ControllerCommandRow — fits a 390px phone (#1759)", () => {
         // secondary action) must fail here rather than on a phone.
         //
         // The reservation itself no longer hard-codes any of this — the bar
-        // publishes its measured height as `--controller-bar-h` and the hand /
-        // Zones drawer anchor to it (see controller-bar-metrics.ts) — but the
-        // line count is still the thing that moves, so it stays pinned.
+        // publishes its measured height as `--controller-bar-h` and the hand
+        // strip / viewer pile chips anchor to it (see controller-bar-metrics.ts)
+        // — but the line count is still the thing that moves, so it stays
+        // pinned.
         const { container } = renderRow(DECLARE_ATTACKERS_ACTIONS);
         const row = container.querySelector(
             "[data-controller-command-row]"
