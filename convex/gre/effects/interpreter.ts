@@ -888,11 +888,15 @@ function resolvePlayerRef(
     ref: EffectPlayerRef
 ): string | undefined {
     if (ref === "controller") return ctx.controller;
-    if (ref === "opponent") {
-        // CR 102.2 — two-player games: the one player who isn't the
-        // controller. Solo games model two seats, so this holds there too.
-        return ctx.allPlayerIds.find((id) => id !== ctx.controller);
-    }
+    if (ref === "opponent") return resolveOpponentOf(ctx, "controller");
+    // `{ opponentOf: EffectPlayerRef }` (issue #1568) — the controller-
+    // relative complement generalized to an ARBITRARY resolved player ref,
+    // not just the resolving controller (plain `"opponent"` above is now
+    // sugar for `{ opponentOf: "controller" }`, routed through the SAME
+    // helper). Skipped (undefined) when the inner ref can't be resolved
+    // (CR 608.2b) — e.g. `{ controllerOf: { target: n } }` with a missing
+    // target slot.
+    if ("opponentOf" in ref) return resolveOpponentOf(ctx, ref.opponentOf);
     if ("ref" in ref) {
         // `$event.<field>` player ref (ADR 0049, issue #865) — the firing
         // event's player id, flattened through the registry. Legal only at a
@@ -939,6 +943,21 @@ function resolvePlayerRef(
     }
     const target = ctx.targets[ref.target];
     return target && target.type === "player" ? target.id : undefined;
+}
+
+/** The controller-relative complement of an ARBITRARY resolved player ref
+ *  (issue #1568) — resolves `ref`, then returns "the other" player. CR 102.2
+ *  — two-player games: TWO-PLAYER SCOPE ONLY (CLAUDE.md § Out of Scope, no
+ *  3+ player multiplayer). Solo games model two seats, so this holds there
+ *  too. Undefined when `ref` itself can't be resolved (CR 608.2b) — no base
+ *  player means no complement either. */
+function resolveOpponentOf(
+    ctx: SpellContext,
+    ref: EffectPlayerRef
+): string | undefined {
+    const base = resolvePlayerRef(ctx, ref);
+    if (base === undefined) return undefined;
+    return ctx.allPlayerIds.find((id) => id !== base);
 }
 
 /** Resolves an object selector to the announced TargetSelection, or

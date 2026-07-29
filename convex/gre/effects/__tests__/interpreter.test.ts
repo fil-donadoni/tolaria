@@ -21905,6 +21905,118 @@ describe("Effect Script Op: createTokenCopy entersTapped/entersAttacking (CR 508
     });
 });
 
+// issue #1568 — `{ opponentOf: EffectPlayerRef }`: the controller-relative
+// complement generalized to an ARBITRARY resolved player ref, not just the
+// resolving controller (`"opponent"`'s own hardcoded behavior,
+// `ctx.allPlayerIds.find(id => id !== ctx.controller)`). Fractured Identity's
+// "each player other than ITS controller" needs the complement of the
+// TARGET's controller — which may be either seat, since the target has no
+// controller restriction — a selector no existing `EffectPlayerRef` member
+// (nor `forEach { set: "players" }`, which has no per-player exclusion) could
+// express before this issue.
+describe("Effect Script player ref: { opponentOf } (issue #1568)", () => {
+    it("'opponent' is sugar for { opponentOf: 'controller' } — both name the resolving controller's other seat", () => {
+        const sugar = registerScript("test-opponentof-sugar-opponent", [
+            { op: "gainLife", player: "opponent", amount: 3 },
+        ]);
+        const explicit = registerScript("test-opponentof-sugar-explicit", [
+            {
+                op: "gainLife",
+                player: { opponentOf: "controller" },
+                amount: 3,
+            },
+        ]);
+        for (const id of [sugar, explicit]) {
+            const state = makeState();
+            pushSpell(state, id, "p1");
+            resolveTopOfStack(state);
+            expect(state.players[0].life).toBe(20); // caster untouched
+            expect(state.players[1].life).toBe(23); // the OTHER seat gained
+        }
+    });
+
+    it("resolves the complement of an ARBITRARY player ref, not the resolving controller — the target's controller may be either seat (Fractured Identity's motivating case)", () => {
+        const id = registerScript("test-opponentof-controllerof", [
+            {
+                op: "gainLife",
+                player: { opponentOf: { controllerOf: { target: 0 } } },
+                amount: 5,
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            id: "opponentof-bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        // Cast by p1, targeting P2's OWN permanent. Plain "opponent"
+        // (relative to the resolving controller p1) would ALSO be p2 here —
+        // the discriminating scenario needs the target's controller to be
+        // the SAME player `ctx.controller` names, so `{ controllerOf }`'s
+        // result and `ctx.controller` coincide and only the OPPONENT-OF
+        // wrapper's outcome (p1) tells the two selectors apart.
+        pushSpell(state, id, "p1", [
+            { type: "permanent", id: "opponentof-bear" },
+        ]);
+        resolveTopOfStack(state);
+        // Target's controller is p2; opponentOf(p2) = p1 — the CASTER gains
+        // life here, which "opponent" (always the caster's own opponent, p2)
+        // could never produce.
+        expect(state.players[0].life).toBe(25);
+        expect(state.players[1].life).toBe(20);
+    });
+
+    it("skips the Op when the inner ref can't be resolved (missing target slot, CR 608.2b)", () => {
+        const id = registerScript("test-opponentof-missing-target", [
+            {
+                op: "gainLife",
+                player: { opponentOf: { controllerOf: { target: 0 } } },
+                amount: 5,
+            },
+            // A trailing Op proves the script continues after the skip.
+            { op: "gainLife", player: "controller", amount: 1 },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1", []); // no target announced
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.players[0].life).toBe(21);
+        expect(state.players[1].life).toBe(20);
+    });
+
+    it("survives projection (wire format) — both seats' life totals are visible client-side", () => {
+        const id = registerScript("test-opponentof-wire", [
+            {
+                op: "gainLife",
+                player: { opponentOf: { controllerOf: { target: 0 } } },
+                amount: 5,
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            id: "opponentof-bear-wire",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "permanent", id: "opponentof-bear-wire" },
+        ]);
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].life).toBe(25);
+        expect(projected.players[1].life).toBe(20);
+    });
+});
+
 // --- revealTopAndRoute Op: reveal the top of a library, route each card by
 // what it IS (CR 701.20a reveal + CR 400.7 zone change) ----------------------
 // Deterministic: the destination is dictated by the revealed card's own
