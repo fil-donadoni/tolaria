@@ -13,6 +13,7 @@ import type {
 } from "./state";
 import type { CardAction } from "./types";
 import { findTriggeredAbility } from "./copy";
+import { computeExpectedInput } from "./expectedInput";
 import { isSorceryTiming, isSorceryTimingFor } from "./phases";
 import {
     CASTABLE_PERMANENT_TYPES,
@@ -374,6 +375,42 @@ export function getLegalActions(
     // CR 117.1: a player can only take actions while they have priority.
     if (state.priorityPlayerId !== casterId) {
         return actions;
+    }
+
+    // ADR 0047 — holding priority is NOT enough. While the engine is parked on
+    // an in-progress cast/activation payment (`pendingCast` /
+    // `pendingActivation`, where the payer keeps priority), on target
+    // selection, on a mid-resolution choice, or on a combat turn-based action,
+    // every hand action is illegal: `announceCast` rejects with "Another spell
+    // is already being cast" and `assertExpectedInput` with "the game is
+    // waiting for target input". `legalActions` is what every client
+    // affordance gates on (`SlimHandCard.legalActions` → the hand card's
+    // cast/play buttons AND the mobile swipe-to-cast), so leaving them on
+    // through that window kept the gesture armed over an action the server was
+    // guaranteed to refuse — a second swipe on mobile surfaced only as a raw
+    // "Server Error" (production hides the message of a plain `Error`).
+    // Mirrors the same gate the battlefield menu applies client-side
+    // (`getActivatable` in `useBattlefieldInteraction`).
+    if (state.pendingCast || state.pendingActivation) {
+        return actions;
+    }
+    if (computeExpectedInput(state)?.kind !== "priority") {
+        // One exception, and it is the reason this can't be a blanket check:
+        // a reflexive Madness / Rebound cast window (CR 702.35d / 702.88a) IS
+        // a pending choice, and CASTING the window's own card is how its owner
+        // accepts it — `announceCast` consumes that choice before its own
+        // Expected-Input gate (`consumeMadnessCastChoice` /
+        // `consumeReboundCastChoice`). That single card stays castable for
+        // that single player; every other card, and every other pending
+        // interaction, is blocked.
+        const head = state.pendingChoices?.[0];
+        const isOwnCastWindow =
+            (head?.kind === "madness-cast" || head?.kind === "rebound-cast") &&
+            head.playerId === casterId &&
+            head.cardInstanceId === card.id;
+        if (!isOwnCastWindow) {
+            return actions;
+        }
     }
     // The caster's own PlayerState, for cost/target/prohibition checks below
     // (mana pool, targeting relation). Falls back to `player` when the caster

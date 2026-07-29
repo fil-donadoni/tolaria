@@ -30,7 +30,10 @@ import { isUntargetableByPending } from "~/lib/targeting";
 import { activeSacrificeSelection } from "~/lib/sacrifice-selection";
 import { outstandingDamageAssigner } from "~/lib/priority";
 import { extractMutationError, type MutationError } from "~/lib/mutation-error";
-import { trackGameIntent } from "~/lib/pending-intent-store";
+import {
+    hasPendingGameIntent,
+    trackGameIntent,
+} from "~/lib/pending-intent-store";
 import { isTapOtherChoicePaid } from "@convex/gre/tapOtherCost";
 import type { ActivatableAbility } from "~/components/board/battlefield-card";
 import ManaChoicePicker from "~/components/board/mana-choice-picker";
@@ -880,6 +883,13 @@ export function useBattlefieldInteraction(player: Player) {
             });
             return;
         }
+        // A second activation fired inside the first one's round trip is a
+        // doomed dispatch ("Another ability is already being activated") — the
+        // menu gate above (`getActivatable`) can only see server state that has
+        // already arrived. NOT applied to the mana / payment mutations below:
+        // tapping several sources toward one cost is a legitimate burst of
+        // concurrent dispatches.
+        if (hasPendingGameIntent()) return;
         guardMutation(
             activateAbility({
                 gameId,

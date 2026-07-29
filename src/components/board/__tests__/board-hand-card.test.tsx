@@ -9,6 +9,7 @@ import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import type { CardInstance } from "~/types/game";
 import { COMMIT_LIFT_PX } from "~/hooks/useDragToCommit";
 import { GameContext } from "~/hooks/useGameContext";
+import { resetPendingGameIntents } from "~/lib/pending-intent-store";
 import {
     PendingChoiceBufferContext,
     type PendingChoiceBuffer,
@@ -191,6 +192,7 @@ beforeEach(() => {
     activateAbility.mockClear();
     cardDef = { name: "Test Card" };
     cleanup();
+    resetPendingGameIntents();
 });
 
 // jsdom elements lack pointer-capture; stub so setPointerCapture is a no-op.
@@ -210,6 +212,10 @@ describe("BoardHandCard drag-commit parity (seam 3, #254)", () => {
 
         playCard.mockClear();
         cleanup();
+        // The in-flight game-intent store is module-level and outlives the tree:
+        // clear it so the NEXT phase of this test dispatches for real (the commit
+        // pipeline drops a second dispatch while one is still round-tripping).
+        resetPendingGameIntents();
 
         renderCard(card);
         drag(120); // well past the commit line
@@ -233,6 +239,10 @@ describe("BoardHandCard drag-commit parity (seam 3, #254)", () => {
 
         announceCast.mockClear();
         cleanup();
+        // The in-flight game-intent store is module-level and outlives the tree:
+        // clear it so the NEXT phase of this test dispatches for real (the commit
+        // pipeline drops a second dispatch while one is still round-tripping).
+        resetPendingGameIntents();
 
         renderCard(card);
         drag(120);
@@ -300,6 +310,10 @@ describe("BoardHandCard drag-commit parity (seam 3, #254)", () => {
 
         announceCast.mockClear();
         cleanup();
+        // The in-flight game-intent store is module-level and outlives the tree:
+        // clear it so the NEXT phase of this test dispatches for real (the commit
+        // pipeline drops a second dispatch while one is still round-tripping).
+        resetPendingGameIntents();
 
         renderCard(card);
         drag(120);
@@ -342,6 +356,10 @@ describe("BoardHandCard drag-commit parity (seam 3, #254)", () => {
 
         announceCast.mockClear();
         cleanup();
+        // The in-flight game-intent store is module-level and outlives the tree:
+        // clear it so the NEXT phase of this test dispatches for real (the commit
+        // pipeline drops a second dispatch while one is still round-tripping).
+        resetPendingGameIntents();
 
         // Drag past the line → same picker → same dispatch shape.
         renderCard(card);
@@ -893,6 +911,79 @@ describe("BoardHandCard touch tap = stage + confirm (#1767)", () => {
         tap(el(), "touch");
         expect(el().getAttribute("data-tap-staged")).toBeNull();
         expect(playCard).not.toHaveBeenCalled();
+        expect(announceCast).not.toHaveBeenCalled();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Double swipe-to-cast on mobile (the "Server Error" report).
+//
+// A swipe casts; the engine parks on the cast (payment / target selection) and
+// the card STAYS in hand. Every commit surface must go inert for that whole
+// window — both after the server state lands (`pendingCast` in context, and
+// server-side `legalActions` drops "cast": see `getLegalActions`) and during
+// the round trip before it does (the in-flight game-intent store). Otherwise
+// the second swipe dispatches a doomed `announceCast` whose rejection reaches
+// the player as a bare "Server Error" in production.
+// ---------------------------------------------------------------------------
+describe("commit gesture is inert while an interaction is pending", () => {
+    it("a second swipe inside the first one's round trip dispatches nothing", () => {
+        renderCard(makeCard("spell1", ["cast"]));
+
+        drag(120);
+        drag(120); // the mis-swipe, before the first cast has round-tripped
+
+        expect(announceCast).toHaveBeenCalledTimes(1);
+    });
+
+    it("a second land drag inside the round trip dispatches nothing", () => {
+        renderCard(makeCard("land1", ["play"]));
+
+        drag(120);
+        drag(120);
+
+        expect(playCard).toHaveBeenCalledTimes(1);
+    });
+
+    it("a swipe dispatches nothing while a cast payment is parked", () => {
+        renderCard(makeCard("spell1", ["cast"]), {
+            pendingCast: {
+                playerId: "me",
+                cardInstanceId: "other-spell",
+                manaCost: { R: 1 },
+                tappedLandIds: [],
+            },
+        });
+
+        drag(120);
+        fireEvent.click(el());
+
+        expect(announceCast).not.toHaveBeenCalled();
+    });
+
+    it("a swipe dispatches nothing while target selection is open", () => {
+        renderCard(makeCard("spell1", ["cast"]), {
+            pendingTarget: {
+                playerId: "me",
+                cardInstanceId: "other-spell",
+                targetType: "Creature",
+                count: 1,
+                selected: [],
+            },
+        });
+
+        drag(120);
+
+        expect(announceCast).not.toHaveBeenCalled();
+    });
+
+    it("a swipe dispatches nothing while the viewer does not hold priority", () => {
+        renderCard(makeCard("spell1", ["cast"]), {
+            priorityPlayerId: "opponent",
+        });
+
+        drag(120);
+
         expect(announceCast).not.toHaveBeenCalled();
     });
 });

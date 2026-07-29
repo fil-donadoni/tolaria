@@ -15,6 +15,7 @@
 // right moment, from the right player, for this kind of input?" now lives in
 // exactly one place (ADR 0047) instead of being re-derived in ~15 mutations.
 
+import { ConvexError } from "convex/values";
 import type { ExpectedInput, GameState } from "./state";
 import { getOpponentId } from "./state";
 import { isSacrificeSelectionComplete } from "./sacrificeChoice";
@@ -279,8 +280,14 @@ export function assertExpectedInput(
         return;
     }
 
+    // `ConvexError`, not `Error`: a production deployment strips the message of
+    // a plain `Error` before it reaches the client (the player sees a bare
+    // "Server Error" with nothing to act on), while a `ConvexError`'s `data`
+    // survives. This gate fires on ordinary mis-timed clicks — a double
+    // swipe-to-cast on mobile — so its text is the only feedback the player
+    // gets about WHY the tap did nothing.
     if (!current || current.kind !== request.expect) {
-        throw new Error(
+        throw new ConvexError(
             `Illegal action (ADR 0047): the game is waiting for ` +
                 `${current ? current.kind : "nothing"} input, not ` +
                 `${request.expect}.`
@@ -288,7 +295,7 @@ export function assertExpectedInput(
     }
 
     if (!request.anyPlayer && current.playerId !== request.playerId) {
-        throw new Error(
+        throw new ConvexError(
             `Illegal action (ADR 0047): the game is waiting for ` +
                 `${current.kind} input from another player.`
         );

@@ -9,9 +9,13 @@ import { isSeenByOpponent } from "~/lib/hand-knowledge";
 import { useHandCardCommit } from "~/hooks/useHandCardCommit";
 import { useDragToCommit } from "~/hooks/useDragToCommit";
 import { useTapStageConfirm } from "~/hooks/useTapStageConfirm";
+import { usePendingGameIntent } from "~/hooks/usePendingGameIntent";
 import { buildTriggerStateView, getHandStackAbilities } from "~/lib/card-utils";
 import { extractMutationErrorMessage } from "~/lib/mutation-error";
-import { trackGameIntent } from "~/lib/pending-intent-store";
+import {
+    hasPendingGameIntent,
+    trackGameIntent,
+} from "~/lib/pending-intent-store";
 import { LIFTED_CARD_Z } from "~/lib/board-motion";
 import CardImage from "../cards/card-image";
 import CardTilt3D from "./card-tilt-3d";
@@ -137,7 +141,6 @@ export default function BoardHandCard({
     const legal = card.legalActions ?? [];
     const canPlay = legal.includes("play");
     const canCast = legal.includes("cast");
-    const commitEnabled = !isHandChoice && (canPlay || canCast);
 
     // CR 702.29a — Cycling (and any future hand-activated ability). A card in
     // the viewer's own hand can activate its hand ability when the viewer holds
@@ -150,6 +153,24 @@ export default function BoardHandCard({
     const hasPriority = priorityPlayerId === playerId;
     const noPendingInteraction =
         !pendingCast && !pendingActivation && !pendingTarget;
+
+    // The commit gesture (drag-to-cast / swipe on mobile, and the tap-stage
+    // confirm) must obey the SAME window the hand abilities above do. Server
+    // `legalActions` already drops `cast`/`play` while an interaction is
+    // pending (`getLegalActions`, ADR 0047), but the client owns the
+    // round-trip: between the first swipe's `announceCast` and the payment
+    // banner arriving the projection still says "cast", and a second swipe
+    // there dispatched a doomed cast the player saw only as a raw "Server
+    // Error". `intentInFlight` closes exactly that window — the same store the
+    // Space hotkey uses to refuse falling through to `passPriority`.
+    const intentInFlight = usePendingGameIntent();
+    const commitEnabled =
+        !isHandChoice &&
+        (canPlay || canCast) &&
+        hasPriority &&
+        noPendingInteraction &&
+        !intentInFlight;
+
     const handAbilities =
         hasPriority && noPendingInteraction && !isHandChoice
             ? getHandStackAbilities(
@@ -191,6 +212,9 @@ export default function BoardHandCard({
     //    no legal cast at an empty stack — cycles);
     //  - drag always commits the primary play/cast (unchanged).
     const activateHandAbility = (abilityId: string, keepPriority: boolean) => {
+        // Same in-flight drop as the cast/play commit: a double tap inside the
+        // round trip would hit "Another ability is already being activated".
+        if (hasPendingGameIntent()) return;
         void trackGameIntent(
             activateAbility({
                 gameId,

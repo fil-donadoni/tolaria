@@ -4,7 +4,10 @@ import { api } from "@convex/_generated/api";
 import { getDefinition } from "@convex/cards";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
-import { trackGameIntent } from "~/lib/pending-intent-store";
+import {
+    hasPendingGameIntent,
+    trackGameIntent,
+} from "~/lib/pending-intent-store";
 import {
     affordableAltCostsForCard,
     phyrexianSplitChoices,
@@ -109,6 +112,14 @@ export function useHandCardCommit(
         useState<CostDialogState | null>(null);
 
     const onPlayClick = () => {
+        // A second commit fired inside the first one's round trip is always a
+        // doomed dispatch (the engine is parked on the first: "Another spell is
+        // already being cast" / "the game is waiting for target input"), and in
+        // production the player sees it only as an opaque "Server Error". Drop
+        // it here — the single dispatch point every gesture funnels through
+        // (click, action sheet, tap-stage confirm, drag/swipe), so the guard
+        // can't be bypassed by adding another surface.
+        if (hasPendingGameIntent()) return;
         // Route a server-side rejection to the shared error toast instead of
         // leaving it as an uncaught promise rejection in the console.
         trackGameIntent(
@@ -148,6 +159,9 @@ export function useHandCardCommit(
         setAltCostPickerState(null);
         setPhyrexianPickerState(null);
         setCostDialogState(null);
+        // Same in-flight drop as `onPlayClick` — a double swipe / double click
+        // never reaches the server twice.
+        if (hasPendingGameIntent()) return;
         trackGameIntent(
             Promise.resolve(
                 announceCast({

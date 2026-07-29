@@ -339,6 +339,97 @@ describe("getLegalActions", () => {
         });
     });
 
+    // The mobile double-swipe bug: the payer KEEPS priority while a cast /
+    // activation payment is parked, so the priority gate above passes and the
+    // projection kept advertising `cast` on every hand card. The client arms
+    // its commit gesture off exactly that list, so a second swipe fired an
+    // `announceCast` the server was guaranteed to reject with "Another spell is
+    // already being cast" — surfaced in production as a bare "Server Error".
+    describe("pending interaction (ADR 0047)", () => {
+        const pendingCast = {
+            playerId: "p1",
+            cardInstanceId: "some-spell",
+            manaCost: { R: 1 },
+            tappedLandIds: [],
+        };
+
+        it("returns no actions while this player's cast payment is parked", () => {
+            const state = makeGameState({ pendingCast });
+            const player = makePlayer({ id: "p1" });
+
+            expect(getLegalActions(state, player, card(plains.id))).toEqual([]);
+            expect(
+                getLegalActions(state, player, card(lightningBolt.id))
+            ).toEqual([]);
+        });
+
+        it("returns no actions while an activation payment is parked", () => {
+            const state = makeGameState({
+                pendingActivation: {
+                    playerId: "p1",
+                    cardInstanceId: "some-permanent",
+                    abilityId: "some-ability",
+                    manaCost: { R: 1 },
+                    tappedLandIds: [],
+                    tapSource: false,
+                    sacrificeSource: false,
+                },
+            });
+            const player = makePlayer({ id: "p1" });
+
+            expect(
+                getLegalActions(state, player, card(lightningBolt.id))
+            ).toEqual([]);
+        });
+
+        it("returns no actions while target selection is open", () => {
+            const state = makeGameState({
+                pendingTarget: {
+                    playerId: "p1",
+                    cardInstanceId: "some-spell",
+                    targetType: "Creature",
+                    count: 1,
+                    selected: [],
+                },
+            });
+            const player = makePlayer({ id: "p1" });
+
+            expect(
+                getLegalActions(state, player, card(lightningBolt.id))
+            ).toEqual([]);
+        });
+
+        it("returns no actions while a mid-resolution choice is open (CR 608.2)", () => {
+            const state = makeGameState({
+                pendingChoices: [
+                    {
+                        stackItemId: "si-1",
+                        step: 0,
+                        choiceId: "c-1",
+                        count: 1,
+                        playerId: "p1",
+                        kind: "may-pay",
+                        prompt: "Pay {1}?",
+                    },
+                ],
+            });
+            const player = makePlayer({ id: "p1" });
+
+            expect(
+                getLegalActions(state, player, card(lightningBolt.id))
+            ).toEqual([]);
+        });
+
+        it("restores actions once the pending interaction clears", () => {
+            const state = makeGameState();
+            const player = makePlayer({ id: "p1" });
+
+            expect(
+                getLegalActions(state, player, card(lightningBolt.id))
+            ).toContain("cast");
+        });
+    });
+
     describe("mana availability (CR 601.2f — payment check)", () => {
         it('blocks "cast" when pool and battlefield cannot cover cost', () => {
             const state = makeGameState();

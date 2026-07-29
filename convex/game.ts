@@ -1,4 +1,4 @@
-import { v, type GenericId } from "convex/values";
+import { ConvexError, v, type GenericId } from "convex/values";
 import type { GenericMutationCtx, GenericQueryCtx } from "convex/server";
 import type { DataModel, Doc, Id } from "./_generated/dataModel";
 import { assertIsAdmin, auth, getCurrentUser } from "./auth";
@@ -6158,7 +6158,7 @@ export const announceCast = mutation({
             throw new Error("You don't have priority");
         }
         if (state.pendingCast) {
-            throw new Error("Another spell is already being cast");
+            throw new ConvexError("Another spell is already being cast");
         }
         if (state.pendingActivation) {
             throw new Error("An ability is already being activated");
@@ -11489,10 +11489,10 @@ export function activateAbilityOnState(
         throw new Error("You don't have priority");
     }
     if (state.pendingCast) {
-        throw new Error("Another spell is already being cast");
+        throw new ConvexError("Another spell is already being cast");
     }
     if (state.pendingActivation) {
-        throw new Error("Another ability is already being activated");
+        throw new ConvexError("Another ability is already being activated");
     }
 
     const player = getPlayer(state, args.playerId);
@@ -13022,10 +13022,12 @@ export const activatePlayerAbility = mutation({
         } else {
             if (!hasPriority) throw new Error("You don't have priority");
             if (state.pendingCast) {
-                throw new Error("Another spell is already being cast");
+                throw new ConvexError("Another spell is already being cast");
             }
             if (state.pendingActivation) {
-                throw new Error("Another ability is already being activated");
+                throw new ConvexError(
+                    "Another ability is already being activated"
+                );
             }
         }
 
