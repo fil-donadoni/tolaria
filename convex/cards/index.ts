@@ -19,6 +19,7 @@ import { cantBeEnchantedSelfGuard } from "./types";
 import "./emblems";
 import { expandFadingVanishing } from "./abilities/fadingVanishing";
 import { expandKeywordTriggers } from "./abilities/keywordTriggers";
+import { expandChapterAbilities } from "./abilities/sagas";
 import { setCardManaCostLookup } from "./manaCostLookup";
 import { setCardSupertypeLookup } from "./supertypeLookup";
 import * as lea from "./sets/lea";
@@ -528,7 +529,12 @@ const expandDefinition = (base: CardDefinition): CardDefinition => {
     // ADR 0054 — chained keyword expansions. Each is a no-op unless its keyword
     // string is present, so order is irrelevant. Exalted/Prowess (issue #699)
     // inject triggered abilities from a bare `staticAbilities` string.
-    const expanded = expandKeywordTriggers(expandFadingVanishing(base));
+    // ADR 0078 — `chapterAbilities[]` (CR 714) desugars here too: the same
+    // no-op-unless-declared shape, injecting the entry lore counter and the
+    // chapter triggers.
+    const expanded = expandKeywordTriggers(
+        expandFadingVanishing(expandChapterAbilities(base))
+    );
     expansionCache.set(base, expanded);
     return expanded;
 };

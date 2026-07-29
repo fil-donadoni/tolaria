@@ -21,6 +21,12 @@ import { isProtectedFromSource } from "./protection";
 import { applyLoseGameReplacements } from "./replacements";
 import { applyStateTriggers } from "./triggers";
 import { tryGetDefinition } from "../cards";
+import {
+    finalChapter,
+    hasChapterAbilityOnStack,
+    isSaga,
+    loreCounters,
+} from "./sagas";
 
 /** A player found to meet a loss condition during a single game-over sweep. */
 type LossEntry = { playerId: string; reason: "life" | "decked" | "poison" };
@@ -284,6 +290,56 @@ export function checkTokenExistenceSBA(state: GameState): boolean {
         }
     }
     return removed;
+}
+
+/** CR 714.4 (ADR 0078) — "If the number of lore counters on a Saga permanent
+ *  WITH ONE OR MORE CHAPTER ABILITIES is greater than or equal to its final
+ *  chapter number, and it isn't the source of a chapter ability that has
+ *  triggered but not yet left the stack, that Saga's controller sacrifices it.
+ *  This state-based action doesn't use the stack."
+ *
+ *  Three gates, each load-bearing:
+ *
+ *  1. **Has at least one EFFECTIVE chapter ability.** New in the 2026 rules.
+ *     A Saga under Blood Moon / Humility loses its chapter abilities and is
+ *     therefore NOT sacrificed — it keeps the lore counters it had, stops
+ *     advancing (the matching gate on the CR 714.3c turn-based action), and
+ *     persists inert. The pre-2026 rules had no gate, so a stripped Saga's
+ *     final chapter collapsed to 0, `lore >= 0` was trivially true, and it
+ *     died immediately. This inversion is the rules working correctly.
+ *  2. **`lore >= finalChapter`,** with the final chapter DERIVED from those
+ *     effective abilities (CR 714.2d) rather than declared.
+ *  3. **No chapter ability of THIS Saga on the stack** — narrower than "any
+ *     trigger sourced from this Saga", so a granted trigger (Backup-style)
+ *     cannot defer the sacrifice for a turn. See `hasChapterAbilityOnStack`
+ *     for the trigger-before-SBA ordering invariant this depends on.
+ *
+ *  The departure is a genuine sacrifice (CR 701.17), passed as the `cause` so
+ *  leave-the-battlefield triggers can tell it from a bounce or a destroy. */
+export function checkSagaSacrificeSBA(state: GameState): boolean {
+    let sacrificedAny = false;
+    for (;;) {
+        let sacrificed = false;
+        for (const player of state.players) {
+            const victim = player.battlefield.find((card) => {
+                if (!isSaga(card)) return false;
+                const final = finalChapter(card);
+                // `finalChapter` is 0 exactly when the Saga has no effective
+                // chapter abilities, so this single test covers gates 1 and 2.
+                if (final === 0) return false;
+                if (loreCounters(card) < final) return false;
+                return !hasChapterAbilityOnStack(state, card);
+            });
+            if (victim) {
+                removePermanentTo(state, victim.id, "graveyard", "sacrifice");
+                sacrificed = true;
+                sacrificedAny = true;
+                break; // battlefield arrays mutated — restart the scan
+            }
+        }
+        if (!sacrificed) break;
+    }
+    return sacrificedAny;
 }
 
 /** CR 704.5f — a creature with toughness 0 or less is put into its owner's
@@ -749,6 +805,11 @@ export function checkStateBasedActions(state: GameState): void {
         // indestructible.
         acted = checkDeathtouchDestroySBA(state) || acted;
         acted = checkTokenExistenceSBA(state) || acted;
+        // CR 714.4 — a Saga past its final chapter with no chapter ability of
+        // its own still on the stack is sacrificed. Placed after the
+        // death/removal checks and before the world/legend rules: it is an
+        // ordinary zone-change SBA whose condition never depends on them.
+        acted = checkSagaSacrificeSBA(state) || acted;
         // CR 704.5m — world rule. Fully automatic (no player choice): keeps the
         // newest World permanent and graveyards the rest (all of them on a
         // tie). Runs before the legend-rule prompt so its automatic moves

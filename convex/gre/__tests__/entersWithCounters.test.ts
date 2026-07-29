@@ -454,6 +454,100 @@ describe("entry site: token CREATION (CR 111.9 / 122.1c, issue #1693)", () => {
         expect(token.counters?.["+1/+1"]).toBe(5);
         expect(token.counters?.shield).toBeUndefined();
     });
+
+    // CR 614 + CR 121.1 (ADR 0078 §7) — the entry counters are STAMPED before
+    // the enters-the-battlefield chokepoint (the CR 122.1c keyword grant has to
+    // be on the token when the replacement loop reads it), but the
+    // COUNTER_ADDED announcement is DEFERRED until the token actually reaches
+    // the battlefield. A token redirected to exile never entered, so nothing
+    // was ever put onto a permanent and no "whenever counters are put on ~"
+    // ability may see it.
+    const TOKEN_EXILER_ID = "test-entry-counter-token-exiler";
+    const tokenExilerDef: CardDefinition = {
+        id: TOKEN_EXILER_ID,
+        name: "Test Token Exiler",
+        rarity: "common",
+        types: ["Artifact"],
+        replacementEffects: [
+            {
+                id: "test-exile-entering-tokens",
+                oracleText: "If a token would enter, exile it instead.",
+                eventKind: "enters-battlefield",
+                appliesTo: (event) =>
+                    event.kind === "enters-battlefield" && event.isToken,
+                replace: (event) => {
+                    if (event.kind !== "enters-battlefield") {
+                        throw new Error("unexpected event kind");
+                    }
+                    return {
+                        kind: "modified",
+                        event: { ...event, destination: "exile" },
+                    };
+                },
+            },
+        ],
+    };
+
+    /** Creates a token carrying one entry counter, optionally under a
+     *  replacement that redirects entering tokens to exile. */
+    function createCounterToken(withExiler: boolean): {
+        state: ReturnType<typeof makeState>;
+        tokenId: string;
+    } {
+        registerTokenDefinition(tokenExilerDef);
+        const battlefield = withExiler
+            ? [
+                  makeInstance(TOKEN_EXILER_ID, {
+                      id: "exiler",
+                      controllerId: "p1",
+                      ownerId: "p1",
+                  }),
+              ]
+            : [];
+        const state = makeState({
+            players: [makePlayer("p1", { battlefield }), makePlayer("p2")],
+        });
+        const item = pushSpell(state, resurrection.id, "p1");
+        const ctx = buildSpellContext(state, item);
+        const [tokenId] = ctx.createToken(
+            {
+                name: "Deferred Emit Token",
+                types: ["Creature"],
+                subtypes: ["Construct"],
+                power: 1,
+                toughness: 1,
+                entersWith: { counters: [{ type: "lore", count: 1 }] },
+            },
+            "p1",
+            1
+        );
+        return { state, tokenId };
+    }
+
+    const counterAddedFor = (
+        state: ReturnType<typeof makeState>,
+        tokenId: string
+    ) =>
+        (state.pendingEvents ?? []).filter(
+            (e) => e.type === "COUNTER_ADDED" && e.instanceId === tokenId
+        );
+
+    it("announces the entry counters for a token that really enters", () => {
+        const { state, tokenId } = createCounterToken(false);
+        expect(state.players[0].battlefield.some((c) => c.id === tokenId)).toBe(
+            true
+        );
+        expect(counterAddedFor(state, tokenId)).toHaveLength(1);
+    });
+
+    it("does NOT announce entry counters for a token redirected to exile (CR 614)", () => {
+        const { state, tokenId } = createCounterToken(true);
+        expect(state.players[0].battlefield.some((c) => c.id === tokenId)).toBe(
+            false
+        );
+        expect(state.players[0].exile.some((c) => c.id === tokenId)).toBe(true);
+        expect(counterAddedFor(state, tokenId)).toEqual([]);
+    });
 });
 
 describe("entry site: PLAY A LAND (CR 305, issue #1693)", () => {

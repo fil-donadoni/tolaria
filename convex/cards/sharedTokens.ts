@@ -94,3 +94,25 @@ export const RABBIT_TOKEN: EffectTokenSpec = {
     toughness: 1,
     colors: ["W"],
 };
+
+/** Knight token (CR 111 / 707.2, ADR 0078). "2/2 white Knight creature token
+ *  with vigilance" — created today by History of Benalia's chapters I and II
+ *  (`sets/dom/white.ts`). Vanilla apart from the keyword, so `EffectTokenSpec`
+ *  (JSON-pure, ADR 0046) rather than `TokenSpec`.
+ *
+ *  No pinned `imagePrintId`, the `RABBIT_TOKEN` treatment: Knight is a printed
+ *  token in many sets with different characteristics, and the art-match rule
+ *  is "the token associated with the PRODUCING card's own printing". The
+ *  producer's own DOM Knight print is reverse-linked in
+ *  `generated/token-prints.json` and resolved per producer by
+ *  `tokenPrintIdFor`, so a later Knight producer picks up ITS printing's art
+ *  instead of inheriting DOM's. */
+export const KNIGHT_TOKEN: EffectTokenSpec = {
+    name: "Knight",
+    types: ["Creature"],
+    subtypes: ["Knight"],
+    power: 2,
+    toughness: 2,
+    colors: ["W"],
+    staticAbilities: ["vigilance"],
+};

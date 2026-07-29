@@ -5648,6 +5648,14 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "History of Benalia",
+        "scryfallId": "d134385d-b01c-41c7-bb2d-30722b44dc5a",
+        "oracleId": "c15bb7eb-aaaa-4468-9641-8f706d6137e8",
+        "firstSet": "dom",
+        "firstPrintId": "d134385d-b01c-41c7-bb2d-30722b44dc5a",
+        "firstPrintSet": "dom"
+    },
+    {
         "name": "Hoar Shade",
         "scryfallId": "72242dff-15ca-4da0-b3ae-9984d037b31f",
         "oracleId": "23c74c42-11bd-4fba-b1cb-93b96f5a11fb",

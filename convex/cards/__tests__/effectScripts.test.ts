@@ -51,6 +51,11 @@ function abilitySites(card: CardDefinition): {
             ? undefined
             : (ability as { event?: string }).event,
     }));
+    // CR 714.2 (ADR 0078) — a Saga's chapter lines (`chapterAbilities[]`) need
+    // no branch here: `getAllCards()` routes through `expandDefinition`
+    // (`cards/index.ts`), which desugars them into `COUNTER_ADDED` triggers, so
+    // every chapter's Effect Script already arrives above as a
+    // `triggeredAbilities[]` entry.
     return [...activated, ...triggered];
 }
 

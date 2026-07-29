@@ -49,6 +49,7 @@ import {
     tickDuration,
 } from "./state";
 import { tryGetDefinition } from "../cards";
+import { advanceSagasAtPrecombatMain } from "./sagas";
 import { seededShuffle } from "./rng";
 import { describeDamageSource } from "./replacements";
 import {
@@ -1990,6 +1991,22 @@ function performPhaseEntry(state: GameState): void {
             break;
         }
         case "PRECOMBAT_MAIN":
+            // CR 714.3c (ADR 0078) — "As a player's precombat main phase
+            // begins, that player puts a lore counter on each Saga they
+            // control with one or more chapter abilities. This turn-based
+            // action doesn't use the stack." Precombat main ONLY, active
+            // player ONLY, and gated on having at least one EFFECTIVE chapter
+            // ability — a Saga under Blood Moon / Humility stops advancing
+            // (and, by the matching gate on the CR 714.4 SBA, is not
+            // sacrificed either). Runs before the delayed-trigger fire below
+            // so the chapter triggers it raises reach the stack in the same
+            // batch, exactly as the DRAW case handles its turn-based draw.
+            advanceSagasAtPrecombatMain(state);
+            // CR 603.2 — put the chapter triggers the counter placement fired
+            // on the stack before any player receives priority.
+            processPendingActionTriggers(state);
+            fireDelayedTriggers(state, "next-main-phase");
+            break;
         case "POSTCOMBAT_MAIN":
             // CR 505 / 603.7 — "at the beginning of your next main phase"
             // delayed triggers (Mana Drain) fire on ENTRY of the controller's
