@@ -307,6 +307,56 @@ describe("rituals are never dominated — the pool is a delta (issue #1905)", ()
 });
 
 // ---------------------------------------------------------------------------
+// Re-review (issue #1905): an ADDITIONAL COST the probe never pays.
+// ---------------------------------------------------------------------------
+
+describe("additional-cost spells are never probed (CR 118.3, issue #1905)", () => {
+    // Same bug class as the rituals above, reached through a cost instead of a
+    // resolution: `applyProbeCast` pays no additional cost, so the sacrificed
+    // creature is never snapshotted on the stack item,
+    // `getAdditionalSacrificeMv()` returns `undefined`, the `resolve` early-
+    // returns and the probe sees a zero pool delta — a ritual "proved"
+    // dominated. `isProbeEligibleMove` must refuse the probe outright.
+    // Sheoldred's Edict rides along in the SAME hand as the discriminator: on
+    // this board (opponent has no permanent and no card in hand) every one of
+    // its modes is a genuine no-op and MUST still be dropped. A pruner that
+    // simply kept everything fails that half; a pruner that dropped everything
+    // fails the ritual half.
+    const spec = (ritual: string): BladeScenario["spec"] => ({
+        cards: [
+            { name: ritual, owner: "me", zone: "hand" },
+            { name: "Sheoldred's Edict", owner: "me", zone: "hand" },
+            // Fuel for the additional cost — without a creature to sacrifice
+            // the cast is not even enumerated.
+            {
+                name: "Grizzly Bears",
+                owner: "me",
+                zone: "battlefield",
+                summoningSick: false,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        turn: 5,
+        landCount: 8,
+        libraryCount: 20,
+    });
+
+    for (const ritual of ["Sacrifice", "Burnt Offering"]) {
+        it(`${ritual} pays its value as a COST, so it survives the pruned enumeration`, () => {
+            const state = build(spec(ritual));
+            const casts = castsOf(state, ritual, false);
+            expect(casts.length).toBeGreaterThan(0);
+            for (const move of casts) {
+                expect(isDominatedNoOpMove(state, me(state), move)).toBe(false);
+            }
+            expect(castsOf(state, ritual, true).length).toBe(casts.length);
+            // The discriminator: the same enumeration still drops a real no-op.
+            expect(castsOf(state, "Sheoldred's Edict", true)).toHaveLength(0);
+        });
+    }
+});
+
+// ---------------------------------------------------------------------------
 // Review finding 2 (issue #1905): the all-branches choice/mode quantifier.
 // ---------------------------------------------------------------------------
 

@@ -65,6 +65,13 @@
 //     probed — a sacrifice / discard / exile / life / counter cost can itself be
 //     the payoff (a death trigger, a graveyard filler), and the probe models
 //     costs only coarsely.
+//   * The SAME gate on the cast side (issue #1905 re-review): a spell that
+//     declares `additionalCosts` (CR 118.3-5 / 601.2f), pays Phyrexian life
+//     (CR 107.4f) or has delve (CR 702.66) is never probed. `applyProbeCast`
+//     pays none of those, so a spell whose whole value IS the payment — LEA
+//     Sacrifice / ICE Burnt Offering, whose `getAdditionalSacrificeMv()` reads
+//     the un-snapshotted pick and returns `undefined` — resolves to nothing in
+//     the probe and would be "proved" dominated.
 //   * The probe is pure: it runs on `cloneGameState` clones and never touches
 //     the caller's state. A re-entrancy latch stops a probe from probing.
 //
@@ -91,6 +98,7 @@ import { checkStateBasedActions } from "../sba";
 import { cloneGameState } from "../clone";
 import { PERMANENT_TYPES } from "../constants";
 import { tryGetDefinition } from "../../cards";
+import { spellHasDelve } from "../payWith";
 import { choiceCandidates } from "./choiceCandidates";
 import {
     applyMayPaySubmit,
@@ -172,6 +180,13 @@ export function isDominatedNoOpMove(
         return false;
     }
     if (!state.players.some((p) => p.id === pid)) return false;
+    // The cheap SHAPE gate is part of the proof, not merely an optimisation:
+    // it is what refuses every move whose cost the probe models too coarsely
+    // to be sound (additional costs, sacrifice/discard/life activation costs).
+    // `enumerateMoves` calls it first and the second call is ~free, but this
+    // seam is exported — running it here keeps the public entry point sound on
+    // its own instead of only when paired with the right caller.
+    if (!isProbeEligibleMove(state, pid, move)) return false;
 
     probing = true;
     stats.probes++;
@@ -576,9 +591,48 @@ export function isProbeEligibleMove(
         const card = player?.hand.find((c) => c.id === move.cardInstanceId);
         if (!card) return false;
         // Board presence is a real delta — never probe a permanent spell.
-        return !card.types.some((t) =>
-            (PERMANENT_TYPES as readonly string[]).includes(t)
-        );
+        if (
+            card.types.some((t) =>
+                (PERMANENT_TYPES as readonly string[]).includes(t)
+            )
+        ) {
+            return false;
+        }
+        // Same "the cost payment can BE the payoff" class as the activation
+        // gate below (CR 601.2b/f, 118.3-5): the probe pays cast costs only
+        // coarsely (tap plan, no pool accounting) and `applyProbeCast` pays no
+        // ADDITIONAL cost at all — it never sacrifices/exiles the picked
+        // permanent, never pays the life, never snapshots the picked card on
+        // the stack item. A spell whose whole value comes from that payment
+        // (LEA Sacrifice, ICE Burnt Offering: `getAdditionalSacrificeMv()`
+        // returns `undefined`, so `resolve` early-returns and the pool never
+        // moves) would resolve to nothing in the probe and be "proved"
+        // dominated. Refuse the probe whenever the card declares ANY additional
+        // cost. Deliberately keyed on the PRESENCE of the object rather than a
+        // list of its members (`sacrificeFilter`, `exileFilter`, `payXLife`,
+        // `payLife`, `xFromOpponentGraveyard`, `flashbackExileFromGraveyard`)
+        // so a member added tomorrow fails CLOSED — the same fail-closed
+        // default `isNoOpDelta`'s whole-state compare uses.
+        const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
+        if (def?.additionalCosts !== undefined) return false;
+        // The two OTHER unmodelled cast costs the enumerator can actually
+        // announce, both the same shape as the activation gate's
+        // `cost.life !== undefined`:
+        //   * Phyrexian life (CR 107.4f, `move.payLife`) — `applyProbeCast`
+        //     never deducts it, so a "whenever you lose life" payoff the real
+        //     cast would trigger is invisible to the probe.
+        //   * Delve (CR 702.66) — the enumerator spends graveyard cards as a
+        //     generic-mana offset, but the Move carries no picks and the probe
+        //     exiles nothing, so a graveyard-leaves / exile payoff is invisible
+        //     too. Refused on the KEYWORD, not on whether this particular tap
+        //     plan happened to consume fuel — fail closed.
+        // (Alternative / evoke costs, CR 118.9 / 702.74a, need no gate: the
+        // cast Move carries no alternative-cost id, so the bot never announces
+        // one. A flashback cast is already refused — the card is in the
+        // graveyard, not the hand, so the `card` lookup above fails.)
+        if (move.payLife !== undefined && move.payLife > 0) return false;
+        if (spellHasDelve(card)) return false;
+        return true;
     }
     if (move.kind === "activate-ability") {
         const source = findPermanent(state, move.cardInstanceId);
