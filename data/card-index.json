@@ -13400,6 +13400,14 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Urza's Saga",
+        "scryfallId": "c1e0f201-42cb-46a1-901a-65bb4fc18f6c",
+        "oracleId": "4c6a0c30-b547-4eff-8ff4-0ca25803c076",
+        "firstSet": "mh2",
+        "firstPrintId": "c1e0f201-42cb-46a1-901a-65bb4fc18f6c",
+        "firstPrintSet": "mh2"
+    },
+    {
         "name": "Urza's Tower",
         "scryfallId": "8ed85655-fc59-4a57-bcf9-75e1899dff78",
         "oracleId": "32fbb638-ab14-4e8b-a07a-d4c44e3496f2",
