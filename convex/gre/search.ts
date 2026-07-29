@@ -59,6 +59,7 @@ import {
     applyAllCombatDamage,
     buildAutoDamageAssignments,
     finalizeDrawReplacementPay,
+    isSorceryTimingFor,
 } from "./phases";
 import { cloneGameState } from "./clone";
 import { predictCombatOutcome } from "./dangerClock";
@@ -95,6 +96,13 @@ import {
 } from "./ai/choiceCandidates";
 import { misdirectedTargetCount } from "./ai/beneficence";
 import { beginDominanceDecision, endDominanceDecision } from "./ai/dominance";
+// Activation-timing discipline (issue #1890): the single authority on whether an
+// activation could just as well happen in a later, better-informed window.
+import {
+    effectiveAbilityOf,
+    isDeferrableStackAbility,
+    isTransientOnlyAbility,
+} from "./ai/abilityTiming";
 import {
     applyLandEntrySubmit,
     applyMayPaySubmit,
@@ -609,6 +617,14 @@ export function applyMoveInSearch(
         }
 
         case "activate-ability": {
+            // KNOWN GAP — tracked by issue #1920. Unlike `cast-spell` above,
+            // this applies the COSTS only: the ability never reaches the stack,
+            // so no depth of search ever sees its PAYOFF (`policyValue`'s
+            // one-resolution lookahead has nothing to resolve). Every activation
+            // therefore evaluates at best equal to `pass`. Anything that makes
+            // holding an activation pay — the board-side flexibility term of
+            // issue #1890 item 3 — is blocked on closing this, or it converts
+            // that tie into a deterministic decline in the REACTIVE window.
             applyTapPlan(state, playerId, move.tapPlan);
             const src = player.battlefield.find(
                 (c) => c.id === move.cardInstanceId
@@ -825,7 +841,109 @@ export function isDiscouragedRolloutMove(
             combat.attackerIds.length > 0;
         return preBlockAsAttacker;
     }
+    if (move.kind === "activate-ability") {
+        // Activated-ability mirror of the two `cast-spell` cases above (issue
+        // #1890 item 1). The reasoning is IDENTICAL and so is the scope: this is
+        // never a per-card rule — the only inputs are the ability's declared
+        // timing (`useStack`, `sorcerySpeedOnly`, a loyalty cost, a phase
+        // restriction; `isDeferrableStackAbility`) and, for the third case, the
+        // engine's own `animatesSelf` marker.
+        const source = findPermanentOnBattlefield(state, move.cardInstanceId);
+        if (!source) return false;
+        const ability = effectiveAbilityOf(source, move.abilityId);
+        // A mana ability is payment plumbing, not a play (CR 605.3a), and an
+        // ability that CANNOT be used later carries nothing to defer.
+        if (!ability || !isDeferrableStackAbility(ability)) return false;
+
+        // (a) Pointless self-animation after the mover's own combat — issue
+        // #1890 item 4, shared with the root tie-break.
+        if (isPointlessSelfAnimation(state, pid, move)) return true;
+
+        // (b) Sorcery-speed window: the mover is in ITS OWN sorcery window — a
+        // main phase of its own turn, empty stack, holding priority (CR 307.5,
+        // the template CR 602.5d's "activate only as a sorcery" points at).
+        // There an instant-speed activation could instead be kept for a reactive
+        // moment (the opponent's removal, a declared block); Mother of Runes'
+        // protection spent in the precombat main with nothing to protect against
+        // is the observed misplay.
+        //
+        // `isSorceryTimingFor` is the engine's single authority on that window
+        // (`phases.ts`, already the gate `moves.ts` applies to `sorcerySpeedOnly`)
+        // — re-deriving it here is how the two drift apart.
+        //
+        // The empty-stack clause inside it is load-bearing, not decoration: a
+        // main phase with something ON the stack is already a RESPONSE window,
+        // and that is exactly where an activation belongs (cracking a fetchland
+        // in response to a trigger — the `blade` charter entry). Without it this
+        // branch fired there too and turned the answer into a `pass`.
+        if (isSorceryTimingFor(state, pid)) return true;
+
+        // (c) Premature use before blocks (ADR 0021 slice 3, the same case the
+        // `cast-spell` branch calls out): an activation that could ambush a
+        // block is worse spent before blockers are declared.
+        const combat = state.combat;
+        return (
+            pid === state.activePlayerId &&
+            !!combat &&
+            combat.confirmed &&
+            !combat.blockersConfirmed &&
+            combat.attackerIds.length > 0
+        );
+    }
     return false;
+}
+
+/** Whether `move` animates its own source (`ActivatedAbility.animatesSelf` — the
+ *  manland marker the move enumerator already reads) at a point in `pid`'s OWN
+ *  turn where the resulting body can no longer matter (issue #1890 item 4).
+ *
+ *  An `animatesSelf` ability buys a creature BODY and nothing else, so it is
+ *  worth something only while that body can still attack or block. Once the
+ *  mover is the ACTIVE player and the turn has reached `END_OF_COMBAT` or later,
+ *  there is no attack left this turn (their combat is over) and an active player
+ *  never blocks on their own turn; the animation only exposes a land to removal
+ *  and combat damage. This is the observed "Mishra's Factory animated after its
+ *  own combat" misplay, and the reason it wins on noise is that the saturating
+ *  reward band cannot see that small negative.
+ *
+ *  Deliberately NOT expressed as a refinement of `ai/dominance.ts` (issue #1887).
+ *  That module's contract is an EXACT-EQUALITY proof: a move is dropped only when
+ *  applying it changes nothing but the mover's own cost. An animation genuinely
+ *  changes the board — a land becomes a 2/2 — so calling it futile is a judgement
+ *  about the remainder of the turn, not a proof. Admitting that reasoning there
+ *  would regress the very property #1887 exists to hold, so it lives here, in the
+ *  policy guardrail and the outcome-equality tie-break, where "probably not worth
+ *  it" is the stated currency. Per-card-agnostic: the only inputs are the engine's
+ *  `animatesSelf` marker, the phase, and who is active. Pure. */
+function isPointlessSelfAnimation(
+    state: GameState,
+    pid: string,
+    move: Move
+): boolean {
+    if (move.kind !== "activate-ability") return false;
+    if (pid !== state.activePlayerId) return false;
+    if (
+        state.phase !== "END_OF_COMBAT" &&
+        state.phase !== "POSTCOMBAT_MAIN" &&
+        state.phase !== "END_STEP"
+    ) {
+        return false;
+    }
+    const source = findPermanentOnBattlefield(state, move.cardInstanceId);
+    if (!source) return false;
+    return effectiveAbilityOf(source, move.abilityId)?.animatesSelf === true;
+}
+
+/** The permanent `instanceId` names, on either battlefield, or undefined. */
+function findPermanentOnBattlefield(
+    state: GameState,
+    instanceId: string
+): CardInstanceState | undefined {
+    for (const p of state.players) {
+        const found = p.battlefield.find((c) => c.id === instanceId);
+        if (found) return found;
+    }
+    return undefined;
 }
 
 /** The combat-aware leaf value the rollout policy scores a probed move on, from
@@ -1937,7 +2055,17 @@ export function selectRootMove(
     // the low-variance dump would otherwise win the material tie-break). Fires
     // ONLY on outcome-equality, so a dump with REAL value (a lethal pump, a
     // must-cast answer) wins on mean reward and never reaches this branch.
-    if (rootState && isSorcerySpeedTrickDump(rootState, best.move)) {
+    //
+    // Extended to ACTIVATIONS by issue #1890 (items 2 and 4): an instant-speed
+    // activated ability is the battlefield mirror of a held instant, and a
+    // manland animation with the mover's own combat already behind it is the
+    // same shape with no window left at all. Both are pulled from the full pool
+    // on outcome-equality alone, exactly as the cast case is.
+    if (
+        rootState &&
+        (isSorcerySpeedTrickDump(rootState, best.move) ||
+            (!!botId && isPointlessSelfAnimation(rootState, botId, best.move)))
+    ) {
         // Hold (`pass`) qualifies when it is outcome-equal on MEAN REWARD (within
         // `OUTCOME_EPS`) — NOT gated on the `VISIT_TOL` visit count the land-drop
         // rule uses. The held line is intrinsically lower-visit / higher-variance
@@ -1955,30 +2083,75 @@ export function selectRootMove(
     return rootMoveFor(best, rootState);
 }
 
-/** Whether `move` dumps a held combat TRICK (a `pump` hint) at sorcery speed
- *  (ADR 0021, issue #229) — a `cast-spell` of an Instant whose `aiCombatHint`
- *  declares a pump, cast by the active player at a main phase (the window where
- *  it could instead be held for the combat-step ambush). Used by the
- *  hold-the-trick selection tie-break.
+/** Whether `move` spends a REACTIVE OPTION in a window where the same option
+ *  would still be available later — the predicate the hold-the-trick tie-break
+ *  fires on. Two shapes, one rule:
  *
- *  Scoped to PUMP tricks only — NOT removal. A pump's sole use is combat, so
- *  spending it pre-combat is dominated by holding it whenever the two are
- *  outcome-equal (the land-drop analogy: no reason to commit early). Removal is
- *  deliberately excluded: a removal cast at sorcery speed can be the correct,
- *  decisive play (killing a blocker, going face for lethal — e.g. a lethal
- *  Lightning Bolt), so it must be left to win or lose on mean reward, never
- *  redirected to `pass`. Pure. */
+ *  1. **A held combat TRICK dumped at sorcery speed** (ADR 0021, issue #229) — a
+ *     `cast-spell` of an Instant whose `aiCombatHint` declares a pump, cast by
+ *     the active player at a main phase (the window where it could instead be
+ *     held for the combat-step ambush).
+ *
+ *     Scoped to PUMP tricks only — NOT removal. A pump's sole use is combat, so
+ *     spending it pre-combat is dominated by holding it whenever the two are
+ *     outcome-equal (the land-drop analogy: no reason to commit early). Removal
+ *     is deliberately excluded: a removal cast at sorcery speed can be the
+ *     correct, decisive play (killing a blocker, going face for lethal — e.g. a
+ *     lethal Lightning Bolt), so it must be left to win or lose on mean reward,
+ *     never redirected to `pass`.
+ *
+ *  2. **An instant-speed ACTIVATION spent at sorcery speed for no material
+ *     gain** (issue #1890 item 2) — a `useStack: true` ability with no timing
+ *     restriction that would stop it being used later
+ *     (`isDeferrableStackAbility`), activated by the active player inside its
+ *     OWN sorcery window (`isSorceryTimingFor` — the engine's single authority
+ *     on the CR 307.5 template: own main phase, empty stack, holding priority;
+ *     a main phase with something on the stack is a response window, which is
+ *     where an activation belongs), and whose whole effect EXPIRES THIS TURN
+ *     (`isTransientOnlyAbility`).
+ *
+ *     That last clause IS case 1's `aiCombatHint.pump` narrowing, stated
+ *     generally. A pump qualifies in case 1 precisely because it moves no
+ *     PERMANENT material (`evaluateCreature` reads permanent effective P/T, so
+ *     an until-end-of-turn buff is invisible to it) — its entire worth is the
+ *     window it is held for, so spending it early is strictly dominated. An
+ *     until-end-of-turn ACTIVATED effect (Mother of Runes' protection) is the
+ *     same object. An ability that BUILDS something instead (Sandstorm
+ *     Salvager's permanent +1/+1 counters, a fetchland's search) has banked its
+ *     value the moment it resolves, whenever that is, and must be left to win or
+ *     lose on mean reward. Without the clause this rule swallowed the latter.
+ *
+ *  Pure. */
 function isSorcerySpeedTrickDump(state: GameState, move: Move): boolean {
-    if (move.kind !== "cast-spell") return false;
-    const atSorcerySpeed =
-        state.phase === "PRECOMBAT_MAIN" || state.phase === "POSTCOMBAT_MAIN";
-    if (!atSorcerySpeed) return false;
     const player = state.players.find((p) => p.id === state.activePlayerId);
-    const card = player?.hand.find((c) => c.id === move.cardInstanceId);
-    if (!card || !card.types.includes("Instant")) return false;
-    const cardId = (card.card as { id?: string } | undefined)?.id;
-    const def = cardId ? tryGetDefinition(cardId) : undefined;
-    return !!def?.aiCombatHint?.pump;
+    if (!player) return false;
+    if (move.kind === "cast-spell") {
+        // Pre-existing scope (issue #229): the phase alone, deliberately NOT the
+        // full sorcery window — a cast in a main phase with a stack is still the
+        // dump this rule was written against.
+        const atSorcerySpeed =
+            state.phase === "PRECOMBAT_MAIN" ||
+            state.phase === "POSTCOMBAT_MAIN";
+        if (!atSorcerySpeed) return false;
+        const card = player.hand.find((c) => c.id === move.cardInstanceId);
+        if (!card || !card.types.includes("Instant")) return false;
+        const cardId = (card.card as { id?: string } | undefined)?.id;
+        const def = cardId ? tryGetDefinition(cardId) : undefined;
+        return !!def?.aiCombatHint?.pump;
+    }
+    if (move.kind === "activate-ability") {
+        if (!isSorceryTimingFor(state, player.id)) return false;
+        const source = player.battlefield.find(
+            (c) => c.id === move.cardInstanceId
+        );
+        if (!source) return false;
+        const ability = effectiveAbilityOf(source, move.abilityId);
+        if (!ability) return false;
+        return (
+            isDeferrableStackAbility(ability) && isTransientOnlyAbility(ability)
+        );
+    }
+    return false;
 }
 
 // ---------------------------------------------------------------------------

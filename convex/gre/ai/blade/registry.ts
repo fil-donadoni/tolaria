@@ -15,8 +15,11 @@
  *                 makes it pass.
  */
 
-import type { BladeScenario } from "./types";
+import type { BladeScenario, BladeSeat } from "./types";
+import type { GameState } from "../../state";
 import { enumerateMoves } from "../../moves";
+import { isDiscouragedRolloutMove } from "../../search";
+import { getCardByName } from "../../../cards";
 
 /** "The dominance pruner (issue #1887) still leaves the bot a cast to make" —
  *  the negative control for a position where the CHOSEN move is not a stable
@@ -28,6 +31,60 @@ function pruningKeepsACast(
     const pid = state.players[0].id;
     return enumerateMoves(state, pid, { pruneDominatedNoOps: true }).some(
         (m) => m.kind === "cast-spell"
+    );
+}
+
+/** "The issue-#1890 reactive-timing discipline is a PREFERENCE, not a filter" —
+ *  the negative control for the two activation-timing entries below.
+ *
+ *  It asserts the POSITION, not the chosen move, for a measured reason: the
+ *  search's move application is documented not to put an activated ability's
+ *  EFFECT on the stack at all (`applyMoveInSearch`, `search.ts`: "applies costs
+ *  but does not put the ability's effect on the stack"). So in the world the
+ *  search reasons about, every activation is pure cost — a Mother of Runes
+ *  activation taps a 1/1 and grants nothing, an animation spends {1} and
+ *  produces no body. No blade entry can therefore make the bot CHOOSE an
+ *  activation for its payoff; the payoff is invisible by construction, and
+ *  closing that hole is a separate change to the search's simulation, not a
+ *  timing rule — TRACKED BY ISSUE #1920. (It is also the deeper reason issue
+ *  #1890's symptoms exist at all: with no payoff visible, every activation ties
+ *  `pass` inside `OUTCOME_EPS` and the pick falls to rollout noise.)
+ *
+ *  What IS assertable here, deterministically, is the property the negative
+ *  control actually guards: in a window where the activation belongs, it is
+ *  still ENUMERATED (the timing rules never touch legality) and carries NO
+ *  rollout policy penalty. If items 1-2 ever widen into a mute button, this goes
+ *  red.
+ *
+ *  ENUMERATION is all a blade can see, and that is a real blind spot: a change
+ *  could leave the move enumerated and unpenalised while making the bot's CHOICE
+ *  in that window deterministically decline it (any evaluator term that prices
+ *  an unspent option, over the #1920 payoff gap, does exactly that). That half
+ *  is pinned at the choice level by `selectRolloutMove — the reactive window is
+ *  never muted` in `convex/gre/__tests__/activationTiming.bot.test.ts`. */
+function activationStaysAvailable(
+    state: GameState,
+    seat: BladeSeat,
+    cardName: string
+): boolean {
+    const pid = state.players[seat === "me" ? 0 : 1].id;
+    const defId = getCardByName(cardName).id;
+    const activations = enumerateMoves(state, pid, {
+        pruneDominatedNoOps: true,
+    }).filter(
+        (m) =>
+            m.kind === "activate-ability" &&
+            state.players.some((p) =>
+                p.battlefield.some(
+                    (c) =>
+                        c.id === m.cardInstanceId &&
+                        (c.card as { id?: string }).id === defId
+                )
+            )
+    );
+    return (
+        activations.length > 0 &&
+        activations.every((m) => !isDiscouragedRolloutMove(state, pid, m))
     );
 }
 
@@ -1093,6 +1150,137 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
             moves: [{ kind: "resolution-choice", card: "Lightning Bolt" }],
         },
         note: "Issue #1888, symptom 3 (the degenerate-branch penalty) at a live choice node.",
+    },
+    // -----------------------------------------------------------------------
+    // Activation timing (issue #1890). Four entries, in strict pairs: the
+    // misplay, then the negative control that proves the fix is not a mute
+    // button. Nothing under test reads a card name — Mother of Runes is a
+    // fixture for "a {T} instant-speed ability whose effect expires this turn"
+    // and Mishra's Factory for "an `animatesSelf` one".
+    // -----------------------------------------------------------------------
+    {
+        label: "activation timing: holds Mother of Runes at sorcery speed",
+        spec: {
+            cards: [
+                {
+                    name: "Mother of Runes",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Hill Giant",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            landCount: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "activate-ability", card: "Mother of Runes" }],
+        },
+        note: "Issue #1890, symptom 1. The bot's own precombat main, empty stack, nothing declared: the protection has nothing to answer, so granting it now taps Mother out of being an answer for the rest of the turn and buys a keyword against a colour nobody has cast. It is until END OF TURN, so it moves no material either — the activation and `pass` tied inside `OUTCOME_EPS` and the pick was rollout noise. DISCRIMINATING: measured RED on the pre-fix engine at all five seeds (it protected itself on four of them and the Hill Giant on the fifth), green after.",
+    },
+    {
+        label: "activation timing: Mother of Runes stays available against removal on the stack",
+        spec: {
+            cards: [
+                {
+                    name: "Mother of Runes",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Lightning Bolt", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 2,
+            libraryCount: 20,
+        },
+        // The Bolt reaches the stack through the REAL cast pipeline (ADR 0070
+        // §4), so the position is the one a live game would produce — including
+        // the priority hand-off: the caster's window auto-passes (CR 117.3c),
+        // which is what puts the DEFENDING seat on the clock with a removal
+        // spell aimed at its creature. The seats are inverted relative to the
+        // entry above (`me` is always the active player in a `ScenarioSpec`, and
+        // only the priority holder has a legal cast), so the bot plays `opp`.
+        setup: [
+            {
+                kind: "cast",
+                card: "Lightning Bolt",
+                by: "me",
+                target: "Mother of Runes",
+            },
+        ],
+        bot: "opp",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (_move, state) =>
+                activationStaysAvailable(state, "opp", "Mother of Runes"),
+            describe:
+                "the Mother activation is still enumerated in the response window and carries no rollout-policy penalty",
+        },
+        note: "Issue #1890 NEGATIVE CONTROL for the entry above — the same ability in the window where it BELONGS: a red removal spell on the stack aimed at its own source, on the opponent's turn. Asserted on the POSITION rather than the chosen move, and not for convenience: `applyMoveInSearch` is documented not to put an activated ability's EFFECT on the stack at all, so in the search's world this activation taps a 1/1 and grants nothing. No blade can make the bot CHOOSE it for a payoff the simulation cannot produce (see `activationStaysAvailable`); what this entry pins is that the timing rules never touched legality and never penalised the reactive window. NOT DISCRIMINATING by construction — it is green before and after — which is exactly the job of a mute-button guard. Note what it CANNOT see: it asserts enumeration, so a regression that leaves the move offered but makes the bot CHOOSE `pass` here would slip past it. That half is pinned at the choice level by `selectRolloutMove — the reactive window is never muted`; the fire/no-fire boundary itself is pinned deterministically in the same file, `convex/gre/__tests__/activationTiming.bot.test.ts`. The underlying payoff blindness is tracked by issue #1920.",
+    },
+    {
+        label: "activation timing: does not animate Mishra's Factory after its own combat",
+        spec: {
+            cards: [
+                { name: "Mishra's Factory", owner: "me", zone: "battlefield" },
+            ],
+            phase: "POSTCOMBAT_MAIN",
+            turn: 3,
+            landCount: 2,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "activate-ability", card: "Mishra's Factory" }],
+        },
+        note: "Issue #1890, symptom 2. The bot's combat is over, so the 2/2 the animation buys can neither attack (no combat left this turn) nor block (an active player never blocks on their own turn); all it does is spend {1} and expose a land to removal and damage. That is a small NEGATIVE the saturating reward band cannot see, so it tied `pass` and won on noise. Deliberately NOT routed through the `ai/dominance.ts` exact-equality proof (issue #1887): the animation genuinely changes the board, so calling it futile is a judgement about the rest of the turn, not a proof. DISCRIMINATING: measured RED on the pre-fix engine at four of these five seeds, green after.",
+    },
+    {
+        label: "activation timing: Mishra's Factory stays available before combat",
+        spec: {
+            cards: [
+                { name: "Mishra's Factory", owner: "me", zone: "battlefield" },
+            ],
+            phase: "BEGINNING_OF_COMBAT",
+            turn: 3,
+            landCount: 2,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (_move, state) =>
+                activationStaysAvailable(state, "me", "Mishra's Factory"),
+            describe:
+                "the animation is still enumerated before combat and carries no rollout-policy penalty",
+        },
+        note: "Issue #1890 NEGATIVE CONTROL for the entry above — the SAME activation one step earlier, where the body it buys can still attack. Both suppressing rules are scoped away from this window (the guardrail's sorcery-speed branch needs a MAIN phase with an empty stack; the pointless-animation branch needs the mover's combat to be already over), and this entry is what fails if either ever widens. Position-asserted for the same measured reason as the Mother control: `applyMoveInSearch` never puts an activated ability's effect on the stack, so the search cannot see the 2/2 the animation would produce and a chosen-move assertion here would be riding rollout noise. NOT DISCRIMINATING by construction.",
     },
 ];
 
