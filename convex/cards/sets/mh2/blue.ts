@@ -127,7 +127,10 @@ export const subtlety: CardDefinition = {
 // `scripts/backfill-card-index.ts` does not exclude `set_type: "promo"`, so the
 // lockfile's `firstPrintId` is the promo's. The id below follows the lockfile
 // so `check:index` stays green; the set module is `mh2/` because that is the
-// real set.
+// real set. The promo exclusion is tracked by #1844 — when it lands this id
+// becomes MH2 71 (996c1952-8d10-4296-8960-ff8993833649) and this paragraph
+// goes away.
+// tracked-by: #1844
 export const thoughtMonitor: CardDefinition = {
     id: "c5b53f25-25e7-47db-b356-65e93e3b0059", // PMH2 71s (= MH2 71)
     name: "Thought Monitor",
