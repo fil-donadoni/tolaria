@@ -106,6 +106,17 @@ import type {
     LimitedPairing,
     LimitedRound,
 } from "./limited/eventTypes";
+// Pool Arrangement entry (ADR 0060, issue #1247; Lands as a manual column
+// target, issue #1573; namespaced Card Pins, issue #1621) — the SAME validator
+// `convex/schema.ts` stores with, imported rather than re-declared. Reached
+// from here as a RETURNS validator (through `limitedEventViewValidator`
+// below), and Convex rejects a returned object carrying a field the validator
+// doesn't declare — AT RUNTIME, invisibly to `tsc`. Sharing the const is what
+// makes "the write path emits it" and "the read path may return it" one fact
+// instead of two that can drift.
+// `convex/__tests__/limitedEventViewValidator.test.ts` walks this validator
+// over the REAL projection output and fails on any such drift.
+import { poolArrangementEntryValidator } from "./limited/eventTypes";
 import {
     arePoolsDealt,
     areDraftPicksLegal,
@@ -251,35 +262,6 @@ const draftPackCardValidator = v.object({
     cardId: v.string(),
     cardName: v.string(),
     pickId: v.string(),
-});
-
-// Pool Arrangement (ADR 0060, issue #1247; Lands as a manual column target,
-// issue #1573; namespaced Card Pins, issue #1621) — see
-// `PoolArrangementEntry`'s doc comment in `convex/limited/eventTypes.ts`.
-//
-// This is a RETURNS validator (it is reached through
-// `limitedEventViewValidator` below), and Convex rejects a returned object
-// carrying a field the validator doesn't declare — AT RUNTIME, invisibly to
-// `tsc`. `pins` therefore had to land here in the same change that made
-// `upsertPoolArrangementEntry` emit it; `column` stays declared because an
-// in-flight event's rows still carry it (tolerant read, ADR 0075 §5).
-// `convex/__tests__/limitedEventViewValidator.test.ts` walks this validator
-// over the REAL projection output and fails on any such drift.
-const poolArrangementEntryValidator = v.object({
-    poolIndex: v.number(),
-    // DEPRECATED, read-only (issue #1621) — never written any more.
-    column: v.optional(v.union(v.number(), v.literal("lands"))),
-    // Namespaced Card Pins, in the Column Layout engine's id vocabulary
-    // (`convex/deckLayout.ts`): `mv:5`, `mv:lands`, `color:R`, `custom:<slug>`.
-    pins: v.optional(
-        v.object({
-            mv: v.optional(v.string()),
-            color: v.optional(v.string()),
-            type: v.optional(v.string()),
-            custom: v.optional(v.string()),
-        })
-    ),
-    sideboard: v.optional(v.boolean()),
 });
 
 const deckCardValidator = v.object({

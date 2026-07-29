@@ -8,6 +8,14 @@
 // (`convex/deckLayout.ts`) is the single authority on the Pin/Column-id
 // vocabulary (issue #1621 AC), and a type-only import keeps this module free
 // of the runtime card-registry dependency that engine carries.
+//
+// The ONE runtime import here is `convex/values`, for the Pool Arrangement
+// entry validator at the bottom of this file — the single authority both
+// `convex/schema.ts` (storage) and `convex/limitedEvents.ts` (returns) import
+// rather than re-declaring. It is deliberately the lightest possible runtime
+// dependency, so `schema.ts` pulling this module in stays free: everything
+// else in here is erased at compile time.
+import { v, type Infer } from "convex/values";
 import type { CardPins } from "../deckLayout";
 
 /** One physical card opened into a seat's Pool (ADR 0054/0055): the exact
@@ -199,3 +207,62 @@ export interface PoolArrangementEntry {
     /** true = Sideboard, false/absent = Maindeck. */
     sideboard?: boolean;
 }
+
+/** {@link PoolArrangementEntry.pins} as a Convex validator — Card Pins
+ *  (ADR 0075 §3/§5, PRD #1617, issue #1621). Values are namespaced Column ids
+ *  minted by the Column Layout engine (`convex/deckLayout.ts` —
+ *  `makeColumnId`), e.g. `mv:5` / `mv:lands` / `color:R` / `custom:combo`;
+ *  stored as free `v.string()` because the id vocabulary is OPEN (a `custom:`
+ *  key is user-authored) and the engine, not the DB, is its authority.
+ *  Every field optional, and the whole map optional on the entry, so a row
+ *  written before this slice validates untouched (tolerant read, ADR 0075 §5). */
+export const cardPinsValidator = v.object({
+    mv: v.optional(v.string()),
+    color: v.optional(v.string()),
+    type: v.optional(v.string()),
+    custom: v.optional(v.string()),
+});
+
+/** {@link PoolArrangementEntry} as a Convex validator — THE single authority,
+ *  imported by every site that has to describe the shape to Convex:
+ *
+ *  - `convex/schema.ts` — the STORAGE shape, at both persistence sites (the
+ *    legacy inline `limitedEvents.seats[].poolArrangement` and the live
+ *    `limitedSeats.poolArrangement`). A field the write path emits but the
+ *    storage validator doesn't declare is rejected at write time.
+ *  - `convex/limitedEvents.ts` — the RETURNS shape, reached through
+ *    `limitedEventViewValidator`. Convex rejects a returned object carrying a
+ *    field the validator doesn't declare, AT RUNTIME and invisibly to `tsc`.
+ *
+ *  Declared once here rather than per site because those two are the same
+ *  shape by construction: `poolArrangement` is projected VERBATIM to its own
+ *  seat's viewer, so anything storable is also returnable. Three hand-kept
+ *  copies (which is what issue #1621 briefly had) means a future Pin namespace
+ *  added to `CardPins` + the schema but not to the returns copy 500s every
+ *  Limited query — a drift `tsc` cannot see. Guarded from both ends:
+ *  `convex/__tests__/limitedPlayPhaseSchema.test.ts` walks the real storage
+ *  schema, `convex/__tests__/limitedEventViewValidator.test.ts` walks the real
+ *  returns validator over real projection output. */
+export const poolArrangementEntryValidator = v.object({
+    poolIndex: v.number(),
+    // DEPRECATED, read-only (issue #1621) — never written any more, still
+    // ACCEPTED so an in-flight draft's rows keep validating. See the field's
+    // own doc comment on `PoolArrangementEntry` above. A cleanup migration
+    // dropping it can follow once no legacy row remains.
+    column: v.optional(v.union(v.number(), v.literal("lands"))),
+    pins: v.optional(cardPinsValidator),
+    sideboard: v.optional(v.boolean()),
+});
+
+// Compile-time proof that the validator and the domain type describe the same
+// entry: each must be assignable to the other, so a field added to one and not
+// the other fails `tsc` here rather than at runtime in a deployment.
+type ValidatedPoolArrangementEntry = Infer<
+    typeof poolArrangementEntryValidator
+>;
+const _entryValidatorMatchesType: PoolArrangementEntry =
+    {} as ValidatedPoolArrangementEntry;
+const _entryTypeMatchesValidator: ValidatedPoolArrangementEntry =
+    {} as PoolArrangementEntry;
+void _entryValidatorMatchesType;
+void _entryTypeMatchesValidator;

@@ -1,6 +1,17 @@
 import { authTables } from "@convex-dev/auth/server";
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+// One Pool Arrangement entry (ADR 0060, issue #1247; Card Pins, ADR 0075
+// §3/§5, issue #1621). NOT re-declared here: the validator is exported from
+// `convex/limited/eventTypes.ts` alongside the `PoolArrangementEntry` type it
+// describes, and is imported by BOTH storage sites below (the legacy inline
+// `limitedEvents.seats[].poolArrangement` and the live
+// `limitedSeats.poolArrangement`) AND by the returns validator in
+// `convex/limitedEvents.ts` — one authority, so a new Pin namespace can't be
+// added to one site and silently missed at another. That module is types +
+// `convex/values` only (its `CardPins` import is type-only), so importing it
+// here adds no runtime weight to the schema.
+import { poolArrangementEntryValidator } from "./limited/eventTypes";
 
 // Typed, immutable deck Format (PRD #509, ADR 0036). `userDecks` and
 // `presetDecks` store one of these literals — a non-conforming string is
@@ -15,42 +26,6 @@ const formatValidator = v.union(
     v.literal("premodern"),
     v.literal("limited")
 );
-
-// Card Pins (ADR 0075 §3/§5, PRD #1617, issue #1621): one Pool card's pinned
-// Column per namespace, the shape that REPLACES the deprecated per-entry
-// `column` override on a Pool Arrangement entry. Values are namespaced Column
-// ids minted by the Column Layout engine (`convex/deckLayout.ts` —
-// `makeColumnId`), e.g. `mv:5` / `mv:lands` / `color:R` / `custom:combo`;
-// stored as free `v.string()` because the id vocabulary is open (a `custom:`
-// key is user-authored) and the engine, not the DB, is its authority.
-// Every field optional, and the whole map optional on the entry, so a row
-// written before this slice validates untouched (tolerant read, ADR 0075 §5).
-const cardPinsValidator = v.object({
-    mv: v.optional(v.string()),
-    color: v.optional(v.string()),
-    type: v.optional(v.string()),
-    custom: v.optional(v.string()),
-});
-
-// One Pool Arrangement entry (ADR 0060, issue #1247; Card Pins, issue #1621).
-// Declared once and shared by BOTH storage sites below — the legacy inline
-// `limitedEvents.seats[].poolArrangement` and the live
-// `limitedSeats.poolArrangement` — so the two can never drift into accepting
-// different shapes. See `PoolArrangementEntry` in
-// `convex/limited/eventTypes.ts` for the domain doc comment.
-const poolArrangementEntryValidator = v.object({
-    poolIndex: v.number(),
-    // DEPRECATED, read-only (issue #1621). The pre-#1621 single column
-    // override: a numeric Mana-Value column, OR the literal "lands" to pin the
-    // card into the Lands column regardless of its own type (issue #1573).
-    // Still ACCEPTED so an in-flight draft's rows keep validating; nothing
-    // writes it any more — `upsertPoolArrangementEntry` emits `pins` only, and
-    // every reader goes through `readEntryPins`. A cleanup migration dropping
-    // this field can follow once no legacy row remains.
-    column: v.optional(v.union(v.number(), v.literal("lands"))),
-    pins: v.optional(cardPinsValidator),
-    sideboard: v.optional(v.boolean()),
-});
 
 export default defineSchema({
     ...authTables,
