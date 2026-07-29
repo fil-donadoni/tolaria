@@ -22,16 +22,30 @@ import type { CardDefinition } from "../../types";
 //       (`gre/state.ts`): `entersTapped` taps the token unconditionally
 //       (independent of vigilance — CR 508.4 attacking-token entry bypasses
 //       the normal tap-to-attack rule, CR 508.1f, entirely); `entersAttacking`
-//       pushes the token's id straight into `state.combat.attackerIds`,
-//       joining the CURRENT combat without running the normal declare-
-//       attackers action — so it never emits ATTACKERS_DECLARED and
-//       correctly never "attacked" for trigger purposes (CR 508.4's own
-//       distinction), while still counting as an "attacking creature" for
-//       every OTHER combat-scoped read (Assault-Formation-style statics,
-//       `combatRoleFilter`). SIMPLIFICATION: the token always attacks the
+//       routes the token through the shared `markAttacking` helper
+//       (`gre/combat.ts`), which sets BOTH engine-wide representations of
+//       "attacking" together — `state.combat.attackerIds` membership AND the
+//       per-permanent `isAttacking` flag — joining the CURRENT combat without
+//       running the normal declare-attackers action. It never emits
+//       ATTACKERS_DECLARED and correctly never "attacked" for trigger
+//       purposes (CR 508.4's own distinction), while `isAttacking` being set
+//       means it DOES count as an "attacking creature" for every OTHER
+//       combat-scoped read (Assault-Formation-style statics,
+//       `combatRoleFilter` targeting, `PermanentFilter.isAttacking`,
+//       `SpellContext.getIsAttacking`, and the frontend's blocker-assignment
+//       affordance) — see `markAttacking`'s own doc comment for why a single
+//       shared helper exists (an earlier revision of this code set only
+//       `attackerIds` directly and left `isAttacking` unset, review-caught
+//       before landing).
+//       DIVERGENCE (tracked-by: #1865): the token always attacks the
 //       DEFENDING PLAYER — CR 508.4's controller-choice of a defending
-//       planeswalker instead is not offered (no printed card in the pool
-//       needs it yet; Satya's own oracle text is silent on the point).
+//       planeswalker instead is not offered. This is a REAL gap against the
+//       current pool, not a hypothetical future card: planeswalkers ship
+//       across many already-shipped sets (dka/kld/wwk/lrw/war/isd/dom/clb/
+//       znr/mh2/one), and the engine already fully models attacking them
+//       (`combat.attackTargets`, `gre/phases.ts`, `gre/moves.ts`) — so this
+//       needs its own slice rather than shipping silently narrower than the
+//       CR. Satya's own oracle text is silent on the point.
 //       `createTokenCopy`'s Op-level `entersTapped`/`entersAttacking` mirror
 //       the same two flags through to `SpellContext.createTokenCopyOf`'s new
 //       `opts` (applied to the internal placeholder token BEFORE `applyCopy`

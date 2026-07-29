@@ -1502,14 +1502,28 @@ export interface TokenSpec {
      *  Orthogonal to `entersAttacking` — a token could need one without the
      *  other, though every current caller sets both together. */
     entersTapped?: boolean;
-    /** CR 508.4 — the token enters the battlefield ALREADY ATTACKING,
-     *  joining the CURRENT combat directly (`state.combat.attackerIds`)
-     *  rather than through the normal declare-attackers action. Per CR 508.4:
-     *  the token's controller is NOT offered a planeswalker/battle attack
-     *  target choice here (SIMPLIFICATION — every current caller's oracle
-     *  text is silent on the point and the engine defaults to "attacks the
-     *  defending player", CR 508.4's own default absent an effect-specified
-     *  target); it is NOT subject to attack-declaration requirements/
+    /** CR 508.4 — the token enters the battlefield ALREADY ATTACKING, joining
+     *  the CURRENT combat directly through the shared `markAttacking` helper
+     *  (`gre/combat.ts`) rather than through the normal declare-attackers
+     *  action. `markAttacking` sets BOTH engine-wide representations of
+     *  "attacking" together — `state.combat.attackerIds` membership AND the
+     *  per-permanent `CardInstanceState.isAttacking` flag — which is what
+     *  makes the token a real "attacking creature" for every OTHER
+     *  combat-scoped read (Assault-Formation-style statics,
+     *  `combatRoleFilter` targeting, `PermanentFilter.isAttacking`,
+     *  `SpellContext.getIsAttacking`, and the frontend's blocker-assignment
+     *  affordance) — setting `attackerIds` alone is NOT enough, and earlier
+     *  code here that did exactly that (issue #1195 review) left the token
+     *  only half-attacking. Per CR 508.4: the token's controller is NOT
+     *  offered a planeswalker/battle attack target choice here — a tracked
+     *  DIVERGENCE (tracked-by: #1865, see `cards/sets/m3c/multicolor.ts`'s
+     *  Satya doc for the full rationale: this is a real gap against the
+     *  current pool, not a hypothetical future card, since planeswalkers
+     *  already ship widely and the engine already models attacking them) —
+     *  every current caller's oracle text is silent on the point and the
+     *  engine defaults to "attacks the defending player", CR 508.4's own
+     *  default absent an effect-specified target; it is NOT subject to
+     *  attack-declaration requirements/
      *  restrictions (CR 508.4c — bypassed by construction, since this never
      *  runs the normal declare-attackers legality path); and it does NOT
      *  retroactively fire "whenever a creature attacks" triggers (CR 508.4 —

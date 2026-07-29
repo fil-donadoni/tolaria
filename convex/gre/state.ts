@@ -106,7 +106,7 @@ import {
 } from "./protection";
 import { isGuardedAgainst } from "./permanentGuard";
 import { getEffectiveBlockGraph } from "./banding";
-import { validateBlockerEligibility } from "./combat";
+import { validateBlockerEligibility, markAttacking } from "./combat";
 import { colorWordsPresent, landTypesPresent } from "./textChanges";
 import { randomInt, seededShuffle } from "./rng";
 import {
@@ -14659,16 +14659,24 @@ export function createTokenPermanents(
         }
         owner.battlefield.push(token);
         // CR 508.4 (issue #1195) — the token enters the battlefield ALREADY
-        // ATTACKING: join the CURRENT combat directly (mutating
-        // `combat.attackerIds`) instead of running the normal declare-
-        // attackers action. Deliberately does NOT emit an ATTACKERS_DECLARED
-        // event — CR 508.4 is explicit that such a token is "attacking" but
-        // never "attacked" for trigger purposes, so "whenever a creature
-        // attacks" abilities (including this token's own, if it has one)
-        // correctly never see this entry. No-op if there's no active combat
-        // to join (defensive — see `TokenSpec.entersAttacking`'s doc).
+        // ATTACKING: join the CURRENT combat directly through the shared
+        // `markAttacking` helper (`gre/combat.ts`) instead of running the
+        // normal declare-attackers action. `markAttacking` sets BOTH
+        // engine-wide representations of "attacking" — `combat.attackerIds`
+        // membership AND the per-permanent `isAttacking` flag — which is
+        // exactly the sync every OTHER combat-scoped read (layer statics,
+        // `combatRoleFilter`, `PermanentFilter.isAttacking`,
+        // `SpellContext.getIsAttacking`, the frontend wire) depends on; a
+        // token that only joined `attackerIds` was only HALF attacking.
+        // Deliberately does NOT emit an ATTACKERS_DECLARED event — CR 508.4
+        // is explicit that such a token is "attacking" but never "attacked"
+        // for trigger purposes, so "whenever a creature attacks" abilities
+        // (including this token's own, if it has one) correctly never see
+        // this entry. No-op if there's no active combat to join (defensive —
+        // see `TokenSpec.entersAttacking`'s doc; `markAttacking` itself is
+        // also a no-op with no `state.combat`).
         if (spec.entersAttacking && state.combat) {
-            state.combat.attackerIds = [...state.combat.attackerIds, id];
+            markAttacking(state, token);
         }
         applyExistingGrantsTo(state, token);
         applySourceStaticEffects(state, token);

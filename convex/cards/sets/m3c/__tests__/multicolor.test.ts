@@ -200,18 +200,35 @@ describe("Satya — attack trigger resolution (CR 508.4 copy + CR 122.1 energy +
         expect(copy.isTapped).toBe(true);
         // CR 508.4 — joined the CURRENT combat directly.
         expect(state.combat!.attackerIds).toEqual(["satyaAtk", copy.id]);
+        // BLOCKING review finding (issue #1195, fix 1) — the token must be
+        // attacking by BOTH engine representations: `combat.attackerIds`
+        // membership (asserted above) AND the per-permanent `isAttacking`
+        // flag, kept in sync by the shared `markAttacking` helper
+        // (`gre/combat.ts`). Before that fix, this path only set the former,
+        // leaving the token invisible to every `isAttacking`-keyed read
+        // (layer statics, `combatRoleFilter` targeting,
+        // `PermanentFilter.isAttacking`, `SpellContext.getIsAttacking`, and
+        // — see the wire assertion below — the frontend's
+        // blocker-assignment affordance).
+        expect(copy.isAttacking).toBe(true);
         // Unconditional {E}{E} (CR 122.1).
         expect(state.players[0].energyCounters).toBe(2);
         // CR 603.7 — the delayed sacrifice-or-pay is scheduled.
         expect(state.delayedTriggers?.length).toBe(1);
 
-        // Wire format — tap state, combat membership, and energy are all
-        // board-visible.
+        // Wire format — tap state, combat membership, isAttacking, and energy
+        // are all board-visible. `isAttacking` specifically is what the
+        // frontend's blocker-assignment click gate
+        // (`useBattlefieldInteraction.tsx:514`) and combat-ring/offset
+        // visual state (`useBattlefieldVisualState.ts`) read — a dropped flag
+        // here is a silently unblockable attacker in the UI (issue #1195
+        // review, fix 2).
         const projected = projectPublicState(state, 1, "p1");
         const slimCopy = projected.players[0].battlefield.find(
             (c) => c.id === copy.id
         )!;
         expect(slimCopy.isTapped).toBe(true);
+        expect(slimCopy.isAttacking).toBe(true);
         expect(projected.combat!.attackerIds).toContain(copy.id);
         expect(projected.players[0].energyCounters).toBe(2);
     });

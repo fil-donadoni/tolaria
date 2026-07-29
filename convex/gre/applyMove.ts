@@ -52,6 +52,7 @@ import { liveSupertypesOf } from "./snow";
 import { checkStateBasedActions } from "./sba";
 import { applyPlayLand, finalizeLandEntry } from "./playLand";
 import { applyAllCombatDamage, buildAutoDamageAssignments } from "./phases";
+import { markAttacking } from "./combat";
 import { recordBlockedAttackers } from "./banding";
 import { cloneGameState } from "./clone";
 import { enumerateMoves, type Move } from "./moves";
@@ -555,7 +556,10 @@ export function applyMoveForSearch(
             for (const id of move.attackerIds) {
                 const atk = findCreature(next, id);
                 if (!atk) continue;
-                atk.isAttacking = true;
+                // Shared helper (`gre/combat.ts`, issue #1195) — sets BOTH
+                // `combat.attackerIds` membership (already true here;
+                // idempotent) AND `isAttacking` together.
+                markAttacking(next, atk);
                 if (!atk.staticAbilities.includes("vigilance")) {
                     // CR 708.9 / ADR 0013 — face-down attacker turns up on tap.
                     tapPermanent(next, atk);

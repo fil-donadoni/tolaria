@@ -27,6 +27,36 @@ import {
 export const CAVERNS_OF_DESPAIR_ID = "209f7479-b3a0-4c27-9602-78babb8d2e99";
 export const ARBORIA_ID = "095078b0-0f26-442f-9d3b-45e30cdb33c4";
 
+/** CR 508.1 / 508.4 — marks a permanent as attacking, keeping the engine's TWO
+ *  representations of "is this creature attacking" in sync: the combat-scoped
+ *  id list (`combat.attackerIds`, membership) and the per-permanent flag
+ *  (`CardInstanceState.isAttacking`, read by nearly everything combat-scoped —
+ *  the layer system's "attacking creatures get +1/+0" statics,
+ *  `combatRoleFilter: "attacking"` targeting, `PermanentFilter.isAttacking`,
+ *  `SpellContext.getIsAttacking`, and the frontend wire/UI). Every real
+ *  "becomes an attacker" transition MUST route through this ONE function —
+ *  before it existed, three call sites hand-wrote both halves separately and
+ *  one of them (a token entering the battlefield already attacking, issue
+ *  #1195) forgot the `isAttacking` half: `combat.attackerIds` correctly
+ *  listed the token but `isAttacking` stayed `undefined`, so the token was
+ *  only HALF attacking — invisible to every read keyed off the flag instead
+ *  of the id list. Idempotent on `attackerIds` (a caller that already pushed
+ *  the id, e.g. the declare-attackers move, doesn't duplicate it).
+ *
+ *  Callers still own TAPPING — the tap rule differs by site (vigilance-gated
+ *  at a normal attacker declaration vs. the unconditional CR 508.4 "enters
+ *  tapped" token rule) and is deliberately not this function's concern. */
+export function markAttacking(
+    state: GameState,
+    permanent: CardInstanceState
+): void {
+    if (!state.combat) return;
+    if (!state.combat.attackerIds.includes(permanent.id)) {
+        state.combat.attackerIds = [...state.combat.attackerIds, permanent.id];
+    }
+    permanent.isAttacking = true;
+}
+
 /** True when any permanent with the given card id is on any player's
  *  battlefield. Used for global World-enchantment effects (CR 109.2 — the
  *  effect applies regardless of controller). */
