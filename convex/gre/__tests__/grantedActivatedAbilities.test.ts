@@ -11,10 +11,15 @@ import type { CardInstanceState, GameState } from "../state";
 import { resolveTopOfStack } from "../state";
 import { finalizeCleanup } from "../phases";
 import { getEffectiveActivatedAbilities } from "../activatedAbilities";
-import { getEffectiveActivatedAbilities as gameGetEffectiveActivatedAbilities } from "../../game";
+import {
+    getEffectiveActivatedAbilities as gameGetEffectiveActivatedAbilities,
+    tapForPayment,
+    tapSourceIntoPayment,
+} from "../../game";
 import {
     getActivatedManaAbility,
     getManaTapOptionsDetailed,
+    getProducibleColors,
     hasManaAbility,
     isUntappedManaSource,
     manaGateBattlefields,
@@ -22,6 +27,13 @@ import {
 import { getProducibleManaOptions, getLegalActions } from "../rules";
 import { validateEffectScript } from "../effects/validate";
 import { projectPublicState } from "../../gameProjections";
+import { forest } from "../../cards/sets/lea/colorless";
+import type { Id } from "../../_generated/dataModel";
+import {
+    gameStateSeed,
+    makeMutationCtx,
+    runMutation,
+} from "../../__tests__/gameMutationHarness";
 
 // ── Fixtures ────────────────────────────────────────────────────────────────
 //
@@ -130,6 +142,41 @@ registerTokenDefinition({
         },
     ],
 });
+
+/** A granted mana ability that carries a RIDER — its own `{1}` activation
+ *  cost. The mana-tap CHOICE branch (`resolveManaTapChoice`) must resolve the
+ *  option's `abilityId` against the POST-LAYER set to find it; resolving
+ *  against the printed list alone returned `null`, which the caller cannot
+ *  tell apart from an intrinsic basic-subtype pick, so the `{1}` (and every
+ *  other rider) was silently skipped and this granted ability made FREE mana. */
+const COSTED_TEMPLATE_ID = "test-1880-pay-1-add-w";
+const COSTED_TEMPLATE: ActivatedAbility = {
+    id: COSTED_TEMPLATE_ID,
+    oracleText: "{1}, {T}: Add {W}.",
+    cost: { tap: true, mana: { X: 1 } },
+    useStack: false,
+    manaProduced: { W: 1 },
+};
+
+const COSTED_GRANTER_ID = "test-1880-costed-granter";
+const costedGranter: CardDefinition = {
+    id: COSTED_GRANTER_ID,
+    name: "Test Costed Mana Grant",
+    rarity: "common",
+    manaCost: { G: 1 },
+    types: ["Sorcery"],
+    oracleText: 'Target land gains "{1}, {T}: Add {W}."',
+    targetRequirement: { type: "Land", count: 1 },
+    effects: [
+        {
+            op: "grantAbility",
+            target: { target: 0 },
+            grantedActivatedId: COSTED_TEMPLATE_ID,
+        },
+    ],
+    grantTemplates: [COSTED_TEMPLATE],
+};
+registerTokenDefinition(costedGranter);
 
 /** A {1} spell — payable ONLY by the granted `{T}: Add {C}` in these tests. */
 const ONE_MANA_SPELL_ID = "test-1880-one-mana-spell";
@@ -243,6 +290,13 @@ describe("grantAbility: indefinite activated-ability grant (CR 611.2c, issue #18
         ]);
         state.players[0].battlefield = [];
         expect(() => resolveTopOfStack(state)).not.toThrow();
+        // Not merely "doesn't throw" (which would pass even if the grant were
+        // applied anyway): the departed target carries NO grant, and putting
+        // it back on the battlefield does not resurrect one.
+        expect(recipient.grantedActivatedAbilities).toBeUndefined();
+        expect(hasManaAbility(recipient)).toBe(false);
+        // The spell left the stack (CR 608.2m) with the whole effect skipped.
+        expect(state.stack).toHaveLength(0);
     });
 });
 
@@ -420,5 +474,157 @@ describe("getEffectiveActivatedAbilities moved to gre/activatedAbilities (issue 
         expect(
             getDefinition(INDEFINITE_GRANTER_ID).grantTemplates
         ).toHaveLength(1);
+    });
+});
+
+// ── Half 3 — the granted source pays a REAL cost (GRE → game.ts) ─────────────
+//
+// The mana PRODUCTION readers (`getActivatedManaColor`, `getFixedManaAmount`,
+// `getDynamicManaProduced`) were left on `cardDef.activatedAbilities` while the
+// DISCOVERY probes above were rewired, so the planner committed to a source
+// the payment path then rejected ("Card does not produce mana") — and the
+// priority tap silently tapped the permanent for ZERO mana. Half 2 asserts
+// only discovery; these drive the real payment.
+
+describe("a granted mana ability pays a REAL cost (CR 605.1a, issue #1880)", () => {
+    it("tapSourceIntoPayment adds the granted ability's mana to the pool", () => {
+        const { state, recipient } = boardWithGrant(INDEFINITE_GRANTER_ID);
+        const player = state.players[0];
+        tapSourceIntoPayment(state, player, recipient, undefined, []);
+        expect(player.manaPool.C).toBe(1);
+        expect(recipient.isTapped).toBe(true);
+    });
+
+    it("without the grant the very same call is rejected (the assertion above isn't vacuous)", () => {
+        const { state, recipient } = boardWithGrant(null);
+        expect(() =>
+            tapSourceIntoPayment(
+                state,
+                state.players[0],
+                recipient,
+                undefined,
+                []
+            )
+        ).toThrow(/does not produce mana/);
+    });
+
+    it("the registered `tapForPayment` mutation funds a {1} spell entirely off the granted source", async () => {
+        const { state } = boardWithGrant(INDEFINITE_GRANTER_ID);
+        state.pendingCast = {
+            playerId: "p1",
+            cardInstanceId: "spell",
+            manaCost: { X: 1 },
+            tappedLandIds: [],
+        };
+        const harness = makeMutationCtx("p1", [gameStateSeed(state)]);
+        await runMutation<
+            {
+                gameId: Id<"games">;
+                playerId: string;
+                payments: { cardInstanceId: string }[];
+            },
+            void
+        >(tapForPayment, harness.ctx, {
+            gameId: "game-1" as Id<"games">,
+            playerId: "p1",
+            payments: [{ cardInstanceId: "recipient" }],
+        });
+        const after = harness.state();
+        // The cost was covered, so the cast auto-committed: the spell left the
+        // hand for the stack and the granted source is tapped.
+        expect(after.pendingCast).toBeUndefined();
+        expect(after.players[0].hand).toHaveLength(0);
+        expect(after.stack.map((s) => s.id)).toContain("spell");
+        expect(
+            after.players[0].battlefield.find((c) => c.id === "recipient")
+                ?.isTapped
+        ).toBe(true);
+    });
+});
+
+/** A Forest granted "{1}, {T}: Add {W}" — TWO mana-tap options (the granted
+ *  activated one and the intrinsic Forest subtype, CR 305.6), so the tap routes
+ *  through the CHOICE branch that `resolveManaTapChoice` serves. */
+function forestWithCostedGrant(): {
+    state: GameState;
+    land: CardInstanceState;
+} {
+    const land = makeInstance(forest.id, {
+        id: "granted-land",
+        controllerId: "p1",
+        ownerId: "p1",
+    });
+    const state = makeState({
+        players: [
+            makePlayer("p1", {
+                battlefield: [land],
+                manaPool: { W: 0, U: 0, B: 0, R: 0, G: 1, C: 0 },
+            }),
+            makePlayer("p2"),
+        ],
+    });
+    resolveGrant(COSTED_GRANTER_ID, land, state);
+    return { state, land: state.players[0].battlefield[0] };
+}
+
+describe("the mana-tap CHOICE branch honours a GRANTED option's riders (CR 605.1a, issue #1880)", () => {
+    it("enumerates the granted option alongside the intrinsic basic-subtype one", () => {
+        const { state, land } = forestWithCostedGrant();
+        expect(
+            getManaTapOptionsDetailed(land, "p1", manaGateBattlefields(state), {
+                requireTap: true,
+            })
+        ).toEqual([
+            {
+                mana: { W: 1 },
+                source: { kind: "activated", abilityId: COSTED_TEMPLATE_ID },
+            },
+            { mana: { G: 1 }, source: { kind: "basic", subtype: "Forest" } },
+        ]);
+    });
+
+    it("picking the granted option PAYS its {1} (it used to make free mana)", () => {
+        const { state, land } = forestWithCostedGrant();
+        const player = state.players[0];
+        tapSourceIntoPayment(state, player, land, 0, []);
+        expect(player.manaPool.W).toBe(1);
+        // The floating {G} funded the granted ability's own {1} activation cost.
+        expect(player.manaPool.G ?? 0).toBe(0);
+    });
+
+    it("rejects the granted option when its {1} can't be paid", () => {
+        const { state, land } = forestWithCostedGrant();
+        const player = state.players[0];
+        player.manaPool = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
+        expect(() => tapSourceIntoPayment(state, player, land, 0, [])).toThrow(
+            /Not enough mana/
+        );
+        expect(land.isTapped).not.toBe(true);
+    });
+
+    it("the intrinsic basic-subtype option next to it stays rider-free (CR 305.6)", () => {
+        const { state, land } = forestWithCostedGrant();
+        const player = state.players[0];
+        tapSourceIntoPayment(state, player, land, 1, []);
+        expect(player.manaPool.G).toBe(2); // the floating {G} plus the tapped one
+        expect(player.manaPool.W).toBe(0);
+    });
+});
+
+// ── CR 106.4 "could produce" sees the grant too ──────────────────────────────
+
+describe("getProducibleColors includes a granted mana ability (CR 106.4, issue #1880)", () => {
+    it("a Forest granted `{1}, {T}: Add {W}` could produce BOTH {G} and {W}", () => {
+        const { land } = forestWithCostedGrant();
+        expect([...getProducibleColors(land)].sort()).toEqual(["G", "W"]);
+    });
+
+    it("without the grant it could produce only {G}", () => {
+        const plain = makeInstance(forest.id, {
+            id: "plain-forest",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        expect([...getProducibleColors(plain)]).toEqual(["G"]);
     });
 });

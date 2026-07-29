@@ -1167,7 +1167,16 @@ function manaTapNeedsChoice(
  *  option list (CR 605.1a / 305.6), returning the produced mana + its
  *  provenance: `ability` is `null` for an intrinsic basic-land-subtype option
  *  (no riders), and `choiceIndex` is the ability-LOCAL index a Mana Battery
- *  reads as its counter-removal count. Null when the index is out of range. */
+ *  reads as its counter-removal count. Null when the index is out of range.
+ *
+ *  CR 113.1 / 611.1b (issue #1880) — the id is resolved against the POST-LAYER
+ *  effective set, the same list `getManaTapOptionsDetailed` enumerated the
+ *  option from. Resolving against `def.activatedAbilities` alone returned
+ *  `null` for a GRANTED option, which the caller cannot distinguish from an
+ *  intrinsic basic-subtype pick: every tap rider (`applyManaAbilityManaCost`,
+ *  `cost.sacrifice`, `manaChoiceRemovesCounters`, the self-damage / life /
+ *  discard / draw riders, `manaRestriction`) was silently skipped, so a
+ *  granted "{1}, {T}: Add {W}" produced FREE mana. */
 function resolveManaTapChoice(
     card: CardInstanceState,
     controllerId: string,
@@ -1184,9 +1193,10 @@ function resolveManaTapChoice(
     if (source.kind === "basic") {
         return { mana: opt.mana, ability: null, choiceIndex: undefined };
     }
-    const def = getDefinition(card.card.id as string);
     const ability =
-        def.activatedAbilities?.find((a) => a.id === source.abilityId) ?? null;
+        getEffectiveActivatedAbilities(card).find(
+            ({ ability: a }) => a.id === source.abilityId
+        )?.ability ?? null;
     return { mana: opt.mana, ability, choiceIndex: source.choiceIndex };
 }
 

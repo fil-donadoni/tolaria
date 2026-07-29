@@ -1,4 +1,5 @@
-import { getInstanceManaCost, tryGetDefinition } from "../cards";
+import { getInstanceManaCost } from "../cards";
+import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 import type { Demand } from "./autoTap";
 import { abilitiesSuppressed, hasInstantSpeed } from "./constants";
 import type { Phase } from "./types";
@@ -147,10 +148,10 @@ export function buildBoardAbilityDemands(
         // CR 613.1f — a permanent that has lost all abilities exposes none of
         // its printed activated abilities.
         if (abilitiesSuppressed(perm)) continue;
-        const cardId = (perm.card as { id?: string }).id;
-        const def = cardId ? tryGetDefinition(cardId) : undefined;
-        if (!def?.activatedAbilities) continue;
-        for (const ability of def.activatedAbilities) {
+        // CR 113.1 / 611.1b (issue #1880) — POST-LAYER set: an ability GRANTED
+        // to this permanent competes for mana exactly like a printed one, so
+        // auto-tap must reserve for it too.
+        for (const { ability } of getEffectiveActivatedAbilities(perm)) {
             // Mana abilities (CR 605.1a) PRODUCE mana — they're sources, not
             // Demands (handled by `buildAutoTapSources`).
             if (!ability.useStack && ability.manaProduced) continue;

@@ -295,10 +295,11 @@ export function canRefundManaTap(
     manaPool: ManaPool
 ): boolean {
     if (!card.isTapped || card.manaCommitted) return false;
-    const cardDef = getDefinition(card.card.id);
-    const ability = cardDef.activatedAbilities?.find(
-        (a) => !a.useStack && a.manaProduced
-    );
+    // POST-LAYER set (CR 113.1 / 611.1b, issue #1880) — a source tapped for
+    // mana via a GRANTED fixed ability offers the same refund affordance.
+    const ability = getEffectiveActivatedAbilities(
+        card as unknown as CardInstanceState
+    ).find(({ ability: a }) => !a.useStack && a.manaProduced)?.ability;
     if (!ability?.manaProduced) return false;
     for (const [color, amount] of Object.entries(ability.manaProduced)) {
         if (color === "X" || typeof amount !== "number" || amount <= 0)
@@ -362,14 +363,18 @@ export function getNonTapManaChoices(
     card: CardInstance,
     players?: ReadonlyArray<{ id: string; battlefield: CardInstance[] }>
 ): ManaCost[] | null {
-    const cardDef = getDefinition(card.card.id);
-    const ability = cardDef.activatedAbilities?.find(
-        (a) =>
+    // POST-LAYER set (CR 113.1 / 611.1b, issue #1880) — the gate matches the
+    // effective list `getEffectiveManaChoices` below resolves against, so a
+    // GRANTED non-tap chooser is not silently gated out of the picker.
+    const ability = getEffectiveActivatedAbilities(
+        card as unknown as CardInstanceState
+    ).find(
+        ({ ability: a }) =>
             !a.useStack &&
             !a.cost.tap &&
             !a.cost.sacrifice &&
             (a.manaChoices || a.getManaChoices)
-    );
+    )?.ability;
     if (!ability) return null;
     return getEffectiveManaChoices(
         card as unknown as CardInstanceState,
@@ -381,12 +386,16 @@ export function getNonTapManaChoices(
     );
 }
 
-/** Returns the mana color produced by an activated tap ability, or null. */
+/** Returns the mana color produced by an activated tap ability, or null.
+ *  POST-LAYER set (CR 113.1 / 611.1b, issue #1880) — mirrors the engine's
+ *  `getActivatedManaColor`, so the battlefield's "taps for mana" visual cue
+ *  (`useBattlefieldVisualState`) lights up for a GRANTED `{T}: Add …` too. */
 export function getActivatedManaColor(card: CardInstance): Color | null {
-    const cardDef = getDefinition(card.card.id);
-    const ability = cardDef.activatedAbilities?.find(
-        (a) => a.cost.tap && !a.useStack && a.manaProduced
-    );
+    const ability = getEffectiveActivatedAbilities(
+        card as unknown as CardInstanceState
+    ).find(
+        ({ ability: a }) => a.cost.tap && !a.useStack && a.manaProduced
+    )?.ability;
     if (!ability?.manaProduced) return null;
     const colors = Object.entries(ability.manaProduced)
         .filter(([k, v]) => k !== "X" && typeof v === "number" && v > 0)
