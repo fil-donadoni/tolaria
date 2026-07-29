@@ -4,6 +4,8 @@
 // count, and TAPPING a chip opens the EXISTING reveal / stack view (the same
 // dialog / panel the desktop board uses) — nothing is rebuilt.
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
     render,
     screen,
@@ -250,11 +252,15 @@ describe("BoardPortraitChips (#336)", () => {
         expect(screen.queryByTestId("stack-view")).toBeNull();
     });
 
-    it("review fixup (#1813/#1823) — the stack chip and an opened stack overlay both out-rank a same-tier pending-choice banner", () => {
-        // A centered pending-choice banner shares the board's `z-modal` tier
-        // and, mounted later in board.tsx, would otherwise win the DOM-order
-        // tiebreak and paint over both the chip and the panel it opens. Both
-        // must sit at the higher `z-modal-top` tier instead.
+    it("review fixup round 2 (#1813/#1823) — the stack chip and an opened stack overlay sit at `z-chip`, strictly between the centered banner's `z-banner` and a blocking modal's `z-modal`", () => {
+        // Round 1 put both at `z-modal-top` so they'd out-rank a centered
+        // pending-choice banner (then also `z-modal`) — but `z-modal-top`
+        // also out-ranks every BLOCKING modal (trigger-order-prompt,
+        // mana-choice-picker, the reveal overlays), leaving the chip tappable
+        // through their scrim. The fix: the banner moved DOWN to `z-banner`
+        // (below `z-chip`), the chip stays at the new `z-chip` tier — NOT
+        // `z-modal-top`, NOT the old `z-30`, and NOT `z-modal` itself, so a
+        // real blocking modal still wins outright.
         const me = makePlayer("me");
         const opp = makePlayer("opp");
         const stack = [
@@ -262,16 +268,42 @@ describe("BoardPortraitChips (#336)", () => {
         ] as unknown as StackItem[];
         renderChips(opp, me, stack);
 
-        expect(screen.getByTestId("stack-chip-row").className).toContain(
-            "z-modal-top"
-        );
-        expect(screen.getByTestId("stack-chip-row").className).not.toMatch(
-            /\bz-30\b/
-        );
+        const rowClassName = screen.getByTestId("stack-chip-row").className;
+        expect(rowClassName).toContain("z-chip");
+        expect(rowClassName).not.toMatch(/\bz-30\b/);
+        expect(rowClassName).not.toContain("z-modal-top");
+        expect(rowClassName).not.toMatch(/\bz-modal\b(?!-)/);
 
         fireEvent.click(screen.getByTestId("chip-stack"));
         expect(
             screen.getByTestId("stack-view").getAttribute("data-elevated")
         ).toBe("true");
+    });
+
+    it("pins the numeric ordering in src/index.css: banner < chip < modal", () => {
+        // This is the actual bug from #1823 round 1: `--z-modal-top` (110) sat
+        // ABOVE `--z-modal` (100), so raising the chip past `--z-modal` let it
+        // paint over a real blocking modal's scrim. jsdom in this test suite
+        // never loads `src/index.css` (no `getComputedStyle` signal to assert
+        // on), so read the source of truth directly — a future edit that
+        // re-breaks the ordering fails HERE, not only visually.
+        const css = readFileSync(
+            resolve(process.cwd(), "src/index.css"),
+            "utf8"
+        );
+        const valueOf = (name: string): number => {
+            const match = css.match(new RegExp(`--${name}:\\s*(\\d+);`));
+            if (!match) throw new Error(`--${name} not found in index.css`);
+            return Number(match[1]);
+        };
+
+        const banner = valueOf("z-banner");
+        const chip = valueOf("z-chip");
+        const modal = valueOf("z-modal");
+        const modalTop = valueOf("z-modal-top");
+
+        expect(banner).toBeLessThan(chip);
+        expect(chip).toBeLessThan(modal);
+        expect(modal).toBeLessThan(modalTop);
     });
 });

@@ -34,6 +34,27 @@ describe("pendingChoiceRoutesToBattlefield (issue #1823 review fixup)", () => {
             pendingChoiceRoutesToBattlefield(choice({ kind: "may-pay" }))
         ).toBe(false);
     });
+
+    // The discriminator this predicate exists for (review fixup #1823,
+    // finding 1): a zone-less `may-pay` with a payable MANA leg (Echo,
+    // cumulative upkeep, "unless you pay {mana}" triggers — CR 702.61/117.3a)
+    // never sets `zone` (`requestMayPay` only sets it for a real
+    // sacrifice/discard victim pick). If this predicate wrongly returned
+    // `true` for it, `useBattlefieldInteraction.tsx`'s click router would
+    // toggle the board-tap buffer instead of leaving the click alone for the
+    // mana picker, AND `usePendingChoicePrimaryAction.ts` would gate Pay on a
+    // buffered board pick that never gets satisfied — Pay stays permanently
+    // disabled. 815 other tests stay green either way; only this exact
+    // assertion catches the regression. `pendingChoiceRequiresBoardTap` is the
+    // WIDER predicate built for exactly this shape — its own describe block
+    // below covers the `true` twin.
+    it("is false for a zone-less may-pay with a payable mana leg (Echo / cumulative upkeep shape) — the exact case the wider pendingChoiceRequiresBoardTap predicate exists to catch instead", () => {
+        expect(
+            pendingChoiceRoutesToBattlefield(
+                choice({ kind: "may-pay", cost: { R: 1 } })
+            )
+        ).toBe(false);
+    });
 });
 
 describe("pendingChoiceRequiresBoardTap (issue #1813, review fixup #1823 finding 1)", () => {
@@ -108,6 +129,50 @@ describe("pendingChoiceRequiresBoardTap (issue #1813, review fixup #1823 finding
                 choice({ kind: "may-pay", cost: { mana: { X: "X" } } })
             )
         ).toBe(true);
+    });
+
+    // Review fixup #1823 (note 3) — before this fixup, `hybrid` (an array)
+    // and `phyrexian` (an object) both silently failed the `typeof value ===
+    // "number"` numeric-pip check and were ignored: a false negative. Today
+    // unreachable (no shipped card routes a hybrid/Phyrexian-only leg through
+    // `may-pay`), but the predicate must not silently mis-classify one if it
+    // ever does.
+    it("is true for a zone-less may-pay whose mana leg is guild-hybrid or Phyrexian pips only (CR 202.1a / 107.4f)", () => {
+        expect(
+            pendingChoiceRequiresBoardTap(
+                choice({
+                    kind: "may-pay",
+                    cost: { mana: { hybrid: [["B", "G"]] } },
+                })
+            )
+        ).toBe(true);
+        expect(
+            pendingChoiceRequiresBoardTap(
+                choice({
+                    kind: "may-pay",
+                    cost: { mana: { phyrexian: { U: 1 } } },
+                })
+            )
+        ).toBe(true);
+    });
+
+    it("is false for an empty hybrid array or an all-zero phyrexian leg", () => {
+        expect(
+            pendingChoiceRequiresBoardTap(
+                choice({
+                    kind: "may-pay",
+                    cost: { mana: { hybrid: [] } },
+                })
+            )
+        ).toBe(false);
+        expect(
+            pendingChoiceRequiresBoardTap(
+                choice({
+                    kind: "may-pay",
+                    cost: { mana: { phyrexian: { U: 0 } } },
+                })
+            )
+        ).toBe(false);
     });
 
     it("is false for a degenerate all-zero mana leg", () => {

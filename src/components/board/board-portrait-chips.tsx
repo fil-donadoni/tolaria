@@ -55,14 +55,18 @@ export default function BoardPortraitChips({
                 half the bottom bar's clearance above the viewport centre — not
                 a literal `top-1/2`, or the chip would drift into the viewer's
                 battlefield.
-                z-modal-top (issue #1813 review fixup, #1823), not z-30: a
-                centered pending-choice banner shares the board's `z-modal`
-                tier and, mounted later in `board.tsx`, would otherwise paint
-                over this chip and swallow its taps. The chip is the player's
-                only way to reach the stack on portrait, so it must stay
-                tappable regardless of what prompt is showing. */}
+                z-chip (issue #1813 review fixup round 2, #1823) — NOT
+                z-modal-top. A centered pending-choice banner now renders at
+                the lower `z-banner` tier (`usePromptBannerPosition`), and
+                `z-chip` sits one rung above it so this chip stays tappable
+                regardless of what prompt is showing — but strictly BELOW
+                `z-modal`, so a real blocking modal (trigger-order-prompt,
+                mana-choice-picker, the reveal overlays) still wins outright
+                rather than the chip painting through its scrim. See
+                `src/index.css`'s `--z-banner`/`--z-chip`/`--z-modal` comment
+                for the full 3-rung rationale. */}
             <div
-                className={`absolute right-2 ${PORTRAIT_MIDLINE_TOP} z-modal-top -translate-y-1/2`}
+                className={`absolute right-2 ${PORTRAIT_MIDLINE_TOP} z-chip -translate-y-1/2`}
                 data-testid="stack-chip-row"
             >
                 <StackChip
@@ -74,9 +78,10 @@ export default function BoardPortraitChips({
 
             {/* The stack overlay is the EXISTING panel, toggled by the chip
                 instead of being always-on. `elevated` (issue #1813 review
-                fixup, #1823) — opening the stack is an explicit player
-                action; it must paint above a same-tier pending-choice
-                banner, not lose the DOM-order tiebreak to it. */}
+                fixup, #1823) puts it at the SAME `z-chip` tier as the chip
+                above — opening the stack is an explicit player action; it
+                must out-rank the (lower) centered pending-choice banner, but
+                — like the chip — stay below any real blocking modal. */}
             {stackOpen && stackItems.length > 0 && (
                 <GameStack stack={stackItems} elevated />
             )}

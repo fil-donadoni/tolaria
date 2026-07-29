@@ -22,14 +22,17 @@ import StackRow from "./stack-row";
 
 type GameStackProps = {
     stack: StackItem[];
-    /** Issue #1813 review fixup (#1823) — portrait's `BoardPortraitChips`
-     *  toggles this panel from the stack chip, and a pending-choice prompt
-     *  (`usePromptBannerPosition`'s centered variant) shares the SAME
-     *  `z-modal` tier, painting over it in DOM order (the prompt mounts
-     *  later in `board.tsx`). Opening the stack is an explicit player
-     *  action — it must win. Set only by the portrait toggle path; desktop's
-     *  always-on mount leaves this unset (unchanged `z-modal`, no prompt ever
-     *  needs to out-rank the ambient stack there). */
+    /** Issue #1813 review fixup round 2 (#1823) — portrait's
+     *  `BoardPortraitChips` toggles this panel from the stack chip. Opening
+     *  the stack is an explicit player action, so it renders at the `z-chip`
+     *  tier (`src/index.css`) — one rung ABOVE a centered pending-choice
+     *  prompt's `z-banner` tier (`usePromptBannerPosition`), so it is never
+     *  swallowed by that banner, but strictly BELOW `z-modal`, so a real
+     *  blocking modal (trigger-order-prompt, mana-choice-picker, the reveal
+     *  overlays) still owns the screen outright rather than the panel
+     *  painting through its scrim. Set only by the portrait toggle path;
+     *  desktop's always-on mount leaves this unset (unchanged `z-modal` —
+     *  no chip, no centered-banner collision to fix there). */
     elevated?: boolean;
 };
 
@@ -95,7 +98,7 @@ export default function GameStack({ stack, elevated }: GameStackProps) {
             // to sit under every play-area-centered dialog (card placement,
             // pickers). Pushing it fully right clears them; the panel is
             // draggable if a pile underneath needs a look.
-            className={`absolute top-1/2 ${elevated ? "z-modal-top" : "z-modal"}`}
+            className={`absolute top-1/2 ${elevated ? "z-chip" : "z-modal"}`}
             style={{
                 right: "0.5rem",
                 transform: `translate(${offset.x}px, calc(-50% + ${offset.y}px))`,

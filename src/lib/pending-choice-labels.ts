@@ -71,15 +71,29 @@ export function pendingChoiceLabel(kind: PendingChoiceKind): string {
 }
 
 /** True when a `may-pay` cost's mana leg demands an actual payment — at least
- *  one non-zero colored/generic pip or a variable `{X}` — as opposed to no
- *  mana leg at all (a pure life/sacrifice/discard/energy cost) or a
- *  degenerate all-zero mana leg. `xFactor` is a multiplier on `X`, never a pip
- *  by itself, so it never trips this on its own. */
+ *  one non-zero colored/generic pip, a variable `{X}`, a guild-hybrid pip
+ *  (CR 202.1a — `{B/G}`), or a Phyrexian pip (CR 107.4f — `{U/P}`) — as
+ *  opposed to no mana leg at all (a pure life/sacrifice/discard/energy cost)
+ *  or a degenerate all-zero/empty mana leg. `xFactor` is a multiplier on `X`,
+ *  never a pip by itself, so it never trips this on its own. Every pip shape
+ *  is board-tap-relevant: a hybrid or Phyrexian pip is still payable with
+ *  mana (Phyrexian ALSO with 2 life, but the mana option alone is enough to
+ *  make this a "player may need to tap lands with the prompt open" case) —
+ *  before this fixup (#1823 review), `hybrid` (an array) and `phyrexian` (an
+ *  object) both silently failed the `typeof value === "number"` check below
+ *  and were ignored: a false negative, unreachable today (no shipped card
+ *  routes a hybrid/Phyrexian-only leg through `may-pay`) but silent should
+ *  one ever land. */
 function mayPayCostHasPayableManaLeg(cost: MayPayCost | undefined): boolean {
     if (!cost) return false;
     const norm = normalizeMayPayCost(cost);
     if (!norm.mana) return false;
-    return Object.entries(norm.mana).some(([key, value]) => {
+    const { hybrid, phyrexian, ...pips } = norm.mana;
+    if (hybrid && hybrid.length > 0) return true;
+    if (phyrexian && Object.values(phyrexian).some((n) => (n ?? 0) > 0)) {
+        return true;
+    }
+    return Object.entries(pips).some(([key, value]) => {
         if (key === "xFactor") return false;
         if (key === "X") return value !== undefined && value !== 0;
         return typeof value === "number" && value > 0;
@@ -126,9 +140,12 @@ export function pendingChoiceRoutesToBattlefield(
  *  choice (`option-pick`, `name-card`, plain yes/no, a life-only or
  *  sacrifice/discard-only may-pay), has nothing on the mid-board to cover, so
  *  it's safe to vertically center on portrait like any other non-targeting
- *  prompt. Shared by `pending-choice-prompt.tsx` and
- *  `minimized-choice-indicator.tsx` — both render the SAME `PendingChoice` and
- *  must agree on whether it pins. */
+ *  prompt. Called from `pending-choice-prompt.tsx` to pick its `pinned`
+ *  branch. `minimized-choice-indicator.tsx` does NOT call this predicate — its
+ *  collapsed badge is ALWAYS `pinned: true` regardless of `choice.kind`
+ *  (review fixup #1823): minimizing exists specifically to clear the
+ *  mid-board, so a centered badge would defeat that for every choice, not
+ *  just the ones this predicate would pin anyway. */
 export function pendingChoiceRequiresBoardTap(choice: PendingChoice): boolean {
     return (
         pendingChoiceRoutesToBattlefield(choice) ||

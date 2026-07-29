@@ -56,12 +56,16 @@ export default function PendingChoicePrompt({
     gameId: Id<"games">;
 }) {
     const { allPlayers } = useGameContext();
-    // Issue #1813 — pin only when THIS choice routes clicks to the
-    // mid-board (`zone: "battlefield"` — a may-pay sacrifice/threshold leg,
-    // `choose-aura-host`, a zone-pick from the battlefield). Every other
-    // kind (hand/library/graveyard/exile zone picks, option-pick, name-card,
-    // plain yes/no) has nothing on the board to cover, so it centers like
-    // any other non-targeting prompt.
+    // Issue #1813 (review fixup #1823) — pin only when THIS choice requires a
+    // board tap WHILE THE PROMPT IS OPEN: every `zone: "battlefield"` choice
+    // (a may-pay sacrifice/threshold leg, `choose-aura-host`, a zone-pick from
+    // the battlefield) PLUS a zone-LESS `may-pay` whose cost has a payable
+    // mana leg (Echo, cumulative upkeep, "unless you pay {mana}" triggers —
+    // see `pendingChoiceRequiresBoardTap`'s own docstring). Every other kind
+    // (hand/library/graveyard/exile zone picks, option-pick, name-card, plain
+    // yes/no, a costless or life/sacrifice/discard-only may-pay) has nothing
+    // on the board to cover, so it centers like any other non-targeting
+    // prompt.
     const { outerClassName, outerStyle, innerClassName, dragHandlers } =
         usePromptBannerPosition({
             pinned: pendingChoiceRequiresBoardTap(choice),
