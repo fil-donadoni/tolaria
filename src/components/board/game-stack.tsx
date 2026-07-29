@@ -174,21 +174,61 @@ export default function GameStack({ stack, elevated, narrow }: GameStackProps) {
                 mounts inside this panel, and clipping it to the panel box would
                 hide the flight until it crosses the boundary. */}
             <div
-                // `max-h-full`, NOT `h-full` (issue #1816 review fixup finding
-                // 5): the OUTER positioned div above already has a definite
-                // height (both `top` and `bottom` are pinned, so the browser
-                // solves the gap between them per CSS's auto-height rule for
-                // absolutely-positioned boxes) — but this inner wrapper and
-                // the `Panel` below it are ordinary block children, which size
-                // to CONTENT by default. `h-full` used to force them to that
-                // full clearance gap regardless of how little the stack
-                // actually held, rendering an opaque box most of the way down
-                // the board even for a single-item stack. `max-h-full` keeps
-                // the same upper bound (never grows past the clearance) while
-                // letting the box shrink to its real content — the same
-                // technique the desktop variant already uses via
-                // `max-h-[80vh]` with no explicit `height`.
-                className={`relative overflow-visible ${narrow ? "max-h-full" : ""}`}
+                // `h-full`, NOT `max-h-full` (issue #1816 review fixup round 3,
+                // finding 2 — the round-2 fix broke this).
+                //
+                // The CHAIN: OUTER positioned div (both `top` and `bottom`
+                // pinned) → THIS transparent wrapper → `Panel` (`max-h-full`)
+                // → its scrollable body (`flex-1 min-h-0 overflow-y-auto`).
+                // Round 2 reasoned the outer div "already has a definite
+                // height" and gave THIS wrapper `max-h-full` too, on the
+                // theory that a percentage cap here would resolve against
+                // that outer definite height. It doesn't: a CSS percentage
+                // height (`max-height: 100%` included) only resolves against
+                // an ancestor whose OWN computed height is a definite,
+                // non-auto value — and `max-height` alone does not make a
+                // box's height definite, it only ever caps whatever height
+                // the box would otherwise take. This wrapper is an ordinary
+                // block with no other height source, so with only
+                // `max-h-full` its used height stayed `auto` (shrink-to-fit
+                // content) — a non-definite value. That left `Panel`'s OWN
+                // `max-h-full` one level down resolving against `auto` too,
+                // i.e. against nothing (`max-height: none`), so a long stack
+                // could grow past the outer box's real bottom edge and
+                // overrun `--portrait-viewer-bf-bottom` into the hand /
+                // controller bar.
+                //
+                // `h-full` (`height: 100%`) on THIS wrapper is what makes its
+                // computed height definite — it FIXES this wrapper's box to
+                // the outer div's real clearance, unconditionally. That's
+                // safe to force unconditionally here (unlike on `Panel`
+                // below) because this wrapper carries no background/border —
+                // it is pure layout, invisible either way; forcing its box to
+                // the full clearance doesn't render an oversized visible
+                // panel. `Panel`'s OWN `max-h-full` then resolves against a
+                // now-definite 100% and is genuinely a CAP: `Panel` is a
+                // `flex flex-col` block that still sizes to ITS content (a
+                // single-item stack renders a small box, same as before)
+                // — max-height only kicks in once content would exceed the
+                // wrapper's height, at which point the body's own
+                // `overflow-y-auto` scrolls instead of the panel growing
+                // further. Verified against
+                // `game-stack-narrow.test.tsx`'s guard.
+                //
+                // Pointer-events check (asked for explicitly in review):
+                // giving this wrapper a real `h-full` box does NOT create a
+                // new dead click-catching area over the board. The OUTER
+                // div above is `position: absolute` with BOTH `top` and
+                // `bottom` set — per CSS's auto-height resolution for
+                // absolutely positioned boxes, that already forces the outer
+                // div's own box to span the full clearance regardless of
+                // this wrapper's height, background-free or not. This
+                // wrapper's `h-full` box exactly coincides with a region the
+                // outer div already occupied; no additional page area
+                // becomes hit-testable that wasn't already. No
+                // `pointer-events-none` is added because there is no new
+                // regression to guard against.
+                className={`relative overflow-visible ${narrow ? "h-full" : ""}`}
             >
                 <Panel
                     density="compact"

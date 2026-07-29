@@ -133,7 +133,20 @@ describe("GameStack narrow/portrait variant (issue #1816)", () => {
         expect(panel.className).toContain("w-72");
     });
 
-    it("narrow is content-height (`max-h-full`), not forced `h-full` — a single item shouldn't render an oversized opaque box (issue #1816 review fixup finding 5)", () => {
+    it("the wrapper is `h-full` (a DEFINITE height) so the Panel's `max-h-full` has something to resolve against, while the Panel itself stays content-height, not forced `h-full` (issue #1816 review fixup round 3, finding 2)", () => {
+        // Round 2 gave BOTH the wrapper and the Panel `max-h-full`, reasoning
+        // the wrapper "inherited" a definite height from the outer pinned
+        // div. It doesn't: a percentage height only resolves against an
+        // ancestor with its OWN definite (non-auto) computed height, and
+        // `max-height` alone never makes a box's height definite — it only
+        // caps whatever height the box would otherwise take. With neither
+        // level holding an explicit `height`, the whole chain silently
+        // resolved to `max-height: none` and a long stack could overrun
+        // `--portrait-viewer-bf-bottom` into the hand / controller bar. The
+        // fix restores `h-full` on the WRAPPER only (safe: it has no
+        // background, so forcing its box to the full clearance renders
+        // nothing extra) — the Panel keeps `max-h-full` (not `h-full`), so a
+        // short stack still renders a small box, not an oversized one.
         const { container } = renderStack([makeStackItem("only")], {
             narrow: true,
         });
@@ -143,8 +156,8 @@ describe("GameStack narrow/portrait variant (issue #1816)", () => {
 
         const innerClasses = inner.className.split(/\s+/);
         const panelClasses = panel.className.split(/\s+/);
-        expect(innerClasses).toContain("max-h-full");
-        expect(innerClasses).not.toContain("h-full");
+        expect(innerClasses).toContain("h-full");
+        expect(innerClasses).not.toContain("max-h-full");
         expect(panelClasses).toContain("max-h-full");
         expect(panelClasses).not.toContain("h-full");
     });

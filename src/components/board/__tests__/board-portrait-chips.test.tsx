@@ -525,6 +525,84 @@ describe("BoardPortraitChips (#336)", () => {
         ).toBe("1");
     });
 
+    it("does NOT auto-collapse for a `spell-or-permanent` pendingTarget — the panel is the only surface with a clickable stack row (issue #1816 review fixup round 3, finding 1)", () => {
+        const me = makePlayer("me");
+        const opp = makePlayer("opp");
+        const stack = [
+            { id: "s1", card: { id: "def-s1" } },
+        ] as unknown as StackItem[];
+        const laceTarget: PendingTarget = {
+            playerId: "me",
+            cardInstanceId: "s1",
+            targetType: "spell-or-permanent",
+            count: 1,
+            selected: [],
+        };
+        renderChips(opp, me, stack, { pendingTarget: laceTarget });
+
+        expect(
+            screen.getByTestId("stack-view").getAttribute("data-count")
+        ).toBe("1");
+    });
+
+    it('does NOT auto-collapse for a MIXED target-type array that includes "spell" (issue #1816 review fixup round 3, finding 1)', () => {
+        const me = makePlayer("me");
+        const opp = makePlayer("opp");
+        const stack = [
+            { id: "s1", card: { id: "def-s1" } },
+        ] as unknown as StackItem[];
+        const mixedTarget: PendingTarget = {
+            playerId: "me",
+            cardInstanceId: "s1",
+            targetType: ["Enchantment", "spell"],
+            count: 1,
+            selected: [],
+        };
+        renderChips(opp, me, stack, { pendingTarget: mixedTarget });
+
+        expect(
+            screen.getByTestId("stack-view").getAttribute("data-count")
+        ).toBe("1");
+    });
+
+    it('does NOT auto-collapse for a pure `"player"` target — the panel never overlaps a nameplate (issue #1816 review fixup round 3, finding 1/4)', () => {
+        const me = makePlayer("me");
+        const opp = makePlayer("opp");
+        const stack = [
+            { id: "s1", card: { id: "def-s1" } },
+        ] as unknown as StackItem[];
+        const playerTarget: PendingTarget = {
+            playerId: "me",
+            cardInstanceId: "s1",
+            targetType: "player",
+            count: 1,
+            selected: [],
+        };
+        renderChips(opp, me, stack, { pendingTarget: playerTarget });
+
+        expect(
+            screen.getByTestId("stack-view").getAttribute("data-count")
+        ).toBe("1");
+    });
+
+    it("STILL auto-collapses for a pure permanent-type target — the target can only ever land on the battlefield (issue #1816 review fixup round 3, finding 1)", () => {
+        const me = makePlayer("me");
+        const opp = makePlayer("opp");
+        const stack = [
+            { id: "s1", card: { id: "def-s1" } },
+        ] as unknown as StackItem[];
+        const permanentOnlyTarget: PendingTarget = {
+            playerId: "me",
+            cardInstanceId: "s1",
+            targetType: "Creature",
+            count: 1,
+            selected: [],
+        };
+        renderChips(opp, me, stack, { pendingTarget: permanentOnlyTarget });
+
+        expect(screen.queryByTestId("stack-view")).toBeNull();
+    });
+
     it("does NOT auto-collapse for a pendingTarget belonging to the OTHER player", () => {
         const me = makePlayer("me");
         const opp = makePlayer("opp");
@@ -564,6 +642,45 @@ describe("BoardPortraitChips (#336)", () => {
         // auto-collapse — the panel stays closed until the flow itself clears.
         fireEvent.click(chip);
         expect(screen.queryByTestId("stack-view")).toBeNull();
+    });
+
+    it("a tap on the chip DURING auto-collapse is ignored outright — it must not silently flip `userClosed` (issue #1816 review fixup round 3, note 6)", () => {
+        // Without the guard, the tap's `stackOpen` effect is invisible (the
+        // panel was already forced closed by the auto-collapse either way),
+        // but `userClosed` still flips underneath. That corruption only
+        // surfaces LATER, once the auto-collapse condition clears: the panel
+        // would wrongly stay closed (a stray `userClosed: true` the player
+        // never asked for) instead of reverting to open, as issue #1816's
+        // "open by default" contract requires.
+        const me = makePlayer("me");
+        const opp = makePlayer("opp");
+        const stack = [
+            { id: "s1", card: { id: "def-s1" } },
+        ] as unknown as StackItem[];
+        const boardTapChoice = makeChoice({
+            kind: "choose-permanents",
+            zone: "battlefield",
+        });
+        const { rerender } = renderChips(opp, me, stack, {
+            pendingChoices: [boardTapChoice],
+        });
+
+        const chip = screen.getByTestId("chip-stack");
+        expect(screen.queryByTestId("stack-view")).toBeNull();
+        // Tap the chip once (or twice — either way an ignored tap can't
+        // "toggle back") while the board-tap flow is still live.
+        fireEvent.click(chip);
+        fireEvent.click(chip);
+        expect(screen.queryByTestId("stack-view")).toBeNull();
+
+        // The flow clears — with the tap(s) correctly ignored, `userClosed`
+        // is still its untouched `false` default, so the panel reverts to
+        // open with no further action, exactly like the plain "auto-collapse
+        // clears" case above.
+        rerender(chipsElement(opp, me, stack, { pendingChoices: [] }));
+        expect(
+            screen.getByTestId("stack-view").getAttribute("data-count")
+        ).toBe("1");
     });
 
     it("review fixup round 2 (#1813/#1823) — the stack chip and an opened stack overlay sit at `z-chip`, strictly between the centered banner's `z-banner` and a blocking modal's `z-modal`", () => {

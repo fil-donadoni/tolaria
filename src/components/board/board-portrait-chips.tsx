@@ -2,23 +2,39 @@ import { useState } from "react";
 import type { PendingTarget, Player, StackItem } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
 import { pendingChoiceRequiresBoardTap } from "~/lib/pending-choice-labels";
+import { wantsSpellTarget } from "~/lib/card-utils";
 import { PORTRAIT_MIDLINE_TOP } from "~/lib/portrait-board-bands";
 import BoardPileChips from "./board-pile-chips";
 import StackChip from "./stack-chip";
 import GameStack from "./game-stack";
 
-/** Issue #1816 review fixup finding 1 — does the ACTIVE pendingTarget (this
- *  viewer's OWN target selection, gated on `pendingTarget.playerId ===
- *  viewerPlayerId`) route a click to something on the mid-board? Mirrors
- *  `wantsSpellTarget`'s "spell" special case (`card-utils.ts`): a target type
- *  of PURE `"spell"` only ever matches an item already inside the (still
- *  open) stack panel itself — nothing on the board needs clearing for that.
- *  Every other type value (a permanent `CardType`, `"player"`, `"any"`,
- *  `"card"`, or `"spell-or-permanent"`) can route a click to a battlefield
- *  permanent or a player nameplate the panel might sit over, and the
- *  targeted spell/ability stays ON the stack while its targets are picked
- *  (CR 601.2c) — the panel would be in the way of finishing the very cast it
- *  is showing. */
+/** Issue #1816 review fixup finding 1 (round 3 correction) — does the ACTIVE
+ *  pendingTarget (this viewer's OWN target selection, gated on
+ *  `pendingTarget.playerId === viewerPlayerId`) route a click to something on
+ *  the mid-board? The ROUND 2 predicate (`types.some((t) => t !== "spell")`)
+ *  over-collapsed: it treated ANY type other than the bare literal `"spell"`
+ *  as board-bound, which wrongly included `"spell-or-permanent"` and a mixed
+ *  array like `["Enchantment", "spell"]` — both of which CAN be satisfied by
+ *  an item still inside the stack panel (Magical Hack, Sleight of Mind, Blind
+ *  Seer, lace instants, Teferi's Care). Auto-collapsing for those made the
+ *  panel disappear as the ONLY surface offering a clickable stack row, with
+ *  nothing on the board to tap instead — selection became impossible.
+ *
+ *  The fix routes through {@link wantsSpellTarget} (`card-utils.ts`) — the
+ *  SAME authority `GameStack`'s own `canTargetSpell` gate already uses to
+ *  decide whether a stack row is clickable (CR 114.1 / CR 601.2c). Whenever
+ *  that authority says the pendingTarget CAN be satisfied by something on the
+ *  stack, the panel must stay open — full stop, never collapsed — because it
+ *  is the only surface with a clickable stack row. Only a target that can
+ *  NEVER land on the stack collapses the panel to clear the board.
+ *
+ *  A pure `"player"` target (`.claude/rules/gre-development.md` § Exhaustive
+ *  target-type matching: every union member handled explicitly) is the other
+ *  carve-out (review fixup round 3, finding 4): it resolves on a player
+ *  nameplate, a region this narrow panel never overlaps (it anchors between
+ *  the midline and the viewer battlefield's own bottom inset — see
+ *  `GameStack`'s doc comment) — collapsing buys nothing there and only hides
+ *  the stack the player may want to glance at while choosing. */
 function pendingTargetWantsBoard(
     pendingTarget: PendingTarget | undefined,
     viewerPlayerId: string
@@ -26,10 +42,16 @@ function pendingTargetWantsBoard(
     if (!pendingTarget || pendingTarget.playerId !== viewerPlayerId) {
         return false;
     }
+    if (wantsSpellTarget(pendingTarget.targetType)) {
+        return false;
+    }
     const types = Array.isArray(pendingTarget.targetType)
         ? pendingTarget.targetType
         : [pendingTarget.targetType];
-    return types.some((t) => t !== "spell");
+    if (types.length === 1 && types[0] === "player") {
+        return false;
+    }
+    return true;
 }
 
 type BoardPortraitChipsProps = {
@@ -145,6 +167,14 @@ export default function BoardPortraitChips({
     // Issue #1816 review fixup finding 1 — see the module doc comment above:
     // a BLOCKING mitigation, not a preference, so it is deliberately kept
     // OUT of `userClosed` and just recomputed fresh every render.
+    //
+    // `pendingChoices?.[0]` (review fixup round 3, note 5) — NOT a `.find`
+    // over the queue: `pendingChoices` is FIFO-ordered (only the head is ever
+    // actionable; a later entry is queued behind it, not concurrently live),
+    // and the SAME `[0]` + explicit `.playerId === viewer` gate is how
+    // `board.tsx` itself reads this field everywhere it does (see its
+    // `pendingChoices[0].playerId === ...` call sites) — this mirrors that
+    // established convention rather than diverging with a `.find`.
     const activeChoice = pendingChoices?.[0];
     const autoCollapsedForBoardTap =
         (!!activeChoice &&
@@ -187,7 +217,25 @@ export default function BoardPortraitChips({
                 <StackChip
                     count={stackItems.length}
                     open={stackOpen}
-                    onToggle={() => setUserClosed((v) => !v)}
+                    onToggle={() => {
+                        // Review fixup round 3, note 6 — a tap during the
+                        // BLOCKING auto-collapse (see the module doc comment)
+                        // is a no-op for `stackOpen` either way (the panel
+                        // stays closed regardless of `userClosed`), but
+                        // WITHOUT this guard it still silently FLIPS
+                        // `userClosed`. That flip is invisible in the moment
+                        // (nothing on screen changes) yet corrupts the
+                        // preference for later: once the auto-collapse
+                        // condition clears, the panel would stay wrongly
+                        // closed (a stray true `userClosed`) or wrongly open
+                        // (a stray false one from a second accidental tap)
+                        // instead of reverting to whatever the player
+                        // actually intended. Ignoring the tap outright keeps
+                        // `userClosed` exactly as the player last
+                        // deliberately left it.
+                        if (autoCollapsedForBoardTap) return;
+                        setUserClosed((v) => !v);
+                    }}
                 />
             </div>
 
