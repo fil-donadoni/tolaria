@@ -61,12 +61,31 @@ describe("PileChip compact mode (#1815 review fixup, round 2)", () => {
                 onClick={vi.fn()}
                 data-testid="chip-gy-compact"
                 compact
+                grow
             />
         );
         const chip = screen.getByTestId("chip-gy-compact");
         expect(chip.className).toContain("min-h-11");
         expect(chip.className).toContain("min-w-11");
+        // `grow` (bar cell only) is what carries `flex-1` — the width-sharing
+        // half of the round-2 guarantee this block documents.
         expect(chip.className).toContain("flex-1");
+    });
+
+    it("omits flex-1 without `grow` (#1867 — the vertical opponent column must not grow on the column axis)", () => {
+        render(
+            <PileChip
+                label="GY"
+                count={0}
+                onClick={vi.fn()}
+                data-testid="chip-gy-compact-nogrow"
+                compact
+            />
+        );
+        const chip = screen.getByTestId("chip-gy-compact-nogrow");
+        expect(chip.className).not.toContain("flex-1");
+        expect(chip.className).toContain("min-h-11");
+        expect(chip.className).toContain("min-w-11");
     });
 
     it("uses a readable 10px label/count font, not the illegible 8px round 1 shipped", () => {

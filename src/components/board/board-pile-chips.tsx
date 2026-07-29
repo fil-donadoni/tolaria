@@ -20,14 +20,21 @@ type OpenZone = "graveyard" | "library" | "exile" | null;
  *
  *  `compact` (#1815 review fixup): the VIEWER's row mounts inline in the
  *  controller bottom bar (`controller-bottom-bar.tsx`) rather than floating
- *  on the board — see that module's doc comment for why. The opponent's row
- *  stays board-level and non-compact. */
+ *  on the board — see that module's doc comment for why.
+ *
+ *  `vertical` (#1867): the OPPONENT's board-level mount. As a horizontal
+ *  top-left row (~180px of `min-w-14` chips) it collided with the opponent's
+ *  top-CENTER compact nameplate on phone widths, so it renders instead as a
+ *  vertical column pinned top-right (`board-portrait-chips.tsx`), reusing the
+ *  stacked chip style (label over count, 44px floors on both axes). */
 export default function BoardPileChips({
     player,
     compact = false,
+    vertical = false,
 }: {
     player: Player;
     compact?: boolean;
+    vertical?: boolean;
 }) {
     const [openZone, setOpenZone] = useState<OpenZone>(null);
     const toggle = (zone: Exclude<OpenZone, null>) =>
@@ -35,7 +42,13 @@ export default function BoardPileChips({
 
     return (
         <div
-            className={compact ? "flex w-full gap-0.5" : "flex gap-1"}
+            className={
+                compact
+                    ? "flex w-full gap-0.5"
+                    : vertical
+                      ? "flex flex-col gap-1"
+                      : "flex gap-1"
+            }
             data-testid={`pile-chips-${player.id}`}
         >
             <PileChip
@@ -44,21 +57,24 @@ export default function BoardPileChips({
                 onClick={() => toggle("graveyard")}
                 data-testid={`chip-graveyard-${player.id}`}
                 data-arrow-anchor-graveyard={player.id}
-                compact={compact}
+                compact={compact || vertical}
+                grow={compact}
             />
             <PileChip
                 label="LIB"
                 count={libraryCount(player.library)}
                 onClick={() => toggle("library")}
                 data-testid={`chip-library-${player.id}`}
-                compact={compact}
+                compact={compact || vertical}
+                grow={compact}
             />
             <PileChip
                 label="EXL"
                 count={player.exile.length}
                 onClick={() => toggle("exile")}
                 data-testid={`chip-exile-${player.id}`}
-                compact={compact}
+                compact={compact || vertical}
+                grow={compact}
             />
 
             {/* Pile components in controlled-open mode: they render ONLY their
