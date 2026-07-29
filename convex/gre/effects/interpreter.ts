@@ -598,6 +598,13 @@ function toPermanentFilter(
         // `isToken`'s own mapping exactly (battlefield-only, no hidden-zone
         // counterpart in `matchesCardFilter`).
         enteredThisTurn: filter.enteredThisTurn,
+        // CR 508.1 (issue #1097 — Tangle's "each creature that's attacking"),
+        // propagated 1:1 onto `PermanentFilter.isAttacking`
+        // (`convex/cards/filters.ts`), already read by combat-scoped choice
+        // pickers — `CardInstanceState.isAttacking` is spread verbatim into
+        // every `getBattlefieldIds` candidate, so no new engine read, only
+        // this DSL filter surface.
+        isAttacking: filter.isAttacking,
         // issue #1085 — `PermanentFilter.name` has no dynamic-ref form (no
         // shipped card needs a battlefield-scoped bound-name filter yet, the
         // same asymmetry `excludeColor` notes above); only a FIXED literal
@@ -1477,6 +1484,15 @@ export const OP_EXECUTORS: {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return;
         ctx.restrictAbilityActivation(playerId);
+    },
+    // CR 504.1 (issue #1097 — Elfhame Sanctuary) — arm a one-shot "skip your
+    // draw step this turn" flag on `player`, consumed the next time
+    // `drawStep` (`gre/phases.ts`) reaches them. Skipped when the player is
+    // gone (CR 608.2b).
+    skipDrawStepThisTurn(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return;
+        ctx.skipDrawStepThisTurn(playerId);
     },
     // CR 601.3e (Teferi, Time Raveler +1) — grant a per-player casting-timing
     // permission: `player` may cast spells whose printed types intersect

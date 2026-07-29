@@ -2583,6 +2583,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         note: "Impose a turn-scoped per-player \"can't activate abilities that aren't mana abilities\" restriction (CR 602.1 / 605.1a, issue #1124 — Abeyance: \"target player can't cast instant or sorcery spells, and that player can't activate abilities that aren't mana abilities\"). A thin declarative skin over the single SpellContext primitive `restrictAbilityActivation`, one execution path (ADR 0045): `player` names whom to lock. Adds the player id to `state.cannotActivateAbilitiesThisTurn`, enforced directly by the `activateAbility` mutation (`convex/game.ts`) — the ONLY mutation that handles non-mana (`useStack: true`) abilities (mana abilities go through the separate `tapUntap` mutation and are structurally exempt, so the restriction needs no explicit mana-ability carve-out) — and cleared unconditionally at CLEANUP (CR 514.2). Mirrored as a UI hint in `getStackAbilities` (`src/lib/card-utils.ts`) via the wire-projected `TriggerStateView.cannotActivateAbilitiesThisTurn`.",
     },
     {
+        op: "skipDrawStepThisTurn",
+        status: "implemented",
+        cr: "504.1",
+        binding: "SpellContext.skipDrawStepThisTurn",
+        note: 'A one-shot "you skip your draw step this turn" flag on `player` (CR 504.1, issue #1097 — Elfhame Sanctuary: "…put it into your hand, then shuffle. If you do, you skip your draw step this turn."). A thin declarative skin over the single SpellContext primitive `skipDrawStepThisTurn`, one execution path (ADR 0045): `player` names the resolving controller for the one shipped card, an announced slot / relative player not precluded by the grammar. Adds the player id to `state.skipDrawStepThisTurn`, consumed the NEXT time `drawStep` (`gre/phases.ts`) reaches that player this turn — a plain skip, no replacement choice — and cleared unconditionally at CLEANUP as a turn-1 safety net (CR 103.8a skips only the DRAW step, not the UPKEEP step Elfhame Sanctuary arms it from). Distinct from `CardDefinition.drawStepReplacement` (Fasting): that is a STATIC per-card flag re-evaluated every turn, handing off to its OWN DRAW-phase trigger for an INTERACTIVE may-skip choice made AT the draw step itself; this Op arms a plain flag from a DIFFERENT step\'s effect (upkeep), with no choice left to make once armed — `drawStep` checks this flag FIRST, before any `drawStepReplacement` card, so a player who armed it never also sees an unrelated replacement offered.',
+    },
+    {
         op: "grantCastTiming",
         status: "implemented",
         cr: "601.3e",

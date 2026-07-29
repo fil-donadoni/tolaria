@@ -2015,6 +2015,12 @@ describe("optional field round-trip smoke tests", () => {
         ]);
     });
 
+    it("skipDrawStepThisTurn (Elfhame Sanctuary, CR 504.1, issue #1097)", () => {
+        const state = freshState();
+        state.skipDrawStepThisTurn = ["p1"];
+        expect(roundTrip(state).skipDrawStepThisTurn).toEqual(["p1"]);
+    });
+
     it("combatDamageRedirectToPermanent (Kjeldoran Royal Guard, CR 614.6)", () => {
         const state = freshState();
         state.combatDamageRedirectToPermanent = [

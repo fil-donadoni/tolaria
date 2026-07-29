@@ -3472,6 +3472,14 @@
         "firstPrintSet": "arn"
     },
     {
+        "name": "Elfhame Sanctuary",
+        "scryfallId": "6ab9a90c-5fd8-4f8c-b692-f98a2974810c",
+        "oracleId": "6f98f270-f6ff-4029-bcdd-3e7f6483eb5d",
+        "firstSet": "inv",
+        "firstPrintId": "6ab9a90c-5fd8-4f8c-b692-f98a2974810c",
+        "firstPrintSet": "inv"
+    },
+    {
         "name": "Elkin Bottle",
         "scryfallId": "49301c19-55a0-4146-9474-0b86cd320e31",
         "oracleId": "1e381361-7404-4654-bfb4-5ea65f6e4dce",
@@ -12174,6 +12182,14 @@
         "firstSet": "mrd",
         "firstPrintId": "41ff849e-2439-4690-8aa4-769039b6da4c",
         "firstPrintSet": "mrd"
+    },
+    {
+        "name": "Tangle",
+        "scryfallId": "6b37e39c-8aa4-4938-a492-7dac5de98dfb",
+        "oracleId": "f627e125-15af-4e53-b34e-82b60e4ec87b",
+        "firstSet": "inv",
+        "firstPrintId": "6b37e39c-8aa4-4938-a492-7dac5de98dfb",
+        "firstPrintSet": "inv"
     },
     {
         "name": "Tarfire",

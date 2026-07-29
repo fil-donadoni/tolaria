@@ -1985,6 +1985,59 @@ describe("Effect Script Op: restrictActivation (CR 602.1 / 605.1a, issue #1124)"
     });
 });
 
+// New Op (issue #1097 — Elfhame Sanctuary) → full per-Op regime: interpreter
+// coverage of the construct combinations it participates in (controller /
+// announced player slot, idempotence), plus a wire-format assertion through
+// projectPublicState. The card's own suspension/resume behavior (mayPay
+// accept/decline, search found/not-found) is covered by
+// `convex/cards/sets/inv/__tests__/green.test.ts`.
+describe("Effect Script Op: skipDrawStepThisTurn (CR 504.1, issue #1097)", () => {
+    it("adds the resolving controller to state.skipDrawStepThisTurn", () => {
+        const id = registerScript("test-op-skip-draw-controller", [
+            { op: "skipDrawStepThisTurn", player: "controller" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.skipDrawStepThisTurn).toEqual(["p1"]);
+    });
+
+    it("locks the announced player target", () => {
+        const id = registerScript(
+            "test-op-skip-draw-target",
+            [{ op: "skipDrawStepThisTurn", player: { target: 0 } }],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState();
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        expect(state.skipDrawStepThisTurn).toEqual(["p2"]);
+    });
+
+    it("is idempotent — a second resolution does not duplicate the id", () => {
+        const id = registerScript("test-op-skip-draw-idem", [
+            { op: "skipDrawStepThisTurn", player: "controller" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.skipDrawStepThisTurn).toEqual(["p1"]);
+    });
+
+    it("the armed flag survives projection (wire format)", () => {
+        const id = registerScript("test-op-skip-draw-wire", [
+            { op: "skipDrawStepThisTurn", player: "controller" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.skipDrawStepThisTurn).toEqual(["p1"]);
+    });
+});
+
 // New Op (issue #1283) → full per-Op regime: interpreter coverage of the
 // construct combinations it participates in (controller / announced player
 // slot), plus a wire-format assertion through projectPublicState.
@@ -7803,6 +7856,128 @@ describe("EffectCardFilter.hasAbility (CR 702, issue #1097)", () => {
         expect(projected.players[1].battlefield.map((c) => c.id)).toEqual([
             "groundedWire",
         ]);
+    });
+});
+
+// EffectCardFilter.isAttacking (CR 508.1, issue #1097) — `hasAbility`'s
+// combat-role sibling above, but paired with a genuinely NEW construct
+// combination (`forEach` + `isAttacking` feeding `skipNextUntap` via `{ ref:
+// "$each" }`, Tangle, `inv/green.ts`) — the per-Op regime's own permanent
+// test for that combination, distinct from a hand-written per-card test.
+describe("EffectCardFilter.isAttacking (CR 508.1, issue #1097)", () => {
+    it('arms skipNextUntap on a creature that IS attacking but NOT one that is not ("forEach" construct)', () => {
+        const id = registerScript("test-isattacking-foreach", [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    filter: { type: "Creature", isAttacking: true },
+                },
+                effects: [{ op: "skipNextUntap", target: { ref: "$each" } }],
+            },
+        ]);
+        const attacker = makeInstance(BEAR_ID, {
+            id: "attackerA",
+            controllerId: "p2",
+            ownerId: "p2",
+            isAttacking: true,
+        });
+        const bystander = makeInstance(BEAR_ID, {
+            id: "bystanderA",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [attacker, bystander] }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "attackerA")!
+                .skipNextUntap
+        ).toBe(true);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bystanderA")!
+                .skipNextUntap
+        ).toBeUndefined();
+    });
+
+    it("is controller-agnostic — sweeps the caster's own attacking creatures too", () => {
+        const id = registerScript("test-isattacking-foreach-own", [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    filter: { type: "Creature", isAttacking: true },
+                },
+                effects: [{ op: "skipNextUntap", target: { ref: "$each" } }],
+            },
+        ]);
+        const casterAttacker = makeInstance(BEAR_ID, {
+            id: "casterAttacker",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [casterAttacker] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "casterAttacker")!
+                .skipNextUntap
+        ).toBe(true);
+    });
+
+    it("wire format — the isAttacking-filtered skipNextUntap sweep survives projectPublicState", () => {
+        const id = registerScript("test-isattacking-wire", [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    filter: { type: "Creature", isAttacking: true },
+                },
+                effects: [{ op: "skipNextUntap", target: { ref: "$each" } }],
+            },
+        ]);
+        const attacker = makeInstance(BEAR_ID, {
+            id: "attackerWire",
+            controllerId: "p2",
+            ownerId: "p2",
+            isAttacking: true,
+        });
+        const bystander = makeInstance(BEAR_ID, {
+            id: "bystanderWire",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [attacker, bystander] }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        const slimAttacker = projected.players[1].battlefield.find(
+            (c) => c.id === "attackerWire"
+        )!;
+        expect(slimAttacker.skipNextUntap).toBe(true);
+        const slimBystander = projected.players[1].battlefield.find(
+            (c) => c.id === "bystanderWire"
+        )!;
+        expect(slimBystander.skipNextUntap).toBeUndefined();
     });
 });
 

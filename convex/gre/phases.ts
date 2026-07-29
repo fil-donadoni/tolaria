@@ -708,9 +708,25 @@ export function untapStep(state: GameState): void {
  *  replacement, the natural draw is replaced. The step consumes the first
  *  matching entry and suspends on a `draw-look-keep` `PendingChoice`
  *  (mirroring the untap step's phase-level prompt); `finalizeDrawLookKeep`
- *  reorders the library and performs the actual draw on commit. */
+ *  reorders the library and performs the actual draw on commit.
+ *
+ *  CR 504.1 (issue #1097 — Elfhame Sanctuary): a one-shot per-player
+ *  `state.skipDrawStepThisTurn` flag, armed by an EARLIER step's effect
+ *  (upkeep) and consumed here, skips the draw outright with no replacement
+ *  choice. Distinct from `hasDrawSkipReplacement` (Fasting's
+ *  `drawStepReplacement`): that is a static per-card flag re-checked every
+ *  turn that hands off to its OWN DRAW-phase trigger for an interactive
+ *  may-skip decision; this flag is consumed directly, with no trigger
+ *  involved, and checked first so a player who armed it never sees Fasting's
+ *  (or a future card's) replacement offered on top. */
 function drawStep(state: GameState): void {
     if (state.turn === 1) return;
+    const skipList = state.skipDrawStepThisTurn;
+    if (skipList?.includes(state.activePlayerId)) {
+        const rest = skipList.filter((id) => id !== state.activePlayerId);
+        state.skipDrawStepThisTurn = rest.length > 0 ? rest : undefined;
+        return;
+    }
     if (hasDrawSkipReplacement(state, state.activePlayerId)) return;
 
     const armed = state.drawLookReplacements ?? [];
@@ -2830,6 +2846,15 @@ function tickAllDurations(state: GameState): void {
     // function also ticks at END_OF_COMBAT, where the tally must survive).
     if (view.phase === "CLEANUP" && state.abilityResolutionCounts) {
         state.abilityResolutionCounts = undefined;
+    }
+    // CR 504.1 / 514.2 (issue #1097 — Elfhame Sanctuary) — a one-shot
+    // per-player draw-step-skip flag is normally consumed by `drawStep`
+    // itself, earlier the SAME turn; this is a safety net for the turn-1
+    // edge case (CR 103.8a skips only the DRAW step, not UPKEEP, so a flag
+    // armed there on turn 1 is never reached by `drawStep` and must not
+    // survive to a later turn).
+    if (view.phase === "CLEANUP" && state.skipDrawStepThisTurn) {
+        state.skipDrawStepThisTurn = undefined;
     }
 }
 

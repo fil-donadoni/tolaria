@@ -1071,6 +1071,124 @@ describe("EffectCardFilter.hasAbility — rejected outside a live battlefield re
     });
 });
 
+// --- EffectCardFilter.isAttacking — battlefield-only (issue #1097) ----------
+//
+// `isAttacking` is `hasAbility`'s combat-role sibling: it reads the LIVE
+// `isAttacking` flag via `toPermanentFilter` / `matchesPermanentFilter`
+// (`gre/effects/interpreter.ts`) — a hidden-zone card shape has no combat
+// role at all, so the field is REJECTED there exactly like `hasAbility` is.
+// Pins the same three sites `hasAbility`'s own describe block above pins.
+describe("EffectCardFilter.isAttacking — rejected outside a live battlefield read (issue #1097)", () => {
+    it("accepts isAttacking on a forEach permanents (battlefield) selector", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    filter: { type: "Creature", isAttacking: true },
+                },
+                effects: [{ op: "skipNextUntap", target: { ref: "$each" } }],
+            },
+        ];
+        expect(validateEffectScript(host({ effects }))).toEqual([]);
+    });
+
+    it("rejects isAttacking on a forEach graveyard selector", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "forEach",
+                select: {
+                    set: "graveyard",
+                    controller: "controller",
+                    filter: { type: "Creature", isAttacking: true },
+                },
+                effects: [
+                    {
+                        op: "moveZone",
+                        target: { ref: "$each" },
+                        to: "hand",
+                    },
+                ],
+            },
+        ];
+        const errors = validateEffectScript(host({ effects }));
+        expect(errors.some((e) => /field "select"/.test(e))).toBe(true);
+    });
+
+    it("accepts isAttacking on a count construct's battlefield zone", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "draw",
+                player: "controller",
+                count: {
+                    count: {
+                        zone: "battlefield",
+                        controller: "controller",
+                        filter: { type: "Creature", isAttacking: true },
+                    },
+                },
+            },
+        ];
+        expect(validateEffectScript(host({ effects }))).toEqual([]);
+    });
+
+    it("rejects isAttacking on a count construct's graveyard zone", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "draw",
+                player: "controller",
+                count: {
+                    count: {
+                        zone: "graveyard",
+                        controller: "controller",
+                        filter: { type: "Creature", isAttacking: true },
+                    },
+                },
+            },
+        ];
+        const errors = validateEffectScript(host({ effects }));
+        expect(errors.length).toBeGreaterThan(0);
+    });
+
+    it("accepts isAttacking on a choice Op scoped to zone: battlefield", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "choice",
+                kind: "sacrifice-permanents",
+                player: { target: 0 },
+                zone: "battlefield",
+                filter: { type: "Creature", isAttacking: true },
+                count: 1,
+                prompt: "Sacrifice an attacking creature.",
+                bind: "$sac",
+            },
+        ];
+        expect(validateEffectScript(host({ effects }))).toEqual([]);
+    });
+
+    it("rejects isAttacking on a choice Op scoped to zone: graveyard", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "choice",
+                kind: "choose-graveyard-card",
+                player: { target: 0 },
+                zone: "graveyard",
+                filter: { type: "Creature", isAttacking: true },
+                count: 1,
+                prompt: "Choose an attacking creature card.",
+                bind: "$picked",
+            },
+        ];
+        const errors = validateEffectScript(host({ effects }));
+        expect(
+            errors.some((e) =>
+                /filter\.isAttacking.*zone: "battlefield"/.test(e)
+            )
+        ).toBe(true);
+    });
+});
+
 // --- if construct + mayPay / counter Ops (ADR 0045, issue #806) --------------
 
 describe("validateEffectScript — if construct + mayPay/counter (issue #806)", () => {

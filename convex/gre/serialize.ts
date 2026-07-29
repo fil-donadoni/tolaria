@@ -1436,6 +1436,12 @@ export const PERSISTED_OPTIONAL_KEYS = [
     // ADR 0047 — authoritative Expected Input. Plain-data discriminated union,
     // so it round-trips through the DB as-is.
     "expectedInput",
+    // CR 504.1 (issue #1097 — Elfhame Sanctuary) — a one-shot per-player
+    // draw-step-skip flag, armed at upkeep and consumed at that player's own
+    // draw step LATER THE SAME TURN. A save/load between the two must not
+    // lose it (a plain string[] of player ids, no fat card refs — round-trips
+    // via the generic optional-key loop with no per-field compaction).
+    "skipDrawStepThisTurn",
 ] as const;
 
 /** Optional GameState keys that are intentionally ephemeral — never

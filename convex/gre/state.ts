@@ -3181,6 +3181,23 @@ export type GameState = {
      *  non-mana (`useStack: true`) activation, with no separate mana-ability
      *  branch to special-case. Cleared unconditionally at CLEANUP. */
     cannotActivateAbilitiesThisTurn?: string[];
+    /** CR 504.1 (issue #1097 — Elfhame Sanctuary's "you skip your draw step
+     *  this turn"). Player ids that skip their OWN draw step the next time
+     *  it is reached this turn. Armed by `SpellContext.skipDrawStepThisTurn`
+     *  (the `skipDrawStepThisTurn` Op) at whatever step the resolving effect
+     *  runs — Elfhame Sanctuary arms it at upkeep, earlier in the SAME turn
+     *  than the draw step it consumes. Consumed — spliced back out — by
+     *  `drawStep` (`gre/phases.ts`) the first time it reaches a listed
+     *  player, which simply skips the draw outright (no replacement choice).
+     *  Distinct from `CardDefinition.drawStepReplacement` (Fasting): that is
+     *  a STATIC per-card flag re-evaluated every turn, offering an
+     *  interactive may-skip choice AT the draw step itself via its own DRAW
+     *  phase trigger; this is a plain per-player turn flag armed by a
+     *  DIFFERENT step's effect, with no choice left to make once armed.
+     *  Cleared unconditionally at CLEANUP as a safety net for the turn-1
+     *  edge case (CR 103.8a skips only the DRAW step, not UPKEEP, so a flag
+     *  armed on turn 1 would otherwise never be consumed). */
+    skipDrawStepThisTurn?: string[];
     /** CR 305.1-analog / 601 / 514.2 (issue #1149) — turn-scoped, player-wide
      *  permission to play lands and/or cast spells from OWN graveyard
      *  (Yawgmoth's Will: "Until end of turn, you may play lands and cast
@@ -11988,6 +12005,18 @@ export function buildSpellContext(
             const list = state.cannotActivateAbilitiesThisTurn ?? [];
             if (!list.includes(playerId)) list.push(playerId);
             state.cannotActivateAbilitiesThisTurn = list;
+        },
+
+        skipDrawStepThisTurn(playerId: string): void {
+            // CR 504.1 (issue #1097 — Elfhame Sanctuary) — mark `playerId` to
+            // skip their own draw step the next time it is reached this turn.
+            // Idempotent; consumed by `drawStep` (`gre/phases.ts`), with a
+            // CLEANUP-boundary safety net (`tickAllDurations`) for the turn-1
+            // edge case where the arming step (upkeep) runs but the draw step
+            // never does (CR 103.8a).
+            const list = state.skipDrawStepThisTurn ?? [];
+            if (!list.includes(playerId)) list.push(playerId);
+            state.skipDrawStepThisTurn = list;
         },
 
         grantGraveyardPlay(
