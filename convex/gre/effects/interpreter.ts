@@ -586,6 +586,13 @@ function toPermanentFilter(
         excludeSupertypes: filter.excludeSupertype,
         colors: filter.color,
         isToken: filter.isToken,
+        // CR 702 (issue #1097) — "with <keyword>" (Canopy Surge's "each
+        // creature with flying"), propagated 1:1 onto
+        // `PermanentFilter.requireAbility` (`convex/cards/filters.ts`), which
+        // already reads the LIVE/materialized `staticAbilities` array — no
+        // separate effective-abilities helper needed (see `EffectCardFilter.
+        // hasAbility`'s own doc comment).
+        requireAbility: filter.hasAbility,
         // CR 400.7 (issue #1458) — "entered the battlefield this turn",
         // propagated 1:1 onto `PermanentFilter.enteredThisTurn`, mirroring
         // `isToken`'s own mapping exactly (battlefield-only, no hidden-zone
@@ -1837,6 +1844,16 @@ export const OP_EXECUTORS: {
         if (!target) return;
         if (op.bind) bindSnapshot(ctx, op.bind, target);
         ctx.exile(target);
+    },
+    // CR 608.2 (issue #1097) — the resolving spell exiles ITSELF instead of
+    // going to the graveyard ("Exile ~", Recall / Restock). A thin
+    // declarative skin over the single SpellContext primitive `exileSelf`,
+    // ONE execution path (ADR 0045). No parameters to resolve — the
+    // primitive flags the CURRENTLY-RESOLVING stack item, mirroring
+    // `shuffleSelfIntoLibrary`'s design (issue #898) exactly, so
+    // `finalizeSpellResolution` reads the flag once resolution completes.
+    exileSelf(ctx) {
+        ctx.exileSelf();
     },
     // CR 603.7a / 701.18 / ADR 0028 — exile the announced target keyed to
     // `$source`, arming the exile-and-return bundle (O-Ring / Banishing Light /

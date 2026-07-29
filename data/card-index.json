@@ -1736,6 +1736,14 @@
         "firstPrintSet": "atq"
     },
     {
+        "name": "Canopy Surge",
+        "scryfallId": "2e19d68e-7554-4627-a316-beb1f75fa494",
+        "oracleId": "a151c45f-0b9e-41af-90b3-fafa12e3bbce",
+        "firstSet": "inv",
+        "firstPrintId": "2e19d68e-7554-4627-a316-beb1f75fa494",
+        "firstPrintSet": "inv"
+    },
+    {
         "name": "Capashen Unicorn",
         "scryfallId": "ec3e5741-88d7-4837-9b43-ba8304d9ee74",
         "oracleId": "52793400-bc83-402a-9609-928a4d3ac812",
@@ -10062,6 +10070,14 @@
         "firstSet": "leg",
         "firstPrintId": "1c829d83-d5b8-4be7-80f7-55b42f52b309",
         "firstPrintSet": "leg"
+    },
+    {
+        "name": "Restock",
+        "scryfallId": "11a013ff-7c99-445a-b9e0-0fc45036f068",
+        "oracleId": "8b641cd3-bb08-4f2e-9dad-24f58a9c32e1",
+        "firstSet": "inv",
+        "firstPrintId": "11a013ff-7c99-445a-b9e0-0fc45036f068",
+        "firstPrintSet": "inv"
     },
     {
         "name": "Restrain",
