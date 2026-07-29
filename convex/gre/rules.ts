@@ -28,6 +28,7 @@ import {
     manaGateBattlefields,
     manaValue,
 } from "./constants";
+import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 import { STATIC_EFFECT_CTX, getEffectivePower } from "./layers";
 import {
     isProtectedFromColors,
@@ -1027,10 +1028,15 @@ export function getProducibleManaOptions(
     // (Talisman / Fellwar Stone). A single fixed/basic option taps index-free.
     const cardId = (card.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
+    // POST-LAYER set (issue #1880) — a GRANTED choice-based mana ability needs
+    // an index exactly like a printed one, or the planner and the tap mutation
+    // disagree about whether `manaChoiceIndex` is required.
     const hasChoiceAbility =
+        !!def &&
         !abilitiesSuppressed(card) &&
-        !!def?.activatedAbilities?.some(
-            (a) => !a.useStack && (a.manaChoices || a.getManaChoices)
+        getEffectiveActivatedAbilities(card).some(
+            ({ ability: a }) =>
+                !a.useStack && (a.manaChoices || a.getManaChoices)
         );
     const needIndex = detailed.length >= 2 || hasChoiceAbility;
 

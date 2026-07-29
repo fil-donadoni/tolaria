@@ -27,6 +27,7 @@ import type {
     TargetRequirement,
     TriggerStateView,
 } from "@convex/cards/types";
+import { getEffectiveActivatedAbilities } from "@convex/gre/activatedAbilities";
 import {
     DAMAGEABLE_PERMANENT_TYPES,
     LAND_SUBTYPE_MANA,
@@ -215,6 +216,26 @@ export function getLandManaColor(card: CardInstance): Color | null {
     return null;
 }
 
+/** The mana ability this permanent exposes, native OR granted (CR 113.1 /
+ *  611.1b, issue #1880). Reads the SAME post-layer effective set the server's
+ *  mana probes use (`getEffectiveActivatedAbilities`, `gre/activatedAbilities`)
+ *  rather than `cardDef.activatedAbilities` alone — a permanent granted a
+ *  "{T}: Add …" (Urza's Saga chapter I) is a real mana source, and reading
+ *  only the printed list left the board with no tap-for-mana affordance for
+ *  one the server's auto-tap solver would happily use. Client hint only —
+ *  server validation stays authoritative (#436). */
+function findClientManaAbility(card: CardInstance) {
+    return (
+        getEffectiveActivatedAbilities(
+            card as unknown as CardInstanceState
+        ).find(
+            ({ ability: a }) =>
+                !a.useStack &&
+                (a.manaProduced || a.manaChoices || a.getManaChoices)
+        )?.ability ?? null
+    );
+}
+
 /** Returns true if a card has a tap mana ability (basic land subtype or
  *  activated), consulting the activated ability's own `canActivate`
  *  precondition when present (CR 602.5b, issue #947) — an un-imprinted
@@ -228,11 +249,7 @@ export function hasManaAbility(
     stateView?: TriggerStateView
 ): boolean {
     if (getLandManaColor(card) !== null) return true;
-    const cardDef = getDefinition(card.card.id);
-    const ability = cardDef.activatedAbilities?.find(
-        (a) =>
-            !a.useStack && (a.manaProduced || a.manaChoices || a.getManaChoices)
-    );
+    const ability = findClientManaAbility(card);
     if (!ability) return false;
     if (ability.canActivate) {
         const view: TriggerStateView = stateView ?? { players: [] };
@@ -254,11 +271,7 @@ export function getActivatedManaMenuEntry(
     card: CardInstance,
     stateView?: TriggerStateView
 ): { id: string; oracleText: string } | null {
-    const cardDef = getDefinition(card.card.id);
-    const ability = cardDef.activatedAbilities?.find(
-        (a) =>
-            !a.useStack && (a.manaProduced || a.manaChoices || a.getManaChoices)
-    );
+    const ability = findClientManaAbility(card);
     if (!ability) return null;
     if (ability.canActivate) {
         const view: TriggerStateView = stateView ?? { players: [] };
@@ -319,9 +332,13 @@ export function getManaChoices(
             battlefield: p.battlefield as unknown as CardInstanceState[],
         }))
     );
-    const cardDef = getDefinition(card.card.id);
-    const hasChoiceAbility = !!cardDef.activatedAbilities?.some(
-        (a) => !a.useStack && (a.manaChoices || a.getManaChoices)
+    // POST-LAYER set (issue #1880) — a GRANTED choice-based mana ability
+    // prompts exactly like a printed one, keeping this in lockstep with the
+    // server's `manaTapNeedsChoice`.
+    const hasChoiceAbility = getEffectiveActivatedAbilities(
+        card as unknown as CardInstanceState
+    ).some(
+        ({ ability: a }) => !a.useStack && (a.manaChoices || a.getManaChoices)
     );
     if (options.length >= 2 || hasChoiceAbility) {
         return options.length > 0 ? options : null;

@@ -9,6 +9,12 @@ import type {
 } from "../cards/types";
 import type { ManaRestriction } from "./types";
 import { getDefinition, tryGetDefinition } from "../cards";
+// CR 611.1b / 613.1f (issue #1880) — the POST-LAYER activated-ability set
+// (native + granted, minus a "loses all abilities" suppression). Every mana
+// probe below reads it instead of `cardDef.activatedAbilities` so a GRANTED
+// `{T}: Add …` (Urza's Saga chapter I) is visible to the auto-tap solver and
+// the castability probe exactly like a printed one.
+import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 import type { CardInstanceState, GameState } from "./state";
 import { applySubstitution } from "./textChanges";
 import { getEffectivePower, getEffectiveToughness } from "./layers";
@@ -622,10 +628,9 @@ export function getDynamicManaChoices(
     }>
 ): ManaCost[] | null {
     if (abilitiesSuppressed(card)) return null;
-    const cardDef = getDefinition(card.card.id as string);
-    const ability = cardDef.activatedAbilities?.find(
-        (a) => !a.useStack && a.getManaChoices
-    );
+    const ability = getEffectiveActivatedAbilities(card).find(
+        ({ ability: a }) => !a.useStack && a.getManaChoices
+    )?.ability;
     if (!ability?.getManaChoices) return null;
     const layerView = manaLayerView(battlefields);
     // Precompute each permanent's producible colours via the shared helper so
@@ -801,8 +806,14 @@ export function getManaTapOptionsDetailed(
             ? battlefields.find((b) => b.playerId === controllerId)?.battlefield
             : undefined;
 
-    if (def?.activatedAbilities && !abilitiesSuppressed(card)) {
-        for (const ability of def.activatedAbilities) {
+    // CR 113.1 / 611.1b (issue #1880) — the POST-LAYER set: printed abilities
+    // PLUS every one granted to this permanent (Urza's Saga chapter I's
+    // "{T}: Add {C}"), so a granted mana ability is a real tap option for the
+    // auto-tap planner and the tap mutations, not merely a client-side menu
+    // entry. `def` is still consulted for its EXISTENCE (a slim client
+    // instance with no definition exposes no activated options).
+    if (def && !abilitiesSuppressed(card)) {
+        for (const { ability } of getEffectiveActivatedAbilities(card)) {
             if (ability.useStack) continue;
             // A one-shot mana ability activated by tapping AND/OR sacrificing the
             // source (ADR 0039 — Lion's Eye Diamond sacrifices without tapping).
@@ -1024,15 +1035,16 @@ export function applyLandManaReplacement(
 
 /** Spend restriction (CR 106.6) carried by a card's fixed tap mana ability, or
  *  null when the produced mana is unrestricted. Mishra's Workshop returns
- *  `"artifact-spell"`; basic lands and ordinary mana rocks return null. */
+ *  `"artifact-spell"`; basic lands and ordinary mana rocks return null. Reads
+ *  the POST-LAYER set (issue #1880) so a GRANTED restricted mana ability is
+ *  not silently spent as unrestricted mana. */
 export function getActivatedManaRestriction(
     card: CardInstanceState
 ): ManaRestriction | null {
     if (abilitiesSuppressed(card)) return null;
-    const cardDef = getDefinition(card.card.id as string);
-    const ability = cardDef.activatedAbilities?.find(
-        (a) => a.cost.tap && !a.useStack && a.manaProduced
-    );
+    const ability = getEffectiveActivatedAbilities(card).find(
+        ({ ability: a }) => a.cost.tap && !a.useStack && a.manaProduced
+    )?.ability;
     return ability?.manaRestriction ?? null;
 }
 
@@ -1045,17 +1057,26 @@ export function getActivatedManaRestriction(
  *  not be offered as a tappable mana source or reach the tap-for-mana
  *  pipeline. `state` is optional so shape-only callers (definition
  *  introspection with no board snapshot) keep compiling; every real
- *  tap-decision site (the three tap mutations, `hasManaAbility`) passes one. */
+ *  tap-decision site (the three tap mutations, `hasManaAbility`) passes one.
+ *
+ *  CR 113.1 / 611.1b (issue #1880) — the search runs over the POST-LAYER
+ *  effective set (`getEffectiveActivatedAbilities`), not
+ *  `cardDef.activatedAbilities` alone: a permanent GRANTED a `{T}: Add …`
+ *  (Urza's Saga chapter I) has a real mana ability, and reading only the
+ *  printed list left it invisible to the auto-tap solver and the castability
+ *  probe while the client menu still offered it — clickable but contributing
+ *  nothing. A permanent under a "loses all abilities" suppression (CR 613.1f,
+ *  Titania's Song) still has NO mana ability at all: the early return above
+ *  drops the granted ones too, matching every other tap-decision site. */
 export function getActivatedManaAbility(
     card: CardInstanceState,
     state?: TriggerStateView
 ) {
     if (abilitiesSuppressed(card)) return null;
-    const cardDef = getDefinition(card.card.id as string);
     const ability =
-        cardDef.activatedAbilities?.find(
-            (a) => !a.useStack && (a.manaProduced || a.manaChoices)
-        ) ?? null;
+        getEffectiveActivatedAbilities(card).find(
+            ({ ability: a }) => !a.useStack && (a.manaProduced || a.manaChoices)
+        )?.ability ?? null;
     if (!ability) return null;
     if (ability.canActivate && state && !ability.canActivate(card, state)) {
         return null;
