@@ -667,6 +667,167 @@ describe("BoardHandCard touch tap = stage + confirm (#1767)", () => {
         expect(pill()).toBeNull();
     });
 
+    // Issue #1832 review fixup (follow-up to #1820): a touch tap always carries
+    // some jitter — up to ~8px is well within a real device's own touch slop
+    // (Chrome Android ~8dp, Safari ~10px) and a finger never perceives it as a
+    // drag. Before the touch-specific deadzone this 8px crossed the old flat
+    // 6px `DRAG_START_PX`, so `onPointerMove` flipped `active` true,
+    // `onPointerUp` read `wasDragging=true && !lifted` and armed
+    // `swallowNextClick`, and the trailing click — the ONLY path that stages a
+    // touch tap via `useTapStageConfirm.consumeClick` — was eaten by
+    // `onClickCapture` before it ever reached the card's `onClick`. The tap did
+    // NOTHING: no commit, no stage, no pill (AC#2 violation). With the wider
+    // touch-only deadzone this same jitter never starts a drag at all, so the
+    // click sails through untouched and stages exactly like a jitter-free tap.
+    it("issue #1832: a touch tap with ~8px jitter still stages (AC#2)", () => {
+        renderCard(makeCard("land1", ["play"]));
+        const target = el();
+        fireEvent.pointerDown(target, {
+            button: 0,
+            pointerType: "touch",
+            clientX: 100,
+            clientY: 400,
+        });
+        fireEvent.pointerMove(target, {
+            pointerType: "touch",
+            clientX: 100,
+            clientY: 400 - 8, // jitter, below the touch drag-start deadzone (10)
+        });
+        fireEvent.pointerUp(target, {
+            pointerType: "touch",
+            clientX: 100,
+            clientY: 400 - 8,
+        });
+        fireEvent.click(target);
+
+        expect(playCard).not.toHaveBeenCalled();
+        expect(el().getAttribute("data-tap-staged")).toBe("true");
+        expect(pill()).not.toBeNull();
+        expect(pill()!.textContent).toBe("Play");
+    });
+
+    // Same regression, the other half of AC#3: a touch drag that DOES cross the
+    // (now wider) drag-start deadzone but is released before the commit line
+    // must still commit/stage NOTHING — it reads as an aborted drag, not a tap,
+    // so the trailing click stays swallowed. This pins the 10..COMMIT_LIFT_PX
+    // band as unchanged behavior; only the "is this a drag at all" cutoff moved.
+    it("issue #1832: a touch drag past the deadzone but aborted below the commit line stages/commits nothing (AC#3)", () => {
+        renderCard(makeCard("bolt", ["cast"]));
+        const target = el();
+        fireEvent.pointerDown(target, {
+            button: 0,
+            pointerType: "touch",
+            clientX: 100,
+            clientY: 400,
+        });
+        fireEvent.pointerMove(target, {
+            pointerType: "touch",
+            clientX: 100,
+            clientY: 400 - 16, // past the 10px touch deadzone, well below COMMIT_LIFT_PX (26)
+        });
+        fireEvent.pointerUp(target, {
+            pointerType: "touch",
+            clientX: 100,
+            clientY: 400 - 16,
+        });
+        fireEvent.click(target);
+
+        expect(announceCast).not.toHaveBeenCalled();
+        expect(playCard).not.toHaveBeenCalled();
+        expect(el().getAttribute("data-tap-staged")).toBeNull();
+        expect(pill()).toBeNull();
+    });
+
+    // Regression (issue #1820): on a real touch device, swiping a hand card
+    // up no longer cast/played it — only tap-with-confirm still worked. Root
+    // cause: a touch `pointerdown` grants the deepest hit-tested DESCENDANT
+    // under the card root (its tilt/preview/image subtree) IMPLICIT pointer
+    // capture. `useDragToCommit.onPointerMove`'s first `setPointerCapture`
+    // call — on the card ROOT, once the move crosses the drag-start deadzone
+    // — transfers capture away from that descendant, which fires a BUBBLING
+    // `lostpointercapture` that reaches the root's own handler. The unguarded
+    // handler (pre-fix) read that bubble as "this card lost its capture mid
+    // drag" and reset() the gesture on the spot — the very first qualifying
+    // move — so the drag state was wiped before the swipe could ever reach
+    // the commit threshold. Mouse never triggers this (no implicit capture
+    // on pointerdown for a mouse pointer), matching the reported "tap still
+    // works, mouse still works, only touch swipe is dead" shape. The EXACT
+    // same trap was already found and fixed for `LibraryOrderPicker` /
+    // `TriggerOrderPrompt` (issue #1772, same day) but missed here.
+    it("issue #1820: a touch implicit-capture transfer bubble does not kill the swipe mid-drag", () => {
+        renderCard(makeCard("bolt", ["cast"]));
+        const target = el();
+        // A real DOM descendant of the card root — where a real touch's
+        // implicit capture actually lands (the deepest hit-tested element),
+        // never the root itself.
+        const descendant = screen.getByTestId("card-image");
+
+        fireEvent.pointerDown(target, {
+            button: 0,
+            pointerType: "touch",
+            clientX: 100,
+            clientY: 400,
+        });
+        // Crosses DRAG_START_PX — this is the move whose `setPointerCapture`
+        // call on the root triggers the transfer in a real browser.
+        fireEvent.pointerMove(target, {
+            pointerType: "touch",
+            clientX: 100,
+            clientY: 400 - 10,
+        });
+        // The implicit-capture transfer: the browser fires
+        // `lostpointercapture` on the DESCENDANT that held it, and it bubbles
+        // up through the card root's own handler (target !== currentTarget).
+        fireEvent.lostPointerCapture(descendant, { pointerType: "touch" });
+        // The swipe continues past the commit line and releases — a real
+        // finger never left the screen, so the gesture must still be alive.
+        fireEvent.pointerMove(target, {
+            pointerType: "touch",
+            clientX: 100,
+            clientY: 400 - (COMMIT_LIFT_PX + 6),
+        });
+        fireEvent.pointerUp(target, {
+            pointerType: "touch",
+            clientX: 100,
+            clientY: 400 - (COMMIT_LIFT_PX + 6),
+        });
+
+        expect(announceCast).toHaveBeenCalledTimes(1);
+        expect(playCard).not.toHaveBeenCalled();
+        expect(el().getAttribute("data-tap-staged")).toBeNull();
+        expect(pill()).toBeNull();
+    });
+
+    // A `lostpointercapture` whose target IS the card root itself (the hand's
+    // own drag-reorder re-keying the slot mid-drag, #294 fix 2) must still
+    // reset the gesture — the guard added for #1820 only exempts a BUBBLED
+    // event from a descendant, not a genuine loss on the root.
+    it("a genuine capture loss ON THE ROOT still resets the drag (#294 fix 2 preserved)", () => {
+        renderCard(makeCard("bolt", ["cast"]));
+        const target = el();
+        fireEvent.pointerDown(target, {
+            button: 0,
+            pointerType: "touch",
+            clientX: 100,
+            clientY: 400,
+        });
+        fireEvent.pointerMove(target, {
+            pointerType: "touch",
+            clientX: 100,
+            clientY: 400 - (COMMIT_LIFT_PX + 4),
+        });
+        // The root itself loses capture (target === currentTarget) — the
+        // gesture must reset, so a stray trailing pointerup commits nothing.
+        fireEvent.lostPointerCapture(target, { pointerType: "touch" });
+        fireEvent.pointerUp(target, {
+            pointerType: "touch",
+            clientX: 100,
+            clientY: 400 - (COMMIT_LIFT_PX + 4),
+        });
+        expect(announceCast).not.toHaveBeenCalled();
+        expect(playCard).not.toHaveBeenCalled();
+    });
+
     it("a priority change drops the stage (no stale stage)", () => {
         const card = makeCard("bolt", ["cast"]);
         const { rerender } = renderCard(card);

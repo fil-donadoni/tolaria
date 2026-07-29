@@ -4,12 +4,33 @@ import { useCallback, useRef, useState } from "react";
  *  "line over the hand" and releasing fires the commit; releasing below it is a
  *  no-op return-to-hand. Lowered again (issue #294, fix 3) so the upward gesture
  *  reads purely as "play this card" — a short, deliberate flick commits — while
- *  still clearing the {@link DRAG_START_PX} drag-start deadzone so an accidental
- *  nudge never commits. */
+ *  still clearing the {@link dragStartThreshold} drag-start deadzone so an
+ *  accidental nudge never commits. */
 export const COMMIT_LIFT_PX = 26;
 /** Total travel (px) before a press is treated as a drag rather than a click.
- *  Below this, pointerup is a plain click and the gesture stays inert. */
-const DRAG_START_PX = 6;
+ *  Below this, pointerup is a plain click and the gesture stays inert.
+ *  Mouse/pen keep the original tight deadzone (a precise pointer device); touch
+ *  gets a wider one (issue #1832 review fixup, follow-up to #1820) — real touch
+ *  input carries jitter well past 6px (Chrome Android's own touch slop is
+ *  ~8dp, Safari's ~10px) that a finger doesn't perceive as intentional
+ *  movement. At 6px that jitter alone crossed the threshold, flipped a plain
+ *  tap into `wasDragging`, and `onPointerUp` armed `swallowNextClick` for a
+ *  release that never reached {@link COMMIT_LIFT_PX} — the trailing click (the
+ *  ONLY path that stages/casts on touch, via `useTapStageConfirm.consumeClick`)
+ *  was then eaten by `onClickCapture` and the tap did nothing at all: no
+ *  commit, no stage, no pill. Raising the touch deadzone keeps that jittery
+ *  tap a plain click (stages, AC#2) while an intentional swipe still starts a
+ *  drag well before {@link COMMIT_LIFT_PX} (26px) and a mid-flight abort below
+ *  the commit line still commits/stages nothing (AC#3) — the 10..26px band is
+ *  unchanged, only the "is this a drag at all" cutoff moved for touch. */
+const DRAG_START_PX_TOUCH = 10;
+const DRAG_START_PX_DEFAULT = 6;
+
+function dragStartThreshold(pointerType: string): number {
+    return pointerType === "touch"
+        ? DRAG_START_PX_TOUCH
+        : DRAG_START_PX_DEFAULT;
+}
 /** Upward travel (px) the card is allowed to visually rise past the commit
  *  line. The card stays armed for any lift ≥ {@link COMMIT_LIFT_PX}, but the
  *  rendered lift is clamped here so a dragged card never escapes up into the
@@ -18,8 +39,9 @@ const DRAG_START_PX = 6;
 const MAX_LIFT_PX = COMMIT_LIFT_PX + 18;
 
 export type DragToCommitState = {
-    /** True once the pointer has travelled past {@link DRAG_START_PX} — the card
-     *  is being dragged (used to lift it visually and suppress hover tilt). */
+    /** True once the pointer has travelled past {@link dragStartThreshold} —
+     *  the card is being dragged (used to lift it visually and suppress hover
+     *  tilt). */
     dragging: boolean;
     /** Live pointer offset from the press origin, in px. The hand card never
      *  free-floats: the horizontal component tracks the pointer (it drives the
@@ -53,9 +75,9 @@ export type DragToCommitHandlers = {
  * `onCommit` — the caller wires that to the SHARED commit pipeline
  * (`useHandCardCommit`), so a committed drag dispatches the exact same mutation
  * as a click. Releasing below the line returns the card to the hand and
- * dispatches nothing (no-op). A press that never passes {@link DRAG_START_PX}
- * stays a click: this gesture leaves the element's `onClick` untouched, so click
- * remains a fully valid way to play/cast.
+ * dispatches nothing (no-op). A press that never passes
+ * {@link dragStartThreshold} stays a click: this gesture leaves the element's
+ * `onClick` untouched, so click remains a fully valid way to play/cast.
  *
  * The gesture is pointer-capture based so it keeps tracking outside the card,
  * and it is deliberately confined to the hand — the battlefield never mounts it,
@@ -80,6 +102,7 @@ export function useDragToCommit(opts: {
         startY: number;
         active: boolean;
         pointerId: number;
+        pointerType: string;
     } | null>(null);
     // A real drag ends with a synthetic `click` on the same element. Swallow
     // that one click so a drag never ALSO fires the element's onClick commit
@@ -109,6 +132,7 @@ export function useDragToCommit(opts: {
             startY: e.clientY,
             active: false,
             pointerId: e.pointerId,
+            pointerType: e.pointerType,
         };
     }, []);
 
@@ -119,7 +143,8 @@ export function useDragToCommit(opts: {
             const dx = e.clientX - p.startX;
             const dy = e.clientY - p.startY;
             if (!p.active) {
-                if (Math.hypot(dx, dy) < DRAG_START_PX) return;
+                if (Math.hypot(dx, dy) < dragStartThreshold(p.pointerType))
+                    return;
                 p.active = true;
                 e.currentTarget.setPointerCapture(e.pointerId);
             }
@@ -177,9 +202,30 @@ export function useDragToCommit(opts: {
     // this card and the lift would stick forever. Resetting on capture loss keeps
     // the gesture from getting wedged in the dragging state (#294 fix 2). It is a
     // no-op when capture is released normally by `onPointerUp` (already reset).
-    const onLostPointerCapture = useCallback(() => {
-        if (press.current) reset();
-    }, [reset]);
+    //
+    // Touch-only trap (same shape as `LibraryOrderPicker` / `TriggerOrderPrompt`,
+    // issue #1772 — issue #1820 is this same bug class in the hand-card drag):
+    // a touch `pointerdown` grants the deepest hit-tested DESCENDANT (the
+    // card's tilt/preview/image subtree under this root) IMPLICIT pointer
+    // capture. The first `setPointerCapture` call above, in `onPointerMove` —
+    // on `e.currentTarget` (THIS root) — transfers capture away from that
+    // descendant, which fires `lostpointercapture` ON THE DESCENDANT. It
+    // bubbles here even though capture just moved TO this element, not away
+    // from it, and the unguarded handler used to read every bubbled
+    // `lostpointercapture` as "capture lost mid-drag" and `reset()` — on
+    // touch, that fired on the very first qualifying move (the same move that
+    // just called `setPointerCapture`), wiping the drag before it could ever
+    // reach the commit threshold: an upward swipe never committed. Only a
+    // `lostpointercapture` whose target IS this root (this element itself
+    // losing its OWN capture, e.g. the hand's drag-reorder re-keying the slot
+    // mid-drag, #294 fix 2) should reset.
+    const onLostPointerCapture = useCallback(
+        (e: React.PointerEvent<HTMLElement>) => {
+            if (e.target !== e.currentTarget) return;
+            if (press.current) reset();
+        },
+        [reset]
+    );
 
     const onClickCapture = useCallback((e: React.MouseEvent<HTMLElement>) => {
         if (!swallowNextClick.current) return;
