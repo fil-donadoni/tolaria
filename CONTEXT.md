@@ -254,6 +254,22 @@ _Avoid_: Interrupt, trigger (a replacement fires _before_ the event, a trigger _
 A **Replacement Effect** on the draw event (CR 614, 121.x): "if a **Player** would draw, instead …". Its condition is a predicate over the draw — who is drawing, whether it is the turn-based **Draw Step** draw, and how many draws that player has already made this **Turn** (so "each opponent", "the first card drawn this turn", "in each of their draw steps" are all expressible). Its outcome may change the number drawn (draw N → N+1), redirect the draw to another effect (make a Treasure instead), or prevent it. Distinct from **Miracle** (which does not replace the draw — the card is still drawn, then a trigger offers a cast window) and from a plain "when you draw" **Triggered Ability**.
 _Avoid_: Draw trigger, draw hook
 
+**Saga**:
+An enchantment subtype (CR 714) whose **Permanent** advances through numbered **Chapter Abilities**, tracked by **Lore Counters**, and sacrifices itself once past its **Final Chapter**. Saga-ness is the _subtype_, never "has chapter abilities" — CR 714.2d explicitly contemplates a Saga with none. A card may carry the Saga subtype alongside other types and subtypes: Urza's Saga is `Enchantment Land — Urza's` + `Saga`, two subtypes, one of them a land type.
+_Avoid_: Chapter enchantment, story enchantment, quest
+
+**Lore Counter**:
+The **Counter** a **Saga** uses to track its progress (CR 714.3). The first arrives via the Saga's own intrinsic ability "this Saga enters with a lore counter on it" — a **Replacement Effect** (CR 714.3a, 614.1c), so a Saga stripped of its abilities enters with none. Thereafter one is placed as its **Controller**'s precombat main phase begins, on each Saga they control _that has at least one_ **Chapter Ability** — a turn-based action that does not use the **Stack**. Placing one is what fires a chapter ability. (Printed Saga reminder text still says "after your draw step"; that wording predates Dominaria United and is not the rule — reminder text carries no rules meaning, CR 207.2.)
+_Avoid_: Chapter counter, progress counter, verse counter
+
+**Chapter Ability**:
+A **Triggered Ability** on a **Saga** introduced by a chapter symbol. "{rN} — [Effect]" is shorthand (CR 714.2b) for "when one or more **Lore Counters** are put onto this Saga, if the number of lore counters on it _was less than N and became at least N_, [effect]" — so it is an ordinary counter-placement trigger with an intervening-if over the before/after count, not a special ability kind. One ability may carry several chapter numbers ("I, II —", CR 714.2c).
+_Avoid_: Chapter, verse, stage, phase (that's a **Turn** structure term)
+
+**Final Chapter**:
+The greatest chapter number among the **Chapter Abilities** a **Saga** _currently has_ (CR 714.2d) — derived from the Saga's effective abilities, never from its printed text. Once a Saga's lore counters reach its final chapter and no chapter ability of it is still on the **Stack**, its controller sacrifices it (CR 714.4, a **State Based Action**). Both that sacrifice and the precombat-main lore counter apply only to a Saga that _has_ at least one chapter ability, so a Saga whose abilities are stripped (Blood Moon on Urza's Saga, Humility) is not sacrificed and stops advancing — it simply persists, inert, with the lore counters it already had.
+_Avoid_: Last chapter, chapter count, max chapter
+
 ### Spells & Stack
 
 **Cast**:
