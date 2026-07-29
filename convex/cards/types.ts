@@ -1631,6 +1631,31 @@ export interface CopyEffectOptions {
     /** Types added on top of the copied object's types (Copy Artifact —
      *  "except it's an enchantment in addition to its other types"). */
     additionalTypes?: CardType[];
+    /** Subtypes added on top of the copied object's subtypes (CR 707.2's
+     *  "except" clause — Phantasmal Image: "it's an Illusion in addition to
+     *  its other types", Oracle-worded as a type but Illusion is a creature
+     *  SUBTYPE; CR 707.2 lets an "except" clause modify any copiable value).
+     *  Mirrors `additionalTypes` exactly: appended in `applyCopy`, fully
+     *  recomputed from `opts` on every application (so a re-copy without the
+     *  option — Vesuvan-style — doesn't leave a stale addition behind). */
+    additionalSubtypes?: string[];
+    /** Ids on the RECIPIENT's own `triggeredGrantTemplates[]` for triggered
+     *  abilities the copy effect itself adds (CR 707.2's "except" clause —
+     *  Phantasmal Image: "...and it has 'When this creature becomes the
+     *  target of a spell or ability, sacrifice it.'"). Distinct from
+     *  `TriggeredAbility.retainedThroughCopy` (which preserves an ability the
+     *  recipient already had printed, across the copy overwrite — Vesuvan's
+     *  own upkeep re-copy trigger): this GRANTS an ability the recipient's
+     *  printed card does not otherwise have, sourced from ITS OWN
+     *  `triggeredGrantTemplates[]` (not the copied object's) so the ability
+     *  survives regardless of what gets copied. Routed entirely through the
+     *  existing anthem-style grant machinery
+     *  (`CardInstanceState.grantedTriggeredAbilities`,
+     *  `effectiveTriggeredAbilities` in `gre/copy.ts`) — no new trigger-scan
+     *  path. `applyCopy` recomputes the recipient's own-sourced grants from
+     *  this list on every application, same idempotency shape as
+     *  `additionalTypes`/`additionalSubtypes`. */
+    additionalTriggeredAbilityIds?: string[];
 }
 
 // --- Spell resolution context ---

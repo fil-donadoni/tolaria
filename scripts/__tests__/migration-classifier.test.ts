@@ -1430,11 +1430,21 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // closure, so it does not enter the census. Net: total 464->465 (+1 new
         // closure), FREE 293->294, AFK-ready 284->285. X-only / Op-blocked
         // unchanged. Partition: 294+14+157=465.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(465);
+        //
+        // #1563 (Phantasmal Image, m12/blue.ts): a BRAND-NEW catalogue card,
+        // not a migration. Its `resolveSteps` copy-effect closure
+        // (`requestMayPay` + `requestChoice` + `becomeCopyOf`) is the SAME
+        // protocol shape Clone / Copy Artifact / Phyrexian Metamorph already
+        // use — `becomeCopyOf` is an existing New-Op-backlog entry (Op-blocked,
+        // not FREE), so this card doesn't shift FREE/AFK-ready/X-only, only
+        // adds one more Op-blocked closure onto the existing `becomeCopyOf`
+        // bucket. Net: total 465->466 (+1 new closure), Op-blocked 157->158.
+        // FREE / AFK-ready / X-only unchanged. Partition: 294+14+158=466.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(466);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(294);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(285);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(157);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(158);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

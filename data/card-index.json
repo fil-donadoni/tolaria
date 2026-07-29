@@ -9120,6 +9120,14 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Phantasmal Image",
+        "scryfallId": "98e7bf8f-dba7-4005-8cee-634c9153931d",
+        "oracleId": "bde94af8-faea-41ff-8eed-ba642eac9968",
+        "firstSet": "m12",
+        "firstPrintId": "98e7bf8f-dba7-4005-8cee-634c9153931d",
+        "firstPrintSet": "m12"
+    },
+    {
         "name": "Phantasmal Mount",
         "scryfallId": "75afdbe6-a3f9-49cf-b4ef-f370e518e960",
         "oracleId": "8c7723a5-04c7-4241-b0ba-6a821449ca43",

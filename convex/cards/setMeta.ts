@@ -21,6 +21,7 @@ const SET_NAMES: Record<string, string> = {
     pcy: "Prophecy",
     por: "Portal",
     p02: "Portal Second Age",
+    m12: "Magic 2012",
 };
 
 /** Full set name for a code, falling back to the upper-cased code when the set
