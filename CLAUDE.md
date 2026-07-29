@@ -222,6 +222,20 @@ The full gate is **mandatory before a task is marked done / before merge** — n
     1. `bun run check:all` — format + lint + type-check (zero errors)
     2. `bun run test` — full vitest suite (zero failures)
 
+**Two hooks, because `pre-commit` alone does not hold.** `.husky/pre-commit`
+(`lint-staged` → `prettier --write` on the staged files) is a convenience, not a
+gate: git does **not** invoke it for a merge commit (that is
+`pre-merge-commit`), nor for `git rebase` / `git cherry-pick`, which replay
+commits without it — and it only ever touches the files in that one commit,
+while CI's `format:check` checks the whole repo. `.husky/pre-push` closes that:
+`prettier --check` on the files in the commits **being pushed** (diff-scoped,
+sub-second; a repo-wide `format:check` is ~43s and would not survive contact
+with a quick push). Both hooks are tracked in git and guarded by
+`scripts/__tests__/worktree-bootstrap.test.ts` — a missing husky hook is
+**silent** (`.husky/_/h`: `[ ! -f "$s" ] && exit 0`), which is how
+`.husky/pre-commit` vanished in a 2026-06-17 merge resolution and stayed gone
+for six weeks, every `linter` CI failure in that window being its Format step.
+
 **`check:all` VERIFIES formatting, it does not fix it.** Its first step is
 `format:check` (`prettier --check`). On drift it fails with a pointer to
 `bun run format` — fix it and re-run. It used to call `bun run format`

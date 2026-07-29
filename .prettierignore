@@ -19,5 +19,16 @@ yarn.lock
 # Convex generated
 convex/_generated
 
+# Convex local-deployment state. Ignored by `.convex/.gitignore`, but prettier
+# only reads the ROOT `.gitignore` — without this entry a local `format:check`
+# goes red on a file CI (a fresh checkout) never even sees.
+.convex
+
+# Vendored agent skills, installed by `npx convex ai-files install` and
+# committed verbatim. Third-party output — reformatting it would only fight the
+# next install. Their drift is what turned the `quality` job red for six weeks.
+.agents
+skills-lock.json
+
 # Worklist importer staging output (ADR 0041) — regenerable, gitignored
 data/worklists/*.out

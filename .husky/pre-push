@@ -1,0 +1,63 @@
+#!/usr/bin/env sh
+# pre-push — no unformatted file ever reaches the remote.
+#
+# Why pre-commit is not enough. `.husky/pre-commit` runs `lint-staged`
+# (`prettier --write` on the STAGED files), which leaves four holes:
+#
+#   1. git does NOT invoke `pre-commit` for a merge commit (that is
+#      `pre-merge-commit`), nor for `git rebase` / `git cherry-pick`, which
+#      replay commits without it. main's history is full of
+#      "Merge branch 'main' of ..." commits that never saw prettier — and a
+#      merge resolution is how `.husky/pre-commit` itself silently vanished
+#      from the repo for six weeks (deleted 2026-06-17 in 3ca58ca6/5cdbf196,
+#      restored 2026-07-29 in #1821). Every `linter` CI failure in that window
+#      was the Format step.
+#   2. `lint-staged` only touches the files in that one commit, while CI's
+#      `format:check` checks the whole repo — pre-existing drift stays red no
+#      matter how clean your next commit is.
+#   3. `git commit --no-verify` skips it.
+#   4. `core.hooksPath` is `.husky/_`, a RELATIVE, self-ignored directory. In a
+#      worktree that never ran `bun run worktree:init` it does not exist, and
+#      husky's shim exits 0 in silence (`.husky/_/h`: `[ ! -f "$s" ] && exit 0`).
+#
+# Scope: only the commits actually being pushed. A full `bun run format:check`
+# over the repo costs ~43s — too slow to sit in front of every push — whereas a
+# push's own diff is a handful of files and checks in well under a second.
+
+Z40='0000000000000000000000000000000000000000'
+files=''
+
+# git feeds pre-push one line per ref: <local ref> <local sha> <remote ref> <remote sha>
+while read -r _local_ref local_sha _remote_ref remote_sha; do
+    # Branch deletion — nothing to check.
+    [ "$local_sha" = "$Z40" ] && continue
+
+    if [ "$remote_sha" = "$Z40" ]; then
+        # Branch does not exist on the remote yet: compare against the upstream
+        # default branch so we check this branch's own commits, not all history.
+        base=$(git merge-base "$local_sha" origin/main 2>/dev/null) || base=''
+        [ -z "$base" ] && base=$(git rev-list --max-parents=0 "$local_sha" | tail -1)
+    else
+        base="$remote_sha"
+    fi
+
+    changed=$(git diff --name-only --diff-filter=ACMR "$base" "$local_sha" -- \
+        '*.ts' '*.tsx' '*.js' '*.jsx' '*.json' '*.css' '*.md')
+    files=$(printf '%s\n%s' "$files" "$changed")
+done
+
+files=$(printf '%s\n' "$files" | sed '/^$/d' | sort -u)
+[ -z "$files" ] && exit 0
+
+# A path added early in the push and deleted later in it no longer exists in the
+# working tree; prettier would fail on the missing file rather than on drift.
+existing=$(printf '%s\n' "$files" | while IFS= read -r f; do
+    [ -f "$f" ] && printf '%s\n' "$f"
+done)
+[ -z "$existing" ] && exit 0
+
+# `.husky/_/h` puts node_modules/.bin on PATH, so `prettier` resolves here.
+if ! printf '%s\n' "$existing" | xargs prettier --check --no-error-on-unmatched-pattern; then
+    printf '\033[31m✗ Formatting drift in the commits being pushed — run: bun run format\033[0m\n'
+    exit 1
+fi
