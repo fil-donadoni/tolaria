@@ -678,22 +678,29 @@
            `random-reveal-overlay`, `reveal-notification-overlay`, the
            library/pile-division pickers), none of which are portalled or
            `inert`-guarded. The chip ended up tappable THROUGH those modals'
-           scrim. The fix is a 3-rung sub-scale instead of raising the chip
-           past the modal band entirely:
-             --z-banner (70) < --z-chip (90) < --z-modal (100)
-           `--z-banner` is the CENTERED pending-choice / prompt banner only
-           (`usePromptBannerPosition`'s non-`pinned` portrait branch) — an
-           informational overlay with nothing blocking behind it that must
-           still lose to the portrait chip chrome. `--z-chip` is that chrome
-           itself (`BoardPortraitChips`'s stack-chip row and the `elevated`
-           `GameStack` it opens) — always-reachable chrome that must win over
-           the banner but MUST NOT climb into the modal band, since a real
-           blocking modal needs to sit on top of it, scrim included. The
-           PINNED banner variant (top safe-area strip — routes clicks to the
-           mid-board itself) is UNCHANGED at `--z-modal`: it is not part of
-           this bug (nothing paints over it), and desktop/landscape's centered
-           banner + always-on `GameStack` are also unchanged at `--z-modal`
-           (no chip, no portrait-only collision to fix there). */
+           scrim. The fix is a sub-scale instead of raising the chip past the
+           modal band entirely — refined again by #1885, which pulled the
+           OPEN stack panel out of the chip's rung and UNDER the banner:
+             --z-stack (65) < --z-banner (70) < --z-chip (90) < --z-modal (100)
+           `--z-stack` (#1885) is the `elevated` portrait `GameStack` panel
+           ONLY. With the panel open by default (#1816) and sharing the
+           chip's old `--z-chip` rung, a centered pending-choice prompt
+           rendered BEHIND it — but a choice surface must always win over
+           the stack, never be covered by it. The panel is informational; a
+           prompt is actionable. `--z-banner` is the CENTERED pending-choice
+           / prompt banner (`usePromptBannerPosition`'s non-`pinned` portrait
+           branch) — above the open panel (#1885), below the chip chrome.
+           `--z-chip` is `BoardPortraitChips`'s stack-chip ROW only:
+           always-reachable chrome that must win over the banner (the player
+           can always collapse/open the stack) but MUST NOT climb into the
+           modal band, since a real blocking modal needs to sit on top of it,
+           scrim included. The PINNED banner variant (top safe-area strip —
+           routes clicks to the mid-board itself) is UNCHANGED at
+           `--z-modal`: it is not part of this bug (nothing paints over it),
+           and desktop/landscape's centered banner + always-on `GameStack`
+           are also unchanged at `--z-modal` (no chip, no portrait-only
+           collision to fix there). */
+        --z-stack: 65;
         --z-banner: 70;
         --z-chip: 90;
         --z-modal: 100;
@@ -735,6 +742,9 @@
     }
     .z-arrows {
         z-index: var(--z-arrows);
+    }
+    .z-stack {
+        z-index: var(--z-stack);
     }
     .z-banner {
         z-index: var(--z-banner);

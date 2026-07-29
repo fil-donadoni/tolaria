@@ -446,6 +446,11 @@ export function FoundationsSections() {
                                     "centered prompt banner, portrait default (#1813/#1823)",
                                     "banner (shipped)",
                                 ],
+                                [
+                                    "z-stack",
+                                    "open portrait stack panel — always under choice prompts (#1885)",
+                                    "stack (shipped)",
+                                ],
                                 ["z-[60]", "arrow layer", "arrows"],
                                 [
                                     "z-50",

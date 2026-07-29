@@ -128,7 +128,13 @@ describe("GameStack narrow/portrait variant (issue #1816)", () => {
         const outer = container.firstElementChild as HTMLElement;
         const panel = outer.querySelector('[data-slot="panel"]') as HTMLElement;
 
-        expect(outer.className).toContain("z-chip");
+        // #1885 — the elevated panel renders at `z-stack`, one rung BELOW the
+        // centered choice/prompt banner's `z-banner` (a choice surface always
+        // wins over the default-open stack), never at the chip row's `z-chip`
+        // (its pre-#1885 tier) or the desktop `z-modal`.
+        expect(outer.className).toContain("z-stack");
+        expect(outer.className).not.toContain("z-chip");
+        expect(outer.className).not.toMatch(/\bz-modal\b/);
         expect(outer.className).toContain(PORTRAIT_STACK_PANEL_TOP);
         expect(panel.className).toContain("w-72");
     });

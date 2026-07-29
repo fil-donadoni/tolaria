@@ -691,7 +691,7 @@ describe("BoardPortraitChips (#336)", () => {
         ).toBe("1");
     });
 
-    it("review fixup round 2 (#1813/#1823) — the stack chip and an opened stack overlay sit at `z-chip`, strictly between the centered banner's `z-banner` and a blocking modal's `z-modal`", () => {
+    it("review fixup round 2 (#1813/#1823, panel re-tiered by #1885) — the stack CHIP sits at `z-chip`, strictly between the centered banner's `z-banner` and a blocking modal's `z-modal`", () => {
         // Round 1 put both at `z-modal-top` so they'd out-rank a centered
         // pending-choice banner (then also `z-modal`) — but `z-modal-top`
         // also out-ranks every BLOCKING modal (trigger-order-prompt,
@@ -699,7 +699,11 @@ describe("BoardPortraitChips (#336)", () => {
         // through their scrim. The fix: the banner moved DOWN to `z-banner`
         // (below `z-chip`), the chip stays at the new `z-chip` tier — NOT
         // `z-modal-top`, NOT the old `z-30`, and NOT `z-modal` itself, so a
-        // real blocking modal still wins outright.
+        // real blocking modal still wins outright. The open PANEL no longer
+        // shares this tier: #1885 dropped it to `z-stack`, BELOW the banner
+        // (asserted on the real GameStack in `game-stack-narrow.test.tsx` —
+        // here the panel is a stub), so a choice prompt is never covered by
+        // the default-open stack.
         const me = makePlayer("me");
         const opp = makePlayer("opp");
         const stack = [
@@ -751,11 +755,17 @@ describe("BoardPortraitChips (#336)", () => {
             return Number(match[1]);
         };
 
+        const arrows = valueOf("z-arrows");
+        const stack = valueOf("z-stack");
         const banner = valueOf("z-banner");
         const chip = valueOf("z-chip");
         const modal = valueOf("z-modal");
         const modalTop = valueOf("z-modal-top");
 
+        // #1885: the open stack panel's rung sits BELOW the banner — a choice
+        // prompt must never render behind the (default-open, #1816) stack.
+        expect(arrows).toBeLessThan(stack);
+        expect(stack).toBeLessThan(banner);
         expect(banner).toBeLessThan(chip);
         expect(chip).toBeLessThan(modal);
         expect(modal).toBeLessThan(modalTop);

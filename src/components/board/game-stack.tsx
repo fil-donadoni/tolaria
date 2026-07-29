@@ -48,17 +48,21 @@ export const NARROW_BOTTOM_CLASS = "bottom-[var(--portrait-viewer-bf-bottom)]";
 
 type GameStackProps = {
     stack: StackItem[];
-    /** Issue #1813 review fixup round 2 (#1823) — portrait's
-     *  `BoardPortraitChips` toggles this panel from the stack chip. Opening
-     *  the stack is an explicit player action, so it renders at the `z-chip`
-     *  tier (`src/index.css`) — one rung ABOVE a centered pending-choice
-     *  prompt's `z-banner` tier (`usePromptBannerPosition`), so it is never
-     *  swallowed by that banner, but strictly BELOW `z-modal`, so a real
-     *  blocking modal (trigger-order-prompt, mana-choice-picker, the reveal
-     *  overlays) still owns the screen outright rather than the panel
-     *  painting through its scrim. Set only by the portrait toggle path;
-     *  desktop's always-on mount leaves this unset (unchanged `z-modal` —
-     *  no chip, no centered-banner collision to fix there). */
+    /** Issue #1813 review fixup round 2 (#1823), re-tiered by #1885 —
+     *  portrait's `BoardPortraitChips` toggles this panel from the stack
+     *  chip. The panel renders at the `z-stack` tier (`src/index.css`), one
+     *  rung BELOW a centered pending-choice prompt's `z-banner` tier
+     *  (`usePromptBannerPosition`): with the panel open by DEFAULT (#1816)
+     *  it is passive, ambient chrome, and a choice surface must always win
+     *  over it — at the panel's old `z-chip` tier a centered prompt
+     *  rendered BEHIND the open stack (#1885). The chip ROW keeps `z-chip`
+     *  (above the banner — collapsing/opening the stack stays reachable
+     *  under any prompt), and everything here stays strictly BELOW
+     *  `z-modal`, so a real blocking modal (trigger-order-prompt,
+     *  mana-choice-picker, the reveal overlays) still owns the screen
+     *  outright. Set only by the portrait toggle path; desktop's always-on
+     *  mount leaves this unset (unchanged `z-modal` — no chip, no banner
+     *  collision to fix there). */
     elevated?: boolean;
     /** Issue #1816 — portrait's `BoardPortraitChips` now opens this panel by
      *  DEFAULT whenever the stack is non-empty (not only after a tap), so it
@@ -176,7 +180,7 @@ export default function GameStack({ stack, elevated, narrow }: GameStackProps) {
                 narrow
                     ? `${PORTRAIT_STACK_PANEL_TOP} ${NARROW_BOTTOM_CLASS} pointer-events-none`
                     : "top-1/2"
-            } ${elevated ? "z-chip" : "z-modal"}`}
+            } ${elevated ? "z-stack" : "z-modal"}`}
             style={{
                 right: "0.5rem",
                 transform: narrow
