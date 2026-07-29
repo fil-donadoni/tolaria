@@ -785,7 +785,14 @@ export function isDiscouragedRolloutMove(
         // attacker; discourage swinging with one.
         return move.attackerIds.some((id) => {
             const c = player.battlefield.find((x) => x.id === id);
-            return !!c && isCreature(c) && hasManaAbility(c);
+            // CR 106.1 (issue #1889) — the controller's battlefield resolves a
+            // board-conditional output, so a mana creature currently producing
+            // ZERO isn't protected as if it were a real source.
+            return (
+                !!c &&
+                isCreature(c) &&
+                hasManaAbility(c, undefined, player.battlefield)
+            );
         });
     }
     if (move.kind === "cast-spell") {

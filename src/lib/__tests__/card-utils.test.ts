@@ -72,6 +72,8 @@ import { metallicRebuke } from "@convex/cards/sets/aer/blue";
 import { millstone } from "@convex/cards/sets/atq/colorless";
 import { gateToPhyrexia } from "@convex/cards/sets/atq/black";
 import { moxOpal } from "@convex/cards/sets/som/colorless";
+import { everflowingChalice } from "@convex/cards/sets/wwk/colorless";
+import { icatianStore } from "@convex/cards/sets/fem/colorless";
 import {
     redManaBattery,
     greatWall,
@@ -3486,6 +3488,111 @@ describe("Mox Opal Metalcraft gate through buildTriggerStateView (issue #1530, #
             types: ["Artifact"],
         });
         expect(hasManaAbility(card, board(3))).toBe(true);
+    });
+});
+
+// Zero-output mana source (CR 605.1a / 106.1, issue #1889) — an Everflowing
+// Chalice with no charge counters CAN legally be activated, but it adds no
+// mana, so it must not be offered as a tappable payment source in the UI (the
+// server's `getManaTapOptionsDetailed` stopped offering it at the same time).
+// Frontend wiring analysis (CLAUDE.md): the gate resolves the SAME unified tap
+// option list the server does (`getManaTapOptions`), fed the viewer's whole
+// `allPlayers` list — so the SURFACE assertions below run through the REAL
+// `buildTriggerStateView` reducer and the real player list, never a hand-built
+// view.
+describe("hasManaAbility drops a zero-output mana source (issue #1889)", () => {
+    function chalice(charge: number) {
+        return makeCardInstance({
+            id: `chalice-${charge}`,
+            card: { id: everflowingChalice.id },
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Artifact"],
+            counters: charge > 0 ? { charge } : {},
+        });
+    }
+
+    function players(cards: ReturnType<typeof chalice>[]) {
+        return [
+            { id: "p1", life: 20, hand: [], battlefield: cards },
+            { id: "p2", life: 20, hand: [], battlefield: [] },
+        ];
+    }
+
+    it("is false for a 0-counter Chalice, through the real reducer + board helper", () => {
+        const card = chalice(0);
+        const all = players([card]);
+        const view = buildTriggerStateView(all);
+        expect(hasManaAbility(card, view, all)).toBe(false);
+    });
+
+    it("is true for a 2-counter Chalice, through the same path", () => {
+        const card = chalice(2);
+        const all = players([card]);
+        const view = buildTriggerStateView(all);
+        expect(hasManaAbility(card, view, all)).toBe(true);
+    });
+
+    it("omitting the board leaves the client predicate exactly as before (delta zero)", () => {
+        expect(hasManaAbility(chalice(0))).toBe(true);
+    });
+
+    it("getManaChoices offers no tap option for a 0-counter Chalice", () => {
+        const card = chalice(0);
+        expect(getManaChoices(card, players([card]))).toBeNull();
+    });
+
+    // REGRESSION GUARD (reviewer finding on PR #1902): the first cut of #1889
+    // dropped zero-output entries from CHOICE lists too, which deleted a storage
+    // land's index-0 "remove 0 counters" entry. A 0-counter storage land — its
+    // NORMAL post-untap state — then had an empty option list: `hasManaAbility`
+    // still said "mana source" (so it painted and clicked), `getManaChoices`
+    // returned null (so no index was sent), and the server's still-true
+    // `manaTapNeedsChoice` threw "Must choose a mana color" on a click that used
+    // to work. Both halves are pinned here.
+    it("a 0-counter storage land still reads as a mana source and still offers its choice list", () => {
+        const land = makeCardInstance({
+            id: "store",
+            card: { id: icatianStore.id },
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Land"],
+            counters: {},
+        });
+        const all = [
+            { id: "p1", life: 20, hand: [], battlefield: [land] },
+            { id: "p2", life: 20, hand: [], battlefield: [] },
+        ];
+        const view = buildTriggerStateView(all);
+        expect(hasManaAbility(land, view, all)).toBe(true);
+        // The "remove 0 counters" entry survives, so an index IS submittable —
+        // client and server agree there is exactly one thing to choose.
+        expect(getManaChoices(land, all)).toEqual([{ W: 0 }]);
+    });
+
+    it("a 3-counter storage land's client choice list is the full 0..N ladder", () => {
+        const land = makeCardInstance({
+            id: "store",
+            card: { id: icatianStore.id },
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Land"],
+            counters: { storage: 3 },
+        });
+        const all = [
+            { id: "p1", life: 20, hand: [], battlefield: [land] },
+            { id: "p2", life: 20, hand: [], battlefield: [] },
+        ];
+        expect(hasManaAbility(land, buildTriggerStateView(all), all)).toBe(
+            true
+        );
+        // Index IS the counter count — a shifted list would remove N+1 for N.
+        expect(getManaChoices(land, all)).toEqual([
+            { W: 0 },
+            { W: 1 },
+            { W: 2 },
+            { W: 3 },
+        ]);
     });
 });
 

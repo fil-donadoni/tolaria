@@ -1146,7 +1146,30 @@ type ResolvedManaTapChoice = {
 
 /** Whether the source exposes 2+ mana-tap options (must prompt a choice) or a
  *  single choice-based ability that still requires an index (Fellwar Stone with
- *  one producible colour). Kept in lockstep with the client's picker gate. */
+ *  one producible colour). Kept in lockstep with the client's picker gate.
+ *
+ *  CR 605.1a (issue #1889) — an EMPTY option list never needs a choice. The
+ *  client's mirror (`getManaChoices`, `src/lib/card-utils.ts`) returns null on
+ *  an empty list and so submits no index; without this guard a choice-based
+ *  ability whose CURRENT list is empty (a Fellwar Stone facing opponents with
+ *  no colour-producing lands, a source whose only options were filtered out)
+ *  made the server demand an index the client structurally cannot send — a hard
+ *  "Must choose a mana color" on a click the UI still offered. With nothing to
+ *  choose BETWEEN there is nothing to prompt: fall through to the fixed branch.
+ *
+ *  What that fall-through then DOES differs by path, and for a choice-ONLY
+ *  source it is not a silent zero-output tap. Such a source declares no
+ *  `manaProduced` (Fellwar Stone `drk/colorless.ts`, Chrome Mox
+ *  `mrd/colorless.ts`), so `getBasicLandMana(card) ?? getActivatedManaColor(card)`
+ *  — the latter requires `manaProduced` (`gre/constants.ts`) — is null:
+ *  `tapSourceIntoPayment` throws `"Card does not produce mana"`, the SAME
+ *  rejection a zero-output fixed source gets, and nothing is tapped. The
+ *  `tapUntap` priority path has no such throw: it toggles the tap and adds no
+ *  mana. So the change is a rejection-MESSAGE swap on the payment path (from a
+ *  "Must choose a mana color" the client structurally cannot satisfy, to an
+ *  accurate statement about the source) plus a no-op tap toggle on the priority
+ *  path — never a source that silently pays for something. The two gates now
+ *  agree by construction on the same list. */
 function manaTapNeedsChoice(
     card: CardInstanceState,
     controllerId: string,
@@ -1157,6 +1180,7 @@ function manaTapNeedsChoice(
     ability: ActivatedAbility | null
 ): boolean {
     const options = getManaTapOptionsDetailed(card, controllerId, battlefields);
+    if (options.length === 0) return false;
     return (
         options.length >= 2 ||
         !!(ability?.manaChoices || ability?.getManaChoices)
@@ -1200,26 +1224,17 @@ function resolveManaTapChoice(
     return { mana: opt.mana, ability, choiceIndex: source.choiceIndex };
 }
 
-/** CR 605.1a — clean rejection message for a mana-choice tap that resolves to
- *  nothing (`resolveManaTapChoice` returned null). Distinguishes "this source
- *  has no legal mana-tap option at all" (issue #947 hardening — reachable
- *  only if a source's `canActivate` availability gate is somehow bypassed,
- *  e.g. an un-imprinted Chrome Mox) from "the submitted index is out of range
- *  for an otherwise legal source", so a defensive double-fault doesn't
- *  surface the same confusing generic message either way. */
-function manaChoiceRejectionMessage(
-    card: CardInstanceState,
-    controllerId: string,
-    battlefields: ReadonlyArray<{
-        playerId: string;
-        battlefield: readonly CardInstanceState[];
-    }>
-): string {
-    const options = getManaTapOptionsDetailed(card, controllerId, battlefields);
-    return options.length === 0
-        ? "This source has no mana to add"
-        : "Invalid mana choice";
-}
+/** CR 605.1a — rejection message for a mana-choice tap whose submitted index
+ *  resolves to nothing (`resolveManaTapChoice` returned null). Both call sites
+ *  sit INSIDE a `manaTapNeedsChoice` branch, and that gate returns false on an
+ *  empty option list (issue #1889), so "this source has no mana-tap option at
+ *  all" can no longer reach here — the only remaining case is an out-of-range
+ *  index for an otherwise legal source. A dedicated "This source has no mana to
+ *  add" variant was deleted with the gate change rather than left as an
+ *  unreachable branch: an un-imprinted Chrome Mox / zero-option source now
+ *  falls through to the fixed branch and is rejected there with "Card does not
+ *  produce mana". */
+const MANA_CHOICE_REJECTION = "Invalid mana choice";
 
 /** Battlefields shaped for the mana-tap resolvers (CR 106.1). Thin wrapper
  *  over the shared `manaGateBattlefields` (`gre/constants.ts`, issue #1754
@@ -1310,13 +1325,7 @@ export function tapSourceIntoPayment(
             manaChoiceIndex
         );
         if (!resolved) {
-            throw new Error(
-                manaChoiceRejectionMessage(
-                    card,
-                    player.id,
-                    manaTapBattlefields(state)
-                )
-            );
+            throw new Error(MANA_CHOICE_REJECTION);
         }
         const { ability: effAbility, choiceIndex } = resolved;
         // CR 614 — Deep Water rewrites a land's produced mana to {U} before it
@@ -12258,13 +12267,7 @@ export const tapUntap = mutation({
                     args.manaChoiceIndex
                 );
                 if (!resolved) {
-                    throw new Error(
-                        manaChoiceRejectionMessage(
-                            card,
-                            player.id,
-                            manaTapBattlefields(state)
-                        )
-                    );
+                    throw new Error(MANA_CHOICE_REJECTION);
                 }
                 const effAbility = resolved.ability;
                 const choiceIndex = resolved.choiceIndex;

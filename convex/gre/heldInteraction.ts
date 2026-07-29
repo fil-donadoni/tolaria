@@ -49,8 +49,10 @@ export function availableManaFor(player: PlayerState): number {
     let mana = 0;
     for (const perm of player.battlefield) {
         // CR 605.1a / 305.6 — count only sources that can actually produce
-        // mana; a fetchland (no mana ability) is not one (issue #1499).
-        if (isUntappedManaSource(perm)) {
+        // mana; a fetchland (no mana ability) is not one (issue #1499), nor is
+        // a board-conditional source whose CURRENT output is zero — an
+        // Everflowing Chalice with no charge counters (issue #1889).
+        if (isUntappedManaSource(perm, player.battlefield)) {
             mana += 1;
         }
     }

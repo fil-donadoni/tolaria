@@ -66,6 +66,13 @@ export function useBattlefieldVisualState(player: Player) {
     // same UI-hint convention `getActivatable` already uses (#436).
     const manaGateView = buildTriggerStateView(allPlayers, activePlayerId);
 
+    // CR 106.1 (issue #1889) — `allPlayers` is also handed to `hasManaAbility`
+    // below, so a source whose CURRENT unified tap option list is empty (an
+    // Everflowing Chalice with no charge counters) stops reading as a tappable
+    // payment source here, off the same list the server resolves the index
+    // against. Every player's battlefield, not just the controller's: a
+    // board-conditional chooser (Fellwar Stone) reads the opponents' lands.
+
     // --- Interaction modes ---
 
     const isPayingCast =
@@ -378,7 +385,7 @@ export function useBattlefieldVisualState(player: Player) {
             isMe &&
             isPayingCast &&
             pendingCast &&
-            !hasManaAbility(card, manaGateView) &&
+            !hasManaAbility(card, manaGateView, allPlayers) &&
             (card.types?.includes("Artifact") ?? false) &&
             pendingCastHasImprovise(pendingCast, player)
         ) {
@@ -390,7 +397,8 @@ export function useBattlefieldVisualState(player: Player) {
                 : pendingCastRemainingGeneric(pendingCast) > 0;
         }
 
-        if (!isMe || !hasManaAbility(card, manaGateView)) return false;
+        if (!isMe || !hasManaAbility(card, manaGateView, allPlayers))
+            return false;
         // CR 302.1 — creatures with summoning sickness can't pay {T}, so
         // their mana ability isn't activatable. Untapping (refunding floating
         // mana) is still allowed — it reverses an earlier activation.
@@ -418,7 +426,7 @@ export function useBattlefieldVisualState(player: Player) {
 
     function getVisualState(card: CardInstance): CardVisualState {
         const creature = isCreature(card);
-        const manaSource = hasManaAbility(card, manaGateView);
+        const manaSource = hasManaAbility(card, manaGateView, allPlayers);
 
         const isValidTarget =
             isSelectingTarget &&

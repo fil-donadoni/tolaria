@@ -729,6 +729,17 @@ function manaCostKey(mana: ManaCost): string {
  *  `getManaTapOptions` for a plain dual land is byte-identical to its old
  *  `manaChoices`.
  *
+ *  CR 605.1a (issue #1889) — a FIXED-output ability whose CURRENT output totals
+ *  zero (a `manaAmount` hook resolving to 0: Everflowing Chalice with no charge
+ *  counters, an empty Gaea's Cradle, the Urza trio one piece short) is omitted:
+ *  it cannot pay for anything, and offering it made the auto-tap solver tap it,
+ *  gain nothing and abandon the cast. That drop is scoped to the fixed branch
+ *  ONLY. A CHOICE list keeps every entry, zero-output included, precisely
+ *  because its index is load-bearing (see the storage-land note above) and
+ *  because `getEffectiveManaChoices` — the other authority on that same list —
+ *  keeps it too: the two must stay index-identical or one tap has two index
+ *  spaces.
+ *
  *  A SACRIFICE-cost mana ability (ADR 0039 — the FEM sac-land "Sacrifice this:
  *  Add {X}{X}", Basal Thrull, Lotus Petal) is a deliberate destructive
  *  activation, NOT folded into the routine tap-for-mana picker: it is offered
@@ -869,6 +880,17 @@ export function getManaTapOptionsDetailed(
                     ? getDynamicManaChoices(card, controllerId, battlefields)
                     : (ability.manaChoices ?? null);
             if (choices) {
+                // CR 605.1a (issue #1889) — the zero-output drop below is
+                // deliberately NOT applied to a CHOICE list. A storage land's
+                // choices ARE its "remove N counters" ladder, and the index IS
+                // the counter count, so dropping the index-0 "remove 0" entry
+                // would shift every later index by one: `tapSourceIntoPayment`
+                // would remove N+1 counters for the player's pick of N, and the
+                // unified list would stop agreeing with `getEffectiveManaChoices`
+                // (which keeps the entry) — two index spaces for one tap.
+                // A chooser's zero entry is a legal, deliberate pick, not a dead
+                // payment source; the zero-output problem #1889 fixes is the
+                // FIXED-output branch (a `manaAmount` hook resolving to 0).
                 choices.forEach((choice, index) => {
                     target.push({
                         mana: choice,
@@ -887,8 +909,19 @@ export function getManaTapOptionsDetailed(
                 const dynamic = controllerBattlefield
                     ? getDynamicManaProduced(card, controllerBattlefield)
                     : null;
+                const mana = dynamic ?? ability.manaProduced;
+                // CR 605.1a (issue #1889) — a mana ability whose CURRENT output
+                // is zero (Everflowing Chalice with no charge counters, an empty
+                // Gaea's Cradle, the Urza trio one piece short) is not a source
+                // that can pay for anything: offering it made the auto-tap
+                // solver tap it, gain nothing, and leave the cost unpaid — then
+                // abandon the cast. The ability itself stays legal to activate
+                // (CR 605.1a does not forbid a pointless activation); it is only
+                // removed from the payment / affordability option list, which is
+                // what every consumer of this function is asking about.
+                if (totalManaCount(mana) === 0) continue;
                 target.push({
-                    mana: dynamic ?? ability.manaProduced,
+                    mana,
                     source: { kind: "activated", abilityId: ability.id },
                 });
             }
@@ -1105,15 +1138,36 @@ export function getActivatedManaAbility(
 
 /** Returns true if a card has a tap mana ability (basic land subtype or
  *  activated), consulting the activated ability's own `canActivate` gate
- *  when `state` is supplied (CR 602.5b, issue #947). */
+ *  when `state` is supplied (CR 602.5b, issue #947).
+ *
+ *  CR 106.1 / 605.1a (issue #1889) — when `controllerBattlefield` is supplied
+ *  AND the ability declares a board-conditional `manaAmount` hook, the CURRENT
+ *  output is resolved and a source that would add ZERO mana right now
+ *  (Everflowing Chalice with no charge counters, an empty Gaea's Cradle, the
+ *  Urza trio one piece short) does NOT count. Without that argument the
+ *  predicate is unchanged, so the delta versus the pre-#1889 behaviour is
+ *  EXACTLY ZERO for every source with no `manaAmount` hook — the same narrow
+ *  support discipline #1499 used for the fetchland fix.
+ *
+ *  A `getManaChoices` chooser (Fellwar Stone) is deliberately NOT gated here:
+ *  it reads EVERY player's battlefield (the opponents' lands), which this
+ *  controller-battlefield-only argument cannot supply — evaluating it against a
+ *  partial board would wrongly erase a real source. That shape is handled one
+ *  level down, in `getManaTapOptionsDetailed`, which does receive every
+ *  battlefield and is what the payment / auto-tap paths actually read. */
 export function hasManaAbility(
     card: CardInstanceState,
-    state?: TriggerStateView
+    state?: TriggerStateView,
+    controllerBattlefield?: readonly CardInstanceState[]
 ): boolean {
-    return (
-        getBasicLandMana(card) !== null ||
-        getActivatedManaAbility(card, state) !== null
-    );
+    if (getBasicLandMana(card) !== null) return true;
+    const ability = getActivatedManaAbility(card, state);
+    if (!ability) return false;
+    if (controllerBattlefield && ability.manaAmount) {
+        const dynamic = getDynamicManaProduced(card, controllerBattlefield);
+        if (dynamic && totalManaCount(dynamic) === 0) return false;
+    }
+    return true;
 }
 
 /** Whether a permanent counts as ONE available untapped mana source for the
@@ -1134,9 +1188,20 @@ export function hasManaAbility(
  *  crack as search deepened (issue #1499). The delta versus the old predicate
  *  is EXACTLY ZERO for any position whose untapped lands all have a mana
  *  ability (every ordinary board), and non-zero only when a non-mana land is
- *  present — the narrow support ADR 0070 §5 asks for. Pure. */
-export function isUntappedManaSource(card: CardInstanceState): boolean {
-    return !card.isTapped && hasManaAbility(card);
+ *  present — the narrow support ADR 0070 §5 asks for. Pure.
+ *
+ *  CR 106.1 / 605.1a (issue #1889) — `controllerBattlefield`, when supplied,
+ *  is forwarded to `hasManaAbility` so a board-conditional source whose CURRENT
+ *  output is zero (Everflowing Chalice with no charge counters) stops counting
+ *  as one available mana. Same narrow-support discipline as above: the delta is
+ *  EXACTLY ZERO for every source without a `manaAmount` hook. */
+export function isUntappedManaSource(
+    card: CardInstanceState,
+    controllerBattlefield?: readonly CardInstanceState[]
+): boolean {
+    return (
+        !card.isTapped && hasManaAbility(card, undefined, controllerBattlefield)
+    );
 }
 
 /** Returns true if a card carries an activated ability that is NOT a mana

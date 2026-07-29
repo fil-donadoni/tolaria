@@ -210,6 +210,11 @@ export function useBattlefieldInteraction(player: Player) {
     // that decided the click was legal in the first place.
     const manaGateView = buildTriggerStateView(allPlayers, activePlayerId);
 
+    // CR 106.1 (issue #1889) — `allPlayers` is handed to `hasManaAbility` below
+    // (the same list `getManaChoices` already gets), so this branch agrees with
+    // `useBattlefieldVisualState`'s matching gate on a source whose current tap
+    // option list is empty (an Everflowing Chalice with no charge counters).
+
     // A mana-choice picker opened to pay a cast/activation cost is anchored to
     // that payment. If the payment ends by another route — the player presses
     // Auto-tap (PaymentBanner), or the cost is cancelled/completed — the picker
@@ -535,7 +540,7 @@ export function useBattlefieldInteraction(player: Player) {
             isInPayment &&
             isPayingCast &&
             pendingCast &&
-            !hasManaAbility(card, manaGateView) &&
+            !hasManaAbility(card, manaGateView, allPlayers) &&
             (card.types?.includes("Artifact") ?? false) &&
             pendingCastHasImprovise(pendingCast, player)
         ) {
