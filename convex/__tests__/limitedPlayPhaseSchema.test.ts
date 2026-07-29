@@ -14,11 +14,14 @@ import { describe, it, expect } from "vitest";
 import schema from "../schema";
 import { LIMITED_EVENT_STATUSES } from "../limited/eventStatus";
 import { LIMITED_MATCH_FORMATS } from "../limited/matchFormat";
+import { poolArrangementEntryValidator } from "../limited/eventTypes";
 import type {
     LimitedPairing,
     LimitedPairingResult,
     LimitedRound,
+    PoolArrangementEntry,
 } from "../limited/eventTypes";
+import type { CardPins } from "../deckLayout";
 
 /** One field of an object validator, as Convex describes it. */
 interface FieldJson {
@@ -57,9 +60,13 @@ function arrayElement(json: ValidatorJson): ValidatorJson {
     return json.value as ValidatorJson;
 }
 
-function literalMembers(json: ValidatorJson): unknown[] {
+function unionMembers(json: ValidatorJson): ValidatorJson[] {
     if (json.type !== "union") throw new Error("not a union validator");
-    return (json.value as ValidatorJson[]).map((m) => {
+    return json.value as ValidatorJson[];
+}
+
+function literalMembers(json: ValidatorJson): unknown[] {
+    return unionMembers(json).map((m) => {
         if (m.type !== "literal") throw new Error("not a literal member");
         return m.value;
     });
@@ -196,5 +203,134 @@ describe("matches/games.limitedPairing (PRD #1628, issue #1640)", () => {
             expect(fields.limitedEventId).toBeDefined();
             expect(fields.limitedPairing).toBeDefined();
         }
+    });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// Pool Arrangement — the WRITE side (ADR 0060 issue #1247; Card Pins,
+// ADR 0075 §3/§5, PRD #1617, issue #1621)
+// ────────────────────────────────────────────────────────────────────────────
+//
+// `limitedEventViewValidator.test.ts` guards the READ side: a field the
+// projection RETURNS but the returns validator doesn't declare 500s the query.
+// This block is its twin, and the reason it exists is that the twin was
+// missing: with `pins` deleted from the storage validator the entire convex
+// suite stayed green, because nothing walked this shape — yet the write path
+// emits `pins` on every Pool-Arrangement drag, and a storage validator that
+// doesn't declare it rejects that write at runtime, invisibly to `tsc`.
+//
+// Asserted at BOTH persistence sites, since a Seat's payload can live in
+// either: the legacy inline `limitedEvents.seats[].poolArrangement` (pre-split
+// events) and the live `limitedSeats.poolArrangement`.
+describe("poolArrangement entry ↔ PoolArrangementEntry (both storage sites, issue #1621)", () => {
+    const inlineField = objectFields(
+        arrayElement(eventFields.seats.fieldType)
+    ).poolArrangement;
+    const seatField = tableFields("limitedSeats").poolArrangement;
+
+    const sites: [string, FieldJson][] = [
+        ["limitedEvents.seats[] (legacy inline)", inlineField],
+        ["limitedSeats (live)", seatField],
+    ];
+
+    function entryFields(field: FieldJson): Record<string, FieldJson> {
+        return objectFields(arrayElement(field.fieldType));
+    }
+
+    it.each(sites)(
+        "%s declares poolArrangement as an OPTIONAL array (an untouched seat has none)",
+        (_label, field) => {
+            expect(field).toBeDefined();
+            expect(field.optional).toBe(true);
+            expect(field.fieldType.type).toBe("array");
+        }
+    );
+
+    it.each(sites)(
+        "%s stores every PoolArrangementEntry field, and no field the type doesn't have",
+        (_label, field) => {
+            const fields = entryFields(field);
+            const typed = {
+                poolIndex: 0,
+                column: 3,
+                pins: { mv: "mv:3" },
+                sideboard: true,
+            } satisfies Required<PoolArrangementEntry>;
+            expect(Object.keys(fields).sort()).toEqual(
+                Object.keys(typed).sort()
+            );
+            // Optionality matches the type's own `?` markers: only the
+            // `poolIndex` identity is mandatory.
+            expect(fields.poolIndex.optional).toBe(false);
+            expect(fields.column.optional).toBe(true);
+            expect(fields.pins.optional).toBe(true);
+            expect(fields.sideboard.optional).toBe(true);
+        }
+    );
+
+    it.each(sites)(
+        "%s declares `pins` — the Card Pin map issue #1621 started WRITING",
+        (_label, field) => {
+            // The single assertion the missing guard was about: without this
+            // field on the storage validator every Pool-Arrangement drag is
+            // rejected at write time, and nothing else in the suite notices.
+            const pins = entryFields(field).pins;
+            expect(pins).toBeDefined();
+            expect(pins.optional).toBe(true);
+
+            const pinFields = objectFields(pins.fieldType);
+            const typedPins = {
+                mv: "mv:5",
+                color: "color:R",
+                type: "type:creature",
+                custom: "custom:combo",
+            } satisfies Required<CardPins>;
+            expect(Object.keys(pinFields).sort()).toEqual(
+                Object.keys(typedPins).sort()
+            );
+            for (const key of Object.keys(pinFields)) {
+                // Every namespace optional (a card is rarely pinned in all
+                // four), and a free string: the Column-id vocabulary is OPEN
+                // (`custom:<slug>` is user-authored) and `convex/deckLayout.ts`,
+                // not the DB, is its authority.
+                expect(pinFields[key].optional).toBe(true);
+                expect(pinFields[key].fieldType.type).toBe("string");
+            }
+        }
+    );
+
+    it.each(sites)(
+        "%s still ACCEPTS the deprecated `column` (tolerant read — in-flight events carry it)",
+        (_label, field) => {
+            // Read-only since #1621 and never written again, but dropping it
+            // from the schema instantly invalidates every row an in-flight
+            // draft already persisted (ADR 0075 §5).
+            const column = entryFields(field).column;
+            expect(column).toBeDefined();
+            expect(column.optional).toBe(true);
+            const members = unionMembers(column.fieldType);
+            expect(members.map((m) => m.type).sort()).toEqual([
+                "literal",
+                "number",
+            ]);
+            // The literal branch is the Lands column (issue #1573).
+            expect(members.find((m) => m.type === "literal")!.value).toBe(
+                "lands"
+            );
+        }
+    );
+
+    it("uses the ONE shared entry validator at both storage sites", () => {
+        // `poolArrangementEntryValidator` (`convex/limited/eventTypes.ts`) is
+        // the single authority, imported by `schema.ts` at both sites AND by
+        // `limitedEvents.ts` as the returns validator. Compared as Convex's own
+        // `.json` description, so a re-declared near-copy at either site — the
+        // drift that lets a future Pin namespace reach the DB but not the wire
+        // — fails here.
+        const shared = (
+            poolArrangementEntryValidator as unknown as { json: ValidatorJson }
+        ).json;
+        expect(arrayElement(inlineField.fieldType)).toEqual(shared);
+        expect(arrayElement(seatField.fieldType)).toEqual(shared);
     });
 });

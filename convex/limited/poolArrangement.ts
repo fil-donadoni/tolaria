@@ -10,6 +10,21 @@
 // Maindeck/Sideboard split from (mirrors "one entry per physical card
 // opened, not grouped" already established for `LimitedPoolCard`/`pool`
 // itself).
+//
+// Storage shape (issue #1621, ADR 0075 §5): an entry's placement is the
+// namespaced **Card Pin** map. The pre-#1621 single `column` override is
+// DEPRECATED and read-only — `readEntryPins` below tolerates it on read, and
+// `upsertPoolArrangementEntry` emits only `pins`, so an in-flight draft keeps
+// working with no coordinated migration.
+// Column ids and the legacy→pin normalisation come from the shared Column
+// Layout engine (`convex/deckLayout.ts`, ADR 0075, issue #1618) — this module
+// never mints or parses a column id of its own, so the id vocabulary has
+// exactly one author (issue #1621 AC).
+import {
+    normalizeLegacyColumn,
+    parseColumnId,
+    type CardPins,
+} from "../deckLayout";
 import type { LimitedPoolCard, PoolArrangementEntry } from "./eventTypes";
 
 /** A `{ cardId, cardName }` shape — mirrors `DeckCard` (`~/types/game`)
@@ -34,31 +49,104 @@ export interface ArrangementPatch {
     column?: number | "lands" | null;
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// Tolerant read (ADR 0075 §5, issue #1621)
+// ────────────────────────────────────────────────────────────────────────────
+
+/** THE normaliser: one Arrangement entry, in whichever shape it happens to be
+ *  stored, read as the namespaced Card Pin map (ADR 0075 §5, "schema evolution
+ *  by tolerant read"). Pure — no side effects, no async, no I/O.
+ *
+ *  - **New shape** (`pins`) passes through unchanged.
+ *  - **Legacy shape** (`column`) normalises through the Column Layout engine's
+ *    own `normalizeLegacyColumn`: `5 → { mv: "mv:5" }`,
+ *    `"lands" → { mv: "mv:lands" }`. The legacy override was ALWAYS a
+ *    Mana-Value placement, so it can only ever produce an `mv` Pin.
+ *  - **Both shapes** — a row written before this slice and hand-edited since,
+ *    or one a future writer left half-migrated — resolves per NAMESPACE, and
+ *    **`pins` is the winner**: the deprecated `column` fills the `mv` slot ONLY
+ *    when `pins.mv` is absent. `pins` wins because it is the only shape any
+ *    write emits after issue #1621, so it is by construction the more recent
+ *    of the two; and the rule is applied per namespace rather than
+ *    whole-entry so a `color`/`type`/`custom` Pin isn't silently discarded by
+ *    the presence of a stale `column` (nor vice versa).
+ *
+ *  Never mutates `entry`, and never returns the entry's own `pins` object —
+ *  callers may keep the result. */
+export function readEntryPins(entry: PoolArrangementEntry): CardPins {
+    // `normalizeLegacyColumn` returns `{}` for an absent/null column, so the
+    // no-legacy case is the same expression.
+    return { ...normalizeLegacyColumn(entry.column), ...entry.pins };
+}
+
+/** The `mv`-namespace Pin read back as the legacy `number | "lands"` column
+ *  the Limited Pool surface still speaks (`limitedPoolColumns.ts`). The
+ *  INVERSE of `normalizeLegacyColumn`, and the reason nothing user-visible
+ *  changes in issue #1621: the storage shape moved, the resolved placement
+ *  did not. `undefined` for no `mv` Pin — and for a Pin naming a column this
+ *  read can't express (a `mv` id whose key is neither `"lands"` nor a number),
+ *  which reads as "no override" exactly as an unrecognised column always has.
+ *
+ *  Deliberately narrow: a `color`/`type`/`custom` Pin has no legacy
+ *  counterpart, so it is invisible here. Those namespaces reach the UI when
+ *  the surface adopts the Column Layout engine, not through this shim. */
+export function mvColumnFromPins(pins: CardPins): number | "lands" | undefined {
+    if (pins.mv === undefined) return undefined;
+    const parsed = parseColumnId(pins.mv);
+    if (!parsed || parsed.namespace !== "mv") return undefined;
+    if (parsed.key === "lands") return "lands";
+    const n = Number(parsed.key);
+    return Number.isInteger(n) ? n : undefined;
+}
+
 /** Folds `patch` into `arrangement`, returning a NEW array (arrangement
  *  itself is never mutated). An entry that lands back at the fully-default
- *  state (no column override, not sideboarded) is dropped rather than kept
- *  as a no-op row — keeps the persisted array from silently growing forever
- *  as a player toggles a card back and forth. Result is sorted by
- *  `poolIndex` for a deterministic, diff-friendly persisted shape. */
+ *  state (no Pin at all, not sideboarded) is dropped rather than kept as a
+ *  no-op row — keeps the persisted array from silently growing forever as a
+ *  player toggles a card back and forth. Result is sorted by `poolIndex` for
+ *  a deterministic, diff-friendly persisted shape.
+ *
+ *  WRITES ONLY THE NEW SHAPE (issue #1621): whatever shape the existing entry
+ *  was stored in, the merged entry that comes out carries `pins` and NEVER
+ *  `column` — so every entry an active seat touches migrates itself, and the
+ *  deprecated field can eventually be dropped without a coordinated
+ *  migration. The patch's INPUT vocabulary is unchanged (`column`) because
+ *  the mutation's wire args and every caller still speak it; only the
+ *  persisted shape moves. */
 export function upsertPoolArrangementEntry(
     arrangement: readonly PoolArrangementEntry[],
     patch: ArrangementPatch
 ): PoolArrangementEntry[] {
     const existing = arrangement.find((e) => e.poolIndex === patch.poolIndex);
     const nextSideboard = patch.sideboard ?? existing?.sideboard ?? false;
-    const nextColumn =
-        patch.column === undefined
-            ? existing?.column
-            : (patch.column ?? undefined);
+    const existingPins = existing ? readEntryPins(existing) : {};
+    const nextPins = applyColumnPatch(existingPins, patch.column);
 
     const rest = arrangement.filter((e) => e.poolIndex !== patch.poolIndex);
-    const isDefault = !nextSideboard && nextColumn === undefined;
+    const isDefault = !nextSideboard && Object.keys(nextPins).length === 0;
     if (isDefault) return rest;
 
     const merged: PoolArrangementEntry = { poolIndex: patch.poolIndex };
     if (nextSideboard) merged.sideboard = true;
-    if (nextColumn !== undefined) merged.column = nextColumn;
+    if (Object.keys(nextPins).length > 0) merged.pins = nextPins;
     return [...rest, merged].sort((a, b) => a.poolIndex - b.poolIndex);
+}
+
+/** The patch's `column` field applied to an already-normalised Pin map:
+ *  `undefined` leaves every Pin alone, `null` clears the `mv` Pin back to auto
+ *  (and ONLY that one — a Pin is never erased across namespaces, ADR 0075 §3),
+ *  a value overwrites it. */
+function applyColumnPatch(
+    pins: CardPins,
+    column: number | "lands" | null | undefined
+): CardPins {
+    if (column === undefined) return pins;
+    if (column === null) {
+        const cleared = { ...pins };
+        delete cleared.mv;
+        return cleared;
+    }
+    return { ...pins, ...normalizeLegacyColumn(column) };
 }
 
 /** One resolved Pool card placement — the Arrangement's default (Maindeck,
@@ -67,9 +155,16 @@ export interface ResolvedPlacement {
     poolIndex: number;
     card: LimitedPoolCard;
     sideboard: boolean;
-    /** Manual column override, if the Arrangement records one for this card
-     *  — a numeric Mana-Value column, or `"lands"`. Absent = auto (a Land
-     *  card's own type, else the card's own mana value). */
+    /** This card's Card Pins (ADR 0075 §3), normalised out of whichever shape
+     *  the Arrangement entry is stored in — the input the Column Layout
+     *  engine's `resolveColumnLayout` takes. `{}` for an unpinned card. */
+    pins: CardPins;
+    /** The `mv` Pin read back as the legacy column vocabulary the Limited Pool
+     *  surface still speaks — a numeric Mana-Value column, or `"lands"`.
+     *  Absent = auto (a Land card's own type, else the card's own mana value).
+     *  Derived from {@link ResolvedPlacement.pins} via `mvColumnFromPins`, so
+     *  a legacy `column` row and a `pins` row resolve identically (issue
+     *  #1621: nothing user-visible changes). */
     columnOverride?: number | "lands";
 }
 
@@ -86,11 +181,16 @@ export function resolvePoolPlacements(
     const byIndex = new Map((arrangement ?? []).map((e) => [e.poolIndex, e]));
     return pool.map((card, poolIndex) => {
         const entry = byIndex.get(poolIndex);
+        // The ONE place a stored entry is read: legacy `column`, new `pins`,
+        // or both all normalise here (ADR 0075 §5), so no downstream consumer
+        // ever sees the deprecated field.
+        const pins = entry ? readEntryPins(entry) : {};
         return {
             poolIndex,
             card,
             sideboard: entry?.sideboard ?? false,
-            columnOverride: entry?.column,
+            pins,
+            columnOverride: mvColumnFromPins(pins),
         };
     });
 }

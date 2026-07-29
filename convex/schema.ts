@@ -1,6 +1,17 @@
 import { authTables } from "@convex-dev/auth/server";
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+// One Pool Arrangement entry (ADR 0060, issue #1247; Card Pins, ADR 0075
+// §3/§5, issue #1621). NOT re-declared here: the validator is exported from
+// `convex/limited/eventTypes.ts` alongside the `PoolArrangementEntry` type it
+// describes, and is imported by BOTH storage sites below (the legacy inline
+// `limitedEvents.seats[].poolArrangement` and the live
+// `limitedSeats.poolArrangement`) AND by the returns validator in
+// `convex/limitedEvents.ts` — one authority, so a new Pin namespace can't be
+// added to one site and silently missed at another. That module is types +
+// `convex/values` only (its `CardPins` import is type-only), so importing it
+// here adds no runtime weight to the schema.
+import { poolArrangementEntryValidator } from "./limited/eventTypes";
 
 // Typed, immutable deck Format (PRD #509, ADR 0036). `userDecks` and
 // `presetDecks` store one of these literals — a non-conforming string is
@@ -612,19 +623,7 @@ export default defineSchema({
                 pickSeq: v.optional(v.number()),
                 // LEGACY (pre-split, see the `seats` comment above).
                 poolArrangement: v.optional(
-                    v.array(
-                        v.object({
-                            poolIndex: v.number(),
-                            // A numeric Mana-Value column override, OR the
-                            // literal "lands" to pin the card into the Lands
-                            // column regardless of its own type (issue
-                            // #1573).
-                            column: v.optional(
-                                v.union(v.number(), v.literal("lands"))
-                            ),
-                            sideboard: v.optional(v.boolean()),
-                        })
-                    )
+                    v.array(poolArrangementEntryValidator)
                 ),
                 // Selected Card (ADR 0060, issue #1248): the seat's tentative
                 // single-click selection within its OWN `currentPack` — never
@@ -702,15 +701,7 @@ export default defineSchema({
                 )
             )
         ),
-        poolArrangement: v.optional(
-            v.array(
-                v.object({
-                    poolIndex: v.number(),
-                    column: v.optional(v.union(v.number(), v.literal("lands"))),
-                    sideboard: v.optional(v.boolean()),
-                })
-            )
-        ),
+        poolArrangement: v.optional(v.array(poolArrangementEntryValidator)),
     })
         // Every seat of one event, in seat order — the hydration read.
         // Doubles as the point lookup for a single seat (`eq` on both

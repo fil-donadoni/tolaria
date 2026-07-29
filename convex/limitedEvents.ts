@@ -106,6 +106,17 @@ import type {
     LimitedPairing,
     LimitedRound,
 } from "./limited/eventTypes";
+// Pool Arrangement entry (ADR 0060, issue #1247; Lands as a manual column
+// target, issue #1573; namespaced Card Pins, issue #1621) — the SAME validator
+// `convex/schema.ts` stores with, imported rather than re-declared. Reached
+// from here as a RETURNS validator (through `limitedEventViewValidator`
+// below), and Convex rejects a returned object carrying a field the validator
+// doesn't declare — AT RUNTIME, invisibly to `tsc`. Sharing the const is what
+// makes "the write path emits it" and "the read path may return it" one fact
+// instead of two that can drift.
+// `convex/__tests__/limitedEventViewValidator.test.ts` walks this validator
+// over the REAL projection output and fails on any such drift.
+import { poolArrangementEntryValidator } from "./limited/eventTypes";
 import {
     arePoolsDealt,
     areDraftPicksLegal,
@@ -251,15 +262,6 @@ const draftPackCardValidator = v.object({
     cardId: v.string(),
     cardName: v.string(),
     pickId: v.string(),
-});
-
-// Pool Arrangement (ADR 0060, issue #1247; Lands as a manual column target,
-// issue #1573) — see `PoolArrangementEntry`'s doc comment in
-// `convex/limited/eventTypes.ts`.
-const poolArrangementEntryValidator = v.object({
-    poolIndex: v.number(),
-    column: v.optional(v.union(v.number(), v.literal("lands"))),
-    sideboard: v.optional(v.boolean()),
 });
 
 const deckCardValidator = v.object({
@@ -1721,7 +1723,12 @@ export const startLimitedEvent = mutation({
  *  fixed shape (unlike `pickId`, no separate authoritative list to check
  *  membership against). Column-override DRAG is wired by issue #1248; this
  *  mutation already accepts `column` so that later change needs no API
- *  change, only a new caller. */
+ *  change, only a new caller.
+ *
+ *  The `column` ARG is unchanged (every caller still speaks it), but what gets
+ *  PERSISTED is the namespaced Card Pin map — `upsertPoolArrangementEntry`
+ *  emits `pins` and never the deprecated `column` field, so each entry an
+ *  active seat touches migrates itself (ADR 0075 §5, issue #1621). */
 export const setPoolArrangementEntry = mutation({
     args: {
         eventId: v.id("limitedEvents"),

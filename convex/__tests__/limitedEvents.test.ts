@@ -56,12 +56,26 @@ import {
     assertLimitedSeatOwnership,
     resolvePoolFromEvent,
 } from "../limited/poolResolution";
-import { upsertPoolArrangementEntry } from "../limited/poolArrangement";
+import type {
+    LimitedPoolCard,
+    PoolArrangementEntry,
+} from "../limited/eventTypes";
+import {
+    resolvePoolPlacements,
+    upsertPoolArrangementEntry,
+} from "../limited/poolArrangement";
 import {
     getBoosterConfig,
     getRuntimeBoosterConfig,
     isDraftableSet,
 } from "../limited/registry";
+// The real mutation, driven end-to-end against the shared in-memory ctx — see
+// the `setPoolArrangementEntry through the REAL mutation handler` block below.
+import type { Doc, Id } from "../_generated/dataModel";
+import type { MutationCtx } from "../_generated/server";
+import { setPoolArrangementEntry } from "../limitedEvents";
+import { hydrateSeats } from "../limitedSeatStore";
+import { makeInMemoryDb } from "./fixtures/inMemoryDb";
 
 const resolveCardMeta: ResolveCardMeta = (scryfallId) => {
     const def = tryGetDefinition(scryfallId);
@@ -1424,7 +1438,9 @@ describe("Limited Event Pool Arrangement (ADR 0060, issue #1247): setPoolArrange
 
         const aliceView = projectLimitedEvent(event, "user1");
         const aliceOwn = aliceView.seats.find((s) => s.seatIndex === 0)!;
-        expect(aliceOwn.poolArrangement).toEqual([{ poolIndex: 0, column: 3 }]);
+        expect(aliceOwn.poolArrangement).toEqual([
+            { poolIndex: 0, pins: { mv: "mv:3" } },
+        ]);
 
         const bobView = projectLimitedEvent(event, "user2");
         const aliceFromBob = bobView.seats.find((s) => s.seatIndex === 0)!;
@@ -1445,7 +1461,7 @@ describe("Limited Event Pool Arrangement (ADR 0060, issue #1247): setPoolArrange
             sideboard: true,
         });
         expect(event.seats[0].poolArrangement).toEqual([
-            { poolIndex: 0, column: 3, sideboard: true },
+            { poolIndex: 0, pins: { mv: "mv:3" }, sideboard: true },
         ]);
     });
 
@@ -1453,7 +1469,8 @@ describe("Limited Event Pool Arrangement (ADR 0060, issue #1247): setPoolArrange
     // `setPoolArrangementEntry`'s own mutation-args validators now both
     // accept (`v.union(v.number(), v.literal("lands"))`) — persists and
     // round-trips through `projectLimitedEvent`, the exact wire the client
-    // receives, symmetrically with a numbered column.
+    // receives, symmetrically with a numbered column. Since issue #1621 it
+    // persists as the namespaced `mv:lands` Pin; the ARG is unchanged.
     it("a 'lands' column entry persists and round-trips through projectLimitedEvent, and a later numbered-column edit clears it symmetrically", () => {
         let event = eventWithTwoSealedSeats();
         event = applySetPoolArrangementEntry(event, "user1", {
@@ -1461,13 +1478,13 @@ describe("Limited Event Pool Arrangement (ADR 0060, issue #1247): setPoolArrange
             column: "lands",
         });
         expect(event.seats[0].poolArrangement).toEqual([
-            { poolIndex: 0, column: "lands" },
+            { poolIndex: 0, pins: { mv: "mv:lands" } },
         ]);
 
         const aliceView = projectLimitedEvent(event, "user1");
         const aliceOwn = aliceView.seats.find((s) => s.seatIndex === 0)!;
         expect(aliceOwn.poolArrangement).toEqual([
-            { poolIndex: 0, column: "lands" },
+            { poolIndex: 0, pins: { mv: "mv:lands" } },
         ]);
 
         // Dragging the same card back to a numbered column is symmetric —
@@ -1477,8 +1494,213 @@ describe("Limited Event Pool Arrangement (ADR 0060, issue #1247): setPoolArrange
             column: 2,
         });
         expect(event.seats[0].poolArrangement).toEqual([
-            { poolIndex: 0, column: 2 },
+            { poolIndex: 0, pins: { mv: "mv:2" } },
         ]);
+    });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// The REAL `setPoolArrangementEntry` mutation, end to end (issue #1621)
+// ────────────────────────────────────────────────────────────────────────────
+
+describe("setPoolArrangementEntry through the REAL mutation handler: a legacy row survives the round-trip (ADR 0075 §5, issue #1621)", () => {
+    // Unlike the block above — which mirrors the handler's body against pure
+    // functions — this drives the mutation Convex itself would run: the
+    // registered function's own `_handler`, against the shared in-memory ctx
+    // (`fixtures/inMemoryDb.ts`). So `getCurrentUser`, the seat-ownership
+    // derivation, the bounds check, `hydrateSeats`, `upsertPoolArrangementEntry`
+    // and `saveSeatPayload` all run for real, in order, and what the assertions
+    // read is what actually landed in the DB. A hand-built object could not
+    // show that a legacy `column` row survives an edit intact.
+    const handler = (
+        setPoolArrangementEntry as unknown as {
+            _handler: (
+                ctx: MutationCtx,
+                args: {
+                    eventId: Id<"limitedEvents">;
+                    poolIndex: number;
+                    sideboard?: boolean;
+                    column?: number | "lands" | null;
+                }
+            ) => Promise<null>;
+        }
+    )._handler;
+
+    const EVENT_ID = "event-1621" as Id<"limitedEvents">;
+
+    /** A started Sealed event with ONE human seat whose 4-card Pool already
+     *  carries `arrangement` — seeded straight into `limitedSeats`, i.e. the
+     *  exact rows an in-flight event has on disk. */
+    function seedEvent(arrangement: PoolArrangementEntry[]) {
+        const pool: LimitedPoolCard[] = [0, 1, 2, 3].map((n) => ({
+            scryfallId: `sf-${n}`,
+            cardId: `card-${n}`,
+            cardName: `Card ${n}`,
+        }));
+        const db = makeInMemoryDb(
+            {
+                users: [{ _id: "user1", nickname: "Alice" }],
+                limitedEvents: [
+                    {
+                        _id: EVENT_ID,
+                        createdBy: "user1",
+                        type: "sealed",
+                        status: "started",
+                        seatCount: 1,
+                        packSlots: ["lea"],
+                        sealedBoosterCount: 6,
+                        // Slim seat: the payload lives in `limitedSeats`.
+                        seats: [
+                            {
+                                seatIndex: 0,
+                                userId: "user1",
+                                nickname: "Alice",
+                                poolCount: pool.length,
+                            },
+                        ],
+                        createdAt: 0,
+                        updatedAt: 0,
+                    },
+                ],
+                limitedSeats: [
+                    {
+                        _id: "seat-1621-0",
+                        eventId: EVENT_ID,
+                        seatIndex: 0,
+                        pool,
+                        poolArrangement: arrangement,
+                    },
+                ],
+            },
+            { identitySubject: "user1|session1" }
+        );
+        const stored = () =>
+            db.tables.limitedSeats[0].poolArrangement as PoolArrangementEntry[];
+        return { ...db, pool, stored };
+    }
+
+    it("editing a LEGACY `column` entry rewrites it as a Pin — and resolves to the SAME column it did before", async () => {
+        const { ctx, pool, stored } = seedEvent([{ poolIndex: 0, column: 5 }]);
+        const before = resolvePoolPlacements(pool, stored())[0];
+
+        // Sideboard the card whose column was recorded in the legacy shape.
+        await handler(ctx, {
+            eventId: EVENT_ID,
+            poolIndex: 0,
+            sideboard: true,
+        });
+
+        const entry = stored()[0];
+        // Written in the new shape only — the deprecated field is gone.
+        expect(entry.pins).toEqual({ mv: "mv:5" });
+        expect("column" in entry).toBe(false);
+        expect(entry.sideboard).toBe(true);
+
+        // …and nothing user-visible changed: same resolved column.
+        const after = resolvePoolPlacements(pool, stored())[0];
+        expect(after.columnOverride).toBe(before.columnOverride);
+        expect(after.columnOverride).toBe(5);
+    });
+
+    it("leaves an UNTOUCHED legacy entry exactly as it was — no coordinated migration, and it still resolves", async () => {
+        const { ctx, pool, stored } = seedEvent([
+            { poolIndex: 0, column: 5 },
+            { poolIndex: 1, column: "lands" },
+        ]);
+        await handler(ctx, {
+            eventId: EVENT_ID,
+            poolIndex: 2,
+            column: 1,
+        });
+        const arrangement = stored();
+        // The two pre-existing rows are byte-identical to what was on disk.
+        expect(arrangement[0]).toEqual({ poolIndex: 0, column: 5 });
+        expect(arrangement[1]).toEqual({ poolIndex: 1, column: "lands" });
+        // The edited one is in the new shape.
+        expect(arrangement[2]).toEqual({
+            poolIndex: 2,
+            pins: { mv: "mv:1" },
+        });
+        // All three resolve, mixed shapes and all.
+        const placements = resolvePoolPlacements(pool, arrangement);
+        expect(placements.map((p) => p.columnOverride)).toEqual([
+            5,
+            "lands",
+            1,
+            undefined,
+        ]);
+    });
+
+    it("what the seat's own viewer receives is the persisted Pin shape, hydrated and projected for real", async () => {
+        const { ctx, tables, stored } = seedEvent([
+            { poolIndex: 0, column: 5 },
+        ]);
+        await handler(ctx, {
+            eventId: EVENT_ID,
+            poolIndex: 3,
+            column: "lands",
+        });
+        const row = tables.limitedEvents[0] as unknown as Doc<"limitedEvents">;
+        const seats = await hydrateSeats(ctx, row, [0]);
+        const view = projectLimitedEvent(
+            { ...row, seats } as unknown as LimitedEventRow,
+            "user1"
+        );
+        expect(view.seats[0].poolArrangement).toEqual(stored());
+        expect(view.seats[0].poolArrangement).toEqual([
+            { poolIndex: 0, column: 5 },
+            { poolIndex: 3, pins: { mv: "mv:lands" } },
+        ]);
+    });
+
+    it("clearing the last dimension of a legacy entry DROPS it (the default-drop rule still holds through the mutation)", async () => {
+        const { ctx, stored } = seedEvent([{ poolIndex: 0, column: 5 }]);
+        await handler(ctx, {
+            eventId: EVENT_ID,
+            poolIndex: 0,
+            column: null,
+        });
+        expect(stored()).toEqual([]);
+    });
+
+    it("still refuses an out-of-range poolIndex and a caller with no Seat — the real handler's guards, not a mirror of them", async () => {
+        const { ctx } = seedEvent([]);
+        await expect(
+            handler(ctx, { eventId: EVENT_ID, poolIndex: 9, sideboard: true })
+        ).rejects.toThrow(/out of range/);
+
+        const stranger = makeInMemoryDb(
+            {
+                users: [{ _id: "user2", nickname: "Bob" }],
+                limitedEvents: [
+                    {
+                        _id: EVENT_ID,
+                        createdBy: "user1",
+                        type: "sealed",
+                        status: "started",
+                        seatCount: 1,
+                        packSlots: ["lea"],
+                        seats: [
+                            {
+                                seatIndex: 0,
+                                userId: "user1",
+                                nickname: "Alice",
+                            },
+                        ],
+                        createdAt: 0,
+                        updatedAt: 0,
+                    },
+                ],
+            },
+            { identitySubject: "user2|session2" }
+        );
+        await expect(
+            handler(stranger.ctx, {
+                eventId: EVENT_ID,
+                poolIndex: 0,
+                sideboard: true,
+            })
+        ).rejects.toThrow(/do not have a Seat/);
     });
 });
 

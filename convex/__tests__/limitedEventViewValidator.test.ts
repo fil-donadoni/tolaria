@@ -64,6 +64,7 @@ import {
     type ResolveCardMeta,
 } from "../limited/eventLogic";
 import { resolveMatchFormat } from "../limited/matchFormat";
+import { upsertPoolArrangementEntry } from "../limited/poolArrangement";
 import { evaluateDeckStrength, type DeckStrength } from "../limited/matchSim";
 import { getRuntimeBoosterConfig } from "../limited/registry";
 import { openRound, type ResolveSeatStrength } from "../limited/rounds";
@@ -268,6 +269,37 @@ function startedEvent(): LimitedEventRow {
         createdAt: 0,
         updatedAt: 0,
     };
+}
+
+/** Same event, with the viewer's seat carrying a Pool Arrangement in BOTH
+ *  storage shapes (issue #1621): a legacy `column` entry an in-flight event
+ *  still holds, an entry the current write path emits (`pins`), and one
+ *  carrying both. `poolArrangement` is projected verbatim to its own seat's
+ *  viewer, so every one of those shapes crosses the return boundary — the
+ *  `pins` field had to be declared on `poolArrangementEntryValidator` in the
+ *  same change that started writing it, or every Limited query would 500. */
+function arrangedEvent(): LimitedEventRow {
+    const event = startedEvent();
+    const seats = [...event.seats];
+    // The `pins` entries come from the REAL write path, so a change to the
+    // emitted shape is caught here rather than shipping past the validator.
+    let arrangement = upsertPoolArrangementEntry(
+        [{ poolIndex: 0, column: 5 }],
+        {
+            poolIndex: 1,
+            column: "lands",
+        }
+    );
+    arrangement = upsertPoolArrangementEntry(arrangement, {
+        poolIndex: 2,
+        sideboard: true,
+    });
+    arrangement = [
+        ...arrangement,
+        { poolIndex: 3, column: 2, pins: { color: "color:R" } },
+    ];
+    seats[0] = { ...seats[0], poolArrangement: arrangement };
+    return { ...event, seats };
 }
 
 /** Same event, but with the play phase open — `openPlayPhaseIfReady`'s pure
@@ -485,6 +517,10 @@ describe("limitedEventViewValidator accepts what the queries actually return (is
             () => queryReturnValue(byeViewerPairingEvent(), "user1"),
         ],
         [
+            "getLimitedEvent (own seat), Pool Arrangement in BOTH storage shapes",
+            () => queryReturnValue(arrangedEvent(), "user1"),
+        ],
+        [
             "getLimitedEvent (seated viewer), pending challenges POPULATED",
             () =>
                 queryReturnValue(
@@ -564,6 +600,24 @@ describe("limitedEventViewValidator accepts what the queries actually return (is
             { gameId: "g-in", matchId: "m-in", challengerSeatIndex: 1 },
         ]);
         expect(value.viewerOutgoingChallenge).not.toBeNull();
+        expect(validationErrors(value, viewValidatorJson)).toEqual([]);
+    });
+
+    it("declares the Pool Arrangement's `pins` — the field #1621 started writing", () => {
+        // The case above is only worth anything if the fixture really carries
+        // a `pins` entry across the boundary; assert that, then name the field
+        // so the regression reads as itself rather than as generic drift.
+        const value = queryReturnValue(arrangedEvent(), "user1") as {
+            seats: { seatIndex: number; poolArrangement: unknown }[];
+        };
+        const arrangement = value.seats.find((s) => s.seatIndex === 0)!
+            .poolArrangement as Record<string, unknown>[];
+        expect(arrangement.some((entry) => entry.pins !== undefined)).toBe(
+            true
+        );
+        expect(arrangement.some((entry) => entry.column !== undefined)).toBe(
+            true
+        );
         expect(validationErrors(value, viewValidatorJson)).toEqual([]);
     });
 
