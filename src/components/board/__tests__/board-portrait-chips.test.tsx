@@ -5,7 +5,6 @@
 // dialog / panel the desktop board uses) — nothing is rebuilt.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import {
     render,
     screen,
@@ -287,8 +286,20 @@ describe("BoardPortraitChips (#336)", () => {
         // never loads `src/index.css` (no `getComputedStyle` signal to assert
         // on), so read the source of truth directly — a future edit that
         // re-breaks the ordering fails HERE, not only visually.
+        //
+        // The `import.meta.url` indirection through `moduleUrl` (rather than
+        // the literal `new URL("../../../index.css", import.meta.url)`) is
+        // load-bearing: Vite's import-analysis plugin pattern-matches that
+        // exact literal as a static-asset reference and rewrites it to the
+        // DEV-SERVER url (`http://localhost:3000/src/index.css`) instead of
+        // leaving it as a runtime `file://` URL — which then makes
+        // `readFileSync` throw ("The URL must be of scheme file"). Assigning
+        // to a variable first defeats that static rewrite and keeps this
+        // cwd-independent (no `process.cwd()` assumption about where the
+        // test runner was launched from).
+        const moduleUrl = import.meta.url;
         const css = readFileSync(
-            resolve(process.cwd(), "src/index.css"),
+            new URL("../../../index.css", moduleUrl),
             "utf8"
         );
         const valueOf = (name: string): number => {

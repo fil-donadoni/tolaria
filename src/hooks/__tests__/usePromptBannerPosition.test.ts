@@ -68,6 +68,11 @@ describe("usePromptBannerPosition — portrait, default (issue #1813)", () => {
         expect(result.current.outerClassName).not.toContain(
             "env(safe-area-inset-top)"
         );
+        // Review fixup round 3 — pin the z-tier itself, not just its absence
+        // from the pinned strip's `z-modal`: this centered default must sit
+        // at `z-banner` (below the portrait stack chip's `z-chip` and any
+        // real blocking modal's `z-modal`), never regress back to `z-modal`.
+        expect(result.current.outerClassName).toContain("z-banner");
         // No JS transform offset in portrait — the panel is fixed/flex
         // centered, not dragged, so there is nothing to translate.
         expect(result.current.outerStyle.transform).toBeUndefined();
@@ -118,6 +123,10 @@ describe("usePromptBannerPosition — portrait, pinned: true (issue #1762, kept 
         // No JS transform offset in portrait — the strip is pinned, not
         // dragged, so there is nothing to translate.
         expect(result.current.outerStyle.transform).toBeUndefined();
+        // Review fixup round 3 — pin the z-tier itself: the pinned strip
+        // deliberately stays at `z-modal` (unchanged from #1762), never
+        // drifting down to the centered default's `z-banner`.
+        expect(result.current.outerClassName).toContain("z-modal");
     });
 
     // Issue #1762 review finding 1 — a raw safe-area offset (`max(env(...),

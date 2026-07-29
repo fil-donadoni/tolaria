@@ -436,6 +436,16 @@ export function FoundationsSections() {
                                     "dialogs, toasts, dock, pickers, debug (35!)",
                                     "modal",
                                 ],
+                                [
+                                    "z-chip",
+                                    "portrait stack chip / chip row (#1823)",
+                                    "chip (shipped)",
+                                ],
+                                [
+                                    "z-banner",
+                                    "centered prompt banner, portrait default (#1813/#1823)",
+                                    "banner (shipped)",
+                                ],
                                 ["z-[60]", "arrow layer", "arrows"],
                                 [
                                     "z-50",
