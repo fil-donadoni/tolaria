@@ -93,6 +93,7 @@ import {
     selectOpeningCandidate,
     type ChoiceCandidate,
 } from "./ai/choiceCandidates";
+import { misdirectedTargetCount } from "./ai/beneficence";
 import {
     applyLandEntrySubmit,
     applyMayPaySubmit,
@@ -1604,7 +1605,12 @@ function resolvedMarginDelta(
  *  #365). Effect-keyed (the resolved margin drop), NOT a per-card list, so it
  *  covers Disenchant, Swords to Plowshares, and any future one-sided removal —
  *  while a beneficial self-target (a sacrifice-for-value, removing a liability)
- *  raises or holds the margin and is correctly NOT flagged. */
+ *  raises or holds the margin and is correctly NOT flagged.
+ *
+ *  Kept as the narrow HOLD trigger only (see the tie-break below). The
+ *  friendly-vs-enemy REDIRECT it used to drive is now one term of the general
+ *  `castVariantScore` (issue #1888), which also covers the beneficial mirror
+ *  (an aura/ramp handed to the opponent) the margin can't see. */
 function isSelfHarmRemovalCast(
     state: GameState,
     move: Move,
@@ -1614,23 +1620,53 @@ function isSelfHarmRemovalCast(
     return resolvedMarginDelta(state, move, botId) < 0;
 }
 
-/** Whether `move` casts the SAME card as `ref` (same `cardInstanceId` and chosen
- *  mode) but at a DIFFERENT, non-self-harming target — the enemy-target variant
- *  of the self-targeted removal. The friendly-vs-enemy preference: when both a
- *  self-target and an enemy-target cast of the same Spell are outcome-equal, take
- *  the enemy one (issue #365). */
-function isAlternativeTargetCast(
-    state: GameState,
-    move: Move,
-    ref: Move,
-    botId: string
-): boolean {
+// --- Cast-variant ranking (issue #1888, generalises issue #365) -------------
+// `enumerateCastMoves` emits one Move per (mode × X × target-tuple), so every
+// answer a spell's announcement asks for — which target, which X, which mode —
+// arrives at the root as a SIBLING move of the same card. Nothing then ranked
+// them: they saturate the reward band together, tie inside `OUTCOME_EPS`, and
+// the pick falls to rollout noise. That is one bug with four faces (Wild Growth
+// on the opponent's land, Flash of Insight at X = 0, a Vision Charm mode chosen
+// by declaration order, the issue-#365 self-targeted removal).
+//
+// One score ranks them all, and it is deliberately two terms because the two
+// signals are blind to different things:
+//
+//   * `resolvedMarginDelta` — the immediate, deterministic material payoff of
+//     THIS variant, probed on a clone. Sees X (more cards drawn / more damage)
+//     and mode (mill four vs. a land-type change that moves no material). Blind
+//     to a payoff that accrues later.
+//   * `misdirectedTargetCount` — the per-Op beneficence sign (`beneficence.ts`).
+//     Sees exactly what the margin cannot: an aura whose mana accrues to the
+//     HOST's controller is worth the same to the evaluator whichever land it
+//     lands on, because the aura permanent is the bot's either way.
+//
+// The misdirection term is weighted to dominate: among outcome-equal variants
+// of the SAME spell, a correctly-directed one is always preferred to a
+// misdirected one, whatever the material noise between them. This is a
+// PREFERENCE among already-legal, already-outcome-equal siblings — never a
+// legality change, and never a suppression: a spell with no correctly-directed
+// variant (a "target opponent draws" punisher, which can only point at the
+// opponent) has no sibling to be redirected to and is cast unchanged.
+const MISDIRECTION_WEIGHT = 1_000_000;
+
+/** Rank of one cast variant for `botId`: resolved material payoff, minus a
+ *  dominating penalty per misdirected target slot. Compared only against other
+ *  variants of the SAME `cardInstanceId`, so the absolute scale is irrelevant. */
+function castVariantScore(state: GameState, move: Move, botId: string): number {
+    return (
+        resolvedMarginDelta(state, move, botId) -
+        MISDIRECTION_WEIGHT * misdirectedTargetCount(state, move, botId)
+    );
+}
+
+/** Whether `move` casts the SAME card as `ref` — its sibling variant in the
+ *  (mode × X × target-tuple) enumeration. Mode is deliberately NOT required to
+ *  match (issue #1888 item 4): a modal spell's modes are candidates to be
+ *  ranked, not a partition. */
+function isCastVariantOf(move: Move, ref: Move): boolean {
     if (move.kind !== "cast-spell" || ref.kind !== "cast-spell") return false;
-    if (move.cardInstanceId !== ref.cardInstanceId) return false;
-    if (move.chosenModeId !== ref.chosenModeId) return false;
-    if (move.targets.length === 0) return false;
-    // Not itself self-harm (an enemy target, or a beneficial own target).
-    return !isSelfHarmRemovalCast(state, move, botId);
+    return move.cardInstanceId === ref.cardInstanceId;
 }
 
 /** The move an edge names in the ROOT world — the only world whose instance ids
@@ -1769,37 +1805,53 @@ export function selectRootMove(
         }
     }
 
-    // Self-harm removal tie-break (issue #365). A one-sided removal / destruction
-    // Spell aimed at the bot's OWN beneficial Permanent is pure self-harm: it
-    // loses a useful Permanent for no upside. The eval now registers that loss
-    // (evaluate.ts), but a thin loss can still tie `pass` (or an enemy-target
-    // cast) inside `OUTCOME_EPS` on rollout noise — the reported destroy-own-
-    // Castle case. When the robust pick IS such a self-harm cast, redirect it:
-    //   1. prefer an outcome-equal cast of the SAME Spell at a non-self-harming
-    //      (enemy / beneficial) target — the friendly-vs-enemy preference; else
-    //   2. prefer an outcome-equal `pass` — hold the Spell over destroying own
-    //      board.
-    // Pulled from the FULL `pool` on outcome-equality alone (not the visit band),
-    // as the land-drop / hold-trick rules are: the alternative is the
-    // lower-variance, lower-visit line. Fires ONLY among outcome-equal
-    // contenders, so a self-target with REAL value (a genuine sacrifice-for-
-    // value) is NOT flagged by `isSelfHarmRemovalCast` (its resolved margin does
-    // not drop) and never reaches here.
-    if (
-        rootState &&
-        botId &&
-        isSelfHarmRemovalCast(rootState, best.move, botId)
-    ) {
-        const enemyTarget = pool.find(
+    // Cast-variant tie-break (issue #1888, generalises issue #365). When the
+    // robust pick is a cast, rank it against every outcome-equal SIBLING cast of
+    // the same card — the other targets, the other X values, the other modes —
+    // by `castVariantScore` and take the best. This subsumes the #365
+    // friendly-vs-enemy redirect (a self-targeted removal scores below its
+    // enemy-targeted sibling on the resolved margin term) and adds the
+    // beneficial mirror the margin is blind to (an aura handed to the opponent
+    // scores below the same aura on the bot's own permanent, on the beneficence
+    // term).
+    //
+    // Pulled from the FULL `pool` on outcome-equality alone (not the visit
+    // band), as the land-drop / hold-trick rules are: the alternative is the
+    // lower-variance, lower-visit line. Because it fires ONLY among
+    // outcome-equal siblings, a variant with REAL value out-rewards the field
+    // and never reaches here.
+    if (rootState && botId && best.move.kind === "cast-spell") {
+        const scoreCache = new Map<Edge, number>();
+        const scoreOf = (e: Edge) => {
+            let s = scoreCache.get(e);
+            if (s === undefined) {
+                s = castVariantScore(rootState, e.move, botId);
+                scoreCache.set(e, s);
+            }
+            return s;
+        };
+        const variants = pool.filter(
             (e) =>
                 mean(e) >= bestMean - OUTCOME_EPS &&
-                isAlternativeTargetCast(rootState, e.move, best.move, botId)
+                isCastVariantOf(e.move, best.move)
         );
-        if (enemyTarget) return rootMoveFor(enemyTarget, rootState);
-        const hold = pool.find(
-            (e) => e.move.kind === "pass" && mean(e) >= bestMean - OUTCOME_EPS
-        );
-        if (hold) return rootMoveFor(hold, rootState);
+        for (const edge of variants) {
+            if (scoreOf(edge) > scoreOf(best)) best = edge;
+        }
+
+        // Self-harm hold (issue #365, unchanged). No sibling variant improved on
+        // a cast that only lowers the bot's own material margin: hold the Spell
+        // rather than destroy its own board. Deliberately keyed on the MARGIN
+        // shape alone — a beneficence misdirection with no better sibling (a
+        // "target opponent draws" punisher, which can only point at the
+        // opponent) must still be castable, so it never triggers a hold.
+        if (isSelfHarmRemovalCast(rootState, best.move, botId)) {
+            const hold = pool.find(
+                (e) =>
+                    e.move.kind === "pass" && mean(e) >= bestMean - OUTCOME_EPS
+            );
+            if (hold) return rootMoveFor(hold, rootState);
+        }
     }
 
     // Free-development tie-break (ADR 0020 §1, issue #206; extended for free

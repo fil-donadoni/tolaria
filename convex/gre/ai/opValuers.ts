@@ -1040,6 +1040,124 @@ export const VALUED_OR_STRUCTURAL: ReadonlySet<string> = new Set<string>([
     ...STRUCTURAL_CONSTRUCTS,
 ]);
 
+// ---------------------------------------------------------------------------
+// Beneficence: the SIGN of an Op, for its RECIPIENT (issue #1888)
+// ---------------------------------------------------------------------------
+//
+// `OP_VALUERS` answers "how much material is this Op worth to the CASTER". That
+// is a magnitude and it is deliberately caster-relative: `destroy` is worth
+// `DESTROY_VALUE` whoever the victim is. The bug class in issue #1888 needs the
+// orthogonal axis — for the player on the RECEIVING end of this Op, is it a
+// gift or an attack? Without it a beneficial aura's two candidate hosts (own
+// land vs opponent's land) are indistinguishable and the pick is rollout noise
+// (Wild Growth handed to the opponent).
+//
+// Zero per-card knowledge, by construction: the sign is a property of the Op
+// name (plus, for the three parametrized Ops, the Op's own numeric/mode field),
+// never of the card that uses it.
+//
+// `neutral` is the SAFE default and the deliberate answer for every Op whose
+// sign genuinely depends on context (`moveZone` — bounce is harmful to a
+// permanent's controller but a graveyard-to-hand move is a gift; `sacrifice` —
+// the recipient chooses and it is routinely a cost the controller WANTS to
+// pay). A `Partial` map with a neutral fallback fails OPEN into "no opinion",
+// which costs a missed redirect, never a wrong one.
+
+/** The sign of an Op's effect on the player it names / the controller of the
+ *  object it names. Orthogonal to `OpValue.points` (a caster-relative
+ *  magnitude). */
+export type Beneficence = "beneficial" | "harmful" | "neutral";
+
+/** Static sign per Op name. Ops whose sign depends on a parameter
+ *  (`pump`, `counters`, `tapUntap`) are resolved by {@link opBeneficence} and
+ *  deliberately absent here. */
+const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
+    // ── Gifts to the recipient ────────────────────────────────────────────
+    draw: "beneficial",
+    gainLife: "beneficial",
+    addMana: "beneficial",
+    createToken: "beneficial",
+    createTokenCopy: "beneficial",
+    extraTurn: "beneficial",
+    regenerate: "beneficial",
+    preventDamage: "beneficial",
+    grantAbility: "beneficial",
+    becomeMonarch: "beneficial",
+    getEnergy: "beneficial",
+    grantCastFromExile: "beneficial",
+    grantCastFromGraveyard: "beneficial",
+    grantGraveyardPlay: "beneficial",
+    grantCastTiming: "beneficial",
+    castDuringResolution: "beneficial",
+    returnExiledForSource: "beneficial",
+    setProtectionFromEverything: "beneficial",
+    setIslandSanctuaryProtection: "beneficial",
+    emblem: "beneficial",
+    digToHand: "beneficial",
+    digMatchingToHand: "beneficial",
+    winGame: "beneficial",
+    // ── Attacks on the recipient ──────────────────────────────────────────
+    dealDamage: "harmful",
+    dealDamageDividedAsChosen: "harmful",
+    loseLife: "harmful",
+    destroy: "harmful",
+    exile: "harmful",
+    exileWithAttachments: "harmful",
+    counter: "harmful",
+    discard: "harmful",
+    discardAtRandom: "harmful",
+    mill: "harmful",
+    // CR 613.1b layer 2 — a control change strips the permanent from the
+    // player who currently controls it.
+    gainControl: "harmful",
+    preventRegeneration: "harmful",
+    restrictActivation: "harmful",
+    restrictCasting: "harmful",
+    restrictCombat: "harmful",
+    markAssignsNoCombatDamage: "harmful",
+    skipNextUntap: "harmful",
+    skipDrawStepThisTurn: "harmful",
+    unattach: "harmful",
+    armGraveyardRedirect: "harmful",
+    shuffleSelfIntoLibrary: "harmful",
+};
+
+/** Sign of one Op for its recipient (issue #1888). Reads the Op's own shape for
+ *  the three Ops whose sign is a PARAMETER, not a name: a `pump` / `counters`
+ *  can be a buff or a shrink, and `tapUntap` is a Twiddle in either direction.
+ *  `neutral` for anything unlisted — the fail-open default (see the block
+ *  comment above). */
+export function opBeneficence(
+    op: EffectOp,
+    ctx: GroundingContext = contextFreeGrounding()
+): Beneficence {
+    switch (op.op) {
+        case "pump": {
+            // A +N/+N is a buff, a −N/−N is a shrink (Weakness). Read through
+            // the SAME `signedValue` the `pump` valuer uses so a computed
+            // amount resolves identically in both readers.
+            const net =
+                ctx.signedValue(op.power).amount +
+                ctx.signedValue(op.toughness).amount;
+            return net > 0 ? "beneficial" : net < 0 ? "harmful" : "neutral";
+        }
+        case "counters": {
+            // CR 122 — a +1/+1 counter is a gift, a −1/−1 counter is not.
+            // `remove` inverts whichever it is.
+            const pt = parsePtCounter(op.counter);
+            if (!pt) return "neutral";
+            const sign = pt.power + pt.toughness;
+            if (sign === 0) return "neutral";
+            const net = op.action === "add" ? sign : -sign;
+            return net > 0 ? "beneficial" : "harmful";
+        }
+        case "tapUntap":
+            return op.action === "untap" ? "beneficial" : "harmful";
+        default:
+            return OP_BENEFICENCE[op.op] ?? "neutral";
+    }
+}
+
 /** Walk an Effect Script, summing each Op's value (PRD #1423). The scalar sum
  *  feeds `cardValue`; the merged tag set feeds the context target-priors. */
 export function valueEffectScript(

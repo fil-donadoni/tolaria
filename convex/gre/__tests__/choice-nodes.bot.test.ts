@@ -174,10 +174,16 @@ describe("choice-node candidate contract (CR 608.2 / ADR 0016, issue #1425)", ()
         // acknowledge, not a real decision; registering it is the fix for the
         // playout halting mid-resolution on every coin-flip/reveal line.
         expect(hasChoiceCandidateGenerator("random-reveal")).toBe(true);
+        // CR 608.2b (issue #1888) — OPTIONAL hand picks only. The generator
+        // itself returns `[]` for a mandatory (`min > 0`) pick, so a
+        // Brainstorm-style putback stays off the tree; what it puts ON the
+        // tree is the "you MAY exile a card" branch whose degenerate answer
+        // (Chrome Mox imprinting nothing) used to be the silent default.
+        expect(hasChoiceCandidateGenerator("choose-hand-card")).toBe(true);
         // A kind outside these tranches is NOT an in-tree node yet — additive
         // by design: no generator means the historical no-decision behavior.
         expect(hasChoiceCandidateGenerator("discard-hand")).toBe(false);
-        expect(Object.keys(CHOICE_CANDIDATE_GENERATORS).length).toBe(6);
+        expect(Object.keys(CHOICE_CANDIDATE_GENERATORS).length).toBe(7);
     });
 
     it("may-pay (CR 117.3a): a cost-less choice offers both answers", () => {

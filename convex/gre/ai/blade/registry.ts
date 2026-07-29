@@ -932,6 +932,168 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: "Issue #1887 negative control for the activated-ability shape: with a 3/3 Golem token out the same activation adds a +1/+1 counter and trample — a real delta the probe must find, so the move survives enumeration and the search takes the free upside.",
     },
+
+    // ── Cast-variant ranking (issue #1888) ────────────────────────────────
+    // `enumerateCastMoves` emits one move per (mode × X × target-tuple), so
+    // every announcement answer is a SIBLING move of the same card. Nothing
+    // ranked them: they saturate the reward band together, tie inside
+    // `OUTCOME_EPS`, and the pick fell to rollout noise — one bug with four
+    // faces. `castVariantScore` (`search.ts`) ranks them by resolved material
+    // payoff plus the per-Op beneficence sign (`ai/beneficence.ts`).
+    {
+        label: "cast variant: enchants its OWN land with Wild Growth",
+        spec: {
+            cards: [
+                { name: "Wild Growth", owner: "me", zone: "hand" },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                {
+                    name: "Mountain",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 2,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                { kind: "cast-spell", card: "Wild Growth", target: "Mountain" },
+            ],
+        },
+        note: "Issue #1888, symptom 1. Wild Growth's mana accrues to the ENCHANTED LAND's controller (CR 605.4, `manaBonusForPotential`), so enchanting a Mountain hands the opponent a Rampant Growth. The evaluator cannot see the difference — the aura permanent is the bot's either way, and the `mana` term counts untapped SOURCES, not the extra {G} — so both casts tie inside `OUTCOME_EPS` and the pick was noise. Asserted as `forbidden` rather than a positive Forest match because holding a 1-mana aura for a turn is legitimate play; giving it to the opponent never is.",
+    },
+    {
+        label: "cast variant: casts Flash of Insight at X ≥ 1, never X = 0",
+        spec: {
+            cards: [
+                { name: "Flash of Insight", owner: "me", zone: "hand" },
+                {
+                    name: "Island",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 5,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (move) =>
+                !(
+                    move?.kind === "cast-spell" &&
+                    (move.chosenX ?? 0) === 0 &&
+                    move.tapPlan.length > 0
+                ),
+            describe: "no X = 0 cast (which pays {1}{U} and does nothing)",
+        },
+        note: 'Issue #1888, symptom 2. "Look at the top X cards … put one into your hand" at X = 0 looks at nothing and draws nothing, so the branch is dominated by `pass` in exactly the #1887 sense — but the probe used to REFUSE Flash of Insight outright because it declares `additionalCosts`. Those costs (`flashbackExileFromGraveyard`) are owed only on a graveyard cast (CR 702.34e), and `applyProbeCast` casts from HAND, so they are vacuous on this path: `additionalCostsAreVacuousFromHand` (`ai/dominance.ts`) now lets the probe run and X = 0 is pruned at enumeration. This entry is a POSITION GUARD, not fully discriminating on its own — the X = 0 cast was one noise-tie among many — so the prune itself is pinned deterministically by `dominance.bot.test.ts`.',
+    },
+    {
+        label: "cast variant: picks Vision Charm's mill mode at the opponent",
+        spec: {
+            cards: [
+                { name: "Vision Charm", owner: "me", zone: "hand" },
+                {
+                    name: "Island",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                { kind: "cast-spell", card: "Vision Charm", target: "me" },
+            ],
+        },
+        note: "Issue #1888, symptoms 3 and 4, plus the HARMFUL-at-the-opponent negative control. Vision Charm's three modes are three separate enumerated moves (CR 700.2d); `mill` is `harmful`, so milling ITSELF four cards is a misdirected slot and is ranked below the same mode aimed at the opponent — while the correct opponent-targeting is never suppressed, because the rule is a preference among outcome-equal siblings and never a filter. The land-type mode (which moves no material) loses on the resolved-payoff term.",
+    },
+    {
+        label: "cast variant: Ancestral Recall draws for the BOT, not the opponent",
+        spec: {
+            cards: [
+                { name: "Ancestral Recall", owner: "me", zone: "hand" },
+                {
+                    name: "Island",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                { kind: "cast-spell", card: "Ancestral Recall", target: "opp" },
+            ],
+        },
+        note: 'Issue #1888 sign check for the BENEFICIAL direction: `{ op: "draw", player: { target: 0 } }` is a gift, so the opponent slot is the misdirected one. This entry is a POSITION GUARD rather than a discriminating blade — three cards in the opponent\'s hand is a material swing the evaluator already sees, so the pre-fix bot mostly got it right too. It is here because it is the one shape that fails LOUDLY if the beneficence sign is ever inverted. The genuinely discriminating negative control — a misdirected variant that strictly out-rewards its siblings must still be chosen, i.e. the rule is never a filter — is a deterministic unit test (`selectRootMove` in `search.bot.test.ts`), since a blade cannot construct a reward gap on purpose.',
+    },
+    {
+        label: "stretch: Chrome Mox imprints a card rather than nothing",
+        spec: {
+            cards: [
+                { name: "Chrome Mox", owner: "me", zone: "battlefield" },
+                { name: "Lightning Bolt", owner: "me", zone: "hand" },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        // The choice arrives through the card's OWN imprint trigger, resolved
+        // by the real engine (ADR 0070 §4) — never a hand-seeded pendingChoice.
+        setup: [
+            { kind: "etb-trigger", card: "Chrome Mox" },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 300 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "stretch",
+        beyondBudget: {
+            cause: "valuation",
+            note: "The PRIOR half of issue #1888 item 3 is done and is pinned deterministically in `ai/__tests__/beneficence.bot.test.ts`: the imprint pick is now an in-tree decision at all (`choose-hand-card` optional picks got a candidate generator — before, the client's minimal-legal policy answered every one of them with the empty submission), and the empty branch is PROVED a no-op by the dominance probe one level down and floored to `PRIOR_MIN` instead of sitting at `NEUTRAL_PRIOR`. What still declines the imprint is VALUATION, not ordering: `evaluate`'s `hand` term prices Lightning Bolt at its full `cardValue` while the Mox it powers is worth one `W_MANA` untapped source, so exiling the card reads as a strictly losing trade at every budget. Raising the budget converges harder on the wrong answer — the defining `valuation` signature. Promote to `must` in the PR that teaches the evaluator what a permanent mana source is worth.",
+        },
+        expect: {
+            moves: [{ kind: "resolution-choice", card: "Lightning Bolt" }],
+        },
+        note: "Issue #1888, symptom 3 (the degenerate-branch penalty) at a live choice node.",
+    },
 ];
 
 /** Entries of one tier, in registry order. */

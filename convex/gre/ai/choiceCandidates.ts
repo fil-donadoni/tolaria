@@ -498,6 +498,91 @@ const searchLibraryCandidates: ChoiceCandidateGenerator = (state, choice) => {
     return out;
 };
 
+/** `choose-hand-card` (CR 608.2b), OPTIONAL picks only — issue #1888.
+ *
+ *  Scoped deliberately to `min === 0`: the "you MAY exile a card" shape, whose
+ *  degenerate answer ("pick nothing") is a real branch that has to be weighed
+ *  rather than assumed. That is the shape that was silently broken — the
+ *  client-side minimal-legal policy (`brain.ts`, ADR 0016) answers every
+ *  `choose-hand-card` with `candidates.slice(0, min)`, which for `min: 0` is
+ *  the EMPTY submission, so Chrome Mox resolved its imprint trigger imprinting
+ *  nothing and stayed a Mox that taps for no mana, every game, deterministically.
+ *
+ *  A MANDATORY hand pick (`min > 0`) gets no candidates and therefore stays off
+ *  the tree exactly as before: those are costs already priced elsewhere
+ *  (Brainstorm's two-card putback, an upkeep discard) and turning them into
+ *  search nodes is a separate, much wider change. Returning `[]` is the
+ *  registry's own "not a decision node" signal (`decidingPlayer`, `search.ts`),
+ *  so the fallback path is untouched.
+ *
+ *  Self-pruning (property 1): one branch per distinct card IDENTITY, top-K by
+ *  prior, plus the empty branch — never the 2^n subset space. `max > 1` picks
+ *  the best-worth prefix rather than enumerating combinations, the same
+ *  "best set led by this card" containment `searchLibraryCandidates` uses. */
+const handPickCandidates: ChoiceCandidateGenerator = (state, choice) => {
+    if (getPendingChoiceMin(choice.count) > 0) return [];
+    const max = getPendingChoiceMax(choice.count);
+    if (max <= 0) return [];
+
+    const owner = getPlayer(state, choice.zoneOwnerId ?? choice.playerId);
+    const allow = choice.candidateIds ? new Set(choice.candidateIds) : null;
+    const pool = allow ? owner.hand.filter((c) => allow.has(c.id)) : owner.hand;
+
+    const submit = (cards: CardInstanceState[]): Move => ({
+        kind: "resolution-choice",
+        stackItemId: choice.stackItemId,
+        step: choice.step,
+        choiceId: choice.choiceId,
+        cardInstanceIds: cards.map((c) => c.id),
+    });
+
+    // The degenerate branch is always offered — declining an optional pick can
+    // be right (the card is worth more in hand than the payoff). It just stops
+    // being the DEFAULT: `dslChoicePrior` proves it a no-op and floors its
+    // prior, so it opens last.
+    const out: Omit<ChoiceCandidate, "prior">[] = [
+        {
+            key: "hand-pick:none",
+            move: submit([]),
+            hint: { materialGivenUp: 0 },
+        },
+    ];
+
+    const ranked = pool
+        .map((card) => ({
+            card,
+            identity: stableCardIdentity(card),
+            worth: prospectiveCardWorth(state, card),
+        }))
+        .sort(
+            (a, b) =>
+                a.worth - b.worth ||
+                (a.identity < b.identity ? -1 : a.identity > b.identity ? 1 : 0)
+        );
+
+    const seen = new Set<string>();
+    for (const lead of ranked) {
+        if (out.length >= CHOICE_TOP_K) break;
+        if (seen.has(lead.identity)) continue;
+        seen.add(lead.identity);
+        const picked = [lead];
+        for (const other of ranked) {
+            if (picked.length >= max) break;
+            if (other.card.id === lead.card.id) continue;
+            picked.push(other);
+        }
+        const cards = picked.map((p) => p.card);
+        out.push({
+            key: `hand-pick:${stableSetIdentity(cards)}`,
+            move: submit(cards),
+            hint: {
+                materialGivenUp: picked.reduce((s, p) => s + p.worth, 0),
+            },
+        });
+    }
+    return out;
+};
+
 /** The registry: choice kind → candidate generator. A kind with NO generator is
  *  not yet an in-tree decision node — the search treats it exactly as before
  *  (no decider, playout stops there), so adding a tranche is purely additive. */
@@ -510,6 +595,7 @@ export const CHOICE_CANDIDATE_GENERATORS: Partial<
     "option-pick": optionPickCandidates,
     "search-library": searchLibraryCandidates,
     "random-reveal": randomRevealAckCandidates,
+    "choose-hand-card": handPickCandidates,
 };
 
 /** Whether `kind` is an in-tree choice node (has a registered generator). */
