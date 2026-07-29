@@ -6,7 +6,9 @@ Tolaria — MTG gameplay engine (React + Convex). Full reference: `CLAUDE.md`.
 
 ```bash
 bun run dev                 # start dev server
-bun run check:all           # format + lint + type-check + id checks + index + stubs — PRE-MERGE GATE
+bun run worktree:init       # FIRST command in a fresh worktree — deps + convex/_generated + .env.local + hooks
+bun run check:all           # format + lint + type-check + id checks + index + stubs — PRE-MERGE GATE (heavy, mutex)
+bun run check:pr            # the same checks, light tier (no mutex) — PRE-PR GATE
 bun run test                # full vitest suite
 bun run test <path>         # focused tests — use this mid-iteration, NOT the full suite
 bun run check:ts            # tsc -b --noEmit
@@ -14,9 +16,9 @@ bun run lint                # ESLint
 bunx convex codegen --typecheck disable   # generate Convex types (CI runs this before typecheck)
 ```
 
-**Cadence**: iterate with focused tests only. Full `check:all` + `bun run test` once before marking done. Zero-red is absolute — never branch off red, never merge on red.
+**Cadence**: iterate with focused tests only → `bun run check:pr` before opening a PR (never a hand-picked subset of the `check:*` scripts; they cost <0.2s each and omitting `check:index` fails the merge-train on every card PR) → full `check:all` + `bun run test` once before marking done. Zero-red is absolute — never branch off red, never merge on red.
 
-Auto-formatting via husky + lint-staged on commit. Never run `prettier` manually.
+Auto-formatting via husky + lint-staged on commit. Never run `prettier` manually. In a **fresh worktree** the hook shims (`.husky/_`) don't exist until `bun run worktree:init` regenerates them — before that, commits silently skip lint-staged and prettier drift reaches the merge-train.
 
 ## Architecture boundaries (violating these breaks things silently)
 

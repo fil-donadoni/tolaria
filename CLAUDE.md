@@ -217,6 +217,7 @@ The full gate is **mandatory before a task is marked done / before merge** — n
 **Cadence** (the suite is slow — don't pay for it on every edit):
 
 - **While iterating** — run only the **targeted tests** for the module you're touching (`bunx vitest run <path>`). Formatting is automatic: `husky` + `lint-staged` runs `prettier --write` on every commit, so you never run a formatter by hand mid-work. Do **not** run `check:all`, full `lint`, `check:ts`, or the full `test` suite repeatedly mid-iteration.
+- **Before opening a PR (the light pre-PR gate)** — `bunx vitest run <paths touched>` + **`bun run check:pr`**. `check:pr` runs the _same_ checks as `check:all` (`check:all:inner`: format + lint + type-check + `check:ids` + `check:index` + `check:stubs`) but on the **light** tier — no machine-wide mutex, so it does not queue behind another session's suite. Never hand-pick a subset: the three `check:*` scripts cost <0.2s each, and omitting `check:index` is what made every card-shipping PR fail at the merge-train on the card-index lockfile.
 - **Before marking the task done / before merge** — run the full gate once:
     1. `bun run check:all` — format + lint + type-check (zero errors)
     2. `bun run test` — full vitest suite (zero failures)
@@ -241,14 +242,19 @@ A bot test declares itself by **filename**: `search.bot.test.ts`, not `search.te
 
 **CPU admission control — the gate is machine-wide serialized (`scripts/gate.ts`).** Several sessions/subagents work this repo concurrently, each in its own worktree, and each used to spawn `ncpu - 1` vitest workers plus a `tsc -b` plus an eslint. On 8 cores that measured a load average of 45, made every gate 1.5–3× slower than solo, and pushed the bot suite past its 60s per-test ceiling — false reds whose debugging cost dwarfs the slowdown. Two tiers now:
 
-| Tier      | Commands                                               | Behaviour                                                                                                                                                  |
-| --------- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **heavy** | `bun run test`, `test:app`, `test:bot`, `check:all`    | hold a machine-wide exclusive mutex (`~/.cache/tolaria/gate.lock`), run at `ncpu - 1` workers. One at a time — callers queue and print `[gate] waiting …`. |
-| **light** | `bunx vitest run <path>`, `check:ts`, `lint`, `format` | no lock, vitest capped at **2 workers** (`TOLARIA_VITEST_WORKERS`, default in `vitest.config.ts`). Four concurrent light jobs fit in `ncpu`.               |
+| Tier      | Commands                                                           | Behaviour                                                                                                                                                  |
+| --------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **heavy** | `bun run test`, `test:app`, `test:bot`, `check:all`                | hold a machine-wide exclusive mutex (`~/.cache/tolaria/gate.lock`), run at `ncpu - 1` workers. One at a time — callers queue and print `[gate] waiting …`. |
+| **light** | `bunx vitest run <path>`, `check:pr`, `check:ts`, `lint`, `format` | no lock, vitest capped at **2 workers** (`TOLARIA_VITEST_WORKERS`, default in `vitest.config.ts`). Four concurrent light jobs fit in `ncpu`.               |
 
 A queued heavy gate is _not_ a hang: it is the machine refusing to run two full suites at 1/2 speed each. Stale locks (dead pid, or held > 45 min) are pruned automatically. Override the cap for a one-off solo run with `TOLARIA_VITEST_WORKERS=7 bunx vitest run <path>`.
 
 **The full gate is blocked inside an issue worktree.** In a `feat/issue-N` / `fix/issue-N` worktree, `bun run test` and `bun run check:all` exit 1 with a pointer to the light gate. The full suite is orchestrator-owned: it runs once per landing tree in the merge-train (`/process-gh-issues` §4 step 4), on the rebased state that actually lands, so a per-branch run is re-paid there anyway. The merge-train gates from a dedicated **gate worktree** (detached HEAD, not an issue branch) or prefixes its command with `TOLARIA_ALLOW_FULL_SUITE=1` — that env var is the escape hatch for any genuine exception.
+
+**A fresh worktree is not runnable — bootstrap it with one command.** `git worktree add` gives you a tree whose gitignored inputs are all missing: `node_modules`, `convex/_generated` (codegen output), `.env.local`, and husky's generated `.husky/_`. Run **`bun run worktree:init`** as the first command in any new worktree (`scripts/bootstrap-worktree.ts` — idempotent, copies from the primary checkout, installs deps, regenerates the hook shims; `--force` re-copies). Two failure modes it exists to prevent:
+
+- Without `convex/_generated`, ~216 test **files** fail at _import_ (`Cannot find module './_generated/api'`). The tell is **`216 files failed, 0 tests failed`** — a setup error that reads as a catastrophic red baseline and sends you debugging the wrong thing.
+- Without `.husky/_`, `core.hooksPath` (repo-level, shared by every worktree, and **relative** — resolved per working tree) points at nothing, so pre-commit silently skips `lint-staged` and prettier drift reaches the merge-train.
 
 **Zero-red is absolute (green-main invariant).** `main` is always green — zero failing tests, no exceptions. "Not my test" / "this failure is unrelated to my change" is **not** an exemption: a red suite blocks the merge regardless of who caused it. If the baseline is red before you start, fix the reds first (or stop and surface them) — never branch off red, never merge on top of red, never silence a test to go green. The full gate is the only done/not-done signal; a red baseline poisons it for every subsequent change.
 
