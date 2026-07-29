@@ -25,6 +25,7 @@ import {
     shouldShowOracleText,
     resolvePreviewAbilities,
     getManaChoices,
+    manaSourceBattlefield,
     getNonTapManaChoices,
     hasManaAbility,
     isLandwalkUnblockable,
@@ -72,6 +73,7 @@ import { metallicRebuke } from "@convex/cards/sets/aer/blue";
 import { millstone } from "@convex/cards/sets/atq/colorless";
 import { gateToPhyrexia } from "@convex/cards/sets/atq/black";
 import { moxOpal } from "@convex/cards/sets/som/colorless";
+import { everflowingChalice } from "@convex/cards/sets/wwk/colorless";
 import {
     redManaBattery,
     greatWall,
@@ -3486,6 +3488,62 @@ describe("Mox Opal Metalcraft gate through buildTriggerStateView (issue #1530, #
             types: ["Artifact"],
         });
         expect(hasManaAbility(card, board(3))).toBe(true);
+    });
+});
+
+// Zero-output mana source (CR 605.1a / 106.1, issue #1889) — an Everflowing
+// Chalice with no charge counters CAN legally be activated, but it adds no
+// mana, so it must not be offered as a tappable payment source in the UI (the
+// server's `getManaTapOptionsDetailed` stopped offering it at the same time).
+// Frontend wiring analysis (CLAUDE.md): the `manaAmount` hook reads the
+// SOURCE's own `counters`, and the board argument comes from the viewer's
+// `allPlayers[].battlefield` via `manaSourceBattlefield` — so the SURFACE
+// assertion below runs through the REAL `buildTriggerStateView` reducer AND
+// the real board helper, never a hand-built view.
+describe("hasManaAbility drops a zero-output mana source (issue #1889)", () => {
+    function chalice(charge: number) {
+        return makeCardInstance({
+            id: `chalice-${charge}`,
+            card: { id: everflowingChalice.id },
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Artifact"],
+            counters: charge > 0 ? { charge } : {},
+        });
+    }
+
+    function players(cards: ReturnType<typeof chalice>[]) {
+        return [
+            { id: "p1", life: 20, hand: [], battlefield: cards },
+            { id: "p2", life: 20, hand: [], battlefield: [] },
+        ];
+    }
+
+    it("is false for a 0-counter Chalice, through the real reducer + board helper", () => {
+        const card = chalice(0);
+        const all = players([card]);
+        const view = buildTriggerStateView(all);
+        expect(
+            hasManaAbility(card, view, manaSourceBattlefield(card, all))
+        ).toBe(false);
+    });
+
+    it("is true for a 2-counter Chalice, through the same path", () => {
+        const card = chalice(2);
+        const all = players([card]);
+        const view = buildTriggerStateView(all);
+        expect(
+            hasManaAbility(card, view, manaSourceBattlefield(card, all))
+        ).toBe(true);
+    });
+
+    it("omitting the board leaves the client predicate exactly as before (delta zero)", () => {
+        expect(hasManaAbility(chalice(0))).toBe(true);
+    });
+
+    it("getManaChoices offers no tap option for a 0-counter Chalice", () => {
+        const card = chalice(0);
+        expect(getManaChoices(card, players([card]))).toBeNull();
     });
 });
 

@@ -9,6 +9,7 @@ import {
     isPlaneswalker,
     isLandwalkUnblockable,
     hasManaAbility,
+    manaSourceBattlefield,
     matchesPermanentFilter,
     matchesTargetRequirement,
     matchesPermanentTargetFilters,
@@ -65,6 +66,13 @@ export function useBattlefieldVisualState(player: Player) {
     // an un-imprinted source doesn't read as a usable mana source here — the
     // same UI-hint convention `getActivatable` already uses (#436).
     const manaGateView = buildTriggerStateView(allPlayers, activePlayerId);
+
+    // CR 106.1 (issue #1889) — the controller's battlefield a board-conditional
+    // `manaAmount` hook is resolved against, so an Everflowing Chalice with no
+    // charge counters (current output {C}0) stops reading as a tappable
+    // payment source here, matching the server's option list.
+    const manaBoardFor = (card: CardInstance) =>
+        manaSourceBattlefield(card, allPlayers);
 
     // --- Interaction modes ---
 
@@ -378,7 +386,7 @@ export function useBattlefieldVisualState(player: Player) {
             isMe &&
             isPayingCast &&
             pendingCast &&
-            !hasManaAbility(card, manaGateView) &&
+            !hasManaAbility(card, manaGateView, manaBoardFor(card)) &&
             (card.types?.includes("Artifact") ?? false) &&
             pendingCastHasImprovise(pendingCast, player)
         ) {
@@ -390,7 +398,8 @@ export function useBattlefieldVisualState(player: Player) {
                 : pendingCastRemainingGeneric(pendingCast) > 0;
         }
 
-        if (!isMe || !hasManaAbility(card, manaGateView)) return false;
+        if (!isMe || !hasManaAbility(card, manaGateView, manaBoardFor(card)))
+            return false;
         // CR 302.1 — creatures with summoning sickness can't pay {T}, so
         // their mana ability isn't activatable. Untapping (refunding floating
         // mana) is still allowed — it reverses an earlier activation.
@@ -418,7 +427,11 @@ export function useBattlefieldVisualState(player: Player) {
 
     function getVisualState(card: CardInstance): CardVisualState {
         const creature = isCreature(card);
-        const manaSource = hasManaAbility(card, manaGateView);
+        const manaSource = hasManaAbility(
+            card,
+            manaGateView,
+            manaBoardFor(card)
+        );
 
         const isValidTarget =
             isSelectingTarget &&

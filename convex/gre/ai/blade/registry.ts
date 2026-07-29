@@ -703,6 +703,68 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: "Deep lethal-block charter (issue #1505): the LEAF companion to scenario 4. The bot's own-turn attack decision — swing the 3/3 flyer for a free 3, or hold it as the only blocker against a lethal crackback — is a `declare-attackers` root, so `blockDeltaOf` is inert; only the leaf `lethalUnblockedDelta` (via the rollout block policy) can tell the search the held-back line survives. Bite proof recorded in the block comment: at 900 iterations, WITH the leaf term the bot holds on all five seeds, WITHOUT it (0 * lethalUnblockedDelta in evaluate.ts, blockDeltaOf untouched) it swings on all five. Stretch/horizon because the crackback is beyond the 400 rollout horizon. A live-asserting regression guard for the same bite lives in `__tests__/deep-lethal-block.bot.test.ts`.",
     },
+    {
+        // ZERO-OUTPUT MANA SOURCE (issue #1889). The root decision is a cast
+        // the bot can exactly afford: Incinerate ({1}{R}) with two untapped
+        // Mountains, against an opponent creature that must be answered.
+        //
+        // THE TRAP. The bot also controls an Everflowing Chalice with NO
+        // charge counters. Its ability reads "{T}: Add {C} for each charge
+        // counter on this artifact" (CR 106.1 — a board-conditional
+        // `manaAmount` hook), so its CURRENT output is {C}0: it may legally be
+        // activated (CR 605.1a does not forbid a pointless activation) but it
+        // can pay for nothing. Before #1889 the engine offered it anyway — a
+        // zero-output entry in `getManaTapOptionsDetailed` — so the auto-tap
+        // solver enumerated it as a contributing source, tapped it, gained
+        // nothing, left the cost unpaid, and the bot abandoned the cast; and
+        // the coarse mana proxy (`isUntappedManaSource`) counted it as one
+        // more available mana in `evaluate`, inflating the position.
+        //
+        // WHY THIS POSITION. Same discipline as the fetchland charter above
+        // (#1499): the phantom source is the ONLY thing that can mis-value
+        // the line. Removal at exactly-affordable cost makes the payment
+        // path — not a tempo judgement — the thing under test.
+        //
+        // BUDGET (ADR 0070 §2). The production 400-iteration budget, K = 5
+        // seeds. The decision is a payment-legality question, not a depth
+        // one, so it is stable at budget.
+        label: "zero-output mana source: casts its removal instead of tapping a 0-counter Everflowing Chalice",
+        spec: {
+            cards: [
+                {
+                    name: "Everflowing Chalice",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                { name: "Incinerate", owner: "me", zone: "hand" },
+                {
+                    name: "Serra Angel",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            // No extra basics: the two Mountains must be the whole mana base,
+            // so the Chalice is the only other thing that looks like a source.
+            landCount: 0,
+        },
+        bot: "me",
+        seeds: [0x1889, 1, 2, 3, 4],
+        budget: { iterations: 400 },
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Incinerate" }],
+        },
+        note: "Issue #1889 regression guard, in the reported shape: the bot holds a castable removal spell, the board has a 0-counter Everflowing Chalice plus JUST ENOUGH lands, and the bot must cast rather than stall. A mana ability whose CURRENT output is zero is not a payment source: `getManaTapOptionsDetailed` drops the option, so `buildAutoTapSources` never enumerates the 0-counter Everflowing Chalice, and the board-aware `isUntappedManaSource` stops counting it as one available mana in `evaluate`. Support is exactly zero on any board with no board-conditional (`manaAmount`) source — the same narrow-support discipline #1499 used for the fetchland. It is a POSITION guard, not a discriminator: measured at authoring time it also passes on the pre-#1889 engine, because the search-side payment planner (`getProducibleManaOptions`, rules.ts) already filtered zero-AMOUNT colours out of its map even while `getManaTapOptionsDetailed` still emitted the option. The engine paths that did NOT filter — `buildAutoTapSources` (autoTap.ts, the real server auto-tap the bot driver calls) and the coarse `isUntappedManaSource` proxy in `evaluate` — are pinned by the discriminating unit regressions in `convex/gre/__tests__/zeroOutputManaSource.test.ts`. This entry exists so the whole position stays solved end to end through the real search.",
+    },
 ];
 
 /** Entries of one tier, in registry order. */

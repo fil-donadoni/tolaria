@@ -200,8 +200,11 @@ function availableManaFor(player: PlayerState): number {
     let n = 0;
     for (const perm of player.battlefield) {
         // CR 605.1a / 305.6 — a source counts only if it can actually produce
-        // mana. A fetchland (no mana ability) is NOT a source (issue #1499).
-        if (isUntappedManaSource(perm)) n += 1;
+        // mana. A fetchland (no mana ability) is NOT a source (issue #1499);
+        // nor is a board-conditional source whose CURRENT output is zero — an
+        // Everflowing Chalice with no charge counters (issue #1889), which is
+        // why the controller's own battlefield is threaded through.
+        if (isUntappedManaSource(perm, player.battlefield)) n += 1;
     }
     for (const c of ["W", "U", "B", "R", "G", "C"] as const) {
         n += player.manaPool[c] ?? 0;
@@ -563,8 +566,9 @@ function untappedSourceQuality(state: GameState, playerId: string): number {
     for (const perm of me.battlefield) {
         // CR 605.1a / 305.6 — score only sources that can produce mana; a
         // fetchland (no mana ability) is not one, even though `isLand` is true
-        // and its search ability makes it "dual-purpose" (issue #1499).
-        if (!isUntappedManaSource(perm)) continue;
+        // and its search ability makes it "dual-purpose" (issue #1499). Nor is
+        // a board-conditional source currently producing zero (issue #1889).
+        if (!isUntappedManaSource(perm, me.battlefield)) continue;
         // Only score a source with a real definition — a token without one
         // (`getProducibleColors` reads the throwing `getDefinition`) contributes
         // nothing to source quality.

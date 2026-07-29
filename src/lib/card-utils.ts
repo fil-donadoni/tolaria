@@ -35,10 +35,12 @@ import {
     LANDWALK_KEYWORDS,
     LANDWALK_SUPERTYPE_KEYWORDS,
     assignHybridPips,
+    getDynamicManaProduced,
     getEffectiveManaChoices,
     getManaTapOptions,
     hybridCostKey,
     normalizedHybridPips,
+    totalManaCount,
 } from "@convex/gre/constants";
 import type {
     CardInstanceState,
@@ -266,10 +268,21 @@ function findClientManaAbility(card: CardInstance) {
  *  choice list, so it must not read as tappable. `stateView` is the same
  *  viewer-visible board projection `getStackAbilities` uses; an omitted
  *  caller falls back to an empty view, matching the existing UI-hint
- *  convention (#436) — server validation stays authoritative. */
+ *  convention (#436) — server validation stays authoritative.
+ *
+ *  CR 106.1 / 605.1a (issue #1889) — `controllerBattlefield`, when supplied,
+ *  resolves a board-conditional `manaAmount` hook so a source whose CURRENT
+ *  output is ZERO (an Everflowing Chalice with no charge counters) stops being
+ *  offered as a tappable payment source in the UI, exactly as the server's
+ *  `hasManaAbility` / `getManaTapOptionsDetailed` stopped offering it. Without
+ *  the argument the predicate is unchanged (delta EXACTLY zero for every source
+ *  with no `manaAmount` hook), and a `getManaChoices` chooser is deliberately
+ *  not gated here — it needs EVERY player's battlefield, so it is handled by
+ *  the shared `getManaTapOptions` list `getManaChoices` (below) reads. */
 export function hasManaAbility(
     card: CardInstance,
-    stateView?: TriggerStateView
+    stateView?: TriggerStateView,
+    controllerBattlefield?: ReadonlyArray<CardInstance>
 ): boolean {
     if (getLandManaColor(card) !== null) return true;
     const ability = findClientManaAbility(card);
@@ -280,7 +293,26 @@ export function hasManaAbility(
             return false;
         }
     }
+    if (controllerBattlefield && ability.manaAmount) {
+        const dynamic = getDynamicManaProduced(
+            card as unknown as CardInstanceState,
+            controllerBattlefield as unknown as readonly CardInstanceState[]
+        );
+        if (dynamic && totalManaCount(dynamic) === 0) return false;
+    }
     return true;
+}
+
+/** The battlefield of `card`'s controller, shaped as {@link hasManaAbility}'s
+ *  optional board argument (CR 106.1, issue #1889). Every UI mana-source
+ *  affordance reads this one helper so the board a board-conditional
+ *  `manaAmount` hook is resolved against can't drift between the hooks that
+ *  decide a card is clickable and the ones that paint it as a mana source. */
+export function manaSourceBattlefield(
+    card: CardInstance,
+    players: ReadonlyArray<{ id: string; battlefield: CardInstance[] }>
+): ReadonlyArray<CardInstance> | undefined {
+    return players.find((p) => p.id === card.controllerId)?.battlefield;
 }
 
 /** Returns the native mana ability of a card as a menu entry (id + oracleText),

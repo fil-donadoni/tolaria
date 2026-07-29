@@ -24,6 +24,7 @@ import {
     matchesPermanentTargetFilters,
     isTapLockedBySummoningSickness,
     hasManaAbility,
+    manaSourceBattlefield,
     pendingCastHasImprovise,
 } from "~/lib/card-utils";
 import { pendingChoiceRoutesToBattlefield } from "~/lib/pending-choice-labels";
@@ -209,6 +210,13 @@ export function useBattlefieldInteraction(player: Player) {
     // routing branch below (`handleClick`) agrees with the `canInteract` gate
     // that decided the click was legal in the first place.
     const manaGateView = buildTriggerStateView(allPlayers, activePlayerId);
+
+    // CR 106.1 (issue #1889) — the controller's battlefield a board-conditional
+    // `manaAmount` hook resolves against, so this branch agrees with
+    // `useBattlefieldVisualState`'s matching gate on a zero-output source
+    // (an Everflowing Chalice with no charge counters).
+    const manaBoardFor = (card: CardInstance) =>
+        manaSourceBattlefield(card, allPlayers);
 
     // A mana-choice picker opened to pay a cast/activation cost is anchored to
     // that payment. If the payment ends by another route — the player presses
@@ -535,7 +543,7 @@ export function useBattlefieldInteraction(player: Player) {
             isInPayment &&
             isPayingCast &&
             pendingCast &&
-            !hasManaAbility(card, manaGateView) &&
+            !hasManaAbility(card, manaGateView, manaBoardFor(card)) &&
             (card.types?.includes("Artifact") ?? false) &&
             pendingCastHasImprovise(pendingCast, player)
         ) {
