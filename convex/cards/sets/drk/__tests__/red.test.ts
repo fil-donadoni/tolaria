@@ -199,6 +199,48 @@ describe("Blood Moon ({2}{R} Enchantment — CR 305.7 subtype-set + CR 613.1f ab
         expect(options.has("C")).toBe(false);
     });
 
+    // CR 305.7 narrowing (issue #1883): "If an effect sets a land's subtype
+    // to one or more of the basic land types, the land no longer has its old
+    // land type[s]" — ONLY the land types are removed. A subtype belonging to
+    // a different card type (Saga, CR 205.3h) survives. Urza's Saga itself
+    // isn't shipped yet (#1884); this synthetic `Enchantment Land — Urza's
+    // Saga`-shaped fixture proves the narrowing independent of that card.
+    it("keeps a non-land subtype (Saga) and replaces only the land type — CR 305.7 (issue #1883)", () => {
+        const state = makeState();
+        const moon = makeInstance(bloodMoon.id, {
+            id: "moon-1",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        const sagaLand = makeInstance(tropicalIsland.id, {
+            id: "saga-land-1",
+            controllerId: "p2",
+            zone: "battlefield",
+            types: ["Land", "Enchantment"],
+            subtypes: ["Urza's", "Saga"],
+        });
+        state.players[0].battlefield.push(moon);
+        state.players[1].battlefield.push(sagaLand);
+        applySourceStaticEffects(state, moon);
+        // Urza's (a land type, CR 205.3i) is gone, replaced by Mountain.
+        expect(sagaLand.subtypes).toContain("Mountain");
+        expect(sagaLand.subtypes).not.toContain("Urza's");
+        // Saga (an enchantment type, CR 205.3h) is untouched.
+        expect(sagaLand.subtypes).toContain("Saga");
+        expect(sagaLand.subtypes).toHaveLength(2);
+        expect(getBasicLandMana(sagaLand)).toBe("R");
+
+        // Wire format (MANDATORY): the surviving Saga subtype must cross the
+        // projection to the client along with the new Mountain type.
+        const projected = projectPublicState(state, 1, "p2");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "saga-land-1"
+        )!;
+        expect(slim.subtypes).toContain("Mountain");
+        expect(slim.subtypes).toContain("Saga");
+        expect(slim.subtypes).not.toContain("Urza's");
+    });
+
     // Wire format (MANDATORY for staticEffects): the Mountain subtype and the
     // producible {R} must survive projection to the client (CR rule re-checked
     // on the slimmed PublicGameState).

@@ -213,6 +213,54 @@ export function isLandDefinition(def: CardDefinition): boolean {
     return def.types.includes("Land");
 }
 
+/** CR 205.3i — the complete land type list: the five basic land types plus
+ *  the ten nonbasic ones (Cave, Desert, Gate, Lair, Locus, Mine, Power-Plant,
+ *  Sphere, Tower, Urza's). An effect that sets a land's subtype to one or
+ *  more of these ("Nonbasic lands are Mountains" — Blood Moon; "target land
+ *  becomes a Swamp" — Orcish Farmer) is a CR 305.7 land-type change: it
+ *  replaces only the land's OLD LAND TYPES, never a subtype belonging to a
+ *  different card type (Saga, CR 205.3h; Aura, CR 205.3g) that happens to
+ *  ride along on a multi-type land (`Enchantment Land — Urza's Saga`). See
+ *  {@link applyLandTypeReplacement}, the shared narrowing every "becomes a
+ *  land type" effect site routes through (issue #1883). */
+export const LAND_TYPES: ReadonlySet<string> = new Set([
+    "Cave",
+    "Desert",
+    "Forest",
+    "Gate",
+    "Island",
+    "Lair",
+    "Locus",
+    "Mine",
+    "Mountain",
+    "Plains",
+    "Power-Plant",
+    "Sphere",
+    "Swamp",
+    "Tower",
+    "Urza's",
+]);
+
+/** CR 305.7 — composes the subtypes a LAND keeps after an effect sets its
+ *  land type(s) to `newLandTypes`: every subtype outside {@link LAND_TYPES}
+ *  (Saga, Aura, …) survives from `currentSubtypes`; every subtype IN
+ *  `LAND_TYPES` is dropped and replaced by `newLandTypes`.
+ *
+ *  Callers gate the narrowing itself — CR 305.7 governs LANDS only. A
+ *  `subtype-set`-shaped effect on a non-land permanent (Figure of Destiny's
+ *  "becomes a Kithkin Spirit", a creature-type change with no CR 305.7
+ *  analogue) must keep full wholesale replacement and must NOT call this
+ *  helper; check `types.includes("Land")` first. */
+export function applyLandTypeReplacement(
+    currentSubtypes: readonly string[],
+    newLandTypes: readonly string[]
+): string[] {
+    return [
+        ...currentSubtypes.filter((s) => !LAND_TYPES.has(s)),
+        ...newLandTypes,
+    ];
+}
+
 /** Whether a card can be cast at **instant speed** (CR 601.3a / 702.8) — an
  *  Instant, or any card with the Flash keyword. Sorcery-speed-only cards
  *  (creatures, sorceries, and non-flash permanents) return false: they may be

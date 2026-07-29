@@ -7169,6 +7169,54 @@ describe("Effect Script Op: setSubtype (CR 305.7, layer 4, issue #1083)", () => 
         pushSpell(state, id, "p1", []);
         expect(() => resolveTopOfStack(state)).not.toThrow();
     });
+
+    // CR 305.7 narrowing (issue #1883) — setSubtype on a LAND replaces only
+    // the land's land types; a subtype belonging to a different card type
+    // (Saga, CR 205.3h — the `Enchantment Land — Urza's Saga` shape) survives
+    // untouched. Exercises the same shared narrowing Blood Moon's
+    // `subtype-set` static uses (`applyLandTypeReplacement`, gre/constants.ts).
+    it("keeps a non-land subtype and replaces only the land type (CR 305.7, issue #1883)", () => {
+        const id = registerScript("test-op-setsubtype-nonland-subtype", [
+            {
+                op: "setSubtype",
+                target: { target: 0 },
+                subtypes: ["Mountain"],
+                duration: { phase: "end-of-turn" },
+            },
+        ]);
+        const sagaLand = makeInstance(ENCHANTMENT_LAND_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "sagaLandSetSubtype",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [sagaLand] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "permanent", id: "sagaLandSetSubtype" },
+        ]);
+        resolveTopOfStack(state);
+        const changed = state.players[1].battlefield.find(
+            (c) => c.id === "sagaLandSetSubtype"
+        )!;
+        expect(changed.subtypes).toContain("Mountain");
+        expect(changed.subtypes).not.toContain("Urza's");
+        expect(changed.subtypes).toContain("Saga");
+        expect(changed.subtypes).toHaveLength(2);
+
+        // Wire format (MANDATORY): the surviving Saga subtype crosses the
+        // projection along with the new Mountain type.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "sagaLandSetSubtype"
+        )!;
+        expect(slim.subtypes).toContain("Mountain");
+        expect(slim.subtypes).toContain("Saga");
+        expect(slim.subtypes).not.toContain("Urza's");
+    });
 });
 
 describe("EffectCardFilter.manaValueEquals (issue #1083)", () => {
@@ -17566,6 +17614,18 @@ registerTokenDefinition({
     rarity: "common",
     types: ["Land"],
     subtypes: ["Swamp"],
+});
+// A multi-type land carrying a NON-land subtype (Saga, CR 205.3h) alongside a
+// land type (Urza's, CR 205.3i) — the `Enchantment Land — Urza's Saga` shape
+// (issue #1883). Urza's Saga itself isn't shipped yet (#1884); this synthetic
+// fixture proves the CR 305.7 narrowing independent of that card.
+const ENCHANTMENT_LAND_ID = "test-effects-enchantment-land";
+registerTokenDefinition({
+    id: ENCHANTMENT_LAND_ID,
+    name: ENCHANTMENT_LAND_ID,
+    rarity: "common",
+    types: ["Land", "Enchantment"],
+    subtypes: ["Urza's", "Saga"],
 });
 // A dual land (two basic subtypes) — "duals contribute several" (issue #1066).
 const DUAL_ID = "test-effects-dual";

@@ -88,6 +88,7 @@ import {
     hybridCostKey,
     normalizedHybridPips,
     CASTABLE_PERMANENT_TYPES,
+    applyLandTypeReplacement,
 } from "./constants";
 import {
     STATIC_EFFECT_CTX,
@@ -5572,6 +5573,12 @@ function composeMaterializedSubtypes(target: CardInstanceState): string[] {
     if (sets.length === 0 && adds.length === 0) {
         return [...(target.printedSubtypes ?? target.subtypes)];
     }
+    // CR 305.7 (issue #1883) — a `subtype-set` "set" entry on a LAND replaces
+    // only the land's old LAND TYPES; a subtype belonging to a different card
+    // type (Saga on `Enchantment Land — Urza's Saga`) survives. A non-land
+    // target (Figure of Destiny's "becomes a Kithkin Spirit") has no CR 305.7
+    // analogue and keeps the prior full wholesale replace.
+    const isLandTarget = target.types.includes("Land");
     type Layer4Entry =
         | { seq: number; set: string[] }
         | { seq: number; add: string };
@@ -5585,7 +5592,9 @@ function composeMaterializedSubtypes(target: CardInstanceState): string[] {
     let composed = [...(target.printedSubtypes ?? target.subtypes)];
     for (const entry of entries) {
         if ("set" in entry) {
-            composed = [...entry.set];
+            composed = isLandTarget
+                ? applyLandTypeReplacement(composed, entry.set)
+                : [...entry.set];
         } else if (!composed.includes(entry.add)) {
             composed.push(entry.add);
         }
@@ -10107,7 +10116,13 @@ export function buildSpellContext(
                     restoreSubtypes: [...found.card.subtypes],
                 };
             }
-            found.card.subtypes = [...subtypes];
+            // CR 305.7 (issue #1883) — on a LAND this replaces only the old
+            // land types, keeping a subtype belonging to a different card
+            // type (Saga, …). A non-land target (Figure of Destiny) has no
+            // CR 305.7 analogue and keeps the prior full wholesale replace.
+            found.card.subtypes = found.card.types.includes("Land")
+                ? applyLandTypeReplacement(found.card.subtypes, subtypes)
+                : [...subtypes];
             found.card.grantedSubtypes = undefined;
             found.card.printedSubtypes = undefined;
         },
@@ -10130,7 +10145,13 @@ export function buildSpellContext(
             const restoreSubtypes =
                 found.card.temporarySubtypeChange?.restoreSubtypes ??
                 found.card.subtypes;
-            found.card.subtypes = [...subtypes];
+            // CR 305.7 (issue #1883) — same land-type-only narrowing as
+            // `setSubtypes` above; `restoreSubtypes` itself stays the FULL
+            // pre-change snapshot so expiry (phases.ts tickAllDurations)
+            // restores every subtype, land and non-land alike.
+            found.card.subtypes = found.card.types.includes("Land")
+                ? applyLandTypeReplacement(restoreSubtypes, subtypes)
+                : [...subtypes];
             found.card.temporarySubtypeChange = {
                 subtypes: [...subtypes],
                 restoreSubtypes: [...restoreSubtypes],
