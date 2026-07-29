@@ -72,6 +72,11 @@ describe("modal scrim carries the heavy blur (#1891)", () => {
             "components/cards/card-preview.tsx",
             "components/ui/dialog.tsx",
             "components/ui/action-sheet.tsx",
+            // Anchored choice popovers (review finding): their full-screen
+            // click-catcher had NO scrim at all — the board bled through the
+            // open picker exactly like the bare-`bg-scrim` overlays did.
+            "components/board/mana-choice-picker.tsx",
+            "components/cards/phyrexian-picker.tsx",
         ];
         for (const site of SITES) {
             const src = readFileSync(join(SRC_ROOT, site), "utf8");

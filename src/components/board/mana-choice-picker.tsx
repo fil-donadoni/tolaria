@@ -75,7 +75,10 @@ export default function ManaChoicePicker({
 
     return (
         <>
-            <div className="fixed inset-0 z-hud" onClick={onCancel} />
+            <div
+                className="fixed inset-0 z-hud modal-scrim"
+                onClick={onCancel}
+            />
             {/* Positioning/ref/style stay on a plain wrapper — Panel forwards
                 none of them; the frame lives inside it. */}
             <div
