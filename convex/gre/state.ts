@@ -4285,52 +4285,26 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                 // identity to `triggerSourceId` instead.
                 const located = findOnBattlefield(state, top.triggerSourceId);
                 const sourceCard = located?.card ?? top;
+                // Issue #1792 — this used to be a hand-written field
+                // allowlist and drifted four times (combat-history flags,
+                // `echoPending`, `chosenModeId`, `wasKicked`/`chosenXOnCast`),
+                // each time silently: an omitted field reads `undefined` in
+                // the predicate and the trigger quietly misbehaves, with no
+                // failing test. Spreading the live `CardInstanceState` makes
+                // a fifth drift structurally impossible — every field a card
+                // author adds is visible to `interveningIf` with no edit
+                // needed here. This is not a new privacy boundary crossed:
+                // every other `PermanentView` consumer (`combat.ts`,
+                // `layers.ts`, `constants.ts`, `src/lib/card-utils.ts`)
+                // already casts the live `CardInstanceState` directly, and
+                // every field on it describes the permanent's own public
+                // battlefield state (CR 108.5) — counters, combat flags,
+                // control changes, cast-time snapshots — never another
+                // player's hidden zone. The allowlist was never a boundary,
+                // only drift surface.
                 const selfView: PermanentView = {
+                    ...(sourceCard as unknown as PermanentView),
                     id: located ? sourceCard.id : top.triggerSourceId,
-                    controllerId: sourceCard.controllerId,
-                    ownerId: sourceCard.ownerId,
-                    types: sourceCard.types,
-                    subtypes: sourceCard.subtypes,
-                    isTapped: sourceCard.isTapped,
-                    power: sourceCard.power,
-                    toughness: sourceCard.toughness,
-                    attachedTo: sourceCard.attachedTo,
-                    counters: sourceCard.counters,
-                    // Combat-history / summoning-sickness flags must survive
-                    // into the resolve-time intervening-if (CR 603.4d) so
-                    // "if it [didn't] attack this turn"-style predicates
-                    // (Clockwork Beast, Erg Raiders) read the real value
-                    // rather than undefined.
-                    isAttacking: sourceCard.isAttacking,
-                    isBlocking: sourceCard.isBlocking,
-                    hasAttackedThisTurn: sourceCard.hasAttackedThisTurn,
-                    hasBlockedThisTurn: sourceCard.hasBlockedThisTurn,
-                    dealtDamageToOpponentThisTurn:
-                        sourceCard.dealtDamageToOpponentThisTurn,
-                    startedTurnUntapped: sourceCard.startedTurnUntapped,
-                    isSummoningSick: sourceCard.isSummoningSick,
-                    // CR 702.30a — echo's "came under your control since your
-                    // last upkeep" flag must survive into the resolve-time
-                    // intervening-if so the trigger fires exactly once.
-                    echoPending: sourceCard.echoPending,
-                    // CR 700.2c — the cast-time modal choice must survive into
-                    // the resolve-time intervening-if so modal-permanent state
-                    // triggers (Jihad's chosen-colour self-sacrifice) read the
-                    // chosen mode rather than undefined.
-                    chosenModeId: (sourceCard as { chosenModeId?: string })
-                        .chosenModeId,
-                    // CR 107.3 / 702.33 — the cast-time one-shot snapshots
-                    // must survive into the resolve-time intervening-if. These
-                    // fields exist FOR check-time predicates (see their
-                    // docstrings), and this hand-built view is an allowlist:
-                    // omitted, `chosenXOnCast` reads `undefined` and Ravenous's
-                    // "if X is 5 or greater" (CR 702.156a, Jacked Rabbit) is
-                    // false for every X. `wasKicked` is its exact sibling —
-                    // "if this creature was kicked" (CR 614.1c) has the same
-                    // shape and would be silently false here too.
-                    chosenXOnCast: sourceCard.chosenXOnCast,
-                    wasKicked: sourceCard.wasKicked,
-                    isToken: (sourceCard as { isToken?: boolean }).isToken,
                     card: sourceCard.card as Record<string, unknown>,
                 };
                 if (!ability.interveningIf(top.triggerEvent, selfView, state)) {
