@@ -1,14 +1,14 @@
 import { useState } from "react";
-import { Flag, Menu } from "lucide-react";
+import { Menu } from "lucide-react";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useControllerActions } from "~/hooks/useControllerActions";
 import { useControllerBarHeight } from "~/hooks/useControllerBarHeight";
 import { selectCommandSlots } from "~/lib/controller-action-slots";
-import { phaseShort } from "~/lib/phase-labels";
 import BoardPileChips from "./board-pile-chips";
 import ControllerCommandRow from "./controller-command-row";
 import ControllerLifeTab from "./controller-life-tab";
 import ControllerTabButton from "./controller-tab-button";
+import ControllerPhaseTab from "./controller-phase-tab";
 import ControllerPhaseSheet from "./controller-phase-sheet";
 import AttackAllConfirmDialog from "./attack-all-confirm-dialog";
 
@@ -83,8 +83,21 @@ import AttackAllConfirmDialog from "./attack-all-confirm-dialog";
  *  single-digit turn — "T1·M1" / "T1·M2" for the two mains, "T1·BC" /
  *  "T1·DA" / "T1·DB" / "T1·FD" / "T1·CD" / "T1·EC" for the six combat
  *  sub-steps — comfortably inside the budget, so every one of those stays
- *  distinct and untruncated at 320px. This only compacts today's label; it
- *  does NOT anticipate #1818's extended sub-step surface.
+ *  distinct and untruncated at 320px.
+ *
+ *  **The granular step is now its own prominent element, not just buried in
+ *  the compact string (#1818, review fixup).** The compact caption above IS
+ *  technically distinct per sub-step, but only as a 2-letter code embedded in
+ *  9px text — readable once you already know the codes, cryptic otherwise.
+ *  #1818 extracts the tab into its own file, {@link ControllerPhaseTab}, which
+ *  mirrors the desktop pod's caption/value split (`controller-pod.tsx`): the
+ *  step moves to a bold, larger "value" row, and this bar's caption slot keeps
+ *  only `T{turn}·{phaseGroupShort}` (the broad group, e.g. "T1·COM" for every
+ *  combat sub-step). The value row's static `Flag` glyph — present in #1818's
+ *  first pass alongside the 2-letter code — is gone entirely (review fixup):
+ *  it never changed and cost ~16px the value row needed once the plan shifted
+ *  from a bare code to a full readable WORD ("ATTACK", "1ST DMG"); see that
+ *  component's doc comment for the full design rationale and char/px budget.
  *
  *  **NIT (round 3, finding 4, comment-only): the zone-chips cell's 3×
  *  `min-w-11` floor has its own lower bound.** `pile-chip.tsx`'s `compact`
@@ -173,18 +186,12 @@ export default function ControllerBottomBar({
                         <span className="col-span-3" />
                     )}
 
-                    <ControllerTabButton
-                        // Compact `T{turn}·{short}` form (#1815 review fixup
-                        // round 3, finding 1) — see the module doc comment
-                        // below for the char/px budget this satisfies.
-                        label={`T${turn}·${phaseShort(phase)}`}
-                        ariaLabel="Toggle phase list"
-                        ariaExpanded={sheetOpen}
-                        active={sheetOpen}
-                        onClick={() => setSheetOpen((v) => !v)}
-                    >
-                        <Flag className="h-[1.1rem] w-[1.1rem]" aria-hidden />
-                    </ControllerTabButton>
+                    <ControllerPhaseTab
+                        phase={phase}
+                        turn={turn}
+                        open={sheetOpen}
+                        onToggle={() => setSheetOpen((v) => !v)}
+                    />
 
                     <ControllerTabButton
                         label="Menu"

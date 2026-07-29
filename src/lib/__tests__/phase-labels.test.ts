@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
     PHASE_GROUPS,
+    phaseCompact,
     phaseGroupLabel,
+    phaseGroupShort,
     phaseLabel,
     phaseShort,
 } from "~/lib/phase-labels";
@@ -48,6 +50,75 @@ describe("phase-labels (#331)", () => {
         expect(phaseGroupLabel("DECLARE_BLOCKERS")).toBe("Combat");
         expect(phaseGroupLabel("UPKEEP")).toBe("Beginning");
         expect(phaseGroupLabel("END_STEP")).toBe("Ending");
+    });
+
+    it("derives a 3-letter group abbreviation from phaseGroupLabel for EVERY phase, not a hardcoded table (#1818 review fixup)", () => {
+        // Ties phaseGroupShort's output DIRECTLY to phaseGroupLabel's (first
+        // 3 letters, uppercased) for every phase in the catalogue, rather
+        // than asserting a hand-maintained parallel table of expected
+        // strings that could silently drift from the real derivation.
+        const allSteps = PHASE_GROUPS.flatMap((g) => g.steps);
+        for (const step of allSteps) {
+            const expected = phaseGroupLabel(step.id)
+                .replace(/[^A-Za-z]/g, "")
+                .slice(0, 3)
+                .toUpperCase();
+            expect(phaseGroupShort(step.id)).toBe(expected);
+        }
+
+        // All six combat sub-steps share the same group short code — the
+        // caption's job is "which broad group", not step disambiguation
+        // (phaseCompact/phaseShort already own that).
+        for (const step of [
+            "BEGINNING_OF_COMBAT",
+            "DECLARE_ATTACKERS",
+            "DECLARE_BLOCKERS",
+            "FIRST_STRIKE_DAMAGE",
+            "COMBAT_DAMAGE",
+            "END_OF_COMBAT",
+        ] as const) {
+            expect(phaseGroupShort(step)).toBe("COM");
+        }
+        // Main 1 and Main 2 share a group short (the digit is stripped by the
+        // letters-only slice) — again, phaseCompact ("MAIN 1"/"MAIN 2") is
+        // what disambiguates them, not this caption.
+        expect(phaseGroupShort("PRECOMBAT_MAIN")).toBe("MAI");
+        expect(phaseGroupShort("POSTCOMBAT_MAIN")).toBe("MAI");
+        // Every group short is exactly 3 uppercase letters — the char/px
+        // budget the portrait bottom bar's Phase tab caption relies on.
+        for (const group of PHASE_GROUPS) {
+            const short = phaseGroupShort(group.steps[0].id);
+            expect(short).toMatch(/^[A-Z]{3}$/);
+        }
+    });
+
+    it("maps every phase to a readable step word (compact), ≤7 chars and pairwise distinct (#1818 review fixup)", () => {
+        expect(phaseCompact("DECLARE_ATTACKERS")).toBe("ATTACK");
+        expect(phaseCompact("DECLARE_BLOCKERS")).toBe("BLOCK");
+        expect(phaseCompact("FIRST_STRIKE_DAMAGE")).toBe("1ST DMG");
+        expect(phaseCompact("COMBAT_DAMAGE")).toBe("DAMAGE");
+        expect(phaseCompact("BEGINNING_OF_COMBAT")).toBe("BEGIN");
+        expect(phaseCompact("END_OF_COMBAT")).toBe("END CMB");
+        expect(phaseCompact("PRECOMBAT_MAIN")).toBe("MAIN 1");
+        expect(phaseCompact("POSTCOMBAT_MAIN")).toBe("MAIN 2");
+        expect(phaseCompact("END_STEP")).toBe("END");
+        expect(phaseCompact("CLEANUP")).toBe("CLEANUP");
+
+        const allSteps = PHASE_GROUPS.flatMap((g) => g.steps);
+        const compacts = allSteps.map((s) => phaseCompact(s.id));
+        // The tab's 12px value-row char/px budget once the Flag glyph was
+        // dropped (~7 chars @320px — see `controller-phase-tab.tsx`'s doc
+        // comment).
+        for (const compact of compacts) {
+            expect(compact.length).toBeLessThanOrEqual(7);
+        }
+        // Every phase's step word is pairwise distinct — a player must be
+        // able to tell any two phases apart from the value row alone.
+        expect(new Set(compacts).size).toBe(compacts.length);
+    });
+
+    it("falls back to a 7-char uppercased label for a compact word not in the table", () => {
+        expect(phaseCompact("MULLIGAN" as never)).toBe("MULLIGA");
     });
 
     it("covers all turn phases across its groups", () => {
