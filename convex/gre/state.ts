@@ -5814,6 +5814,14 @@ export function refreshCounterGatedStatics(state: GameState): void {
             const cardId = (source.card as { id?: string }).id;
             const def = cardId ? tryGetDefinition(cardId) : null;
             const effects = getEffectiveStaticEffects(def, source.chosenModeId);
+            // NOTE: the second disjunct is a NARROW, kind-specific special
+            // case (`kind === "keyword-grant" && condition !== undefined`)
+            // rather than a generalization of `dependsOnCounters` to "any
+            // materialized kind with a `condition`". Harmless today — no
+            // OTHER materialized static-effect kind exposes `condition` — but
+            // the next one that does will silently need its own disjunct
+            // added here, or it ships inert exactly like the bug class this
+            // function exists to fix (issue #1095 review finding).
             const needsRefresh = effects.some(
                 (e) =>
                     e.dependsOnCounters === true ||

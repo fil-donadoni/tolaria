@@ -9,10 +9,34 @@ import type {
     ManaCost,
     SpellContext,
     CardPrint,
+    PermanentView,
+    StaticEffectStateView,
+    StaticEffectContext,
 } from "../../types";
 import { countDomain, EFFECT_AFFECTS_SELF } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+
+// Shared "as long as no opponent controls a white or blue creature" gate (CR
+// 611.2c) — Skittish Kavu's `pt-buff.condition` and Kavu Runner's
+// `keyword-grant.condition` (issue #1095) share this IDENTICAL board-state
+// predicate verbatim; extracted here on the second occurrence per project
+// convention (closure on the 1st card, shared helper on the 2nd).
+function noOpponentWhiteOrBlueCreature(
+    source: PermanentView,
+    state: StaticEffectStateView,
+    ctx: StaticEffectContext
+): boolean {
+    return !state.players
+        .flatMap((p) => p.battlefield)
+        .some(
+            (c) =>
+                c.controllerId !== source.controllerId &&
+                ctx.isCreature(c) &&
+                (ctx.getColors(c).includes("W") ||
+                    ctx.getColors(c).includes("U"))
+        );
+}
 
 // Local mana-cost → colours helper (CR 202.2), following the established
 // inline-helper precedent (arn/white.ts) rather than importing the shared
@@ -785,16 +809,7 @@ export const skittishKavu: CardDefinition = {
         {
             kind: "pt-buff",
             applies: EFFECT_AFFECTS_SELF,
-            condition: (source, state, ctx) =>
-                !state.players
-                    .flatMap((p) => p.battlefield)
-                    .some(
-                        (c) =>
-                            c.controllerId !== source.controllerId &&
-                            ctx.isCreature(c) &&
-                            (ctx.getColors(c).includes("W") ||
-                                ctx.getColors(c).includes("U"))
-                    ),
+            condition: noOpponentWhiteOrBlueCreature,
             power: 1,
             toughness: 1,
         },
@@ -1017,16 +1032,7 @@ export const kavuRunner: CardDefinition = {
         {
             kind: "keyword-grant",
             applies: EFFECT_AFFECTS_SELF,
-            condition: (source, state, ctx) =>
-                !state.players
-                    .flatMap((p) => p.battlefield)
-                    .some(
-                        (c) =>
-                            c.controllerId !== source.controllerId &&
-                            ctx.isCreature(c) &&
-                            (ctx.getColors(c).includes("W") ||
-                                ctx.getColors(c).includes("U"))
-                    ),
+            condition: noOpponentWhiteOrBlueCreature,
             keyword: "haste",
         },
     ],
