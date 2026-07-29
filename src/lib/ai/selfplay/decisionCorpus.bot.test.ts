@@ -162,7 +162,7 @@ const ENV: Record<string, string | undefined> =
 const RUN = ENV.DECISION_CORPUS === "1";
 
 describe.runIf(RUN)("decision-telemetry corpus (runner)", () => {
-    it("collects the full corpus and prints the summary JSON", () => {
+    it("collects the full corpus and writes the summary JSON", async () => {
         const gamesPerPairing = Number(ENV.DECISION_CORPUS_GAMES ?? "12");
         const iterations = Number(ENV.DECISION_CORPUS_ITER ?? "400");
         const seed = Number(ENV.DECISION_CORPUS_SEED ?? "1893");
@@ -214,10 +214,24 @@ describe.runIf(RUN)("decision-telemetry corpus (runner)", () => {
             selfPlayRecords: selfPlay.records,
             bladeRecords: blade.records,
         };
+        // Write to the path in DECISION_CORPUS_OUT — vitest's reporter does
+        // not reliably surface large console output, so a file is the only
+        // dependable channel. The src tsconfig is browser-typed (no node
+        // types), hence the non-literal dynamic import: it defeats TS module
+        // resolution the same way the globalThis ENV read above does, and
+        // resolves fine at runtime (vitest tests run in Node).
+        const outPath = ENV.DECISION_CORPUS_OUT;
+        if (outPath) {
+            const fs = (await import(/* @vite-ignore */ "node" + ":fs")) as {
+                writeFileSync: (p: string, d: string) => void;
+            };
+            fs.writeFileSync(outPath, JSON.stringify(out));
+        }
         console.log(
-            "\nDECISION_CORPUS_JSON_BEGIN\n" +
-                JSON.stringify(out) +
-                "\nDECISION_CORPUS_JSON_END\n"
+            `decision corpus: ${selfPlay.records.length} self-play + ${blade.records.length} blade records` +
+                (outPath
+                    ? ` → ${outPath}`
+                    : " (set DECISION_CORPUS_OUT to save)")
         );
         expect(selfPlay.records.length).toBeGreaterThan(0);
     }, 10_800_000);
