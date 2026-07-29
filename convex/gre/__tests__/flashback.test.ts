@@ -421,6 +421,45 @@ describe("Flashback capability (CR 702.34)", () => {
                     )
                 ).toEqual([]);
             });
+
+            // Issue #1688 — `hasPayableFlashbackAdditionalCost` now delegates its
+            // `exileFromHand` colour leg to the shared `isExileCostEligible`
+            // (convex/cards/exileCostEligibility.ts, issue #1659). A card with NO
+            // colour filter (`exileFromHand: {}` — no shipped card uses this shape
+            // yet, only a hypothetical/granted flashback) must accept ANY hand
+            // card, including a colourless one, and must still fail with an empty
+            // hand.
+            it("an exile-from-hand flashback with no colour filter accepts ANY hand card", () => {
+                const anyColorless = graveyardFlashbackState(
+                    { exileFromHand: {} },
+                    [],
+                    [
+                        makeInstance(mountain.id, {
+                            zone: "hand",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ]
+                );
+                expect(
+                    getLegalActions(
+                        anyColorless.state,
+                        getPlayer(anyColorless.state, "p1"),
+                        anyColorless.card
+                    )
+                ).toEqual(["cast"]);
+
+                const emptyHand = graveyardFlashbackState({
+                    exileFromHand: {},
+                });
+                expect(
+                    getLegalActions(
+                        emptyHand.state,
+                        getPlayer(emptyHand.state, "p1"),
+                        emptyHand.card
+                    )
+                ).toEqual([]);
+            });
         });
 
         describe("sacrifice cost folds into the cast selection — graveyard cast only", () => {

@@ -42,7 +42,7 @@ import { tapManaBonusUnits } from "./tapManaBonus";
 import { PHYREXIAN_LIFE_PER_PIP, phyrexianPipCount } from "./phyrexian";
 import { matchesPermanentFilter } from "../cards/filters";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
-import { cardHasColor } from "../cards/colors";
+import { isExileCostEligible } from "../cards/exileCostEligibility";
 import { affordableAlternativeCosts } from "./alternativeCost";
 import {
     getFlashbackCost,
@@ -482,7 +482,8 @@ export function getLegalActions(
             // be payable, or the flashback cast can't be announced.
             hasPayableFlashbackAdditionalCost(
                 player,
-                getFlashbackAdditionalCost(card)
+                getFlashbackAdditionalCost(card),
+                card.id
             )
         ) {
             actions.push("cast");
@@ -809,10 +810,33 @@ function hasPayableEscapeExileCost(
  *  filter (each additional cost demands exactly one). Suppressing "cast" here
  *  also blocks the server path (`assertLegalAction` rejects an unpayable
  *  flashback). Effective colours are derived per-candidate via the layer system
- *  (mirrors `hasPayableAdditionalCost`). Undefined cost → always payable. */
+ *  (mirrors `hasPayableAdditionalCost`). Undefined cost → always payable.
+ *  `flashbackCardId` excludes the flashback card itself from its own
+ *  `exileFromHand` pool — a no-op today (the flashback card is being cast FROM
+ *  the graveyard, so it can never also be the hand card paying the cost) but
+ *  kept for parity with `flashbackExileEligibleCount`'s graveyard-exile call,
+ *  which passes the same exclusion for the analogous reason.
+ *
+ *  Issue #1688 — the `exileFromHand` colour leg now delegates to the shared
+ *  `isExileCostEligible` (`convex/cards/exileCostEligibility.ts`, issue #1659)
+ *  instead of re-deriving it, closing the fifth surviving copy of the
+ *  cast-exile-cost colour predicate. One divergence was flagged and verified:
+ *  `isExileCostEligible` short-circuits `color === undefined` to `true` BEFORE
+ *  resolving the candidate's `CardDefinition`, whereas the old inline check
+ *  here required the definition to resolve even in the no-colour-filter case.
+ *  Confirmed unreachable for real cards: every card in a player's hand comes
+ *  from a deck validated against the card registry at deck-build time, and
+ *  tokens never occupy the hand zone (CR 111.7), so `card.card.id` on a hand
+ *  instance always resolves to a registered `CardDefinition` — there is no
+ *  live hand card whose definition fails to resolve for this branch to catch.
+ *  (Belt-and-braces: no shipped card declares `exileFromHand` at all yet —
+ *  grep `convex/cards/sets/**` — so today this whole cost shape is exercised
+ *  only via `CardInstanceState.grantedFlashback`, e.g. tests / a future
+ *  Snapcaster-style effect.) Delegating fully is therefore safe. */
 function hasPayableFlashbackAdditionalCost(
     player: PlayerState,
-    add: FlashbackAdditionalCost | undefined
+    add: FlashbackAdditionalCost | undefined,
+    flashbackCardId: string
 ): boolean {
     if (!add) return true;
     if (add.sacrifice) {
@@ -827,16 +851,9 @@ function hasPayableFlashbackAdditionalCost(
     }
     if (add.exileFromHand) {
         const wantColor = add.exileFromHand.color;
-        const hasCard = player.hand.some((c) => {
-            const cardId = (c.card as { id?: string }).id;
-            if (!cardId) return false;
-            const def = tryGetDefinition(cardId);
-            if (!def) return false;
-            // CR 105.2 / 202.2 — a card's COLOUR, not its colour identity: a
-            // colourless card (Island, artifact) never pays "exile a <colour>
-            // card from your hand".
-            return wantColor === undefined || cardHasColor(def, wantColor);
-        });
+        const hasCard = player.hand.some((c) =>
+            isExileCostEligible(c, flashbackCardId, wantColor)
+        );
         if (!hasCard) return false;
     }
     return true;
