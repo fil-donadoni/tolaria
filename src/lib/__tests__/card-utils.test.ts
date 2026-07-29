@@ -475,6 +475,39 @@ describe("matchesPermanentTargetFilters (CR 109/202/205/613/701.20/702, issue #1
             )
         ).toBe(true);
     });
+
+    it("isToken (CR 111.5, issue #1195, Satya / Dance of Many): rejects a token creature for 'target nontoken creature', accepts a nontoken one, through the real wire projection", () => {
+        const req: TargetRequirement = {
+            type: "Creature",
+            count: 1,
+            isToken: false,
+        };
+        // Repurpose the "plain" creature as a TOKEN — the exact "target
+        // nontoken creature" bug class (Dance of Many's ETB has documented
+        // this gap since #1459): a hand-built client view could easily drop
+        // `isToken` the same way it once dropped `supertypeFilter` (#1697),
+        // so this goes through the REAL wire projection like every other
+        // test in this describe.
+        const { players, pendingTarget, legendaryClient, plainClient } =
+            projectScenario(req, {}, { isToken: true });
+
+        expect(
+            matchesPermanentTargetFilters(
+                plainClient,
+                pendingTarget,
+                players,
+                "p1"
+            )
+        ).toBe(false);
+        expect(
+            matchesPermanentTargetFilters(
+                legendaryClient,
+                pendingTarget,
+                players,
+                "p1"
+            )
+        ).toBe(true);
+    });
 });
 
 // ---------------------------------------------------------------------------

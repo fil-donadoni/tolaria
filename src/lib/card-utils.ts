@@ -700,6 +700,7 @@ export function matchesPermanentTargetFilters(
         toughnessFilter: pendingTarget.toughnessFilter,
         mvFilter: pendingTarget.mvFilter,
         sameController: pendingTarget.sameController,
+        isToken: pendingTarget.isToken,
     };
     // Sound: the wire-projected `CardInstance` is a structural superset of the
     // fields `checkPermanentTargetFilters`/the layer system read off

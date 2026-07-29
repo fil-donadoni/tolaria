@@ -828,11 +828,14 @@ export const waterWurm: CardDefinition = {
 //     copies copiable values only), stamping `createdBy` so the enchantment can
 //     find its token, and storing the reverse `linkedTokenId` on the enchantment
 //     so it can identify the token after it leaves play.
-//     DIVERGENCE (out of scope): the oracle restricts the target to a NONTOKEN
-//     creature (CR 111.5), but `TargetRequirement` has no token filter field, so
-//     the declarative requirement is `{ type: "Creature", count: 1 }` and a token
-//     creature is (incorrectly) a legal copy target. Enforcing "nontoken" at
-//     target-selection time is out of scope for the current target machinery.
+//     FIXED (issue #1195): the oracle restricts the target to a NONTOKEN
+//     creature (CR 111.5); `TargetRequirement.isToken` (added by #1195,
+//     Satya, Aetherflux Genius's identical "nontoken creature" clause) closes
+//     this — `isToken: false` on the requirement below, wired through the
+//     single target-filter authority (`gre/targetFilters.ts`, ADR 0068) so a
+//     token creature is now correctly ILLEGAL as a copy target, both
+//     offered (`getLegalTargets`) and accepted (`selectTarget`). Previously a
+//     documented DIVERGENCE ("TargetRequirement has no token filter field").
 //
 //   • Enchantment-leaves → exile token (`leftTrigger` scope:self) — the token
 //     is still on the battlefield at this point, so it is located by
@@ -873,10 +876,10 @@ export const danceOfMany: CardDefinition = {
             // CR 603.3d (issue #1193) — "target nontoken creature" is a REAL
             // target chosen when the trigger is put on the stack, declared as a
             // `targetRequirement` and locked by `raiseTriggerTargetSelection`
-            // (gre/rules.ts), NOT a resolution-time `requestChoice`. See the
-            // DIVERGENCE note above: the "nontoken" clause is not expressible as
-            // a `TargetRequirement` (no token filter field).
-            targetRequirement: { type: "Creature", count: 1 },
+            // (gre/rules.ts), NOT a resolution-time `requestChoice`. `isToken:
+            // false` (issue #1195) is the "nontoken" clause — see the FIXED
+            // note above.
+            targetRequirement: { type: "Creature", count: 1, isToken: false },
             // DSL-migrated (ADR 0045, issue #1459): "create a token that's a
             // copy of target nontoken creature" is now a single `createTokenCopy`
             // Op (CR 707.2). `source: { target: 0 }` reads the announced target

@@ -276,6 +276,7 @@ import {
     collectBlockBypassCharges,
     collectAttackSacrificeTax,
     collectAttackManaTax,
+    markAttacking,
 } from "./gre/combat";
 import {
     getEffectiveBlockGraph,
@@ -8786,6 +8787,7 @@ export function applyOneTargetSelection(
                 toughnessFilter: pt.toughnessFilter,
                 mvFilter: pt.mvFilter,
                 sameController: pt.sameController,
+                isToken: pt.isToken,
             }
         );
         if (filterViolation) throw new Error(filterViolation);
@@ -9631,7 +9633,11 @@ export function finalizeConfirmAttackers(state: GameState): void {
                 // taps to attack.
                 tapPermanent(state, card);
             }
-            card.isAttacking = true;
+            // Shared helper (`gre/combat.ts`, issue #1195) — sets BOTH
+            // `combat.attackerIds` membership (already true here; idempotent)
+            // AND `isAttacking` together, the single sync point every
+            // combat-scoped read depends on.
+            markAttacking(state, card);
             card.hasAttackedThisTurn = true;
         }
     }

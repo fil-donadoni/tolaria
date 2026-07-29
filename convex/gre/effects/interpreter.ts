@@ -69,6 +69,7 @@
 import type {
     ControlChangeCondition,
     DynamicMayPayManaCost,
+    DynamicMayPayEnergyCost,
     EffectCaptureSource,
     EffectCardFilter,
     EffectComparisonOp,
@@ -1038,29 +1039,52 @@ function reduceGenericMana(cost: ManaCost, amount: number): ManaCost {
 const MAY_PAY_COST_UNRESOLVABLE = Symbol("mayPay-cost-unresolvable");
 
 /** Resolves a `mayPay` Op's `cost` field to the concrete `MayPayCost`
- *  `SpellContext.requestMayPay` consumes (issue #1150). A static cost (the
- *  historical `MayPayCost` union) passes through unchanged. A
- *  `DynamicMayPayManaCost` (`{ manaCostOf, reducedBy }`) is resolved HERE, at
- *  Op execution time: `manaCostOf` is a bare PICKS ref (an earlier `choice`
- *  Op's selected instance id — Flash's "the creature just put onto the
- *  battlefield"), looked up via `resolvePicks`; its printed mana cost is read
- *  via `ctx.getManaCost` (CR 608.2b — must still be on the battlefield,
+ *  `SpellContext.requestMayPay` consumes (issue #1150 / #1195). A static
+ *  cost (the historical `MayPayCost` union) passes through unchanged.
+ *
+ *  A `DynamicMayPayManaCost` (`{ manaCostOf, reducedBy }`) is resolved HERE,
+ *  at Op execution time: `manaCostOf` is a bare PICKS ref (an earlier
+ *  `choice` Op's selected instance id — Flash's "the creature just put onto
+ *  the battlefield"), looked up via `resolvePicks`; its printed mana cost is
+ *  read via `ctx.getManaCost` (CR 608.2b — must still be on the battlefield,
  *  checked through `ctx.getOwnerId`), and the generic portion reduced by
  *  `reducedBy` (`reduceGenericMana`) — the resulting concrete `ManaCost`
- *  becomes the `mana` leg of a `MayPayCost`. */
+ *  becomes the `mana` leg of a `MayPayCost`.
+ *
+ *  A `DynamicMayPayEnergyCost` (`{ energyEqualTo }`, issue #1195 — Satya,
+ *  Aetherflux Genius's "pay {E} equal to its mana value") is likewise
+ *  resolved HERE: `energyEqualTo` is a full `EffectValue`, resolved through
+ *  the SAME `resolveValue` every other numeric Op parameter uses (in
+ *  practice `{ manaValue: { of: { ref: "$token" } } }` — the captured token's
+ *  live mana value) — no bespoke reader, unlike the mana leg's dedicated
+ *  `manaCostOf` shape. An unresolvable value (the referenced object left the
+ *  battlefield, CR 608.2b) skips the whole Op exactly like a gone
+ *  `manaCostOf` target. */
 function resolveMayPayCost(
     ctx: SpellContext,
-    cost: MayPayCost | DynamicMayPayManaCost | undefined
+    cost:
+        | MayPayCost
+        | DynamicMayPayManaCost
+        | DynamicMayPayEnergyCost
+        | undefined
 ): MayPayCost | undefined | typeof MAY_PAY_COST_UNRESOLVABLE {
-    if (!cost || !("manaCostOf" in cost)) return cost;
-    const ids = resolvePicks(ctx, cost.manaCostOf);
-    const id = ids?.[0];
-    if (!id || ctx.getOwnerId(id) === undefined) {
-        return MAY_PAY_COST_UNRESOLVABLE; // CR 608.2b — gone, skip
+    if (!cost) return cost;
+    if ("manaCostOf" in cost) {
+        const ids = resolvePicks(ctx, cost.manaCostOf);
+        const id = ids?.[0];
+        if (!id || ctx.getOwnerId(id) === undefined) {
+            return MAY_PAY_COST_UNRESOLVABLE; // CR 608.2b — gone, skip
+        }
+        const printed = ctx.getManaCost({ type: "permanent", id });
+        if (!printed) return MAY_PAY_COST_UNRESOLVABLE;
+        return { mana: reduceGenericMana(printed, cost.reducedBy) };
     }
-    const printed = ctx.getManaCost({ type: "permanent", id });
-    if (!printed) return MAY_PAY_COST_UNRESOLVABLE;
-    return { mana: reduceGenericMana(printed, cost.reducedBy) };
+    if ("energyEqualTo" in cost) {
+        const amount = resolveValue(ctx, cost.energyEqualTo);
+        if (amount === undefined) return MAY_PAY_COST_UNRESOLVABLE;
+        return { energy: amount };
+    }
+    return cost;
 }
 
 /** Maps a `gainControl` Op's JSON-pure `duration` discriminator onto the
@@ -2976,12 +3000,25 @@ export const OP_EXECUTORS: {
         if (count === undefined || count <= 0) return;
         const source = resolveObjectRef(ctx, op.source);
         if (!source || source.type !== "permanent") return;
+        // CR 508.4 (issue #1195) — "create a TAPPED and ATTACKING token
+        // that's a copy of…" (Satya, Aetherflux Genius). Passed straight
+        // through to `createTokenCopyOf`'s own entry-state opts; omitted
+        // entirely (undefined) when neither flag is set, matching every
+        // caller before this issue (Dance of Many).
+        const opts =
+            op.entersTapped || op.entersAttacking
+                ? {
+                      entersTapped: op.entersTapped,
+                      entersAttacking: op.entersAttacking,
+                  }
+                : undefined;
         let lastId: string | undefined;
         for (let i = 0; i < count; i++) {
             lastId = ctx.createTokenCopyOf(
                 source.id,
                 controllerId,
-                ctx.sourceInstanceId
+                ctx.sourceInstanceId,
+                opts
             );
         }
         // issue #1202 — snapshot the LAST created copy so a follow-up Op can act

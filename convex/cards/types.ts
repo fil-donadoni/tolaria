@@ -574,6 +574,18 @@ export interface TargetRequirement {
      *  permanent-kind requirements; ignored for player/spell/graveyard
      *  targets and a `count: 1` requirement (nothing to compare). */
     sameController?: boolean;
+    /** Restricts legal permanent targets by token-ness (CR 111.5, issue
+     *  #1195). `true` keeps ONLY tokens; `false` keeps ONLY NONTOKEN
+     *  permanents ("target nontoken creature", Dance of Many / Satya,
+     *  Aetherflux Genius). Mirrors `PermanentFilter.isToken` /
+     *  `EffectCardFilter.isToken`'s exact-match semantics (a direct
+     *  passthrough of `CardInstanceState.isToken`), just exposed on the
+     *  ANNOUNCED-target requirement shape those two already cover for a
+     *  `choice`/`count`-selected zone. Ignored for player / spell / graveyard
+     *  targets. Closes the DIVERGENCE Dance of Many's ETB trigger has
+     *  documented since #1459 ("TargetRequirement has no token filter
+     *  field") — see that card for the fix. */
+    isToken?: boolean;
 }
 
 /** "For as long as" condition on a conditional control change (CR 611.2b).
@@ -1297,6 +1309,28 @@ export interface DynamicMayPayManaCost {
     reducedBy: number;
 }
 
+/** A dynamically-derived `mayPay` ENERGY cost (issue #1195): "pay {E} equal
+ *  to <some runtime amount>" — Satya, Aetherflux Genius's "sacrifice unless
+ *  you pay {E} equal to its mana value", where "it" is the token copy just
+ *  created, not knowable at authoring time. A THIRD shape accepted by the
+ *  `mayPay` Op's `cost` field, alongside the static `MayPayCost` union and
+ *  the dynamic-mana `DynamicMayPayManaCost` (ADR 0045 "generalize, don't
+ *  add" — the Op's cost model grows a leg, not a new Op or primitive).
+ *  Unlike `DynamicMayPayManaCost` (a bespoke `manaCostOf` + `reducedBy`
+ *  reader), `energyEqualTo` reuses the EXISTING `EffectValue` grammar
+ *  wholesale — no new value kind: in practice always `{ manaValue: { of:
+ *  <ref> } }`, but any `EffectValue` composes (a `ref`'s power, a `counters`
+ *  count, …) with zero additional plumbing, since the interpreter resolves
+ *  it through the SAME `resolveValue` every other numeric Op parameter uses.
+ *  Resolved HERE, at `mayPay` Op execution time, never by
+ *  `SpellContext.requestMayPay` itself, which only ever sees the fully-
+ *  resolved `energy: number` leg of the static `MayPayCost`. An unresolvable
+ *  value (the referenced object left the battlefield, CR 608.2b) skips the
+ *  whole `mayPay` Op, mirroring `DynamicMayPayManaCost`'s own skip. */
+export interface DynamicMayPayEnergyCost {
+    energyEqualTo: EffectValue;
+}
+
 // --- Transform / double-faced permanents (CR 712, issue #1210, ADR 0067) ---
 
 /** Which face's URL segment `src/lib/images.ts` requests from Scryfall's
@@ -1457,6 +1491,53 @@ export interface TokenSpec {
      *  string alone via `maybeSynthesizeToken`, with no registry round-trip
      *  needed. See {@link CardDefinition.imagePrintFace}. */
     imagePrintFace?: CardImageFace;
+    /** CR 508.4 (issue #1195) — the token enters the battlefield ALREADY
+     *  TAPPED, independent of `entersAttacking` (Satya, Aetherflux Genius's
+     *  "create a TAPPED and attacking token…" taps the token unconditionally,
+     *  even if the copied creature has vigilance — CR 508.4 attacking-token
+     *  entry bypasses the normal tap-to-attack rule (CR 508.1f) entirely, so
+     *  "tapped" is its own explicit adjective, not a consequence of
+     *  "attacking"). Applied in `createTokenPermanents` alongside (OR'd with)
+     *  the existing `shouldEnterTapped` Kismet-style replacement check.
+     *  Orthogonal to `entersAttacking` — a token could need one without the
+     *  other, though every current caller sets both together. */
+    entersTapped?: boolean;
+    /** CR 508.4 — the token enters the battlefield ALREADY ATTACKING, joining
+     *  the CURRENT combat directly through the shared `markAttacking` helper
+     *  (`gre/combat.ts`) rather than through the normal declare-attackers
+     *  action. `markAttacking` sets BOTH engine-wide representations of
+     *  "attacking" together — `state.combat.attackerIds` membership AND the
+     *  per-permanent `CardInstanceState.isAttacking` flag — which is what
+     *  makes the token a real "attacking creature" for every OTHER
+     *  combat-scoped read (Assault-Formation-style statics,
+     *  `combatRoleFilter` targeting, `PermanentFilter.isAttacking`,
+     *  `SpellContext.getIsAttacking`, and the frontend's blocker-assignment
+     *  affordance) — setting `attackerIds` alone is NOT enough, and earlier
+     *  code here that did exactly that (issue #1195 review) left the token
+     *  only half-attacking. Per CR 508.4: the token's controller is NOT
+     *  offered a planeswalker/battle attack target choice here — a tracked
+     *  DIVERGENCE (tracked-by: #1865, see `cards/sets/m3c/multicolor.ts`'s
+     *  Satya doc for the full rationale: this is a real gap against the
+     *  current pool, not a hypothetical future card, since planeswalkers
+     *  already ship widely and the engine already models attacking them) —
+     *  every current caller's oracle text is silent on the point and the
+     *  engine defaults to "attacks the defending player", CR 508.4's own
+     *  default absent an effect-specified target; it is NOT subject to
+     *  attack-declaration requirements/
+     *  restrictions (CR 508.4c — bypassed by construction, since this never
+     *  runs the normal declare-attackers legality path); and it does NOT
+     *  retroactively fire "whenever a creature attacks" triggers (CR 508.4 —
+     *  "attacking" but never "attacked" for trigger purposes) because no
+     *  ATTACKERS_DECLARED event is emitted for this entry. No-op if there is
+     *  no active combat to join (defensive — every shipped caller only sets
+     *  this from an attack-triggered ability's effect, where combat is
+     *  guaranteed live) or if the token ended up somewhere other than the
+     *  battlefield (a CR 614 enters-as-exiled replacement). If combat has
+     *  already moved past the declare-blockers step when this runs, the token
+     *  is simply never added to `blockedAttackerIds`, so it deals its combat
+     *  damage unblocked exactly as CR 508.4 requires for a token entering
+     *  attacking after blockers are locked in — no extra bookkeeping needed. */
+    entersAttacking?: boolean;
 }
 
 /** JSON-pure token specification for the `createToken` Effect Script Op
@@ -1519,6 +1600,12 @@ export interface EffectTokenSpec {
      *  see {@link EffectCardBackFace}. Undefined for the overwhelming
      *  majority of (single-faced) tokens. */
     backFace?: EffectCardBackFace;
+    /** CR 508.4 (issue #1195) — see {@link TokenSpec.entersTapped}. Passed
+     *  verbatim to `SpellContext.createToken`. */
+    entersTapped?: boolean;
+    /** CR 508.4 (issue #1195) — see {@link TokenSpec.entersAttacking}. Passed
+     *  verbatim to `SpellContext.createToken`. */
+    entersAttacking?: boolean;
 }
 
 // --- Copy effects (CR 706, 707) ---
@@ -1631,12 +1718,27 @@ export interface SpellContext {
      *  (CR 707.2). The token is stamped with `createdBy` provenance so its
      *  creator can locate it later (the Dance leave-linkage). Returns the new
      *  token's instance id, or undefined if the copy source has left the
-     *  battlefield. */
+     *  battlefield.
+     *
+     *  `opts` additionally accepts the CR 508.4 entry-state flags
+     *  `entersTapped` / `entersAttacking` (issue #1195, Satya, Aetherflux
+     *  Genius — "create a tapped and attacking token that's a copy of…"):
+     *  passed straight through to the internal placeholder token's
+     *  `TokenSpec`, so the SAME `createTokenPermanents` handling that taps a
+     *  plain `createToken` and joins it to combat applies here too, BEFORE
+     *  `applyCopy` overwrites the token's copiable characteristics (entry
+     *  state is independent of what gets copied). Meaningless for
+     *  `becomeCopyOf` (a permanent already on the battlefield never
+     *  "enters"), so those two fields live only on this function's `opts`,
+     *  not on the shared `CopyEffectOptions` interface itself. */
     createTokenCopyOf: (
         sourceCreatureId: string,
         controllerId: string,
         createdBy?: string,
-        opts?: CopyEffectOptions
+        opts?: CopyEffectOptions & {
+            entersTapped?: boolean;
+            entersAttacking?: boolean;
+        }
     ) => string | undefined;
     // --- Primitives ---
     /** Deals `amount` damage to `target` (CR 120). Runs CR 614 replacement
@@ -9510,6 +9612,18 @@ export type EffectOp =
           controller: EffectPlayerRef;
           count?: EffectValue;
           bind?: string;
+          /** CR 508.4 (issue #1195) — see `TokenSpec.entersTapped` /
+           *  `entersAttacking` (`cards/types.ts`): the copy enters the
+           *  battlefield already tapped and/or already attacking, joining
+           *  the CURRENT combat directly rather than through the normal
+           *  declare-attackers action (Satya, Aetherflux Genius's "create a
+           *  tapped and attacking token that's a copy of…"). Passed straight
+           *  through to `SpellContext.createTokenCopyOf`'s own entry-state
+           *  opts. Omitted (the common case, Dance of Many) — the copy
+           *  enters untapped and not attacking, exactly as before this
+           *  issue. */
+          entersTapped?: boolean;
+          entersAttacking?: boolean;
       }
     /** CR 114 (issue #1221) — create an emblem in the command zone. A thin
      *  declarative skin over the single SpellContext primitive `createEmblem`,
@@ -9890,12 +10004,14 @@ export type EffectOp =
            *  controller of the affected object, "its controller pays"). */
           player: EffectPlayerRef;
           /** The cost to pay on accept: the static mana / life / sacrifice
-           *  union (CR 702.24 shape), OR a dynamically-derived mana cost read
+           *  union (CR 702.24 shape), a dynamically-derived mana cost read
            *  off a runtime-selected object at execution time (issue #1150 —
            *  `DynamicMayPayManaCost`, Flash's "pay its mana cost reduced by
-           *  {2}"). Omitted for a bare cost-free "you may" decision (issue
+           *  {2}"), or a dynamically-derived ENERGY cost (issue #1195 —
+           *  `DynamicMayPayEnergyCost`, Satya's "pay {E} equal to its mana
+           *  value"). Omitted for a bare cost-free "you may" decision (issue
            *  #680). */
-          cost?: MayPayCost | DynamicMayPayManaCost;
+          cost?: MayPayCost | DynamicMayPayManaCost | DynamicMayPayEnergyCost;
           prompt: string;
           /** REQUIRED — the boolean binding name (`"$paid"`). A may-pay whose
            *  outcome nothing reads is meaningless, so the grammar demands it. */

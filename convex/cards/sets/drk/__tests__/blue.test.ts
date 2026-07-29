@@ -862,20 +862,62 @@ describe("Dance of Many — definition (modern Scryfall oracle, ADR 0004)", () =
         ]);
     });
 
-    it("declares the CR 603.3d target requirement on its ETB: one creature", () => {
+    it("declares the CR 603.3d target requirement on its ETB: one NONTOKEN creature (issue #1195)", () => {
         const etb = danceOfMany.triggeredAbilities?.find(
             (a) => a.id === "dance-of-many-etb"
         );
         // "create a token that's a copy of target nontoken creature" — the
         // target is chosen at stack placement (CR 603.3d), not resolution.
-        // DIVERGENCE: TargetRequirement has no token filter, so the "nontoken"
-        // clause is dropped (out of scope for the current target machinery).
-        expect(etb?.targetRequirement).toEqual({ type: "Creature", count: 1 });
+        // `isToken: false` (issue #1195) is the "nontoken" clause — FIXED, no
+        // longer a documented divergence.
+        expect(etb?.targetRequirement).toEqual({
+            type: "Creature",
+            count: 1,
+            isToken: false,
+        });
     });
 
     it("is registered by id and name", () => {
         expect(getDefinition(danceOfMany.id)).toBe(danceOfMany);
         expect(getCardByName("Dance of Many")).toBe(danceOfMany);
+    });
+
+    it("excludes a TOKEN creature from the legal copy targets (CR 111.5, issue #1195 — previously an incorrectly-legal target)", () => {
+        const dance = makeInstance(danceOfMany.id, {
+            id: "dance-nontoken-check",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const tokenCreature = makeInstance(getCardByName("Serra Angel").id, {
+            id: "a-token",
+            controllerId: "p1",
+            ownerId: "p1",
+            isToken: true,
+        });
+        const nontoken = makeInstance(getCardByName("Serra Angel").id, {
+            id: "a-nontoken",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [dance, tokenCreature, nontoken],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const etb = danceOfMany.triggeredAbilities!.find(
+            (a) => a.id === "dance-of-many-etb"
+        )!;
+        const legal = getLegalTargets(
+            state,
+            etb.targetRequirement!,
+            [],
+            "p1"
+        ).map((t) => t.id);
+        expect(legal).not.toContain("a-token");
+        expect(legal).toContain("a-nontoken");
     });
 });
 

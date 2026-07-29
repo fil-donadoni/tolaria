@@ -608,6 +608,8 @@ function isEffectTokenSpec(value: unknown): boolean {
         "activatedAbilities",
         "entersWith",
         "backFace",
+        "entersTapped",
+        "entersAttacking",
     ]);
     if (!Object.keys(s).every((k) => allowed.has(k))) return false;
     if (typeof s.name !== "string" || s.name.length === 0) return false;
@@ -645,6 +647,10 @@ function isEffectTokenSpec(value: unknown): boolean {
     }
     if ("entersWith" in s && !isEntersWithSpec(s.entersWith)) return false;
     if ("backFace" in s && !isEffectCardBackFace(s.backFace)) return false;
+    // CR 508.4 (issue #1195) — Satya, Aetherflux Genius's "tapped and
+    // attacking" token entry flags.
+    if ("entersTapped" in s && !isBoolean(s.entersTapped)) return false;
+    if ("entersAttacking" in s && !isBoolean(s.entersAttacking)) return false;
     return true;
 }
 
@@ -1374,10 +1380,32 @@ function isDynamicMayPayManaCost(value: unknown): boolean {
     );
 }
 
-/** `mayPay`'s `cost` field: the static `MayPayCost` union OR the
- *  dynamically-derived `{ manaCostOf, reducedBy }` shape (issue #1150). */
+/** A `mayPay` Op's dynamically-derived ENERGY cost (issue #1195): `{
+ *  energyEqualTo: EffectValue }` — "pay {E} equal to a runtime amount" (Satya,
+ *  Aetherflux Genius — "pay {E} equal to its mana value"). `energyEqualTo`
+ *  reuses the EXISTING `EffectValue` grammar wholesale (`isEffectValue`) — no
+ *  new value kind — unlike the mana leg's bespoke `manaCostOf` + `reducedBy`
+ *  shape. A THIRD accepted shape for `mayPay`'s `cost` field. */
+function isDynamicMayPayEnergyCost(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    const obj = value as Record<string, unknown>;
+    const keys = Object.keys(obj);
+    if (keys.length !== 1 || !("energyEqualTo" in obj)) return false;
+    return isEffectValue(obj.energyEqualTo);
+}
+
+/** `mayPay`'s `cost` field: the static `MayPayCost` union, the
+ *  dynamically-derived `{ manaCostOf, reducedBy }` mana shape (issue #1150),
+ *  or the dynamically-derived `{ energyEqualTo }` energy shape (issue
+ *  #1195). */
 function isMayPayCostOrDynamic(value: unknown): boolean {
-    return isMayPayCost(value) || isDynamicMayPayManaCost(value);
+    return (
+        isMayPayCost(value) ||
+        isDynamicMayPayManaCost(value) ||
+        isDynamicMayPayEnergyCost(value)
+    );
 }
 
 /** The relational operators an `if` comparison predicate may use (CR 107). */
@@ -2367,7 +2395,14 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             source: isObjectSelector,
             controller: isPlayerRef,
         },
-        optional: { count: isEffectValue, bind: isBindingName },
+        optional: {
+            count: isEffectValue,
+            bind: isBindingName,
+            // CR 508.4 (issue #1195) — Satya, Aetherflux Genius's "tapped
+            // and attacking" token-copy entry flags.
+            entersTapped: isBoolean,
+            entersAttacking: isBoolean,
+        },
     },
     // CR 114 (issue #1221) — create a command-zone emblem. `emblem` is a
     // non-empty registry key (the closure-bearing definition lives in

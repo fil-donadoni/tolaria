@@ -11960,6 +11960,165 @@ describe("Effect Script Op: mayPay dynamic cost (manaCostOf/reducedBy, issue #11
     });
 });
 
+// A `mayPay` Op's dynamically-derived ENERGY cost (issue #1195,
+// `DynamicMayPayEnergyCost`: `{ energyEqualTo: EffectValue }`) — "pay {E}
+// equal to a runtime amount". Exercises Satya, Aetherflux Genius's exact
+// shape: `energyEqualTo` reuses the EXISTING `manaValue` EffectValue member
+// (`{ manaValue: { of: { ref: "$token" } } }`), resolved through the SAME
+// `resolveValue` every other numeric Op parameter uses — no bespoke reader,
+// unlike the mana leg's dedicated `manaCostOf`/`reducedBy` shape.
+describe("Effect Script Op: mayPay dynamic ENERGY cost (energyEqualTo, issue #1195)", () => {
+    const ENERGY_COST_CREATURE_ID = "test-op-maypay-energy-creature";
+    registerTokenDefinition({
+        id: ENERGY_COST_CREATURE_ID,
+        name: ENERGY_COST_CREATURE_ID,
+        rarity: "common",
+        // {2}{G} — mana value 3.
+        manaCost: { X: 2, G: 1 },
+        types: ["Creature"],
+        subtypes: ["Bear"],
+        power: 2,
+        toughness: 2,
+    });
+
+    function registerSatyaLikeScript(id: string): string {
+        return registerScript(id, [
+            {
+                op: "createTokenCopy",
+                source: { target: 0 },
+                controller: "controller",
+                bind: "$copy",
+            },
+            {
+                op: "delayedTrigger",
+                timing: "next-end-step",
+                oracleText:
+                    "Sacrifice that token unless you pay an amount of {E} equal to its mana value.",
+                capture: { $token: { ref: "$copy" } },
+                effects: [
+                    {
+                        op: "mayPay",
+                        player: "controller",
+                        cost: {
+                            energyEqualTo: {
+                                manaValue: { of: { ref: "$token" } },
+                            },
+                        },
+                        prompt: "Pay {E} equal to its mana value?",
+                        bind: "$paid",
+                    },
+                    {
+                        op: "if",
+                        predicate: { not: { binding: "$paid" } },
+                        then: [{ op: "sacrifice", target: { ref: "$token" } }],
+                    },
+                ],
+            },
+        ]);
+    }
+
+    it("derives the energy amount from the captured object's live mana value, and pays it (kept, not sacrificed)", () => {
+        const id = registerSatyaLikeScript("test-op-maypay-energy-pay");
+        const bear = makeInstance(ENERGY_COST_CREATURE_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "energyBear1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { energyCounters: 5 }),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "energyBear1" }]);
+        resolveTopOfStack(state);
+        const copyId = state.players[0].battlefield[0]!.id;
+        expect(state.delayedTriggers?.length).toBe(1);
+
+        fireDelayedTriggers(state, "next-end-step");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on may-pay
+        const payHead = state.pendingChoices![0];
+        expect(payHead.kind).toBe("may-pay");
+        // Mana value 3 (X:2 generic + G:1 colored pip) → {E}{E}{E}.
+        expect(payHead.cost).toEqual({ energy: 3 });
+        // Wire format — the dynamically-derived cost must survive the
+        // projection unchanged (the client renders the may-pay prompt from
+        // `PublicGameState`, not the fat server state).
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.pendingChoices?.[0].cost).toEqual({ energy: 3 });
+
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        expect(state.players[0].energyCounters).toBe(2);
+        expect(state.players[0].battlefield.map((c) => c.id)).toContain(copyId);
+    });
+
+    it("sacrifices the token on DECLINE, energy unspent", () => {
+        const id = registerSatyaLikeScript("test-op-maypay-energy-decline");
+        const bear = makeInstance(ENERGY_COST_CREATURE_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "energyBear2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { energyCounters: 5 }),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "energyBear2" }]);
+        resolveTopOfStack(state);
+        const copyId = state.players[0].battlefield[0]!.id;
+
+        fireDelayedTriggers(state, "next-end-step");
+        resolveTopOfStack(state);
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+
+        expect(state.players[0].energyCounters).toBe(5);
+        // CR 704.5d — a TOKEN sacrificed to the graveyard ceases to exist as
+        // a state-based action (already swept by the time resolution
+        // returns), so it's gone from the battlefield and never observably
+        // sits in the graveyard either (unlike a real card's sacrifice).
+        expect(state.players[0].battlefield.map((c) => c.id)).not.toContain(
+            copyId
+        );
+        expect(state.players[0].graveyard.map((c) => c.id)).not.toContain(
+            copyId
+        );
+    });
+
+    it("skips the whole mayPay Op when the captured object has left the battlefield (CR 608.2b) — the sacrifice then no-ops too", () => {
+        const id = registerSatyaLikeScript("test-op-maypay-energy-gone");
+        const bear = makeInstance(ENERGY_COST_CREATURE_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "energyBear3",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { energyCounters: 5 }),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "energyBear3" }]);
+        resolveTopOfStack(state);
+        const copyId = state.players[0].battlefield[0]!.id;
+        // The token leaves play (e.g. removal) BEFORE the delayed trigger
+        // fires — no window for a response inside this test, but the effect
+        // is the same as any other CR 608.2b "gone before the delayed
+        // trigger resolves" case.
+        state.players[0].battlefield = state.players[0].battlefield.filter(
+            (c) => c.id !== copyId
+        );
+
+        fireDelayedTriggers(state, "next-end-step");
+        // No may-pay prompt (the dynamic cost's referenced object is gone,
+        // MAY_PAY_COST_UNRESOLVABLE skips the whole Op) and the trailing
+        // sacrifice is a no-op against a permanent that already isn't there.
+        expect(resolveTopOfStack(state)).not.toBeNull();
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+    });
+});
+
 describe("Effect Script construct: if (ADR 0045, CR 608.2c, issue #806)", () => {
     it("runs the then branch and skips else on a true binding predicate", () => {
         const id = registerScript("test-if-then", [
@@ -21362,6 +21521,92 @@ describe("Effect Script Op: createTokenCopy (CR 707.2 + CR 111.1, issue #1459)",
         expect(slim.card.id).toBe(BEAR_ID);
         expect(getEffectivePower(projected, slim)).toBe(2);
         expect(getEffectiveToughness(projected, slim)).toBe(5);
+    });
+});
+
+// CR 508.4 (issue #1195, Satya, Aetherflux Genius) — new capability of the
+// EXISTING `createTokenCopy` Op (not a new Op): `entersTapped`/
+// `entersAttacking` enter the copy already tapped and/or already attacking,
+// joining the CURRENT combat directly.
+describe("Effect Script Op: createTokenCopy entersTapped/entersAttacking (CR 508.4, issue #1195)", () => {
+    it("enters the copy tapped and joins the current combat's attackerIds", () => {
+        const id = registerScript("test-op-ctc-attacking", [
+            {
+                op: "createTokenCopy",
+                source: { target: 0 },
+                controller: "controller",
+                entersTapped: true,
+                entersAttacking: true,
+                bind: "$copy",
+            },
+        ]);
+        const attacker = makeInstance(BEAR_ID, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "ctc-atk-source",
+        });
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "ctc-atk-target",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [attacker] }),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+            combat: {
+                attackerIds: ["ctc-atk-source"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+        pushSpell(state, id, "p1", [
+            { type: "permanent", id: "ctc-atk-target" },
+        ]);
+        resolveTopOfStack(state);
+        const copy = state.players[0].battlefield.find(
+            (c) => c.id !== "ctc-atk-source"
+        )!;
+        expect(copy).toBeDefined();
+        expect(copy.isTapped).toBe(true);
+        expect(state.combat!.attackerIds).toEqual(["ctc-atk-source", copy.id]);
+        // Wire format — tap state and combat membership are board-visible.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === copy.id
+        )!;
+        expect(slim.isTapped).toBe(true);
+        expect(projected.combat!.attackerIds).toContain(copy.id);
+    });
+
+    it("neither flag set (omitted) — the copy enters untapped and not attacking, unchanged from before this issue (Dance of Many)", () => {
+        const id = registerScript("test-op-ctc-plain", [
+            {
+                op: "createTokenCopy",
+                source: { target: 0 },
+                controller: "controller",
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "ctc-plain-target",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "permanent", id: "ctc-plain-target" },
+        ]);
+        resolveTopOfStack(state);
+        const copy = state.players[0].battlefield[0];
+        expect(copy.isTapped).toBe(false);
+        expect(state.combat).toBeUndefined();
     });
 });
 

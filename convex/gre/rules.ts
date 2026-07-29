@@ -1780,6 +1780,7 @@ export interface IntrinsicPermanentTargetFilters {
     powerFilter?: { min?: number; max?: number };
     toughnessFilter?: { min?: number; max?: number };
     mvFilter?: { min?: number; max?: number; equals?: number };
+    isToken?: boolean;
 }
 
 /** THE single authority on whether a permanent passes a target requirement's
@@ -1841,6 +1842,7 @@ export function intrinsicPermanentTargetViolation(
         powerFilter: f.powerFilter,
         toughnessFilter: f.toughnessFilter,
         mvFilter: f.mvFilter,
+        isToken: f.isToken,
     };
     return checkPermanentTargetFilters(ctx, card, values);
 }
@@ -2076,6 +2078,7 @@ export function getLegalTargets(
                         toughnessFilter,
                         mvFilter,
                         sameController: requirement.sameController,
+                        isToken: requirement.isToken,
                     })
                 ) {
                     continue;

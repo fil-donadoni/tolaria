@@ -25,8 +25,11 @@ import {
     savannahLions,
     wallOfSwords,
 } from "../../cards/sets/lea";
-import { resolveTopOfStack } from "../state";
+import { mightstone } from "../../cards/sets/atq/colorless";
+import { buildSpellContext, resolveTopOfStack } from "../state";
 import { pushSpell } from "../../cards/__tests__/setup";
+import { getEffectivePower } from "../layers";
+import { getLegalTargets } from "../rules";
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -739,5 +742,200 @@ describe("validateMinimumBlockers (DECLARE_BLOCKERS — menace, CR 509.1b/c)", (
         } else {
             expect(validateMinimumBlockers(state).ok).toBe(ok);
         }
+    });
+});
+
+// ---------------------------------------------------------------------------
+// CR 508.4 — tokens put onto the battlefield tapped and/or already attacking
+// (issue #1195, Satya, Aetherflux Genius / Otharri, Suns' Glory precedent
+// stub #920). Low-level `SpellContext.createToken` / `createTokenCopyOf`
+// coverage, independent of any specific card's Effect Script.
+// ---------------------------------------------------------------------------
+
+describe("CR 508.4 — TokenSpec.entersTapped / entersAttacking (issue #1195)", () => {
+    it("entersTapped taps the token even with no active combat", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const item = pushSpell(state, grizzlyBears.id, "p1");
+        const ctx = buildSpellContext(state, item);
+        const [id] = ctx.createToken(
+            {
+                name: "T",
+                types: ["Creature"],
+                power: 1,
+                toughness: 1,
+                entersTapped: true,
+            },
+            "p1"
+        );
+        const token = state.players[0].battlefield.find((c) => c.id === id)!;
+        expect(token.isTapped).toBe(true);
+    });
+
+    it("entersAttacking joins the CURRENT combat's attackerIds directly, without emitting an attack-declaration event", () => {
+        const attacker = makeInstance(grizzlyBears.id, {
+            id: "atk1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [attacker] }),
+                makePlayer("p2"),
+            ],
+            combat: {
+                attackerIds: ["atk1"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+        const item = pushSpell(state, grizzlyBears.id, "p1");
+        const ctx = buildSpellContext(state, item);
+        const [id] = ctx.createToken(
+            {
+                name: "T",
+                types: ["Creature"],
+                power: 2,
+                toughness: 2,
+                entersTapped: true,
+                entersAttacking: true,
+            },
+            "p1"
+        );
+        const token = state.players[0].battlefield.find((c) => c.id === id)!;
+        expect(token.isTapped).toBe(true);
+        expect(state.combat!.attackerIds).toEqual(["atk1", id]);
+        // BLOCKING review finding (issue #1195) — the token must be attacking
+        // by BOTH engine representations: `combat.attackerIds` membership
+        // (asserted above) AND the per-permanent `isAttacking` flag. Before
+        // the shared `markAttacking` helper (`gre/combat.ts`), this path only
+        // set the former, leaving `isAttacking` `undefined` — invisible to
+        // every OTHER combat-scoped read (layer statics, `combatRoleFilter`,
+        // `PermanentFilter.isAttacking`, `SpellContext.getIsAttacking`, the
+        // frontend UI).
+        expect(token.isAttacking).toBe(true);
+        // CR 508.4 — this token never "attacked" for trigger purposes: no
+        // pendingEvents entry records a fresh ATTACKERS_DECLARED for it (the
+        // engine's own attack-trigger scan only runs off that event, at the
+        // normal declare-attackers action — this call never emits one).
+        expect(
+            (state.pendingEvents ?? []).some(
+                (e) => e.type === "ATTACKERS_DECLARED"
+            )
+        ).toBe(false);
+    });
+
+    it("entersAttacking is a no-op when there is no active combat (defensive)", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const item = pushSpell(state, grizzlyBears.id, "p1");
+        const ctx = buildSpellContext(state, item);
+        expect(() =>
+            ctx.createToken(
+                {
+                    name: "T",
+                    types: ["Creature"],
+                    power: 1,
+                    toughness: 1,
+                    entersAttacking: true,
+                },
+                "p1"
+            )
+        ).not.toThrow();
+        expect(state.combat).toBeUndefined();
+    });
+
+    it("createTokenCopyOf honors entersTapped/entersAttacking on the underlying copy, applied BEFORE applyCopy overwrites its characteristics", () => {
+        const source = makeInstance(grizzlyBears.id, {
+            id: "src1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [source] }),
+                makePlayer("p2"),
+            ],
+            combat: {
+                attackerIds: [],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+        const item = pushSpell(state, grizzlyBears.id, "p1");
+        const ctx = buildSpellContext(state, item);
+        const tokenId = ctx.createTokenCopyOf("src1", "p1", undefined, {
+            entersTapped: true,
+            entersAttacking: true,
+        });
+        expect(tokenId).toBeDefined();
+        const token = state.players[0].battlefield.find(
+            (c) => c.id === tokenId
+        )!;
+        expect(token.isTapped).toBe(true);
+        expect(state.combat!.attackerIds).toContain(tokenId);
+        // Both attacking representations in sync (issue #1195 fix).
+        expect(token.isAttacking).toBe(true);
+        // The copy path still applied — the token presents as Grizzly Bears.
+        expect(token.power).toBe(grizzlyBears.power);
+        expect(token.toughness).toBe(grizzlyBears.toughness);
+    });
+
+    it("BEHAVIOURAL (issue #1195 review): an entersAttacking token is reached by an 'attacking creatures get +1/+0' static AND by combatRoleFilter:'attacking' targeting — both blind to attackerIds-only membership", () => {
+        const attacker = makeInstance(grizzlyBears.id, {
+            id: "atk-behav",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const mightstonePermanent = makeInstance(mightstone.id, {
+            id: "mightstone1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [attacker, mightstonePermanent],
+                }),
+                makePlayer("p2"),
+            ],
+            combat: {
+                attackerIds: ["atk-behav"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+        const item = pushSpell(state, grizzlyBears.id, "p1");
+        const ctx = buildSpellContext(state, item);
+        const [id] = ctx.createToken(
+            {
+                name: "T",
+                types: ["Creature"],
+                power: 2,
+                toughness: 2,
+                entersTapped: true,
+                entersAttacking: true,
+            },
+            "p1"
+        );
+        const token = state.players[0].battlefield.find((c) => c.id === id)!;
+        // Mightstone ("attacking creatures get +1/+0") reaches the token only
+        // because `isAttacking` is set — a base 2 power token reads 3.
+        expect(getEffectivePower(state, token)).toBe(3);
+        // `combatRoleFilter: "attacking"` also reads `isAttacking`, not
+        // `attackerIds` — the token must be offered as a legal "target
+        // attacking creature".
+        const legalAttackers = getLegalTargets(
+            state,
+            { type: "Creature", count: 1, combatRoleFilter: "attacking" },
+            [],
+            "p1"
+        ).map((t) => t.id);
+        expect(legalAttackers).toContain(id);
     });
 });

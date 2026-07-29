@@ -575,6 +575,20 @@ const excludeTypesDescriptor = defineFilter<CardType[]>({
     },
 });
 
+// CR 111.5 — token-ness filter ("target nontoken creature", Dance of Many /
+// Satya, Aetherflux Genius, issue #1195). Exact-match, mirroring
+// `PermanentFilter.isToken` / `EffectCardFilter.isToken`'s own semantics:
+// `true` keeps only tokens, `false` keeps only nontoken permanents.
+const isTokenDescriptor = defineFilter<boolean>({
+    lower: (req) => req.isToken,
+    checks: {
+        permanent: (card, value) =>
+            (card.isToken === true) === value
+                ? null
+                : `Target must ${value ? "" : "not "}be a token`,
+    },
+});
+
 // CR 202.2 — color-exclude filter (Terror's "nonblack").
 const excludeColorsDescriptor = defineFilter<Color[]>({
     lower: (req) => arr(req.excludeColors),
@@ -1033,6 +1047,7 @@ export const PERMANENT_FILTER_KEYS = [
     "toughnessFilter",
     "mvFilter",
     "sameController",
+    "isToken",
 ] as const;
 
 export type PermanentFilterKey = (typeof PERMANENT_FILTER_KEYS)[number];
@@ -1113,6 +1128,7 @@ export const REGISTRY = {
     playerAttackedThisTurn:
         playerAttackedThisTurnDescriptor as FilterDescriptor<unknown>,
     sameController: sameControllerDescriptor as FilterDescriptor<unknown>,
+    isToken: isTokenDescriptor as FilterDescriptor<unknown>,
 } satisfies Record<FilterKey, FilterDescriptor<unknown>>;
 
 /** The requirement-derived filter VALUES for the permanent kind — the
@@ -1140,6 +1156,7 @@ export type PermanentFilterValues = Partial<{
     toughnessFilter: { min?: number; max?: number };
     mvFilter: { min?: number; max?: number; equals?: number };
     sameController: boolean;
+    isToken: boolean;
 }>;
 
 /** Runs every SET filter in `values` against `candidate` through the
