@@ -65,16 +65,14 @@ Fable of the mirror-breaker
 
 # Bug bot
 
-- casta wild growth su terra avversaria
-- cerca di tappare per mana un everflowing chalice senza counters e continua a fallire nel castare una spell, rinunciando.
-- continua a castare vision charm con la mode di cambio tipo terra base, senza motivo
-- casta flash of insight con X = 0, inutile
-- casta sheoldred's edict senza alcuna creatura o planeswalker sul mio board
-- casta damnation su board vuoto
-- casta chrome mox e non imprinta nessuna carta
-- attiva mother of runes a sorcery speed senza motivo
-- attiva sandstorm salvager senza token sul board
-- anima mishra's factory dopo il suo combat, e anche in risposta ad altri eventi, ma senza motivo
+Segnalazione 2026-07-29 — tutti tracciati, raggruppati per root cause:
+
+- #1887 — cast no-op provabili: Damnation su board vuoto, Sheoldred's Edict senza creature/PW avversari, Sandstorm Salvager senza token, Vision Charm mode inutile, Chrome Mox senza imprint
+- #1888 — choice priors: Wild Growth su terra avversaria, Flash of Insight X=0, Chrome Mox che non imprinta, Vision Charm mode sbagliata
+- #1889 — engine: Everflowing Chalice con 0 charge counters tappato per mana → cast fallisce in loop
+- #1890 — timing attivazioni: Mother of Runes a sorcery speed, Mishra's Factory animata post-combat
+
+Causa strutturale sotto i 4 cluster: mappa wayfinder #1892 (soffitto di forza del bot — fedeltà dell'eval, non profondità di ricerca).
 
 # Mobile
 
