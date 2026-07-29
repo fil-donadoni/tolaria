@@ -1,26 +1,36 @@
 import { useMemo, useState } from "react";
 import { getAllCardNames } from "@convex/cards";
+import { getAllTokenKeys } from "@convex/cards/tokenCatalogue";
 
 /** Controlled card-name autocomplete for the debug scenario builder. Unlike
  *  `CardNameInput` (which owns a submit button for a `name-card` choice), this
  *  is a plain value/onChange field: the parent repeater owns the value and the
  *  save. Suggestions are filtered over the implemented card registry
- *  (`getAllCardNames`) with exact → prefix → substring ranking, capped for the
- *  UI. A dropdown of matches shows while the field is focused and the typed
- *  value isn't already an exact match. */
+ *  (`getAllCardNames`) — or, with `source="tokens"`, over the token catalogue
+ *  (`getAllTokenKeys`, CR 111 / 707.2: a token has no CardDefinition, so it is
+ *  named by catalogue key) — with exact → prefix → substring ranking, capped
+ *  for the UI. A dropdown of matches shows while the field is focused and the
+ *  typed value isn't already an exact match. */
 export default function DebugCardNameField({
     value,
     onChange,
     placeholder = "Card name…",
     ariaLabel = "Card name",
+    source = "cards",
 }: {
     value: string;
     onChange: (name: string) => void;
     placeholder?: string;
     ariaLabel?: string;
+    /** Which name space to suggest from: the card registry (default) or the
+     *  token catalogue. */
+    source?: "cards" | "tokens";
 }) {
     const [focused, setFocused] = useState(false);
-    const allNames = useMemo(() => getAllCardNames(), []);
+    const allNames = useMemo(
+        () => (source === "tokens" ? getAllTokenKeys() : getAllCardNames()),
+        [source]
+    );
 
     const trimmed = value.trim();
     const suggestions = useMemo(() => {

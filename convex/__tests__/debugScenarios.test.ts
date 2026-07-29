@@ -231,6 +231,60 @@ describe("collectUnresolvedCardNames — pre-write loadability guard (ADR 0044)"
             ["Also Fake", "Definitely Not A Real Card", "Phantom Copy"].sort()
         );
     });
+
+    // CR 111 / 707.2 — a `token: true` entry names a shape in the TOKEN
+    // catalogue, not a card in the registry, so it must be validated against
+    // the token resolver. Checking it against the card resolver would reject
+    // every legal token scenario ("Treasure" is no card); skipping it would
+    // wave through a row the builder then throws on at load.
+    const resolvesToken = (name: string) => ["Treasure", "Wasp"].includes(name);
+
+    it("validates a token entry against the TOKEN resolver, not the card one", () => {
+        const spec: ScenarioSpec = {
+            cards: [{ name: "Treasure", owner: "me", token: true }],
+        };
+        expect(
+            collectUnresolvedCardNames(spec, resolves, resolvesToken)
+        ).toEqual([]);
+        // Same name WITHOUT the flag is a card reference — and no such card.
+        expect(
+            collectUnresolvedCardNames(
+                { cards: [{ name: "Treasure", owner: "me" }] },
+                resolves,
+                resolvesToken
+            )
+        ).toEqual(["Treasure"]);
+    });
+
+    it("surfaces an unknown token key", () => {
+        const spec: ScenarioSpec = {
+            cards: [{ name: "Nonexistent Token", owner: "me", token: true }],
+        };
+        expect(
+            collectUnresolvedCardNames(spec, resolves, resolvesToken)
+        ).toEqual(["Nonexistent Token"]);
+    });
+
+    it("accepts an aura host that names a token (CR 303.4)", () => {
+        const spec: ScenarioSpec = {
+            cards: [
+                { name: "Wasp", owner: "me", token: true },
+                { name: "Plains", owner: "me", attachedTo: "Wasp" },
+            ],
+        };
+        expect(
+            collectUnresolvedCardNames(spec, resolves, resolvesToken)
+        ).toEqual([]);
+    });
+
+    it("rejects a token entry when no token resolver is supplied (fails loud)", () => {
+        const spec: ScenarioSpec = {
+            cards: [{ name: "Treasure", owner: "me", token: true }],
+        };
+        expect(collectUnresolvedCardNames(spec, resolves)).toEqual([
+            "Treasure",
+        ]);
+    });
 });
 
 describe("DB row → load → builder input (issue #769 integration)", () => {

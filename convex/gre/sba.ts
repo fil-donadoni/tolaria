@@ -764,14 +764,17 @@ export function checkStateBasedActions(state: GameState): void {
         if (state.gameOver) return;
         if (!acted) break;
     }
-    // CR 702.131a (issue #1460) — the PERMANENT form of Ascend: a continuous
+    // CR 702.131b (issue #1460) — the PERMANENT form of Ascend: a continuous
     // check granting the city's blessing to any player who controls an Ascend
     // permanent and ten or more permanents. Runs AFTER the fixpoint (it depends
     // on the settled battlefield count, and being monotonic/idempotent it can
     // never itself unsettle the loop). Not a literal CR 704 state-based action
-    // — it grants a designation, moving nothing — but this sweep is the engine's
-    // canonical "re-evaluate continuous conditions at every stable point" hook,
-    // exactly where a state-trigger-like check belongs.
+    // — it grants a designation, moving nothing — and, being a STATIC ability
+    // (CR 604.1), it is NOT ALLOWED to wait for this sweep either: every
+    // battlefield-entry site calls `checkAscendCityBlessing` eagerly so a
+    // mid-resolution tenth permanent grants the blessing immediately (Ocelot
+    // Pride, `gre/cityBlessing.ts`). This call is the stable-point BACKSTOP for
+    // any entry path that does not (a deserialized state, a hand-built board).
     checkAscendCityBlessing(state);
     // CR 603.3b — triggered abilities that triggered from the SBA-driven zone
     // changes above (an Aura's "when this leaves" LTB, a creature's death

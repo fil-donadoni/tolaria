@@ -946,3 +946,73 @@ describe("Ocelot Pride — with the city's blessing (CR 702.131b / 707.2)", () =
         expect(state.players[1].battlefield).toHaveLength(1);
     });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The "Then" ordering when the Cat token itself turns Ascend on.
+//
+// Ocelot Pride carries Ascend, so the Cat token created by the FIRST clause can
+// be the tenth permanent that grants the blessing — and the SECOND clause ("Then
+// if you have the city's blessing…") must already see it. Gatherer ruling:
+// "If the creature token created by Ocelot Pride's last ability is your tenth
+// permanent, you'll get the city's blessing before the ability would check to
+// see if you have the city's blessing."
+//
+// CR 702.131b makes the permanent form of Ascend a STATIC ability ("any time you
+// control ten or more permanents…"), true at all times (CR 604.1) — NOT a
+// state-based action, which by CR 704.3 would only be checked at the next
+// priority, i.e. after this ability has finished resolving. Evaluating Ascend
+// only in the SBA sweep silently dropped the whole second clause here.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("Ocelot Pride — the Cat token IS the tenth permanent (CR 702.131b / 604.1)", () => {
+    /** Ocelot Pride + `count - 1` lands = `count` permanents for p1, no
+     *  blessing yet. */
+    function ocelotSetupWith(count: number): GameState {
+        const state = ocelotSetup();
+        for (let i = 0; i < count - 1; i++) {
+            state.players[0].battlefield.push(
+                makeInstance(forest.id, {
+                    id: `bf-forest-${i}`,
+                    controllerId: "p1",
+                    ownerId: "p1",
+                })
+            );
+        }
+        state.lifeGainedThisTurn = { p1: 1 };
+        return state;
+    }
+
+    it("grants the blessing mid-resolution, so the Cat gets copied", () => {
+        const state = ocelotSetupWith(9);
+        expect(hasCityBlessing(state, "p1")).toBe(false);
+
+        resolveOcelotTrigger(state);
+
+        expect(hasCityBlessing(state, "p1")).toBe(true);
+        // The Cat is the tenth permanent → "Then" sees the blessing → the only
+        // token that entered this turn (the Cat) is copied: 2 Cat tokens.
+        expect(catTokens(state)).toHaveLength(2);
+        // ...and nothing else was created (the lands are not tokens).
+        expect(p1Tokens(state).filter((c) => c.isToken)).toHaveLength(2);
+    });
+
+    it("still does nothing extra when the Cat is only the NINTH permanent", () => {
+        const state = ocelotSetupWith(8);
+
+        resolveOcelotTrigger(state);
+
+        expect(hasCityBlessing(state, "p1")).toBe(false);
+        expect(catTokens(state)).toHaveLength(1);
+    });
+
+    it("survives the wire: the client sees both Cats and the designation", () => {
+        const state = ocelotSetupWith(9);
+        resolveOcelotTrigger(state);
+
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.cityBlessingIds).toContain("p1");
+        const slimCats = projected.players[0].battlefield.filter(
+            (c) => c.id !== "ocelot" && c.subtypes?.includes("Cat")
+        );
+        expect(slimCats).toHaveLength(2);
+    });
+});

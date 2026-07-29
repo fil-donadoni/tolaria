@@ -1848,10 +1848,13 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         cr: "702.131",
         status: "implemented",
         // Declared as the literal `staticAbilities: ["ascend"]` string. The
-        // engine consumes it in two places (issue #1460): the PERMANENT form is
-        // a continuous check in the SBA sweep (`gre/cityBlessing.ts`
-        // `checkAscendCityBlessing`), and the INSTANT/SORCERY form checks once
-        // on resolution (`finalizeSpellResolution`). Both grant the monotonic
+        // engine consumes it in two places (issue #1460): the PERMANENT form
+        // (CR 702.131b) is a STATIC ability, so `checkAscendCityBlessing`
+        // (`gre/cityBlessing.ts`) runs at every battlefield-entry site AND in
+        // the SBA sweep as a backstop — never the sweep alone, which by
+        // CR 704.3 would be a priority-check too late for a mid-resolution
+        // read; the INSTANT/SORCERY form (CR 702.131a) checks once on
+        // resolution (`finalizeSpellResolution`). Both grant the monotonic
         // City's Blessing designation (`GameState.cityBlessingIds`,
         // CR 702.131b — never revoked once obtained).
         binding: "ascend",

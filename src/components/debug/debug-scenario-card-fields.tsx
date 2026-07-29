@@ -51,6 +51,8 @@ export default function DebugScenarioCardFields({
                     value={draft.name}
                     onChange={(name) => onPatch({ name })}
                     ariaLabel={`Card ${index + 1} name`}
+                    source={draft.token ? "tokens" : "cards"}
+                    placeholder={draft.token ? "Token…" : "Card name…"}
                 />
                 <select
                     value={draft.owner}
@@ -75,13 +77,32 @@ export default function DebugScenarioCardFields({
 
             {/* Common placement knobs */}
             <div className="flex flex-wrap items-center gap-2 pl-5">
+                {/* CR 111 / 707.2 — a token row names a shape in the token
+                    catalogue instead of a card, and (CR 111.7) can only be
+                    placed on the battlefield, so the zone picker is locked. */}
+                <label className="flex items-center gap-1 text-text-muted">
+                    <input
+                        type="checkbox"
+                        checked={draft.token}
+                        onChange={(e) =>
+                            onPatch({
+                                token: e.target.checked,
+                                name: "",
+                                zone: "battlefield",
+                            })
+                        }
+                        aria-label={`Card ${index + 1} is token`}
+                    />
+                    token
+                </label>
                 <select
                     value={draft.zone}
+                    disabled={draft.token}
                     onChange={(e) =>
                         onPatch({ zone: e.target.value as CardDraft["zone"] })
                     }
                     aria-label={`Card ${index + 1} zone`}
-                    className={inputClass}
+                    className={`${inputClass} disabled:opacity-50`}
                 >
                     {ZONES.map((z) => (
                         <option key={z} value={z}>

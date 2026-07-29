@@ -31,6 +31,7 @@ import {
     normalizeMayPayCost,
 } from "./state";
 import { checkStateBasedActions } from "./sba";
+import { checkAscendCityBlessing } from "./cityBlessing";
 import { tryGetDefinition } from "../cards";
 import type { MayPayCost } from "../cards/types";
 
@@ -251,6 +252,14 @@ function settleEnteredLand(
 
     // CR 302.6 — control-continuity clock (summoning sickness for manlands).
     markEnteredThisTurn(card, state.turn);
+
+    // CR 702.131b / 702.131d — continuous Ascend check (`gre/cityBlessing.ts`),
+    // run BEFORE the trigger scan below: "after a player gets the city's
+    // blessing, continuous effects are reapplied before the game checks to see
+    // if the game state or preceding events have matched any trigger
+    // conditions". Gatherer (Ascend): "if your tenth permanent is a land you
+    // play, players can't respond before you get the city's blessing".
+    checkAscendCityBlessing(state);
 
     if (willEnterTapped) card.isTapped = true;
 

@@ -7,6 +7,7 @@ import {
 } from "./_generated/server";
 import { assertIsAdmin } from "./auth";
 import { tryGetCardByName } from "./cards";
+import { findTokenSpec } from "./cards/tokenCatalogue";
 import {
     collectUnresolvedCardNames,
     normalizeScenarioSpec,
@@ -64,7 +65,8 @@ export const saveDebugScenario = mutation({
         // card name (placement, aura host, copy source) is unknown.
         const unresolved = collectUnresolvedCardNames(
             args.spec,
-            (name) => tryGetCardByName(name) !== null
+            (name) => tryGetCardByName(name) !== null,
+            (name) => findTokenSpec(name) !== undefined
         );
         if (unresolved.length > 0) {
             throw new Error(`Unknown card name(s): ${unresolved.join(", ")}`);
@@ -107,7 +109,8 @@ export const updateDebugScenario = mutation({
         }
         const unresolved = collectUnresolvedCardNames(
             args.spec,
-            (name) => tryGetCardByName(name) !== null
+            (name) => tryGetCardByName(name) !== null,
+            (name) => findTokenSpec(name) !== undefined
         );
         if (unresolved.length > 0) {
             throw new Error(`Unknown card name(s): ${unresolved.join(", ")}`);
@@ -256,7 +259,8 @@ export const seedScenarioDirect = internalMutation({
         // the catalogue, with the offending name(s) in the error.
         const unresolved = collectUnresolvedCardNames(
             args.spec,
-            (name) => tryGetCardByName(name) !== null
+            (name) => tryGetCardByName(name) !== null,
+            (name) => findTokenSpec(name) !== undefined
         );
         if (unresolved.length > 0) {
             throw new Error(`Unknown card name(s): ${unresolved.join(", ")}`);

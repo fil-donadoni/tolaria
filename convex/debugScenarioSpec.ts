@@ -18,6 +18,11 @@ import { v } from "convex/values";
 export const scenarioCardValidator = v.object({
     name: v.string(),
     owner: v.union(v.literal("me"), v.literal("opp")),
+    // CR 111 / 707.2 — this entry places a TOKEN, not a card: `name` is then a
+    // token-catalogue key (`convex/cards/tokenCatalogue.ts`), not a card name,
+    // and the builder creates it through `createTokenPermanents`. Battlefield
+    // only (CR 111.7: a token in any other zone ceases to exist).
+    token: v.optional(v.boolean()),
     zone: v.optional(
         v.union(
             v.literal("hand"),
@@ -80,6 +85,10 @@ export const scenarioSpecValidator = v.object({
 export type ScenarioCard = {
     name: string;
     owner: "me" | "opp";
+    /** CR 111 / 707.2 — place a TOKEN whose shape `name` names in the token
+     *  catalogue (`convex/cards/tokenCatalogue.ts`), rather than a card.
+     *  Battlefield only. */
+    token?: boolean;
     zone?: "hand" | "battlefield" | "library" | "graveyard" | "exile";
     tapped?: boolean;
     count?: number;
@@ -299,6 +308,7 @@ function normalizeCard(raw: unknown): ScenarioCard | null {
     if (zone !== undefined && (ZONES as readonly string[]).includes(zone)) {
         card.zone = zone as ScenarioCard["zone"];
     }
+    set(card, "token", pickBoolean(raw.token));
     set(card, "tapped", pickBoolean(raw.tapped));
     set(card, "count", pickNumber(raw.count));
     set(card, "position", pickNumber(raw.position));
@@ -383,14 +393,33 @@ export function normalizeScenarioSpec(raw: unknown): ScenarioSpec {
  */
 export function collectUnresolvedCardNames(
     spec: ScenarioSpec,
-    resolves: (name: string) => boolean
+    resolves: (name: string) => boolean,
+    /** Resolver for TOKEN references (`card.token === true`, and an
+     *  `attachedTo` host that names a token rather than a card) — injected the
+     *  same way as `resolves` so this module stays registry-free. Defaults to
+     *  "no token resolves", which fails LOUD at a call site that hasn't been
+     *  taught about tokens rather than waving an unloadable row through. */
+    resolvesToken: (name: string) => boolean = () => false
 ): string[] {
     const unresolved = new Set<string>();
     for (const card of spec.cards) {
-        if (!resolves(card.name)) unresolved.add(card.name);
-        if (card.attachedTo && !resolves(card.attachedTo)) {
+        if (card.token) {
+            if (!resolvesToken(card.name)) unresolved.add(card.name);
+        } else if (!resolves(card.name)) {
+            unresolved.add(card.name);
+        }
+        // CR 303.4 / 701.3 — an Aura/Equipment host may itself be a token
+        // (enchant a Saproling), so either resolution vouches for the name.
+        if (
+            card.attachedTo &&
+            !resolves(card.attachedTo) &&
+            !resolvesToken(card.attachedTo)
+        ) {
             unresolved.add(card.attachedTo);
         }
+        // `copyOf` stays CARD-only: a copy presents a printed card's
+        // characteristics (CR 707.2), and the builder resolves it through
+        // `getCardByName`.
         if (card.copyOf && !resolves(card.copyOf)) {
             unresolved.add(card.copyOf);
         }

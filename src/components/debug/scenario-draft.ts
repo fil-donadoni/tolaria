@@ -11,6 +11,9 @@ export type CounterDraft = { type: string; count: string };
 export type CardDraft = {
     name: string;
     owner: "me" | "opp";
+    /** CR 111 / 707.2 — this row places a TOKEN: `name` is then a token
+     *  catalogue key, and the placement is battlefield-only. */
+    token: boolean;
     zone: NonNullable<ScenarioCard["zone"]>;
     count: string;
     tapped: boolean;
@@ -38,6 +41,7 @@ export function emptyCardDraft(): CardDraft {
     return {
         name: "",
         owner: "me",
+        token: false,
         zone: "battlefield",
         count: "1",
         tapped: false,
@@ -62,6 +66,7 @@ export function cardToDraft(card: ScenarioCard): CardDraft {
     return {
         name: card.name,
         owner: card.owner,
+        token: card.token ?? false,
         zone: card.zone ?? "battlefield",
         count: card.count !== undefined ? String(card.count) : "1",
         tapped: card.tapped ?? false,
@@ -95,7 +100,10 @@ function num(raw: string): number | undefined {
  *  default-valued fields so the persisted spec carries only what was set. */
 export function draftToCard(draft: CardDraft): ScenarioCard {
     const card: ScenarioCard = { name: draft.name.trim(), owner: draft.owner };
-    if (draft.zone !== "battlefield") card.zone = draft.zone;
+    // CR 111.7 — a token only exists on the battlefield, so a token row never
+    // carries a zone (the builder ignores one anyway).
+    if (draft.token) card.token = true;
+    else if (draft.zone !== "battlefield") card.zone = draft.zone;
 
     const count = num(draft.count);
     if (count !== undefined && count !== 1) card.count = count;

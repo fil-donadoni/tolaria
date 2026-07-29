@@ -12,16 +12,34 @@
 //      permanents does not revoke it. `grantCityBlessing` only ever ADDS; there
 //      is deliberately no revoke primitive.
 //
-// Ascend has two forms (CR 702.131a/c), wired at two different moments:
+// Ascend has two forms (CR 702.131a/b), wired at two different moments:
 //
-//   * PERMANENT (static ability). "As long as you control ten or more
-//     permanents, you have the city's blessing for the rest of the game." A
-//     continuous check — `checkAscendCityBlessing` runs in the state-based
-//     action sweep (`sba.ts`), so the instant a controller of an Ascend
-//     permanent reaches ten permanents they are granted the blessing.
+//   * PERMANENT (static ability). "ANY TIME you control ten or more permanents
+//     and you don't have the city's blessing, you get the city's blessing for
+//     the rest of the game" (CR 702.131b). A static ability is simply true at
+//     all times (CR 604.1) — it is NOT a state-based action, so it must NOT be
+//     evaluated only in the SBA sweep, which by CR 704.3 runs solely when a
+//     player would receive priority. `checkAscendCityBlessing` therefore runs
+//     BOTH in the SBA sweep (`sba.ts`, the stable-point backstop) AND eagerly
+//     at every site where a player's permanent count can RISE: a permanent
+//     spell resolving, a token created, a permanent put onto the battlefield by
+//     an effect, a land played, a control change, a phase-in (`state.ts` /
+//     `playLand.ts` — grep `checkAscendCityBlessing`). Without the eager calls
+//     the blessing arrives one priority-check too late, and an effect creating a
+//     permanent and then reads the designation in the same resolution reads a
+//     stale `false`:
+//         Ocelot Pride — "create a 1/1 white Cat creature token. THEN if you
+//         have the city's blessing, for each token you control that entered
+//         this turn, create a token that's a copy of it." Gatherer ruling: "If
+//         the creature token created by Ocelot Pride's last ability is your
+//         tenth permanent, you'll get the city's blessing BEFORE the ability
+//         would check to see if you have the city's blessing."
+//     The same eagerness is what makes the CR-ruling case work where the tenth
+//     permanent enters and immediately leaves (legend rule, 0 toughness): the
+//     grant happens at entry, before the SBA sweep removes it.
 //   * INSTANT / SORCERY. Ascend is part of the spell's resolution: "if you
 //     control ten or more permanents, you get the city's blessing." Checked
-//     ONCE, on resolution, and FIRST (CR 702.131c: it is the spell's first
+//     ONCE, on resolution, and FIRST (CR 702.131a: it is the spell's first
 //     spell ability, so the spell's own later clauses observe the blessing it
 //     just granted — Golden Demise, Secrets of the Golden City).
 //     `resolveTopOfStackInner` (`state.ts`) calls
@@ -87,39 +105,49 @@ export function grantCityBlessingIfThreshold(
     return grantCityBlessing(state, playerId);
 }
 
-/** True iff this permanent carries the Ascend keyword (CR 702.131a) — read off
+/** True iff this permanent carries the Ascend keyword (CR 702.131b) — read off
  *  the live instance `staticAbilities` array (so a dynamically granted Ascend
  *  would count too), matching how every other keyword check reads. */
 function permanentHasAscend(card: CardInstanceState): boolean {
     return card.staticAbilities.includes(ASCEND_KEYWORD);
 }
 
-/** CR 702.131a — the PERMANENT form of Ascend, evaluated continuously. For
- *  every player who controls at least one Ascend permanent AND controls ten or
- *  more permanents, grants the city's blessing (idempotent, never revoked).
- *  Runs inside the SBA sweep (`checkStateBasedActions`). Pure state-mutation,
- *  no events; the grant is a silent designation change, so it does not gate the
- *  SBA fixpoint. */
+/** CR 702.131b — the PERMANENT form of Ascend, evaluated continuously ("any
+ *  time you control ten or more permanents"). For every player who controls at
+ *  least one Ascend permanent AND controls ten or more permanents, grants the
+ *  city's blessing (idempotent, never revoked). Pure state-mutation, no events;
+ *  the grant is a silent designation change, so it never gates the SBA
+ *  fixpoint.
+ *
+ *  Called from TWO kinds of site (see the header note):
+ *    - the SBA sweep (`checkStateBasedActions`) — the stable-point backstop;
+ *    - every battlefield-ENTRY site in `state.ts`, eagerly, because a static
+ *      ability is not an SBA (CR 604.1 / 704.3) and the count can only RISE
+ *      when a permanent enters.
+ *
+ *  One O(battlefield) pass: tallies per-controller permanent counts and the set
+ *  of controllers holding an Ascend permanent together, so calling it on every
+ *  permanent entry stays cheap. */
 export function checkAscendCityBlessing(state: GameState): void {
-    for (const player of state.players) {
-        if (hasCityBlessing(state, player.id)) continue;
-        // Does this player control any Ascend permanent? (Scan by controllerId
-        // across all battlefields — an Ascend permanent stolen from an opponent
-        // grants ITS controller, per "you get the city's blessing".)
-        let controlsAscend = false;
-        for (const p of state.players) {
-            for (const card of p.battlefield) {
-                if (
-                    card.controllerId === player.id &&
-                    permanentHasAscend(card)
-                ) {
-                    controlsAscend = true;
-                    break;
-                }
-            }
-            if (controlsAscend) break;
+    // Scan by controllerId across ALL battlefields — an Ascend permanent stolen
+    // from an opponent grants ITS controller, per "you get the city's blessing"
+    // (CR 702.131), and a control-changed permanent counts for its current
+    // controller.
+    const counts = new Map<string, number>();
+    const ascendControllers = new Set<string>();
+    for (const p of state.players) {
+        for (const card of p.battlefield) {
+            counts.set(
+                card.controllerId,
+                (counts.get(card.controllerId) ?? 0) + 1
+            );
+            if (permanentHasAscend(card))
+                ascendControllers.add(card.controllerId);
         }
-        if (!controlsAscend) continue;
-        grantCityBlessingIfThreshold(state, player.id);
+    }
+    for (const playerId of ascendControllers) {
+        if (hasCityBlessing(state, playerId)) continue;
+        if ((counts.get(playerId) ?? 0) < CITY_BLESSING_THRESHOLD) continue;
+        grantCityBlessing(state, playerId);
     }
 }

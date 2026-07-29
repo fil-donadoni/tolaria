@@ -262,6 +262,10 @@ export async function runScenarioGeneration(deps: {
     const spec = normalizeScenarioSpec(parsed);
     // Loadability validation, NOT legality (ADR 0044): reject names that don't
     // resolve to a real CardDefinition; also scans attachedTo / copyOf hosts.
+    // No token resolver is injected on purpose: the generator's prompt offers a
+    // CARD allow-list only (CR 111 / 707.2 tokens are not in it), so a `token`
+    // entry the model invented is surfaced as unresolved for the human review
+    // step rather than written through.
     const unresolved = collectUnresolvedCardNames(spec, resolves);
     return { spec, unresolved };
 }

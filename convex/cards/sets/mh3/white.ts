@@ -276,6 +276,17 @@ export const phelia: CardDefinition = {
 // creates — which are themselves tokens that entered this turn — are never
 // added to the set being iterated. Asserted directly in the test file.
 //
+// ORDERING, part two — "THEN if you have the city's blessing". The Cat token
+// can itself be the TENTH permanent that turns this card's own Ascend on, and
+// the `if` below must already see the blessing. CR 702.131b is a STATIC ability
+// ("any time you control ten or more permanents"), true at all times (CR 604.1)
+// and NOT a state-based action — Gatherer: "If the creature token created by
+// Ocelot Pride's last ability is your tenth permanent, you'll get the city's
+// blessing before the ability would check to see if you have the city's
+// blessing." `createTokenPermanents` therefore grants it eagerly, at token
+// creation; evaluating Ascend only in the SBA sweep (CR 704.3 — next priority)
+// silently dropped this whole clause.
+//
 // No `resolve()` anywhere: the whole card is an Effect Script (ADR 0045).
 export const OCELOT_PRIDE_ID = "89cf6f57-230f-497e-a14e-ad1e8737fd42";
 

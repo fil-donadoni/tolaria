@@ -13224,6 +13224,13 @@ export const debugSetupScenario = mutation({
             v.object({
                 name: v.string(),
                 owner: v.union(v.literal("me"), v.literal("opp")),
+                /** CR 111 / 707.2 — place a TOKEN instead of a card: `name` is
+                 *  then a key in the token catalogue
+                 *  (`convex/cards/tokenCatalogue.ts`, e.g. "Treasure",
+                 *  "Soldier (1/1 W)") and the token is created through the
+                 *  engine's `createTokenPermanents`, art and all. Battlefield
+                 *  only (CR 111.7). */
+                token: v.optional(v.boolean()),
                 zone: v.optional(
                     v.union(
                         v.literal("hand"),

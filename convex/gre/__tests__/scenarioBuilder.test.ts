@@ -15,6 +15,10 @@ import { makePlayer, makeState } from "../../cards/__tests__/setup";
 import { grizzlyBears } from "../../cards/sets/lea/green";
 import { shivanDragon } from "../../cards/sets/lea/red";
 import { forest } from "../../cards/sets/lea/colorless";
+import { fear } from "../../cards/sets/lea/black";
+import { tokenDefinitionId, tryGetDefinition } from "../../cards";
+import { findTokenSpec } from "../../cards/tokenCatalogue";
+import { projectPublicState } from "../../gameProjections";
 import type { ScenarioSpec } from "../../debugScenarioSpec";
 
 describe("buildStateFromScenario (issue #1424)", () => {
@@ -255,5 +259,226 @@ describe("buildStateFromScenario (issue #1424)", () => {
         const exiled = state.players[0].exile[0];
         expect(exiled.castableFromExileBy).toBe(state.players[0].id);
         expect(exiled.castableFromExileIncludesLand).toBeUndefined();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Library seeding order — regression.
+//
+// `libraryCount` used to refill the libraries AFTER the placement loop, by
+// assigning `player.library = []` and pushing basics: that silently DELETED
+// every card the spec had placed in the `library` zone. Both fields are offered
+// side by side in the Debug panel's save form, so the combination is the
+// ordinary case ("stack the top of my library, and give me a deck to draw
+// from"), and the symptom was a library card that simply never appeared.
+// ---------------------------------------------------------------------------
+
+describe("buildStateFromScenario — library placement + libraryCount", () => {
+    it("keeps cards placed in the library when `libraryCount` also seeds filler basics", () => {
+        const base = makeState();
+        const spec: ScenarioSpec = {
+            cards: [
+                {
+                    name: shivanDragon.name,
+                    owner: "me",
+                    zone: "library",
+                    position: 1,
+                },
+            ],
+            libraryCount: 10,
+        };
+
+        const state = buildStateFromScenario(base, spec);
+
+        const library = state.players[0].library;
+        // 10 filler basics + the placed card, which sits on TOP (position 1 =
+        // index 0, where `drawCard` reads).
+        expect(library).toHaveLength(11);
+        expect((library[0].card as { id: string }).id).toBe(shivanDragon.id);
+        expect(
+            library.filter(
+                (c) => (c.card as { id: string }).id === shivanDragon.id
+            )
+        ).toHaveLength(1);
+    });
+
+    it("appends a library card to the BOTTOM of the filler pile when no position is given", () => {
+        const base = makeState();
+        const spec: ScenarioSpec = {
+            cards: [{ name: shivanDragon.name, owner: "opp", zone: "library" }],
+            libraryCount: 3,
+        };
+
+        const state = buildStateFromScenario(base, spec);
+
+        const library = state.players[1].library;
+        expect(library).toHaveLength(4);
+        expect((library[3].card as { id: string }).id).toBe(shivanDragon.id);
+    });
+
+    it("still seeds the requested filler count when no card is placed in the library", () => {
+        const base = makeState();
+        const spec: ScenarioSpec = { cards: [], libraryCount: 5 };
+
+        const state = buildStateFromScenario(base, spec);
+
+        expect(state.players[0].library).toHaveLength(5);
+        expect(state.players[1].library).toHaveLength(5);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Tokens on a scenario board (CR 111 / 707.2).
+//
+// A token has no `CardDefinition`, so it can't be placed by name like a card —
+// the entry sets `token: true` and the builder creates it through the engine's
+// own `createTokenPermanents`, resolving the shape from the token catalogue.
+// ---------------------------------------------------------------------------
+
+describe("buildStateFromScenario — tokens (CR 111 / 707.2)", () => {
+    it("creates a token permanent on the battlefield with the catalogue's characteristics", () => {
+        const base = makeState();
+        const spec: ScenarioSpec = {
+            cards: [{ name: "Wasp", owner: "me", token: true, count: 2 }],
+        };
+
+        const state = buildStateFromScenario(base, spec);
+
+        const battlefield = state.players[0].battlefield;
+        expect(battlefield).toHaveLength(2);
+        for (const token of battlefield) {
+            expect(token.isToken).toBe(true);
+            expect(token.controllerId).toBe(state.players[0].id);
+            expect(token.power).toBe(1);
+            expect(token.toughness).toBe(1);
+            expect(token.staticAbilities).toContain("flying");
+            // The synthesized definition id (CR 707.1) — what the client reads
+            // to render the token, art included.
+            expect((token.card as { id: string }).id).toBe(
+                tokenDefinitionId(findTokenSpec("Wasp")!)
+            );
+        }
+    });
+
+    it("stages an already-set-up board: a token is NOT summoning sick unless asked (CR 302.6)", () => {
+        const base = makeState();
+        const spec: ScenarioSpec = {
+            cards: [
+                { name: "Wasp", owner: "me", token: true },
+                {
+                    name: "Wasp",
+                    owner: "opp",
+                    token: true,
+                    summoningSick: true,
+                },
+            ],
+        };
+
+        const state = buildStateFromScenario(base, spec);
+
+        expect(state.players[0].battlefield[0].isSummoningSick).toBe(false);
+        expect(state.players[1].battlefield[0].isSummoningSick).toBe(true);
+    });
+
+    it("honors tapped / damage / counters on a token", () => {
+        const base = makeState();
+        const spec: ScenarioSpec = {
+            cards: [
+                {
+                    name: "Wasp",
+                    owner: "me",
+                    token: true,
+                    tapped: true,
+                    damageMarked: 1,
+                    counters: { "+1/+1": 2 },
+                },
+            ],
+        };
+
+        const state = buildStateFromScenario(base, spec);
+
+        const token = state.players[0].battlefield[0];
+        expect(token.isTapped).toBe(true);
+        expect(token.damageMarked).toBe(1);
+        expect(token.counters).toEqual({ "+1/+1": 2 });
+    });
+
+    it("keeps a token's own activated abilities reachable (shared Treasure spec)", () => {
+        const base = makeState();
+        const spec: ScenarioSpec = {
+            cards: [{ name: "Treasure", owner: "me", token: true }],
+        };
+
+        const state = buildStateFromScenario(base, spec);
+
+        const token = state.players[0].battlefield[0];
+        const def = tryGetDefinition((token.card as { id: string }).id);
+        expect(def?.activatedAbilities?.length).toBeGreaterThan(0);
+    });
+
+    it("does NOT leave a TOKENS_CREATED trigger event pending (a scenario places a board, it doesn't play one)", () => {
+        const base = makeState();
+        const spec: ScenarioSpec = {
+            cards: [{ name: "Wasp", owner: "me", token: true }],
+        };
+
+        const state = buildStateFromScenario(base, spec);
+
+        expect(state.pendingEvents ?? []).toEqual([]);
+    });
+
+    it("attaches an Aura to a TOKEN host (CR 303.4)", () => {
+        const base = makeState();
+        const spec: ScenarioSpec = {
+            cards: [
+                { name: "Wasp", owner: "me", token: true },
+                {
+                    name: fear.name,
+                    owner: "me",
+                    attachedTo: "Wasp",
+                },
+            ],
+        };
+
+        const state = buildStateFromScenario(base, spec);
+
+        const battlefield = state.players[0].battlefield;
+        const host = battlefield.find((c) => c.isToken)!;
+        const aura = battlefield.find(
+            (c) => (c.card as { id: string }).id === fear.id
+        )!;
+        expect(aura.attachedTo).toBe(host.id);
+    });
+
+    it("throws on an unknown token key (a spec error, not a silently empty board)", () => {
+        const base = makeState();
+        const spec: ScenarioSpec = {
+            cards: [{ name: "Not A Token", owner: "me", token: true }],
+        };
+
+        expect(() => buildStateFromScenario(base, spec)).toThrow(
+            /Unknown token/
+        );
+    });
+
+    it("survives the wire projection — the client can still resolve the token's definition", () => {
+        const base = makeState();
+        const spec: ScenarioSpec = {
+            cards: [{ name: "Wasp", owner: "me", token: true }],
+        };
+
+        const state = buildStateFromScenario(base, spec);
+        const projected = projectPublicState(state, 1, state.players[0].id);
+
+        const slim = projected.players[0].battlefield[0];
+        expect(slim.isToken).toBe(true);
+        // The projection strips `card` down to `{ id }`, so the client rebuilds
+        // the token's characteristics from the content-derived id alone
+        // (`maybeSynthesizeToken`) — including its art.
+        const synthesized = tryGetDefinition((slim.card as { id: string }).id);
+        expect(synthesized?.name).toBe("Wasp");
+        expect(synthesized?.imagePrintId).toBe(
+            findTokenSpec("Wasp")!.imagePrintId
+        );
     });
 });

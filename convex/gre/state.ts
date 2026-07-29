@@ -55,6 +55,7 @@ import {
 import { applyPlayLand, enqueueLandEntryChoice } from "./playLand";
 import {
     ASCEND_KEYWORD,
+    checkAscendCityBlessing,
     grantCityBlessingIfThreshold,
     hasCityBlessing,
 } from "./cityBlessing";
@@ -3364,7 +3365,7 @@ export type GameState = {
      *  Modeled on `monarchId` (a player designation held in game state, not on
      *  any object) but with two CR-driven differences: (1) it is a SET, not a
      *  single scalar — the blessing is not exclusive, both players can hold it
-     *  at once (CR 702.131b); (2) it is MONOTONIC — once a player is added they
+     *  at once (CR 702.131c); (2) it is MONOTONIC — once a player is added they
      *  are NEVER removed, because "you have the city's blessing for the rest of
      *  the game" (CR 702.131b): dropping below ten permanents does not revoke
      *  it. Written exclusively through `grantCityBlessing` (idempotent add);
@@ -4102,7 +4103,7 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
         }
     }
 
-    // --- Ascend, instant/sorcery form (CR 702.131c, issue #1460) ---
+    // --- Ascend, instant/sorcery form (CR 702.131a, issue #1460) ---
     // "Ascend" on an instant or sorcery is that spell's FIRST spell ability:
     // "If you control ten or more permanents, you get the city's blessing for
     // the rest of the game." It therefore applies BEFORE the rest of the
@@ -4799,6 +4800,11 @@ function finalizeSpellResolution(state: GameState, item: StackItem): void {
             delete item.chosenXOnCast;
         }
         controller.battlefield.push(item);
+        // CR 702.131b / 604.1 — Ascend's permanent form is a static ability
+        // ("ANY TIME you control ten or more permanents…"), not an SBA, so the
+        // designation is granted the instant the count rises — not at the next
+        // priority check. See `gre/cityBlessing.ts`.
+        checkAscendCityBlessing(state);
         // CR 121.6 / 614.1c — apply the entry-counters REPLACEMENT before the
         // layer system runs, so effective P/T reads include them immediately
         // (Clockwork Beast) and before `emitPermanentEntered` below scans
@@ -4842,7 +4848,7 @@ function finalizeSpellResolution(state: GameState, item: StackItem): void {
         // trigger condition (Lutri, the Spellchaser).
         emitPermanentEntered(state, item, { wasCast: true });
     } else {
-        // CR 702.131c (issue #1460) — the INSTANT/SORCERY form of Ascend is
+        // CR 702.131a (issue #1460) — the INSTANT/SORCERY form of Ascend is
         // NOT handled here: it is the spell's first spell ability and must
         // apply BEFORE the rest of the spell's text, so it runs at the top of
         // `resolveTopOfStackInner` (before the effect dispatch) instead.
@@ -6338,6 +6344,9 @@ export function applyControlChange(
     }
     found.player.battlefield.splice(found.idx, 1);
     getPlayer(state, newControllerId).battlefield.push(found.card);
+    // CR 702.131b — continuous Ascend check: the new controller's permanent
+    // count just rose (and the check is not an SBA — `gre/cityBlessing.ts`).
+    checkAscendCityBlessing(state);
     // CR 506.4c — a control change removes the permanent from combat the
     // instant it happens (Goblin Cadets' "This removes this creature from
     // combat" reminder is this rule made explicit). No-op outside combat.
@@ -7295,6 +7304,9 @@ export function phaseInBundle(state: GameState, bundleId: string): boolean {
     for (const card of bundle.cards) {
         getPlayer(state, card.controllerId).battlefield.push(card);
     }
+    // CR 702.131b — continuous Ascend check (`gre/cityBlessing.ts`): a phased-in
+    // bundle is back on the battlefield and counts again (CR 702.26b).
+    checkAscendCityBlessing(state);
     if (bundle.onPhaseIn?.tap && bundle.cards[0]) {
         bundle.cards[0].isTapped = true;
     }
@@ -8543,6 +8555,8 @@ function stageReanimatedOnBattlefield(
     if (putDef?.entersTappedUnlessPay) {
         card.isTapped = true;
         getPlayer(state, controllerId).battlefield.push(card);
+        // CR 702.131b — continuous Ascend check (`gre/cityBlessing.ts`).
+        checkAscendCityBlessing(state);
         applyExistingGrantsTo(state, card);
         applySourceStaticEffects(state, card);
         enqueueLandEntryChoice(
@@ -8558,6 +8572,10 @@ function stageReanimatedOnBattlefield(
     // artifact/creature/land as it enters via reanimation / put-onto-battlefield.
     if (shouldEnterTapped(state, card)) card.isTapped = true;
     getPlayer(state, controllerId).battlefield.push(card);
+    // CR 702.131b — continuous Ascend check (`gre/cityBlessing.ts`): reanimation
+    // / put-onto-battlefield happens MID-resolution, so the SBA sweep is too
+    // late for a later clause of the same effect to read the designation.
+    checkAscendCityBlessing(state);
     return true;
 }
 
@@ -14595,6 +14613,12 @@ export function createTokenPermanents(
         applySourceStaticEffects(state, token);
         ids.push(id);
     }
+    // CR 702.131b — continuous Ascend check (`gre/cityBlessing.ts`). A token
+    // IS a permanent (CR 111.1), and token creation is the canonical
+    // mid-resolution count bump: Ocelot Pride's "create a Cat token. THEN if
+    // you have the city's blessing…" reads the designation in the very next Op
+    // of the same Effect Script, long before any SBA sweep runs.
+    checkAscendCityBlessing(state);
     // Issue #1345 (CR 111 / 707.2) — emit ONE TOKENS_CREATED event for this
     // WHOLE call, not one per token. This is the naturally-batched choke
     // point "whenever you create one or more creature tokens" triggers

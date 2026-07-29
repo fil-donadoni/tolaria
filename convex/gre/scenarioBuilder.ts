@@ -14,8 +14,9 @@
  * input is never mutated (the function clones internally).
  */
 
-import { getCardByName, tryGetDefinition } from "../cards";
+import { getCardByName, tokenDefinitionId, tryGetDefinition } from "../cards";
 import { basicLandsForColors, getCardColors } from "../cards/colors";
+import { findTokenSpec } from "../cards/tokenCatalogue";
 import type { Color } from "../cards/types";
 import {
     resolveScenarioBattlefieldCounters,
@@ -27,6 +28,7 @@ import {
     type PlayerState,
     allocInstanceId,
     applySourceStaticEffects,
+    createTokenPermanents,
     exileFaceDownCard,
     getOpponentId,
 } from "./state";
@@ -36,6 +38,69 @@ import { turnFaceDown } from "./faceDown";
 import { finalizeMulligan } from "./mulligan";
 import { isPlaneswalker } from "./constants";
 import type { Phase } from "./types";
+
+/**
+ * Create a scenario entry's TOKEN permanents (CR 111 / 707.2) and apply the
+ * per-entry battlefield knobs to each copy.
+ *
+ * A token is not a card, so it can't go through `makeInstance`/`getCardByName`:
+ * its characteristics live in a `TokenSpec` resolved from the token catalogue
+ * (`cards/tokenCatalogue.ts`) and it is created through the engine's own
+ * `createTokenPermanents` — the same primitive a real card's `createToken`
+ * uses, so the placed token gets its synthesized + registered definition, its
+ * art, its `entersWith` counters and its activated abilities exactly as if a
+ * card had made it.
+ *
+ * Throws on an unknown token key, mirroring `getCardByName`'s behaviour for an
+ * unknown card name: a scenario that references a token shape the pool can't
+ * create is a spec error, not a silently-empty board.
+ *
+ * Returns the created instances so the caller can queue any `attachedTo`.
+ */
+function placeScenarioTokens(
+    state: GameState,
+    entry: ScenarioSpec["cards"][number],
+    player: PlayerState
+): CardInstanceState[] {
+    const spec = findTokenSpec(entry.name);
+    if (!spec) {
+        throw new Error(
+            `Unknown token: "${entry.name}". Token names come from the token catalogue (cards/tokenCatalogue.ts).`
+        );
+    }
+    // CR 111.7 — a token in any zone other than the battlefield ceases to
+    // exist, so a token entry is battlefield-only regardless of `zone`.
+    const ids = new Set(
+        createTokenPermanents(state, spec, player.id, entry.count ?? 1)
+    );
+    const created = player.battlefield.filter((c) => ids.has(c.id));
+    for (const token of created) {
+        token.isTapped = entry.tapped ?? false;
+        // CR 302.6 — `createTokenPermanents` marks every fresh token
+        // summoning-sick (it just entered). A scenario stages an ALREADY-SET-UP
+        // board, so the default flips to "has been here since your last turn"
+        // unless the spec explicitly asks for a just-created token.
+        token.isSummoningSick = entry.summoningSick ?? false;
+        if (entry.damageMarked && entry.damageMarked > 0) {
+            token.damageMarked = entry.damageMarked;
+        }
+        if (entry.attackedLastTurn) token.attackedDuringLastTurn = true;
+        // An explicit `counters` REPLACES whatever the spec's `entersWith`
+        // seeded (the scenario is staging a specific board); no counters in the
+        // spec leaves the token's own entry counters in place.
+        if (entry.counters) {
+            const counters = resolveScenarioBattlefieldCounters(
+                entry.counters,
+                {
+                    isPlaneswalker: isPlaneswalker(token),
+                    printedLoyalty: undefined,
+                }
+            );
+            if (counters) token.counters = counters;
+        }
+    }
+    return created;
+}
 
 /**
  * Build the scenario board state from a base `GameState` and a
@@ -101,6 +166,46 @@ export function buildStateFromScenario(
         };
     }
 
+    // Base lands seeded by `landCount`/`libraryCount` match the COLORS of
+    // the cards placed in the scenario (CR 202.2): a mono-red board seeds
+    // Mountains, a UW board alternates Islands and Plains — so the placed
+    // cards are actually castable. A colourless/empty board falls back to
+    // Plains (the historical behaviour).
+    const colorsPresent = new Set<Color>();
+    for (const entry of spec.cards) {
+        if (entry.token) {
+            // A token has no printed mana cost; its colors are declared on the
+            // spec (CR 110.5). An unknown token key contributes nothing — the
+            // placement loop below is what surfaces the error.
+            for (const c of findTokenSpec(entry.name)?.colors ?? []) {
+                colorsPresent.add(c);
+            }
+            continue;
+        }
+        const def = getCardByName(entry.name);
+        for (const c of getCardColors(def)) colorsPresent.add(c);
+    }
+    const basicLandCycle = basicLandsForColors(colorsPresent);
+    const basicLandAt = (i: number) =>
+        basicLandCycle[i % basicLandCycle.length];
+
+    // Fill libraries with filler basics if requested — BEFORE the placement
+    // loop, so a scenario can do both. This used to run AFTER placement and
+    // reset `player.library` outright, which silently DELETED every card the
+    // spec had placed in the library zone (the Debug panel's save form offers
+    // both fields, so the combination is the common case, not an exotic one).
+    // Seeding first makes `libraryCount` mean "this many filler basics", and
+    // an entry's `position` then indexes into the already-filled pile.
+    if (spec.libraryCount !== undefined) {
+        p1.library = [];
+        p2.library = [];
+        for (let i = 0; i < spec.libraryCount; i++) {
+            const name = basicLandAt(i);
+            p1.library.push(makeInstance(name, p1.id, "library"));
+            p2.library.push(makeInstance(name, p2.id, "library"));
+        }
+    }
+
     // Auras/Equipment whose `attachedTo` host must be resolved by name once
     // every card has been placed (the host may appear later in `spec.cards`).
     const pendingAttach: {
@@ -109,11 +214,33 @@ export function buildStateFromScenario(
         ownerId: string;
     }[] = [];
 
+    // A scenario PLACES a board, it never plays one out: token creation emits
+    // a `TOKENS_CREATED` event (CR 111, issue #1345) that a "whenever you
+    // create one or more tokens" trigger would pick up on a freshly-loaded
+    // board. Snapshot the queue and restore it after placement.
+    const basePendingEvents = state.pendingEvents;
+
     // Place requested cards
     for (const entry of spec.cards) {
         const player = entry.owner === "me" ? p1 : p2;
         const zone = entry.zone ?? "battlefield";
         const count = entry.count ?? 1;
+        // CR 111 / 707.2 — a TOKEN entry names a shape in the token catalogue,
+        // not a card in the registry, and is created through the engine's own
+        // token primitive (which synthesizes + registers its CardDefinition,
+        // resolves art and applies `entersWith` counters).
+        if (entry.token) {
+            for (const token of placeScenarioTokens(state, entry, player)) {
+                if (entry.attachedTo) {
+                    pendingAttach.push({
+                        aura: token,
+                        hostName: entry.attachedTo,
+                        ownerId: player.id,
+                    });
+                }
+            }
+            continue;
+        }
         for (let i = 0; i < count; i++) {
             const instance = makeInstance(entry.name, player.id, zone, {
                 tapped: entry.tapped,
@@ -250,19 +377,7 @@ export function buildStateFromScenario(
         }
     }
 
-    // Base lands seeded by `landCount`/`libraryCount` match the COLORS of
-    // the cards placed in the scenario (CR 202.2): a mono-red board seeds
-    // Mountains, a UW board alternates Islands and Plains — so the placed
-    // cards are actually castable. A colourless/empty board falls back to
-    // Plains (the historical behaviour).
-    const colorsPresent = new Set<Color>();
-    for (const entry of spec.cards) {
-        const def = getCardByName(entry.name);
-        for (const c of getCardColors(def)) colorsPresent.add(c);
-    }
-    const basicLandCycle = basicLandsForColors(colorsPresent);
-    const basicLandAt = (i: number) =>
-        basicLandCycle[i % basicLandCycle.length];
+    state.pendingEvents = basePendingEvents;
 
     // Add lands (only if explicitly requested)
     const landCount = spec.landCount ?? 0;
@@ -277,28 +392,24 @@ export function buildStateFromScenario(
     // (derived from the given name), searching the aura owner's battlefield
     // first and the opponent's second; the first match wins.
     for (const { aura, hostName, ownerId } of pendingAttach) {
-        const hostDef = getCardByName(hostName);
+        // The host may be a TOKEN (enchant a Saproling): a token's placed
+        // instance carries the content-derived definition id of its shape, so
+        // the same by-def-id match works once the name is resolved through the
+        // token catalogue instead of the card registry.
+        const hostTokenSpec = findTokenSpec(hostName);
+        const hostDefId = hostTokenSpec
+            ? tokenDefinitionId(hostTokenSpec)
+            : getCardByName(hostName).id;
         const owner = state.players.find((pl) => pl.id === ownerId);
         const opp = state.players.find((pl) => pl.id !== ownerId);
         const findHost = (pl: PlayerState | undefined) =>
             pl?.battlefield.find(
                 (c) =>
                     c.id !== aura.id &&
-                    (c.card as { id?: string }).id === hostDef.id
+                    (c.card as { id?: string }).id === hostDefId
             );
         const host = findHost(owner) ?? findHost(opp);
         if (host) aura.attachedTo = host.id;
-    }
-
-    // Fill libraries if requested
-    if (spec.libraryCount !== undefined) {
-        p1.library = [];
-        p2.library = [];
-        for (let i = 0; i < spec.libraryCount; i++) {
-            const name = basicLandAt(i);
-            p1.library.push(makeInstance(name, p1.id, "library"));
-            p2.library.push(makeInstance(name, p2.id, "library"));
-        }
     }
 
     // CR 702.139c / ADR 0064 (issue #1392) — directly declare a companion

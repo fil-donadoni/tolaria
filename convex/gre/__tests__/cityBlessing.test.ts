@@ -1,17 +1,23 @@
 // City's Blessing designation (Ascend, CR 702.131 — issue #1460, ADR 0071).
-// Covers the three CR clauses:
-//   702.131a — the PERMANENT form: a continuous check granting the blessing to
-//              a player controlling an Ascend permanent and ten+ permanents.
-//   702.131b — MONOTONIC: once obtained, the blessing is NEVER lost; dropping
-//              below ten permanents does not revoke it.
-//   702.131c — the INSTANT/SORCERY form: checked ONCE, on resolution.
+// Covers the CR clauses:
+//   702.131a — the INSTANT/SORCERY form: a spell ability, checked ONCE, on
+//              resolution, and FIRST (before the spell's own later clauses).
+//   702.131b — the PERMANENT form: a STATIC ability (CR 604.1) — "ANY TIME you
+//              control ten or more permanents" — and therefore NEVER an SBA
+//              (CR 704.3). Also MONOTONIC: once obtained, the blessing is
+//              never lost; dropping below ten permanents does not revoke it.
+//   702.131c — the designation itself: non-exclusive, both players may hold it.
 // Plus the wire-format assertion (the designation must survive
 // `projectPublicState` / `projectFullState` to reach the client tile) and the
 // declarative `hasCityBlessing` Effect Script predicate.
 import { describe, it, expect } from "vitest";
 import type { CardInstanceState, GameState } from "../state";
-import type { CardDefinition, CardType } from "../../cards/types";
-import { buildSpellContext, resolveTopOfStack } from "../state";
+import type { CardDefinition, CardType, TokenSpec } from "../../cards/types";
+import {
+    buildSpellContext,
+    createTokenPermanents,
+    resolveTopOfStack,
+} from "../state";
 import { checkStateBasedActions } from "../sba";
 import {
     CITY_BLESSING_THRESHOLD,
@@ -121,7 +127,7 @@ describe("City's Blessing — storage & threshold (CR 702.131, issue #1460)", ()
     });
 });
 
-describe("Ascend — permanent form, continuous (CR 702.131a)", () => {
+describe("Ascend — permanent form, continuous (CR 702.131b)", () => {
     it("grants the blessing through the SBA sweep at ten permanents", () => {
         const state = stateWithPermanents(10, true);
         expect(hasCityBlessing(state, "p1")).toBe(false);
@@ -160,6 +166,122 @@ describe("Ascend — permanent form, continuous (CR 702.131a)", () => {
     });
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// The permanent form is a STATIC ability, NOT a state-based action.
+//
+// CR 702.131b: "ANY TIME you control ten or more permanents and you don't have
+// the city's blessing, you get the city's blessing for the rest of the game."
+// CR 604.1: static abilities "do something all the time"; CR 704.3: SBAs are
+// checked only "whenever a player would get priority". Evaluating Ascend ONLY
+// in the SBA sweep therefore grants the blessing one priority-check too late,
+// and an effect that creates a permanent and then reads the designation in the
+// SAME resolution reads a stale `false` — the Ocelot Pride bug. Gatherer:
+// "If the creature token created by Ocelot Pride's last ability is your tenth
+// permanent, you'll get the city's blessing BEFORE the ability would check to
+// see if you have the city's blessing."
+//
+// These tests drive the real battlefield-entry primitives (NOT
+// `checkStateBasedActions`) and assert the blessing is already there when they
+// return.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("Ascend — continuous, granted the instant the count rises (CR 702.131b / 604.1 / 704.3)", () => {
+    const CAT_TOKEN: TokenSpec = {
+        name: "Cat",
+        types: ["Creature"] as CardType[],
+        subtypes: ["Cat"],
+        power: 1,
+        toughness: 1,
+        colors: ["W"],
+    };
+
+    // A plain sorcery with NO ascend, used only as the stack item a
+    // `SpellContext` is built from (the reanimation case below).
+    const PLAIN_SPELL_ID = "test-plain-sorcery-1460-continuous";
+    registerTokenDefinition({
+        id: PLAIN_SPELL_ID,
+        name: "Plain Test Sorcery",
+        types: ["Sorcery"] as CardType[],
+        subtypes: [],
+        manaCost: {},
+        staticAbilities: [],
+        effects: [],
+    } as unknown as CardDefinition);
+
+    it("a TOKEN entering as the tenth permanent grants it, with no SBA sweep", () => {
+        // Nine permanents, one of them carrying Ascend.
+        const state = stateWithPermanents(9, true);
+        expect(hasCityBlessing(state, "p1")).toBe(false);
+
+        createTokenPermanents(state, { ...CAT_TOKEN }, "p1");
+
+        // No `checkStateBasedActions` in between — this is the mid-resolution
+        // read an Effect Script's next Op performs.
+        expect(countControlledPermanents(state, "p1")).toBe(10);
+        expect(hasCityBlessing(state, "p1")).toBe(true);
+    });
+
+    it("does not grant when the token only reaches nine permanents", () => {
+        const state = stateWithPermanents(8, true);
+        createTokenPermanents(state, { ...CAT_TOKEN }, "p1");
+        expect(countControlledPermanents(state, "p1")).toBe(9);
+        expect(hasCityBlessing(state, "p1")).toBe(false);
+    });
+
+    it("does not grant when no permanent the player controls has Ascend", () => {
+        const state = stateWithPermanents(9, false);
+        createTokenPermanents(state, { ...CAT_TOKEN }, "p1");
+        expect(countControlledPermanents(state, "p1")).toBe(10);
+        expect(hasCityBlessing(state, "p1")).toBe(false);
+    });
+
+    it("a REANIMATED permanent (put onto the battlefield mid-resolution) grants it", () => {
+        // `SpellContext.returnToBattlefield` (Resurrection) funnels into
+        // `putReanimatedOnBattlefield` — a mid-resolution entry, where the next
+        // clause of the SAME spell may read the designation.
+        const state = stateWithPermanents(9, true);
+        const corpse = permanent("corpse", "p1");
+        corpse.zone = "graveyard";
+        state.players[0].graveyard.push(corpse);
+
+        const item = pushSpell(state, PLAIN_SPELL_ID, "p1");
+        const ctx = buildSpellContext(state, item);
+        expect(ctx.returnToBattlefield("p1", "corpse", "graveyard")).toBe(true);
+
+        expect(countControlledPermanents(state, "p1")).toBe(10);
+        expect(hasCityBlessing(state, "p1")).toBe(true);
+        // And the SpellContext read the spell's own later clause would perform
+        // now reports it (this is the exact Ocelot Pride shape).
+        expect(ctx.hasCityBlessing("p1")).toBe(true);
+    });
+
+    it("the tenth permanent LEAVING right after does not undo the grant (CR 702.131b)", () => {
+        // Gatherer: "If your tenth permanent enters the battlefield and then a
+        // permanent leaves the battlefield immediately afterwards (most likely
+        // due to the legend rule or due to being a creature with 0 toughness),
+        // you get the city's blessing before it leaves."
+        const state = stateWithPermanents(9, true);
+        const [tokenId] = createTokenPermanents(state, { ...CAT_TOKEN }, "p1");
+        expect(hasCityBlessing(state, "p1")).toBe(true);
+
+        state.players[0].battlefield = state.players[0].battlefield.filter(
+            (c) => c.id !== tokenId
+        );
+        checkStateBasedActions(state);
+        expect(countControlledPermanents(state, "p1")).toBe(9);
+        expect(hasCityBlessing(state, "p1")).toBe(true);
+    });
+
+    it("still grants through the SBA sweep for entries that bypass the eager sites", () => {
+        // The sweep remains the stable-point backstop (a hand-built board, a
+        // deserialized state, any future entry path).
+        const state = stateWithPermanents(9, true);
+        state.players[0].battlefield.push(permanent("perm-late", "p1"));
+        expect(hasCityBlessing(state, "p1")).toBe(false);
+        checkStateBasedActions(state);
+        expect(hasCityBlessing(state, "p1")).toBe(true);
+    });
+});
+
 describe("City's Blessing is never lost (CR 702.131b)", () => {
     it("survives dropping below ten permanents", () => {
         const state = stateWithPermanents(10, true);
@@ -185,7 +307,7 @@ describe("City's Blessing is never lost (CR 702.131b)", () => {
     });
 });
 
-describe("Ascend — instant/sorcery form, once on resolution (CR 702.131c)", () => {
+describe("Ascend — instant/sorcery form, once on resolution (CR 702.131a)", () => {
     const ASCEND_SPELL_ID = "test-ascend-spell-1460";
     const ascendSpell: CardDefinition = {
         id: ASCEND_SPELL_ID,
@@ -225,7 +347,7 @@ describe("Ascend — instant/sorcery form, once on resolution (CR 702.131c)", ()
         expect(hasCityBlessing(state, "p1")).toBe(false);
     });
 
-    // CR 702.131c — Ascend is the FIRST spell ability of an instant/sorcery
+    // CR 702.131a — Ascend is the FIRST spell ability of an instant/sorcery
     // that has it, so the blessing is granted BEFORE the rest of the spell's
     // text. Every real Ascend instant/sorcery reads the blessing in its own
     // later clauses (Golden Demise: "if you have the city's blessing, instead
