@@ -69,8 +69,9 @@ type BoardPortraitChipsProps = {
  *  right-edge control column. The space-eating pile columns and the always-on
  *  floating stack panel are gone; instead:
  *
- *  - opponent's graveyard / library / exile collapse to a chip row pinned
- *    top-left (clear of the opponent life pill on the top-right),
+ *  - opponent's graveyard / library / exile collapse to a vertical chip
+ *    column pinned top-right (#1867 — a horizontal top-left row overlapped
+ *    the top-CENTER compact nameplate on phone widths),
  *  - a stack chip sits at the right of the midline — the neutral band between
  *    the two battlefields — and toggles the EXISTING {@link GameStack} overlay,
  *    which is OPEN BY DEFAULT the instant the stack is non-empty (issue
@@ -187,12 +188,17 @@ export default function BoardPortraitChips({
 
     return (
         <>
+            {/* #1867 — vertical column pinned top-RIGHT, not a horizontal
+                top-left row: the row (~180px of `min-w-14` chips) overlapped
+                the opponent's top-center compact nameplate on phone widths.
+                Top-right is clear of it, and clear of the stack chip too
+                (that sits at the midline, well below this ~140px column). */}
             {opponent && (
                 <div
-                    className="absolute left-2 top-2 z-30"
+                    className="absolute right-2 top-2 z-30"
                     data-testid="pile-chips-row-opponent"
                 >
-                    <BoardPileChips player={opponent} />
+                    <BoardPileChips player={opponent} vertical />
                 </div>
             )}
 

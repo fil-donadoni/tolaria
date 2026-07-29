@@ -158,3 +158,44 @@ export const lurrus: CardDefinition = {
     staticAbilities: ["companion", "lifelink"],
     castsPermanentsFromGraveyard: { maxManaValue: 2 },
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Zirda, the Dawnwaker — the THIRD Vintage Cube companion (with `lutri` and
+// `lurrus` above), deliberately NOT shipped. ADR 0064 scoped the Companion
+// slice to "framework + Lutri + Lurrus; Zirda is a stop-and-issue stub":
+//
+//   "Abilities you activate that aren't mana abilities cost {2} less to
+//    activate. This effect can't reduce the mana in that cost to less than
+//    one mana."
+//
+// is a genuine new COST-SYSTEM capability on a seam the engine does not have.
+// The ability-activation path reads `ability.cost.mana` raw; ADR 0063's cost
+// modifier seam covers CAST costs only, and this clause additionally carries
+// an unusual ">= one mana" floor (CR 601.2f / 118.7 — the reduction may not
+// take the remaining mana cost below a single mana symbol, generic or
+// coloured). Shipping Zirda with that clause silently inert is exactly the
+// Guard-A anti-pattern (`.claude/rules/gre-development.md` — a card that
+// declares a mechanic it does not have ships functional-looking and dead),
+// so the card stays commented until the capability lands. Its companion
+// condition would be `everyPermanent((def) => hasActivatedAbility(def))` —
+// the `everyPermanent` combinator (gre/companion.ts) already exists and was
+// factored out for exactly this second consumer.
+//
+// Stop-and-issue per gre-development.md; tracked-by: #1339.
+// export const zirda: CardDefinition = {
+//     id: "1bd8e61c-2ee8-4243-a848-7008810db8a0",
+//     rarity: "rare",
+//     name: "Zirda, the Dawnwaker",
+//     oracleText:
+//         "Companion — Each permanent card in your starting deck has an activated ability. (If this card is your chosen companion, you may put it into your hand from outside the game for {3} as a sorcery.)\nAbilities you activate that aren't mana abilities cost {2} less to activate. This effect can't reduce the mana in that cost to less than one mana.\n{1}, {T}: Target creature can't block this turn.",
+//     // DIVERGENCE (tracked-by: #782): printed cost is {1}{R/W}{R/W} — two
+//     // HYBRID R/W pips, the same land-based-hybrid-payment gap narrowed on
+//     // `lutri`/`lurrus` above. Declared here as {1}{R}{W}.
+//     manaCost: { generic: 1, R: 1, W: 1 },
+//     types: ["Creature"],
+//     supertypes: ["Legendary"],
+//     subtypes: ["Elemental", "Fox"],
+//     power: 3,
+//     toughness: 3,
+//     staticAbilities: ["companion"],
+// };

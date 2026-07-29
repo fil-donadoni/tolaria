@@ -47,8 +47,10 @@ import {
  *    the viewer's own inset carries the nameplate reservation. Without that
  *    the viewer's half would pay for the bar (and now the nameplate) alone
  *    and end up shorter than the opponent's.
- *  - both hand strips use one band height, which is what makes the midline a
- *    clean `50% - (clearance + nameplate band) / 2`.
+ *  - the two hand strips are separate bands since #1875 (the opponent's is
+ *    smaller — backs only), so the midline also folds in half of the
+ *    hand-band DIFFERENCE:
+ *    `50% - (clearance + nameplate band + viewer hand - opponent hand) / 2`.
  *
  *  Values are CSS custom properties (not inline `top`/`bottom`) for the same
  *  reason `--right-piles-w` is: the classes stay literal so Tailwind can see
@@ -65,8 +67,21 @@ import {
  *  the reservation below is correct for every hand size. */
 export const PORTRAIT_HAND_BAND_H = "16%";
 
-/** Height of one hand strip — the reservation every band above it honours. */
+/** Height of the VIEWER's hand strip — the reservation every band above it
+ *  honours. */
 export const PORTRAIT_HAND_BAND_VAR = "--portrait-hand-h";
+
+/** Height of the OPPONENT's hand strip (#1875). The two strips used to share
+ *  {@link PORTRAIT_HAND_BAND_H}, but the opponent's hand only ever renders
+ *  card BACKS — a count, nothing readable — so a viewer-sized band wasted
+ *  ~7% of the board on it. The freed difference is folded into the midline
+ *  split ({@link portraitBandVars}) exactly the way the bar clearance and the
+ *  nameplate band already are, so BOTH battlefields grow by half of it and
+ *  the equal-battlefield invariant holds unchanged. The backs scale down with
+ *  the band via {@link portraitHandMetrics}'s `seat` parameter — they are
+ *  presentational (never interactive), so no 44px touch floor applies. */
+export const PORTRAIT_OPP_HAND_BAND_H = "9%";
+export const PORTRAIT_OPP_HAND_BAND_VAR = "--portrait-opp-hand-h";
 /** Top of the viewer's half = bottom of the opponent's. Shifted up by half of
  *  (the bar clearance + the reserved nameplate band, #1814 fixup) so both
  *  battlefields stay equal even though only the viewer's inset carries the
@@ -173,23 +188,32 @@ export const PORTRAIT_NAMEPLATE_BOTTOM_VAR = "--portrait-nameplate-bottom";
  *  unconditionally (the values are inert unless a portrait band class reads
  *  them), alongside `--right-piles-w`. */
 export function portraitBandVars(): CSSProperties {
+    // The midline folds in HALF of every asymmetric reservation so the two
+    // battlefields stay equal: the bar clearance and the nameplate band exist
+    // only on the viewer's side (as before), and — since #1875 — so does the
+    // hand-band DIFFERENCE (`var(hand) - var(opp-hand)`, the viewer's strip
+    // being the taller one). Derivation: with battlefields tiling flush at
+    // the midline, equality requires
+    //   midline = 50% - (clearance + nameplate + viewerHand - oppHand) / 2
+    // (set viewerHand = oppHand and the pre-#1875 expression falls out).
     return {
         [PORTRAIT_HAND_BAND_VAR]: PORTRAIT_HAND_BAND_H,
+        [PORTRAIT_OPP_HAND_BAND_VAR]: PORTRAIT_OPP_HAND_BAND_H,
         [PORTRAIT_NAMEPLATE_BAND_VAR]: PORTRAIT_NAMEPLATE_BAND_H,
-        [PORTRAIT_MIDLINE_VAR]: `calc(50% - (${CONTROLLER_BAR_CLEARANCE_EXPR} + var(${PORTRAIT_NAMEPLATE_BAND_VAR})) / 2)`,
-        [PORTRAIT_OPPONENT_BF_BOTTOM_VAR]: `calc(50% + (${CONTROLLER_BAR_CLEARANCE_EXPR} + var(${PORTRAIT_NAMEPLATE_BAND_VAR})) / 2)`,
+        [PORTRAIT_MIDLINE_VAR]: `calc(50% - (${CONTROLLER_BAR_CLEARANCE_EXPR} + var(${PORTRAIT_NAMEPLATE_BAND_VAR}) + var(${PORTRAIT_HAND_BAND_VAR}) - var(${PORTRAIT_OPP_HAND_BAND_VAR})) / 2)`,
+        [PORTRAIT_OPPONENT_BF_BOTTOM_VAR]: `calc(50% + (${CONTROLLER_BAR_CLEARANCE_EXPR} + var(${PORTRAIT_NAMEPLATE_BAND_VAR}) + var(${PORTRAIT_HAND_BAND_VAR}) - var(${PORTRAIT_OPP_HAND_BAND_VAR})) / 2)`,
         [PORTRAIT_NAMEPLATE_BOTTOM_VAR]: `calc(${CONTROLLER_BAR_CLEARANCE_EXPR} + var(${PORTRAIT_HAND_BAND_VAR}))`,
         [PORTRAIT_VIEWER_BF_BOTTOM_VAR]: `calc(${CONTROLLER_BAR_CLEARANCE_EXPR} + var(${PORTRAIT_HAND_BAND_VAR}) + var(${PORTRAIT_NAMEPLATE_BAND_VAR}))`,
     } as CSSProperties;
 }
 
-/** Opponent hand strip — the top edge. */
+/** Opponent hand strip — the top edge, at its OWN (smaller, #1875) band. */
 export const PORTRAIT_OPPONENT_HAND_BAND =
-    "absolute left-0 right-0 top-0 h-[var(--portrait-hand-h)]";
+    "absolute left-0 right-0 top-0 h-[var(--portrait-opp-hand-h)]";
 
 /** Opponent battlefield — from under its hand strip down to the midline. */
 export const PORTRAIT_OPPONENT_BATTLEFIELD_BAND =
-    "absolute left-0 right-0 top-[var(--portrait-hand-h)] bottom-[var(--portrait-opp-bf-bottom)]";
+    "absolute left-0 right-0 top-[var(--portrait-opp-hand-h)] bottom-[var(--portrait-opp-bf-bottom)]";
 
 /** Viewer battlefield — from the midline down to the TOP of the reserved
  *  nameplate band (which itself sits atop the hand strip, #1814 fixup).
@@ -310,9 +334,20 @@ export type PortraitHandMetrics = {
  *  height, so the card's height — `cardWidth * 7/5` — never exceeds the hand
  *  band's actual height. Pure: the same `boardHeight` always yields the same
  *  metrics, mirroring {@link landscapeCardMetrics}'s derivation for the
- *  landscape-compact hand/battlefield footprint. */
-export function portraitHandMetrics(boardHeight: number): PortraitHandMetrics {
-    const bandHeightPx = boardHeight * (parseFloat(PORTRAIT_HAND_BAND_H) / 100);
+ *  landscape-compact hand/battlefield footprint.
+ *
+ *  `seat` (#1875): the opponent's strip is a smaller band
+ *  ({@link PORTRAIT_OPP_HAND_BAND_H} vs {@link PORTRAIT_HAND_BAND_H}), so its
+ *  backs derive from THAT band — same math, different fraction. Deriving from
+ *  the band the card actually lives in is the whole point of this function
+ *  (#1790: a card sized for a different band overflows its own). */
+export function portraitHandMetrics(
+    boardHeight: number,
+    seat: "viewer" | "opponent" = "viewer"
+): PortraitHandMetrics {
+    const bandH =
+        seat === "opponent" ? PORTRAIT_OPP_HAND_BAND_H : PORTRAIT_HAND_BAND_H;
+    const bandHeightPx = boardHeight * (parseFloat(bandH) / 100);
     // width <= bandHeight * 5/7 <=> width * 7/5 (height) <= bandHeight.
     const maxWidthForBand = (bandHeightPx * 5) / 7;
     const cardWidth = Math.floor(

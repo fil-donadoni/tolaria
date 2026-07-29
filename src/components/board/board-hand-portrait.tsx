@@ -19,6 +19,11 @@ type BoardHandPortraitProps = {
      *  historical unclamped max — every existing hand-only test exercises
      *  this default and keeps rendering the same 76px card. */
     boardHeight?: number;
+    /** Which portrait hand band hosts this strip (#1875): the opponent's is a
+     *  smaller band (backs only), so its card footprint derives from that
+     *  band's own height. Defaults to the viewer's band — every existing
+     *  hand test and the viewer mount keep their exact previous sizing. */
+    seat?: "viewer" | "opponent";
     "data-testid"?: string;
 };
 
@@ -37,11 +42,12 @@ export default function BoardHandPortrait({
     player,
     interactive,
     boardHeight = Number.POSITIVE_INFINITY,
+    seat = "viewer",
     "data-testid": testId,
 }: BoardHandPortraitProps) {
     const scrolls = portraitHandScrolls(player.hand.length);
     const reduceMotion = useReducedMotion();
-    const { cardWidth, overlap } = portraitHandMetrics(boardHeight);
+    const { cardWidth, overlap } = portraitHandMetrics(boardHeight, seat);
 
     const items = useMemo(
         () =>

@@ -33,6 +33,14 @@ type PileChipProps = {
      *  unchanged — the bar row is already taller than 44px, so only width
      *  needed the new explicit floor. */
     compact?: boolean;
+    /** Bar-cell width sharing (#1867): `flex-1` so the three chips split the
+     *  controller bar's double-width "Zones" cell evenly. Only meaningful in
+     *  that horizontal flex-row context — the opponent's VERTICAL top-right
+     *  column (`vertical` on `BoardPileChips`) omits it, where a grow factor
+     *  on the column axis would be inert-but-fragile (it would start
+     *  stretching chip heights the moment the column ever gets a constrained
+     *  height). */
+    grow?: boolean;
 };
 
 /** A tappable zone chip for the portrait board (#336). On a narrow viewport the
@@ -47,6 +55,7 @@ export default function PileChip({
     "data-testid": testId,
     "data-arrow-anchor-graveyard": arrowAnchorGraveyard,
     compact = false,
+    grow = false,
 }: PileChipProps) {
     return (
         <button
@@ -56,12 +65,12 @@ export default function PileChip({
             data-arrow-anchor-graveyard={arrowAnchorGraveyard}
             className={
                 compact
-                    ? // See the `compact` doc comment above: `flex-1` shares
-                      // the (now double-width) cell's real width evenly, and
-                      // `min-w-11` (44px) is a hard floor of its own so the
-                      // guarantee never depends solely on the cell staying
-                      // wide enough.
-                      "flex min-h-11 min-w-11 flex-1 flex-col items-center justify-center gap-0 rounded-md border border-border-subtle bg-surface-elevated px-0.5 py-0.5 font-beleren text-[10px] leading-tight text-text-muted active:bg-surface"
+                    ? // See the `compact` doc comment above: `grow` (flex-1,
+                      // bar cell only — see its doc) shares the double-width
+                      // cell's real width evenly, and `min-w-11` (44px) is a
+                      // hard floor of its own so the guarantee never depends
+                      // solely on the cell staying wide enough.
+                      `flex min-h-11 min-w-11 ${grow ? "flex-1 " : ""}flex-col items-center justify-center gap-0 rounded-md border border-border-subtle bg-surface-elevated px-0.5 py-0.5 font-beleren text-[10px] leading-tight text-text-muted active:bg-surface`
                     : // `min-h-11 min-w-14` (#1770 mobile QA sweep touch-target
                       // audit): the chip's own label + count text sat well
                       // under the 44px floor (~py-1 + a 10px line ≈ 24-26px
