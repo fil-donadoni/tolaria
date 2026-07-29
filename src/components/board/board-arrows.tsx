@@ -76,7 +76,12 @@ export default function BoardArrows({
     useDomAnchorPublisher(
         svgRef,
         ["stack", "player", "graveyard"],
-        `${stackKey}|${anchorRevision ?? ""}`
+        `${stackKey}|${anchorRevision ?? ""}`,
+        // The portrait bottom bar mounts as a sibling of the board root
+        // (`board.tsx`), outside where this scan would otherwise look — the
+        // viewer's inline zone-chip graveyard anchor lives there (#1815
+        // review fixup round 2). See `useDomAnchorPublisher`'s doc comment.
+        "[data-controller-bottom-bar]"
     );
 
     const anchors = registry?.anchors ?? emptyAnchorMap();

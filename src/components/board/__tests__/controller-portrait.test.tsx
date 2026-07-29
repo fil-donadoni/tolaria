@@ -305,13 +305,19 @@ describe("Variant D bar — no layout shift, nothing buried (#1759)", () => {
     });
 });
 
-describe("Bottom bar tab set (#1815 review fixup, finding 4)", () => {
-    it("pins 4 cells (You / Zones-chips / Phase / Menu) to a matching grid-cols-4", () => {
+describe("Bottom bar tab set (#1815 review fixup, finding 4; widened round 2)", () => {
+    it("pins 4 cells (You / Zones-chips / Phase / Menu) to a grid-cols-6, the zone-chips cell spanning 3", () => {
+        // Round 2: the zone-chips cell went from an equal quarter
+        // (`grid-cols-4`) to HALF the bar (`grid-cols-6` + `col-span-3`) — it
+        // holds THREE chips, so it needs 3x a single tap target's width, not
+        // 1x. See `controller-bottom-bar.tsx`'s module doc comment and
+        // `pile-chip.tsx`'s `compact` doc comment for the touch-target math
+        // this fixes (#1815 review fixup round 2, finding 1).
         const { container } = renderController();
         const row = container.querySelector(
             "[data-controller-bottom-bar] .grid"
         ) as HTMLElement;
-        expect(row.className).toContain("grid-cols-4");
+        expect(row.className).toContain("grid-cols-6");
         expect(row.children.length).toBe(4);
 
         // Cell 1: You (life tab) — `ControllerTabButton` IS the grid cell
@@ -322,9 +328,10 @@ describe("Bottom bar tab set (#1815 review fixup, finding 4)", () => {
         expect(row.children[0]).toBe(youTab);
 
         // Cell 2: the viewer's zone chips, inline — the testid is on the
-        // cell itself, not a descendant.
+        // cell itself, not a descendant. `col-span-3` gives it half the bar.
         const zoneChipsCell = screen.getByTestId("controller-bar-zone-chips");
         expect(row.children[1]).toBe(zoneChipsCell);
+        expect(zoneChipsCell.className).toContain("col-span-3");
         expect(within(zoneChipsCell).getByTestId(`pile-chips-me`)).toBeTruthy();
 
         // Cell 3: Phase.

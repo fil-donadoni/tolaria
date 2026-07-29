@@ -53,6 +53,21 @@ import AttackAllConfirmDialog from "./attack-all-confirm-dialog";
  *  no force-open plumbing needed, unlike the old drawer (which had to force
  *  itself open past a `hidden` wrapper).
  *
+ *  **The zone-chips cell is DOUBLE-WIDTH (#1815 review fixup, round 2).**
+ *  Round 1 gave the chips cell an equal quarter of the bar (`grid-cols-4`),
+ *  same as You/Phase/Menu — but a quarter is ONE tap target's worth of width,
+ *  and this cell holds THREE (GY/LIB/EXL). Splitting ~80-97.5px three ways
+ *  landed each chip at 23-29px, under both the #1770 44px floor and the raw
+ *  24px WCAG minimum. The grid is now `grid-cols-6` with the chips cell at
+ *  `col-span-3` (half the bar) and You/Phase/Menu at one column each
+ *  (1+3+1+1=6) — the chips cell alone is now what a full quarter used to be
+ *  ×1.5, giving each of its 3 chips ≈48-65px across the 320-390px range (see
+ *  `pile-chip.tsx`'s `compact` doc comment for the exact math and the
+ *  `min-w-11` backstop). You/Phase/Menu drop from ~80-97.5px to ~53-65px —
+ *  still well above the 44px floor for a single (non-subdivided) tap target,
+ *  and their labels already truncate (`ControllerTabButton`) rather than
+ *  reflow the bar.
+ *
  *  It stays a pure presentation fork of {@link ControllerPod}: it reads the SAME
  *  `useControllerActions` descriptors, so every control dispatches the IDENTICAL
  *  mutation, and the phase sheet reuses the SAME `useSkipPhasePreferences`
@@ -97,11 +112,11 @@ export default function ControllerBottomBar({
                 />
 
                 <div
-                    className="grid grid-cols-4 bg-gradient-to-t from-surface-base to-surface-base/85 backdrop-blur-xl"
+                    className="grid grid-cols-6 bg-gradient-to-t from-surface-base to-surface-base/85 backdrop-blur-xl"
                     style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
                 >
                     {/* A missing viewer seat is not a real game state, but the
-                        placeholder keeps the grid at four cells regardless. */}
+                        placeholder keeps the grid at 6 columns regardless. */}
                     {me ? (
                         <ControllerLifeTab
                             me={me}
@@ -115,16 +130,19 @@ export default function ControllerBottomBar({
                     {/* The viewer's zone chips, inline (#1815 review fixup —
                         see the module doc comment). Always mounted, always
                         visible: no toggle state, unlike the other three
-                        tabs. */}
+                        tabs. `col-span-3` (review fixup round 2): this cell
+                        holds THREE chips, so it gets half the bar instead of
+                        an equal quarter — see the module doc comment for the
+                        touch-target math this fixes. */}
                     {me ? (
                         <div
-                            className="flex h-[3.25rem] items-center justify-center px-1"
+                            className="col-span-3 flex h-[3.25rem] items-center justify-center px-1"
                             data-testid="controller-bar-zone-chips"
                         >
                             <BoardPileChips player={me} compact />
                         </div>
                     ) : (
-                        <span />
+                        <span className="col-span-3" />
                     )}
 
                     <ControllerTabButton

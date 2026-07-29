@@ -38,15 +38,22 @@ describe("PileChip touch target (#1770 mobile QA sweep)", () => {
     });
 });
 
-describe("PileChip compact mode (#1815 review fixup)", () => {
+describe("PileChip compact mode (#1815 review fixup, round 2)", () => {
     // The controller bottom bar's inline "Zones" cell fits THREE of these
-    // side by side inside a single quarter-width grid cell (~97px at a 390px
-    // viewport) — the default `min-w-14` (56px) floor alone would blow past
-    // that 3x over. `compact` drops the WIDTH floor (`flex-1 min-w-0` shares
-    // the container's real width instead of hardcoding a px value) but KEEPS
-    // the `min-h-11` HEIGHT floor: the bar row is already taller than 44px,
-    // so the touch target's generous axis comes from the bar, not the chip.
-    it("keeps the min-h-11 height floor but drops the min-w-14 width floor", () => {
+    // side by side. Round 1 fit them inside a single QUARTER-width grid cell
+    // (~97px at 390px) by dropping the default `min-w-14` (56px) floor down to
+    // `min-w-0`/`flex-1` — but 3-way division of a quarter cell landed each
+    // chip at 23-29px, under the #1770 44px floor (and even the raw 24px WCAG
+    // minimum). Round 2 fixes it at both ends: the bar cell is now HALF the
+    // bar (`controller-bottom-bar.tsx`'s `grid-cols-6` + `col-span-3`, giving
+    // `flex-1` ≈48-65px/chip across 320-390px) AND this chip keeps its own
+    // explicit `min-w-11` (44px) floor — a positive, class-asserted guarantee
+    // that doesn't rely solely on the cell math staying exactly right.
+    // Touch-target size is governed by the SMALLER of an element's two axes
+    // (WCAG SC 2.5.8): `min-h-11` alone (the bar row's height) never
+    // satisfied it once this cell subdivides into three — width needed its
+    // own floor too.
+    it("has an explicit 44px floor on BOTH axes (min-h-11 AND min-w-11), not height alone", () => {
         render(
             <PileChip
                 label="GY"
@@ -58,8 +65,23 @@ describe("PileChip compact mode (#1815 review fixup)", () => {
         );
         const chip = screen.getByTestId("chip-gy-compact");
         expect(chip.className).toContain("min-h-11");
-        expect(chip.className).not.toContain("min-w-14");
+        expect(chip.className).toContain("min-w-11");
         expect(chip.className).toContain("flex-1");
+    });
+
+    it("uses a readable 10px label/count font, not the illegible 8px round 1 shipped", () => {
+        render(
+            <PileChip
+                label="GY"
+                count={0}
+                onClick={vi.fn()}
+                data-testid="chip-gy-compact-font"
+                compact
+            />
+        );
+        const chip = screen.getByTestId("chip-gy-compact-font");
+        expect(chip.className).toContain("text-[10px]");
+        expect(chip.className).not.toContain("text-[8px]");
     });
 
     it("still dispatches its click and shows the count", () => {

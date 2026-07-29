@@ -76,11 +76,24 @@ export default function BoardPileChips({
 
                 `display:none` also zeroes `getBoundingClientRect()`, so
                 `PlayerGraveyard`'s `data-arrow-anchor-graveyard` below is a
-                degenerate anchor while hidden (useDomAnchorPublisher now
-                skips zero-rect anchors rather than publish a wrong one) — the
-                GY chip above carries the SAME attribute so graveyard-card
-                target arrows (Regrowth, Raise Dead, Animate Dead) have a real,
-                visible anchor to land on. */}
+                degenerate anchor while hidden (useDomAnchorPublisher skips
+                zero-rect anchors rather than publish a wrong one) — the GY
+                chip above carries the SAME attribute so graveyard-card
+                target arrows (Regrowth, Raise Dead, Animate Dead) have a
+                real, visible anchor to land on instead.
+
+                That claim held for the opponent's board-level row (mounted
+                inside `data-board-root`, where `useDomAnchorPublisher`
+                scans) but was FALSE for the viewer's `compact` chip once
+                #1815 moved it into `ControllerBottomBar` — that bar mounts
+                as a sibling of `data-board-root` in `board.tsx` (outside
+                both the root div and `ArrowAnchorProvider`), so the chip's
+                anchor was never actually published: no arrow ever reached a
+                graveyard-card target on the viewer's own graveyard on
+                portrait (#1815 review fixup round 2). Fixed at the source —
+                `useDomAnchorPublisher` now also scans an optional second
+                root (`board-arrows.tsx` passes
+                `[data-controller-bottom-bar]`) — not by moving this chip. */}
             <div className="hidden">
                 <PlayerGraveyard
                     player={player}

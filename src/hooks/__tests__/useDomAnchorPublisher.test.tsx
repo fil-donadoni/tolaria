@@ -208,3 +208,77 @@ describe("useDomAnchorPublisher — degenerate rect skip (#1766 fixup)", () => {
         expect(value.anchors.graveyard.me).toEqual({ x: 150, y: 220 });
     });
 });
+
+// Regression test for #1815 review fixup round 2: `ControllerBottomBar`
+// mounts as a SIBLING of `data-board-root` in `board.tsx` (outside both the
+// root div and `ArrowAnchorProvider`), so the viewer's inline compact zone
+// chip's `data-arrow-anchor-graveyard` was never actually published — a scan
+// scoped to the board root alone never reaches it. `board-arrows.tsx` now
+// passes `extraRootSelector="[data-controller-bottom-bar]"`, resolved against
+// `document` and merged into the SAME board-relative coordinate space.
+function SecondRootHarness({
+    mountBar,
+}: {
+    /** Whether the bar sibling (and its anchor chip) is mounted at all — the
+     *  `false` case models "no extra root selector matched anything". */
+    mountBar: boolean;
+}) {
+    const ref = useRef<HTMLDivElement>(null);
+    useDomAnchorPublisher(
+        ref,
+        ["graveyard"],
+        "rev",
+        "[data-controller-bottom-bar]"
+    );
+    return (
+        <>
+            <div
+                data-board-root
+                ref={(el) => {
+                    if (el)
+                        el.getBoundingClientRect = () => rect(0, 0) as DOMRect;
+                }}
+            >
+                <div ref={ref} />
+            </div>
+            {/* A SIBLING of `data-board-root`, not a descendant — exactly the
+                shape `ControllerBottomBar` mounts in `board.tsx`. */}
+            {mountBar && (
+                <div data-controller-bottom-bar>
+                    <div
+                        data-testid="bar-graveyard-chip"
+                        data-arrow-anchor-graveyard="me"
+                        ref={(el) => {
+                            if (el)
+                                el.getBoundingClientRect = () => rect(50, 60);
+                        }}
+                    />
+                </div>
+            )}
+        </>
+    );
+}
+
+describe("useDomAnchorPublisher — second root (#1815 review fixup round 2)", () => {
+    it("publishes an anchor mounted OUTSIDE the board root via the extra root selector", () => {
+        const { value } = makeRegistry();
+        render(
+            <ArrowAnchorContext.Provider value={value}>
+                <SecondRootHarness mountBar />
+            </ArrowAnchorContext.Provider>
+        );
+        // Board root rect is (0,0) — center of the (50,60)+100x40 chip rect
+        // is (100, 80), unaffected by which root it was found under.
+        expect(value.anchors.graveyard.me).toEqual({ x: 100, y: 80 });
+    });
+
+    it("publishes nothing extra when the second root isn't mounted (no crash, no stale anchor)", () => {
+        const { value } = makeRegistry();
+        render(
+            <ArrowAnchorContext.Provider value={value}>
+                <SecondRootHarness mountBar={false} />
+            </ArrowAnchorContext.Provider>
+        );
+        expect(value.anchors.graveyard.me).toBeUndefined();
+    });
+});
