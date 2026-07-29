@@ -667,6 +667,77 @@ describe("BoardHandCard touch tap = stage + confirm (#1767)", () => {
         expect(pill()).toBeNull();
     });
 
+    // Issue #1832 review fixup (follow-up to #1820): a touch tap always carries
+    // some jitter — up to ~8px is well within a real device's own touch slop
+    // (Chrome Android ~8dp, Safari ~10px) and a finger never perceives it as a
+    // drag. Before the touch-specific deadzone this 8px crossed the old flat
+    // 6px `DRAG_START_PX`, so `onPointerMove` flipped `active` true,
+    // `onPointerUp` read `wasDragging=true && !lifted` and armed
+    // `swallowNextClick`, and the trailing click — the ONLY path that stages a
+    // touch tap via `useTapStageConfirm.consumeClick` — was eaten by
+    // `onClickCapture` before it ever reached the card's `onClick`. The tap did
+    // NOTHING: no commit, no stage, no pill (AC#2 violation). With the wider
+    // touch-only deadzone this same jitter never starts a drag at all, so the
+    // click sails through untouched and stages exactly like a jitter-free tap.
+    it("issue #1832: a touch tap with ~8px jitter still stages (AC#2)", () => {
+        renderCard(makeCard("land1", ["play"]));
+        const target = el();
+        fireEvent.pointerDown(target, {
+            button: 0,
+            pointerType: "touch",
+            clientX: 100,
+            clientY: 400,
+        });
+        fireEvent.pointerMove(target, {
+            pointerType: "touch",
+            clientX: 100,
+            clientY: 400 - 8, // jitter, below the touch drag-start deadzone (10)
+        });
+        fireEvent.pointerUp(target, {
+            pointerType: "touch",
+            clientX: 100,
+            clientY: 400 - 8,
+        });
+        fireEvent.click(target);
+
+        expect(playCard).not.toHaveBeenCalled();
+        expect(el().getAttribute("data-tap-staged")).toBe("true");
+        expect(pill()).not.toBeNull();
+        expect(pill()!.textContent).toBe("Play");
+    });
+
+    // Same regression, the other half of AC#3: a touch drag that DOES cross the
+    // (now wider) drag-start deadzone but is released before the commit line
+    // must still commit/stage NOTHING — it reads as an aborted drag, not a tap,
+    // so the trailing click stays swallowed. This pins the 10..COMMIT_LIFT_PX
+    // band as unchanged behavior; only the "is this a drag at all" cutoff moved.
+    it("issue #1832: a touch drag past the deadzone but aborted below the commit line stages/commits nothing (AC#3)", () => {
+        renderCard(makeCard("bolt", ["cast"]));
+        const target = el();
+        fireEvent.pointerDown(target, {
+            button: 0,
+            pointerType: "touch",
+            clientX: 100,
+            clientY: 400,
+        });
+        fireEvent.pointerMove(target, {
+            pointerType: "touch",
+            clientX: 100,
+            clientY: 400 - 16, // past the 10px touch deadzone, well below COMMIT_LIFT_PX (26)
+        });
+        fireEvent.pointerUp(target, {
+            pointerType: "touch",
+            clientX: 100,
+            clientY: 400 - 16,
+        });
+        fireEvent.click(target);
+
+        expect(announceCast).not.toHaveBeenCalled();
+        expect(playCard).not.toHaveBeenCalled();
+        expect(el().getAttribute("data-tap-staged")).toBeNull();
+        expect(pill()).toBeNull();
+    });
+
     // Regression (issue #1820): on a real touch device, swiping a hand card
     // up no longer cast/played it — only tap-with-confirm still worked. Root
     // cause: a touch `pointerdown` grants the deepest hit-tested DESCENDANT
