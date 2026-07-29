@@ -1396,11 +1396,23 @@ export const mishrasWorkshop: CardDefinition = {
 //   Mine        → {C}{C}    (2)
 //   Power Plant → {C}{C}    (2)
 //   Tower       → {C}{C}{C} (3)
-const URZA_MINE = "Urza's Mine";
+//
+// CR 205.3i lists "Urza's" and "Mine"/"Power-Plant"/"Tower" as SEPARATE land
+// types (mirroring Scryfall, which prints each land's subtype as two tokens,
+// not one compound string) — `subtypes` below is `["Urza's", <member>]`, not
+// `["Urza's Mine"]`. Getting this right matters beyond cosmetics: `LAND_TYPES`
+// (`gre/constants.ts`) — the CR 305.7 narrowing every "becomes a land type"
+// effect (Blood Moon, Evil Presence, …) routes through — only ever strips
+// single-token members, so a compound `"Urza's Mine"` string silently never
+// matches and the old type survives underneath the new one (issue #1883
+// regression). The discriminator each `controlsUrzaSubtype` check uses is
+// therefore just the member token ("Mine"/"Power-Plant"/"Tower"), since
+// "Urza's" alone doesn't distinguish between the three.
+const URZA_MINE = "Mine";
 
-const URZA_POWER_PLANT = "Urza's Power-Plant";
+const URZA_POWER_PLANT = "Power-Plant";
 
-const URZA_TOWER = "Urza's Tower";
+const URZA_TOWER = "Tower";
 
 /** True when the controller's battlefield contains a land with the given Urza
  *  subtype (CR 205.3, 106.1). Reads the controller's own battlefield only —
@@ -1436,7 +1448,7 @@ export const urzasMine: CardDefinition = {
         "{T}: Add {C}. If you control an Urza's Power-Plant and an Urza's Tower, add {C}{C} instead.",
     manaCost: {},
     types: ["Land"],
-    subtypes: [URZA_MINE],
+    subtypes: ["Urza's", URZA_MINE],
     activatedAbilities: [
         {
             id: "urzas-mine-mana",
@@ -1461,7 +1473,7 @@ export const urzasPowerPlant: CardDefinition = {
         "{T}: Add {C}. If you control an Urza's Mine and an Urza's Tower, add {C}{C} instead.",
     manaCost: {},
     types: ["Land"],
-    subtypes: [URZA_POWER_PLANT],
+    subtypes: ["Urza's", URZA_POWER_PLANT],
     activatedAbilities: [
         {
             id: "urzas-power-plant-mana",
@@ -1486,7 +1498,7 @@ export const urzasTower: CardDefinition = {
         "{T}: Add {C}. If you control an Urza's Mine and an Urza's Power-Plant, add {C}{C}{C} instead.",
     manaCost: {},
     types: ["Land"],
-    subtypes: [URZA_TOWER],
+    subtypes: ["Urza's", URZA_TOWER],
     activatedAbilities: [
         {
             id: "urzas-tower-mana",

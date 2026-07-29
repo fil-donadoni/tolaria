@@ -56,7 +56,8 @@ import {
     unapplySourceStaticEffects,
 } from "../../../../gre/state";
 import { getCardByName } from "../../../index";
-import { stripMine } from "../../atq";
+import { stripMine, urzasMine } from "../../atq";
+import { startingTown } from "../../fin";
 import { mountain, tropicalIsland } from "../../lea";
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -239,6 +240,35 @@ describe("Blood Moon ({2}{R} Enchantment — CR 305.7 subtype-set + CR 613.1f ab
         expect(slim.subtypes).toContain("Mountain");
         expect(slim.subtypes).toContain("Saga");
         expect(slim.subtypes).not.toContain("Urza's");
+    });
+
+    // Regression (issue #1883 review finding): a REAL shipped Urza land
+    // (`atq/colorless.ts`) stores its subtype as the two CR 205.3i tokens
+    // `["Urza's", "Mine"/"Power-Plant"/"Tower"]` — not the compound
+    // `"Urza's Mine"` string this PR's predecessor shipped, which never
+    // matched `LAND_TYPES` and let the Urza subtype (and its now-invalid
+    // mana ability) survive underneath the new Mountain type. Exercises the
+    // production path end to end: `applySourceStaticEffects` + Blood Moon on
+    // an actual `CardDefinition`, not a synthetic fixture.
+    it("strips a REAL Urza land's subtype down to just Mountain (issue #1883 regression)", () => {
+        const { land } = withBloodMoon(urzasMine.id);
+        expect(land.subtypes).toEqual(["Mountain"]);
+        expect(land.subtypes).not.toContain("Urza's");
+        expect(land.subtypes).not.toContain("Mine");
+        expect(abilitiesSuppressed(land)).toBe(true);
+        expect(getActivatedManaAbility(land)).toBeNull();
+        expect(getBasicLandMana(land)).toBe("R");
+    });
+
+    // Regression (issue #1883 review finding): Starting Town (FIN) carries
+    // "Town" — a CR 205.3i land type omitted from `LAND_TYPES` by this PR's
+    // predecessor. Same production path as the Urza-land case above.
+    it("strips Starting Town's subtype down to just Mountain (issue #1883 regression)", () => {
+        const { land } = withBloodMoon(startingTown.id);
+        expect(land.subtypes).toEqual(["Mountain"]);
+        expect(land.subtypes).not.toContain("Town");
+        expect(abilitiesSuppressed(land)).toBe(true);
+        expect(getBasicLandMana(land)).toBe("R");
     });
 
     // Wire format (MANDATORY for staticEffects): the Mountain subtype and the

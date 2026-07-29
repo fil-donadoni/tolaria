@@ -214,15 +214,26 @@ export function isLandDefinition(def: CardDefinition): boolean {
 }
 
 /** CR 205.3i — the complete land type list: the five basic land types plus
- *  the ten nonbasic ones (Cave, Desert, Gate, Lair, Locus, Mine, Power-Plant,
- *  Sphere, Tower, Urza's). An effect that sets a land's subtype to one or
- *  more of these ("Nonbasic lands are Mountains" — Blood Moon; "target land
- *  becomes a Swamp" — Orcish Farmer) is a CR 305.7 land-type change: it
- *  replaces only the land's OLD LAND TYPES, never a subtype belonging to a
- *  different card type (Saga, CR 205.3h; Aura, CR 205.3g) that happens to
- *  ride along on a multi-type land (`Enchantment Land — Urza's Saga`). See
- *  {@link applyLandTypeReplacement}, the shared narrowing every "becomes a
- *  land type" effect site routes through (issue #1883). */
+ *  the eleven nonbasic ones (Cave, Desert, Gate, Lair, Locus, Mine,
+ *  Power-Plant, Sphere, Tower, Town, Urza's). An effect that sets a land's
+ *  subtype to one or more of these ("Nonbasic lands are Mountains" — Blood
+ *  Moon; "target land becomes a Swamp" — Orcish Farmer) is a CR 305.7
+ *  land-type change: it replaces only the land's OLD LAND TYPES, never a
+ *  subtype belonging to a different card type (Saga, CR 205.3h; Aura, CR
+ *  205.3g) that happens to ride along on a multi-type land
+ *  (`Enchantment Land — Urza's Saga`). See {@link applyLandTypeReplacement},
+ *  the shared narrowing every "becomes a land type" effect site routes
+ *  through (issue #1883).
+ *
+ *  Every member here is a SINGLE Scryfall/CR subtype token — a card whose
+ *  printed subtype is itself a two-word land type ("Urza's Mine", "Urza's
+ *  Power-Plant", "Urza's Tower") stores it as TWO tokens
+ *  (`["Urza's", "Mine"]`, CR 205.3i lists "Urza's" and "Mine"/"Power-Plant"/
+ *  "Tower" as separate types), never one compound string — a compound string
+ *  can never match a member of this set and silently escapes CR 305.7
+ *  narrowing (issue #1883 regression: the ATQ Urza-land trio and, before it
+ *  was even a CardDefinition, Urza's Saga). Enforced catalogue-wide by
+ *  `convex/cards/__tests__/landTypeCoverage.test.ts`. */
 export const LAND_TYPES: ReadonlySet<string> = new Set([
     "Cave",
     "Desert",
@@ -238,6 +249,7 @@ export const LAND_TYPES: ReadonlySet<string> = new Set([
     "Sphere",
     "Swamp",
     "Tower",
+    "Town",
     "Urza's",
 ]);
 
