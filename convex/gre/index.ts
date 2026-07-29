@@ -117,6 +117,7 @@ export {
     applyMoveInSearch,
     decidingPlayer,
     DEFAULT_BUDGET,
+    REWARD_PER_MARGIN_POINT,
 } from "./search";
 export type { SearchBudget, DecisionTrace, CandidateTrace } from "./search";
 export { makeRng } from "./rng";
