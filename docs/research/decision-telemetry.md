@@ -79,6 +79,18 @@ DECISION_CORPUS=1 DECISION_CORPUS_GAMES=2 DECISION_CORPUS_SEED=<seed> \
 | B     | 2893 | 12    | excluded      | 809       |
 | C     | 3893 | 12    | excluded      | 924       |
 
+**Code-drift note.** The corpus was measured on the pre-#1887/#1888/#1890
+selection code (the six original tie-breaks, including the #365
+friendly-vs-enemy redirect). While this ticket was in flight, main landed
+dominance pruning (#1887), the announcement-variant tie-break (#1888,
+subsuming the #365 redirect — instrumented as `announcement-variant`), and
+activation-timing rules (#1890, folded into the hold-trick branch). Those
+changes move work _between_ mechanisms (e.g. some `self-harm-removal` fires
+become `announcement-variant` fires) but do not touch the reward slope,
+`OUTCOME_EPS`, or the material tie-break, so the headline split —
+search-decided vs band-decided — is unaffected. Re-running the corpus on
+current main is one command per shard (below).
+
 Corpus scale note: at ~4–8 min per game (single-threaded, 400 iterations),
 the ticket's "a few hundred games" would cost tens of CPU-hours; 36 games =
 2871 root decisions is decision-grade for the shares and histogram reported
