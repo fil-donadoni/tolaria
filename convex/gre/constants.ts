@@ -729,6 +729,17 @@ function manaCostKey(mana: ManaCost): string {
  *  `getManaTapOptions` for a plain dual land is byte-identical to its old
  *  `manaChoices`.
  *
+ *  CR 605.1a (issue #1889) — a FIXED-output ability whose CURRENT output totals
+ *  zero (a `manaAmount` hook resolving to 0: Everflowing Chalice with no charge
+ *  counters, an empty Gaea's Cradle, the Urza trio one piece short) is omitted:
+ *  it cannot pay for anything, and offering it made the auto-tap solver tap it,
+ *  gain nothing and abandon the cast. That drop is scoped to the fixed branch
+ *  ONLY. A CHOICE list keeps every entry, zero-output included, precisely
+ *  because its index is load-bearing (see the storage-land note above) and
+ *  because `getEffectiveManaChoices` — the other authority on that same list —
+ *  keeps it too: the two must stay index-identical or one tap has two index
+ *  spaces.
+ *
  *  A SACRIFICE-cost mana ability (ADR 0039 — the FEM sac-land "Sacrifice this:
  *  Add {X}{X}", Basal Thrull, Lotus Petal) is a deliberate destructive
  *  activation, NOT folded into the routine tap-for-mana picker: it is offered
@@ -869,13 +880,18 @@ export function getManaTapOptionsDetailed(
                     ? getDynamicManaChoices(card, controllerId, battlefields)
                     : (ability.manaChoices ?? null);
             if (choices) {
+                // CR 605.1a (issue #1889) — the zero-output drop below is
+                // deliberately NOT applied to a CHOICE list. A storage land's
+                // choices ARE its "remove N counters" ladder, and the index IS
+                // the counter count, so dropping the index-0 "remove 0" entry
+                // would shift every later index by one: `tapSourceIntoPayment`
+                // would remove N+1 counters for the player's pick of N, and the
+                // unified list would stop agreeing with `getEffectiveManaChoices`
+                // (which keeps the entry) — two index spaces for one tap.
+                // A chooser's zero entry is a legal, deliberate pick, not a dead
+                // payment source; the zero-output problem #1889 fixes is the
+                // FIXED-output branch (a `manaAmount` hook resolving to 0).
                 choices.forEach((choice, index) => {
-                    // CR 605.1a (issue #1889) — an option that would add NO
-                    // mana is not a payment source. The ability-local `index`
-                    // is preserved on the options that DO survive, so the
-                    // counter-removal rider (Mana Battery / storage land)
-                    // still reads the right choice.
-                    if (totalManaCount(choice) === 0) return;
                     target.push({
                         mana: choice,
                         source: {

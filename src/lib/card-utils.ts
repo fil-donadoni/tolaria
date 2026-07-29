@@ -35,12 +35,10 @@ import {
     LANDWALK_KEYWORDS,
     LANDWALK_SUPERTYPE_KEYWORDS,
     assignHybridPips,
-    getDynamicManaProduced,
     getEffectiveManaChoices,
     getManaTapOptions,
     hybridCostKey,
     normalizedHybridPips,
-    totalManaCount,
 } from "@convex/gre/constants";
 import type {
     CardInstanceState,
@@ -270,19 +268,28 @@ function findClientManaAbility(card: CardInstance) {
  *  caller falls back to an empty view, matching the existing UI-hint
  *  convention (#436) — server validation stays authoritative.
  *
- *  CR 106.1 / 605.1a (issue #1889) — `controllerBattlefield`, when supplied,
- *  resolves a board-conditional `manaAmount` hook so a source whose CURRENT
- *  output is ZERO (an Everflowing Chalice with no charge counters) stops being
- *  offered as a tappable payment source in the UI, exactly as the server's
- *  `hasManaAbility` / `getManaTapOptionsDetailed` stopped offering it. Without
- *  the argument the predicate is unchanged (delta EXACTLY zero for every source
- *  with no `manaAmount` hook), and a `getManaChoices` chooser is deliberately
- *  not gated here — it needs EVERY player's battlefield, so it is handled by
- *  the shared `getManaTapOptions` list `getManaChoices` (below) reads. */
+ *  CR 106.1 / 605.1a (issue #1889) — `players`, when supplied, resolves the
+ *  source's CURRENT unified TAP option list through the very helper the server
+ *  reads (`getManaTapOptions` → `getManaTapOptionsDetailed`), and an EMPTY list
+ *  means the source cannot pay for anything right now: an Everflowing Chalice
+ *  with no charge counters, an empty Gaea's Cradle, the Urza trio one piece
+ *  short. Those stop reading as tappable payment sources in the UI, matching the
+ *  server exactly instead of re-deriving the answer from a private copy of the
+ *  rule — which is how the two drifted in the first place. Board-conditional
+ *  choosers (Fellwar Stone) read EVERY player's battlefield, which is why the
+ *  argument is the whole player list, not just the controller's.
+ *
+ *  Two deliberate narrowings keep the delta at EXACTLY ZERO everywhere else:
+ *  omitting `players` leaves the predicate byte-identical to its pre-#1889
+ *  behaviour, and the gate applies only to a {T} ability — a NON-tap mana
+ *  ability (Vivi Ornitier's {U}/{R} split, Farrelite Priest's "{1}: Add {W}") is
+ *  deliberately absent from the tap option list (CR 605.1a — it is reached
+ *  through the ability menu, not a tap), so gating on that list would wrongly
+ *  erase it. */
 export function hasManaAbility(
     card: CardInstance,
     stateView?: TriggerStateView,
-    controllerBattlefield?: ReadonlyArray<CardInstance>
+    players?: ReadonlyArray<{ id: string; battlefield: CardInstance[] }>
 ): boolean {
     if (getLandManaColor(card) !== null) return true;
     const ability = findClientManaAbility(card);
@@ -293,26 +300,22 @@ export function hasManaAbility(
             return false;
         }
     }
-    if (controllerBattlefield && ability.manaAmount) {
-        const dynamic = getDynamicManaProduced(
-            card as unknown as CardInstanceState,
-            controllerBattlefield as unknown as readonly CardInstanceState[]
-        );
-        if (dynamic && totalManaCount(dynamic) === 0) return false;
+    if (players && ability.cost.tap === true) {
+        if (
+            getManaTapOptions(
+                card as unknown as CardInstanceState,
+                card.controllerId,
+                players.map((p) => ({
+                    playerId: p.id,
+                    battlefield:
+                        p.battlefield as unknown as CardInstanceState[],
+                }))
+            ).length === 0
+        ) {
+            return false;
+        }
     }
     return true;
-}
-
-/** The battlefield of `card`'s controller, shaped as {@link hasManaAbility}'s
- *  optional board argument (CR 106.1, issue #1889). Every UI mana-source
- *  affordance reads this one helper so the board a board-conditional
- *  `manaAmount` hook is resolved against can't drift between the hooks that
- *  decide a card is clickable and the ones that paint it as a mana source. */
-export function manaSourceBattlefield(
-    card: CardInstance,
-    players: ReadonlyArray<{ id: string; battlefield: CardInstance[] }>
-): ReadonlyArray<CardInstance> | undefined {
-    return players.find((p) => p.id === card.controllerId)?.battlefield;
 }
 
 /** Returns the native mana ability of a card as a menu entry (id + oracleText),

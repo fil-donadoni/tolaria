@@ -1146,7 +1146,19 @@ type ResolvedManaTapChoice = {
 
 /** Whether the source exposes 2+ mana-tap options (must prompt a choice) or a
  *  single choice-based ability that still requires an index (Fellwar Stone with
- *  one producible colour). Kept in lockstep with the client's picker gate. */
+ *  one producible colour). Kept in lockstep with the client's picker gate.
+ *
+ *  CR 605.1a (issue #1889) — an EMPTY option list never needs a choice. The
+ *  client's mirror (`getManaChoices`, `src/lib/card-utils.ts`) returns null on
+ *  an empty list and so submits no index; without this guard a choice-based
+ *  ability whose CURRENT list is empty (a Fellwar Stone facing opponents with
+ *  no colour-producing lands, a source whose only options were filtered out)
+ *  made the server demand an index the client structurally cannot send — a hard
+ *  "Must choose a mana color" on a click the UI still offered. With nothing to
+ *  choose BETWEEN there is nothing to prompt: fall through to the fixed branch,
+ *  which taps the source for whatever it currently produces (nothing) exactly as
+ *  a zero-output fixed source already did. The two gates now agree by
+ *  construction on the same list. */
 function manaTapNeedsChoice(
     card: CardInstanceState,
     controllerId: string,
@@ -1157,6 +1169,7 @@ function manaTapNeedsChoice(
     ability: ActivatedAbility | null
 ): boolean {
     const options = getManaTapOptionsDetailed(card, controllerId, battlefields);
+    if (options.length === 0) return false;
     return (
         options.length >= 2 ||
         !!(ability?.manaChoices || ability?.getManaChoices)

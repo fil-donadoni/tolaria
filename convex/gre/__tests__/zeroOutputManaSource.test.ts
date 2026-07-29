@@ -17,6 +17,7 @@
 
 import { describe, it, expect } from "vitest";
 import {
+    getEffectiveManaChoices,
     getManaTapOptions,
     getManaTapOptionsDetailed,
     hasManaAbility,
@@ -33,6 +34,7 @@ import {
     makeState,
 } from "../../cards/__tests__/setup";
 import { everflowingChalice } from "../../cards/sets/wwk";
+import { icatianStore } from "../../cards/sets/fem";
 import { mountain, forest } from "../../cards/sets/lea";
 import { solRing } from "../../cards/sets/lea";
 
@@ -87,6 +89,93 @@ describe("getManaTapOptionsDetailed drops a zero-output option (CR 605.1a, issue
         });
         expect(getManaTapOptions(m, "p1", bf(state))).toEqual([{ R: 1 }]);
         expect(getManaTapOptions(ring, "p1", bf(state))).toEqual([{ C: 2 }]);
+    });
+});
+
+// REGRESSION GUARD for the index shift the first cut of #1889 introduced: the
+// zero-output drop was applied to the CHOICE branch too, which silently deleted
+// a storage land's index-0 "remove 0 counters" entry and shifted every later
+// index by one — `tapSourceIntoPayment(…, 3)` then removed 4 counters, and the
+// unified list stopped agreeing with `getEffectiveManaChoices` (which keeps the
+// entry), giving one tap ability two index spaces. The drop is confined to the
+// FIXED-output branch; a chooser keeps every entry.
+describe("a choice list keeps its zero-output entry — index space is load-bearing (CR 605.1a, issue #1889)", () => {
+    /** Icatian Store with `storage` counters: "{T}, Remove any number of
+     *  storage counters: Add {W} for each counter removed" → choices [0..N]. */
+    function store(storage: number): CardInstanceState {
+        return makeInstance(icatianStore.id, {
+            id: "store",
+            controllerId: "p1",
+            counters: { storage },
+        });
+    }
+
+    it("exposes the full 0..N ladder, index 0 = 'remove 0 counters'", () => {
+        const land = store(3);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [land] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(getManaTapOptions(land, "p1", bf(state))).toEqual([
+            { W: 0 },
+            { W: 1 },
+            { W: 2 },
+            { W: 3 },
+        ]);
+    });
+
+    it("getManaTapOptions and getEffectiveManaChoices are INDEX-IDENTICAL", () => {
+        for (const storage of [0, 1, 2, 4]) {
+            const land = store(storage);
+            const state = makeState({
+                players: [
+                    makePlayer("p1", { battlefield: [land] }),
+                    makePlayer("p2"),
+                ],
+            });
+            const unified = getManaTapOptions(land, "p1", bf(state));
+            const effective = getEffectiveManaChoices(land, "p1", bf(state));
+            expect(effective).toEqual(unified);
+            expect(unified).toHaveLength(storage + 1);
+        }
+    });
+
+    it("each option's ability-local choiceIndex equals its unified index", () => {
+        const land = store(3);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [land] }),
+                makePlayer("p2"),
+            ],
+        });
+        const detailed = getManaTapOptionsDetailed(land, "p1", bf(state));
+        detailed.forEach((opt, i) => {
+            expect(opt.source).toEqual({
+                kind: "activated",
+                abilityId: expect.any(String),
+                choiceIndex: i,
+            });
+        });
+    });
+
+    it("full path — picking unified index 3 removes exactly 3 counters", () => {
+        const land = store(4);
+        const player = makePlayer("p1", { battlefield: [land] });
+        const state = makeState({ players: [player, makePlayer("p2")] });
+        tapSourceIntoPayment(state, player, land, 3, []);
+        expect(player.manaPool.W).toBe(3);
+        expect(land.counters?.storage).toBe(1);
+    });
+
+    it("full path — picking unified index 0 removes nothing and adds nothing", () => {
+        const land = store(2);
+        const player = makePlayer("p1", { battlefield: [land] });
+        const state = makeState({ players: [player, makePlayer("p2")] });
+        tapSourceIntoPayment(state, player, land, 0, []);
+        expect(player.manaPool.W ?? 0).toBe(0);
+        expect(land.counters?.storage).toBe(2);
     });
 });
 

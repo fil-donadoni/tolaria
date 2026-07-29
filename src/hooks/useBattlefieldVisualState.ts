@@ -9,7 +9,6 @@ import {
     isPlaneswalker,
     isLandwalkUnblockable,
     hasManaAbility,
-    manaSourceBattlefield,
     matchesPermanentFilter,
     matchesTargetRequirement,
     matchesPermanentTargetFilters,
@@ -67,12 +66,12 @@ export function useBattlefieldVisualState(player: Player) {
     // same UI-hint convention `getActivatable` already uses (#436).
     const manaGateView = buildTriggerStateView(allPlayers, activePlayerId);
 
-    // CR 106.1 (issue #1889) — the controller's battlefield a board-conditional
-    // `manaAmount` hook is resolved against, so an Everflowing Chalice with no
-    // charge counters (current output {C}0) stops reading as a tappable
-    // payment source here, matching the server's option list.
-    const manaBoardFor = (card: CardInstance) =>
-        manaSourceBattlefield(card, allPlayers);
+    // CR 106.1 (issue #1889) — `allPlayers` is also handed to `hasManaAbility`
+    // below, so a source whose CURRENT unified tap option list is empty (an
+    // Everflowing Chalice with no charge counters) stops reading as a tappable
+    // payment source here, off the same list the server resolves the index
+    // against. Every player's battlefield, not just the controller's: a
+    // board-conditional chooser (Fellwar Stone) reads the opponents' lands.
 
     // --- Interaction modes ---
 
@@ -386,7 +385,7 @@ export function useBattlefieldVisualState(player: Player) {
             isMe &&
             isPayingCast &&
             pendingCast &&
-            !hasManaAbility(card, manaGateView, manaBoardFor(card)) &&
+            !hasManaAbility(card, manaGateView, allPlayers) &&
             (card.types?.includes("Artifact") ?? false) &&
             pendingCastHasImprovise(pendingCast, player)
         ) {
@@ -398,7 +397,7 @@ export function useBattlefieldVisualState(player: Player) {
                 : pendingCastRemainingGeneric(pendingCast) > 0;
         }
 
-        if (!isMe || !hasManaAbility(card, manaGateView, manaBoardFor(card)))
+        if (!isMe || !hasManaAbility(card, manaGateView, allPlayers))
             return false;
         // CR 302.1 — creatures with summoning sickness can't pay {T}, so
         // their mana ability isn't activatable. Untapping (refunding floating
@@ -427,11 +426,7 @@ export function useBattlefieldVisualState(player: Player) {
 
     function getVisualState(card: CardInstance): CardVisualState {
         const creature = isCreature(card);
-        const manaSource = hasManaAbility(
-            card,
-            manaGateView,
-            manaBoardFor(card)
-        );
+        const manaSource = hasManaAbility(card, manaGateView, allPlayers);
 
         const isValidTarget =
             isSelectingTarget &&
