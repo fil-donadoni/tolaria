@@ -947,6 +947,150 @@ describe("validateEffectScript — choice Op (CR 608.2 / 101.4, issue #805)", ()
     });
 });
 
+// --- EffectCardFilter.manaCostEquals (issue #1881, ADR 0078 decision 8) ----
+
+describe("validateEffectScript — EffectCardFilter.manaCostEquals (issue #1881)", () => {
+    const libraryChoiceOp = (filter: Record<string, unknown>): EffectOp =>
+        ({
+            op: "choice",
+            kind: "search-library",
+            player: "controller",
+            zone: "library",
+            filter,
+            count: { min: 0, max: 1 },
+            prompt: "Search your library for a card.",
+            bind: "$picked",
+        }) as never;
+
+    it("accepts a scalar ManaCost clause, including generic/xFactor/phyrexian/hybrid pips", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [libraryChoiceOp({ manaCostEquals: {} })],
+                })
+            )
+        ).toEqual([]);
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [libraryChoiceOp({ manaCostEquals: { X: 1 } })],
+                })
+            )
+        ).toEqual([]);
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [libraryChoiceOp({ manaCostEquals: { X: "X" } })],
+                })
+            )
+        ).toEqual([]);
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        libraryChoiceOp({
+                            manaCostEquals: {
+                                generic: 2,
+                                B: 1,
+                                xFactor: 2,
+                                phyrexian: { U: 1 },
+                                hybrid: [["B", "G"]],
+                            },
+                        }),
+                    ],
+                })
+            )
+        ).toEqual([]);
+    });
+
+    it("accepts a non-empty array clause (OR, mirroring subtype/type/color)", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        libraryChoiceOp({
+                            manaCostEquals: [{}, { X: 1 }],
+                        }),
+                    ],
+                })
+            )
+        ).toEqual([]);
+    });
+
+    it("rejects an empty array clause", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [libraryChoiceOp({ manaCostEquals: [] })],
+            })
+        );
+        expect(errors.some((e) => /field "filter"/.test(e))).toBe(true);
+    });
+
+    it("rejects a malformed pip (negative / non-integer)", () => {
+        const negative = validateEffectScript(
+            host({
+                effects: [libraryChoiceOp({ manaCostEquals: { W: -1 } })],
+            })
+        );
+        expect(negative.some((e) => /field "filter"/.test(e))).toBe(true);
+
+        const fractional = validateEffectScript(
+            host({
+                effects: [libraryChoiceOp({ manaCostEquals: { W: 1.5 } })],
+            })
+        );
+        expect(fractional.some((e) => /field "filter"/.test(e))).toBe(true);
+    });
+
+    it("rejects an unrecognised key inside the ManaCost value (fail closed)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    libraryChoiceOp({ manaCostEquals: { notAManaKey: 1 } }),
+                ],
+            })
+        );
+        expect(errors.some((e) => /field "filter"/.test(e))).toBe(true);
+    });
+
+    it("rejects a malformed hybrid pip (wrong arity / non-colour entry)", () => {
+        const wrongArity = validateEffectScript(
+            host({
+                effects: [
+                    libraryChoiceOp({
+                        manaCostEquals: { hybrid: [["B"]] },
+                    }),
+                ],
+            })
+        );
+        expect(wrongArity.some((e) => /field "filter"/.test(e))).toBe(true);
+
+        const notAColor = validateEffectScript(
+            host({
+                effects: [
+                    libraryChoiceOp({
+                        manaCostEquals: { hybrid: [["B", "Z"]] },
+                    }),
+                ],
+            })
+        );
+        expect(notAColor.some((e) => /field "filter"/.test(e))).toBe(true);
+    });
+
+    it("rejects a malformed phyrexian pip map", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    libraryChoiceOp({
+                        manaCostEquals: { phyrexian: { Z: 1 } },
+                    }),
+                ],
+            })
+        );
+        expect(errors.some((e) => /field "filter"/.test(e))).toBe(true);
+    });
+});
+
 // --- EffectCardFilter.hasAbility — battlefield-only (issue #1097) -----------
 //
 // `hasAbility` reads the LIVE `staticAbilities` array via `toPermanentFilter`
@@ -1186,6 +1330,178 @@ describe("EffectCardFilter.isAttacking — rejected outside a live battlefield r
                 /filter\.isAttacking.*zone: "battlefield"/.test(e)
             )
         ).toBe(true);
+    });
+});
+
+// --- EffectCardFilter.manaCostEquals — REJECTED on a live battlefield read
+// (issue #1898 finding 3) ----------------------------------------------------
+//
+// The INVERSE of the `hasAbility`/`isAttacking` describe blocks right above:
+// those two fields are honest ONLY for `zone: "battlefield"` and rejected
+// elsewhere; `manaCostEquals` is honest ONLY for a hidden-zone card shape
+// (`matchesCardFilter`'s `card.cost`, read off the registry by `getHandCards`/
+// `getLibraryCards`/`getGraveyardCards`/`getExileCards`) and must be REJECTED
+// for `zone: "battlefield"` — `toPermanentFilter` (`gre/effects/
+// interpreter.ts`) has no mapping for it at all, so an unguarded acceptance
+// would validate cleanly and then silently match EVERY permanent at runtime
+// (the exact fail-open hole this ticket exists to close). Pins the same
+// selector sites `hasAbility`/`isAttacking` pin, PLUS `objectMatchesFilter`
+// (always a live battlefield read, no zone field to switch on at all).
+describe("EffectCardFilter.manaCostEquals — rejected on a live battlefield read (issue #1898 finding 3)", () => {
+    it("accepts manaCostEquals on a forEach graveyard selector", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "forEach",
+                select: {
+                    set: "graveyard",
+                    controller: "controller",
+                    filter: { type: "Creature", manaCostEquals: {} },
+                },
+                effects: [
+                    {
+                        op: "moveZone",
+                        target: { ref: "$each" },
+                        to: "hand",
+                    },
+                ],
+            },
+        ];
+        expect(validateEffectScript(host({ effects }))).toEqual([]);
+    });
+
+    it("rejects manaCostEquals on a forEach permanents (battlefield) selector", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    filter: { type: "Artifact", manaCostEquals: {} },
+                },
+                effects: [
+                    { op: "dealDamage", amount: 1, to: { ref: "$each" } },
+                ],
+            },
+        ];
+        const errors = validateEffectScript(host({ effects }));
+        expect(errors.some((e) => /field "select"/.test(e))).toBe(true);
+    });
+
+    it("accepts manaCostEquals on a count construct's graveyard zone", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "draw",
+                player: "controller",
+                count: {
+                    count: {
+                        zone: "graveyard",
+                        controller: "controller",
+                        filter: { type: "Creature", manaCostEquals: {} },
+                    },
+                },
+            },
+        ];
+        expect(validateEffectScript(host({ effects }))).toEqual([]);
+    });
+
+    it("rejects manaCostEquals on a count construct's battlefield zone", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "draw",
+                player: "controller",
+                count: {
+                    count: {
+                        zone: "battlefield",
+                        controller: "controller",
+                        filter: { type: "Artifact", manaCostEquals: {} },
+                    },
+                },
+            },
+        ];
+        const errors = validateEffectScript(host({ effects }));
+        expect(errors.length).toBeGreaterThan(0);
+    });
+
+    it("accepts manaCostEquals on a choice Op scoped to zone: library", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "choice",
+                kind: "search-library",
+                player: "controller",
+                zone: "library",
+                filter: { manaCostEquals: {} },
+                count: { min: 0, max: 1 },
+                prompt: "Search your library for a card.",
+                bind: "$picked",
+            },
+        ];
+        expect(validateEffectScript(host({ effects }))).toEqual([]);
+    });
+
+    it("rejects manaCostEquals on a choice Op scoped to zone: battlefield — the Urza's Saga III near-miss", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "choice",
+                kind: "sacrifice-permanents",
+                player: { target: 0 },
+                zone: "battlefield",
+                filter: { type: "Artifact", manaCostEquals: {} },
+                count: 1,
+                prompt: "Sacrifice an artifact with mana cost {0}.",
+                bind: "$sac",
+            },
+        ];
+        const errors = validateEffectScript(host({ effects }));
+        expect(
+            errors.some((e) =>
+                /filter\.manaCostEquals.*zone: "battlefield"/.test(e)
+            )
+        ).toBe(true);
+    });
+
+    it("rejects manaCostEquals on an objectMatchesFilter predicate (always a live battlefield read, Figure of Destiny shape)", () => {
+        const errors = validateAbilityEffectScript(
+            {
+                id: "ability",
+                effects: [
+                    {
+                        op: "if",
+                        predicate: {
+                            objectMatchesFilter: { ref: "$source" },
+                            filter: { manaCostEquals: {} },
+                        },
+                        then: [
+                            { op: "gainLife", player: "controller", amount: 1 },
+                        ],
+                    },
+                ],
+            },
+            "Test (id)"
+        );
+        expect(errors.length).toBeGreaterThan(0);
+    });
+
+    it("accepts an equivalent boundMatchesFilter predicate (CR 608.2h snapshot, unaffected)", () => {
+        const errors = validateAbilityEffectScript(
+            {
+                id: "ability",
+                effects: [
+                    { op: "exile", target: { target: 0 }, bind: "$gone" },
+                    {
+                        op: "if",
+                        predicate: {
+                            boundMatchesFilter: { ref: "$gone" },
+                            filter: { manaCostEquals: {} },
+                        },
+                        then: [
+                            { op: "gainLife", player: "controller", amount: 1 },
+                        ],
+                    },
+                ],
+            },
+            "Test (id)"
+        );
+        expect(errors).toEqual([]);
     });
 });
 

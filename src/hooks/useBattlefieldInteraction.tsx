@@ -14,6 +14,7 @@ import {
     getManaChoices,
     getNonTapManaChoices,
     getActivatedManaMenuEntry,
+    getEffectiveClientAbilities,
     canRefundManaTap,
     getStackAbilities,
     getAnyPlayerStackAbilities,
@@ -762,9 +763,15 @@ export function useBattlefieldInteraction(player: Player) {
         // resolved. Independent of the plain `getActivatedManaMenuEntry` tap
         // toggle below (free-to-activate, no-mana-cost TAP mana sources).
         // Repeatable, so always offered.
-        const manaCostAbility = getDefinition(
-            card.card.id
-        ).activatedAbilities?.find(
+        //
+        // POST-LAYER set (CR 113.1 / 611.1b, issue #1880): read via
+        // `getEffectiveClientAbilities`, never `getDefinition(...).
+        // activatedAbilities`. A GRANTED "{1}, {T}: Add {W}" is invisible to
+        // the printed list, so it got no explicit entry and — with no
+        // co-existing stack ability — the permanent fell through to the plain
+        // left-click `tapUntap` path, silently charging its {1}: exactly the
+        // invariant the paragraph above declares.
+        const manaCostAbility = getEffectiveClientAbilities(card).find(
             (a) =>
                 !a.useStack &&
                 a.oracleText &&
@@ -817,7 +824,16 @@ export function useBattlefieldInteraction(player: Player) {
             .find((c) => c.id === cardInstanceId);
         if (!card) return;
         const def = getDefinition(card.card.id);
-        const ability = def.activatedAbilities?.find((a) => a.id === abilityId);
+        // POST-LAYER set (CR 113.1 / 611.1b, issue #1880) — the SAME effective
+        // list `getActivatedManaMenuEntry` / `canRefundManaTap` /
+        // `manaCostAbility` offer the entry from. Resolving against the PRINTED
+        // `def.activatedAbilities` left a GRANTED mana ability's id unmatched:
+        // `ability` was undefined, the `!ability.useStack` mana routing below
+        // was skipped, and the click dispatched `activateAbility`, which throws
+        // "Use tapUntap for mana abilities" server-side.
+        const ability = getEffectiveClientAbilities(card).find(
+            (a) => a.id === abilityId
+        );
         // Mana ability selected from the menu (useStack:false) — route through
         // the mana-ability flow (`tapUntap`, or the mana picker for sources
         // with `manaChoices`) instead of the activated-ability mutation.

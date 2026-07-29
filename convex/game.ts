@@ -249,6 +249,12 @@ import {
 import { freshSeed, seededShuffle } from "./gre/rng";
 import { makeMulliganState, recordDeclaration } from "./gre/mulligan";
 import type { Phase } from "./gre/types";
+// CR 611.1b / 613.1f (issue #1880) — the post-layer activated-ability set now
+// lives at GRE level so the leaf `gre/constants.ts` mana probes can reach it
+// without importing this module; re-exported below for back-compat with every
+// existing `from "./game"` / `from "../../game"` import site.
+import { getEffectiveActivatedAbilities } from "./gre/activatedAbilities";
+export { getEffectiveActivatedAbilities } from "./gre/activatedAbilities";
 import {
     DAMAGEABLE_PERMANENT_TYPES,
     MANA_COLORS,
@@ -1161,7 +1167,16 @@ function manaTapNeedsChoice(
  *  option list (CR 605.1a / 305.6), returning the produced mana + its
  *  provenance: `ability` is `null` for an intrinsic basic-land-subtype option
  *  (no riders), and `choiceIndex` is the ability-LOCAL index a Mana Battery
- *  reads as its counter-removal count. Null when the index is out of range. */
+ *  reads as its counter-removal count. Null when the index is out of range.
+ *
+ *  CR 113.1 / 611.1b (issue #1880) — the id is resolved against the POST-LAYER
+ *  effective set, the same list `getManaTapOptionsDetailed` enumerated the
+ *  option from. Resolving against `def.activatedAbilities` alone returned
+ *  `null` for a GRANTED option, which the caller cannot distinguish from an
+ *  intrinsic basic-subtype pick: every tap rider (`applyManaAbilityManaCost`,
+ *  `cost.sacrifice`, `manaChoiceRemovesCounters`, the self-damage / life /
+ *  discard / draw riders, `manaRestriction`) was silently skipped, so a
+ *  granted "{1}, {T}: Add {W}" produced FREE mana. */
 function resolveManaTapChoice(
     card: CardInstanceState,
     controllerId: string,
@@ -1178,9 +1193,10 @@ function resolveManaTapChoice(
     if (source.kind === "basic") {
         return { mana: opt.mana, ability: null, choiceIndex: undefined };
     }
-    const def = getDefinition(card.card.id as string);
     const ability =
-        def.activatedAbilities?.find((a) => a.id === source.abilityId) ?? null;
+        getEffectiveActivatedAbilities(card).find(
+            ({ ability: a }) => a.id === source.abilityId
+        )?.ability ?? null;
     return { mana: opt.mana, ability, choiceIndex: source.choiceIndex };
 }
 
@@ -4522,52 +4538,6 @@ export const summonCompanion = mutation({
         await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
     },
 });
-
-/** Every activated ability actually available on this permanent POST-LAYER
- *  (CR 611.1b / 613.1f, layer 6): native abilities from its `CardDefinition`
- *  — dropped entirely while `abilitiesSuppressedBy` holds a "loses all
- *  abilities" suppression (Titania's Song) — PLUS every ability granted to it
- *  by another source's continuous static effect (CR 113.1, e.g. Zombie
- *  Master's "{B}: Regenerate ~"), already materialized onto
- *  `grantedActivatedAbilities` by `applySourceStaticEffects`. This is the
- *  effective set `resolveActivatedAbility` (below) looks a single id up in —
- *  exported so a caller that needs the WHOLE set, not one id (the blade
- *  harness's `setup` `activate` step, issue #1522), resolves the exact same
- *  post-layer list instead of re-deriving one from the static
- *  `CardDefinition` alone, which would miss every statically-granted ability
- *  and wrongly offer a statically-suppressed one. */
-export function getEffectiveActivatedAbilities(card: CardInstanceState): Array<{
-    ability: NonNullable<
-        ReturnType<typeof getDefinition>["activatedAbilities"]
-    >[number];
-    grantedSourceCardId?: string;
-}> {
-    const cardId = (card.card as { id?: string }).id;
-    const suppressed = (card.abilitiesSuppressedBy?.length ?? 0) > 0;
-    const out: Array<{
-        ability: NonNullable<
-            ReturnType<typeof getDefinition>["activatedAbilities"]
-        >[number];
-        grantedSourceCardId?: string;
-    }> = [];
-    if (cardId && !suppressed) {
-        for (const ability of getDefinition(cardId).activatedAbilities ?? []) {
-            out.push({ ability });
-        }
-    }
-    for (const grant of card.grantedActivatedAbilities ?? []) {
-        const tmpl = getDefinition(grant.sourceCardId).grantTemplates?.find(
-            (a) => a.id === grant.abilityId
-        );
-        if (tmpl) {
-            out.push({
-                ability: tmpl,
-                grantedSourceCardId: grant.sourceCardId,
-            });
-        }
-    }
-    return out;
-}
 
 /** Resolves an activated ability id on a battlefield card against its
  *  post-layer effective set ({@link getEffectiveActivatedAbilities}). Returns

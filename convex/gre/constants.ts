@@ -9,6 +9,12 @@ import type {
 } from "../cards/types";
 import type { ManaRestriction } from "./types";
 import { getDefinition, tryGetDefinition } from "../cards";
+// CR 611.1b / 613.1f (issue #1880) — the POST-LAYER activated-ability set
+// (native + granted, minus a "loses all abilities" suppression). Every mana
+// probe below reads it instead of `cardDef.activatedAbilities` so a GRANTED
+// `{T}: Add …` (Urza's Saga chapter I) is visible to the auto-tap solver and
+// the castability probe exactly like a printed one.
+import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 import type { CardInstanceState, GameState } from "./state";
 import { applySubstitution } from "./textChanges";
 import { getEffectivePower, getEffectiveToughness } from "./layers";
@@ -166,6 +172,82 @@ export function manaValue(cost?: ManaCost): number {
     return total;
 }
 
+/** Exact STRUCTURAL comparison of two printed mana costs (CR 202, issue
+ *  #1881, ADR 0078 decision 8) — `EffectCardFilter.manaCostEquals`'s reader.
+ *  Distinct from `manaValue` right above, which collapses a cost to one
+ *  number and therefore can't tell `{X}` (mana value 0) from `{0}`, or `{W}`
+ *  (mana value 1) from `{1}`.
+ *
+ *  A VARIABLE `{X}` cost (`X: "X"`) never equals a FIXED one (CR 202.3b):
+ *  Chalice of the Void's `{X}` and Engineered Explosives' `{X}{X}` both have
+ *  mana value 0 but match neither `{0}` (`{}`) nor `{1}` (`{X: 1}` /
+ *  `{generic: 1}`); `{X}` != `{X}{X}` either (different `xFactor`).
+ *
+ *  A numeric `X` and `generic` are the SAME characteristic — the fixed
+ *  portion of the cost, split only to coexist with a variable `{X}` in the
+ *  same cost (Soul Burn's `{X}{2}{B}`, see `ManaCost.generic`'s own doc
+ *  comment) — so they're folded into one total before comparing: `{X: 1}`
+ *  and `{generic: 1}` both mean the printed cost `{1}` and compare equal.
+ *
+ *  `phyrexian`/`hybrid` pips (CR 107.4f / 202.1a) are compared as per-colour
+ *  / per-pair-shape MULTISETS — pip order never matters (CR 202.2) — reusing
+ *  `hybridCostKey` so `{B/G}{B/G}` and `{G/B}{B/G}` (two spellings of the
+ *  same pair) compare equal. */
+export function manaCostsEqual(a: ManaCost, b: ManaCost): boolean {
+    for (const color of MANA_COLORS) {
+        if ((a[color] ?? 0) !== (b[color] ?? 0)) return false;
+    }
+    const aVariable = a.X === "X";
+    const bVariable = b.X === "X";
+    if (aVariable !== bVariable) return false;
+    // A numeric `X` doubles as the generic slot (see doc comment above) — fold
+    // both fields into one fixed-generic total before comparing. This runs on
+    // BOTH branches (issue #1881 review finding 1): `generic` can coexist with
+    // a variable `{X}` marker too (Soul Burn `{X}{2}{B}` = `{X:"X", generic:2,
+    // B:1}`), so folding it only in the `else` let `{X}{R}` wrongly equal
+    // `{X}{2}{R}` (a fixed `generic` was compared against nothing on the
+    // variable path).
+    const aGeneric = (typeof a.X === "number" ? a.X : 0) + (a.generic ?? 0);
+    const bGeneric = (typeof b.X === "number" ? b.X : 0) + (b.generic ?? 0);
+    if (aGeneric !== bGeneric) return false;
+    if (aVariable) {
+        // CR 107.3 — {X}{X}-style multiplier; defaults to 1 ({X} alone).
+        if ((a.xFactor ?? 1) !== (b.xFactor ?? 1)) return false;
+    }
+    for (const color of MANA_COLORS) {
+        if ((a.phyrexian?.[color] ?? 0) !== (b.phyrexian?.[color] ?? 0)) {
+            return false;
+        }
+    }
+    if (!hybridPipsEqual(a.hybrid, b.hybrid)) return false;
+    return true;
+}
+
+/** Per-pair-shape multiset equality of two `ManaCost.hybrid` pip arrays
+ *  (issue #1881) — reuses `hybridCostKey` (`gre/manaColors.ts`) so pip order
+ *  within a pair, and pip ORDER within the array, never matter, only how
+ *  many of EACH pair shape are present (Hogaak's two `{B/G}` pips). */
+function hybridPipsEqual(
+    a: Array<[Color, Color]> | undefined,
+    b: Array<[Color, Color]> | undefined
+): boolean {
+    const countsOf = (pips: Array<[Color, Color]> | undefined) => {
+        const counts = new Map<string, number>();
+        for (const [x, y] of pips ?? []) {
+            const key = hybridCostKey(x, y);
+            counts.set(key, (counts.get(key) ?? 0) + 1);
+        }
+        return counts;
+    };
+    const aCounts = countsOf(a);
+    const bCounts = countsOf(b);
+    if (aCounts.size !== bCounts.size) return false;
+    for (const [key, count] of aCounts) {
+        if (bCounts.get(key) !== count) return false;
+    }
+    return true;
+}
+
 /** Returns the mana color a land produces via basic land subtype, or null.
  *  Reads the text-change-rewritten subtypes (CR 612 / CR 305.6) so a land
  *  whose type was changed (Magical Hack) taps for the new color. */
@@ -305,13 +387,20 @@ export function abilitiesSuppressed(card: CardInstanceState): boolean {
     return (card.abilitiesSuppressedBy?.length ?? 0) > 0;
 }
 
-/** Returns the mana color produced by a tap mana ability (e.g. Mox), or null. */
+/** Returns the mana color produced by a tap mana ability (e.g. Mox), or null.
+ *
+ *  CR 113.1 / 611.1b (issue #1880) — reads the POST-LAYER effective set, so a
+ *  GRANTED `{T}: Add …` (Urza's Saga chapter I on a land with no printed mana
+ *  ability) actually PRODUCES mana. This is the production half of the seam:
+ *  the discovery probes (`hasManaAbility`, `getManaTapOptionsDetailed`) already
+ *  read the effective set, so leaving this on the printed list let the planner
+ *  commit to a source `tapSourceIntoPayment` then rejected with "Card does not
+ *  produce mana" — and made `tapUntap` tap the permanent for ZERO mana. */
 export function getActivatedManaColor(card: CardInstanceState): Color | null {
     if (abilitiesSuppressed(card)) return null;
-    const cardDef = getDefinition(card.card.id as string);
-    const ability = cardDef.activatedAbilities?.find(
-        (a) => a.cost.tap && !a.useStack && a.manaProduced
-    );
+    const ability = getEffectiveActivatedAbilities(card).find(
+        ({ ability: a }) => a.cost.tap && !a.useStack && a.manaProduced
+    )?.ability;
     if (!ability?.manaProduced) return null;
     const colors = Object.entries(ability.manaProduced)
         .filter(([k, v]) => k !== "X" && typeof v === "number" && v > 0)
@@ -319,15 +408,16 @@ export function getActivatedManaColor(card: CardInstanceState): Color | null {
     return colors.length === 1 ? colors[0] : null;
 }
 
-/** Returns the mana produced by a tap mana ability, or null. Supports multi-color (e.g. Signet). */
+/** Returns the mana produced by a tap mana ability, or null. Supports
+ *  multi-color (e.g. Signet). CR 113.1 / 611.1b (issue #1880) — POST-LAYER
+ *  effective set, so a GRANTED tap mana ability's output is real. */
 export function getActivatedManaProduced(
     card: CardInstanceState
 ): ManaCost | null {
     if (abilitiesSuppressed(card)) return null;
-    const cardDef = getDefinition(card.card.id as string);
-    const ability = cardDef.activatedAbilities?.find(
-        (a) => a.cost.tap && !a.useStack && a.manaProduced
-    );
+    const ability = getEffectiveActivatedAbilities(card).find(
+        ({ ability: a }) => a.cost.tap && !a.useStack && a.manaProduced
+    )?.ability;
     return ability?.manaProduced ?? null;
 }
 
@@ -415,16 +505,18 @@ function withEffectivePT(
  *  CR 613.4 / 605.1a (issue #927) — the `source` passed to `manaAmount` carries
  *  the source's CURRENT effective power/toughness (post-layers), computed from
  *  the controller's own battlefield (the only board data this hook receives —
- *  see `manaLayerView`), not its raw base stats. */
+ *  see `manaLayerView`), not its raw base stats.
+ *
+ *  CR 113.1 / 611.1b (issue #1880) — POST-LAYER effective set, so a GRANTED
+ *  board-conditional tap mana ability scales like a printed one. */
 export function getDynamicManaProduced(
     card: CardInstanceState,
     controllerBattlefield: readonly CardInstanceState[]
 ): ManaCost | null {
     if (abilitiesSuppressed(card)) return null;
-    const cardDef = getDefinition(card.card.id as string);
-    const ability = cardDef.activatedAbilities?.find(
-        (a) => a.cost.tap && !a.useStack && a.manaAmount
-    );
+    const ability = getEffectiveActivatedAbilities(card).find(
+        ({ ability: a }) => a.cost.tap && !a.useStack && a.manaAmount
+    )?.ability;
     if (!ability?.manaAmount) return null;
     const layerView = manaLayerView([
         { playerId: card.controllerId, battlefield: controllerBattlefield },
@@ -510,15 +602,24 @@ export function getDefinitionProducibleColors(
  *  instance-only concerns layered on top: ability suppression (short-circuits
  *  to empty) and text-change-aware basic-land mana (`getBasicLandMana`,
  *  which reads the substitution-rewritten `subtypes`, not the definition's
- *  printed ones) — issue #1619. */
+ *  printed ones) — issue #1619.
+ *
+ *  CR 113.1 / 611.1b (issue #1880) — the ability union is the POST-LAYER
+ *  effective set, the third instance-only concern: a GRANTED mana ability
+ *  (Urza's Saga chapter I) is a real "could produce" source, so a land holding
+ *  only a granted `{T}: Add {G}` reads as a green source to Fellwar Stone and
+ *  to mana-source classification, exactly as every sibling probe already sees
+ *  it. `getDefinitionProducibleColors` (definition-level, no instance, no
+ *  battlefield) necessarily stays printed-only — a grant lives on an instance. */
 export function getProducibleColors(card: CardInstanceState): Set<Color> {
     const colors = new Set<Color>();
     if (abilitiesSuppressed(card)) return colors;
     // CR 305.6 — intrinsic basic-land subtype abilities (text-change aware).
     const intrinsic = getBasicLandMana(card);
     if (intrinsic && intrinsic !== "C") colors.add(intrinsic);
-    const cardDef = getDefinition(card.card.id as string);
-    for (const c of producibleColorsFromAbilities(cardDef.activatedAbilities))
+    for (const c of producibleColorsFromAbilities(
+        getEffectiveActivatedAbilities(card).map(({ ability }) => ability)
+    ))
         colors.add(c);
     return colors;
 }
@@ -546,10 +647,9 @@ export function getDynamicManaChoices(
     }>
 ): ManaCost[] | null {
     if (abilitiesSuppressed(card)) return null;
-    const cardDef = getDefinition(card.card.id as string);
-    const ability = cardDef.activatedAbilities?.find(
-        (a) => !a.useStack && a.getManaChoices
-    );
+    const ability = getEffectiveActivatedAbilities(card).find(
+        ({ ability: a }) => !a.useStack && a.getManaChoices
+    )?.ability;
     if (!ability?.getManaChoices) return null;
     const layerView = manaLayerView(battlefields);
     // Precompute each permanent's producible colours via the shared helper so
@@ -725,8 +825,14 @@ export function getManaTapOptionsDetailed(
             ? battlefields.find((b) => b.playerId === controllerId)?.battlefield
             : undefined;
 
-    if (def?.activatedAbilities && !abilitiesSuppressed(card)) {
-        for (const ability of def.activatedAbilities) {
+    // CR 113.1 / 611.1b (issue #1880) — the POST-LAYER set: printed abilities
+    // PLUS every one granted to this permanent (Urza's Saga chapter I's
+    // "{T}: Add {C}"), so a granted mana ability is a real tap option for the
+    // auto-tap planner and the tap mutations, not merely a client-side menu
+    // entry. `def` is still consulted for its EXISTENCE (a slim client
+    // instance with no definition exposes no activated options).
+    if (def && !abilitiesSuppressed(card)) {
+        for (const { ability } of getEffectiveActivatedAbilities(card)) {
             if (ability.useStack) continue;
             // A one-shot mana ability activated by tapping AND/OR sacrificing the
             // source (ADR 0039 — Lion's Eye Diamond sacrifices without tapping).
@@ -948,15 +1054,16 @@ export function applyLandManaReplacement(
 
 /** Spend restriction (CR 106.6) carried by a card's fixed tap mana ability, or
  *  null when the produced mana is unrestricted. Mishra's Workshop returns
- *  `"artifact-spell"`; basic lands and ordinary mana rocks return null. */
+ *  `"artifact-spell"`; basic lands and ordinary mana rocks return null. Reads
+ *  the POST-LAYER set (issue #1880) so a GRANTED restricted mana ability is
+ *  not silently spent as unrestricted mana. */
 export function getActivatedManaRestriction(
     card: CardInstanceState
 ): ManaRestriction | null {
     if (abilitiesSuppressed(card)) return null;
-    const cardDef = getDefinition(card.card.id as string);
-    const ability = cardDef.activatedAbilities?.find(
-        (a) => a.cost.tap && !a.useStack && a.manaProduced
-    );
+    const ability = getEffectiveActivatedAbilities(card).find(
+        ({ ability: a }) => a.cost.tap && !a.useStack && a.manaProduced
+    )?.ability;
     return ability?.manaRestriction ?? null;
 }
 
@@ -969,17 +1076,26 @@ export function getActivatedManaRestriction(
  *  not be offered as a tappable mana source or reach the tap-for-mana
  *  pipeline. `state` is optional so shape-only callers (definition
  *  introspection with no board snapshot) keep compiling; every real
- *  tap-decision site (the three tap mutations, `hasManaAbility`) passes one. */
+ *  tap-decision site (the three tap mutations, `hasManaAbility`) passes one.
+ *
+ *  CR 113.1 / 611.1b (issue #1880) — the search runs over the POST-LAYER
+ *  effective set (`getEffectiveActivatedAbilities`), not
+ *  `cardDef.activatedAbilities` alone: a permanent GRANTED a `{T}: Add …`
+ *  (Urza's Saga chapter I) has a real mana ability, and reading only the
+ *  printed list left it invisible to the auto-tap solver and the castability
+ *  probe while the client menu still offered it — clickable but contributing
+ *  nothing. A permanent under a "loses all abilities" suppression (CR 613.1f,
+ *  Titania's Song) still has NO mana ability at all: the early return above
+ *  drops the granted ones too, matching every other tap-decision site. */
 export function getActivatedManaAbility(
     card: CardInstanceState,
     state?: TriggerStateView
 ) {
     if (abilitiesSuppressed(card)) return null;
-    const cardDef = getDefinition(card.card.id as string);
     const ability =
-        cardDef.activatedAbilities?.find(
-            (a) => !a.useStack && (a.manaProduced || a.manaChoices)
-        ) ?? null;
+        getEffectiveActivatedAbilities(card).find(
+            ({ ability: a }) => !a.useStack && (a.manaProduced || a.manaChoices)
+        )?.ability ?? null;
     if (!ability) return null;
     if (ability.canActivate && state && !ability.canActivate(card, state)) {
         return null;
@@ -1031,12 +1147,13 @@ export function isUntappedManaSource(card: CardInstanceState): boolean {
  *  when auto-tapping. A mana ability is `!useStack && (manaProduced ||
  *  manaChoices)` (CR 605.3a); anything else (a stack ability, or an activated
  *  ability with no mana output) makes the permanent dual-purpose. Suppressed
- *  permanents expose no abilities (CR 613.1f). */
+ *  permanents expose no abilities (CR 613.1f). POST-LAYER set (CR 113.1 /
+ *  611.1b, issue #1880) — a GRANTED non-mana ability makes its holder
+ *  dual-purpose exactly like a printed one. */
 export function hasNonManaActivatedAbility(card: CardInstanceState): boolean {
     if (abilitiesSuppressed(card)) return false;
-    const def = tryGetDefinition(card.card.id as string);
-    if (!def?.activatedAbilities) return false;
-    return def.activatedAbilities.some(
-        (a) => a.useStack === true || !(a.manaProduced || a.manaChoices)
+    return getEffectiveActivatedAbilities(card).some(
+        ({ ability: a }) =>
+            a.useStack === true || !(a.manaProduced || a.manaChoices)
     );
 }

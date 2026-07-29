@@ -7319,6 +7319,302 @@ describe("EffectCardFilter.manaValueEquals (issue #1083)", () => {
     });
 });
 
+describe("EffectCardFilter.manaCostEquals (issue #1881, ADR 0078 decision 8)", () => {
+    // Urza's Saga III's "an artifact card with mana cost {0} or {1}" — NOT
+    // mana value. `manaValueAtMost: 1` would wrongly admit an `{X}`-costed
+    // artifact (mana value 0, Chalice of the Void / Engineered Explosives
+    // shape) and any coloured mana-value-1 artifact (cost `{W}`, never
+    // `{1}`); this filter compares the FULL printed cost structurally.
+    const ARTIFACT_COST_0_ID = "test-effects-manacost-artifact-0"; // {0}
+    registerTokenDefinition({
+        id: ARTIFACT_COST_0_ID,
+        name: ARTIFACT_COST_0_ID,
+        rarity: "common",
+        manaCost: {},
+        types: ["Artifact"],
+    });
+    const ARTIFACT_COST_1_ID = "test-effects-manacost-artifact-1"; // {1}
+    registerTokenDefinition({
+        id: ARTIFACT_COST_1_ID,
+        name: ARTIFACT_COST_1_ID,
+        rarity: "common",
+        manaCost: { X: 1 },
+        types: ["Artifact"],
+    });
+    // Engineered Explosives shape — mana value 0, cost {X}, never {0}.
+    const ARTIFACT_COST_X_ID = "test-effects-manacost-artifact-x";
+    registerTokenDefinition({
+        id: ARTIFACT_COST_X_ID,
+        name: ARTIFACT_COST_X_ID,
+        rarity: "common",
+        manaCost: { X: "X" },
+        types: ["Artifact"],
+    });
+    // Chalice of the Void shape — {X}{X}, distinct from {X} by xFactor.
+    const ARTIFACT_COST_XX_ID = "test-effects-manacost-artifact-xx";
+    registerTokenDefinition({
+        id: ARTIFACT_COST_XX_ID,
+        name: ARTIFACT_COST_XX_ID,
+        rarity: "common",
+        manaCost: { X: "X", xFactor: 2 },
+        types: ["Artifact"],
+    });
+    const ARTIFACT_COST_W_ID = "test-effects-manacost-artifact-w"; // {W}
+    registerTokenDefinition({
+        id: ARTIFACT_COST_W_ID,
+        name: ARTIFACT_COST_W_ID,
+        rarity: "common",
+        manaCost: { W: 1 },
+        types: ["Artifact"],
+    });
+    const ARTIFACT_COST_C_ID = "test-effects-manacost-artifact-c"; // {C}
+    registerTokenDefinition({
+        id: ARTIFACT_COST_C_ID,
+        name: ARTIFACT_COST_C_ID,
+        rarity: "common",
+        manaCost: { C: 1 },
+        types: ["Artifact"],
+    });
+
+    const libraryArtifacts = (owner: "p1" | "p2") => [
+        makeInstance(ARTIFACT_COST_0_ID, {
+            id: "mc0",
+            controllerId: owner,
+            ownerId: owner,
+            zone: "library",
+        }),
+        makeInstance(ARTIFACT_COST_1_ID, {
+            id: "mc1",
+            controllerId: owner,
+            ownerId: owner,
+            zone: "library",
+        }),
+        makeInstance(ARTIFACT_COST_X_ID, {
+            id: "mcX",
+            controllerId: owner,
+            ownerId: owner,
+            zone: "library",
+        }),
+        makeInstance(ARTIFACT_COST_XX_ID, {
+            id: "mcXX",
+            controllerId: owner,
+            ownerId: owner,
+            zone: "library",
+        }),
+        makeInstance(ARTIFACT_COST_W_ID, {
+            id: "mcW",
+            controllerId: owner,
+            ownerId: owner,
+            zone: "library",
+        }),
+        makeInstance(ARTIFACT_COST_C_ID, {
+            id: "mcC",
+            controllerId: owner,
+            ownerId: owner,
+            zone: "library",
+        }),
+    ];
+
+    it("restricts a search-library choice's candidateIds to EXACTLY {0} or {1}, rejecting {X}, {X}{X}, {W}, and {C} (Urza's Saga III shape) — hidden-zone proof", () => {
+        const id = registerScript("test-op-choice-manacost-equals-array", [
+            {
+                op: "choice",
+                kind: "search-library",
+                player: "controller",
+                zone: "library",
+                filter: {
+                    type: "Artifact",
+                    manaCostEquals: [{}, { X: 1 }],
+                },
+                count: { min: 0, max: 1 },
+                prompt: "Search your library for an artifact card with mana cost {0} or {1}.",
+                bind: "$picked",
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libraryArtifacts("p1") }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        // The hidden-zone proof: assert the REJECTED candidates are ABSENT
+        // from candidateIds, not merely that picking a matching card
+        // succeeds — a happy-path-only assertion passes under the fail-open
+        // bug (an unthreaded filter field matches every library card).
+        expect(head.candidateIds).toHaveLength(2);
+        expect(head.candidateIds).toEqual(
+            expect.arrayContaining(["mc0", "mc1"])
+        );
+        expect(head.candidateIds).not.toContain("mcX");
+        expect(head.candidateIds).not.toContain("mcXX");
+        expect(head.candidateIds).not.toContain("mcW");
+        expect(head.candidateIds).not.toContain("mcC");
+    });
+
+    it("a single-element array behaves as the scalar form", () => {
+        const scalarId = registerScript(
+            "test-op-choice-manacost-equals-scalar",
+            [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    filter: { type: "Artifact", manaCostEquals: {} },
+                    count: { min: 0, max: 1 },
+                    prompt: "Search your library for an artifact card with mana cost {0}.",
+                    bind: "$picked",
+                },
+            ]
+        );
+        const arrayId = registerScript(
+            "test-op-choice-manacost-equals-array-of-one",
+            [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    filter: { type: "Artifact", manaCostEquals: [{}] },
+                    count: { min: 0, max: 1 },
+                    prompt: "Search your library for an artifact card with mana cost {0}.",
+                    bind: "$picked",
+                },
+            ]
+        );
+        for (const scriptId of [scalarId, arrayId]) {
+            const state = makeState({
+                players: [
+                    makePlayer("p1", { library: libraryArtifacts("p1") }),
+                    makePlayer("p2"),
+                ],
+            });
+            pushSpell(state, scriptId, "p1");
+            resolveTopOfStack(state);
+            expect(state.pendingChoices![0].candidateIds).toEqual(["mc0"]);
+        }
+    });
+
+    // CR 202.1 / 202.3b (issue #1898 finding 2) — a Land has NO mana cost, not
+    // mana cost {0}. Before the fix, `getLibraryCards`'s `def?.manaCost ?? {}`
+    // fallback made a Land indistinguishable from a real `{0}`-cost card
+    // (Mishra's Factory/Workshop) — `manaCostEquals: [{}]` wrongly admitted
+    // it. This is precisely the "Urza's Saga can't find artifact lands"
+    // ruling gap: chapter III's own `type: "Artifact"` guard happens to mask
+    // it today, but a `manaCostEquals`-only filter (no type clause) must not
+    // resurrect it once an artifact land ships.
+    const LAND_NO_COST_ID = "test-effects-manacost-land-no-cost";
+    registerTokenDefinition({
+        id: LAND_NO_COST_ID,
+        name: LAND_NO_COST_ID,
+        rarity: "common",
+        // No `manaCost` at all — mirrors a LEA basic land's definition.
+        types: ["Land"],
+    });
+
+    it("excludes a Land from candidateIds under manaCostEquals: [{}] — a Land has NO mana cost, not {0}", () => {
+        const id = registerScript("test-op-choice-manacost-equals-vs-land", [
+            {
+                op: "choice",
+                kind: "search-library",
+                player: "controller",
+                zone: "library",
+                // Deliberately no `type` clause — proves the LAND carve-out
+                // itself, not the `type: "Artifact"` guard that (accidentally)
+                // masks the bug on Urza's Saga III today.
+                filter: { manaCostEquals: [{}] },
+                count: { min: 0, max: 1 },
+                prompt: "Search your library for a card with mana cost {0}.",
+                bind: "$picked",
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: [
+                        ...libraryArtifacts("p1"),
+                        makeInstance(LAND_NO_COST_ID, {
+                            id: "land1",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "library",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        expect(head.candidateIds).toContain("mc0");
+        expect(head.candidateIds).not.toContain("land1");
+    });
+
+    // Second re-review of #1898 finding 2: the test above registers a Land
+    // with NO `manaCost` field at all, so it is excluded at the earlier
+    // `def.manaCost === undefined` check in `manaCostForCardFilter` — it
+    // never reaches the `isLandDefinition` carve-out one line below, so it
+    // does NOT prove that branch. This test registers a Land that DOES carry
+    // a printed `manaCost: {}` (the real Mishra's Factory / Ancient Tomb
+    // shape — both write `manaCost: {}` themselves alongside `types:
+    // ["Land"]`) so `def.manaCost === undefined` is false and the ONLY thing
+    // that can exclude it is `isLandDefinition`.
+    const LAND_ZERO_COST_ID = "test-effects-manacost-land-zero-cost";
+    registerTokenDefinition({
+        id: LAND_ZERO_COST_ID,
+        name: LAND_ZERO_COST_ID,
+        rarity: "common",
+        // Printed `{}`, same as Mishra's Factory/Ancient Tomb — exercises
+        // the `isLandDefinition` carve-out itself, not the earlier
+        // `manaCost === undefined` early-exit the sibling test above hits.
+        manaCost: {},
+        types: ["Land"],
+    });
+
+    it("excludes a Land carrying a printed manaCost: {} (Mishra's Factory / Ancient Tomb shape) from candidateIds under manaCostEquals: [{}] — proves the isLandDefinition carve-out itself", () => {
+        const id = registerScript(
+            "test-op-choice-manacost-equals-vs-land-zero-cost",
+            [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    filter: { manaCostEquals: [{}] },
+                    count: { min: 0, max: 1 },
+                    prompt: "Search your library for a card with mana cost {0}.",
+                    bind: "$picked",
+                },
+            ]
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: [
+                        ...libraryArtifacts("p1"),
+                        makeInstance(LAND_ZERO_COST_ID, {
+                            id: "landZero1",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "library",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        expect(head.candidateIds).toContain("mc0");
+        expect(head.candidateIds).not.toContain("landZero1");
+    });
+});
+
 describe("EffectCardFilter.enteredThisTurn (CR 400.7, issue #1458)", () => {
     // The clause reads the REAL entry stamp `CardInstanceState.enteredOnTurn`
     // (written by `markEnteredThisTurn` / `createTokenPermanents`) compared
