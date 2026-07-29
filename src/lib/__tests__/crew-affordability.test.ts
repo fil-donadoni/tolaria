@@ -12,7 +12,7 @@ import { registerTokenDefinition } from "@convex/cards";
 import { makeVehicle } from "@convex/cards/abilities/vehicle";
 import type { CardDefinition } from "@convex/cards/types";
 import { smugglersCopter } from "@convex/cards/sets/kld";
-import { grizzlyBears } from "@convex/cards/sets/lea";
+import { crusade, grizzlyBears, savannahLions } from "@convex/cards/sets/lea";
 import type { CardInstance } from "../../types/game";
 import { buildTriggerStateView, getStackAbilities } from "../card-utils";
 
@@ -206,5 +206,65 @@ describe("crewPowerBonus survives the reducer (CR 702.122b)", () => {
         expect(
             offeredAbilityIds(vehicle, [vehicle, perm("plain", plainOneDrop)])
         ).not.toContain(crewId);
+    });
+});
+
+// The hint weighs the SAME number the server does — `getEffectivePower`
+// (CR 613.4), not the instance's base `power`. Counters (layer 7c) and
+// anthems (7d) are applied at READ time and never baked into `power`, so a
+// hint that read the base value hid Crew on a board that CAN pay and offered
+// it on one that can't. Every assertion drives the surface through the REAL
+// reducer.
+describe("the crew hint uses EFFECTIVE power (CR 613.4 layers)", () => {
+    const CREW_3_ID = "test-crew-three-vehicle-crew";
+    const COPTER_CREW_ID = "smugglers-copter-crew";
+
+    it("a 1/1 buffed to 3/3 by +1/+1 counters can pay Crew 3", () => {
+        const vehicle = perm("vehicle", crewThreeVehicle);
+        const buffed = perm("buffed", plainOneDrop, {
+            counters: { "+1/+1": 2 },
+        });
+        // Base power is still 1 — only the layer pipeline sees the 3.
+        expect(buffed.power).toBe(1);
+        expect(offeredAbilityIds(vehicle, [vehicle, buffed])).toContain(
+            CREW_3_ID
+        );
+    });
+
+    it("a 2/2 shrunk to 0/0 by -1/-1 counters cannot pay Crew 1", () => {
+        const copter = perm("copter", smugglersCopter);
+        const shrunk = perm("shrunk", grizzlyBears, {
+            counters: { "-1/-1": 2 },
+        });
+        // Base power is still 2 — weighing it would wrongly offer the ability.
+        expect(shrunk.power).toBe(2);
+        expect(offeredAbilityIds(copter, [copter, shrunk])).not.toContain(
+            COPTER_CREW_ID
+        );
+    });
+
+    it("an anthem (Crusade, layer 7d) lifts a 2/1 over the Crew 3 threshold", () => {
+        const vehicle = perm("vehicle", crewThreeVehicle);
+        const lions = perm("lions", savannahLions);
+        // Alone the white 2/1 is one power short…
+        expect(offeredAbilityIds(vehicle, [vehicle, lions])).not.toContain(
+            CREW_3_ID
+        );
+        // …with Crusade on the board it is a 3/2 and pays exactly.
+        const anthem = perm("crusade", crusade);
+        expect(offeredAbilityIds(vehicle, [vehicle, lions, anthem])).toContain(
+            CREW_3_ID
+        );
+    });
+
+    it("the rider adds to EFFECTIVE power, not to base power", () => {
+        const vehicle = perm("vehicle", crewThreeVehicle);
+        // A 1/1 Pilot shrunk to 0/0 contributes 0 + 2 = 2 — one short of 3.
+        const shrunkPilot = perm("pilot", pilot, {
+            counters: { "-1/-1": 1 },
+        });
+        expect(
+            offeredAbilityIds(vehicle, [vehicle, shrunkPilot])
+        ).not.toContain(CREW_3_ID);
     });
 });

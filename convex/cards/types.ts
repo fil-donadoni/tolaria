@@ -6723,6 +6723,12 @@ export interface TriggerStateView {
             types: ReadonlyArray<string>;
             subtypes: ReadonlyArray<string>;
             staticAbilities: ReadonlyArray<string>;
+            /** P/T as the reader should weigh it. The frontend reducer
+             *  (`buildTriggerStateView`) fills these with EFFECTIVE values —
+             *  the CR 613.4 layer pipeline applied, counters (7c) and
+             *  anthems/pump (7d) included — so an affordability hint agrees
+             *  with the server's own `getEffectivePower` instead of diverging
+             *  on base P/T (the Crew N divergence, CR 702.122a). */
             power?: number;
             toughness?: number;
             /** True for tokens (CR 111). Exposed so state-trigger conditions

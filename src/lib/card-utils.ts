@@ -59,6 +59,7 @@ import {
     controlsLandWithSupertype,
     negatedLandwalkSubtypes,
 } from "@convex/cards/landwalkNegation";
+import { effectivePower, effectiveToughness } from "./effective-stats";
 
 export function isLand(card: CardInstance): boolean {
     return card.types?.includes("Land") ?? false;
@@ -1015,8 +1016,17 @@ export function buildTriggerStateView(
                 types: c.types ?? [],
                 subtypes: c.subtypes ?? [],
                 staticAbilities: c.staticAbilities ?? [],
-                power: c.power,
-                toughness: c.toughness,
+                // CR 613.4 — EFFECTIVE P/T, not the instance's base values.
+                // Counters (layer 7c) and anthems/pump (7d) are applied at
+                // READ time by the layer system and are never baked into
+                // `c.power`, so weighing the base value here made the crew
+                // affordability hint disagree with the server's own
+                // `getEffectivePower` (a creature pumped over the Crew N
+                // threshold had the ability hidden; a shrunk one was offered
+                // and then rejected). Same computation as the server's, via
+                // the shared client-side layer projection.
+                power: effectivePower(players, c),
+                toughness: effectiveToughness(players, c),
                 isTapped: c.isTapped === true,
                 // CR 202.2 / 613.1d — effective colours for a tapOtherFilter
                 // colour clause (Hand of Justice): layer-5 override wins, else

@@ -5316,80 +5316,35 @@ export function finalizeTargetSelection(
             ability.cost.tapOtherFilter ||
             ability.cost.discardFilter
         ) {
+            // SINGLE AUTHORITY (CR 602.1 / 118.8): the deferred-payment
+            // descriptor is built by `buildPendingActivation` here too, exactly
+            // as the non-targeted path does. This site used to duplicate the
+            // object literal, and every cost shape added to the builder had to
+            // be remembered twice — the `tapOtherChoice` totalPower/pickedPower
+            // shape (CR 702.122a, Crew N) was dropped here, which made a
+            // `totalPower` picker report itself PAID with zero picks. Only the
+            // target-specific fields (`targets`, `targetAmounts`) are layered
+            // on top; nothing else may be re-derived locally.
             state.pendingActivation = {
-                playerId,
-                cardInstanceId: card.id,
-                abilityId,
-                manaCost: manaCost ?? {},
-                tappedLandIds: [],
-                tapSource: !!ability.cost.tap,
-                sacrificeSource: !!ability.cost.sacrifice,
-                // CR 702.29a — the source lives off the battlefield (Harvester
-                // of Misery's from-hand discard ability). Carry the zone flag
-                // and the discard-this cost so the deferred commit
-                // (commitPendingActivation) re-locates the source in the right
-                // zone and pays the discard.
-                ...(ability.cost.discardThis
-                    ? { discardThisSource: true }
-                    : {}),
-                ...(sourceFromHand ? { fromHand: true } : {}),
-                ...(sourceFromGraveyard ? { fromGraveyard: true } : {}),
-                ...(ability.cost.removeCounter
-                    ? { removeCounterCost: { ...ability.cost.removeCounter } }
-                    : {}),
-                ...(activationSac ? { sacrificeSelection: activationSac } : {}),
-                ...(ability.cost.exileFromGraveyard
-                    ? {
-                          exileFromGraveyardChoice: {
-                              count: ability.cost.exileFromGraveyard.count,
-                              ...(ability.cost.exileFromGraveyard.cardType !==
-                              undefined
-                                  ? {
-                                        cardType:
-                                            ability.cost.exileFromGraveyard
-                                                .cardType,
-                                    }
-                                  : {}),
-                              ...(ability.cost.exileFromGraveyard.owner !==
-                              undefined
-                                  ? {
-                                        owner: ability.cost.exileFromGraveyard
-                                            .owner,
-                                    }
-                                  : {}),
-                          },
-                      }
-                    : {}),
-                ...(ability.cost.tapOtherFilter
-                    ? {
-                          tapOtherChoice: {
-                              filter: ability.cost.tapOtherFilter.filter,
-                              count: ability.cost.tapOtherFilter.count,
-                              pickedIds: [],
-                          },
-                      }
-                    : {}),
-                ...(ability.cost.discardFilter
-                    ? {
-                          discardFilterChoice: {
-                              filter: ability.cost.discardFilter.filter,
-                              count: ability.cost.discardFilter.count,
-                          },
-                      }
-                    : {}),
-                ...(ability.cost.discardAtRandom
-                    ? { discardAtRandomCount: ability.cost.discardAtRandom }
-                    : {}),
-                ...(abilityChosenX !== undefined
-                    ? { chosenX: abilityChosenX }
-                    : {}),
-                ...(ability.noteManaSpent ? { noteManaSpent: true } : {}),
-                keepPriority,
+                ...buildPendingActivation({
+                    playerId,
+                    cardInstanceId: card.id,
+                    abilityId,
+                    ability,
+                    manaCost,
+                    chosenX: abilityChosenX,
+                    keepPriority,
+                    grantedSourceCardId,
+                    fromGraveyard: sourceFromGraveyard,
+                    fromHand: sourceFromHand,
+                    ...(activationSac
+                        ? { sacrificeSelection: activationSac }
+                        : {}),
+                }),
                 targets,
                 // CR 601.2d — carry the divide-as-you-choose split through the
                 // deferred payment so it reaches the stack item at commit.
                 ...(divideAmounts ? { targetAmounts: divideAmounts } : {}),
-                ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
             };
             // If mana was already covered (choice-only deferral), commit fires
             // once selectActivationCost sets the pickedId / completes the picks.
