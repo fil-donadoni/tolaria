@@ -17,22 +17,34 @@ import { useArrowHighlight } from "~/hooks/arrowHighlightContext";
 import { useDraggable } from "~/hooks/useDraggable";
 import { repositionAnchors } from "~/hooks/anchor-reposition";
 import { Panel } from "~/components/ui/panel";
-import {
-    PORTRAIT_MIDLINE_TOP,
-    PORTRAIT_VIEWER_BF_BOTTOM_VAR,
-} from "~/lib/portrait-board-bands";
+import { PORTRAIT_STACK_PANEL_TOP } from "~/lib/portrait-board-bands";
 import DragHandle from "./drag-handle";
 import StackRow from "./stack-row";
 
-/** Portrait's clearance-bound bottom edge, as a Tailwind arbitrary-value
- *  class referencing the SAME published var the viewer battlefield band
- *  anchors to (`portrait-board-bands.ts`) — never a re-typed literal. Pinning
- *  the panel's bottom here (rather than a vh-based `max-h`) makes "never
- *  overlaps the controller bar or the viewer's hand" an arithmetic guarantee:
- *  that var already bakes in the bar's MEASURED clearance, the hand band, and
- *  the reserved nameplate band, so the stack panel stops exactly where the
- *  viewer's own battlefield does. */
-const NARROW_BOTTOM_CLASS = `bottom-[var(${PORTRAIT_VIEWER_BF_BOTTOM_VAR})]`;
+/** Portrait's clearance-bound bottom edge — the SAME literal Tailwind class
+ *  the viewer battlefield band itself uses for this edge
+ *  (`PORTRAIT_VIEWER_BATTLEFIELD_BAND`, `portrait-board-bands.ts`), typed out
+ *  directly rather than template-built from `PORTRAIT_VIEWER_BF_BOTTOM_VAR`
+ *  (issue #1816 review fixup finding 6). A template-built arbitrary-value
+ *  class (`` `bottom-[var(${VAR})]` ``) only worked here because the
+ *  IDENTICAL literal happened to already appear, spelled out, inside
+ *  `PORTRAIT_VIEWER_BATTLEFIELD_BAND` — Tailwind's JIT scanner greps SOURCE
+ *  TEXT for literal class occurrences, it does not evaluate JS template
+ *  interpolation, so a `${}`-built class name is invisible to it unless the
+ *  fully-resolved string ALSO appears verbatim somewhere it scans. A refactor
+ *  of that other constant (e.g. a var rename) would have silently stopped
+ *  generating this class's CSS with no compiler error — this file compiled
+ *  for a reason that had nothing to do with this file.
+ *  `game-stack-narrow.test.tsx` asserts this literal is a substring of
+ *  `PORTRAIT_VIEWER_BATTLEFIELD_BAND` so a future rename of that shared
+ *  fragment fails the guard instead of silently breaking this class.
+ *
+ *  Pinning the panel's bottom here (rather than a vh-based `max-h`) makes
+ *  "never overlaps the controller bar or the viewer's hand" an arithmetic
+ *  guarantee: that var already bakes in the bar's MEASURED clearance, the
+ *  hand band, and the reserved nameplate band, so the stack panel stops
+ *  exactly where the viewer's own battlefield does. */
+export const NARROW_BOTTOM_CLASS = "bottom-[var(--portrait-viewer-bf-bottom)]";
 
 type GameStackProps = {
     stack: StackItem[];
@@ -61,8 +73,13 @@ type GameStackProps = {
      *  2. Re-anchored: the desktop panel is vertically CENTERED
      *     (`top-1/2` + a `-50%` translate) with a `max-h-[80vh]` soft cap —
      *     tall enough on a short phone to run under the hand strip and the
-     *     bottom bar. The narrow panel instead anchors between the midline
-     *     (`PORTRAIT_MIDLINE_TOP` — where the stack chip already sits) and
+     *     bottom bar. The narrow panel instead anchors between
+     *     `PORTRAIT_STACK_PANEL_TOP` (issue #1816 review fixup finding 2 —
+     *     PAST the midline by the stack chip's own height plus a gap, NOT
+     *     the bare midline the chip itself sits on: the panel used to start
+     *     exactly there and, mounting later in the DOM at the same
+     *     `z-chip` tier, painted over the chip's bottom half, leaving under
+     *     half the 44px touch target tappable) and
      *     {@link NARROW_BOTTOM_CLASS} (the viewer battlefield's own bottom
      *     inset, i.e. clear of the bar, the hand band AND the nameplate
      *     band) — both edges pinned, so the browser computes its height as
@@ -135,14 +152,15 @@ export default function GameStack({ stack, elevated, narrow }: GameStackProps) {
             //
             // `narrow` (portrait, #1816) swaps the desktop's vertical-center
             // anchor (`top-1/2` + a `-50%` translate, `max-h-[80vh]` soft cap)
-            // for a BOUNDED one: `PORTRAIT_MIDLINE_TOP` down to
+            // for a BOUNDED one: `PORTRAIT_STACK_PANEL_TOP` (past the midline,
+            // clear of the stack chip — review fixup finding 2) down to
             // `NARROW_BOTTOM_CLASS`, both pinned, so the browser derives the
-            // box's height as exactly the gap between them — it cannot run
+            // box's height as AT MOST the gap between them — it cannot run
             // under the hand strip or the bottom bar the way the vh-based cap
             // could on a short phone.
             className={`absolute ${
                 narrow
-                    ? `${PORTRAIT_MIDLINE_TOP} ${NARROW_BOTTOM_CLASS}`
+                    ? `${PORTRAIT_STACK_PANEL_TOP} ${NARROW_BOTTOM_CLASS}`
                     : "top-1/2"
             } ${elevated ? "z-chip" : "z-modal"}`}
             style={{
@@ -156,13 +174,27 @@ export default function GameStack({ stack, elevated, narrow }: GameStackProps) {
                 mounts inside this panel, and clipping it to the panel box would
                 hide the flight until it crosses the boundary. */}
             <div
-                className={`relative overflow-visible ${narrow ? "h-full" : ""}`}
+                // `max-h-full`, NOT `h-full` (issue #1816 review fixup finding
+                // 5): the OUTER positioned div above already has a definite
+                // height (both `top` and `bottom` are pinned, so the browser
+                // solves the gap between them per CSS's auto-height rule for
+                // absolutely-positioned boxes) — but this inner wrapper and
+                // the `Panel` below it are ordinary block children, which size
+                // to CONTENT by default. `h-full` used to force them to that
+                // full clearance gap regardless of how little the stack
+                // actually held, rendering an opaque box most of the way down
+                // the board even for a single-item stack. `max-h-full` keeps
+                // the same upper bound (never grows past the clearance) while
+                // letting the box shrink to its real content — the same
+                // technique the desktop variant already uses via
+                // `max-h-[80vh]` with no explicit `height`.
+                className={`relative overflow-visible ${narrow ? "max-h-full" : ""}`}
             >
                 <Panel
                     density="compact"
                     className={`${
                         narrow
-                            ? "flex h-full max-h-full w-72 flex-col"
+                            ? "flex max-h-full w-72 flex-col"
                             : "max-h-[80vh] w-96"
                     } max-w-[92vw] overflow-visible p-0`}
                 >
