@@ -86,16 +86,18 @@ import AttackAllConfirmDialog from "./attack-all-confirm-dialog";
  *  distinct and untruncated at 320px.
  *
  *  **The granular step is now its own prominent element, not just buried in
- *  the compact string (#1818).** The compact form above IS technically
- *  distinct per sub-step, but only as a 2-letter code embedded in 9px text —
- *  readable once you already know the codes, cryptic otherwise. #1818 extracts
- *  the tab into its own file, {@link ControllerPhaseTab}, which mirrors the
- *  desktop pod's caption/value split (`controller-pod.tsx`): the step code
- *  moves to a bold, larger "value" row (replacing the static Flag glyph this
- *  bar used to show), and this bar's caption slot now carries only
- *  `T{turn}·{phaseGroupShort}` (the broad group, e.g. "T1·COM" for every
- *  combat sub-step) — see that component's doc comment for the full design
- *  rationale and char/px budget.
+ *  the compact string (#1818, review fixup).** The compact caption above IS
+ *  technically distinct per sub-step, but only as a 2-letter code embedded in
+ *  9px text — readable once you already know the codes, cryptic otherwise.
+ *  #1818 extracts the tab into its own file, {@link ControllerPhaseTab}, which
+ *  mirrors the desktop pod's caption/value split (`controller-pod.tsx`): the
+ *  step moves to a bold, larger "value" row, and this bar's caption slot keeps
+ *  only `T{turn}·{phaseGroupShort}` (the broad group, e.g. "T1·COM" for every
+ *  combat sub-step). The value row's static `Flag` glyph — present in #1818's
+ *  first pass alongside the 2-letter code — is gone entirely (review fixup):
+ *  it never changed and cost ~16px the value row needed once the plan shifted
+ *  from a bare code to a full readable WORD ("ATTACK", "1ST DMG"); see that
+ *  component's doc comment for the full design rationale and char/px budget.
  *
  *  **NIT (round 3, finding 4, comment-only): the zone-chips cell's 3×
  *  `min-w-11` floor has its own lower bound.** `pile-chip.tsx`'s `compact`

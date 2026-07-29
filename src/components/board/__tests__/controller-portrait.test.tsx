@@ -33,6 +33,7 @@ import {
 import { SkipPhasePrefsContext } from "~/hooks/useSkipPhasePreferences";
 import { MinimizedChoiceContext } from "~/hooks/useMinimizedChoice";
 import { DEFAULT_SKIP_PREFS, type Side } from "~/lib/skip-phase-prefs";
+import { phaseCompact, phaseGroupShort, phaseLabel } from "~/lib/phase-labels";
 import type { Phase } from "@convex/gre/types";
 import type { CardInstance, PendingChoice, Player } from "~/types/game";
 
@@ -218,8 +219,9 @@ describe("Portrait bottom bar — same controls, same mutations", () => {
         // satisfies. The full step name (which varies in width) stays inside
         // the sheet.
         expect(screen.getByText("T1·MAI")).toBeTruthy();
-        // The granular step code is now its own prominent value element.
-        expect(screen.getByText("M1")).toBeTruthy();
+        // The granular step word is now its own prominent value element
+        // (#1818 review fixup: a readable word, not a 2-letter code).
+        expect(screen.getByText("MAIN 1")).toBeTruthy();
         // The primary action is the SAME "Pass" the desktop pod renders.
         fireEvent.click(screen.getByText(/^Pass$/));
         const pass = calls.find((c) => c.ref === "passPriority");
@@ -339,7 +341,7 @@ describe("Bottom bar tab set (#1815 review fixup, finding 4; widened round 2)", 
         expect(within(zoneChipsCell).getByTestId(`pile-chips-me`)).toBeTruthy();
 
         // Cell 3: Phase.
-        const phaseTab = screen.getByLabelText("Toggle phase list");
+        const phaseTab = screen.getByLabelText(/Toggle phase list/);
         expect(row.children[2]).toBe(phaseTab);
 
         // Cell 4: Menu.
@@ -360,45 +362,68 @@ describe("Phase tab caption — compact, untruncated at the 320px floor (#1815 r
     // #1818's `T{turn}·{phaseGroupShort}` form is at most 7 chars ("T1·COM",
     // "T1·MAI", "T1·BEG", "T1·END") — inside the same budget every one of
     // these earlier fixups established.
+    //
+    // Review fixup: the previous version of this test asserted
+    // `caption.length <= 7` against the LITERAL from its own `it.each` table
+    // — that always passes regardless of what the component renders, since
+    // it measures a string the test itself wrote, not the component's
+    // output. The budget check below now runs against the actual DOM node's
+    // `textContent`, and the expected string is derived from the same
+    // `phaseGroupShort` the production code calls, not a hand-maintained
+    // parallel table.
     it.each([
-        ["PRECOMBAT_MAIN", "T1·MAI"],
-        ["POSTCOMBAT_MAIN", "T1·MAI"],
-        ["BEGINNING_OF_COMBAT", "T1·COM"],
-        ["DECLARE_ATTACKERS", "T1·COM"],
-        ["DECLARE_BLOCKERS", "T1·COM"],
-        ["FIRST_STRIKE_DAMAGE", "T1·COM"],
-        ["COMBAT_DAMAGE", "T1·COM"],
-        ["END_OF_COMBAT", "T1·COM"],
-    ] as const)(
-        "renders %s's caption as the untruncated %s",
-        (phase, caption) => {
-            renderController({ phase: phase as Phase });
-            expect(screen.getByText(caption)).toBeTruthy();
-            // Every caption stays at or under the ~7-char budget derived above.
-            expect(caption.length).toBeLessThanOrEqual(7);
-        }
-    );
+        "PRECOMBAT_MAIN",
+        "POSTCOMBAT_MAIN",
+        "BEGINNING_OF_COMBAT",
+        "DECLARE_ATTACKERS",
+        "DECLARE_BLOCKERS",
+        "FIRST_STRIKE_DAMAGE",
+        "COMBAT_DAMAGE",
+        "END_OF_COMBAT",
+    ] as const)("renders %s's caption within the char budget", (phase) => {
+        renderController({ phase: phase as Phase, turn: 1 });
+        const expected = `T1·${phaseGroupShort(phase as Phase)}`;
+        const captionEl = screen.getByText(expected);
+        // Asserts on the RENDERED node's own text, not the literal used to
+        // find it.
+        expect(captionEl.textContent).toBe(expected);
+        expect(captionEl.textContent!.length).toBeLessThanOrEqual(7);
+    });
+
+    it("renders the caption untruncated for a double-digit turn too", () => {
+        renderController({ phase: "DECLARE_ATTACKERS", turn: 12 });
+        const captionEl = screen.getByText("T12·COM");
+        expect(captionEl.textContent).toBe("T12·COM");
+        expect(captionEl.textContent!.length).toBeLessThanOrEqual(7);
+    });
 });
 
-describe("Phase tab step value — visible difference between the 5 combat sub-steps (#1818)", () => {
-    // The granular step code (`phaseShort`) is now its own prominent element
-    // (`data-controller-phase-step`), distinct from the compact group caption
-    // tested above — see `controller-phase-tab.tsx`'s doc comment. This is
-    // the AC this issue exists for: a player must be able to tell Declare
-    // Attackers from Declare Blockers from Combat Damage WITHOUT opening the
-    // phase sheet.
+describe("Phase tab step value — visible difference between the 6 combat sub-steps, as readable words (#1818 review fixup)", () => {
+    // The granular step WORD (`phaseCompact`) is now its own prominent
+    // element (`data-controller-phase-step`), distinct from the compact
+    // group caption tested above — see `controller-phase-tab.tsx`'s doc
+    // comment. This is the AC this issue exists for: a player must be able
+    // to tell Declare Attackers from Declare Blockers from Combat Damage
+    // WITHOUT opening the phase sheet, and without first learning a 2-letter
+    // code legend (the review fixup's whole point — a bare code is still not
+    // "readable").
     it.each([
-        ["BEGINNING_OF_COMBAT", "BC"],
-        ["DECLARE_ATTACKERS", "DA"],
-        ["DECLARE_BLOCKERS", "DB"],
-        ["FIRST_STRIKE_DAMAGE", "FD"],
-        ["COMBAT_DAMAGE", "CD"],
-        ["END_OF_COMBAT", "EC"],
-    ] as const)("renders %s's step value as the distinct %s", (phase, step) => {
-        const { container } = renderController({ phase: phase as Phase });
-        const stepEl = container.querySelector("[data-controller-phase-step]");
-        expect(stepEl?.textContent).toBe(step);
-    });
+        "BEGINNING_OF_COMBAT",
+        "DECLARE_ATTACKERS",
+        "DECLARE_BLOCKERS",
+        "FIRST_STRIKE_DAMAGE",
+        "COMBAT_DAMAGE",
+        "END_OF_COMBAT",
+    ] as const)(
+        "renders %s's step value as its distinct readable word",
+        (phase) => {
+            const { container } = renderController({ phase: phase as Phase });
+            const stepEl = container.querySelector(
+                "[data-controller-phase-step]"
+            );
+            expect(stepEl?.textContent).toBe(phaseCompact(phase));
+        }
+    );
 
     it("Declare Attackers and Declare Blockers render visibly different step values, not just different DOM attributes", () => {
         const attackers = renderController({ phase: "DECLARE_ATTACKERS" });
@@ -412,9 +437,27 @@ describe("Phase tab step value — visible difference between the 5 combat sub-s
             "[data-controller-phase-step]"
         )?.textContent;
 
-        expect(attackersStep).toBe("DA");
-        expect(blockersStep).toBe("DB");
+        expect(attackersStep).toBe("ATTACK");
+        expect(blockersStep).toBe("BLOCK");
         expect(attackersStep).not.toBe(blockersStep);
+    });
+
+    it("renders no Flag glyph — the value row is the step word alone (review fixup)", () => {
+        // The first pass of #1818 kept a static `Flag` icon (`lucide-react`)
+        // next to the promoted step value; review fixup: it never changed
+        // and cost width the value row needed for a full word instead of a
+        // 2-letter code. It must not render at all now.
+        const { container } = renderController({ phase: "DECLARE_ATTACKERS" });
+        const stepEl = container.querySelector("[data-controller-phase-step]");
+        expect(stepEl?.querySelector("svg")).toBeNull();
+    });
+});
+
+describe("Phase tab aria-label — granular phase reaches screen readers (#1818 review fixup)", () => {
+    it("names the tab with the turn and the full-word phase label, not just the static toggle hint", () => {
+        renderController({ phase: "DECLARE_ATTACKERS", turn: 3 });
+        const expected = `Turn 3, ${phaseLabel("DECLARE_ATTACKERS")}. Toggle phase list`;
+        expect(screen.getByLabelText(expected)).toBeTruthy();
     });
 });
 
@@ -744,7 +787,7 @@ describe("Portrait phase sheet — same stop-toggle path", () => {
         const toggle = vi.fn();
         renderController({}, toggle);
         // The chip is the toggle for the phase list (aria-label).
-        fireEvent.click(screen.getByLabelText("Toggle phase list"));
+        fireEvent.click(screen.getByLabelText(/Toggle phase list/));
         // The sheet is open (the phase-list dialog is now mounted).
         expect(screen.getByRole("dialog")).toBeTruthy();
         // A YOU stop toggle routes through the identical path the desktop list
@@ -758,7 +801,7 @@ describe("Portrait phase sheet — same stop-toggle path", () => {
     it("toggles an OPP stop via the same path", () => {
         const toggle = vi.fn();
         renderController({}, toggle);
-        fireEvent.click(screen.getByLabelText("Toggle phase list"));
+        fireEvent.click(screen.getByLabelText(/Toggle phase list/));
         fireEvent.click(
             screen.getByLabelText("Stop on opponent's turn (PRECOMBAT_MAIN)")
         );

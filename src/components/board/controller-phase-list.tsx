@@ -65,6 +65,7 @@ export default function ControllerPhaseList({
                                     key={step.id}
                                     phase={step.id}
                                     label={step.label}
+                                    compact={step.compact}
                                     isCurrent={step.id === phase}
                                     isPast={currentIdx >= 0 && idx < currentIdx}
                                     skippable={isSkippablePhase(step.id)}

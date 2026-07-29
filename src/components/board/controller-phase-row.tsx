@@ -10,6 +10,12 @@ import PhaseStopDot from "./phase-stop-dot";
 type ControllerPhaseRowProps = {
     phase: Phase;
     label: string;
+    /** The portrait bottom bar Phase tab's readable step word for this phase
+     *  (`PhaseStep.compact`, e.g. "ATTACK", "1ST DMG") — shown next to the
+     *  full label so the tab's abbreviated form is auto-decoding from here
+     *  (#1818 review fixup, finding 4: the sheet must show ANY abbreviated
+     *  form the tab keeps, alongside the long label). */
+    compact: string;
     isCurrent: boolean;
     isPast: boolean;
     /** Skippable phases get the YOU/OPP stop toggles; non-skippable (untap,
@@ -42,6 +48,7 @@ function stopTooltip(phase: Phase, side: Side, stopOn: boolean) {
 export default function ControllerPhaseRow({
     phase,
     label,
+    compact,
     isCurrent,
     isPast,
     skippable,
@@ -69,7 +76,7 @@ export default function ControllerPhaseRow({
                 )}
             </span>
             <span
-                className={`flex-1 text-center text-xs font-beleren ${
+                className={`flex flex-1 items-baseline justify-center gap-1 text-center text-xs font-beleren ${
                     isCurrent
                         ? "font-bold text-accent-strong"
                         : isPast
@@ -78,7 +85,14 @@ export default function ControllerPhaseRow({
                 }`}
                 title={phase}
             >
-                {label}
+                <span>{label}</span>
+                {/* The tab's compact step word, alongside the long label —
+                 *  auto-decodes the tab's abbreviated value row from here
+                 *  (#1818 review fixup, finding 4). A leaf span of its own so
+                 *  it never merges into the `label` text node above. */}
+                <span className="text-[9px] uppercase tracking-wide text-text-disabled">
+                    ({compact})
+                </span>
             </span>
             <span className="grid h-6 w-6 place-items-center shrink-0">
                 {skippable && (
