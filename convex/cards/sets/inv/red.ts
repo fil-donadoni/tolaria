@@ -9,10 +9,34 @@ import type {
     ManaCost,
     SpellContext,
     CardPrint,
+    PermanentView,
+    StaticEffectStateView,
+    StaticEffectContext,
 } from "../../types";
 import { countDomain, EFFECT_AFFECTS_SELF } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+
+// Shared "as long as no opponent controls a white or blue creature" gate (CR
+// 611.2c) — Skittish Kavu's `pt-buff.condition` and Kavu Runner's
+// `keyword-grant.condition` (issue #1095) share this IDENTICAL board-state
+// predicate verbatim; extracted here on the second occurrence per project
+// convention (closure on the 1st card, shared helper on the 2nd).
+function noOpponentWhiteOrBlueCreature(
+    source: PermanentView,
+    state: StaticEffectStateView,
+    ctx: StaticEffectContext
+): boolean {
+    return !state.players
+        .flatMap((p) => p.battlefield)
+        .some(
+            (c) =>
+                c.controllerId !== source.controllerId &&
+                ctx.isCreature(c) &&
+                (ctx.getColors(c).includes("W") ||
+                    ctx.getColors(c).includes("U"))
+        );
+}
 
 // Local mana-cost → colours helper (CR 202.2), following the established
 // inline-helper precedent (arn/white.ts) rather than importing the shared
@@ -785,16 +809,7 @@ export const skittishKavu: CardDefinition = {
         {
             kind: "pt-buff",
             applies: EFFECT_AFFECTS_SELF,
-            condition: (source, state, ctx) =>
-                !state.players
-                    .flatMap((p) => p.battlefield)
-                    .some(
-                        (c) =>
-                            c.controllerId !== source.controllerId &&
-                            ctx.isCreature(c) &&
-                            (ctx.getColors(c).includes("W") ||
-                                ctx.getColors(c).includes("U"))
-                    ),
+            condition: noOpponentWhiteOrBlueCreature,
             power: 1,
             toughness: 1,
         },
@@ -993,6 +1008,36 @@ export const breathOfDarigaaz: CardDefinition = {
     },
 };
 
+// Kavu Runner — {3}{R} Creature — Kavu, 3/3. "This creature has haste as long
+// as no opponent controls a white or blue creature." (CR 611.2c board-state-
+// conditional keyword grant via `keyword-grant`'s new `condition` field
+// (issue #1095, generalize-don't-add) — mirrors `pt-buff`'s `condition`,
+// which Skittish Kavu above already uses for the IDENTICAL "as long as no
+// opponent controls a white or blue creature" gate, just granting `haste`
+// here instead of a +1/+1 buff. Re-evaluated every SBA pass by
+// `refreshCounterGatedStatics` (`gre/state.ts`) so haste appears/disappears
+// as the opponent's board changes, not just once at ETB.)
+export const kavuRunner: CardDefinition = {
+    id: "2bc1b462-4e3c-47cc-87c5-f6e29dd70c01",
+    rarity: "uncommon",
+    name: "Kavu Runner",
+    oracleText:
+        "This creature has haste as long as no opponent controls a white or blue creature.",
+    manaCost: { X: 3, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Kavu"],
+    power: 3,
+    toughness: 3,
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            applies: EFFECT_AFFECTS_SELF,
+            condition: noOpponentWhiteOrBlueCreature,
+            keyword: "haste",
+        },
+    ],
+};
+
 // ─────────────────────────────────────────────────────────────────────────
 // Deferred stubs — genuinely missing engine capability (issue #1095). Never
 // invented Ops; each cites the exact gap and the tracking issue.
@@ -1039,24 +1084,6 @@ export const breathOfDarigaaz: CardDefinition = {
 //     subtypes: ["Goblin", "Rogue"],
 //     power: 1,
 //     toughness: 1,
-// };
-
-// Kavu Runner — {3}{R} Creature — Kavu, 3/3. "This creature has haste as long
-// as no opponent controls a white or blue creature." `StaticKeywordGrant`'s
-// `applies(target, source, ctx)` has no board-state parameter (unlike
-// `StaticPTBuff.condition(source, state, ctx)`, which Skittish Kavu above
-// uses for the identical "as long as no opponent controls" shape). Suggest
-// adding an optional `condition` to `StaticKeywordGrant` mirroring
-// `StaticPTBuff` — a "generalize, don't add" fix. tracked-by: #1095
-// export const kavuRunner: CardDefinition = {
-//     id: "2bc1b462-4e3c-47cc-87c5-f6e29dd70c01",
-//     name: "Kavu Runner",
-//     rarity: "uncommon",
-//     manaCost: { X: 3, R: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Kavu"],
-//     power: 3,
-//     toughness: 3,
 // };
 
 // Lightning Dart — {1}{R} Instant. "Lightning Dart deals 1 damage to target

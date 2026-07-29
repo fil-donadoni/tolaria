@@ -5223,6 +5223,16 @@ export function applySourceStaticEffects(
                     if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
                         continue;
                     }
+                    // CR 611.2c (issue #1095) — an optional board-state gate,
+                    // mirroring `pt-buff`'s `condition`. Evaluated against the
+                    // full `state` (structurally a `StaticEffectStateView`),
+                    // not just the source/target pair `applies` checks.
+                    if (
+                        effect.condition &&
+                        !effect.condition(source, state, STATIC_EFFECT_CTX)
+                    ) {
+                        continue;
+                    }
                     // CR 613.1f / 613.7 (issue #1715) — layer 6 applies grants
                     // and removals in TIMESTAMP order. The grant loses only to
                     // a stripper from another source holding a STRICTLY LATER
@@ -5780,20 +5790,44 @@ export const unapplyAuraStaticEffects = unapplySourceStaticEffects;
  *  current counters. Sources that declare nothing are skipped, so this is a
  *  no-op sweep of the battlefield for the overwhelming majority of boards.
  *
+ *  Generalized (issue #1095) to ALSO sweep any `keyword-grant` that declares
+ *  a `condition` (CR 611.2c "as long as ..." board-state gate, mirroring
+ *  `pt-buff`'s `condition` — Kavu Runner's "has haste as long as no opponent
+ *  controls a white or blue creature"). `keyword-grant` is materialized
+ *  once at apply time, unlike `pt-buff`/`pt-cda` recomputed at every read, so
+ *  a `condition` on it needs exactly the same staleness fix counters already
+ *  got: re-run `applies`/`condition` on every stable transition, not just
+ *  when a counter changes.
+ *
  *  Called from the two counter mutators (`addCounterToCard` and
  *  `SpellContext.removeCounter`) for immediate within-resolution consistency,
- *  and from `checkStateBasedActions` as the catch-all for every other counter
- *  write path (CR 704.5q `+1/+1`/`-1/-1` annihilation, Freyalise's Winds' untap
- *  strip, depletion counters on tap, `payRemoveCounterCost`, planeswalker
- *  loyalty) — the same "not an SBA per se, but every stable transition runs
- *  this sweep" placement `refreshLandPlayLock` already occupies. */
+ *  and from `checkStateBasedActions` as the catch-all for every other write
+ *  path that can flip a gate (CR 704.5q `+1/+1`/`-1/-1` annihilation,
+ *  Freyalise's Winds' untap strip, depletion counters on tap,
+ *  `payRemoveCounterCost`, planeswalker loyalty, and — for board-state gates —
+ *  any permanent entering/leaving/changing color) — the same "not an SBA per
+ *  se, but every stable transition runs this sweep" placement
+ *  `refreshLandPlayLock` already occupies. */
 export function refreshCounterGatedStatics(state: GameState): void {
     for (const player of state.players) {
         for (const source of player.battlefield) {
             const cardId = (source.card as { id?: string }).id;
             const def = cardId ? tryGetDefinition(cardId) : null;
             const effects = getEffectiveStaticEffects(def, source.chosenModeId);
-            if (!effects.some((e) => e.dependsOnCounters === true)) continue;
+            // NOTE: the second disjunct is a NARROW, kind-specific special
+            // case (`kind === "keyword-grant" && condition !== undefined`)
+            // rather than a generalization of `dependsOnCounters` to "any
+            // materialized kind with a `condition`". Harmless today — no
+            // OTHER materialized static-effect kind exposes `condition` — but
+            // the next one that does will silently need its own disjunct
+            // added here, or it ships inert exactly like the bug class this
+            // function exists to fix (issue #1095 review finding).
+            const needsRefresh = effects.some(
+                (e) =>
+                    e.dependsOnCounters === true ||
+                    (e.kind === "keyword-grant" && e.condition !== undefined)
+            );
+            if (!needsRefresh) continue;
             // Full unapply/re-apply of THIS source only (the established
             // reattach idiom): the predicate may read the target's counters
             // (Dread Wight) or the source's own (Cocoon), so nothing short of
@@ -5857,6 +5891,16 @@ export function applyExistingGrantsTo(
         for (const effect of effects) {
             if (effect.kind === "keyword-grant") {
                 if (!effect.applies(newPermanent, source, STATIC_EFFECT_CTX)) {
+                    continue;
+                }
+                // CR 611.2c (issue #1095) — same optional board-state gate
+                // `applySourceStaticEffects` checks; kept in sync so a
+                // pre-existing lord-style conditional grant reaching a
+                // newcomer respects it too.
+                if (
+                    effect.condition &&
+                    !effect.condition(source, state, STATIC_EFFECT_CTX)
+                ) {
                     continue;
                 }
                 // Same layer-6 ordering rule as `applySourceStaticEffects`

@@ -6704,6 +6704,14 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Kavu Runner",
+        "scryfallId": "2bc1b462-4e3c-47cc-87c5-f6e29dd70c01",
+        "oracleId": "2c90b7fa-d5bf-4c46-92d5-3014ea1bec50",
+        "firstSet": "inv",
+        "firstPrintId": "2bc1b462-4e3c-47cc-87c5-f6e29dd70c01",
+        "firstPrintSet": "inv"
+    },
+    {
         "name": "Kavu Scout",
         "scryfallId": "cbc2670d-a3f4-47c2-b424-01fd379ff186",
         "oracleId": "2bd91ce8-1797-4dd7-8150-0d4caa7dad61",

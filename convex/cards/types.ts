@@ -4576,6 +4576,25 @@ export interface StaticKeywordGrant {
         source: PermanentView,
         ctx: StaticEffectContext
     ) => boolean;
+    /** Optional source-level gate (CR 611.2c — "as long as ..."), mirroring
+     *  `StaticPTBuff.condition` (issue #1095, generalize-don't-add). Evaluated
+     *  once per source against the whole board: when present and false, the
+     *  grant is skipped this evaluation regardless of `applies`. Use for a
+     *  board-state-conditional keyword like Kavu Runner ("This creature has
+     *  haste as long as no opponent controls a white or blue creature").
+     *  Unlike `pt-buff`/`pt-cda` (recomputed at every read), `keyword-grant`
+     *  is MATERIALIZED into `target.staticAbilities` at apply time
+     *  (`applySourceStaticEffects` / `applyExistingGrantsTo`), so a `condition`
+     *  additionally requires the source to be picked up by
+     *  `refreshCounterGatedStatics`'s per-SBA-pass sweep (`gre/state.ts`) to
+     *  stay live as the board changes — the sweep re-runs `applies` AND
+     *  `condition` fresh on every stable transition, the same "as long as"
+     *  staleness fix already shipped for `dependsOnCounters`. */
+    condition?: (
+        source: PermanentView,
+        state: StaticEffectStateView,
+        ctx: StaticEffectContext
+    ) => boolean;
     /** Keyword string pushed into the host's `staticAbilities` (e.g.
      *  "protection from red", "flying"). */
     keyword: string;

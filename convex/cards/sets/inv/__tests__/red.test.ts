@@ -28,6 +28,7 @@ import {
     bendOrBreak,
     standOrFall,
     pouncingKavu,
+    kavuRunner,
 } from "../red";
 import { stun } from "../../tmp/red";
 import { registerTokenDefinition } from "../../..";
@@ -47,7 +48,11 @@ import {
     type StackItem,
 } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
-import { validateBlockerEligibility } from "../../../../gre/combat";
+import { checkStateBasedActions } from "../../../../gre/sba";
+import {
+    validateBlockerEligibility,
+    validateAttackerEligibility,
+} from "../../../../gre/combat";
 import { projectPublicState } from "../../../../gameProjections";
 import { mountain, forest, plains, island, swamp } from "../../lea/colorless";
 import { savannahLions } from "../../lea";
@@ -832,5 +837,127 @@ describe("Pouncing Kavu (Kicker → two +1/+1 counters + haste; CR 702.33 / 122.
         )!;
         expect(slim.wasKicked).toBe(true);
         expect(slim.staticAbilities).toContain("haste");
+    });
+});
+
+describe("Kavu Runner (board-state-conditional haste; CR 611.2c, issue #1095)", () => {
+    function makeKavuRunnerState() {
+        const kavu = makeInstance(kavuRunner.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "kavu-runner",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [kavu] }),
+                makePlayer("p2"),
+            ],
+        });
+        applySourceStaticEffects(state, kavu);
+        return { state, kavu };
+    }
+
+    function addOpponentLions(state: GameState) {
+        const lions = makeInstance(savannahLions.id, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "opp-lions",
+        });
+        state.players[1].battlefield.push(lions);
+        return lions;
+    }
+
+    it("has haste when no opponent controls a white or blue creature", () => {
+        const { kavu } = makeKavuRunnerState();
+        expect(kavu.staticAbilities).toContain("haste");
+    });
+
+    // `keyword-grant` is MATERIALIZED at apply time (not recomputed at every
+    // read like `pt-buff`), so the "as long as" gate only stays live because
+    // the real production SBA path (`checkStateBasedActions` →
+    // `refreshCounterGatedStatics`, generalized in issue #1095 to also sweep
+    // `keyword-grant`s that declare a `condition`) re-runs `applies`/
+    // `condition` every SBA pass. Exercised via `checkStateBasedActions`
+    // (not a direct `refreshCounterGatedStatics` call) so this test would go
+    // red if the wiring at `gre/sba.ts` ever dropped that call.
+    it("loses haste once an opponent controls a white creature (re-evaluated via checkStateBasedActions)", () => {
+        const { state, kavu } = makeKavuRunnerState();
+        expect(kavu.staticAbilities).toContain("haste");
+
+        addOpponentLions(state);
+        checkStateBasedActions(state);
+
+        expect(kavu.staticAbilities).not.toContain("haste");
+    });
+
+    it("regains haste once the opposing white creature leaves the battlefield", () => {
+        const { state, kavu } = makeKavuRunnerState();
+        addOpponentLions(state);
+        checkStateBasedActions(state);
+        expect(kavu.staticAbilities).not.toContain("haste");
+
+        state.players[1].battlefield = state.players[1].battlefield.filter(
+            (c) => c.id !== "opp-lions"
+        );
+        checkStateBasedActions(state);
+
+        expect(kavu.staticAbilities).toContain("haste");
+    });
+
+    // Wire format (mandatory, `.claude/rules/gre-development.md` § Frontend
+    // wiring analysis): the materialized "haste" keyword must survive
+    // `projectPublicState`'s slim reshape, both while present and once the
+    // board-state gate has removed it.
+    it("haste presence/absence survives projectPublicState (wire format)", () => {
+        const { state, kavu } = makeKavuRunnerState();
+
+        const projectedWithHaste = projectPublicState(state, 1, "p1");
+        const slimWithHaste = projectedWithHaste.players[0].battlefield.find(
+            (c) => c.id === kavu.id
+        )!;
+        expect(slimWithHaste.staticAbilities).toContain("haste");
+
+        addOpponentLions(state);
+        checkStateBasedActions(state);
+
+        const projectedNoHaste = projectPublicState(state, 2, "p1");
+        const slimNoHaste = projectedNoHaste.players[0].battlefield.find(
+            (c) => c.id === kavu.id
+        )!;
+        expect(slimNoHaste.staticAbilities).not.toContain("haste");
+    });
+
+    // The card's entire user-visible point: haste lets it attack the turn it
+    // enters, bypassing summoning sickness (CR 702.10b), and ONLY while the
+    // board-state gate holds. Asserted through `validateAttackerEligibility`
+    // (not a hand-rolled `staticAbilities` check) so this proves the real
+    // combat-eligibility path, not just the materialized keyword array —
+    // deleting the `refreshCounterGatedStatics` call at `gre/sba.ts:725`
+    // would leave this test red (still eligible before SBA runs, but the
+    // post-SBA assertion below would then wrongly stay eligible too).
+    it("can attack despite summoning sickness while the gate holds, and loses that eligibility once it lapses (validateAttackerEligibility)", () => {
+        const kavu = makeInstance(kavuRunner.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "kavu-runner",
+            isSummoningSick: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [kavu] }),
+                makePlayer("p2"),
+            ],
+        });
+        applySourceStaticEffects(state, kavu);
+
+        expect(validateAttackerEligibility(kavu)).toEqual({ eligible: true });
+
+        addOpponentLions(state);
+        checkStateBasedActions(state);
+
+        expect(validateAttackerEligibility(kavu)).toEqual({
+            eligible: false,
+            reason: "Creature has summoning sickness",
+        });
     });
 });
