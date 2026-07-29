@@ -171,7 +171,6 @@ describe("seat anchoring — nothing under the portrait bottom bar (#1759, #1814
             className
                 .replace(TOP_EDGE_ANCHOR, "")
                 .replace(PORTRAIT_VIEWER_NAMEPLATE_BOTTOM, "")
-                .replace(/\bmb-1\b/, "")
                 .split(/\s+/)
                 .filter(Boolean)
                 .sort()
@@ -181,6 +180,52 @@ describe("seat anchoring — nothing under the portrait bottom bar (#1759, #1814
         expect(top).toBe(bottom);
         expect(top).toContain("play-area-center-x");
         expect(top).toContain("-translate-x-1/2");
+    });
+});
+
+describe("compact nameplate variant follows the portrait seam (#1814 round-3 fixup)", () => {
+    // `BoardPlayer` passes `compact={isPortrait}` straight through to
+    // `PlayerNameplate` (board-player.tsx), which is what shrinks the box
+    // `PORTRAIT_NAMEPLATE_BAND_H` reserves a band for
+    // (`portrait-board-bands.ts`). The exact class strings pinned here —
+    // `py-0.5` / `border` (nameplate box) and `text-lg` (life total) — are
+    // what `PORTRAIT_NAMEPLATE_PADDING_PX` / `PORTRAIT_NAMEPLATE_BORDER_PX` /
+    // `PORTRAIT_NAMEPLATE_ROW_PX` derive from (see the comment at their use
+    // site in `player-nameplate.tsx`); pinning the literal strings here — not
+    // just "a compact variant renders" — is the mechanical link a class
+    // rename would trip, since the numeric constants can't catch that on
+    // their own. Mutation check: dropping `compact={isPortrait}` from
+    // `board-player.tsx` makes both tests below fail.
+    it("portrait renders the compact box (py-0.5, border, text-lg life total)", () => {
+        portrait = true;
+        const { container } = renderSpatial(
+            makePlayer("p2", { life: 20 }),
+            { playerId: "p2" },
+            "bottom"
+        );
+        const plate = container.querySelector<HTMLElement>(
+            '[data-arrow-anchor-player="p2"]'
+        )!;
+        expect(plate.className).toContain("py-0.5");
+        expect(plate.className).toContain("border");
+        const lifeNode = plate.querySelector(".font-bold.tabular-nums")!;
+        expect(lifeNode.className).toContain("text-lg");
+    });
+
+    it("landscape/desktop renders the full box (py-2, text-3xl life total)", () => {
+        portrait = false;
+        const { container } = renderSpatial(
+            makePlayer("p2", { life: 20 }),
+            { playerId: "p2" },
+            "bottom"
+        );
+        const plate = container.querySelector<HTMLElement>(
+            '[data-arrow-anchor-player="p2"]'
+        )!;
+        expect(plate.className).toContain("py-2");
+        expect(plate.className).not.toContain("py-0.5");
+        const lifeNode = plate.querySelector(".font-bold.tabular-nums")!;
+        expect(lifeNode.className).toContain("text-3xl");
     });
 });
 

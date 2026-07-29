@@ -94,11 +94,28 @@ export default function PlayerNameplate({
             data-arrow-anchor-player={player.id}
             onClick={interaction.handleClick}
             style={{ boxShadow }}
+            // Class-constant linkage (#1814 round-3 fixup): `border` (1px ×
+            // 2 edges, unconditional on this box) is
+            // `PORTRAIT_NAMEPLATE_BORDER_PX` in `portrait-board-bands.ts`;
+            // the compact variant's `py-0.5` (0.125rem × 2 edges × 16px) is
+            // `PORTRAIT_NAMEPLATE_PADDING_PX` there. Those constants build
+            // `PORTRAIT_NAMEPLATE_MAX_H` — the reserved band's real worst
+            // case — by mirroring these two literals, not by re-measuring
+            // the DOM, so a class edited here without a matching edit there
+            // silently reopens the #1814 overlap. `board-player.test.tsx`
+            // ("compact nameplate variant follows the portrait seam") pins
+            // both class strings verbatim — that test is the mechanical
+            // guard: a rename here fails it immediately instead of drifting.
             className={`relative shrink-0 rounded-sm bg-surface/90 border border-border-subtle/80 text-center backdrop-blur-md transition-shadow duration-200 ${
                 compact ? "px-3 py-0.5" : "px-5 py-2"
             } ${interactive ? "cursor-pointer" : ""} ${className}`}
         >
-            <CornerFiligreeFrame overlay size={14} subtle />
+            {/* Nit (#1814 round-3 review): the compact box is a 24px-tall
+             *  (border + py-0.5 + one 18px row) container — a size-14 corner
+             *  filigree's arcs overlap each other inside it. size=8 fits the
+             *  smaller box without the overlap; the full (non-compact) box
+             *  keeps size=14. */}
+            <CornerFiligreeFrame overlay size={compact ? 8 : 14} subtle />
             {/* key by player.id so a solo-mode viewer swap (different player
              *  rendered at the same seat position) remounts the animator with a
              *  fresh baseline instead of animating a phantom life delta — the
