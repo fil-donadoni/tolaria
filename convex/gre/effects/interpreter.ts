@@ -1532,20 +1532,35 @@ export const OP_EXECUTORS: {
         );
     },
     // CR 601.3e / 117.6-analog (issue #1344) — grant cast permission
-    // (optionally a mana-cost waiver) for the graveyard card a preceding Op
-    // bound (typically the just-discarded card from a
-    // `choice(kind: "choose-hand-card")` + `discard` pair). Always the
-    // grantee's OWN graveyard — no cross-player shape (the graveyard-sourced
-    // twin of `grantCastFromExile` above, `SpellContext.grantCastFromGraveyard`'s
-    // doc). Skipped when the player can't be resolved, the picks binding was
-    // never captured, or the picked card is no longer in that player's
-    // graveyard (CR 608.2b).
+    // (optionally a mana-cost waiver) for a graveyard card. Two selector
+    // shapes (issue #1650), both `EffectObjectSelector` members:
+    //   - a bare PICKS ref — the card a preceding Op bound (typically the
+    //     just-discarded card from a `choice(kind: "choose-hand-card")` +
+    //     `discard` pair, Malcolm);
+    //   - an announced TARGET slot (`{ target: n }`, CR 601.2c) — Emry,
+    //     Lurker of the Loch's "{T}: Choose target artifact card in your
+    //     graveyard." The slot is read through `resolveTargetRef` and must
+    //     still hold a `graveyard-card` selection (CR 608.2b — a target that
+    //     left the graveyard between announcement and resolution skips the
+    //     Op; the primitive itself re-checks graveyard membership too).
+    // Always the grantee's OWN graveyard — no cross-player shape (the
+    // graveyard-sourced twin of `grantCastFromExile` above,
+    // `SpellContext.grantCastFromGraveyard`'s doc). Skipped when the player
+    // can't be resolved, the picks binding was never captured, or the named
+    // card is no longer in that player's graveyard (CR 608.2b).
     grantCastFromGraveyard(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return;
-        const ids = resolvePicks(ctx, op.card);
-        if (!ids || ids.length === 0) return;
-        const cardInstanceId = ids[0];
+        let cardInstanceId: string;
+        if ("target" in op.card) {
+            const selection = resolveTargetRef(ctx, op.card);
+            if (selection?.type !== "graveyard-card") return;
+            cardInstanceId = selection.id;
+        } else {
+            const ids = resolvePicks(ctx, op.card);
+            if (!ids || ids.length === 0) return;
+            cardInstanceId = ids[0];
+        }
         ctx.grantCastFromGraveyard(
             cardInstanceId,
             playerId,

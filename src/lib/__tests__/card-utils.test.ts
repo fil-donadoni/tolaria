@@ -3583,3 +3583,79 @@ describe("getStackAbilities — targeting abilities with no legal target (CR 602
         ).not.toContain("lavaspur-boots-equip");
     });
 });
+
+// ---------------------------------------------------------------------------
+// Emry, Lurker of the Loch — a {T} ability whose only target lives in the
+// GRAVEYARD (issue #1650, CR 601.2c / 400.7).
+//
+// Frontend-wiring regression: `getStackAbilities` runs a CR 602.2b
+// "no legal target" gate (`hasBattlefieldTargetCandidate`) over every
+// targeting ability. That gate only judges the BATTLEFIELD, so a
+// graveyard-zone requirement MUST fail open — otherwise the ability is
+// permanently missing from the tap/context menu even though the server would
+// allow it (the exact "correct in the GRE, dead in the UI" bug class). Driven
+// through the REAL reducer (`buildTriggerStateView`), never a hand-built view.
+// ---------------------------------------------------------------------------
+
+describe("Emry, Lurker of the Loch — graveyard-targeting {T} ability surfaces in the menu (issue #1650)", () => {
+    const EMRY_ID = "bf4b9a8a-b42a-46fb-b0d0-9cf800f63c8a";
+    const EMRY_ABILITY = "emry-lurker-of-the-loch-graveyard-cast";
+
+    function emryOnBoard(overrides: Partial<CardInstance> = {}): CardInstance {
+        return makeCardInstance({
+            id: "emry",
+            card: { id: EMRY_ID },
+            types: ["Creature"],
+            isTapped: false,
+            isSummoningSick: false,
+            ...overrides,
+        });
+    }
+
+    it("is offered even though the ONLY legal target sits in a graveyard (empty battlefield)", () => {
+        const emry = emryOnBoard();
+        // Reducer-driven view: two players, nothing on either battlefield.
+        const view = buildTriggerStateView([
+            {
+                id: "p1",
+                life: 20,
+                hand: [],
+                battlefield: [emry],
+                graveyard: [],
+            },
+            { id: "p2", life: 20, hand: [], battlefield: [], graveyard: [] },
+        ]);
+        const ids = getStackAbilities(emry, "PRECOMBAT_MAIN", true, view).map(
+            (a) => a.id
+        );
+        expect(ids).toContain(EMRY_ABILITY);
+    });
+
+    it("is hidden while Emry is tapped or summoning sick (CR 302.1 / 602.1)", () => {
+        const view = buildTriggerStateView([
+            {
+                id: "p1",
+                life: 20,
+                hand: [],
+                battlefield: [],
+                graveyard: [],
+            },
+        ]);
+        expect(
+            getStackAbilities(
+                emryOnBoard({ isTapped: true }),
+                "PRECOMBAT_MAIN",
+                true,
+                view
+            )
+        ).toHaveLength(0);
+        expect(
+            getStackAbilities(
+                emryOnBoard({ isSummoningSick: true }),
+                "PRECOMBAT_MAIN",
+                true,
+                view
+            )
+        ).toHaveLength(0);
+    });
+});

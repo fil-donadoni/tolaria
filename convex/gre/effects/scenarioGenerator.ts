@@ -531,11 +531,14 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             req.skip ??= `Op "grantCastFromExile" consumes a choice binding — covered by the card's own suspension/resume tests`;
             return;
         case "grantCastFromGraveyard":
-            // `grantCastFromGraveyard` (issue #1344, Malcolm) consumes a
-            // choice's picks binding (the discarded card) — without the
-            // choice's submitted picks the outcome is undefined in a canned
-            // scenario, same skip rationale as `grantCastFromExile`/`discard`.
-            req.skip ??= `Op "grantCastFromGraveyard" consumes a choice binding — covered by the card's own suspension/resume tests`;
+            // `grantCastFromGraveyard` (issue #1344, Malcolm; issue #1650,
+            // Emry) names its card either through a choice's picks binding
+            // (undefined without the choice's submitted picks) or through an
+            // announced graveyard-card target slot; and its OUTCOME is a cast
+            // PERMISSION stamped on a graveyard card — not a
+            // battlefield/life/hand-count delta the canned generator asserts.
+            // Same skip rationale as `grantCastFromExile`/`discard`.
+            req.skip ??= `Op "grantCastFromGraveyard" grants a cast permission off a choice binding or a graveyard target — covered by the card's own tests`;
             return;
         case "reveal":
             // `reveal` (issue #920 / #682) stamps `knownTo` on hidden cards —
@@ -1572,11 +1575,12 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     grantCastFromExile() {
         return null;
     },
-    // `grantCastFromGraveyard` (issue #1344) — never reached, same rationale
-    // as `grantCastFromExile` (its `card` picks binding depends on a live
-    // player pick from a preceding `choice` Op). Kept for the 1:1 coverage
-    // guard; execution coverage is the card's own suspension/resume tests +
-    // the Op's dedicated interpreter tests.
+    // `grantCastFromGraveyard` (issue #1344 / #1650) — never reached, same
+    // rationale as `grantCastFromExile` (its `card` names either a live
+    // choice pick or an announced graveyard target, and its outcome is a
+    // cast permission, not an asserted state delta). Kept for the 1:1
+    // coverage guard; execution coverage is the card's own tests (Emry,
+    // `sets/eld/__tests__/blue.test.ts`) + the Op's interpreter tests.
     grantCastFromGraveyard() {
         return null;
     },

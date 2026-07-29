@@ -7,14 +7,18 @@
 import { describe, it, expect } from "vitest";
 import { emryLurkerOfTheLoch } from "..";
 import { solRing } from "../../lea";
+import { getCardByName } from "../../../index";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { projectPublicState } from "../../../../gameProjections";
-import { getLegalActions } from "../../../../gre/rules";
+import { getLegalActions, getLegalTargets } from "../../../../gre/rules";
 import {
     applyCostModifiers,
     getCostModifiers,
     normalizeManaCost,
+    resolveTopOfStack,
+    type CardInstanceState,
     type GameState,
+    type StackItem,
 } from "../../../../gre/state";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -230,5 +234,217 @@ describe("Emry, Lurker of the Loch (count-driven self cost-reduction, CR 601.2f 
             (c) => c?.id === "emry-hand"
         )!;
         expect(projectedEmry.legalActions).toContain("cast");
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Issue #1650 (parent PRD #702) — Emry's `{T}` ability: "Choose target artifact
+// card in your graveyard. You may cast that card this turn. (You still pay its
+// costs. Timing rules still apply.)"
+//
+// NO new primitive and NO new `TargetRequirement.type`: the target is the
+// already-shipped graveyard-zone requirement shape (CR 601.2c / 400.7 —
+// `zone: "graveyard"` + `controller: "you"`, as Regrowth/Necropolis use) and
+// the effect is the already-shipped `grantCastFromGraveyard` Op (issue #1344),
+// whose `card` selector was widened from a bare picks ref to the full
+// `EffectObjectSelector` so an announced target slot names the card directly.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Push an activated ability on the stack (costs assumed paid) and resolve —
+ *  the same shim the DRK/INV colour suites use (`sets/drk/__tests__/helpers`). */
+function resolveActivated(
+    state: GameState,
+    source: CardInstanceState,
+    abilityId: string,
+    targets: StackItem["targets"] = []
+): void {
+    state.stack.push({
+        ...source,
+        zone: "stack",
+        castById: source.controllerId,
+        abilityId,
+        targets,
+    });
+    resolveTopOfStack(state);
+}
+
+const EMRY_GRANT_ABILITY = "emry-lurker-of-the-loch-graveyard-cast";
+
+/** Emry on the battlefield + `graveyard` in p1's graveyard. */
+function emryBoard(graveyard: CardInstanceState[]) {
+    const emry = makeInstance(emryLurkerOfTheLoch.id, {
+        id: "emry",
+        controllerId: "p1",
+        ownerId: "p1",
+    });
+    const state = makeState({
+        players: [
+            makePlayer("p1", { battlefield: [emry], graveyard }),
+            makePlayer("p2"),
+        ],
+    });
+    return { state, emry: state.players[0].battlefield[0] };
+}
+
+function gyCard(
+    cardId: string,
+    id: string,
+    ownerId: "p1" | "p2" = "p1"
+): CardInstanceState {
+    return makeInstance(cardId, {
+        id,
+        controllerId: ownerId,
+        ownerId,
+        zone: "graveyard",
+    });
+}
+
+describe("Emry, Lurker of the Loch — {T}: graveyard artifact cast permission (CR 601.2c / 601.3e, issue #1650)", () => {
+    it("declares a tap ability targeting an artifact card in YOUR graveyard", () => {
+        const ability = emryLurkerOfTheLoch.activatedAbilities!.find(
+            (a) => a.id === EMRY_GRANT_ABILITY
+        )!;
+        expect(ability.cost).toEqual({ tap: true });
+        expect(ability.useStack).toBe(true);
+        expect(ability.targetRequirement).toEqual({
+            type: "Artifact",
+            count: 1,
+            zone: "graveyard",
+            controller: "you",
+        });
+        // The permission is NOT free — Emry's reminder text is explicit that
+        // "You still pay its costs."
+        expect(ability.effects).toEqual([
+            {
+                op: "grantCastFromGraveyard",
+                card: { target: 0 },
+                player: "controller",
+                window: "this-turn",
+            },
+        ]);
+    });
+
+    it("only artifact cards in the activator's OWN graveyard are legal targets (CR 601.2c)", () => {
+        const { state } = emryBoard([
+            gyCard(solRing.id, "gy-artifact"),
+            gyCard(getCardByName("Grizzly Bears").id, "gy-creature"),
+        ]);
+        // An artifact in the OPPONENT's graveyard must not qualify.
+        state.players[1].graveyard.push(
+            gyCard(solRing.id, "their-artifact", "p2")
+        );
+        const ability = emryLurkerOfTheLoch.activatedAbilities!.find(
+            (a) => a.id === EMRY_GRANT_ABILITY
+        )!;
+        const legal = getLegalTargets(
+            state,
+            ability.targetRequirement!,
+            [],
+            "p1"
+        );
+        expect(legal).toEqual([
+            { type: "graveyard-card", id: "gy-artifact", playerId: "p1" },
+        ]);
+    });
+
+    it("resolution stamps a THIS-TURN cast permission on the targeted card, cost still payable (CR 601.3e)", () => {
+        const { state, emry } = emryBoard([gyCard(solRing.id, "gy-artifact")]);
+        resolveActivated(state, emry, EMRY_GRANT_ABILITY, [
+            { type: "graveyard-card", id: "gy-artifact", playerId: "p1" },
+        ]);
+        const granted = state.players[0].graveyard.find(
+            (c) => c.id === "gy-artifact"
+        )!;
+        expect(granted.castableFromGraveyardBy).toBe("p1");
+        // "this-turn" impulse window — revoked at CLEANUP.
+        expect(granted.castableFromGraveyardUntilTurn).toBe(state.turn);
+        // "You still pay its costs" — no mana-cost waiver rides the grant.
+        expect(granted.castFromGraveyardWithoutPayingManaCost).toBeUndefined();
+    });
+
+    it("the granted card becomes castable from the graveyard (server legalActions)", () => {
+        const { state, emry } = emryBoard([gyCard(solRing.id, "gy-artifact")]);
+        const before = getLegalActions(
+            state,
+            state.players[0],
+            state.players[0].graveyard[0]
+        );
+        expect(before).not.toContain("cast");
+
+        resolveActivated(state, emry, EMRY_GRANT_ABILITY, [
+            { type: "graveyard-card", id: "gy-artifact", playerId: "p1" },
+        ]);
+        // Sol Ring is {1}: fund it so the affordability gate passes.
+        state.players[0].manaPool = {
+            W: 0,
+            U: 0,
+            B: 0,
+            R: 0,
+            G: 0,
+            C: 1,
+        };
+        expect(
+            getLegalActions(
+                state,
+                state.players[0],
+                state.players[0].graveyard[0]
+            )
+        ).toContain("cast");
+    });
+
+    it("the permission is NOT a free cast — an unfunded pool leaves it uncastable (CR 601.2f)", () => {
+        const { state, emry } = emryBoard([gyCard(solRing.id, "gy-artifact")]);
+        resolveActivated(state, emry, EMRY_GRANT_ABILITY, [
+            { type: "graveyard-card", id: "gy-artifact", playerId: "p1" },
+        ]);
+        // Empty pool, no lands — {1} is unpayable, so the grant alone does not
+        // make the card castable (contrast Malcolm's free-cast grant).
+        expect(
+            getLegalActions(
+                state,
+                state.players[0],
+                state.players[0].graveyard[0]
+            )
+        ).not.toContain("cast");
+    });
+
+    it("CR 608.2b — a target that left the graveyard before resolution grants nothing", () => {
+        const { state, emry } = emryBoard([gyCard(solRing.id, "gy-artifact")]);
+        const gone = state.players[0].graveyard.pop()!;
+        state.players[0].exile.push({ ...gone, zone: "exile" });
+        resolveActivated(state, emry, EMRY_GRANT_ABILITY, [
+            { type: "graveyard-card", id: "gy-artifact", playerId: "p1" },
+        ]);
+        expect(
+            state.players[0].exile[0].castableFromGraveyardBy
+        ).toBeUndefined();
+    });
+
+    it("wire format — the granted card reaches the client as a castable graveyard-grant", () => {
+        const { state, emry } = emryBoard([gyCard(solRing.id, "gy-artifact")]);
+        resolveActivated(state, emry, EMRY_GRANT_ABILITY, [
+            { type: "graveyard-card", id: "gy-artifact", playerId: "p1" },
+        ]);
+        state.players[0].manaPool = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 1 };
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].graveyard.find(
+            (c) => c.id === "gy-artifact"
+        )!;
+        // The raw grant fields are server-side; the client sees the derived
+        // `castKind` + `legalActions` the Cast affordance reads.
+        expect(slim.castKind).toBe("graveyard-grant");
+        expect(slim.legalActions).toContain("cast");
+    });
+
+    it("wire format — an UNgranted graveyard artifact carries no cast affordance", () => {
+        const { state } = emryBoard([gyCard(solRing.id, "gy-artifact")]);
+        state.players[0].manaPool = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 1 };
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].graveyard.find(
+            (c) => c.id === "gy-artifact"
+        )!;
+        expect(slim.castKind).toBeUndefined();
+        expect(slim.legalActions ?? []).not.toContain("cast");
     });
 });
