@@ -2466,6 +2466,80 @@ describe("validateEffectScript — createTokenCopy `source` is an OBJECT positio
     });
 });
 
+// issue #1568 — `{ opponentOf: EffectPlayerRef }`'s `collectRefUses` branch
+// (validate.ts, "the wrapped ref occupies the EXACT SAME player position as
+// the wrapping key"). A `{ ref }` nested inside `{ opponentOf }` must be
+// classified with the OUTER keyHint (here "player"), not the child key name
+// "opponentOf" the generic fallback would otherwise use — which mistags the
+// ref as a "number" position and rejects `.controller` as an unknown
+// property path. None of the four interpreter tests for this issue
+// (`interpreter.test.ts`, "Effect Script player ref: { opponentOf }") use a
+// bare `{ ref }` inside `{ opponentOf }` — they only exercise `"controller"`
+// and `{ controllerOf: { target } }`, neither of which is a `{ ref }` shape —
+// so this branch shipped with zero coverage; these are its tests.
+describe("validateEffectScript — { opponentOf } wraps a { ref } at the SAME keyHint (issue #1568)", () => {
+    it("accepts a { ref } nested ONE level inside { opponentOf } — Fractured Identity's own shape once the target's controller is captured by a bind", () => {
+        const effects: EffectOp[] = [
+            { op: "destroy", target: { target: 0 }, bind: "$dead" },
+            {
+                op: "gainLife",
+                player: { opponentOf: { ref: "$dead.controller" } },
+                amount: 1,
+            },
+        ];
+        expect(validateEffectScript(host({ effects }))).toEqual([]);
+    });
+
+    it("accepts a { ref } nested TWO levels inside { opponentOf } — the wrapper is recursive and re-complementing twice still resolves a player position", () => {
+        const effects: EffectOp[] = [
+            { op: "destroy", target: { target: 0 }, bind: "$dead" },
+            {
+                op: "gainLife",
+                player: {
+                    opponentOf: { opponentOf: { ref: "$dead.controller" } },
+                },
+                amount: 1,
+            },
+        ];
+        expect(validateEffectScript(host({ effects }))).toEqual([]);
+    });
+
+    it("rejects { opponentOf: 42 } — the wrapped value must itself be an EffectPlayerRef", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "gainLife",
+                        player: { opponentOf: 42 } as never,
+                        amount: 1,
+                    },
+                ],
+            })
+        );
+        expect(errors.length).toBeGreaterThan(0);
+        expect(errors.join("\n")).toMatch(/field "player" has invalid value/);
+    });
+
+    it("rejects { opponentOf, ...extraKey } — the grammar is frozen to the single opponentOf key", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "gainLife",
+                        player: {
+                            opponentOf: "controller",
+                            extra: "nope",
+                        } as never,
+                        amount: 1,
+                    },
+                ],
+            })
+        );
+        expect(errors.length).toBeGreaterThan(0);
+        expect(errors.join("\n")).toMatch(/field "player" has invalid value/);
+    });
+});
+
 // issue #1726 — the moveZone POSITIONAL LIBRARY INSERT: a battlefield
 // permanent target → library at a 1-based position from the top (Teferi,
 // Hero of Dominaria's −3 "third from the top"). Permanent schema coverage

@@ -21954,12 +21954,14 @@ describe("Effect Script player ref: { opponentOf } (issue #1568)", () => {
                 makePlayer("p2", { battlefield: [bear] }),
             ],
         });
-        // Cast by p1, targeting P2's OWN permanent. Plain "opponent"
-        // (relative to the resolving controller p1) would ALSO be p2 here —
-        // the discriminating scenario needs the target's controller to be
-        // the SAME player `ctx.controller` names, so `{ controllerOf }`'s
-        // result and `ctx.controller` coincide and only the OPPONENT-OF
-        // wrapper's outcome (p1) tells the two selectors apart.
+        // Cast by p1, targeting P2's OWN permanent (controller p2). Plain
+        // "opponent" is ALWAYS relative to the resolving controller (p1), so
+        // it resolves to p2 regardless of who controls the target — it
+        // could never name p1. `{ opponentOf: { controllerOf: { target: 0 } } }`
+        // instead resolves the complement of the TARGET's controller (p2),
+        // landing on p1 — the CASTER. That's the discriminating outcome: the
+        // assertion below shows p1 (not p2) gaining life, a result plain
+        // "opponent" cannot produce.
         pushSpell(state, id, "p1", [
             { type: "permanent", id: "opponentof-bear" },
         ]);
