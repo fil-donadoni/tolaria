@@ -207,6 +207,38 @@ export const PORTRAIT_VIEWER_HAND_BAND = `absolute left-0 right-0 ${ABOVE_CONTRO
  *  the geometric half of the viewport. */
 export const PORTRAIT_MIDLINE_TOP = "top-[var(--portrait-midline)]";
 
+/** Height of the tappable stack CHIP button itself (`min-h-11` in
+ *  `pile-chip.tsx`, the #1770 44px touch-target floor) — the input the
+ *  narrow stack PANEL's own top offset below is derived from (issue #1816
+ *  review fixup finding 2). */
+export const PORTRAIT_STACK_CHIP_H_PX = 44;
+/** Deliberate visual/tap clearance between the chip's bottom edge and the
+ *  panel's top edge — a fixed gap, not a fudge. */
+export const PORTRAIT_STACK_PANEL_GAP_PX = 8;
+/** How far PAST the midline the narrow stack panel's top edge sits (issue
+ *  #1816 review fixup finding 2). The stack chip straddles the midline
+ *  (`-translate-y-1/2` on a `${PORTRAIT_MIDLINE_TOP}` box in
+ *  `board-portrait-chips.tsx`) — it occupies
+ *  `[midline - H/2, midline + H/2]`. The narrow panel used to start AT the
+ *  midline itself (the same {@link PORTRAIT_MIDLINE_TOP}) and, mounting
+ *  LATER in the DOM at the same `z-chip` tier, painted over the chip's
+ *  bottom half — leaving only ~22px of the chip's 44px tappable, under the
+ *  touch-target floor. Pushing the panel's top down past the chip's own
+ *  bottom edge PLUS a gap clears the whole chip instead. */
+export const PORTRAIT_STACK_PANEL_TOP_OFFSET_PX =
+    PORTRAIT_STACK_CHIP_H_PX / 2 + PORTRAIT_STACK_PANEL_GAP_PX;
+/** The narrow stack panel's `top` class — the LITERAL Tailwind arbitrary
+ *  value, never template-built from the pieces above. Tailwind's JIT scanner
+ *  greps SOURCE TEXT for literal class occurrences and cannot see through a
+ *  `${}` interpolation — the exact bug `NARROW_BOTTOM_CLASS` in
+ *  `game-stack.tsx` used to have (issue #1816 review fixup finding 6). At the
+ *  16px root this module assumes throughout, 30px is exactly 1.875rem —
+ *  `game-stack-narrow.test.tsx` asserts that arithmetic against
+ *  {@link PORTRAIT_STACK_PANEL_TOP_OFFSET_PX} so the two can't silently drift
+ *  apart. */
+export const PORTRAIT_STACK_PANEL_TOP =
+    "top-[calc(var(--portrait-midline)+1.875rem)]";
+
 /** For the VIEWER nameplate in portrait (#1814, fixed up post-review): sits
  *  right above the hand band, at {@link PORTRAIT_NAMEPLATE_BOTTOM_VAR} —
  *  mirroring the opponent's top-center nameplate onto the bottom edge

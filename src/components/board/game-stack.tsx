@@ -17,8 +17,34 @@ import { useArrowHighlight } from "~/hooks/arrowHighlightContext";
 import { useDraggable } from "~/hooks/useDraggable";
 import { repositionAnchors } from "~/hooks/anchor-reposition";
 import { Panel } from "~/components/ui/panel";
+import { PORTRAIT_STACK_PANEL_TOP } from "~/lib/portrait-board-bands";
 import DragHandle from "./drag-handle";
 import StackRow from "./stack-row";
+
+/** Portrait's clearance-bound bottom edge — the SAME literal Tailwind class
+ *  the viewer battlefield band itself uses for this edge
+ *  (`PORTRAIT_VIEWER_BATTLEFIELD_BAND`, `portrait-board-bands.ts`), typed out
+ *  directly rather than template-built from `PORTRAIT_VIEWER_BF_BOTTOM_VAR`
+ *  (issue #1816 review fixup finding 6). A template-built arbitrary-value
+ *  class (`` `bottom-[var(${VAR})]` ``) only worked here because the
+ *  IDENTICAL literal happened to already appear, spelled out, inside
+ *  `PORTRAIT_VIEWER_BATTLEFIELD_BAND` — Tailwind's JIT scanner greps SOURCE
+ *  TEXT for literal class occurrences, it does not evaluate JS template
+ *  interpolation, so a `${}`-built class name is invisible to it unless the
+ *  fully-resolved string ALSO appears verbatim somewhere it scans. A refactor
+ *  of that other constant (e.g. a var rename) would have silently stopped
+ *  generating this class's CSS with no compiler error — this file compiled
+ *  for a reason that had nothing to do with this file.
+ *  `game-stack-narrow.test.tsx` asserts this literal is a substring of
+ *  `PORTRAIT_VIEWER_BATTLEFIELD_BAND` so a future rename of that shared
+ *  fragment fails the guard instead of silently breaking this class.
+ *
+ *  Pinning the panel's bottom here (rather than a vh-based `max-h`) makes
+ *  "never overlaps the controller bar or the viewer's hand" an arithmetic
+ *  guarantee: that var already bakes in the bar's MEASURED clearance, the
+ *  hand band, and the reserved nameplate band, so the stack panel stops
+ *  exactly where the viewer's own battlefield does. */
+export const NARROW_BOTTOM_CLASS = "bottom-[var(--portrait-viewer-bf-bottom)]";
 
 type GameStackProps = {
     stack: StackItem[];
@@ -34,6 +60,31 @@ type GameStackProps = {
      *  desktop's always-on mount leaves this unset (unchanged `z-modal` —
      *  no chip, no centered-banner collision to fix there). */
     elevated?: boolean;
+    /** Issue #1816 — portrait's `BoardPortraitChips` now opens this panel by
+     *  DEFAULT whenever the stack is non-empty (not only after a tap), so it
+     *  is on-screen far more of the time than the old tap-to-reveal panel.
+     *  Two changes, both portrait-only (desktop's always-on mount leaves this
+     *  unset and is byte-for-byte unchanged):
+     *
+     *  1. Narrower: `w-96` (384px, the desktop width, unchanged for desktop)
+     *     shrinks to `w-72` (288px) — still wide enough for a readable
+     *     `StackRow` (art tile + name/mana/oracle column), but leaves more of
+     *     a ~390px phone's board visible behind it.
+     *  2. Re-anchored: the desktop panel is vertically CENTERED
+     *     (`top-1/2` + a `-50%` translate) with a `max-h-[80vh]` soft cap —
+     *     tall enough on a short phone to run under the hand strip and the
+     *     bottom bar. The narrow panel instead anchors between
+     *     `PORTRAIT_STACK_PANEL_TOP` (issue #1816 review fixup finding 2 —
+     *     PAST the midline by the stack chip's own height plus a gap, NOT
+     *     the bare midline the chip itself sits on: the panel used to start
+     *     exactly there and, mounting later in the DOM at the same
+     *     `z-chip` tier, painted over the chip's bottom half, leaving under
+     *     half the 44px touch target tappable) and
+     *     {@link NARROW_BOTTOM_CLASS} (the viewer battlefield's own bottom
+     *     inset, i.e. clear of the bar, the hand band AND the nameplate
+     *     band) — both edges pinned, so the browser computes its height as
+     *     the gap between them and it can never grow into either. */
+    narrow?: boolean;
 };
 
 /** How many top rows the collapsed list shows before the "N more" expander. */
@@ -48,7 +99,7 @@ const COLLAPSED_ROWS = 3;
  *  Kept from the old cascade: shared-layout flights (hand → stack →
  *  destination, layoutId per item), the draggable panel (re-anchoring arrows
  *  via the shared reposition event), spell-target clicks, arrival glow. */
-export default function GameStack({ stack, elevated }: GameStackProps) {
+export default function GameStack({ stack, elevated, narrow }: GameStackProps) {
     const {
         gameId,
         playerId,
@@ -98,25 +149,123 @@ export default function GameStack({ stack, elevated }: GameStackProps) {
             // to sit under every play-area-centered dialog (card placement,
             // pickers). Pushing it fully right clears them; the panel is
             // draggable if a pile underneath needs a look.
-            className={`absolute top-1/2 ${elevated ? "z-chip" : "z-modal"}`}
+            //
+            // `narrow` (portrait, #1816) swaps the desktop's vertical-center
+            // anchor (`top-1/2` + a `-50%` translate, `max-h-[80vh]` soft cap)
+            // for a BOUNDED one: `PORTRAIT_STACK_PANEL_TOP` (past the midline,
+            // clear of the stack chip — review fixup finding 2) down to
+            // `NARROW_BOTTOM_CLASS`, both pinned, so the browser derives the
+            // box's height as AT MOST the gap between them — it cannot run
+            // under the hand strip or the bottom bar the way the vh-based cap
+            // could on a short phone.
+            // `pointer-events-none` on the narrow branch only (review fixup
+            // round 4, finding 1): this outer div is `position: absolute`
+            // with BOTH `top` and `bottom` pinned, so per CSS's auto-height
+            // resolution it spans the FULL clearance between them regardless
+            // of the Panel's actual (smaller) content height — a transparent
+            // hit-testing column sitting over the battlefield viewer wherever
+            // the Panel doesn't fill it, swallowing taps meant for the
+            // permanents underneath (the permanent branch of
+            // spell-or-permanent targeting was unreachable through it).
+            // `pointer-events-auto` is restored on the `Panel` below so the
+            // drag handle and the clickable stack rows — both DOM
+            // descendants of `Panel`, not of this div — stay interactive.
+            // Desktop (`!narrow`) is untouched: its box is centered/vh-capped,
+            // not edge-pinned, so it never grows past its own content.
+            className={`absolute ${
+                narrow
+                    ? `${PORTRAIT_STACK_PANEL_TOP} ${NARROW_BOTTOM_CLASS} pointer-events-none`
+                    : "top-1/2"
+            } ${elevated ? "z-chip" : "z-modal"}`}
             style={{
                 right: "0.5rem",
-                transform: `translate(${offset.x}px, calc(-50% + ${offset.y}px))`,
+                transform: narrow
+                    ? `translate(${offset.x}px, ${offset.y}px)`
+                    : `translate(${offset.x}px, calc(-50% + ${offset.y}px))`,
             }}
         >
             {/* overflow-visible, NOT -hidden: a spell flying in from the hand
                 mounts inside this panel, and clipping it to the panel box would
                 hide the flight until it crosses the boundary. */}
-            <div className="relative overflow-visible">
+            <div
+                // `h-full`, NOT `max-h-full` (issue #1816 review fixup round 3,
+                // finding 2 — the round-2 fix broke this).
+                //
+                // The CHAIN: OUTER positioned div (both `top` and `bottom`
+                // pinned) → THIS transparent wrapper → `Panel` (`max-h-full`)
+                // → its scrollable body (`flex-1 min-h-0 overflow-y-auto`).
+                // Round 2 reasoned the outer div "already has a definite
+                // height" and gave THIS wrapper `max-h-full` too, on the
+                // theory that a percentage cap here would resolve against
+                // that outer definite height. It doesn't: a CSS percentage
+                // height (`max-height: 100%` included) only resolves against
+                // an ancestor whose OWN computed height is a definite,
+                // non-auto value — and `max-height` alone does not make a
+                // box's height definite, it only ever caps whatever height
+                // the box would otherwise take. This wrapper is an ordinary
+                // block with no other height source, so with only
+                // `max-h-full` its used height stayed `auto` (shrink-to-fit
+                // content) — a non-definite value. That left `Panel`'s OWN
+                // `max-h-full` one level down resolving against `auto` too,
+                // i.e. against nothing (`max-height: none`), so a long stack
+                // could grow past the outer box's real bottom edge and
+                // overrun `--portrait-viewer-bf-bottom` into the hand /
+                // controller bar.
+                //
+                // `h-full` (`height: 100%`) on THIS wrapper is what makes its
+                // computed height definite — it FIXES this wrapper's box to
+                // the outer div's real clearance, unconditionally. That's
+                // safe to force unconditionally here (unlike on `Panel`
+                // below) because this wrapper carries no background/border —
+                // it is pure layout, invisible either way; forcing its box to
+                // the full clearance doesn't render an oversized visible
+                // panel. `Panel`'s OWN `max-h-full` then resolves against a
+                // now-definite 100% and is genuinely a CAP: `Panel` is a
+                // `flex flex-col` block that still sizes to ITS content (a
+                // single-item stack renders a small box, same as before)
+                // — max-height only kicks in once content would exceed the
+                // wrapper's height, at which point the body's own
+                // `overflow-y-auto` scrolls instead of the panel growing
+                // further. Verified against
+                // `game-stack-narrow.test.tsx`'s guard.
+                //
+                // Pointer-events check (asked for explicitly in review):
+                // giving this wrapper a real `h-full` box does NOT create a
+                // new dead click-catching area over the board beyond what the
+                // OUTER div already occupied. The OUTER div above is
+                // `position: absolute` with BOTH `top` and `bottom` set —
+                // per CSS's auto-height resolution for absolutely positioned
+                // boxes, that already forces the outer div's own box to span
+                // the full clearance regardless of this wrapper's height,
+                // background-free or not. This wrapper's `h-full` box exactly
+                // coincides with a region the outer div already occupied; no
+                // additional page area becomes hit-testable that wasn't
+                // already. That outer box IS, however, hit-testable itself
+                // wherever it's transparent (the actual bug fixed at its own
+                // definition site above, review fixup round 4 finding 1) —
+                // this wrapper carries no `pointer-events` class of its own
+                // and doesn't need one: it inherits `pointer-events-none`
+                // from the outer div, and `Panel` below overrides back to
+                // `pointer-events-auto` for itself and its descendants.
+                className={`relative overflow-visible ${narrow ? "h-full" : ""}`}
+            >
                 <Panel
                     density="compact"
-                    className="max-h-[80vh] w-96 max-w-[92vw] overflow-visible p-0"
+                    className={`${
+                        narrow
+                            ? "flex max-h-full w-72 flex-col pointer-events-auto"
+                            : "max-h-[80vh] w-96"
+                    } max-w-[92vw] overflow-visible p-0`}
                 >
                     <DragHandle
                         label={`Stack (${stack.length})`}
                         handlers={dragHandlers}
                     />
-                    <div className="flex max-h-[70vh] flex-col gap-2 overflow-y-auto p-2">
+                    <div
+                        className={`flex ${
+                            narrow ? "min-h-0 flex-1" : "max-h-[70vh]"
+                        } flex-col gap-2 overflow-y-auto p-2`}
+                    >
                         {visible.map((item, i) => {
                             const isTargetable =
                                 canTargetSpell &&

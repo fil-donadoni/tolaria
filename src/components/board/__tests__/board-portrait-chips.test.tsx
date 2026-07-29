@@ -12,7 +12,13 @@ import {
     fireEvent,
     within,
 } from "@testing-library/react";
-import type { CardInstance, Player, StackItem } from "~/types/game";
+import type {
+    CardInstance,
+    PendingChoice,
+    PendingTarget,
+    Player,
+    StackItem,
+} from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
 import {
     PendingChoiceBufferContext,
@@ -47,14 +53,17 @@ vi.mock("../game-stack", () => ({
     default: ({
         stack,
         elevated,
+        narrow,
     }: {
         stack: StackItem[];
         elevated?: boolean;
+        narrow?: boolean;
     }) => (
         <div
             data-testid="stack-view"
             data-count={stack.length}
             data-elevated={elevated ?? false}
+            data-narrow={narrow ?? false}
         />
     ),
 }));
@@ -97,7 +106,24 @@ function makePlayer(id: string, overrides: Partial<Player> = {}): Player {
     };
 }
 
-function renderChips(
+function makeChoice(over: Partial<PendingChoice>): PendingChoice {
+    return {
+        stackItemId: "stk",
+        step: 0,
+        choiceId: "me",
+        playerId: "me",
+        kind: "may-pay",
+        count: 1,
+        prompt: "Pay?",
+        ...over,
+    } as PendingChoice;
+}
+
+/** Builds the element tree `renderChips`/`rerenderChips` both mount — factored
+ *  out so a test can `rerender()` with a NEW `ctxOverrides` (a fresh
+ *  `pendingChoices`/`pendingTarget`, a grown/shrunk stack) against the SAME
+ *  render tree, which is what a real Convex state push looks like. */
+function chipsElement(
     opponent: Player,
     me: Player,
     stackItems: StackItem[] = [],
@@ -117,7 +143,7 @@ function renderChips(
         onSwitchGame: () => {},
         ...ctxOverrides,
     } as React.ContextType<typeof GameContext>;
-    return render(
+    return (
         <GameContext value={value}>
             <PendingChoiceBufferContext value={noopBuffer}>
                 <MinimizedChoiceContext value={noopMinimized}>
@@ -129,6 +155,15 @@ function renderChips(
             </PendingChoiceBufferContext>
         </GameContext>
     );
+}
+
+function renderChips(
+    opponent: Player,
+    me: Player,
+    stackItems: StackItem[] = [],
+    ctxOverrides: Partial<React.ContextType<typeof GameContext>> = {}
+) {
+    return render(chipsElement(opponent, me, stackItems, ctxOverrides));
 }
 
 beforeEach(() => cleanup());
@@ -269,11 +304,11 @@ describe("BoardPortraitChips (#336)", () => {
         expect(screen.getByRole("dialog")).toBeTruthy();
     });
 
-    it("renders the stack chip only when the stack is non-empty and toggles the EXISTING stack view", () => {
+    it("renders the stack chip only when the stack is non-empty, OPEN BY DEFAULT with no tap (issue #1816), and the chip toggles it", () => {
         const me = makePlayer("me");
         const opp = makePlayer("opp");
 
-        // Empty stack: no chip.
+        // Empty stack: no chip, no panel.
         const { unmount } = renderChips(opp, me, []);
         expect(screen.queryByTestId("chip-stack")).toBeNull();
         expect(screen.queryByTestId("stack-view")).toBeNull();
@@ -285,19 +320,365 @@ describe("BoardPortraitChips (#336)", () => {
         ] as unknown as StackItem[];
         renderChips(opp, me, stack);
 
-        // Chip present, stack view hidden until tapped.
+        // Issue #1816: the panel is visible the instant the stack is
+        // non-empty — NO tap required.
         const chip = screen.getByTestId("chip-stack");
         expect(chip.textContent).toContain("2");
-        expect(screen.queryByTestId("stack-view")).toBeNull();
-
-        // Tap opens the existing stack panel with the same items.
-        fireEvent.click(chip);
         const view = screen.getByTestId("stack-view");
         expect(view.getAttribute("data-count")).toBe("2");
 
-        // Tap again closes it.
+        // Tap collapses it.
+        fireEvent.click(chip);
+        expect(screen.queryByTestId("stack-view")).toBeNull();
+
+        // Tap again re-opens it (same stack run).
+        fireEvent.click(screen.getByTestId("chip-stack"));
+        expect(
+            screen.getByTestId("stack-view").getAttribute("data-count")
+        ).toBe("2");
+    });
+
+    it("a stack that empties then refills starts OPEN again, even if the player had collapsed the previous run (issue #1816)", () => {
+        const me = makePlayer("me");
+        const opp = makePlayer("opp");
+        const firstRun = [
+            { id: "s1", card: { id: "def-s1" } },
+        ] as unknown as StackItem[];
+        const { rerender } = renderChips(opp, me, firstRun);
+
+        // Open by default — collapse it explicitly.
         fireEvent.click(screen.getByTestId("chip-stack"));
         expect(screen.queryByTestId("stack-view")).toBeNull();
+
+        // Stack empties: no chip, no panel.
+        const rerenderChips = (stackItems: StackItem[]) =>
+            rerender(chipsElement(opp, me, stackItems));
+        rerenderChips([]);
+        expect(screen.queryByTestId("chip-stack")).toBeNull();
+        expect(screen.queryByTestId("stack-view")).toBeNull();
+
+        // A NEW stack run begins — the collapsed preference does not carry
+        // over, so the panel opens again with no tap.
+        const secondRun = [
+            { id: "s2", card: { id: "def-s2" } },
+        ] as unknown as StackItem[];
+        rerenderChips(secondRun);
+        expect(
+            screen.getByTestId("stack-view").getAttribute("data-count")
+        ).toBe("1");
+    });
+
+    it("reopens on a NEW item at CONSTANT length — a resolve→trigger in the same transaction (issue #1816 review fixup finding 3)", () => {
+        // The bug this guards: keying the reopen on `stackItems.length` alone
+        // misses a same-transaction resolve+trigger — [A] resolves and a
+        // trigger lands in its place in ONE server push, so the length never
+        // crosses 0 (stays 1 -> 1). The fix keys on item IDENTITY: item B was
+        // never on the stack before, so it's a genuinely NEW push even
+        // though the count didn't change.
+        const me = makePlayer("me");
+        const opp = makePlayer("opp");
+        const firstRun = [
+            { id: "s1", card: { id: "def-s1" } },
+        ] as unknown as StackItem[];
+        const { rerender } = renderChips(opp, me, firstRun);
+
+        fireEvent.click(screen.getByTestId("chip-stack"));
+        expect(screen.queryByTestId("stack-view")).toBeNull();
+
+        // Same length (1), but a DIFFERENT item — A resolved, B (a trigger it
+        // put on the stack) took its place in the same push.
+        const replacedRun = [
+            { id: "s2", card: { id: "def-s2" } },
+        ] as unknown as StackItem[];
+        rerender(chipsElement(opp, me, replacedRun));
+
+        expect(
+            screen.getByTestId("stack-view").getAttribute("data-count")
+        ).toBe("1");
+    });
+
+    it("reopens when the stack GROWS while collapsed — an opponent's counterspell answering the collapsed spell (issue #1816 review fixup finding 3, awareness)", () => {
+        // The bug this guards: length-only keying also misses growth with no
+        // 0-crossing (1 -> 2). If the player had collapsed the panel on their
+        // own spell and the opponent responds with a counterspell, the old
+        // logic never reopened — the player could pass priority without ever
+        // seeing the counter. Chosen semantics: reopen on EVERY new push, not
+        // just when a run starts from empty.
+        const me = makePlayer("me");
+        const opp = makePlayer("opp");
+        const mySpell = [
+            { id: "my-spell", card: { id: "def-my-spell" } },
+        ] as unknown as StackItem[];
+        const { rerender } = renderChips(opp, me, mySpell);
+
+        fireEvent.click(screen.getByTestId("chip-stack"));
+        expect(screen.queryByTestId("stack-view")).toBeNull();
+
+        const withCounterspell = [
+            { id: "counterspell", card: { id: "def-counterspell" } },
+            { id: "my-spell", card: { id: "def-my-spell" } },
+        ] as unknown as StackItem[];
+        rerender(chipsElement(opp, me, withCounterspell));
+
+        expect(
+            screen.getByTestId("stack-view").getAttribute("data-count")
+        ).toBe("2");
+    });
+
+    it("does NOT reopen on a pure resolve (stack shrinks, nothing new arrives) — the collapse preference is preserved", () => {
+        const me = makePlayer("me");
+        const opp = makePlayer("opp");
+        const twoItems = [
+            { id: "top", card: { id: "def-top" } },
+            { id: "bottom", card: { id: "def-bottom" } },
+        ] as unknown as StackItem[];
+        const { rerender } = renderChips(opp, me, twoItems);
+
+        fireEvent.click(screen.getByTestId("chip-stack"));
+        expect(screen.queryByTestId("stack-view")).toBeNull();
+
+        // "top" resolves off; "bottom" was already on the stack before — not
+        // a new push.
+        const afterResolve = [
+            { id: "bottom", card: { id: "def-bottom" } },
+        ] as unknown as StackItem[];
+        rerender(chipsElement(opp, me, afterResolve));
+
+        expect(screen.queryByTestId("stack-view")).toBeNull();
+    });
+
+    it("auto-collapses the panel while the active pending choice requires a board tap, and restores automatically once it clears (issue #1816 review fixup finding 1)", () => {
+        const me = makePlayer("me");
+        const opp = makePlayer("opp");
+        const stack = [
+            { id: "s1", card: { id: "def-s1" } },
+        ] as unknown as StackItem[];
+        const boardTapChoice = makeChoice({
+            kind: "choose-permanents",
+            zone: "battlefield",
+        });
+        const { rerender } = renderChips(opp, me, stack, {
+            pendingChoices: [boardTapChoice],
+        });
+
+        // Open by default, but auto-collapsed while the choice is live — the
+        // chip still shows (it never blocks the board), the panel does not.
+        expect(screen.getByTestId("chip-stack")).toBeTruthy();
+        expect(screen.queryByTestId("stack-view")).toBeNull();
+
+        // The choice resolves — NOT recorded as `userClosed`, so the panel
+        // reverts to open with no extra action.
+        rerender(chipsElement(opp, me, stack, { pendingChoices: [] }));
+        expect(
+            screen.getByTestId("stack-view").getAttribute("data-count")
+        ).toBe("1");
+    });
+
+    it("does NOT auto-collapse for a board-tap choice belonging to the OTHER player", () => {
+        const me = makePlayer("me");
+        const opp = makePlayer("opp");
+        const stack = [
+            { id: "s1", card: { id: "def-s1" } },
+        ] as unknown as StackItem[];
+        const opponentsChoice = makeChoice({
+            playerId: "opp",
+            kind: "choose-permanents",
+            zone: "battlefield",
+        });
+        renderChips(opp, me, stack, { pendingChoices: [opponentsChoice] });
+
+        expect(
+            screen.getByTestId("stack-view").getAttribute("data-count")
+        ).toBe("1");
+    });
+
+    it("auto-collapses while the viewer's own pendingTarget lands on a battlefield permanent, but NOT for a pure spell target (issue #1816 review fixup finding 1)", () => {
+        const me = makePlayer("me");
+        const opp = makePlayer("opp");
+        const stack = [
+            { id: "s1", card: { id: "def-s1" } },
+        ] as unknown as StackItem[];
+        const permanentTarget: PendingTarget = {
+            playerId: "me",
+            cardInstanceId: "s1",
+            targetType: "Creature",
+            count: 1,
+            selected: [],
+        };
+        const { rerender } = renderChips(opp, me, stack, {
+            pendingTarget: permanentTarget,
+        });
+        expect(screen.queryByTestId("stack-view")).toBeNull();
+
+        // A pure "spell" target only ever matches an item already inside
+        // this (still-open) panel — nothing on the board to clear for it.
+        const spellTarget: PendingTarget = {
+            playerId: "me",
+            cardInstanceId: "s1",
+            targetType: "spell",
+            count: 1,
+            selected: [],
+        };
+        rerender(chipsElement(opp, me, stack, { pendingTarget: spellTarget }));
+        expect(
+            screen.getByTestId("stack-view").getAttribute("data-count")
+        ).toBe("1");
+    });
+
+    it("does NOT auto-collapse for a `spell-or-permanent` pendingTarget — the panel is the only surface with a clickable stack row (issue #1816 review fixup round 3, finding 1)", () => {
+        const me = makePlayer("me");
+        const opp = makePlayer("opp");
+        const stack = [
+            { id: "s1", card: { id: "def-s1" } },
+        ] as unknown as StackItem[];
+        const laceTarget: PendingTarget = {
+            playerId: "me",
+            cardInstanceId: "s1",
+            targetType: "spell-or-permanent",
+            count: 1,
+            selected: [],
+        };
+        renderChips(opp, me, stack, { pendingTarget: laceTarget });
+
+        expect(
+            screen.getByTestId("stack-view").getAttribute("data-count")
+        ).toBe("1");
+    });
+
+    it('does NOT auto-collapse for a MIXED target-type array that includes "spell" (issue #1816 review fixup round 3, finding 1)', () => {
+        const me = makePlayer("me");
+        const opp = makePlayer("opp");
+        const stack = [
+            { id: "s1", card: { id: "def-s1" } },
+        ] as unknown as StackItem[];
+        const mixedTarget: PendingTarget = {
+            playerId: "me",
+            cardInstanceId: "s1",
+            targetType: ["Enchantment", "spell"],
+            count: 1,
+            selected: [],
+        };
+        renderChips(opp, me, stack, { pendingTarget: mixedTarget });
+
+        expect(
+            screen.getByTestId("stack-view").getAttribute("data-count")
+        ).toBe("1");
+    });
+
+    it('does NOT auto-collapse for a pure `"player"` target — the panel never overlaps a nameplate (issue #1816 review fixup round 3, finding 1/4)', () => {
+        const me = makePlayer("me");
+        const opp = makePlayer("opp");
+        const stack = [
+            { id: "s1", card: { id: "def-s1" } },
+        ] as unknown as StackItem[];
+        const playerTarget: PendingTarget = {
+            playerId: "me",
+            cardInstanceId: "s1",
+            targetType: "player",
+            count: 1,
+            selected: [],
+        };
+        renderChips(opp, me, stack, { pendingTarget: playerTarget });
+
+        expect(
+            screen.getByTestId("stack-view").getAttribute("data-count")
+        ).toBe("1");
+    });
+
+    it("STILL auto-collapses for a pure permanent-type target — the target can only ever land on the battlefield (issue #1816 review fixup round 3, finding 1)", () => {
+        const me = makePlayer("me");
+        const opp = makePlayer("opp");
+        const stack = [
+            { id: "s1", card: { id: "def-s1" } },
+        ] as unknown as StackItem[];
+        const permanentOnlyTarget: PendingTarget = {
+            playerId: "me",
+            cardInstanceId: "s1",
+            targetType: "Creature",
+            count: 1,
+            selected: [],
+        };
+        renderChips(opp, me, stack, { pendingTarget: permanentOnlyTarget });
+
+        expect(screen.queryByTestId("stack-view")).toBeNull();
+    });
+
+    it("does NOT auto-collapse for a pendingTarget belonging to the OTHER player", () => {
+        const me = makePlayer("me");
+        const opp = makePlayer("opp");
+        const stack = [
+            { id: "s1", card: { id: "def-s1" } },
+        ] as unknown as StackItem[];
+        const opponentsTarget: PendingTarget = {
+            playerId: "opp",
+            cardInstanceId: "s1",
+            targetType: "Creature",
+            count: 1,
+            selected: [],
+        };
+        renderChips(opp, me, stack, { pendingTarget: opponentsTarget });
+
+        expect(
+            screen.getByTestId("stack-view").getAttribute("data-count")
+        ).toBe("1");
+    });
+
+    it("the stack chip stays mounted (hit-testable) while the panel is auto-collapsed for a board-tap flow", () => {
+        const me = makePlayer("me");
+        const opp = makePlayer("opp");
+        const stack = [
+            { id: "s1", card: { id: "def-s1" } },
+        ] as unknown as StackItem[];
+        const boardTapChoice = makeChoice({
+            kind: "choose-permanents",
+            zone: "battlefield",
+        });
+        renderChips(opp, me, stack, { pendingChoices: [boardTapChoice] });
+
+        const chip = screen.getByTestId("chip-stack");
+        expect(chip).toBeTruthy();
+        expect(screen.queryByTestId("stack-view")).toBeNull();
+        // Tapping it while the board-tap flow is live does not fight the
+        // auto-collapse — the panel stays closed until the flow itself clears.
+        fireEvent.click(chip);
+        expect(screen.queryByTestId("stack-view")).toBeNull();
+    });
+
+    it("a tap on the chip DURING auto-collapse is ignored outright — it must not silently flip `userClosed` (issue #1816 review fixup round 3, note 6)", () => {
+        // Without the guard, the tap's `stackOpen` effect is invisible (the
+        // panel was already forced closed by the auto-collapse either way),
+        // but `userClosed` still flips underneath. That corruption only
+        // surfaces LATER, once the auto-collapse condition clears: the panel
+        // would wrongly stay closed (a stray `userClosed: true` the player
+        // never asked for) instead of reverting to open, as issue #1816's
+        // "open by default" contract requires.
+        const me = makePlayer("me");
+        const opp = makePlayer("opp");
+        const stack = [
+            { id: "s1", card: { id: "def-s1" } },
+        ] as unknown as StackItem[];
+        const boardTapChoice = makeChoice({
+            kind: "choose-permanents",
+            zone: "battlefield",
+        });
+        const { rerender } = renderChips(opp, me, stack, {
+            pendingChoices: [boardTapChoice],
+        });
+
+        const chip = screen.getByTestId("chip-stack");
+        expect(screen.queryByTestId("stack-view")).toBeNull();
+        // Tap the chip once while the board-tap flow is still live.
+        fireEvent.click(chip);
+        expect(screen.queryByTestId("stack-view")).toBeNull();
+
+        // The flow clears — with the tap(s) correctly ignored, `userClosed`
+        // is still its untouched `false` default, so the panel reverts to
+        // open with no further action, exactly like the plain "auto-collapse
+        // clears" case above.
+        rerender(chipsElement(opp, me, stack, { pendingChoices: [] }));
+        expect(
+            screen.getByTestId("stack-view").getAttribute("data-count")
+        ).toBe("1");
     });
 
     it("review fixup round 2 (#1813/#1823) — the stack chip and an opened stack overlay sit at `z-chip`, strictly between the centered banner's `z-banner` and a blocking modal's `z-modal`", () => {
@@ -322,10 +703,13 @@ describe("BoardPortraitChips (#336)", () => {
         expect(rowClassName).not.toContain("z-modal-top");
         expect(rowClassName).not.toMatch(/\bz-modal\b(?!-)/);
 
-        fireEvent.click(screen.getByTestId("chip-stack"));
-        expect(
-            screen.getByTestId("stack-view").getAttribute("data-elevated")
-        ).toBe("true");
+        // Issue #1816: the panel is open by default (no tap needed) — assert
+        // `elevated` on the already-mounted view directly, and that the
+        // portrait mount passes `narrow` (the desktop mount in `board.tsx`
+        // never does).
+        const view = screen.getByTestId("stack-view");
+        expect(view.getAttribute("data-elevated")).toBe("true");
+        expect(view.getAttribute("data-narrow")).toBe("true");
     });
 
     it("pins the numeric ordering in src/index.css: banner < chip < modal", () => {
