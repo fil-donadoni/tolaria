@@ -67,11 +67,11 @@ export const reanimate: CardDefinition = {
 // (non-player-choice) "top of graveyard" object selector; every
 // graveyard-card selection Op today (`choice(zone: "graveyard")`) is a
 // player pick, not an implicit positional one — the EXACT gap already
-// tracked for Shallow Grave (`convex/cards/sets/mir/black.ts`, issue #920,
-// item 11). Re-flagged rather than worked around: inventing a
-// player-choice substitute for "the top card" would diverge from modern
-// Oracle text (ADR 0004).
-// tracked-by: #920
+// tracked for Shallow Grave (`convex/cards/sets/mir/black.ts`, co-tracked).
+// Re-flagged rather than worked around: inventing a player-choice
+// substitute for "the top card" would diverge from modern Oracle text
+// (ADR 0004).
+// tracked-by: #1967
 // export const corpseDance: CardDefinition = {
 //     id: "76ae81ea-13e3-4ab8-b956-4c7b139a5e9c", // TMP 116
 //     name: "Corpse Dance",

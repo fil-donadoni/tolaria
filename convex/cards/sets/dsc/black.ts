@@ -4,11 +4,14 @@
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 // Metamorphosis Fanatic — {4}{B}{B} Creature. "Lifelink. When this creature
 // enters, return up to one target creature card from your graveyard to the
-// battlefield with a lifelink counter on it. Miracle {1}{B}." Blocked: keyword
-// **Miracle** (CR 702.94) is `status: "planned"` in mechanicsRegistry.ts, and
-// the "lifelink counter" grant has no generalized counter-driven-ability-grant
-// mechanism (issue #920).
-// tracked-by: #920
+// battlefield with a lifelink counter on it. Miracle {1}{B}." Blocked,
+// narrowed: the "lifelink counter" grant is GONE as a gap —
+// `applyKeywordCounterGrant`/`unapplyKeywordCounterGrant` (`convex/gre/state.ts`,
+// via `getKeywordCounterGrant` in `mechanicsRegistry.ts`, issue #1194) is a
+// generic keyword-granting-counter mechanism, proven live by Arwen, Mortal
+// Queen (`ltr/multicolor.ts`). What remains is only keyword **Miracle**
+// (CR 702.94), still `status: "planned"` in `mechanicsRegistry.ts`.
+// tracked-by: #1267
 // export const metamorphosisFanatic: CardDefinition = {
 //     id: "16448d95-ee21-4def-b880-26f6f159c213",
 //     name: "Metamorphosis Fanatic",

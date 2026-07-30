@@ -7,8 +7,8 @@
 // permanent enters or attacks, mill four cards, then you may return a
 // non-Avatar creature card or a planeswalker card from your graveyard to your
 // hand." Blocked: keyword **Impending** (CR 702.176) is `status: "planned"`
-// (issue #920).
-// tracked-by: #920
+// (issue #1970).
+// tracked-by: #1970
 // export const overlordOfTheBalemurk: CardDefinition = {
 //     id: "9b911653-7b96-4cf3-a907-13c5c53a14f7",
 //     name: "Overlord of the Balemurk",

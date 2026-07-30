@@ -9,8 +9,8 @@
 // creature spell you cast this turn" needs a per-turn "creature spells cast"
 // counter exposed to a `TriggeredAbility.matches`/`state` predicate; no such
 // tracking exists yet (`GameState` has no per-turn spell-cast-kind counter)
-// (issue #920).
-// tracked-by: #920
+// (issue #1968).
+// tracked-by: #1968
 // export const vengevine: CardDefinition = {
 //     id: "51eb9f05-9d5a-4196-9329-626ce4793c42",
 //     name: "Vengevine",

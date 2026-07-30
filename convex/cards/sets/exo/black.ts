@@ -6,8 +6,8 @@
 // the activation cost "Return this enchantment to its owner's hand" has no
 // `ActivatedAbility.cost` field — the cost shapes cover
 // tap/mana/sacrifice/sacrificeFilter/tapOtherFilter/life/removeCounter/discard
-// variants, but not "bounce the source itself as a cost" (issue #920).
-// tracked-by: #920
+// variants, but not "bounce the source itself as a cost" (issue #1966).
+// tracked-by: #1966
 // export const recurringNightmare: CardDefinition = {
 //     id: "c8173030-1c33-417c-b8e9-79231b6a85a7",
 //     name: "Recurring Nightmare",
