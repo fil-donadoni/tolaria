@@ -1036,7 +1036,8 @@ export function getProducibleManaOptions(
         !abilitiesSuppressed(card) &&
         getEffectiveActivatedAbilities(card).some(
             ({ ability: a }) =>
-                !a.useStack && (a.manaChoices || a.getManaChoices)
+                !a.useStack &&
+                (a.manaChoices || a.getManaChoices || a.manaColorSource)
         );
     const needIndex = detailed.length >= 2 || hasChoiceAbility;
 

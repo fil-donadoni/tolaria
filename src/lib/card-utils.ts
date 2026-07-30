@@ -266,7 +266,10 @@ function findClientManaAbility(card: CardInstance) {
         ).find(
             ({ ability: a }) =>
                 !a.useStack &&
-                (a.manaProduced || a.manaChoices || a.getManaChoices)
+                (a.manaProduced ||
+                    a.manaChoices ||
+                    a.getManaChoices ||
+                    a.manaColorSource)
         )?.ability ?? null
     );
 }
@@ -409,7 +412,9 @@ export function getManaChoices(
     const hasChoiceAbility = getEffectiveActivatedAbilities(
         card as unknown as CardInstanceState
     ).some(
-        ({ ability: a }) => !a.useStack && (a.manaChoices || a.getManaChoices)
+        ({ ability: a }) =>
+            !a.useStack &&
+            (a.manaChoices || a.getManaChoices || a.manaColorSource)
     );
     if (options.length >= 2 || hasChoiceAbility) {
         return options.length > 0 ? options : null;
@@ -443,7 +448,7 @@ export function getNonTapManaChoices(
             !a.useStack &&
             !a.cost.tap &&
             !a.cost.sacrifice &&
-            (a.manaChoices || a.getManaChoices)
+            (a.manaChoices || a.getManaChoices || a.manaColorSource)
     )?.ability;
     if (!ability) return null;
     return getEffectiveManaChoices(

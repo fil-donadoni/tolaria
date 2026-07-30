@@ -7,12 +7,7 @@
 // classified by the colour identity of their mana cost (CR 202.2); lands and
 // artifacts (no coloured cost) live in colorless.ts.
 
-import type {
-    CardDefinition,
-    Color,
-    ManaCost,
-    SpellContext,
-} from "../../types";
+import type { CardDefinition, SpellContext } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 
@@ -768,11 +763,12 @@ export const safeHaven: CardDefinition = {
 
 // Fellwar Stone — "{T}: Add one mana of any color that a land an opponent
 // controls could produce." (CR 605.1a mana ability; CR 106.4 "could produce".
-// The colour set is board-conditional, so the ability declares a
-// `getManaChoices` hook — the choice analog of the Urza lands' `manaAmount` —
-// that reads every opponent's lands' producible colours at activation time. The
-// static `manaChoices` is the representative / fallback list for best-effort
-// callers without a board snapshot (affordability, autoTap).)
+// The colour set is board-derived, so the ability declares a `manaColorSource`
+// descriptor — the DATA form of the `getManaChoices` hook, itself the choice
+// analog of the Urza lands' `manaAmount` — evaluated by the engine at every
+// activation against every opponent's lands. The static `manaChoices` is the
+// representative / fallback list for best-effort callers without a board
+// snapshot (affordability, autoTap).)
 export const fellwarStone: CardDefinition = {
     id: "dc47e322-f8b8-4685-b035-fda0cc433e6b",
     rarity: "uncommon",
@@ -788,29 +784,19 @@ export const fellwarStone: CardDefinition = {
                 "{T}: Add one mana of any color that a land an opponent controls could produce.",
             cost: { tap: true },
             useStack: false,
-            effect: (ctx) => ctx.addMana({ W: 1 }),
             // Fallback / representative options (any single colour). The engine
-            // overrides this with `getManaChoices` when a board snapshot exists.
+            // overrides this with `manaColorSource` when a board snapshot exists.
             manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
             // CR 106.4 — "any color a land an opponent controls could produce":
             // union the producible colours of every LAND controlled by a player
-            // other than Fellwar Stone's controller, then offer one mana of each.
-            // `producibleColors` is precomputed by the engine (colourless {C}
-            // already excluded — CR 202.2). Empty when no opponent controls a
-            // colour-producing land (the ability is still activatable per
-            // CR 605.1a, but yields no legal choice).
-            getManaChoices: (_source, controllerId, battlefields) => {
-                const colors = new Set<Color>();
-                for (const { playerId, permanents } of battlefields) {
-                    if (playerId === controllerId) continue;
-                    for (const { permanent, producibleColors } of permanents) {
-                        if (!permanent.types.includes("Land")) continue;
-                        for (const c of producibleColors) colors.add(c);
-                    }
-                }
-                return (["W", "U", "B", "R", "G"] as const)
-                    .filter((c) => colors.has(c))
-                    .map((c) => ({ [c]: 1 }) as ManaCost);
+            // other than Fellwar Stone's controller, then offer one mana of each
+            // (colourless {C} is not a colour and never contributes, CR 202.2).
+            // Empty when no opponent controls a colour-producing land — the
+            // ability stays activatable per CR 605.1a but yields no legal
+            // choice, so no false affordance is offered.
+            manaColorSource: {
+                filter: { types: "Land", controllerRelation: "opponents" },
+                colors: "produces",
             },
         },
     ],

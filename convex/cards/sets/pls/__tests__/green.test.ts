@@ -1,9 +1,10 @@
 // PLS (Planeshift) — green card behavior tests (ADR 0043 colour split).
 // Each card's describe block cites the CR section it exercises.
 import { describe, it, expect } from "vitest";
-import { mirrorwoodTreefolk } from "../green";
+import { mirrorwoodTreefolk, quirionExplorer } from "../green";
 import { crawWurm } from "../../lea/green";
 import { lightningBolt } from "../../lea/red";
+import { forest, island, mountain, swamp } from "../../lea/colorless";
 import {
     makeInstance,
     makePlayer,
@@ -12,7 +13,12 @@ import {
 } from "../../../__tests__/setup";
 import { projectPublicState } from "../../../../gameProjections";
 import { resolveTopOfStack } from "../../../../gre/state";
-import type { GameState } from "../../../../gre/state";
+import type { CardInstanceState, GameState } from "../../../../gre/state";
+import {
+    getEffectiveManaChoices,
+    getManaTapOptionsDetailed,
+} from "../../../../gre/constants";
+import { getLegalActions } from "../../../../gre/rules";
 import type { TargetSelection } from "../../../types";
 
 const REDIRECT_ABILITY_ID = "mirrorwood-treefolk-redirect";
@@ -217,5 +223,170 @@ describe("Mirrorwood Treefolk ({3}{G} 2/4 — one-shot damage redirect, CR 614/1
         );
         expect(slimMwt?.damageMarked).toBeUndefined();
         expect(slimBear?.damageMarked).toBe(3);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// C6 — Board-derived restricted-colour mana abilities (CR 605.1a, issue #1941).
+// Quirion Explorer's `manaColorSource` descriptor is evaluated by
+// `boardDerivedManaChoices` (`gre/constants.ts`); the assertions below drive
+// the SAME authorities every consumer reads — `getEffectiveManaChoices` (the
+// picker/index authority), `getManaTapOptionsDetailed` (the payment-option
+// enumerator) and `getLegalActions` (the castability gate) — rather than the
+// descriptor in isolation.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The `battlefields` argument every board-derived mana consumer takes. */
+function boards(state: GameState) {
+    return state.players.map((p) => ({
+        playerId: p.id,
+        battlefield: p.battlefield,
+    }));
+}
+
+function choicesFor(
+    state: GameState,
+    source: CardInstanceState,
+    controllerId: string
+) {
+    return getEffectiveManaChoices(source, controllerId, boards(state));
+}
+
+describe("Quirion Explorer (CR 605.1a / 106.4 — colours an OPPONENT's land could produce)", () => {
+    it("is a {1}{G} 1/1 Elf Druid Scout with the modern oracle text", () => {
+        expect(quirionExplorer.manaCost).toEqual({ X: 1, G: 1 });
+        expect(quirionExplorer.types).toEqual(["Creature"]);
+        expect(quirionExplorer.subtypes).toEqual(["Elf", "Druid", "Scout"]);
+        expect(quirionExplorer.power).toBe(1);
+        expect(quirionExplorer.toughness).toBe(1);
+        expect(quirionExplorer.oracleText).toBe(
+            "{T}: Add one mana of any color that a land an opponent controls could produce."
+        );
+    });
+
+    it("is a mana ability — resolves immediately, never uses the stack (CR 605.3a)", () => {
+        const ability = quirionExplorer.activatedAbilities![0];
+        expect(ability.useStack).toBe(false);
+        expect(ability.cost).toEqual({ tap: true });
+    });
+
+    it("reads the OPPONENT's lands, not its controller's", () => {
+        const elf = makeInstance(quirionExplorer.id, { controllerId: "p1" });
+        const state = makeState({
+            players: [
+                // p1's own Mountain must NOT contribute {R}.
+                makePlayer("p1", {
+                    battlefield: [
+                        elf,
+                        makeInstance(mountain.id, { controllerId: "p1" }),
+                    ],
+                }),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(forest.id, { controllerId: "p2" }),
+                        makeInstance(island.id, { controllerId: "p2" }),
+                    ],
+                }),
+            ],
+        });
+        expect(choicesFor(state, elf, "p1")).toEqual([{ U: 1 }, { G: 1 }]);
+    });
+
+    it("offers nothing — and no tap option — when the opponent controls no colour-producing land", () => {
+        const elf = makeInstance(quirionExplorer.id, { controllerId: "p1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [elf] }),
+                makePlayer("p2", { battlefield: [] }),
+            ],
+        });
+        expect(choicesFor(state, elf, "p1")).toEqual([]);
+        // The empty scope must not surface as a false affordance: the unified
+        // tap-option list (what the picker renders and the planner taps) is
+        // empty too, rather than falling back to the static five-colour list.
+        expect(
+            getManaTapOptionsDetailed(elf, "p1", boards(state))
+        ).toHaveLength(0);
+    });
+
+    it("tracks the board — a land entering the opponent's side changes the offer", () => {
+        const elf = makeInstance(quirionExplorer.id, { controllerId: "p1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [elf] }),
+                makePlayer("p2", { battlefield: [] }),
+            ],
+        });
+        expect(choicesFor(state, elf, "p1")).toEqual([]);
+        state.players[1].battlefield.push(
+            makeInstance(swamp.id, { controllerId: "p2" })
+        );
+        expect(choicesFor(state, elf, "p1")).toEqual([{ B: 1 }]);
+    });
+
+    it("the restricted colour set is visible to the castability gate", () => {
+        const bolt = makeInstance(lightningBolt.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const elf = makeInstance(quirionExplorer.id, { controllerId: "p1" });
+        // p1 has NO mana source of its own — Bolt's {R} can only come from
+        // Quirion Explorer reading p2's board.
+        const state = makeState({
+            players: [
+                makePlayer("p1", { hand: [bolt], battlefield: [elf] }),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(mountain.id, { controllerId: "p2" }),
+                    ],
+                }),
+            ],
+        });
+        expect(getLegalActions(state, state.players[0], bolt)).toContain(
+            "cast"
+        );
+
+        // …and a scope that cannot produce {R} correctly reports NOT castable,
+        // instead of leaning on the five-colour fallback.
+        state.players[1].battlefield = [
+            makeInstance(island.id, { controllerId: "p2" }),
+        ];
+        expect(getLegalActions(state, state.players[0], bolt)).not.toContain(
+            "cast"
+        );
+    });
+
+    it("survives the wire projection — the client's picker matches the server's list", () => {
+        const elf = makeInstance(quirionExplorer.id, { controllerId: "p1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [elf] }),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(forest.id, { controllerId: "p2" }),
+                        makeInstance(swamp.id, { controllerId: "p2" }),
+                    ],
+                }),
+            ],
+        });
+        const onFat = choicesFor(state, elf, "p1");
+        expect(onFat).toEqual([{ B: 1 }, { G: 1 }]);
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === elf.id
+        )! as unknown as CardInstanceState;
+        expect(
+            getEffectiveManaChoices(
+                slim,
+                "p1",
+                projected.players.map((p) => ({
+                    playerId: p.id,
+                    battlefield:
+                        p.battlefield as unknown as CardInstanceState[],
+                }))
+            )
+        ).toEqual(onFat);
     });
 });

@@ -158,3 +158,96 @@ export const trevasRuins: CardDefinition = {
         ]),
     ],
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// C6 — Board-derived restricted-colour mana abilities (CR 605.1a, issue #1941).
+// Star Compass and Meteor Crater offer a colour set that is neither fixed nor
+// "any colour": it is derived from a described slice of the board and
+// recomputed at every activation. Both declare an
+// `ActivatedAbility.manaColorSource` descriptor (`convex/cards/types.ts`) —
+// declarative data evaluated by the engine's single `boardDerivedManaChoices`
+// authority (`gre/constants.ts`), which the castability probe, the auto-tap
+// solver, the bot's payment planner and the client picker already read, so the
+// restricted set is visible everywhere and never desyncs. The two exercise the
+// descriptor's two orthogonal axes: WHICH permanents contribute (a filter) and
+// HOW each yields a colour (`"produces"`, CR 106.4, vs `"isColor"`, CR 105.2).
+// Third card of the family: Quirion Explorer (`pls/green.ts`).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Representative / fallback options (any single colour) for best-effort
+ *  callers with no board snapshot. The `manaColorSource` descriptor overrides
+ *  it wherever a board IS available — the same contract Fellwar Stone
+ *  (`drk/colorless.ts`) established. */
+const ANY_SINGLE_COLOR: ManaCost[] = [
+    { W: 1 },
+    { U: 1 },
+    { B: 1 },
+    { R: 1 },
+    { G: 1 },
+];
+
+// Star Compass — {2} Artifact. "This artifact enters tapped. / {T}: Add one
+// mana of any color that a basic land you control could produce."
+// (CR 110.5b enters tapped; CR 605.1a mana ability, `useStack: false`;
+// CR 106.4 "could produce" over the controller's own BASIC lands only —
+// `supertypes: "Basic"` is read from the LIVE supertype set, so a
+// non-basic dual never contributes.)
+export const starCompass: CardDefinition = {
+    id: "b1d0beb4-c3dd-4bb1-b49b-a48b2d4ad38d",
+    rarity: "uncommon",
+    name: "Star Compass",
+    oracleText:
+        "This artifact enters tapped.\n{T}: Add one mana of any color that a basic land you control could produce.",
+    manaCost: { X: 2 },
+    types: ["Artifact"],
+    entersTapped: true,
+    activatedAbilities: [
+        {
+            id: "star-compass-mana",
+            oracleText:
+                "{T}: Add one mana of any color that a basic land you control could produce.",
+            cost: { tap: true },
+            useStack: false,
+            manaChoices: ANY_SINGLE_COLOR,
+            manaColorSource: {
+                filter: {
+                    types: "Land",
+                    supertypes: "Basic",
+                    controllerRelation: "you",
+                },
+                colors: "produces",
+            },
+        },
+    ],
+};
+
+// Meteor Crater — Land. "{T}: Choose a color of a permanent you control. Add
+// one mana of that color." (CR 605.1a mana ability, `useStack: false`. The
+// scope is EVERY permanent the controller has, not just lands, and the colour
+// read is the permanent's OWN colour (CR 105.2 / 202.2, post-layer-5) rather
+// than what it could produce — a Forest contributes nothing, a green creature
+// contributes {G}. Meteor Crater itself is a colourless land, so it never
+// contributes to its own list.)
+export const meteorCrater: CardDefinition = {
+    id: "043a2299-1cfc-4732-a10a-58c773b9992c",
+    rarity: "rare",
+    name: "Meteor Crater",
+    oracleText:
+        "{T}: Choose a color of a permanent you control. Add one mana of that color.",
+    manaCost: {},
+    types: ["Land"],
+    activatedAbilities: [
+        {
+            id: "meteor-crater-mana",
+            oracleText:
+                "{T}: Choose a color of a permanent you control. Add one mana of that color.",
+            cost: { tap: true },
+            useStack: false,
+            manaChoices: ANY_SINGLE_COLOR,
+            manaColorSource: {
+                filter: { controllerRelation: "you" },
+                colors: "isColor",
+            },
+        },
+    ],
+};

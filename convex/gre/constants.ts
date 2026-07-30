@@ -1,5 +1,6 @@
 import type {
     ActivatedAbility,
+    BoardManaColorSource,
     CardDefinition,
     CardSupertype,
     Color,
@@ -7,6 +8,15 @@ import type {
     PermanentView,
     TriggerStateView,
 } from "../cards/types";
+// CR 605.1a — the DECLARATIVE board-derived mana-colour descriptor
+// (`ActivatedAbility.manaColorSource`) is evaluated with the engine's SINGLE
+// permanent-filter matcher, not a mana-local copy of one. Both modules are
+// cycle-free leaves (`cards/filters` imports only `cards/types`;
+// `cards/snowReads` is the dependency-free supertype leaf `gre/snow`
+// re-exports), so this adds no import cycle.
+import { matchesPermanentFilter } from "../cards/filters";
+import type { MatchablePermanent } from "../cards/filters";
+import { liveSupertypesOf } from "../cards/snowReads";
 import type { ManaRestriction } from "./types";
 import { getDefinition, tryGetDefinition } from "../cards";
 // CR 611.1b / 613.1f (issue #1880) — the POST-LAYER activated-ability set
@@ -17,7 +27,11 @@ import { getDefinition, tryGetDefinition } from "../cards";
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 import type { CardInstanceState, GameState } from "./state";
 import { applySubstitution } from "./textChanges";
-import { getEffectivePower, getEffectiveToughness } from "./layers";
+import {
+    STATIC_EFFECT_CTX,
+    getEffectivePower,
+    getEffectiveToughness,
+} from "./layers";
 import type { LayerStateView } from "./layers";
 import {
     MANA_COLORS,
@@ -638,6 +652,75 @@ export function getProducibleColors(card: CardInstanceState): Set<Color> {
  *  computed from every player's battlefield (this hook already receives the
  *  full board — see `manaLayerView`), not its raw base stats. Vivi Ornitier's
  *  "{U}/{R} split totalling X, where X is this creature's power" reads it. */
+/** Evaluates a {@link BoardManaColorSource} against the live board and returns
+ *  the mana options it offers: ONE mana of each colour the described permanents
+ *  contribute, in canonical WUBRG order (CR 605.1a).
+ *
+ *  Both derivations are honest reads of the CURRENT board, recomputed at every
+ *  activation — a land entering or leaving, a Blood Moon rewriting a dual, a
+ *  colour-changing effect all move the offered set immediately:
+ *  - `"produces"` unions `getProducibleColors` (CR 106.4 "could produce" —
+ *    basic-land subtypes, fixed and choice mana abilities, post-layer granted
+ *    ones, minus suppressed ones). {C} is excluded there already (CR 202.2).
+ *  - `"isColor"` unions the permanent's own post-layer-5 colours (CR 105.2).
+ *
+ *  An EMPTY result is a real answer, not "unknown": it means the scope
+ *  currently contributes no colour, so the ability offers nothing and every
+ *  consumer of `getDynamicManaChoices` — the castability probe, the auto-tap
+ *  solver, the tap-option enumerator, the client picker — correctly drops the
+ *  source instead of showing a false affordance. That is why this returns
+ *  `[]` rather than `null`: `null` would fall through to the ability's static
+ *  `manaChoices` fallback and re-inflate the offer.
+ *
+ *  The permanents are matched against a LAYER-AWARE view: live colours
+ *  (`STATIC_EFFECT_CTX.getColors`), live supertypes (`liveSupertypesOf`, so
+ *  `supertypes: "Basic"` sees a Blood-Moon'd / snow-mutated board correctly)
+ *  and live effective P/T, through the engine's single
+ *  `matchesPermanentFilter` authority — no second matcher. */
+export function boardDerivedManaChoices(
+    source: BoardManaColorSource,
+    self: CardInstanceState,
+    controllerId: string,
+    battlefields: ReadonlyArray<{
+        playerId: string;
+        battlefield: readonly CardInstanceState[];
+    }>
+): ManaCost[] {
+    const layerView = manaLayerView(battlefields);
+    const ctx = {
+        selfInstanceId: self.id,
+        // CR 109.5 — "you" on an ability is its CONTROLLER, which is what
+        // `controllerRelation: "you" | "opponents"` resolves against.
+        selfControllerId: controllerId,
+        supertypesOf: liveSupertypesOf,
+    };
+    const colors = new Set<Color>();
+    for (const { battlefield } of battlefields) {
+        for (const permanent of battlefield) {
+            // CR 105 / 202.2 / 613.1d — live colours, so a `colors` filter and
+            // the `"isColor"` derivation below agree with the board.
+            const liveColors = STATIC_EFFECT_CTX.getColors(permanent);
+            const pt = withEffectivePT(permanent, layerView);
+            const view: MatchablePermanent = {
+                ...permanent,
+                staticAbilities: permanent.staticAbilities ?? [],
+                colors: liveColors,
+                power: pt.power,
+                toughness: pt.toughness,
+            };
+            if (!matchesPermanentFilter(view, source.filter, ctx)) continue;
+            if (source.colors === "produces") {
+                for (const c of getProducibleColors(permanent)) colors.add(c);
+            } else {
+                for (const c of liveColors) colors.add(c);
+            }
+        }
+    }
+    return MANA_COLORS.filter((c) => c !== "C" && colors.has(c)).map(
+        (c) => ({ [c]: 1 }) as ManaCost
+    );
+}
+
 export function getDynamicManaChoices(
     card: CardInstanceState,
     controllerId: string,
@@ -648,9 +731,21 @@ export function getDynamicManaChoices(
 ): ManaCost[] | null {
     if (abilitiesSuppressed(card)) return null;
     const ability = getEffectiveActivatedAbilities(card).find(
-        ({ ability: a }) => !a.useStack && a.getManaChoices
+        ({ ability: a }) =>
+            !a.useStack && (a.manaColorSource || a.getManaChoices)
     )?.ability;
-    if (!ability?.getManaChoices) return null;
+    if (!ability) return null;
+    // CR 605.1a — the DECLARATIVE board-derived colour set wins over a closure
+    // when a card carries both (see `ActivatedAbility.manaColorSource`).
+    if (ability.manaColorSource) {
+        return boardDerivedManaChoices(
+            ability.manaColorSource,
+            card,
+            controllerId,
+            battlefields
+        );
+    }
+    if (!ability.getManaChoices) return null;
     const layerView = manaLayerView(battlefields);
     // Precompute each permanent's producible colours via the shared helper so
     // the card definition (Fellwar Stone) reads board mana without importing the
@@ -876,7 +971,9 @@ export function getManaTapOptionsDetailed(
             // choice index so the counter-removal rider (Mana Battery / storage
             // land) reads the right count.
             const choices =
-                ability.getManaChoices && controllerId && battlefields
+                (ability.getManaChoices || ability.manaColorSource) &&
+                controllerId &&
+                battlefields
                     ? getDynamicManaChoices(card, controllerId, battlefields)
                     : (ability.manaChoices ?? null);
             if (choices) {
