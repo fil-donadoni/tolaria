@@ -19591,10 +19591,18 @@ describe("Effect Script Op: castDuringResolution — LAND branch, play during re
             cardInstanceIds: ["cdrLandBear"],
         });
         const offer = state.pendingChoices![0];
+        // CR 406.3 — the OFFER is identical to the land branch's: under
+        // `includesLand` the prompt and labels are keyed to the GRANT, never to
+        // the chosen card's type. `pendingChoices` crosses the wire unredacted
+        // and the non-chooser's client renders `prompt` verbatim, so a per-branch
+        // wording would disclose whether the (possibly face-down) card is a land.
+        // CR 116.1 — "play" covers casting a spell too, so the wording stays
+        // accurate on this branch.
         expect(offer.options).toEqual([
-            { id: "cast", label: "Cast" },
+            { id: "cast", label: "Play" },
             { id: "decline", label: "Decline" },
         ]);
+        expect(offer.prompt).toBe("You may play the card. Play it or decline.");
         applyPendingChoiceSubmit(state, {
             playerId: "p1",
             stackItemId: offer.stackItemId,

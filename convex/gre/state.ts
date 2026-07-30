@@ -10708,7 +10708,7 @@ export function buildSpellContext(
         // The CR 305.3 gate belongs to the caller's legality lookup
         // (`getChosenLandPlayable`), which the CR 608.2g Op consults before it
         // even offers the play. (Word of Command's own CR 305.3 divergence
-        // predates this and is tracked separately — see the receipt on #1961.)
+        // predates this and is tracked separately — tracked-by: #1981.)
         playLandForPlayer(
             playerId: string,
             cardInstanceId: string,

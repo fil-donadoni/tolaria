@@ -408,6 +408,47 @@ describe("Shelldock Isle — linked play ability (CR 607 / 608.2g / 305)", () =>
         expect(opp.players[0].exile.find((c) => c.id === hidden)!.card.id).toBe(
             FACE_DOWN_CARD_ID
         );
+        // …and the OFFER crosses to the opponent too: `pendingChoices` rides the
+        // projection unredacted and `<PendingChoicePrompt>` renders `prompt`
+        // verbatim to the NON-chooser ("Waiting for P1 — …"). So the prompt and
+        // the option labels must carry nothing derived from the hidden card's
+        // characteristics — no name, no type, no "cast" vs "play" tell.
+        const oppOffer = opp.pendingChoices?.[0];
+        expect(oppOffer?.subjectCardId).toBeUndefined();
+        expect(oppOffer?.prompt).not.toMatch(
+            /grizzly|bears|island|land|creature|instant|sorcery|cast/i
+        );
+        expect(oppOffer?.options?.map((o) => o.label).join(" ")).not.toMatch(
+            /cast/i
+        );
+    });
+
+    it("CR 406.3 — the offer is BYTE-IDENTICAL for a hidden land and a hidden nonland on the opponent's projection", () => {
+        // The leak this pins shut: the land branch and the cast branch used to
+        // send different prompt text and different option labels, so the
+        // opponent's screen said "You may play the exiled card" exactly when the
+        // face-down card was a land and "You may cast the card" when it wasn't.
+        // Both branches must now be indistinguishable to any observer.
+        const offerAsSeenByOpponent = (topCardId?: string) => {
+            const { state, isle } = setup(6, 15, topCardId);
+            hideOne(state, isle);
+            resolveActivated(state, isle, PLAY_ABILITY_ID);
+            // Driven THROUGH the reducer — a hand-built view would mask exactly
+            // the field the client renders.
+            const offer = projectPublicState(state, 1, "p2")
+                .pendingChoices?.[0];
+            expect(offer?.kind).toBe("option-pick");
+            return {
+                prompt: offer?.prompt,
+                options: offer?.options,
+                subjectCardId: offer?.subjectCardId,
+            };
+        };
+
+        const nonland = offerAsSeenByOpponent(); // Grizzly Bears (cast branch)
+        const land = offerAsSeenByOpponent(ISLAND_ID); // Island (land branch)
+        expect(land).toEqual(nonland);
+        expect(land.subjectCardId).toBeUndefined();
     });
 
     it("CR 305.2a — a hidden LAND is played on your own turn and CONSUMES the land drop", () => {
@@ -423,7 +464,10 @@ describe("Shelldock Isle — linked play ability (CR 607 / 608.2g / 305)", () =>
         resolveActivated(state, isle, PLAY_ABILITY_ID);
         const offer = state.pendingChoices![0];
         expect(offer.kind).toBe("option-pick");
-        // CR 116.2a — a land is never CAST; the button must say Play.
+        // CR 116.2a / 116.1 — a land is never CAST, so the button says Play. It
+        // says Play on the SPELL branch of this same grant too (asserted
+        // separately): the label is chosen by the grant's `includesLand`, never
+        // by the hidden card's actual type, or it would leak it (CR 406.3).
         expect(offer.options?.map((o) => o.label)).toEqual(["Play", "Decline"]);
 
         answerOffer(state, "cast");

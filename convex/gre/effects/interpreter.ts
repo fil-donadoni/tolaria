@@ -273,16 +273,34 @@ const CAST_DECLINE_OPTIONS: { id: string; label: string }[] = [
     { id: "decline", label: "Decline" },
 ];
 
-/** CR 116.2a / 608.2g (issue #1961) — the same offer for the LAND branch of the
- *  play-during-resolution Op: a land is PLAYED, never cast (CR 116.2a), so the
- *  button must say so. The option ID stays `"cast"` deliberately — it is the
- *  accept token the shared answer plumbing (`submitResolutionChoice`, the bot's
- *  `optionPickCandidates`) already understands, and inventing a second accept id
- *  would fork that plumbing for a label. */
+/** CR 116.1 / 116.2a / 608.2g (issue #1961) — the offer used by EVERY branch of
+ *  a play-during-resolution Op that can reach a land (`includesLand`): a land is
+ *  PLAYED, never cast (CR 116.2a), and "play" also covers casting a spell
+ *  (CR 116.1), so this one wording is accurate whichever branch is taken. That
+ *  is the point: it must be IDENTICAL on both, see `OFFER_PROMPT` below. The
+ *  option ID stays `"cast"` deliberately — it is the accept token the shared
+ *  answer plumbing (`submitResolutionChoice`, the bot's `optionPickCandidates`)
+ *  already understands, and inventing a second accept id would fork that
+ *  plumbing for a label. */
 const PLAY_DECLINE_OPTIONS: { id: string; label: string }[] = [
     { id: "cast", label: "Play" },
     { id: "decline", label: "Decline" },
 ];
+
+/** CR 406.3 — the prompt text of the play-during-resolution offer, keyed by
+ *  whether the grant can reach a land. `pendingChoices` crosses the wire
+ *  UNREDACTED to both viewers and the non-chooser's client renders `prompt`
+ *  verbatim ("Waiting for P1 — …"), so a land-flavoured prompt on the land
+ *  branch and a cast-flavoured one on the spell branch would tell the opponent
+ *  which branch was taken — i.e. whether the FACE-DOWN hideaway card is a land.
+ *  A grant that can reach a land therefore uses ONE prompt and ONE option list
+ *  for BOTH branches, so the branch actually taken is indistinguishable to any
+ *  observer (the same reason the prompt names no card and pins no
+ *  `subjectCardId`). */
+const OFFER_PROMPT = {
+    play: "You may play the card. Play it or decline.",
+    cast: "You may cast the card. Cast it or decline.",
+} as const;
 
 /** Boolean payload stored by a `mayPay` Op (issue #806): the single-element
  *  `["yes"]` / `["no"]` array `requestMayPay` persists (mirroring the may-pay
@@ -1832,6 +1850,18 @@ export const OP_EXECUTORS: {
             return;
         }
 
+        // CR 406.3 — ONE offer shape for the whole Op when it can reach a land:
+        // the prompt and the option labels must not differ between the land
+        // branch and the cast branch, or the mere wording discloses the hidden
+        // card's type to the opponent (`pendingChoices` is projected unredacted
+        // and the non-chooser's client renders `prompt` verbatim).
+        const offerOptions = op.includesLand
+            ? PLAY_DECLINE_OPTIONS
+            : CAST_DECLINE_OPTIONS;
+        const offerPrompt = op.includesLand
+            ? OFFER_PROMPT.play
+            : OFFER_PROMPT.cast;
+
         // CR 116.2a / 305.9 — a LAND is PLAYED, never cast. `includesLand` is
         // set only by a grant whose Oracle text says "play" (Hideaway); without
         // it a land silently passes, which is the official Malcolm land ruling
@@ -1842,17 +1872,17 @@ export const OP_EXECUTORS: {
             ctx.getChosenLandPlayable(playerId, cardInstanceId, sourceZone)
         ) {
             // "you may PLAY the exiled card" — the same resolve-time
-            // `option-pick` as the cast branch, with a Play label (CR 116.2a).
-            // The prompt text deliberately does NOT name the card: a hideaway
-            // card is FACE DOWN (CR 406.3, visible only to its controller) and
-            // `pendingChoices` crosses the wire unredacted to BOTH viewers, so
-            // naming it in the prompt — or pinning it via `subjectCardId` —
-            // would leak the hidden identity to the opponent.
+            // `option-pick` as the cast branch, byte-identical in prompt and
+            // options (see `OFFER_PROMPT`). The text deliberately does NOT name
+            // the card either: a hideaway card is FACE DOWN (CR 406.3, visible
+            // only to its controller) and `pendingChoices` crosses the wire
+            // unredacted to BOTH viewers, so naming it in the prompt — or
+            // pinning it via `subjectCardId` — would leak the hidden identity.
             const landDecision = ctx.requestOptionChoice({
                 playerId,
                 choiceId: "cdr:decide",
-                options: PLAY_DECLINE_OPTIONS,
-                prompt: "You may play the exiled card. Play it or decline.",
+                options: offerOptions,
+                prompt: offerPrompt,
             });
             if (landDecision === undefined) return "suspend"; // enqueued — wait
             if (landDecision !== "cast") {
@@ -1883,14 +1913,16 @@ export const OP_EXECUTORS: {
             return;
         }
 
-        // "you may cast" — a Cast / Decline `option-pick`, a resolve-time
-        // choice routed to the caster (CR 608.2g: NOT priority, the opponent
-        // cannot act here). Reuses the existing suspend/resume seam.
+        // "you may cast" — a Cast / Decline `option-pick` (Play / Decline for a
+        // grant that can also reach a land, identical to the land branch above
+        // so the branch taken stays hidden — CR 406.3), a resolve-time choice
+        // routed to the caster (CR 608.2g: NOT priority, the opponent cannot act
+        // here). Reuses the existing suspend/resume seam.
         const decision = ctx.requestOptionChoice({
             playerId,
             choiceId: "cdr:decide",
-            options: CAST_DECLINE_OPTIONS,
-            prompt: "You may cast the card. Cast it or decline.",
+            options: offerOptions,
+            prompt: offerPrompt,
         });
         if (decision === undefined) return "suspend"; // enqueued — wait
         if (decision !== "cast") {
