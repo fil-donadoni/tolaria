@@ -190,7 +190,7 @@ describe("entry counters apply AS the permanent enters (CR 614.1c)", () => {
             players: [makePlayer("p1"), makePlayer("p2")],
         });
         const item = pushSpell(state, everflowingChalice.id, "p1");
-        item.kickerCount = 2;
+        item.kickerPayments = { kicker: 2 };
         resolveTopOfStack(state);
         const live = state.players[0].battlefield.find(
             (c) => c.id === item.id
@@ -800,7 +800,7 @@ describe("ability-loss suppresses entry counters (CR 614.1c + 613.1f, issue #188
         ) {
             const state = boardWith(...battlefield);
             const item = pushSpell(state, everflowingChalice.id, "p1");
-            item.kickerCount = kickerCount;
+            item.kickerPayments = { kicker: kickerCount };
             resolveTopOfStack(state);
             const live = state.players[0].battlefield.find(
                 (c) => c.id === item.id

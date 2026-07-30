@@ -91,7 +91,7 @@ function castOverload(kicked: boolean, artId: string) {
     const item: StackItem = pushSpell(state, overload.id, "p1", [
         { type: "permanent", id: "artifact" },
     ]);
-    if (kicked) item.kickerCount = 1;
+    if (kicked) item.kickerPayments = { kicker: 1 };
     resolveTopOfStack(state);
     return state.players[1].battlefield.find((c) => c.id === "artifact");
 }
@@ -107,7 +107,9 @@ describe("Overload (Kicker {2}, CR 702.33 / 202.3)", () => {
         expect(castOverload(true, ART_MV4)).toBeUndefined();
     });
     it("declares the kicker cost {2}", () => {
-        expect(overload.kicker).toEqual({ cost: { X: 2 } });
+        expect(overload.kickers).toEqual([
+            { id: "kicker", description: "Kicker {2}", mana: { X: 2 } },
+        ]);
     });
 });
 
@@ -218,7 +220,7 @@ function castUrzasRage(kicked: boolean) {
     const item: StackItem = pushSpell(state, urzasRage.id, "p1", [
         { type: "player", id: "p2" },
     ]);
-    if (kicked) item.kickerCount = 1;
+    if (kicked) item.kickerPayments = { kicker: 1 };
     resolveTopOfStack(state);
     return state.players[1].life;
 }
@@ -242,12 +244,18 @@ describe("Urza's Rage (Kicker {8}{R}, CR 701.5c / 702.33 / 615)", () => {
         const item = pushSpell(state, urzasRage.id, "p1", [
             { type: "player", id: "p2" },
         ]);
-        item.kickerCount = 1;
+        item.kickerPayments = { kicker: 1 };
         resolveTopOfStack(state);
         expect(state.players[1].life).toBe(10); // shield ignored
     });
     it("declares the kicker cost {8}{R} and cantBeCountered", () => {
-        expect(urzasRage.kicker).toEqual({ cost: { X: 8, R: 1 } });
+        expect(urzasRage.kickers).toEqual([
+            {
+                id: "kicker",
+                description: "Kicker {8}{R}",
+                mana: { X: 8, R: 1 },
+            },
+        ]);
         expect(urzasRage.cantBeCountered).toBe(true);
     });
     it("wire format: kicked damage survives projectPublicState", () => {
@@ -255,7 +263,7 @@ describe("Urza's Rage (Kicker {8}{R}, CR 701.5c / 702.33 / 615)", () => {
         const item = pushSpell(state, urzasRage.id, "p1", [
             { type: "player", id: "p2" },
         ]);
-        item.kickerCount = 1;
+        item.kickerPayments = { kicker: 1 };
         resolveTopOfStack(state);
         const projected = projectPublicState(state, 1, "p1");
         expect(projected.players[1].life).toBe(10);
@@ -689,7 +697,7 @@ describe("Pouncing Kavu (Kicker → two +1/+1 counters + haste; CR 702.33 / 122.
     function enterKicked(kicked: boolean) {
         const state = makeState();
         const item = pushSpell(state, pouncingKavu.id, "p1");
-        if (kicked) item.kickerCount = 1;
+        if (kicked) item.kickerPayments = { kicker: 1 };
         resolveTopOfStack(state);
         return state;
     }
@@ -750,7 +758,7 @@ describe("Pouncing Kavu (Kicker → two +1/+1 counters + haste; CR 702.33 / 122.
     });
 
     // Revert-sensitive regressions (issue #1753, PR #1753 review finding 1):
-    // `wasKicked` (and the stray runtime `kickerCount` a resolved stack item
+    // `wasKicked` (and the stray runtime `kickerPayments` a resolved stack item
     // still carries) must NOT survive a CR 400.7 zone change. Both drive the
     // real production apply path — `removePermanentTo` /
     // `putReanimatedSetOnBattlefield` (which funnel through
@@ -770,13 +778,14 @@ describe("Pouncing Kavu (Kicker → two +1/+1 counters + haste; CR 702.33 / 122.
         const handCard = state.players[0].hand.find((c) => c.id === kavu.id)!;
         expect(handCard.wasKicked).toBeUndefined();
         expect(
-            (handCard as { kickerCount?: number }).kickerCount
+            (handCard as { kickerPayments?: Record<string, number> })
+                .kickerPayments
         ).toBeUndefined();
 
         // Recast UNKICKED, mirroring the real stack-item build
         // (`announceCast`/`finalizeTargetSelection`, convex/game.ts):
-        // `{ ...spellCard, castById, ...(pendingKickerCount ? { kickerCount } : {}) }`
-        // — no `kickerCount` key at all when the new cast is not kicked, so a
+        // `{ ...spellCard, castById, ...(kickerPayments ? { kickerPayments } : {}) }`
+        // — no `kickerPayments` key at all when the new cast is not kicked, so a
         // leaked field on `spellCard` would ride straight through the spread.
         const recast: StackItem = { ...handCard, castById: "p1" };
         state.stack.push(recast);

@@ -14,80 +14,9 @@ import {
     validateEffectScript,
 } from "../../gre/effects/validate";
 import { getAbilityEffectFn, getResolveFn } from "../effectRegistry";
-import type { CardDefinition } from "../types";
-
-/** Every ability site (activated + triggered) on a card that can carry an
- *  Effect Script, tagged with the owning card's label (ADR 0045, issue #803).
- *  Modes carry their own per-mode resolution site; those are spell-site scripts
- *  swept separately by `modeSites` below (a mode's script lives on
- *  `mode.effects`, NOT on `card.effects`, so the card-level
- *  `validateEffectScript` pass returns early and never reaches them). */
-function abilitySites(card: CardDefinition): {
-    ability: { id: string; effects?: unknown };
-    label: string;
-    triggerEventType?: string;
-}[] {
-    const label = `${card.name} (${card.id})`;
-    // Activated abilities have no firing event ($event illegal); triggered
-    // abilities carry `event`, threaded so the trigger-site $event scope
-    // (ADR 0049, issue #865) is validated with the right event type.
-    const activated = [
-        ...(card.activatedAbilities ?? []),
-        ...(card.grantTemplates ?? []),
-    ].map((ability) => ({ ability, label }));
-    const triggered = [
-        ...(card.triggeredAbilities ?? []),
-        ...(card.triggeredGrantTemplates ?? []),
-    ].map((ability) => ({
-        ability,
-        label,
-        // A single-event trigger pins one event type for `$event.<field>`
-        // static validation (ADR 0049); an array-`event` (multi-event, CR
-        // 603.2) has no single firing type — leave it undefined, which is
-        // sound since an Effect Script cannot read `$event` anyway.
-        triggerEventType: Array.isArray(
-            (ability as { event?: string | string[] }).event
-        )
-            ? undefined
-            : (ability as { event?: string }).event,
-    }));
-    // CR 714.2 (ADR 0078) — a Saga's chapter lines (`chapterAbilities[]`) need
-    // no branch here: `getAllCards()` routes through `expandDefinition`
-    // (`cards/index.ts`), which desugars them into `COUNTER_ADDED` triggers, so
-    // every chapter's Effect Script already arrives above as a
-    // `triggeredAbilities[]` entry.
-    return [...activated, ...triggered];
-}
-
-/** Every cast-time MODE site (CR 700.2 / 601.2c `modes[]`) on a card that
- *  carries an Effect Script, wrapped as a synthetic spell-site host so
- *  `validateEffectScript` walks it: a mode resolves like a spell (no
- *  `$source` permanent, no firing `$event`), and its `effects` are mutually
- *  exclusive with the mode's own `resolve` — exactly the spell-site rules. */
-function modeSites(card: CardDefinition): {
-    host: CardDefinition;
-    label: string;
-    effects: unknown;
-}[] {
-    return (card.modes ?? [])
-        .filter((mode) => mode.effects !== undefined)
-        .map((mode) => ({
-            host: {
-                ...card,
-                id: `${card.id}#${mode.id}`,
-                name: `${card.name} mode "${mode.id}"`,
-                effects: mode.effects,
-                // The card-level authoring fields belong to the CARD, not to
-                // this mode — only the mode's own `resolve` would conflict.
-                resolve: mode.resolve,
-                resolveSteps: undefined,
-                effect: undefined,
-                modes: undefined,
-            } as CardDefinition,
-            label: `${card.name} (${card.id}) mode "${mode.id}"`,
-            effects: mode.effects,
-        }));
-}
+// The site enumeration lives in one shared module so every catalogue-wide
+// script sweep walks the SAME list of sites (see `effectSites.ts`).
+import { abilitySites, modeSites } from "./effectSites";
 
 describe("Effect Script catalogue sweep (ADR 0045)", () => {
     const cards = getAllCards();

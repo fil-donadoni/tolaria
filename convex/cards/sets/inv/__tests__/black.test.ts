@@ -819,7 +819,7 @@ describe("Duskwalker (Kicker → two +1/+1 counters + fear; CR 702.33 / 122.1 / 
     function enterKicked(kicked: boolean) {
         const state = makeState();
         const item = pushSpell(state, duskwalker.id, "p1");
-        if (kicked) item.kickerCount = 1;
+        if (kicked) item.kickerPayments = { kicker: 1 };
         resolveTopOfStack(state);
         return state;
     }
@@ -898,7 +898,7 @@ describe("Urborg Skeleton (Kicker → a single +1/+1 counter; CR 702.33 / 122.1)
     it("kicked: enters with exactly one +1/+1 counter", () => {
         const state = makeState();
         const item = pushSpell(state, urborgSkeleton.id, "p1");
-        item.kickerCount = 1;
+        item.kickerPayments = { kicker: 1 };
         resolveTopOfStack(state);
         const skel = state.players[0].battlefield.find(
             (c) => c.card.id === urborgSkeleton.id

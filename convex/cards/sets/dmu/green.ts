@@ -22,7 +22,13 @@ export const tearAsunder: CardDefinition = {
         "Kicker {1}{B} (You may pay an additional {1}{B} as you cast this spell.)\nExile target artifact or enchantment. If this spell was kicked, exile target nonland permanent instead.",
     manaCost: { X: 1, G: 1 },
     types: ["Instant"],
-    kicker: { cost: { X: 1, B: 1 } },
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker {1}{B}",
+            mana: { X: 1, B: 1 },
+        },
+    ],
     // Unkicked: target artifact or enchantment.
     targetRequirement: {
         type: ["Artifact", "Enchantment"],

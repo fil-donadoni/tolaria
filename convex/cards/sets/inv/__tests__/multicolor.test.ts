@@ -953,13 +953,19 @@ describe("Agonizing Demise (CR 702.33 Kicker + 701.8 destroy + 701.15c regen-sup
         const item: StackItem = pushSpell(state, agonizingDemise.id, "p1", [
             { type: "permanent", id: "foe" },
         ]);
-        if (kicked) item.kickerCount = 1;
+        if (kicked) item.kickerPayments = { kicker: 1 };
         resolveTopOfStack(state);
         return state;
     }
 
     it("declares Kicker {1}{R}, a nonblack-creature target filter, and a can't-be-regenerated destroy", () => {
-        expect(agonizingDemise.kicker?.cost).toEqual({ X: 1, R: 1 });
+        expect(agonizingDemise.kickers).toEqual([
+            {
+                id: "kicker",
+                description: "Kicker {1}{R}",
+                mana: { X: 1, R: 1 },
+            },
+        ]);
         expect(agonizingDemise.targetRequirement?.excludeColors).toBe("B");
         expect(agonizingDemise.effects?.[0]).toMatchObject({
             op: "destroy",
@@ -1795,13 +1801,15 @@ describe("Savage Offensive (CR 702.33 Kicker + 611/613 temporary keyword grant +
             ],
         });
         const item: StackItem = pushSpell(state, savageOffensive.id, "p1");
-        if (kicked) item.kickerCount = 1;
+        if (kicked) item.kickerPayments = { kicker: 1 };
         resolveTopOfStack(state);
         return state;
     }
 
     it("declares Kicker {G}", () => {
-        expect(savageOffensive.kicker?.cost).toEqual({ G: 1 });
+        expect(savageOffensive.kickers).toEqual([
+            { id: "kicker", description: "Kicker {G}", mana: { G: 1 } },
+        ]);
     });
 
     it("unkicked: grants first strike, no +1/+1", () => {

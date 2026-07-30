@@ -179,29 +179,51 @@ export interface EscapeCost {
     exile: { count: number } | { minCardTypes: number };
 }
 
-/** CR 702.33 — Kicker. An OPTIONAL additional cost the caster may choose to pay
- *  as they cast the spell ("You may pay an additional [cost] as you cast this
- *  spell"). Paid ON TOP of the mana cost at cast time (unlike an
- *  {@link AlternativeCost}, which replaces it). Whether the spell was kicked is
- *  snapshotted on the resulting stack item (`StackItem.kickerCount`) and read at
- *  resolution — DSL scripts branch on it with the `{ kickerCount: true }`
- *  value ({@link EffectKickerCountValue}). Kicker is a cost-system / keyword-cast
+/** CR 702.33 — ONE Kicker: an OPTIONAL additional cost the caster may choose to
+ *  pay as they cast the spell ("You may pay an additional [cost] as you cast
+ *  this spell"). Paid ON TOP of the mana cost at cast time (CR 601.2f — unlike
+ *  an {@link AlternativeCost}, which REPLACES it, CR 118.9).
+ *
+ *  A Kicker cost is an additional cost of ANY kind (CR 702.33a), so its legs are
+ *  the shared {@link CostLegs} vocabulary (ADR 0079): mana (Overload's `{2}`),
+ *  a permanent to sacrifice or return (Bog Down's two lands, Arctic Merfolk's
+ *  "return a creature you control"), life (Phyrexian Scuta's "pay 3 life") and
+ *  cards from hand (Dralnu's Pet's `{2}{B}` + discard a creature card). All
+ *  present legs are paid together, once per kick.
+ *
+ *  A card declares an ARRAY of these ({@link CardDefinition.kickers}) because
+ *  "Kicker {A} and/or {B}" (the Planeshift Battlemage cycle) is two
+ *  INDEPENDENTLY payable Kickers on one spell, each with its own intervening-if
+ *  ETB trigger. How many times each was paid is recorded per `id` on the
+ *  resulting stack item (`StackItem.kickerPayments`); DSL scripts read the
+ *  per-Kicker answer with `{ kickerPaid: "<id>" }`
+ *  ({@link EffectKickerPaidValue}) and the total with `{ kickerCount: true }`
+ *  ({@link EffectKickerCountValue}). Kicker is a cost-system / keyword-cast
  *  capability (engine infra), NOT an Effect Script Op.
  *
  *  - single Kicker (Overload, Burst Lightning, Bloodchief's Thirst, Tear
- *    Asunder, Consult the Star Charts): kicked at most once → `kickerCount` is
- *    0 (not kicked) or 1 (kicked).
+ *    Asunder, Consult the Star Charts): kicked at most once → its payment count
+ *    is 0 (not kicked) or 1 (kicked).
  *  - Multikicker (CR 702.33e — Everflowing Chalice): `multi: true` lets the
- *    caster pay the kicker cost any number of times; `kickerCount` records how
- *    many times it was paid. */
-export interface KickerCost {
-    /** The additional mana cost paid per kick (CR 702.33a). */
-    cost: ManaCost;
-    /** CR 702.33e — Multikicker: the kicker cost may be paid any number of
+ *    caster pay THIS Kicker's cost any number of times; the recorded count is
+ *    how many times it was paid. Multikicker is a property of one Kicker, not of
+ *    the card. */
+export type KickerCost = CostLegs & {
+    /** Stable id for this Kicker, unique within the card. Keys the per-Kicker
+     *  payment record (`StackItem.kickerPayments`) and the `{ kickerPaid }`
+     *  Effect Script value. A single-Kicker card conventionally uses `"kicker"`;
+     *  a two-Kicker card names them for the cost being paid (`"kicker-u"` /
+     *  `"kicker-r"` on a Battlemage). */
+    id: string;
+    /** Human-readable cost text for the cast-cost dialog's per-Kicker toggle
+     *  ("Kicker {2}{U}", "Kicker — sacrifice two lands"). The client renders
+     *  this verbatim, so a non-mana leg is legible BEFORE the caster commits. */
+    description: string;
+    /** CR 702.33e — Multikicker: THIS Kicker's cost may be paid any number of
      *  times as the spell is cast. Omitted/false = a single kicker (paid at most
      *  once). */
     multi?: boolean;
-}
+};
 
 export type CardType =
     | "Creature"
@@ -2598,13 +2620,19 @@ export interface SpellContext {
     /** Value chosen for X at cast-time (CR 107.3, 601.2b). 0 if the spell
      *  has no X in its cost. Read by spells like Fireball on resolution. */
     getX: () => number;
-    /** CR 702.33 — how many times this spell's Kicker cost was paid as it was
-     *  cast (0 = not kicked; 1 for a single kicker; N for a paid-N-times
-     *  Multikicker, CR 702.33e). Snapshotted on the stack item
-     *  (`StackItem.kickerCount`) at cast commit and read at resolution. Read in
-     *  DSL via the `{ kickerCount: true }` value; `> 0` is the "was it kicked"
-     *  test (Overload, Burst Lightning, …). */
+    /** CR 702.33 — how many times ANY of this spell's Kicker costs was paid as
+     *  it was cast (0 = not kicked; 1 for a single kicker; N for a paid-N-times
+     *  Multikicker, CR 702.33e). A DERIVED sum over the per-Kicker payment
+     *  record snapshotted on the stack item (`StackItem.kickerPayments`) at cast
+     *  commit (ADR 0079). Read in DSL via the `{ kickerCount: true }` value;
+     *  `> 0` is the "was it kicked at all" test (Overload, Burst Lightning, …). */
     getKickerCount: () => number;
+    /** CR 702.33 — how many times the NAMED Kicker was paid as this spell was
+     *  cast (0 = that Kicker was not paid). The per-Kicker read a two-Kicker
+     *  card's intervening-ifs need ("if it was kicked with its {2}{U} kicker",
+     *  the Planeshift Battlemage cycle) — `getKickerCount` cannot distinguish
+     *  which of two was paid. Read in DSL via `{ kickerPaid: "<id>" }`. */
+    getKickerPaidCount: (kickerId: string) => number;
     /** Mana value of a target (CR 202.3 / 202.3b). For a permanent target,
      *  returns the printed cost's mana value — X in the cost counts as 0
      *  because the chosen X is not currently preserved on the resulting
@@ -8253,6 +8281,23 @@ export type EffectCountersValue = {
  *  `"kicker"`, not this value). */
 export type EffectKickerCountValue = { kickerCount: true };
 
+/** kickerPaid — how many times the NAMED Kicker of the resolving spell was paid
+ *  as it was cast (CR 702.33 / 702.33e), a thin JSON-pure skin over
+ *  `SpellContext.getKickerPaidCount`. The PER-KICKER sibling of
+ *  {@link EffectKickerCountValue}: a card with two independently payable Kickers
+ *  ("Kicker {A} and/or {B}" — the Planeshift Battlemage cycle) has one
+ *  intervening-if per Kicker, and a single total cannot say WHICH was paid
+ *  (ADR 0079). `>= 1` is "this Kicker was paid"; the raw count is that Kicker's
+ *  own Multikicker tally.
+ *
+ *  Like `X` / `counters` / `kickerCount` it is NOT an Op and NOT a new
+ *  STRUCTURAL construct — it reads back one number and nothing composes it, so
+ *  it does not reopen ADR 0045. The string is the `KickerCost.id` declared on
+ *  the card; a name matching no declared Kicker reads 0 (fail-closed — the
+ *  clause simply does not fire), and `validateEffectScript` rejects an empty
+ *  id at authoring time. */
+export type EffectKickerPaidValue = { kickerPaid: string };
+
 /** manaValue — the mana value (CR 202.3) of a selected object, a thin JSON-pure
  *  skin over `SpellContext.getManaValue`. An eighth `EffectValue` grammar
  *  member; like `counters` (issue #1015) it is NOT an Op and NOT a new
@@ -8308,6 +8353,7 @@ export type EffectValue =
     | EffectXValue
     | EffectCountersValue
     | EffectKickerCountValue
+    | EffectKickerPaidValue
     | EffectManaValueValue
     | EffectDomainValue
     | EffectEscapedValue
@@ -11603,13 +11649,20 @@ export interface CardDefinition {
      *  infra), NOT an Effect Script Op — the resolving effect itself stays
      *  DSL-first (`effects`). Used by Corpse Dance. */
     buyback?: ManaCost;
-    /** CR 702.33 — Kicker. An OPTIONAL additional cost the caster may pay as
-     *  they cast this spell, snapshotted on the resulting stack item and read at
-     *  resolution ({@link KickerCost}). The on-resolution effect stays DSL-first
-     *  (`effects`); only the cast/cost permission lives in the engine. Used by
-     *  Overload, Bloodchief's Thirst, Burst Lightning, Tear Asunder, Consult the
-     *  Star Charts (single Kicker) and Everflowing Chalice (Multikicker). */
-    kicker?: KickerCost;
+    /** CR 702.33 — Kicker(s). OPTIONAL additional costs the caster may pay as
+     *  they cast this spell, recorded PER KICKER ID on the resulting stack item
+     *  (`StackItem.kickerPayments`) and read at resolution ({@link KickerCost},
+     *  ADR 0079). The on-resolution effect stays DSL-first (`effects`); only the
+     *  cast/cost permission lives in the engine.
+     *
+     *  An ARRAY, not a single cost, because "Kicker {A} and/or {B}" (the
+     *  Planeshift Battlemage cycle) is two INDEPENDENTLY payable Kickers whose
+     *  intervening-if triggers must be able to tell each other apart. One element
+     *  is the ordinary case: Overload, Bloodchief's Thirst, Burst Lightning, Tear
+     *  Asunder, Consult the Star Charts (single Kicker) and Everflowing Chalice
+     *  (Multikicker). Ids must be unique within the card (guarded catalogue-wide
+     *  by `convex/cards/__tests__/kickerDeclarations.test.ts`). */
+    kickers?: KickerCost[];
     /** CR 702.33 — the target requirement that REPLACES `targetRequirement` when
      *  this spell was kicked ("If this spell was kicked, [do something to] target
      *  <different thing> instead"). Chosen at announcement (the kick decision

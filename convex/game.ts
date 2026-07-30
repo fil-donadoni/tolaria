@@ -224,11 +224,22 @@ import { projectFullState, projectPublicState } from "./gameProjections";
 import {
     canPayAlternativeCost,
     getAlternativeCost,
-    buildAlternativeCostChoice,
-    buildAlternativeCostHandChoice,
     validateAlternativeHandCostPicks,
     handCardMatchesFilter,
 } from "./gre/alternativeCost";
+// Kicker cost system (CR 702.33 / 702.33e, ADR 0079) — plural kickers on the
+// shared `CostLegs` vocabulary, payment recorded per kicker id.
+import type { KickerPayments } from "./gre/kicker";
+import {
+    assertKickerPermanentSlotFree,
+    buildCastHandCostChoice,
+    buildCastPermanentCostChoice,
+    canPayKickerLegs,
+    foldKickerCosts,
+    kickerLifeCost,
+    resolveKickerPayments,
+    totalKickerCount,
+} from "./gre/kicker";
 import { liveSupertypesOf, countSnowLands } from "./gre/snow";
 import { computeSoloViewerId } from "./soloViewer";
 import { compactState, expandState } from "./gre/serialize";
@@ -3099,7 +3110,7 @@ export function tryAutoCommitPendingCast(
     const pendingTargets = (state.pendingCast as Record<string, unknown>)
         .targets as StackItem["targets"] | undefined;
     const pendingChosenX = state.pendingCast.chosenX;
-    const pendingKickerCount = state.pendingCast.kickerCount;
+    const pendingKickerPayments = state.pendingCast.kickerPayments;
     const pendingBuybackPaid = state.pendingCast.buybackPaid;
     const pendingChosenModeId = state.pendingCast.chosenModeId;
     const pendingTargetAmounts = state.pendingCast.targetAmounts;
@@ -3117,7 +3128,9 @@ export function tryAutoCommitPendingCast(
         castById: playerId,
         ...(pendingTargets ? { targets: pendingTargets } : {}),
         ...(pendingChosenX !== undefined ? { chosenX: pendingChosenX } : {}),
-        ...(pendingKickerCount ? { kickerCount: pendingKickerCount } : {}),
+        ...(pendingKickerPayments
+            ? { kickerPayments: pendingKickerPayments }
+            : {}),
         ...(pendingBuybackPaid ? { buybackPaid: true } : {}),
         ...(pendingTargetAmounts
             ? { targetAmounts: pendingTargetAmounts }
@@ -5000,50 +5013,12 @@ export function advanceTargetGroupOrFinalize(
  *  additional generic cost modifier (CR 601.2f). Exported for integration
  *  tests that exercise the real cost/target commit path (e.g. Reflecting
  *  Mirror's derived-X + retarget finalization). */
-/** CR 702.33 — validate a requested Kicker tally against a card and return the
- *  canonical count (0 = not kicked). Throws when a positive count is requested
- *  for a card with no Kicker, when the count is not a non-negative integer, or
- *  when a single (non-Multikicker) Kicker is asked to be paid more than once
- *  (CR 702.33e — only Multikicker may be paid repeatedly). */
-export function resolveKickerCount(
-    cardDef: CardDefinition,
-    requested: number | undefined
-): number {
-    const n = requested ?? 0;
-    if (n === 0) return 0;
-    if (!Number.isInteger(n) || n < 0) {
-        throw new Error("Invalid kicker count");
-    }
-    if (!cardDef.kicker) throw new Error("This spell has no kicker");
-    if (!cardDef.kicker.multi && n > 1) {
-        throw new Error("This spell's kicker can only be paid once");
-    }
-    return n;
-}
-
-/** CR 702.33a / 601.2f — fold the Kicker cost (paid `kickerCount` times) into a
- *  normalized mana-cost record, mutating it in place. No-op when not kicked or
- *  the card has no Kicker. Applied to the total mana cost BEFORE cost modifiers
- *  (CR 601.2f — an additional cost joins the total, then increases/reductions
- *  apply). */
-function foldKickerCost(
-    cost: Record<string, number>,
-    cardDef: CardDefinition,
-    kickerCount: number
-): void {
-    if (kickerCount <= 0 || !cardDef.kicker) return;
-    const per = normalizeManaCost(cardDef.kicker.cost);
-    for (const [sym, amt] of Object.entries(per)) {
-        cost[sym] = (cost[sym] ?? 0) + amt * kickerCount;
-    }
-}
-
 /** CR 702.27 — validate a requested Buyback choice against a card and return
  *  the canonical boolean (false = not paid). Throws when buyback is
  *  requested for a card with no Buyback cost. Unlike Kicker (CR 702.33e
  *  Multikicker), Buyback has no repeatable variant — CR 702.27a's "an
  *  additional [cost]" is singular, paid at most once per cast. Exported for
- *  the same reason `resolveKickerCount` is: `convex/gre/__tests__/
+ *  the same reason `resolveKickerPayments` is: `convex/gre/__tests__/
  *  buyback.test.ts` drives the real cost/target commit path over the GRE
  *  state (no convex-test harness for game.ts mutations, ADR 0001). */
 export function resolveBuybackChoice(
@@ -5059,7 +5034,7 @@ export function resolveBuybackChoice(
  *  record, mutating it in place, when `buybackPaid`. No-op when not paid or
  *  the card has no Buyback cost. Applied to the total mana cost BEFORE cost
  *  modifiers (CR 601.2f — an additional cost joins the total, then
- *  increases/reductions apply), mirroring `foldKickerCost`. */
+ *  increases/reductions apply), mirroring `foldKickerCosts`. */
 function foldBuybackCost(
     cost: Record<string, number>,
     cardDef: CardDefinition,
@@ -5079,9 +5054,12 @@ function foldBuybackCost(
  *  co-occur on a shipped card, but the precedence is defined). */
 function kickerAdjustedTargetRequirement(
     cardDef: CardDefinition,
-    kickerCount: number
+    kickerPayments: KickerPayments | undefined
 ): TargetRequirement | undefined {
-    if (kickerCount > 0 && cardDef.kickedTargetRequirement) {
+    if (
+        totalKickerCount(kickerPayments) > 0 &&
+        cardDef.kickedTargetRequirement
+    ) {
         return cardDef.kickedTargetRequirement;
     }
     return cardDef.targetRequirement;
@@ -5160,9 +5138,10 @@ export function finalizeTargetSelection(
     const cardInstanceId = pt.cardInstanceId;
     const keepPriority = pt.keepPriority;
     const chosenX = pt.chosenX;
-    // CR 702.33 — Kicker tally chosen at announcement, folded into the mana cost
-    // paid at this commit and propagated to the resolving stack item.
-    const kickerCount = pt.kickerCount ?? 0;
+    // CR 702.33 — the PER-KICKER payment record chosen at announcement, whose
+    // mana legs fold into the cost paid at this commit and which is propagated
+    // whole to the resolving stack item (ADR 0079).
+    const kickerPayments = pt.kickerPayments;
     // CR 702.27a — Buyback choice made at announcement, folded into the mana
     // cost paid at this commit and propagated to the resolving stack item.
     const buybackPaid = pt.buybackPaid ?? false;
@@ -5637,11 +5616,10 @@ export function finalizeTargetSelection(
     // is paid through its own non-mana legs (return/sacrifice/pay-life/exile),
     // while the kicker's mana still folds on top here — so a spell that is both
     // kicked AND alt-cast pays the kicker mana plus the alt cost, neither leg
-    // clobbering the other. `foldKickerCost` early-returns when the card has no
-    // kicker or `kickerCount` is 0, so this is a no-op for a plain alt-cost
-    // cast. Folded BEFORE cost modifiers so reductions/increases apply to the
-    // total (CR 601.2f).
-    foldKickerCost(manaCost, cardDef, kickerCount);
+    // clobbering the other. `foldKickerCosts` iterates only the PAID kickers, so
+    // this is a no-op for a plain alt-cost cast. Folded BEFORE cost modifiers so
+    // reductions/increases apply to the total (CR 601.2f).
+    foldKickerCosts(manaCost, cardDef, kickerPayments);
     // CR 702.27a / 601.2f — mirrors the Kicker fold above for Buyback's
     // additional cost.
     foldBuybackCost(manaCost, cardDef, buybackPaid);
@@ -5686,6 +5664,9 @@ export function finalizeTargetSelection(
         // CR 118.4 / 118.9 — the LIFE leg of the chosen alternative cost (Snuff
         // Out "pay 4 life", Force of Will "pay 1 life and exile a blue card").
         (chosenAltCost?.life ?? 0) +
+        // CR 702.33a / 118.4 — the LIFE leg of every paid Kicker ("pay 3 life"),
+        // an ADDITIONAL cost that joins the total rather than replacing it.
+        kickerLifeCost(cardDef, kickerPayments) +
         // CR 107.4f — the life paid for Phyrexian pips chosen to be paid with
         // life (2 per pip). Dismember paying both {B/P} with life adds 4.
         phyrexianPayment.payLife;
@@ -5719,23 +5700,48 @@ export function finalizeTargetSelection(
     // auto-resolves when forced/fungible). The alt-cost cards carry no
     // additional cost of their own, so the two selections never coexist — the
     // alt choice takes the cast's single `sacrificeSelection` slot.
+    // CR 702.33a — a paid Kicker's PERMANENT leg (sacrifice two lands, return a
+    // creature you control) joins that same selection, marked `explicit` so it is
+    // never auto-picked (ADR 0079).
+    //
+    // The branch is decided by what the builder actually PRODUCES, never by "did
+    // the kicker produce a leg at all": `kickerCostLegs` yields one entry per
+    // PAYMENT, so a mana-only Kicker — every shipped one — makes that count
+    // positive while contributing NOTHING to the permanent picker. Gating on it
+    // sent every kicked cast down this branch and silently discarded
+    // `additionalSac`, i.e. Drought's "Sacrifice a Swamp" (CR 118.5) went unpaid
+    // on a kicked spell. The builder returns `undefined` when nothing
+    // contributes, so the `?? additionalSac` fallback keeps the historical
+    // branch byte-identical for an unkicked or mana-only-kicked cast; when an
+    // ALT cost is chosen, dropping `additionalSac` is the historical (alt-cost
+    // cards carry none) behaviour and is preserved deliberately.
+    assertKickerPermanentSlotFree(cardDef, kickerPayments, additionalSac);
+    const castPermSel = buildCastPermanentCostChoice(
+        state,
+        playerId,
+        chosenAltCost,
+        cardDef,
+        kickerPayments,
+        cardDef.name ?? (chosenAltCost ? "Alternative cost" : "Kicker")
+    );
     const castSac = chosenAltCost
-        ? buildAlternativeCostChoice(
-              state,
-              playerId,
-              chosenAltCost,
-              cardDef.name ?? "Alternative cost"
-          )
-        : additionalSac;
+        ? castPermSel
+        : (castPermSel ?? additionalSac);
     // CR 118.9 — the HAND leg of the chosen alternative cost (Force of Will
     // "exile a blue card", Foil "discard an Island card and another card"). A
     // player-chosen filtered give-up FROM HAND, paid at commit through the
     // cast's `alternativeCostHandChoice` picker (parks when real, auto-resolves
     // when forced). None of these cards also carries a permanent leg, so the
-    // two never coexist.
-    const altHandChoice = chosenAltCost
-        ? buildAlternativeCostHandChoice(player, chosenAltCost, cardInstanceId)
-        : undefined;
+    // two never coexist. CR 702.33a — a paid Kicker's HAND leg joins the same
+    // picker. Same rule as the permanent selection above: the builder itself
+    // returns `undefined` when no leg contributes, so no leg-count gate.
+    const altHandChoice = buildCastHandCostChoice(
+        player,
+        chosenAltCost,
+        cardDef,
+        kickerPayments,
+        cardInstanceId
+    );
     // CR 702.34a / 118.5 — the flashback-only "Exile a <colour> card from your
     // hand" cost (generalized `FlashbackCost.exileFromHand`) also applies to a
     // TARGETED flashback cast (e.g. a Lava-Dart-shaped card that both targets
@@ -5846,7 +5852,7 @@ export function finalizeTargetSelection(
             keepPriority,
             chosenX,
             ...(payLife > 0 ? { payLife } : {}),
-            ...(kickerCount > 0 ? { kickerCount } : {}),
+            ...(kickerPayments ? { kickerPayments } : {}),
             ...(buybackPaid ? { buybackPaid: true } : {}),
             ...(chosenModeId ? { chosenModeId } : {}),
             ...(exilePicker ? { additionalCost: exilePicker } : {}),
@@ -5962,7 +5968,7 @@ export function finalizeTargetSelection(
             castById: playerId,
             targets,
             ...(chosenX !== undefined ? { chosenX } : {}),
-            ...(kickerCount > 0 ? { kickerCount } : {}),
+            ...(kickerPayments ? { kickerPayments } : {}),
             ...(buybackPaid ? { buybackPaid: true } : {}),
             ...(divideAmounts ? { targetAmounts: divideAmounts } : {}),
             ...(chosenModeId ? { chosenModeId } : {}),
@@ -5998,7 +6004,7 @@ export function finalizeTargetSelection(
             tappedLandIds: [],
             keepPriority,
             chosenX,
-            ...(kickerCount > 0 ? { kickerCount } : {}),
+            ...(kickerPayments ? { kickerPayments } : {}),
             ...(buybackPaid ? { buybackPaid: true } : {}),
             ...(divideAmounts ? { targetAmounts: divideAmounts } : {}),
             ...(payLife > 0 ? { payLife } : {}),
@@ -6257,10 +6263,12 @@ export const announceCast = mutation({
         /** Value chosen for X at cast-time (CR 107.3, 601.2b). Required when
          *  the spell has `X: "X"` in its mana cost. */
         chosenX: v.optional(v.number()),
-        /** CR 702.33 — how many times to pay this spell's optional Kicker cost
-         *  as it is cast (0/omitted = don't kick). A single Kicker accepts 0 or
-         *  1; a Multikicker (CR 702.33e) accepts any non-negative integer. */
-        kickerCount: v.optional(v.number()),
+        /** CR 702.33 — which of this spell's optional Kickers to pay as it is
+         *  cast, and how many times each, keyed by `KickerCost.id`
+         *  (omitted/empty = don't kick). A single Kicker accepts 0 or 1; a
+         *  Multikicker (CR 702.33e) accepts any non-negative integer. Two
+         *  entries = "Kicker {A} and/or {B}" with both paid (ADR 0079). */
+        kickerPayments: v.optional(v.record(v.string(), v.number())),
         /** CR 702.27 — whether to pay this spell's optional Buyback cost as it
          *  is cast (false/omitted = don't pay it). When true, the spell
          *  returns to its owner's hand instead of the graveyard as it
@@ -6455,10 +6463,30 @@ export const announceCast = mutation({
             );
         }
 
-        // CR 702.33 — validate and canonicalize the optional Kicker tally
-        // chosen for this cast (0 = not kicked). Throws for a non-kicker card,
-        // a bad count, or a single kicker asked to be paid more than once.
-        const kickerCount = resolveKickerCount(cardDef, args.kickerCount);
+        // CR 702.33 — validate and canonicalize the optional PER-KICKER tally
+        // chosen for this cast (undefined = not kicked). Throws for a kicker id
+        // the card does not declare, a bad count, or a single (non-Multikicker)
+        // kicker asked to be paid more than once (ADR 0079).
+        const kickerPayments = resolveKickerPayments(
+            cardDef,
+            args.kickerPayments
+        );
+        // CR 702.33a / 601.2f — a Kicker cost is an additional cost of ANY kind,
+        // so gate its NON-MANA legs (permanents to sacrifice/return, life, cards
+        // from hand) at announcement, exactly as the alternative cost's legs are
+        // gated above. The mana legs are folded into the total and priced by the
+        // ordinary mana path.
+        if (
+            !canPayKickerLegs(
+                state,
+                player,
+                cardDef,
+                kickerPayments,
+                args.cardInstanceId
+            )
+        ) {
+            throw new Error("Can't pay the kicker cost");
+        }
 
         // CR 702.27 — validate and canonicalize the optional Buyback choice
         // for this cast (false = not paid). Throws for a card with no Buyback
@@ -6472,7 +6500,7 @@ export const announceCast = mutation({
         // its wider/different set (CR 702.33).
         const activeTargetRequirement =
             chosenMode?.targetRequirement ??
-            kickerAdjustedTargetRequirement(cardDef, kickerCount);
+            kickerAdjustedTargetRequirement(cardDef, kickerPayments);
 
         // Check if the card requires targets (CR 601.2c). When `count: "X"`
         // resolves to 0 (X chosen as 0), the spell takes no targets — fall
@@ -6576,7 +6604,7 @@ export const announceCast = mutation({
                 selected: [],
                 keepPriority: args.keepPriority,
                 chosenX,
-                ...(kickerCount > 0 ? { kickerCount } : {}),
+                ...(kickerPayments ? { kickerPayments } : {}),
                 ...(buybackPaid ? { buybackPaid: true } : {}),
                 // CR 107.4f — carry the caster's Phyrexian mana-vs-life choice
                 // through target selection so it is applied at cast commit
@@ -6632,18 +6660,30 @@ export const announceCast = mutation({
             const altManaCost = normalizeManaCost(chosenAltCost.mana ?? {}, {
                 chosenX,
             });
-            const altChoice = buildAlternativeCostChoice(
+            // CR 702.33a / 601.2f — a Kicker is an ADDITIONAL cost, so it
+            // composes with the alternative cost rather than being replaced by
+            // it: the kicker's mana folds ON TOP of the alt cost's mana leg, and
+            // its permanent / hand / life legs join the alt cost's in the same
+            // pickers (ADR 0079).
+            foldKickerCosts(altManaCost, cardDef, kickerPayments);
+            const altChoice = buildCastPermanentCostChoice(
                 state,
                 args.playerId,
                 chosenAltCost,
+                cardDef,
+                kickerPayments,
                 cardDef.name ?? "Alternative cost"
             );
-            const altHandChoice = buildAlternativeCostHandChoice(
+            const altHandChoice = buildCastHandCostChoice(
                 player,
                 chosenAltCost,
+                cardDef,
+                kickerPayments,
                 args.cardInstanceId
             );
-            const altPayLife = chosenAltCost.life ?? 0;
+            const altPayLife =
+                (chosenAltCost.life ?? 0) +
+                kickerLifeCost(cardDef, kickerPayments);
             const parkPerm =
                 altChoice !== undefined &&
                 !isSacrificeSelectionComplete(altChoice);
@@ -6679,6 +6719,7 @@ export const announceCast = mutation({
                     ...(args.chosenModeId
                         ? { chosenModeId: args.chosenModeId }
                         : {}),
+                    ...(kickerPayments ? { kickerPayments } : {}),
                     ...(altChoice ? { sacrificeSelection: altChoice } : {}),
                     ...(altHandChoice
                         ? { alternativeCostHandChoice: altHandChoice }
@@ -6731,6 +6772,7 @@ export const announceCast = mutation({
                 ...card,
                 castById: args.playerId,
                 ...(chosenX !== undefined ? { chosenX } : {}),
+                ...(kickerPayments ? { kickerPayments } : {}),
                 ...(args.chosenModeId
                     ? { chosenModeId: args.chosenModeId }
                     : {}),
@@ -6770,7 +6812,7 @@ export const announceCast = mutation({
         const manaCost = rawCost ? normalizeManaCost(rawCost, { chosenX }) : {};
         // CR 702.33a — fold the optional Kicker cost into the total (before cost
         // modifiers, CR 601.2f). No-op when the caster didn't kick.
-        foldKickerCost(manaCost, cardDef, kickerCount);
+        foldKickerCosts(manaCost, cardDef, kickerPayments);
         // CR 702.27a — fold the optional Buyback cost into the total the same
         // way. No-op when the caster didn't pay it.
         foldBuybackCost(manaCost, cardDef, buybackPaid);
@@ -6794,7 +6836,10 @@ export const announceCast = mutation({
         for (const [c, n] of Object.entries(phyrexianPayment.manaAdditions)) {
             if (n && n > 0) manaCost[c] = (manaCost[c] ?? 0) + n;
         }
-        const phyrexianPayLife = phyrexianPayment.payLife;
+        // CR 702.33a / 118.4 — the LIFE leg of every paid Kicker joins the
+        // Phyrexian life on this cast's single life payment (ADR 0079).
+        const phyrexianPayLife =
+            phyrexianPayment.payLife + kickerLifeCost(cardDef, kickerPayments);
         // CR 601.2f / 118.5 — board-wide static NON-mana additional cost
         // (Drought). Gate on affordability at announcement; pip count comes from
         // the spell's PRINTED mana cost.
@@ -6809,7 +6854,7 @@ export const announceCast = mutation({
         // CR 117.9 / 601.2f / 701.21a — assemble the cast's player-chosen
         // filtered sacrifices (own additional cost + Drought). Exile rides on
         // `additionalCost`; a non-fungible sacrifice or an exile cost parks.
-        const { selection: castSac, exilePicker } = buildCastSacrificeSelection(
+        const { selection: ownSac, exilePicker } = buildCastSacrificeSelection(
             state,
             rawCost,
             cardInHand,
@@ -6817,6 +6862,37 @@ export const announceCast = mutation({
             cardDef.additionalCosts,
             cardDef.name ?? "Sacrifice",
             castFromZone
+        );
+        // CR 702.33a / 601.2f — the NON-MANA legs of every paid Kicker (ADR 0079).
+        // A permanent leg becomes the cast's `SacrificeSelection`, marked
+        // `explicit` so it always parks for the caster's own pick; a hand leg
+        // becomes the cast's hand picker.
+        //
+        // The cast has ONE selection slot, so a Kicker permanent leg and the
+        // cast's own additional-cost sacrifice (its own, or a board-wide one
+        // like Drought) cannot both be honoured — `?? ownSac` would silently
+        // drop the latter, i.e. mispay a cost. Fail CLOSED instead (the same
+        // answer `resolveKickerPayments` gives a mixed sacrifice/return
+        // composition); no printed card reaches it. No leg-COUNT gate: a
+        // mana-only Kicker yields one entry per payment while contributing
+        // nothing to either picker, and both builders already return `undefined`
+        // when nothing contributes.
+        assertKickerPermanentSlotFree(cardDef, kickerPayments, ownSac);
+        const kickerPermSel = buildCastPermanentCostChoice(
+            state,
+            args.playerId,
+            undefined,
+            cardDef,
+            kickerPayments,
+            cardDef.name ?? "Kicker"
+        );
+        const castSac = kickerPermSel ?? ownSac;
+        const kickerHandChoice = buildCastHandCostChoice(
+            player,
+            undefined,
+            cardDef,
+            kickerPayments,
+            args.cardInstanceId
         );
         // CR 702.34a / 118.5 — Flash of Insight's flashback-only additional
         // cost "Exile X blue cards from your graveyard". Applies ONLY on a
@@ -6961,6 +7037,11 @@ export const announceCast = mutation({
             !!exilePicker ||
             !!castExileChoice ||
             !!castConvokeChoice ||
+            // CR 702.33a — a Kicker HAND leg always parks: the discard/exile is
+            // applied by the deferred commit's existing hand-cost path, so the
+            // immediate branch below never has to duplicate it. A forced pick is
+            // pre-filled, so `tryAutoCommitPendingCast` resumes at once.
+            !!kickerHandChoice ||
             (castSac !== undefined && !isSacrificeSelectionComplete(castSac));
         if (parkForSacrifice) {
             // Open pendingCast in cost-picker mode. Commit is gated on the
@@ -6973,7 +7054,7 @@ export const announceCast = mutation({
                 tappedLandIds: [],
                 keepPriority: args.keepPriority,
                 chosenX,
-                ...(kickerCount > 0 ? { kickerCount } : {}),
+                ...(kickerPayments ? { kickerPayments } : {}),
                 ...(buybackPaid ? { buybackPaid: true } : {}),
                 // CR 107.4f — Phyrexian life rides to the deferred commit.
                 ...(phyrexianPayLife > 0 ? { payLife: phyrexianPayLife } : {}),
@@ -6987,6 +7068,9 @@ export const announceCast = mutation({
                     : {}),
                 ...(castExileChoice
                     ? { exileFromGraveyardChoice: castExileChoice }
+                    : {}),
+                ...(kickerHandChoice
+                    ? { alternativeCostHandChoice: kickerHandChoice }
                     : {}),
             };
 
@@ -7071,7 +7155,7 @@ export const announceCast = mutation({
                 ...card,
                 castById: args.playerId,
                 ...(chosenX !== undefined ? { chosenX } : {}),
-                ...(kickerCount > 0 ? { kickerCount } : {}),
+                ...(kickerPayments ? { kickerPayments } : {}),
                 ...(buybackPaid ? { buybackPaid: true } : {}),
                 ...(args.chosenModeId
                     ? { chosenModeId: args.chosenModeId }
@@ -7107,7 +7191,7 @@ export const announceCast = mutation({
                 tappedLandIds: [],
                 keepPriority: args.keepPriority,
                 chosenX,
-                ...(kickerCount > 0 ? { kickerCount } : {}),
+                ...(kickerPayments ? { kickerPayments } : {}),
                 ...(buybackPaid ? { buybackPaid: true } : {}),
                 // CR 107.4f — the Phyrexian life is paid at the deferred commit
                 // (finalizePendingCast reads `pendingCast.payLife`).

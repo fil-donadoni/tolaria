@@ -69,7 +69,13 @@ export const overload: CardDefinition = {
         "Kicker {2} (You may pay an additional {2} as you cast this spell.)\nDestroy target artifact if its mana value is 2 or less. If this spell was kicked, destroy that artifact if its mana value is 5 or less instead.",
     manaCost: { R: 1 },
     types: ["Instant"],
-    kicker: { cost: { X: 2 } },
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker {2}",
+            mana: { X: 2 },
+        },
+    ],
     targetRequirement: { type: "Artifact", count: 1 },
     effects: [
         {
@@ -145,7 +151,13 @@ export const urzasRage: CardDefinition = {
         "Kicker {8}{R} (You may pay an additional {8}{R} as you cast this spell.)\nThis spell can't be countered.\nUrza's Rage deals 3 damage to any target. If this spell was kicked, instead it deals 10 damage to that permanent or player and the damage can't be prevented.",
     manaCost: { X: 2, R: 1 },
     types: ["Instant"],
-    kicker: { cost: { X: 8, R: 1 } },
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker {8}{R}",
+            mana: { X: 8, R: 1 },
+        },
+    ],
     cantBeCountered: true,
     targetRequirement: { type: "any", count: 1 },
     effects: [
@@ -432,7 +444,13 @@ export const kavuAggressor: CardDefinition = {
     subtypes: ["Kavu"],
     power: 3,
     toughness: 2,
-    kicker: { cost: { X: 4 } },
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker {4}",
+            mana: { X: 4 },
+        },
+    ],
     entersWith: { counters: [{ type: "+1/+1", count: "kicker" }] },
     staticEffects: [
         {
@@ -534,7 +552,13 @@ export const pouncingKavu: CardDefinition = {
     subtypes: ["Kavu"],
     power: 1,
     toughness: 1,
-    kicker: { cost: { X: 2, R: 1 } },
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker {2}{R}",
+            mana: { X: 2, R: 1 },
+        },
+    ],
     staticAbilities: ["first strike"],
     entersWith: {
         counters: [
@@ -839,7 +863,13 @@ export const skizzik: CardDefinition = {
     subtypes: ["Elemental"],
     power: 5,
     toughness: 3,
-    kicker: { cost: { R: 1 } },
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker {R}",
+            mana: { R: 1 },
+        },
+    ],
     staticAbilities: ["trample", "haste"],
     triggeredAbilities: [
         enteredTrigger({
@@ -998,7 +1028,13 @@ export const breathOfDarigaaz: CardDefinition = {
         "Kicker {2} (You may pay an additional {2} as you cast this spell.)\nBreath of Darigaaz deals 1 damage to each creature without flying and each player. If this spell was kicked, it deals 4 damage to each creature without flying and each player instead.",
     manaCost: { X: 1, R: 1 },
     types: ["Sorcery"],
-    kicker: { cost: { X: 2 } },
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker {2}",
+            mana: { X: 2 },
+        },
+    ],
     resolve: (ctx: SpellContext) => {
         const amount = ctx.getKickerCount() > 0 ? 4 : 1;
         ctx.dealDamageToEach(amount, {

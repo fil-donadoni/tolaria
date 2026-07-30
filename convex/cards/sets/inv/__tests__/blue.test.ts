@@ -284,7 +284,9 @@ describe("Prohibit (counter cheap spells, wider if kicked; CR 702.33 / 701.5a)",
     it("declares a wider mana-value ceiling for the kicked target requirement", () => {
         expect(prohibit.targetRequirement?.mvFilter?.max).toBe(2);
         expect(prohibit.kickedTargetRequirement?.mvFilter?.max).toBe(4);
-        expect(prohibit.kicker?.cost).toEqual({ X: 2 });
+        expect(prohibit.kickers).toEqual([
+            { id: "kicker", description: "Kicker {2}", mana: { X: 2 } },
+        ]);
     });
 });
 
@@ -552,7 +554,7 @@ describe("Vodalian Serpent (attack restriction + kicked counters; CR 508.1c / 70
             players: [makePlayer("p1"), makePlayer("p2")],
         });
         const item = pushSpell(state, vodalianSerpent.id, "p1");
-        item.kickerCount = 1;
+        item.kickerPayments = { kicker: 1 };
         resolveTopOfStack(state);
 
         const live = state.players[0].battlefield.find(

@@ -331,7 +331,7 @@ describe("Canopy Surge (Kicker {2}, CR 702.33 / 120.1, issue #1097)", () => {
             ],
         });
         const item = pushSpell(state, canopySurge.id, "p1");
-        if (kicked) item.kickerCount = 1;
+        if (kicked) item.kickerPayments = { kicker: 1 };
         resolveTopOfStack(state);
         return state;
     }
@@ -373,7 +373,9 @@ describe("Canopy Surge (Kicker {2}, CR 702.33 / 120.1, issue #1097)", () => {
     });
 
     it("declares the kicker cost {2}", () => {
-        expect(canopySurge.kicker?.cost).toEqual({ X: 2 });
+        expect(canopySurge.kickers).toEqual([
+            { id: "kicker", description: "Kicker {2}", mana: { X: 2 } },
+        ]);
     });
 
     it("wire format — damage to the flying creature and both players survives projectPublicState", () => {

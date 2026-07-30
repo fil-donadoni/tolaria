@@ -150,7 +150,14 @@ export const everflowingChalice: CardDefinition = {
         "Multikicker {2} (You may pay an additional {2} any number of times as you cast this spell.)\nThis artifact enters with a charge counter on it for each time it was kicked.\n{T}: Add {C} for each charge counter on this artifact.",
     manaCost: {},
     types: ["Artifact"],
-    kicker: { cost: { X: 2 }, multi: true },
+    kickers: [
+        {
+            id: "kicker",
+            description: "Multikicker {2}",
+            mana: { X: 2 },
+            multi: true,
+        },
+    ],
     entersWith: { counters: [{ type: "charge", count: "kicker" }] },
     activatedAbilities: [
         {
