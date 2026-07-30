@@ -5,6 +5,7 @@
 
 import type { CardDefinition } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
+import { drawTrigger } from "../../abilities/triggers/drawTrigger";
 
 // Keldon Twilight — {1}{B}{R} Enchantment. "At the beginning of each player's
 // end step, if no creatures attacked this turn, that player sacrifices a
@@ -88,6 +89,73 @@ export const keldonTwilight: CardDefinition = {
                     bind: "$sac",
                 },
                 { op: "sacrifice", permanents: { ref: "$sac" } },
+            ],
+        }),
+    ],
+};
+
+// Phyrexian Tyranny — {U}{B}{R} Enchantment. "Whenever a player draws a
+// card, that player loses 2 life unless they pay {2}." (issue #1946, parent
+// PRD #1935, ADR 0079.)
+//
+// CR 117.3a — an "unless that player pays" clause is offered to the player
+// the trigger IDENTIFIES, not to the enchantment's controller: here, whoever
+// just drew. `drawTrigger({ scope: "each" })` fires on EITHER player's draw
+// (CR 121.1), and the drawing player is read straight off the firing
+// `CardDrawnEvent` via the newly-censused `{ ref: "$event.playerId" }`
+// (`EVENT_FIELD_REGISTRY.CARD_DRAWN`, ADR 0049, mirroring
+// `PHASE_BEGIN.activePlayerId` / issue #1066) — NOT the plain `"controller"`
+// selector, which under `scope: "each"` would always resolve to Phyrexian
+// Tyranny's own controller regardless of who drew.
+//
+// CR 120.3 — cards are drawn ONE AT A TIME. The engine's `emitCardDrawn`
+// (`gre/state.ts`) already emits one `CARD_DRAWN` event per card, so a
+// draw-three (or the draw-step draw) fires this ability once per card with
+// no card-side work: `drawTrigger` / `emitCardDrawn` are shared choke points
+// every draw already funnels through.
+//
+// The "unless they pay {2}" half reuses the existing `mayPay` (CR 117.3a /
+// 118.4) + `if`/`loseLife` shape — the exact "unless you pay" punisher
+// template Force Spike / Hasran Ogress already ship (`arn/black.ts`) — with
+// the payer resolved to the drawing player instead of `"controller"`. No new
+// Op, no new primitive: only the `player` ref differs from every prior
+// mayPay card.
+export const phyrexianTyranny: CardDefinition = {
+    id: "e8440ca8-73ca-462b-a735-f6fb3d0de603",
+    rarity: "rare",
+    name: "Phyrexian Tyranny",
+    oracleText:
+        "Whenever a player draws a card, that player loses 2 life unless they pay {2}.",
+    manaCost: { U: 1, B: 1, R: 1 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        drawTrigger({
+            id: "phyrexian-tyranny-unless-pay",
+            oracleText:
+                "Whenever a player draws a card, that player loses 2 life unless they pay {2}.",
+            scope: "each",
+            effects: [
+                {
+                    op: "mayPay",
+                    player: { ref: "$event.playerId" },
+                    cost: { X: 2 },
+                    prompt: "Pay {2} or lose 2 life to Phyrexian Tyranny?",
+                    bind: "$paid",
+                },
+                {
+                    // CR 119.3b — unless paid, the drawing player loses 2
+                    // life (not damage — no "damage prevention" interaction,
+                    // no Fog).
+                    op: "if",
+                    predicate: { not: { binding: "$paid" } },
+                    then: [
+                        {
+                            op: "loseLife",
+                            player: { ref: "$event.playerId" },
+                            amount: 2,
+                        },
+                    ],
+                },
             ],
         }),
     ],
