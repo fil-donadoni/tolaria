@@ -76,8 +76,10 @@ export function fitLogisticSlope(samples: CalibrationSample[]): LogisticFit {
     const m: number[] = [];
     const y: number[] = [];
     for (const s of samples) {
-        (m.push(s.margin), y.push(s.win));
-        (m.push(-s.margin), y.push(1 - s.win));
+        m.push(s.margin);
+        y.push(s.win);
+        m.push(-s.margin);
+        y.push(1 - s.win);
     }
 
     let k = 1e-3; // order of the current linear slope — a sane, fixed start
