@@ -663,12 +663,20 @@ describe("Event field registry ($event.<field>, ADR 0049, issue #865)", () => {
         expect(getEventFieldRow("PHASE_BEGIN", "activePlayerId")?.family).toBe(
             "player"
         );
+        // issue #1940 — Warped Devotion's "that player discards" (the
+        // RETURNING permanent's owner, not the ability's controller).
+        expect(
+            getEventFieldRow("PERMANENT_RETURNED_TO_HAND", "ownerId")?.family
+        ).toBe("player");
         expect(isRegisteredEventField("BLOCKERS_CONFIRMED", "blockerId")).toBe(
             true
         );
         expect(isRegisteredEventField("PHASE_BEGIN", "activePlayerId")).toBe(
             true
         );
+        expect(
+            isRegisteredEventField("PERMANENT_RETURNED_TO_HAND", "ownerId")
+        ).toBe(true);
         // Uncensused pairs are rejected — no runtime skip, a validation failure.
         expect(getEventFieldRow("BLOCKERS_CONFIRMED", "bogus")).toBeUndefined();
         expect(getEventFieldRow("PHASE_BEGIN", "phase")).toBeUndefined();
@@ -686,6 +694,29 @@ describe("Event field registry ($event.<field>, ADR 0049, issue #865)", () => {
         expect(
             getEventFieldRow("PHASE_BEGIN", "activePlayerId")!.resolve(event)
         ).toBe("p2");
+    });
+
+    it("PERMANENT_RETURNED_TO_HAND.ownerId flattens to the returning player id", () => {
+        const event: GameEvent = {
+            type: "PERMANENT_RETURNED_TO_HAND",
+            instanceId: "bounced",
+            ownerId: "p2",
+            controllerId: "p1",
+            types: ["Creature"],
+        };
+        expect(
+            getEventFieldRow("PERMANENT_RETURNED_TO_HAND", "ownerId")!.resolve(
+                event
+            )
+        ).toBe("p2");
+        // A different event type never resolves through this row.
+        expect(
+            getEventFieldRow("PERMANENT_RETURNED_TO_HAND", "ownerId")!.resolve({
+                type: "PHASE_BEGIN",
+                phase: "UPKEEP",
+                activePlayerId: "p1",
+            })
+        ).toBeUndefined();
     });
 
     it("BLOCKERS_CONFIRMED object fields flatten to the pair ids", () => {

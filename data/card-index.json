@@ -14016,6 +14016,14 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Warped Devotion",
+        "scryfallId": "3bce620f-799a-4ad8-9edb-6fb3d9ea1cc6",
+        "oracleId": "22c49415-e8d2-4b4c-b021-57ee54670f86",
+        "firstSet": "pls",
+        "firstPrintId": "3bce620f-799a-4ad8-9edb-6fb3d9ea1cc6",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Wash Out",
         "scryfallId": "7719d043-5827-4479-825b-23d9e979ead7",
         "oracleId": "54748cb1-d92a-4212-ad76-417ee79b5ef1",

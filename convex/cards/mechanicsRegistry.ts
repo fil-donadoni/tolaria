@@ -3489,6 +3489,22 @@ export const EVENT_FIELD_REGISTRY: Record<
                 e.type === "PERMANENT_ENTERED" ? e.controllerId : undefined,
         },
     },
+    // CR 400.7 / issue #1940 — "whenever a permanent is returned to a
+    // player's hand, THAT PLAYER discards a card" (Warped Devotion).
+    // `ownerId` is the player the permanent returned to (CR 108.3 — always
+    // the owner's hand), which is the "that player" the ability acts on —
+    // NOT necessarily the ability's own controller, since the trigger fires
+    // symmetrically on either player's bounce. Unblocks a
+    // `returnedToHandTrigger({ scope: "any" })` DSL `effects[]` body from
+    // reading the returning player directly off the firing event, mirroring
+    // `PERMANENT_ENTERED.controllerId` above.
+    PERMANENT_RETURNED_TO_HAND: {
+        ownerId: {
+            family: "player",
+            resolve: (e) =>
+                e.type === "PERMANENT_RETURNED_TO_HAND" ? e.ownerId : undefined,
+        },
+    },
 };
 
 /** The registry row for a `(GameEventType, field)` pair, or undefined when the

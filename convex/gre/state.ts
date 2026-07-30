@@ -7448,6 +7448,28 @@ export function removePermanentTo(
     if (toZone === "exile" && graveyardRedirectCounters) {
         applyGraveyardRedirectCounters(creature, graveyardRedirectCounters);
     }
+    // ADR 0001 / issue #1940 — a narrow zone-of-origin event for "a permanent
+    // is returned to a player's hand" (Warped Devotion), distinct from the
+    // generic PERMANENT_LEFT (which also fires below, toZone: "hand").
+    // Emitted unconditionally here — the single shared `removePermanentTo`
+    // funnel every bounce path (spell effect, activated/triggered ability,
+    // cost payment) already runs through — so no bounce site can silently
+    // skip it. NOT restricted to creatures (CR 400.7 zone changes apply to
+    // any permanent type).
+    if (toZone === "hand") {
+        state.pendingEvents = [
+            ...(state.pendingEvents ?? []),
+            {
+                type: "PERMANENT_RETURNED_TO_HAND",
+                instanceId: cardId,
+                ownerId: lkiOwnerId,
+                controllerId: snapshotControllerId,
+                cardId: lkiCardId,
+                types: lkiTypes,
+                ...(lkiSubtypes.length > 0 ? { subtypes: lkiSubtypes } : {}),
+            },
+        ];
+    }
     // CR 700.4 — a creature "dies" when it's put into a graveyard from the
     // battlefield. Queued on `pendingEvents` so the caller can scan for
     // matching triggers (CR 603.2) once the current action settles.
