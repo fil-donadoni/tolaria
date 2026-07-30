@@ -33,7 +33,7 @@ export const subtlety: CardDefinition = {
     evoke: {
         id: "evoke",
         description: "Evoke—Exile a blue card from your hand",
-        handCost: {
+        hand: {
             action: "exile",
             requirements: [{ filter: { color: "U" }, count: 1 }],
         },

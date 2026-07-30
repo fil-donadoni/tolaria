@@ -20,7 +20,7 @@
 // step 0 adds the age counter (irreversible — must not re-run on resume), step
 // 1 offers the scaled may-pay and sacrifices on decline / inability.
 
-import type { ManaCost, MayPayCost, PermanentFilter } from "../types";
+import type { CostLegs, ManaCost, MayPayCost } from "../types";
 import type { TriggeredAbility } from "../types";
 import { phaseTrigger } from "./triggers/phaseTrigger";
 
@@ -29,26 +29,29 @@ import { phaseTrigger } from "./triggers/phaseTrigger";
  *  life / sacrifice / mixed costs. */
 export type CumulativeUpkeepCost = MayPayCost;
 
-interface NormalizedCost {
-    mana?: ManaCost;
-    life?: number;
-    sacrifice?: { filter: PermanentFilter; count: number };
+/** Normalizes a cumulative-upkeep cost to the shared {@link CostLegs} leg
+ *  vocabulary (ADR 0079) — the bare-`ManaCost` shorthand widens to `{ mana }`.
+ *  A local normalizer rather than a call to the GRE's `normalizeMayPayCost`:
+ *  this module lives in the CARD layer and must not depend on `gre/state`. It
+ *  is not a third leg vocabulary — the shape it produces IS `CostLegs`. */
+function isUnion(cost: MayPayCost): cost is CostLegs {
+    return (
+        "mana" in cost ||
+        "life" in cost ||
+        "permanent" in cost ||
+        "hand" in cost ||
+        "energy" in cost
+    );
 }
 
-function isUnion(cost: MayPayCost): cost is {
-    mana?: ManaCost;
-    life?: number;
-    sacrifice?: { filter: PermanentFilter; count: number };
-} {
-    return "mana" in cost || "life" in cost || "sacrifice" in cost;
-}
-
-function normalize(cost: MayPayCost): NormalizedCost {
+function normalize(cost: MayPayCost): CostLegs {
     if (isUnion(cost)) {
         return {
             ...(cost.mana ? { mana: cost.mana } : {}),
             ...(cost.life !== undefined ? { life: cost.life } : {}),
-            ...(cost.sacrifice ? { sacrifice: cost.sacrifice } : {}),
+            ...(cost.permanent ? { permanent: cost.permanent } : {}),
+            ...(cost.hand ? { hand: cost.hand } : {}),
+            ...(cost.energy !== undefined ? { energy: cost.energy } : {}),
         };
     }
     return { mana: cost as ManaCost };
@@ -69,32 +72,48 @@ function scaleMana(mana: ManaCost, n: number): ManaCost {
 }
 
 /** The printed cost repeated `n` times (CR 702.24c). Mana pips ×n, life ×n,
- *  sacrifice count ×n — preserving correctness for mixed / non-mana costs. */
+ *  permanent count ×n — preserving correctness for mixed / non-mana costs. */
 function scaleCost(cost: MayPayCost, n: number): MayPayCost {
     const norm = normalize(cost);
     // Pure-mana cost: keep the bare-`ManaCost` shape so existing mana-only
     // rendering and affordability stay on the historical path.
-    if (norm.mana && norm.life === undefined && !norm.sacrifice) {
+    if (norm.mana && norm.life === undefined && !norm.permanent && !norm.hand) {
         return scaleMana(norm.mana, n);
     }
     return {
         ...(norm.mana ? { mana: scaleMana(norm.mana, n) } : {}),
         ...(norm.life !== undefined ? { life: norm.life * n } : {}),
-        ...(norm.sacrifice
+        ...(norm.permanent
             ? {
-                  sacrifice: {
-                      filter: norm.sacrifice.filter,
-                      // Cumulative upkeep scales a FIXED sacrifice count ×n (CR
+                  permanent: {
+                      action: norm.permanent.action,
+                      filter: norm.permanent.filter,
+                      // Cumulative upkeep scales a FIXED permanent count ×n (CR
                       // 702.24c). The summed-power threshold shape
                       // (`{ minTotalPower }`, Phyrexian Dreadnought) is never a
                       // cumulative-upkeep cost, so it passes through unscaled.
                       count:
-                          typeof norm.sacrifice.count === "number"
-                              ? norm.sacrifice.count * n
-                              : norm.sacrifice.count,
+                          typeof norm.permanent.count === "number"
+                              ? norm.permanent.count * n
+                              : norm.permanent.count,
                   },
               }
             : {}),
+        ...(norm.hand
+            ? {
+                  hand: {
+                      action: norm.hand.action,
+                      // Each requirement repeats ×n (CR 702.24c), the same
+                      // repetition the mana/life legs get. No shipped
+                      // cumulative upkeep carries a hand leg.
+                      requirements: norm.hand.requirements.map((r) => ({
+                          filter: r.filter,
+                          count: r.count * n,
+                      })),
+                  },
+              }
+            : {}),
+        ...(norm.energy !== undefined ? { energy: norm.energy * n } : {}),
     };
 }
 

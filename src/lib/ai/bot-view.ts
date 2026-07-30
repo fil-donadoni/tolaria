@@ -18,6 +18,7 @@ import {
     getPendingChoiceMax,
     normalizeManaCost,
     isManaCostCovered,
+    mayPayHandLegCount,
     normalizeMayPayCost,
     isSearchableChoiceNode,
 } from "@convex/gre";
@@ -405,11 +406,11 @@ function mayPayIsAffordable(
         return false;
     }
     if (norm.life !== undefined && bot.life < norm.life) return false;
-    if (norm.sacrifice) {
+    if (norm.permanent) {
         const matching = bot.battlefield.filter((c) =>
-            matchesPermanentFilter(c, norm.sacrifice!.filter)
+            matchesPermanentFilter(c, norm.permanent!.filter)
         );
-        if (typeof norm.sacrifice.count === "object") {
+        if (typeof norm.permanent.count === "object") {
             // CR 118 threshold mode — affordable iff the payer's matching
             // permanents sum to ≥ the required total power. Uses PRINTED power
             // (the same proxy the accept-side greedy uses); layer-modified
@@ -428,12 +429,12 @@ function mayPayIsAffordable(
                         : sum + (tryGetDefinition(c.card.id)?.power ?? 0),
                 0
             );
-            if (total < norm.sacrifice.count.minTotalPower) return false;
-        } else if (matching.length < norm.sacrifice.count) {
+            if (total < norm.permanent.count.minTotalPower) return false;
+        } else if (matching.length < norm.permanent.count) {
             return false;
         }
     }
-    if (norm.discard && bot.hand.length < norm.discard.count) {
+    if (norm.hand && bot.hand.length < mayPayHandLegCount(head.cost)) {
         return false;
     }
     return true;
@@ -453,9 +454,15 @@ function mayPaySourceInstanceId(
     return state.stack.find((s) => s.id === head.stackItemId)?.triggerSourceId;
 }
 
-/** Surfaces the may-pay sacrifice pick shape for the bot's OwedChoice: a fixed
- *  `sacrificeCount` (CR 701.16b) or a summed-power `sacrificeThreshold` (CR 118,
- *  Phyrexian Dreadnought). Both absent for a non-sacrifice may-pay. */
+/** Surfaces the may-pay PERMANENT-leg pick shape for the bot's OwedChoice: a
+ *  fixed `sacrificeCount` (CR 701.16b) or a summed-power `sacrificeThreshold`
+ *  (CR 118, Phyrexian Dreadnought). Both absent when the cost has no permanent
+ *  leg. Covers BOTH terminal actions (ADR 0079): a `"return"` leg picks exactly
+ *  like a sacrifice leg — same candidate set, same fixed count, same
+ *  `sacrificeIds` submit field — so the bot never stalls on one. It always
+ *  reaches the fixed-count branch, because a `"return"` leg opens the picker
+ *  unconditionally (`mayPaySacrificeChoiceRequired`) and never carries a
+ *  threshold. */
 function mayPaySacrificePick(head: PendingChoice): {
     sacrificeCount?: number;
     sacrificeThreshold?: number;
@@ -463,7 +470,7 @@ function mayPaySacrificePick(head: PendingChoice): {
     if (head.kind !== "may-pay" || head.zone !== "battlefield" || !head.cost) {
         return {};
     }
-    const count = normalizeMayPayCost(head.cost).sacrifice?.count;
+    const count = normalizeMayPayCost(head.cost).permanent?.count;
     if (count === undefined) return {};
     return typeof count === "object"
         ? { sacrificeThreshold: count.minTotalPower }
@@ -480,8 +487,8 @@ function mayPayDiscardPick(head: PendingChoice): {
     if (head.kind !== "may-pay" || head.zone !== "hand" || !head.cost) {
         return {};
     }
-    const count = normalizeMayPayCost(head.cost).discard?.count;
-    return count === undefined ? {} : { discardCount: count };
+    if (!normalizeMayPayCost(head.cost).hand) return {};
+    return { discardCount: mayPayHandLegCount(head.cost) };
 }
 
 /** Project the active bot-owed `PendingChoice` into the {@link OwedChoice} the

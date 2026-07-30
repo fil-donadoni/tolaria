@@ -20,6 +20,7 @@ import {
     type GameEvent,
     type ManaCost as CardManaCost,
     type MayPayCost,
+    type CostLegs,
     type MovableZone,
     PERMANENT_TYPES,
     type PermanentFilter,
@@ -79,6 +80,10 @@ import {
 import { matchesPermanentFilter } from "../cards/filters";
 import type { Phase, Zone, PhaseReturnCondition } from "./types";
 import type { SacrificeSelection } from "./sacrificeChoice";
+// ADR 0079 — the may-pay PERMANENT leg's `action: "return"` terminal step runs
+// through the unified permanent-cost layer, the same one Gush / Thwart / Daze
+// pay through, so a return-to-hand cost has ONE execution path in the engine.
+import { applySacrificeSelection } from "./sacrificeChoice";
 import {
     getActivatedManaColor,
     getBasicLandMana,
@@ -2276,11 +2281,19 @@ export type PendingChoice = {
     /** Prompt text shown to the chooser (e.g. "Choose 2 lands to keep"). */
     prompt: string;
     /** For `kind: "may-pay"`, the cost paid on accept (CR 117.3a / 118.4 /
-     *  702.24). A bare `ManaCost` (mana-only, historical shape) OR the
-     *  `{ mana?, life?, sacrifice? }` union (cumulative upkeep — ADR 0042).
-     *  Undefined for cost-less yes/no choices ("may draw a card"). The submit
-     *  path (`applyMayPaySubmit`) normalizes either shape. */
+     *  702.24). A bare `ManaCost` (mana-only, historical shape) OR the shared
+     *  `CostLegs` shape (cumulative upkeep — ADR 0042 / 0079). Undefined for
+     *  cost-less yes/no choices ("may draw a card"). The submit path
+     *  (`applyMayPaySubmit`) normalizes either shape. */
     cost?: MayPayCost;
+    /** For a `kind: "may-pay"` whose PERMANENT leg opened the battlefield
+     *  picker (`zone: "battlefield"`), the leg's terminal action — `"sacrifice"`
+     *  (CR 701.16) or `"return"` to the owner's hand (CR 701.24 / 118.9, ADR
+     *  0079). Drives the prompt wording client-side and the bot's pick
+     *  valuation; absent for a cost with no permanent leg (and for every
+     *  non-may-pay kind). Denormalized from `cost.permanent.action` so the
+     *  client need not re-derive it from the cost union. */
+    permanentAction?: "return" | "sacrifice";
     /** For `kind: "land-entry-tapped"` only (CR 614.12, ADR 0051) — the
      *  instance id of the land currently entering, which is still in the
      *  chooser's hand while this choice is pending (the entry suspends BEFORE
@@ -13136,31 +13149,38 @@ export function buildSpellContext(
                 entry.manaRestriction = req.manaRestriction;
             if (routed.actingPlayerId)
                 entry.actingPlayerId = routed.actingPlayerId;
-            // CR 701.16b — when the may-pay's sacrifice leg admits a real victim
-            // choice (more matching permanents than the leg sacrifices), light up
-            // the payer's battlefield so the client can prompt WHICH permanent(s)
-            // to sacrifice before confirming. Reuses the standard battlefield
-            // pick machinery (`zone`/`filter`/`candidateIds`); the submit reads the
-            // picked ids back. With a single legal candidate (or `count` covering
-            // all) no fields are set and the pay auto-selects (Arena UX).
+            // CR 701.16b / 701.24 — when the may-pay's PERMANENT leg admits a
+            // real permanent choice, light up the payer's battlefield so the
+            // client can prompt WHICH permanent(s) to give up before
+            // confirming. Reuses the standard battlefield pick machinery
+            // (`zone`/`filter`/`candidateIds`); the submit reads the picked ids
+            // back. A `"sacrifice"` leg with a single legal candidate (or
+            // `count` covering all) sets no fields and the pay auto-selects
+            // (Arena UX); a `"return"` leg ALWAYS prompts (ADR 0079) — see
+            // `mayPaySacrificeChoiceRequired`. `permanentAction` rides on the
+            // entry so the client and the bot can word / value the pick without
+            // re-deriving it from the cost.
             if (
                 req.cost &&
                 mayPaySacrificeChoiceRequired(state, routed.playerId, req.cost)
             ) {
                 const norm = normalizeMayPayCost(req.cost);
                 entry.zone = "battlefield";
-                if (norm.sacrifice) entry.filter = norm.sacrifice.filter;
+                if (norm.permanent) {
+                    entry.filter = norm.permanent.filter;
+                    entry.permanentAction = norm.permanent.action;
+                }
                 entry.candidateIds = getMayPaySacrificeCandidateIds(
                     state,
                     routed.playerId,
                     req.cost
                 );
             } else if (
-                // CR 701.9 / 118.3 (issue #899) — when the may-pay's discard leg
-                // admits a real card choice (more hand cards than the leg
-                // discards), light up the payer's hand so the client can prompt
+                // CR 701.9 / 118.3 (issue #899) — when the may-pay's HAND leg
+                // admits a real card choice (more hand cards than the leg gives
+                // up), light up the payer's hand so the client can prompt
                 // WHICH card(s) to discard before confirming. Mirrors the
-                // sacrifice leg's `zone`/`candidateIds` machinery above, but from
+                // permanent leg's `zone`/`candidateIds` machinery above, but from
                 // hand instead of the battlefield — `else if` because a single
                 // may-pay entry carries only one real picker (no card needs both
                 // legs to admit a choice simultaneously yet). With a single
@@ -16778,63 +16798,34 @@ function formatManaCost(cost: ManaCost): string {
 
 // ─── May-pay cost union (CR 117.3a / 118.4 / 702.24, ADR 0042) ──────────────
 
-/** Widened `may-pay` cost: the `{ mana?, life?, sacrifice? }` shape. */
-export interface NormalizedMayPayCost {
-    mana?: CardManaCost;
-    life?: number;
-    /** Typed sacrifice leg (CR 701.16). `count` is either a fixed cardinal
-     *  ("sacrifice N matching permanents") or a summed-power threshold
-     *  (`{ minTotalPower }` — "sacrifice any number of matching permanents with
-     *  total EFFECTIVE power ≥ N", Phyrexian Dreadnought, CR 118). */
-    sacrifice?: {
-        filter: PermanentFilter;
-        count: number | { minTotalPower: number };
-    };
-    /** Discard leg (CR 701.9 / 118.3, issue #899). Fixed cardinal only — the
-     *  payer picks exactly `count` distinct cards from HAND. */
-    discard?: {
-        count: number;
-    };
-    /** Energy leg (CR 122.1, issue #1194 — "pay {E}{E}{E}", Guide of Souls).
-     *  Fixed count only; paid via `SpellContext.payEnergy`. */
-    energy?: number;
-}
+/** Widened `may-pay` cost: the shared {@link CostLegs} leg vocabulary (ADR
+ *  0079). Kept as its own alias so the "normalized" reading — a bare `ManaCost`
+ *  has already been widened to `{ mana }` — stays visible at every call site. */
+export type NormalizedMayPayCost = CostLegs;
 
-/** Distinguishes the union shape `{ mana?, life?, sacrifice?, discard?,
- *  energy? }` from a bare `ManaCost`. The union is the ONLY value carrying a
- *  `mana` / `life` / `sacrifice` / `discard` / `energy` key; a bare
- *  `ManaCost` carries only mana symbol keys. */
-function isMayPayUnion(cost: MayPayCost): cost is {
-    mana?: CardManaCost;
-    life?: number;
-    sacrifice?: {
-        filter: PermanentFilter;
-        count: number | { minTotalPower: number };
-    };
-    discard?: {
-        count: number;
-    };
-    energy?: number;
-} {
+/** Distinguishes the {@link CostLegs} shape from a bare `ManaCost`. The legs
+ *  form is the ONLY value carrying a `mana` / `life` / `permanent` / `hand` /
+ *  `energy` key; a bare `ManaCost` carries only mana symbol keys. */
+function isMayPayUnion(cost: MayPayCost): cost is CostLegs {
     return (
         "mana" in cost ||
         "life" in cost ||
-        "sacrifice" in cost ||
-        "discard" in cost ||
+        "permanent" in cost ||
+        "hand" in cost ||
         "energy" in cost
     );
 }
 
-/** Normalizes either `may-pay` cost shape to `{ mana?, life?, sacrifice?,
- *  discard?, energy? }`. A bare `ManaCost` (the historical mana-only shape)
- *  widens to `{ mana }` so every legacy caller is unaffected (ADR 0042). */
+/** Normalizes either `may-pay` cost shape to {@link CostLegs}. A bare
+ *  `ManaCost` (the historical mana-only shape) widens to `{ mana }` so every
+ *  legacy caller is unaffected (ADR 0042 / 0079). */
 export function normalizeMayPayCost(cost: MayPayCost): NormalizedMayPayCost {
     if (isMayPayUnion(cost)) {
         return {
             ...(cost.mana ? { mana: cost.mana } : {}),
             ...(cost.life !== undefined ? { life: cost.life } : {}),
-            ...(cost.sacrifice ? { sacrifice: cost.sacrifice } : {}),
-            ...(cost.discard ? { discard: cost.discard } : {}),
+            ...(cost.permanent ? { permanent: cost.permanent } : {}),
+            ...(cost.hand ? { hand: cost.hand } : {}),
             ...(cost.energy !== undefined ? { energy: cost.energy } : {}),
         };
     }
@@ -16859,28 +16850,40 @@ function sacrificeCandidates(
 }
 
 /** Instance ids of `playerId`'s permanents that could pay a `may-pay` cost's
- *  sacrifice leg (CR 701.16b — the controller chooses which they sacrifice).
- *  Returns `[]` when the cost has no sacrifice leg. Exported so the submit
- *  boundary (`applyMayPaySubmit`) and the bot driver can validate / pick a
- *  legal victim against the SAME candidate set `requestMayPay` computed. */
+ *  PERMANENT leg — sacrificed (CR 701.16b) or returned to hand (CR 701.24 /
+ *  118.9); the controller chooses which either way. Returns `[]` when the cost
+ *  has no permanent leg. Exported so the submit boundary (`applyMayPaySubmit`)
+ *  and the bot driver can validate / pick a legal permanent against the SAME
+ *  candidate set `requestMayPay` computed. (Name kept from the sacrifice-only
+ *  era, ADR 0079 — the leg is now `CostLegs.permanent` and covers both
+ *  actions.) */
 export function getMayPaySacrificeCandidateIds(
     state: GameState,
     playerId: string,
     cost: MayPayCost
 ): string[] {
     const norm = normalizeMayPayCost(cost);
-    if (!norm.sacrifice) return [];
-    return sacrificeCandidates(state, playerId, norm.sacrifice.filter).map(
+    if (!norm.permanent) return [];
+    return sacrificeCandidates(state, playerId, norm.permanent.filter).map(
         (c) => c.id
     );
 }
 
-/** The summed-power threshold of a `may-pay` sacrifice leg (`{ minTotalPower }`
+/** The terminal action of a `may-pay` cost's permanent leg — `"sacrifice"`
+ *  (CR 701.16) or `"return"` to the owner's hand (CR 701.24 / 118.9, ADR 0079)
+ *  — or `undefined` when the cost has no permanent leg. */
+export function mayPayPermanentAction(
+    cost: MayPayCost
+): "return" | "sacrifice" | undefined {
+    return normalizeMayPayCost(cost).permanent?.action;
+}
+
+/** The summed-power threshold of a `may-pay` permanent leg (`{ minTotalPower }`
  *  mode), or `undefined` when the leg uses a fixed cardinal `count` (or has no
- *  sacrifice leg). Threshold mode means "sacrifice any number of matching
+ *  permanent leg). Threshold mode means "sacrifice any number of matching
  *  permanents with total EFFECTIVE power ≥ N" (Phyrexian Dreadnought, CR 118). */
 export function mayPaySacrificeThreshold(cost: MayPayCost): number | undefined {
-    const count = normalizeMayPayCost(cost).sacrifice?.count;
+    const count = normalizeMayPayCost(cost).permanent?.count;
     return typeof count === "object" ? count.minTotalPower : undefined;
 }
 
@@ -16913,59 +16916,84 @@ export function mayPaySacrificeSetPower(
     );
 }
 
-/** Whether a `may-pay` sacrifice leg admits a real victim choice (CR 701.16b):
- *  the payer controls MORE matching permanents than the leg sacrifices, so
- *  which one(s) to sacrifice is the payer's decision, not an auto-pick. When
- *  the filter matches exactly `count` (or fewer) permanents there is nothing to
- *  choose — auto-selection stays and no prompt is shown (Arena UX auto-resolve).
- *  Threshold mode (`{ minTotalPower }`, Phyrexian Dreadnought) ALWAYS admits a
- *  choice when any candidate exists — the payer picks a variable-size set, so
- *  there is never a trivial auto-pick. Returns false for a cost with no
- *  sacrifice leg. */
+/** Whether a `may-pay` PERMANENT leg admits a real permanent choice.
+ *
+ *   - `action: "sacrifice"` (CR 701.16b) — a choice is owed when the payer
+ *     controls MORE matching permanents than the leg sacrifices. When the
+ *     filter matches exactly `count` (or fewer) there is nothing to choose:
+ *     auto-selection stays and no prompt is shown (Arena UX auto-resolve).
+ *     Threshold mode (`{ minTotalPower }`, Phyrexian Dreadnought) ALWAYS admits
+ *     a choice when any candidate exists — the payer picks a variable-size set,
+ *     so there is never a trivial auto-pick.
+ *   - `action: "return"` (CR 701.24 / 118.9, ADR 0079) — a choice is ALWAYS
+ *     owed while any candidate exists, even when exactly one permanent is
+ *     legal. A returned permanent stays a resource the payer keeps playing
+ *     with, so which one goes back is information the player must see and
+ *     acknowledge; the project's standing rule is that sacrifice AND
+ *     return-to-hand costs are never auto-picked per-card.
+ *
+ *  Returns false for a cost with no permanent leg. */
 export function mayPaySacrificeChoiceRequired(
     state: GameState,
     playerId: string,
     cost: MayPayCost
 ): boolean {
     const norm = normalizeMayPayCost(cost);
-    if (!norm.sacrifice) return false;
+    if (!norm.permanent) return false;
     const candidateCount = getMayPaySacrificeCandidateIds(
         state,
         playerId,
         cost
     ).length;
-    if (typeof norm.sacrifice.count === "object") {
+    if (norm.permanent.action === "return") {
+        // CR 701.24 / 118.9 — always the payer's explicit choice (ADR 0079).
+        return candidateCount > 0;
+    }
+    if (typeof norm.permanent.count === "object") {
         // Threshold mode: any candidate at all makes the variable-size victim
         // set the payer's decision (CR 118 / 701.16b).
         return candidateCount > 0;
     }
-    return candidateCount > norm.sacrifice.count;
+    return candidateCount > norm.permanent.count;
+}
+
+/** Total cards a `may-pay` HAND leg gives up (CR 701.9 / 118.3), summed across
+ *  its requirements. `0` when the cost has no hand leg. */
+export function mayPayHandLegCount(cost: MayPayCost): number {
+    const hand = normalizeMayPayCost(cost).hand;
+    if (!hand) return 0;
+    return hand.requirements.reduce((a, r) => a + r.count, 0);
 }
 
 /** Instance ids of `playerId`'s hand cards that could pay a `may-pay` cost's
- *  discard leg (CR 701.9 / 118.3 — the discarder chooses which they discard).
- *  Returns `[]` when the cost has no discard leg. Exported so the submit
+ *  HAND leg (CR 701.9 / 118.3 — the payer chooses which they give up).
+ *  Returns `[]` when the cost has no hand leg. Exported so the submit
  *  boundary (`applyMayPaySubmit`) and the bot driver can validate / pick a
  *  legal card against the SAME candidate set `requestMayPay` computed. Mirrors
  *  {@link getMayPaySacrificeCandidateIds}, but from hand instead of the
- *  battlefield — no type filter (every printed discard leg is untyped). */
+ *  battlefield. Every requirement filter a may-pay hand leg carries today is
+ *  EMPTY (`{}` — the untyped "discard a card" shape), which constrains nothing,
+ *  so the whole hand qualifies; a filtered hand leg is expressible on the
+ *  shared `CostLegs.hand` type and is served by the alternative-cost path
+ *  (`matchingHandCardsForAltCost`), which the `mayPay` Op validator points a
+ *  filtered may-pay leg at. */
 export function getMayPayDiscardCandidateIds(
     state: GameState,
     playerId: string,
     cost: MayPayCost
 ): string[] {
     const norm = normalizeMayPayCost(cost);
-    if (!norm.discard) return [];
+    if (!norm.hand) return [];
     const player = getPlayer(state, playerId);
     return player.hand.map((c) => c.id);
 }
 
-/** Whether a `may-pay` discard leg admits a real card choice (CR 701.9 /
- *  118.3): the payer holds MORE cards than the leg discards, so which one(s)
- *  to discard is the payer's decision, not an auto-pick. When the hand has
- *  exactly `count` (or fewer) cards there is nothing to choose — auto-
- *  selection stays and no prompt is shown (Arena UX auto-resolve). Returns
- *  false for a cost with no discard leg. Mirrors
+/** Whether a `may-pay` HAND leg admits a real card choice (CR 701.9 /
+ *  118.3): the payer holds MORE cards than the leg gives up, so which one(s)
+ *  to discard/exile is the payer's decision, not an auto-pick. When the hand
+ *  has exactly as many cards as the leg needs (or fewer) there is nothing to
+ *  choose — auto-selection stays and no prompt is shown (Arena UX auto-
+ *  resolve). Returns false for a cost with no hand leg. Mirrors
  *  {@link mayPaySacrificeChoiceRequired}. */
 export function mayPayDiscardChoiceRequired(
     state: GameState,
@@ -16973,13 +17001,13 @@ export function mayPayDiscardChoiceRequired(
     cost: MayPayCost
 ): boolean {
     const norm = normalizeMayPayCost(cost);
-    if (!norm.discard) return false;
+    if (!norm.hand) return false;
     const candidateCount = getMayPayDiscardCandidateIds(
         state,
         playerId,
         cost
     ).length;
-    return candidateCount > norm.discard.count;
+    return candidateCount > mayPayHandLegCount(cost);
 }
 
 /** Pool a `may-pay` payment may draw on: the fungible `manaPool` plus any
@@ -17067,13 +17095,13 @@ export function canPayMayPayCost(
         if (!isManaCostCovered(pool, normalized, subs)) return false;
     }
     if (norm.life !== undefined && player.life < norm.life) return false;
-    if (norm.sacrifice) {
+    if (norm.permanent) {
         const candidates = sacrificeCandidates(
             state,
             playerId,
-            norm.sacrifice.filter
+            norm.permanent.filter
         );
-        if (typeof norm.sacrifice.count === "object") {
+        if (typeof norm.permanent.count === "object") {
             // CR 118 / 701.16 threshold mode — affordable iff the best-case set
             // (every matching candidate with EFFECTIVE power > 0; a 0-or-less
             // creature can never help reach the threshold) sums to ≥ the
@@ -17083,15 +17111,15 @@ export function canPayMayPayCost(
             );
             if (
                 sumEffectivePower(state, best) <
-                norm.sacrifice.count.minTotalPower
+                norm.permanent.count.minTotalPower
             ) {
                 return false;
             }
-        } else if (candidates.length < norm.sacrifice.count) {
+        } else if (candidates.length < norm.permanent.count) {
             return false;
         }
     }
-    if (norm.discard && player.hand.length < norm.discard.count) {
+    if (norm.hand && player.hand.length < mayPayHandLegCount(cost)) {
         return false;
     }
     if (
@@ -17103,15 +17131,15 @@ export function canPayMayPayCost(
     return true;
 }
 
-/** Pays the whole `may-pay` cost union from `playerId`'s resources (CR 117.3a /
- *  118.4 / 701.16 / 701.9). Caller MUST have already confirmed affordability
- *  with `canPayMayPayCost` (the mana leg asserts coverage; the life, sacrifice
- *  and discard legs are applied unconditionally). Mana is taken from the pool
- *  (lands must already be tapped, as for any `may-pay`); life is lost through
- *  the replacement chain; the sacrifice leg sacrifices the permanents the
- *  payer CHOSE (CR 701.16b — the controller picks which of their matching
- *  permanents are sacrificed); the discard leg discards the hand cards the
- *  payer CHOSE (CR 701.9, issue #899 — mirrors the sacrifice leg's picker).
+/** Pays the whole `may-pay` cost's legs from `playerId`'s resources (CR 117.3a /
+ *  118.4 / 701.16 / 701.24 / 701.9). Caller MUST have already confirmed
+ *  affordability with `canPayMayPayCost` (the mana leg asserts coverage; the
+ *  life, permanent and hand legs are applied unconditionally). Mana is taken
+ *  from the pool (lands must already be tapped, as for any `may-pay`); life is
+ *  lost through the replacement chain; the PERMANENT leg sacrifices (CR
+ *  701.16b) or returns to hand (CR 701.24 / 118.9, ADR 0079) the permanents the
+ *  payer CHOSE; the HAND leg discards / exiles the cards the payer CHOSE (CR
+ *  701.9, issue #899 — mirrors the permanent leg's picker).
  *  `sacrificeIds` / `discardIds`, validated at the submit boundary, name the
  *  victims/cards; when absent (only one legal candidate, `count` covers all,
  *  or a bot's minimal-legal default) the first `count` matching
@@ -17144,17 +17172,18 @@ export function payMayPayCost(
         // (Oath of Lim-Dûl).
         loseLifeEmitting(state, playerId, norm.life);
     }
-    if (norm.sacrifice) {
-        // CR 701.16b — the payer chooses which of their matching permanents to
-        // sacrifice. Honour the caller-supplied `sacrificeIds` (validated at the
-        // submit boundary) when present; otherwise fall back to author order.
+    if (norm.permanent) {
+        // CR 701.16b / 701.24 — the payer chooses which of their matching
+        // permanents pay. Honour the caller-supplied `sacrificeIds` (validated
+        // at the submit boundary) when present; otherwise fall back to author
+        // order.
         const candidates = sacrificeCandidates(
             state,
             playerId,
-            norm.sacrifice.filter
+            norm.permanent.filter
         );
         let victims: CardInstanceState[];
-        if (typeof norm.sacrifice.count === "object") {
+        if (typeof norm.permanent.count === "object") {
             // CR 118 / 701.16 threshold mode ("sacrifice any number … total
             // power ≥ N"). When the payer named a set, sacrifice ALL of it (the
             // whole caller-supplied `sacrificeIds`, already validated at the
@@ -17162,7 +17191,7 @@ export function payMayPayCost(
             // When absent (a bot's minimal-legal default), greedily take the
             // highest-EFFECTIVE-power candidates first until the running total
             // reaches the threshold — the smallest-bodied legal set.
-            const threshold = norm.sacrifice.count.minTotalPower;
+            const threshold = norm.permanent.count.minTotalPower;
             if (sacrificeIds && sacrificeIds.length > 0) {
                 victims = candidates.filter((c) => sacrificeIds.includes(c.id));
             } else {
@@ -17186,37 +17215,59 @@ export function payMayPayCost(
                 sacrificeIds && sacrificeIds.length > 0
                     ? candidates.filter((c) => sacrificeIds.includes(c.id))
                     : candidates;
-            victims = chosen.slice(0, norm.sacrifice.count);
+            victims = chosen.slice(0, norm.permanent.count);
         }
-        // issue #1558 — the whole sacrifice leg is ONE cost payment (CR
-        // 603.3b / 608.2i occurrence); accumulate across the loop and emit a
-        // single batched CARDS_EXILED for any victim a CR 614 graveyard-bound
-        // replacement redirected to exile, rather than one event per victim.
-        const exiledEntries: {
-            cardInstanceId: string;
-            cardId?: string;
-            fromZone: "battlefield";
-            ownerId: string;
-        }[] = [];
-        for (const v of victims) {
-            const moved = removePermanentTo(
-                state,
-                v.id,
-                "graveyard",
-                "sacrifice"
-            );
-            if (moved && moved.zone === "exile") {
-                exiledEntries.push({
-                    cardInstanceId: moved.id,
-                    cardId: (moved.card as { id?: string }).id,
-                    fromZone: "battlefield",
-                    ownerId: moved.ownerId,
-                });
+        if (norm.permanent.action === "return") {
+            // CR 701.24 / 118.9 (ADR 0079) — the return leg's terminal step is
+            // the unified permanent-cost layer's own: build the completed
+            // `SacrificeSelection` the picker would have produced and let
+            // `applySacrificeSelection` bounce each victim to its owner's hand.
+            // Same layer Gush / Thwart / Daze pay through, so a return-to-hand
+            // cost has exactly one execution path in the engine.
+            applySacrificeSelection(state, {
+                playerId,
+                reason: "cost",
+                requirements: [
+                    {
+                        filter: norm.permanent.filter,
+                        count: victims.length,
+                    },
+                ],
+                picked: victims.map((v) => v.id),
+                action: "return",
+            });
+        } else {
+            // issue #1558 — the whole sacrifice leg is ONE cost payment (CR
+            // 603.3b / 608.2i occurrence); accumulate across the loop and emit
+            // a single batched CARDS_EXILED for any victim a CR 614
+            // graveyard-bound replacement redirected to exile, rather than one
+            // event per victim.
+            const exiledEntries: {
+                cardInstanceId: string;
+                cardId?: string;
+                fromZone: "battlefield";
+                ownerId: string;
+            }[] = [];
+            for (const v of victims) {
+                const moved = removePermanentTo(
+                    state,
+                    v.id,
+                    "graveyard",
+                    "sacrifice"
+                );
+                if (moved && moved.zone === "exile") {
+                    exiledEntries.push({
+                        cardInstanceId: moved.id,
+                        cardId: (moved.card as { id?: string }).id,
+                        fromZone: "battlefield",
+                        ownerId: moved.ownerId,
+                    });
+                }
             }
+            emitCardsExiled(state, exiledEntries);
         }
-        emitCardsExiled(state, exiledEntries);
     }
-    if (norm.discard) {
+    if (norm.hand) {
         // CR 701.9 / 118.3 — the payer chooses which of their hand cards to
         // discard. Honour the caller-supplied `discardIds` (validated at the
         // submit boundary) when present; otherwise fall back to hand order.
@@ -17228,9 +17279,15 @@ export function payMayPayCost(
             discardIds && discardIds.length > 0
                 ? candidates.filter((c) => discardIds.includes(c.id))
                 : candidates;
-        const toDiscard = chosen.slice(0, norm.discard.count);
-        for (const c of toDiscard) {
-            discardToGraveyard(state, playerId, c.id);
+        const toGiveUp = chosen.slice(0, mayPayHandLegCount(cost));
+        for (const c of toGiveUp) {
+            if (norm.hand.action === "exile") {
+                // CR 701.13 — the pitch-style hand leg (no may-pay card ships
+                // one today; the alternative-cost path owns Force of Will &c.).
+                moveCard(player, c.id, "hand", "exile");
+            } else {
+                discardToGraveyard(state, playerId, c.id);
+            }
         }
     }
     if (norm.energy !== undefined && norm.energy > 0) {

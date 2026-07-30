@@ -1371,7 +1371,8 @@ export const infernalDenizen: CardDefinition = {
                     playerId: ctx.controller,
                     choiceId: ctx.controller,
                     cost: {
-                        sacrifice: {
+                        permanent: {
+                            action: "sacrifice",
                             filter: {
                                 subtypes: "Swamp",
                                 controllerRelation: "you",
@@ -2168,7 +2169,8 @@ export const minionOfLeshrac: CardDefinition = {
                     // sacrifice leg excludes the source by id so the player
                     // can't feed Minion of Leshrac to its own upkeep.
                     cost: {
-                        sacrifice: {
+                        permanent: {
+                            action: "sacrifice",
                             filter: {
                                 types: "Creature",
                                 controllerRelation: "you",

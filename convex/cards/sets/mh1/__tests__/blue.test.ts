@@ -87,7 +87,7 @@ describe("Force of Negation (pitch: exile a blue card, not your turn)", () => {
                 id: "pitch-exile-blue",
                 description: "Exile a blue card from your hand",
                 condition: { kind: "not-your-turn" },
-                handCost: {
+                hand: {
                     action: "exile",
                     requirements: [{ filter: { color: "U" }, count: 1 }],
                 },

@@ -22,9 +22,11 @@ export const fireblast: CardDefinition = {
         {
             id: "sacrifice-two-mountains",
             description: "Sacrifice two Mountains",
-            action: "sacrifice",
-            count: 2,
-            filter: { subtypes: "Mountain" },
+            permanent: {
+                action: "sacrifice",
+                count: 2,
+                filter: { subtypes: "Mountain" },
+            },
         },
     ],
     effects: [{ op: "dealDamage", amount: 4, to: { target: 0 } }],

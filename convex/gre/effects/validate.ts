@@ -1451,7 +1451,7 @@ function isManaPool(value: unknown): boolean {
     return true;
 }
 
-/** A `mayPay` sacrifice leg's `count`: a fixed cardinal (positive int) or a
+/** A `mayPay` permanent leg's `count`: a fixed cardinal (positive int) or a
  *  summed-power threshold `{ minTotalPower: positive int }` (CR 118, Phyrexian
  *  Dreadnought — "sacrifice any number … total power ≥ N"). */
 function isSacrificeCount(value: unknown): boolean {
@@ -1466,21 +1466,16 @@ function isSacrificeCount(value: unknown): boolean {
     return isPositiveInt(obj.minTotalPower);
 }
 
-/** A `mayPay` cost (CR 117.3a / 118.4 / 702.24 / 701.9 / 122.1): a bare
- *  `ManaCost`, or the `{ mana?, life?, sacrifice?, discard?, energy? }`
- *  union. At least one leg must be present. */
+/** A `mayPay` cost (CR 117.3a / 118.4 / 118.9 / 702.24 / 701.9 / 122.1): a bare
+ *  `ManaCost`, or the shared `CostLegs` shape
+ *  `{ mana?, life?, permanent?, hand?, energy? }` (ADR 0079). At least one leg
+ *  must be present. */
 function isMayPayCost(value: unknown): boolean {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
         return false;
     }
     const obj = value as Record<string, unknown>;
-    const unionKeys = new Set([
-        "mana",
-        "life",
-        "sacrifice",
-        "discard",
-        "energy",
-    ]);
+    const unionKeys = new Set(["mana", "life", "permanent", "hand", "energy"]);
     const isUnion = Object.keys(obj).every((k) => unionKeys.has(k));
     if (isUnion && Object.keys(obj).length > 0) {
         if ("mana" in obj && !isManaCost(obj.mana)) return false;
@@ -1494,24 +1489,53 @@ function isMayPayCost(value: unknown): boolean {
         ) {
             return false;
         }
-        if ("sacrifice" in obj) {
-            const s = obj.sacrifice;
-            if (typeof s !== "object" || s === null) return false;
-            const sac = s as Record<string, unknown>;
-            if (!("filter" in sac) || !("count" in sac)) return false;
+        if ("permanent" in obj) {
+            // Permanent leg (CR 701.16 sacrifice / 701.24 return, ADR 0079):
+            // all three fields are required — the nested shape is what makes an
+            // orphan `count` with no `filter` unrepresentable.
+            const p = obj.permanent;
+            if (typeof p !== "object" || p === null) return false;
+            const perm = p as Record<string, unknown>;
+            if (perm.action !== "sacrifice" && perm.action !== "return") {
+                return false;
+            }
+            if (!("filter" in perm) || !("count" in perm)) return false;
             // `count` is either a fixed cardinal (positive int) or a
             // summed-power threshold `{ minTotalPower: positive int }` (CR 118,
             // Phyrexian Dreadnought). JSON-pure either way (ADR 0046).
-            if (!isSacrificeCount(sac.count)) return false;
-        }
-        if ("discard" in obj) {
-            // Discard leg (CR 701.9 / 118.3, issue #899): fixed cardinal only
-            // — no summed-power threshold shape (that's sacrifice-specific).
-            const d = obj.discard;
-            if (typeof d !== "object" || d === null) return false;
-            const disc = d as Record<string, unknown>;
-            if (!("count" in disc) || !isPositiveInt(disc.count)) {
+            if (!isSacrificeCount(perm.count)) return false;
+            // A THRESHOLD is a sacrifice-only shape: "return any number of
+            // permanents with total power ≥ N" is not a printed cost, and the
+            // return path's picker is fixed-count.
+            if (typeof perm.count === "object" && perm.action !== "sacrifice") {
                 return false;
+            }
+        }
+        if ("hand" in obj) {
+            // Hand leg (CR 701.9 discard / 701.13 exile, issue #899 / ADR
+            // 0079): fixed cardinals only — no summed-power threshold shape
+            // (that's permanent-specific).
+            const h = obj.hand;
+            if (typeof h !== "object" || h === null) return false;
+            const hand = h as Record<string, unknown>;
+            if (hand.action !== "discard" && hand.action !== "exile") {
+                return false;
+            }
+            const reqs = hand.requirements;
+            if (!Array.isArray(reqs) || reqs.length === 0) return false;
+            for (const r of reqs) {
+                if (typeof r !== "object" || r === null) return false;
+                const req = r as Record<string, unknown>;
+                if (!("filter" in req) || !isPositiveInt(req.count)) {
+                    return false;
+                }
+                if (
+                    typeof req.filter !== "object" ||
+                    req.filter === null ||
+                    Array.isArray(req.filter)
+                ) {
+                    return false;
+                }
             }
         }
         if ("energy" in obj) {

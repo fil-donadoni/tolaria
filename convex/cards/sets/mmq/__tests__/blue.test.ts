@@ -43,9 +43,11 @@ describe("Gush ({4}{U} instant — return two Islands rather than pay mana, draw
                 id: "return-two-islands",
                 description:
                     "Return two Islands you control to their owner's hand",
-                action: "return",
-                count: 2,
-                filter: { subtypes: "Island" },
+                permanent: {
+                    action: "return",
+                    count: 2,
+                    filter: { subtypes: "Island" },
+                },
             },
         ]);
     });
@@ -126,9 +128,11 @@ describe("Thwart ({2}{U}{U} instant — return three Islands rather than pay man
     it("declares the return-three-Islands alternative cost and a spell target", () => {
         expect(thwart.targetRequirement).toEqual({ type: "spell", count: 1 });
         expect(thwart.alternativeCosts?.[0]).toMatchObject({
-            action: "return",
-            count: 3,
-            filter: { subtypes: "Island" },
+            permanent: {
+                action: "return",
+                count: 3,
+                filter: { subtypes: "Island" },
+            },
         });
     });
 

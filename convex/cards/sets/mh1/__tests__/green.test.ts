@@ -14,7 +14,7 @@ describe("Force of Vigor (pitch: exile a green card, not your turn)", () => {
                 id: "pitch-exile-green",
                 description: "Exile a green card from your hand",
                 condition: { kind: "not-your-turn" },
-                handCost: {
+                hand: {
                     action: "exile",
                     requirements: [{ filter: { color: "G" }, count: 1 }],
                 },

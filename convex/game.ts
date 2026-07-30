@@ -5685,7 +5685,7 @@ export function finalizeTargetSelection(
         (cardDef.additionalCosts?.payLife ?? 0) +
         // CR 118.4 / 118.9 — the LIFE leg of the chosen alternative cost (Snuff
         // Out "pay 4 life", Force of Will "pay 1 life and exile a blue card").
-        (chosenAltCost?.payLife ?? 0) +
+        (chosenAltCost?.life ?? 0) +
         // CR 107.4f — the life paid for Phyrexian pips chosen to be paid with
         // life (2 per pip). Dismember paying both {B/P} with life adds 4.
         phyrexianPayment.payLife;
@@ -6643,7 +6643,7 @@ export const announceCast = mutation({
                 chosenAltCost,
                 args.cardInstanceId
             );
-            const altPayLife = chosenAltCost.payLife ?? 0;
+            const altPayLife = chosenAltCost.life ?? 0;
             const parkPerm =
                 altChoice !== undefined &&
                 !isSacrificeSelectionComplete(altChoice);

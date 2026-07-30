@@ -220,8 +220,15 @@ describe("may-pay combined sacrifice+discard cost shape (issue #1507 regression)
                 count: 1,
                 prompt: "Pay the cost?",
                 cost: {
-                    sacrifice: { filter: {}, count: 1 },
-                    discard: { count: 1 },
+                    permanent: {
+                        action: "sacrifice",
+                        filter: {},
+                        count: 1,
+                    },
+                    hand: {
+                        action: "discard",
+                        requirements: [{ filter: {}, count: 1 }],
+                    },
                 },
             },
         ];

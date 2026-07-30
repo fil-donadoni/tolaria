@@ -50,7 +50,7 @@ export const solitude: CardDefinition = {
     evoke: {
         id: "evoke",
         description: "Evoke—Exile a white card from your hand",
-        handCost: {
+        hand: {
             action: "exile",
             requirements: [{ filter: { color: "W" }, count: 1 }],
         },

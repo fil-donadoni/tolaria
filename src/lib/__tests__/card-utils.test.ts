@@ -2815,12 +2815,20 @@ describe("may-pay cost union helpers (CR 117.3a / 118.4 / 702.24, #638)", () => 
         );
         expect(
             mayPayCostLabel({
-                sacrifice: { filter: { types: "Land" as const }, count: 1 },
+                permanent: {
+                    action: "sacrifice" as const,
+                    filter: { types: "Land" as const },
+                    count: 1,
+                },
             })
         ).toBe("sacrifice");
         expect(
             mayPayCostLabel({
-                sacrifice: { filter: { types: "Land" as const }, count: 2 },
+                permanent: {
+                    action: "sacrifice" as const,
+                    filter: { types: "Land" as const },
+                    count: 2,
+                },
             })
         ).toBe("sacrifice 2");
     });
@@ -2835,7 +2843,11 @@ describe("may-pay cost union helpers (CR 117.3a / 118.4 / 702.24, #638)", () => 
         expect(mayPayCanAfford({ life: 2 }, {}, 1, 0)).toBe(false);
         // sacrifice leg (candidate count supplied by the caller)
         const sac = {
-            sacrifice: { filter: { types: "Land" as const }, count: 2 },
+            permanent: {
+                action: "sacrifice" as const,
+                filter: { types: "Land" as const },
+                count: 2,
+            },
         };
         expect(mayPayCanAfford(sac, {}, 20, 2)).toBe(true);
         expect(mayPayCanAfford(sac, {}, 20, 1)).toBe(false);
@@ -2938,7 +2950,13 @@ describe("may-pay cost union helpers (CR 117.3a / 118.4 / 702.24, #638)", () => 
         ];
         expect(
             mayPaySacrificeCount(
-                { sacrifice: { filter: { types: "Land" as const }, count: 1 } },
+                {
+                    permanent: {
+                        action: "sacrifice" as const,
+                        filter: { types: "Land" as const },
+                        count: 1,
+                    },
+                },
                 bf
             )
         ).toBe(2);
@@ -2950,12 +2968,20 @@ describe("may-pay cost union helpers (CR 117.3a / 118.4 / 702.24, #638)", () => 
     it("mayPayRequiredSacrifices reads the sacrifice leg's count (CR 701.16b)", () => {
         expect(
             mayPayRequiredSacrifices({
-                sacrifice: { filter: {}, count: 1 },
+                permanent: {
+                    action: "sacrifice" as const,
+                    filter: {},
+                    count: 1,
+                },
             })
         ).toBe(1);
         expect(
             mayPayRequiredSacrifices({
-                sacrifice: { filter: { types: "Land" as const }, count: 2 },
+                permanent: {
+                    action: "sacrifice" as const,
+                    filter: { types: "Land" as const },
+                    count: 2,
+                },
             })
         ).toBe(2);
         // No sacrifice leg / cost-less → 0.

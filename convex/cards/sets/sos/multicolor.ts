@@ -71,7 +71,13 @@ export const witherbloomCharm: CardDefinition = {
                 {
                     op: "mayPay",
                     player: "controller",
-                    cost: { sacrifice: { filter: {}, count: 1 } },
+                    cost: {
+                        permanent: {
+                            action: "sacrifice",
+                            filter: {},
+                            count: 1,
+                        },
+                    },
                     prompt: "Witherbloom Charm: sacrifice a permanent to draw two cards?",
                     bind: "$paid",
                 },

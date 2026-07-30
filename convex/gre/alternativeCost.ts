@@ -3,21 +3,33 @@
 // is zeroed for that cast, and the chosen cost legs are paid at cast commit
 // (CR 601.2h). See `AlternativeCost` in convex/cards/types.ts.
 //
-// Four orthogonal cost legs compose an alternative cost, any subset present:
-//   * PERMANENT leg (`action`/`count`/`filter`) — return / sacrifice N of the
-//     caster's permanents (Gush returns two Islands, Fireblast sacrifices two
-//     Mountains, Daze returns an Island, Mine Collapse sacrifices a Mountain).
-//     WHICH permanents pay is the player's choice, routed through the unified
-//     `sacrificeChoice.ts` layer as a `SacrificeSelection`.
-//   * LIFE leg (`payLife`) — pay N life (CR 118.4 / 119.4). Snuff Out pays 4,
+// The cost LEGS come from the shared `CostLegs` vocabulary (ADR 0079, issue
+// #1933) — the single authority on what a cost is made of, reused verbatim by
+// `MayPayCost`. Any subset may be present:
+//   * PERMANENT leg (`permanent: { action, filter, count }`) — return /
+//     sacrifice N of the caster's permanents (Gush returns two Islands,
+//     Fireblast sacrifices two Mountains, Daze returns an Island, Mine Collapse
+//     sacrifices a Mountain). WHICH permanents pay is the player's choice,
+//     routed through the unified `sacrificeChoice.ts` layer as a
+//     `SacrificeSelection`.
+//   * LIFE leg (`life`) — pay N life (CR 118.4 / 119.4). Snuff Out pays 4,
 //     Force of Will / Force of Negation pay 1. Deterministic (no picker).
-//   * HAND leg (`handCost`) — exile / discard cards FROM HAND matching a filter
-//     (Force of Will exiles a blue card, Foil discards an Island card and
-//     another card). WHICH cards pay is the player's choice, routed through the
-//     cast's `alternativeCostHandChoice` picker.
+//   * HAND leg (`hand: { action, requirements }`) — exile / discard cards FROM
+//     HAND matching a filter (Force of Will exiles a blue card, Foil discards an
+//     Island card and another card). WHICH cards pay is the player's choice,
+//     routed through the cast's `alternativeCostHandChoice` picker.
+//   * MANA leg (`mana`) — a DIFFERENT mana cost paid instead of the printed one
+//     (Dash, CR 702.109a).
+//
+// Only the LEGS are shared. The SELECTION-level helpers below
+// (`alternativeCostConditionMet`, `canPayAlternativeCost`, `getAlternativeCost`,
+// `affordableAlternativeCosts`) stay alternative-cost-only: an alternative cost
+// REPLACES a mana cost (CR 118.9) where a may-pay ADDS to one (CR 601.2f), so
+// routing a may-pay through the alt-cost selector would make paying it mutually
+// exclusive with paying the card's real cost — precisely backwards.
 //   * CONDITION (`condition`) — a cast-availability gate ("if it's not your
 //     turn", "if you control a Swamp"): the variant is only affordable when it
-//     holds.
+//     holds. NOT a leg; it lives on `AlternativeCost`, not `CostLegs`.
 //
 // Alternative pitch cost is a CR 118.9 RULES concept with no keyword name, so it
 // carries no Mechanics Registry row and is NOT an Effect Script Op — it is
@@ -27,6 +39,7 @@ import type {
     AlternativeCost,
     AlternativeCostCondition,
     CardDefinition,
+    CostLegs,
     EffectCardFilter,
 } from "../cards/types";
 import { matchesPermanentFilter } from "../cards/filters";
@@ -40,16 +53,18 @@ import { getDefinition, tryGetDefinition } from "../cards";
 import type { SacrificeSelection } from "./sacrificeChoice";
 import { autoResolveFungible } from "./sacrificeChoice";
 
-/** The caster's own permanents that satisfy an alternative cost's permanent-leg
- *  filter (CR 118.9 — "permanents you control"). Derived colours are folded in
- *  via `STATIC_EFFECT_CTX.getColors` so a `colors` filter reads the same colour
- *  the rest of the engine sees. Empty when the alt cost has no permanent leg. */
+/** The payer's own permanents that satisfy a cost's permanent-leg filter (CR
+ *  118.9 — "permanents you control"). Derived colours are folded in via
+ *  `STATIC_EFFECT_CTX.getColors` so a `colors` filter reads the same colour the
+ *  rest of the engine sees. Empty when the cost has no permanent leg. Takes
+ *  {@link CostLegs}, not `AlternativeCost` — this is a LEG-level helper and is
+ *  therefore the shared payment path for both cost vocabularies (ADR 0079). */
 export function matchingPermanentsForAltCost(
     player: PlayerState,
-    altCost: AlternativeCost
+    altCost: CostLegs
 ): CardInstanceState[] {
-    if (!altCost.filter) return [];
-    const filter = altCost.filter;
+    if (!altCost.permanent) return [];
+    const filter = altCost.permanent.filter;
     return player.battlefield.filter((c) => {
         const view = { ...c, colors: STATIC_EFFECT_CTX.getColors(c) };
         return matchesPermanentFilter(view, filter, {
@@ -59,13 +74,33 @@ export function matchingPermanentsForAltCost(
     });
 }
 
-/** Whether the alt cost has a PERMANENT leg (return / sacrifice permanents). */
-export function altCostHasPermanentLeg(altCost: AlternativeCost): boolean {
-    return (
-        altCost.action !== undefined &&
-        altCost.count !== undefined &&
-        altCost.filter !== undefined
-    );
+/** Whether the cost has a PERMANENT leg (return / sacrifice permanents). The
+ *  nested `CostLegs.permanent` shape makes the leg's presence a single check —
+ *  an orphan `count` with no `filter` is unrepresentable (ADR 0079). */
+export function altCostHasPermanentLeg(altCost: CostLegs): boolean {
+    return altCost.permanent !== undefined;
+}
+
+/** The FIXED cardinal of a cost's permanent leg (`count: number`), or
+ *  `undefined` when there is no permanent leg. Throws for the summed-power
+ *  THRESHOLD shape (`{ minTotalPower }`, CR 118): that is a may-pay-only leg
+ *  (Phyrexian Dreadnought) paid through `payMayPayCost`'s greedy threshold
+ *  branch, and the alternative-cost path — whose picker is a fixed-count
+ *  `SacrificeSelection` — has no way to express it. No printed alternative cost
+ *  uses a threshold, and the `mayPay` Op validator is where a new one would be
+ *  caught; the throw exists so a future author gets a loud failure rather than a
+ *  silently mispriced cast. */
+export function altCostPermanentCardinal(
+    altCost: CostLegs
+): number | undefined {
+    const leg = altCost.permanent;
+    if (!leg) return undefined;
+    if (typeof leg.count !== "number") {
+        throw new Error(
+            "A summed-power permanent leg ({ minTotalPower }) is not payable as an alternative cost"
+        );
+    }
+    return leg.count;
 }
 
 /** Match a HAND card against an `EffectCardFilter` (CR 118.9 hand leg). Reads
@@ -188,12 +223,12 @@ export function matchingHandCardsForAltCost(
  *  from DISTINCT hand cards (CR 118.9)? Reserves cards in requirement order. */
 export function canPayHandCost(
     player: PlayerState,
-    altCost: AlternativeCost,
+    altCost: CostLegs,
     excludeInstanceId: string
 ): boolean {
-    if (!altCost.handCost) return true;
+    if (!altCost.hand) return true;
     const reserved = new Set<string>();
-    for (const req of altCost.handCost.requirements) {
+    for (const req of altCost.hand.requirements) {
         const cands = matchingHandCardsForAltCost(
             player,
             req.filter,
@@ -251,17 +286,17 @@ export function canPayAlternativeCost(
     if (
         altCostHasPermanentLeg(altCost) &&
         matchingPermanentsForAltCost(player, altCost).length <
-            (altCost.count ?? 0)
+            (altCostPermanentCardinal(altCost) ?? 0)
     ) {
         return false;
     }
     // CR 119.4 — a life payment is legal only if the life total is at least the
     // amount paid.
-    if (altCost.payLife !== undefined && player.life < altCost.payLife) {
+    if (altCost.life !== undefined && player.life < altCost.life) {
         return false;
     }
     if (
-        altCost.handCost &&
+        altCost.hand &&
         !canPayHandCost(player, altCost, castInstanceId ?? "")
     ) {
         return false;
@@ -327,16 +362,19 @@ export function affordableAlternativeCosts(
 export function buildAlternativeCostChoice(
     state: GameState,
     playerId: string,
-    altCost: AlternativeCost,
+    altCost: CostLegs,
     reason: string
 ): SacrificeSelection | undefined {
-    if (!altCostHasPermanentLeg(altCost)) return undefined;
+    const leg = altCost.permanent;
+    if (!leg) return undefined;
     const selection: SacrificeSelection = {
         playerId,
         reason,
-        requirements: [{ filter: altCost.filter!, count: altCost.count! }],
+        requirements: [
+            { filter: leg.filter, count: altCostPermanentCardinal(altCost)! },
+        ],
         picked: [],
-        action: altCost.action === "return" ? "return" : "sacrifice",
+        action: leg.action === "return" ? "return" : "sacrifice",
     };
     autoResolveFungible(state, selection);
     return selection;
@@ -350,7 +388,7 @@ export function buildAlternativeCostChoice(
  *  player picks (via `selectCastAlternativeHandCost`). */
 export function buildAlternativeCostHandChoice(
     player: PlayerState,
-    altCost: AlternativeCost,
+    altCost: CostLegs,
     castInstanceId: string
 ):
     | {
@@ -360,7 +398,7 @@ export function buildAlternativeCostHandChoice(
           pickedCardIds?: string[];
       }
     | undefined {
-    const handCost = altCost.handCost;
+    const handCost = altCost.hand;
     if (!handCost) return undefined;
     const choice = {
         action: handCost.action,

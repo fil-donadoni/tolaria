@@ -73,7 +73,13 @@ export const chainOfVapor: CardDefinition = {
             const paid = ctx.requestMayPay({
                 playerId: controller,
                 choiceId: "chain-of-vapor-sac",
-                cost: { sacrifice: { filter: { types: "Land" }, count: 1 } },
+                cost: {
+                    permanent: {
+                        action: "sacrifice",
+                        filter: { types: "Land" },
+                        count: 1,
+                    },
+                },
                 prompt: "Sacrifice a land to copy Chain of Vapor (you may choose a new target)?",
             });
             if (paid === undefined) return; // suspended on the may-sacrifice

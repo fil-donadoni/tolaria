@@ -22,7 +22,7 @@ describe("Pyrokinesis (divided damage — CR 120.4)", () => {
             {
                 id: "pitch-exile-red",
                 description: "Exile a red card from your hand",
-                handCost: {
+                hand: {
                     action: "exile",
                     requirements: [{ filter: { color: "R" }, count: 1 }],
                 },

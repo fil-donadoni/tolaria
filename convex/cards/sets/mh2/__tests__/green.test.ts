@@ -95,7 +95,7 @@ describe("Endurance (CR 603.3d trigger-time player target; #1193, #1207)", () =>
         expect(endurance.power).toBe(3);
         expect(endurance.toughness).toBe(4);
         expect(endurance.staticAbilities).toEqual(["flash", "reach"]);
-        expect(endurance.evoke?.handCost).toEqual({
+        expect(endurance.evoke?.hand).toEqual({
             action: "exile",
             requirements: [{ filter: { color: "G" }, count: 1 }],
         });

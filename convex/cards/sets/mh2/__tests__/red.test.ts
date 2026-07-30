@@ -34,9 +34,11 @@ describe("Mine Collapse (pitch: sacrifice a Mountain, your turn)", () => {
             {
                 id: "pitch-sacrifice-mountain",
                 description: "Sacrifice a Mountain",
-                action: "sacrifice",
-                count: 1,
-                filter: { subtypes: "Mountain" },
+                permanent: {
+                    action: "sacrifice",
+                    count: 1,
+                    filter: { subtypes: "Mountain" },
+                },
                 condition: { kind: "your-turn" },
             },
         ]);
@@ -147,7 +149,7 @@ describe("Fury — targeted triggered ability with divide-as-you-choose (CR 603.
         expect(fury.evoke).toEqual({
             id: "evoke",
             description: "Evoke—Exile a red card from your hand",
-            handCost: {
+            hand: {
                 action: "exile",
                 requirements: [{ filter: { color: "R" }, count: 1 }],
             },

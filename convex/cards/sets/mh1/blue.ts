@@ -84,7 +84,7 @@ export const forceOfNegation: CardDefinition = {
             id: "pitch-exile-blue",
             description: "Exile a blue card from your hand",
             condition: { kind: "not-your-turn" },
-            handCost: {
+            hand: {
                 action: "exile",
                 requirements: [{ filter: { color: "U" }, count: 1 }],
             },

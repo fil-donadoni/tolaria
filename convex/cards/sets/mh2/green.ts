@@ -71,7 +71,7 @@ export const endurance: CardDefinition = {
     evoke: {
         id: "evoke",
         description: "Evoke—Exile a green card from your hand",
-        handCost: {
+        hand: {
             action: "exile",
             requirements: [{ filter: { color: "G" }, count: 1 }],
         },

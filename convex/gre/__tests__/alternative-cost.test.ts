@@ -28,17 +28,17 @@ import {
 const returnTwoIslands: AlternativeCost = {
     id: "return-two-islands",
     description: "Return two Islands you control to their owner's hand",
-    action: "return",
-    count: 2,
-    filter: { subtypes: "Island" },
+    permanent: { action: "return", count: 2, filter: { subtypes: "Island" } },
 };
 
 const sacrificeTwoMountains: AlternativeCost = {
     id: "sacrifice-two-mountains",
     description: "Sacrifice two Mountains",
-    action: "sacrifice",
-    count: 2,
-    filter: { subtypes: "Mountain" },
+    permanent: {
+        action: "sacrifice",
+        count: 2,
+        filter: { subtypes: "Mountain" },
+    },
 };
 
 function islandsFor(playerId: string, n: number) {

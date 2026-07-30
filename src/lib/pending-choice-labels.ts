@@ -41,7 +41,8 @@ const PENDING_CHOICE_KIND_LABELS: Record<PendingChoiceKind, string> = {
     "legend-keep": "Legend rule",
     // non-cast Aura host choice (CR 303.4f — Replenish, Living Death)
     "choose-aura-host": "Choose host",
-    // yes-no family
+    // yes-no family (CR 117.3a / 118.4 — including the ADR 0079 permanent
+    // leg's sacrifice/return pick, worded by `mayPayPermanentPickVerb`)
     "may-pay": "Optional",
     // land-entry pay-choice (CR 614.12, ADR 0051 — shock lands)
     "land-entry-tapped": "Pay 2 life",
@@ -98,6 +99,27 @@ function mayPayCostHasPayableManaLeg(cost: MayPayCost | undefined): boolean {
         if (key === "X") return value !== undefined && value !== 0;
         return typeof value === "number" && value > 0;
     });
+}
+
+/** The terminal action a `may-pay` battlefield pick performs, as the verb the
+ *  pick-progress hint uses (CR 701.16 "sacrifice" / 701.24 "return", ADR 0079).
+ *  Reads `PendingChoice.permanentAction` — denormalized server-side onto the
+ *  choice by `requestMayPay`, so the client never re-derives it from the cost
+ *  union and cannot drift from what the submit boundary will accept. Defaults
+ *  to `"sacrifice"`, the shape every pre-ADR-0079 may-pay had. */
+export function mayPayPermanentPickVerb(choice: PendingChoice): string {
+    return choice.permanentAction === "return" ? "return" : "sacrifice";
+}
+
+/** Full pick-progress hint for a `may-pay` PERMANENT leg: "N / M selected —
+ *  click a permanent to sacrifice|return". One place so the sacrifice and
+ *  return legs can never word themselves differently. */
+export function mayPayPermanentPickHint(
+    choice: PendingChoice,
+    selected: number,
+    required: number
+): string {
+    return `${selected} / ${required} selected — click a permanent to ${mayPayPermanentPickVerb(choice)}`;
 }
 
 /** Issue #1813 — does resolving this choice route clicks to a battlefield

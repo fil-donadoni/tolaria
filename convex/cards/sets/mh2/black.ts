@@ -125,7 +125,7 @@ export const grief: CardDefinition = {
     evoke: {
         id: "evoke",
         description: "Evoke—Exile a black card from your hand",
-        handCost: {
+        hand: {
             action: "exile",
             requirements: [{ filter: { color: "B" }, count: 1 }],
         },
