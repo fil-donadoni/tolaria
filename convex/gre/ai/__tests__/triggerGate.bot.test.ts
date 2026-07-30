@@ -9,6 +9,18 @@
 // so this file pins the general rule (`TriggerGate` → `gateWeight`) and both
 // directions of the reference case.
 //
+// Scope note (PR #1962 review). The fix is the DECIDABLE `{ onSelf }` branch
+// only. An `{ undecidable: true }` gate is valued at FACE VALUE (weight 1, a
+// strict no-op) — matching `case "if"` in `opValuers.ts`, the codebase's
+// precedent for an unresolvable state predicate. Discounting it penalised
+// authoring form rather than semantics: 75 of the 85 catalogue gates are
+// undecidable, and they are dominated by event DISCRIMINATORS (saga chapter
+// dispatch, Skullclamp's `wasAttachedToLeaver`, nth-spell counters) that sit in
+// `condition:` only because `scope`/`filter` can't express them, while a
+// semantically identical `diedTrigger({ scope: "self" })` carries no gate at
+// all. The 0.5 weight survives only where the uncertainty is real: an
+// `{ onSelf }` gate read with no instance (a card still in hand).
+//
 // The companion source-level guard — every `condition`-accepting trigger
 // factory routes its return through `withTriggerGate` — lives in
 // `scripts/__tests__/trigger-gate-marking.test.ts` (it reads files, which the
@@ -37,6 +49,9 @@ import {
 
 /** Solitude (mh2/white) — the reference Evoke Incarnation. */
 const SOLITUDE_ID = "47a6234f-309f-4e03-9263-66da48b57153";
+
+/** Ragavan, Nimble Pilferer (mh2/red) — the reference Dash card. */
+const RAGAVAN_ID = "a9738cda-adb1-47fb-9f4c-ecd930228c4d";
 
 /** The MH2 Incarnations and the ECL evoke trio all share `evokeTrigger`, so
  *  the fix is template-wide, not card-wide. */
@@ -97,7 +112,7 @@ describe("triggered-ability gates in the value model (CR 603.4, issue #1936)", (
             expect(dslRealizedAbilityScriptValue(ungated)).toBeGreaterThan(0);
         });
 
-        it("halves an ability whose gate is UNDECIDABLE", () => {
+        it("values an UNDECIDABLE gate at FACE VALUE — marked, but not discounted", () => {
             const gated = defWith(
                 diedTrigger({
                     id: "t",
@@ -107,11 +122,15 @@ describe("triggered-ability gates in the value model (CR 603.4, issue #1936)", (
                     effects: SCRIPT,
                 })
             );
+            // The gate is still RECORDED (that is what makes a later, better
+            // reader possible) — it just doesn't move the number. Weighting it
+            // would make two authoring forms of the same predicate disagree:
+            // this ability and `ungated` below are semantically identical.
             expect(gated.triggeredAbilities![0].gate).toEqual({
                 undecidable: true,
             });
             expect(dslRealizedAbilityScriptValue(gated)).toBeCloseTo(
-                dslRealizedAbilityScriptValue(ungated) / 2
+                dslRealizedAbilityScriptValue(ungated)
             );
         });
 
@@ -201,11 +220,30 @@ describe("triggered-ability gates in the value model (CR 603.4, issue #1936)", (
         });
     });
 
-    describe("Dash (CR 702.109a) — the second decidable self-flag gate", () => {
-        it("declares an { onSelf } gate reading `dashed`", () => {
-            const onSelf = onSelfOf(dashTrigger("Test"));
-            expect(onSelf(selfView({ dashed: true }))).toBe(true);
-            expect(onSelf(selfView())).toBe(false);
+    describe("Dash (CR 702.109a) — deliberately left UNDECIDED (tracked-by: #1964)", () => {
+        // Dash's `self.dashed` predicate is decidable in exactly the same way
+        // Evoke's `self.evoked` is, but its trigger BODY is currently
+        // wrong-signed in the value model: `delayedTrigger{ moveZone $source →
+        // hand }` scores as a generic bounce (+55 "tempo") when returning your
+        // OWN creature is a cost, plus `grantAbility(haste)` +40. Deciding the
+        // gate would therefore pay the bot +95 to dash. Left as a plain
+        // `condition` until #1964 models the self-bounce as a cost — the
+        // constant is wrong in absolute terms but cannot bias the cast-mode
+        // choice, which is what issue #1936 is about.
+        it("keeps the dash gate UNDECIDABLE rather than deciding it", () => {
+            expect(dashTrigger("Test").gate).toEqual({ undecidable: true });
+        });
+
+        it("scores a dashed permanent exactly as a hard-cast one (no cast-mode bias)", () => {
+            const dashed = dslRealizedAbilityValueById(
+                RAGAVAN_ID,
+                selfView({ dashed: true })
+            );
+            const hardCast = dslRealizedAbilityValueById(
+                RAGAVAN_ID,
+                selfView()
+            );
+            expect(dashed).toBe(hardCast);
         });
     });
 

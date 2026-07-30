@@ -47,29 +47,47 @@ function effectiveScript(site: {
  *  is discounted before being added to the body (never doubled with it). */
 const ABILITY_SCRIPT_DISCOUNT = 0.5;
 
-/** Weight on the script value of a triggered ability that is GATED by a
- *  check-time condition (CR 603.4, `TriggerGate`) the reader cannot DECIDE —
- *  either an `{ undecidable: true }` gate, or an `{ onSelf }` gate with no
- *  instance to read (a card still in hand). Even odds: the same assumption
- *  `valueOp` already makes for the two branches of a `coinFlip`, which is the
- *  prior art for an outcome the value model can't resolve. It applies in BOTH
- *  directions and that symmetry is the point — a gated BONUS stops being
- *  counted as guaranteed, a gated COST stops being charged as certain.
+/** Weight on the script value of a triggered ability whose gate is
+ *  `{ undecidable: true }` — a CR 603.4 check-time condition the reader cannot
+ *  reconstruct (it reads the firing event or the wider board).
  *
- *  Before issue #1936 the factor was an implicit 1: every gated ability valued
- *  as if it always fires. The visible bite was Evoke — a hard-cast Incarnation
- *  charged the full `SAC_SELF_COST` (−40) for the evoke self-sacrifice — but
- *  the blind spot is catalogue-wide, one per gated ability carrying a script. */
-const UNDECIDED_GATE_WEIGHT = 0.5;
+ *  **Face value — a deliberate no-op** (issue #1936, PR #1962 review). The
+ *  precedent that governs an unresolvable STATE predicate in this codebase is
+ *  `case "if"` in `opValuers.ts`, which values a conditional branch at 1.0;
+ *  `coinFlip`'s even-odds split is NOT the analogue (that is a genuinely
+ *  random CR 705 outcome, where 0.5 is the true expectation).
+ *
+ *  Discounting here would penalise AUTHORING FORM rather than semantics.
+ *  `{ undecidable }` is overwhelmingly not "an uncertain condition" but an
+ *  event DISCRIMINATOR living in `condition:` only because `scope`/`filter`
+ *  can't express it: saga chapter dispatch (CR 714.2b guarantees each chapter
+ *  fires exactly once), Skullclamp's `wasAttachedToLeaver`, the nth-spell /
+ *  nth-draw counters on Cori-Steel Cutter / Ledger Shredder / Faerie
+ *  Mastermind, The One Ring's "if you cast it". A semantically identical
+ *  `diedTrigger({ scope: "self" })` carries no gate at all — so a discount
+ *  would make the two authoring forms disagree about the same predicate.
+ *  Measured: 0.5 here halved 49 catalogue cards (History of Benalia
+ *  168.1 → 84.05, Urza's Saga 80 → 40, The One Ring 45 → 22.5) to fix 5 that
+ *  the decidable `{ onSelf }` branch below already fixes on its own. */
+const UNDECIDABLE_GATE_WEIGHT = 1;
+
+/** Weight on an `{ onSelf }` gate with NO instance to read — a card still in
+ *  hand, where which way it will land (evoked vs hard-cast) is exactly the
+ *  decision not yet made. Even odds is the honest expectation for a binary the
+ *  reader is about to CHOOSE, and unlike the undecidable case above it is a
+ *  narrow, semantically-real uncertainty: the same ability read on the
+ *  realized (in-play) path is decided exactly, so the weight only ever applies
+ *  to the latent reading. It cuts in BOTH directions and that symmetry is the
+ *  point — a gated BONUS stops being counted as guaranteed, a gated COST stops
+ *  being charged as certain. */
+const UNDECIDED_SELF_GATE_WEIGHT = 0.5;
 
 /** How much of a triggered ability's script value survives its check-time gate
  *  (CR 603.4) — 1 when it always fires, 0 when the gate is decidably false for
- *  `self`, `UNDECIDED_GATE_WEIGHT` when the gate exists but can't be decided.
+ *  `self`, and for the two un-decided cases the weights above.
  *
  *  `self` is the SOURCE PERMANENT being valued, and is only available on the
- *  realized (in-play) path: a card in hand has no instance yet, so an
- *  `{ onSelf }` gate is undecidable there — correctly, since which way it will
- *  land (evoked vs hard-cast) is exactly the decision not yet made.
+ *  realized (in-play) path.
  *
  *  Activated abilities carry no gate (their gating is the activation cost,
  *  already valued) and always score 1. */
@@ -79,8 +97,8 @@ function gateWeight(
 ): number {
     const gate = ability.gate;
     if (!gate) return 1;
-    if ("undecidable" in gate) return UNDECIDED_GATE_WEIGHT;
-    if (!self) return UNDECIDED_GATE_WEIGHT;
+    if ("undecidable" in gate) return UNDECIDABLE_GATE_WEIGHT;
+    if (!self) return UNDECIDED_SELF_GATE_WEIGHT;
     return gate.onSelf(self) ? 1 : 0;
 }
 
