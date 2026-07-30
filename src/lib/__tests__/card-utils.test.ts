@@ -49,13 +49,21 @@ import type {
     PendingCast,
     Player,
 } from "~/types/game";
+import type { Color } from "~/types/cards";
 import type {
     ActivatedAbility,
     CardDefinition,
     EmblemInstance,
     TargetRequirement,
 } from "@convex/cards/types";
-import { getDefinition } from "@convex/cards";
+import { getDefinition, tryGetDefinition } from "@convex/cards";
+import {
+    matchesPermanentFilter as matchesEnginePermanentFilter,
+    type MatchablePermanent,
+    type PermanentFilter,
+} from "@convex/cards/filters";
+import { getColorsFromCost } from "@convex/cards/colors";
+import { crosissCatacombs } from "@convex/cards/sets/pls/colorless";
 import {
     CHANDRA_TORCH_OF_DEFIANCE_EMBLEM_ID,
     SORIN_LORD_OF_INNISTRAD_EMBLEM_ID,
@@ -65,7 +73,7 @@ import { dismember } from "@convex/cards/sets/nph/black";
 import { gitaxianProbe } from "@convex/cards/sets/nph/blue";
 import { dominate } from "@convex/cards/sets/nem";
 import { fellwarStone, deepWater, gaeasTouch } from "@convex/cards/sets/drk";
-import { disruptingScepter } from "@convex/cards/sets/lea";
+import { disruptingScepter, forest } from "@convex/cards/sets/lea";
 import { powerArmor } from "@convex/cards/sets/inv";
 import { dauthiVoidwalker } from "@convex/cards/sets/mh2/black";
 import { viviOrnitier } from "@convex/cards/sets/fin";
@@ -2509,6 +2517,160 @@ describe("matchesPermanentFilter (client mirror — `any` disjunction, #897)", (
         const filter = { ...anyFilter, tapped: true };
         expect(matchesPermanentFilter(tappedArtifact, filter)).toBe(true);
         expect(matchesPermanentFilter(untappedArtifact, filter)).toBe(false);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// matchesPermanentFilter — exclude* fields + parity guard (issue #1938 fixup)
+//
+// The client mirror had NO `excludeSubtypes` branch (nor `excludeTypes` /
+// `excludeSupertypes`) — a field present on the server's `PermanentFilter`
+// (convex/cards/filters.ts) but missing here fails OPEN (matches every
+// permanent) rather than closed. Proven by the Planeshift Lair cycle's
+// "non-Lair land" return-leg cost (`{ types: "Land", excludeSubtypes: "Lair"
+// }`, issue #1938): the mirror silently ignored `excludeSubtypes`, so a
+// Lair-only battlefield still counted the entering Lair itself as a legal
+// return candidate and the Pay button enabled with zero legal candidates.
+//
+// Every case below is checked against BOTH the client mirror and the real
+// engine matcher (`matchesEnginePermanentFilter`) via `expectParity` — add a
+// case here whenever a new field lands on `ClientPermanentFilter` /
+// `PermanentFilter` so the two can never diverge again unnoticed.
+// ---------------------------------------------------------------------------
+
+describe("matchesPermanentFilter (client mirror — exclude* fields + parity guard, issue #1938 fixup)", () => {
+    /** Adapts a test `CardInstance` to `MatchablePermanent` the SAME way
+     *  `toMatchablePermanent` (card-utils.ts) does, so this test exercises the
+     *  real production derivation rather than a hand-built shortcut. */
+    function toMatchable(card: CardInstance): MatchablePermanent {
+        return {
+            id: card.id,
+            types: card.types ?? [],
+            subtypes: card.subtypes ?? [],
+            staticAbilities: card.staticAbilities ?? [],
+            controllerId: card.controllerId,
+            colors:
+                (card.colorOverride as Color[] | undefined) ??
+                getColorsFromCost(tryGetDefinition(card.card.id)?.manaCost),
+            supertypes: tryGetDefinition(card.card.id)?.supertypes,
+            isTapped: card.isTapped,
+        };
+    }
+
+    function expectParity(
+        card: CardInstance,
+        filter: PermanentFilter,
+        expected: boolean
+    ) {
+        expect(matchesPermanentFilter(card, filter)).toBe(expected);
+        expect(matchesEnginePermanentFilter(toMatchable(card), filter)).toBe(
+            expected
+        );
+    }
+
+    it("excludeTypes rejects a matching type — the negative of types", () => {
+        const land = makeCardInstance({
+            card: { id: forest.id },
+            types: ["Land"],
+            subtypes: ["Forest"],
+        });
+        const creature = makeCardInstance({ types: ["Creature"] });
+        expectParity(land, { excludeTypes: "Land" }, false);
+        expectParity(creature, { excludeTypes: "Land" }, true);
+    });
+
+    it("excludeSubtypes rejects a Lair — the Planeshift cycle's own return-leg filter (#1938)", () => {
+        const lair = makeCardInstance({
+            card: { id: crosissCatacombs.id },
+            types: ["Land"],
+            subtypes: ["Lair"],
+        });
+        const nonLair = makeCardInstance({
+            card: { id: forest.id },
+            types: ["Land"],
+            subtypes: ["Forest"],
+        });
+        const filter: PermanentFilter = {
+            types: "Land",
+            excludeSubtypes: "Lair",
+        };
+        expectParity(lair, filter, false);
+        expectParity(nonLair, filter, true);
+    });
+
+    it("excludeSupertypes rejects a Basic land (Wasteland-style 'nonbasic land')", () => {
+        const basic = makeCardInstance({
+            card: { id: forest.id },
+            types: ["Land"],
+            subtypes: ["Forest"],
+        });
+        const filter: PermanentFilter = {
+            types: "Land",
+            excludeSupertypes: "Basic",
+        };
+        expectParity(basic, filter, false);
+    });
+
+    it("every currently-mirrored field agrees with the engine matcher on representative boards", () => {
+        const cases: Array<{
+            card: CardInstance;
+            filter: PermanentFilter;
+            expected: boolean;
+        }> = [
+            {
+                card: makeCardInstance({ types: ["Creature"] }),
+                filter: { types: "Creature" },
+                expected: true,
+            },
+            {
+                card: makeCardInstance({ types: ["Creature"] }),
+                filter: { excludeTypes: "Land" },
+                expected: true,
+            },
+            {
+                card: makeCardInstance({
+                    types: ["Land"],
+                    subtypes: ["Forest"],
+                }),
+                filter: { subtypes: "Forest" },
+                expected: true,
+            },
+            {
+                card: makeCardInstance({
+                    types: ["Land"],
+                    subtypes: ["Lair"],
+                }),
+                filter: { excludeSubtypes: "Lair" },
+                expected: false,
+            },
+            {
+                card: makeCardInstance({
+                    types: ["Creature"],
+                    staticAbilities: ["flying"],
+                }),
+                filter: { requireAbility: "flying" },
+                expected: true,
+            },
+            {
+                card: makeCardInstance({
+                    types: ["Creature"],
+                    staticAbilities: ["flying"],
+                }),
+                filter: { excludeAbility: "flying" },
+                expected: false,
+            },
+            {
+                card: makeCardInstance({
+                    card: { id: FLYING_MEN_ID },
+                    isTapped: true,
+                }),
+                filter: { colors: ["U"], tapped: true },
+                expected: true,
+            },
+        ];
+        for (const { card, filter, expected } of cases) {
+            expectParity(card, filter, expected);
+        }
     });
 });
 
