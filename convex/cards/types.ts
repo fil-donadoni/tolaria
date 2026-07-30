@@ -6958,10 +6958,49 @@ export interface ChapterAbilityDefinition {
     effects: EffectOp[];
 }
 
+/** A triggered ability's CR 603.4 check-time gate, RESTATED in a form a reader
+ *  that is not the engine can reason about (issue #1936).
+ *
+ *  The gate itself is folded into `matches` by the trigger factories, where it
+ *  is indistinguishable from the scope/filter checks — an opaque closure over
+ *  an event the reader does not have. That opacity is a bug for the bot's
+ *  Effect Script VALUE MODEL (`convex/gre/ai/cardScriptValue.ts`), which walks
+ *  an ability's `effects[]`/`aiEffects[]` off the `CardDefinition` alone: with
+ *  no view of the gate it values EVERY gated ability as if it always fires.
+ *  The reference case is Evoke — a hard-cast Incarnation was charged the evoke
+ *  self-sacrifice (−40) for a trigger that can never fire on it.
+ *
+ *  `matches` remains the SOLE execution authority: nothing in the GRE's trigger
+ *  scan reads this field, so a stale or absent gate can never change which
+ *  triggers fire. Two shapes, by what a reader can do with them:
+ *
+ *   • `{ onSelf }` — decidable from the SOURCE permanent alone (Evoke's "if its
+ *     evoke cost was paid" = `self.evoked === true`, Dash's `self.dashed`). A
+ *     reader holding the instance evaluates it exactly; one holding only the
+ *     definition falls back to the weight.
+ *   • `{ undecidable: true }` — genuinely gated, but on the firing event or
+ *     wider board state a reader cannot reconstruct. Never decided, only
+ *     weighted. */
+export type TriggerGate =
+    | { readonly onSelf: (self: PermanentView) => boolean }
+    | { readonly undecidable: true };
+
+/** The `TriggerGate` for a gate a reader cannot decide — a shared frozen
+ *  singleton so the trigger factories all mark the same object. */
+export const UNDECIDABLE_TRIGGER_GATE: TriggerGate = Object.freeze({
+    undecidable: true as const,
+});
+
 export interface TriggeredAbility {
     id: string;
     /** Oracle text shown on the stack and in context menus. */
     oracleText: string;
+    /** CR 603.4 check-time gate, restated for non-engine readers — see
+     *  {@link TriggerGate}. Set by the trigger factories whenever the author
+     *  supplied a `condition` / `conditionOnSelf`; absent means "this ability
+     *  fires whenever its event matches", which is what a reader assumes by
+     *  default. Never consulted by the engine (`matches` is the authority). */
+    gate?: TriggerGate;
     /** Which event kind(s) can fire this ability — used to index-filter before
      *  `matches()`. A scalar for the common single-event case; an ARRAY when a
      *  single Oracle sentence spans several engine events (CR 603.2), e.g.

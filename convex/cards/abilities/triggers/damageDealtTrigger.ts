@@ -30,6 +30,7 @@ import {
     passesTargetPlayerFilter,
     type DamageSourceScope,
     type DamageTriggerPayload,
+    withTriggerGate,
 } from "./shared";
 
 /** Discriminator over the target of the damage event. CR 120.3 — damage is
@@ -158,5 +159,5 @@ export function damageDealtTrigger(
             state?: TriggerStateView
         ) => isDamageDealtEvent(event) && interveningIf(event, self, state);
     }
-    return ability;
+    return withTriggerGate(ability, args);
 }

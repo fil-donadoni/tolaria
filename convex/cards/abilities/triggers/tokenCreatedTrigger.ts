@@ -32,6 +32,7 @@ import type {
 } from "../../types";
 import type { PermanentFilter } from "../../filters";
 import { matchesPermanentFilter, type MatchablePermanent } from "../../filters";
+import { withTriggerGate } from "./shared";
 
 /** Controller-relation scope for a `TOKENS_CREATED` event, relative to the
  *  trigger's source (CR 109.2). "you" is the common case (Staff of the
@@ -178,5 +179,5 @@ export function tokenCreatedTrigger(
             return userInterveningIf(event, self, state);
         };
     }
-    return ability;
+    return withTriggerGate(ability, args);
 }

@@ -26,6 +26,7 @@ import type {
     TriggerStateView,
     TriggeredAbility,
 } from "../../types";
+import { withTriggerGate } from "./shared";
 
 /** Whose discard fires the trigger, relative to the source's controller. */
 export type DiscardTriggerScope = "your" | "each" | "opponents";
@@ -114,5 +115,5 @@ export function discardTrigger(args: DiscardTriggerArgs): TriggeredAbility {
         };
     }
 
-    return ability;
+    return withTriggerGate(ability, args);
 }

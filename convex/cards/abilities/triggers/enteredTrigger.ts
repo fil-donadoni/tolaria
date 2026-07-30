@@ -22,7 +22,11 @@ import type {
 } from "../../types";
 import type { PermanentFilter } from "../../filters";
 import { matchesPermanentFilter, type MatchablePermanent } from "../../filters";
-import { matchesPermanentScope, type PermanentScope } from "./shared";
+import {
+    matchesPermanentScope,
+    withTriggerGate,
+    type PermanentScope,
+} from "./shared";
 
 /** Flattened payload (CR 603.6a) handed to an `enteredTrigger`'s resolve
  *  callback. The entering permanent is freshly on the battlefield by the time
@@ -63,6 +67,17 @@ export interface EnteredTriggerArgs {
         self: PermanentView,
         state?: TriggerStateView
     ) => boolean;
+    /** CR 603.4 check-time predicate NARROWED to the source permanent alone —
+     *  the decidable form of `condition` (issue #1936). Gates `matches`
+     *  identically; the difference is that it is also retained on the built
+     *  ability as a `{ onSelf }` `TriggerGate`, so a reader holding the
+     *  instance (the bot's Effect Script value model) can decide whether this
+     *  ability fires instead of assuming it always does. Prefer it over
+     *  `condition` whenever the predicate reads only `self` — the "if its
+     *  evoke/dash cost was paid" alternative-cost markers are the reference
+     *  shape. Mutually exclusive with `condition` in practice (supplying both
+     *  gates on both, but only this one is retained). */
+    conditionOnSelf?: (self: PermanentView) => boolean;
     /** CR 603.4d intervening-if predicate. Evaluated at trigger-fire AND
      *  re-evaluated by the engine at resolve time; if false at resolve, the
      *  trigger fizzles (no `resolve` invocation, TRIGGER_FIZZLED event
@@ -145,6 +160,12 @@ export function enteredTrigger(args: EnteredTriggerArgs): TriggeredAbility {
             ) {
                 return false;
             }
+            if (
+                args.conditionOnSelf !== undefined &&
+                !args.conditionOnSelf(self)
+            ) {
+                return false;
+            }
             return true;
         },
         // ADR 0045 (issues #803/#727) — a declarative Effect Script bypasses
@@ -180,5 +201,5 @@ export function enteredTrigger(args: EnteredTriggerArgs): TriggeredAbility {
             return userInterveningIf(event, self, state);
         };
     }
-    return ability;
+    return withTriggerGate(ability, args);
 }

@@ -28,8 +28,10 @@ import type {
     PermanentView,
     PhaseBeginEvent,
     TargetSelection,
+    TriggeredAbility,
     TriggerStateView,
 } from "../../types";
+import { UNDECIDABLE_TRIGGER_GATE } from "../../types";
 import type {
     DamageSourceFilter,
     FilterMatchContext,
@@ -335,4 +337,33 @@ export function isDamageDealtEvent(event: {
     type: string;
 }): event is DamageDealtEvent {
     return event.type === "DAMAGE_DEALT";
+}
+
+// ---------------------------------------------------------------------------
+// 4. Check-time gate marking (CR 603.4, issue #1936)
+// ---------------------------------------------------------------------------
+
+/** Stamps the built ability with the `TriggerGate` implied by the factory
+ *  args — the ONE place the trigger factories record that an ability is gated,
+ *  so a non-engine reader (the bot's Effect Script value model) stops valuing
+ *  a conditional ability as if it always fires. See {@link TriggerGate}.
+ *
+ *  `conditionOnSelf` (decidable from the source permanent alone) wins over a
+ *  plain `condition` (opaque — it may read the firing event or the wider
+ *  board); an ability with neither is left ungated. Every factory that accepts
+ *  a `condition` MUST route its return through this helper —
+ *  `convex/gre/ai/__tests__/triggerGate.bot.test.ts` fails when one doesn't. */
+export function withTriggerGate<T extends TriggeredAbility>(
+    ability: T,
+    args: {
+        condition?: unknown;
+        conditionOnSelf?: (self: PermanentView) => boolean;
+    }
+): T {
+    if (args.conditionOnSelf !== undefined) {
+        ability.gate = { onSelf: args.conditionOnSelf };
+    } else if (args.condition !== undefined) {
+        ability.gate = UNDECIDABLE_TRIGGER_GATE;
+    }
+    return ability;
 }

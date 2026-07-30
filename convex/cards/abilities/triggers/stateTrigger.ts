@@ -30,6 +30,7 @@ import type {
     TriggerStateView,
     TriggeredAbility,
 } from "../../types";
+import { withTriggerGate } from "./shared";
 
 export interface StateTriggerArgs {
     /** Unique-per-card ability id. Surfaces on the stack item and in tests. */
@@ -57,29 +58,35 @@ export interface StateTriggerArgs {
  *  declarative `effects[]` script — mutually exclusive). */
 export function stateTrigger(args: StateTriggerArgs): TriggeredAbility {
     const { id, oracleText, condition, resolve, effects } = args;
-    return {
-        id,
-        oracleText,
-        event: "STATE_CHECK",
-        matches: (event: GameEvent, self, state) => {
-            if (event.type !== "STATE_CHECK") return false;
-            if (!state) return false;
-            return condition(self, state);
+    // CR 603.8 — a state trigger is gated BY DEFINITION (its predicate IS the
+    // trigger). The gate reads the wider board, so it is undecidable for a
+    // reader holding only the card definition (issue #1936).
+    return withTriggerGate(
+        {
+            id,
+            oracleText,
+            event: "STATE_CHECK",
+            matches: (event: GameEvent, self, state) => {
+                if (event.type !== "STATE_CHECK") return false;
+                if (!state) return false;
+                return condition(self, state);
+            },
+            // CR 603.8 — the predicate is re-checked at resolution. If the
+            // persistent state has changed since the trigger went on the stack,
+            // the engine fizzles the trigger without invoking `resolve`/`effects`
+            // and emits a `TRIGGER_FIZZLED` event for downstream observers.
+            interveningIf: (_event, self, state) => {
+                if (!state) return false;
+                return condition(self, state);
+            },
+            ...(effects
+                ? { effects }
+                : {
+                      resolve: (ctx: SpellContext) => {
+                          resolve?.(ctx);
+                      },
+                  }),
         },
-        // CR 603.8 — the predicate is re-checked at resolution. If the
-        // persistent state has changed since the trigger went on the stack,
-        // the engine fizzles the trigger without invoking `resolve`/`effects`
-        // and emits a `TRIGGER_FIZZLED` event for downstream observers.
-        interveningIf: (_event, self, state) => {
-            if (!state) return false;
-            return condition(self, state);
-        },
-        ...(effects
-            ? { effects }
-            : {
-                  resolve: (ctx: SpellContext) => {
-                      resolve?.(ctx);
-                  },
-              }),
-    };
+        args
+    );
 }

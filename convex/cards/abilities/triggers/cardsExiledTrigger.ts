@@ -27,6 +27,7 @@ import type {
     TriggeredAbility,
     TriggerStateView,
 } from "../../types";
+import { withTriggerGate } from "./shared";
 
 /** Zone an exiled card can have come from (mirrors `CardsExiledEvent.cards[].fromZone`). */
 export type CardsExiledFromZone =
@@ -169,5 +170,5 @@ export function cardsExiledTrigger(
             return userInterveningIf(event, self, state);
         };
     }
-    return ability;
+    return withTriggerGate(ability, args);
 }

@@ -25,7 +25,11 @@ import type {
     CardType,
 } from "../../types";
 import { matchesPermanentFilter, type PermanentFilter } from "../../filters";
-import { matchesPermanentScope, type PermanentScope } from "./shared";
+import {
+    matchesPermanentScope,
+    type PermanentScope,
+    withTriggerGate,
+} from "./shared";
 
 export interface TappedTriggerArgs {
     /** Stable id on the source CardDefinition's triggeredAbilities[]. */
@@ -190,5 +194,5 @@ export function tappedTrigger(args: TappedTriggerArgs): TriggeredAbility {
         };
     }
 
-    return ability;
+    return withTriggerGate(ability, args);
 }

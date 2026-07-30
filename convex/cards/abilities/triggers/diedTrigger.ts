@@ -18,7 +18,11 @@ import type {
 } from "../../types";
 import type { PermanentFilter } from "../../filters";
 import { matchesPermanentFilter, type MatchablePermanent } from "../../filters";
-import { matchesPermanentScope, type PermanentScope } from "./shared";
+import {
+    matchesPermanentScope,
+    type PermanentScope,
+    withTriggerGate,
+} from "./shared";
 
 /** Last-known-information payload (CR 603.10) handed to a `diedTrigger`'s
  *  resolve callback. The dying creature has already left the battlefield by
@@ -163,5 +167,5 @@ export function diedTrigger(args: DiedTriggerArgs): TriggeredAbility {
             return userInterveningIf(event, self, state);
         };
     }
-    return ability;
+    return withTriggerGate(ability, args);
 }
