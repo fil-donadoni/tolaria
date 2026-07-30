@@ -321,6 +321,22 @@ function analyseValue(value: EffectValue, req: Requirements): void {
     if (value.count.acrossAllPlayers) {
         req.skip ??= `count set spans all players' zones — not faithfully sizable in a canned scenario`;
     }
+    // issue #783 — the MIN-across-players sibling of `acrossAllPlayers`, and
+    // the same reason: the filler seeds ONE player's zone, so the other
+    // player's (unseeded, therefore 0) count would be the minimum and the
+    // predicted amount would be wrong rather than skipped. Skip-with-reason —
+    // the construct's hand-written interpreter test is the guarantor.
+    if (value.count.smallestAcrossPlayers) {
+        req.skip ??= `count set takes the SMALLEST count across all players' zones — not faithfully sizable in a canned scenario`;
+    }
+    // issue #783 — a LIBRARY count set. The library is also the zone the
+    // generator seeds for DRAWING players at a fixed depth, so its size is not
+    // a free variable the count filler owns; predicting COUNT_SET_SIZE there
+    // would be a silently wrong assertion (the generator's contract is an
+    // explicit skip with a reason, never a silent pass).
+    if (value.count.zone === "library") {
+        req.skip ??= `count set counts a LIBRARY — the canned generator's library depth is owned by the draw filler, not the count filler`;
+    }
     if (value.count.filter?.name !== undefined) {
         req.skip ??= `count set filters by card name "${value.count.filter.name}" — filler doesn't synthesize an exact name`;
     }
@@ -628,6 +644,15 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // execution coverage comes from the Op's own interpreter tests and
             // the migrated cards' suspension/resume tests (per-Op regime).
             req.skip ??= `Op "digToHand" suspends for a look-distribute pick — covered by the Op's interpreter tests`;
+            return;
+        case "hideaway":
+            // CR 702.75a (issue #783) — same shape as `digToHand`: the Op
+            // suspends on a live look-distribute pick that a canned scenario
+            // cannot submit, and its outcome (a FACE-DOWN exile whose identity
+            // is per-viewer) is not a state delta the generator asserts.
+            // Explicit skip; execution coverage is the Op's own interpreter
+            // tests plus the wire-format both-viewpoints assertion.
+            req.skip ??= `Op "hideaway" suspends for a look-distribute pick and exiles face down — covered by the Op's interpreter tests`;
             return;
         case "revealAndCategorize":
             // Same shape as `digToHand` (issue #1364): the Op suspends on a
@@ -1221,10 +1246,18 @@ function buildScenario(req: Requirements): Scenario | { skip: string } {
             COUNT_SET_SIZE,
             `gen-cnt-${spec.zone}`
         );
+        // Bank the filler in the zone the spec actually names. The `else` that
+        // used to catch everything-but-battlefield pushed a `zone: "library"`
+        // spec's bank into the GRAVEYARD (issue #783 review), so the predicted
+        // count could never match the real one. `analyseValue` now
+        // skip-with-reasons a library count set outright, but the branch is
+        // explicit here too so this filler can never again seed the wrong zone.
         if (spec.zone === "battlefield") {
             (owner === CASTER_ID ? p1Bf : p2Bf).push(...bank);
-        } else {
+        } else if (spec.zone === "graveyard") {
             (owner === CASTER_ID ? p1Gy : p2Gy).push(...bank);
+        } else {
+            (owner === CASTER_ID ? p1Library : p2Library).push(...bank);
         }
     }
 
@@ -1958,6 +1991,13 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // scenario can assert). Kept for the 1:1 coverage guard; the look / keep /
     // bottom is covered by the Op's own interpreter tests.
     digToHand() {
+        return null;
+    },
+    // `hideaway` (CR 702.75a, issue #783) — never reached: `analyseOp` skips
+    // every script carrying it (it suspends on a live look-distribute pick).
+    // Kept for the 1:1 coverage guard; the look / face-down exile / CR 607 link
+    // / random bottom is covered by the Op's own interpreter tests.
+    hideaway() {
         return null;
     },
     // `revealAndCategorize` (CR 701.20a / 401.4, issue #1364) — never reached:

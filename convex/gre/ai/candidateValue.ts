@@ -265,56 +265,106 @@ function matchesCountFilter(
     return true;
 }
 
+/** The cards `spec.zone` names in ONE player's zone — EXHAUSTIVE over
+ *  `EffectCountSpec["zone"]`, and the `never` default is the whole point. The
+ *  permissive ternary this replaces (`zone === "battlefield" ? battlefield :
+ *  graveyard`) FAILED OPEN on every zone member added after it was written:
+ *  `zone: "library"` (issue #783) silently read the GRAVEYARD, i.e. a wrong
+ *  bot valuation with nothing to catch it. A future zone member must now break
+ *  the BUILD here instead. */
+function countZoneCardsFor(
+    state: GameState,
+    playerId: string,
+    zone: EffectCountSpec["zone"]
+): readonly CardInstanceState[] {
+    const player = getPlayer(state, playerId);
+    switch (zone) {
+        case "battlefield":
+            return player.battlefield;
+        case "graveyard":
+            return player.graveyard;
+        // CR 401 (issue #783) — a library count is a pure CARDINALITY read (the
+        // validator rejects a `filter` there), so the pile size IS the count.
+        case "library":
+            return player.library;
+        default: {
+            const exhaustive: never = zone;
+            return exhaustive;
+        }
+    }
+}
+
+/** One player's `spec` count (CR 122), before the `times` multiplier. Shared by
+ *  every scope branch of `resolveCountSpecAgainstBoard` so they can never
+ *  disagree about what "the count" means. */
+function countSpecForPlayer(
+    state: GameState,
+    playerId: string,
+    spec: EffectCountSpec
+): number {
+    const matching = countZoneCardsFor(state, playerId, spec.zone).filter((c) =>
+        matchesCountFilter(c, spec.filter)
+    );
+    // Delirium (CR 205) — distinct card TYPES among graveyard cards, not cards.
+    return spec.zone === "graveyard" && spec.countTypes
+        ? new Set(matching.flatMap((c) => c.types)).size
+        : matching.length;
+}
+
 /** Real cardinality of `spec` (CR 122 counting, `EffectCount`'s `{ count }`
  *  construct) against the LIVE board — the genuinely context-aware read
- *  `contextFreeGrounding` can only approximate at a representative 1. */
+ *  `contextFreeGrounding` can only approximate at a representative 1.
+ *
+ *  Every scope member of `EffectCountSpec` is threaded explicitly: an
+ *  unhandled one used to fall through to the single-player branch and read the
+ *  PERSPECTIVE player's zone, which answers a DIFFERENT question rather than
+ *  admitting it can't answer this one. */
 function resolveCountSpecAgainstBoard(
     state: GameState,
     perspectivePlayerId: string,
     spec: EffectCountSpec
 ): number {
-    const zoneOf = (playerId: string) =>
-        spec.zone === "battlefield"
-            ? getPlayer(state, playerId).battlefield
-            : getPlayer(state, playerId).graveyard;
-    let count: number;
+    const times = spec.times ?? 1;
+    // CR 122 — "in all graveyards" (Accumulated Knowledge, issue #985): SUM
+    // every player's count. The graveyard+countTypes shape unions the TYPES
+    // across players instead (four types split over two graveyards is four,
+    // not eight).
     if (spec.acrossAllPlayers) {
         if (spec.zone === "graveyard" && spec.countTypes) {
             const types = new Set<string>();
             for (const p of state.players) {
-                for (const c of zoneOf(p.id)) {
+                for (const c of countZoneCardsFor(state, p.id, spec.zone)) {
                     if (matchesCountFilter(c, spec.filter))
                         for (const t of c.types) types.add(t);
                 }
             }
-            count = types.size;
-        } else {
-            count = state.players.reduce(
-                (sum, p) =>
-                    sum +
-                    zoneOf(p.id).filter((c) =>
-                        matchesCountFilter(c, spec.filter)
-                    ).length,
-                0
-            );
+            return times * types.size;
         }
-    } else {
-        const pid = spec.controller
-            ? (resolveFixedPlayerRef(
-                  state,
-                  perspectivePlayerId,
-                  spec.controller
-              ) ?? perspectivePlayerId)
-            : perspectivePlayerId;
-        const matching = zoneOf(pid).filter((c) =>
-            matchesCountFilter(c, spec.filter)
+        return (
+            times *
+            state.players.reduce(
+                (sum, p) => sum + countSpecForPlayer(state, p.id, spec),
+                0
+            )
         );
-        count =
-            spec.zone === "graveyard" && spec.countTypes
-                ? new Set(matching.flatMap((c) => c.types)).size
-                : matching.length;
     }
-    return count * (spec.times ?? 1);
+    // CR 122 (issue #783) — the SMALLEST per-player count: `acrossAllPlayers`'
+    // MIN sibling, and exactly "SOME player's zone has N or fewer cards"
+    // (Shelldock Isle's "if a library has twenty or fewer cards in it").
+    // Mirrors `countSet`'s branch in the interpreter (`gre/effects/
+    // interpreter.ts`) — `controller` is absent in this mode, so falling
+    // through below silently priced the perspective player's own zone.
+    if (spec.smallestAcrossPlayers) {
+        const sizes = state.players.map((p) =>
+            countSpecForPlayer(state, p.id, spec)
+        );
+        return times * (sizes.length > 0 ? Math.min(...sizes) : 0);
+    }
+    const pid = spec.controller
+        ? (resolveFixedPlayerRef(state, perspectivePlayerId, spec.controller) ??
+          perspectivePlayerId)
+        : perspectivePlayerId;
+    return times * countSpecForPlayer(state, pid, spec);
 }
 
 /** Real member count of `select` (`EffectForEachSelector`) against the LIVE

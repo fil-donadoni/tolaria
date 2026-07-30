@@ -726,11 +726,24 @@ function isCountValue(value: unknown): boolean {
         "controller",
         "filter",
         "acrossAllPlayers",
+        "smallestAcrossPlayers",
         "times",
         "countTypes",
     ]);
     if (!Object.keys(s).every((k) => allowed.has(k))) return false;
-    if (s.zone !== "battlefield" && s.zone !== "graveyard") return false;
+    if (
+        s.zone !== "battlefield" &&
+        s.zone !== "graveyard" &&
+        s.zone !== "library"
+    ) {
+        return false;
+    }
+    // CR 401 (issue #783) — a `library` count is a pure cardinality read: the
+    // zone is hidden (CR 401.2) so there is nothing a filter could honestly
+    // match, and `countTypes` is a graveyard-only Delirium reading.
+    if (s.zone === "library" && ("filter" in s || "countTypes" in s)) {
+        return false;
+    }
     // issue #999 — an optional positive-integer multiplier ("twice the
     // number of …", Price of Progress). A literal only; no ref/X.
     if ("times" in s) {
@@ -741,8 +754,15 @@ function isCountValue(value: unknown): boolean {
     }
     // CR 122 — `acrossAllPlayers` (issue #985) sums every player's zone and is
     // mutually exclusive with a `controller` (which names ONE player's zone).
+    // CR 122 — `smallestAcrossPlayers` (issue #783) takes the MIN over every
+    // player's zone ("a library has twenty or fewer cards in it"); like the sum
+    // form it names no single player, so it excludes `controller` — and the two
+    // all-players forms exclude each other (sum and min are different reads).
     if ("acrossAllPlayers" in s) {
         if (s.acrossAllPlayers !== true) return false;
+        if ("controller" in s || "smallestAcrossPlayers" in s) return false;
+    } else if ("smallestAcrossPlayers" in s) {
+        if (s.smallestAcrossPlayers !== true) return false;
         if ("controller" in s) return false;
     } else if (!isPlayerRef(s.controller)) {
         return false;
@@ -1278,6 +1298,20 @@ function isBareRef(value: unknown): boolean {
 /** Alias for readability at picks positions (`discard.cards`,
  *  `sacrifice.permanents`). */
 const isBarePicksRef = isBareRef;
+
+/** `{ exiledWithSource: true }` — SHAPE of the CR 607 linked-exile selector
+ *  (issue #783). A single key holding the literal `true`; the cards it names are
+ *  read at resolution from `getCardsExiledWith(ctx.sourceInstanceId)`, so it
+ *  carries no other data and needs no ref pass. */
+function isExiledWithSourceSelector(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    return (
+        keys.length === 1 &&
+        keys[0] === "exiledWithSource" &&
+        (value as { exiledWithSource: unknown }).exiledWithSource === true
+    );
+}
 
 /** `{ ref: "$event.<field>" }` — a trigger-event ref (ADR 0049, issue #865).
  *  SHAPE only: a single `ref` key holding an `$event.field` string. Site
@@ -2061,7 +2095,16 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // "exile")` Op picked. `card` is a bare picks ref; `player` names the
     // grantee; `window`/`withoutPayingManaCost` are optional.
     grantCastFromExile: {
-        required: { card: isBarePicksRef, player: isPlayerRef },
+        required: {
+            // A bare picks ref (a preceding `choice(zone: "exile")` pick), OR
+            // the CR 607 linked-exile selector `{ exiledWithSource: true }`
+            // (issue #783 — Hideaway's "you may play the exiled card": the card
+            // THIS ability's own source exiled, which no binding can name
+            // because the two abilities resolve separately).
+            card: (v: unknown) =>
+                isExiledWithSourceSelector(v) || isBarePicksRef(v),
+            player: isPlayerRef,
+        },
         optional: {
             window: (v: unknown) => v === "this-turn" || v === "while-exiled",
             withoutPayingManaCost: isBoolean,
@@ -2802,6 +2845,24 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             // CR 701.20a — public reveal of the looked-at window ("window") or
             // only the kept cards ("kept"); omit for a private look (CR 401.4).
             reveal: isRevealScope,
+        },
+    },
+    // CR 702.75a (issue #783) — HIDEAWAY: look at the top `look` cards, exile
+    // exactly ONE face down (linked to the source, CR 607), bottom the rest in a
+    // random order. `digToHand`'s vocabulary minus every choice the keyword does
+    // not offer: no `take` (always exactly one), no `filter` (any of the looked-at
+    // cards is eligible), no `optional` (not a "may"), no `destination` (always
+    // the library bottom), no `randomBottom` (always random), no `reveal` (the
+    // look is private and the exile is face down), no `bind` (nothing later in
+    // the same script reads the exiled card — the CR 607 link does, from a
+    // DIFFERENT ability's resolution).
+    hideaway: {
+        required: {
+            player: isPlayerRef,
+            look: isEffectValue,
+        },
+        optional: {
+            prompt: isNonEmptyString,
         },
     },
     // CR 701.20a + CR 401.4 (issue #1364) — reveal a fixed top-N window once,

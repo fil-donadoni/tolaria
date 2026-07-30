@@ -3244,3 +3244,165 @@ describe("validateEffectScript — exileSelf/shuffleSelfIntoLibrary rejected on 
         expect(errors).toEqual([]);
     });
 });
+
+// --- hideaway Op + its two supporting vocabulary additions (CR 702.75, issue
+// #783) ----------------------------------------------------------------------
+describe("hideaway Op + linked-exile / library-count vocabulary (CR 702.75, issue #783)", () => {
+    it("accepts the hideaway Op with just player + look", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        { op: "hideaway", player: "controller", look: 4 },
+                    ],
+                })
+            )
+        ).toEqual([]);
+    });
+
+    it("rejects a hideaway Op carrying digToHand vocabulary the keyword does not offer", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    // `take` / `destination` / `optional` are deliberately NOT
+                    // part of hideaway (CR 702.75a exiles exactly one card to a
+                    // fixed destination, and it is not a "may").
+                    {
+                        op: "hideaway",
+                        player: "controller",
+                        look: 4,
+                        take: 2,
+                    } as unknown as EffectOp,
+                ],
+            })
+        );
+        expect(errors.length).toBeGreaterThan(0);
+    });
+
+    /** An activated-ability effect-script host (the shape
+     *  `validateAbilityEffectScript` takes — the ABILITY, not the card). */
+    const abilityHost = (effects: EffectOp[]) => ({
+        id: "play-hidden",
+        oracleText: "{U}, {T}: You may play the exiled card.",
+        cost: { mana: { U: 1 }, tap: true },
+        useStack: true,
+        effects,
+    });
+
+    it("accepts grantCastFromExile with the CR 607 linked-exile selector", () => {
+        expect(
+            validateAbilityEffectScript(
+                abilityHost([
+                    {
+                        op: "grantCastFromExile",
+                        card: { exiledWithSource: true },
+                        player: "controller",
+                        window: "this-turn",
+                        withoutPayingManaCost: true,
+                        includesLand: true,
+                    },
+                ]),
+                "Test Host"
+            )
+        ).toEqual([]);
+    });
+
+    it("rejects a malformed linked-exile selector", () => {
+        const errors = validateAbilityEffectScript(
+            abilityHost([
+                {
+                    op: "grantCastFromExile",
+                    card: { exiledWithSource: false },
+                    player: "controller",
+                } as unknown as EffectOp,
+            ]),
+            "Test Host"
+        );
+        expect(errors.length).toBeGreaterThan(0);
+    });
+
+    const libraryGate = (spec: Record<string, unknown>): EffectOp[] => [
+        {
+            op: "if",
+            predicate: {
+                left: { count: spec },
+                op: "le",
+                right: 20,
+            },
+            then: [{ op: "draw", player: "controller", count: 1 }],
+        } as unknown as EffectOp,
+    ];
+
+    it("accepts a library count scoped to one player and to the all-players minimum", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: libraryGate({
+                        zone: "library",
+                        controller: "controller",
+                    }),
+                })
+            )
+        ).toEqual([]);
+        expect(
+            validateEffectScript(
+                host({
+                    effects: libraryGate({
+                        zone: "library",
+                        smallestAcrossPlayers: true,
+                    }),
+                })
+            )
+        ).toEqual([]);
+    });
+
+    it("rejects a filtered or type-counted library count — the zone is hidden, nothing honest to match", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: libraryGate({
+                        zone: "library",
+                        controller: "controller",
+                        filter: { type: "Creature" },
+                    }),
+                })
+            ).length
+        ).toBeGreaterThan(0);
+        expect(
+            validateEffectScript(
+                host({
+                    effects: libraryGate({
+                        zone: "library",
+                        controller: "controller",
+                        countTypes: true,
+                    }),
+                })
+            ).length
+        ).toBeGreaterThan(0);
+    });
+
+    it("rejects mixing smallestAcrossPlayers with a controller or with acrossAllPlayers", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: libraryGate({
+                        zone: "library",
+                        smallestAcrossPlayers: true,
+                        controller: "controller",
+                    }),
+                })
+            ).length
+        ).toBeGreaterThan(0);
+        expect(
+            validateEffectScript(
+                host({
+                    effects: libraryGate({
+                        zone: "graveyard",
+                        smallestAcrossPlayers: true,
+                        acrossAllPlayers: true,
+                    }),
+                })
+            ).length
+        ).toBeGreaterThan(0);
+    });
+});

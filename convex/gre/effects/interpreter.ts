@@ -865,6 +865,18 @@ function countSet(ctx: SpellContext, spec: EffectCountSpec): number {
             )
         );
     }
+    // CR 122 — the SMALLEST per-player count (issue #783, Shelldock Isle's "if
+    // a library has twenty or fewer cards in it"): `min(sizes) <= N` is exactly
+    // "SOME player's zone has N or fewer cards", which is what the Oracle's
+    // indefinite article ("a library") means. `controller` is ignored in this
+    // mode, like the sum branch above.
+    if (spec.smallestAcrossPlayers) {
+        const sizes = ctx.allPlayerIds.map((pid) =>
+            countZoneForPlayer(ctx, pid, spec)
+        );
+        // No players at all cannot happen in a live game; 0 keeps the read total.
+        return times * (sizes.length > 0 ? Math.min(...sizes) : 0);
+    }
     const playerId = resolvePlayerRef(ctx, spec.controller!);
     if (playerId === undefined) return 0;
     return times * countZoneForPlayer(ctx, playerId, spec);
@@ -880,6 +892,13 @@ function countZoneForPlayer(
     if (spec.zone === "battlefield") {
         return ctx.getBattlefieldIds(playerId, toPermanentFilter(spec.filter))
             .length;
+    }
+    // library (CR 401, issue #783) — a pure CARDINALITY read. The library is a
+    // hidden zone (CR 401.2) but its SIZE is public information every player may
+    // count, so there is nothing to filter (the validator rejects a `filter`
+    // here) and no knowledge is granted by asking.
+    if (spec.zone === "library") {
+        return ctx.getLibraryCards(playerId).length;
     }
     // graveyard (CR 404) — filter by the shared card-filter matcher, mirroring
     // the battlefield branch. An absent filter imposes no constraint.
@@ -1620,23 +1639,40 @@ export const OP_EXECUTORS: {
     grantCastFromExile(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return;
-        const ids = resolvePicks(ctx, op.card);
+        // CR 607 linked abilities (issue #783) — `{ exiledWithSource: true }`
+        // names the card(s) THIS ability's own source permanent exiled and
+        // stamped via `linkExileToSource` (Hideaway's "you may play the exiled
+        // card", CR 702.75). No player choice and no binding: a `bind` cannot
+        // span the two separate resolutions of a linked pair of abilities, and
+        // the link is the CR's own answer to "which exiled card". Hideaway links
+        // exactly one card, but a source that linked several grants all of them
+        // — the link IS the identity, so there is nothing to disambiguate.
+        let ids: string[] | undefined;
+        if ("exiledWithSource" in op.card) {
+            ids = ctx.getCardsExiledWith(ctx.sourceInstanceId).map((c) => c.id);
+        } else {
+            // Historical picks shape: the FIRST pick only (Dauthi Voidwalker
+            // picks exactly one card; no shipped card grants over a multi-pick).
+            const picks = resolvePicks(ctx, op.card);
+            ids = picks && picks.length > 0 ? [picks[0]] : undefined;
+        }
         if (!ids || ids.length === 0) return;
-        const cardInstanceId = ids[0];
-        const zoneOwnerId = ctx.getExileCardOwner(cardInstanceId);
-        if (zoneOwnerId === undefined) return;
-        ctx.grantCastFromExile(
-            cardInstanceId,
-            playerId,
-            zoneOwnerId,
-            op.window,
-            op.withoutPayingManaCost || op.includesLand
-                ? {
-                      withoutPayingManaCost: !!op.withoutPayingManaCost,
-                      includesLand: !!op.includesLand,
-                  }
-                : undefined
-        );
+        for (const cardInstanceId of ids) {
+            const zoneOwnerId = ctx.getExileCardOwner(cardInstanceId);
+            if (zoneOwnerId === undefined) continue;
+            ctx.grantCastFromExile(
+                cardInstanceId,
+                playerId,
+                zoneOwnerId,
+                op.window,
+                op.withoutPayingManaCost || op.includesLand
+                    ? {
+                          withoutPayingManaCost: !!op.withoutPayingManaCost,
+                          includesLand: !!op.includesLand,
+                      }
+                    : undefined
+            );
+        }
     },
     // CR 601.3e / 117.6-analog (issue #1344) — grant cast permission
     // (optionally a mana-cost waiver) for a graveyard card. Two selector
@@ -2747,6 +2783,70 @@ export const OP_EXECUTORS: {
             randomBottom,
             chosenBottom,
             destination
+        );
+    },
+    // CR 702.75a (issue #783) — HIDEAWAY: look at the top `look` cards, exile
+    // ONE face down (visible to its controller alone, CR 406.3), and bottom the
+    // rest in a random order (CR 401.4). Structurally `digToHand` with the kept
+    // card routed to face-down, source-LINKED exile instead of to hand, and it
+    // reuses digToHand's whole tail verbatim: the same `look-distribute`
+    // `requestChoice` and the same `bottomLookedAtCards` split. The link
+    // (`linkExileToSource`, CR 607) is what a LATER "you may play the exiled
+    // card" ability on the same permanent reads back — `grantCastFromExile`'s
+    // `{ exiledWithSource: true }` selector. Skipped (never suspends) when the
+    // player is gone, `look` <= 0, or the library is empty (CR 608.2b).
+    hideaway(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return; // CR 608.2b — player gone, skip
+        const look = resolveValue(ctx, op.look);
+        if (look === undefined || look <= 0) return;
+        const topIds = ctx.peekLibraryTop(playerId, look);
+        if (topIds.length === 0) return; // empty library — no look, no suspend
+        const picks = ctx.requestChoice({
+            playerId,
+            // A fixed choiceId is unique per Op position: the pipeline keys on
+            // `step:choiceId` and `step` IS this Op's checkpointed position.
+            choiceId: "hideaway",
+            kind: "look-distribute",
+            zone: "library",
+            candidateIds: topIds,
+            // CR 702.75a exiles EXACTLY one of the looked-at cards — not a
+            // "may", and never more than one.
+            count: { min: 1, max: 1 },
+            destination: "library-bottom",
+            // "put the rest on the bottom ... in a RANDOM order" — no ordering
+            // pick for the client to mount, and no knowledge granted below.
+            randomizeRest: true,
+            prompt:
+                op.prompt ??
+                "Choose a card to exile face down; the rest go on the bottom of your library in a random order.",
+        });
+        if (picks === undefined) return "suspend"; // enqueued — wait
+        const chosen = picks[0];
+        if (chosen !== undefined) {
+            // CR 702.75a / 406.3 — exiled FACE DOWN, and the permanent's
+            // controller (and only they) may look at it for as long as it stays
+            // in exile. `exileFaceDown` grants `knownTo: [controller]`, which is
+            // exactly the per-viewer gate `projectExileCard` re-derives on the
+            // wire: the controller's projection carries the real identity, every
+            // other viewer's carries the face-down sentinel.
+            ctx.exileFaceDown(playerId, chosen, "library", playerId);
+            // CR 607 / 702.75a — link the exiled card to THIS permanent so the
+            // later "play the exiled card" ability can only ever reach the card
+            // this ability exiled.
+            ctx.linkExileToSource(chosen, ctx.sourceInstanceId);
+        }
+        // The un-exiled looked-at cards go to the true bottom, unordered and
+        // unknown (`randomBottom` = true). The exiled card is already out of the
+        // library, so it can never be re-bottomed here.
+        bottomLookedAtCards(
+            ctx,
+            playerId,
+            topIds,
+            new Set(picks),
+            true,
+            [],
+            "library-bottom"
         );
     },
     // CR 701.20a + CR 401.4 (issue #1364) — reveal a fixed top-N window ONCE,

@@ -7202,6 +7202,40 @@ export function combatPartnerIds(state: GameState, id: string): string[] {
     return [...partners];
 }
 
+/** CR 400.7 / 607 — drops every per-source exile provenance link
+ *  (`exiledBySourceId`, issue #791) stamped by the permanent that is LEAVING
+ *  the battlefield, scoping the link to ONE battlefield existence of its
+ *  source.
+ *
+ *  Instance ids survive zone changes, and the stamp is otherwise cleared only
+ *  when the STAMPED card leaves exile — never when the STAMPING permanent
+ *  leaves the battlefield. So a permanent that left and came back read as the
+ *  same linking source as its previous incarnation, even though CR 400.7 makes
+ *  the returned permanent a NEW object whose CR 607 linked ability may refer
+ *  only to what its OWN exile did. Concretely: a bounced-and-replayed hideaway
+ *  land (CR 702.75, issue #783) whose first hidden card is still in exile
+ *  granted a free play of BOTH hidden cards; Currency Converter (issue #791)
+ *  could likewise retrieve a previous incarnation's exiles.
+ *
+ *  Cards linked to a permanent that is now gone simply stay in exile unlinked —
+ *  correct, since nothing on the battlefield can name them any more. Called
+ *  from the single battlefield-departure funnel below, so it covers dies /
+ *  sacrifice / destroy / bounce / exile alike. Deliberately NOT called for
+ *  phasing out (CR 702.26h — not a zone change) or a control change (the
+ *  permanent never leaves the battlefield). */
+function clearExileLinksFromDepartingSource(
+    state: GameState,
+    sourceInstanceId: string
+): void {
+    for (const player of state.players) {
+        for (const card of player.exile) {
+            if (card.exiledBySourceId === sourceInstanceId) {
+                delete card.exiledBySourceId;
+            }
+        }
+    }
+}
+
 /** Removes a permanent from battlefield and moves it to the target zone of its owner.
  *  When `toZone` is "hand" or "library", the card becomes a new object
  *  (CR 400.7) and battlefield-only transient state (tap, marked damage, regen
@@ -7304,6 +7338,10 @@ export function removePermanentTo(
     const found = findOnBattlefield(state, cardId);
     if (!found) return null;
     const [creature] = found.player.battlefield.splice(found.idx, 1);
+    // CR 400.7 / 607 — the departure ends this battlefield existence of the
+    // permanent, so every exile link IT stamped dies with it (see the helper's
+    // doc: a re-entering permanent is a new object and must not inherit them).
+    clearExileLinksFromDepartingSource(state, cardId);
     const wasCreature = creature.types.includes("Creature");
     const snapshotControllerId = creature.controllerId;
     const snapshotDamagedBy = creature.damagedBySources ?? [];

@@ -7842,6 +7842,15 @@ export type EffectMoveZone =
  *  binding or an unknown property path. */
 export type EffectRef = { ref: string };
 
+/** CR 607 linked abilities (issue #783) — "the card(s) exiled with this
+ *  permanent", i.e. every card in any exile zone stamped by
+ *  `SpellContext.linkExileToSource` with the resolving ability's own source
+ *  (`ctx.sourceInstanceId`). The selector shape a SECOND ability needs to reach
+ *  what a FIRST ability on the same permanent exiled, across two separate
+ *  resolutions (a `bind` cannot span them). Used by `grantCastFromExile`
+ *  (Hideaway, CR 702.75 — "you may play the exiled card"). */
+export type EffectExiledWithSourceSelector = { exiledWithSource: true };
+
 /** count — the size of a declaratively-selected set of cards (ADR 0045),
  *  the "for each …" numeric construct (CR 122 counting). No object handles
  *  escape: only the cardinality is produced. */
@@ -7852,8 +7861,12 @@ export type EffectCount = { count: EffectCountSpec };
 export interface EffectCountSpec {
     /** The zone whose cards are counted. `battlefield` counts permanents the
      *  player controls (CR 110); `graveyard` counts cards in the player's
-     *  graveyard (CR 404). */
-    zone: "battlefield" | "graveyard";
+     *  graveyard (CR 404); `library` counts cards in the player's library
+     *  (CR 401, issue #783 — Shelldock Isle's "if a library has twenty or
+     *  fewer cards in it"). A library count is a pure CARDINALITY read (the
+     *  library is hidden, CR 401.2, and its SIZE is public information) — a
+     *  `filter` is meaningless there and is rejected by the validator. */
+    zone: "battlefield" | "graveyard" | "library";
     /** Whose zone (CR 109.5 relative selectors). Required UNLESS
      *  `acrossAllPlayers` is set, in which case it is omitted (the count spans
      *  every player's zone, not one player's). */
@@ -7862,6 +7875,16 @@ export interface EffectCountSpec {
      *  graveyards" scope of Accumulated Knowledge, issue #985), summing each
      *  player's matching cards. Mutually exclusive with `controller`. */
     acrossAllPlayers?: boolean;
+    /** The SMALLEST per-player count across all players' zones (CR 122
+     *  counting, issue #783). The sibling of `acrossAllPlayers` — same
+     *  all-players scope, MIN instead of SUM — and what makes an "a zone has
+     *  N or fewer cards in it" clause expressible in ONE comparison rather
+     *  than one duplicated `if` leg per player: `min(sizes) <= N` is exactly
+     *  "SOME player's zone has N or fewer cards" (Shelldock Isle: "if a
+     *  library has twenty or fewer cards in it" — the Oracle says "a library",
+     *  i.e. ANY library including the controller's own). Mutually exclusive
+     *  with both `controller` and `acrossAllPlayers`. */
+    smallestAcrossPlayers?: boolean;
     /** Optional card filter (AND of the listed fields). Omitted = count all. */
     filter?: EffectCardFilter;
     /** Fixed integer multiplier applied to the counted cardinality (CR 122 —
@@ -8731,7 +8754,20 @@ export type EffectOp =
      *  608.2b). */
     | {
           op: "grantCastFromExile";
-          card: EffectRef;
+          /** Which exiled card the permission reaches. Two shapes:
+           *   - a bare PICKS ref (`{ ref: "$picked" }`) — the card a preceding
+           *     `choice(zone: "exile")` Op bound (Dauthi Voidwalker);
+           *   - `{ exiledWithSource: true }` (CR 607 linked abilities, issue
+           *     #783) — the card(s) the SOURCE permanent itself exiled and
+           *     stamped via `SpellContext.linkExileToSource`, read back through
+           *     `getCardsExiledWith(ctx.sourceInstanceId)`. This is the shape a
+           *     LINKED pair of abilities needs ("look at the top N, exile one
+           *     face down" + "you may play THE EXILED CARD"): the grant must
+           *     reach exactly the card the first ability exiled, with no player
+           *     choice and no binding to carry across two separate abilities'
+           *     resolutions. Skipped when the source linked nothing (CR
+           *     608.2b). */
+          card: EffectRef | EffectExiledWithSourceSelector;
           player: EffectPlayerRef;
           window?: "this-turn" | "while-exiled";
           withoutPayingManaCost?: boolean;
@@ -9636,6 +9672,43 @@ export type EffectOp =
            *  Omit for a purely private look/dig (Impulse, Domain, Brainstorm-
            *  style card selection), where nothing is shown to the opponent. */
           reveal?: "window" | "kept";
+      }
+    /** CR 702.75a (issue #783) — the HIDEAWAY keyword's effect: look at the top
+     *  `look` cards of `player`'s library, exile ONE of them FACE DOWN, and put
+     *  the rest on the bottom of that library in a random order. The exiled card
+     *  is stamped with the CR 607 link back to the resolving ability's source
+     *  permanent, which is what a later "you may play the exiled card" ability
+     *  reads (`grantCastFromExile`'s `{ exiledWithSource: true }` selector).
+     *
+     *  A thin declarative composition over primitives that already exist — no
+     *  new SpellContext primitive (ADR 0045 "generalize, don't add"):
+     *  `peekLibraryTop(look)` names the window, ONE suspending `look-distribute`
+     *  `requestChoice` (exactly `digToHand`'s picker, so the client mounts the
+     *  same simple grid — `randomizeRest` means there is no bottom-ordering
+     *  drag) drives the exile pick, `exileFaceDown` moves the pick to its
+     *  owner's exile granting `knownTo` to the controller ALONE (CR 406.3 — the
+     *  identity stays hidden from every other player, and the projection
+     *  re-derives the per-viewer gate purely from `knownTo`),
+     *  `linkExileToSource` stamps the CR 607 link, and the un-picked window is
+     *  bottomed through the SAME `bottomLookedAtCards` tail `digToHand` uses,
+     *  with `randomBottom` (CR 401.4's random order is unobservable for
+     *  face-down library cards, so no ordering pick and no knowledge grant).
+     *
+     *  Structurally `digToHand` with the kept card routed to FACE-DOWN,
+     *  SOURCE-LINKED EXILE instead of to hand — precisely what `digToHand`
+     *  cannot express (its kept cards always go to `player`'s hand, known to
+     *  that player, with no exile link). SUSPENDS like `choice` / `scryReorder`
+     *  / `digToHand`. Every miss is a CR 608.2b no-op: a gone player, a
+     *  non-positive `look`, or an empty library skips the Op and never suspends.
+     *
+     *  `look` is the keyword's N (`hideaway 4` → 4). Exactly ONE card is exiled
+     *  (CR 702.75a), so there is no `take` parameter. */
+    | {
+          op: "hideaway";
+          player: EffectPlayerRef;
+          look: EffectValue;
+          /** Optional prompt override for the look-distribute picker. */
+          prompt?: string;
       }
     /** CR 701.20a reveal + CR 401.4 (issue #1364) — reveal a fixed top-N
      *  window ONCE, then keep AT MOST ONE card per category from that single

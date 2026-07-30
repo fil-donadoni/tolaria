@@ -18,6 +18,7 @@ import { resolveTokenStaticEffects } from "./tokenStaticEffects";
 // (`convex/cards/emblems.ts`) is populated whenever the card catalogue loads.
 import "./emblems";
 import { expandFadingVanishing } from "./abilities/fadingVanishing";
+import { expandHideaway } from "./abilities/hideaway";
 import { expandKeywordTriggers } from "./abilities/keywordTriggers";
 import { expandChapterAbilities } from "./abilities/sagas";
 import { setCardManaCostLookup } from "./manaCostLookup";
@@ -537,9 +538,12 @@ const expandDefinition = (base: CardDefinition): CardDefinition => {
     // inject triggered abilities from a bare `staticAbilities` string.
     // ADR 0078 — `chapterAbilities[]` (CR 714) desugars here too: the same
     // no-op-unless-declared shape, injecting the entry lore counter and the
-    // chapter triggers.
-    const expanded = expandKeywordTriggers(
-        expandFadingVanishing(expandChapterAbilities(base))
+    // chapter triggers. Hideaway N (CR 702.75, issue #783) injects its ETB
+    // "look at the top N, exile one face down" trigger the same way.
+    const expanded = expandHideaway(
+        expandKeywordTriggers(
+            expandFadingVanishing(expandChapterAbilities(base))
+        )
     );
     expansionCache.set(base, expanded);
     return expanded;

@@ -1453,11 +1453,23 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // file, so it lands in the AFK-ready subset. Net: total 466->467
         // (+1 new closure), FREE 294->295, AFK-ready 285->286. X-only /
         // Op-blocked unchanged. Partition: 295+14+158=467.
+        //
+        // #783 (Hideaway, CR 702.75): the new `hideaway` Op's binding string
+        // names two primitives that had never appeared in a COVERED Op before —
+        // `exileFaceDown` (the ADR 0026 impulse-draw face-down exile) and
+        // `linkExileToSource` (the CR 607 exile provenance stamp). The census
+        // reads its "covered" set live from `EFFECT_OP_REGISTRY` bindings, so
+        // nine closures that were Op-blocked ONLY on those two primitives
+        // reclassify as FREE, all nine already carrying a per-card test. NO new
+        // closure was added (the card is DSL-first; its one `effect:` shorthand
+        // is a mana ability, which the census does not count). Net: total
+        // unchanged at 467, FREE 295->304, AFK-ready 286->295, Op-blocked
+        // 158->149. Partition: 304+14+149=467.
         expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(467);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(295);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(286);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(304);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(295);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(158);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(149);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {
