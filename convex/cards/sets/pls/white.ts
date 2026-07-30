@@ -105,6 +105,16 @@ export const lashknifeBarrier: CardDefinition = {
 // the EFFECTIVE colour (CR 613.1d `colorOverride`, granted colours), so a
 // colour-changing effect elsewhere on the board shifts the census on its own
 // — no extra wiring needed here.
+//
+// DIVERGENCE: `getCDAContribution` (`gre/layers.ts`) overwrites rather than
+// sums layer-7a `pt-cda` contributions across sources, which is correct for
+// a true CR 613.4b "set" CDA but wrong for this card's CR 613.4c-shaped
+// *modification* — enchanting a creature that carries its OWN `pt-cda`
+// (e.g. Nightmare) makes one effect silently clobber the other, in the
+// worst case producing a 0/0 that dies to SBA. `pt-buff` (layer 7c) can't
+// express this card instead: its `applies` gets no `state` (can't read the
+// board-wide census) and its `condition` gets no `target` (can't compare the
+// enchanted creature's own colour). Bug-class tracked-by: #1992.
 export const heroicDefiance: CardDefinition = {
     id: "0dc1aa36-5d3b-4d25-9d54-937cdabf72a4", // PLS 6
     rarity: "common",

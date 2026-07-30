@@ -242,7 +242,15 @@ describe("Heroic Defiance ({1}{W} Enchantment — Aura, most-common-colour censu
     });
 
     it("holds through the real layer pipeline and survives the wire projection (mandatory)", () => {
-        const target = makeInstance(crawWurm.id, {
+        // Deliberately the SUPPRESSED case (Benalish Hero, W=2 alone, shares
+        // the target's own colour — bonus off, 1/1), NOT the bonus-applies
+        // case. A census that silently reads nothing (`mostCommonColors`
+        // stubbed to `[]`) would make `.some()` on `[]` false and the bonus
+        // would incorrectly APPLY (4/4) — this scenario is the only one that
+        // can catch that class of wire-projection bug; the bonus-applies
+        // case can't (an empty census also produces "bonus applies" there,
+        // so it can't distinguish a working census from a broken one).
+        const target = makeInstance(benalishHero.id, {
             id: "target",
             controllerId: "p1",
         });
@@ -254,32 +262,17 @@ describe("Heroic Defiance ({1}{W} Enchantment — Aura, most-common-colour censu
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [target, aura] }),
-                makePlayer("p2", {
-                    battlefield: [
-                        makeInstance(dragonWhelp.id, {
-                            id: "dw1",
-                            controllerId: "p2",
-                        }),
-                        makeInstance(dragonWhelp.id, {
-                            id: "dw2",
-                            controllerId: "p2",
-                        }),
-                        makeInstance(dragonWhelp.id, {
-                            id: "dw3",
-                            controllerId: "p2",
-                        }),
-                    ],
-                }),
+                makePlayer("p2", { battlefield: [] }),
             ],
         });
-        expect(getEffectivePower(state, target)).toBe(9);
+        expect(getEffectivePower(state, target)).toBe(1); // no bonus
 
         const projected = projectPublicState(state, 0, "p1");
         const slimTarget = projected.players[0].battlefield.find(
             (c) => c.id === "target"
         )!;
-        expect(getEffectivePower(projected, slimTarget)).toBe(9);
-        expect(getEffectiveToughness(projected, slimTarget)).toBe(7);
+        expect(getEffectivePower(projected, slimTarget)).toBe(1);
+        expect(getEffectiveToughness(projected, slimTarget)).toBe(1);
     });
 
     it("suppresses the bonus when the enchanted creature shares the SOLE most common colour", () => {
