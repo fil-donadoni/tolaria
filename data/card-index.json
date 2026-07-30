@@ -2800,6 +2800,14 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Deathrite Shaman",
+        "scryfallId": "70496f16-c4c0-4c03-beef-454eb4824cd1",
+        "oracleId": "22f1a4a4-c423-4d1c-8775-0ed604a9fa51",
+        "firstSet": "rtr",
+        "firstPrintId": "70496f16-c4c0-4c03-beef-454eb4824cd1",
+        "firstPrintSet": "rtr"
+    },
+    {
         "name": "Deep Forest Hermit",
         "scryfallId": "3287775f-7bec-4e8f-bb8d-daf5ce92e4a8",
         "oracleId": "80e9a42e-f4f4-4bfc-91a2-ad124737dca2",
@@ -12534,6 +12542,14 @@
         "firstSet": "bro",
         "firstPrintId": "f1a21287-e244-4960-84fb-c4f6e5c346d9",
         "firstPrintSet": "bro"
+    },
+    {
+        "name": "Thopter Foundry",
+        "scryfallId": "42b8d797-b01d-49cf-9818-d84bba17029d",
+        "oracleId": "88bef744-550e-4f33-b1ff-a8ee990ec754",
+        "firstSet": "arb",
+        "firstPrintId": "42b8d797-b01d-49cf-9818-d84bba17029d",
+        "firstPrintSet": "arb"
     },
     {
         "name": "Thorn Thallid",

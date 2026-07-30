@@ -36,9 +36,16 @@ describe("Lutri, the Spellchaser (Companion, Flash, CR 603.6a copy-on-cast ETB)"
         expect(lutri.subtypes).toEqual(["Elemental", "Otter"]);
         expect(lutri.power).toBe(3);
         expect(lutri.toughness).toBe(2);
-        // DIVERGENCE (tracked-by #782): the real printed cost is the hybrid
-        // {1}{U/R}{U/R}; declared as the closest non-hybrid narrowing.
-        expect(lutri.manaCost).toEqual({ generic: 1, U: 1, R: 1 });
+        // Printed cost is the hybrid {1}{U/R}{U/R} — declared via
+        // `manaCost.hybrid` (issue #1338), payable with mana off either
+        // colour of land (#1738/#1739, landed #1755).
+        expect(lutri.manaCost).toEqual({
+            generic: 1,
+            hybrid: [
+                ["U", "R"],
+                ["U", "R"],
+            ],
+        });
         const etb = lutri.triggeredAbilities?.find((a) => a.id === "lutri-etb");
         expect(etb?.targetRequirement).toEqual({
             type: "spell",
@@ -174,9 +181,16 @@ describe("Lurrus of the Dream-Den (Companion, Lifelink, static graveyard-permane
         expect(lurrus.subtypes).toEqual(["Cat", "Nightmare"]);
         expect(lurrus.power).toBe(3);
         expect(lurrus.toughness).toBe(2);
-        // DIVERGENCE (tracked-by #782): the real printed cost is the hybrid
-        // {1}{W/B}{W/B}; declared as the closest non-hybrid narrowing.
-        expect(lurrus.manaCost).toEqual({ generic: 1, W: 1, B: 1 });
+        // Printed cost is the hybrid {1}{W/B}{W/B} — declared via
+        // `manaCost.hybrid` (issue #1338), payable with mana off either
+        // colour of land (#1738/#1739, landed #1755).
+        expect(lurrus.manaCost).toEqual({
+            generic: 1,
+            hybrid: [
+                ["W", "B"],
+                ["W", "B"],
+            ],
+        });
         expect(lurrus.castsPermanentsFromGraveyard).toEqual({
             maxManaValue: 2,
         });
