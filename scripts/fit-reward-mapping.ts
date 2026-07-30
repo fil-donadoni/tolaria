@@ -90,6 +90,30 @@ for (const b of calibrationTable(samples, fit.k, EDGES)) {
     );
 }
 
+// Model-shape diagnostic: refit on early / mid / late samples separately. One
+// GLOBAL constant is only the right model if the slope is stable across game
+// stages — a k that climbs with the turn count means the same margin predicts
+// the outcome far better late than early, which a single logistic cannot
+// express (the isotonic / stage-aware signal, research §value scaling).
+console.log("\nslope stability across game stages (model-shape check):");
+const STAGES: [string, (t: number) => boolean][] = [
+    ["turns 1–5   ", (t) => t <= 5],
+    ["turns 6–12  ", (t) => t > 5 && t <= 12],
+    ["turns 13+   ", (t) => t > 12],
+];
+for (const [label, pred] of STAGES) {
+    const sub = samples.filter((s) => pred(s.turn));
+    if (sub.length === 0) {
+        console.log(`   ${label} (no samples)`);
+        continue;
+    }
+    const f = fitLogisticSlope(sub);
+    console.log(
+        `   ${label} n=${String(sub.length).padStart(5)}  k=${f.k.toExponential(3)}` +
+            `  75% at ${(Math.log(3) / f.k).toFixed(0)} margin points`
+    );
+}
+
 // What the constant means for the map's evidence-1 arithmetic (#1893): the
 // open-band reward slope at margin 0 becomes (1 − 2·TERMINAL_BAND)·k/4, so the
 // OUTCOME_EPS tie window converts back to margin points as EPS / that slope.
