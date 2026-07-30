@@ -50,9 +50,11 @@
 //      the review found because none of them drives the cast path.
 //
 // Fixture: synthetic test-only cards (Carnage Interpreter itself, CLU 26,
-// `cards/sets/clu/multicolor.ts`, is STILL a commented-out stub — blocked on
-// issue #782's unrelated hybrid-mana-cost gap, `{1}{B/R}{B/R}`, not on
-// anything this issue fixes) registered via the sanctioned test-only seam
+// `cards/sets/clu/multicolor.ts`, was a commented-out stub when this test was
+// written — its `{1}{B/R}{B/R}` guild-hybrid cost has since become declarable
+// and payable, and the card shipped with issue #1927; the synthetic fixture is
+// kept because it isolates the hand-size condition from the real card's other
+// abilities) registered via the sanctioned test-only seam
 // `registerTokenDefinition` (already used this way by
 // `gre/__tests__/intervening-if.test.ts` and others — `allCards`, the
 // catalogue every catalogue-wide sweep enumerates, is built from the STATIC

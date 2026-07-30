@@ -19,12 +19,17 @@
 //   - serialization round-trip of `evoked` and `notedManaSpentOnCast`
 //   - spent-mana-color tracking (issue #900's second half): a permanent
 //     carries `notedManaSpentOnCast` from its originating cast, readable by a
-//     LATER triggered ability's check-time `condition` — proven via a
-//     synthetic probe (no shipped card consumes this yet; Vibrance/Deceit/
-//     Wistfulness remain blocked on the separate hybrid-ManaCost gap, #782)
+//     LATER triggered ability's check-time `condition` — proven on a synthetic
+//     probe (non-hybrid cost) AND, since issue #1927, on the shipped consumer
+//     Vibrance (ECL), whose GUILD-HYBRID evoke cost is paid with real mana
 //   - the frontend wiring SURFACE: projectPublicState carries both fields
 import { describe, it, expect } from "vitest";
-import { resolveTopOfStack, type GameState, type StackItem } from "../state";
+import {
+    normalizeManaCost,
+    resolveTopOfStack,
+    type GameState,
+    type StackItem,
+} from "../state";
 import {
     getAlternativeCost,
     affordableAlternativeCosts,
@@ -45,7 +50,8 @@ import type { CardDefinition } from "../../cards/types";
 import { grief } from "../../cards/sets/mh2/black";
 import { solitude } from "../../cards/sets/mh2/white";
 import { darkRitual } from "../../cards/sets/lea/black";
-import { grizzlyBears, serraAngel } from "../../cards/sets/lea";
+import { forest, grizzlyBears, serraAngel } from "../../cards/sets/lea";
+import { vibrance } from "../../cards/sets/ecl/multicolor";
 import { enteredTrigger } from "../../cards/abilities/triggers/enteredTrigger";
 
 function handCard(cardId: string, id: string, controllerId = "p1") {
@@ -416,9 +422,10 @@ describe("Evoke — frontend wiring SURFACE (projectPublicState)", () => {
 // entering via casting carries the per-colour mana spent as
 // `notedManaSpentOnCast`, readable by a LATER triggered ability's check-time
 // `condition` — the "if {R}{R} was spent to cast it" shape (Vibrance/Deceit/
-// Wistfulness need this once the SEPARATE hybrid-ManaCost gap, #782, ships).
-// No shipped card consumes this yet, so a synthetic probe card exercises the
-// engine capability end-to-end.
+// Wistfulness, ECL, shipped by issue #1927, are the real consumers). A
+// synthetic probe card exercises the bare engine capability here on a
+// NON-hybrid cost; the hybrid-evoke combination the Incarnations actually use
+// is proven on Vibrance itself in the last describe block of this file.
 const SPENT_MANA_PROBE_ID = "test:spent-mana-color-probe";
 const spentManaProbe: CardDefinition = {
     id: SPENT_MANA_PROBE_ID,
@@ -563,5 +570,198 @@ describe("Spent-mana-color tracking (CR 106.4 / 202.3, issue #900)", () => {
             (c) => c.id === "probe"
         );
         expect(slim?.notedManaSpentOnCast).toEqual({ R: 2 });
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Evoke × GUILD-HYBRID cost × spent-mana-colour condition (issue #1927)
+//
+// The one genuinely NEW combination the ECL Elemental Incarnations introduce,
+// and the reason it earns a hand-written test even though every Op in their
+// Effect Scripts is already exercised elsewhere: nothing above proves that a
+// HYBRID pip records the colour it was actually PAID with. The evoke coverage
+// above is Solitude/Grief — a non-mana pitch leg, no colours to note — and the
+// `notedManaSpentOnCast` coverage above is a synthetic probe with a FIXED
+// `{1}{R}{R}` cost, where the noted colours are forced by the cost itself.
+//
+// Vibrance's evoke cost is {R/G}{R/G} (CR 202.1a): the SAME cost can be paid
+// with two red, two green, or one of each, and only the payment decides which
+// of its two ETB halves fires ("if {R}{R} was spent" / "if {G}{G} was spent",
+// CR 106.4 / 202.3, a CR 603.4 check-time condition). Everything below is
+// driven through the real seams — the evoke cost is read off the card's own
+// `evoke.mana` (never hand-written), paid by `tryAutoCommitPendingCast`, and
+// the halves are selected by the real `collectTriggers` scan — because
+// hand-setting `notedManaSpentOnCast` would assume away the very step under
+// test.
+// ═══════════════════════════════════════════════════════════════════════════
+describe("Evoke × guild-hybrid cost × spent-mana-colour (CR 202.1a / 106.4 / 702.74a — Vibrance)", () => {
+    /** Casts Vibrance for its OWN declared evoke cost with `pool` floating,
+     *  through the real cast-commit seam. p1's library holds one Forest so the
+     *  green half has something to find. */
+    function evokeVibranceWith(pool: Record<string, number>): GameState {
+        const vib = handCard(vibrance.id, "vib");
+        const libForest = makeInstance(forest.id, {
+            id: "lib-forest",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { hand: [vib], library: [libForest] }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+        });
+        Object.assign(state.players[0].manaPool, pool);
+        state.pendingCast = {
+            playerId: "p1",
+            cardInstanceId: "vib",
+            // The cost under test comes from the CARD, not from this test.
+            manaCost: normalizeManaCost(vibrance.evoke!.mana!),
+            tappedLandIds: [],
+            evoked: true,
+        };
+        expect(tryAutoCommitPendingCast(state, "p1")).not.toBeNull();
+        return state;
+    }
+
+    /** Resolves Vibrance off the stack, then returns the ETB triggers the real
+     *  scan produces — i.e. after every check-time `condition` has run. */
+    function enterAndCollectEtb(state: GameState): StackItem[] {
+        resolveTopOfStack(state);
+        const triggers = collectTriggers(state, [
+            {
+                type: "PERMANENT_ENTERED",
+                instanceId: "vib",
+                controllerId: "p1",
+                cardId: vibrance.id,
+                types: ["Creature"],
+            },
+        ]);
+        // Collecting a BATCH of simultaneous triggers also raises the CR 603.3b
+        // stacking-order prompt (its `stackItemId` is the off-stack batch, not
+        // a real item). Which half FIRED is orthogonal to the order they are
+        // put on the stack in, and each test below resolves a single half, so
+        // drop the ordering prompt rather than answer it.
+        state.pendingChoices = undefined;
+        return triggers;
+    }
+
+    function abilityIds(triggers: StackItem[]): (string | undefined)[] {
+        return triggers.map((t) => t.triggeredAbilityId);
+    }
+
+    /** Resolves the whole stack, auto-committing any mid-resolution choice by
+     *  taking the first `count` candidates (the green half's library search). */
+    function drainStack(state: GameState): void {
+        let guard = 0;
+        while (state.stack.length > 0 && guard++ < 20) {
+            const pending = state.pendingChoices;
+            if (pending && pending.length > 0) {
+                const head = pending[0];
+                const item = state.stack.find(
+                    (s) => s.id === head.stackItemId
+                ) as StackItem;
+                const count =
+                    typeof head.count === "number"
+                        ? head.count
+                        : head.count.max;
+                const picks = (head.candidateIds ?? []).slice(0, count);
+                item.collectedChoices = {
+                    ...(item.collectedChoices ?? {}),
+                    [`${head.step}:${head.choiceId}`]: picks,
+                };
+                state.pendingChoices =
+                    pending.length > 1 ? pending.slice(1) : undefined;
+                continue;
+            }
+            resolveTopOfStack(state);
+        }
+    }
+
+    it("the {R/G}{R/G} evoke cost is really PAID with two red mana and notes {R}: 2", () => {
+        const state = evokeVibranceWith({ R: 2 });
+        // Both pips came out of the pool — a hybrid pip treated as free (the
+        // pre-#1738 bug) would leave the mana floating.
+        expect(state.players[0].manaPool.R).toBe(0);
+        const item = state.stack.find((s) => s.id === "vib") as StackItem;
+        expect(item.evoked).toBe(true);
+        expect(item.notedManaSpent).toEqual({ R: 2 });
+    });
+
+    it("two RED mana: the {R}{R} half fires, the {G}{G} half does not", () => {
+        const state = evokeVibranceWith({ R: 2 });
+        const triggers = enterAndCollectEtb(state);
+        const onBoard = state.players[0].battlefield.find(
+            (c) => c.id === "vib"
+        );
+        expect(onBoard?.notedManaSpentOnCast).toEqual({ R: 2 });
+
+        const ids = abilityIds(triggers);
+        expect(ids).toContain("vibrance-etb-damage");
+        expect(ids).not.toContain("vibrance-etb-land");
+        // CR 702.74a — the evoke sacrifice half is unconditional on colour.
+        expect(ids).toContain("evoke-sacrifice");
+
+        // Resolve the red half through the REAL CR 603.3d target path.
+        state.stack.push(
+            triggers.find(
+                (t) => t.triggeredAbilityId === "vibrance-etb-damage"
+            )!
+        );
+        expect(raiseTriggerTargetSelection(state)).toBe(true);
+        state.pendingTarget!.selected = [{ type: "player", id: "p2" }];
+        finalizeTargetSelection(
+            state,
+            state.pendingTarget!,
+            state.pendingTarget!.playerId
+        );
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(17);
+        // The green half's payload never happened.
+        expect(state.players[0].life).toBe(20);
+    });
+
+    it("two GREEN mana flips it: the {G}{G} half fires, the {R}{R} half does not", () => {
+        const state = evokeVibranceWith({ G: 2 });
+        expect(state.players[0].manaPool.G).toBe(0);
+        const triggers = enterAndCollectEtb(state);
+        const onBoard = state.players[0].battlefield.find(
+            (c) => c.id === "vib"
+        );
+        expect(onBoard?.notedManaSpentOnCast).toEqual({ G: 2 });
+
+        const ids = abilityIds(triggers);
+        expect(ids).toContain("vibrance-etb-land");
+        expect(ids).not.toContain("vibrance-etb-damage");
+
+        // Resolve the green half: fetch the Forest to hand, gain 2 life.
+        state.stack.push(
+            triggers.find((t) => t.triggeredAbilityId === "vibrance-etb-land")!
+        );
+        drainStack(state);
+        expect(state.players[0].hand.some((c) => c.id === "lib-forest")).toBe(
+            true
+        );
+        expect(state.players[0].life).toBe(22);
+        // The red half's payload never happened.
+        expect(state.players[1].life).toBe(20);
+    });
+
+    it("a SPLIT payment ({R}{G}) satisfies neither half — both conditions need two of ONE colour", () => {
+        const state = evokeVibranceWith({ R: 1, G: 1 });
+        const triggers = enterAndCollectEtb(state);
+        const onBoard = state.players[0].battlefield.find(
+            (c) => c.id === "vib"
+        );
+        expect(onBoard?.notedManaSpentOnCast).toEqual({ R: 1, G: 1 });
+
+        const ids = abilityIds(triggers);
+        expect(ids).not.toContain("vibrance-etb-damage");
+        expect(ids).not.toContain("vibrance-etb-land");
+        // Only the evoke sacrifice remains.
+        expect(ids).toEqual(["evoke-sacrifice"]);
     });
 });

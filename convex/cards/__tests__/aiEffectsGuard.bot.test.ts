@@ -1359,12 +1359,6 @@ const ABILITY_AI_EFFECTS_ALLOWLIST: readonly AbilityAllowlistEntry[] = [
         note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
     },
     {
-        cardId: "eb0e0404-4846-4891-acfa-bd0951ecf9c6",
-        name: "Endurance",
-        abilityId: "evoke-sacrifice",
-        note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
-    },
-    {
         cardId: "be77edac-9a8b-4b7f-a859-27df76b10aa6",
         name: "Enduring Renewal",
         abilityId: "enduring-renewal-return",
@@ -1488,12 +1482,6 @@ const ABILITY_AI_EFFECTS_ALLOWLIST: readonly AbilityAllowlistEntry[] = [
         cardId: "5ad89f0d-b09b-40a0-84d6-3ee60dec7e23",
         name: "Fungusaur",
         abilityId: "fungusaur-counter",
-        note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
-    },
-    {
-        cardId: "bd281158-8180-40b9-a5b7-03cfc712d81a",
-        name: "Fury",
-        abilityId: "evoke-sacrifice",
         note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
     },
     {
@@ -1626,12 +1614,6 @@ const ABILITY_AI_EFFECTS_ALLOWLIST: readonly AbilityAllowlistEntry[] = [
         cardId: "5e236816-0c49-4b48-b18b-03add5a80d72",
         name: "Greater Realm of Preservation",
         abilityId: "cop-prevent",
-        note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
-    },
-    {
-        cardId: "e6befbc4-1320-4f26-bd9f-b1814fedda10",
-        name: "Grief",
-        abilityId: "evoke-sacrifice",
         note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
     },
     {
@@ -2669,12 +2651,6 @@ const ABILITY_AI_EFFECTS_ALLOWLIST: readonly AbilityAllowlistEntry[] = [
     {
         cardId: "47a6234f-309f-4e03-9263-66da48b57153",
         name: "Solitude",
-        abilityId: "evoke-sacrifice",
-        note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
-    },
-    {
-        cardId: "47a6234f-309f-4e03-9263-66da48b57153",
-        name: "Solitude",
         abilityId: "solitude-etb",
         note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
     },
@@ -2754,12 +2730,6 @@ const ABILITY_AI_EFFECTS_ALLOWLIST: readonly AbilityAllowlistEntry[] = [
         cardId: "a64d4f93-0c04-4078-aec0-7e9de92f260f",
         name: "Su-Chi",
         abilityId: "su-chi-mana",
-        note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
-    },
-    {
-        cardId: "701256d5-1389-48b7-9581-d6037209bd06",
-        name: "Subtlety",
-        abilityId: "evoke-sacrifice",
         note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
     },
     {

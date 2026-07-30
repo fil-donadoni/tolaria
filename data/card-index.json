@@ -1776,6 +1776,14 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Carnage Interpreter",
+        "scryfallId": "f6fb576e-a4a4-496b-b553-3f81cc651210",
+        "oracleId": "4bc79fb3-81bb-42ed-9bbb-93f8cede3094",
+        "firstSet": "clu",
+        "firstPrintId": "f6fb576e-a4a4-496b-b553-3f81cc651210",
+        "firstPrintSet": "clu"
+    },
+    {
         "name": "Carnivorous Plant",
         "scryfallId": "6a615650-4da3-4efc-aa5e-c1f2c4f79478",
         "oracleId": "3a7478d7-b33e-4227-8cc3-b30643624d56",
@@ -2806,6 +2814,14 @@
         "firstSet": "rtr",
         "firstPrintId": "70496f16-c4c0-4c03-beef-454eb4824cd1",
         "firstPrintSet": "rtr"
+    },
+    {
+        "name": "Deceit",
+        "scryfallId": "bd82c9e4-9871-4e6d-b691-ee00b4b9a3c6",
+        "oracleId": "d7dddeac-c6ed-4111-ba40-e2830c08d480",
+        "firstSet": "ecl",
+        "firstPrintId": "bd82c9e4-9871-4e6d-b691-ee00b4b9a3c6",
+        "firstPrintSet": "ecl"
     },
     {
         "name": "Deep Forest Hermit",
@@ -13560,6 +13576,14 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Vibrance",
+        "scryfallId": "b9f71c3b-0840-475f-9c17-fdacbc7f3213",
+        "oracleId": "52867cdd-8bf2-4cae-bb8d-0f16a18a455b",
+        "firstSet": "ecl",
+        "firstPrintId": "b9f71c3b-0840-475f-9c17-fdacbc7f3213",
+        "firstPrintSet": "ecl"
+    },
+    {
         "name": "Vibrating Sphere",
         "scryfallId": "48f93ded-ecf6-4a70-8ca3-a9c0c3201c21",
         "oracleId": "8a8fe94f-81aa-4725-ace6-ed56a1e1ed91",
@@ -14238,6 +14262,14 @@
         "firstSet": "eld",
         "firstPrintId": "07c17b01-ee5d-491a-8403-b3f819b778c4",
         "firstPrintSet": "eld"
+    },
+    {
+        "name": "Wistfulness",
+        "scryfallId": "db9aa986-ac2a-44bb-a88b-04c5d0d502b2",
+        "oracleId": "e5e8fce4-c97a-4ae4-9583-003c565e3bd6",
+        "firstSet": "ecl",
+        "firstPrintId": "db9aa986-ac2a-44bb-a88b-04c5d0d502b2",
+        "firstPrintSet": "ecl"
     },
     {
         "name": "Witch Hunter",
