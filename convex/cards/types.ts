@@ -3689,6 +3689,16 @@ export interface SpellContext {
          *  `cardInstanceIds` ARE the top order). When set, the client mounts the
          *  ordered HAND→TOP drag picker instead of the in-hand toggle. */
         putOnTop?: boolean;
+        /** `kind: "search-library"` only (CR 701.19a, issue #788 re-review
+         *  finding 1) — mark this as a GENUINE library search (look at the
+         *  whole library, filtered by characteristics) as opposed to a "look
+         *  at the top N, pick one" prompt that reuses this `kind` for its
+         *  restricted-candidate picker UI (Expressive Iteration, Diabolic
+         *  Vision). `emitLibrarySearchedEvent` (CR 701.19a/603.2) only fires
+         *  for a choice with this flag set — see {@link PendingChoice.isSearch}
+         *  for the full rationale. Every genuine search `resolve()` site must
+         *  set it; a look-pick site must NOT. */
+        isSearch?: true;
     }) => string[] | undefined;
 
     /** Requests an optional yes/no decision with an optional mana cost
@@ -6361,7 +6371,8 @@ export type GameEventType =
     | "COUNTER_ADDED"
     | "BECAME_TARGET"
     | "TOKENS_CREATED"
-    | "CARDS_EXILED";
+    | "CARDS_EXILED"
+    | "LIBRARY_SEARCHED";
 
 /** Damage event emitted whenever a source inflicts damage on a target
  *  (CR 120.3). Used by "whenever ~ deals damage" triggers. The
@@ -7023,6 +7034,51 @@ export interface CardsExiledEvent {
     }>;
 }
 
+/** Library-search event (CR 701.19a "search a library", 603.2 trigger
+ *  condition) — emitted ONCE per completed `search-library` PendingChoice
+ *  commit (issue #788, residual of the trigger-condition trio started by
+ *  `BecameTargetEvent`/#1265 and `TokensCreatedEvent`/#1345: "whenever an
+ *  opponent searches their library", Wan Shi Tong, Librarian). The single
+ *  choke point every library search funnels through
+ *  (`applyPendingChoiceSubmit`, `gre/pendingChoiceSubmit.ts`) regardless of
+ *  whether the search was authored as a DSL `choice(kind:
+ *  "search-library")` Op or an imperative `resolve()` tutor closure — every
+ *  shipped tutor and fetchland already routes through the same
+ *  `SpellContext.requestChoice` / PendingChoice commit path, so this one
+ *  emit site covers the whole catalogue with no per-card wiring. Fires even
+ *  on a zero-pick "whiff" search (a fetchland with no basic land left still
+ *  SEARCHED, CR 701.19a — the ACT of searching is the trigger condition,
+ *  not the result).
+ *
+ *  Carries BOTH the searcher and the library's owner (bugfix, issue #788
+ *  post-review) because they are NOT always the same player: Jester's Cap /
+ *  Jester's Mask / Lobotomy have the ACTIVATING player search a TARGET
+ *  player's library ("Search target player's library..."). A single
+ *  `playerId` field cannot distinguish "an opponent searches THEIR OWN
+ *  library" (the only condition any shipped `librarySearchedTrigger` card
+ *  cares about, CR 701.19a "searches a library" always names whose library)
+ *  from "the controller searches someone else's library" — collapsing them
+ *  let Wan Shi Tong's own controller trigger a free counter+draw by casting
+ *  Lobotomy. `librarySearchedTrigger`'s `matchesLibrarySearchedScope` gates
+ *  on `playerId === libraryOwnerId` before applying scope, so a
+ *  Jester's-Cap-shaped cross-library search never fires. */
+export interface LibrarySearchedEvent {
+    type: "LIBRARY_SEARCHED";
+    /** The player who performed the search (CR 701.19a) — the ACTING
+     *  searcher (the stack item's controller), not necessarily the library's
+     *  owner. For the ordinary "target player searches THEIR library" case
+     *  this equals `libraryOwnerId`; for a Jester's Cap/Lobotomy-shaped
+     *  "search TARGET PLAYER's library" this is the caster, and
+     *  `libraryOwnerId` is the target. */
+    playerId: string;
+    /** Owner of the library actually searched (CR 701.19a). The "opponent"
+     *  in "whenever an opponent searches THEIR library" is judged against
+     *  this field, relative to the trigger source's controller — and ONLY
+     *  when it equals `playerId` (a genuine "searches their own library"),
+     *  per the field-split rationale above. */
+    libraryOwnerId: string;
+}
+
 export type GameEvent =
     | DamageDealtEvent
     | PhaseBeginEvent
@@ -7047,7 +7103,8 @@ export type GameEvent =
     | CounterAddedEvent
     | BecameTargetEvent
     | TokensCreatedEvent
-    | CardsExiledEvent;
+    | CardsExiledEvent
+    | LibrarySearchedEvent;
 
 /** Read-only window over the live `GameState` exposed to `matches()` for
  *  state triggers (CR 603.8). Kept narrow on purpose so card definitions can
