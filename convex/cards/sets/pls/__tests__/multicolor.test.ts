@@ -13,17 +13,33 @@
 // leave the card correct on the server and dead on the board.
 
 import { describe, it, expect } from "vitest";
-import { keldonTwilight } from "../multicolor";
-import { grizzlyBears, savannahLions, controlMagic } from "../../lea";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import { keldonTwilight, phyrexianTyranny } from "../multicolor";
+import {
+    grizzlyBears,
+    savannahLions,
+    controlMagic,
+    ancestralRecall,
+} from "../../lea";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    pushSpell,
+} from "../../../__tests__/setup";
 import {
     applyControlChange,
+    emitCardDrawn,
+    processPendingActionTriggers,
     resolveTopOfStack,
     type CardInstanceState,
     type GameState,
     type StackItem,
 } from "../../../../gre/state";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
+import { collectTriggers } from "../../../../gre/triggers";
+import {
+    applyMayPaySubmit,
+    applyPendingChoiceSubmit,
+} from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
 import type { PhaseBeginEvent } from "../../../types";
 
@@ -314,5 +330,344 @@ describe("Keldon Twilight — wire format (the picker's legality is read client-
             types: "Creature",
             controlledSinceTurnStart: true,
         });
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Phyrexian Tyranny (issue #1946) — "Whenever a player draws a card, that
+// player loses 2 life unless they pay {2}." A DSL card, but `mayPay` always
+// SUSPENDS on a live player decision (the auto-generated canned-scenario
+// smoke sweep explicitly skips any script containing one,
+// `gre/effects/scenarioGenerator.ts`), so per the per-Op regime this earns
+// hand-written coverage. It is also the FIRST card to read `CARD_DRAWN`'s
+// drawing player off the firing event (`{ ref: "$event.playerId" }`, the new
+// `EVENT_FIELD_REGISTRY` row this issue adds) rather than `"controller"` —
+// exactly the CR 117.3a "offered to the triggering player" gap.
+// ---------------------------------------------------------------------------
+
+const TYRANNY_ABILITY_ID = "phyrexian-tyranny-unless-pay";
+
+function makeTyranny(
+    controllerId: string,
+    id = "tyranny"
+): ReturnType<typeof makeInstance> {
+    return makeInstance(phyrexianTyranny.id, {
+        id,
+        controllerId,
+        ownerId: controllerId,
+    });
+}
+
+/** Simulates a real draw (library → hand) and runs it through the engine's
+ *  real CARD_DRAWN choke point — `processPendingActionTriggers` — exactly
+ *  like the turn-based draw step drives it (mirrors the Sheoldred fixture in
+ *  `dmu/__tests__/black.test.ts`). */
+function simulateTyrannyDraw(state: GameState, drawingPlayerId: string): void {
+    const player = state.players.find((p) => p.id === drawingPlayerId)!;
+    const drawn = player.library.shift();
+    if (drawn) player.hand.push(drawn);
+    state.pendingEvents = [
+        { type: "CARD_DRAWN", playerId: drawingPlayerId, count: 1 },
+    ];
+    processPendingActionTriggers(state);
+}
+
+/** Batch draw through the REAL per-card choke point (`emitCardDrawn`) —
+ *  proves the per-card fanout (CR 120.3): a draw-N raises N separate
+ *  CARD_DRAWN events, so Phyrexian Tyranny's per-card trigger fires N times,
+ *  not once. */
+function simulateTyrannyBatchDraw(
+    state: GameState,
+    drawingPlayerId: string,
+    n: number
+): void {
+    const player = state.players.find((p) => p.id === drawingPlayerId)!;
+    for (let i = 0; i < n; i++) {
+        const drawn = player.library.shift();
+        if (drawn) player.hand.push(drawn);
+    }
+    emitCardDrawn(state, drawingPlayerId, n);
+    processPendingActionTriggers(state);
+}
+
+describe("Phyrexian Tyranny — card data (Scryfall / modern Oracle text)", () => {
+    it("is a {U}{B}{R} rare Enchantment", () => {
+        expect(phyrexianTyranny.manaCost).toEqual({ U: 1, B: 1, R: 1 });
+        expect(phyrexianTyranny.types).toEqual(["Enchantment"]);
+        expect(phyrexianTyranny.rarity).toBe("rare");
+        expect(phyrexianTyranny.oracleText).toBe(
+            "Whenever a player draws a card, that player loses 2 life unless they pay {2}."
+        );
+    });
+
+    it("declares exactly one triggered ability, written as an Effect Script (ADR 0045)", () => {
+        expect(phyrexianTyranny.triggeredAbilities).toHaveLength(1);
+        const ability = phyrexianTyranny.triggeredAbilities![0];
+        expect(ability.id).toBe(TYRANNY_ABILITY_ID);
+        expect(ability.effects).toBeDefined();
+        expect(ability.resolve).toBeUndefined();
+    });
+});
+
+describe("Phyrexian Tyranny — offered to the DRAWING player, not the controller (CR 117.3a)", () => {
+    it("an opponent's draw offers the may-pay decision to the OPPONENT", () => {
+        const tyranny = makeTyranny("p1");
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [tyranny], life: 20 }),
+                makePlayer("p2", {
+                    library: [makeInstance(grizzlyBears.id, { id: "lib-1" })],
+                    life: 20,
+                }),
+            ],
+        });
+
+        simulateTyrannyDraw(state, "p2");
+
+        expect(
+            state.stack.some((s) => s.triggeredAbilityId === TYRANNY_ABILITY_ID)
+        ).toBe(true);
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on may-pay
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("may-pay");
+        expect(head.playerId).toBe("p2"); // the DRAWER, not Tyranny's controller
+    });
+
+    it("Tyranny's own controller drawing offers the decision to THEMSELVES too (CR 121.1 'a player', either player)", () => {
+        const tyranny = makeTyranny("p1");
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [tyranny],
+                    library: [makeInstance(grizzlyBears.id, { id: "lib-2" })],
+                    life: 20,
+                }),
+                makePlayer("p2", { life: 20 }),
+            ],
+        });
+
+        simulateTyrannyDraw(state, "p1");
+
+        expect(resolveTopOfStack(state)).toBeNull();
+        const head = state.pendingChoices![0];
+        expect(head.playerId).toBe("p1");
+    });
+});
+
+describe("Phyrexian Tyranny — pay or lose 2 life (CR 117.3a / 119.3b)", () => {
+    it("declining costs the drawing player 2 life", () => {
+        const tyranny = makeTyranny("p1");
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [tyranny], life: 20 }),
+                makePlayer("p2", {
+                    library: [makeInstance(grizzlyBears.id, { id: "lib-3" })],
+                    life: 20,
+                }),
+            ],
+        });
+
+        simulateTyrannyDraw(state, "p2");
+        resolveTopOfStack(state);
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+
+        expect(state.players[1].life).toBe(18);
+        expect(state.players[0].life).toBe(20); // controller unaffected
+
+        // Wire format — life totals are client-visible.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players.find((p) => p.id === "p2")!.life).toBe(18);
+    });
+
+    it("paying {2} costs the drawing player nothing further", () => {
+        const tyranny = makeTyranny("p1");
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [tyranny], life: 20 }),
+                makePlayer("p2", {
+                    library: [makeInstance(grizzlyBears.id, { id: "lib-4" })],
+                    life: 20,
+                    manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 2 },
+                }),
+            ],
+        });
+
+        simulateTyrannyDraw(state, "p2");
+        resolveTopOfStack(state);
+        applyMayPaySubmit(state, { playerId: "p2", accept: true });
+
+        expect(state.players[1].life).toBe(20); // no life lost
+        expect(state.players[1].manaPool.C).toBe(0); // {2} spent
+
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players.find((p) => p.id === "p2")!.life).toBe(20);
+    });
+
+    it("a player who cannot pay {2} is presented the decision and simply loses 2 life on decline — never silently skipped", () => {
+        const tyranny = makeTyranny("p1");
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [tyranny], life: 20 }),
+                makePlayer("p2", {
+                    library: [makeInstance(grizzlyBears.id, { id: "lib-5" })],
+                    life: 20,
+                    // No mana available to pay {2}.
+                    manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+                }),
+            ],
+        });
+
+        simulateTyrannyDraw(state, "p2");
+        expect(resolveTopOfStack(state)).toBeNull();
+        const head = state.pendingChoices![0];
+        // The decision is still RAISED (shown), not auto-skipped for lack of
+        // funds — attempting to accept with insufficient mana is rejected by
+        // the server (`applyMayPaySubmit` throws), same as any other
+        // unaffordable may-pay.
+        expect(head.kind).toBe("may-pay");
+        expect(() =>
+            applyMayPaySubmit(state, { playerId: "p2", accept: true })
+        ).toThrow();
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        expect(state.players[1].life).toBe(18);
+    });
+});
+
+describe("Phyrexian Tyranny — fires once per card drawn (CR 120.3)", () => {
+    it("a draw-three (Ancestral Recall) raises THREE separate decisions, one per card", () => {
+        const tyranny = makeTyranny("p1");
+        const p2Library = Array.from({ length: 3 }, (_, i) =>
+            makeInstance(grizzlyBears.id, { id: `p2-lib-${i}` })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [tyranny], life: 20 }),
+                makePlayer("p2", { library: p2Library, life: 20 }),
+            ],
+        });
+
+        // Effect-driven draw: cast Ancestral Recall targeting the opponent.
+        pushSpell(state, ancestralRecall.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        // resolveTopOfStack resolves the spell AND drains the resulting
+        // pending CARD_DRAWN events into three separate stack triggers
+        // (`processPendingActionTriggers` runs internally after resolution).
+        resolveTopOfStack(state);
+        expect(state.players[1].hand).toHaveLength(3);
+        expect(
+            state.stack.filter(
+                (s) => s.triggeredAbilityId === TYRANNY_ABILITY_ID
+            )
+        ).toHaveLength(3);
+
+        // Resolve all three, declining every time: 3 separate 2-life losses.
+        for (let i = 0; i < 3; i++) {
+            expect(resolveTopOfStack(state)).toBeNull();
+            const head = state.pendingChoices![0];
+            expect(head.kind).toBe("may-pay");
+            expect(head.playerId).toBe("p2");
+            applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        }
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[1].life).toBe(14); // 20 − 3×2
+    });
+
+    it("fires on the natural draw-step draw too, via the same CARD_DRAWN choke point", () => {
+        const tyranny = makeTyranny("p1");
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [tyranny], life: 20 }),
+                makePlayer("p2", {
+                    library: [makeInstance(grizzlyBears.id, { id: "lib-6" })],
+                    life: 20,
+                }),
+            ],
+        });
+
+        // simulateTyrannyBatchDraw mirrors the turn-based draw step's own
+        // path through `emitCardDrawn` — the SAME choke point an
+        // effect-driven draw uses.
+        simulateTyrannyBatchDraw(state, "p2", 1);
+        expect(
+            state.stack.filter(
+                (s) => s.triggeredAbilityId === TYRANNY_ABILITY_ID
+            )
+        ).toHaveLength(1);
+        resolveTopOfStack(state);
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        expect(state.players[1].life).toBe(18);
+    });
+});
+
+describe("Phyrexian Tyranny — APNAP ordering when simultaneous (CR 603.3b)", () => {
+    it("two Tyrannies under different controllers both trigger off one draw, in APNAP stack order", () => {
+        const mine = makeTyranny("p1", "tyranny-mine");
+        const theirs = makeTyranny("p2", "tyranny-theirs");
+        const state = makeState({
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [mine], life: 20 }),
+                makePlayer("p2", {
+                    battlefield: [theirs],
+                    library: [makeInstance(grizzlyBears.id, { id: "lib-7" })],
+                    life: 20,
+                }),
+            ],
+        });
+
+        const drawEvent = {
+            type: "CARD_DRAWN" as const,
+            playerId: "p2",
+            count: 1,
+        };
+        const placed = collectTriggers(state, [drawEvent]);
+        // Both permanents' abilities fire off the SAME "each" draw — APNAP
+        // places the active player's (p1's) trigger first (underneath), the
+        // non-active player's (p2's) on top, so the opponent's resolves
+        // first (CR 603.3b).
+        expect(placed).toHaveLength(2);
+        expect(placed[0].triggerSourceId).toBe("tyranny-mine");
+        expect(placed[1].triggerSourceId).toBe("tyranny-theirs");
+        state.stack.push(...placed);
+
+        // Top of stack (p2's Tyranny) resolves first.
+        expect(resolveTopOfStack(state)).toBeNull();
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        expect(state.players[1].life).toBe(18);
+
+        expect(resolveTopOfStack(state)).toBeNull();
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        expect(state.players[1].life).toBe(16);
+
+        expect(state.stack).toHaveLength(0);
+    });
+});
+
+describe("Phyrexian Tyranny — wire format (the pending decision reaches the correct seat)", () => {
+    it("the projected may-pay choice carries the DRAWING player's id, through the real reducer", () => {
+        const tyranny = makeTyranny("p1");
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [tyranny], life: 20 }),
+                makePlayer("p2", {
+                    library: [makeInstance(grizzlyBears.id, { id: "lib-8" })],
+                    life: 20,
+                }),
+            ],
+        });
+
+        simulateTyrannyDraw(state, "p2");
+        resolveTopOfStack(state);
+
+        // Project for BOTH seats — the choice must reach p2 (the drawer),
+        // not p1 (Tyranny's controller), on the wire.
+        const projectedForP2 = projectPublicState(state, 1, "p2");
+        const head = projectedForP2.pendingChoices![0];
+        expect(head.kind).toBe("may-pay");
+        expect(head.playerId).toBe("p2");
+
+        const projectedForP1 = projectPublicState(state, 1, "p1");
+        expect(projectedForP1.pendingChoices![0].playerId).toBe("p2");
     });
 });
