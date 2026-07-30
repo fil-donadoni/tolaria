@@ -31,6 +31,10 @@ convex/_generated
 # Claude Code runtime lock (per-session: sessionId/pid). Not shared config.
 .claude/scheduled_tasks.lock
 
+# ladder run corpora (issue #1924) — reproducible from baseSeed, never committed;
+# the durable record is the verdict block pasted into the PR
+ladder-runs/
+
 # list-to-cards staging output (regenerated; lockfile data/card-index.json IS committed)
 data/worklists/*.out/
 data/worklists/*.resolved.jsonl
