@@ -82,24 +82,25 @@ export function altCostHasPermanentLeg(altCost: CostLegs): boolean {
 }
 
 /** The FIXED cardinal of a cost's permanent leg (`count: number`), or
- *  `undefined` when there is no permanent leg. Throws for the summed-power
- *  THRESHOLD shape (`{ minTotalPower }`, CR 118): that is a may-pay-only leg
- *  (Phyrexian Dreadnought) paid through `payMayPayCost`'s greedy threshold
- *  branch, and the alternative-cost path — whose picker is a fixed-count
- *  `SacrificeSelection` — has no way to express it. No printed alternative cost
- *  uses a threshold, and the `mayPay` Op validator is where a new one would be
- *  caught; the throw exists so a future author gets a loud failure rather than a
- *  silently mispriced cast. */
+ *  `undefined` when the leg has NO fixed cardinal — either there is no
+ *  permanent leg at all, or it carries the summed-power THRESHOLD shape
+ *  (`{ minTotalPower }`, CR 118). A threshold is a may-pay-only leg (Phyrexian
+ *  Dreadnought) paid through `payMayPayCost`'s greedy branch; the
+ *  alternative-cost path — whose picker is a fixed-count `SacrificeSelection` —
+ *  has no way to express it.
+ *
+ *  Both cases collapse to `undefined` deliberately: `AlternativeCost` is
+ *  `CostLegs & {…}` (ADR 0079), so a threshold is now TYPE-expressible on an
+ *  alt cost with no static guard against it, and this helper is reached from
+ *  `affordableAlternativeCosts` → `src/lib/card-utils.ts`, a CLIENT RENDER
+ *  path. A throw there is a client crash, so the shape fails CLOSED instead:
+ *  `canPayAlternativeCost` reads `undefined` as "not payable as an alternative
+ *  cost" and the variant is simply never offered. */
 export function altCostPermanentCardinal(
     altCost: CostLegs
 ): number | undefined {
     const leg = altCost.permanent;
-    if (!leg) return undefined;
-    if (typeof leg.count !== "number") {
-        throw new Error(
-            "A summed-power permanent leg ({ minTotalPower }) is not payable as an alternative cost"
-        );
-    }
+    if (!leg || typeof leg.count !== "number") return undefined;
     return leg.count;
 }
 
@@ -283,12 +284,16 @@ export function canPayAlternativeCost(
         return false;
     }
     const player = getPlayer(state, playerId);
-    if (
-        altCostHasPermanentLeg(altCost) &&
-        matchingPermanentsForAltCost(player, altCost).length <
-            (altCostPermanentCardinal(altCost) ?? 0)
-    ) {
-        return false;
+    if (altCostHasPermanentLeg(altCost)) {
+        const need = altCostPermanentCardinal(altCost);
+        // CR 118 — a summed-power THRESHOLD leg has no fixed cardinal and the
+        // alt-cost picker cannot express one, so such a cost is not payable
+        // here. Fail CLOSED (never offered) rather than throw: this predicate
+        // runs on a client render path via `affordableAlternativeCosts`.
+        if (need === undefined) return false;
+        if (matchingPermanentsForAltCost(player, altCost).length < need) {
+            return false;
+        }
     }
     // CR 119.4 — a life payment is legal only if the life total is at least the
     // amount paid.
@@ -367,12 +372,15 @@ export function buildAlternativeCostChoice(
 ): SacrificeSelection | undefined {
     const leg = altCost.permanent;
     if (!leg) return undefined;
+    // CR 118 — no picker for a threshold leg; `canPayAlternativeCost` already
+    // refuses one, so this is the same fail-closed answer as "no permanent leg"
+    // rather than a throw on a path the client also walks.
+    const count = altCostPermanentCardinal(altCost);
+    if (count === undefined) return undefined;
     const selection: SacrificeSelection = {
         playerId,
         reason,
-        requirements: [
-            { filter: leg.filter, count: altCostPermanentCardinal(altCost)! },
-        ],
+        requirements: [{ filter: leg.filter, count }],
         picked: [],
         action: leg.action === "return" ? "return" : "sacrifice",
     };

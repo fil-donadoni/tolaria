@@ -17,6 +17,7 @@ import {
     getMayPayDiscardCandidateIds,
     mayPayDiscardChoiceRequired,
     mayPayHandLegCount,
+    mayPayHandSelectionLegal,
     normalizeMayPayCost,
     grantKnowledge,
     finalizeAuraHost,
@@ -181,6 +182,16 @@ export function applyMayPaySubmit(
             const need = mayPayHandLegCount(head.cost);
             if (ids.length !== need) {
                 throw new Error(`Must choose ${need} card(s) to discard`);
+            }
+            // CR 118.9 — the candidate check above is per-CARD (does SOME
+            // requirement admit it); this is per-LEG: the picked cards together
+            // must cover EVERY requirement from distinct cards. Without it a
+            // filtered / multi-requirement leg accepts a count-correct pick the
+            // pay path would then quietly reassign.
+            if (
+                !mayPayHandSelectionLegal(state, args.playerId, head.cost, ids)
+            ) {
+                throw new Error("Illegal discard choice");
             }
         } else {
             discardIds = undefined;

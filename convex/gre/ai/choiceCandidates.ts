@@ -41,6 +41,7 @@ import {
     getPendingChoiceMin,
     getPlayer,
     mayPayDiscardChoiceRequired,
+    mayPayHandAutoSelection,
     mayPayHandLegCount,
     mayPaySacrificeChoiceRequired,
     mayPaySacrificeThreshold,
@@ -225,7 +226,17 @@ const mayPayCandidates: ChoiceCandidateGenerator = (state, choice) => {
                 prospectiveCardWorth(state, a) - prospectiveCardWorth(state, b)
         );
         if (worstFirst.length < count) return out;
-        discardSet = worstFirst.slice(0, count);
+        // CR 118.9 — worst-first is a PREFERENCE, not the pick: the leg's
+        // per-requirement filters decide what is legal, so route the ordering
+        // through the shared assignment the submit boundary validates against.
+        const chosenIds = mayPayHandAutoSelection(
+            state,
+            playerId,
+            cost,
+            worstFirst.map((c) => c.id)
+        );
+        if (chosenIds.length < count) return out;
+        discardSet = instancesById(player.hand, chosenIds);
     }
 
     const discardIds = discardSet?.map((c) => c.id);

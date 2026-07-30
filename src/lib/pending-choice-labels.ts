@@ -104,8 +104,9 @@ function mayPayCostHasPayableManaLeg(cost: MayPayCost | undefined): boolean {
 /** The terminal action a `may-pay` battlefield pick performs, as the verb the
  *  pick-progress hint uses (CR 701.16 "sacrifice" / 701.24 "return", ADR 0079).
  *  Reads `PendingChoice.permanentAction` — denormalized server-side onto the
- *  choice by `requestMayPay`, so the client never re-derives it from the cost
- *  union and cannot drift from what the submit boundary will accept. Defaults
+ *  choice by `requestMayPay`, so the prompt never re-derives it from the cost
+ *  union and cannot drift from what the submit boundary will accept. This is
+ *  the field's ONLY consumer; the bot reads `cost.permanent` directly. Defaults
  *  to `"sacrifice"`, the shape every pre-ADR-0079 may-pay had. */
 export function mayPayPermanentPickVerb(choice: PendingChoice): string {
     return choice.permanentAction === "return" ? "return" : "sacrifice";

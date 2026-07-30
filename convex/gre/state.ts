@@ -55,6 +55,7 @@ import {
     solveSmartAutoTap,
 } from "./autoTap";
 import { applyPlayLand, enqueueLandEntryChoice } from "./playLand";
+import { handCardMatchesFilter } from "./alternativeCost";
 import {
     ASCEND_KEYWORD,
     checkAscendCityBlessing,
@@ -1898,8 +1899,9 @@ export type PendingCast = {
     /** In-progress "exile / discard N cards from your HAND" ALTERNATIVE-cost
      *  picker (CR 118.9 — Force of Will's "exile a blue card", Foil's "discard
      *  an Island card and another card"). Set when the chosen alternative cost
-     *  carries a `handCost` leg and the choice is real (more matching hand cards
-     *  than required). `requirements` mirror the alt cost's hand requirements
+     *  carries a `CostLegs.hand` leg (`{ action, requirements }`, ADR 0079) and
+     *  the choice is real (more matching hand cards than required).
+     *  `requirements` mirror that leg's hand requirements
      *  (distinct filter × count); `pickedCardIds` is undefined until the player
      *  calls `selectCastAlternativeHandCost` (or auto-filled when the choice is
      *  forced), and commit is blocked while it is unset regardless of mana. On
@@ -2289,10 +2291,13 @@ export type PendingChoice = {
     /** For a `kind: "may-pay"` whose PERMANENT leg opened the battlefield
      *  picker (`zone: "battlefield"`), the leg's terminal action — `"sacrifice"`
      *  (CR 701.16) or `"return"` to the owner's hand (CR 701.24 / 118.9, ADR
-     *  0079). Drives the prompt wording client-side and the bot's pick
-     *  valuation; absent for a cost with no permanent leg (and for every
-     *  non-may-pay kind). Denormalized from `cost.permanent.action` so the
-     *  client need not re-derive it from the cost union. */
+     *  0079). Drives the prompt WORDING client-side and nothing else — its one
+     *  consumer is `mayPayPermanentPickVerb` (`src/lib/pending-choice-labels
+     *  .ts`); the bot re-derives the action from `cost.permanent` itself
+     *  (`gre/ai/choiceCandidates.ts`, `src/lib/ai/bot-view.ts`). Absent for a
+     *  cost with no permanent leg (and for every non-may-pay kind).
+     *  Denormalized from `cost.permanent.action` so the prompt need not
+     *  re-derive it from the cost union. */
     permanentAction?: "return" | "sacrifice";
     /** For `kind: "land-entry-tapped"` only (CR 614.12, ADR 0051) — the
      *  instance id of the land currently entering, which is still in the
@@ -13158,8 +13163,8 @@ export function buildSpellContext(
             // `count` covering all) sets no fields and the pay auto-selects
             // (Arena UX); a `"return"` leg ALWAYS prompts (ADR 0079) — see
             // `mayPaySacrificeChoiceRequired`. `permanentAction` rides on the
-            // entry so the client and the bot can word / value the pick without
-            // re-deriving it from the cost.
+            // entry so the client can WORD the prompt without re-deriving it
+            // from the cost union (the bot reads `cost.permanent` directly).
             if (
                 req.cost &&
                 mayPaySacrificeChoiceRequired(state, routed.playerId, req.cost)
@@ -16965,18 +16970,88 @@ export function mayPayHandLegCount(cost: MayPayCost): number {
     return hand.requirements.reduce((a, r) => a + r.count, 0);
 }
 
+/** Whether a HAND-leg requirement's filter constrains anything. An EMPTY
+ *  filter (`{}`) is the untyped "discard a card" shape (CR 701.9) that every
+ *  shipped may-pay hand leg carries — every hand card qualifies. Kept as an
+ *  explicit short-circuit rather than deferring to {@link handCardMatchesFilter}
+ *  because that matcher fails CLOSED on a card id it cannot resolve in the
+ *  registry, which would silently narrow the unconstrained shape. */
+function handRequirementUnfiltered(filter: EffectCardFilter): boolean {
+    return Object.keys(filter).length === 0;
+}
+
+/** `player`'s hand cards satisfying ONE hand-leg requirement's filter (CR
+ *  701.9 / 118.9), skipping cards already reserved by an earlier requirement.
+ *  Uses the same HAND-card matcher the alternative-cost hand leg uses
+ *  (`handCardMatchesFilter`, `gre/alternativeCost.ts`) so a filter reads
+ *  identically in both cost vocabularies (ADR 0079). */
+function mayPayHandRequirementCandidates(
+    player: PlayerState,
+    req: { filter: EffectCardFilter; count: number },
+    reserved: ReadonlySet<string>
+): CardInstanceState[] {
+    const unfiltered = handRequirementUnfiltered(req.filter);
+    return player.hand.filter(
+        (c) =>
+            !reserved.has(c.id) &&
+            (unfiltered || handCardMatchesFilter(c, req.filter))
+    );
+}
+
+/** Greedy per-requirement assignment of hand cards to a may-pay HAND leg (CR
+ *  701.9 / 118.9): every requirement must be covered by DISTINCT cards, and
+ *  requirements are satisfied in declaration order — the same greedy the
+ *  alternative-cost hand leg uses (`canPayHandCost`, `gre/alternativeCost.ts`),
+ *  so both vocabularies price a multi-requirement leg identically. Returns
+ *  `undefined` when the leg cannot be covered at all.
+ *
+ *  `preferred` is an ORDERED preference list — the payer's picked ids at the
+ *  submit boundary, the bot's worst-first ordering in search. Within each
+ *  requirement candidates are ranked by their position in that list (absent =
+ *  last), stably, so a legal preference is always honoured and an illegal one
+ *  is quietly ignored rather than making the leg unpayable. With no preference
+ *  the assignment falls back to hand order — the historical auto-select. */
+function assignMayPayHandCards(
+    player: PlayerState,
+    hand: NonNullable<CostLegs["hand"]>,
+    preferred?: readonly string[]
+): CardInstanceState[] | undefined {
+    const rank = (c: CardInstanceState): number => {
+        const i = preferred ? preferred.indexOf(c.id) : -1;
+        return i === -1 ? Number.POSITIVE_INFINITY : i;
+    };
+    const reserved = new Set<string>();
+    const chosen: CardInstanceState[] = [];
+    for (const req of hand.requirements) {
+        const cands = mayPayHandRequirementCandidates(player, req, reserved);
+        const ordered =
+            preferred && preferred.length > 0
+                ? [...cands].sort((a, b) => rank(a) - rank(b))
+                : cands;
+        if (ordered.length < req.count) return undefined;
+        for (let i = 0; i < req.count; i++) {
+            reserved.add(ordered[i].id);
+            chosen.push(ordered[i]);
+        }
+    }
+    return chosen;
+}
+
 /** Instance ids of `playerId`'s hand cards that could pay a `may-pay` cost's
  *  HAND leg (CR 701.9 / 118.3 — the payer chooses which they give up).
  *  Returns `[]` when the cost has no hand leg. Exported so the submit
  *  boundary (`applyMayPaySubmit`) and the bot driver can validate / pick a
  *  legal card against the SAME candidate set `requestMayPay` computed. Mirrors
  *  {@link getMayPaySacrificeCandidateIds}, but from hand instead of the
- *  battlefield. Every requirement filter a may-pay hand leg carries today is
- *  EMPTY (`{}` — the untyped "discard a card" shape), which constrains nothing,
- *  so the whole hand qualifies; a filtered hand leg is expressible on the
- *  shared `CostLegs.hand` type and is served by the alternative-cost path
- *  (`matchingHandCardsForAltCost`), which the `mayPay` Op validator points a
- *  filtered may-pay leg at. */
+ *  battlefield.
+ *
+ *  The set is the UNION of the per-requirement matches (CR 118.9): a card is a
+ *  candidate iff SOME requirement's filter admits it. Unifying the two cost
+ *  vocabularies onto `CostLegs` (ADR 0079, issue #1933) made a FILTERED
+ *  may-pay hand leg representable for the first time — the old
+ *  `discard: { count }` shape could not express one — so the filter is read
+ *  here rather than assumed empty. WHICH card covers WHICH requirement is
+ *  settled by {@link assignMayPayHandCards} at payment time. */
 export function getMayPayDiscardCandidateIds(
     state: GameState,
     playerId: string,
@@ -16985,15 +17060,68 @@ export function getMayPayDiscardCandidateIds(
     const norm = normalizeMayPayCost(cost);
     if (!norm.hand) return [];
     const player = getPlayer(state, playerId);
-    return player.hand.map((c) => c.id);
+    const empty: ReadonlySet<string> = new Set();
+    const matching = new Set(
+        norm.hand.requirements.flatMap((req) =>
+            mayPayHandRequirementCandidates(player, req, empty).map((c) => c.id)
+        )
+    );
+    return player.hand.filter((c) => matching.has(c.id)).map((c) => c.id);
+}
+
+/** The hand-card ids a may-pay HAND leg would actually give up (CR 701.9 /
+ *  118.9), covering every requirement from DISTINCT matching cards. Exported
+ *  so the bot picks the SAME legal set the submit boundary accepts and the pay
+ *  path applies: it passes its worst-first ordering as `preferred` and gets a
+ *  legal set back, rather than slicing N cards off the candidate union (which
+ *  a multi-requirement leg can make illegal). `[]` when the cost has no hand
+ *  leg or the leg cannot be covered. */
+export function mayPayHandAutoSelection(
+    state: GameState,
+    playerId: string,
+    cost: MayPayCost,
+    preferred?: readonly string[]
+): string[] {
+    const norm = normalizeMayPayCost(cost);
+    if (!norm.hand) return [];
+    const player = getPlayer(state, playerId);
+    return (
+        assignMayPayHandCards(player, norm.hand, preferred)?.map((c) => c.id) ??
+        []
+    );
+}
+
+/** Whether `ids` is a LEGAL payment of a may-pay HAND leg (CR 701.9 / 118.9):
+ *  every id is a distinct hand card, and the chosen cards alone cover every
+ *  requirement. Exported so the submit boundary rejects a pick that satisfies
+ *  the summed COUNT but not the per-requirement FILTERS — without it a filtered
+ *  leg would fall back to the engine's own assignment and silently pay with
+ *  cards the payer never picked. */
+export function mayPayHandSelectionLegal(
+    state: GameState,
+    playerId: string,
+    cost: MayPayCost,
+    ids: readonly string[]
+): boolean {
+    const norm = normalizeMayPayCost(cost);
+    if (!norm.hand) return ids.length === 0;
+    if (new Set(ids).size !== ids.length) return false;
+    if (ids.length !== mayPayHandLegCount(cost)) return false;
+    const player = getPlayer(state, playerId);
+    const picked = player.hand.filter((c) => ids.includes(c.id));
+    if (picked.length !== ids.length) return false;
+    return (
+        assignMayPayHandCards({ ...player, hand: picked }, norm.hand) !==
+        undefined
+    );
 }
 
 /** Whether a `may-pay` HAND leg admits a real card choice (CR 701.9 /
- *  118.3): the payer holds MORE cards than the leg gives up, so which one(s)
- *  to discard/exile is the payer's decision, not an auto-pick. When the hand
- *  has exactly as many cards as the leg needs (or fewer) there is nothing to
- *  choose — auto-selection stays and no prompt is shown (Arena UX auto-
- *  resolve). Returns false for a cost with no hand leg. Mirrors
+ *  118.3): the payer holds MORE MATCHING cards than the leg gives up, so which
+ *  one(s) to discard/exile is the payer's decision, not an auto-pick. When the
+ *  candidate set is exactly as large as the leg needs (or smaller) there is
+ *  nothing to choose — auto-selection stays and no prompt is shown (Arena UX
+ *  auto-resolve). Returns false for a cost with no hand leg. Mirrors
  *  {@link mayPaySacrificeChoiceRequired}. */
 export function mayPayDiscardChoiceRequired(
     state: GameState,
@@ -17119,7 +17247,10 @@ export function canPayMayPayCost(
             return false;
         }
     }
-    if (norm.hand && player.hand.length < mayPayHandLegCount(cost)) {
+    if (norm.hand && !assignMayPayHandCards(player, norm.hand)) {
+        // CR 701.9 / 118.9 — every requirement must be coverable by DISTINCT
+        // hand cards matching ITS filter. A summed-count check ("hand.length ≥
+        // total") would pass a hand full of non-matching cards.
         return false;
     }
     if (
@@ -17268,18 +17399,16 @@ export function payMayPayCost(
         }
     }
     if (norm.hand) {
-        // CR 701.9 / 118.3 — the payer chooses which of their hand cards to
-        // discard. Honour the caller-supplied `discardIds` (validated at the
-        // submit boundary) when present; otherwise fall back to hand order.
-        // Routed through `discardToGraveyard` so CR 614 discard replacements
-        // (Library of Leng) and CARD_DISCARDED triggers (Necropotence-style)
-        // apply exactly as for any other discard.
-        const candidates = player.hand;
-        const chosen =
-            discardIds && discardIds.length > 0
-                ? candidates.filter((c) => discardIds.includes(c.id))
-                : candidates;
-        const toGiveUp = chosen.slice(0, mayPayHandLegCount(cost));
+        // CR 701.9 / 118.3 / 118.9 — the payer chooses which of their hand
+        // cards to give up, but only from cards matching each requirement's
+        // filter. `assignMayPayHandCards` covers every requirement from
+        // DISTINCT matching cards, preferring the caller-supplied `discardIds`
+        // (validated at the submit boundary) and otherwise falling back to hand
+        // order. Routed through `discardToGraveyard` so CR 614 discard
+        // replacements (Library of Leng) and CARD_DISCARDED triggers
+        // (Necropotence-style) apply exactly as for any other discard.
+        const toGiveUp =
+            assignMayPayHandCards(player, norm.hand, discardIds) ?? [];
         for (const c of toGiveUp) {
             if (norm.hand.action === "exile") {
                 // CR 701.13 — the pitch-style hand leg (no may-pay card ships
