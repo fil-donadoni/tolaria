@@ -47,8 +47,10 @@ import {
 import type {
     CardInstanceState,
     GameState,
+    MayPayHandCard,
     PlayerState,
 } from "@convex/gre/state";
+import { assignMayPayHandCards } from "@convex/gre/state";
 import {
     affordableAlternativeCosts,
     handCardMatchesFilter,
@@ -2476,7 +2478,11 @@ export interface NormalizedMayPayCost {
      *  count of distinct cards from hand. */
     hand?: {
         action: "exile" | "discard";
-        requirements: { count: number }[];
+        /** Per-requirement filter carried THROUGH (CR 118.9, PR #1963 review
+         *  round 2): dropping it here made every UI consumer of the hand leg
+         *  read as unconstrained — the fail-open shape that let Pay enable on a
+         *  hand of non-matching cards. */
+        requirements: { filter: EffectCardFilter; count: number }[];
     };
     /** Energy leg (CR 122.1, issue #1194). Fixed count only — "pay
      *  {E}{E}{E}" (Guide of Souls). Mirrors the backend `CostLegs.energy`
@@ -2516,6 +2522,7 @@ export function normalizeMayPayCost(cost: MayPayCost): NormalizedMayPayCost {
                       hand: {
                           action: cost.hand.action,
                           requirements: cost.hand.requirements.map((r) => ({
+                              filter: r.filter,
                               count: r.count,
                           })),
                       },
@@ -2548,10 +2555,13 @@ export function mayPayCanAfford(
      *  (`{ minTotalPower }`, Phyrexian Dreadnought); ignored for a fixed-count
      *  leg, which gates on `sacrificeCandidateCount` instead. */
     sacrificeCandidatePower?: number,
-    /** The chooser's hand size (CR 701.9 / 118.3, issue #899). Required for a
-     *  discard leg — affordable iff the hand holds at least `count` cards.
-     *  Ignored for a cost with no discard leg. */
-    handCount?: number,
+    /** The chooser's VISIBLE hand cards (CR 701.9 / 118.9, issue #899).
+     *  Required for a discard leg — affordable iff every requirement can be
+     *  covered by DISTINCT hand cards matching ITS filter. Ignored for a cost
+     *  with no discard leg. Cards, not a COUNT: a summed-count gate enabled Pay
+     *  on a hand full of non-matching cards and the server then threw (PR #1963
+     *  review round 2). */
+    hand?: readonly MayPayHandCard[],
     /** The chooser's current energy counters (CR 122.1, issue #1194). Required
      *  for an energy leg — affordable iff the chooser holds at least `energy`
      *  counters. Ignored for a cost with no energy leg. Survives the wire
@@ -2582,7 +2592,7 @@ export function mayPayCanAfford(
             return false;
         }
     }
-    if (norm.hand && (handCount ?? 0) < mayPayRequiredDiscards(cost)) {
+    if (norm.hand && !assignMayPayHandCards(hand ?? [], norm.hand)) {
         return false;
     }
     if (norm.energy !== undefined && (chooserEnergy ?? 0) < norm.energy) {
@@ -2702,15 +2712,28 @@ export function mayPayRequiredDiscards(cost: MayPayCost | undefined): number {
 }
 
 /** Whether the chooser's current discard pick satisfies a hand `may-pay`
- *  discard leg (CR 701.9 / 118.3, issue #899): the selection must name exactly
- *  `count` distinct hand cards. A cost with no discard leg is trivially
- *  satisfied. Mirrors {@link mayPaySacrificePickSatisfied}'s fixed-count
- *  branch. */
+ *  discard leg (CR 701.9 / 118.9, issue #899): the selection must name exactly
+ *  `count` distinct hand cards AND cover every requirement from DISTINCT
+ *  matching cards. A cost with no discard leg is trivially satisfied. Mirrors
+ *  {@link mayPaySacrificePickSatisfied}'s fixed-count branch.
+ *
+ *  Validated through {@link assignMayPayHandCards} with the buffer as the
+ *  preference — the client-side twin of the server's `mayPayHandSelectionLegal`
+ *  submit boundary, run over the SAME authority so the Pay button never enables
+ *  on a pick the mutation would reject (PR #1963 review round 2). `selectedIds`
+ *  is the click ORDER, which is exactly what the greedy consumes. */
 export function mayPayDiscardPickSatisfied(
     cost: MayPayCost | undefined,
-    selectedIds: string[]
+    selectedIds: string[],
+    hand: readonly MayPayHandCard[] = []
 ): boolean {
-    return selectedIds.length === mayPayRequiredDiscards(cost);
+    if (selectedIds.length !== mayPayRequiredDiscards(cost)) return false;
+    if (!cost || !("hand" in cost) || !cost.hand) return true;
+    if (new Set(selectedIds).size !== selectedIds.length) return false;
+    const assigned = assignMayPayHandCards(hand, cost.hand, selectedIds);
+    if (!assigned) return false;
+    const chosen = new Set(selectedIds);
+    return assigned.every((c) => chosen.has(c.id));
 }
 
 /** Human-readable label for a `may-pay` cost union, rendered after "Pay" on the

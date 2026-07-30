@@ -143,12 +143,22 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
                 bufferCtx.buffer,
                 chooser?.battlefield ?? []
             );
-        // CR 701.9 / 118.3 (issue #899) — when the choice carries a hand
+        // CR 701.9 / 118.9 (issue #899) — when the choice carries a hand
         // discard pick (`zone: "hand"`), Pay stays disabled until the buffered
-        // cards satisfy the leg's fixed count.
+        // cards satisfy the leg: the fixed count AND every requirement covered
+        // from DISTINCT matching cards. The chooser's own hand is what the
+        // per-requirement filters are read against (an opponent's projects to
+        // `null`s, which the filter drops).
+        const chooserHand = (chooser?.hand ?? []).filter(
+            (c): c is NonNullable<typeof c> => c !== null
+        );
         const discardPickSatisfied =
             choice.zone !== "hand" ||
-            mayPayDiscardPickSatisfied(choice.cost, bufferCtx.buffer);
+            mayPayDiscardPickSatisfied(
+                choice.cost,
+                bufferCtx.buffer,
+                chooserHand
+            );
         canConfirm =
             !isBusy &&
             sacrificePickSatisfied &&
@@ -168,7 +178,7 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
                               choice.cost,
                               chooser.battlefield
                           ),
-                          chooser.hand.length,
+                          chooserHand,
                           // CR 122.1 (issue #1194) — energy leg affordability;
                           // energy survives the wire projection unchanged
                           // (`PlayerState.energyCounters`).

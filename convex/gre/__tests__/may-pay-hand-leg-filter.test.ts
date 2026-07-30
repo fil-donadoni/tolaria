@@ -18,6 +18,8 @@ import {
     payMayPayCost,
     getMayPayDiscardCandidateIds,
     mayPayDiscardChoiceRequired,
+    mayPayHandAutoSelection,
+    mayPayHandSelectionLegal,
     type GameState,
 } from "../state";
 import {
@@ -31,6 +33,9 @@ import type { MayPayCost } from "../../cards/types";
 const GRIZZLY_BEARS_ID = "ce2d603a-3231-4a8c-bf39-1617586ea870";
 // Ancestral Recall (LEA) — a plain Instant (the NON-matching hand filler).
 const ANCESTRAL_RECALL_ID = "70e7ddf2-5604-41e7-bb9d-ddd03d3e9d0b";
+// Forest (LEA) — a basic Land, for the "restrictive requirement declared last"
+// ordering probe.
+const FOREST_ID = "6f1c8cb0-38eb-408b-94e8-16db83999b3b";
 
 /** "Discard a creature card" — one requirement carrying a real filter. */
 const DISCARD_A_CREATURE: MayPayCost = {
@@ -61,6 +66,33 @@ const DISCARD_A_CARD: MayPayCost = {
     },
 };
 
+/** "Discard a card, then a Land card" — the SAME two requirements as
+ *  {@link DISCARD_A_LAND_AND_ANOTHER} but declared restrictive-LAST. The greedy
+ *  assignment is declaration-ordered (deliberate parity with the alternative-cost
+ *  hand leg, `canPayHandCost`), so this ordering is the documented authoring
+ *  hazard `CostLegs.hand` warns about — kept here as the click-order probe. */
+const DISCARD_A_CARD_THEN_A_LAND: MayPayCost = {
+    hand: {
+        action: "discard",
+        requirements: [
+            { filter: {}, count: 1 },
+            { filter: { type: "Land" }, count: 1 },
+        ],
+    },
+};
+
+/** Foil's shape: "discard a Land card and another card" — restrictive FIRST,
+ *  the ordering the authoring constraint mandates. */
+const DISCARD_A_LAND_AND_ANOTHER: MayPayCost = {
+    hand: {
+        action: "discard",
+        requirements: [
+            { filter: { type: "Land" }, count: 1 },
+            { filter: {}, count: 1 },
+        ],
+    },
+};
+
 const bear = (id: string) =>
     makeInstance(GRIZZLY_BEARS_ID, {
         id,
@@ -70,6 +102,13 @@ const bear = (id: string) =>
     });
 const recall = (id: string) =>
     makeInstance(ANCESTRAL_RECALL_ID, {
+        id,
+        controllerId: "p1",
+        ownerId: "p1",
+        zone: "hand",
+    });
+const forest = (id: string) =>
+    makeInstance(FOREST_ID, {
         id,
         controllerId: "p1",
         ownerId: "p1",
@@ -114,10 +153,28 @@ describe("may-pay HAND leg filter (CR 701.9 / 118.9, ADR 0079, issue #1933)", ()
         expect(
             mayPayDiscardChoiceRequired(state, "p1", DISCARD_A_CREATURE)
         ).toBe(true);
+        // A LEGAL pick is accepted at the submit boundary and paid verbatim.
+        expect(
+            mayPayHandSelectionLegal(state, "p1", DISCARD_A_CREATURE, ["b2"])
+        ).toBe(true);
         payMayPayCost(state, "p1", DISCARD_A_CREATURE, undefined, undefined, [
             "b2",
         ]);
         expect(state.players[0].graveyard.map((c) => c.id)).toEqual(["b2"]);
+
+        // An ILLEGAL pick — Ancestral Recall is no Creature — is REJECTED at
+        // the submit boundary, so it never reaches the pay path…
+        const illegal = stateWithHand([recall("r1"), bear("b1"), bear("b2")]);
+        expect(
+            mayPayHandSelectionLegal(illegal, "p1", DISCARD_A_CREATURE, ["r1"])
+        ).toBe(false);
+        // …and should one arrive anyway (a non-boundary caller), the greedy
+        // quietly ignores the unusable preference and still pays a MATCHING
+        // card rather than paying nothing.
+        payMayPayCost(illegal, "p1", DISCARD_A_CREATURE, undefined, undefined, [
+            "r1",
+        ]);
+        expect(illegal.players[0].graveyard.map((c) => c.id)).toEqual(["b1"]);
     });
 
     it("satisfies a multi-requirement leg from DISTINCT matching cards", () => {
@@ -147,5 +204,163 @@ describe("may-pay HAND leg filter (CR 701.9 / 118.9, ADR 0079, issue #1933)", ()
             getMayPayDiscardCandidateIds(state, "p1", DISCARD_A_CARD)
         ).toEqual(["r1", "b1"]);
         expect(canPayMayPayCost(state, "p1", DISCARD_A_CARD)).toBe(true);
+    });
+});
+
+// PR #1963 review round 2 — the submit boundary and the pay path used to run
+// DIFFERENT assignments: the boundary assigned over the picked subset in HAND
+// order, the pay path over the whole hand in the client's CLICK order. A pick
+// legal one way and not the other passed the boundary and then discarded
+// NOTHING while the cost still counted as paid.
+describe("may-pay HAND leg — one assignment authority (CR 701.9 / 118.9, PR #1963)", () => {
+    it("rejects a click-ORDER pick the pay path could not honour", () => {
+        const state = stateWithHand([bear("b1"), forest("f1")]);
+        // Both cards are candidates (the untyped requirement admits either) and
+        // the count is right, so every count-based check says "legal".
+        expect(
+            getMayPayDiscardCandidateIds(
+                state,
+                "p1",
+                DISCARD_A_CARD_THEN_A_LAND
+            ).sort()
+        ).toEqual(["b1", "f1"]);
+
+        // Clicked Forest FIRST: the greedy spends it on the untyped
+        // requirement and the Land requirement is then unsatisfiable.
+        expect(
+            mayPayHandSelectionLegal(state, "p1", DISCARD_A_CARD_THEN_A_LAND, [
+                "f1",
+                "b1",
+            ])
+        ).toBe(false);
+        // Clicked Bear first: the same two cards cover both requirements.
+        expect(
+            mayPayHandSelectionLegal(state, "p1", DISCARD_A_CARD_THEN_A_LAND, [
+                "b1",
+                "f1",
+            ])
+        ).toBe(true);
+    });
+
+    it("THROWS rather than silently paying nothing when the assignment fails", () => {
+        const state = stateWithHand([bear("b1"), forest("f1")]);
+        expect(() =>
+            payMayPayCost(
+                state,
+                "p1",
+                DISCARD_A_CARD_THEN_A_LAND,
+                undefined,
+                undefined,
+                ["f1", "b1"]
+            )
+        ).toThrow(/hand cost/i);
+        // The free lunch: the old `?? []` discarded NOTHING here while the
+        // cost still counted as paid.
+        expect(state.players[0].graveyard).toHaveLength(0);
+    });
+
+    it("pays exactly the set the submit boundary accepted", () => {
+        const state = stateWithHand([bear("b1"), forest("f1")]);
+        const ids = ["b1", "f1"];
+        expect(
+            mayPayHandSelectionLegal(
+                state,
+                "p1",
+                DISCARD_A_CARD_THEN_A_LAND,
+                ids
+            )
+        ).toBe(true);
+        payMayPayCost(
+            state,
+            "p1",
+            DISCARD_A_CARD_THEN_A_LAND,
+            undefined,
+            undefined,
+            ids
+        );
+        expect(state.players[0].graveyard.map((c) => c.id).sort()).toEqual([
+            "b1",
+            "f1",
+        ]);
+        expect(state.players[0].hand).toHaveLength(0);
+    });
+
+    it("is click-order INSENSITIVE when the restrictive requirement is declared first", () => {
+        // The authoring constraint documented on `CostLegs.hand`: Foil's
+        // ordering makes every click order legal, because the restrictive
+        // requirement claims its card before the permissive one can take it.
+        const state = stateWithHand([bear("b1"), forest("f1")]);
+        for (const ids of [
+            ["b1", "f1"],
+            ["f1", "b1"],
+        ]) {
+            expect(
+                mayPayHandSelectionLegal(
+                    state,
+                    "p1",
+                    DISCARD_A_LAND_AND_ANOTHER,
+                    ids
+                )
+            ).toBe(true);
+        }
+    });
+});
+
+describe("mayPayHandAutoSelection (CR 701.9 / 118.9, PR #1963)", () => {
+    it("returns [] for a cost with no hand leg", () => {
+        const state = stateWithHand([bear("b1")]);
+        expect(mayPayHandAutoSelection(state, "p1", { R: 1 })).toEqual([]);
+    });
+
+    it("falls back to HAND order with no preference", () => {
+        const state = stateWithHand([bear("b1"), bear("b2")]);
+        expect(
+            mayPayHandAutoSelection(state, "p1", DISCARD_A_CREATURE)
+        ).toEqual(["b1"]);
+    });
+
+    it("honours a legal preference ordering", () => {
+        const state = stateWithHand([bear("b1"), bear("b2")]);
+        expect(
+            mayPayHandAutoSelection(state, "p1", DISCARD_A_CREATURE, [
+                "b2",
+                "b1",
+            ])
+        ).toEqual(["b2"]);
+    });
+
+    it("ignores a preference the FILTER cannot use", () => {
+        const state = stateWithHand([recall("r1"), bear("b1")]);
+        expect(
+            mayPayHandAutoSelection(state, "p1", DISCARD_A_CREATURE, ["r1"])
+        ).toEqual(["b1"]);
+    });
+
+    it("returns [] when the leg cannot be covered at all", () => {
+        const state = stateWithHand([recall("r1"), recall("r2")]);
+        expect(
+            mayPayHandAutoSelection(state, "p1", DISCARD_A_CREATURE)
+        ).toEqual([]);
+    });
+
+    it("returns a set the submit boundary accepts (the two agree)", () => {
+        const state = stateWithHand([bear("b1"), forest("f1")]);
+        // Worst-first preference puts the Land first — the ordering the bot
+        // would supply, and the one that breaks the permissive-first leg.
+        const chosen = mayPayHandAutoSelection(
+            state,
+            "p1",
+            DISCARD_A_LAND_AND_ANOTHER,
+            ["f1", "b1"]
+        );
+        expect(chosen.sort()).toEqual(["b1", "f1"]);
+        expect(
+            mayPayHandSelectionLegal(
+                state,
+                "p1",
+                DISCARD_A_LAND_AND_ANOTHER,
+                chosen
+            )
+        ).toBe(true);
     });
 });

@@ -1311,7 +1311,21 @@ export interface CostLegs {
      *  filter (`{}`) constrains nothing — the untyped "discard a card" shape.
      *  A cast card itself never pays for its own cost (it is on the stack, not
      *  in hand). WHICH cards pay is the payer's choice (parks for a picker when
-     *  real, auto-resolves when forced). */
+     *  real, auto-resolves when forced).
+     *
+     *  **AUTHORING CONSTRAINT — declare the MOST RESTRICTIVE requirement
+     *  FIRST.** Requirements are satisfied by a GREEDY pass in DECLARATION
+     *  ORDER (`assignMayPayHandCards`, `gre/state.ts`; `canPayHandCost`,
+     *  `gre/alternativeCost.ts`), not by a bipartite matching. With OVERLAPPING
+     *  requirements a permissive-first ordering can spend the only qualifying
+     *  card on the permissive leg and then report a FALSE unaffordable —
+     *  `[{ filter: {} }, { filter: { type: "Land" } }]` against a hand of one
+     *  land and one spell fails, while the same two requirements declared
+     *  land-first succeed. Foil's shape works precisely because its Island
+     *  requirement is declared first. The greedy is kept deliberately: it is
+     *  the behaviour BOTH cost vocabularies have always had, and identical
+     *  pricing across them is worth more here than the generality a matching
+     *  rewrite would buy (no printed card needs it). */
     hand?: {
         action: "exile" | "discard";
         requirements: { filter: EffectCardFilter; count: number }[];

@@ -117,12 +117,18 @@ export function altCostPermanentCardinal(
  *  (issue #901) so the `discardFilter` activation-cost leg
  *  (`ActivatedAbility.cost.discardFilter` — Survival of the Fittest "Discard
  *  a creature card") reuses the exact same hand-card matcher rather than a
- *  third copy. */
+ *  third copy.
+ *
+ *  Typed on the STRUCTURAL card shape it actually reads (the definition id),
+ *  not `CardInstanceState`, so the projected wire card (`SlimCardInstance`, the
+ *  client `CardInstance`) matches through the very same matcher — the client
+ *  Brain and the UI's Pay gate price a may-pay hand leg exactly as the server
+ *  does (ADR 0074, PR #1963 review round 2). */
 export function handCardMatchesFilter(
-    card: CardInstanceState,
+    card: { card: { id?: string } },
     filter: EffectCardFilter
 ): boolean {
-    const cardId = (card.card as { id?: string }).id;
+    const cardId = card.card.id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
     if (!def) return false;
     const asArray = <T>(v: T | T[] | undefined): T[] | undefined =>

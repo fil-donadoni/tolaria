@@ -263,11 +263,23 @@ export type OwedChoice = {
     sacrificeThreshold?: number;
     /** `may-pay` only (CR 701.9 / 118.3, issue #899): the number of hand cards
      *  the accepted cost's discard leg makes the payer choose, when the leg
-     *  admits a real choice (more hand cards than discarded). `candidates`
-     *  then holds the legal hand cards and the bot picks `discardCount` of
-     *  them worst-first, mirroring `sacrificeCount`. Undefined / 0 when no
-     *  discard pick is owed. */
+     *  admits a real choice (more hand cards than discarded). Descriptive only
+     *  — the pick itself is `discardIds`. Undefined / 0 when no discard pick is
+     *  owed. */
     discardCount?: number;
+    /** `may-pay` only (CR 701.9 / 118.9): the CONCRETE hand cards to submit
+     *  alongside an accepted discard leg, already resolved by `buildOwedChoice`
+     *  through the engine's one hand-leg assignment authority
+     *  (`assignMayPayHandCards`) over the bot's worst-first preference.
+     *
+     *  It is a resolved SET, not a count, because the policy cannot legally
+     *  derive one from the other: slicing `discardCount` cards off `candidates`
+     *  ignores the leg's per-requirement filters, and the resulting submission
+     *  is rejected server-side — the driver then re-answers the same state
+     *  forever (bot freeze, PR #1963 review round 2). Undefined when no discard
+     *  pick is owed, or when the leg cannot be covered at all (in which case
+     *  `affordable` is already false and the bot declines). */
+    discardIds?: string[];
     /** `discard-hand` only: the controller's mana picture, so the discard
      *  heuristic can protect scarce lands and rank spells by castability
      *  (issue #242). Undefined for every other choice kind. */
@@ -931,18 +943,20 @@ export function chooseOwedChoiceAction(choice: OwedChoice): BotAction {
                 ),
             };
         }
-        // CR 701.9 / 118.3 (issue #899) — a discard leg with a real card
+        // CR 701.9 / 118.9 (issue #899) — a discard leg with a real card
         // choice needs a legal pick supplied alongside the accept, or the
-        // submit throws and the bot freezes. Pick `discardCount` worst-first
-        // hand cards (a minimal-legal default — smart discard choice is
-        // deferred), mirroring the sacrifice pick above.
-        if (accept && choice.discardCount && choice.discardCount > 0) {
+        // submit throws and the bot freezes. Unlike the sacrifice pick above,
+        // the set is NOT derivable here: `buildOwedChoice` already resolved it
+        // through the engine's one hand-leg assignment authority over the
+        // bot's worst-first preference, because the leg's per-requirement
+        // filters — not a count — decide what is legal (PR #1963 review round
+        // 2; the old `worstFirst(candidates).slice(0, discardCount)` was
+        // routinely illegal for a filtered multi-requirement leg).
+        if (accept && choice.discardIds && choice.discardIds.length > 0) {
             return {
                 kind: "may-pay",
                 accept,
-                discardIds: worstFirst(choice.candidates)
-                    .slice(0, choice.discardCount)
-                    .map((c) => c.id),
+                discardIds: choice.discardIds,
             };
         }
         return { kind: "may-pay", accept };

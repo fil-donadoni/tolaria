@@ -19,6 +19,7 @@ import {
     normalizeManaCost,
     isManaCostCovered,
     mayPayHandLegCount,
+    assignMayPayHandCards,
     normalizeMayPayCost,
     isSearchableChoiceNode,
 } from "@convex/gre";
@@ -434,10 +435,27 @@ function mayPayIsAffordable(
             return false;
         }
     }
-    if (norm.hand && bot.hand.length < mayPayHandLegCount(head.cost)) {
+    if (norm.hand && !assignMayPayHandCards(visibleHand(bot), norm.hand)) {
+        // CR 701.9 / 118.9 — every requirement must be coverable by DISTINCT
+        // hand cards matching ITS filter, run through the engine's ONE
+        // assignment authority (the identical call `canPayMayPayCost` makes
+        // server-side). The summed-count check this replaces (`hand.length >=
+        // total`) reported a hand full of non-matching cards as AFFORDABLE, so
+        // the bot accepted and the server's pay path then threw (PR #1963
+        // review round 2).
         return false;
     }
     return true;
+}
+
+/** The payer's own hand cards as the projection carries them, nulls dropped.
+ *  An opponent's hand projects to `null[]` (ADR 0026); the bot only ever prices
+ *  its OWN may-pay hand leg, so an empty list there is the correct — and
+ *  conservative — answer. */
+function visibleHand(
+    player: PublicGameState["players"][number]
+): SlimCardInstance[] {
+    return player.hand.filter((c): c is NonNullable<typeof c> => c !== null);
 }
 
 /** The instance id of the ability SOURCE behind a pending may-pay — the stack
@@ -477,18 +495,47 @@ function mayPaySacrificePick(head: PendingChoice): {
         : { sacrificeCount: count };
 }
 
-/** Surfaces the may-pay discard pick shape for the bot's OwedChoice (CR 701.9 /
- *  118.3, issue #899): a fixed `discardCount`, or absent for a non-discard
- *  may-pay. Mirrors {@link mayPaySacrificePick}; discard has no summed-power
- *  threshold shape. */
-function mayPayDiscardPick(head: PendingChoice): {
+/** Surfaces the may-pay discard pick for the bot's OwedChoice (CR 701.9 /
+ *  118.3, issue #899): the fixed `discardCount` the leg gives up, plus the
+ *  CONCRETE `discardIds` the bot must submit. Mirrors {@link mayPaySacrificePick};
+ *  discard has no summed-power threshold shape.
+ *
+ *  The ids are resolved HERE, not by slicing `discardCount` cards off the
+ *  candidate union in the policy (PR #1963 review round 2). CR 118.9 — worst-
+ *  first is a PREFERENCE, not the pick: the leg's per-requirement filters decide
+ *  what is legal, and a top-N slice of the union is routinely illegal for a
+ *  filtered multi-requirement leg (two creatures where the leg wants a creature
+ *  AND an instant). The server's submit boundary rejects it, the driver catches,
+ *  resets its signature and re-answers the same state forever — a bot freeze.
+ *  Routing the ordering through {@link assignMayPayHandCards} — the same
+ *  authority `mayPayHandSelectionLegal` validates against, and the same shape
+ *  the search-side `choiceCandidates.ts` uses — guarantees a submission the
+ *  server accepts. Absent when the leg cannot be covered at all, which
+ *  `mayPayIsAffordable` has already turned into a decline. */
+function mayPayDiscardPick(
+    state: PublicGameState,
+    head: PendingChoice,
+    candidates: ChoiceCandidate[]
+): {
     discardCount?: number;
+    discardIds?: string[];
 } {
     if (head.kind !== "may-pay" || head.zone !== "hand" || !head.cost) {
         return {};
     }
-    if (!normalizeMayPayCost(head.cost).hand) return {};
-    return { discardCount: mayPayHandLegCount(head.cost) };
+    const leg = normalizeMayPayCost(head.cost).hand;
+    if (!leg) return {};
+    const payer = state.players.find((p) => p.id === head.playerId);
+    const preferred = [...candidates]
+        .sort((a, b) => a.value - b.value)
+        .map((c) => c.id);
+    const chosen = payer
+        ? assignMayPayHandCards(visibleHand(payer), leg, preferred)
+        : undefined;
+    return {
+        discardCount: mayPayHandLegCount(head.cost),
+        ...(chosen ? { discardIds: chosen.map((c) => c.id) } : {}),
+    };
 }
 
 /** Project the active bot-owed `PendingChoice` into the {@link OwedChoice} the
@@ -600,9 +647,9 @@ function buildOwedChoice(
         // CR 701.9 / 118.3 (issue #899) — a may-pay discard leg with a real card
         // choice sets `zone: "hand"` and lists the legal hand cards in
         // `candidateIds`; surfaces the fixed count the payer must pick
-        // (`discardCount`) so the bot supplies a legal `discardIds`. Undefined
-        // for a plain yes/no or auto-resolving pay.
-        ...mayPayDiscardPick(head),
+        // (`discardCount`) AND the concrete, per-requirement-legal `discardIds`
+        // the bot submits. Undefined for a plain yes/no or auto-resolving pay.
+        ...mayPayDiscardPick(state, head, candidatesForChoice),
         // issue #1364 (Atraxa) — a CATEGORIZED look-distribute constrains the
         // keep beyond the count bounds (at most one card per category, each
         // card claimable by only one), so the policy must test each addition

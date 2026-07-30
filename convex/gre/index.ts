@@ -28,7 +28,13 @@ export {
     canPayMayPayCost,
     mayPayHandLegCount,
     mayPayPermanentAction,
+    // THE single may-pay HAND-leg assignment authority (CR 701.9 / 118.9).
+    // Exported across the boundary on purpose: the client Brain, the bot view
+    // and the UI's Pay gate must price the leg with the identical greedy the
+    // server's submit boundary and pay path use (ADR 0074).
+    assignMayPayHandCards,
 } from "./state";
+export type { MayPayHandCard } from "./state";
 export { getPlayer, matchesPermanentFilter } from "./state";
 export type { Phase, Zone } from "./types";
 
