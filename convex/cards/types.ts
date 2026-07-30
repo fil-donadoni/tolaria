@@ -6159,6 +6159,59 @@ export const EFFECT_AFFECTS_SELF: StaticKeywordGrant["applies"] = (
     source
 ) => target.id === source.id;
 
+/** CR 613 board-wide colour census tie-break (issue #1943) — ties a
+ *  caller-supplied per-colour counter to the colour(s) tied for the maximum,
+ *  or `[]` when no colour has ANY representation (the "no coloured
+ *  permanents in play" case). A thin, context-agnostic core so both a
+ *  continuous static effect's `StaticEffectStateView` read (`mostCommonColors`
+ *  below) and a resolve()/activated-ability's `SpellContext` read share ONE
+ *  tie-break rule rather than each reimplementing "which colour(s) are tied
+ *  for the max". */
+export function tallyMostCommonColors(
+    perColor: (color: Color) => number
+): Color[] {
+    const COLORS: Color[] = ["W", "U", "B", "R", "G"];
+    const counts = COLORS.map((c) => [c, perColor(c)] as const);
+    const max = Math.max(0, ...counts.map(([, n]) => n));
+    if (max === 0) return [];
+    return counts.filter(([, n]) => n === max).map(([c]) => c);
+}
+
+/** CR 613 board-wide colour census read through a continuous static effect's
+ *  board view — every colour tied for most common among ALL permanents both
+ *  players control, of every card type (not creatures only). A multicoloured
+ *  permanent counts toward EACH of its colours; `ctx.getColors` already
+ *  resolves the EFFECTIVE, post-layer-5 colour (CR 613.1d `colorOverride`,
+ *  granted colours), so a colour-changing effect shifts the census for free.
+ *  A colourless permanent counts toward none. Returns `[]` when no permanent
+ *  in play has a colour — the caller decides what that means (Heroic
+ *  Defiance: bonus applies; Goham Djinn / Tsabo's Assassin: the -2/-2 doesn't
+ *  trigger, since `mostCommon.includes(color)` is false against `[]`).
+ *
+ *  Mirrors `countDomain`'s shape: a shared board-scan helper, not a per-card
+ *  closure. Originally a private `inv/black.ts` pair (Goham Djinn / Tsabo's
+ *  Assassin); promoted here on its 3rd consumer (Heroic Defiance,
+ *  `cards/sets/pls/white.ts`) per the "generalize, don't add" primitive-reuse
+ *  rule rather than a third near-duplicate copy.
+ *
+ *  No CR 613.8 dependency-loop risk: this reads `ctx.getColors` (layer 5,
+ *  already resolved by the time a layer 7 P/T read runs) to compute a LATER
+ *  layer's (7a `pt-cda` / 7d `pt-buff`) contribution — it never feeds back
+ *  into colour derivation itself, so there is no self-referential dependency
+ *  to order. */
+export function mostCommonColors(
+    state: StaticEffectStateView,
+    ctx: StaticEffectContext
+): Color[] {
+    const allPermanents: readonly PermanentView[] = state.players.flatMap(
+        (p) => p.battlefield
+    );
+    return tallyMostCommonColors(
+        (color) =>
+            allPermanents.filter((p) => ctx.getColors(p).includes(color)).length
+    );
+}
+
 /** Metalcraft (CR 702 preamble ability word, Mechanics Registry `metalcraft`
  *  row) — true when `controllerId` controls three or more artifacts (Mox
  *  Opal's "Activate only if you control three or more artifacts."). Mirrors

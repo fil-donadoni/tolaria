@@ -5664,6 +5664,14 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Heroic Defiance",
+        "scryfallId": "0dc1aa36-5d3b-4d25-9d54-937cdabf72a4",
+        "oracleId": "f6209f18-9f40-44b4-9a8c-3445eda89928",
+        "firstSet": "pls",
+        "firstPrintId": "0dc1aa36-5d3b-4d25-9d54-937cdabf72a4",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Heroism",
         "scryfallId": "08ee87a0-a7eb-4472-9045-85d11e8a1501",
         "oracleId": "74716642-fc8c-4f62-a556-154ed0b4af0e",
