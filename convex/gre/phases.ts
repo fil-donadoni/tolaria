@@ -1848,11 +1848,18 @@ export function emitBlockersConfirmedEvents(state: GameState): void {
                 // triggers (Infinite Authority, Infernal Medusa) read the live
                 // value including counters / continuous effects.
                 attackerToughness: getEffectiveToughness(state, attacker),
+                // CR 202.2 / layer 5 effective colour, so colour-gated
+                // combat-pairing triggers (Amphibious Kavu) read the same
+                // colour the rest of the engine sees — carried on the event
+                // itself rather than a `TriggerStateView` lookup (see the
+                // field doc on `BlockersConfirmedEvent`).
+                attackerColors: STATIC_EFFECT_CTX.getColors(attacker),
                 blockerId: blocker.id,
                 blockerControllerId: blocker.controllerId,
                 blockerTypes: blocker.types,
                 blockerSubtypes: blocker.subtypes,
                 blockerToughness: getEffectiveToughness(state, blocker),
+                blockerColors: STATIC_EFFECT_CTX.getColors(blocker),
             });
         }
     }
