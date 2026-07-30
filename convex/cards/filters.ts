@@ -54,6 +54,12 @@ export interface PermanentFilter {
      *  AND with every other field. */
     excludeTypes?: CardType | CardType[];
     subtypes?: string | string[];
+    /** Exclude permanents whose `subtypes` include any of these (CR 205.3/
+     *  205.3i). The negative of `subtypes`; used for "non-Lair land" (the
+     *  Planeshift Lair cycle's return-leg cost filter, CR 701.24 — a Lair
+     *  cannot pay for its own or a sibling Lair's survival). Single value is
+     *  shorthand for one subtype. AND with every other field. */
+    excludeSubtypes?: string | string[];
     /** Match permanents that have ALL of these supertypes (CR 205.4a — e.g.
      *  "a snow land", "a snow Mountain"). Read against the LIVE supertype set
      *  on `MatchablePermanent.supertypes`, which engine call sites populate
@@ -316,6 +322,10 @@ export function matchesPermanentFilter(
     if (filter.subtypes !== undefined) {
         const subtypes = asArray(filter.subtypes);
         if (!subtypes.some((s) => card.subtypes.includes(s))) return false;
+    }
+    if (filter.excludeSubtypes !== undefined) {
+        const excluded = asArray(filter.excludeSubtypes);
+        if (excluded.some((s) => card.subtypes.includes(s))) return false;
     }
     if (filter.supertypes !== undefined) {
         const supertypes = asArray(filter.supertypes);

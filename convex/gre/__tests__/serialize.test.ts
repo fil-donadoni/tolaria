@@ -1959,6 +1959,22 @@ describe("optional field round-trip smoke tests", () => {
         );
     });
 
+    it("damageRedirections — from-source-to-permanent-redirect with a PERMANENT destination (Mirrorwood Treefolk, issue #1939)", () => {
+        const state = freshState();
+        state.damageRedirections = [
+            {
+                kind: "from-source-to-permanent-redirect",
+                targetInstanceId: "mwt1",
+                redirectTo: { type: "permanent", id: "bear1" },
+                remaining: 1,
+                duration: { phase: "end-of-turn" },
+            },
+        ];
+        expect(roundTrip(state).damageRedirections).toEqual(
+            state.damageRedirections
+        );
+    });
+
     it("destroyReplacementShields", () => {
         const state = freshState();
         state.destroyReplacementShields = [

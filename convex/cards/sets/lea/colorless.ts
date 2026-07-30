@@ -794,11 +794,13 @@ export const ivoryCup: CardDefinition = makeColorSphere({
 // targets the creature at activation (CR 601.2c) and resolves with a
 // `requestChoice` step that asks the activator to name the specific source
 // (CR 109.4 — typically a battlefield permanent). The chosen source id is
-// baked into a `from-source-to-permanent-redirect-to-player` shield with
-// `remaining: 1`. The shield self-purges either on first match or at end of
-// turn. If the activator's `requestChoice` is skipped (the engine prompt
-// can return an empty list when no candidates exist), the shield falls back
-// to wildcard-source matching so the activation isn't wasted.
+// baked into a `from-source-to-permanent-redirect` shield (generalized in
+// issue #1939 to carry a player-or-permanent `redirectTo`; here always
+// `{type:"player"}`, the activator) with `remaining: 1`. The shield
+// self-purges either on first match or at end of turn. If the activator's
+// `requestChoice` is skipped (the engine prompt can return an empty list
+// when no candidates exist), the shield falls back to wildcard-source
+// matching so the activation isn't wasted.
 export const jadeMonolith: CardDefinition = {
     id: "4a77e0f1-449d-4a7d-9fa0-ba7598f7a73a",
     rarity: "rare",
@@ -829,10 +831,10 @@ export const jadeMonolith: CardDefinition = {
                 if (sourcePicks === undefined) return;
                 const sourceId = sourcePicks[0];
                 ctx.addDamageRedirectionShield({
-                    kind: "from-source-to-permanent-redirect-to-player",
+                    kind: "from-source-to-permanent-redirect",
                     sourceInstanceId: sourceId,
                     targetInstanceId: t.id,
-                    redirectToPlayerId: ctx.controller,
+                    redirectTo: { type: "player", id: ctx.controller },
                     remaining: 1,
                     duration: { phase: "end-of-turn" },
                 });

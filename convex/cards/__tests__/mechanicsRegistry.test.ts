@@ -663,12 +663,19 @@ describe("Event field registry ($event.<field>, ADR 0049, issue #865)", () => {
         expect(getEventFieldRow("PHASE_BEGIN", "activePlayerId")?.family).toBe(
             "player"
         );
+        // issue #1940 — Warped Devotion's "that player discards" (the
+        // RETURNING permanent's owner, not the ability's controller) reads
+        // straight off PERMANENT_LEFT's existing `ownerId` field.
+        expect(getEventFieldRow("PERMANENT_LEFT", "ownerId")?.family).toBe(
+            "player"
+        );
         expect(isRegisteredEventField("BLOCKERS_CONFIRMED", "blockerId")).toBe(
             true
         );
         expect(isRegisteredEventField("PHASE_BEGIN", "activePlayerId")).toBe(
             true
         );
+        expect(isRegisteredEventField("PERMANENT_LEFT", "ownerId")).toBe(true);
         // Uncensused pairs are rejected — no runtime skip, a validation failure.
         expect(getEventFieldRow("BLOCKERS_CONFIRMED", "bogus")).toBeUndefined();
         expect(getEventFieldRow("PHASE_BEGIN", "phase")).toBeUndefined();
@@ -686,6 +693,30 @@ describe("Event field registry ($event.<field>, ADR 0049, issue #865)", () => {
         expect(
             getEventFieldRow("PHASE_BEGIN", "activePlayerId")!.resolve(event)
         ).toBe("p2");
+    });
+
+    it("PERMANENT_LEFT.ownerId flattens to the returning/departing player id", () => {
+        const event: GameEvent = {
+            type: "PERMANENT_LEFT",
+            instanceId: "bounced",
+            controllerId: "p1",
+            ownerId: "p2",
+            types: ["Creature"],
+            subtypes: [],
+            wasAura: false,
+            toZone: "hand",
+        };
+        expect(
+            getEventFieldRow("PERMANENT_LEFT", "ownerId")!.resolve(event)
+        ).toBe("p2");
+        // A different event type never resolves through this row.
+        expect(
+            getEventFieldRow("PERMANENT_LEFT", "ownerId")!.resolve({
+                type: "PHASE_BEGIN",
+                phase: "UPKEEP",
+                activePlayerId: "p1",
+            })
+        ).toBeUndefined();
     });
 
     it("BLOCKERS_CONFIRMED object fields flatten to the pair ids", () => {

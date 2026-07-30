@@ -3575,8 +3575,8 @@ export type PlayerPreferences = {
     libraryOfLengRouting?: "library" | "graveyard";
 };
 
-/** State-level transient damage replacement (CR 614). Three kinds cover the
- *  LEA reanimation / replacement subset:
+/** State-level transient damage replacement (CR 614). Four kinds cover the
+ *  LEA reanimation / replacement subset plus the PLS generalization:
  *
  *  - `prevent-from-source-gain-life`: source X's next damage to a chosen
  *    player is fully prevented; the player gains life equal to the
@@ -3584,9 +3584,15 @@ export type PlayerPreferences = {
  *  - `to-self-redirect-to-owner`: the next N damage that would be dealt to
  *    a specific permanent is redirected to its owner. Personal
  *    Incarnation's `{0}` activated ability.
- *  - `from-source-to-permanent-redirect-to-player`: the next damage that
- *    source X would deal to a specific creature is dealt to a chosen
- *    player instead. Jade Monolith's `{1}` activated ability. */
+ *  - `from-source-to-permanent-redirect`: the next damage that source X
+ *    (or, when `sourceInstanceId` is unset, ANY source) would deal to a
+ *    specific creature is dealt to a chosen destination — a player OR a
+ *    permanent — instead. Generalizes Jade Monolith's `{1}` activated
+ *    ability (destination always a player, `redirectTo: {type:"player"}`)
+ *    to also cover Mirrorwood Treefolk's `{2}{R}{W}` ability, whose
+ *    "any target" destination is announced at activation (CR 601.2c /
+ *    602.2b) via a `targetRequirement: { type: "any" }` and may be a
+ *    permanent (issue #1939). */
 /** A turn-scoped grant redirecting a card entering `ownerId`'s OWN graveyard
  *  to exile instead (CR 614, issue #1145 — Yawgmoth's Will's shape). Applied
  *  by `applyGraveyardBoundReplacements` as a transient layer on top of the
@@ -3615,14 +3621,23 @@ export type DamageRedirection =
           duration: Duration;
       }
     | {
-          kind: "from-source-to-permanent-redirect-to-player";
-          /** Source filter. `undefined` matches any source (Jade Monolith's
+          kind: "from-source-to-permanent-redirect";
+          /** Source filter. `undefined` matches any source — Jade Monolith's
            *  oracle is "a source of your choice" but with no further
-           *  re-target step at activation; the engine simplifies to "any
-           *  source this turn" for the chosen creature). */
+           *  re-target step at activation (the engine simplifies to "any
+           *  source this turn" for the chosen creature); Mirrorwood
+           *  Treefolk's "the next time damage would be dealt to this
+           *  creature" has no source filter at all, so it is always unset. */
           sourceInstanceId?: string;
           targetInstanceId: string;
-          redirectToPlayerId: string;
+          /** Where the redirected damage lands — a player (Jade Monolith,
+           *  always the activator) or a permanent (Mirrorwood Treefolk's
+           *  "any target", announced at activation, CR 115.4/601.2c/602.2b).
+           *  Reuses `TargetSelection`'s player/permanent shape rather than
+           *  adding a bespoke destination type. */
+          redirectTo:
+              | { type: "player"; id: string }
+              | { type: "permanent"; id: string };
           /** Remaining charges. `1` = one-shot, decrements per match. */
           remaining: number;
           duration: Duration;
@@ -9949,12 +9964,12 @@ export function buildSpellContext(
                         duration: resolved,
                     };
                     break;
-                case "from-source-to-permanent-redirect-to-player":
+                case "from-source-to-permanent-redirect":
                     entry = {
-                        kind: "from-source-to-permanent-redirect-to-player",
+                        kind: "from-source-to-permanent-redirect",
                         sourceInstanceId: shield.sourceInstanceId,
                         targetInstanceId: shield.targetInstanceId,
-                        redirectToPlayerId: shield.redirectToPlayerId,
+                        redirectTo: shield.redirectTo,
                         remaining: shield.remaining,
                         duration: resolved,
                     };

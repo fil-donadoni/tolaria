@@ -171,12 +171,21 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
                           chooser.life,
                           mayPaySacrificeCount(
                               choice.cost,
-                              chooser.battlefield
+                              chooser.battlefield,
+                              // CR 701.16 — resolves `controllerRelation`
+                              // ("sacrifice two Swamps YOU control") against
+                              // the CHOOSER, mirroring the server's own
+                              // `sacrificeCandidates` (`convex/gre/state.ts`).
+                              // Missing this fails the filter CLOSED and
+                              // undercounts a legal sacrifice to 0 (issue
+                              // #1938 fixup 2 regression).
+                              { selfControllerId: chooser.id }
                           ),
                           extraMana,
                           mayPaySacrificePower(
                               choice.cost,
-                              chooser.battlefield
+                              chooser.battlefield,
+                              { selfControllerId: chooser.id }
                           ),
                           chooserHand,
                           // CR 122.1 (issue #1194) — energy leg affordability;
