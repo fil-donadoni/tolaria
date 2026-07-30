@@ -1,9 +1,11 @@
 // PLS (Planeshift) — green card behavior tests (ADR 0043 colour split).
 // Each card's describe block cites the CR section it exercises.
 import { describe, it, expect } from "vitest";
-import { mirrorwoodTreefolk, quirionExplorer } from "../green";
+import { amphibiousKavu, mirrorwoodTreefolk, quirionExplorer } from "../green";
 import { crawWurm } from "../../lea/green";
 import { lightningBolt } from "../../lea/red";
+import { airElemental } from "../../lea/blue";
+import { blackKnight } from "../../lea/black";
 import { forest, island, mountain, swamp } from "../../lea/colorless";
 import {
     makeInstance,
@@ -18,6 +20,14 @@ import {
     getEffectiveManaChoices,
     getManaTapOptionsDetailed,
 } from "../../../../gre/constants";
+import {
+    getEffectivePower,
+    getEffectiveToughness,
+} from "../../../../gre/layers";
+import {
+    emitBlockersConfirmedEvents,
+    advancePhase,
+} from "../../../../gre/phases";
 import { getLegalActions } from "../../../../gre/rules";
 import type { TargetSelection } from "../../../types";
 
@@ -388,5 +398,253 @@ describe("Quirion Explorer (CR 605.1a / 106.4 — colours an OPPONENT's land cou
                 }))
             )
         ).toEqual(onFat);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// C8a — Amphibious Kavu (CR 509.1h "blocks or becomes blocked by" combat-
+// pairing trigger with a colour filter, issue #1942). Exercised through the
+// REAL combat path: `emitBlockersConfirmedEvents` (`gre/phases.ts`) is the
+// production emitter, not a hand-built `TriggerStateView` — the only way to
+// prove the new `attackerColors`/`blockerColors` event fields actually reach
+// `matches` the way the real engine populates them.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("Amphibious Kavu ({2}{G} 2/2 — blocks/becomes-blocked-by colour trigger, CR 509.1h / 603.3b)", () => {
+    // p1 always controls the attacker, p2 always controls the blocker(s) —
+    // `emitBlockersConfirmedEvents` resolves sides off `state.activePlayerId`
+    // (defaults to "p1", `setup.ts`'s `makeState`).
+    function setupCombat(opts: {
+        kavuRole: "attacker" | "blocker";
+        /** The lone attacker, when Kavu is the BLOCKER. Defaults to a plain
+         *  green Craw Wurm (non-matching colour, irrelevant to the trigger's
+         *  filter on this side). */
+        attacker?: CardInstanceState;
+        /** The blocker(s), when Kavu is the ATTACKER (becomes-blocked-by
+         *  direction). Ignored when Kavu itself is the blocker. */
+        otherBlockers?: CardInstanceState[];
+    }) {
+        const kavu = makeInstance(amphibiousKavu.id, {
+            id: "kavu",
+            controllerId: opts.kavuRole === "attacker" ? "p1" : "p2",
+            ownerId: opts.kavuRole === "attacker" ? "p1" : "p2",
+            isAttacking: opts.kavuRole === "attacker",
+            isBlocking: opts.kavuRole === "blocker",
+        });
+        const attacker: CardInstanceState =
+            opts.kavuRole === "attacker"
+                ? kavu
+                : (opts.attacker ??
+                  makeInstance(crawWurm.id, {
+                      id: "atk",
+                      controllerId: "p1",
+                      ownerId: "p1",
+                      isAttacking: true,
+                  }));
+        const blockers: CardInstanceState[] =
+            opts.kavuRole === "blocker" ? [kavu] : (opts.otherBlockers ?? []);
+
+        const blockerAssignments: Record<string, string[]> = {};
+        for (const b of blockers) blockerAssignments[b.id] = [attacker.id];
+
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield:
+                        opts.kavuRole === "attacker" ? [kavu] : [attacker],
+                }),
+                makePlayer("p2", { battlefield: blockers }),
+            ],
+            phase: "DECLARE_BLOCKERS",
+            combat: {
+                attackerIds: [attacker.id],
+                confirmed: true,
+                blockerAssignments,
+                blockersConfirmed: true,
+            },
+        });
+        return { state, kavu };
+    }
+
+    it("is a {2}{G} 2/2 Kavu with the modern oracle text", () => {
+        expect(amphibiousKavu.manaCost).toEqual({ X: 2, G: 1 });
+        expect(amphibiousKavu.types).toEqual(["Creature"]);
+        expect(amphibiousKavu.subtypes).toEqual(["Kavu"]);
+        expect(amphibiousKavu.power).toBe(2);
+        expect(amphibiousKavu.toughness).toBe(2);
+        expect(amphibiousKavu.oracleText).toBe(
+            "Whenever this creature blocks or becomes blocked by one or more blue and/or black creatures, this creature gets +3/+3 until end of turn."
+        );
+    });
+
+    it("fires when Kavu BLOCKS a blue creature (uses the Stack, does not auto-resolve)", () => {
+        const air = makeInstance(airElemental.id, {
+            id: "atk",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const { state, kavu } = setupCombat({
+            kavuRole: "blocker",
+            attacker: air,
+        });
+
+        emitBlockersConfirmedEvents(state);
+        expect(state.stack).toHaveLength(1); // on the Stack, not auto-resolved
+        expect(state.stack[0].triggeredAbilityId).toBe(
+            "amphibious-kavu-combat-pump"
+        );
+        resolveTopOfStack(state);
+        expect(getEffectivePower(state, kavu)).toBe(5);
+        expect(getEffectiveToughness(state, kavu)).toBe(5);
+    });
+
+    it("fires when Kavu BECOMES BLOCKED BY a black creature", () => {
+        const knight = makeInstance(blackKnight.id, {
+            id: "knight",
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+        });
+        const { state, kavu } = setupCombat({
+            kavuRole: "attacker",
+            otherBlockers: [knight],
+        });
+
+        emitBlockersConfirmedEvents(state);
+        expect(state.stack).toHaveLength(1);
+        resolveTopOfStack(state);
+        expect(getEffectivePower(state, kavu)).toBe(5);
+        expect(getEffectiveToughness(state, kavu)).toBe(5);
+    });
+
+    it("does NOT fire when blocked only by a non-blue/black creature", () => {
+        const wurm = makeInstance(crawWurm.id, {
+            id: "wurm",
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+        });
+        const { state, kavu } = setupCombat({
+            kavuRole: "attacker",
+            otherBlockers: [wurm],
+        });
+
+        emitBlockersConfirmedEvents(state);
+        expect(state.stack).toHaveLength(0);
+        expect(getEffectivePower(state, kavu)).toBe(2);
+    });
+
+    it("fires exactly ONCE when blocked by TWO blue/black creatures (CR 603.3b batching, official ruling: once per combat)", () => {
+        const air = makeInstance(airElemental.id, {
+            id: "air",
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+        });
+        const knight = makeInstance(blackKnight.id, {
+            id: "knight",
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+        });
+        const { state, kavu } = setupCombat({
+            kavuRole: "attacker",
+            otherBlockers: [air, knight],
+        });
+
+        emitBlockersConfirmedEvents(state);
+        expect(state.stack).toHaveLength(1); // not two
+        resolveTopOfStack(state);
+        expect(getEffectivePower(state, kavu)).toBe(5); // +3/+3 once, not +6/+6
+        expect(getEffectiveToughness(state, kavu)).toBe(5);
+    });
+
+    it("fires exactly ONCE when only ONE of several blockers matches (mixed pairing)", () => {
+        const wurm = makeInstance(crawWurm.id, {
+            id: "wurm",
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+        });
+        const air = makeInstance(airElemental.id, {
+            id: "air",
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+        });
+        const { state, kavu } = setupCombat({
+            kavuRole: "attacker",
+            otherBlockers: [wurm, air],
+        });
+
+        emitBlockersConfirmedEvents(state);
+        expect(state.stack).toHaveLength(1);
+        resolveTopOfStack(state);
+        expect(getEffectivePower(state, kavu)).toBe(5);
+    });
+
+    it("reads EFFECTIVE colour through the layer pipeline (colorOverride, CR 202.2/613.1d) — a green creature made blue still counts", () => {
+        const paintedWurm = makeInstance(crawWurm.id, {
+            id: "painted-wurm",
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+            colorOverride: ["U"],
+        });
+        const { state, kavu } = setupCombat({
+            kavuRole: "attacker",
+            otherBlockers: [paintedWurm],
+        });
+
+        emitBlockersConfirmedEvents(state);
+        expect(state.stack).toHaveLength(1);
+        resolveTopOfStack(state);
+        expect(getEffectivePower(state, kavu)).toBe(5);
+    });
+
+    it("+3/+3 lasts until end of turn and is gone after cleanup (CR 514.2)", () => {
+        const knight = makeInstance(blackKnight.id, {
+            id: "knight",
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+        });
+        const { state, kavu } = setupCombat({
+            kavuRole: "attacker",
+            otherBlockers: [knight],
+        });
+        emitBlockersConfirmedEvents(state);
+        resolveTopOfStack(state);
+        expect(getEffectiveToughness(state, kavu)).toBe(5);
+
+        state.phase = "END_STEP";
+        advancePhase(state); // traverses CLEANUP, purges EOT buffs
+        const kavuAfter = state.players
+            .flatMap((p) => p.battlefield)
+            .find((c) => c.id === "kavu")!;
+        expect(getEffectivePower(state, kavuAfter)).toBe(2);
+        expect(getEffectiveToughness(state, kavuAfter)).toBe(2);
+    });
+
+    it("survives the wire projection (mandatory — visible P/T change)", () => {
+        const knight = makeInstance(blackKnight.id, {
+            id: "knight",
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+        });
+        const { state } = setupCombat({
+            kavuRole: "attacker",
+            otherBlockers: [knight],
+        });
+        emitBlockersConfirmedEvents(state);
+        resolveTopOfStack(state);
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slimKavu = projected.players[0].battlefield.find(
+            (c) => c.id === "kavu"
+        )!;
+        expect(getEffectivePower(projected, slimKavu)).toBe(5);
+        expect(getEffectiveToughness(projected, slimKavu)).toBe(5);
     });
 });

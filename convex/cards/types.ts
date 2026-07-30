@@ -6740,6 +6740,17 @@ export interface BlockersConfirmedEvent {
      *  toughness 3 or less"), Infernal Medusa. Optional only so synthetic
      *  test events can omit it; the engine always populates it. */
     attackerToughness?: number;
+    /** Effective colour of the attacker at block confirmation (CR 202.2,
+     *  layer 5 — `colorOverride` / granted colours included). Read by
+     *  colour-gated combat-pairing triggers — Amphibious Kavu ("one or more
+     *  blue and/or black creatures"). Carried directly on the event (rather
+     *  than requiring a `TriggerStateView` lookup) so `matches` doesn't
+     *  depend on the caller passing a colours-annotated state view; the
+     *  production `collectTriggers` call passes the raw `GameState`, whose
+     *  `CardInstanceState` has no live `colors` field of its own. Optional
+     *  only so synthetic test events can omit it; the engine always
+     *  populates it. */
+    attackerColors?: ReadonlyArray<Color>;
     blockerId: string;
     blockerControllerId: string;
     blockerTypes: ReadonlyArray<CardType>;
@@ -6747,6 +6758,9 @@ export interface BlockersConfirmedEvent {
     /** Effective toughness of the blocker at block confirmation (CR 613).
      *  Twin of `attackerToughness` for the becomes-blocked direction. */
     blockerToughness?: number;
+    /** Effective colour of the blocker at block confirmation (CR 202.2, layer
+     *  5). Twin of `attackerColors` for the "blocks" direction. */
+    blockerColors?: ReadonlyArray<Color>;
 }
 
 /** CR 509.1h — an attacker that remained UNBLOCKED after blocks were

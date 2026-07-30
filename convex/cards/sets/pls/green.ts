@@ -155,3 +155,82 @@ export const quirionExplorer: CardDefinition = {
         },
     ],
 };
+
+// Amphibious Kavu — {2}{G} Creature — Kavu, 2/2. "Whenever this creature
+// blocks or becomes blocked by one or more blue and/or black creatures, this
+// creature gets +3/+3 until end of turn." (CR 509.1h "blocks or becomes
+// blocked by" combat-pairing trigger; a Gatherer ruling confirms "The ability
+// only triggers once per combat" — CR 603.3b "one or more" batching.)
+//
+// ONE `TriggeredAbility` on the single `BLOCKERS_CONFIRMED` event (CR 509.1,
+// emitted once per attacker-blocker pair), `matches` discriminating which
+// side of the pair `self` is on — the Chub Toad / Phyrexian Reaper shape, NOT
+// the array-`event` multi-engine-event convention (that's for one Oracle
+// sentence spanning genuinely distinct event TYPES, e.g. Worldspine Wurm's
+// "put into a graveyard from anywhere").
+//
+// Colour filter reads the EFFECTIVE colour (CR 202.2, layer 5 —
+// `colorOverride` / granted colours), carried directly on the event as
+// `attackerColors`/`blockerColors` (`gre/phases.ts`'s `emitBlockersConfirmedEvents`,
+// mirroring the pre-existing `attackerToughness`/`blockerToughness` fields)
+// rather than read off `TriggerStateView.players[].battlefield[].colors` —
+// the production `collectTriggers` call passes the raw live `GameState` as
+// that state view, whose `CardInstanceState` carries no live `colors` field,
+// so a `matches` reading `state.players[].battlefield[].colors` (Phyrexian
+// Reaper/Slayer's existing pattern, inv/black.ts) never actually resolves a
+// colour outside their own hand-built test fixtures — a pre-existing dead
+// trigger in production, tracked-by: #1996 rather than silently fixed here
+// (out of this slice's scope). Amphibious Kavu avoids that trap by reading
+// the colour straight off the firing event instead.
+//
+// "One or more" batching (CR 603.3b): `oncePerEventBatch: true` collapses
+// every BLOCKERS_CONFIRMED pair this permanent participates in during the
+// SAME confirmation batch into a single trigger — a multi-blocked attacker
+// pumps once even when several of its blockers are blue/black (Moonshadow,
+// ecl/black.ts, is the precedent consumer).
+//
+// Effect body is the already-shipped `pump` Op (self, +3/+3, until end of
+// turn) — no new primitive, no `resolve()`.
+export const amphibiousKavu: CardDefinition = {
+    id: "37d94fb2-958c-487e-9f64-52d2771c6ea4", // PLS 78
+    rarity: "common",
+    name: "Amphibious Kavu",
+    oracleText:
+        "Whenever this creature blocks or becomes blocked by one or more blue and/or black creatures, this creature gets +3/+3 until end of turn.",
+    manaCost: { X: 2, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Kavu"],
+    power: 2,
+    toughness: 2,
+    triggeredAbilities: [
+        {
+            id: "amphibious-kavu-combat-pump",
+            oracleText:
+                "Whenever this creature blocks or becomes blocked by one or more blue and/or black creatures, this creature gets +3/+3 until end of turn.",
+            event: "BLOCKERS_CONFIRMED",
+            matches: (event, self) => {
+                if (event.type !== "BLOCKERS_CONFIRMED") return false;
+                const isBlockedAttacker = event.attackerId === self.id;
+                const isBlocker = event.blockerId === self.id;
+                if (!isBlockedAttacker && !isBlocker) return false;
+                const otherColors = isBlockedAttacker
+                    ? event.blockerColors
+                    : event.attackerColors;
+                return (
+                    otherColors?.includes("U") === true ||
+                    otherColors?.includes("B") === true
+                );
+            },
+            oncePerEventBatch: true,
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 3,
+                    toughness: 3,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
+};
