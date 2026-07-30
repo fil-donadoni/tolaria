@@ -4364,6 +4364,20 @@ export interface SpellContext {
         counters: Record<string, number>;
     }>;
 
+    /** CR 400.7 / 607 (issue #1947) — pick ONE card at random from the same
+     *  linked pile {@link getCardsExiledWith} enumerates, drawn from the
+     *  game's seeded PRNG so replays reproduce the same pick (mirrors
+     *  `discardAtRandom`'s determinism). Returns the picked card's instance
+     *  id and its OWNER's player id (CR 400.7 — the destination is the
+     *  card's own owner, which may differ from the activating player), or
+     *  undefined when the pile is empty (CR 608.2b — the caller no-ops).
+     *  Backs the `randomExileToHand` Effect Op (Skyship Weatherlight:
+     *  "Choose a card at random that was exiled with Skyship Weatherlight.
+     *  Put that card into its owner's hand."). */
+    pickRandomCardExiledWith: (
+        sourceInstanceId: string
+    ) => { id: string; ownerId: string } | undefined;
+
     /** Revolt (CR 702.RV): true when a permanent the given player controlled
      *  left the battlefield this turn. Read by cards with the Revolt ability
      *  word (Fatal Push). */
@@ -9500,6 +9514,18 @@ export type EffectOp =
           to: EffectMoveZone | "library-top";
           tapped?: boolean;
           bind?: string;
+          /** CR 400.7 / 607 (issue #1947) — stamp `linkExileToSource` on
+           *  every moved card, valid ONLY alongside `to: "exile"`
+           *  (validator-enforced). "Search your library for any number of
+           *  artifact and/or creature cards, exile them" (Skyship
+           *  Weatherlight) needs every exiled card linked back to the
+           *  exiling permanent so a LATER ability can name exactly this pile
+           *  (`getCardsExiledWith` / `pickRandomCardExiledWith`) — the same
+           *  CR 607 link `hideaway` already stamps for its own single
+           *  exiled card, generalized here to an arbitrary-count tutor
+           *  sweep (a "generalize, don't add" parametrization of this
+           *  EXISTING shape rather than a new Op). */
+          linkToSource?: boolean;
       }
     /** CR 400.7 (issue #1279) — the THIRD `moveZone` shape: a bulk WHOLE-ZONE
      *  move. Every card currently in `from` moves to `to` — no announced
@@ -10842,6 +10868,27 @@ export type EffectOp =
           count: EffectValue;
           bind?: string;
       }
+    /** CR 400.7 / 607 (issue #1947) — choose a card AT RANDOM from the exile
+     *  pile linked to the resolving ability's own source
+     *  (`SpellContext.pickRandomCardExiledWith(ctx.sourceInstanceId)`,
+     *  reading the same `exiledBySourceId` stamp `moveZone`'s `linkToSource`
+     *  flag or `hideaway` leaves behind), and put it into ITS OWNER's hand —
+     *  CR 400.7's link persists even after the linking source leaves the
+     *  battlefield (the remaining exiled cards don't come back), and the
+     *  modern-Oracle destination is the found card's OWNER (which may
+     *  differ from the activating player). A thin declarative skin over the
+     *  single `SpellContext.pickRandomCardExiledWith` primitive + the
+     *  existing `moveCardById`, one execution path (ADR 0045): the pick is
+     *  drawn from the game's seeded PRNG, mirroring `discardAtRandom`'s
+     *  determinism precedent so replays reproduce the same result. No
+     *  fields — the pool is always "the pile linked to $source" and the
+     *  destination is always the picked card's own owner's hand (Skyship
+     *  Weatherlight: "Choose a card at random that was exiled with Skyship
+     *  Weatherlight. Put that card into its owner's hand."). Skipped
+     *  (CR 608.2b no-op) when the pile is empty — the official ruling that
+     *  the ability is still activatable with nothing exiled; it simply
+     *  resolves with no effect. */
+    | { op: "randomExileToHand" }
     /** CR 117.3a / 118.4 — an optional "you may pay {cost}" decision offered to
      *  a player (issue #806), OR a bare cost-free "you may …" decision (issue
      *  #680 — `cost` omitted). Maps 1:1 onto `SpellContext.requestMayPay`,

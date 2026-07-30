@@ -14501,6 +14501,31 @@ export function buildSpellContext(
             }
             return out;
         },
+        // CR 400.7 / 607 (issue #1947) — pick ONE card at random from the same
+        // linked pile `getCardsExiledWith` enumerates, using the game's
+        // seeded PRNG (`randomInt`, the SAME primitive `discardCardsAtRandom`
+        // draws from) so replays reproduce the same pick. Scans every owner's
+        // exile (CR 400.7 — the pile may in principle span owners, though
+        // every shipped card exiles only its own controller's library) and
+        // returns the picked card's instance id alongside its OWNER's player
+        // id (the destination the caller moves it to — Skyship Weatherlight's
+        // errata-corrected "into its owner's hand"). Undefined when the pile
+        // is empty — CR 608.2b, the caller no-ops. Backs the
+        // `randomExileToHand` Effect Op.
+        pickRandomCardExiledWith(
+            sourceInstanceId: string
+        ): { id: string; ownerId: string } | undefined {
+            const pool: { id: string; ownerId: string }[] = [];
+            for (const p of state.players) {
+                for (const c of p.exile) {
+                    if (c.exiledBySourceId === sourceInstanceId) {
+                        pool.push({ id: c.id, ownerId: p.id });
+                    }
+                }
+            }
+            if (pool.length === 0) return undefined;
+            return pool[randomInt(state, pool.length)];
+        },
         // Revolt (CR 702.RV): true when a permanent the given player controlled
         // left the battlefield this turn. Set by removePermanentTo, reset at
         // turn start (advanceTurn).

@@ -615,6 +615,18 @@ const discardAtRandom: Valuer<"discardAtRandom"> = (op, ctx) => {
     return { points: amount * DISCARD_VALUE * sign, tags };
 };
 
+// CR 400.7 (issue #1947) — a random pick from a source-linked exile pile,
+// returned to its OWNER's hand (Skyship Weatherlight). Modeled as a flat
+// regrowth-style card-advantage gain (`HAND_RETURN_VALUE`'s "bounce (tempo
+// removal) / regrowth (card advantage)" framing) — the static model cannot
+// know which card the seeded RNG will pick, so it values the ACT of
+// retrieval rather than any specific card, the same flat-constant treatment
+// `grantCastFromExile` uses for an equally unknowable card-specific outcome.
+const randomExileToHand: Valuer<"randomExileToHand"> = () => ({
+    points: HAND_RETURN_VALUE,
+    tags: ["cardAdvantage"],
+});
+
 const divideIntoPiles: Valuer<"divideIntoPiles"> = (op, ctx) => {
     // Issue #1521 — NOT a coin flip: the `chooser` (not the `divider`) picks
     // which pile runs `chosenEffect` vs. `otherEffect` (ADR 0053), so this is
@@ -972,6 +984,7 @@ export const OP_VALUERS: {
     chooseCategorized,
     discard,
     discardAtRandom,
+    randomExileToHand,
     divideIntoPiles,
     emblem,
     extraTurn,
@@ -1137,6 +1150,7 @@ const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     getEnergy: "beneficial",
     grantCastFromExile: "beneficial",
     grantCastFromGraveyard: "beneficial",
+    randomExileToHand: "beneficial",
     grantGraveyardPlay: "beneficial",
     grantCastTiming: "beneficial",
     castDuringResolution: "beneficial",

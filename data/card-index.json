@@ -11360,6 +11360,14 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Skyship Weatherlight",
+        "scryfallId": "63f5498b-bb12-48ec-811b-b52e45ffddaf",
+        "oracleId": "57889a8e-0039-45c2-a608-ab315d51aa3a",
+        "firstSet": "pls",
+        "firstPrintId": "63f5498b-bb12-48ec-811b-b52e45ffddaf",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Sleeper's Robe",
         "scryfallId": "3411f0fd-8b85-4d0d-a202-701a24ffac9f",
         "oracleId": "d82783d9-9bfe-4fcd-a7d2-6e2477f99edc",

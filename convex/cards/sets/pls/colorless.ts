@@ -3,7 +3,12 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition, ManaCost, MayPayCost } from "../../types";
+import type {
+    CardDefinition,
+    CardPrint,
+    ManaCost,
+    MayPayCost,
+} from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // CR 117.3a / 701.16 / 701.24 — the Planeshift "Lair" cycle (5 tri-colour tap
@@ -250,4 +255,115 @@ export const meteorCrater: CardDefinition = {
             },
         },
     ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+// C8f — Random pick from the exile-by-source pile (CR 400.7 / 701.13, issue
+// #1947). Skyship Weatherlight.
+// ─────────────────────────────────────────────────────────────────────────
+
+// Skyship Weatherlight — {4} Legendary Artifact. "When this enters, search
+// your library for any number of artifact and/or creature cards, exile
+// them, then shuffle. {4}, {T}: Choose a card at random that was exiled
+// with Skyship Weatherlight. Put that card into its owner's hand."
+//
+// ETB (CR 603.6a self-ETB): the tutor `choice(kind:"search-library")` +
+// `moveZone(cards, to:"exile")` composition (the Jester's Cap precedent,
+// ice/colorless.ts) with an unbounded "any number" count — `count: { min:
+// 0, max: Number.MAX_SAFE_INTEGER }` is clamped down to however many
+// artifact/creature cards actually sit in the library by the `choice` Op's
+// own availability clamp (`Math.min(op.count.max, available)`,
+// interpreter.ts), the SAME "any number" idiom several resolve() cards
+// already use via `peekLibraryTop(..., Number.MAX_SAFE_INTEGER)` — no
+// sentinel/special-case needed (ADR 0045 "generalize, don't add"). `filter:
+// { type: ["Artifact", "Creature"] }` is CR 205's "and/or" read as an OR
+// within the field (Torsten's `digToHand` filter, dmc/multicolor.ts, same
+// idiom). The new `linkToSource: true` flag (issue #1947) parametrizes the
+// EXISTING `moveZone` `cards` shape rather than adding a second new Op: it
+// stamps every exiled card with `exiledBySourceId` via `linkExileToSource`
+// — the same CR 607 link `hideaway` already stamps for a single card,
+// generalized here to an arbitrary-count tutor sweep. "Then shuffle" is the
+// trailing `libraryLook`(shuffle) Op, matching every real tutor's ordering
+// (search → exile → shuffle).
+//
+// ACTIVATED (CR 602.1): `{4}, {T}`, no sacrifice — the artifact stays on
+// the battlefield to be reused. `randomExileToHand` (issue #1947, new Op)
+// reads the linked pile via `SpellContext.pickRandomCardExiledWith(
+// ctx.sourceInstanceId)` — the SAME `exiledBySourceId`-keyed pool
+// `getCardsExiledWith` enumerates for Currency Converter's player-CHOSEN
+// retrieval and `hideaway`'s cast-permission selector (issues #791/#783),
+// generalized to a RANDOM pick — drawing uniformly from the game's seeded
+// PRNG (mirrors `discardAtRandom`'s determinism precedent, so replays
+// reproduce the same result) and puts the pick into ITS OWNER's hand (the
+// modern-Oracle, errata-corrected destination — the 2001 printing said
+// "your hand"; both mtgjson's `text` field and the 2004-10-04 ruling
+// confirm "its owner's hand"). CR 400.7 / 607: the link is per-INSTANCE,
+// keyed to THIS permanent's own id — Skyship Weatherlight leaving the
+// battlefield does not return the remaining exiled cards (2004-10-04
+// ruling: "If this card leaves the battlefield, the remaining cards that
+// were exiled don't come back"), and a second Skyship Weatherlight's own
+// pile is entirely disjoint (each stamps its own `exiledBySourceId`). An
+// EMPTY pile is a CR 608.2b no-op — per the acceptance criterion's chosen
+// disambiguation, the ability is still activatable (its mana/tap cost is
+// still paid) but resolves with no effect, matching the same ruling that
+// the initial search "may choose to not find anything."
+export const skyshipWeatherlight: CardDefinition = {
+    id: "63f5498b-bb12-48ec-811b-b52e45ffddaf", // PLS 133 (canonical art)
+    rarity: "rare",
+    name: "Skyship Weatherlight",
+    oracleText:
+        "When Skyship Weatherlight enters, search your library for any number of artifact and/or creature cards, exile them, then shuffle.\n{4}, {T}: Choose a card at random that was exiled with Skyship Weatherlight. Put that card into its owner's hand.",
+    manaCost: { X: 4 },
+    types: ["Artifact"],
+    supertypes: ["Legendary"],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "skyship-weatherlight-etb",
+            oracleText:
+                "When Skyship Weatherlight enters, search your library for any number of artifact and/or creature cards, exile them, then shuffle.",
+            scope: "self",
+            effects: [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    filter: { type: ["Artifact", "Creature"] },
+                    count: { min: 0, max: Number.MAX_SAFE_INTEGER },
+                    prompt: "Search your library for any number of artifact and/or creature cards to exile.",
+                    bind: "$found",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$found" },
+                    player: "controller",
+                    from: "library",
+                    to: "exile",
+                    linkToSource: true,
+                },
+                { op: "libraryLook", action: "shuffle", player: "controller" },
+            ],
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "skyship-weatherlight-random",
+            oracleText:
+                "{4}, {T}: Choose a card at random that was exiled with Skyship Weatherlight. Put that card into its owner's hand.",
+            cost: { mana: { X: 4 }, tap: true },
+            useStack: true,
+            effects: [{ op: "randomExileToHand" }],
+        },
+    ],
+};
+
+// Skyship Weatherlight — PLS 133★, the foil-only alternate-illustration
+// variant printed in the SAME set (ADR 0014: one CardDefinition + one
+// CardPrint per artwork). Rarity/mechanics are identical to the canonical
+// print above; only the Scryfall art id differs.
+export const skyshipWeatherlightAlt: CardPrint = {
+    printId: "99791ef7-ff51-4982-b0ef-55560f9577ff", // PLS 133★
+    definitionId: skyshipWeatherlight.id,
+    setCode: "pls",
+    rarity: "rare",
 };
