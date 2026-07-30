@@ -8,13 +8,17 @@
 // experience counter you have. {2}{R}{W}, Tap an untapped Rebel you control:
 // Return this card from your graveyard to the battlefield tapped." Blocked:
 // the graveyard-reanimation ability itself IS expressible today
-// (`ActivatedAbility.cost.activateFromGraveyard` — used by Ashen Ghoul), but
-// the attack trigger needs (a) a player-scoped experience counter (CR 121.6 —
-// counters live on the PLAYER, not a permanent) readable as a dynamic
-// `EffectValue` for `createToken`'s `count`, and (b) tokens entering the
-// battlefield already tapped AND ATTACKING (CR 508.3), which `createToken`
-// has no flag for (issue #920).
-// tracked-by: #920
+// (`ActivatedAbility.cost.activateFromGraveyard` — used by Ashen Ghoul).
+// Sub-gap (b) — tokens entering the battlefield already tapped AND
+// attacking (CR 508.4) — is GONE: `TokenSpec.entersTapped`/`entersAttacking`
+// shipped (`convex/cards/types.ts`, issue #1195), proven live by Satya,
+// Aetherflux Genius (`m3c/multicolor.ts`). What remains is only sub-gap
+// (a): a player-scoped experience counter (CR 121.6 — counters live on the
+// PLAYER, not a permanent) readable as a dynamic `EffectValue` for
+// `createToken`'s `count` — `PlayerState` has only the dedicated
+// `poisonCounters` (`convex/gre/state.ts`) / `energyCounters` (`state.ts`)
+// scalars, no generic player-counter map and no interpreter read for one.
+// tracked-by: #1969
 // export const otharriSunsGlory: CardDefinition = {
 //     id: "80c72839-0fa6-4b5f-83b7-6553ebf09bef",
 //     name: "Otharri, Suns' Glory",

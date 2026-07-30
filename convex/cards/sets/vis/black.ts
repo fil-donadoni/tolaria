@@ -50,12 +50,18 @@ export const vampiricTutor: CardDefinition = {
 // battlefield with Necromancy.' Put target creature card from a graveyard
 // onto the battlefield under your control and attach this enchantment to it.
 // When this enchantment leaves the battlefield, that creature's controller
-// sacrifices it." (CR 400.7 reanimation.) Blocked: "becomes an Aura enchanting
-// the creature it just reanimated, sacrificed by that creature's controller
-// when the Aura leaves" is a self-transform-and-dynamic-attach pattern with no
-// Op — nothing lets a resolving permanent retarget itself to attach to an
-// object the SAME resolution just chose (issue #920).
-// tracked-by: #920
+// sacrifices it." (CR 400.7 reanimation.) UNBLOCKED — no engine gap remains,
+// authoring only. All three pieces the self-transform-and-dynamic-attach
+// pattern needs have shipped: `addSubtype` (`convex/cards/types.ts`) turns
+// $source into an Aura mid-resolution; `attach` (`types.ts`, executor
+// `convex/gre/effects/interpreter.ts`) targets a BOUND ref from the same
+// resolution — Cori-Steel Cutter creates a token, binds it (`$monk`), then
+// attaches to `{ ref: "$monk" }` in one script (`tdm/red.ts`); and
+// `leftTrigger`/`PERMANENT_LEFT` (`convex/cards/abilities/triggers/leftTrigger.ts`)
+// covers the sacrifice-on-leave clause, with Dance of the Dead
+// (`ice/black.ts`) as the near precedent (also an Aura-reanimation card with
+// a leftTrigger sacrifice).
+// tracked-by: #1965
 // export const necromancy: CardDefinition = {
 //     id: "311a6257-dd77-4bb6-81cb-c8e7862350f3",
 //     name: "Necromancy",

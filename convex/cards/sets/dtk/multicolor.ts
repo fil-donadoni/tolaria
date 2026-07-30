@@ -8,7 +8,7 @@
 // target." Blocked: "Choose two —" (two DIFFERENT modes) has no construct —
 // `optionChoice`/`EffectMode` (ADR 0045, issue #849) picks exactly ONE mode; a
 // "choose N distinct modes" generalization doesn't exist yet (issue #920).
-// tracked-by: #920
+// tracked-by: #1566
 // export const kolaghansCommand: CardDefinition = {
 //     id: "7c884e1e-fecb-4330-b3de-5fc2a60f7173",
 //     name: "Kolaghan's Command",
