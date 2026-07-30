@@ -70,7 +70,7 @@ export const horizonCanopy: CardDefinition = {
 // is closed. This stub is therefore a RE-AUDIT candidate, not a capability
 // gap: the remaining question is only whether the graveyard→battlefield
 // return composes with `attach` in one Effect Script. Ship it or re-file.
-// tracked-by: #1965
+// tracked-by: #920
 // export const swordOfTheMeek: CardDefinition = {
 //     id: "e9f13705-6ede-4c29-a2b4-a082bf69e9c5",
 //     name: "Sword of the Meek",
