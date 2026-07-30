@@ -56,7 +56,7 @@ describe("Tear Asunder (Kicker {1}{B}, CR 702.33 / 701.13)", () => {
         const item: StackItem = pushSpell(state, tearAsunder.id, "p1", [
             { type: "permanent", id: "bear" },
         ]);
-        item.kickerCount = 1;
+        item.kickerPayments = { kicker: 1 };
         resolveTopOfStack(state);
         expect(
             state.players[1].exile.find((c) => c.id === "bear")

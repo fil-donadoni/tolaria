@@ -244,7 +244,13 @@ export const explosiveGrowth: CardDefinition = {
         "Kicker {5} (You may pay an additional {5} as you cast this spell.)\nTarget creature gets +2/+2 until end of turn. If this spell was kicked, that creature gets +5/+5 until end of turn instead.",
     manaCost: { G: 1 },
     types: ["Instant"],
-    kicker: { cost: { X: 5 } },
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker {5}",
+            mana: { X: 5 },
+        },
+    ],
     targetRequirement: { type: "Creature", count: 1 },
     effects: [
         {
@@ -434,7 +440,13 @@ export const llanowarElite: CardDefinition = {
     subtypes: ["Elf"],
     power: 1,
     toughness: 1,
-    kicker: { cost: { X: 8 } },
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker {8}",
+            mana: { X: 8 },
+        },
+    ],
     staticAbilities: ["trample"],
     entersWith: {
         counters: [
@@ -597,7 +609,13 @@ export const pincerSpider: CardDefinition = {
     subtypes: ["Spider"],
     power: 2,
     toughness: 3,
-    kicker: { cost: { X: 3 } },
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker {3}",
+            mana: { X: 3 },
+        },
+    ],
     staticAbilities: ["reach"],
     entersWith: { counters: [{ type: "+1/+1", count: "kicker" }] },
 };
@@ -1190,7 +1208,13 @@ export const canopySurge: CardDefinition = {
         "Kicker {2} (You may pay an additional {2} as you cast this spell.)\nCanopy Surge deals 1 damage to each creature with flying and each player. If this spell was kicked, it deals 4 damage to each creature with flying and each player instead.",
     manaCost: { X: 1, G: 1 },
     types: ["Sorcery"],
-    kicker: { cost: { X: 2 } },
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker {2}",
+            mana: { X: 2 },
+        },
+    ],
     effects: [
         {
             op: "if",

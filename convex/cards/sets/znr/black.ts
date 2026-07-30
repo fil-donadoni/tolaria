@@ -20,7 +20,13 @@ export const bloodchiefsThirst: CardDefinition = {
         "Kicker {2}{B} (You may pay an additional {2}{B} as you cast this spell.)\nDestroy target creature or planeswalker with mana value 2 or less. If this spell was kicked, instead destroy target creature or planeswalker.",
     manaCost: { B: 1 },
     types: ["Sorcery"],
-    kicker: { cost: { X: 2, B: 1 } },
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker {2}{B}",
+            mana: { X: 2, B: 1 },
+        },
+    ],
     // Unkicked: target creature or planeswalker with mana value 2 or less.
     targetRequirement: {
         type: ["Creature", "Planeswalker"],

@@ -1046,7 +1046,13 @@ export const agonizingDemise: CardDefinition = {
         "Kicker {1}{R} (You may pay an additional {1}{R} as you cast this spell.)\nDestroy target nonblack creature. It can't be regenerated. If this spell was kicked, Agonizing Demise deals damage equal to that creature's power to the creature's controller.",
     manaCost: { X: 3, B: 1 },
     types: ["Instant"],
-    kicker: { cost: { X: 1, R: 1 } },
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker {1}{R}",
+            mana: { X: 1, R: 1 },
+        },
+    ],
     targetRequirement: { type: "Creature", count: 1, excludeColors: "B" },
     effects: [
         {
@@ -1926,7 +1932,13 @@ export const savageOffensive: CardDefinition = {
         "Kicker {G} (You may pay an additional {G} as you cast this spell.)\nCreatures you control gain first strike until end of turn. If this spell was kicked, they get +1/+1 until end of turn.",
     manaCost: { X: 1, R: 1 },
     types: ["Sorcery"],
-    kicker: { cost: { G: 1 } },
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker {G}",
+            mana: { G: 1 },
+        },
+    ],
     effects: [
         {
             op: "forEach",

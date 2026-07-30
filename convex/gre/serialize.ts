@@ -1074,10 +1074,13 @@ function compactStackItem(item: StackItem, ctx: CompactCtx): CompactCard {
     base.castById = item.castById;
     if (item.targets?.length) base.targets = item.targets;
     if (item.chosenX !== undefined) base.chosenX = item.chosenX;
-    // CR 702.33 — persist the kicker tally so an "if this spell was kicked"
-    // resolution (Overload, Burst Lightning, Everflowing Chalice's ETB counters)
-    // survives a DB round-trip while the spell sits on the stack.
-    if (item.kickerCount !== undefined) base.kickerCount = item.kickerCount;
+    // CR 702.33 — persist the PER-KICKER payment record so an "if this spell was
+    // kicked" resolution (Overload, Burst Lightning, Everflowing Chalice's ETB
+    // counters) and a per-Kicker intervening-if ("if it was kicked with its
+    // {2}{U} kicker", ADR 0079) both survive a DB round-trip while the spell
+    // sits on the stack. A plain `Record<string, number>`, so it round-trips as
+    // raw JSON like `targetAmounts` below.
+    if (item.kickerPayments) base.kickerPayments = item.kickerPayments;
     if (item.targetAmounts) base.targetAmounts = item.targetAmounts;
     if (item.chosenModeId) base.chosenModeId = item.chosenModeId;
     if (item.additionalSacrificeSnapshot) {
@@ -1202,8 +1205,8 @@ function expandStackItem(compact: CompactCard, ctx?: ExpandCtx): StackItem {
         item.targets = compact.targets as StackItem["targets"];
     }
     if (compact.chosenX !== undefined) item.chosenX = compact.chosenX as number;
-    if (compact.kickerCount !== undefined) {
-        item.kickerCount = compact.kickerCount as number;
+    if (compact.kickerPayments) {
+        item.kickerPayments = compact.kickerPayments as Record<string, number>;
     }
     if (compact.targetAmounts) {
         item.targetAmounts = compact.targetAmounts as Record<string, number>;

@@ -22,7 +22,7 @@ describe("Burst Lightning (Kicker {4}, CR 702.33 / 120)", () => {
         const item: StackItem = pushSpell(state, burstLightning.id, "p1", [
             { type: "player", id: "p2" },
         ]);
-        item.kickerCount = 1;
+        item.kickerPayments = { kicker: 1 };
         resolveTopOfStack(state);
         expect(state.players[1].life).toBe(16);
     });

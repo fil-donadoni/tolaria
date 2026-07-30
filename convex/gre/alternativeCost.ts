@@ -50,8 +50,11 @@ import { manaCostsEqual } from "./constants";
 import { liveSupertypesOf } from "./snow";
 import { STATIC_EFFECT_CTX } from "./layers";
 import { getDefinition, tryGetDefinition } from "../cards";
-import type { SacrificeSelection } from "./sacrificeChoice";
-import { autoResolveFungible } from "./sacrificeChoice";
+import type {
+    SacrificeRequirement,
+    SacrificeSelection,
+} from "./sacrificeChoice";
+import { autoResolveFungible, canAffordSacrifice } from "./sacrificeChoice";
 
 /** The payer's own permanents that satisfy a cost's permanent-leg filter (CR
  *  118.9 — "permanents you control"). Derived colours are folded in via
@@ -376,22 +379,89 @@ export function buildAlternativeCostChoice(
     altCost: CostLegs,
     reason: string
 ): SacrificeSelection | undefined {
-    const leg = altCost.permanent;
-    if (!leg) return undefined;
-    // CR 118 — no picker for a threshold leg; `canPayAlternativeCost` already
-    // refuses one, so this is the same fail-closed answer as "no permanent leg"
-    // rather than a throw on a path the client also walks.
-    const count = altCostPermanentCardinal(altCost);
-    if (count === undefined) return undefined;
+    return buildCostLegsPermanentChoice(
+        state,
+        playerId,
+        [{ legs: altCost }],
+        reason
+    );
+}
+
+/** Build the ONE player-chosen PERMANENT-cost selection covering SEVERAL cost
+ *  legs paid by the same payment (CR 601.2f / 601.2h): the chosen alternative
+ *  cost's permanent leg (CR 118.9) plus every paid Kicker's permanent legs
+ *  (CR 702.33a, ADR 0079). The generalized form `buildAlternativeCostChoice`
+ *  delegates to — a Kicker is ADDITIVE, so its legs join the same selection
+ *  instead of replacing it.
+ *
+ *  Every contributing leg must agree on the terminal `action` (the action rides
+ *  on the SELECTION, not the requirement), and a disagreeing merged set THROWS
+ *  here. `resolveKickerPayments` reconciles kicker-vs-kicker only, so it cannot
+ *  see an alternative cost's `return` leg meeting a Kicker's `sacrifice` one;
+ *  letting the first leg's action win would silently bounce a permanent that
+ *  should have been sacrificed. The reconciliation belongs where the legs are
+ *  MERGED — unreachable from any printed card today, fail-closed regardless.
+ *  `explicit` entries are never auto-resolved and MUST be declared last —
+ *  `autoResolveFungible` stops at the first one, since picks are allocated to
+ *  requirements greedily in order. */
+export function buildCostLegsPermanentChoice(
+    state: GameState,
+    playerId: string,
+    entries: { legs: CostLegs; explicit?: boolean }[],
+    reason: string
+): SacrificeSelection | undefined {
+    const requirements: SacrificeRequirement[] = [];
+    let action: "return" | "sacrifice" | undefined;
+    for (const entry of entries) {
+        const leg = entry.legs.permanent;
+        if (!leg) continue;
+        // CR 118 — no picker for a threshold leg; `canPayAlternativeCost` already
+        // refuses one, so this is the same fail-closed answer as "no permanent
+        // leg" rather than a throw on a path the client also walks.
+        const count = altCostPermanentCardinal(entry.legs);
+        if (count === undefined) continue;
+        const legAction = leg.action === "return" ? "return" : "sacrifice";
+        if (action !== undefined && action !== legAction) {
+            throw new Error("These costs cannot be paid together");
+        }
+        action = legAction;
+        requirements.push({
+            filter: leg.filter,
+            count,
+            ...(entry.explicit ? { explicit: true } : {}),
+        });
+    }
+    if (requirements.length === 0 || action === undefined) return undefined;
     const selection: SacrificeSelection = {
         playerId,
         reason,
-        requirements: [{ filter: leg.filter, count }],
+        requirements,
         picked: [],
-        action: leg.action === "return" ? "return" : "sacrifice",
+        action,
     };
     autoResolveFungible(state, selection);
     return selection;
+}
+
+/** CR 601.2f / 118.5 affordability of SEVERAL cost legs' permanent legs paid
+ *  together: can the payer cover every leg's requirement from DISTINCT
+ *  permanents? Threshold legs (`{ minTotalPower }`) have no alternative/kicker
+ *  picker and read as unpayable, matching `altCostPermanentCardinal`'s
+ *  fail-closed answer. */
+export function canAffordCostLegsPermanents(
+    state: GameState,
+    playerId: string,
+    legs: CostLegs[]
+): boolean {
+    const requirements: SacrificeRequirement[] = [];
+    for (const leg of legs) {
+        if (!leg.permanent) continue;
+        const count = altCostPermanentCardinal(leg);
+        if (count === undefined) return false;
+        requirements.push({ filter: leg.permanent.filter, count });
+    }
+    if (requirements.length === 0) return true;
+    return canAffordSacrifice(state, playerId, requirements);
 }
 
 /** Build the HAND-cost picker for an alternative cost's hand leg at cast commit
@@ -404,22 +474,53 @@ export function buildAlternativeCostHandChoice(
     player: PlayerState,
     altCost: CostLegs,
     castInstanceId: string
-):
-    | {
-          action: "exile" | "discard";
-          requirements: { filter: EffectCardFilter; count: number }[];
-          excludeInstanceId: string;
-          pickedCardIds?: string[];
-      }
-    | undefined {
-    const handCost = altCost.hand;
-    if (!handCost) return undefined;
+): CastHandCostChoice | undefined {
+    return buildCostLegsHandChoice(player, [altCost], castInstanceId);
+}
+
+/** The cast's in-progress hand-cost picker (`PendingCast.alternativeCostHandChoice`). */
+export type CastHandCostChoice = {
+    action: "exile" | "discard";
+    requirements: { filter: EffectCardFilter; count: number }[];
+    excludeInstanceId: string;
+    pickedCardIds?: string[];
+};
+
+/** Build the ONE HAND-cost picker covering SEVERAL cost legs paid by the same
+ *  payment (CR 601.2f / 601.2h): the chosen alternative cost's hand leg
+ *  (CR 118.9 — Force of Will's "exile a blue card") plus every paid Kicker's
+ *  hand legs (CR 702.33a — the mana-plus-discard Kicker, ADR 0079). The
+ *  generalized form `buildAlternativeCostHandChoice` delegates to.
+ *
+ *  Every contributing leg must agree on the terminal `action` (exile vs discard
+ *  rides on the PICKER, not the requirement), and a disagreeing merged set
+ *  THROWS — the hand-leg twin of the permanent-leg reconciliation above: an
+ *  alternative cost's `exile` leg meeting a Kicker's `discard` one would
+ *  otherwise silently send a card to the wrong zone. Not reachable from any
+ *  printed card. Requirements concatenate in leg order, so the AUTHORING
+ *  CONSTRAINT on
+ *  `CostLegs.hand` (most restrictive requirement first) extends across legs. */
+export function buildCostLegsHandChoice(
+    player: PlayerState,
+    legs: CostLegs[],
+    castInstanceId: string
+): CastHandCostChoice | undefined {
+    const requirements: { filter: EffectCardFilter; count: number }[] = [];
+    let action: "exile" | "discard" | undefined;
+    for (const leg of legs) {
+        if (!leg.hand) continue;
+        if (action !== undefined && action !== leg.hand.action) {
+            throw new Error("These costs cannot be paid together");
+        }
+        action = leg.hand.action;
+        for (const r of leg.hand.requirements) {
+            requirements.push({ filter: r.filter, count: r.count });
+        }
+    }
+    if (requirements.length === 0 || action === undefined) return undefined;
     const choice = {
-        action: handCost.action,
-        requirements: handCost.requirements.map((r) => ({
-            filter: r.filter,
-            count: r.count,
-        })),
+        action,
+        requirements,
         excludeInstanceId: castInstanceId,
     };
     // Auto-resolve when the whole hand cost is forced (each requirement's
@@ -428,7 +529,7 @@ export function buildAlternativeCostHandChoice(
     const reserved = new Set<string>();
     const forcedPicks: string[] = [];
     let forced = true;
-    for (const req of handCost.requirements) {
+    for (const req of requirements) {
         const cands = matchingHandCardsForAltCost(
             player,
             req.filter,

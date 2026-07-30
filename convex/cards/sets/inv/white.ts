@@ -96,7 +96,13 @@ export const ardentSoldier: CardDefinition = {
     power: 1,
     toughness: 2,
     staticAbilities: ["vigilance"],
-    kicker: { cost: { X: 2 } },
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker {2}",
+            mana: { X: 2 },
+        },
+    ],
     entersWith: { counters: [{ type: "+1/+1", count: "kicker" }] },
 };
 
@@ -355,7 +361,13 @@ export const dismantlingBlow: CardDefinition = {
         "Kicker {2}{U} (You may pay an additional {2}{U} as you cast this spell.)\nDestroy target artifact or enchantment. If this spell was kicked, draw two cards.",
     manaCost: { X: 2, W: 1 },
     types: ["Instant"],
-    kicker: { cost: { X: 2, U: 1 } },
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker {2}{U}",
+            mana: { X: 2, U: 1 },
+        },
+    ],
     targetRequirement: { type: ["Artifact", "Enchantment"], count: 1 },
     effects: [
         { op: "destroy", target: { target: 0 } },
@@ -378,7 +390,13 @@ export const orimsTouch: CardDefinition = {
         "Kicker {1} (You may pay an additional {1} as you cast this spell.)\nPrevent the next 2 damage that would be dealt to any target this turn. If this spell was kicked, prevent the next 4 damage that would be dealt to that permanent or player this turn instead.",
     manaCost: { W: 1 },
     types: ["Instant"],
-    kicker: { cost: { X: 1 } },
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker {1}",
+            mana: { X: 1 },
+        },
+    ],
     targetRequirement: { type: "any", count: 1 },
     effects: [
         {

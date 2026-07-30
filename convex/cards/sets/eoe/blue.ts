@@ -22,7 +22,13 @@ export const consultTheStarCharts: CardDefinition = {
         "Kicker {1}{U} (You may pay an additional {1}{U} as you cast this spell.)\nLook at the top X cards of your library, where X is the number of lands you control. Put one of those cards into your hand. If this spell was kicked, put two of those cards into your hand instead. Put the rest on the bottom of your library in a random order.",
     manaCost: { X: 1, U: 1 },
     types: ["Instant"],
-    kicker: { cost: { X: 1, U: 1 } },
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker {1}{U}",
+            mana: { X: 1, U: 1 },
+        },
+    ],
     effects: [
         {
             op: "if",
