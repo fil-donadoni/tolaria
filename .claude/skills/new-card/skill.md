@@ -86,6 +86,13 @@ same mutual exclusivity.
 Before writing a single Op or `staticAbilities` string, map every clause of
 the oracle text against it:
 
+> **Inside a `/new-set` rollout:** Phase 0's sub-agent **C** already produced a
+> registry snapshot (implemented keywords + `bindingPattern`s, `planned`/absent
+> keywords, the full `EFFECT_OP_REGISTRY` Op list) for the whole set. Reuse it
+> instead of re-reading the registry per card — it's the same file N times
+> otherwise. Re-read only if the rollout has since flipped a row to
+> `implemented` (a cluster shipping its mechanic does exactly that).
+
 - **Keyword abilities** (CR 702 — flying, trample, protection, rampage N,
   landwalk, …): the `staticAbilities[]` string must case-insensitively match
   a registry row's `name`, or its `bindingPattern` for a parametrized keyword.

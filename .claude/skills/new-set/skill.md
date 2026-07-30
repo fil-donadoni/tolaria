@@ -67,11 +67,84 @@ exceptions. They drive every recommendation you make during the grill.
 
 Explore, don't ask, for anything the data or codebase can answer.
 
-1. **Get the set data.** The importer reads an MTGJSON blob at
+### Phase 0 model routing (mandatory)
+
+Phase 0 mixes two very different kinds of work, and they must NOT run on the
+same tier. The **gathering** steps are mechanical — download a blob, aggregate
+it with `jq`, parse colour modules, extract registry rows — and their raw
+output is bulky (7 colour modules, a several-hundred-card blob, the whole
+Mechanics Registry). The **bucketing** step (free vs capability) is the single
+hardest judgement in the whole rollout: it needs the engine's real Op
+vocabulary held against every card's Oracle text, and a mis-bucketed card
+passes every gate the skill has (the closure invariant checks the _tally_, not
+the _verdict_) and only explodes mid-cluster.
+
+So: **delegate the gathering to `model: sonnet` subagents, keep the bucketing
+on the session tier (run this skill on Opus).** Each subagent returns a compact
+list, not file dumps — that is the point.
+
+| Sub-step                                         | Who                                   |
+| ------------------------------------------------ | ------------------------------------- |
+| **A** Set data + blob profile (steps 1, 3)       | `Explore`, `model: sonnet`            |
+| **B** Prior-work scan (step 2) → `done`/`staged` | `Explore`, `model: sonnet`            |
+| **C** Registry snapshot (feeds step 6)           | `Explore`, `model: sonnet`            |
+| **D** Mechanical pre-filter (splits step 4)      | `Explore`, `model: sonnet`, after A+C |
+| **Triage verdicts** (step 4), step 5 gap calls   | **main thread, session tier**         |
+| Closure invariant + manifest                     | **main thread, session tier**         |
+
+A, B and C are independent — spawn them in **one message, three tool calls**.
+D depends on A+C, so it goes in a second message.
+
+**A — set data + profile.** Ensure `data/json/<CODE_UPPER>.json` exists
+(download per step 1 if not), then run the step-3 `jq` profiling. Returns:
+total unique cards, breakdown by colour / rarity / layout, and the explicit
+list of card names whose `layout` is not `normal` (the out-of-scope
+candidates). Not the blob, not per-card dumps.
+
+**B — prior-work scan.** Returns two name lists from
+`convex/cards/sets/<code>/` (all colour modules) plus `data/card-index.json`:
+`done` (active `CardDefinition` export, or present in the lockfile) and
+`staged` (commented-out stub block, with its `// tracked-by:` tag if any).
+Names only. It must also report whether the directory exists at all — that
+gates the never-overwrite rule in step 2.
+
+**C — registry snapshot.** Returns, from
+`convex/cards/mechanicsRegistry.ts`: every keyword row with
+`status: "implemented"` (name + `bindingPattern` where parametrized), every
+keyword row that is `planned` or otherwise NOT implemented, and the full list
+of Op names in `EFFECT_OP_REGISTRY`. Flat lists, no prose.
+
+**D — mechanical pre-filter.** Given A's card list and C's implemented-keyword
+list, split every not-yet-`done`/`staged` card into:
+
+- `trivial-free` — the card's `oracleText` is **empty**, or consists **only**
+  of lines that are keyword abilities all present in C's implemented list
+  (vanilla, French vanilla, basic lands, plain reminder text). This is a
+  syntactic test, not a judgement: if a line is anything other than a listed
+  keyword — any sentence, any triggered/activated ability, any static effect —
+  the card is NOT `trivial-free`.
+- `needs-judgement` — everything else, returned **with its oracle text** so the
+  main thread can bucket it without re-fetching.
+
+D exists to keep the expensive tier's input to the cards that actually need
+reasoning; on a typical old set it removes 30–50% of the pool. Because its rule
+is syntactic, the main thread **spot-checks it**: sample ~10 `trivial-free`
+cards and confirm each really is keyword-only. A card wrongly filtered into
+`trivial-free` is invisible to every downstream gate.
+
+The main thread then buckets `needs-judgement` (+ D's `trivial-free` ⇒ `free`)
+into free / capability / out-of-scope, does the step-5 engine cross-check and
+the step-6 registry gap calls, and computes the closure invariant. Those are
+never delegated: they are the reasoning the rollout is bought with.
+
+### Steps
+
+1. **Get the set data.** _(sub-agent A)_ The importer reads an MTGJSON blob at
    `data/json/<CODE_UPPER>.json` (e.g. `data/json/INV.json`). If it's missing,
    download it: `curl -s -A "Mozilla/5.0" -o data/json/<CODE_UPPER>.json
 https://mtgjson.com/api/v5/<CODE_UPPER>.json`.
-2. **Check for prior work — this set may be partially done.** A set can carry
+2. **Check for prior work — this set may be partially done.** _(sub-agent B
+   gathers; the never-overwrite decision below stays on the main thread.)_ A set can carry
    a pre-existing `convex/cards/sets/<code>/` directory (colour-split per
    ADR 0043: `white|blue|black|red|green|multicolor|colorless.ts` + an
    `index.ts` barrel) from an earlier rollout. You MUST treat it as the source
@@ -86,11 +159,13 @@ CardDefinition` (and `CardPrint`) are implemented; **commented-out** stub
    cluster ships, do not re-stub or duplicate them. - The set directory and the lockfile can disagree if the lockfile is stale
    — reconcile by running `bun run check:index` (and backfilling if it
    fails) so "done" reflects reality before you scope.
-3. **Profile the set from the blob** (use `jq`): total unique cards, breakdown
+3. **Profile the set from the blob** _(sub-agent A)_ (use `jq`): total unique cards, breakdown
    by colour, by rarity, and — critically — by **card layout** (`normal` vs
    `transform`/`modal_dfc`/`split`/`adventure`/`flip`/`meld`/`saga`/`leveler`/
    `class`). Unmodelled layouts are out-of-scope (ADR 0010 / ADR 0041).
-4. **Triage every card into five buckets** — this IS the scope, and it must
+4. **Triage every card into five buckets** — **main thread, never delegated**
+   (sub-agent D only pre-filters the input, see the routing block above).
+   This IS the scope, and it must
    **skip everything already implemented** (resume-aware): - **done** — already implemented: an active def in one of the
    `convex/cards/sets/<code>/` colour modules OR present in
    `data/card-index.json` (lockfile). Excluded from all slices. (A partial
@@ -114,7 +189,8 @@ the blob`, with the buckets **disjoint**. If the sum is short, a card is
 5. **Cross-check** each capability candidate against the engine — many
    mechanics already shipped (layers, replacements, complex triggers, APNAP).
    Flag a real gap explicitly; never assume "deferred". (`project_lost_cards_audit`)
-6. **Mechanics Registry closure check (ADR 0045/0046).** Cross-reference every
+6. **Mechanics Registry closure check (ADR 0045/0046).** _(sub-agent C supplies
+   the registry lists; the gap verdicts are main-thread.)_ Cross-reference every
    keyword ability and keyword action the set's cards use against
    `convex/cards/mechanicsRegistry.ts` (`status: "implemented"` rows +
    `EFFECT_OP_REGISTRY`). This IS part of the capability triage: a mechanic
@@ -312,6 +388,20 @@ Per `.claude/rules/gre-development.md`:
   `bun run check:all` + full `bun run test`, zero errors/failures. `check:all`
   now also runs `check:stub-coverage` (Phase 4) — every commented stub must
   carry its `// tracked-by: #NNN` tag or the gate fails.
+
+## Model routing recap (two different axes — don't conflate them)
+
+- **Inside this skill**: only Phase 0's _gathering_ is delegated, to
+  `model: sonnet` sub-agents (A–D above). Phases 1–3 are never delegated —
+  the grill is an interactive one-question-per-turn interview with the user,
+  and the PRD/tickets are synthesis over that conversation. Run `/new-set`
+  itself on Opus.
+- **Downstream, a separate axis**: `to-tickets` stamps a `model:*` label on
+  each cut issue, and `/process-gh-issues` routes that ticket's
+  implement-subagent to that tier (**no label ⇒ Sonnet**, which is the right
+  default for a DSL card reusing shipped Ops). `model:opus` is for a ticket
+  introducing a new Op/primitive/cross-layer shape later tickets will copy.
+  That routing is `to-tickets`' job, not this skill's.
 
 ## Reference
 

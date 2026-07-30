@@ -242,6 +242,14 @@ _Avoid_: Find-and-replace, text rewrite
 An **Ability Word** (CR 702 preamble — italic, no rules meaning) introduced in Invasion: the scalar "number of basic land types among lands a **Player** controls", ranging 0–5 (Plains, Island, Swamp, Mountain, Forest — counted by land _subtype_, so one dual land can contribute several). A card's effect scales with it (Tribal Flames deals that much damage; Kavu Scout gets +1/+0 for each). In code it is one value: `getDomain(player)`, exposed to **Effect Scripts** as the `{ domain: { of } }` value member.
 _Avoid_: "the domain" (the knowledge area / this glossary's subject — a homonym; always qualify the mechanic as "Domain (ability word)"), landfall, basic land count
 
+**Cost Leg**:
+One component of a composite cost, in one of four kinds: a **mana** leg, a **permanent** leg (return or sacrifice N permanents matching a filter), a **life** leg, or a **hand** leg (exile or discard cards from hand). A cost is a set of legs, all of which must be paid; the kinds compose freely. The same leg vocabulary describes an **Alternative Cost** (which _replaces_ a **Spell**'s mana cost, CR 118.9 — evoke, dash, flashback, madness) and a **Kicker** cost (which is _added on top of_ it, CR 601.2f / 702.33a). That distinction is about whether the cost replaces or adds, never about what the legs are — which is why one `CostLegs` type serves both (ADR 0079).
+_Avoid_: Cost component, sub-cost, additional cost (that names the add-on _relationship_, not a leg)
+
+**Kicker Payment**:
+The record of which of a **Spell**'s kickers were paid as it was **Announced**, and how many times each — a map from kicker id to a count, snapshotted on the **Stack** item at cast commit and read at **Resolution**. A card may offer several kickers payable independently ("Kicker {A} and/or {B}" — the Planeshift Battlemages), so a single total cannot answer "was it kicked with its {2}{U} kicker"; the total remains available as the sum. A per-kicker count (rather than a boolean) is what lets Multikicker (CR 702.33e) be a property of one kicker rather than of the card.
+_Avoid_: Kicker count (that is the derived _total_, not the record), kicked flag
+
 **Pile**:
 One of the two subsets a **Player** separates a set of objects into (all their nontoken lands, the top five cards of a **Library**, all creatures a player controls), after which _another_ player chooses one pile; an effect then applies asymmetrically to the chosen vs. unchosen pile (Fact or Fiction, Do or Die, Bend or Break). The divide-then-choose interaction is a two-step **Pending Choice** with distinct divider and chooser players.
 _Avoid_: Group, stack (that's the **Stack**), heap, partition (informal only)

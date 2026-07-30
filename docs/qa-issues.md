@@ -53,6 +53,7 @@ Fable of the mirror-breaker
 
 ## UX da migliorare
 
+- quando ho il dialog di auto-tap e premo esc deve annullare il cast, come avessi premuto U, invece di aprire il menu
 - quando faccio mouseover su una carta che viene coperta da card-preview si crea un loop tipo flash con card-preview che appare e scompare
 - il dialog Pay kicker cost è brutto e incoerente col resto della UI.
 - tangle e altre carte che danno "non stappa nel prossimo untap" funzionano, ma non c'è il dato di questa abilità ritardata nell'oracle text della card-preview. bisogna che il giocatore lo veda sempre
