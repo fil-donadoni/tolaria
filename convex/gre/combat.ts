@@ -73,9 +73,19 @@ export function markAttacking(
  *    any battlefield to scan — so a scan would report "no creatures attacked"
  *    on exactly the turns that saw the most combat.
  *
- *  Every declaration path routes through here — the `confirmAttackers`
- *  mutation, the auto-pass auto-confirm in `advancePhase`, and the bot's search
- *  simulation — so the three cannot drift. */
+ *  FOUR declaration paths call this, and they are the complete set: the
+ *  `confirmAttackers` mutation (`game.ts`), the auto-pass auto-confirm in
+ *  `advancePhase` (`phases.ts`), the ISMCTS search sim (`search.ts`), and the
+ *  1-ply greedy sim (`applyMove.ts`). Nothing enforces that mechanically — the
+ *  greedy path shipped with `markAttacking` alone and left
+ *  `state.creatureAttackedThisTurn` unset in every leaf, so the greedy
+ *  evaluator read "no creatures attacked this turn" immediately after
+ *  attacking (issue #1944 review fixup). A NEW declaration site must call this
+ *  next to its `markAttacking`; grep `markAttacking(` and check each hit.
+ *
+ *  Deliberately excluded, and the reason the two helpers are separate: the
+ *  enters-attacking token path (`state.ts`, CR 506.3c) calls `markAttacking`
+ *  ONLY — such a creature was never DECLARED as an attacker. */
 export function recordAttackerDeclared(
     state: GameState,
     permanent: CardInstanceState

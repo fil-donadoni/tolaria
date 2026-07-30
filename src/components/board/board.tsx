@@ -378,6 +378,14 @@ export default function Board({
         (p) => p.id === state.activePlayerId
     );
     const turn = activePlayer?.turnsTaken ?? state.turn ?? 1;
+    // The ENGINE's global turn number, published SEPARATELY from the display
+    // counter above. Every client-side engine predicate that compares against a
+    // `GameState.turn`-derived stamp (`enteredOnTurn`, the
+    // `controlChangedThisTurn` ledger's window) must read this one — the two
+    // numbers diverge from turn 2 onward, and feeding the display counter to
+    // `hasControlledSinceTurnStart` hid every legal candidate from Keldon
+    // Twilight's MANDATORY sacrifice picker (issue #1944 review fixup).
+    const engineTurn = state.turn ?? 1;
     const pendingCast = state.pendingCast;
     const pendingActivation = state.pendingActivation;
     // CR 601.2g — the generic-mana spend choice (if any) parked on THIS
@@ -445,6 +453,7 @@ export default function Board({
                 priorityPlayerId,
                 phase,
                 turn,
+                engineTurn,
                 stackCount: stackItems.length,
                 pendingCast,
                 pendingActivation,

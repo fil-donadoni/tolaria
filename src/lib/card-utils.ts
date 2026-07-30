@@ -563,8 +563,12 @@ export function matchesPermanentFilter(
     card: CardInstance,
     filter: ClientPermanentFilter,
     /** Projected `{ turn, controlChangedThisTurn }` — required only by the
-     *  `controlledSinceTurnStart` clause. Both fields cross the wire verbatim;
-     *  `useGameContext` forwards them. */
+     *  `controlledSinceTurnStart` clause. Both fields cross the wire verbatim.
+     *  `turn` here is the ENGINE turn (`GameState.turn`, forwarded as
+     *  `useGameContext().engineTurn`), the same scale `enteredOnTurn` is
+     *  stamped from — NOT the board's display counter
+     *  (`activePlayer.turnsTaken`), which is roughly half of it and would
+     *  exclude candidates the server accepts (issue #1944 review fixup). */
     turnState?: ControlContinuityView
 ): boolean {
     if (filter.types !== undefined) {
@@ -2748,7 +2752,9 @@ export function toMatchablePermanent(
     card: CardInstance,
     /** Projected `{ turn, controlChangedThisTurn }`. Required only by the two
      *  turn-scoped derived flags below; omitted, both stay undefined and their
-     *  filters fail closed. */
+     *  filters fail closed. `turn` must be the ENGINE turn
+     *  (`useGameContext().engineTurn` / `GameState.turn`), never the board's
+     *  display counter — see `matchesPermanentFilter`'s note. */
     turnState?: ControlContinuityView
 ): MatchablePermanent {
     return {

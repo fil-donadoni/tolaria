@@ -62,6 +62,7 @@ function renderWithProjection(
         priorityPlayerId: "p1",
         phase: "DRAW",
         turn: 1,
+        engineTurn: 1,
         stackCount: projected.stack.length,
         allPlayers: projected.players as unknown as Player[],
         showAllCards: false,

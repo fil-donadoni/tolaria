@@ -298,3 +298,74 @@ describe("applyMoveInSearch — partial and zero-delve counts (issue #1661 revie
         expect(botAfter.graveyard).toHaveLength(7);
     });
 });
+
+// ---------------------------------------------------------------------------
+// CR 506.3 (issue #1944 review fixup) — both search leaves must record an
+// attacker DECLARATION, not merely mark the creature attacking.
+// `recordAttackerDeclared` writes the GAME-level `creatureAttackedThisTurn`
+// flag that "if no creatures attacked this turn" effects (Keldon Twilight)
+// read. The greedy 1-ply leaf (`applyMoveForSearch`) shipped calling
+// `markAttacking` alone, so its leaves reported "no creatures attacked" the
+// instant after attacking and the greedy evaluator mis-scored every such
+// effect. Asserted for BOTH leaves so neither can regress independently.
+// ---------------------------------------------------------------------------
+
+/** Attacker-declaration fixture: one untapped, non-summoning-sick Grizzly Bears
+ *  for `ATTACKER_SEAT`, an empty combat, phase DECLARE_ATTACKERS. */
+function attackState(seat: string) {
+    const bear = makeInstance(getCardByName("Grizzly Bears").id, {
+        id: "bear1",
+        controllerId: seat,
+        ownerId: seat,
+        isSummoningSick: false,
+    });
+    const state = makeState({
+        turn: 3,
+        players:
+            seat === "p1"
+                ? [makePlayer("p1", { battlefield: [bear] }), makePlayer("p2")]
+                : [makePlayer("p1"), makePlayer(seat, { battlefield: [bear] })],
+        activePlayerId: seat,
+        priorityPlayerId: seat,
+        phase: "DECLARE_ATTACKERS",
+    });
+    state.combat = {
+        attackerIds: [],
+        confirmed: false,
+        blockerAssignments: {},
+        blockersConfirmed: false,
+    };
+    return { state, bear };
+}
+
+const declareMove: Move = { kind: "declare-attackers", attackerIds: ["bear1"] };
+
+describe("search leaves record an attacker DECLARATION (CR 506.3, issue #1944)", () => {
+    it("applyMoveForSearch (greedy 1-ply sandbox) sets creatureAttackedThisTurn", () => {
+        const { state } = attackState("p1");
+        expect(state.creatureAttackedThisTurn).toBeUndefined();
+
+        const next = applyMoveForSearch(state, "p1", declareMove);
+
+        expect(next.creatureAttackedThisTurn).toBe(true);
+        const bearAfter = next.players[0].battlefield.find(
+            (c) => c.id === "bear1"
+        )!;
+        expect(bearAfter.hasAttackedThisTurn).toBe(true);
+        // The sandbox clone must not leak the flag back into the caller's state.
+        expect(state.creatureAttackedThisTurn).toBeUndefined();
+    });
+
+    it("applyMoveInSearch (ISMCTS tree leaf) sets creatureAttackedThisTurn", () => {
+        const { state } = attackState("p1");
+        expect(state.creatureAttackedThisTurn).toBeUndefined();
+
+        applyMoveInSearch(state, "p1", declareMove);
+
+        expect(state.creatureAttackedThisTurn).toBe(true);
+        const bearAfter = state.players[0].battlefield.find(
+            (c) => c.id === "bear1"
+        )!;
+        expect(bearAfter.hasAttackedThisTurn).toBe(true);
+    });
+});

@@ -71,6 +71,7 @@ function makeContext(overrides: Partial<NonNullable<Ctx>> = {}): Ctx {
         priorityPlayerId: "p1",
         phase: "PRECOMBAT_MAIN",
         turn: 1,
+        engineTurn: 1,
         stackCount: 0,
         allPlayers: [],
         showAllCards: false,

@@ -43,6 +43,7 @@ function renderStack(stack: StackItem[], recentArrivals?: ReadonlySet<string>) {
         priorityPlayerId: "me",
         phase: "PRECOMBAT_MAIN",
         turn: 1,
+        engineTurn: 1,
         stackCount: stack.length,
         allPlayers: [],
         recentArrivals,
