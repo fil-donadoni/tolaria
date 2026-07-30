@@ -13,32 +13,23 @@ import {
 import { projectPublicState } from "../../../../gameProjections";
 import { resolveTopOfStack } from "../../../../gre/state";
 import type { GameState } from "../../../../gre/state";
+import type { TargetSelection } from "../../../types";
 
 const REDIRECT_ABILITY_ID = "mirrorwood-treefolk-redirect";
 
-/** Activates Mirrorwood Treefolk's redirect ability and answers the
- *  mid-resolution `choose-damage-target` pick with `pickedId` (a
- *  `candidateIds` permanent id or a `candidatePlayerIds` player id) —
- *  mirrors Jade Monolith's `pick-source` test pattern
- *  (`convex/cards/sets/lea/__tests__/colorless.test.ts`). */
+/** Activates Mirrorwood Treefolk's redirect ability with `target` announced
+ *  at activation (CR 602.2b) — the ability's `targetRequirement: { type:
+ *  "any" }` is a controller-chosen target, exactly like Cuombajj Witches'
+ *  own ping, so the test wires it the same way `pushSpell`'s `targets`
+ *  parameter does for a spell: no mid-resolution suspension involved. */
 function activateAndPickTarget(
     state: GameState,
     treefolkId: string,
-    pickedId: string
+    target: TargetSelection
 ) {
-    const act = pushSpell(state, mirrorwoodTreefolk.id, "p1", []);
+    const act = pushSpell(state, mirrorwoodTreefolk.id, "p1", [target]);
     act.abilityId = REDIRECT_ABILITY_ID;
     act.id = treefolkId; // the ability's own stack item IS the source (ctx.sourceInstanceId)
-    resolveTopOfStack(state);
-    expect(state.pendingChoices).toHaveLength(1);
-    const head = state.pendingChoices![0];
-    expect(head.kind).toBe("choose-damage-target");
-    const choiceItem = state.stack.find((s) => s.id === head.stackItemId)!;
-    choiceItem.collectedChoices = {
-        ...(choiceItem.collectedChoices ?? {}),
-        [`${head.step}:${head.choiceId}`]: [pickedId],
-    };
-    state.pendingChoices = undefined;
     resolveTopOfStack(state);
 }
 
@@ -74,7 +65,7 @@ describe("Mirrorwood Treefolk ({3}{G} 2/4 — one-shot damage redirect, CR 614/1
                 makePlayer("p2", { battlefield: [bear] }),
             ],
         });
-        activateAndPickTarget(state, "mwt", "bear");
+        activateAndPickTarget(state, "mwt", { type: "permanent", id: "bear" });
 
         pushSpell(state, lightningBolt.id, "p2", [
             { type: "permanent", id: "mwt" },
@@ -103,7 +94,7 @@ describe("Mirrorwood Treefolk ({3}{G} 2/4 — one-shot damage redirect, CR 614/1
                 makePlayer("p2", { battlefield: [], life: 20 }),
             ],
         });
-        activateAndPickTarget(state, "mwt", "p2");
+        activateAndPickTarget(state, "mwt", { type: "player", id: "p2" });
 
         pushSpell(state, lightningBolt.id, "p2", [
             { type: "permanent", id: "mwt" },
@@ -129,7 +120,7 @@ describe("Mirrorwood Treefolk ({3}{G} 2/4 — one-shot damage redirect, CR 614/1
                 makePlayer("p2", { battlefield: [], life: 20 }),
             ],
         });
-        activateAndPickTarget(state, "mwt", "p2");
+        activateAndPickTarget(state, "mwt", { type: "player", id: "p2" });
 
         pushSpell(state, lightningBolt.id, "p2", [
             { type: "permanent", id: "mwt" },
@@ -146,6 +137,51 @@ describe("Mirrorwood Treefolk ({3}{G} 2/4 — one-shot damage redirect, CR 614/1
         )!;
         expect(mwtAfter.damageMarked).toBe(3); // second bolt lands on mwt itself
         expect(state.players[1].life).toBe(17); // unchanged — shield already spent
+    });
+
+    it("redirect destination removed from the battlefield before damage lands: damage goes on the Treefolk instead of vanishing (official ruling)", () => {
+        // Scryfall/Gatherer ruling: "If the target creature is not on the
+        // battlefield (or is not a creature) at the time the damage would be
+        // redirected, then the damage goes on this card." Regression for
+        // PR #1978 review Blocking 1: a naive redirect that rewrites
+        // `current.target` to a dead instance id silently drops the damage
+        // (dealDamage's `if (!found) return`) instead of landing it back on
+        // the shielded creature.
+        const mwt = makeInstance(mirrorwoodTreefolk.id, {
+            id: "mwt",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const bear = makeInstance(crawWurm.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mwt] }),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        activateAndPickTarget(state, "mwt", { type: "permanent", id: "bear" });
+
+        // The chosen destination leaves the battlefield (destroyed,
+        // exiled, etc. — the mechanism doesn't matter, only that it's gone)
+        // before the shielded damage is dealt.
+        state.players[1].battlefield = [];
+        state.players[1].graveyard = [...state.players[1].graveyard, bear];
+
+        pushSpell(state, lightningBolt.id, "p2", [
+            { type: "permanent", id: "mwt" },
+        ]);
+        expect(resolveTopOfStack(state)).not.toBeNull();
+
+        const mwtAfter = state.players[0].battlefield.find(
+            (c) => c.id === "mwt"
+        )!;
+        // Damage lands on the Treefolk itself — not lost, not on the gone
+        // destination.
+        expect(mwtAfter.damageMarked).toBe(3);
     });
 
     it("holds through the real damage pipeline and survives the wire projection (CR 614)", () => {
@@ -165,7 +201,7 @@ describe("Mirrorwood Treefolk ({3}{G} 2/4 — one-shot damage redirect, CR 614/1
                 makePlayer("p2", { battlefield: [bear] }),
             ],
         });
-        activateAndPickTarget(state, "mwt", "bear");
+        activateAndPickTarget(state, "mwt", { type: "permanent", id: "bear" });
 
         pushSpell(state, lightningBolt.id, "p2", [
             { type: "permanent", id: "mwt" },

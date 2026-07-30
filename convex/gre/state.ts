@@ -3590,8 +3590,9 @@ export type PlayerPreferences = {
  *    permanent — instead. Generalizes Jade Monolith's `{1}` activated
  *    ability (destination always a player, `redirectTo: {type:"player"}`)
  *    to also cover Mirrorwood Treefolk's `{2}{R}{W}` ability, whose
- *    "any target" destination is chosen as the ability resolves and may be
- *    a permanent (issue #1939). */
+ *    "any target" destination is announced at activation (CR 601.2c /
+ *    602.2b) via a `targetRequirement: { type: "any" }` and may be a
+ *    permanent (issue #1939). */
 /** A turn-scoped grant redirecting a card entering `ownerId`'s OWN graveyard
  *  to exile instead (CR 614, issue #1145 — Yawgmoth's Will's shape). Applied
  *  by `applyGraveyardBoundReplacements` as a transient layer on top of the
@@ -3631,9 +3632,9 @@ export type DamageRedirection =
           targetInstanceId: string;
           /** Where the redirected damage lands — a player (Jade Monolith,
            *  always the activator) or a permanent (Mirrorwood Treefolk's
-           *  "any target", chosen as the ability resolves, CR 115.4). Reuses
-           *  `TargetSelection`'s player/permanent shape rather than adding a
-           *  bespoke destination type. */
+           *  "any target", announced at activation, CR 115.4/601.2c/602.2b).
+           *  Reuses `TargetSelection`'s player/permanent shape rather than
+           *  adding a bespoke destination type. */
           redirectTo:
               | { type: "player"; id: string }
               | { type: "permanent"; id: string };

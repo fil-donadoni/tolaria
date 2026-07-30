@@ -2872,8 +2872,8 @@ export interface SpellContext {
      *    when `sourceInstanceId` is unset, ANY source) would deal damage to
      *    creature C, that damage is dealt to `redirectTo` instead — a
      *    player (Jade Monolith's `{1}`, always the activator) or a
-     *    permanent (Mirrorwood Treefolk's `{2}{R}{W}`, "any target" chosen
-     *    as the ability resolves, CR 115.4, issue #1939).
+     *    permanent (Mirrorwood Treefolk's `{2}{R}{W}`, "any target"
+     *    announced at activation, CR 115.4/601.2c/602.2b, issue #1939).
      *
      *  Unconsumed entries are purged when `duration` expires (typically
      *  end-of-turn). */

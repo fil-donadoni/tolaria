@@ -39,6 +39,7 @@ import type {
 } from "../cards/types";
 import { tryGetDefinition } from "../cards";
 import { getColorsFromCost } from "../cards/colors";
+import { isDamageablePermanent } from "./constants";
 import { turnFaceUp } from "./faceDown";
 import { STATIC_EFFECT_CTX } from "./layers";
 import type { CardInstanceState, DamageRedirection, GameState } from "./state";
@@ -494,12 +495,37 @@ export function applyTransientDamageRedirections(
             ) {
                 // Jade Monolith / Mirrorwood Treefolk (CR 614): redirect
                 // damage to the chosen destination — a player or a
-                // permanent (issue #1939 generalization). Charges decrement
-                // per match; keep the shield while still charged.
-                current = {
-                    ...current,
-                    target: sh.redirectTo,
-                };
+                // permanent (issue #1939 generalization). Official ruling
+                // (Mirrorwood Treefolk, Scryfall/Gatherer): "If the target
+                // creature is not on the battlefield (or is not a creature)
+                // at the time the damage would be redirected, then the
+                // damage goes on this card." So a permanent destination must
+                // be re-validated at redirection time — the same
+                // existence/damageability gate the sibling
+                // `to-self-redirect-to-owner` branch above already applies
+                // to ITS target (`findOnBattlefieldAnywhere` +
+                // `isDamageablePermanent`). On an illegal destination,
+                // `current.target` is left untouched (it already IS the
+                // shielded creature, since its id === sh.targetInstanceId),
+                // so the damage lands there instead of vanishing. The "next
+                // time" is still spent either way — charges decrement per
+                // match regardless of whether the redirect actually landed.
+                let destinationValid = true;
+                if (sh.redirectTo.type === "permanent") {
+                    const destCard = findOnBattlefieldAnywhere(
+                        state,
+                        sh.redirectTo.id
+                    );
+                    destinationValid =
+                        destCard !== undefined &&
+                        isDamageablePermanent(destCard);
+                }
+                if (destinationValid) {
+                    current = {
+                        ...current,
+                        target: sh.redirectTo,
+                    };
+                }
                 if (sh.remaining - 1 > 0) {
                     kept.push({ ...sh, remaining: sh.remaining - 1 });
                 }

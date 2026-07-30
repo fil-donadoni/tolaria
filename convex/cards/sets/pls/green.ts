@@ -3,32 +3,49 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import { DAMAGEABLE_PERMANENT_TYPES, type CardDefinition } from "../../types";
+import type { CardDefinition } from "../../types";
 
 // Mirrorwood Treefolk — {3}{G} Creature — Treefolk, 2/4. "{2}{R}{W}: The next
 // time damage would be dealt to this creature this turn, that damage is
 // dealt to any target instead." (CR 614 one-shot transient redirection,
-// issue #1939.) Per the issue's spec, the destination — a player or a
-// permanent (CR 115.4 "any target") — is chosen AS THE ABILITY RESOLVES, not
-// announced at activation, so the ability carries no `targetRequirement`.
+// issue #1939.)
 //
-// protocol card: the destination is a mid-resolution `choose-damage-target`
-// pick spanning damageable permanents AND players (CR 115.4), the same
-// primitive Cuombajj Witches' opponent's-choice ping uses
-// (`convex/cards/sets/arn/black.ts`) and outside the scriptable
-// EffectChoiceKind subset (ADR 0045) — plus installing a transient
+// Targeting fix (PR #1978 review): "any target" is chosen when the ability
+// is PUT ON THE STACK (CR 601.2c / 602.2b), not mid-resolution — issue
+// #1939's "chosen as the ability resolves" wording conflicted with the CR
+// (commented on the issue). The ability declares
+// `targetRequirement: { type: "any", count: 1 }`, exactly like Cuombajj
+// Witches' controller-chosen ping (`convex/cards/sets/arn/black.ts`), which
+// routes the pick through `getLegalTargets`/`selectTarget` — the real CR
+// 115.4/608.2b/protection/hexproof/shroud gate — instead of an unfiltered
+// candidate list assembled at resolution. `choose-damage-target` stays
+// reserved for a genuinely mid-resolution, OPPONENT-chosen pick (Cuombajj's
+// second ping); this one is the controller's own announced target, so it
+// needs no request/disambiguation step at all.
+//
+// protocol card: `resolve()` still installs a transient
 // `addDamageRedirectionShield` shield, a `resolve()`-only SpellContext
 // primitive with no Effect Script Op wrapper (like Jade Monolith,
 // `convex/cards/sets/lea/colorless.ts`). Not migratable to `effects[]`.
 //
 // Generalizes the redirection list's `from-source-to-permanent-redirect`
 // shield (`gre/state.ts`, previously Jade Monolith-only with a
-// player-only destination) so `redirectTo` can be a permanent too, chosen
-// here via the same disambiguation Cuombajj Witches uses: a picked id that
-// is one of the queried player ids targets that player, otherwise it names
-// a damageable permanent. No `sourceInstanceId` filter — the oracle text has
-// no source restriction ("the next time damage would be dealt to this
-// creature", from ANY source), unlike Jade Monolith's chosen-source filter.
+// player-only destination) so `redirectTo` can be a permanent too —
+// `ctx.targets[0]` is already shaped as `{type:"player"|"permanent", id}`
+// (`TargetSelection`), the exact same union `redirectTo` declares, so no
+// disambiguation step is needed. No `sourceInstanceId` filter — the oracle
+// text has no source restriction ("the next time damage would be dealt to
+// this creature", from ANY source), unlike Jade Monolith's chosen-source
+// filter.
+//
+// DIVERGENCE: the official ruling says "during combat it is possible for
+// multiple sources to damage the Treefolk at one time, in which case damage
+// from all of those sources is redirected" — but the shield is `remaining: 1`
+// and the engine emits one combat-damage event PER SOURCE
+// (`applyOneCombatDamage`, `convex/gre/phases.ts`), each independently
+// running the CR 614 replacement loop, so only the first simultaneous
+// source's damage is redirected; the rest lands on the Treefolk. Not fixed
+// in this pass — tracked-by: #1983.
 export const mirrorwoodTreefolk: CardDefinition = {
     id: "ba9a1c94-2b7f-4df7-8517-a122616d9ae4", // PLS printing (scryfallId)
     name: "Mirrorwood Treefolk",
@@ -62,38 +79,24 @@ export const mirrorwoodTreefolk: CardDefinition = {
                 "{2}{R}{W}: The next time damage would be dealt to this creature this turn, that damage is dealt to any target instead.",
             cost: { mana: { X: 2, R: 1, W: 1 } },
             useStack: true,
+            // Controller's target (CR 602.2b — chosen at activation), same
+            // shape as Cuombajj Witches' controller-chosen ping.
+            targetRequirement: { type: "any", count: 1 },
             resolve: (ctx) => {
-                const permanentCandidates = ctx.allPlayerIds.flatMap((pid) =>
-                    ctx.getBattlefieldIds(pid, {
-                        types: [...DAMAGEABLE_PERMANENT_TYPES],
-                    })
-                );
-                const playerCandidates = [...ctx.allPlayerIds];
-                const picked = ctx.requestChoice({
-                    playerId: ctx.controller,
-                    choiceId: `mirrorwood-treefolk-target-${ctx.sourceInstanceId}`,
-                    kind: "choose-damage-target",
-                    zone: "battlefield",
-                    allControllers: true,
-                    filter: { types: [...DAMAGEABLE_PERMANENT_TYPES] },
-                    candidateIds: permanentCandidates,
-                    candidatePlayerIds: playerCandidates,
-                    count: 1,
-                    prompt: "Mirrorwood Treefolk: choose a target the next damage to this creature this turn will be redirected to.",
-                });
-                if (picked === undefined) return; // suspend: awaiting pick
-                const id = picked[0];
-                if (!id) return;
-                // Disambiguate the chosen id (CR 115.4 — mirrors Cuombajj
-                // Witches' opponent-choice ping): a queried player id targets
-                // that player, otherwise it names a damageable permanent.
-                const redirectTo = playerCandidates.includes(id)
-                    ? ({ type: "player", id } as const)
-                    : ({ type: "permanent", id } as const);
+                const target = ctx.targets[0];
+                // "any target" (CR 115.4) only ever resolves to a permanent
+                // or a player here — narrow defensively rather than widen
+                // `DamageRedirection.redirectTo`'s union.
+                if (
+                    !target ||
+                    (target.type !== "player" && target.type !== "permanent")
+                ) {
+                    return;
+                }
                 ctx.addDamageRedirectionShield({
                     kind: "from-source-to-permanent-redirect",
                     targetInstanceId: ctx.sourceInstanceId,
-                    redirectTo,
+                    redirectTo: { type: target.type, id: target.id },
                     remaining: 1,
                     duration: { phase: "end-of-turn" },
                 });
