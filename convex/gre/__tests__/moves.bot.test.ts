@@ -1021,6 +1021,136 @@ describe("gate ↔ planner opponent-scanning mana-source parity (issue #1754)", 
 });
 
 // ---------------------------------------------------------------------------
+// Board-derived restricted-colour mana sources (CR 605.1a, issue #1941).
+// The three PLS C6 cards declare a DECLARATIVE `manaColorSource` descriptor
+// instead of a `getManaChoices` closure. The bot reads their output through the
+// same `getManaTapOptionsDetailed` authority as everything else, so this is the
+// parity guard that the descriptor is visible to the planner (available-mana
+// assessment) and not only to the human castability gate.
+// ---------------------------------------------------------------------------
+const QUIRION_EXPLORER = getCardByName("Quirion Explorer").id;
+const STAR_COMPASS = getCardByName("Star Compass").id;
+const METEOR_CRATER = getCardByName("Meteor Crater").id;
+const CRAW_WURM = getCardByName("Craw Wurm").id; // {3}{G} — a green permanent
+const FOG = getCardByName("Fog").id; // {G} instant, no targets
+
+describe("board-derived mana descriptors: gate ↔ planner parity (issue #1941)", () => {
+    it("Quirion Explorer funded by an opponent's Mountain: cast is offered AND planned", () => {
+        const bolt = makeInstance(BOLT, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const elf = makeInstance(QUIRION_EXPLORER, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { hand: [bolt], battlefield: [elf] }),
+                makePlayer("p2", { battlefield: [land(MOUNTAIN, "p2")] }),
+            ],
+        });
+        expect(legalActionsFor(state, "p1", bolt)).toContain("cast");
+        const casts = castsFor(state, "p1", bolt.id);
+        expect(casts.length).toBeGreaterThan(0);
+        for (const cast of casts) {
+            expect(cast.kind === "cast-spell" && cast.tapPlan).toEqual([
+                {
+                    cardInstanceId: elf.id,
+                    manaChoiceIndex: expect.any(Number),
+                },
+            ]);
+        }
+    });
+
+    it("Star Compass funded by the controller's own basic Mountain: cast is offered AND planned", () => {
+        const bolt = makeInstance(BOLT, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const compass = makeInstance(STAR_COMPASS, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        // The Mountain is TAPPED, so the compass is the only AVAILABLE source —
+        // but a tapped land still "could produce" {R} (CR 106.4).
+        const tappedMountain = land(MOUNTAIN, "p1");
+        tappedMountain.isTapped = true;
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [bolt],
+                    battlefield: [compass, tappedMountain],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(legalActionsFor(state, "p1", bolt)).toContain("cast");
+        const casts = castsFor(state, "p1", bolt.id);
+        expect(casts.length).toBeGreaterThan(0);
+        for (const cast of casts) {
+            expect(cast.kind === "cast-spell" && cast.tapPlan).toEqual([
+                {
+                    cardInstanceId: compass.id,
+                    manaChoiceIndex: expect.any(Number),
+                },
+            ]);
+        }
+    });
+
+    it("Meteor Crater reads a permanent's COLOUR, not what it produces (no green permanent → no cast)", () => {
+        // Fog is {G} with no targets, so this isolates the mana question.
+        const fogInHand = makeInstance(FOG, {
+            id: "fog-1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const crater = makeInstance(METEOR_CRATER, {
+            id: "crater-1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        // A Mountain taps for {R} but is a COLOURLESS land (CR 202.2), so
+        // Meteor Crater's "isColor" read finds nothing on this board.
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [fogInHand],
+                    battlefield: [crater, land(MOUNTAIN, "p1")],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(legalActionsFor(state, "p1", fogInHand)).not.toContain("cast");
+        expect(castsFor(state, "p1", fogInHand.id)).toHaveLength(0);
+
+        // A GREEN permanent enters — the crater now offers {G} and both the
+        // gate and the planner pick it up.
+        state.players[0].battlefield.push(
+            makeInstance(CRAW_WURM, {
+                id: "wurm-1",
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+        expect(legalActionsFor(state, "p1", fogInHand)).toContain("cast");
+        const casts = castsFor(state, "p1", fogInHand.id);
+        expect(casts.length).toBeGreaterThan(0);
+        for (const cast of casts) {
+            expect(cast.kind === "cast-spell" && cast.tapPlan).toEqual([
+                {
+                    cardInstanceId: crater.id,
+                    manaChoiceIndex: expect.any(Number),
+                },
+            ]);
+        }
+    });
+});
+
+// ---------------------------------------------------------------------------
 // Gate ↔ enumerator {X}-ceiling parity for a board-dependent mana source
 // (issue #1757 — last link in the #1695 → #1751 → #1754 → #1756 chain).
 // ---------------------------------------------------------------------------

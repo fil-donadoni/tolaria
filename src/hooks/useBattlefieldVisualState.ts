@@ -55,7 +55,31 @@ export function useBattlefieldVisualState(player: Player) {
         combat,
         allPlayers,
         emblems,
+        engineTurn,
+        controlChangedThisTurn,
     } = useGameContext();
+    // The two wire fields a "…controlled since the beginning of the turn"
+    // choice filter needs (`@convex/gre/controlContinuity`). Passed to every
+    // `matchesPermanentFilter` call below so the highlight matches the server's
+    // own pending-choice / cost-pick validation exactly.
+    //
+    // `engineTurn` (the wire `GameState.turn`), NEVER the context's display
+    // `turn` (`activePlayer.turnsTaken`): `enteredOnTurn` is stamped from the
+    // GLOBAL turn number, so comparing it against the roughly-halved display
+    // counter excludes creatures the server accepts — and Keldon Twilight's
+    // choice is a MANDATORY `count: 1` with no `candidateIds` allow-list, so a
+    // human seat with nothing clickable cannot answer the prompt at all.
+    //
+    // Fails CLOSED rather than open when `engineTurn` is missing: `board.tsx`
+    // always publishes it, but a hand-built context (a component test) can
+    // omit it past the `as` cast, and `enteredOnTurn >= undefined` is `false`
+    // — i.e. every permanent would read as long-held and the picker would
+    // highlight picks the server rejects. Undefined view → the filter's own
+    // fail-closed branch.
+    const controlContinuity =
+        typeof engineTurn === "number"
+            ? { turn: engineTurn, controlChangedThisTurn }
+            : undefined;
     const bufferCtx = usePendingChoiceBuffer();
     const attackSequence = useAttackSequence();
     const isMe = player.id === playerId;
@@ -131,7 +155,7 @@ export function useBattlefieldVisualState(player: Player) {
         const req = nextSacrificeRequirement(sacrificeSelection);
         if (!req) return false;
         if (sacrificeSelection.picked.includes(card.id)) return false;
-        return matchesPermanentFilter(card, req.filter);
+        return matchesPermanentFilter(card, req.filter, controlContinuity);
     }
 
     // Exile additional-cost picker (CR 117.9 / 406, Soul Exchange). The
@@ -167,7 +191,7 @@ export function useBattlefieldVisualState(player: Player) {
                 !card.isTapped &&
                 card.id !== pendingActivation.cardInstanceId &&
                 !toc.pickedIds.includes(card.id) &&
-                matchesPermanentFilter(card, toc.filter)
+                matchesPermanentFilter(card, toc.filter, controlContinuity)
             );
         }
         return false;
@@ -274,7 +298,11 @@ export function useBattlefieldVisualState(player: Player) {
             }
             if (
                 activeChoice.filter &&
-                !matchesPermanentFilter(card, activeChoice.filter)
+                !matchesPermanentFilter(
+                    card,
+                    activeChoice.filter,
+                    controlContinuity
+                )
             ) {
                 return false;
             }
@@ -294,7 +322,8 @@ export function useBattlefieldVisualState(player: Player) {
         if (isPickingAdditionalCost && pendingCast?.additionalCost) {
             return matchesPermanentFilter(
                 card,
-                pendingCast.additionalCost.filter
+                pendingCast.additionalCost.filter,
+                controlContinuity
             );
         }
 
@@ -451,7 +480,11 @@ export function useBattlefieldVisualState(player: Player) {
             isSelectingChoice &&
             !!activeChoice &&
             (!activeChoice.filter ||
-                matchesPermanentFilter(card, activeChoice.filter));
+                matchesPermanentFilter(
+                    card,
+                    activeChoice.filter,
+                    controlContinuity
+                ));
 
         const isChoiceSelected =
             isSelectingChoice &&
@@ -590,7 +623,8 @@ export function useBattlefieldVisualState(player: Player) {
                 !!pendingCast?.additionalCost &&
                 matchesPermanentFilter(
                     card,
-                    pendingCast.additionalCost.filter
+                    pendingCast.additionalCost.filter,
+                    controlContinuity
                 )) ||
             (isPickingActivationCost && matchesActivationCostPick(card));
         // Already-committed picks in a multi-element cost choice (Fireblast's

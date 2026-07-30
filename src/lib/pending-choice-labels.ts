@@ -37,6 +37,9 @@ const PENDING_CHOICE_KIND_LABELS: Record<PendingChoiceKind, string> = {
     "order-top": "Scry",
     // look-distribute (Impulse / Stock Up) — take N to hand, order the rest bottom
     "look-distribute": "Look",
+    // choose-categorized (issue #1945, Noxious Vapors / Planar Overlay) —
+    // per-category pick from the chooser's own hand/battlefield.
+    "choose-categorized": "Choose",
     // legend rule (CR 704.5j)
     "legend-keep": "Legend rule",
     // non-cast Aura host choice (CR 303.4f — Replenish, Living Death)

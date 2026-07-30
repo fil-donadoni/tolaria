@@ -401,6 +401,9 @@ export const transmuteArtifact: CardDefinition = {
                 candidateIds: libArtifacts.map((c) => c.id),
                 count: { min: 0, max: 1 },
                 prompt: "Search your library for an artifact card.",
+                // Genuine CR 701.19a search (candidateIds is a whole-library
+                // filter match, not a peeked window) — issue #788 finding 1.
+                isSearch: true,
             });
             if (found === undefined) return; // suspended
 

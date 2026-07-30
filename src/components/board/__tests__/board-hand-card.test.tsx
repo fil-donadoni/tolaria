@@ -149,6 +149,7 @@ function tree(card: CardInstance, ctxOverrides: Record<string, unknown> = {}) {
         priorityPlayerId: "me",
         phase: "PRECOMBAT_MAIN",
         turn: 1,
+        engineTurn: 1,
         stackCount: 0,
         allPlayers: [],
         showAllCards: false,

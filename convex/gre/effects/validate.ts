@@ -195,6 +195,7 @@ function isCardFilter(
     opts?: {
         allowHasAbility?: boolean;
         allowIsAttacking?: boolean;
+        allowControlledSinceTurnStart?: boolean;
         rejectManaCostEquals?: boolean;
     }
 ): boolean {
@@ -203,6 +204,8 @@ function isCardFilter(
     }
     const allowHasAbility = opts?.allowHasAbility ?? false;
     const allowIsAttacking = opts?.allowIsAttacking ?? false;
+    const allowControlledSinceTurnStart =
+        opts?.allowControlledSinceTurnStart ?? false;
     // issue #1898 finding 3 — `manaCostEquals` is honest ONLY on a hidden-zone
     // card shape (`matchesCardFilter`'s `card.cost`, read from the registry by
     // `getHandCards`/`getLibraryCards`/`getGraveyardCards`/`getExileCards`).
@@ -323,6 +326,7 @@ function isCardFilter(
                     isCardFilter(clause, {
                         allowHasAbility,
                         allowIsAttacking,
+                        allowControlledSinceTurnStart,
                         rejectManaCostEquals,
                     })
                 )
@@ -355,6 +359,15 @@ function isCardFilter(
         // battlefield-guaranteed selector sites `hasAbility` already uses.
         if (k === "isAttacking") {
             if (!allowIsAttacking) return false;
+            return typeof v === "boolean";
+        }
+        // "…that they controlled since the beginning of the turn" (Keldon
+        // Twilight, PLS). Same battlefield-only honesty rule as
+        // `hasAbility`/`isAttacking` above: a card in a hidden zone has no
+        // controller at all (CR 108.4), so accepting the field there would
+        // validate and then match every card at runtime.
+        if (k === "controlledSinceTurnStart") {
+            if (!allowControlledSinceTurnStart) return false;
             return typeof v === "boolean";
         }
         return false;
@@ -395,6 +408,25 @@ function filterUsesIsAttacking(value: unknown): boolean {
     return (
         Array.isArray(f.any) &&
         f.any.some((clause) => filterUsesIsAttacking(clause))
+    );
+}
+
+/** Whether an `EffectCardFilter` uses `controlledSinceTurnStart`, directly or
+ *  nested inside an `any` clause — the third sibling of
+ *  `filterUsesHasAbility`/`filterUsesIsAttacking`, same rationale (a card in a
+ *  hidden zone has no controller at all, CR 108.4) and same single call site
+ *  (the `choice` Op's cross-field `check`). */
+function filterUsesControlledSinceTurnStart(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    const f = value as Record<string, unknown>;
+    if (typeof f.controlledSinceTurnStart === "boolean") {
+        return true;
+    }
+    return (
+        Array.isArray(f.any) &&
+        f.any.some((clause) => filterUsesControlledSinceTurnStart(clause))
     );
 }
 
@@ -781,6 +813,7 @@ function isCountValue(value: unknown): boolean {
         !isCardFilter(s.filter, {
             allowHasAbility: s.zone === "battlefield",
             allowIsAttacking: s.zone === "battlefield",
+            allowControlledSinceTurnStart: s.zone === "battlefield",
             rejectManaCostEquals: s.zone === "battlefield",
         })
     ) {
@@ -1144,6 +1177,43 @@ function isPickCategoryList(value: unknown): boolean {
         const e = entry as { label: unknown; filter: unknown };
         return isNonEmptyString(e.label) && isCardFilter(e.filter);
     });
+}
+
+/** The `zone` of a `chooseCategorized` Op (issue #1945) — the already-visible
+ *  domain to choose from: the chooser's own hand or own battlefield. Distinct
+ *  from `isChoiceZone` (which also allows library/graveyard/exile — zones a
+ *  categorized pick from an already-visible set has no use for). */
+function isChooseCategorizedZone(value: unknown): boolean {
+    return value === "hand" || value === "battlefield";
+}
+
+/** The `onPicked` action of a `chooseCategorized` Op (issue #1945) — what
+ *  happens to the members actually picked: `"keep"` leaves them exactly where
+ *  they are (Noxious Vapors), `"returnToHand"` bounces them via
+ *  `SpellContext.returnToHand` (Planar Overlay, CR 701.10 — battlefield
+ *  only, enforced by that schema's `check`). */
+function isChooseCategorizedOnPicked(value: unknown): boolean {
+    return value === "keep" || value === "returnToHand";
+}
+
+/** The `sweep` clause of a `chooseCategorized` Op (issue #1945) — every
+ *  non-picked HAND member (optionally narrowed by `filter`, deliberately a
+ *  SEPARATE, possibly broader filter than the categorization domain) is
+ *  discarded (CR 701.9). Exactly `{ action: "discard" }` or `{ action:
+ *  "discard", filter }` — kept strict like `isPickCategoryList` (ADR 0045,
+ *  the grammar stays frozen). */
+function isChooseCategorizedSweep(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    const keys = Object.keys(value).sort();
+    const shapeOk =
+        (keys.length === 1 && keys[0] === "action") ||
+        (keys.length === 2 && keys[0] === "action" && keys[1] === "filter");
+    if (!shapeOk) return false;
+    const v = value as { action: unknown; filter?: unknown };
+    if (v.action !== "discard") return false;
+    return v.filter === undefined || isCardFilter(v.filter);
 }
 
 /** A destination a `revealTopAndRoute` Op may send a revealed card to
@@ -1726,6 +1796,7 @@ function isPredicate(value: unknown): boolean {
             isCardFilter(obj.filter, {
                 allowHasAbility: true,
                 allowIsAttacking: true,
+                allowControlledSinceTurnStart: true,
                 rejectManaCostEquals: true,
             })
         );
@@ -1867,6 +1938,7 @@ function isForEachSelector(value: unknown): boolean {
         !isCardFilter(s.filter, {
             allowHasAbility: true,
             allowIsAttacking: true,
+            allowControlledSinceTurnStart: true,
             rejectManaCostEquals: true,
         })
     ) {
@@ -1916,6 +1988,7 @@ function isPileObjectSelector(value: unknown): boolean {
             !isCardFilter(s.filter, {
                 allowHasAbility: true,
                 allowIsAttacking: true,
+                allowControlledSinceTurnStart: true,
                 rejectManaCostEquals: true,
             })
         ) {
@@ -2943,6 +3016,45 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             prompt: isNonEmptyString,
         },
     },
+    // CR 601.2b / 701.9 (issue #1945) — per-category choice from an
+    // ALREADY-VISIBLE set (the chooser's own hand or battlefield). `categories`
+    // is the same non-empty `{ label, filter }` list `revealAndCategorize`
+    // uses; `onPicked`/`sweep` decide what happens to the picked/unpicked
+    // halves, since (unlike that Op) there is no fixed kept→hand/rest→bottom
+    // polarity here. `check` enforces the two combinations the two shipped
+    // cards actually need: `sweep` (a real CR 701.9 discard) only makes sense
+    // when the domain IS the hand, and `onPicked: "returnToHand"` (CR 701.10)
+    // only makes sense when the domain IS the battlefield (a hand card is
+    // already in hand — "returning" it would be a no-op the grammar should
+    // never even express).
+    chooseCategorized: {
+        required: {
+            player: isPlayerRef,
+            zone: isChooseCategorizedZone,
+            categories: isPickCategoryList,
+            onPicked: isChooseCategorizedOnPicked,
+        },
+        optional: {
+            optional: isBoolean,
+            sweep: isChooseCategorizedSweep,
+            prompt: isNonEmptyString,
+        },
+        check: (entry) => {
+            const errors: string[] = [];
+            if (entry.sweep !== undefined && entry.zone !== "hand") {
+                errors.push('"sweep" requires zone: "hand"');
+            }
+            if (
+                entry.onPicked === "returnToHand" &&
+                entry.zone !== "battlefield"
+            ) {
+                errors.push(
+                    'onPicked: "returnToHand" requires zone: "battlefield"'
+                );
+            }
+            return errors;
+        },
+    },
     // CR 401.4 (issue #1046) — put N cards from a hand on top of a library,
     // in the player's chosen order, through the suspending
     // `choose-hand-card` choice + `moveHandCardToLibraryTop` primitive pair.
@@ -3069,6 +3181,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                 isCardFilter(v, {
                     allowHasAbility: true,
                     allowIsAttacking: true,
+                    allowControlledSinceTurnStart: true,
                 }),
             zoneOwnerId: isPlayerRef,
             id: isNonEmptyString,
@@ -3111,6 +3224,17 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             ) {
                 errors.push(
                     '"filter.isAttacking" is valid only with zone: "battlefield" — a hand/library/graveyard/exile card carries no combat-role data to match against'
+                );
+            }
+            // `controlledSinceTurnStart` — the `hasAbility`/`isAttacking` rule
+            // again, applied to control continuity: a card in a hidden zone has
+            // no controller at all (CR 108.4).
+            if (
+                entry.zone !== "battlefield" &&
+                filterUsesControlledSinceTurnStart(entry.filter)
+            ) {
+                errors.push(
+                    '"filter.controlledSinceTurnStart" is valid only with zone: "battlefield" — a hand/library/graveyard/exile card has no controller to have controlled it'
                 );
             }
             // `manaCostEquals` (issue #1898 finding 3) is the INVERSE of

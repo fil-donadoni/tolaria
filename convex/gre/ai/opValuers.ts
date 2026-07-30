@@ -526,6 +526,43 @@ const revealAndCategorize: Valuer<"revealAndCategorize"> = (op) => ({
     tags: ["cardAdvantage"],
 });
 
+// CR 601.2b / 701.9 (issue #1945) — per-category choice from a set, applied
+// once per player via `forEach { set: "players" }` (Noxious Vapors / Planar
+// Overlay both read "each player…"). Whichever player `op.player` resolves to
+// acts on THEIR OWN hand/battlefield, so the sign mirrors `discard`'s
+// harmful-by-default convention: negative when `op.player` is LITERALLY the
+// caster (a genuine self-cost — the caster's own hand gets thinned, or their
+// own land gets bounced), positive otherwise.
+//
+// The two player-ref traps `dealDamage` already guards against apply here
+// verbatim, and both shipped cards walk straight into them:
+//   - `{ ref: "$each" }` (issue #1521) — the `forEach { set: "players" }`
+//     iteration variable. The walker evaluates a context-free `forEach` body
+//     ONCE, so there is no second, opposite-signed iteration to cancel it: a
+//     self-negative reading is simply a self-negative score, and the bot would
+//     never cast its own symmetric sweeper. Scored NEUTRAL, like every other
+//     symmetric each-player effect.
+//   - a BOUND `{ ref }` (issue #1548) — context-free `isSelf` maps every
+//     `{ ref }` object to self, so a bound player ref must be treated as NOT
+//     self and take the harmful-by-default (opponent-directed) sign.
+const CATEGORIZED_SWEEP_VALUE = 15; // Noxious Vapors — hand thinned to ≤1-per-colour, own worse cards lost
+const CATEGORIZED_BOUNCE_VALUE = 10; // Planar Overlay — a land returns to hand, a turn of tempo
+const chooseCategorized: Valuer<"chooseCategorized"> = (op, ctx) => {
+    const bounce = op.onPicked === "returnToHand";
+    const tags: ValueTag[] = bounce ? ["tempo"] : ["cardAdvantage"];
+    // Symmetric each-player sweep — hits the caster too, net neutral.
+    if (isEachPlayerRef(op.player)) return { points: 0, tags };
+    const self =
+        typeof op.player === "object" && "ref" in op.player
+            ? false
+            : ctx.isSelf(op.player, "opponent");
+    if (self) tags.push("self-cost");
+    const magnitude = bounce
+        ? CATEGORIZED_BOUNCE_VALUE
+        : CATEGORIZED_SWEEP_VALUE;
+    return { points: magnitude * (self ? -1 : 1), tags };
+};
+
 // CR 702.75a (issue #783) — HIDEAWAY: one card of the looked-at window is set
 // aside face down for a LATER conditional free play. Worth less than an
 // impulse-drawn card in hand (the payoff is gated on a condition that may never
@@ -932,6 +969,7 @@ export const OP_VALUERS: {
     digToHand,
     hideaway,
     revealAndCategorize,
+    chooseCategorized,
     discard,
     discardAtRandom,
     divideIntoPiles,

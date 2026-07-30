@@ -71,6 +71,7 @@ function renderPrompt(candidateIds: string[], batch: StackItem[]) {
         priorityPlayerId: "me",
         phase: "PRECOMBAT_MAIN",
         turn: 1,
+        engineTurn: 1,
         stackCount: batch.length,
         pendingTriggerBatch: batch,
     } as unknown as React.ContextType<typeof GameContext>;

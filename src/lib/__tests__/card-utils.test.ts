@@ -66,7 +66,20 @@ import {
     type FilterMatchContext,
     type PermanentFilter,
 } from "@convex/cards/filters";
-import { crosissCatacombs } from "@convex/cards/sets/pls/colorless";
+import type { ControlContinuityView } from "@convex/gre/controlContinuity";
+import {
+    crosissCatacombs,
+    meteorCrater,
+    starCompass,
+} from "@convex/cards/sets/pls/colorless";
+import { quirionExplorer } from "@convex/cards/sets/pls/green";
+import {
+    forest as forestCard,
+    island as islandCard,
+    mountain as mountainCard,
+    swamp as swampCard,
+} from "@convex/cards/sets/lea/colorless";
+import { crawWurm } from "@convex/cards/sets/lea/green";
 import {
     CHANDRA_TORCH_OF_DEFIANCE_EMBLEM_ID,
     SORIN_LORD_OF_INNISTRAD_EMBLEM_ID,
@@ -103,6 +116,7 @@ import {
     makeState,
 } from "@convex/cards/__tests__/setup";
 import type { PendingTarget } from "~/types/game";
+import type { CardInstanceState } from "@convex/gre/state";
 
 // Real card ids from convex/cards/sets/lea.ts, used to exercise the
 // definition-vs-instance keyword diff in getDisplayAbilities (#156).
@@ -2554,12 +2568,13 @@ describe("matchesPermanentFilter / toMatchablePermanent — MIRROR_CENSUS parity
         card: CardInstance,
         filter: PermanentFilter,
         expected: boolean,
-        ctx?: FilterMatchContext
+        ctx?: FilterMatchContext,
+        turnState?: ControlContinuityView
     ) {
-        expect(matchesPermanentFilter(card, filter)).toBe(expected);
+        expect(matchesPermanentFilter(card, filter, turnState)).toBe(expected);
         expect(
             matchesEnginePermanentFilter(
-                toMatchablePermanent(card),
+                toMatchablePermanent(card, turnState),
                 filter,
                 ctx
             )
@@ -2574,11 +2589,12 @@ describe("matchesPermanentFilter / toMatchablePermanent — MIRROR_CENSUS parity
         card: CardInstance,
         filter: PermanentFilter,
         expected: boolean,
-        ctx?: FilterMatchContext
+        ctx?: FilterMatchContext,
+        turnState?: ControlContinuityView
     ) {
         expect(
             matchesEnginePermanentFilter(
-                toMatchablePermanent(card),
+                toMatchablePermanent(card, turnState),
                 filter,
                 ctx
             )
@@ -2589,10 +2605,45 @@ describe("matchesPermanentFilter / toMatchablePermanent — MIRROR_CENSUS parity
         card: CardInstance;
         filter: PermanentFilter;
         expected: boolean;
+        /** Projected `{ turn, controlChangedThisTurn }` — only the two
+         *  turn-scoped derived flags need it (issue #1944). */
+        turnState?: ControlContinuityView;
     };
     type AdapterCase = Case & { ctx?: FilterMatchContext };
 
     const MIRRORED_CASES: Partial<Record<keyof PermanentFilter, Case[]>> = {
+        // Keldon Twilight's "…that they controlled since the beginning of the
+        // turn" (issue #1944). Both paths delegate to the ONE engine helper
+        // `hasControlledSinceTurnStart`, so the board highlight and the
+        // server's pending-choice submit validation cannot disagree.
+        controlledSinceTurnStart: [
+            {
+                card: makeCardInstance({ id: "long-held", enteredOnTurn: 1 }),
+                filter: { controlledSinceTurnStart: true },
+                turnState: { turn: 5 },
+                expected: true,
+            },
+            {
+                card: makeCardInstance({ id: "just-cast", enteredOnTurn: 5 }),
+                filter: { controlledSinceTurnStart: true },
+                turnState: { turn: 5 },
+                expected: false,
+            },
+            {
+                card: makeCardInstance({ id: "stolen", enteredOnTurn: 1 }),
+                filter: { controlledSinceTurnStart: true },
+                turnState: { turn: 5, controlChangedThisTurn: ["stolen"] },
+                expected: false,
+            },
+            {
+                // No turnState — must fail CLOSED on both paths (the filter is
+                // a restriction; highlighting a pick the server would reject is
+                // the worse failure).
+                card: makeCardInstance({ id: "long-held", enteredOnTurn: 1 }),
+                filter: { controlledSinceTurnStart: true },
+                expected: false,
+            },
+        ],
         types: [
             {
                 card: makeCardInstance({ types: ["Creature"] }),
@@ -2728,6 +2779,30 @@ describe("matchesPermanentFilter / toMatchablePermanent — MIRROR_CENSUS parity
                 }),
                 filter: { types: "Land", supertypes: "Basic" },
                 expected: true,
+            },
+        ],
+        // CR 400.7 (issue #1944) — derived by the adapter from the projected
+        // turn number, exactly as the server derives it. The client mirror has
+        // no field for it (no shipped board-highlight filter needs it).
+        enteredThisTurn: [
+            {
+                card: makeCardInstance({ id: "fresh", enteredOnTurn: 5 }),
+                filter: { enteredThisTurn: true },
+                turnState: { turn: 5 },
+                expected: true,
+            },
+            {
+                card: makeCardInstance({ id: "old", enteredOnTurn: 2 }),
+                filter: { enteredThisTurn: true },
+                turnState: { turn: 5 },
+                expected: false,
+            },
+            {
+                // No turnState — the adapter leaves the flag undefined, which
+                // reads as "did not enter this turn".
+                card: makeCardInstance({ id: "fresh", enteredOnTurn: 5 }),
+                filter: { enteredThisTurn: true },
+                expected: false,
             },
         ],
         instanceIds: [
@@ -2869,8 +2944,8 @@ describe("matchesPermanentFilter / toMatchablePermanent — MIRROR_CENSUS parity
             const cases = MIRRORED_CASES[key];
             expect(cases, `MIRRORED_CASES["${key}"] is missing`).toBeDefined();
             expect(cases!.length).toBeGreaterThan(0);
-            for (const { card, filter, expected } of cases!) {
-                expectParity(card, filter, expected);
+            for (const { card, filter, expected, turnState } of cases!) {
+                expectParity(card, filter, expected, undefined, turnState);
             }
         }
     });
@@ -2886,8 +2961,8 @@ describe("matchesPermanentFilter / toMatchablePermanent — MIRROR_CENSUS parity
                 `ADAPTER_ONLY_CASES["${key}"] is missing`
             ).toBeDefined();
             expect(cases!.length).toBeGreaterThan(0);
-            for (const { card, filter, expected, ctx } of cases!) {
-                expectAdapterOnly(card, filter, expected, ctx);
+            for (const { card, filter, expected, ctx, turnState } of cases!) {
+                expectAdapterOnly(card, filter, expected, ctx, turnState);
             }
         }
     });
@@ -4447,5 +4522,113 @@ describe("Emry, Lurker of the Loch — graveyard-targeting {T} ability surfaces 
                 view
             )
         ).toHaveLength(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Board-derived restricted-colour mana abilities (CR 605.1a, issue #1941) —
+// FRONTEND WIRING. A mana ability whose colour set the client view cannot
+// derive is dead in the UI: no picker, or a picker whose indices disagree with
+// the server's list. Every assertion here drives the REAL reducer
+// (`projectPublicState`) and the REAL client helper (`getManaChoices` /
+// `hasManaAbility`), never a hand-built view — a hand-built one would mask a
+// dropped field, which is the exact bug class this file exists to catch.
+// ---------------------------------------------------------------------------
+
+describe("getManaChoices — board-derived colour sources through the wire reducer (issue #1941)", () => {
+    /** Projects a real GameState and returns the wire-shaped picker inputs for
+     *  the mana source: the slim source instance plus the slim per-player
+     *  battlefields the board component passes to `getManaChoices`. */
+    function projectManaScenario(
+        sourceCardId: string,
+        p1Battlefield: CardInstanceState[],
+        p2Battlefield: CardInstanceState[] = []
+    ) {
+        const source = makeInstance(sourceCardId, {
+            id: "mana-source-1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makeServerPlayer("p1", {
+                    battlefield: [source, ...p1Battlefield],
+                }),
+                makeServerPlayer("p2", { battlefield: p2Battlefield }),
+            ],
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const players = projected.players.map((p) => ({
+            id: p.id,
+            battlefield: p.battlefield as unknown as CardInstance[],
+        }));
+        const slimSource = players[0].battlefield.find(
+            (c) => c.id === source.id
+        )!;
+        return {
+            slimSource,
+            players,
+            view: buildTriggerStateView(
+                projected.players as unknown as Player[]
+            ),
+        };
+    }
+
+    function basic(cardId: string, controllerId: string, id: string) {
+        return makeInstance(cardId, {
+            id,
+            controllerId,
+            ownerId: controllerId,
+        });
+    }
+
+    it("Quirion Explorer: the picker offers exactly the opponent's land colours", () => {
+        const { slimSource, players, view } = projectManaScenario(
+            quirionExplorer.id,
+            [basic(mountainCard.id, "p1", "own-mountain")],
+            [
+                basic(forestCard.id, "p2", "opp-forest"),
+                basic(islandCard.id, "p2", "opp-island"),
+            ]
+        );
+        // p1's own Mountain must not leak in — only p2's Forest + Island.
+        expect(getManaChoices(slimSource, players)).toEqual([
+            { U: 1 },
+            { G: 1 },
+        ]);
+        expect(hasManaAbility(slimSource, view)).toBe(true);
+    });
+
+    it("Star Compass: the picker offers only the controller's BASIC land colours", () => {
+        const { slimSource, players } = projectManaScenario(
+            starCompass.id,
+            [
+                basic(swampCard.id, "p1", "own-swamp"),
+                // Nonbasic: taps for three colours, contributes none.
+                basic(crosissCatacombs.id, "p1", "own-lair"),
+            ],
+            [basic(mountainCard.id, "p2", "opp-mountain")]
+        );
+        expect(getManaChoices(slimSource, players)).toEqual([{ B: 1 }]);
+    });
+
+    it("Meteor Crater: the picker offers the COLOURS of the controller's permanents", () => {
+        const { slimSource, players } = projectManaScenario(meteorCrater.id, [
+            // A Forest taps for {G} but is colourless — it contributes nothing.
+            basic(forestCard.id, "p1", "own-forest"),
+            basic(crawWurm.id, "p1", "own-wurm"),
+        ]);
+        expect(getManaChoices(slimSource, players)).toEqual([{ G: 1 }]);
+    });
+
+    it("an EMPTY scope offers no picker at all — no false affordance", () => {
+        const { slimSource, players } = projectManaScenario(
+            quirionExplorer.id,
+            [],
+            []
+        );
+        // Null, not the static five-colour fallback: the board IS known here
+        // and it genuinely contributes nothing.
+        expect(getManaChoices(slimSource, players)).toBeNull();
     });
 });

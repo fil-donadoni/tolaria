@@ -302,6 +302,7 @@ import {
     collectAttackSacrificeTax,
     collectAttackManaTax,
     markAttacking,
+    recordAttackerDeclared,
 } from "./gre/combat";
 import {
     getEffectiveBlockGraph,
@@ -1195,7 +1196,11 @@ function manaTapNeedsChoice(
     if (options.length === 0) return false;
     return (
         options.length >= 2 ||
-        !!(ability?.manaChoices || ability?.getManaChoices)
+        !!(
+            ability?.manaChoices ||
+            ability?.getManaChoices ||
+            ability?.manaColorSource
+        )
     );
 }
 
@@ -9949,7 +9954,10 @@ export function finalizeConfirmAttackers(state: GameState): void {
             // AND `isAttacking` together, the single sync point every
             // combat-scoped read depends on.
             markAttacking(state, card);
-            card.hasAttackedThisTurn = true;
+            // CR 506.3 — the shared declaration record: per-card
+            // `hasAttackedThisTurn` plus the game-level
+            // `creatureAttackedThisTurn` (issue #1944).
+            recordAttackerDeclared(state, card);
         }
     }
     combat.confirmed = true;

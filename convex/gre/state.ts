@@ -84,6 +84,10 @@ import {
     runDelayedTriggerBody,
 } from "./effects/interpreter";
 import { matchesPermanentFilter } from "../cards/filters";
+import {
+    hasControlledSinceTurnStart,
+    recordControlChangeThisTurn,
+} from "./controlContinuity";
 import type { Phase, Zone, PhaseReturnCondition } from "./types";
 import type { KickerPayments } from "./kicker";
 import { kickerPaidCount, totalKickerCount } from "./kicker";
@@ -2355,6 +2359,26 @@ export type PendingChoice = {
      *  spent" — a mana-value bound, not a type/keyword filter). Undefined =
      *  no extra restriction. The frontend reads it to gate clickability. */
     candidateIds?: string[];
+    /** `kind: "search-library"` only (CR 701.19a, issue #788 re-review
+     *  finding 1) — set when this choice is a GENUINE library search (CR
+     *  701.19a: look at the whole library, filtered by card characteristics),
+     *  as opposed to a "look at the top N, pick one" prompt that reuses
+     *  `search-library` for its candidate-restricted picker UI (Expressive
+     *  Iteration, Diabolic Vision — `candidateIds` there is a peeked TOP-N
+     *  window, not a library-wide filter match). `emitLibrarySearchedEvent`
+     *  gates on this flag rather than on `kind` alone or on
+     *  `candidateIds === undefined` (the latter is an implicit invariant that
+     *  fails OPEN the moment a future look-pick card sets no `candidateIds`).
+     *  Set explicitly at every genuine raise site — the DSL `choice` Op
+     *  (`gre/effects/interpreter.ts`, whenever `kind === "search-library"`,
+     *  since that Op's library branch always scans the WHOLE library via
+     *  `matchesCardFilter`, never a peeked window) and each genuine raw
+     *  `resolve()` search (Path to Exile, Erode, Demonic-Tutor-shaped
+     *  Altar of Bone, Jester's Mask, the Transmute search). Undefined on a
+     *  choice persisted before this field existed — `emitLibrarySearchedEvent`
+     *  then fails CLOSED (no spurious trigger) for that in-flight choice,
+     *  never open. */
+    isSearch?: true;
     /** `look-distribute` only (issue #1266, Narset, Parter of Veils) — the
      *  subset of the looked-at `candidateIds` that may go to HAND. The full
      *  `candidateIds` window is still shown face-up ("look at the top four"),
@@ -2371,17 +2395,45 @@ export type PendingChoice = {
      *  two-zone drag picker — an ordering UI for a random outcome would be a
      *  lie. Undefined/absent = the rest is ordered (Impulse, Stock Up). */
     randomizeRest?: boolean;
-    /** `look-distribute` only (issue #1364, Atraxa, Grand Unifier) — a
-     *  CATEGORIZED keep: at most one of the revealed cards per category, and a
-     *  card that qualifies for several categories may be kept for only ONE of
-     *  them. Each entry is a display label plus the revealed instance ids
-     *  matching that category. A keep-set is legal exactly when an injective
-     *  card → category assignment exists (the bipartite matching in
+    /** `look-distribute` (issue #1364, Atraxa, Grand Unifier) or
+     *  `choose-categorized` (issue #1945, Noxious Vapors / Planar Overlay) —
+     *  a CATEGORIZED keep: at most one member per category, and a member that
+     *  qualifies for several categories may be kept for only ONE of them
+     *  (a multicoloured card, a dual land). Each entry is a display label
+     *  plus the matching instance ids — revealed library cards for
+     *  `look-distribute`, hand/battlefield ids for `choose-categorized`. A
+     *  keep-set is legal exactly when an injective member → category
+     *  assignment exists (the bipartite matching in
      *  `gre/categorizedPick.ts`); `count.max` is that matching's size. The
      *  backend rejects an unmatchable submission; the frontend gates each
      *  click through the SAME helper, so the two never disagree. Undefined =
-     *  an ordinary uncategorized dig (Impulse, Narset). */
+     *  an ordinary uncategorized dig (Impulse, Narset). See `categoryRule`
+     *  for the second legality rule the same buckets can carry. */
     categories?: { label: string; cardIds: string[] }[];
+    /** Which of `gre/categorizedPick.ts`'s two legality rules validates this
+     *  categorized pick (issue #1945). Absent = the INJECTIVE rule described
+     *  on `categories` above (Atraxa's "for each card type you MAY put A card
+     *  of that type into your hand" — every existing consumer). `"cover"` =
+     *  each non-empty category must be ANSWERED, and one member may answer
+     *  SEVERAL categories at once (Gatherer, Planar Overlay: "a dual land
+     *  could be chosen as two of your land types"; Noxious Vapors' gold card
+     *  may be the card chosen for both its colours). Under `"cover"`,
+     *  `count.min` is the smallest covering set — smaller than `count.max`
+     *  whenever a member answers more than one category. Server and client
+     *  branch on the SAME field, so the Done gate and the submit validation
+     *  can never disagree about which rule applies. */
+    categoryRule?: "cover";
+    /** Whether being PICKED is good or bad for the chooser (issue #1945) — a
+     *  pure POLICY hint for the bot, never read by the rules engine.
+     *  `"picked-kept"`: the picks survive and the unpicked rest is swept
+     *  (Noxious Vapors' `onPicked: "keep"`), so the chooser wants its BEST
+     *  members picked. `"picked-removed"`: the picks are exactly what leaves
+     *  (Planar Overlay's `returnToHand` bounce), so the polarity is INVERTED
+     *  and the chooser wants its WORST members picked. Without it the bot
+     *  ranks every categorized pick "best first" and deterministically
+     *  bounces its two best lands. Undefined = `"picked-kept"` (every other
+     *  kind's polarity — a pick is something gained). */
+    pickPolarity?: "picked-kept" | "picked-removed";
     /** For `kind: "choose-damage-target"` only — the player ids that are legal
      *  damage targets (CR 115.4 — "any target" includes players). The chooser's
      *  submission carries either a damageable permanent id (from `candidateIds`)
@@ -3091,6 +3143,31 @@ export type GameState = {
      *  magecraft, Aetherflux) reuse it rather than reinventing their own
      *  counter. */
     spellsCastThisTurn?: number;
+    /** CR 506.3 / 508.1 — true once ANY player's creature has been declared as
+     *  an attacker this turn. Set at attacker confirmation (`phases.ts`);
+     *  reset at the start of each turn (`advanceTurn`), mirroring
+     *  `deathsThisTurn` / `spellsCastThisTurn`.
+     *
+     *  Deliberately a GAME-level fact rather than a scan of the per-creature
+     *  `hasAttackedThisTurn` flags: CR 506.4 keeps a creature that attacked
+     *  "having attacked" after it is removed from combat, and an attacker that
+     *  died in combat (or was bounced) is no longer on any battlefield to be
+     *  scanned at all — so the scan would report "no creatures attacked" on
+     *  exactly the turns where the fight was bloodiest. Read by "if no
+     *  creatures attacked this turn" intervening-ifs (CR 603.4, Keldon
+     *  Twilight). */
+    creatureAttackedThisTurn?: boolean;
+    /** Turn-scoped control-continuity ledger — instance ids whose CONTROLLER
+     *  changed at some point during the current turn (either direction), so
+     *  neither the old nor the new controller has controlled them "since the
+     *  beginning of the turn". Appended by `recordControlChangeThisTurn`
+     *  (`gre/controlContinuity.ts`) from `applyControlChange` /
+     *  `revertControlChange`; reset at the start of each turn (`advanceTurn`).
+     *  Read — together with the per-permanent `enteredOnTurn` entry stamp — by
+     *  `hasControlledSinceTurnStart`, which backs
+     *  `PermanentFilter.controlledSinceTurnStart`. See that module's header for
+     *  why this is a ledger of BREAKS and not a start-of-turn snapshot. */
+    controlChangedThisTurn?: string[];
     /** Cumulative damage taken by each player this turn (CR 120.3 tally).
      *  Map `playerId → total damage`. Incremented every time damage actually
      *  lands on a player (after replacement / prevention / protection).
@@ -6590,6 +6667,9 @@ export function applyControlChange(
         },
     ];
     found.card.controllerId = newControllerId;
+    // Control continuity — neither controller has held it "since the beginning
+    // of the turn" any more (`gre/controlContinuity.ts`).
+    recordControlChangeThisTurn(state, found.card.id);
     if (found.card.types.includes("Creature")) {
         found.card.isSummoningSick = true;
     }
@@ -6660,6 +6740,10 @@ export function revertControlChange(
     found.card.controlChanges = nextStack.length > 0 ? nextStack : undefined;
     if (found.card.controllerId === restoredControllerId) return;
     found.card.controllerId = restoredControllerId;
+    // Control continuity — a control change REVERTING mid-turn breaks
+    // continuity for the restored controller just as gaining it did for the
+    // other (`gre/controlContinuity.ts`).
+    recordControlChangeThisTurn(state, found.card.id);
     if (found.card.types.includes("Creature")) {
         found.card.isSummoningSick = true;
     }
@@ -8135,6 +8219,36 @@ export function emitCardsExiled(
     state.pendingEvents = [
         ...(state.pendingEvents ?? []),
         { type: "CARDS_EXILED", cards },
+    ];
+}
+
+/** Emits ONE LIBRARY_SEARCHED event when a `search-library` PendingChoice
+ *  commits (CR 701.19a, issue #788 — the residual "whenever an opponent
+ *  searches their library" trigger condition, Wan Shi Tong, Librarian). The
+ *  single choke point every library search funnels through
+ *  (`applyPendingChoiceSubmit`, `gre/pendingChoiceSubmit.ts`), regardless of
+ *  whether the search was authored as a DSL `choice(kind: "search-library")`
+ *  Op or an imperative `resolve()` tutor closure — both commit through the
+ *  SAME PendingChoice queue, so every shipped tutor and fetchland is covered
+ *  with no per-card wiring. Fires even on a zero-pick "whiff" search (a
+ *  fetchland with no basic land left still SEARCHED, CR 701.19a — the ACT of
+ *  searching is what matters, not the result).
+ *
+ *  `playerId` and `libraryOwnerId` are two DISTINCT parameters (bugfix,
+ *  issue #788 post-review) — see `LibrarySearchedEvent`'s doc comment. A
+ *  Jester's Cap/Lobotomy-shaped "search TARGET PLAYER's library" has the
+ *  caster (`playerId`) search a DIFFERENT player's library
+ *  (`libraryOwnerId`); collapsing them to one field made
+ *  `librarySearchedTrigger`'s scope check fire on the caster's own
+ *  controller for a search that never touched their own library. */
+export function emitLibrarySearchedEvent(
+    state: GameState,
+    playerId: string,
+    libraryOwnerId: string
+): void {
+    state.pendingEvents = [
+        ...(state.pendingEvents ?? []),
+        { type: "LIBRARY_SEARCHED", playerId, libraryOwnerId },
     ];
 }
 
@@ -13197,7 +13311,10 @@ export function buildSpellContext(
             if (req.destination) entry.destination = req.destination;
             if (req.randomizeRest) entry.randomizeRest = true;
             if (req.categories) entry.categories = req.categories;
+            if (req.categoryRule) entry.categoryRule = req.categoryRule;
+            if (req.pickPolarity) entry.pickPolarity = req.pickPolarity;
             if (req.putOnTop) entry.putOnTop = true;
+            if (req.isSearch) entry.isSearch = true;
             state.pendingChoices = [...(state.pendingChoices ?? []), entry];
             return undefined;
         },
@@ -13542,6 +13659,14 @@ export function buildSpellContext(
                             // — that flag stays true across the opponent's
                             // whole turn and is re-set on a control change.
                             enteredThisTurn: c.enteredOnTurn === state.turn,
+                            // "…that they controlled since the beginning of
+                            // the turn" (Keldon Twilight) — entry stamp AND
+                            // the turn-scoped control-change ledger, see
+                            // `gre/controlContinuity.ts`. `playerId` is the
+                            // battlefield being scanned, so the "controls it
+                            // now" half is already established.
+                            controlledSinceTurnStart:
+                                hasControlledSinceTurnStart(state, c),
                         },
                         filter,
                         { supertypesOf: liveSupertypesOf }

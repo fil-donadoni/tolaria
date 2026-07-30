@@ -98,6 +98,8 @@ import { getEventFieldRow } from "../../cards/mechanicsRegistry";
 import {
     categorizedEligibleIds,
     maxCategorizedPicks,
+    minCategorizedCover,
+    forcedCategorizedCover,
 } from "../categorizedPick";
 import { manaCostsEqual } from "../constants";
 
@@ -639,6 +641,14 @@ function toPermanentFilter(
         // `isToken`'s own mapping exactly (battlefield-only, no hidden-zone
         // counterpart in `matchesCardFilter`).
         enteredThisTurn: filter.enteredThisTurn,
+        // "…that they controlled since the beginning of the turn" (Keldon
+        // Twilight) — propagated 1:1 onto
+        // `PermanentFilter.controlledSinceTurnStart`, which reads the
+        // `MatchablePermanent` flag every battlefield call site derives from
+        // `hasControlledSinceTurnStart` (`gre/controlContinuity.ts`).
+        // Battlefield-only, exactly like `enteredThisTurn` above; the Effect
+        // Script validator only admits it at battlefield-guaranteed sites.
+        controlledSinceTurnStart: filter.controlledSinceTurnStart,
         // CR 508.1 (issue #1097 — Tangle's "each attacking creature"),
         // propagated 1:1 onto `PermanentFilter.isAttacking`
         // (`convex/cards/filters.ts`), already read by combat-scoped choice
@@ -3093,6 +3103,130 @@ export const OP_EXECUTORS: {
             destination
         );
     },
+    // CR 601.2b / 701.9 (issue #1945) — per-category choice from an
+    // ALREADY-VISIBLE set (the chooser's own hand or battlefield), reusing
+    // `revealAndCategorize`'s bipartite-matching core but decoupled from its
+    // library-look framing: no reveal/peek here, and the picked/unpicked
+    // halves get OPPOSITE actions per card (`onPicked`/`sweep`) rather than
+    // the fixed kept→hand/rest→bottom polarity. See the Op's own doc comment
+    // (`cards/types.ts`) and the mechanicsRegistry note for the full design.
+    //
+    // It also runs the OTHER of `categorizedPick.ts`'s two legality rules —
+    // the COVER rule, not `revealAndCategorize`'s injective one. Each
+    // category NOMINATES a member and one member may answer several
+    // categories at once (Gatherer, Planar Overlay: "a dual land could be
+    // chosen as two of your land types"; a WU gold card may be the card
+    // chosen for both white and blue). So `count.min` is the size of the
+    // SMALLEST covering set, never the maximum matching — pinning it to the
+    // matching would force a Plains+Tundra player to return TWO lands where
+    // the rules let them nominate the Tundra twice and return one.
+    chooseCategorized(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return; // CR 608.2b — chooser gone, skip
+        const categories = op.categories.map((category) => ({
+            label: category.label,
+            cardIds:
+                op.zone === "hand"
+                    ? ctx
+                          .getHandCards(playerId)
+                          .filter((c) =>
+                              matchesCardFilter(ctx, c, category.filter)
+                          )
+                          .map((c) => c.id)
+                    : ctx.getBattlefieldIds(
+                          playerId,
+                          toPermanentFilter(category.filter)
+                      ),
+        }));
+        const eligible = categorizedEligibleIds(categories);
+        const keep = maxCategorizedPicks(categories);
+        const applyOnPicked = (picks: readonly string[]) => {
+            if (op.onPicked !== "returnToHand") return; // "keep" — no move
+            for (const id of picks) {
+                ctx.returnToHand({ type: "permanent", id });
+            }
+        };
+        const applySweep = (picked: ReadonlySet<string>) => {
+            if (!op.sweep) return;
+            const sweepFilter = op.sweep.filter;
+            const rest = ctx
+                .getHandCards(playerId)
+                .filter((c) => !picked.has(c.id))
+                .filter(
+                    (c) =>
+                        sweepFilter === undefined ||
+                        matchesCardFilter(ctx, c, sweepFilter)
+                );
+            for (const c of rest) ctx.discardCard(playerId, c.id);
+        };
+        // CR 608.2b — nothing is legally pickable in ANY category (no card of
+        // that colour, no land of that basic type at all): a mandatory choice
+        // with zero real options auto-resolves straight to the sweep instead
+        // of prompting a picker with nothing clickable (the Arena zero-branch
+        // default, mirroring `revealAndCategorize`'s own `keep === 0` skip).
+        if (keep === 0) {
+            applySweep(new Set());
+            return;
+        }
+        // issue #1945 — a FORCED-but-nonzero answer: every category names at
+        // most one candidate, so each non-empty category's nomination is
+        // already determined (a lone dual land answers both its types) and
+        // there is nothing for the player to decide. Auto-apply it rather
+        // than raising a picker whose only possible answer is already known
+        // (project convention: never prompt for a non-decision) — a genuine
+        // ADDITION over `revealAndCategorize`, which has no such case.
+        if (op.optional !== true) {
+            const forced = forcedCategorizedCover(categories);
+            if (forced !== undefined) {
+                applyOnPicked(forced);
+                applySweep(new Set(forced));
+                return;
+            }
+        }
+        const picks = ctx.requestChoice({
+            playerId,
+            // Fixed choiceId, unique per Op position (the pipeline keys on
+            // `step:choiceId` and `step` IS this Op's checkpointed position —
+            // a `forEach { set: "players" }` wrapper gives each iteration its
+            // own position, so the SAME literal id never collides across
+            // players, mirroring `revealAndCategorize`'s own fixed id).
+            choiceId: "choose-categorized",
+            kind: "choose-categorized",
+            zone: op.zone,
+            candidateIds: eligible,
+            categories,
+            // Mandatory by default ("chooses", not "may choose"). The FLOOR
+            // is the smallest covering set, not the maximum matching: a
+            // member answering several categories at once (a dual land, a
+            // gold card) legitimately shrinks the answer, and demanding the
+            // matching would force a larger pick than the rules allow (CR
+            // 608.2b). The CEILING stays the maximum matching — the largest
+            // answer in which every nominated member earns a category of its
+            // own. `optional: true` keeps the injective per-category "may"
+            // (min 0, any saturated subset) — see `categoryRule` below.
+            count: {
+                min: op.optional === true ? 0 : minCategorizedCover(categories),
+                max: keep,
+            },
+            // Which of `categorizedPick.ts`'s two legality rules validates
+            // the submission. Only the MANDATORY offer is a cover ("chooses
+            // one card of each colour" — every category must be answered);
+            // an `optional: true` offer is a per-category "you may", which is
+            // exactly `revealAndCategorize`'s injective rule and stays on the
+            // shared default.
+            categoryRule: op.optional === true ? undefined : "cover",
+            // Policy hint for the bot only (the server ignores it): whether
+            // being picked is the good half or the bad half for the chooser.
+            pickPolarity:
+                op.onPicked === "returnToHand"
+                    ? "picked-removed"
+                    : "picked-kept",
+            prompt: op.prompt ?? "Choose one card of each category.",
+        });
+        if (picks === undefined) return "suspend"; // enqueued — wait
+        applyOnPicked(picks);
+        applySweep(new Set(picks));
+    },
     // CR 401.4 (issue #1046) — put N hand cards on top of the library, in the
     // player's chosen order. A thin declarative skin over the single
     // SpellContext primitive `moveHandCardToLibraryTop`, ONE execution path
@@ -3590,6 +3724,13 @@ export const OP_EXECUTORS: {
                   ? { candidateIds }
                   : {}),
             ...(op.zoneOwnerId !== undefined ? { zoneOwnerId } : {}),
+            // CR 701.19a (issue #788 re-review finding 1) — this `choice` Op
+            // handler's library branch (`choiceCandidates` above) always scans
+            // the WHOLE zone via `matchesCardFilter`, never a peeked top-N
+            // window, so every DSL `kind: "search-library"` choice raised here
+            // is a genuine search. `emitLibrarySearchedEvent` gates on this
+            // flag, not on `kind` alone — see `PendingChoice.isSearch`.
+            ...(op.kind === "search-library" ? { isSearch: true } : {}),
         });
         if (picks === undefined) return "suspend"; // enqueued — wait
         // issue #1282 — when `id` diverges from `bind`, `requestChoice`

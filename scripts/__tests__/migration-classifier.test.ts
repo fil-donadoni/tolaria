@@ -1476,6 +1476,26 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // Jade Monolith / Personal Incarnation / Reverse Damage shape). FREE /
         // AFK-ready / X-only unchanged. Net: total 467->468 (+1 new closure),
         // Op-blocked 149->150. Partition: 304+14+150=468.
+        //
+        // #788 (Wan Shi Tong, Librarian, tla/blue.ts): a BRAND-NEW catalogue
+        // card landed briefly with a `resolve()` ETB ("put X counters, THEN
+        // draw half X cards, rounded down") — the integer-division clause is
+        // arithmetic the frozen `EffectValue` grammar can't express (ADR
+        // 0045), so it read as a genuine resolve() justification, and the
+        // static clause-mapper's `addCounter`/`drawCards` heuristic scored it
+        // FREE/AFK-ready (total 468->469, FREE 304->305, AFK-ready 295->296).
+        // Re-review (ADR 0061, issue #1993) caught that the closure also
+        // calls the raw `SpellContext.drawCards` primitive directly, which
+        // ADR 0061 forbids for any `resolve()`/`resolveSteps` site (only the
+        // DSL `draw` Op is replacement-aware/resumable) — a stop-and-issue
+        // case, not a shippable card. The card was converted to a commented
+        // stub (`tracked-by: #1993`) and its per-card test file deleted, so
+        // the ETB closure — and the +1 it contributed — is gone. Net: total
+        // 469->468, FREE 305->304, AFK-ready 296->295 (back to the
+        // pre-#788 baseline). X-only / Op-blocked unchanged. The card's
+        // SECOND ability ("whenever an opponent searches their library...")
+        // stayed pure DSL (`effects: EffectOp[]`, no `resolve()`) and never
+        // contributed to this census. Partition: 304+14+150=468.
         expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(468);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(304);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(295);

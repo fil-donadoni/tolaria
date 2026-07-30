@@ -88,6 +88,7 @@ function renderButton(card: ReturnType<typeof projectedExiledLand>) {
         priorityPlayerId: "p1",
         phase: "PRECOMBAT_MAIN",
         turn: 1,
+        engineTurn: 1,
         stackCount: 0,
         allPlayers: [] as Player[],
         showAllCards: false,

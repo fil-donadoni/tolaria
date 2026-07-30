@@ -54,7 +54,7 @@ import { liveSupertypesOf } from "./snow";
 import { checkStateBasedActions } from "./sba";
 import { applyPlayLand, finalizeLandEntry } from "./playLand";
 import { applyAllCombatDamage, buildAutoDamageAssignments } from "./phases";
-import { markAttacking } from "./combat";
+import { markAttacking, recordAttackerDeclared } from "./combat";
 import { recordBlockedAttackers } from "./banding";
 import { cloneGameState } from "./clone";
 import { enumerateMoves, type Move } from "./moves";
@@ -580,6 +580,13 @@ export function applyMoveForSearch(
                 // `combat.attackerIds` membership (already true here;
                 // idempotent) AND `isAttacking` together.
                 markAttacking(next, atk);
+                // CR 506.3 — the shared declaration record, so this 1-ply
+                // greedy sim's leaves carry the SAME "a creature attacked this
+                // turn" facts the server writes. Without it the greedy
+                // evaluator reads `creatureAttackedThisTurn` as unset right
+                // after declaring attackers, and mis-scores every
+                // "if no creatures attacked this turn" effect (issue #1944).
+                recordAttackerDeclared(next, atk);
                 if (!atk.staticAbilities.includes("vigilance")) {
                     // CR 708.9 / ADR 0013 — face-down attacker turns up on tap.
                     tapPermanent(next, atk);

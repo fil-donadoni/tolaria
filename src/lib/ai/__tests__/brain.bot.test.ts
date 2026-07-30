@@ -873,3 +873,114 @@ describe("chooseResolution: categorized look-distribute (Atraxa, issue #1364)", 
         expect(picks).toEqual(["bomb", "bear"]);
     });
 });
+
+// A `choose-categorized` pick (issue #1945) shares the categorized branch but
+// flips two things `look-distribute` never had to model:
+//
+//  1. POLARITY. `onPicked: "returnToHand"` (Planar Overlay) makes the PICKED
+//     members exactly the ones the chooser LOSES. Ranking those "best first"
+//     — the look-distribute default, where a pick is a card GAINED — makes
+//     the bot deterministically bounce its two best lands.
+//  2. COVER legality. The picks must answer EVERY non-empty category (CR
+//     601.2b, the Gatherer dual-land ruling); a submission that leaves one
+//     unanswered is rejected server-side, and a rejected submission freezes
+//     the bot.
+describe("chooseResolution: choose-categorized polarity + cover (issue #1945)", () => {
+    const lands = (overrides: Partial<OwedChoice> = {}): OwedChoice => ({
+        kind: "choose-categorized",
+        min: 1,
+        max: 2,
+        categoryRule: "cover",
+        pickPolarity: "picked-removed",
+        candidates: [
+            { id: "dual", value: 60 }, // a Plains/Island dual — the best land
+            { id: "plains", value: 8 },
+            { id: "island", value: 8 },
+        ],
+        categories: [
+            { label: "Plains", cardIds: ["plains", "dual"] },
+            { label: "Island", cardIds: ["island", "dual"] },
+        ],
+        ...overrides,
+    });
+
+    it("bounces its WORST lands, not its best (inverted polarity)", () => {
+        const picks = chooseResolution(lands());
+        // Value order is dual(60) > plains(8) = island(8); best-first would
+        // submit the dual (losing the best land). Worst-first answers each
+        // category with a cheap basic instead.
+        expect(picks).not.toContain("dual");
+        expect(picks.sort()).toEqual(["island", "plains"]);
+    });
+
+    it("still COVERS every non-empty category (an uncovered submission is rejected server-side)", () => {
+        const picks = chooseResolution(lands());
+        for (const category of lands().categories!) {
+            expect(picks.some((id) => category.cardIds.includes(id))).toBe(
+                true
+            );
+        }
+    });
+
+    it("takes the single member that covers several categories when it is the only answer", () => {
+        // Only the dual exists — it must answer BOTH categories, and the
+        // submission is that one land.
+        const picks = chooseResolution(
+            lands({
+                candidates: [{ id: "dual", value: 60 }],
+                categories: [
+                    { label: "Plains", cardIds: ["dual"] },
+                    { label: "Island", cardIds: ["dual"] },
+                ],
+                max: 1,
+            })
+        );
+        expect(picks).toEqual(["dual"]);
+    });
+
+    it("stops at a minimal cover — never bounces an extra land it doesn't owe", () => {
+        // Plains + dual: the dual alone answers both categories, but the
+        // worst-first walk answers "Plains" with the cheap basic and then
+        // still owes "Island", which only the dual can answer. Two lands is
+        // the cover here; the point is it never adds a THIRD, uncalled-for
+        // land when the categories are already answered.
+        const picks = chooseResolution(
+            lands({
+                candidates: [
+                    { id: "plains", value: 8 },
+                    { id: "plains2", value: 8 },
+                    { id: "dual", value: 60 },
+                ],
+                categories: [
+                    { label: "Plains", cardIds: ["plains", "plains2", "dual"] },
+                    { label: "Island", cardIds: ["dual"] },
+                ],
+                max: 2,
+            })
+        );
+        expect(picks).toHaveLength(2);
+        expect(picks).toContain("dual"); // the only Island answer
+        expect(picks.filter((id) => id === "plains2")).toHaveLength(0);
+    });
+
+    it("keeps the BEST members when being picked is the GOOD half (keep polarity)", () => {
+        // Noxious Vapors' shape: the picks SURVIVE and the rest is swept, so
+        // the bot keeps as many of its best cards as the matching allows.
+        const picks = chooseResolution(
+            lands({
+                pickPolarity: "picked-kept",
+                candidates: [
+                    { id: "bomb", value: 200 },
+                    { id: "filler", value: 20 },
+                    { id: "blue", value: 30 },
+                ],
+                categories: [
+                    { label: "White", cardIds: ["bomb", "filler"] },
+                    { label: "Blue", cardIds: ["blue"] },
+                ],
+                max: 2,
+            })
+        );
+        expect(picks).toEqual(["bomb", "blue"]);
+    });
+});

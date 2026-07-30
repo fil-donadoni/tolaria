@@ -1088,6 +1088,38 @@ export interface ActivatedAbility {
             }>;
         }>
     ) => ManaCost[];
+    /** DECLARATIVE board-derived colour set for a mana ability (CR 605.1a) —
+     *  the data form of {@link getManaChoices} for the common case where the
+     *  offered colours are simply "every colour some described set of
+     *  permanents contributes", one mana of each:
+     *
+     *  - "…any color that a land an opponent controls could produce"
+     *    (`{ filter: { types: "Land", controllerRelation: "opponents" },
+     *       colors: "produces" }`)
+     *  - "…any color that a basic land you control could produce"
+     *    (`{ filter: { types: "Land", supertypes: "Basic",
+     *       controllerRelation: "you" }, colors: "produces" }`)
+     *  - "Choose a color of a permanent you control…"
+     *    (`{ filter: { controllerRelation: "you" }, colors: "isColor" }`)
+     *
+     *  Evaluated by `boardDerivedManaChoices` (`gre/constants.ts`) at EVERY
+     *  activation, through the one `getDynamicManaChoices` authority every
+     *  consumer already reads — the castability probe, the auto-tap solver,
+     *  the bot's payment planner, the three tap mutations and the client
+     *  picker — so the offered set tracks the board as it changes and never
+     *  desyncs between the index the client submits and the list the server
+     *  validates.
+     *
+     *  Prefer this over `getManaChoices`: it is JSON-pure (ADR 0046), so it
+     *  survives the wire and can be inspected by any consumer, where a closure
+     *  is opaque. `getManaChoices` stays for genuinely COMPUTED lists that no
+     *  filter can express (Vivi Ornitier's power-derived {U}/{R} split). When
+     *  both are present the descriptor wins.
+     *
+     *  `manaChoices` remains the representative / fallback list for
+     *  best-effort callers with no board snapshot, exactly as for
+     *  `getManaChoices`. */
+    manaColorSource?: BoardManaColorSource;
     /** Restricts activation timing to a specific subset of phases (CR 602.5).
      *  When set, the ability is activatable only while `state.phase` is in
      *  this list. Used by Jade Statue ("activate only during combat"). */
@@ -1257,6 +1289,31 @@ export interface AnimateSpec {
 
 import type { PermanentFilter } from "./filters";
 export type { PermanentFilter } from "./filters";
+
+/** Where a mana ability's COLOUR options come from when they are derived from
+ *  the board instead of printed on the card (CR 605.1a). See
+ *  {@link ActivatedAbility.manaColorSource}.
+ *
+ *  Deliberately two orthogonal axes and nothing else — WHICH permanents
+ *  contribute, and HOW each one yields a colour. Everything else (whose
+ *  battlefield, land vs. basic land vs. any permanent) is already expressible
+ *  as a {@link PermanentFilter}, so this adds no second selector vocabulary. */
+export interface BoardManaColorSource {
+    /** Selector over the contributing permanents, evaluated against EVERY
+     *  player's battlefield. `controllerRelation` is what scopes it: `"you"`
+     *  = the activating player's own permanents, `"opponents"` = every OTHER
+     *  player's (CR 109.5); omitted = the whole board. Matched with the
+     *  engine's single `matchesPermanentFilter` authority, against a
+     *  layer-aware view (live colours, live supertypes), so a Blood-Moon'd or
+     *  colour-shifted permanent contributes what it CURRENTLY is. */
+    filter: PermanentFilter;
+    /** How a matching permanent yields a colour:
+     *  - `"produces"` — every colour it COULD produce if tapped (CR 106.4);
+     *    colourless {C} is not a colour and never contributes (CR 202.2).
+     *  - `"isColor"` — the permanent's OWN colours (CR 105.2 / 202.2, read
+     *    post-layer-5 so a colour-changing effect is honoured). */
+    colors: "produces" | "isColor";
+}
 
 // --- Cost legs (CR 117.3a / 118.4 / 118.9 / 702.24, ADR 0079) ---
 
@@ -3618,13 +3675,25 @@ export interface SpellContext {
          *  order) instead of the two-zone drag picker. Raised by the
          *  `digToHand` Op when `randomBottom` is set (Narset). */
         randomizeRest?: boolean;
-        /** `look-distribute` only (issue #1364, Atraxa) — a CATEGORIZED keep:
-         *  at most one revealed card per category, each card claimable by only
-         *  one category. Each entry names a category and the revealed ids that
-         *  match it. Legality is the bipartite matching in
-         *  `gre/categorizedPick.ts`; `count.max` is that matching's size. Omit
-         *  for an ordinary uncategorized dig (Impulse, Narset). */
+        /** `look-distribute` (issue #1364, Atraxa) / `choose-categorized`
+         *  (issue #1945) — a CATEGORIZED pick: each entry names a category
+         *  and the ids that match it. Legality is the bipartite matching in
+         *  `gre/categorizedPick.ts`. Omit for an ordinary uncategorized dig
+         *  (Impulse, Narset). */
         categories?: { label: string; cardIds: string[] }[];
+        /** Which of `gre/categorizedPick.ts`'s two legality rules applies
+         *  (issue #1945). Omit = the injective rule (`count.max` is the
+         *  matching's size — Atraxa). `"cover"` = every non-empty category
+         *  must be answered and one member may answer several at once (a dual
+         *  land, a gold card), so `count.min` is the smallest covering set.
+         *  See {@link PendingChoice.categoryRule}. */
+        categoryRule?: "cover";
+        /** Bot POLICY hint for a categorized pick (issue #1945): whether
+         *  being picked is the good half (`"picked-kept"` — the picks
+         *  survive) or the bad half (`"picked-removed"` — the picks are what
+         *  leaves). Never read by the rules engine. See
+         *  {@link PendingChoice.pickPolarity}. */
+        pickPolarity?: "picked-kept" | "picked-removed";
         /** Client-routing hint for a `choose-hand-card` pick whose destination is
          *  the TOP of the chooser's library, in chosen order (Brainstorm's
          *  `putBack`, CR 401.4). Purely a UI discriminator — the submit path and
@@ -3632,6 +3701,16 @@ export interface SpellContext {
          *  `cardInstanceIds` ARE the top order). When set, the client mounts the
          *  ordered HAND→TOP drag picker instead of the in-hand toggle. */
         putOnTop?: boolean;
+        /** `kind: "search-library"` only (CR 701.19a, issue #788 re-review
+         *  finding 1) — mark this as a GENUINE library search (look at the
+         *  whole library, filtered by characteristics) as opposed to a "look
+         *  at the top N, pick one" prompt that reuses this `kind` for its
+         *  restricted-candidate picker UI (Expressive Iteration, Diabolic
+         *  Vision). `emitLibrarySearchedEvent` (CR 701.19a/603.2) only fires
+         *  for a choice with this flag set — see {@link PendingChoice.isSearch}
+         *  for the full rationale. Every genuine search `resolve()` site must
+         *  set it; a look-pick site must NOT. */
+        isSearch?: true;
     }) => string[] | undefined;
 
     /** Requests an optional yes/no decision with an optional mana cost
@@ -6159,6 +6238,59 @@ export const EFFECT_AFFECTS_SELF: StaticKeywordGrant["applies"] = (
     source
 ) => target.id === source.id;
 
+/** CR 613 board-wide colour census tie-break (issue #1943) — ties a
+ *  caller-supplied per-colour counter to the colour(s) tied for the maximum,
+ *  or `[]` when no colour has ANY representation (the "no coloured
+ *  permanents in play" case). A thin, context-agnostic core so both a
+ *  continuous static effect's `StaticEffectStateView` read (`mostCommonColors`
+ *  below) and a resolve()/activated-ability's `SpellContext` read share ONE
+ *  tie-break rule rather than each reimplementing "which colour(s) are tied
+ *  for the max". */
+export function tallyMostCommonColors(
+    perColor: (color: Color) => number
+): Color[] {
+    const COLORS: Color[] = ["W", "U", "B", "R", "G"];
+    const counts = COLORS.map((c) => [c, perColor(c)] as const);
+    const max = Math.max(0, ...counts.map(([, n]) => n));
+    if (max === 0) return [];
+    return counts.filter(([, n]) => n === max).map(([c]) => c);
+}
+
+/** CR 613 board-wide colour census read through a continuous static effect's
+ *  board view — every colour tied for most common among ALL permanents both
+ *  players control, of every card type (not creatures only). A multicoloured
+ *  permanent counts toward EACH of its colours; `ctx.getColors` already
+ *  resolves the EFFECTIVE, post-layer-5 colour (CR 613.1d `colorOverride`,
+ *  granted colours), so a colour-changing effect shifts the census for free.
+ *  A colourless permanent counts toward none. Returns `[]` when no permanent
+ *  in play has a colour — the caller decides what that means (Heroic
+ *  Defiance: bonus applies; Goham Djinn / Tsabo's Assassin: the -2/-2 doesn't
+ *  trigger, since `mostCommon.includes(color)` is false against `[]`).
+ *
+ *  Mirrors `countDomain`'s shape: a shared board-scan helper, not a per-card
+ *  closure. Originally a private `inv/black.ts` pair (Goham Djinn / Tsabo's
+ *  Assassin); promoted here on its 3rd consumer (Heroic Defiance,
+ *  `cards/sets/pls/white.ts`) per the "generalize, don't add" primitive-reuse
+ *  rule rather than a third near-duplicate copy.
+ *
+ *  No CR 613.8 dependency-loop risk: this reads `ctx.getColors` (layer 5,
+ *  already resolved by the time a layer 7 P/T read runs) to compute a LATER
+ *  layer's (7a `pt-cda` / 7d `pt-buff`) contribution — it never feeds back
+ *  into colour derivation itself, so there is no self-referential dependency
+ *  to order. */
+export function mostCommonColors(
+    state: StaticEffectStateView,
+    ctx: StaticEffectContext
+): Color[] {
+    const allPermanents: readonly PermanentView[] = state.players.flatMap(
+        (p) => p.battlefield
+    );
+    return tallyMostCommonColors(
+        (color) =>
+            allPermanents.filter((p) => ctx.getColors(p).includes(color)).length
+    );
+}
+
 /** Metalcraft (CR 702 preamble ability word, Mechanics Registry `metalcraft`
  *  row) — true when `controllerId` controls three or more artifacts (Mox
  *  Opal's "Activate only if you control three or more artifacts."). Mirrors
@@ -6251,7 +6383,8 @@ export type GameEventType =
     | "COUNTER_ADDED"
     | "BECAME_TARGET"
     | "TOKENS_CREATED"
-    | "CARDS_EXILED";
+    | "CARDS_EXILED"
+    | "LIBRARY_SEARCHED";
 
 /** Damage event emitted whenever a source inflicts damage on a target
  *  (CR 120.3). Used by "whenever ~ deals damage" triggers. The
@@ -6619,6 +6752,17 @@ export interface BlockersConfirmedEvent {
      *  toughness 3 or less"), Infernal Medusa. Optional only so synthetic
      *  test events can omit it; the engine always populates it. */
     attackerToughness?: number;
+    /** Effective colour of the attacker at block confirmation (CR 202.2,
+     *  layer 5 — `colorOverride` / granted colours included). Read by
+     *  colour-gated combat-pairing triggers — Amphibious Kavu ("one or more
+     *  blue and/or black creatures"). Carried directly on the event (rather
+     *  than requiring a `TriggerStateView` lookup) so `matches` doesn't
+     *  depend on the caller passing a colours-annotated state view; the
+     *  production `collectTriggers` call passes the raw `GameState`, whose
+     *  `CardInstanceState` has no live `colors` field of its own. Optional
+     *  only so synthetic test events can omit it; the engine always
+     *  populates it. */
+    attackerColors?: ReadonlyArray<Color>;
     blockerId: string;
     blockerControllerId: string;
     blockerTypes: ReadonlyArray<CardType>;
@@ -6626,6 +6770,9 @@ export interface BlockersConfirmedEvent {
     /** Effective toughness of the blocker at block confirmation (CR 613).
      *  Twin of `attackerToughness` for the becomes-blocked direction. */
     blockerToughness?: number;
+    /** Effective colour of the blocker at block confirmation (CR 202.2, layer
+     *  5). Twin of `attackerColors` for the "blocks" direction. */
+    blockerColors?: ReadonlyArray<Color>;
 }
 
 /** CR 509.1h — an attacker that remained UNBLOCKED after blocks were
@@ -6913,6 +7060,51 @@ export interface CardsExiledEvent {
     }>;
 }
 
+/** Library-search event (CR 701.19a "search a library", 603.2 trigger
+ *  condition) — emitted ONCE per completed `search-library` PendingChoice
+ *  commit (issue #788, residual of the trigger-condition trio started by
+ *  `BecameTargetEvent`/#1265 and `TokensCreatedEvent`/#1345: "whenever an
+ *  opponent searches their library", Wan Shi Tong, Librarian). The single
+ *  choke point every library search funnels through
+ *  (`applyPendingChoiceSubmit`, `gre/pendingChoiceSubmit.ts`) regardless of
+ *  whether the search was authored as a DSL `choice(kind:
+ *  "search-library")` Op or an imperative `resolve()` tutor closure — every
+ *  shipped tutor and fetchland already routes through the same
+ *  `SpellContext.requestChoice` / PendingChoice commit path, so this one
+ *  emit site covers the whole catalogue with no per-card wiring. Fires even
+ *  on a zero-pick "whiff" search (a fetchland with no basic land left still
+ *  SEARCHED, CR 701.19a — the ACT of searching is the trigger condition,
+ *  not the result).
+ *
+ *  Carries BOTH the searcher and the library's owner (bugfix, issue #788
+ *  post-review) because they are NOT always the same player: Jester's Cap /
+ *  Jester's Mask / Lobotomy have the ACTIVATING player search a TARGET
+ *  player's library ("Search target player's library..."). A single
+ *  `playerId` field cannot distinguish "an opponent searches THEIR OWN
+ *  library" (the only condition any shipped `librarySearchedTrigger` card
+ *  cares about, CR 701.19a "searches a library" always names whose library)
+ *  from "the controller searches someone else's library" — collapsing them
+ *  let Wan Shi Tong's own controller trigger a free counter+draw by casting
+ *  Lobotomy. `librarySearchedTrigger`'s `matchesLibrarySearchedScope` gates
+ *  on `playerId === libraryOwnerId` before applying scope, so a
+ *  Jester's-Cap-shaped cross-library search never fires. */
+export interface LibrarySearchedEvent {
+    type: "LIBRARY_SEARCHED";
+    /** The player who performed the search (CR 701.19a) — the ACTING
+     *  searcher (the stack item's controller), not necessarily the library's
+     *  owner. For the ordinary "target player searches THEIR library" case
+     *  this equals `libraryOwnerId`; for a Jester's Cap/Lobotomy-shaped
+     *  "search TARGET PLAYER's library" this is the caster, and
+     *  `libraryOwnerId` is the target. */
+    playerId: string;
+    /** Owner of the library actually searched (CR 701.19a). The "opponent"
+     *  in "whenever an opponent searches THEIR library" is judged against
+     *  this field, relative to the trigger source's controller — and ONLY
+     *  when it equals `playerId` (a genuine "searches their own library"),
+     *  per the field-split rationale above. */
+    libraryOwnerId: string;
+}
+
 export type GameEvent =
     | DamageDealtEvent
     | PhaseBeginEvent
@@ -6937,7 +7129,8 @@ export type GameEvent =
     | CounterAddedEvent
     | BecameTargetEvent
     | TokensCreatedEvent
-    | CardsExiledEvent;
+    | CardsExiledEvent
+    | LibrarySearchedEvent;
 
 /** Read-only window over the live `GameState` exposed to `matches()` for
  *  state triggers (CR 603.8). Kept narrow on purpose so card definitions can
@@ -7006,6 +7199,16 @@ export interface TriggerStateView {
      *  without waiting for resolve — Osai Vultures' end-step intervening-if
      *  reads it. Mirrors `GameState.deathsThisTurn`; undefined defaults to 0. */
     deathsThisTurn?: number;
+    /** CR 506.3 / 508.1 — true once ANY player's creature has been declared as
+     *  an attacker this turn. Exposed so a CR 603.4 / 603.4d intervening-if can
+     *  answer "if no creatures attacked this turn" at BOTH trigger-check time
+     *  and resolution — Keldon Twilight's end-step trigger reads
+     *  `state?.creatureAttackedThisTurn !== true`. Mirrors
+     *  `GameState.creatureAttackedThisTurn`; undefined means no attack has been
+     *  declared this turn. Game-level, NOT a per-creature scan: CR 506.4 keeps
+     *  a creature "having attacked" once it is removed from combat, and an
+     *  attacker that died is no longer on any battlefield to be scanned. */
+    creatureAttackedThisTurn?: boolean;
     /** Life gained by each player this turn (CR 119.3 tally, issue #1457),
      *  keyed by player id. Exposed so a CR 603.4 / 603.4d intervening-if can
      *  answer "if you gained life this turn" at BOTH trigger-check time and
@@ -8152,6 +8355,27 @@ export interface EffectCardFilter {
      *  for its token-only variant, or `enteredThisTurn: true` alone for any
      *  creature. */
     enteredThisTurn?: boolean;
+    /** "…that they controlled since the beginning of the turn" (Keldon
+     *  Twilight, PLS) — a battlefield permanent matches if the player whose
+     *  battlefield is being scanned has controlled it CONTINUOUSLY since this
+     *  turn began. Read off `hasControlledSinceTurnStart`
+     *  (`gre/controlContinuity.ts`), which combines the `enteredOnTurn` entry
+     *  stamp with the turn-scoped `GameState.controlChangedThisTurn` ledger.
+     *
+     *  Strictly stronger than `enteredThisTurn: false`: that clause sees only
+     *  ZONE changes, so a creature stolen (or handed back) mid-turn would slip
+     *  through it. Use this one whenever the oracle text says "controlled
+     *  since"; use `enteredThisTurn` for "entered the battlefield this turn".
+     *
+     *  Battlefield-only, exactly like `enteredThisTurn` / `isToken`:
+     *  `matchesCardFilter` (the hidden-zone matcher) does not check it — a card
+     *  in hand or a library has no controller at all (CR 108.4). Propagated
+     *  onto `PermanentFilter.controlledSinceTurnStart` by `toPermanentFilter`,
+     *  and admitted by the Effect Script validator ONLY at battlefield-
+     *  guaranteed selector sites (`allowControlledSinceTurnStart`), so a
+     *  hidden-zone script carrying it fails validation instead of silently
+     *  matching everything. */
+    controlledSinceTurnStart?: boolean;
     excludeType?: CardType | CardType[];
     /** Match cards by exact printed name (CR 201.2 — "each other card named
      *  Accumulated Knowledge", Relentless Rats' "cards named ~", issue #985). A
@@ -9929,6 +10153,102 @@ export type EffectOp =
            *  window (Atraxa's "reveal the top ten cards"); `"kept"` reveals
            *  only the cards actually kept. Omit for a private look. */
           reveal?: "window" | "kept";
+          /** Optional prompt header on the pick. */
+          prompt?: string;
+      }
+    /** CR 601.2b / 701.9 (issue #1945) — per-category choice from an
+     *  ALREADY-VISIBLE set: the chooser's own hand or own battlefield, unlike
+     *  `revealAndCategorize`'s library-window look. Reuses the SAME
+     *  bipartite-matching core (`gre/categorizedPick.ts`) and `categories`
+     *  vocabulary, but is its OWN Op rather than a `revealAndCategorize`
+     *  generalization — that Op's reveal/peek framing and fixed
+     *  kept→hand/rest→bottom polarity do not apply here, and the two shipped
+     *  cards need OPPOSITE actions on the picked/unpicked halves:
+     *
+     *  Noxious Vapors: "Each player reveals their hand, chooses one card of
+     *  each color from it, then discards all other nonland cards." Zone =
+     *  hand (paired with a preceding `reveal { zone: "hand" }` Op for the
+     *  public reveal half — this Op itself does not reveal), categories = the
+     *  five colours, `onPicked: "keep"` (the picks simply survive), `sweep`
+     *  discards the REST — but narrowed to `excludeType: "Land"`, a BROADER
+     *  filter than the categorization domain: a colourless nonland card
+     *  matches no category (so it can never be picked) yet is still swept,
+     *  while a land is never swept even if uncategorized.
+     *
+     *  Planar Overlay: "Each player chooses a land they control of each basic
+     *  land type. Return those lands to their owners' hands." Zone =
+     *  battlefield (already public, no reveal needed), categories = the five
+     *  basic land types (`subtype` filters), `onPicked: "returnToHand"` (the
+     *  picks bounce via `returnToHand`, CR 701.10), no `sweep` (the
+     *  unpicked lands are untouched — Oracle text never mentions them).
+     *
+     *  Both Oracle texts read as MANDATORY ("chooses", not "may choose"): a
+     *  category with zero matching members is simply not filled (no
+     *  candidate to choose), and `optional` defaults to `false`.
+     *
+     *  Legality is `categorizedPick.ts`'s COVER rule, NOT
+     *  `revealAndCategorize`'s injective one — the module's second rule, and
+     *  the reason this Op is not a generalization of that one. Each category
+     *  NOMINATES a member and one member may answer SEVERAL categories at
+     *  once (Gatherer, Planar Overlay: "If you have a land which counts as
+     *  multiple land types, you can choose that land as each of those types.
+     *  For example, a dual land could be chosen as two of your land types."
+     *  Noxious Vapors' gold card is the same shape). So the offered `count`
+     *  runs from the SMALLEST covering set (`minCategorizedCover`) to the
+     *  maximum matching (`maxCategorizedPicks`) — a Plains+Tundra player may
+     *  answer with the Tundra alone, and pinning the floor to the matching
+     *  would illegally force them to return two lands (CR 608.2b — never
+     *  demand a pick the rules don't). An `optional: true` offer is instead a
+     *  per-category "you may" and keeps the injective rule at min 0.
+     *
+     *  A wholly zero-branch pick (nothing matches any category) auto-resolves
+     *  straight to the sweep with no prompt; a FORCED but nonzero pick (every
+     *  category has at most one candidate, so each nomination is already
+     *  determined — including a lone dual land answering both its types)
+     *  also auto-resolves (`categorizedPick.ts`'s `forcedCategorizedCover`)
+     *  rather than making the player click through a choice with only one
+     *  possible answer (project convention: auto-resolve when there is no
+     *  real option). `player` names whose hand/battlefield —
+     *  `forEach { set: "players" }` wraps this Op so "each player" runs it
+     *  once per side, in APNAP order, each acting on their OWN set only
+     *  (CR 601.2b — no player chooses for another). No new SpellContext
+     *  primitive: `getHandCards`/`getBattlefieldIds` resolve the categories,
+     *  `discardCard` (CR 701.9) applies the sweep, `returnToHand` (CR 701.10)
+     *  applies the bounce — the same primitives `discard`/`moveZone` already
+     *  use (ADR 0045 "generalize, don't add"). */
+    | {
+          op: "chooseCategorized";
+          player: EffectPlayerRef;
+          /** The already-visible domain to choose from. */
+          zone: "hand" | "battlefield";
+          /** The categories, in display order — each a label plus the
+           *  `EffectCardFilter` deciding which zone members belong to it. A
+           *  member matching several categories may be picked for only ONE
+           *  (bipartite matching, `gre/categorizedPick.ts`) — a multicoloured
+           *  hand card, a dual land. */
+          categories: { label: string; filter: EffectCardFilter }[];
+          /** "You may…" — default false: mandatory, offering exactly the
+           *  MAXIMUM legally matchable count (every category with a legally
+           *  seatable member gets filled). */
+          optional?: boolean;
+          /** What happens to the members actually picked. `"keep"` leaves
+           *  them exactly where they are — being picked just means surviving
+           *  `sweep` below (Noxious Vapors). `"returnToHand"` moves each
+           *  picked BATTLEFIELD permanent to its owner's hand via
+           *  `returnToHand` (Planar Overlay's bounce) — only meaningful for
+           *  `zone: "battlefield"`. */
+          onPicked: "keep" | "returnToHand";
+          /** The sweep clause (`zone: "hand"` only): every HAND card NOT
+           *  picked, further narrowed by `filter` here — deliberately a
+           *  SEPARATE, possibly BROADER filter than the categorization
+           *  domain (Noxious Vapors' `excludeType: "Land"` sweeps every
+           *  nonland card, including one that matched no colour category at
+           *  all). Omit `filter` to sweep every non-picked zone member; omit
+           *  `sweep` entirely for "leave everything else untouched" (Planar
+           *  Overlay). `action: "discard"` is the only shape today (CR
+           *  701.9) — grows when a future card needs a different rest
+           *  action. */
+          sweep?: { filter?: EffectCardFilter; action: "discard" };
           /** Optional prompt header on the pick. */
           prompt?: string;
       }

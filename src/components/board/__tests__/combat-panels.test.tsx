@@ -62,6 +62,7 @@ function renderCombatPanels(combat: Combat) {
         priorityPlayerId: "me",
         phase: "DECLARE_ATTACKERS",
         turn: 1,
+        engineTurn: 1,
         stackCount: 0,
         combat,
         allPlayers: [me, player({ id: "opp", name: "Opp" })],

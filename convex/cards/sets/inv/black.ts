@@ -59,52 +59,31 @@ import type {
     CardDefinition,
     CardPrint,
     Color,
-    PermanentView,
     SpellContext,
-    StaticEffectContext,
-    StaticEffectStateView,
 } from "../../types";
 import {
     AURA_AFFECTS_HOST,
     countDomain,
     EFFECT_AFFECTS_SELF,
+    mostCommonColors,
+    tallyMostCommonColors,
 } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 
-// Shared "most common color among all permanents" helper (Goham Djinn,
-// Tsabo's Assassin) — a plain board-wide colour tally, composed entirely of
-// existing accessors (no new SpellContext primitive). Two variants because
-// the two call sites read different context shapes: a `pt-cda` static effect
-// gets `StaticEffectStateView` + `StaticEffectContext`, while an activated
-// ability's `resolve()` gets `SpellContext`.
-function tallyMostCommon(perColor: (color: Color) => number): Color[] {
-    const COLORS: Color[] = ["W", "U", "B", "R", "G"];
-    const counts = COLORS.map((c) => [c, perColor(c)] as const);
-    const max = Math.max(0, ...counts.map(([, n]) => n));
-    if (max === 0) return [];
-    return counts.filter(([, n]) => n === max).map(([c]) => c);
-}
-
-function mostCommonColorsStatic(
-    state: StaticEffectStateView,
-    ctx: StaticEffectContext
-): Color[] {
-    const allPermanents: PermanentView[] = state.players.flatMap(
-        (p) => p.battlefield
-    );
-    return tallyMostCommon(
-        (color) =>
-            allPermanents.filter((p) => ctx.getColors(p).includes(color)).length
-    );
-}
-
-function mostCommonColors(ctx: SpellContext): Color[] {
+// "Most common color among all permanents" (Goham Djinn, Tsabo's Assassin,
+// CR 613 census) — the `StaticEffectStateView` variant used by a `pt-cda`
+// static effect is `mostCommonColors` (promoted to `cards/types.ts`, next to
+// `countDomain`, on its 3rd consumer — Heroic Defiance, `sets/pls/white.ts`).
+// Tsabo's Assassin's `resolve()` reads a different context shape
+// (`SpellContext`, not a board VIEW), so it gets its own thin wrapper below
+// that shares only the tie-break core (`tallyMostCommonColors`).
+function mostCommonColorsFromSpellContext(ctx: SpellContext): Color[] {
     const allIds = ctx.allPlayerIds.flatMap((pid) =>
         ctx.getBattlefieldIds(pid)
     );
-    return tallyMostCommon(
+    return tallyMostCommonColors(
         (color) =>
             allIds.filter((id) =>
                 ctx.getColors({ type: "permanent", id }).includes(color)
@@ -553,7 +532,7 @@ export const duskwalker: CardDefinition = {
 // or is tied for most common." (CR 701.15/701.19 regenerate, CR 613.4a CDA.)
 // The conditional P/T reduction is a `pt-cda` whose `compute` reads the full
 // board via `StaticEffectStateView` (mirrors People of the Woods,
-// drk/green.ts) through the shared `mostCommonColorsStatic` helper above.
+// drk/green.ts) through the shared `mostCommonColors` helper (`cards/types.ts`).
 export const gohamDjinn: CardDefinition = {
     id: "d67796c7-4d93-4c50-8839-bb69e075bc42", // INV 107
     rarity: "uncommon",
@@ -570,7 +549,7 @@ export const gohamDjinn: CardDefinition = {
             kind: "pt-cda",
             applies: EFFECT_AFFECTS_SELF,
             compute: (_source, state, ctx) => {
-                const mostCommon = mostCommonColorsStatic(state, ctx);
+                const mostCommon = mostCommonColors(state, ctx);
                 return mostCommon.includes("B")
                     ? { power: -2, toughness: -2 }
                     : { power: 0, toughness: 0 };
@@ -1259,7 +1238,7 @@ export const tsabosAssassin: CardDefinition = {
             resolve: (ctx) => {
                 const target = ctx.targets[0];
                 if (target?.type !== "permanent") return;
-                const mostCommon = mostCommonColors(ctx);
+                const mostCommon = mostCommonColorsFromSpellContext(ctx);
                 if (mostCommon.length === 0) return;
                 const targetColors = ctx.getColors(target);
                 if (targetColors.some((c) => mostCommon.includes(c))) {

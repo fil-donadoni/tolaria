@@ -119,6 +119,25 @@ export type ZonePickKind =
     // is certain until a shuffle). Shares `order-top`'s submit validation and
     // `:second` storage in `applyPendingChoiceSubmit`.
     | "look-distribute"
+    // Per-category choice from an ALREADY-VISIBLE set (CR 601.2b / 701.9,
+    // issue #1945) — the chooser's OWN hand (already known to them; pair
+    // with a preceding `reveal` Op when the Oracle text also makes it public
+    // — Noxious Vapors) or OWN battlefield (already public — Planar Overlay).
+    // Reuses the SAME bipartite-matching legality `look-distribute` uses
+    // (`gre/categorizedPick.ts`, `PendingChoice.categories`), but is its own
+    // kind rather than a `look-distribute` reuse: that kind's zone-branch
+    // validation (`pendingChoiceSubmit.ts`) and wire exposure
+    // (`gameProjections.ts`'s `exposeLibraryPeek`) are both hard-wired to
+    // `zone: "library"`'s reveal/peek framing, which does not apply here —
+    // the domain is already visible, so no peek/reveal exposure is needed at
+    // all, only the categorized-legality check (extended to the `hand`/
+    // `battlefield` zone branches for this kind). Noxious Vapors keeps the
+    // picks IN PLACE and discards the (separately, more broadly filtered)
+    // rest; Planar Overlay returns the picks to hand and leaves the rest
+    // untouched — opposite actions on the picked/unpicked halves, driven by
+    // the `chooseCategorized` Op's `onPicked`/`sweep` fields, not by this
+    // kind (which only carries the offer + submitted picks).
+    | "choose-categorized"
     // Legend rule (CR 704.5j, #378): when a controller has 2+ legendary
     // permanents that share a name, they keep exactly one (`candidateIds` are
     // the same-name duplicates) and the rest go to their owners' graveyards.

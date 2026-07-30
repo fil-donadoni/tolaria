@@ -1,5 +1,6 @@
 import type {
     ActivatedAbility,
+    BoardManaColorSource,
     CardDefinition,
     CardSupertype,
     Color,
@@ -7,6 +8,15 @@ import type {
     PermanentView,
     TriggerStateView,
 } from "../cards/types";
+// CR 605.1a — the DECLARATIVE board-derived mana-colour descriptor
+// (`ActivatedAbility.manaColorSource`) is evaluated with the engine's SINGLE
+// permanent-filter matcher, not a mana-local copy of one. Both modules are
+// cycle-free leaves (`cards/filters` imports only `cards/types`;
+// `cards/snowReads` is the dependency-free supertype leaf `gre/snow`
+// re-exports), so this adds no import cycle.
+import { matchesPermanentFilter } from "../cards/filters";
+import type { MatchablePermanent } from "../cards/filters";
+import { liveSupertypesOf } from "../cards/snowReads";
 import type { ManaRestriction } from "./types";
 import { getDefinition, tryGetDefinition } from "../cards";
 // CR 611.1b / 613.1f (issue #1880) — the POST-LAYER activated-ability set
@@ -17,7 +27,11 @@ import { getDefinition, tryGetDefinition } from "../cards";
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 import type { CardInstanceState, GameState } from "./state";
 import { applySubstitution } from "./textChanges";
-import { getEffectivePower, getEffectiveToughness } from "./layers";
+import {
+    STATIC_EFFECT_CTX,
+    getEffectivePower,
+    getEffectiveToughness,
+} from "./layers";
 import type { LayerStateView } from "./layers";
 import {
     MANA_COLORS,
@@ -527,6 +541,13 @@ export function getDynamicManaProduced(
     );
 }
 
+/** Resolves a {@link BoardManaColorSource} descriptor to the colours it
+ *  currently offers. Supplied only by callers that HAVE a board snapshot;
+ *  omitting it is the honest "no board, no answer" case (issue #1941). */
+type ManaColorSourceResolver = (
+    source: BoardManaColorSource
+) => Iterable<Color>;
+
 /** Colours a set of activated abilities COULD produce (CR 106.4 — "could
  *  produce"), unioning every non-stack ability's fixed `manaProduced` and
  *  `manaChoices` chooser options. Colourless ({C}) is excluded — {C} is not a
@@ -536,7 +557,8 @@ export function getDynamicManaProduced(
  *  `CardDefinition.activatedAbilities`, with no instance-only concern
  *  (ability suppression, text-changed subtypes) folded in. */
 function producibleColorsFromAbilities(
-    abilities: readonly ActivatedAbility[] | undefined
+    abilities: readonly ActivatedAbility[] | undefined,
+    resolveManaColorSource?: ManaColorSourceResolver
 ): Set<Color> {
     const colors = new Set<Color>();
     for (const ability of abilities ?? []) {
@@ -546,6 +568,25 @@ function producibleColorsFromAbilities(
                 if (c !== "C" && (ability.manaProduced[c] ?? 0) > 0)
                     colors.add(c);
             }
+        }
+        // CR 605.1a / 106.4 (issue #1941) — a DESCRIPTOR ability's colour set
+        // is BOARD-derived, so its static `manaChoices` is a no-board fallback
+        // list ("any single colour"), NOT a claim about what the source could
+        // produce. Unioning that fallback made every `manaColorSource`
+        // permanent read as a WUBRG source to every CR 106.4 consumer — the
+        // castability gate, the auto-tap solver, Fellwar Stone / Quirion
+        // Explorer reading it as a contributing land, the drafter's Fixing
+        // Value term, `evaluate`'s colour-breadth term — even when the
+        // descriptor currently resolves to NOTHING. The honest answer needs
+        // the board: with a resolver the descriptor is evaluated against it,
+        // without one (definition-level analysis, no battlefield) the ability
+        // contributes nothing rather than five phantom colours.
+        if (ability.manaColorSource) {
+            if (resolveManaColorSource) {
+                for (const c of resolveManaColorSource(ability.manaColorSource))
+                    colors.add(c);
+            }
+            continue;
         }
         if (ability.manaChoices) {
             for (const choice of ability.manaChoices) {
@@ -611,17 +652,70 @@ export function getDefinitionProducibleColors(
  *  to mana-source classification, exactly as every sibling probe already sees
  *  it. `getDefinitionProducibleColors` (definition-level, no instance, no
  *  battlefield) necessarily stays printed-only — a grant lives on an instance. */
-export function getProducibleColors(card: CardInstanceState): Set<Color> {
+export function getProducibleColors(
+    card: CardInstanceState,
+    resolveManaColorSource?: ManaColorSourceResolver
+): Set<Color> {
     const colors = new Set<Color>();
     if (abilitiesSuppressed(card)) return colors;
     // CR 305.6 — intrinsic basic-land subtype abilities (text-change aware).
     const intrinsic = getBasicLandMana(card);
     if (intrinsic && intrinsic !== "C") colors.add(intrinsic);
     for (const c of producibleColorsFromAbilities(
-        getEffectiveActivatedAbilities(card).map(({ ability }) => ability)
+        getEffectiveActivatedAbilities(card).map(({ ability }) => ability),
+        resolveManaColorSource
     ))
         colors.add(c);
     return colors;
+}
+
+/** How many levels of `manaColorSource` descriptor nesting the CR 106.4
+ *  "could produce" read follows before it stops (issue #1941).
+ *
+ *  A descriptor read against the board can meet ANOTHER descriptor permanent
+ *  — Quirion Explorer reads an opponent's Meteor Crater, whose own descriptor
+ *  reads that opponent's permanents, one of which may be a Fellwar Stone that
+ *  reads back… The relation is not acyclic (two Meteor Craters facing each
+ *  other cycle in one step), so the termination argument cannot come from the
+ *  data: it is this hard depth bound. `1` = the activating ability's own
+ *  descriptor (depth 0) is evaluated against the board, and each contributing
+ *  permanent's descriptor is evaluated once more (depth 1); at that level
+ *  nested descriptors contribute nothing. That covers every real board — the
+ *  CR-correct "Meteor Crater could produce {G} because its controller has a
+ *  green creature, therefore Quirion Explorer could produce {G}" chain — while
+ *  making non-termination structurally impossible rather than merely unlikely.
+ *  The divergence past depth 1 is conservative: a deeper chain UNDER-reports
+ *  (offers no colour) instead of inflating, so it can never authorize illegal
+ *  mana (CR 605.1a). */
+const MAX_NESTED_MANA_COLOR_SOURCE_DEPTH = 1;
+
+/** Board-aware twin of {@link getProducibleColors} (CR 106.4): identical in
+ *  every respect except that a `manaColorSource` DESCRIPTOR ability is
+ *  evaluated against the supplied board instead of contributing nothing.
+ *  Every consumer that has a board snapshot should read this one — a lone
+ *  Meteor Crater produces no colour, the same Crater beside a green creature
+ *  produces {G} (issue #1941). */
+export function getProducibleColorsOnBoard(
+    card: CardInstanceState,
+    battlefields: ReadonlyArray<{
+        playerId: string;
+        battlefield: readonly CardInstanceState[];
+    }>,
+    depth = 0
+): Set<Color> {
+    return getProducibleColors(
+        card,
+        depth < MAX_NESTED_MANA_COLOR_SOURCE_DEPTH
+            ? (source) =>
+                  boardDerivedManaColors(
+                      source,
+                      card,
+                      card.controllerId,
+                      battlefields,
+                      depth + 1
+                  )
+            : undefined
+    );
 }
 
 /** Board-conditional mana CHOICES for a card's tap mana ability (CR 106.1 /
@@ -638,6 +732,108 @@ export function getProducibleColors(card: CardInstanceState): Set<Color> {
  *  computed from every player's battlefield (this hook already receives the
  *  full board — see `manaLayerView`), not its raw base stats. Vivi Ornitier's
  *  "{U}/{R} split totalling X, where X is this creature's power" reads it. */
+/** Evaluates a {@link BoardManaColorSource} against the live board and returns
+ *  the mana options it offers: ONE mana of each colour the described permanents
+ *  contribute, in canonical WUBRG order (CR 605.1a).
+ *
+ *  Both derivations are honest reads of the CURRENT board, recomputed at every
+ *  activation — a land entering or leaving, a Blood Moon rewriting a dual, a
+ *  colour-changing effect all move the offered set immediately:
+ *  - `"produces"` unions `getProducibleColors` (CR 106.4 "could produce" —
+ *    basic-land subtypes, fixed and choice mana abilities, post-layer granted
+ *    ones, minus suppressed ones). {C} is excluded there already (CR 202.2).
+ *  - `"isColor"` unions the permanent's own post-layer-5 colours (CR 105.2).
+ *
+ *  An EMPTY result is a real answer, not "unknown": it means the scope
+ *  currently contributes no colour, so the ability offers nothing and every
+ *  consumer of `getDynamicManaChoices` — the castability probe, the auto-tap
+ *  solver, the tap-option enumerator, the client picker — correctly drops the
+ *  source instead of showing a false affordance. That is why this returns
+ *  `[]` rather than `null`: `null` would fall through to the ability's static
+ *  `manaChoices` fallback and re-inflate the offer.
+ *
+ *  The permanents are matched against a LAYER-AWARE view: live colours
+ *  (`STATIC_EFFECT_CTX.getColors`), live supertypes (`liveSupertypesOf`, so
+ *  `supertypes: "Basic"` sees a Blood-Moon'd / snow-mutated board correctly)
+ *  and live effective P/T, through the engine's single
+ *  `matchesPermanentFilter` authority — no second matcher. */
+export function boardDerivedManaChoices(
+    source: BoardManaColorSource,
+    self: CardInstanceState,
+    controllerId: string,
+    battlefields: ReadonlyArray<{
+        playerId: string;
+        battlefield: readonly CardInstanceState[];
+    }>
+): ManaCost[] {
+    const colors = boardDerivedManaColors(
+        source,
+        self,
+        controllerId,
+        battlefields,
+        0
+    );
+    return MANA_COLORS.filter((c) => c !== "C" && colors.has(c)).map(
+        (c) => ({ [c]: 1 }) as ManaCost
+    );
+}
+
+/** Colour-set core of {@link boardDerivedManaChoices}. `depth` is the descriptor
+ *  nesting level, bounded by {@link MAX_NESTED_MANA_COLOR_SOURCE_DEPTH}. */
+function boardDerivedManaColors(
+    source: BoardManaColorSource,
+    self: CardInstanceState,
+    controllerId: string,
+    battlefields: ReadonlyArray<{
+        playerId: string;
+        battlefield: readonly CardInstanceState[];
+    }>,
+    depth: number
+): Set<Color> {
+    const layerView = manaLayerView(battlefields);
+    const ctx = {
+        selfInstanceId: self.id,
+        // CR 109.5 — "you" on an ability is its CONTROLLER, which is what
+        // `controllerRelation: "you" | "opponents"` resolves against.
+        selfControllerId: controllerId,
+        supertypesOf: liveSupertypesOf,
+    };
+    const colors = new Set<Color>();
+    for (const { battlefield } of battlefields) {
+        for (const permanent of battlefield) {
+            // CR 105 / 202.2 / 613.1d — live colours, so a `colors` filter and
+            // the `"isColor"` derivation below agree with the board.
+            const liveColors = STATIC_EFFECT_CTX.getColors(permanent);
+            const pt = withEffectivePT(permanent, layerView);
+            const view: MatchablePermanent = {
+                ...permanent,
+                staticAbilities: permanent.staticAbilities ?? [],
+                colors: liveColors,
+                power: pt.power,
+                toughness: pt.toughness,
+            };
+            if (!matchesPermanentFilter(view, source.filter, ctx)) continue;
+            if (source.colors === "produces") {
+                // CR 106.4 (issue #1941) — DESCRIPTOR-aware: a contributing
+                // permanent whose own colour set is board-derived is evaluated
+                // against THIS same board (bounded by
+                // `MAX_NESTED_MANA_COLOR_SOURCE_DEPTH`), never off its static
+                // no-board `manaChoices` fallback, which would make every such
+                // permanent a phantom WUBRG source.
+                for (const c of getProducibleColorsOnBoard(
+                    permanent,
+                    battlefields,
+                    depth
+                ))
+                    colors.add(c);
+            } else {
+                for (const c of liveColors) colors.add(c);
+            }
+        }
+    }
+    return colors;
+}
+
 export function getDynamicManaChoices(
     card: CardInstanceState,
     controllerId: string,
@@ -648,9 +844,21 @@ export function getDynamicManaChoices(
 ): ManaCost[] | null {
     if (abilitiesSuppressed(card)) return null;
     const ability = getEffectiveActivatedAbilities(card).find(
-        ({ ability: a }) => !a.useStack && a.getManaChoices
+        ({ ability: a }) =>
+            !a.useStack && (a.manaColorSource || a.getManaChoices)
     )?.ability;
-    if (!ability?.getManaChoices) return null;
+    if (!ability) return null;
+    // CR 605.1a — the DECLARATIVE board-derived colour set wins over a closure
+    // when a card carries both (see `ActivatedAbility.manaColorSource`).
+    if (ability.manaColorSource) {
+        return boardDerivedManaChoices(
+            ability.manaColorSource,
+            card,
+            controllerId,
+            battlefields
+        );
+    }
+    if (!ability.getManaChoices) return null;
     const layerView = manaLayerView(battlefields);
     // Precompute each permanent's producible colours via the shared helper so
     // the card definition (Fellwar Stone) reads board mana without importing the
@@ -662,7 +870,12 @@ export function getDynamicManaChoices(
             playerId: b.playerId,
             permanents: b.battlefield.map((p) => ({
                 permanent: p as unknown as PermanentView,
-                producibleColors: [...getProducibleColors(p)],
+                // CR 106.4 (issue #1941) — board-aware, so a contributing
+                // permanent with its own board-derived colour set reports what
+                // it CURRENTLY could produce, not its five-colour fallback.
+                producibleColors: [
+                    ...getProducibleColorsOnBoard(p, battlefields),
+                ],
             })),
         }))
     );
@@ -876,7 +1089,9 @@ export function getManaTapOptionsDetailed(
             // choice index so the counter-removal rider (Mana Battery / storage
             // land) reads the right count.
             const choices =
-                ability.getManaChoices && controllerId && battlefields
+                (ability.getManaChoices || ability.manaColorSource) &&
+                controllerId &&
+                battlefields
                     ? getDynamicManaChoices(card, controllerId, battlefields)
                     : (ability.manaChoices ?? null);
             if (choices) {
@@ -1153,7 +1368,17 @@ export function getActivatedManaAbility(
     if (abilitiesSuppressed(card)) return null;
     const ability =
         getEffectiveActivatedAbilities(card).find(
-            ({ ability: a }) => !a.useStack && (a.manaProduced || a.manaChoices)
+            ({ ability: a }) =>
+                !a.useStack &&
+                // CR 605.1a (issue #1941) — a DESCRIPTOR (`manaColorSource`)
+                // is a mana-output declaration in its own right, exactly like
+                // `manaProduced` / `manaChoices`. Every shipped descriptor card
+                // also carries a static `manaChoices` fallback, so this is
+                // inert today — but a descriptor-ONLY ability would otherwise
+                // read as having NO mana ability here (and as "dual-purpose"
+                // in `hasNonManaActivatedAbility`), which is precisely the
+                // single-authority claim this predicate is supposed to hold.
+                (a.manaProduced || a.manaChoices || a.manaColorSource)
         )?.ability ?? null;
     if (!ability) return null;
     if (ability.canActivate && state && !ability.canActivate(card, state)) {
@@ -1201,7 +1426,7 @@ export function hasManaAbility(
  *  terms, `hasCastableInstant`, and the held-interaction predictor). A source
  *  counts only if it is UNTAPPED and can ACTUALLY produce mana (CR 605.1a): a
  *  basic-land subtype (`getBasicLandMana`) or an activated mana ability
- *  (`!useStack && manaProduced|manaChoices`). A land with NO mana ability does
+ *  (`!useStack && manaProduced|manaChoices|manaColorSource`). A land with NO mana ability does
  *  NOT count even though `isLand` is true — a fetchland (CR 305.6: its only
  *  ability is "search your library", never a mana ability) or a Maze of Ith.
  *
@@ -1236,7 +1461,8 @@ export function isUntappedManaSource(
  *  stack), a firebreathing pump, a Factory's Assembly-Worker buff. Used by the
  *  bot's static Evaluation (issue #794) to value leaving such a source untapped
  *  when auto-tapping. A mana ability is `!useStack && (manaProduced ||
- *  manaChoices)` (CR 605.3a); anything else (a stack ability, or an activated
+ *  manaChoices || manaColorSource)` (CR 605.3a, issue #1941); anything else
+ *  (a stack ability, or an activated
  *  ability with no mana output) makes the permanent dual-purpose. Suppressed
  *  permanents expose no abilities (CR 613.1f). POST-LAYER set (CR 113.1 /
  *  611.1b, issue #1880) — a GRANTED non-mana ability makes its holder
@@ -1245,6 +1471,11 @@ export function hasNonManaActivatedAbility(card: CardInstanceState): boolean {
     if (abilitiesSuppressed(card)) return false;
     return getEffectiveActivatedAbilities(card).some(
         ({ ability: a }) =>
-            a.useStack === true || !(a.manaProduced || a.manaChoices)
+            a.useStack === true ||
+            // CR 605.1a (issue #1941) — a `manaColorSource` descriptor makes
+            // the ability a mana ability, so it must NOT read as the
+            // "something beyond tapping for mana" that marks a source
+            // dual-purpose.
+            !(a.manaProduced || a.manaChoices || a.manaColorSource)
     );
 }

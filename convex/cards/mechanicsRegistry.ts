@@ -2938,6 +2938,15 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         note: 'Categorized reveal-and-keep (CR 701.20a reveal + CR 401.4, issue #1364 — Atraxa, Grand Unifier: "reveal the top ten cards of your library. For each card type, you may put a card of that type from among the revealed cards into your hand. Put the rest on the bottom of your library in a random order."). Reveals a fixed top-N window ONCE and then lets the player keep AT MOST ONE card per category out of that SINGLE shared window, each card claimable by only one category (Gatherer: a card with several card types may be chosen for only one of them). The categorized keep is precisely what `digToHand` cannot express — it carries ONE `filter` and ONE `take`, and calling it repeatedly does NOT share a window (each call re-peeks the CURRENT library top, which has already moved after the first call distributed its window). Everything ELSE is deliberately `digToHand`\'s vocabulary with identical semantics, and the executor reuses its whole tail verbatim (`bottomLookedAtCards`, the same `look-distribute` `requestChoice`, the same one-shot reveal protocol): `optional` ("you MAY"), `destination` (`library-bottom` default / `graveyard`), `randomBottom` (bottom unordered + unknown — CR 401.4\'s random order is unobservable for face-down library cards, so no knowledge is granted), `reveal` ("window" = the whole revealed window is public, Atraxa; "kept" = only the kept cards; omit for a private look), `prompt`. `categories` is an ordered `{ label, filter }` list — Atraxa spells out the eight card types from its own reminder text; Niv-Mizzet Reborn\'s ten exact-colour pairs are the other intended shape (still blocked on an EXACT-colours `EffectCardFilter.color` match). LEGALITY is a bipartite matching, not a greedy per-category scan: a keep-set is legal exactly when an INJECTIVE card → category assignment exists, since seating an artifact creature as "Creature" can otherwise strand a plain creature that had nowhere else to go. That matching lives in the LEAF module `gre/categorizedPick.ts` (plain ids in, booleans out — no GameState, no registry) and is the SINGLE authority used by all three sites: the Op\'s `count.max` (the maximum matching, NOT the category count — ten revealed lands under eight categories can only ever keep ONE, and offering eight would be a pick that cannot be made, CR 608.2b), the submit-path validation (`pendingChoiceSubmit`), and the client\'s per-card click gate (`player-library.tsx`), so the client can never offer a pick the server rejects nor hide one it would accept. SUSPENDS on a single `look-distribute` choice carrying the resolved `categories` (each label plus the revealed ids matching it); auto-resolves with NO prompt when nothing is keepable (no revealed card matched any category), the Arena zero-branch default. No new SpellContext primitive — pure composition over the ones `digToHand` already uses, per the "generalize, don\'t add" primitive-reuse rule.',
     },
     {
+        op: "chooseCategorized",
+        status: "implemented",
+        cr: "601.2b",
+        mechanicId: "chooseCategorized",
+        binding:
+            "SpellContext.getHandCards / getBattlefieldIds / requestChoice / discardCard / returnToHand + gre/categorizedPick",
+        note: 'Per-category choice from an ALREADY-VISIBLE set (CR 601.2b / 701.9, issue #1945 — Noxious Vapors: "Each player reveals their hand, chooses one card of each color from it, then discards all other nonland cards"; Planar Overlay: "Each player chooses a land they control of each basic land type. Return those lands to their owners\' hands."). Reuses `revealAndCategorize`\'s bipartite-matching core (`gre/categorizedPick.ts`) and `categories` vocabulary verbatim, but is its OWN Op rather than a `revealAndCategorize` generalization: that Op is hard-wired to a library-window LOOK (peek + reveal + a forced kept→hand/rest→bottom polarity), while this one operates on a domain that is ALREADY visible (the chooser\'s own hand — reveal, if the Oracle text calls for one, is a SEPARATE preceding `reveal` Op — or their own battlefield, always public) and the two shipped cards need OPPOSITE actions on the picked vs. unpicked halves: Vapors keeps the picks IN PLACE (`onPicked: "keep"`) and discards a REST that is filtered SEPARATELY and more BROADLY than the categorization domain (`sweep.filter: { excludeType: "Land" }` — a colourless nonland card matches no colour category, so it can never be picked, yet is still swept; a land is never swept even if uncategorized); Overlay instead BOUNCES the picks (`onPicked: "returnToHand"`, via `SpellContext.returnToHand`, CR 701.10) and leaves the rest untouched (no `sweep`). Both Oracle texts are MANDATORY ("chooses", not "may choose"): `optional` defaults false. Legality is `categorizedPick.ts`\'s COVER rule, the module\'s SECOND rule and NOT `revealAndCategorize`\'s injective one: each category NOMINATES a member and ONE member may answer SEVERAL categories at once (Gatherer, Planar Overlay: "If you have a land which counts as multiple land types, you can choose that land as each of those types. For example, a dual land could be chosen as two of your land types"; Noxious Vapors\' multicoloured card is the same shape — it may be the card chosen for both its colours). So the offered `count` runs from the SMALLEST covering set (`minCategorizedCover`) up to the maximum matching (`maxCategorizedPicks`), never merely `categories.length` (CR 608.2b — never offer a pick that cannot be made, and never DEMAND one the rules don\'t: pinning the floor to the matching would force a Plains+Tundra player to return two lands where the ruling lets them nominate the Tundra twice and return one). An `optional: true` offer is instead a per-category "you may" and keeps the injective rule at min 0; the chosen rule rides on the PendingChoice as `categoryRule`, so the client Done gate and the server submit check can never disagree. Two auto-resolve paths, both zero-prompt (project convention — auto-resolve a mandatory choice with no real option): a wholly zero-branch pick (nothing matches any category at all) skips straight to the sweep/no-op; a FORCED-but-nonzero pick (every category has at most one candidate, so each nomination is already determined — a lone dual land answering both its types included) also auto-applies via `categorizedPick.ts`\'s `forcedCategorizedCover` — a genuine ADDITION over `revealAndCategorize`, which does not special-case this and still prompts for a forced Atraxa keep. `player` names whose hand/battlefield; `forEach { set: "players" }` wraps this Op for "each player" (CR 601.2b — symmetric, APNAP-ordered, no player chooses for another; the existing `forEach { set: "players" }` + suspending-Op composition already works, issue #807). SUSPENDS on a `choose-categorized` PendingChoice — its OWN `ZonePickKind` member, sharing `categories`/the bipartite core with `look-distribute` but validated on the `hand`/`battlefield` zone branches instead of `library`, and under the COVER rule rather than the injective one (`pendingChoiceSubmit.ts`). No new SpellContext primitive — `getHandCards`/`getBattlefieldIds` resolve the categories, `discardCard`/`returnToHand` apply the two actions, exactly the primitives `discard`/`moveZone` already use (ADR 0045 "generalize, don\'t add").',
+    },
+    {
         op: "putBack",
         status: "implemented",
         cr: "401.4",
@@ -3187,7 +3196,19 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  `forEach { set: "permanents" }` (both route through `toPermanentFilter` →
  *  `ctx.getBattlefieldIds`) — and composes with every other clause,
  *  including `isToken`. Deliberately shipped with no card consumer of its
- *  own; its first consumer is Ocelot Pride (issue #1461). */
+ *  own; its first consumer is Ocelot Pride (issue #1461).
+ *  `EffectCardFilter.controlledSinceTurnStart` (issue #1944, Keldon Twilight)
+ *  is its sibling and likewise NOT an Op and NOT a new grammar member — a
+ *  plain boolean card-filter clause, battlefield-only, mirroring
+ *  `enteredThisTurn`'s shape and scope exactly and earning no
+ *  EFFECT_OP_REGISTRY row. It differs from `enteredThisTurn` in what it reads:
+ *  the entry stamp AND the new turn-scoped `GameState.controlChangedThisTurn`
+ *  ledger (`gre/controlContinuity.ts`), so a creature whose CONTROLLER changed
+ *  mid-turn without changing zones is excluded — the one thing zone-based
+ *  clauses cannot see. The Effect Script validator admits it only at
+ *  battlefield-guaranteed selector sites (`allowControlledSinceTurnStart`,
+ *  the `hasAbility`/`isAttacking` opt-IN gate), since a card in a hidden zone
+ *  has no controller at all (CR 108.4). */
 export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // --- Architecture-setting foundations (implemented before the skins) ---
     // delayedTrigger SHIPPED (issue #838, ADR 0048) and moveZone SHIPPED
@@ -3511,6 +3532,21 @@ export const EVENT_FIELD_REGISTRY: Record<
             family: "player",
             resolve: (e) =>
                 e.type === "PERMANENT_LEFT" ? e.ownerId : undefined,
+        },
+    },
+    // CR 121.1 / 117.3a / issue #1946 — "whenever a player draws a card, THAT
+    // PLAYER loses 2 life unless they pay {2}" (Phyrexian Tyranny). The
+    // drawing player is CR 117.3a's "triggering player" for the mayPay
+    // decision — usually NOT the enchantment's controller. Mirrors
+    // `PHASE_BEGIN.activePlayerId` (issue #1066): unblocks a `drawTrigger({
+    // scope: "each", effects: [...] })` DSL body to read the drawing player
+    // straight off the firing `CardDrawnEvent` via `{ ref: "$event.playerId"
+    // }` instead of the plain `"controller"` selector, which under `scope:
+    // "each"` resolves to the SOURCE's controller, not the player who drew.
+    CARD_DRAWN: {
+        playerId: {
+            family: "player",
+            resolve: (e) => (e.type === "CARD_DRAWN" ? e.playerId : undefined),
         },
     },
 };

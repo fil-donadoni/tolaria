@@ -21,7 +21,24 @@ type GameContext = {
     activePlayerId: string;
     priorityPlayerId: string;
     phase: Phase;
+    /** DISPLAY turn counter — the ACTIVE PLAYER's own turn count
+     *  (`PlayerState.turnsTaken`, CR 500.1), which is what "Turn N" reads on
+     *  the board. In a two-player game it is roughly HALF the engine's global
+     *  sequence number, and extra turns (CR 500.7) skew it further.
+     *
+     *  NEVER compare it against an engine-stamped turn number — `enteredOnTurn`
+     *  (`markEnteredThisTurn`), `controlChangedThisTurn`, or any other
+     *  `GameState.turn`-derived field. Use {@link engineTurn} for that. Doing
+     *  otherwise compares two different scales: it silently hid every legal
+     *  candidate from Keldon Twilight's mandatory sacrifice picker from turn 2
+     *  onward (issue #1944 review fixup). */
     turn: number;
+    /** ENGINE turn number — the wire `GameState.turn`, the global sequence
+     *  number the GRE stamps into `CardInstanceState.enteredOnTurn` and scopes
+     *  its per-turn ledgers by. The ONLY number a client-side engine predicate
+     *  (`hasControlledSinceTurnStart`, an `enteredThisTurn` derivation) may be
+     *  handed. Distinct from {@link turn} on purpose — see that field. */
+    engineTurn: number;
     stackCount: number;
     pendingCast?: PendingCast;
     pendingActivation?: PendingActivation;
@@ -51,6 +68,15 @@ type GameContext = {
      *  this turn" predicate reads the SAME number the server's CR 603.4
      *  intervening-if does. */
     lifeGainedThisTurn?: Record<string, number>;
+    /** Control continuity (`@convex/gre/controlContinuity`) — instance ids
+     *  whose controller changed during the current turn, forwarded from the
+     *  wire `GameState.controlChangedThisTurn`. Combined with {@link engineTurn}
+     *  (NOT the display `turn`) it forms the `ControlContinuityView` the
+     *  board's choice-picker passes to
+     *  `matchesPermanentFilter`, so a "creature you controlled since the
+     *  beginning of the turn" restriction highlights exactly the permanents the
+     *  server's submit validation will accept. */
+    controlChangedThisTurn?: string[];
     /** CR 702.16b/i (issue #674, The One Ring) — players who currently have
      *  protection from everything, forwarded from the wire
      *  `GameState.playerProtectionFromEverything`. Read by

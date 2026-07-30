@@ -197,9 +197,24 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
     } else {
         // Zone picks (incl. Sylvan Library's 0–N topdeck range): Done enables
         // at the minimum allowed selection — 0 when min === 0 (CR 608.2).
+        // issue #1945 — a CATEGORIZED pick (`choice.categories`) additionally
+        // requires the buffered set to admit a legal per-category assignment,
+        // not merely the right COUNT. `choice.categoryRule` (carried verbatim
+        // through the wire projection) picks the SAME rule the server
+        // validates the submission with — see `isZonePickConfirmEnabled`.
         canConfirm =
             !bufferCtx.isPending &&
-            isZonePickConfirmEnabled(choice.count, bufferCtx.buffer.length);
+            isZonePickConfirmEnabled(
+                choice.count,
+                bufferCtx.buffer.length,
+                choice.categories
+                    ? {
+                          categories: choice.categories,
+                          pickedIds: bufferCtx.buffer,
+                          rule: choice.categoryRule ?? "injective",
+                      }
+                    : undefined
+            );
     }
 
     return { canConfirm, confirm, isPending: isBusy || bufferCtx.isPending };

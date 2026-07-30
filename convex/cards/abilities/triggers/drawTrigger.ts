@@ -57,13 +57,19 @@ export interface DrawTriggerArgs {
         drawingPlayerId: string
     ) => void;
     /** Effect Script (ADR 0045, issue #803) — declarative alternative to
-     *  `resolve`, mirroring `phaseTrigger`'s `effects` opt-in. The script
-     *  reads `ctx.controller`, which is the SOURCE's controller — valid only
-     *  when `scope: "your"` (the drawing player IS the source controller).
-     *  `each` / `opponents` triggers act on a drawing player who can differ
-     *  from the source's controller (Sheoldred's "an opponent draws, they
-     *  lose 2 life"); those stay imperative via `resolve`. Mutually
-     *  exclusive with `resolve`. */
+     *  `resolve`, mirroring `phaseTrigger`'s `effects` opt-in. A script that
+     *  reads a player via the plain `"controller"` selector gets the
+     *  SOURCE's controller — correct only when `scope: "your"` (the drawing
+     *  player IS the source controller). `each` / `opponents` triggers act
+     *  on a drawing player who can differ from the source's controller
+     *  (Sheoldred's "an opponent draws, they lose 2 life"; Phyrexian
+     *  Tyranny's "a player draws … unless THEY pay") — issue #1946 unblocks
+     *  those scopes for DSL scripts too: read the drawing player via
+     *  `{ ref: "$event.playerId" }` (a censused `EVENT_FIELD_REGISTRY` row
+     *  for `CARD_DRAWN`, ADR 0049, mirroring `PHASE_BEGIN.activePlayerId`,
+     *  issue #1066) instead of `"controller"` — that ref resolves straight
+     *  off the firing event, bypassing `ctx.controller` entirely, so it is
+     *  correct under any scope. Mutually exclusive with `resolve`. */
     effects?: EffectOp[];
 }
 
