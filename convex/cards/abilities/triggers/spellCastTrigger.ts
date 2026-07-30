@@ -20,6 +20,7 @@ import type {
 } from "../../types";
 import type { SpellFilter } from "../../filters";
 import { matchesSpellFilter } from "../../filters";
+import { withTriggerGate } from "./shared";
 
 /** Caster scope for a spell-cast trigger. Resolved against the source's
  *  controller at trigger-fire time (CR 109.4).
@@ -181,5 +182,5 @@ export function spellCastTrigger(args: SpellCastTriggerArgs): TriggeredAbility {
             return ifFn(event, self, state);
         };
     }
-    return built;
+    return withTriggerGate(built, args);
 }

@@ -144,7 +144,13 @@ export function evaluateCreature(
             Math.max(0, getPermanentEffectiveToughness(state, card)),
             manaValue(getInstanceManaCost(card)),
             card.staticAbilities
-        ) + dslRealizedAbilityValueById(String(card.card.id ?? ""))
+        ) +
+        // `card` doubles as the ability-gate subject (issue #1936): the
+        // trigger system already treats a raw `CardInstanceState` as the
+        // `PermanentView` a CR 603.4 condition reads, so a gated trigger's
+        // script value is DECIDED for this permanent (was it evoked? dashed?)
+        // rather than charged/credited unconditionally.
+        dslRealizedAbilityValueById(String(card.card.id ?? ""), card)
     );
 }
 

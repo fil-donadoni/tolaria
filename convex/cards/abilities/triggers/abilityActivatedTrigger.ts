@@ -27,7 +27,11 @@ import type {
     TriggeredAbility,
 } from "../../types";
 import { matchesPermanentFilter, type PermanentFilter } from "../../filters";
-import { matchesPermanentScope, type PermanentScope } from "./shared";
+import {
+    matchesPermanentScope,
+    type PermanentScope,
+    withTriggerGate,
+} from "./shared";
 
 export interface AbilityActivatedTriggerArgs {
     /** Stable id on the source CardDefinition's triggeredAbilities[]. */
@@ -131,5 +135,5 @@ export function abilityActivatedTrigger(
         };
     }
 
-    return ability;
+    return withTriggerGate(ability, args);
 }

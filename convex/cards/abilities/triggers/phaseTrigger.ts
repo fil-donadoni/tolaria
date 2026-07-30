@@ -30,7 +30,11 @@ import type {
     TriggerStateView,
     TriggeredAbility,
 } from "../../types";
-import { resolvePhaseScope, type TriggerScope } from "./shared";
+import {
+    resolvePhaseScope,
+    withTriggerGate,
+    type TriggerScope,
+} from "./shared";
 
 /** Arguments to `phaseTrigger`. See the field docs below for the contract of
  *  each property. */
@@ -128,75 +132,83 @@ export interface PhaseTriggerArgs {
 }
 
 export function phaseTrigger(args: PhaseTriggerArgs): TriggeredAbility {
-    return {
-        id: args.id,
-        oracleText: args.oracleText,
-        event: "PHASE_BEGIN",
-        ...(args.zone ? { zone: args.zone } : {}),
-        ...(args.targetRequirement
-            ? { targetRequirement: args.targetRequirement }
-            : {}),
-        ...(args.aiEffects ? { aiEffects: args.aiEffects } : {}),
-        matches: (event, self, state) => {
-            if (event.type !== "PHASE_BEGIN") return false;
-            if (event.phase !== args.phase) return false;
-            if (resolvePhaseScope(args.scope, event, self, state) === null) {
-                return false;
-            }
-            if (args.condition && !args.condition(event, self, state)) {
-                return false;
-            }
-            // CR 603.4d — intervening-if is checked at BOTH trigger time and
-            // resolve time. The engine wires the resolve-time check via the
-            // `interveningIf` field; we mirror it into `matches` here so the
-            // trigger never enters the stack when the condition is already
-            // false at the moment it would fire.
-            if (args.interveningIf && !args.interveningIf(event, self, state)) {
-                return false;
-            }
-            return true;
-        },
-        interveningIf: args.interveningIf
-            ? (event, self, state) => {
-                  if (event.type !== "PHASE_BEGIN") return false;
-                  return args.interveningIf!(event, self, state);
-              }
-            : undefined,
-        // ADR 0045 (issue #803) — a declarative Effect Script bypasses the
-        // scope-wrapped `resolve`/`resolveSteps` entirely: it rides straight to
-        // the interpreter, which binds the controller and `$source` from the
-        // resolution context. A plain `"controller"` player selector is only
-        // correct for `scope: "your"` (controller == scoped player); `each` /
-        // `opponents` scripts read the scoped player via
-        // `{ ref: "$event.activePlayerId" }` instead (issue #1066). Mutually
-        // exclusive with the imperative forms.
-        ...(args.effects
-            ? { effects: args.effects }
-            : args.resolveSteps
-              ? {
-                    resolveSteps: args.resolveSteps.map((step) => (ctx) => {
-                        // The PhaseBeginEvent isn't re-threaded into steps (the
-                        // engine drives `resolveSteps` with only `ctx`); the scope
-                        // is re-derived from the live context exactly as the single
-                        // `resolve` path does.
-                        const scoped = resolveScopeFromCtx(args.scope, ctx);
-                        if (scoped === null) return;
-                        step(ctx, scoped);
-                    }),
+    return withTriggerGate(
+        {
+            id: args.id,
+            oracleText: args.oracleText,
+            event: "PHASE_BEGIN",
+            ...(args.zone ? { zone: args.zone } : {}),
+            ...(args.targetRequirement
+                ? { targetRequirement: args.targetRequirement }
+                : {}),
+            ...(args.aiEffects ? { aiEffects: args.aiEffects } : {}),
+            matches: (event, self, state) => {
+                if (event.type !== "PHASE_BEGIN") return false;
+                if (event.phase !== args.phase) return false;
+                if (
+                    resolvePhaseScope(args.scope, event, self, state) === null
+                ) {
+                    return false;
                 }
-              : {
-                    resolve: (ctx: SpellContext, event: GameEvent) => {
-                        if (event.type !== "PHASE_BEGIN") return;
-                        const scoped = resolveScopeAtResolve(
-                            args.scope,
-                            event,
-                            ctx
-                        );
-                        if (scoped === null) return;
-                        args.resolve?.(ctx, event, scoped);
-                    },
-                }),
-    };
+                if (args.condition && !args.condition(event, self, state)) {
+                    return false;
+                }
+                // CR 603.4d — intervening-if is checked at BOTH trigger time and
+                // resolve time. The engine wires the resolve-time check via the
+                // `interveningIf` field; we mirror it into `matches` here so the
+                // trigger never enters the stack when the condition is already
+                // false at the moment it would fire.
+                if (
+                    args.interveningIf &&
+                    !args.interveningIf(event, self, state)
+                ) {
+                    return false;
+                }
+                return true;
+            },
+            interveningIf: args.interveningIf
+                ? (event, self, state) => {
+                      if (event.type !== "PHASE_BEGIN") return false;
+                      return args.interveningIf!(event, self, state);
+                  }
+                : undefined,
+            // ADR 0045 (issue #803) — a declarative Effect Script bypasses the
+            // scope-wrapped `resolve`/`resolveSteps` entirely: it rides straight to
+            // the interpreter, which binds the controller and `$source` from the
+            // resolution context. A plain `"controller"` player selector is only
+            // correct for `scope: "your"` (controller == scoped player); `each` /
+            // `opponents` scripts read the scoped player via
+            // `{ ref: "$event.activePlayerId" }` instead (issue #1066). Mutually
+            // exclusive with the imperative forms.
+            ...(args.effects
+                ? { effects: args.effects }
+                : args.resolveSteps
+                  ? {
+                        resolveSteps: args.resolveSteps.map((step) => (ctx) => {
+                            // The PhaseBeginEvent isn't re-threaded into steps (the
+                            // engine drives `resolveSteps` with only `ctx`); the scope
+                            // is re-derived from the live context exactly as the single
+                            // `resolve` path does.
+                            const scoped = resolveScopeFromCtx(args.scope, ctx);
+                            if (scoped === null) return;
+                            step(ctx, scoped);
+                        }),
+                    }
+                  : {
+                        resolve: (ctx: SpellContext, event: GameEvent) => {
+                            if (event.type !== "PHASE_BEGIN") return;
+                            const scoped = resolveScopeAtResolve(
+                                args.scope,
+                                event,
+                                ctx
+                            );
+                            if (scoped === null) return;
+                            args.resolve?.(ctx, event, scoped);
+                        },
+                    }),
+        },
+        args
+    );
 }
 
 /** Scope resolution for the `resolveSteps` path, where the firing

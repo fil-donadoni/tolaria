@@ -25,6 +25,7 @@ import type {
     TriggerStateView,
     TriggeredAbility,
 } from "../../types";
+import { withTriggerGate } from "./shared";
 
 /** Whose life loss fires the trigger, relative to the source's controller. */
 export type LifeLostTriggerScope = "your" | "each" | "opponents";
@@ -112,5 +113,5 @@ export function lifeLostTrigger(args: LifeLostTriggerArgs): TriggeredAbility {
         };
     }
 
-    return ability;
+    return withTriggerGate(ability, args);
 }

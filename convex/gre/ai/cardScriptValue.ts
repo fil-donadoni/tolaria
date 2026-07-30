@@ -18,7 +18,12 @@
 // Kept isomorphic (types + pure `valueEffectScript`) so it rides in the
 // client-importable `cardValue` barrel.
 
-import type { CardDefinition, EffectOp } from "../../cards/types";
+import type {
+    CardDefinition,
+    EffectOp,
+    PermanentView,
+    TriggeredAbility,
+} from "../../cards/types";
 import { contextFreeGrounding, type GroundingContext } from "./grounding";
 import { valueEffectScript } from "./opValuers";
 import type { OpValue, ValueTag } from "./featureBasis";
@@ -41,6 +46,43 @@ function effectiveScript(site: {
  *  and the creature body already counts the permanent — so their script value
  *  is discounted before being added to the body (never doubled with it). */
 const ABILITY_SCRIPT_DISCOUNT = 0.5;
+
+/** Weight on the script value of a triggered ability that is GATED by a
+ *  check-time condition (CR 603.4, `TriggerGate`) the reader cannot DECIDE —
+ *  either an `{ undecidable: true }` gate, or an `{ onSelf }` gate with no
+ *  instance to read (a card still in hand). Even odds: the same assumption
+ *  `valueOp` already makes for the two branches of a `coinFlip`, which is the
+ *  prior art for an outcome the value model can't resolve. It applies in BOTH
+ *  directions and that symmetry is the point — a gated BONUS stops being
+ *  counted as guaranteed, a gated COST stops being charged as certain.
+ *
+ *  Before issue #1936 the factor was an implicit 1: every gated ability valued
+ *  as if it always fires. The visible bite was Evoke — a hard-cast Incarnation
+ *  charged the full `SAC_SELF_COST` (−40) for the evoke self-sacrifice — but
+ *  the blind spot is catalogue-wide, one per gated ability carrying a script. */
+const UNDECIDED_GATE_WEIGHT = 0.5;
+
+/** How much of a triggered ability's script value survives its check-time gate
+ *  (CR 603.4) — 1 when it always fires, 0 when the gate is decidably false for
+ *  `self`, `UNDECIDED_GATE_WEIGHT` when the gate exists but can't be decided.
+ *
+ *  `self` is the SOURCE PERMANENT being valued, and is only available on the
+ *  realized (in-play) path: a card in hand has no instance yet, so an
+ *  `{ onSelf }` gate is undecidable there — correctly, since which way it will
+ *  land (evoked vs hard-cast) is exactly the decision not yet made.
+ *
+ *  Activated abilities carry no gate (their gating is the activation cost,
+ *  already valued) and always score 1. */
+function gateWeight(
+    ability: { gate?: TriggeredAbility["gate"] },
+    self: PermanentView | undefined
+): number {
+    const gate = ability.gate;
+    if (!gate) return 1;
+    if ("undecidable" in gate) return UNDECIDED_GATE_WEIGHT;
+    if (!self) return UNDECIDED_GATE_WEIGHT;
+    return gate.onSelf(self) ? 1 : 0;
+}
 
 /** The full DSL-derived `{ points, tags }` of a NON-CREATURE card's spell
  *  script — its real `effects[]` if present, else its `aiEffects` shadow
@@ -121,20 +163,41 @@ function mergeOpValue(a: OpValue, b: OpValue): OpValue {
  *  onto — issue #1433 review: Icy Manipulator / Royal Assassin / Nevinyrral's
  *  Disk carry `boardRemoval` + `targeted` only on an ACTIVATED ability (they
  *  have no spell `effects[]` of their own), so a tag reader that only
- *  consults `dslSpellScriptOpValue` never sees it. */
+ *  consults `dslSpellScriptOpValue` never sees it.
+ *
+ *  `self` — the SOURCE PERMANENT, when the caller has one (the realized,
+ *  in-play path). It decides each triggered ability's check-time gate
+ *  (CR 603.4, `gateWeight`): without it a gated ability is only weighted,
+ *  with it a gate that reads the instance is answered exactly. */
 export function dslAbilityScriptOpValue(
     def: CardDefinition,
-    ctx: GroundingContext = contextFreeGrounding()
+    ctx: GroundingContext = contextFreeGrounding(),
+    self?: PermanentView
 ): OpValue | undefined {
     let acc: OpValue | undefined;
-    const abilities = [
+    const abilities: {
+        effects?: EffectOp[];
+        aiEffects?: EffectOp[];
+        gate?: TriggeredAbility["gate"];
+    }[] = [
         ...(def.activatedAbilities ?? []),
         ...(def.triggeredAbilities ?? []),
     ];
     for (const ability of abilities) {
         const script = effectiveScript(ability);
         if (!script) continue;
-        const v = valueEffectScript(script, ctx);
+        // CR 603.4 (issue #1936) — an ability that only fires under a
+        // condition is not worth (or is not charged) its full script value.
+        const weight = gateWeight(ability, self);
+        if (weight === 0) continue;
+        const raw = valueEffectScript(script, ctx);
+        // Tags are a MEMBERSHIP fact, not a magnitude — a weighted ability
+        // still loads onto the same feature dimension, so only points scale
+        // (same treatment `ABILITY_SCRIPT_DISCOUNT` gets below).
+        const v =
+            weight === 1
+                ? raw
+                : { points: raw.points * weight, tags: raw.tags };
         acc = acc ? mergeOpValue(acc, v) : v;
     }
     return acc;
@@ -146,12 +209,16 @@ export function dslAbilityScriptOpValue(
  *  ALREADY IN PLAY — its abilities are immediately usable, so no in-hand
  *  discount applies. The latent (in-hand) paths discount this before adding
  *  it to the body (`ABILITY_SCRIPT_DISCOUNT`), the realized (in-play) path
- *  does not. 0 when the card has no ability scripts. */
+ *  does not. 0 when the card has no ability scripts. Pass `self` (the live
+ *  permanent) so gated triggers are decided rather than weighted — an evoked
+ *  Incarnation is charged its self-sacrifice, a hard-cast one is not
+ *  (issue #1936). */
 export function dslRealizedAbilityScriptValue(
     def: CardDefinition,
-    ctx: GroundingContext = contextFreeGrounding()
+    ctx: GroundingContext = contextFreeGrounding(),
+    self?: PermanentView
 ): number {
-    return dslAbilityScriptOpValue(def, ctx)?.points ?? 0;
+    return dslAbilityScriptOpValue(def, ctx, self)?.points ?? 0;
 }
 
 /** The merged, DISCOUNTED `{ points, tags }` of a card's activated + triggered

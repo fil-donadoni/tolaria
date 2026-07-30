@@ -43,7 +43,13 @@ export function evokeTrigger(cardName: string): TriggeredAbility {
         id: "evoke-sacrifice",
         oracleText: `When ${cardName} enters, if its evoke cost was paid, sacrifice it.`,
         scope: "self",
-        condition: (_event, self) => self.evoked === true,
+        // Declared as `conditionOnSelf` (issue #1936), not `condition`: the
+        // predicate reads only the source permanent, so the built ability
+        // retains it as a DECIDABLE `{ onSelf }` `TriggerGate`. That is what
+        // lets the bot's value model charge the self-sacrifice to an EVOKED
+        // Incarnation only — a hard-cast one used to eat the same −40 for a
+        // trigger that can never fire on it.
+        conditionOnSelf: (self) => self.evoked === true,
         resolve: (ctx) => {
             ctx.sacrifice(ctx.sourceInstanceId);
         },

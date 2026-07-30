@@ -25,6 +25,7 @@ import type {
     TriggerStateView,
     TriggeredAbility,
 } from "../../types";
+import { withTriggerGate } from "./shared";
 
 /** Whose draw fires the trigger, relative to the source's controller. */
 export type DrawTriggerScope = "your" | "each" | "opponents";
@@ -143,5 +144,5 @@ export function drawTrigger(args: DrawTriggerArgs): TriggeredAbility {
         };
     }
 
-    return ability;
+    return withTriggerGate(ability, args);
 }

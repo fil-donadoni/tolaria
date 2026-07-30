@@ -29,7 +29,11 @@ import type {
     TriggerStateView,
     TriggeredAbility,
 } from "../../types";
-import { matchesPermanentScope, type PermanentScope } from "./shared";
+import {
+    matchesPermanentScope,
+    type PermanentScope,
+    withTriggerGate,
+} from "./shared";
 
 /** Flattened payload handed to a `counterAddedTrigger`'s resolve callback. */
 export interface CounterAddedInfo {
@@ -174,5 +178,5 @@ export function counterAddedTrigger(
         };
     }
 
-    return ability;
+    return withTriggerGate(ability, args);
 }

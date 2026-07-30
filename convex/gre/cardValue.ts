@@ -17,7 +17,7 @@
 // (those genuinely need `GameState` — effective P/T through the layer system)
 // but now delegates their shared body math (`creatureValueRaw`, the latent
 // core) to this module so there is exactly one implementation.
-import type { CardDefinition } from "../cards/types";
+import type { CardDefinition, PermanentView } from "../cards/types";
 import { tryGetDefinition } from "../cards";
 import { manaValue } from "./constants";
 import {
@@ -202,10 +202,19 @@ export function dslLatentPiecesById(cardId: string): {
  *  abilities are usable now), unlike the latent in-hand pieces. Derived from
  *  the registry `CardDefinition` keyed by the id that survives the wire
  *  projection — never the stripped fat `card.card` blob. Returns 0 for an
- *  unknown id (a token / off-registry card). */
-export function dslRealizedAbilityValueById(cardId: string): number {
+ *  unknown id (a token / off-registry card).
+ *
+ *  `self` is the live permanent whose worth is being read. It decides each
+ *  triggered ability's CR 603.4 check-time gate (issue #1936): an Evoke
+ *  Incarnation IN PLAY is charged its self-sacrifice only when it was actually
+ *  evoked — a hard-cast one used to eat the same cost for a trigger that can
+ *  never fire on it. Omit it and a gated ability is merely weighted. */
+export function dslRealizedAbilityValueById(
+    cardId: string,
+    self?: PermanentView
+): number {
     const def = tryGetDefinition(cardId);
-    return def ? dslRealizedAbilityScriptValue(def) : 0;
+    return def ? dslRealizedAbilityScriptValue(def, undefined, self) : 0;
 }
 
 /** Latent worth of a card from its registry id alone — the resolution-choice

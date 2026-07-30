@@ -26,6 +26,7 @@ import type {
     TriggerStateView,
     TriggeredAbility,
 } from "../../types";
+import { withTriggerGate } from "./shared";
 
 /** Destination zone of a battlefield exit (CR 603.10). */
 export type LeftZone = "graveyard" | "exile" | "hand" | "library";
@@ -294,5 +295,5 @@ export function leftTrigger(args: LeftTriggerArgs): TriggeredAbility {
         };
     }
 
-    return ability;
+    return withTriggerGate(ability, args);
 }

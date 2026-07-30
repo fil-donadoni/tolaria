@@ -28,7 +28,11 @@ import type {
     TriggeredAbility,
     CardType,
 } from "../../types";
-import { matchesPermanentScope, type PermanentScope } from "./shared";
+import {
+    matchesPermanentScope,
+    type PermanentScope,
+    withTriggerGate,
+} from "./shared";
 
 export interface UntappedTriggerArgs {
     /** Stable id on the source CardDefinition's triggeredAbilities[]. */
@@ -147,5 +151,5 @@ export function untapTrigger(args: UntappedTriggerArgs): TriggeredAbility {
         };
     }
 
-    return ability;
+    return withTriggerGate(ability, args);
 }

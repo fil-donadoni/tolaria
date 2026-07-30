@@ -47,7 +47,11 @@ export function dashTrigger(cardName: string): TriggeredAbility {
         id: "dash-haste-and-return",
         oracleText: `When ${cardName} enters, if its dash cost was paid, it gains haste and it's returned to its owner's hand at the beginning of the next end step.`,
         scope: "self",
-        condition: (_event, self) => self.dashed === true,
+        // `conditionOnSelf` (issue #1936) — a self-only predicate, retained on
+        // the built ability as a DECIDABLE `{ onSelf }` `TriggerGate` so the
+        // bot's value model credits the haste grant / charges the bounce to a
+        // DASHED permanent only, not to a normally-cast one.
+        conditionOnSelf: (self) => self.dashed === true,
         effects: [
             // CR 702.109a — "it gains haste". No explicit duration is printed;
             // an `end-of-turn` (CLEANUP) grant is functionally equivalent here

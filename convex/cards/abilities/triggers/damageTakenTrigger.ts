@@ -25,6 +25,7 @@ import {
     passesTargetPlayerFilter,
     type DamageSourceScope,
     type DamageTriggerPayload,
+    withTriggerGate,
 } from "./shared";
 
 /** Discriminator over the side that took the damage. Required — the whole
@@ -131,5 +132,5 @@ export function damageTakenTrigger(
             state?: TriggerStateView
         ) => isDamageDealtEvent(event) && interveningIf(event, self, state);
     }
-    return ability;
+    return withTriggerGate(ability, args);
 }
