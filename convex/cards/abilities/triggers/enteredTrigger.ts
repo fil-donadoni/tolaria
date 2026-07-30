@@ -96,6 +96,13 @@ export interface EnteredTriggerArgs {
      *  sacrifice a land" — is the canonical example. Mutually exclusive with
      *  `resolve`. */
     effects?: EffectOp[];
+    /** AI-only SHADOW Effect Script for a `resolve()` body (PRD #1423, issue
+     *  #1519) — never executed, only walked by `OP_VALUERS` so the value model
+     *  can see what an imperative ETB trigger does. Passed straight through to
+     *  the built `TriggeredAbility`; see `CardDefinition.aiEffects` for the
+     *  full contract. Meaningless alongside `effects` (a real script is
+     *  already valued). */
+    aiEffects?: EffectOp[];
 }
 
 /** Builds a `TriggeredAbility` listening for `PERMANENT_ENTERED` events
@@ -162,6 +169,9 @@ export function enteredTrigger(args: EnteredTriggerArgs): TriggeredAbility {
     };
     if (args.targetRequirement !== undefined) {
         ability.targetRequirement = args.targetRequirement;
+    }
+    if (args.aiEffects !== undefined) {
+        ability.aiEffects = args.aiEffects;
     }
     if (args.interveningIf !== undefined) {
         const userInterveningIf = args.interveningIf;

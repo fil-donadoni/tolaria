@@ -47,5 +47,16 @@ export function evokeTrigger(cardName: string): TriggeredAbility {
         resolve: (ctx) => {
             ctx.sacrifice(ctx.sourceInstanceId);
         },
+        // AI-only SHADOW script (PRD #1423, issue #1519) — never executed, only
+        // walked by `OP_VALUERS` so the value model can see that this trigger
+        // costs its controller the permanent. Without it every Evoke card is an
+        // ability-level `resolve()` site the bot values as a no-op, which is
+        // exactly backwards for the one trigger whose whole job is to give the
+        // creature back. `{ op: "sacrifice", target: { ref: "$source" } }` is a
+        // faithful transcription of the `resolve` body above (the same shape
+        // the shared self-sacrifice factories in `arn/blue.ts` execute for
+        // real); the closure is retained as the executed path so no shipped
+        // Evoke card's runtime behaviour changes.
+        aiEffects: [{ op: "sacrifice", target: { ref: "$source" } }],
     });
 }
