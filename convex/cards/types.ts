@@ -3675,13 +3675,25 @@ export interface SpellContext {
          *  order) instead of the two-zone drag picker. Raised by the
          *  `digToHand` Op when `randomBottom` is set (Narset). */
         randomizeRest?: boolean;
-        /** `look-distribute` only (issue #1364, Atraxa) — a CATEGORIZED keep:
-         *  at most one revealed card per category, each card claimable by only
-         *  one category. Each entry names a category and the revealed ids that
-         *  match it. Legality is the bipartite matching in
-         *  `gre/categorizedPick.ts`; `count.max` is that matching's size. Omit
-         *  for an ordinary uncategorized dig (Impulse, Narset). */
+        /** `look-distribute` (issue #1364, Atraxa) / `choose-categorized`
+         *  (issue #1945) — a CATEGORIZED pick: each entry names a category
+         *  and the ids that match it. Legality is the bipartite matching in
+         *  `gre/categorizedPick.ts`. Omit for an ordinary uncategorized dig
+         *  (Impulse, Narset). */
         categories?: { label: string; cardIds: string[] }[];
+        /** Which of `gre/categorizedPick.ts`'s two legality rules applies
+         *  (issue #1945). Omit = the injective rule (`count.max` is the
+         *  matching's size — Atraxa). `"cover"` = every non-empty category
+         *  must be answered and one member may answer several at once (a dual
+         *  land, a gold card), so `count.min` is the smallest covering set.
+         *  See {@link PendingChoice.categoryRule}. */
+        categoryRule?: "cover";
+        /** Bot POLICY hint for a categorized pick (issue #1945): whether
+         *  being picked is the good half (`"picked-kept"` — the picks
+         *  survive) or the bad half (`"picked-removed"` — the picks are what
+         *  leaves). Never read by the rules engine. See
+         *  {@link PendingChoice.pickPolarity}. */
+        pickPolarity?: "picked-kept" | "picked-removed";
         /** Client-routing hint for a `choose-hand-card` pick whose destination is
          *  the TOP of the chooser's library, in chosen order (Brainstorm's
          *  `putBack`, CR 401.4). Purely a UI discriminator — the submit path and
@@ -10172,18 +10184,31 @@ export type EffectOp =
      *
      *  Both Oracle texts read as MANDATORY ("chooses", not "may choose"): a
      *  category with zero matching members is simply not filled (no
-     *  candidate to choose), and `optional` defaults to `false` — the
-     *  interpreter offers a `count` that is the maximum legal matching
-     *  (`categorizedPick.ts`'s bipartite matching, exactly `revealAndCategorize`'s
-     *  own `count.max`), never merely `categories.length` (CR 608.2b — never
-     *  offer a pick that cannot be made). A wholly zero-branch pick (nothing
-     *  matches any category) auto-resolves straight to the sweep with no
-     *  prompt; a FORCED but nonzero pick (every category has at most one
-     *  candidate and no candidate is shared between categories — no real
-     *  decision either way) also auto-resolves (`categorizedPick.ts`'s
-     *  `forcedCategorizedPick`) rather than making the player click through a
-     *  choice with only one possible answer (project convention: auto-resolve
-     *  when there is no real option). `player` names whose hand/battlefield —
+     *  candidate to choose), and `optional` defaults to `false`.
+     *
+     *  Legality is `categorizedPick.ts`'s COVER rule, NOT
+     *  `revealAndCategorize`'s injective one — the module's second rule, and
+     *  the reason this Op is not a generalization of that one. Each category
+     *  NOMINATES a member and one member may answer SEVERAL categories at
+     *  once (Gatherer, Planar Overlay: "If you have a land which counts as
+     *  multiple land types, you can choose that land as each of those types.
+     *  For example, a dual land could be chosen as two of your land types."
+     *  Noxious Vapors' gold card is the same shape). So the offered `count`
+     *  runs from the SMALLEST covering set (`minCategorizedCover`) to the
+     *  maximum matching (`maxCategorizedPicks`) — a Plains+Tundra player may
+     *  answer with the Tundra alone, and pinning the floor to the matching
+     *  would illegally force them to return two lands (CR 608.2b — never
+     *  demand a pick the rules don't). An `optional: true` offer is instead a
+     *  per-category "you may" and keeps the injective rule at min 0.
+     *
+     *  A wholly zero-branch pick (nothing matches any category) auto-resolves
+     *  straight to the sweep with no prompt; a FORCED but nonzero pick (every
+     *  category has at most one candidate, so each nomination is already
+     *  determined — including a lone dual land answering both its types)
+     *  also auto-resolves (`categorizedPick.ts`'s `forcedCategorizedCover`)
+     *  rather than making the player click through a choice with only one
+     *  possible answer (project convention: auto-resolve when there is no
+     *  real option). `player` names whose hand/battlefield —
      *  `forEach { set: "players" }` wraps this Op so "each player" runs it
      *  once per side, in APNAP order, each acting on their OWN set only
      *  (CR 601.2b — no player chooses for another). No new SpellContext

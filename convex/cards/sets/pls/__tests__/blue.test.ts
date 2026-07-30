@@ -33,7 +33,7 @@ function submitCategorized(state: GameState, picks: string[]): void {
 }
 
 describe("Planar Overlay (CR 601.2b / 701.10, issue #1945)", () => {
-    it("each player returns one land of each basic land type they control, a dual covering two types at once, in APNAP order", () => {
+    it("lets a DUAL land answer two basic types at once — the 1-land answer is legal (Gatherer ruling)", () => {
         const state = makeState({
             players: [
                 makePlayer("p1", {
@@ -86,12 +86,16 @@ describe("Planar Overlay (CR 601.2b / 701.10, issue #1945)", () => {
         expect(head.playerId).toBe("p1");
         expect(head.kind).toBe("choose-categorized");
         expect(head.zone).toBe("battlefield");
-        // The dual covers BOTH Plains and Island at once, so the maximum
-        // matching over three lands under five categories is exactly 2 (the
-        // plain Plains for "Plains", the dual for "Island" — or the reverse;
-        // either way only 2 distinct physical lands can ever be nominated).
-        expect(head.count).toEqual({ min: 2, max: 2 });
-        submitCategorized(state, ["p1-plains", "p1-tundra"]);
+        // Gatherer: "If you have a land which counts as multiple land types,
+        // you can choose that land as each of those types. For example, a
+        // dual land could be chosen as two of your land types." So the FLOOR
+        // is 1 — the Tundra alone answers both Plains and Island — while the
+        // ceiling is 2 (a plain Plains for "Plains", the Tundra for
+        // "Island"). Forcing min 2 would make the player return two lands the
+        // rules never asked for.
+        expect(head.count).toEqual({ min: 1, max: 2 });
+        expect(head.categoryRule).toBe("cover");
+        submitCategorized(state, ["p1-tundra"]);
 
         // p2 answers next — two Mountains, a real decision (Mountain has 2
         // candidates, so this is NOT the forced-pick path).
@@ -101,15 +105,13 @@ describe("Planar Overlay (CR 601.2b / 701.10, issue #1945)", () => {
         submitCategorized(state, ["p2-mountain-a"]);
 
         expect(state.pendingChoices ?? []).toHaveLength(0);
-        // p1: the nominated lands bounce to hand; the untouched extra Plains
-        // stays on the battlefield (no `sweep` — Oracle text never mentions
-        // the rest).
-        expect(state.players[0].hand.map((c) => c.id).sort()).toEqual(
-            ["p1-plains", "p1-tundra"].sort()
+        // p1: ONLY the dual bounces — both Plains stay on the battlefield
+        // (no `sweep`; the Oracle text never mentions the un-nominated
+        // lands, and the dual answered the Plains category too).
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["p1-tundra"]);
+        expect(state.players[0].battlefield.map((c) => c.id).sort()).toEqual(
+            ["p1-plains", "p1-plains2"].sort()
         );
-        expect(state.players[0].battlefield.map((c) => c.id)).toEqual([
-            "p1-plains2",
-        ]);
         // p2: the nominated Mountain bounces; the other Mountain is
         // untouched (no `sweep`).
         expect(state.players[1].hand.map((c) => c.id)).toEqual([
@@ -122,15 +124,78 @@ describe("Planar Overlay (CR 601.2b / 701.10, issue #1945)", () => {
         // Wire format: the projection agrees with the fat state for both
         // viewers (ADR 0045 GRE testing convention).
         const projectedP1 = projectPublicState(state, 1, "p1");
-        expect(projectedP1.players[0].hand.map((c) => c?.id).sort()).toEqual(
-            ["p1-plains", "p1-tundra"].sort()
-        );
-        expect(projectedP1.players[0].battlefield.map((c) => c.id)).toEqual([
-            "p1-plains2",
+        expect(projectedP1.players[0].hand.map((c) => c?.id)).toEqual([
+            "p1-tundra",
         ]);
+        expect(
+            projectedP1.players[0].battlefield.map((c) => c.id).sort()
+        ).toEqual(["p1-plains", "p1-plains2"].sort());
         expect(projectedP1.players[1].battlefield.map((c) => c.id)).toEqual([
             "p2-mountain-b",
         ]);
+    });
+
+    it("also accepts the 2-land answer — which lands answer which types is the PLAYER's choice", () => {
+        // The same board as above: nominating the plain Plains for "Plains"
+        // and the dual for "Island" is equally legal, and returns two lands.
+        // The rules give the player both answers; the engine must not pick
+        // for them.
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(plains.id, {
+                            id: "p1-plains",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                        makeInstance(tundra.id, {
+                            id: "p1-tundra",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, planarOverlay.id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull();
+        expect(state.pendingChoices![0].count).toEqual({ min: 1, max: 2 });
+        submitCategorized(state, ["p1-plains", "p1-tundra"]);
+        expect(state.players[0].hand.map((c) => c.id).sort()).toEqual(
+            ["p1-plains", "p1-tundra"].sort()
+        );
+        expect(state.players[0].battlefield).toHaveLength(0);
+    });
+
+    it("rejects an answer that leaves a basic land type unanswered", () => {
+        // The plain Plains alone answers "Plains" but nothing answers
+        // "Island" — an incomplete nomination, rejected server-side.
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(plains.id, {
+                            id: "p1-plains",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                        makeInstance(tundra.id, {
+                            id: "p1-tundra",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, planarOverlay.id, "p1");
+        resolveTopOfStack(state);
+        expect(() => submitCategorized(state, ["p1-plains"])).toThrow(
+            /don't answer one category each/
+        );
     });
 
     it("auto-resolves with no prompt for a player with no basic-typed land at all", () => {

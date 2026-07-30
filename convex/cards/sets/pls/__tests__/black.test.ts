@@ -444,6 +444,18 @@ describe("Noxious Vapors (CR 601.2b / 701.9, issue #1945)", () => {
         expect(head.playerId).toBe("p1");
         expect(head.kind).toBe("choose-categorized");
         expect(head.zone).toBe("hand");
+        // Oracle sequencing: "Each player REVEALS their hand, [then] chooses
+        // one card of each color…" — ALL reveals precede ANY choice, so p2's
+        // hand is already public to p1 while p1 is still deciding. (Two
+        // sibling `forEach { set: "players" }` blocks; folding the reveal into
+        // the choice loop would let p1 decide with less information than the
+        // card grants.)
+        expect(state.players[1].hand[0].knownTo).toEqual(
+            expect.arrayContaining(["p1", "p2"])
+        );
+        expect(state.players[0].hand[0].knownTo).toEqual(
+            expect.arrayContaining(["p1", "p2"])
+        );
         expect(head.categories).toEqual(
             expect.arrayContaining([
                 { label: "White", cardIds: ["p1-white-a", "p1-white-b"] },

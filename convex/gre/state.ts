@@ -2407,8 +2407,33 @@ export type PendingChoice = {
      *  `gre/categorizedPick.ts`); `count.max` is that matching's size. The
      *  backend rejects an unmatchable submission; the frontend gates each
      *  click through the SAME helper, so the two never disagree. Undefined =
-     *  an ordinary uncategorized dig (Impulse, Narset). */
+     *  an ordinary uncategorized dig (Impulse, Narset). See `categoryRule`
+     *  for the second legality rule the same buckets can carry. */
     categories?: { label: string; cardIds: string[] }[];
+    /** Which of `gre/categorizedPick.ts`'s two legality rules validates this
+     *  categorized pick (issue #1945). Absent = the INJECTIVE rule described
+     *  on `categories` above (Atraxa's "for each card type you MAY put A card
+     *  of that type into your hand" — every existing consumer). `"cover"` =
+     *  each non-empty category must be ANSWERED, and one member may answer
+     *  SEVERAL categories at once (Gatherer, Planar Overlay: "a dual land
+     *  could be chosen as two of your land types"; Noxious Vapors' gold card
+     *  may be the card chosen for both its colours). Under `"cover"`,
+     *  `count.min` is the smallest covering set — smaller than `count.max`
+     *  whenever a member answers more than one category. Server and client
+     *  branch on the SAME field, so the Done gate and the submit validation
+     *  can never disagree about which rule applies. */
+    categoryRule?: "cover";
+    /** Whether being PICKED is good or bad for the chooser (issue #1945) — a
+     *  pure POLICY hint for the bot, never read by the rules engine.
+     *  `"picked-kept"`: the picks survive and the unpicked rest is swept
+     *  (Noxious Vapors' `onPicked: "keep"`), so the chooser wants its BEST
+     *  members picked. `"picked-removed"`: the picks are exactly what leaves
+     *  (Planar Overlay's `returnToHand` bounce), so the polarity is INVERTED
+     *  and the chooser wants its WORST members picked. Without it the bot
+     *  ranks every categorized pick "best first" and deterministically
+     *  bounces its two best lands. Undefined = `"picked-kept"` (every other
+     *  kind's polarity — a pick is something gained). */
+    pickPolarity?: "picked-kept" | "picked-removed";
     /** For `kind: "choose-damage-target"` only — the player ids that are legal
      *  damage targets (CR 115.4 — "any target" includes players). The chooser's
      *  submission carries either a damageable permanent id (from `candidateIds`)
@@ -13286,6 +13311,8 @@ export function buildSpellContext(
             if (req.destination) entry.destination = req.destination;
             if (req.randomizeRest) entry.randomizeRest = true;
             if (req.categories) entry.categories = req.categories;
+            if (req.categoryRule) entry.categoryRule = req.categoryRule;
+            if (req.pickPolarity) entry.pickPolarity = req.pickPolarity;
             if (req.putOnTop) entry.putOnTop = true;
             if (req.isSearch) entry.isSearch = true;
             state.pendingChoices = [...(state.pendingChoices ?? []), entry];

@@ -24,8 +24,12 @@ import {
     emitLibrarySearchedEvent,
     type CardInstanceState,
     type GameState,
+    type PendingChoice,
 } from "./state";
-import { isCategorizedPickLegal } from "./categorizedPick";
+import {
+    isCategorizedCoverLegal,
+    isCategorizedPickLegal,
+} from "./categorizedPick";
 import {
     computeHardSkipFilters,
     drainAutoPasses,
@@ -39,6 +43,45 @@ import { applyMulliganBottomChoice } from "./mulligan";
 import { tryGetCardByName } from "../cards";
 import { finalizeLandEntry } from "./playLand";
 import { raiseTriggerTargetSelection } from "./rules";
+
+/** Categorized legality for a `choose-categorized` submission (issue #1945) —
+ *  ONE authority for both zone branches (hand: Noxious Vapors' colours;
+ *  battlefield: Planar Overlay's basic land types), so the two can never
+ *  drift apart, and one place that picks between `categorizedPick.ts`'s two
+ *  rules off `head.categoryRule`:
+ *
+ *   - `"cover"` (the mandatory offer) — every non-empty category must be
+ *     ANSWERED, and one member may answer several categories at once
+ *     (Gatherer, Planar Overlay: "a dual land could be chosen as two of your
+ *     land types"). A submission returning only the dual is legal; one that
+ *     leaves a type unanswered is not.
+ *   - absent (an `optional: true` offer) — the INJECTIVE rule
+ *     `revealAndCategorize` uses, where each category is its own "you may".
+ *
+ *  Declining entirely (an empty submission) is legal exactly when the offer's
+ *  own floor allows it (`count.min === 0`), which the central count check has
+ *  already enforced — so the empty set short-circuits here rather than being
+ *  failed by the cover rule.
+ *
+ *  `noun` only shapes the error text ("cards" / "permanents"). */
+function assertCategorizedPickLegal(
+    head: PendingChoice,
+    picks: string[],
+    noun: "cards" | "permanents"
+): void {
+    if (head.kind !== "choose-categorized" || !head.categories) return;
+    if (picks.length === 0) return;
+    const legal =
+        head.categoryRule === "cover"
+            ? isCategorizedCoverLegal(head.categories, picks)
+            : isCategorizedPickLegal(head.categories, picks);
+    if (legal) return;
+    throw new Error(
+        head.categoryRule === "cover"
+            ? `Those ${noun} don't answer one category each`
+            : `Those ${noun} can't each be kept for a different category`
+    );
+}
 
 export type SubmitChoiceArgs = {
     playerId: string;
@@ -719,20 +762,10 @@ export function applyPendingChoiceSubmit(
                 throw new Error("Card is not an eligible choice");
             }
         }
-        // Categorized keep (issue #1945, Planar Overlay — "a land of each
-        // basic land type"): same bipartite-matching legality `look-distribute`
-        // enforces for its library window (below), extended to a BATTLEFIELD
-        // `choose-categorized` pick — a picked permanent qualifying for
-        // several categories (a dual land) may be kept for only ONE of them.
-        if (head.kind === "choose-categorized" && head.categories) {
-            if (
-                !isCategorizedPickLegal(head.categories, args.cardInstanceIds)
-            ) {
-                throw new Error(
-                    "Those permanents can't each be kept for a different category"
-                );
-            }
-        }
+        // Categorized nomination (issue #1945, Planar Overlay — "a land of
+        // each basic land type"): the BATTLEFIELD arm of the shared
+        // categorized legality check. See `assertCategorizedPickLegal`.
+        assertCategorizedPickLegal(head, args.cardInstanceIds, "permanents");
     } else if (head.zone === "hand") {
         for (const id of args.cardInstanceIds) {
             if (!zoneOwner.hand.find((c: CardInstanceState) => c.id === id)) {
@@ -744,19 +777,10 @@ export function applyPendingChoiceSubmit(
                 throw new Error("Card is not an eligible choice");
             }
         }
-        // Categorized keep (issue #1945, Noxious Vapors — "one card of each
-        // color"): same bipartite-matching legality as the battlefield branch
-        // above / `look-distribute`'s library branch below — a multicoloured
-        // hand card may be kept for only ONE of its colours.
-        if (head.kind === "choose-categorized" && head.categories) {
-            if (
-                !isCategorizedPickLegal(head.categories, args.cardInstanceIds)
-            ) {
-                throw new Error(
-                    "Those cards can't each be kept for a different category"
-                );
-            }
-        }
+        // Categorized nomination (issue #1945, Noxious Vapors — "one card of
+        // each color"): the HAND arm of the shared categorized legality
+        // check. See `assertCategorizedPickLegal`.
+        assertCategorizedPickLegal(head, args.cardInstanceIds, "cards");
     } else if (head.zone === "library") {
         for (const id of args.cardInstanceIds) {
             if (

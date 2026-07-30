@@ -12,9 +12,11 @@ import { describe, it, expect } from "vitest";
 import {
     canAddCategorizedPick,
     categorizedEligibleIds,
-    forcedCategorizedPick,
+    forcedCategorizedCover,
+    isCategorizedCoverLegal,
     isCategorizedPickLegal,
     maxCategorizedPicks,
+    minCategorizedCover,
     type PickCategory,
 } from "../categorizedPick";
 
@@ -169,48 +171,132 @@ describe("categorizedPick — incremental add (the client click gate, #1364)", (
     });
 });
 
-// `forcedCategorizedPick` (issue #1945) — the "no real decision" auto-resolve
-// case `chooseCategorized` uses (Noxious Vapors / Planar Overlay): every
-// category names at most one candidate AND no candidate is shared between
-// categories, so the maximum matching is UNIQUE and there is nothing for the
-// player to actually pick.
-describe("categorizedPick — forced pick (issue #1945)", () => {
+// --- COVER rule (issue #1945, `chooseCategorized`) ------------------------
+// The second, DIFFERENT legality rule over the same category buckets. The
+// injective rule above answers "how many members can be kept, one per
+// category"; the cover rule answers "which member does each category NOMINATE",
+// where one member may answer SEVERAL categories at once (Planar Overlay's
+// Gatherer ruling: "If you have a land which counts as multiple land types,
+// you can choose that land as each of those types" — a dual land can be
+// chosen as two of your land types; Noxious Vapors' multicoloured card is the
+// same shape). A pick set is legal exactly when it COVERS every non-empty
+// category and every member earns a distinct category (matching-saturated =
+// no useless extra member).
+describe("categorizedPick — cover rule (issue #1945)", () => {
+    it("accepts a SINGLE member covering two categories at once (the dual-land ruling)", () => {
+        // Plains + Tundra(Plains/Island): nominating the dual for BOTH the
+        // Plains and the Island category is legal and returns only ONE land.
+        const categories = cats({
+            Plains: ["plains", "tundra"],
+            Island: ["tundra"],
+        });
+        expect(isCategorizedCoverLegal(categories, ["tundra"])).toBe(true);
+        // The two-land answer (plain Plains for Plains, dual for Island) is
+        // equally legal — the player picks which.
+        expect(isCategorizedCoverLegal(categories, ["plains", "tundra"])).toBe(
+            true
+        );
+        // …but the plain Plains alone leaves "Island" unanswered.
+        expect(isCategorizedCoverLegal(categories, ["plains"])).toBe(false);
+        expect(isCategorizedCoverLegal(categories, [])).toBe(false);
+    });
+
+    it("rejects a member that earns no category of its own (unsaturated)", () => {
+        const categories = cats({ Plains: ["p1", "p2"] });
+        // Two Plains for ONE category: the second is a useless extra — no
+        // assignment can seat both.
+        expect(isCategorizedCoverLegal(categories, ["p1", "p2"])).toBe(false);
+        expect(isCategorizedCoverLegal(categories, ["p1"])).toBe(true);
+    });
+
+    it("ignores EMPTY categories (a colour/type with no member at all)", () => {
+        const categories = cats({ White: ["w"], Blue: [], Black: [] });
+        expect(isCategorizedCoverLegal(categories, ["w"])).toBe(true);
+        // Nothing matches anything at all — the empty pick IS the cover.
+        expect(isCategorizedCoverLegal(cats({ White: [], Blue: [] }), [])).toBe(
+            true
+        );
+    });
+
+    it("rejects duplicate ids", () => {
+        const categories = cats({ Plains: ["dual"], Island: ["dual"] });
+        expect(isCategorizedCoverLegal(categories, ["dual", "dual"])).toBe(
+            false
+        );
+    });
+
+    it("minCategorizedCover is the size of the SMALLEST covering set, not the maximum matching", () => {
+        // The dual answers both categories alone → 1, while the maximum
+        // matching (`count.max`) is 2. Pinning `count.min` to the matching is
+        // exactly the bug this rule exists to fix: it would FORCE the player
+        // to return two lands.
+        const categories = cats({
+            Plains: ["plains", "tundra"],
+            Island: ["tundra"],
+        });
+        expect(minCategorizedCover(categories)).toBe(1);
+        expect(maxCategorizedPicks(categories)).toBe(2);
+        // No member covers two colours here — the minimum is the full 2.
+        const disjoint = cats({ White: ["w"], Blue: ["u"] });
+        expect(minCategorizedCover(disjoint)).toBe(2);
+        // Nothing matches → nothing to cover.
+        expect(minCategorizedCover(cats({ White: [], Blue: [] }))).toBe(0);
+    });
+
+    it("a maximum-matching pick set is always a legal cover (so `count.max` is reachable)", () => {
+        const categories = cats({
+            Plains: ["plains", "tundra"],
+            Island: ["tundra"],
+            Swamp: [],
+        });
+        expect(isCategorizedCoverLegal(categories, ["plains", "tundra"])).toBe(
+            true
+        );
+    });
+});
+
+// `forcedCategorizedCover` (issue #1945) — the "no real decision"
+// auto-resolve case `chooseCategorized` uses (Noxious Vapors / Planar
+// Overlay): every category names at most ONE candidate, so each non-empty
+// category's nomination is forced. A candidate shared by two categories is
+// still forced under the COVER rule (the same member answers both), unlike
+// the injective rule where "which category claims it" would matter.
+describe("categorizedPick — forced cover (issue #1945)", () => {
     it("returns the union of each category's single candidate when none overlap", () => {
         const categories = cats({
             Creature: ["bear"],
             Land: ["forest"],
             Instant: [],
         });
-        expect(forcedCategorizedPick(categories)).toEqual(["bear", "forest"]);
+        expect(forcedCategorizedCover(categories)).toEqual(["bear", "forest"]);
     });
 
     it("returns an empty array when no category has any candidate", () => {
         const categories = cats({ Creature: [], Land: [] });
-        expect(forcedCategorizedPick(categories)).toEqual([]);
+        expect(forcedCategorizedCover(categories)).toEqual([]);
     });
 
     it("refuses when a category has two OR MORE candidates (a real 'which one' decision)", () => {
         const categories = cats({ Creature: ["c1", "c2"], Land: ["forest"] });
-        expect(forcedCategorizedPick(categories)).toBeUndefined();
+        expect(forcedCategorizedCover(categories)).toBeUndefined();
     });
 
-    it("refuses when a single-candidate category's card is ALSO the sole match of another (a real 'which category claims it' decision)", () => {
-        // Both categories name exactly one candidate each, but it's the SAME
-        // card — a genuine choice of which category it satisfies, even
-        // though the matching size is still only 1 either way.
-        const categories = cats({ Creature: ["ac"], Artifact: ["ac"] });
-        expect(forcedCategorizedPick(categories)).toBeUndefined();
+    it("DEDUPES a candidate shared by two single-candidate categories (still no decision)", () => {
+        // A lone dual land: it must answer both Plains and Island, and only
+        // that one land is returned. Nothing for the player to decide.
+        const categories = cats({ Plains: ["dual"], Island: ["dual"] });
+        expect(forcedCategorizedCover(categories)).toEqual(["dual"]);
     });
 
-    it("agrees with isCategorizedPickLegal whenever it returns a forced set", () => {
+    it("agrees with isCategorizedCoverLegal whenever it returns a forced set", () => {
         const categories = cats({
             White: ["w"],
             Blue: ["u"],
             Black: [],
         });
-        const forced = forcedCategorizedPick(categories);
+        const forced = forcedCategorizedCover(categories);
         expect(forced).toBeDefined();
-        expect(isCategorizedPickLegal(categories, forced!)).toBe(true);
-        expect(forced).toHaveLength(maxCategorizedPicks(categories));
+        expect(isCategorizedCoverLegal(categories, forced!)).toBe(true);
+        expect(forced).toHaveLength(minCategorizedCover(categories));
     });
 });

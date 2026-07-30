@@ -22430,7 +22430,7 @@ describe("Effect Script Op: chooseCategorized (CR 601.2b / 701.9, issue #1945)",
         );
     });
 
-    it("a multicoloured hand card may cover only ONE of its colours (bipartite matching)", () => {
+    it("a multicoloured hand card may be the card chosen for BOTH its colours (cover rule)", () => {
         const id = registerScript("test-op-cc-hand-multicolor", [
             {
                 op: "chooseCategorized",
@@ -22465,14 +22465,16 @@ describe("Effect Script Op: chooseCategorized (CR 601.2b / 701.9, issue #1945)",
         pushSpell(state, id, "p1");
         resolveTopOfStack(state);
         const head = state.pendingChoices![0];
-        // The Azorius card matches BOTH categories, but the matching still
-        // seats only 2 distinct cards: it covers White (the plain Blue
-        // creature covers Blue) — the maximum is 2, not "the Azorius covers
-        // both, so 1 suffices".
-        expect(head.count).toEqual({ min: 2, max: 2 });
+        // The Azorius card matches BOTH categories and may be the card
+        // chosen for each of them, so the FLOOR is 1 (keep the gold card
+        // alone, sweeping the mono-blue creature) while the ceiling is 2
+        // (Azorius for White, the plain Blue creature for Blue).
+        expect(head.count).toEqual({ min: 1, max: 2 });
+        expect(head.categoryRule).toBe("cover");
 
         // Illegal: submitting the Azorius card TWICE (as both categories) is
-        // a duplicate id and rejected before the bipartite check even runs.
+        // a duplicate id — one physical card is nominated once, however many
+        // categories it answers.
         expect(() =>
             submitCategorized(state, ["azorius", "azorius"])
         ).toThrow();
@@ -22488,6 +22490,98 @@ describe("Effect Script Op: chooseCategorized (CR 601.2b / 701.9, issue #1945)",
             "azorius"
         );
         expect(state.players[0].graveyard.map((c) => c.id)).not.toContain("u");
+    });
+
+    it("keeping ONLY the gold card is legal — it answers both colours, and the mono-coloured card is swept", () => {
+        const id = registerScript("test-op-cc-hand-multicolor-alone", [
+            {
+                op: "chooseCategorized",
+                player: "controller",
+                zone: "hand",
+                categories: CC_COLOR_CATEGORIES,
+                onPicked: "keep",
+                sweep: { filter: { excludeType: "Land" }, action: "discard" },
+            } as EffectOp,
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [
+                        makeInstance(CC_AZORIUS_ID, {
+                            id: "azorius",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                        makeInstance(CC_BLUE_ID, {
+                            id: "u",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        submitCategorized(state, ["azorius"]);
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["azorius"]);
+        expect(state.players[0].graveyard.map((c) => c.id)).toContain("u");
+    });
+
+    it("rejects an answer that leaves a non-empty category unanswered", () => {
+        const id = registerScript("test-op-cc-hand-uncovered", [
+            {
+                op: "chooseCategorized",
+                player: "controller",
+                zone: "hand",
+                categories: CC_COLOR_CATEGORIES,
+                onPicked: "keep",
+                sweep: { filter: { excludeType: "Land" }, action: "discard" },
+            } as EffectOp,
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [
+                        // Two White candidates make it a real decision, and
+                        // the lone Blue card means "Blue" MUST be answered.
+                        makeInstance(CC_WHITE_ID, {
+                            id: "w1",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                        makeInstance(CC_WHITE_ID, {
+                            id: "w2",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                        makeInstance(CC_BLUE_ID, {
+                            id: "u",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // One White card answers neither the Blue category nor the floor —
+        // here the count bound (min 2, since no card covers both colours)
+        // rejects it first.
+        expect(() => submitCategorized(state, ["w1"])).toThrow();
+        // A second White card clears the COUNT but answers no category of its
+        // own and still leaves Blue unanswered — the categorized check.
+        expect(() => submitCategorized(state, ["w1", "w2"])).toThrow(
+            /don't answer one category each/
+        );
     });
 
     it("battlefield zone: bounces the picks to hand and leaves the rest untouched (no sweep)", () => {
@@ -22559,16 +22653,104 @@ describe("Effect Script Op: chooseCategorized (CR 601.2b / 701.9, issue #1945)",
         ]);
     });
 
-    it("a dual land covers BOTH basic types at once (bipartite matching, battlefield)", () => {
+    // The ruling this Op exists to honour (Gatherer, Planar Overlay): "If you
+    // have a land which counts as multiple land types, you can choose that
+    // land as each of those types. For example, a dual land could be chosen
+    // as two of your land types." The board below is the case that can
+    // actually FAIL — a plain Plains, a plain Island AND a dual: the injective
+    // reading pins min = max = 2 and forces two lands back, while the ruling
+    // lets the player nominate the dual for both and return ONE. (Seeding
+    // only the dual proves nothing: the matching is 1 either way.)
+    const CC_DUAL_BOARD_CATEGORIES = [
+        { label: "Plains", filter: { subtype: "Plains" as const } },
+        { label: "Island", filter: { subtype: "Island" as const } },
+    ];
+    const dualBoardState = () =>
+        makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(CC_PLAINS_ID, {
+                            id: "plains",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                        makeInstance(CC_ISLAND_ID, {
+                            id: "island",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                        makeInstance(CC_DUAL_ID, {
+                            id: "dual",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+
+    it("a dual land answers BOTH basic types at once — the ONE-land answer is legal (Gatherer ruling)", () => {
         const id = registerScript("test-op-cc-battlefield-dual", [
             {
                 op: "chooseCategorized",
                 player: "controller",
                 zone: "battlefield",
-                categories: [
-                    { label: "Plains", filter: { subtype: "Plains" } },
-                    { label: "Island", filter: { subtype: "Island" } },
-                ],
+                categories: CC_DUAL_BOARD_CATEGORIES,
+                onPicked: "returnToHand",
+            } as EffectOp,
+        ]);
+        const state = dualBoardState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        expect(head.categories).toEqual([
+            { label: "Plains", cardIds: ["plains", "dual"] },
+            { label: "Island", cardIds: ["island", "dual"] },
+        ]);
+        // Floor 1 (the dual alone answers both), ceiling 2 (the two basics).
+        expect(head.count).toEqual({ min: 1, max: 2 });
+        expect(head.categoryRule).toBe("cover");
+
+        submitCategorized(state, ["dual"]);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        // ONLY the dual is returned; both basics stay on the battlefield.
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["dual"]);
+        expect(state.players[0].battlefield.map((c) => c.id).sort()).toEqual([
+            "island",
+            "plains",
+        ]);
+    });
+
+    it("the two-basic answer on the SAME board is equally legal (the player picks)", () => {
+        const id = registerScript("test-op-cc-battlefield-dual-two", [
+            {
+                op: "chooseCategorized",
+                player: "controller",
+                zone: "battlefield",
+                categories: CC_DUAL_BOARD_CATEGORIES,
+                onPicked: "returnToHand",
+            } as EffectOp,
+        ]);
+        const state = dualBoardState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        submitCategorized(state, ["plains", "island"]);
+        expect(state.players[0].hand.map((c) => c.id).sort()).toEqual([
+            "island",
+            "plains",
+        ]);
+        expect(state.players[0].battlefield.map((c) => c.id)).toEqual(["dual"]);
+    });
+
+    it("a LONE dual auto-resolves — it must answer both types, so there is no decision", () => {
+        const id = registerScript("test-op-cc-battlefield-dual-alone", [
+            {
+                op: "chooseCategorized",
+                player: "controller",
+                zone: "battlefield",
+                categories: CC_DUAL_BOARD_CATEGORIES,
                 onPicked: "returnToHand",
             } as EffectOp,
         ]);
@@ -22587,17 +22769,9 @@ describe("Effect Script Op: chooseCategorized (CR 601.2b / 701.9, issue #1945)",
             ],
         });
         pushSpell(state, id, "p1");
-        resolveTopOfStack(state);
-        // Only ONE physical land exists, so the maximum matching is 1 even
-        // though it satisfies two categories at once.
-        const head = state.pendingChoices![0];
-        expect(head.count).toEqual({ min: 1, max: 1 });
-        expect(head.categories).toEqual([
-            { label: "Plains", cardIds: ["dual"] },
-            { label: "Island", cardIds: ["dual"] },
-        ]);
-
-        submitCategorized(state, ["dual"]);
+        // Every category names the same single candidate — forced, so no
+        // picker is raised at all (CR 608.2b).
+        expect(resolveTopOfStack(state)).not.toBeNull();
         expect(state.pendingChoices ?? []).toHaveLength(0);
         expect(state.players[0].hand.map((c) => c.id)).toEqual(["dual"]);
         expect(state.players[0].battlefield).toHaveLength(0);

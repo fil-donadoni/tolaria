@@ -37,59 +37,6 @@ import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 // LKI attachment fields) and created a latent double-fire trap for any
 // future card whose ability listens for both events. This ships as a
 // `leftTrigger` reuse plus the one missing `ownerId` field row instead.
-// Noxious Vapors — {1}{B}{B} Sorcery. "Each player reveals their hand,
-// chooses one card of each color from it, then discards all other nonland
-// cards." (CR 601.2b / 701.9, issue #1945, parent PRD #1935.) Symmetric —
-// `forEach { set: "players" }` runs the whole clause once per side, in
-// APNAP order (CR 101.4), each acting on their OWN hand only. Per player:
-// `reveal { zone: "hand" }` makes the hand public (CR 701.20a), then
-// `chooseCategorized` offers the five colours as categories
-// (`{ color: "W"|"U"|"B"|"R"|"G" }`), `onPicked: "keep"` (a kept pick just
-// survives — no move), and `sweep` discards every OTHER nonland card
-// (`excludeType: "Land"` — deliberately BROADER than the categorization
-// domain: a colourless nonland card matches no colour category, so it can
-// never be picked, yet it is still swept; a land is never swept even if
-// uncategorized). A multicoloured hand card may be nominated for only ONE of
-// its colours (bipartite matching, `gre/categorizedPick.ts`); a colour with
-// no matching card in hand is simply not filled (CR 608.2b). Mandatory
-// ("chooses", not "may choose") — `optional` defaults to false.
-export const noxiousVapors: CardDefinition = {
-    id: "e3cf9326-6e1c-4a05-abea-16d6b6cb2a6d", // PLS 49
-    name: "Noxious Vapors",
-    rarity: "uncommon",
-    oracleText:
-        "Each player reveals their hand, chooses one card of each color from it, then discards all other nonland cards.",
-    manaCost: { X: 1, B: 2 },
-    types: ["Sorcery"],
-    effects: [
-        {
-            op: "forEach",
-            select: { set: "players" },
-            effects: [
-                { op: "reveal", player: { ref: "$each" }, zone: "hand" },
-                {
-                    op: "chooseCategorized",
-                    player: { ref: "$each" },
-                    zone: "hand",
-                    categories: [
-                        { label: "White", filter: { color: "W" } },
-                        { label: "Blue", filter: { color: "U" } },
-                        { label: "Black", filter: { color: "B" } },
-                        { label: "Red", filter: { color: "R" } },
-                        { label: "Green", filter: { color: "G" } },
-                    ],
-                    onPicked: "keep",
-                    sweep: {
-                        filter: { excludeType: "Land" },
-                        action: "discard",
-                    },
-                    prompt: "Choose one card of each color to keep.",
-                },
-            ],
-        },
-    ],
-};
-
 export const warpedDevotion: CardDefinition = {
     id: "3bce620f-799a-4ad8-9edb-6fb3d9ea1cc6", // PLS 57
     name: "Warped Devotion",
@@ -122,5 +69,74 @@ export const warpedDevotion: CardDefinition = {
                 },
             ],
         }),
+    ],
+};
+
+// Noxious Vapors — {1}{B}{B} Sorcery. "Each player reveals their hand,
+// chooses one card of each color from it, then discards all other nonland
+// cards." (CR 601.2b / 701.9, issue #1945, parent PRD #1935.) Symmetric —
+// every clause runs once per side, in APNAP order (CR 101.4), each acting on
+// their OWN hand only.
+//
+// TWO sibling `forEach { set: "players" }` blocks, not one, because the
+// Oracle sequencing is "each player reveals their hand, [then] chooses …":
+// ALL reveals precede ANY choice. Folding them into one loop would let the
+// active player choose before the opponent's hand was revealed, deciding with
+// less information than the card grants. The first loop only reveals (CR
+// 701.20a); the second raises the per-player pick. Splitting is safe across
+// the suspend/resume protocol precisely because the interpreter checkpoints
+// each Op's own position — the reveal loop is not re-run when the choice loop
+// suspends.
+//
+// The pick itself: `chooseCategorized` offers the five colours as categories
+// (`{ color: "W"|"U"|"B"|"R"|"G" }`), `onPicked: "keep"` (a kept pick just
+// survives — no move), and `sweep` discards every OTHER nonland card
+// (`excludeType: "Land"` — deliberately BROADER than the categorization
+// domain: a colourless nonland card matches no colour category, so it can
+// never be picked, yet it is still swept; a land is never swept even if
+// uncategorized). One card may be the card chosen for SEVERAL of its colours
+// — a WU gold card can answer both white and blue, keeping only it — so the
+// pick is validated by `categorizedPick.ts`'s COVER rule and its floor is the
+// smallest covering set, not the maximum matching. A colour with no matching
+// card in hand is simply not filled (CR 608.2b). Mandatory ("chooses", not
+// "may choose") — `optional` defaults to false.
+export const noxiousVapors: CardDefinition = {
+    id: "e3cf9326-6e1c-4a05-abea-16d6b6cb2a6d", // PLS 49
+    name: "Noxious Vapors",
+    rarity: "uncommon",
+    oracleText:
+        "Each player reveals their hand, chooses one card of each color from it, then discards all other nonland cards.",
+    manaCost: { X: 1, B: 2 },
+    types: ["Sorcery"],
+    effects: [
+        {
+            op: "forEach",
+            select: { set: "players" },
+            effects: [{ op: "reveal", player: { ref: "$each" }, zone: "hand" }],
+        },
+        {
+            op: "forEach",
+            select: { set: "players" },
+            effects: [
+                {
+                    op: "chooseCategorized",
+                    player: { ref: "$each" },
+                    zone: "hand",
+                    categories: [
+                        { label: "White", filter: { color: "W" } },
+                        { label: "Blue", filter: { color: "U" } },
+                        { label: "Black", filter: { color: "B" } },
+                        { label: "Red", filter: { color: "R" } },
+                        { label: "Green", filter: { color: "G" } },
+                    ],
+                    onPicked: "keep",
+                    sweep: {
+                        filter: { excludeType: "Land" },
+                        action: "discard",
+                    },
+                    prompt: "Choose one card of each color to keep.",
+                },
+            ],
+        },
     ],
 };

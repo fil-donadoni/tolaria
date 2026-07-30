@@ -16,12 +16,18 @@ import type { CardDefinition } from "../../types";
 // preceding `reveal`), `onPicked: "returnToHand"` bounces each nominated land
 // via `SpellContext.returnToHand` (CR 701.10); no `sweep` — the Oracle text
 // never mentions the unpicked lands, so they are left exactly where they
-// are. A land with several basic land types (a dual) may cover SEVERAL
-// categories at once with the SAME physical nomination (bipartite matching,
-// `gre/categorizedPick.ts`, read through the layer pipeline via
-// `getBattlefieldIds`); a type with no matching land is simply not filled
-// (CR 608.2b). Mandatory ("chooses", not "may choose") — `optional` defaults
-// to false.
+// are. A land with several basic land types may be chosen as EACH of those
+// types with the same physical nomination — Gatherer: "If you have a land
+// which counts as multiple land types, you can choose that land as each of
+// those types. For example, a dual land could be chosen as two of your land
+// types." So a player controlling a Plains and a Tundra may return the
+// Tundra ALONE; the pick runs `categorizedPick.ts`'s COVER rule (every
+// non-empty type answered, no gratuitous extra) with its floor at the
+// smallest covering set, never the maximum matching, which would have forced
+// two lands back. Categories are read through the layer pipeline via
+// `getBattlefieldIds`; a type with no matching land is simply not filled (CR
+// 608.2b). Mandatory ("chooses", not "may choose") — `optional` defaults to
+// false.
 export const planarOverlay: CardDefinition = {
     id: "1315fef0-234e-44f5-a7a3-bf3db78943c3", // PLS 28
     name: "Planar Overlay",

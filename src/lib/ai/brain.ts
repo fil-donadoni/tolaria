@@ -290,13 +290,27 @@ export type OwedChoice = {
      *  library card name when visible to the bot, else a guaranteed-registered
      *  fallback. Undefined for every other choice kind. */
     nameCardDefault?: string;
-    /** `look-distribute` only (issue #1364, Atraxa) — the CATEGORIZED keep:
-     *  at most one card per category, each card claimable by only one of them.
-     *  When present, `max` alone does NOT describe a legal submission (three
-     *  creatures under a max of three is illegal), so the greedy must test each
-     *  addition through `canAddCategorizedPick`. Undefined for an ordinary dig,
-     *  where the count bounds are the whole story. */
+    /** `look-distribute` (issue #1364, Atraxa) / `choose-categorized` (issue
+     *  #1945) — the CATEGORIZED pick's buckets. When present, `max` alone
+     *  does NOT describe a legal submission (three creatures under a max of
+     *  three is illegal), so the greedy must test each addition through
+     *  `canAddCategorizedPick`. Undefined for an ordinary dig, where the
+     *  count bounds are the whole story. */
     categories?: PickCategory[];
+    /** Which categorized legality rule the server will validate the
+     *  submission with (issue #1945, `PendingChoice.categoryRule`).
+     *  `"cover"` additionally requires EVERY non-empty category to be
+     *  answered — a submission that leaves one unanswered is rejected, and a
+     *  rejected submission freezes the bot. Undefined = the injective rule,
+     *  where any matchable subset is legal. */
+    categoryRule?: "cover";
+    /** Whether being picked is the GOOD half or the BAD half for the chooser
+     *  (issue #1945, `PendingChoice.pickPolarity`). `"picked-removed"`
+     *  (Planar Overlay's bounce) inverts the value ordering: the picks are
+     *  exactly what the chooser LOSES, so ranking them "best first" makes the
+     *  bot deterministically bounce its two best lands. Undefined =
+     *  `"picked-kept"` — a pick is something gained. */
+    pickPolarity?: "picked-kept" | "picked-removed";
 };
 
 /** A bot decision, realised by the executor through EXISTING mutations only
@@ -766,7 +780,22 @@ export function chooseResolution(choice: OwedChoice): string[] {
         // `choose-categorized` (issue #1945, Noxious Vapors / Planar Overlay)
         // is `look-distribute`'s hand/battlefield sibling — same `categories`
         // shape (`bot-view.ts` populates it for both kinds), same bipartite
-        // legality, so it shares this exact branch rather than a duplicate.
+        // core, so it shares this branch. Two things it adds, both of which
+        // the plain look-distribute greedy gets WRONG on its own:
+        //
+        //  1. POLARITY (`pickPolarity`). Under `onPicked: "returnToHand"` the
+        //     picks are exactly what the chooser LOSES, so "keep the best"
+        //     is inverted — the bot would bounce its two best lands. Walk
+        //     the value order WORST first for that shape.
+        //  2. COVER (`categoryRule: "cover"`). The submission must answer
+        //     EVERY non-empty category or the server rejects it (bot freeze).
+        //     For the LOSING polarity the bot also wants the SMALLEST such
+        //     answer, so it stops the moment every category is covered
+        //     (each pick taken must answer a still-unanswered category,
+        //     which also keeps the set matchable by construction). For the
+        //     keeping polarity the maximal greedy below is already a cover:
+        //     if a category were unanswered, one of its members would still
+        //     be addable, so the walk would have taken it.
         case "look-distribute":
         case "choose-categorized": {
             if (!choice.categories) {
@@ -775,12 +804,30 @@ export function chooseResolution(choice: OwedChoice): string[] {
                     .map((c) => c.id);
             }
             const cats = choice.categories;
+            const losing = choice.pickPolarity === "picked-removed";
+            const minimalCover = losing && choice.categoryRule === "cover";
+            const ordered = losing
+                ? worstFirst(candidates)
+                : bestFirst(candidates);
             const picks: string[] = [];
-            for (const candidate of bestFirst(candidates)) {
+            const answered = new Set<number>();
+            const stillOwed = () =>
+                cats.some((c, i) => c.cardIds.length > 0 && !answered.has(i));
+            for (const candidate of ordered) {
                 if (picks.length >= max) break;
-                if (canAddCategorizedPick(cats, picks, candidate.id)) {
-                    picks.push(candidate.id);
+                if (minimalCover) {
+                    if (!stillOwed()) break;
+                    const answersSomethingNew = cats.some(
+                        (c, i) =>
+                            !answered.has(i) && c.cardIds.includes(candidate.id)
+                    );
+                    if (!answersSomethingNew) continue;
                 }
+                if (!canAddCategorizedPick(cats, picks, candidate.id)) continue;
+                picks.push(candidate.id);
+                cats.forEach((c, i) => {
+                    if (c.cardIds.includes(candidate.id)) answered.add(i);
+                });
             }
             return picks;
         }

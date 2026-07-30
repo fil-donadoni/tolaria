@@ -694,6 +694,23 @@ function buildOwedChoice(
             head.kind === "choose-categorized"
                 ? head.categories
                 : undefined,
+        // issue #1945 — the two extra signals a `choose-categorized` pick
+        // carries, both invisible in `categories` alone and both required for
+        // a LEGAL, non-self-harming answer:
+        //   `categoryRule: "cover"` — the submission must answer EVERY
+        //     non-empty category (a partial answer is rejected server-side →
+        //     bot freeze, the recurring "bot stalls on a new choice mechanic"
+        //     class).
+        //   `pickPolarity` — whether the picks are the half the chooser KEEPS
+        //     (Noxious Vapors) or the half it LOSES (Planar Overlay's
+        //     bounce). Without it the shared branch ranks a bounce "best
+        //     first" and the bot returns its two best lands.
+        // Both are undefined for `look-distribute` and every other kind, so
+        // that branch keeps its pre-#1945 behaviour exactly.
+        categoryRule:
+            head.kind === "choose-categorized" ? head.categoryRule : undefined,
+        pickPolarity:
+            head.kind === "choose-categorized" ? head.pickPolarity : undefined,
         // issue #242 — the discard heuristic needs the board's mana picture to
         // protect scarce lands and rank spells by castability.
         manaSituation:

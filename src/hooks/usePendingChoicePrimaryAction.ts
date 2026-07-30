@@ -199,8 +199,9 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
         // at the minimum allowed selection — 0 when min === 0 (CR 608.2).
         // issue #1945 — a CATEGORIZED pick (`choice.categories`) additionally
         // requires the buffered set to admit a legal per-category assignment,
-        // not merely the right COUNT (see `isZonePickConfirmEnabled`'s own
-        // doc comment).
+        // not merely the right COUNT. `choice.categoryRule` (carried verbatim
+        // through the wire projection) picks the SAME rule the server
+        // validates the submission with — see `isZonePickConfirmEnabled`.
         canConfirm =
             !bufferCtx.isPending &&
             isZonePickConfirmEnabled(
@@ -210,6 +211,7 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
                     ? {
                           categories: choice.categories,
                           pickedIds: bufferCtx.buffer,
+                          rule: choice.categoryRule ?? "injective",
                       }
                     : undefined
             );

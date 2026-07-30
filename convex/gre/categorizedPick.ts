@@ -1,5 +1,10 @@
 /** Categorized-pick legality (CR 401.4 / 701.20a) — the shared, PURE core of
- *  the `revealAndCategorize` Op (issue #1364).
+ *  the `revealAndCategorize` (issue #1364) and `chooseCategorized` (issue
+ *  #1945) Ops. TWO rules over the same bipartite core, deliberately split
+ *  rather than merged: the INJECTIVE rule (everything down to
+ *  `canAddCategorizedPick`) and the COVER rule (the `…Cover` family at the
+ *  bottom, with its own section comment). Read that section before touching
+ *  the shared `maximumMatching`.
  *
  *  Some cards reveal a fixed window of library cards and then let the player
  *  keep **at most one card per category** from that ONE shared window, where a
@@ -153,25 +158,111 @@ export function canAddCategorizedPick(
     return isCategorizedPickLegal(categories, [...picks, cardId]);
 }
 
-/** The FORCED keep-set when the categorized pick admits no real decision at
- *  all (issue #1945, CR 608.2b — a mandatory choice with no branch auto-
- *  resolves, the Arena zero-branch default): every category names AT MOST one
- *  matching id, and no id is claimed by two categories. Under those two
- *  conditions the maximum matching is unique — each nonempty category can
- *  only ever seat its own single candidate — so there is nothing for a
- *  player to decide and the pick can apply itself. Returns `undefined` the
- *  moment ANY category has 2+ candidates (a real "which one" decision) or ANY
- *  id is shared by 2+ categories (a real "which category claims it"
- *  decision, even though each side only has that one candidate) — either
- *  case must still raise the interactive picker. An all-empty category list
- *  (nothing matches anything) forces the empty set, distinct from "no forced
- *  set exists" — callers already special-case a zero matching separately
- *  (`maxCategorizedPicks(categories) === 0`) before ever reaching this. */
-export function forcedCategorizedPick(
+// ---------------------------------------------------------------------------
+// The COVER rule (issue #1945) — the module's SECOND legality rule.
+//
+// Everything above is the INJECTIVE rule: "keep at most one member per
+// category, each member kept for only one category" (Atraxa's "for each card
+// type, you may put A card of that type into your hand" — a card with two
+// types is kept once, for one of them). Every existing consumer keeps that
+// rule unchanged.
+//
+// `chooseCategorized` (Noxious Vapors, Planar Overlay) asks a DIFFERENT
+// question: each category NOMINATES a member, and one member may answer
+// SEVERAL categories at once. Gatherer, Planar Overlay: "If you have a land
+// which counts as multiple land types, you can choose that land as each of
+// those types. For example, a dual land could be chosen as two of your land
+// types." (Noxious Vapors' multicoloured card is the same shape: the WU gold
+// card may be the card chosen for BOTH white and blue.) So a player with a
+// Plains and a Tundra may nominate the Tundra for Plains AND for Island and
+// return only ONE land — the injective rule would force them to return two.
+//
+// Formally the submitted set S is legal iff some function
+// `f: nonempty categories → S` exists with `f(c) ∈ c.cardIds` that is ONTO S.
+// That is equivalent to the two conditions below, which is why the same
+// `maximumMatching` core backs both rules:
+//   (1) COVER — every non-empty category contains a member of S (otherwise
+//       that category has no nomination), and
+//   (2) SATURATION — the matching seats all of S in distinct categories
+//       (otherwise some member of S answers no category of its own: it is a
+//       gratuitous extra the player was never asked to nominate).
+// (⇐/⇒: pick one witness category per member for the injective direction;
+// fill the remaining categories from the cover for the surjective one.)
+// ---------------------------------------------------------------------------
+
+/** Does `picks` name a member of every NON-EMPTY category? A category with no
+ *  matching member at all is simply not filled (CR 608.2b — there is nothing
+ *  to nominate). */
+function coversEveryCategory(
+    categories: readonly PickCategory[],
+    picks: ReadonlySet<string>
+): boolean {
+    return categories.every(
+        (c) => c.cardIds.length === 0 || c.cardIds.some((id) => picks.has(id))
+    );
+}
+
+/** Is `picks` a legal answer under the COVER rule — every non-empty category
+ *  nominated, and no member picked that earns no category of its own? A
+ *  duplicate id is illegal (one physical member is nominated once, however
+ *  many categories it answers). */
+export function isCategorizedCoverLegal(
+    categories: readonly PickCategory[],
+    picks: readonly string[]
+): boolean {
+    const unique = new Set(picks);
+    if (unique.size !== picks.length) return false;
+    if (maximumMatching(categories, picks) !== picks.length) return false;
+    return coversEveryCategory(categories, unique);
+}
+
+/** The SMALLEST number of members that can cover every non-empty category —
+ *  the cover rule's `count.min` (CR 608.2b: never force a pick larger than
+ *  the rules require). Distinct from `maxCategorizedPicks`, which is the
+ *  ceiling: with a Plains and a Plains/Island dual the minimum is 1 (the dual
+ *  answers both types) while the maximum is 2. Exact minimum set cover by
+ *  bitmask DP over the non-empty categories — a card definition names a
+ *  handful of them (5 basic land types, 5 colours), so the 2^k table is tiny
+ *  by construction, exactly like the matching above. */
+export function minCategorizedCover(
+    categories: readonly PickCategory[]
+): number {
+    const nonEmpty = categories.filter((c) => c.cardIds.length > 0);
+    if (nonEmpty.length === 0) return 0;
+    const full = (1 << nonEmpty.length) - 1;
+    const masks = categorizedEligibleIds(nonEmpty).map((id) =>
+        nonEmpty.reduce(
+            (mask, c, i) => (c.cardIds.includes(id) ? mask | (1 << i) : mask),
+            0
+        )
+    );
+    const best = new Array<number>(full + 1).fill(Number.POSITIVE_INFINITY);
+    best[0] = 0;
+    for (let covered = 0; covered <= full; covered++) {
+        if (best[covered] === Number.POSITIVE_INFINITY) continue;
+        for (const mask of masks) {
+            const next = covered | mask;
+            if (best[covered] + 1 < best[next]) best[next] = best[covered] + 1;
+        }
+    }
+    return best[full];
+}
+
+/** The FORCED answer when the cover admits no real decision at all (issue
+ *  #1945, CR 608.2b — a mandatory choice with no branch auto-resolves, the
+ *  Arena zero-branch default): every category names AT MOST one candidate, so
+ *  each non-empty category's nomination is already determined. Returns
+ *  `undefined` the moment ANY category has 2+ candidates — that is a real
+ *  "which one" decision and must raise the interactive picker.
+ *
+ *  Unlike the injective rule, a candidate SHARED by two single-candidate
+ *  categories is still forced here (a lone dual land must answer both its
+ *  types, and only that one land is returned) — the shared id is DEDUPED
+ *  rather than refused. An all-empty category list forces the empty set,
+ *  distinct from "no forced set exists". */
+export function forcedCategorizedCover(
     categories: readonly PickCategory[]
 ): string[] | undefined {
     if (!categories.every((c) => c.cardIds.length <= 1)) return undefined;
-    const picks = categories.flatMap((c) => c.cardIds);
-    if (new Set(picks).size !== picks.length) return undefined;
-    return picks;
+    return [...new Set(categories.flatMap((c) => c.cardIds))];
 }

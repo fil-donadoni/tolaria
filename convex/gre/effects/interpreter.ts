@@ -98,7 +98,8 @@ import { getEventFieldRow } from "../../cards/mechanicsRegistry";
 import {
     categorizedEligibleIds,
     maxCategorizedPicks,
-    forcedCategorizedPick,
+    minCategorizedCover,
+    forcedCategorizedCover,
 } from "../categorizedPick";
 import { manaCostsEqual } from "../constants";
 
@@ -3109,6 +3110,16 @@ export const OP_EXECUTORS: {
     // halves get OPPOSITE actions per card (`onPicked`/`sweep`) rather than
     // the fixed kept→hand/rest→bottom polarity. See the Op's own doc comment
     // (`cards/types.ts`) and the mechanicsRegistry note for the full design.
+    //
+    // It also runs the OTHER of `categorizedPick.ts`'s two legality rules —
+    // the COVER rule, not `revealAndCategorize`'s injective one. Each
+    // category NOMINATES a member and one member may answer several
+    // categories at once (Gatherer, Planar Overlay: "a dual land could be
+    // chosen as two of your land types"; a WU gold card may be the card
+    // chosen for both white and blue). So `count.min` is the size of the
+    // SMALLEST covering set, never the maximum matching — pinning it to the
+    // matching would force a Plains+Tundra player to return TWO lands where
+    // the rules let them nominate the Tundra twice and return one.
     chooseCategorized(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return; // CR 608.2b — chooser gone, skip
@@ -3157,15 +3168,15 @@ export const OP_EXECUTORS: {
             applySweep(new Set());
             return;
         }
-        // issue #1945 — a FORCED-but-nonzero pick: every category names at
-        // most one candidate and no candidate is shared between categories,
-        // so the maximum matching is unique and there is nothing for the
-        // player to actually decide. Auto-apply it rather than raising a
-        // picker whose only possible answer is already known (project
-        // convention: never prompt for a non-decision) — a genuine ADDITION
-        // over `revealAndCategorize`, which has no such special case.
+        // issue #1945 — a FORCED-but-nonzero answer: every category names at
+        // most one candidate, so each non-empty category's nomination is
+        // already determined (a lone dual land answers both its types) and
+        // there is nothing for the player to decide. Auto-apply it rather
+        // than raising a picker whose only possible answer is already known
+        // (project convention: never prompt for a non-decision) — a genuine
+        // ADDITION over `revealAndCategorize`, which has no such case.
         if (op.optional !== true) {
-            const forced = forcedCategorizedPick(categories);
+            const forced = forcedCategorizedCover(categories);
             if (forced !== undefined) {
                 applyOnPicked(forced);
                 applySweep(new Set(forced));
@@ -3184,10 +3195,32 @@ export const OP_EXECUTORS: {
             zone: op.zone,
             candidateIds: eligible,
             categories,
-            // Mandatory by default ("chooses", not "may choose") — offer
-            // exactly the maximum matching, never merely `categories.length`
-            // (CR 608.2b, mirrors `revealAndCategorize`'s own count).
-            count: { min: op.optional === true ? 0 : keep, max: keep },
+            // Mandatory by default ("chooses", not "may choose"). The FLOOR
+            // is the smallest covering set, not the maximum matching: a
+            // member answering several categories at once (a dual land, a
+            // gold card) legitimately shrinks the answer, and demanding the
+            // matching would force a larger pick than the rules allow (CR
+            // 608.2b). The CEILING stays the maximum matching — the largest
+            // answer in which every nominated member earns a category of its
+            // own. `optional: true` keeps the injective per-category "may"
+            // (min 0, any saturated subset) — see `categoryRule` below.
+            count: {
+                min: op.optional === true ? 0 : minCategorizedCover(categories),
+                max: keep,
+            },
+            // Which of `categorizedPick.ts`'s two legality rules validates
+            // the submission. Only the MANDATORY offer is a cover ("chooses
+            // one card of each colour" — every category must be answered);
+            // an `optional: true` offer is a per-category "you may", which is
+            // exactly `revealAndCategorize`'s injective rule and stays on the
+            // shared default.
+            categoryRule: op.optional === true ? undefined : "cover",
+            // Policy hint for the bot only (the server ignores it): whether
+            // being picked is the good half or the bad half for the chooser.
+            pickPolarity:
+                op.onPicked === "returnToHand"
+                    ? "picked-removed"
+                    : "picked-kept",
             prompt: op.prompt ?? "Choose one card of each category.",
         });
         if (picks === undefined) return "suspend"; // enqueued — wait
