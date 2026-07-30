@@ -2355,6 +2355,26 @@ export type PendingChoice = {
      *  spent" — a mana-value bound, not a type/keyword filter). Undefined =
      *  no extra restriction. The frontend reads it to gate clickability. */
     candidateIds?: string[];
+    /** `kind: "search-library"` only (CR 701.19a, issue #788 re-review
+     *  finding 1) — set when this choice is a GENUINE library search (CR
+     *  701.19a: look at the whole library, filtered by card characteristics),
+     *  as opposed to a "look at the top N, pick one" prompt that reuses
+     *  `search-library` for its candidate-restricted picker UI (Expressive
+     *  Iteration, Diabolic Vision — `candidateIds` there is a peeked TOP-N
+     *  window, not a library-wide filter match). `emitLibrarySearchedEvent`
+     *  gates on this flag rather than on `kind` alone or on
+     *  `candidateIds === undefined` (the latter is an implicit invariant that
+     *  fails OPEN the moment a future look-pick card sets no `candidateIds`).
+     *  Set explicitly at every genuine raise site — the DSL `choice` Op
+     *  (`gre/effects/interpreter.ts`, whenever `kind === "search-library"`,
+     *  since that Op's library branch always scans the WHOLE library via
+     *  `matchesCardFilter`, never a peeked window) and each genuine raw
+     *  `resolve()` search (Path to Exile, Erode, Demonic-Tutor-shaped
+     *  Altar of Bone, Jester's Mask, the Transmute search). Undefined on a
+     *  choice persisted before this field existed — `emitLibrarySearchedEvent`
+     *  then fails CLOSED (no spurious trigger) for that in-flight choice,
+     *  never open. */
+    isSearch?: true;
     /** `look-distribute` only (issue #1266, Narset, Parter of Veils) — the
      *  subset of the looked-at `candidateIds` that may go to HAND. The full
      *  `candidateIds` window is still shown face-up ("look at the top four"),
@@ -10519,16 +10539,6 @@ export function buildSpellContext(
             if (target.id === item.id) return item.counters?.[type] ?? 0;
             return 0;
         },
-        // CR 107.3 / 601.2b (issue #788) — resolve()-body sibling of
-        // `PermanentView.chosenXOnCast`; see the SpellContext interface doc
-        // (`cards/types.ts`) for why `ctx.getX()` doesn't work here.
-        getChosenXOnCast(target: TargetSelection): number {
-            if (target.type !== "permanent") return 0;
-            const found = findOnBattlefield(state, target.id);
-            if (found) return found.card.chosenXOnCast ?? 0;
-            if (target.id === item.id) return item.chosenXOnCast ?? 0;
-            return 0;
-        },
         isEscaped(target: TargetSelection): boolean {
             // CR 702.138e — "escaped" is a permanent-level flag stamped at the
             // escape cast; it rides the stack item onto the battlefield.
@@ -13238,6 +13248,7 @@ export function buildSpellContext(
             if (req.randomizeRest) entry.randomizeRest = true;
             if (req.categories) entry.categories = req.categories;
             if (req.putOnTop) entry.putOnTop = true;
+            if (req.isSearch) entry.isSearch = true;
             state.pendingChoices = [...(state.pendingChoices ?? []), entry];
             return undefined;
         },

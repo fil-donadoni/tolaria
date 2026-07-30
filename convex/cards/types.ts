@@ -2085,22 +2085,6 @@ export interface SpellContext {
     /** Reads the count of a given counter type on `target` (CR 122.6). Returns
      *  0 if the target has no counters of that type or has left play. */
     getCounterCount: (target: TargetSelection, type: string) => number;
-    /** Reads `target`'s `chosenXOnCast` (CR 107.3 / 601.2b) — the value chosen
-     *  for {X} in the permanent's OWN casting cost, snapshotted the instant it
-     *  entered the battlefield. The `resolve()`-body sibling of
-     *  `PermanentView.chosenXOnCast` (read by `matches`/`condition`/
-     *  `interveningIf`, which already receive `self: PermanentView` directly):
-     *  a triggered ability's `resolve` callback gets no `self`, so an ETB
-     *  effect that needs the announced X post-resolution (Wan Shi Tong,
-     *  Librarian's "put X +1/+1 counters ... draw half X, rounded down" —
-     *  arithmetic the frozen Effect Script grammar can't express, ADR 0045)
-     *  reads it here instead. NOT `ctx.getX()` — that reads the CURRENTLY
-     *  resolving stack item's `chosenX`, which for a trigger resolving after
-     *  its source's own spell has already left the stack is a stale/dropped
-     *  artefact (see `chosenXOnCast`'s own doc, `gre/state.ts`, the Jacked
-     *  Rabbit precedent). Returns 0 if the target has left the battlefield or
-     *  was never cast with a chosen {X}. */
-    getChosenXOnCast: (target: TargetSelection) => number;
     /** Re-writes a permanent's stored modal choice (`chosenModeId`, CR 700.2c)
      *  post-ETB — the "choose a color" half of a re-choosable modal permanent
      *  (Chromatic Armor: "{X}: Put a sleight counter on this Aura and choose a
@@ -3705,6 +3689,16 @@ export interface SpellContext {
          *  `cardInstanceIds` ARE the top order). When set, the client mounts the
          *  ordered HAND→TOP drag picker instead of the in-hand toggle. */
         putOnTop?: boolean;
+        /** `kind: "search-library"` only (CR 701.19a, issue #788 re-review
+         *  finding 1) — mark this as a GENUINE library search (look at the
+         *  whole library, filtered by characteristics) as opposed to a "look
+         *  at the top N, pick one" prompt that reuses this `kind` for its
+         *  restricted-candidate picker UI (Expressive Iteration, Diabolic
+         *  Vision). `emitLibrarySearchedEvent` (CR 701.19a/603.2) only fires
+         *  for a choice with this flag set — see {@link PendingChoice.isSearch}
+         *  for the full rationale. Every genuine search `resolve()` site must
+         *  set it; a look-pick site must NOT. */
+        isSearch?: true;
     }) => string[] | undefined;
 
     /** Requests an optional yes/no decision with an optional mana cost

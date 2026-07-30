@@ -3590,6 +3590,13 @@ export const OP_EXECUTORS: {
                   ? { candidateIds }
                   : {}),
             ...(op.zoneOwnerId !== undefined ? { zoneOwnerId } : {}),
+            // CR 701.19a (issue #788 re-review finding 1) — this `choice` Op
+            // handler's library branch (`choiceCandidates` above) always scans
+            // the WHOLE zone via `matchesCardFilter`, never a peeked top-N
+            // window, so every DSL `kind: "search-library"` choice raised here
+            // is a genuine search. `emitLibrarySearchedEvent` gates on this
+            // flag, not on `kind` alone — see `PendingChoice.isSearch`.
+            ...(op.kind === "search-library" ? { isSearch: true } : {}),
         });
         if (picks === undefined) return "suspend"; // enqueued — wait
         // issue #1282 — when `id` diverges from `bind`, `requestChoice`

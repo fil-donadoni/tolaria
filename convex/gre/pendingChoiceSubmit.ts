@@ -990,7 +990,16 @@ export function applyPendingChoiceSubmit(
     // OPPONENT's library. `librarySearchedTrigger`'s scope gate requires the
     // two fields to be equal before applying scope, so this cross-library
     // shape never fires.
-    if (head.kind === "search-library") {
+    // `search-library` is overloaded: Expressive Iteration (stx/multicolor.ts)
+    // and Diabolic Vision (ice/multicolor.ts) reuse the SAME PendingChoice
+    // `kind` for a "look at the top N, pick one" prompt, which is NOT a CR
+    // 701.19a search (that requires looking at the WHOLE zone) — gating on
+    // `kind` alone fires a false `LIBRARY_SEARCHED` for both. `isSearch` is
+    // the explicit, fail-closed discriminator set only at genuine raise sites
+    // (see `PendingChoice.isSearch`); a choice persisted before this field
+    // existed has `isSearch === undefined` and correctly fails closed (no
+    // spurious trigger) rather than open.
+    if (head.kind === "search-library" && head.isSearch) {
         emitLibrarySearchedEvent(
             state,
             head.actingPlayerId ?? head.playerId,

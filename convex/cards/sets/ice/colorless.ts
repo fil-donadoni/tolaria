@@ -1102,6 +1102,10 @@ export const jestersMask: CardDefinition = {
                         zoneOwnerId: player,
                         count: { min: 0, max: handCount },
                         prompt: `Search the target player's library for up to ${handCount} cards to put into their hand.`,
+                        // Genuine CR 701.19a search of the whole target
+                        // library (no candidateIds restriction) — issue #788
+                        // finding 1.
+                        isSearch: true,
                     });
                     if (picked === undefined) return; // suspended for the search
                     for (const id of picked) {

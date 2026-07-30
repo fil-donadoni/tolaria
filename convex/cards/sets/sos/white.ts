@@ -47,6 +47,9 @@ export const erode: CardDefinition = {
             candidateIds: basics.map((c) => c.id),
             count: { min: 0, max: 1 },
             prompt: "Erode: you may search your library for a basic land card.",
+            // Genuine CR 701.19a search (candidateIds is a whole-library
+            // filter match, not a peeked window) — issue #788 finding 1.
+            isSearch: true,
         });
         if (found === undefined) return; // suspended for the choice
         ctx.destroy(target);

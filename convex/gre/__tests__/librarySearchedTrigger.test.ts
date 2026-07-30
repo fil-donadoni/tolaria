@@ -24,6 +24,8 @@ import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
 import { registerTokenDefinition } from "../../cards";
 import { librarySearchedTrigger } from "../../cards/abilities/triggers/librarySearchedTrigger";
 import { pathToExile } from "../../cards/sets/con/white";
+import { diabolicVision } from "../../cards/sets/ice/multicolor";
+import { expressiveIteration } from "../../cards/sets/stx/multicolor";
 import { grizzlyBears, forest } from "../../cards/sets/lea";
 import {
     makeInstance,
@@ -539,5 +541,126 @@ describe("librarySearchedTrigger fires end-to-end (issue #788)", () => {
                     s.triggeredAbilityId === "test-library-searched-opponents"
             )
         ).toBe(true);
+    });
+});
+
+// Bugfix regression (issue #788 PR #1987 re-review finding 1): `search-library`
+// is an OVERLOADED PendingChoice kind. Expressive Iteration (stx/multicolor.ts)
+// and Diabolic Vision (ice/multicolor.ts) both reuse it for a "look at the top
+// N, pick one" prompt — NOT a CR 701.19a search, which requires looking at the
+// WHOLE zone. Before the `isSearch` discriminator, `applyPendingChoiceSubmit`
+// gated the `LIBRARY_SEARCHED` emit on `kind === "search-library"` alone, so
+// casting either card fired a false event — a `librarySearchedTrigger` watcher
+// (Wan Shi Tong, Librarian shape) would wrongly trigger off a card that never
+// searched anything. These tests drive the REAL cards through
+// `resolveTopOfStack` + `applyPendingChoiceSubmit` end-to-end and fail against
+// the pre-fix `kind`-only gate.
+describe("search-library overload does NOT fire LIBRARY_SEARCHED for a look-pick prompt (issue #788, PR #1987 finding 1)", () => {
+    it("Diabolic Vision (look at top 5, keep 1) does not fire a librarySearchedTrigger watcher", () => {
+        const watcherYou = makeInstance(WATCHER_YOU_ID, {
+            id: "watcher-diabolic-you",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [watcherYou],
+                    library: libraryOf("p1", [
+                        "dv1",
+                        "dv2",
+                        "dv3",
+                        "dv4",
+                        "dv5",
+                    ]),
+                    life: 20,
+                }),
+                makePlayer("p2"),
+            ],
+        });
+
+        pushSpell(state, diabolicVision.id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspends on the keep pick
+        const keepHead = state.pendingChoices![0];
+        expect(keepHead.kind).toBe("search-library");
+        applyPendingChoiceSubmit(state, {
+            playerId: keepHead.playerId,
+            stackItemId: keepHead.stackItemId,
+            step: keepHead.step,
+            choiceId: keepHead.choiceId,
+            cardInstanceIds: ["dv1"],
+        });
+
+        // Resolve() re-runs and raises the second (reorder-library) choice —
+        // finish it so the card fully resolves.
+        const reorderHead = state.pendingChoices?.[0];
+        expect(reorderHead?.kind).toBe("reorder-library");
+        if (reorderHead) {
+            applyPendingChoiceSubmit(state, {
+                playerId: reorderHead.playerId,
+                stackItemId: reorderHead.stackItemId,
+                step: reorderHead.step,
+                choiceId: reorderHead.choiceId,
+                cardInstanceIds: ["dv2", "dv3", "dv4", "dv5"],
+            });
+        }
+
+        expect(getPlayer(state, "p1").life).toBe(20); // watcher never fired
+        expect(
+            state.stack.some(
+                (s) => s.triggeredAbilityId === "test-library-searched-you"
+            )
+        ).toBe(false);
+    });
+
+    it("Expressive Iteration (look at top 3, hand/bottom/exile) does not fire a librarySearchedTrigger watcher", () => {
+        const watcherYou = makeInstance(WATCHER_YOU_ID, {
+            id: "watcher-expressive-you",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [watcherYou],
+                    library: libraryOf("p1", ["ei1", "ei2", "ei3"]),
+                    life: 20,
+                }),
+                makePlayer("p2"),
+            ],
+        });
+
+        pushSpell(state, expressiveIteration.id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspends on the hand pick
+        const handHead = state.pendingChoices![0];
+        expect(handHead.kind).toBe("search-library");
+        applyPendingChoiceSubmit(state, {
+            playerId: handHead.playerId,
+            stackItemId: handHead.stackItemId,
+            step: handHead.step,
+            choiceId: handHead.choiceId,
+            cardInstanceIds: ["ei1"],
+        });
+
+        // Two cards remain (ei2, ei3) — resolve() re-runs and raises the
+        // bottom pick, also `kind: "search-library"`.
+        const bottomHead = state.pendingChoices?.[0];
+        expect(bottomHead?.kind).toBe("search-library");
+        if (bottomHead) {
+            applyPendingChoiceSubmit(state, {
+                playerId: bottomHead.playerId,
+                stackItemId: bottomHead.stackItemId,
+                step: bottomHead.step,
+                choiceId: bottomHead.choiceId,
+                cardInstanceIds: ["ei2"],
+            });
+        }
+
+        expect(getPlayer(state, "p1").life).toBe(20); // watcher never fired
+        expect(
+            state.stack.some(
+                (s) => s.triggeredAbilityId === "test-library-searched-you"
+            )
+        ).toBe(false);
     });
 });
