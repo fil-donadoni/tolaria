@@ -2388,6 +2388,23 @@ export function manaCostToString(cost?: ManaCost): string {
     // after the colored pips, in the same canonical colour order the payment
     // layer keys them by. The oracle-text tokenizer maps `{R/W}` → the
     // `R_W.svg` symbol asset (slash → underscore), exactly as for `{B/P}`.
+    //
+    // Print-order decision (issue #1740): this is CANONICAL order
+    // (generic → single-colour → Phyrexian → hybrid), not literal printed
+    // order — a hybrid pip declared BEFORE a colored pip in the printed cost
+    // (e.g. a hypothetical `{R/W}{R}`) would still render as `{R}{R/W}`
+    // here. `ManaCost` splits colored requirements and `hybrid`/`phyrexian`
+    // into separate keys/fields specifically so the cost is a canonical bag,
+    // not an ordered token list (CR 202.1's own printed order is a rendering
+    // convention, not a rules requirement — CR 601.2f resolves the pips by
+    // colour/kind, never by print position). No catalogue card currently
+    // mixes a hybrid pip with a single-colour pip — the three shipped
+    // hybrid-cost cards (Hogaak `{5}{B/G}{B/G}`, Figure of Destiny `{R/W}`,
+    // Figure of Fable `{G/W}`) are all pure generic-plus-hybrid, zero
+    // single-colour pips — so this canonical ordering is not yet
+    // distinguishable from printed order by any shipped card; if one ever
+    // does mix them, add an explicit `printOrder` field to `ManaCost` rather
+    // than threading positional info through the generic/hybrid split.
     for (const pip of [
         ...(cost.hybrid ?? []),
         ...normalizedHybridPips(cost as Record<string, number>),

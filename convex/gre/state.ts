@@ -16727,7 +16727,11 @@ function formatManaCost(cost: ManaCost): string {
     }
     // CR 202.1a (issue #1738) — a guild-hybrid pip renders as its own symbol
     // (`{R/W}`); without this the pips silently vanished from every message
-    // built off this string.
+    // built off this string. Canonical order (generic → colour → hybrid), not
+    // literal printed order — same print-order decision as the client's
+    // `manaCostToString` (`src/lib/card-utils.ts`, issue #1740): no catalogue
+    // card currently mixes a hybrid pip with a single-colour pip, so this
+    // canonical ordering has never diverged from a real printing.
     for (const [a, b] of normalizedHybridPips(cost as Record<string, number>)) {
         parts.push(`{${a}/${b}}`);
     }
