@@ -76,6 +76,21 @@ export const shelldockIsle: CardDefinition = {
                             // CR 607 / 702.75a — the LINKED half: reaches only
                             // the card this land's own hideaway ability exiled.
                             // "play" (not "cast") ⇒ `includesLand`, CR 305.9.
+                            //
+                            // DIVERGENCE (CR 608.2f) — Deferred: the printed
+                            // card plays the exiled card DURING THIS ABILITY'S
+                            // RESOLUTION, ignoring timing restrictions (which
+                            // is the card's whole point — flashing in a Wrath
+                            // or a Cryptic Command on the opponent's turn).
+                            // This grants the ordinary this-turn impulse window
+                            // instead, so the hidden card is playable only when
+                            // its OWN timing allows. `castDuringResolution`
+                            // (the CR 608.2f mechanism) cannot be reused as-is:
+                            // it silently passes on a LAND (it is "cast", not
+                            // "play") and it names its card by a same-script
+                            // picks ref, which a CR 607 linked pair spanning two
+                            // resolutions cannot supply.
+                            // tracked-by: #1961
                             op: "grantCastFromExile",
                             card: { exiledWithSource: true },
                             player: "controller",

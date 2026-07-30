@@ -12,6 +12,7 @@ import { describe, it, expect } from "vitest";
 import { shelldockIsle } from "../colorless";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
+    removePermanentTo,
     resolveTopOfStack,
     type CardInstanceState,
     type GameState,
@@ -26,6 +27,7 @@ import {
 } from "../../../index";
 
 const BEAR_ID = getCardByName("Grizzly Bears").id;
+const ISLAND_ID = getCardByName("Island").id;
 const HIDEAWAY_TRIGGER_ID = "hideaway";
 const PLAY_ABILITY_ID = "shelldock-isle-play-hidden";
 
@@ -90,18 +92,29 @@ function submitPick(state: GameState, pick: string): void {
 }
 
 /** Shelldock Isle on p1's battlefield, p1's library `own` cards deep and p2's
- *  `opp` deep. Returns the land instance plus the state. */
-function setup(own: number, opp: number) {
+ *  `opp` deep. Returns the land instance plus the state. `topCardId` overrides
+ *  the printed card of p1's TOP library card (`p1-lib-0`) so a test can hide a
+ *  LAND instead of a creature (CR 305.9 — "play", not "cast"). */
+function setup(own: number, opp: number, topCardId?: string) {
     const isle = makeInstance(shelldockIsle.id, {
         id: "isle",
         controllerId: "p1",
         ownerId: "p1",
     });
+    const ownLibrary = libOf("p1", own);
+    if (topCardId !== undefined && ownLibrary.length > 0) {
+        ownLibrary[0] = makeInstance(topCardId, {
+            id: "p1-lib-0",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+    }
     const state = makeState({
         players: [
             makePlayer("p1", {
                 battlefield: [isle],
-                library: libOf("p1", own),
+                library: ownLibrary,
             }),
             makePlayer("p2", { library: libOf("p2", opp) }),
         ],
@@ -285,20 +298,87 @@ describe("Shelldock Isle — linked play ability (CR 607 / 601.3e / 305.9)", () 
         expect(state.stack).toHaveLength(0);
     });
 
-    it("wire format — once granted, the controller's exile entry carries the play affordance", () => {
+    it("wire format — once granted, the controller's exile entry carries a CASTABLE affordance", () => {
         const { state, isle } = setup(6, 15);
         const hidden = hideOne(state, isle);
         resolveActivated(state, isle, PLAY_ABILITY_ID);
         const own = projectPublicState(state, 1, "p1");
         const projected = own.players[0].exile.find((c) => c.id === hidden)!;
         // The grantee sees the real card AND the legal-action annotation the
-        // projection only attaches when `castableFromExileBy === viewer`.
+        // projection only attaches when `castableFromExileBy === viewer`. A bare
+        // `toBeDefined()` is near-tautological — the projection attaches the
+        // array for ANY non-empty grant, INCLUDING an empty `[]` — so assert the
+        // affordance the UI actually needs is in it (CR 601.3e).
         expect(projected.card.id).toBe(BEAR_ID);
-        expect(projected.legalActions).toBeDefined();
+        expect(projected.legalActions).toContain("cast");
         // The opponent still sees nothing but a face-down placeholder.
         const opp = projectPublicState(state, 1, "p2");
         const oppView = opp.players[0].exile.find((c) => c.id === hidden)!;
         expect(oppView.card.id).toBe(FACE_DOWN_CARD_ID);
         expect(oppView.legalActions).toBeUndefined();
+    });
+
+    it("CR 305.9 — a hidden LAND is offered as PLAY, end to end through the projection", () => {
+        // "You may PLAY the exiled card" (not "cast"), so `includesLand: true`
+        // must survive all the way to the wire as a `play` affordance — the path
+        // the flag exists for, and the one a Grizzly-Bears-only fixture never
+        // exercises.
+        const { state, isle } = setup(6, 15, ISLAND_ID);
+        const hidden = hideOne(state, isle);
+        expect(
+            state.players[0].exile.find((c) => c.id === hidden)!.types
+        ).toContain("Land");
+
+        resolveActivated(state, isle, PLAY_ABILITY_ID);
+        const card = state.players[0].exile.find((c) => c.id === hidden)!;
+        expect(card.castableFromExileBy).toBe("p1");
+        expect(card.castableFromExileIncludesLand).toBe(true);
+
+        const own = projectPublicState(state, 1, "p1");
+        const projected = own.players[0].exile.find((c) => c.id === hidden)!;
+        expect(projected.card.id).toBe(ISLAND_ID);
+        // CR 116.2a — a land is never CAST; the affordance must be `play`.
+        expect(projected.legalActions).toContain("play");
+        expect(projected.legalActions).not.toContain("cast");
+    });
+
+    it("CR 400.7 / 607 — a bounced-and-replayed land grants ONLY its own hidden card, not the previous incarnation's", () => {
+        // Instance ids survive zone changes and `exiledBySourceId` is cleared
+        // only when the exiled card leaves EXILE — so before the fix the
+        // returned land (a NEW object per CR 400.7) still read as the linking
+        // source of the card its PREVIOUS battlefield existence exiled, and the
+        // linked ability (CR 607) granted a free play of BOTH.
+        const { state, isle } = setup(8, 15);
+        const first = hideOne(state, isle);
+
+        // Bounce the land, then replay it (same instance id) and hide again.
+        removePermanentTo(state, "isle", "hand");
+        const returned = state.players[0].hand.find((c) => c.id === "isle")!;
+        state.players[0].hand = state.players[0].hand.filter(
+            (c) => c.id !== "isle"
+        );
+        returned.zone = "battlefield";
+        state.players[0].battlefield.push(returned);
+
+        // The stale link died with the previous battlefield existence.
+        expect(
+            state.players[0].exile.find((c) => c.id === first)!.exiledBySourceId
+        ).toBeUndefined();
+
+        resolveTrigger(state, returned, HIDEAWAY_TRIGGER_ID);
+        const second = state.pendingChoices![0].candidateIds![0];
+        submitPick(state, second);
+        expect(second).not.toBe(first);
+
+        resolveActivated(state, returned, PLAY_ABILITY_ID);
+        // Only the card THIS incarnation hid is playable.
+        expect(
+            state.players[0].exile.find((c) => c.id === second)!
+                .castableFromExileBy
+        ).toBe("p1");
+        expect(
+            state.players[0].exile.find((c) => c.id === first)!
+                .castableFromExileBy
+        ).toBeUndefined();
     });
 });
