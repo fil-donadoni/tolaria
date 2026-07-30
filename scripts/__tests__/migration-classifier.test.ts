@@ -1465,11 +1465,22 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // is a mana ability, which the census does not count). Net: total
         // unchanged at 467, FREE 295->304, AFK-ready 286->295, Op-blocked
         // 158->149. Partition: 304+14+149=467.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(467);
+        //
+        // #1939 (Mirrorwood Treefolk, pls/green.ts): a BRAND-NEW catalogue
+        // card, not a migration. Its `{2}{R}{W}` redirect ability is a
+        // protocol-card `resolve()` closure (a mid-resolution
+        // `choose-damage-target` pick over players + damageable permanents,
+        // CR 115.4, plus the `addDamageRedirectionShield` primitive — neither
+        // has an Effect Script Op wrapper) — one more Op-blocked closure onto
+        // the existing `addDamageRedirectionShield` bucket (already the
+        // Jade Monolith / Personal Incarnation / Reverse Damage shape). FREE /
+        // AFK-ready / X-only unchanged. Net: total 467->468 (+1 new closure),
+        // Op-blocked 149->150. Partition: 304+14+150=468.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(468);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(304);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(295);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(149);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(150);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {
