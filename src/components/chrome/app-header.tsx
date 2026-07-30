@@ -23,8 +23,18 @@ export default function AppHeader() {
                 <div className="flex flex-col items-center gap-4 sm:flex-row">
                     <Link
                         to="/"
-                        className="font-beleren text-2xl tracking-[0.22em] text-accent-strong"
+                        className="flex items-center gap-3 font-beleren text-2xl tracking-[0.22em] text-accent-strong"
                     >
+                        {/* Light-on-dark variant of the brand mark: same
+                            gradients as the source logo, luminance remapped so
+                            it reads against the app's dark chrome. Decorative —
+                            the wordmark next to it carries the accessible name. */}
+                        <img
+                            src="/img/logo.svg"
+                            alt=""
+                            aria-hidden="true"
+                            className="h-8 w-auto shrink-0"
+                        />
                         TOLARIA
                     </Link>
                     <nav
