@@ -223,7 +223,7 @@ describe("Everflowing Chalice (Multikicker {2}, CR 702.33e)", () => {
     function enterKicked(times: number) {
         const state = makeState();
         const item = pushSpell(state, everflowingChalice.id, "p1");
-        if (times > 0) item.kickerCount = times;
+        if (times > 0) item.kickerPayments = { kicker: times };
         resolveTopOfStack(state);
         return state;
     }

@@ -44,6 +44,12 @@ describe("Bloodchief's Thirst (Kicker {2}{B}, CR 702.33)", () => {
         expect(
             bloodchiefsThirst.kickedTargetRequirement?.mvFilter
         ).toBeUndefined();
-        expect(bloodchiefsThirst.kicker).toEqual({ cost: { X: 2, B: 1 } });
+        expect(bloodchiefsThirst.kickers).toEqual([
+            {
+                id: "kicker",
+                description: "Kicker {2}{B}",
+                mana: { X: 2, B: 1 },
+            },
+        ]);
     });
 });

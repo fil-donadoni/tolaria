@@ -1,6 +1,7 @@
 import { useState } from "react";
 import GameDialog from "~/components/ui/game-dialog";
 import NumberStepper from "~/components/ui/number-stepper";
+import CastCostKickerField from "~/components/cards/cast-cost-kicker-field";
 import { Button } from "@/components/ui/button";
 
 type CastCostDialogProps = {
@@ -18,17 +19,22 @@ type CastCostDialogProps = {
      *  above it, so the caster can't announce an X the exile cost can't cover.
      *  Undefined = X uncapped (an ordinary {X} spell). */
     maxX?: number;
-    /** CR 702.33 — the optional Kicker additional cost, when the card has one.
-     *  `multi: false` → a single yes/no "pay the kicker" toggle; `multi: true`
-     *  (Multikicker, CR 702.33e) → a numeric "times to pay kicker" stepper. */
-    kicker?: { multi: boolean };
+    /** CR 702.33 — the card's optional Kicker additional costs, one entry per
+     *  independently payable Kicker (ADR 0079). Each renders its OWN control with
+     *  its `description` legible before commit: a yes/no toggle, or — for a
+     *  Multikicker (CR 702.33e) — a numeric "times to pay" stepper. Omitted /
+     *  empty for a card with no Kicker. */
+    kickers?: { id: string; description: string; multi: boolean }[];
     /** CR 702.27 — true when the card has an optional Buyback cost: render a
      *  single yes/no "pay the buyback cost" toggle, mirroring the single
      *  (non-multi) Kicker checkbox — Buyback has no repeatable variant. */
     buyback?: boolean;
     onConfirm: (v: {
         chosenX?: number;
-        kickerCount?: number;
+        /** CR 702.33 — times to pay EACH Kicker, keyed by `KickerCost.id`. Only
+         *  the Kickers the caster chose to pay appear; `undefined` = not kicked,
+         *  which is also what an all-declined dialog returns (ADR 0079). */
+        kickerPayments?: Record<string, number>;
         buyback?: boolean;
     }) => void;
     onCancel: () => void;
@@ -53,14 +59,15 @@ export default function CastCostDialog({
     subtitle,
     askX,
     maxX,
-    kicker,
+    kickers,
     buyback,
     onConfirm,
     onCancel,
 }: CastCostDialogProps) {
     const [xRaw, setXRaw] = useState("");
-    const [kickerCountRaw, setKickerCountRaw] = useState("0");
-    const [kickerPay, setKickerPay] = useState(false);
+    // Times to pay each Kicker, keyed by `KickerCost.id`, held as RAW stepper text
+    // so a half-typed Multikicker value round-trips (CR 702.33e). Absent = "0".
+    const [kickerRaw, setKickerRaw] = useState<Record<string, string>>({});
     const [buybackPay, setBuybackPay] = useState(false);
 
     // Reset the form each time the dialog is (re)opened so a previous cast's
@@ -70,33 +77,40 @@ export default function CastCostDialog({
         setPrevOpen(open);
         if (open) {
             setXRaw("0");
-            setKickerCountRaw("0");
-            setKickerPay(false);
+            setKickerRaw({});
             setBuybackPay(false);
         }
     }
 
     const xValue = askX ? parseNonNegInt(xRaw) : 0;
-    const kickerValue =
-        !kicker || !kicker.multi ? 0 : parseNonNegInt(kickerCountRaw);
+    // CR 702.33 — resolve every Kicker's raw entry to a count. A malformed
+    // Multikicker entry (empty, `-1`, `1.5`) blocks submit exactly as a malformed
+    // X does; a toggle is 0/1 and can never be malformed.
+    const kickerCounts = (kickers ?? []).map((k) => ({
+        id: k.id,
+        count: parseNonNegInt(kickerRaw[k.id] ?? "0"),
+    }));
+    const kickersValid = kickerCounts.every((k) => k.count !== null);
     // CR 702.34a / 118.5 — a typed X above the flashback exile cap is invalid,
     // not silently clamped: the stepper buttons already stop at `maxX`, but a
     // hand-typed value must block submit so the caster can't announce an
     // unpayable X.
     const xWithinCap = maxX === undefined || xValue === null || xValue <= maxX;
-    const valid = xValue !== null && kickerValue !== null && xWithinCap;
+    const valid = xValue !== null && kickersValid && xWithinCap;
 
     const submit = () => {
         if (!valid) return;
+        // CR 702.33 — only the PAID Kickers reach the mutation; an all-declined
+        // dialog sends `undefined` (not kicked), so declining after seeing the
+        // cost casts the spell unkicked.
+        const payments: Record<string, number> = {};
+        for (const k of kickerCounts) {
+            if (k.count && k.count > 0) payments[k.id] = k.count;
+        }
         onConfirm({
             chosenX: askX ? (xValue as number) : undefined,
-            kickerCount: kicker
-                ? kicker.multi
-                    ? (kickerValue as number)
-                    : kickerPay
-                      ? 1
-                      : 0
-                : undefined,
+            kickerPayments:
+                Object.keys(payments).length > 0 ? payments : undefined,
             buyback: buyback ? buybackPay : undefined,
         });
     };
@@ -145,37 +159,19 @@ export default function CastCostDialog({
                     </div>
                 )}
 
-                {kicker && kicker.multi && (
-                    <div className="flex flex-col gap-1.5">
-                        <label
-                            htmlFor="cast-cost-kicker-count"
-                            className="text-sm font-medium text-text"
-                        >
-                            Times to pay kicker
-                        </label>
-                        <NumberStepper
-                            id="cast-cost-kicker-count"
-                            aria-label="Times to pay kicker"
-                            value={kickerCountRaw}
-                            onChange={setKickerCountRaw}
-                            autoFocus={!askX}
-                        />
-                    </div>
-                )}
-
-                {kicker && !kicker.multi && (
-                    <label className="flex items-center gap-2.5">
-                        <input
-                            type="checkbox"
-                            className="size-4 accent-accent"
-                            checked={kickerPay}
-                            onChange={(e) => setKickerPay(e.target.checked)}
-                        />
-                        <span className="text-sm font-medium text-text">
-                            Pay kicker cost
-                        </span>
-                    </label>
-                )}
+                {(kickers ?? []).map((k, i) => (
+                    <CastCostKickerField
+                        key={k.id}
+                        kickerId={k.id}
+                        description={k.description}
+                        multi={k.multi}
+                        value={kickerRaw[k.id] ?? "0"}
+                        onChange={(next) =>
+                            setKickerRaw((prev) => ({ ...prev, [k.id]: next }))
+                        }
+                        autoFocus={!askX && i === 0 && k.multi}
+                    />
+                ))}
 
                 {buyback && (
                     <label className="flex items-center gap-2.5">

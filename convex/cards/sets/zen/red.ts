@@ -19,7 +19,13 @@ export const burstLightning: CardDefinition = {
         "Kicker {4} (You may pay an additional {4} as you cast this spell.)\nBurst Lightning deals 2 damage to any target. If this spell was kicked, it deals 4 damage instead.",
     manaCost: { R: 1 },
     types: ["Instant"],
-    kicker: { cost: { X: 4 } },
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker {4}",
+            mana: { X: 4 },
+        },
+    ],
     targetRequirement: { type: "any", count: 1 },
     effects: [
         {

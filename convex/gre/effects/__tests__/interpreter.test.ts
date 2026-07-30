@@ -17774,7 +17774,7 @@ describe("Effect Script value: kickerCount (CR 702.33 / 702.33e)", () => {
         // Kicked (kickerCount = 1) → the then branch.
         const s2 = makeState();
         const item = pushSpell(s2, id, "p1");
-        item.kickerCount = 1;
+        item.kickerPayments = { kicker: 1 };
         resolveTopOfStack(s2);
         expect(s2.players[1].life).toBe(16);
     });
@@ -17789,7 +17789,7 @@ describe("Effect Script value: kickerCount (CR 702.33 / 702.33e)", () => {
         ]);
         const state = makeState();
         const item = pushSpell(state, id, "p1");
-        item.kickerCount = 3; // paid three times (multikicker)
+        item.kickerPayments = { kicker: 3 }; // paid three times (multikicker)
         resolveTopOfStack(state);
         expect(state.players[1].life).toBe(17);
     });
@@ -17804,15 +17804,138 @@ describe("Effect Script value: kickerCount (CR 702.33 / 702.33e)", () => {
         ]);
         const state = makeState();
         const item = pushSpell(state, id, "p1");
-        item.kickerCount = 2;
+        item.kickerPayments = { kicker: 2 };
         // The projected stack still carries the tally (compact round-trip).
         const projected = projectPublicState(state, 1, "p1");
         const slim = projected.stack.find((s) => s.id === item.id) as
-            | { kickerCount?: number }
+            | { kickerPayments?: Record<string, number> }
             | undefined;
-        expect(slim?.kickerCount).toBe(2);
+        expect(slim?.kickerPayments).toEqual({ kicker: 2 });
         resolveTopOfStack(state);
         expect(state.players[1].life).toBe(18);
+    });
+});
+
+// --- kickerPaid (CR 702.33 / 702.33e, ADR 0079) ------------------------------
+//
+// The PER-KICKER value member: a card with two independently payable Kickers
+// ("Kicker {A} and/or {B}", the Planeshift Battlemage cycle) has one
+// intervening-if per Kicker, and the total `kickerCount` cannot say WHICH was
+// paid. New value member → pays the entry fee once here (interpreter unit test
+// through the REAL resolution path + a wire-format assertion once through
+// projectPublicState); every later two-Kicker card reuses it free.
+
+describe("Effect Script value: kickerPaid (CR 702.33 / 702.33e)", () => {
+    const scriptId = "test-val-kicker-paid-gate";
+    const twoKickerScript = [
+        {
+            op: "if" as const,
+            predicate: {
+                left: { kickerPaid: "kicker-u" },
+                op: "ge" as const,
+                right: 1,
+            },
+            then: [
+                {
+                    op: "dealDamage" as const,
+                    amount: 1,
+                    to: { player: "opponent" as const },
+                },
+            ],
+        },
+        {
+            op: "if" as const,
+            predicate: {
+                left: { kickerPaid: "kicker-r" },
+                op: "ge" as const,
+                right: 1,
+            },
+            then: [
+                {
+                    op: "dealDamage" as const,
+                    amount: 10,
+                    to: { player: "opponent" as const },
+                },
+            ],
+        },
+    ];
+
+    it("distinguishes WHICH of two kickers was paid", () => {
+        const id = registerScript(scriptId, twoKickerScript);
+        // Neither kicker paid — no damage at all.
+        const s0 = makeState();
+        pushSpell(s0, id, "p1");
+        resolveTopOfStack(s0);
+        expect(s0.players[1].life).toBe(20);
+        // Only the {U} kicker paid → 1 damage, not 10.
+        const s1 = makeState();
+        const i1 = pushSpell(s1, id, "p1");
+        i1.kickerPayments = { "kicker-u": 1 };
+        resolveTopOfStack(s1);
+        expect(s1.players[1].life).toBe(19);
+        // Only the {R} kicker paid → 10 damage, not 1.
+        const s2 = makeState();
+        const i2 = pushSpell(s2, id, "p1");
+        i2.kickerPayments = { "kicker-r": 1 };
+        resolveTopOfStack(s2);
+        expect(s2.players[1].life).toBe(10);
+        // BOTH paid → both clauses fire (CR 702.33 — the two are independent).
+        const s3 = makeState();
+        const i3 = pushSpell(s3, id, "p1");
+        i3.kickerPayments = { "kicker-u": 1, "kicker-r": 1 };
+        resolveTopOfStack(s3);
+        expect(s3.players[1].life).toBe(9);
+    });
+
+    it("reads a named kicker's raw Multikicker tally as a numeric amount", () => {
+        const id = registerScript("test-val-kicker-paid-count", [
+            {
+                op: "dealDamage",
+                amount: { kickerPaid: "kicker-x" },
+                to: { player: "opponent" },
+            },
+        ]);
+        const state = makeState();
+        const item = pushSpell(state, id, "p1");
+        item.kickerPayments = { "kicker-x": 3, "kicker-y": 5 };
+        resolveTopOfStack(state);
+        // Reads ONLY the named kicker (3), never the 8-total.
+        expect(state.players[1].life).toBe(17);
+    });
+
+    it("reads 0 for an unknown kicker id (fail-closed, the clause never fires)", () => {
+        const id = registerScript("test-val-kicker-paid-unknown", [
+            {
+                op: "if",
+                predicate: {
+                    left: { kickerPaid: "no-such-kicker" },
+                    op: "ge",
+                    right: 1,
+                },
+                then: [
+                    { op: "dealDamage", amount: 5, to: { player: "opponent" } },
+                ],
+            },
+        ]);
+        const state = makeState();
+        const item = pushSpell(state, id, "p1");
+        item.kickerPayments = { kicker: 1 };
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(20);
+    });
+
+    it("survives the wire projection (per-kicker record round-trips; outcome matches)", () => {
+        const id = registerScript("test-val-kicker-paid-wire", twoKickerScript);
+        const state = makeState();
+        const item = pushSpell(state, id, "p1");
+        item.kickerPayments = { "kicker-r": 1 };
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.stack.find((s) => s.id === item.id) as
+            | { kickerPayments?: Record<string, number> }
+            | undefined;
+        expect(slim?.kickerPayments).toEqual({ "kicker-r": 1 });
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(10);
     });
 });
 

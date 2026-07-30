@@ -511,7 +511,13 @@ export const duskwalker: CardDefinition = {
     subtypes: ["Human", "Minion"],
     power: 1,
     toughness: 1,
-    kicker: { cost: { X: 3, B: 1 } },
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker {3}{B}",
+            mana: { X: 3, B: 1 },
+        },
+    ],
     entersWith: {
         counters: [
             { type: "+1/+1", count: "kicker" },
@@ -635,7 +641,13 @@ export const hypnoticCloud: CardDefinition = {
         "Kicker {4} (You may pay an additional {4} as you cast this spell.)\nTarget player discards a card. If this spell was kicked, that player discards three cards instead.",
     manaCost: { X: 1, B: 1 },
     types: ["Sorcery"],
-    kicker: { cost: { X: 4 } },
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker {4}",
+            mana: { X: 4 },
+        },
+    ],
     targetRequirement: { type: "player", count: 1 },
     effects: [
         {
@@ -1339,7 +1351,13 @@ export const urborgSkeleton: CardDefinition = {
     subtypes: ["Skeleton"],
     power: 0,
     toughness: 1,
-    kicker: { cost: { X: 3 } },
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker {3}",
+            mana: { X: 3 },
+        },
+    ],
     entersWith: { counters: [{ type: "+1/+1", count: "kicker" }] },
     activatedAbilities: [
         {

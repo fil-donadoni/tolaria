@@ -231,7 +231,13 @@ export const prohibit: CardDefinition = {
         "Kicker {2} (You may pay an additional {2} as you cast this spell.)\nCounter target spell if its mana value is 2 or less. If this spell was kicked, counter that spell if its mana value is 4 or less instead.",
     manaCost: { X: 1, U: 1 },
     types: ["Instant"],
-    kicker: { cost: { X: 2 } },
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker {2}",
+            mana: { X: 2 },
+        },
+    ],
     targetRequirement: { type: "spell", count: 1, mvFilter: { max: 2 } },
     kickedTargetRequirement: {
         type: "spell",
@@ -399,7 +405,13 @@ export const vodalianSerpent: CardDefinition = {
     subtypes: ["Serpent"],
     power: 2,
     toughness: 2,
-    kicker: { cost: { X: 2 } },
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker {2}",
+            mana: { X: 2 },
+        },
+    ],
     entersWith: {
         counters: [
             { type: "+1/+1", count: "kicker" },

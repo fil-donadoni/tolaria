@@ -85,6 +85,8 @@ import {
 } from "./effects/interpreter";
 import { matchesPermanentFilter } from "../cards/filters";
 import type { Phase, Zone, PhaseReturnCondition } from "./types";
+import type { KickerPayments } from "./kicker";
+import { kickerPaidCount, totalKickerCount } from "./kicker";
 import type { SacrificeSelection } from "./sacrificeChoice";
 // ADR 0079 — the may-pay PERMANENT leg's `action: "return"` terminal step runs
 // through the unified permanent-cost layer, the same one Gush / Thwart / Daze
@@ -1150,9 +1152,10 @@ export type CardInstanceState = {
      *  for the full doc — this is the persistent post-ETB twin of the
      *  ephemeral `StackItem.notedManaSpent`. */
     notedManaSpentOnCast?: Record<string, number>;
-    /** CR 702.33 / 614.1c — true iff the resolving spell's Kicker cost was
-     *  paid as it was cast, snapshotted from the stack item's `kickerCount`
-     *  (`StackItem.kickerCount`) the instant it enters the battlefield
+    /** CR 702.33 / 614.1c — true iff any of the resolving spell's Kicker costs
+     *  was paid as it was cast, snapshotted from the stack item's per-Kicker
+     *  payment record (`StackItem.kickerPayments`, summed via
+     *  `totalKickerCount` — ADR 0079) the instant it enters the battlefield
      *  (`finalizeSpellResolution`, which writes BOTH branches explicitly —
      *  `true` when kicked, `delete`d when not — so the write is authoritative
      *  standalone and never depends on the object having arrived "already
@@ -1172,7 +1175,7 @@ export type CardInstanceState = {
      *  else while the SAME object stays on the battlefield. It does NOT
      *  survive a CR 400.7 zone change, though (issue #1753):
      *  `resetBattlefieldTransientState` deletes it (and the stray runtime
-     *  `kickerCount` a resolved stack item can still be carrying) on a
+     *  `kickerPayments` a resolved stack item can still be carrying) on a
      *  bounce to hand/library, where CR 400.7 makes the hand/library card a
      *  new object immediately. A departure to graveyard/exile does NOT clear
      *  it there — historical state is deliberately preserved while the card
@@ -1188,7 +1191,7 @@ export type CardInstanceState = {
      *  casting cost, snapshotted from the resolving stack item's `chosenX` the
      *  instant it enters the battlefield (`finalizeSpellResolution`). The
      *  persistent, post-ETB twin of the ephemeral `StackItem.chosenX`, exactly
-     *  as `wasKicked` is to `StackItem.kickerCount` (issue #1753) and
+     *  as `wasKicked` is to `StackItem.kickerPayments` (issue #1753) and
      *  `notedManaSpentOnCast` is to `StackItem.notedManaSpent`.
      *
      *  Needed by any predicate that runs AFTER the spell has finished
@@ -1480,13 +1483,21 @@ export type StackItem = CardInstanceState & {
      *  (CR 107.3, 601.2b). Undefined for spells without X. Read on
      *  resolution by SpellContext.getX(). */
     chosenX?: number;
-    /** CR 702.33 — how many times this spell's Kicker cost was paid as it was
-     *  cast (0/absent = not kicked; 1 for a single kicker; N for a paid-N-times
-     *  Multikicker, CR 702.33e). Snapshotted at cast commit from
-     *  `PendingCast.kickerCount`; read at resolution by
-     *  SpellContext.getKickerCount() (and by `entersWith.counters` count
-     *  `"kicker"`). Undefined for spells without a Kicker cost / cast unkicked. */
-    kickerCount?: number;
+    /** CR 702.33 — how many times EACH of this spell's Kicker costs was paid as
+     *  it was cast, keyed by `KickerCost.id` (absent = not kicked; 1 for a paid
+     *  single kicker; N for a paid-N-times Multikicker, CR 702.33e). Snapshotted
+     *  at cast commit from `PendingCast.kickerPayments`.
+     *
+     *  Keyed per Kicker rather than a bare total because "Kicker {A} and/or {B}"
+     *  (the Planeshift Battlemage cycle) has one intervening-if per Kicker and a
+     *  total cannot say WHICH was paid (ADR 0079). The total is DERIVED —
+     *  `totalKickerCount` (`gre/kicker.ts`) — and never stored beside this, so
+     *  the two can never drift: `SpellContext.getKickerCount()`, the
+     *  `{ kickerCount: true }` value and `entersWith.counters` count `"kicker"`
+     *  all read the derived sum; `SpellContext.getKickerPaidCount(id)` and
+     *  `{ kickerPaid: "<id>" }` read one entry. Undefined for spells without a
+     *  Kicker cost / cast unkicked. */
+    kickerPayments?: KickerPayments;
     /** CR 702.27a — whether this spell's Buyback cost was paid as it was cast
      *  (absent/false = not paid). Snapshotted at cast commit from
      *  `PendingCast.buybackPaid`; read at resolution by
@@ -1812,12 +1823,16 @@ export type PendingCast = {
     keepPriority?: boolean;
     /** Value chosen for X at announce time. Propagated to the stack item. */
     chosenX?: number;
-    /** CR 702.33 — how many times the caster chose to pay this spell's Kicker
-     *  cost at announcement (0/absent = not kicked; ≥ 1 kicked; > 1 only for a
-     *  Multikicker, CR 702.33e). The kicker mana is folded into `manaCost`;
-     *  this count is propagated to the stack item at commit so resolution reads
-     *  `SpellContext.getKickerCount()`. */
-    kickerCount?: number;
+    /** CR 702.33 — which of this spell's Kickers the caster chose to pay at
+     *  announcement, and how many times each (absent = not kicked; > 1 for one
+     *  entry only under Multikicker, CR 702.33e). Each paid Kicker's MANA leg is
+     *  folded into `manaCost`, its LIFE leg into `payLife`, and its PERMANENT /
+     *  HAND legs into this cast's `sacrificeSelection` /
+     *  `alternativeCostHandChoice` pickers (CR 702.33a — a Kicker cost is an
+     *  additional cost of ANY kind, ADR 0079). The record is propagated to the
+     *  stack item at commit so resolution reads
+     *  `SpellContext.getKickerCount()` / `getKickerPaidCount(id)`. */
+    kickerPayments?: KickerPayments;
     /** CR 702.27a — whether the caster chose to pay this spell's Buyback cost
      *  at announcement (absent/false = not paid). The buyback mana is folded
      *  into `manaCost` alongside it; the flag is propagated to the stack item
@@ -2671,12 +2686,12 @@ export type PendingTarget = {
     keepPriority?: boolean;
     /** Propagated from announceCast when the spell has X in its mana cost. */
     chosenX?: number;
-    /** CR 702.33 — how many times the caster chose to pay this spell's Kicker
-     *  cost at announcement (0/absent = not kicked). Propagated from
-     *  announceCast through `finalizeTargetSelection` → pendingCast → stack item
-     *  so the kicked target set (`kickedTargetRequirement`) governs this
-     *  selection and the tally reaches resolution. */
-    kickerCount?: number;
+    /** CR 702.33 — which of this spell's Kickers the caster chose to pay at
+     *  announcement, and how many times each (absent = not kicked). Propagated
+     *  from announceCast through `finalizeTargetSelection` → pendingCast → stack
+     *  item so the kicked target set (`kickedTargetRequirement`) governs this
+     *  selection and the per-Kicker record reaches resolution (ADR 0079). */
+    kickerPayments?: KickerPayments;
     /** CR 702.27a — whether the caster chose to pay this spell's Buyback cost
      *  at announcement (absent/false = not paid). Propagated from announceCast
      *  through `finalizeTargetSelection` → pendingCast → stack item so
@@ -4767,7 +4782,7 @@ function resetStackTransientState(item: StackItem): void {
     delete (item as { castById?: string }).castById;
     delete item.targets;
     delete item.chosenX;
-    delete item.kickerCount;
+    delete item.kickerPayments;
     delete item.buybackPaid;
     delete item.targetAmounts;
     delete item.chosenModeId;
@@ -4972,7 +4987,7 @@ function finalizeSpellResolution(state: GameState, item: StackItem): void {
         // precedent: a LATER check-time predicate (a `keyword-grant`
         // `applies`, an "if this creature was kicked" trigger `condition`)
         // needs a persistent field on the permanent itself, not the stack
-        // item, because `StackItem.kickerCount` does not survive a recast —
+        // item, because `StackItem.kickerPayments` does not survive a recast —
         // `announceCast`/`finalizeTargetSelection` (`convex/game.ts`) rebuild
         // the next stack item as `{ ...card, ... }`, spreading whatever is
         // still on the object (this is exactly the shape
@@ -4982,7 +4997,7 @@ function finalizeSpellResolution(state: GameState, item: StackItem): void {
         // the write that actually reaches the battlefield object, so it must
         // be correct standalone, not merely "clean because something else
         // deleted it earlier."
-        if ((item.kickerCount ?? 0) >= 1) {
+        if (totalKickerCount(item.kickerPayments) >= 1) {
             item.wasKicked = true;
         } else {
             delete item.wasKicked;
@@ -5018,8 +5033,9 @@ function finalizeSpellResolution(state: GameState, item: StackItem): void {
                 chosenX: item.chosenX,
                 // CR 702.33e — "a charge counter for each time it was kicked"
                 // (Everflowing Chalice) reads the Multikicker tally snapshotted
-                // on the resolving stack item.
-                kickerCount: item.kickerCount,
+                // on the resolving stack item, summed across its Kickers
+                // (ADR 0079 — the total is always derived, never stored).
+                kickerCount: totalKickerCount(item.kickerPayments),
             },
             state
         );
@@ -8711,14 +8727,14 @@ function resetBattlefieldTransientState(card: CardInstanceState): void {
     // uncleared, a kicked permanent bounced to hand and recast unkicked would
     // still read `wasKicked: true` (`game.ts` builds every stack item as
     // `{ ...card, ... }`), and a reanimated/blinked kicked permanent would
-    // return with the grant it no longer earned. `kickerCount` is not part of
+    // return with the grant it no longer earned. `kickerPayments` is not part of
     // `CardInstanceState` (it lives on `StackItem`/`PendingCast`), but a
     // resolved stack item IS pushed onto `battlefield` as-is
     // (`finalizeSpellResolution`), so the runtime object still carries it as
     // an untyped extra property — clear it here too, the battlefield→hand
     // sibling of the buyback stack→hand clear in `resetStackTransientState`.
     delete card.wasKicked;
-    delete (card as { kickerCount?: number }).kickerCount;
+    delete (card as { kickerPayments?: KickerPayments }).kickerPayments;
     // CR 107.3 / 400.7 (issue #674) — the chosen {X} is a one-shot fact about
     // the OBJECT that resolved; a zone change makes a new object with no
     // memory of it. Exactly the `wasKicked` pair above: the typed snapshot
@@ -11515,7 +11531,13 @@ export function buildSpellContext(
         // back off the stack item (0 = not kicked). `> 0` is "if this spell was
         // kicked"; the raw count is the Multikicker tally (Everflowing Chalice).
         getKickerCount(): number {
-            return item.kickerCount ?? 0;
+            return totalKickerCount(item.kickerPayments);
+        },
+        // CR 702.33 — the PER-KICKER read a two-Kicker card's intervening-ifs
+        // need ("if it was kicked with its {2}{U} kicker"): a total cannot say
+        // WHICH of two Kickers was paid (ADR 0079).
+        getKickerPaidCount(kickerId: string): number {
+            return kickerPaidCount(item.kickerPayments, kickerId);
         },
         // Domain (CR 702 preamble ability word, issue #1066) — the number of
         // basic land types among `playerId`'s controlled lands (0–5). `state`

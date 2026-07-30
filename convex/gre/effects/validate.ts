@@ -834,6 +834,20 @@ function isKickerCountValue(value: unknown): boolean {
     );
 }
 
+/** `{ kickerPaid: "<id>" }` — SHAPE of the per-Kicker payment value construct
+ *  (CR 702.33 / 702.33e, ADR 0079). One parameter: the `KickerCost.id` declared
+ *  on the card. Reads how many times THAT Kicker was paid off the stack item's
+ *  per-Kicker record; `>= 1` is "this Kicker was paid". A non-empty string is
+ *  required — an empty id could never match a declared Kicker, so it is an
+ *  authoring error, not a fail-closed read. Mirrors `isKickerCountValue`. */
+function isKickerPaidValue(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    if (keys.length !== 1 || keys[0] !== "kickerPaid") return false;
+    const id = (value as { kickerPaid: unknown }).kickerPaid;
+    return typeof id === "string" && id.length > 0;
+}
+
 /** `{ manaValue: { of } }` — SHAPE of the mana-value value construct (CR 202.3,
  *  Overload). `of` is an object selector (an announced target slot, `$source`,
  *  or a permanents-set forEach `$each`) — the ref inside it is family-checked as
@@ -943,6 +957,7 @@ function isEffectValue(value: unknown): boolean {
         isXValue(value) ||
         isCountersValue(value) ||
         isKickerCountValue(value) ||
+        isKickerPaidValue(value) ||
         isManaValueValue(value) ||
         isDomainValue(value) ||
         isEscapedValue(value) ||

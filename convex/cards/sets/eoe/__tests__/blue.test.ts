@@ -81,7 +81,7 @@ describe("Consult the Star Charts (Kicker {1}{U}, CR 702.33 / 401.4)", () => {
             ],
         });
         const item: StackItem = pushSpell(state, consultTheStarCharts.id, "p1");
-        item.kickerCount = 1;
+        item.kickerPayments = { kicker: 1 };
         expect(resolveTopOfStack(state)).toBeNull();
         expect(state.pendingChoices![0].candidateIds?.length).toBe(3);
         submitKeep(state, ["a", "b"]);

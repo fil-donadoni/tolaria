@@ -417,7 +417,7 @@ function resolveForEachCountAgainstBoard(
 /** Real magnitude of `v` (`EffectValue`) against the LIVE board where that is
  *  genuinely resolvable pre-cast (`count` — CR 122 counting), representative
  *  fallback everywhere else (an `X`/`ref`/`counters`/`manaValue`/`domain`/
- *  `kickerCount`/`escaped`/`abilityResolutionCount` all need an announced
+ *  `kickerCount`/`kickerPaid`/`escaped`/`abilityResolutionCount` all need an announced
  *  cast, a bound object, or a resolving stack item — none exist for a card
  *  still in a hidden zone at a choice node). */
 function resolveValueAgainstBoard(
@@ -433,14 +433,15 @@ function resolveValueAgainstBoard(
             v.count
         );
     if ("X" in v) return CF_ASSUMED_X_FALLBACK;
-    // counters / kickerCount — an object-scoped read with no bound object or
-    // announced kicker pre-cast, same as `ref`/`manaValue`/`domain` below.
-    // MUST mirror `contextFreeGrounding`'s floor (its counters/kickerCount
-    // branch falls through to `CF_ASSUMED_REF`): a context-aware zero here
-    // priced a "damage equal to charge counters" card at nothing in a tutor
-    // prior, strictly LESS informed than the context-free floor it is
-    // supposed to refine (issue #1520).
-    if ("counters" in v || "kickerCount" in v) return CF_ASSUMED_REF_FALLBACK;
+    // counters / kickerCount / kickerPaid — an object-scoped read with no bound
+    // object or announced kicker pre-cast, same as `ref`/`manaValue`/`domain`
+    // below. MUST mirror `contextFreeGrounding`'s floor (its
+    // counters/kickerCount/kickerPaid branch falls through to
+    // `CF_ASSUMED_REF`): a context-aware zero here priced a "damage equal to
+    // charge counters" card at nothing in a tutor prior, strictly LESS informed
+    // than the context-free floor it is supposed to refine (issue #1520).
+    if ("counters" in v || "kickerCount" in v || "kickerPaid" in v)
+        return CF_ASSUMED_REF_FALLBACK;
     if ("escaped" in v || "abilityResolutionCount" in v) return 1;
     // lifeGainedThisTurn (CR 119.3, issue #1457) — a per-turn tally genuinely
     // resolvable off the live board, unlike the object-scoped reads below.

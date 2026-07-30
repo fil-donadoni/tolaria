@@ -21,6 +21,14 @@ export type SacrificeRequirement = {
      *  subtypes back for a stack snapshot (Priest of Yawgmoth, Freyalise
      *  Supplicant). Static/tax sacrifices leave this unset. */
     snapshot?: boolean;
+    /** Opt OUT of `autoResolveFungible` for THIS requirement: the pick is always
+     *  the payer's explicit choice, never collapsed inline — not even with
+     *  exactly one legal permanent or an indistinguishable candidate set,
+     *  because a forced pick is still information the payer must see (ADR 0079).
+     *  Set by the Kicker leg path (CR 702.33a); omitted everywhere else, so the
+     *  historical Arena-UX auto-resolve is unchanged for every existing
+     *  producer. */
+    explicit?: boolean;
 };
 
 export type SacrificeSelection = {
@@ -135,13 +143,21 @@ function countPicksFor(
  *  candidate count equals (or is below) the required count (forced), or all
  *  candidates are indistinguishable. Matches the Arena-UX auto-resolve house
  *  style (CR 701.21a — still the player's choice, just with a single outcome).
- *  Requirements with a real choice are left for the client. */
+ *  Requirements with a real choice — and any requirement flagged `explicit`
+ *  (ADR 0079, the Kicker legs) — are left for the client. */
 export function autoResolveFungible(
     state: GameState,
     sel: SacrificeSelection
 ): void {
     const used = new Set(sel.picked);
     for (const req of sel.requirements) {
+        // `break`, not `continue`: picks are allocated to requirements GREEDILY
+        // IN ORDER (`countPicksFor`), so pre-filling a LATER requirement while
+        // this one is still empty would mis-allocate those picks to this one.
+        // Producers therefore declare auto-resolvable requirements FIRST
+        // (`buildCostLegsPermanentChoice`), which keeps every historical
+        // single-requirement producer's behaviour identical.
+        if (req.explicit) break;
         const need = req.count - countPicksFor(sel, req);
         if (need <= 0) continue;
         const cands = sacrificeCandidates(

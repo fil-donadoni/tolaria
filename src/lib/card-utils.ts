@@ -25,6 +25,7 @@ import type {
     CardDefinition,
     EffectCardFilter,
     EmblemInstance,
+    KickerCost,
     MayPayCost,
     PermanentView,
     TargetRequirement,
@@ -57,6 +58,9 @@ import {
     affordableAlternativeCosts,
     handCardMatchesFilter,
 } from "@convex/gre/alternativeCost";
+// CR 702.33a (ADR 0079) — the server's own kicker-leg affordability check,
+// reused verbatim so the cast-cost dialog and `announceCast` can never disagree.
+import { canPayKickerLegs } from "@convex/gre/kicker";
 import {
     checkPermanentTargetFilters,
     type PermanentFilterValues,
@@ -1217,6 +1221,45 @@ export function affordableAltCostsForCard(
         state,
         caster as unknown as PlayerState,
         card as unknown as CardInstanceState
+    );
+}
+
+/** CR 702.33a — the card's Kickers whose NON-MANA legs the caster can actually
+ *  pay right now (enough matching permanents to sacrifice/return, enough life,
+ *  enough matching cards in hand). Mirrors `affordableAltCostsForCard` exactly:
+ *  the wire-projected client view is handed to the SERVER's own
+ *  `canPayKickerLegs` (`convex/gre/kicker.ts`), so the cast-cost dialog offers
+ *  precisely the Kickers `announceCast` would accept and the two can never
+ *  disagree (ADR 0074 — shared module, server authority; ADR 0079).
+ *
+ *  MANA legs are deliberately NOT priced here: a Kicker's mana folds into the
+ *  spell's total and is paid by the ordinary deferred-payment path, so a caster
+ *  with an empty pool may still legally announce a kicked cast and then tap for
+ *  it. Gating on mana would hide the toggle for every kicked cast made from
+ *  untapped lands. */
+export function affordableKickersForCard(
+    card: CardInstance,
+    casterId: string,
+    players: ReadonlyArray<Player>,
+    activePlayerId: string
+): KickerCost[] {
+    const def = tryGetDefinition(card.card.id);
+    const kickers = def?.kickers;
+    if (!kickers || kickers.length === 0) return [];
+    const caster = players.find((p) => p.id === casterId);
+    if (!caster) return [];
+    const state = {
+        activePlayerId,
+        players,
+    } as unknown as GameState;
+    return kickers.filter((k) =>
+        canPayKickerLegs(
+            state,
+            caster as unknown as PlayerState,
+            { ...def, kickers: [k] } as CardDefinition,
+            { [k.id]: 1 },
+            card.id
+        )
     );
 }
 
