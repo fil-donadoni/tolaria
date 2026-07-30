@@ -83,6 +83,15 @@ function matchesLibrarySearchedScope(
     event: LibrarySearchedEvent,
     self: PermanentView
 ): boolean {
+    // CR 701.19a (bugfix, issue #788 post-review) — "searches THEIR
+    // library" requires the searcher to be searching their OWN library.
+    // `event.playerId` (the searcher) and `event.libraryOwnerId` (whose
+    // library) differ for a Jester's Cap/Jester's Mask/Lobotomy-shaped
+    // "search TARGET PLAYER's library" (the caster searches an opponent's
+    // library) — that is a materially different condition from "an
+    // opponent searches their own library" and must never satisfy any
+    // scope here, so it's gated out before the scope switch runs at all.
+    if (event.playerId !== event.libraryOwnerId) return false;
     switch (scope) {
         case "you":
             return event.playerId === self.controllerId;

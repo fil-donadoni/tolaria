@@ -22,6 +22,7 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
+import { checkStateBasedActions } from "../../../../gre/sba";
 
 /** Casts Wan Shi Tong for `x`, resolves the creature spell (entering the
  *  battlefield puts its ETB trigger on the stack, CR 603.6b — mirrors Jacked
@@ -190,5 +191,54 @@ describe("Wan Shi Tong, Librarian — opponent-searches trigger (CR 603.2, issue
         expect(getEffectiveToughness(projected, slim)).toBe(2);
         // The viewer (p1) sees their own hand count grow by the drawn card.
         expect(projected.players[0].hand).toHaveLength(1);
+    });
+});
+
+// Bugfix regression (issue #788 post-review): the Scryfall type line is
+// "Legendary Creature — Bird Spirit", but the card definition was missing
+// `supertypes: ["Legendary"]` — `isLegendaryPermanent` (`gre/sba.ts`) reads
+// that field, so the CR 704.5j legend rule never applied and two copies
+// coexisted silently.
+describe("Wan Shi Tong, Librarian — legend rule (CR 704.5j, issue #788)", () => {
+    it("carries the Legendary supertype", () => {
+        expect(wanShiTongLibrarian.supertypes).toEqual(["Legendary"]);
+    });
+
+    it("two controlled copies trigger the legend-keep SBA choice", () => {
+        const a = makeInstance(wanShiTongLibrarian.id, {
+            id: "wst-legend-a",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const b = makeInstance(wanShiTongLibrarian.id, {
+            id: "wst-legend-b",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [a, b] }),
+                makePlayer("p2"),
+            ],
+        });
+
+        checkStateBasedActions(state);
+        const head = state.pendingChoices?.[0];
+        expect(head?.kind).toBe("legend-keep");
+
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head!.stackItemId,
+            step: head!.step,
+            choiceId: head!.choiceId,
+            cardInstanceIds: ["wst-legend-b"],
+        });
+
+        expect(state.players[0].battlefield.map((c) => c.id)).toEqual([
+            "wst-legend-b",
+        ]);
+        expect(state.players[0].graveyard.map((c) => c.id)).toEqual([
+            "wst-legend-a",
+        ]);
     });
 });

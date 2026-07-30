@@ -50,6 +50,7 @@ export const wanShiTongLibrarian: CardDefinition = {
     rarity: "mythic",
     manaCost: { X: "X", U: 2 },
     types: ["Creature"],
+    supertypes: ["Legendary"],
     subtypes: ["Bird", "Spirit"],
     power: 1,
     toughness: 1,

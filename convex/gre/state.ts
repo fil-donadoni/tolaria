@@ -8148,14 +8148,23 @@ export function emitCardsExiled(
  *  SAME PendingChoice queue, so every shipped tutor and fetchland is covered
  *  with no per-card wiring. Fires even on a zero-pick "whiff" search (a
  *  fetchland with no basic land left still SEARCHED, CR 701.19a — the ACT of
- *  searching is what matters, not the result). */
+ *  searching is what matters, not the result).
+ *
+ *  `playerId` and `libraryOwnerId` are two DISTINCT parameters (bugfix,
+ *  issue #788 post-review) — see `LibrarySearchedEvent`'s doc comment. A
+ *  Jester's Cap/Lobotomy-shaped "search TARGET PLAYER's library" has the
+ *  caster (`playerId`) search a DIFFERENT player's library
+ *  (`libraryOwnerId`); collapsing them to one field made
+ *  `librarySearchedTrigger`'s scope check fire on the caster's own
+ *  controller for a search that never touched their own library. */
 export function emitLibrarySearchedEvent(
     state: GameState,
-    playerId: string
+    playerId: string,
+    libraryOwnerId: string
 ): void {
     state.pendingEvents = [
         ...(state.pendingEvents ?? []),
-        { type: "LIBRARY_SEARCHED", playerId },
+        { type: "LIBRARY_SEARCHED", playerId, libraryOwnerId },
     ];
 }
 

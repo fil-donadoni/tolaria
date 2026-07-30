@@ -7054,13 +7054,35 @@ export interface CardsExiledEvent {
  *  emit site covers the whole catalogue with no per-card wiring. Fires even
  *  on a zero-pick "whiff" search (a fetchland with no basic land left still
  *  SEARCHED, CR 701.19a — the ACT of searching is the trigger condition,
- *  not the result). */
+ *  not the result).
+ *
+ *  Carries BOTH the searcher and the library's owner (bugfix, issue #788
+ *  post-review) because they are NOT always the same player: Jester's Cap /
+ *  Jester's Mask / Lobotomy have the ACTIVATING player search a TARGET
+ *  player's library ("Search target player's library..."). A single
+ *  `playerId` field cannot distinguish "an opponent searches THEIR OWN
+ *  library" (the only condition any shipped `librarySearchedTrigger` card
+ *  cares about, CR 701.19a "searches a library" always names whose library)
+ *  from "the controller searches someone else's library" — collapsing them
+ *  let Wan Shi Tong's own controller trigger a free counter+draw by casting
+ *  Lobotomy. `librarySearchedTrigger`'s `matchesLibrarySearchedScope` gates
+ *  on `playerId === libraryOwnerId` before applying scope, so a
+ *  Jester's-Cap-shaped cross-library search never fires. */
 export interface LibrarySearchedEvent {
     type: "LIBRARY_SEARCHED";
-    /** The player who performed the search (CR 701.19a) — the "opponent" in
-     *  "whenever an opponent searches their library" is this player,
-     *  relative to the trigger source's controller. */
+    /** The player who performed the search (CR 701.19a) — the ACTING
+     *  searcher (the stack item's controller), not necessarily the library's
+     *  owner. For the ordinary "target player searches THEIR library" case
+     *  this equals `libraryOwnerId`; for a Jester's Cap/Lobotomy-shaped
+     *  "search TARGET PLAYER's library" this is the caster, and
+     *  `libraryOwnerId` is the target. */
     playerId: string;
+    /** Owner of the library actually searched (CR 701.19a). The "opponent"
+     *  in "whenever an opponent searches THEIR library" is judged against
+     *  this field, relative to the trigger source's controller — and ONLY
+     *  when it equals `playerId` (a genuine "searches their own library"),
+     *  per the field-split rationale above. */
+    libraryOwnerId: string;
 }
 
 export type GameEvent =

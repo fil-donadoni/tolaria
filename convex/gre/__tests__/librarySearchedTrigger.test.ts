@@ -136,6 +136,48 @@ const TUTOR_TO_BATTLEFIELD_ID = registerTutor(
     { type: "Land" }
 );
 
+/** A synthetic DSL-only Jester's Cap/Lobotomy-shaped sorcery: the CASTER
+ *  (`player: "controller"`) searches the OPPONENT's library
+ *  (`zoneOwnerId: "opponent"`), exiles the pick, then the OPPONENT shuffles
+ *  their own library. This is the cross-library search shape that exposed
+ *  the bug (issue #788 post-review): the searcher and the library owner are
+ *  DIFFERENT players, unlike every other tutor/fetchland in this file where
+ *  they're the same. */
+function registerCrossLibraryTutor(id: string): string {
+    registerTokenDefinition({
+        id,
+        name: id,
+        rarity: "common",
+        manaCost: { G: 1 },
+        types: ["Sorcery"],
+        effects: [
+            {
+                op: "choice",
+                kind: "search-library",
+                player: "controller",
+                zone: "library",
+                zoneOwnerId: "opponent",
+                count: { min: 0, max: 1 },
+                prompt: "Search the opponent's library for a card.",
+                bind: "$picked",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$picked" },
+                player: "opponent",
+                from: "library",
+                to: "exile",
+            },
+            { op: "libraryLook", action: "shuffle", player: "opponent" },
+        ],
+    } satisfies CardDefinition);
+    return id;
+}
+
+const TUTOR_CROSS_LIBRARY_ID = registerCrossLibraryTutor(
+    "test-library-searched-tutor-cross"
+);
+
 const LAND_ID = "test-library-searched-land";
 registerTokenDefinition({
     id: LAND_ID,
@@ -195,9 +237,19 @@ describe("emitLibrarySearchedEvent (CR 701.19a, issue #788)", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
         });
-        emitLibrarySearchedEvent(state, "p1");
+        emitLibrarySearchedEvent(state, "p1", "p1");
         expect(state.pendingEvents).toEqual([
-            { type: "LIBRARY_SEARCHED", playerId: "p1" },
+            { type: "LIBRARY_SEARCHED", playerId: "p1", libraryOwnerId: "p1" },
+        ]);
+    });
+
+    it("distinguishes searcher from library owner (Jester's Cap shape, bugfix issue #788)", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        emitLibrarySearchedEvent(state, "p1", "p2");
+        expect(state.pendingEvents).toEqual([
+            { type: "LIBRARY_SEARCHED", playerId: "p1", libraryOwnerId: "p2" },
         ]);
     });
 });
@@ -344,5 +396,66 @@ describe("librarySearchedTrigger fires end-to-end (issue #788)", () => {
                     s.triggeredAbilityId === "test-library-searched-opponents"
             )
         ).toBeDefined();
+    });
+
+    // Bugfix regression (issue #788 post-review): a Jester's Cap / Jester's
+    // Mask / Lobotomy-shaped search has the CASTER search a DIFFERENT
+    // player's library ("search TARGET PLAYER's library"). That is NOT "an
+    // opponent searches their [own] library" for CR 701.19a purposes, so it
+    // must never satisfy ANY `librarySearchedTrigger` scope — the exact bug
+    // this test locks down: p1 casting a cross-library tutor at p2 used to
+    // fire p1's OWN "opponents"-scope watcher (a free trigger off a search
+    // that never touched p1's own library). Watchers of BOTH scopes on BOTH
+    // players' battlefields must all stay silent — "for either player".
+    it("does NOT fire for ANY scope/controller when the caster searches an OPPONENT's library (Jester's Cap/Lobotomy shape)", () => {
+        const watcherYouP1 = makeInstance(WATCHER_YOU_ID, {
+            id: "watcher-cross-you-p1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const watcherOppP1 = makeInstance(WATCHER_OPPONENTS_ID, {
+            id: "watcher-cross-opp-p1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const watcherYouP2 = makeInstance(WATCHER_YOU_ID, {
+            id: "watcher-cross-you-p2",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const watcherOppP2 = makeInstance(WATCHER_OPPONENTS_ID, {
+            id: "watcher-cross-opp-p2",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [watcherYouP1, watcherOppP1],
+                    life: 20,
+                }),
+                makePlayer("p2", {
+                    battlefield: [watcherYouP2, watcherOppP2],
+                    library: libraryOf("p2", ["lib-cross-1"]),
+                    life: 20,
+                }),
+            ],
+        });
+
+        // p1 casts the cross-library tutor: p1 is the SEARCHER
+        // (`playerId`), p2 (p1's opponent, resolved via `zoneOwnerId:
+        // "opponent"`) is the LIBRARY OWNER.
+        castTutorAndSearch(state, TUTOR_CROSS_LIBRARY_ID, "p1", [
+            "lib-cross-1",
+        ]);
+
+        expect(
+            state.stack.some((s) =>
+                [
+                    "test-library-searched-you",
+                    "test-library-searched-opponents",
+                ].includes(s.triggeredAbilityId ?? "")
+            )
+        ).toBe(false);
     });
 });

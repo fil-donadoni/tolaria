@@ -961,15 +961,26 @@ export function applyPendingChoiceSubmit(
     // anything (a fetchland whiff still "searched"). This is the single
     // choke point every tutor/fetchland library search funnels through
     // regardless of DSL-vs-resolve() authoring — see
-    // `emitLibrarySearchedEvent`'s doc comment. The searcher is the LIBRARY
-    // OWNER (`zoneOwnerId`), not necessarily the prompted chooser
-    // (`playerId`) — a Word of Command-style acting-player search (ADR 0037,
-    // the controller picks through the effect) still has the CONTROLLED
-    // player searching THEIR OWN library for CR purposes ("target player
-    // searches their library"), so it falls back to `playerId` only for the
-    // ordinary case where they're the same player.
+    // `emitLibrarySearchedEvent`'s doc comment. The SEARCHER is the stack
+    // item's controller (`stackItem.controllerId`) — under the ADR 0037
+    // Word-of-Command acting-player routing, the controlled player is who
+    // "searches", and the controller controls the stack item, so this is
+    // also right for that case. The LIBRARY OWNER is `head.zoneOwnerId ??
+    // head.playerId` — the two are equal for the ordinary "target player
+    // searches their own library" case, but DIFFER for a Jester's
+    // Cap/Jester's Mask/Lobotomy-shaped "search TARGET PLAYER's library"
+    // (bugfix, post-review): there the controller is the searcher while the
+    // target player owns the library, and a single collapsed field wrongly
+    // let the controller's own "whenever an opponent searches their
+    // library" trigger fire off a search of an OPPONENT's library.
+    // `librarySearchedTrigger`'s scope gate requires the two fields to be
+    // equal before applying scope, so this cross-library shape never fires.
     if (head.kind === "search-library") {
-        emitLibrarySearchedEvent(state, head.zoneOwnerId ?? head.playerId);
+        emitLibrarySearchedEvent(
+            state,
+            stackItem.controllerId,
+            head.zoneOwnerId ?? head.playerId
+        );
     }
 
     queue.shift();
