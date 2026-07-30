@@ -8760,6 +8760,14 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Noxious Vapors",
+        "scryfallId": "e3cf9326-6e1c-4a05-abea-16d6b6cb2a6d",
+        "oracleId": "cd16634e-b894-4cff-9d5b-408932863c1f",
+        "firstSet": "pls",
+        "firstPrintId": "e3cf9326-6e1c-4a05-abea-16d6b6cb2a6d",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Oasis",
         "scryfallId": "6f38565e-88b9-433d-b0e9-a3b9734f183f",
         "oracleId": "4533ce78-0594-4195-96fb-46cbadd0db69",
@@ -9446,6 +9454,14 @@
         "firstSet": "leg",
         "firstPrintId": "dd27f0fe-c032-4f61-9f3d-98a6d2e2c426",
         "firstPrintSet": "leg"
+    },
+    {
+        "name": "Planar Overlay",
+        "scryfallId": "1315fef0-234e-44f5-a7a3-bf3db78943c3",
+        "oracleId": "a7be1624-04cc-4ed5-8b05-63b633893dee",
+        "firstSet": "pls",
+        "firstPrintId": "1315fef0-234e-44f5-a7a3-bf3db78943c3",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Planar Portal",

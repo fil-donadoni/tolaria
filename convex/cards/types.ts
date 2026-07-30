@@ -10144,6 +10144,89 @@ export type EffectOp =
           /** Optional prompt header on the pick. */
           prompt?: string;
       }
+    /** CR 601.2b / 701.9 (issue #1945) — per-category choice from an
+     *  ALREADY-VISIBLE set: the chooser's own hand or own battlefield, unlike
+     *  `revealAndCategorize`'s library-window look. Reuses the SAME
+     *  bipartite-matching core (`gre/categorizedPick.ts`) and `categories`
+     *  vocabulary, but is its OWN Op rather than a `revealAndCategorize`
+     *  generalization — that Op's reveal/peek framing and fixed
+     *  kept→hand/rest→bottom polarity do not apply here, and the two shipped
+     *  cards need OPPOSITE actions on the picked/unpicked halves:
+     *
+     *  Noxious Vapors: "Each player reveals their hand, chooses one card of
+     *  each color from it, then discards all other nonland cards." Zone =
+     *  hand (paired with a preceding `reveal { zone: "hand" }` Op for the
+     *  public reveal half — this Op itself does not reveal), categories = the
+     *  five colours, `onPicked: "keep"` (the picks simply survive), `sweep`
+     *  discards the REST — but narrowed to `excludeType: "Land"`, a BROADER
+     *  filter than the categorization domain: a colourless nonland card
+     *  matches no category (so it can never be picked) yet is still swept,
+     *  while a land is never swept even if uncategorized.
+     *
+     *  Planar Overlay: "Each player chooses a land they control of each basic
+     *  land type. Return those lands to their owners' hands." Zone =
+     *  battlefield (already public, no reveal needed), categories = the five
+     *  basic land types (`subtype` filters), `onPicked: "returnToHand"` (the
+     *  picks bounce via `returnToHand`, CR 701.10), no `sweep` (the
+     *  unpicked lands are untouched — Oracle text never mentions them).
+     *
+     *  Both Oracle texts read as MANDATORY ("chooses", not "may choose"): a
+     *  category with zero matching members is simply not filled (no
+     *  candidate to choose), and `optional` defaults to `false` — the
+     *  interpreter offers a `count` that is the maximum legal matching
+     *  (`categorizedPick.ts`'s bipartite matching, exactly `revealAndCategorize`'s
+     *  own `count.max`), never merely `categories.length` (CR 608.2b — never
+     *  offer a pick that cannot be made). A wholly zero-branch pick (nothing
+     *  matches any category) auto-resolves straight to the sweep with no
+     *  prompt; a FORCED but nonzero pick (every category has at most one
+     *  candidate and no candidate is shared between categories — no real
+     *  decision either way) also auto-resolves (`categorizedPick.ts`'s
+     *  `forcedCategorizedPick`) rather than making the player click through a
+     *  choice with only one possible answer (project convention: auto-resolve
+     *  when there is no real option). `player` names whose hand/battlefield —
+     *  `forEach { set: "players" }` wraps this Op so "each player" runs it
+     *  once per side, in APNAP order, each acting on their OWN set only
+     *  (CR 601.2b — no player chooses for another). No new SpellContext
+     *  primitive: `getHandCards`/`getBattlefieldIds` resolve the categories,
+     *  `discardCard` (CR 701.9) applies the sweep, `returnToHand` (CR 701.10)
+     *  applies the bounce — the same primitives `discard`/`moveZone` already
+     *  use (ADR 0045 "generalize, don't add"). */
+    | {
+          op: "chooseCategorized";
+          player: EffectPlayerRef;
+          /** The already-visible domain to choose from. */
+          zone: "hand" | "battlefield";
+          /** The categories, in display order — each a label plus the
+           *  `EffectCardFilter` deciding which zone members belong to it. A
+           *  member matching several categories may be picked for only ONE
+           *  (bipartite matching, `gre/categorizedPick.ts`) — a multicoloured
+           *  hand card, a dual land. */
+          categories: { label: string; filter: EffectCardFilter }[];
+          /** "You may…" — default false: mandatory, offering exactly the
+           *  MAXIMUM legally matchable count (every category with a legally
+           *  seatable member gets filled). */
+          optional?: boolean;
+          /** What happens to the members actually picked. `"keep"` leaves
+           *  them exactly where they are — being picked just means surviving
+           *  `sweep` below (Noxious Vapors). `"returnToHand"` moves each
+           *  picked BATTLEFIELD permanent to its owner's hand via
+           *  `returnToHand` (Planar Overlay's bounce) — only meaningful for
+           *  `zone: "battlefield"`. */
+          onPicked: "keep" | "returnToHand";
+          /** The sweep clause (`zone: "hand"` only): every HAND card NOT
+           *  picked, further narrowed by `filter` here — deliberately a
+           *  SEPARATE, possibly BROADER filter than the categorization
+           *  domain (Noxious Vapors' `excludeType: "Land"` sweeps every
+           *  nonland card, including one that matched no colour category at
+           *  all). Omit `filter` to sweep every non-picked zone member; omit
+           *  `sweep` entirely for "leave everything else untouched" (Planar
+           *  Overlay). `action: "discard"` is the only shape today (CR
+           *  701.9) — grows when a future card needs a different rest
+           *  action. */
+          sweep?: { filter?: EffectCardFilter; action: "discard" };
+          /** Optional prompt header on the pick. */
+          prompt?: string;
+      }
     /** CR 401.4 (issue #1046) — put N cards from a hand on top of a library,
      *  in the player's chosen order ("put N cards from your hand on top of
      *  your library in any order", Brainstorm). A thin declarative skin over

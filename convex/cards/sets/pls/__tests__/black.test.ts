@@ -15,7 +15,7 @@
 // its own coverage here.
 
 import { describe, it, expect } from "vitest";
-import { warpedDevotion } from "../black";
+import { warpedDevotion, noxiousVapors } from "../black";
 import { unsummon, savannahLions, grizzlyBears, island } from "../../lea";
 import {
     makeInstance,
@@ -36,6 +36,7 @@ import {
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { applySacrificeSelection } from "../../../../gre/sacrificeChoice";
 import { projectPublicState } from "../../../../gameProjections";
+import { registerTokenDefinition } from "../../..";
 
 /** Answers the head `pendingChoices` entry (a `choice(kind: "choose-hand-card")`
  *  suspension) with the given card instance id (CR 608.2). */
@@ -361,5 +362,139 @@ describe("Warped Devotion (CR 603.2 returned-to-hand trigger, issue #1940)", () 
         expect(state.players[0].hand.some((c) => c.id === "gy-card")).toBe(
             true
         );
+    });
+});
+
+// Noxious Vapors — new Op (`chooseCategorized`, issue #1945) → full per-Op
+// regime: the interpreter suite (`gre/effects/__tests__/interpreter.test.ts`)
+// covers the Op's general shape (hand/battlefield, sweep, bipartite matching,
+// both auto-resolve paths); this describe proves the CARD's own script end
+// to end through the real resolution path, symmetric across BOTH players in
+// one cast (CR 601.2b "each player", APNAP order via `forEach { set:
+// "players" }`).
+const NV_ARTIFACT_ID = "test-pls-nv-artifact";
+registerTokenDefinition({
+    id: NV_ARTIFACT_ID,
+    name: NV_ARTIFACT_ID,
+    rarity: "common",
+    manaCost: { X: 1 },
+    types: ["Artifact"],
+});
+
+describe("Noxious Vapors (CR 601.2b / 701.9, issue #1945)", () => {
+    it("each player keeps one card of each colour they hold and discards every other nonland card, in APNAP order", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [
+                        // TWO white creatures — a real "which one" decision
+                        // (a single candidate would auto-resolve with no
+                        // prompt, per the forced-pick path). Plus a
+                        // colourless artifact and a land.
+                        makeInstance(savannahLions.id, {
+                            id: "p1-white-a",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                        makeInstance(savannahLions.id, {
+                            id: "p1-white-b",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                        makeInstance(NV_ARTIFACT_ID, {
+                            id: "p1-artifact",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                        makeInstance(island.id, {
+                            id: "p1-island-card",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                    ],
+                }),
+                makePlayer("p2", {
+                    hand: [
+                        // Green only — p2 has no card of any OTHER colour, a
+                        // FORCED (single-candidate) pick that auto-resolves
+                        // with no prompt.
+                        makeInstance(grizzlyBears.id, {
+                            id: "p2-green",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "hand",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        pushSpell(state, noxiousVapors.id, "p1");
+        // p1's choice is a real decision (two White candidates) — suspends.
+        // p2's is FORCED (one card, one colour) and auto-resolves once
+        // p1's answer lets the forEach reach it, so only ONE choice is ever
+        // raised (CR 608.2b — never prompt for a non-decision).
+        expect(resolveTopOfStack(state)).toBeNull();
+
+        // APNAP: the active player (p1, the caster) answers first.
+        const head = state.pendingChoices![0];
+        expect(head.playerId).toBe("p1");
+        expect(head.kind).toBe("choose-categorized");
+        expect(head.zone).toBe("hand");
+        expect(head.categories).toEqual(
+            expect.arrayContaining([
+                { label: "White", cardIds: ["p1-white-a", "p1-white-b"] },
+            ])
+        );
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["p1-white-a"],
+        });
+
+        // p2's forced pick auto-resolved in the same pass — nothing left
+        // pending.
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        // p1 keeps ONE white creature AND the land (lands are never
+        // discarded); the other white creature and the colourless artifact
+        // are both swept (nonland, not kept).
+        expect(state.players[0].hand.map((c) => c.id).sort()).toEqual(
+            ["p1-island-card", "p1-white-a"].sort()
+        );
+        // The resolved sorcery itself also lands in its owner's graveyard
+        // (CR 608.2m, under its OWN generated instance id) alongside the two
+        // swept cards — filter it out by DEFINITION id to isolate the sweep.
+        const p1GraveyardSweptIds = state.players[0].graveyard
+            .filter((c) => c.card.id !== noxiousVapors.id)
+            .map((c) => c.id)
+            .sort();
+        expect(p1GraveyardSweptIds).toEqual(
+            ["p1-artifact", "p1-white-b"].sort()
+        );
+        expect(
+            state.players[0].graveyard.some(
+                (c) => c.card.id === noxiousVapors.id
+            )
+        ).toBe(true);
+        // p2 keeps their only card (nothing else to sweep).
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["p2-green"]);
+        expect(state.players[1].graveyard).toHaveLength(0);
+
+        // Wire format: the projection agrees with the fat state for both
+        // viewers (ADR 0045 GRE testing convention).
+        const projectedP1 = projectPublicState(state, 1, "p1");
+        expect(projectedP1.players[0].hand.map((c) => c?.id).sort()).toEqual(
+            ["p1-island-card", "p1-white-a"].sort()
+        );
+        const projectedSweptIds = projectedP1.players[0].graveyard
+            .filter((c) => c.card.id !== noxiousVapors.id)
+            .map((c) => c.id)
+            .sort();
+        expect(projectedSweptIds).toEqual(["p1-artifact", "p1-white-b"].sort());
     });
 });

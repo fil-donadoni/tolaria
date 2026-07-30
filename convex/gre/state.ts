@@ -2395,12 +2395,15 @@ export type PendingChoice = {
      *  two-zone drag picker — an ordering UI for a random outcome would be a
      *  lie. Undefined/absent = the rest is ordered (Impulse, Stock Up). */
     randomizeRest?: boolean;
-    /** `look-distribute` only (issue #1364, Atraxa, Grand Unifier) — a
-     *  CATEGORIZED keep: at most one of the revealed cards per category, and a
-     *  card that qualifies for several categories may be kept for only ONE of
-     *  them. Each entry is a display label plus the revealed instance ids
-     *  matching that category. A keep-set is legal exactly when an injective
-     *  card → category assignment exists (the bipartite matching in
+    /** `look-distribute` (issue #1364, Atraxa, Grand Unifier) or
+     *  `choose-categorized` (issue #1945, Noxious Vapors / Planar Overlay) —
+     *  a CATEGORIZED keep: at most one member per category, and a member that
+     *  qualifies for several categories may be kept for only ONE of them
+     *  (a multicoloured card, a dual land). Each entry is a display label
+     *  plus the matching instance ids — revealed library cards for
+     *  `look-distribute`, hand/battlefield ids for `choose-categorized`. A
+     *  keep-set is legal exactly when an injective member → category
+     *  assignment exists (the bipartite matching in
      *  `gre/categorizedPick.ts`); `count.max` is that matching's size. The
      *  backend rejects an unmatchable submission; the frontend gates each
      *  click through the SAME helper, so the two never disagree. Undefined =

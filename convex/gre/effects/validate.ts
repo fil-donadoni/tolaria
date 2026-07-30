@@ -1179,6 +1179,43 @@ function isPickCategoryList(value: unknown): boolean {
     });
 }
 
+/** The `zone` of a `chooseCategorized` Op (issue #1945) — the already-visible
+ *  domain to choose from: the chooser's own hand or own battlefield. Distinct
+ *  from `isChoiceZone` (which also allows library/graveyard/exile — zones a
+ *  categorized pick from an already-visible set has no use for). */
+function isChooseCategorizedZone(value: unknown): boolean {
+    return value === "hand" || value === "battlefield";
+}
+
+/** The `onPicked` action of a `chooseCategorized` Op (issue #1945) — what
+ *  happens to the members actually picked: `"keep"` leaves them exactly where
+ *  they are (Noxious Vapors), `"returnToHand"` bounces them via
+ *  `SpellContext.returnToHand` (Planar Overlay, CR 701.10 — battlefield
+ *  only, enforced by that schema's `check`). */
+function isChooseCategorizedOnPicked(value: unknown): boolean {
+    return value === "keep" || value === "returnToHand";
+}
+
+/** The `sweep` clause of a `chooseCategorized` Op (issue #1945) — every
+ *  non-picked HAND member (optionally narrowed by `filter`, deliberately a
+ *  SEPARATE, possibly broader filter than the categorization domain) is
+ *  discarded (CR 701.9). Exactly `{ action: "discard" }` or `{ action:
+ *  "discard", filter }` — kept strict like `isPickCategoryList` (ADR 0045,
+ *  the grammar stays frozen). */
+function isChooseCategorizedSweep(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    const keys = Object.keys(value).sort();
+    const shapeOk =
+        (keys.length === 1 && keys[0] === "action") ||
+        (keys.length === 2 && keys[0] === "action" && keys[1] === "filter");
+    if (!shapeOk) return false;
+    const v = value as { action: unknown; filter?: unknown };
+    if (v.action !== "discard") return false;
+    return v.filter === undefined || isCardFilter(v.filter);
+}
+
 /** A destination a `revealTopAndRoute` Op may send a revealed card to
  *  (`RevealRouteDestination`, CR 400.7). `"library"` is absent by design — the
  *  card is already there and putting it back is `scryReorder`'s job. */
@@ -2977,6 +3014,45 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             randomBottom: isBoolean,
             reveal: isRevealScope,
             prompt: isNonEmptyString,
+        },
+    },
+    // CR 601.2b / 701.9 (issue #1945) — per-category choice from an
+    // ALREADY-VISIBLE set (the chooser's own hand or battlefield). `categories`
+    // is the same non-empty `{ label, filter }` list `revealAndCategorize`
+    // uses; `onPicked`/`sweep` decide what happens to the picked/unpicked
+    // halves, since (unlike that Op) there is no fixed kept→hand/rest→bottom
+    // polarity here. `check` enforces the two combinations the two shipped
+    // cards actually need: `sweep` (a real CR 701.9 discard) only makes sense
+    // when the domain IS the hand, and `onPicked: "returnToHand"` (CR 701.10)
+    // only makes sense when the domain IS the battlefield (a hand card is
+    // already in hand — "returning" it would be a no-op the grammar should
+    // never even express).
+    chooseCategorized: {
+        required: {
+            player: isPlayerRef,
+            zone: isChooseCategorizedZone,
+            categories: isPickCategoryList,
+            onPicked: isChooseCategorizedOnPicked,
+        },
+        optional: {
+            optional: isBoolean,
+            sweep: isChooseCategorizedSweep,
+            prompt: isNonEmptyString,
+        },
+        check: (entry) => {
+            const errors: string[] = [];
+            if (entry.sweep !== undefined && entry.zone !== "hand") {
+                errors.push('"sweep" requires zone: "hand"');
+            }
+            if (
+                entry.onPicked === "returnToHand" &&
+                entry.zone !== "battlefield"
+            ) {
+                errors.push(
+                    'onPicked: "returnToHand" requires zone: "battlefield"'
+                );
+            }
+            return errors;
         },
     },
     // CR 401.4 (issue #1046) — put N cards from a hand on top of a library,

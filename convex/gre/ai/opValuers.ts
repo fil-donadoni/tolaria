@@ -526,6 +526,34 @@ const revealAndCategorize: Valuer<"revealAndCategorize"> = (op) => ({
     tags: ["cardAdvantage"],
 });
 
+// CR 601.2b / 701.9 (issue #1945) — per-category choice from a set, applied
+// once per player via `forEach { set: "players" }` (Noxious Vapors / Planar
+// Overlay both read "each player…"). Whichever player `op.player` resolves to
+// acts on THEIR OWN hand/battlefield, so the sign mirrors `discard`'s
+// harmful-by-default convention: negative when `op.player` resolves to the
+// CASTER (a genuine self-cost — the caster's own hand gets thinned, or their
+// own land gets bounced), positive when it resolves to the OPPONENT (the same
+// effect landing on THEM is a gain for the caster). `forEach` values each
+// iteration separately, so a truly symmetric two-player script nets to
+// roughly zero across both iterations — matching the real board impact of a
+// wash effect, exactly like a symmetric `discard` would.
+const CATEGORIZED_SWEEP_VALUE = 15; // Noxious Vapors — hand thinned to ≤1-per-colour, own worse cards lost
+const CATEGORIZED_BOUNCE_VALUE = 10; // Planar Overlay — a land returns to hand, a turn of tempo
+const chooseCategorized: Valuer<"chooseCategorized"> = (op, ctx) => {
+    const self = ctx.isSelf(op.player, "opponent");
+    const sign = self ? -1 : 1;
+    if (op.onPicked === "returnToHand") {
+        return {
+            points: CATEGORIZED_BOUNCE_VALUE * sign,
+            tags: self ? ["tempo", "self-cost"] : ["tempo"],
+        };
+    }
+    return {
+        points: CATEGORIZED_SWEEP_VALUE * sign,
+        tags: self ? ["cardAdvantage", "self-cost"] : ["cardAdvantage"],
+    };
+};
+
 // CR 702.75a (issue #783) — HIDEAWAY: one card of the looked-at window is set
 // aside face down for a LATER conditional free play. Worth less than an
 // impulse-drawn card in hand (the payoff is gated on a condition that may never
@@ -932,6 +960,7 @@ export const OP_VALUERS: {
     digToHand,
     hideaway,
     revealAndCategorize,
+    chooseCategorized,
     discard,
     discardAtRandom,
     divideIntoPiles,

@@ -98,6 +98,7 @@ import { getEventFieldRow } from "../../cards/mechanicsRegistry";
 import {
     categorizedEligibleIds,
     maxCategorizedPicks,
+    forcedCategorizedPick,
 } from "../categorizedPick";
 import { manaCostsEqual } from "../constants";
 
@@ -3100,6 +3101,98 @@ export const OP_EXECUTORS: {
             chosenBottom,
             destination
         );
+    },
+    // CR 601.2b / 701.9 (issue #1945) — per-category choice from an
+    // ALREADY-VISIBLE set (the chooser's own hand or battlefield), reusing
+    // `revealAndCategorize`'s bipartite-matching core but decoupled from its
+    // library-look framing: no reveal/peek here, and the picked/unpicked
+    // halves get OPPOSITE actions per card (`onPicked`/`sweep`) rather than
+    // the fixed kept→hand/rest→bottom polarity. See the Op's own doc comment
+    // (`cards/types.ts`) and the mechanicsRegistry note for the full design.
+    chooseCategorized(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return; // CR 608.2b — chooser gone, skip
+        const categories = op.categories.map((category) => ({
+            label: category.label,
+            cardIds:
+                op.zone === "hand"
+                    ? ctx
+                          .getHandCards(playerId)
+                          .filter((c) =>
+                              matchesCardFilter(ctx, c, category.filter)
+                          )
+                          .map((c) => c.id)
+                    : ctx.getBattlefieldIds(
+                          playerId,
+                          toPermanentFilter(category.filter)
+                      ),
+        }));
+        const eligible = categorizedEligibleIds(categories);
+        const keep = maxCategorizedPicks(categories);
+        const applyOnPicked = (picks: readonly string[]) => {
+            if (op.onPicked !== "returnToHand") return; // "keep" — no move
+            for (const id of picks) {
+                ctx.returnToHand({ type: "permanent", id });
+            }
+        };
+        const applySweep = (picked: ReadonlySet<string>) => {
+            if (!op.sweep) return;
+            const sweepFilter = op.sweep.filter;
+            const rest = ctx
+                .getHandCards(playerId)
+                .filter((c) => !picked.has(c.id))
+                .filter(
+                    (c) =>
+                        sweepFilter === undefined ||
+                        matchesCardFilter(ctx, c, sweepFilter)
+                );
+            for (const c of rest) ctx.discardCard(playerId, c.id);
+        };
+        // CR 608.2b — nothing is legally pickable in ANY category (no card of
+        // that colour, no land of that basic type at all): a mandatory choice
+        // with zero real options auto-resolves straight to the sweep instead
+        // of prompting a picker with nothing clickable (the Arena zero-branch
+        // default, mirroring `revealAndCategorize`'s own `keep === 0` skip).
+        if (keep === 0) {
+            applySweep(new Set());
+            return;
+        }
+        // issue #1945 — a FORCED-but-nonzero pick: every category names at
+        // most one candidate and no candidate is shared between categories,
+        // so the maximum matching is unique and there is nothing for the
+        // player to actually decide. Auto-apply it rather than raising a
+        // picker whose only possible answer is already known (project
+        // convention: never prompt for a non-decision) — a genuine ADDITION
+        // over `revealAndCategorize`, which has no such special case.
+        if (op.optional !== true) {
+            const forced = forcedCategorizedPick(categories);
+            if (forced !== undefined) {
+                applyOnPicked(forced);
+                applySweep(new Set(forced));
+                return;
+            }
+        }
+        const picks = ctx.requestChoice({
+            playerId,
+            // Fixed choiceId, unique per Op position (the pipeline keys on
+            // `step:choiceId` and `step` IS this Op's checkpointed position —
+            // a `forEach { set: "players" }` wrapper gives each iteration its
+            // own position, so the SAME literal id never collides across
+            // players, mirroring `revealAndCategorize`'s own fixed id).
+            choiceId: "choose-categorized",
+            kind: "choose-categorized",
+            zone: op.zone,
+            candidateIds: eligible,
+            categories,
+            // Mandatory by default ("chooses", not "may choose") — offer
+            // exactly the maximum matching, never merely `categories.length`
+            // (CR 608.2b, mirrors `revealAndCategorize`'s own count).
+            count: { min: op.optional === true ? 0 : keep, max: keep },
+            prompt: op.prompt ?? "Choose one card of each category.",
+        });
+        if (picks === undefined) return "suspend"; // enqueued — wait
+        applyOnPicked(picks);
+        applySweep(new Set(picks));
     },
     // CR 401.4 (issue #1046) — put N hand cards on top of the library, in the
     // player's chosen order. A thin declarative skin over the single

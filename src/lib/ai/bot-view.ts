@@ -679,14 +679,21 @@ function buildOwedChoice(
         // (`discardCount`) AND the concrete, per-requirement-legal `discardIds`
         // the bot submits. Undefined for a plain yes/no or auto-resolving pay.
         ...mayPayDiscardPick(state, head, candidatesForChoice),
-        // issue #1364 (Atraxa) — a CATEGORIZED look-distribute constrains the
-        // keep beyond the count bounds (at most one card per category, each
-        // card claimable by only one), so the policy must test each addition
-        // rather than blindly take `max` best-valued cards; an over-picked
-        // submission is rejected server-side, which freezes the bot. Undefined
-        // for an ordinary dig.
+        // issue #1364 (Atraxa) / #1945 (Noxious Vapors, Planar Overlay) — a
+        // CATEGORIZED pick constrains the keep beyond the count bounds (at
+        // most one member per category, each claimable by only one), so the
+        // policy must test each addition rather than blindly take `max`
+        // best-valued members; an over-picked submission is rejected
+        // server-side, which freezes the bot. `choose-categorized` is
+        // `look-distribute`'s hand/battlefield sibling (same `categories`
+        // shape, `gre/categorizedPick.ts`'s bipartite legality) — both route
+        // through the SAME `chooseResolution` branch (`brain.ts`). Undefined
+        // for an ordinary dig / any other kind.
         categories:
-            head.kind === "look-distribute" ? head.categories : undefined,
+            head.kind === "look-distribute" ||
+            head.kind === "choose-categorized"
+                ? head.categories
+                : undefined,
         // issue #242 — the discard heuristic needs the board's mana picture to
         // protect scarce lands and rank spells by castability.
         manaSituation:

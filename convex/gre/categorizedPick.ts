@@ -152,3 +152,26 @@ export function canAddCategorizedPick(
     if (picks.includes(cardId)) return false;
     return isCategorizedPickLegal(categories, [...picks, cardId]);
 }
+
+/** The FORCED keep-set when the categorized pick admits no real decision at
+ *  all (issue #1945, CR 608.2b — a mandatory choice with no branch auto-
+ *  resolves, the Arena zero-branch default): every category names AT MOST one
+ *  matching id, and no id is claimed by two categories. Under those two
+ *  conditions the maximum matching is unique — each nonempty category can
+ *  only ever seat its own single candidate — so there is nothing for a
+ *  player to decide and the pick can apply itself. Returns `undefined` the
+ *  moment ANY category has 2+ candidates (a real "which one" decision) or ANY
+ *  id is shared by 2+ categories (a real "which category claims it"
+ *  decision, even though each side only has that one candidate) — either
+ *  case must still raise the interactive picker. An all-empty category list
+ *  (nothing matches anything) forces the empty set, distinct from "no forced
+ *  set exists" — callers already special-case a zero matching separately
+ *  (`maxCategorizedPicks(categories) === 0`) before ever reaching this. */
+export function forcedCategorizedPick(
+    categories: readonly PickCategory[]
+): string[] | undefined {
+    if (!categories.every((c) => c.cardIds.length <= 1)) return undefined;
+    const picks = categories.flatMap((c) => c.cardIds);
+    if (new Set(picks).size !== picks.length) return undefined;
+    return picks;
+}

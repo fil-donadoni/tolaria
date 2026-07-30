@@ -719,6 +719,20 @@ export function applyPendingChoiceSubmit(
                 throw new Error("Card is not an eligible choice");
             }
         }
+        // Categorized keep (issue #1945, Planar Overlay — "a land of each
+        // basic land type"): same bipartite-matching legality `look-distribute`
+        // enforces for its library window (below), extended to a BATTLEFIELD
+        // `choose-categorized` pick — a picked permanent qualifying for
+        // several categories (a dual land) may be kept for only ONE of them.
+        if (head.kind === "choose-categorized" && head.categories) {
+            if (
+                !isCategorizedPickLegal(head.categories, args.cardInstanceIds)
+            ) {
+                throw new Error(
+                    "Those permanents can't each be kept for a different category"
+                );
+            }
+        }
     } else if (head.zone === "hand") {
         for (const id of args.cardInstanceIds) {
             if (!zoneOwner.hand.find((c: CardInstanceState) => c.id === id)) {
@@ -728,6 +742,19 @@ export function applyPendingChoiceSubmit(
             // outside it is illegal even though it's in the chooser's hand.
             if (head.candidateIds && !head.candidateIds.includes(id)) {
                 throw new Error("Card is not an eligible choice");
+            }
+        }
+        // Categorized keep (issue #1945, Noxious Vapors — "one card of each
+        // color"): same bipartite-matching legality as the battlefield branch
+        // above / `look-distribute`'s library branch below — a multicoloured
+        // hand card may be kept for only ONE of its colours.
+        if (head.kind === "choose-categorized" && head.categories) {
+            if (
+                !isCategorizedPickLegal(head.categories, args.cardInstanceIds)
+            ) {
+                throw new Error(
+                    "Those cards can't each be kept for a different category"
+                );
             }
         }
     } else if (head.zone === "library") {

@@ -22257,6 +22257,549 @@ describe("Effect Script Op: revealAndCategorize (CR 701.20a / 401.4, issue #1364
     });
 });
 
+// --- chooseCategorized Op: per-category choice from an ALREADY-VISIBLE set
+// (CR 601.2b / 701.9, issue #1945) ------------------------------------------
+// New Op → full per-Op regime: hand-zone keep+sweep (Noxious Vapors' shape),
+// battlefield-zone bounce (Planar Overlay's shape), the two auto-resolve
+// paths (zero-branch and forced-but-nonzero), the suspend/resume round trip,
+// and a wire-format assertion through `projectPublicState`.
+const CC_WHITE_ID = "test-effects-cc-white";
+registerTokenDefinition({
+    id: CC_WHITE_ID,
+    name: CC_WHITE_ID,
+    rarity: "common",
+    manaCost: { W: 1 },
+    types: ["Creature"],
+    power: 1,
+    toughness: 1,
+});
+const CC_BLUE_ID = "test-effects-cc-blue";
+registerTokenDefinition({
+    id: CC_BLUE_ID,
+    name: CC_BLUE_ID,
+    rarity: "common",
+    manaCost: { U: 1 },
+    types: ["Creature"],
+    power: 1,
+    toughness: 1,
+});
+// A W/U multicolor card — the "one nomination covers one of its colors" case
+// (a multicoloured hand card may be kept for only ONE of its colours).
+const CC_AZORIUS_ID = "test-effects-cc-azorius";
+registerTokenDefinition({
+    id: CC_AZORIUS_ID,
+    name: CC_AZORIUS_ID,
+    rarity: "common",
+    manaCost: { W: 1, U: 1 },
+    types: ["Creature"],
+    power: 2,
+    toughness: 2,
+});
+// A colourless nonland card — matches NO colour category (never pickable)
+// but must still be swept by Vapors' broader `excludeType: "Land"` filter.
+const CC_ARTIFACT_ID = "test-effects-cc-artifact";
+registerTokenDefinition({
+    id: CC_ARTIFACT_ID,
+    name: CC_ARTIFACT_ID,
+    rarity: "common",
+    manaCost: { X: 1 },
+    types: ["Artifact"],
+});
+const CC_PLAINS_ID = "test-effects-cc-plains";
+registerTokenDefinition({
+    id: CC_PLAINS_ID,
+    name: CC_PLAINS_ID,
+    rarity: "common",
+    manaCost: {},
+    types: ["Land"],
+    subtypes: ["Plains"],
+});
+const CC_ISLAND_ID = "test-effects-cc-island";
+registerTokenDefinition({
+    id: CC_ISLAND_ID,
+    name: CC_ISLAND_ID,
+    rarity: "common",
+    manaCost: {},
+    types: ["Land"],
+    subtypes: ["Island"],
+});
+// A Plains/Island dual — "a single land covering several basic types".
+const CC_DUAL_ID = "test-effects-cc-dual";
+registerTokenDefinition({
+    id: CC_DUAL_ID,
+    name: CC_DUAL_ID,
+    rarity: "common",
+    manaCost: {},
+    types: ["Land"],
+    subtypes: ["Plains", "Island"],
+});
+
+const CC_COLOR_CATEGORIES = [
+    { label: "White", filter: { color: "W" as const } },
+    { label: "Blue", filter: { color: "U" as const } },
+];
+
+const submitCategorized = (state: GameState, picks: string[]) => {
+    const head = state.pendingChoices![0];
+    applyPendingChoiceSubmit(state, {
+        playerId: head.playerId,
+        stackItemId: head.stackItemId,
+        step: head.step,
+        choiceId: head.choiceId,
+        cardInstanceIds: picks,
+    });
+};
+
+describe("Effect Script Op: chooseCategorized (CR 601.2b / 701.9, issue #1945)", () => {
+    it("hand zone: suspends on a choose-categorized choice, keeps the picks and sweeps the (broader-filtered) rest", () => {
+        const id = registerScript("test-op-cc-hand-sweep", [
+            {
+                op: "chooseCategorized",
+                player: "controller",
+                zone: "hand",
+                categories: CC_COLOR_CATEGORIES,
+                onPicked: "keep",
+                sweep: { filter: { excludeType: "Land" }, action: "discard" },
+            } as EffectOp,
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [
+                        // TWO White candidates — a real "which one" decision
+                        // (a single candidate per category would take the
+                        // forced-pick auto-resolve path instead, covered
+                        // separately below).
+                        makeInstance(CC_WHITE_ID, {
+                            id: "w1",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                        makeInstance(CC_WHITE_ID, {
+                            id: "w2",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                        makeInstance(CC_BLUE_ID, {
+                            id: "u",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                        makeInstance(CC_ARTIFACT_ID, {
+                            id: "artifact",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                        makeInstance(CC_PLAINS_ID, {
+                            id: "plains",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull();
+
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("choose-categorized");
+        expect(head.zone).toBe("hand");
+        expect(head.categories).toEqual([
+            { label: "White", cardIds: ["w1", "w2"] },
+            { label: "Blue", cardIds: ["u"] },
+        ]);
+        expect(head.count).toEqual({ min: 2, max: 2 });
+
+        submitCategorized(state, ["w1", "u"]);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        // Kept picks stay in hand; the swept artifact (matches NO colour
+        // category, but matches the broader nonland sweep filter) and the
+        // un-nominated White card are both discarded; the Plains is never
+        // touched (sweep excludes lands).
+        const hand = state.players[0].hand.map((c) => c.id);
+        expect(hand.sort()).toEqual(["plains", "u", "w1"]);
+        expect(state.players[0].graveyard.map((c) => c.id)).toEqual(
+            expect.arrayContaining(["artifact", "w2"])
+        );
+    });
+
+    it("a multicoloured hand card may cover only ONE of its colours (bipartite matching)", () => {
+        const id = registerScript("test-op-cc-hand-multicolor", [
+            {
+                op: "chooseCategorized",
+                player: "controller",
+                zone: "hand",
+                categories: CC_COLOR_CATEGORIES,
+                onPicked: "keep",
+                sweep: { filter: { excludeType: "Land" }, action: "discard" },
+            } as EffectOp,
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [
+                        makeInstance(CC_AZORIUS_ID, {
+                            id: "azorius",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                        makeInstance(CC_BLUE_ID, {
+                            id: "u",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        // The Azorius card matches BOTH categories, but the matching still
+        // seats only 2 distinct cards: it covers White (the plain Blue
+        // creature covers Blue) — the maximum is 2, not "the Azorius covers
+        // both, so 1 suffices".
+        expect(head.count).toEqual({ min: 2, max: 2 });
+
+        // Illegal: submitting the Azorius card TWICE (as both categories) is
+        // a duplicate id and rejected before the bipartite check even runs.
+        expect(() =>
+            submitCategorized(state, ["azorius", "azorius"])
+        ).toThrow();
+
+        submitCategorized(state, ["azorius", "u"]);
+        expect(state.players[0].hand.map((c) => c.id).sort()).toEqual([
+            "azorius",
+            "u",
+        ]);
+        // Nothing was swept — only the resolved spell itself sits in the
+        // graveyard (CR 608.2m).
+        expect(state.players[0].graveyard.map((c) => c.id)).not.toContain(
+            "azorius"
+        );
+        expect(state.players[0].graveyard.map((c) => c.id)).not.toContain("u");
+    });
+
+    it("battlefield zone: bounces the picks to hand and leaves the rest untouched (no sweep)", () => {
+        const id = registerScript("test-op-cc-battlefield-bounce", [
+            {
+                op: "chooseCategorized",
+                player: "controller",
+                zone: "battlefield",
+                categories: [
+                    { label: "Plains", filter: { subtype: "Plains" } },
+                    { label: "Island", filter: { subtype: "Island" } },
+                ],
+                onPicked: "returnToHand",
+            } as EffectOp,
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(CC_PLAINS_ID, {
+                            id: "plains",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                        makeInstance(CC_ISLAND_ID, {
+                            id: "island",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                        // An untouched third land — no category names it, so
+                        // it must survive both the choice AND the (absent)
+                        // sweep.
+                        makeInstance(CC_PLAINS_ID, {
+                            id: "plains2",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull();
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("choose-categorized");
+        expect(head.zone).toBe("battlefield");
+
+        submitCategorized(state, ["plains", "island"]);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.players[0].hand.map((c) => c.id).sort()).toEqual([
+            "island",
+            "plains",
+        ]);
+        // The un-nominated third land is neither bounced nor discarded.
+        expect(state.players[0].battlefield.map((c) => c.id)).toEqual([
+            "plains2",
+        ]);
+
+        // Wire format: the projected battlefield/hand agree with the fat
+        // state (ADR 0045 GRE testing convention).
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].battlefield.map((c) => c.id)).toEqual([
+            "plains2",
+        ]);
+        expect(projected.players[0].hand.map((c) => c?.id).sort()).toEqual([
+            "island",
+            "plains",
+        ]);
+    });
+
+    it("a dual land covers BOTH basic types at once (bipartite matching, battlefield)", () => {
+        const id = registerScript("test-op-cc-battlefield-dual", [
+            {
+                op: "chooseCategorized",
+                player: "controller",
+                zone: "battlefield",
+                categories: [
+                    { label: "Plains", filter: { subtype: "Plains" } },
+                    { label: "Island", filter: { subtype: "Island" } },
+                ],
+                onPicked: "returnToHand",
+            } as EffectOp,
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(CC_DUAL_ID, {
+                            id: "dual",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // Only ONE physical land exists, so the maximum matching is 1 even
+        // though it satisfies two categories at once.
+        const head = state.pendingChoices![0];
+        expect(head.count).toEqual({ min: 1, max: 1 });
+        expect(head.categories).toEqual([
+            { label: "Plains", cardIds: ["dual"] },
+            { label: "Island", cardIds: ["dual"] },
+        ]);
+
+        submitCategorized(state, ["dual"]);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["dual"]);
+        expect(state.players[0].battlefield).toHaveLength(0);
+    });
+
+    it("auto-resolves with NO prompt when nothing matches any category (zero-branch, CR 608.2b)", () => {
+        const id = registerScript("test-op-cc-zero-branch", [
+            {
+                op: "chooseCategorized",
+                player: "controller",
+                zone: "hand",
+                categories: CC_COLOR_CATEGORIES,
+                onPicked: "keep",
+                sweep: { filter: { excludeType: "Land" }, action: "discard" },
+            } as EffectOp,
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [
+                        makeInstance(CC_ARTIFACT_ID, {
+                            id: "artifact",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                        makeInstance(CC_PLAINS_ID, {
+                            id: "plains",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        // No colour matches at all — resolves in one pass, no suspend.
+        expect(resolveTopOfStack(state)).not.toBeNull();
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["plains"]);
+        expect(state.players[0].graveyard.map((c) => c.id)).toContain(
+            "artifact"
+        );
+    });
+
+    it("auto-resolves a FORCED-but-nonzero pick with no real decision (issue #1945)", () => {
+        // Every category has exactly one candidate and no candidate is shared
+        // between categories — the matching is unique, so this is not a real
+        // decision and must not raise a picker (project convention: never
+        // prompt for a non-decision).
+        const id = registerScript("test-op-cc-forced", [
+            {
+                op: "chooseCategorized",
+                player: "controller",
+                zone: "hand",
+                categories: CC_COLOR_CATEGORIES,
+                onPicked: "keep",
+                sweep: { filter: { excludeType: "Land" }, action: "discard" },
+            } as EffectOp,
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [
+                        makeInstance(CC_WHITE_ID, {
+                            id: "w",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                        makeInstance(CC_BLUE_ID, {
+                            id: "u",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                        makeInstance(CC_ARTIFACT_ID, {
+                            id: "artifact",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        // Resolves in ONE pass — no suspend, no pending choice raised.
+        expect(resolveTopOfStack(state)).not.toBeNull();
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.players[0].hand.map((c) => c.id).sort()).toEqual([
+            "u",
+            "w",
+        ]);
+        expect(state.players[0].graveyard.map((c) => c.id)).toContain(
+            "artifact"
+        );
+    });
+
+    it("optional:true allows keeping FEWER than the maximum (a real 'you may' branch)", () => {
+        const id = registerScript("test-op-cc-optional", [
+            {
+                op: "chooseCategorized",
+                player: "controller",
+                zone: "hand",
+                categories: CC_COLOR_CATEGORIES,
+                optional: true,
+                onPicked: "keep",
+                sweep: { filter: { excludeType: "Land" }, action: "discard" },
+            } as EffectOp,
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [
+                        makeInstance(CC_WHITE_ID, {
+                            id: "w",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                        makeInstance(CC_BLUE_ID, {
+                            id: "u",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        expect(head.count).toEqual({ min: 0, max: 2 });
+        submitCategorized(state, ["w"]);
+        // The un-nominated Blue card is swept (nonland, not kept).
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["w"]);
+        expect(state.players[0].graveyard.map((c) => c.id)).toContain("u");
+    });
+
+    it("survives serialize round-trip (compactState/expandState)", () => {
+        const id = registerScript("test-op-cc-serialize", [
+            {
+                op: "chooseCategorized",
+                player: "controller",
+                zone: "hand",
+                categories: CC_COLOR_CATEGORIES,
+                onPicked: "keep",
+                sweep: { filter: { excludeType: "Land" }, action: "discard" },
+            } as EffectOp,
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [
+                        // TWO White candidates — a real decision, so the
+                        // choice actually suspends (a single candidate per
+                        // category would take the forced-pick auto-resolve
+                        // path and never reach `pendingChoices` at all).
+                        makeInstance(CC_WHITE_ID, {
+                            id: "w1",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                        makeInstance(CC_WHITE_ID, {
+                            id: "w2",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                        makeInstance(CC_BLUE_ID, {
+                            id: "u",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+
+        const restored = expandState(compactState(state));
+        expect(restored.pendingChoices![0].categories).toEqual(
+            state.pendingChoices![0].categories
+        );
+        submitCategorized(restored, ["w1", "u"]);
+        expect(restored.players[0].hand.map((c) => c.id).sort()).toEqual([
+            "u",
+            "w1",
+        ]);
+    });
+});
+
 // New Op (issue #1459, Dance of Many) → full per-Op regime: interpreter
 // coverage of BOTH source shapes an Effect Script can produce (an announced
 // target slot + a `ref` to a permanent bound earlier in the same script),

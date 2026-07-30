@@ -45,4 +45,51 @@ describe("isZonePickConfirmEnabled (Done/Skip gate, CR 608.2)", () => {
         expect(pendingChoiceMin({ min: 0, max: 2 })).toBe(0);
         expect(pendingChoiceMax({ min: 0, max: 2 })).toBe(2);
     });
+
+    // issue #1945 — a CATEGORIZED pick (`look-distribute` / `choose-categorized`)
+    // adds a constraint the count bounds alone cannot express: the
+    // hand/battlefield toggle has no per-click categorized gate (unlike the
+    // richer library grid picker), so an in-bounds-COUNT-but-illegal-MATCHING
+    // buffer must be caught here or Done would submit a combination the
+    // server rejects.
+    describe("categorized pick (issue #1945)", () => {
+        const categories = [
+            { label: "White", cardIds: ["w"] },
+            { label: "Blue", cardIds: ["u"] },
+        ];
+
+        it("enables Done for a legal per-category assignment within bounds", () => {
+            expect(
+                isZonePickConfirmEnabled({ min: 2, max: 2 }, 2, {
+                    categories,
+                    pickedIds: ["w", "u"],
+                })
+            ).toBe(true);
+        });
+
+        it("disables Done for an in-bounds count that still fails the bipartite matching", () => {
+            // Two cards, both only satisfying "White" — legal COUNT (2), but
+            // no injective assignment exists (only one White seat).
+            const clashing = [
+                { label: "White", cardIds: ["w1", "w2"] },
+                { label: "Blue", cardIds: [] },
+            ];
+            expect(
+                isZonePickConfirmEnabled({ min: 1, max: 1 }, 1, {
+                    categories: clashing,
+                    pickedIds: ["w1"],
+                })
+            ).toBe(true);
+            expect(
+                isZonePickConfirmEnabled({ min: 2, max: 2 }, 2, {
+                    categories: clashing,
+                    pickedIds: ["w1", "w2"],
+                })
+            ).toBe(false);
+        });
+
+        it("is a no-op (count-only) when no `categorized` argument is supplied", () => {
+            expect(isZonePickConfirmEnabled(2, 2)).toBe(true);
+        });
+    });
 });

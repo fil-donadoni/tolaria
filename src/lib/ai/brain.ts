@@ -763,7 +763,12 @@ export function chooseResolution(choice: OwedChoice): string[] {
         // max of three — rejected, and a rejected submission freezes the bot.
         // Walk the value order instead and take each card only while the set
         // stays matchable, through the SAME helper the server validates with.
-        case "look-distribute": {
+        // `choose-categorized` (issue #1945, Noxious Vapors / Planar Overlay)
+        // is `look-distribute`'s hand/battlefield sibling — same `categories`
+        // shape (`bot-view.ts` populates it for both kinds), same bipartite
+        // legality, so it shares this exact branch rather than a duplicate.
+        case "look-distribute":
+        case "choose-categorized": {
             if (!choice.categories) {
                 return bestFirst(candidates)
                     .slice(0, max)

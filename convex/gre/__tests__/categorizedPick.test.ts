@@ -12,6 +12,7 @@ import { describe, it, expect } from "vitest";
 import {
     canAddCategorizedPick,
     categorizedEligibleIds,
+    forcedCategorizedPick,
     isCategorizedPickLegal,
     maxCategorizedPicks,
     type PickCategory,
@@ -165,5 +166,51 @@ describe("categorizedPick — incremental add (the client click gate, #1364)", (
                 );
             }
         }
+    });
+});
+
+// `forcedCategorizedPick` (issue #1945) — the "no real decision" auto-resolve
+// case `chooseCategorized` uses (Noxious Vapors / Planar Overlay): every
+// category names at most one candidate AND no candidate is shared between
+// categories, so the maximum matching is UNIQUE and there is nothing for the
+// player to actually pick.
+describe("categorizedPick — forced pick (issue #1945)", () => {
+    it("returns the union of each category's single candidate when none overlap", () => {
+        const categories = cats({
+            Creature: ["bear"],
+            Land: ["forest"],
+            Instant: [],
+        });
+        expect(forcedCategorizedPick(categories)).toEqual(["bear", "forest"]);
+    });
+
+    it("returns an empty array when no category has any candidate", () => {
+        const categories = cats({ Creature: [], Land: [] });
+        expect(forcedCategorizedPick(categories)).toEqual([]);
+    });
+
+    it("refuses when a category has two OR MORE candidates (a real 'which one' decision)", () => {
+        const categories = cats({ Creature: ["c1", "c2"], Land: ["forest"] });
+        expect(forcedCategorizedPick(categories)).toBeUndefined();
+    });
+
+    it("refuses when a single-candidate category's card is ALSO the sole match of another (a real 'which category claims it' decision)", () => {
+        // Both categories name exactly one candidate each, but it's the SAME
+        // card — a genuine choice of which category it satisfies, even
+        // though the matching size is still only 1 either way.
+        const categories = cats({ Creature: ["ac"], Artifact: ["ac"] });
+        expect(forcedCategorizedPick(categories)).toBeUndefined();
+    });
+
+    it("agrees with isCategorizedPickLegal whenever it returns a forced set", () => {
+        const categories = cats({
+            White: ["w"],
+            Blue: ["u"],
+            Black: [],
+        });
+        const forced = forcedCategorizedPick(categories);
+        expect(forced).toBeDefined();
+        expect(isCategorizedPickLegal(categories, forced!)).toBe(true);
+        expect(forced).toHaveLength(maxCategorizedPicks(categories));
     });
 });
