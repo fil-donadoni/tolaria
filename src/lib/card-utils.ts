@@ -2397,12 +2397,14 @@ export function manaCostToString(cost?: ManaCost): string {
     // into separate keys/fields specifically so the cost is a canonical bag,
     // not an ordered token list (CR 202.1's own printed order is a rendering
     // convention, not a rules requirement — CR 601.2f resolves the pips by
-    // colour/kind, never by print position). No card in the catalogue prints
-    // a hybrid pip before a required colour pip (Hogaak `{5}{B/G}{B/G}`,
-    // Figure of Destiny `{R/W}`, Fable `{2}{R}`, all generic-or-color-first),
-    // so this has never diverged from a real printing; if one ever does, add
-    // an explicit `printOrder` field to `ManaCost` rather than threading
-    // positional info through the generic/hybrid split.
+    // colour/kind, never by print position). No catalogue card currently
+    // mixes a hybrid pip with a single-colour pip — the three shipped
+    // hybrid-cost cards (Hogaak `{5}{B/G}{B/G}`, Figure of Destiny `{R/W}`,
+    // Figure of Fable `{G/W}`) are all pure generic-plus-hybrid, zero
+    // single-colour pips — so this canonical ordering is not yet
+    // distinguishable from printed order by any shipped card; if one ever
+    // does mix them, add an explicit `printOrder` field to `ManaCost` rather
+    // than threading positional info through the generic/hybrid split.
     for (const pip of [
         ...(cost.hybrid ?? []),
         ...normalizedHybridPips(cost as Record<string, number>),
