@@ -1110,16 +1110,19 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             req.skip ??= `Op "digMatchingToHand" depends on a filter match against library contents — covered by the Op's interpreter tests`;
             return;
         case "castDuringResolution":
-            // CR 608.2f (issue #1477) — offers the controller a live
-            // Cast/Decline of a bound card and, on accept, casts it inline
-            // during resolution (a suspending `option-pick`, then the cast
-            // card's own suspending target/mode/X picks). The canned
-            // single-resolution generator cannot drive those live decisions,
-            // so the script is an explicit skip; execution coverage comes from
-            // the Op's own interpreter tests (cast / decline / silent-pass) —
-            // mirrors the suspending `choice` / `optionChoice` / `nameCard`
-            // skips (per-Op regime, `.claude/rules/gre-development.md`).
-            req.skip ??= `Op "castDuringResolution" suspends for a live Cast/Decline + the cast card's own picks (CR 608.2f) — covered by the Op's interpreter tests`;
+            // CR 608.2g (issues #1477 / #1961) — offers the controller a live
+            // Cast/Decline (or Play/Decline, for the `includesLand` land
+            // branch) of a selected card and, on accept, plays it inline during
+            // resolution (a suspending `option-pick`, then the cast card's own
+            // suspending target/mode/X picks). The canned single-resolution
+            // generator cannot drive those live decisions — nor build the CR 607
+            // linked exile the `{ exiledWithSource: true }` selector reads — so
+            // the script is an explicit skip; execution coverage comes from the
+            // Op's own interpreter tests (cast / play-land / decline /
+            // silent-pass) — mirrors the suspending `choice` / `optionChoice` /
+            // `nameCard` skips (per-Op regime,
+            // `.claude/rules/gre-development.md`).
+            req.skip ??= `Op "castDuringResolution" suspends for a live Cast/Decline + the played card's own picks (CR 608.2g) — covered by the Op's interpreter tests`;
             return;
         case "setIslandSanctuaryProtection":
             // CR 508.1c (issue #1283) — a turn-scoped player-wide "can't be

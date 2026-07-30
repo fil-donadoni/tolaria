@@ -19411,6 +19411,202 @@ describe("Effect Script Op: castDuringResolution — exile-top source + paid cas
     });
 });
 
+describe("Effect Script Op: castDuringResolution — LAND branch, play during resolution (CR 116.2a / 305.2a / 305.3 / 305.2b, issue #1961)", () => {
+    // The `includesLand` extension's permanent Op test. Shape: discard a LAND,
+    // then offer a PLAY of it from the graveyard as part of THIS resolution —
+    // the generic form of Hideaway's "you may play the exiled card". Without
+    // `includesLand` the same script silently passes over the land (the
+    // official Malcolm land ruling, asserted by the #1477 suite above).
+    function landScript(id: string): string {
+        return registerScript(id, [
+            {
+                op: "choice",
+                kind: "choose-hand-card",
+                player: "controller",
+                zone: "hand",
+                count: 1,
+                prompt: "Discard a card.",
+                bind: "$picked",
+            },
+            { op: "discard", player: "controller", cards: { ref: "$picked" } },
+            {
+                op: "castDuringResolution",
+                card: { ref: "$picked" },
+                player: "controller",
+                source: "graveyard",
+                free: true,
+                includesLand: true,
+            },
+        ]);
+    }
+
+    function stateWithLand(
+        overrides: Partial<Parameters<typeof makeState>[0]> = {}
+    ): { state: GameState; landId: string } {
+        const land = makeInstance(CDR_LAND_ID, {
+            id: "cdrPlayLand",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { hand: [land] }), makePlayer("p2")],
+            ...overrides,
+        });
+        return { state, landId: "cdrPlayLand" };
+    }
+
+    /** Runs the script up to (and including) the discard, leaving the state on
+     *  whatever the Op did next. */
+    function runToOffer(state: GameState, scriptId: string): void {
+        pushSpell(state, scriptId, "p1");
+        resolveTopOfStack(state);
+        const discardHead = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: discardHead.stackItemId,
+            step: discardHead.step,
+            choiceId: discardHead.choiceId,
+            cardInstanceIds: ["cdrPlayLand"],
+        });
+    }
+
+    it("offers a Play/Decline and, on accept, puts the land onto the battlefield CONSUMING the land drop (CR 305.2a)", () => {
+        const { state, landId } = stateWithLand();
+        runToOffer(state, landScript("test-op-cdr-land-play"));
+
+        const offer = state.pendingChoices![0];
+        expect(offer.kind).toBe("option-pick");
+        // CR 116.2a — a land is PLAYED, never cast; the accept token stays the
+        // shared `"cast"` id so the answer plumbing (and the bot's
+        // `optionPickCandidates`) needs no fork, but the LABEL must say Play.
+        expect(offer.options).toEqual([
+            { id: "cast", label: "Play" },
+            { id: "decline", label: "Decline" },
+        ]);
+        // The land never uses the stack: the parent script is still the only
+        // stack item while the offer is open (CR 608.2g — not priority).
+        expect(state.stack).toHaveLength(1);
+
+        // MANDATORY wire format — the Play/Decline affordance survives
+        // `projectPublicState` (the client renders the generic option-pick
+        // prompt straight off the projected `pendingChoices`).
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.pendingChoices?.[0]?.options).toEqual([
+            { id: "cast", label: "Play" },
+            { id: "decline", label: "Decline" },
+        ]);
+
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: offer.stackItemId,
+            step: offer.step,
+            choiceId: offer.choiceId,
+            cardInstanceIds: ["cast"],
+        });
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.stack).toHaveLength(0); // CR 116.2a — no stack use
+        expect(state.players[0].battlefield.some((c) => c.id === landId)).toBe(
+            true
+        );
+        expect(state.players[0].graveyard.some((c) => c.id === landId)).toBe(
+            false
+        );
+        // CR 305.2a — "lands played during the resolution of spells and
+        // abilities" count against the per-turn drop.
+        expect(state.players[0].landsPlayedThisTurn).toBe(1);
+    });
+
+    it("declining leaves the land in its source zone with no later-in-turn window (CR 608.2g)", () => {
+        const { state, landId } = stateWithLand();
+        runToOffer(state, landScript("test-op-cdr-land-decline"));
+        const offer = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: offer.stackItemId,
+            step: offer.step,
+            choiceId: offer.choiceId,
+            cardInstanceIds: ["decline"],
+        });
+        expect(state.pendingChoices).toBeUndefined();
+        const declined = state.players[0].graveyard.find(
+            (c) => c.id === landId
+        )!;
+        expect(declined).toBeDefined();
+        expect(declined.castableFromGraveyardBy).toBeUndefined();
+        expect(state.players[0].landsPlayedThisTurn ?? 0).toBe(0);
+    });
+
+    it("CR 305.3 — passes silently (NO prompt) when it isn't the player's turn, and the resolution completes cleanly", () => {
+        const { state, landId } = stateWithLand({
+            activePlayerId: "p2",
+            priorityPlayerId: "p2",
+        });
+        expect(() =>
+            runToOffer(state, landScript("test-op-cdr-land-opp-turn"))
+        ).not.toThrow();
+        // "Ignore any part of an effect that instructs a player to [play a land
+        // when it isn't their turn]" — no dead prompt, no error.
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[0].graveyard.some((c) => c.id === landId)).toBe(
+            true
+        );
+        expect(state.players[0].landsPlayedThisTurn ?? 0).toBe(0);
+    });
+
+    it("CR 305.2b — passes silently (NO prompt) once the land drop is already spent", () => {
+        const { state, landId } = stateWithLand();
+        state.players[0].landsPlayedThisTurn = 1;
+        expect(() =>
+            runToOffer(state, landScript("test-op-cdr-land-drop-spent"))
+        ).not.toThrow();
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[0].graveyard.some((c) => c.id === landId)).toBe(
+            true
+        );
+        expect(state.players[0].landsPlayedThisTurn).toBe(1);
+    });
+
+    it("a NONLAND card under `includesLand` still takes the ordinary cast branch (CR 305.9 only redirects lands)", () => {
+        const bear = makeInstance(BEAR_ID, {
+            id: "cdrLandBear",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { hand: [bear] }), makePlayer("p2")],
+        });
+        const id = landScript("test-op-cdr-land-nonland");
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const discardHead = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: discardHead.stackItemId,
+            step: discardHead.step,
+            choiceId: discardHead.choiceId,
+            cardInstanceIds: ["cdrLandBear"],
+        });
+        const offer = state.pendingChoices![0];
+        expect(offer.options).toEqual([
+            { id: "cast", label: "Cast" },
+            { id: "decline", label: "Decline" },
+        ]);
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: offer.stackItemId,
+            step: offer.step,
+            choiceId: offer.choiceId,
+            cardInstanceIds: ["cast"],
+        });
+        expect(state.stack.some((s) => s.id === "cdrLandBear")).toBe(true);
+        expect(state.players[0].landsPlayedThisTurn ?? 0).toBe(0);
+    });
+});
+
 describe("Effect Script choice kind: choose-hand-card + Op: grantCastFromGraveyard (CR 601.3e / 117.6-analog, issue #1344)", () => {
     it("discards the chosen hand card, then grants graveyard cast permission + the free-cast waiver (Malcolm shape, same-player, 'this-turn' window)", () => {
         const handCard = makeInstance(BEAR_ID, {

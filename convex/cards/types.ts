@@ -2204,8 +2204,24 @@ export interface SpellContext {
      *  Used by Word of Command ("The player plays that card if able") to play
      *  the chosen land under the controlled opponent's control, counting toward
      *  the opponent's land drop. Returns true if the land was played, false if
-     *  not able (not in hand, not a Land, or the land drop is spent). */
-    playLandForPlayer: (playerId: string, cardInstanceId: string) => boolean;
+     *  not able (not in hand, not a Land, or the land drop is spent).
+     *
+     *  ZONE-BROAD (CR 305.9, issue #1961) — `opts.sourceZone` names the zone the
+     *  land is played FROM, defaulting to `"hand"` (Word of Command's shape,
+     *  unchanged). A `"graveyard"`/`"exile"` source is the land twin of
+     *  `castChosenSpell`'s own zone generalization: a play-during-resolution
+     *  permission (Hideaway's "you may play the exiled card") reaches a land
+     *  sitting in exile, and it must enter through the SAME canonical land-play
+     *  transition so the CR 305.2a land drop is recorded identically. This
+     *  primitive is deliberately timing-AGNOSTIC — CR 305.3 ("a player can't
+     *  play a land if it isn't their turn") is enforced by the CALLER's legality
+     *  lookup ({@link getChosenLandPlayable}), because Word of Command's own
+     *  resolution plays a land under the NON-active player's control. */
+    playLandForPlayer: (
+        playerId: string,
+        cardInstanceId: string,
+        opts?: { sourceZone?: "hand" | "graveyard" | "exile" }
+    ) => boolean;
     /** Taps a permanent on the battlefield (CR 701.20a). No-op if already
      *  tapped or if the target is no longer on the battlefield (CR 608.2b).
      *  Used by Icy Manipulator and similar "tap target permanent" effects. */
@@ -4372,6 +4388,26 @@ export interface SpellContext {
      *  silently. Also false when the card is absent from that zone (empty
      *  source, CR 608.2b) or has no registered definition. */
     getChosenCardCastable: (
+        playerId: string,
+        cardInstanceId: string,
+        sourceZone: "hand" | "graveyard" | "exile"
+    ) => boolean;
+    /** CR 116.2a / 305.2a / 305.3 / 305.2b (issue #1961) — the LAND twin of
+     *  {@link getChosenCardCastable}, for a play-during-resolution permission
+     *  whose Oracle text says "play" rather than "cast" (Hideaway's "you may
+     *  play the exiled card"). True iff `cardInstanceId` is in `playerId`'s
+     *  `sourceZone`, IS a land, and playing it right now is legal:
+     *   - CR 305.3 — it must be `playerId`'s turn. Otherwise "ignore any part of
+     *     an effect that instructs a player to [play a land]", so the caller
+     *     passes silently rather than erroring or stalling the resolution.
+     *   - CR 305.2b — a land drop must remain (one per turn plus any extra-drop
+     *     grants); a land played during a resolution counts against it
+     *     (CR 305.2a).
+     *   - CR 614 — no land-play lock is active (Worms of the Earth).
+     *  A land is never CAST (CR 116.2a), which is why this is a separate lookup
+     *  rather than a boolean flag on the castable lookup: the two answer
+     *  questions about two DIFFERENT game actions. */
+    getChosenLandPlayable: (
         playerId: string,
         cardInstanceId: string,
         sourceZone: "hand" | "graveyard" | "exile"
@@ -8868,10 +8904,10 @@ export type EffectOp =
           window?: "this-turn" | "while-in-graveyard";
           withoutPayingManaCost?: boolean;
       }
-    /** CR 608.2f (issue #1477) — cast a card as PART OF THIS resolution: a
-     *  "you may cast <card>" permission with NO stated duration, which per CR
-     *  608.2f exists ONLY during the resolution of the ability that grants it.
-     *  The controller (`player`) is offered an optional Cast/Decline prompt
+    /** CR 608.2g (issue #1477) — PLAY a card as PART OF THIS resolution: a
+     *  "you may cast/play <card>" permission with NO stated duration, which per
+     *  CR 608.2g exists ONLY during the resolution of the ability that grants
+     *  it. The controller (`player`) is offered an optional Cast/Decline prompt
      *  and, if they accept, the card (`card`, a bare picks ref to a bound card
      *  such as Malcolm's just-discarded card) is cast INLINE — put onto the
      *  stack right below the resolving ability, collecting its own
@@ -8879,41 +8915,71 @@ export type EffectOp =
      *  distinct from `grantCastFromGraveyard`/`grantCastFromExile` (which stamp
      *  a later-in-turn impulse window): no priority is granted between the
      *  offer and the inline cast, the card CANNOT be saved for later, and the
-     *  card's own timing / card-type restrictions are ignored (CR 608.2f). A
+     *  card's own timing / card-type restrictions are ignored — CR 117.1a /
+     *  302.1 / 307.1 grant their timing permissions to "a player WHO HAS
+     *  PRIORITY", and casting during a resolution happens outside priority, so
+     *  the effect itself is the permission (a creature or sorcery is effectively
+     *  castable at instant speed, including on the opponent's turn). A
      *  resolve-time mini-cast reusing `SpellContext.castChosenSpell` (ADR 0037,
      *  self-cast: actingPlayer == controller).
      *
-     *  `source` is the zone the card is cast FROM (`"graveyard"` — Malcolm; or
+     *  `source` is the zone the card is played FROM (`"graveyard"` — Malcolm; or
      *  `"exile"`). `free` (default false) waives the mana cost entirely
      *  (Malcolm's "without paying its mana cost"); omit it for a pay-normal-cost
      *  cast — the paid path prompts for X / additional costs and auto-taps the
      *  card's real mana cost, treating an unpayable cost as a decline (CR
-     *  601.2g). Silent pass (CR 608.2b — no prompt, nothing cast) when `player`
-     *  can't be resolved, the picks binding was never captured, the card is no
-     *  longer in `source`, or it is a land (lands are PLAYED, not cast — the
-     *  official Malcolm land ruling).
+     *  601.2g). Silent pass (CR 608.2b — no prompt, nothing played) when
+     *  `player` can't be resolved, the card selector resolved to nothing, or the
+     *  card is no longer in `source`.
      *
      *  Two mutually-exclusive card SOURCES (issue #1478):
-     *   - `card` + `source` — a bare picks ref to a card an earlier Op bound
-     *     (Malcolm's just-discarded card), cast from its graveyard/exile zone.
+     *   - `card` + `source` — the card selector, cast from its graveyard/exile
+     *     zone. Either a bare PICKS ref to a card an earlier Op in the SAME
+     *     script bound (Malcolm's just-discarded card), or — for a CR 607 LINKED
+     *     pair of abilities, where a `bind` cannot span two separate resolutions
+     *     — `{ exiledWithSource: true }` (issue #1961), the card(s) this
+     *     ability's own source permanent exiled and stamped via
+     *     `SpellContext.linkExileToSource` (Hideaway's "you may play the exiled
+     *     card"; `source` must be `"exile"`). Exactly the selector
+     *     `grantCastFromExile` already accepts.
      *   - `fromTopOfLibrary: true` — exile the top card of the caster's library
-     *     UNCONDITIONALLY (CR 608.2f) and offer THAT card, cast from exile; a
+     *     UNCONDITIONALLY (CR 608.2g) and offer THAT card, cast from exile; a
      *     decline / unpayable cost leaves it in exile (Chandra, Torch of
      *     Defiance's +1). `card`/`source` are omitted in this shape.
      *
+     *  `includesLand` (default false, CR 116.2a / 305, issue #1961) — set it
+     *  ONLY when the granting Oracle text says "PLAY" rather than "cast"
+     *  (Hideaway). Playing a land is a SPECIAL ACTION, not casting (CR 116.2a),
+     *  so with `includesLand` unset a land silently passes — the official Malcolm
+     *  land ruling, deliberately preserved for every "cast" grant. With it set,
+     *  a land named by the selector is offered as a resolve-time land PLAY, and
+     *  the land branch is genuinely NARROWER than the cast branch rather than
+     *  instant-speed:
+     *   - CR 305.2a — a land played during a resolution counts against the
+     *     player's land drop, so playing it CONSUMES the drop;
+     *   - CR 305.3 — a player can't play a land when it isn't their turn, so a
+     *     hidden land is simply not playable on the opponent's turn;
+     *   - CR 305.2b — nor playable at all once the drop is spent.
+     *  In each of those cases the Op passes SILENTLY ("ignore any part of an
+     *  effect that instructs a player to do so", CR 305.3) — no dead prompt, no
+     *  error, and the resolution completes cleanly. CR 305.9: a card that is
+     *  both a land and another type can only be PLAYED as a land, never cast, so
+     *  the land branch always wins for such a card.
+     *
      *  `resultBind` (optional, issue #1478) names a BOOLEAN outcome binding — set
-     *  `true` only when a spell actually reached the stack, `false` on decline /
-     *  silent pass / unmeetable-or-unpayable cost — that a downstream `if`
-     *  predicate reads (Chandra's "If you don't [cast it], Chandra deals 2 damage
-     *  to each opponent": `{ not: { binding: "$cast" } }`). Mirrors `mayPay`'s
-     *  `["yes"]`/`["no"]` payload. */
+     *  `true` only when a spell actually reached the stack (or a land actually
+     *  entered), `false` on decline / silent pass / unmeetable-or-unpayable cost
+     *  — that a downstream `if` predicate reads (Chandra's "If you don't [cast
+     *  it], Chandra deals 2 damage to each opponent": `{ not: { binding:
+     *  "$cast" } }`). Mirrors `mayPay`'s `["yes"]`/`["no"]` payload. */
     | {
           op: "castDuringResolution";
-          card?: EffectRef;
+          card?: EffectRef | EffectExiledWithSourceSelector;
           player: EffectPlayerRef;
           source?: "graveyard" | "exile";
           fromTopOfLibrary?: boolean;
           free?: boolean;
+          includesLand?: boolean;
           resultBind?: string;
       }
     /** CR 106.1 (issue #850) — add mana to a player's mana pool (a one-shot
