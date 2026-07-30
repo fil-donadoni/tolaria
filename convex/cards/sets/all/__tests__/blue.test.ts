@@ -12,8 +12,8 @@ describe("Force of Will (pitch: pay 1 life + exile a blue card)", () => {
             {
                 id: "pitch-pay-1-life-exile-blue",
                 description: "Pay 1 life and exile a blue card from your hand",
-                payLife: 1,
-                handCost: {
+                life: 1,
+                hand: {
                     action: "exile",
                     requirements: [{ filter: { color: "U" }, count: 1 }],
                 },

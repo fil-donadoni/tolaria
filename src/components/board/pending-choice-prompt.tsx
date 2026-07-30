@@ -16,6 +16,7 @@ import {
 } from "~/lib/card-utils";
 import { formatOracleText } from "~/lib/oracle-text";
 import {
+    mayPayPermanentPickHint,
     pendingChoiceLabel,
     pendingChoiceRequiresBoardTap,
 } from "~/lib/pending-choice-labels";
@@ -138,9 +139,10 @@ export default function PendingChoicePrompt({
             ? formatOracleText(mayPayCostLabel(choice.cost))
             : null;
 
-    // CR 701.16b — a may-pay sacrifice leg with a real victim choice sets
+    // CR 701.16b / 701.24 — a may-pay PERMANENT leg with a real choice sets
     // `zone: "battlefield"`; the chooser clicks the permanent(s) to sacrifice
-    // (routed into the shared buffer) before Pay enables. Show the pick progress.
+    // (or, for a `"return"` leg, to bounce — ADR 0079) before Pay enables.
+    // Show the pick progress; the verb comes from `choice.permanentAction`.
     const sacrificePickCount =
         isMayPay && choice.zone === "battlefield"
             ? mayPayRequiredSacrifices(choice.cost)
@@ -426,9 +428,11 @@ export default function PendingChoicePrompt({
                                 <>
                                     {needsSacrificePick && (
                                         <p className="text-text-disabled text-xs">
-                                            {selected} / {sacrificePickCount}{" "}
-                                            selected — click a permanent to
-                                            sacrifice
+                                            {mayPayPermanentPickHint(
+                                                choice,
+                                                selected,
+                                                sacrificePickCount
+                                            )}
                                         </p>
                                     )}
                                     {sacrificeThreshold !== undefined && (

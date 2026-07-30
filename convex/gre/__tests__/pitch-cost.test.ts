@@ -285,7 +285,7 @@ describe("buildAlternativeCostHandChoice — auto-resolve vs park (CR 118.9 / 60
 describe("validateAlternativeHandCostPicks (CR 118.9)", () => {
     const altCost = getAlternativeCost(foil, "pitch-discard-island-and-card")!;
     const choice = {
-        requirements: altCost.handCost!.requirements,
+        requirements: altCost.hand!.requirements,
         excludeInstanceId: "foil",
     };
     const player = () =>

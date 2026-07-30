@@ -58,7 +58,12 @@ export const formidableSpeaker: CardDefinition = {
                 {
                     op: "mayPay",
                     player: "controller",
-                    cost: { discard: { count: 1 } },
+                    cost: {
+                        hand: {
+                            action: "discard",
+                            requirements: [{ filter: {}, count: 1 }],
+                        },
+                    },
                     prompt: "Discard a card?",
                     bind: "$discarded",
                 },

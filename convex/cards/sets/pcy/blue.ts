@@ -22,7 +22,7 @@ export const foil: CardDefinition = {
         {
             id: "pitch-discard-island-and-card",
             description: "Discard an Island card and another card",
-            handCost: {
+            hand: {
                 action: "discard",
                 requirements: [
                     { filter: { subtype: "Island" }, count: 1 },

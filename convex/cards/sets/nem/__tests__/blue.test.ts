@@ -252,9 +252,11 @@ describe("Daze (pitch: return an Island; counter unless pays {1})", () => {
             {
                 id: "pitch-return-island",
                 description: "Return an Island you control to its owner's hand",
-                action: "return",
-                count: 1,
-                filter: { subtypes: "Island" },
+                permanent: {
+                    action: "return",
+                    count: 1,
+                    filter: { subtypes: "Island" },
+                },
             },
         ]);
         expect(daze.targetRequirement).toEqual({ type: "spell", count: 1 });

@@ -29,9 +29,11 @@ export const gush: CardDefinition = {
         {
             id: "return-two-islands",
             description: "Return two Islands you control to their owner's hand",
-            action: "return",
-            count: 2,
-            filter: { subtypes: "Island" },
+            permanent: {
+                action: "return",
+                count: 2,
+                filter: { subtypes: "Island" },
+            },
         },
     ],
     effects: [{ op: "draw", player: "controller", count: 2 }],
@@ -55,9 +57,11 @@ export const thwart: CardDefinition = {
             id: "return-three-islands",
             description:
                 "Return three Islands you control to their owner's hand",
-            action: "return",
-            count: 3,
-            filter: { subtypes: "Island" },
+            permanent: {
+                action: "return",
+                count: 3,
+                filter: { subtypes: "Island" },
+            },
         },
     ],
     effects: [{ op: "counter", target: { target: 0 } }],

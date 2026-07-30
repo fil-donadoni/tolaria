@@ -39,7 +39,7 @@ const kickerAltProbe: CardDefinition = {
     types: ["Instant"],
     kicker: { cost: { X: 2 } }, // Kicker {2}
     alternativeCosts: [
-        { id: "pitch", description: "Pay 6 life instead", payLife: 6 },
+        { id: "pitch", description: "Pay 6 life instead", life: 6 },
     ],
     effects: [],
 };

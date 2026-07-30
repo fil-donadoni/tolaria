@@ -1699,7 +1699,13 @@ export const polarKraken: CardDefinition = {
     triggeredAbilities: [
         cumulativeUpkeepTrigger({
             id: "polar-kraken-cumulative-upkeep",
-            cost: { sacrifice: { filter: { types: "Land" }, count: 1 } },
+            cost: {
+                permanent: {
+                    action: "sacrifice",
+                    filter: { types: "Land" },
+                    count: 1,
+                },
+            },
             costLabel: "Sacrifice a land",
         }),
     ],

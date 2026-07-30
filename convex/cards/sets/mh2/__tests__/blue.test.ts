@@ -72,7 +72,7 @@ describe("Subtlety — targeted trigger over a stack spell (CR 603.3d / 113, #12
         expect(subtlety.evoke).toEqual({
             id: "evoke",
             description: "Evoke—Exile a blue card from your hand",
-            handCost: {
+            hand: {
                 action: "exile",
                 requirements: [{ filter: { color: "U" }, count: 1 }],
             },

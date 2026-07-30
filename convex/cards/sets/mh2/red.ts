@@ -30,9 +30,11 @@ export const mineCollapse: CardDefinition = {
         {
             id: "pitch-sacrifice-mountain",
             description: "Sacrifice a Mountain",
-            action: "sacrifice",
-            count: 1,
-            filter: { subtypes: "Mountain" },
+            permanent: {
+                action: "sacrifice",
+                count: 1,
+                filter: { subtypes: "Mountain" },
+            },
             condition: { kind: "your-turn" },
         },
     ],
@@ -72,7 +74,7 @@ export const fury: CardDefinition = {
     evoke: {
         id: "evoke",
         description: "Evoke—Exile a red card from your hand",
-        handCost: {
+        hand: {
             action: "exile",
             requirements: [{ filter: { color: "R" }, count: 1 }],
         },

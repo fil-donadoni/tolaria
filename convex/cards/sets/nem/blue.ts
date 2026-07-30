@@ -143,9 +143,11 @@ export const daze: CardDefinition = {
         {
             id: "pitch-return-island",
             description: "Return an Island you control to its owner's hand",
-            action: "return",
-            count: 1,
-            filter: { subtypes: "Island" },
+            permanent: {
+                action: "return",
+                count: 1,
+                filter: { subtypes: "Island" },
+            },
         },
     ],
     effects: [

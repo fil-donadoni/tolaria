@@ -32,9 +32,11 @@ describe("Fireblast ({4}{R}{R} instant — sacrifice two Mountains rather than p
     it("declares the sacrifice-two-Mountains alternative cost and an any-target requirement", () => {
         expect(fireblast.targetRequirement).toEqual({ type: "any", count: 1 });
         expect(fireblast.alternativeCosts?.[0]).toMatchObject({
-            action: "sacrifice",
-            count: 2,
-            filter: { subtypes: "Mountain" },
+            permanent: {
+                action: "sacrifice",
+                count: 2,
+                filter: { subtypes: "Mountain" },
+            },
         });
     });
 

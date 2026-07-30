@@ -318,13 +318,17 @@ function payCostText(cost: MayPayCost): string {
             (norm.mana.C ?? 0);
         if (generic > 0 && !norm.mana.C) parts.unshift(`{${generic}}`);
     }
-    if (norm.sacrifice) {
+    if (norm.permanent) {
         // CR 118 threshold mode ("sacrifice any number … total power ≥ N") vs.
-        // the fixed-cardinal "sacrifice N" (shock lands, cumulative upkeep).
+        // the fixed-cardinal "sacrifice N" (shock lands, cumulative upkeep) vs.
+        // the return-to-hand leg (CR 701.24 / 118.9, ADR 0079).
+        const leg = norm.permanent;
         parts.push(
-            typeof norm.sacrifice.count === "object"
-                ? `sacrifice creatures with total power ${norm.sacrifice.count.minTotalPower}`
-                : `sacrifice ${norm.sacrifice.count}`
+            typeof leg.count === "object"
+                ? `sacrifice creatures with total power ${leg.count.minTotalPower}`
+                : leg.action === "return"
+                  ? `return ${leg.count}`
+                  : `sacrifice ${leg.count}`
         );
     }
     return parts.join(", ") || "the cost";

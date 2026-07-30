@@ -76,7 +76,8 @@ export const phyrexianDreadnought: CardDefinition = {
                     op: "mayPay",
                     player: "controller",
                     cost: {
-                        sacrifice: {
+                        permanent: {
+                            action: "sacrifice",
                             filter: { types: "Creature" },
                             count: { minTotalPower: 12 },
                         },

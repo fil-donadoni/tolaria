@@ -47,8 +47,10 @@ import {
 import type {
     CardInstanceState,
     GameState,
+    MayPayHandCard,
     PlayerState,
 } from "@convex/gre/state";
+import { assignMayPayHandCards } from "@convex/gre/state";
 import {
     affordableAlternativeCosts,
     handCardMatchesFilter,
@@ -2460,15 +2462,30 @@ export function phyrexianSplitChoices(
 export interface NormalizedMayPayCost {
     mana?: ManaCost;
     life?: number;
-    /** `count` is either a fixed cardinal ("sacrifice N") or a summed-power
-     *  threshold `{ minTotalPower }` (CR 118, Phyrexian Dreadnought —
-     *  "sacrifice any number of matching permanents with total power ≥ N"). */
-    sacrifice?: { count: number | { minTotalPower: number } };
-    /** Discard leg (CR 701.9 / 118.3, issue #899). Fixed cardinal only — the
-     *  payer picks exactly `count` distinct cards from hand. */
-    discard?: { count: number };
+    /** PERMANENT leg (CR 701.16 sacrifice / 701.24 return, ADR 0079). `count`
+     *  is either a fixed cardinal ("sacrifice N") or a summed-power threshold
+     *  `{ minTotalPower }` (CR 118, Phyrexian Dreadnought — "sacrifice any
+     *  number of matching permanents with total power ≥ N"). The `filter` is
+     *  dropped here (the UI reads it off the raw cost via
+     *  {@link mayPaySacrificeCount}); `action` is kept because it words the
+     *  prompt. */
+    permanent?: {
+        action: "return" | "sacrifice";
+        count: number | { minTotalPower: number };
+    };
+    /** HAND leg (CR 701.9 discard / 701.13 exile, issue #899 / ADR 0079).
+     *  Fixed cardinals only — the payer picks exactly the summed requirement
+     *  count of distinct cards from hand. */
+    hand?: {
+        action: "exile" | "discard";
+        /** Per-requirement filter carried THROUGH (CR 118.9, PR #1963 review
+         *  round 2): dropping it here made every UI consumer of the hand leg
+         *  read as unconstrained — the fail-open shape that let Pay enable on a
+         *  hand of non-matching cards. */
+        requirements: { filter: EffectCardFilter; count: number }[];
+    };
     /** Energy leg (CR 122.1, issue #1194). Fixed count only — "pay
-     *  {E}{E}{E}" (Guide of Souls). Mirrors the backend `MayPayCost.energy`
+     *  {E}{E}{E}" (Guide of Souls). Mirrors the backend `CostLegs.energy`
      *  leg 1:1. */
     energy?: number;
 }
@@ -2479,8 +2496,8 @@ function isMayPayUnion(
     return (
         "mana" in cost ||
         "life" in cost ||
-        "sacrifice" in cost ||
-        "discard" in cost ||
+        "permanent" in cost ||
+        "hand" in cost ||
         "energy" in cost
     );
 }
@@ -2492,10 +2509,25 @@ export function normalizeMayPayCost(cost: MayPayCost): NormalizedMayPayCost {
         return {
             ...(cost.mana ? { mana: cost.mana } : {}),
             ...(cost.life !== undefined ? { life: cost.life } : {}),
-            ...(cost.sacrifice
-                ? { sacrifice: { count: cost.sacrifice.count } }
+            ...(cost.permanent
+                ? {
+                      permanent: {
+                          action: cost.permanent.action,
+                          count: cost.permanent.count,
+                      },
+                  }
                 : {}),
-            ...(cost.discard ? { discard: { count: cost.discard.count } } : {}),
+            ...(cost.hand
+                ? {
+                      hand: {
+                          action: cost.hand.action,
+                          requirements: cost.hand.requirements.map((r) => ({
+                              filter: r.filter,
+                              count: r.count,
+                          })),
+                      },
+                  }
+                : {}),
             ...(cost.energy !== undefined ? { energy: cost.energy } : {}),
         };
     }
@@ -2523,10 +2555,13 @@ export function mayPayCanAfford(
      *  (`{ minTotalPower }`, Phyrexian Dreadnought); ignored for a fixed-count
      *  leg, which gates on `sacrificeCandidateCount` instead. */
     sacrificeCandidatePower?: number,
-    /** The chooser's hand size (CR 701.9 / 118.3, issue #899). Required for a
-     *  discard leg — affordable iff the hand holds at least `count` cards.
-     *  Ignored for a cost with no discard leg. */
-    handCount?: number,
+    /** The chooser's VISIBLE hand cards (CR 701.9 / 118.9, issue #899).
+     *  Required for a discard leg — affordable iff every requirement can be
+     *  covered by DISTINCT hand cards matching ITS filter. Ignored for a cost
+     *  with no discard leg. Cards, not a COUNT: a summed-count gate enabled Pay
+     *  on a hand full of non-matching cards and the server then threw (PR #1963
+     *  review round 2). */
+    hand?: readonly MayPayHandCard[],
     /** The chooser's current energy counters (CR 122.1, issue #1194). Required
      *  for an energy leg — affordable iff the chooser holds at least `energy`
      *  counters. Ignored for a cost with no energy leg. Survives the wire
@@ -2543,21 +2578,21 @@ export function mayPayCanAfford(
     }
     if (norm.mana && !isManaCostCovered(effectivePool, norm.mana)) return false;
     if (norm.life !== undefined && chooserLife < norm.life) return false;
-    if (norm.sacrifice) {
-        if (typeof norm.sacrifice.count === "object") {
+    if (norm.permanent) {
+        if (typeof norm.permanent.count === "object") {
             // CR 118 threshold mode — affordable iff the matching candidates'
             // summed printed power reaches the required total.
             if (
                 (sacrificeCandidatePower ?? 0) <
-                norm.sacrifice.count.minTotalPower
+                norm.permanent.count.minTotalPower
             ) {
                 return false;
             }
-        } else if (sacrificeCandidateCount < norm.sacrifice.count) {
+        } else if (sacrificeCandidateCount < norm.permanent.count) {
             return false;
         }
     }
-    if (norm.discard && (handCount ?? 0) < norm.discard.count) {
+    if (norm.hand && !assignMayPayHandCards(hand ?? [], norm.hand)) {
         return false;
     }
     if (norm.energy !== undefined && (chooserEnergy ?? 0) < norm.energy) {
@@ -2573,11 +2608,11 @@ export function mayPaySacrificeCount(
     cost: MayPayCost | undefined,
     battlefield: CardInstance[]
 ): number {
-    if (!cost || !("sacrifice" in cost) || !cost.sacrifice) return 0;
+    if (!cost || !("permanent" in cost) || !cost.permanent) return 0;
     // The backend `PermanentFilter` is wider than the UI matcher's shape; the
     // matcher reads only the fields it knows (types/subtypes/…), which is all
-    // the Ice Age sacrifice legs use ("Sacrifice a land" → { types: "Land" }).
-    const filter = cost.sacrifice.filter as Parameters<
+    // the Ice Age permanent legs use ("Sacrifice a land" → { types: "Land" }).
+    const filter = cost.permanent.filter as Parameters<
         typeof matchesPermanentFilter
     >[1];
     return battlefield.filter((c) => matchesPermanentFilter(c, filter)).length;
@@ -2588,8 +2623,19 @@ export function mayPaySacrificeCount(
  *  a summed-power threshold (`{ minTotalPower }`, which has no fixed cardinal —
  *  gate that shape with {@link mayPaySacrificePickSatisfied} instead). */
 export function mayPayRequiredSacrifices(cost: MayPayCost | undefined): number {
-    if (!cost || !("sacrifice" in cost) || !cost.sacrifice) return 0;
-    return typeof cost.sacrifice.count === "number" ? cost.sacrifice.count : 0;
+    if (!cost || !("permanent" in cost) || !cost.permanent) return 0;
+    return typeof cost.permanent.count === "number" ? cost.permanent.count : 0;
+}
+
+/** The terminal action of a `may-pay` cost's permanent leg — `"sacrifice"` (CR
+ *  701.16) or `"return"` to the owner's hand (CR 701.24 / 118.9, ADR 0079) —
+ *  or `undefined` when the cost has no permanent leg. Client mirror of the
+ *  backend `mayPayPermanentAction`; words the pick prompt. */
+export function mayPayPermanentAction(
+    cost: MayPayCost | undefined
+): "return" | "sacrifice" | undefined {
+    if (!cost || !("permanent" in cost) || !cost.permanent) return undefined;
+    return cost.permanent.action;
 }
 
 /** The summed-power threshold of a `may-pay` sacrifice leg (`{ minTotalPower }`
@@ -2598,8 +2644,8 @@ export function mayPayRequiredSacrifices(cost: MayPayCost | undefined): number {
 export function mayPaySacrificeThreshold(
     cost: MayPayCost | undefined
 ): number | undefined {
-    if (!cost || !("sacrifice" in cost) || !cost.sacrifice) return undefined;
-    const count = cost.sacrifice.count;
+    if (!cost || !("permanent" in cost) || !cost.permanent) return undefined;
+    const count = cost.permanent.count;
     return typeof count === "object" ? count.minTotalPower : undefined;
 }
 
@@ -2610,8 +2656,8 @@ export function mayPaySacrificePower(
     cost: MayPayCost | undefined,
     battlefield: CardInstance[]
 ): number {
-    if (!cost || !("sacrifice" in cost) || !cost.sacrifice) return 0;
-    const filter = cost.sacrifice.filter as Parameters<
+    if (!cost || !("permanent" in cost) || !cost.permanent) return 0;
+    const filter = cost.permanent.filter as Parameters<
         typeof matchesPermanentFilter
     >[1];
     return battlefield
@@ -2661,20 +2707,33 @@ export function mayPaySacrificePickSatisfied(
  *  Mirrors {@link mayPayRequiredSacrifices} — the discard leg has no
  *  summed-power threshold shape. */
 export function mayPayRequiredDiscards(cost: MayPayCost | undefined): number {
-    if (!cost || !("discard" in cost) || !cost.discard) return 0;
-    return cost.discard.count;
+    if (!cost || !("hand" in cost) || !cost.hand) return 0;
+    return cost.hand.requirements.reduce((a, r) => a + r.count, 0);
 }
 
 /** Whether the chooser's current discard pick satisfies a hand `may-pay`
- *  discard leg (CR 701.9 / 118.3, issue #899): the selection must name exactly
- *  `count` distinct hand cards. A cost with no discard leg is trivially
- *  satisfied. Mirrors {@link mayPaySacrificePickSatisfied}'s fixed-count
- *  branch. */
+ *  discard leg (CR 701.9 / 118.9, issue #899): the selection must name exactly
+ *  `count` distinct hand cards AND cover every requirement from DISTINCT
+ *  matching cards. A cost with no discard leg is trivially satisfied. Mirrors
+ *  {@link mayPaySacrificePickSatisfied}'s fixed-count branch.
+ *
+ *  Validated through {@link assignMayPayHandCards} with the buffer as the
+ *  preference — the client-side twin of the server's `mayPayHandSelectionLegal`
+ *  submit boundary, run over the SAME authority so the Pay button never enables
+ *  on a pick the mutation would reject (PR #1963 review round 2). `selectedIds`
+ *  is the click ORDER, which is exactly what the greedy consumes. */
 export function mayPayDiscardPickSatisfied(
     cost: MayPayCost | undefined,
-    selectedIds: string[]
+    selectedIds: string[],
+    hand: readonly MayPayHandCard[] = []
 ): boolean {
-    return selectedIds.length === mayPayRequiredDiscards(cost);
+    if (selectedIds.length !== mayPayRequiredDiscards(cost)) return false;
+    if (!cost || !("hand" in cost) || !cost.hand) return true;
+    if (new Set(selectedIds).size !== selectedIds.length) return false;
+    const assigned = assignMayPayHandCards(hand, cost.hand, selectedIds);
+    if (!assigned) return false;
+    const chosen = new Set(selectedIds);
+    return assigned.every((c) => chosen.has(c.id));
 }
 
 /** Human-readable label for a `may-pay` cost union, rendered after "Pay" on the
@@ -2692,20 +2751,24 @@ export function mayPayCostLabel(cost?: MayPayCost): string {
     if (norm.life !== undefined && norm.life > 0) {
         parts.push(`${norm.life} life`);
     }
-    if (norm.sacrifice) {
-        const n = norm.sacrifice.count;
+    if (norm.permanent) {
+        const n = norm.permanent.count;
         if (typeof n === "object") {
             // CR 118 threshold mode (Phyrexian Dreadnought).
             parts.push(
                 `sacrifice creatures with total power ${n.minTotalPower}`
             );
+        } else if (norm.permanent.action === "return") {
+            // CR 701.24 / 118.9 (ADR 0079) — the return-to-hand leg.
+            parts.push(n === 1 ? "return a permanent" : `return ${n}`);
         } else {
             parts.push(n === 1 ? "sacrifice" : `sacrifice ${n}`);
         }
     }
-    if (norm.discard) {
-        const n = norm.discard.count;
-        parts.push(n === 1 ? "discard a card" : `discard ${n} cards`);
+    if (norm.hand) {
+        const n = norm.hand.requirements.reduce((a, r) => a + r.count, 0);
+        const verb = norm.hand.action === "exile" ? "exile" : "discard";
+        parts.push(n === 1 ? `${verb} a card` : `${verb} ${n} cards`);
     }
     if (norm.energy !== undefined && norm.energy > 0) {
         // CR 122.1 / issue #1194 — energy costs print as repeated {E} symbol

@@ -41,6 +41,8 @@ import {
     getPendingChoiceMin,
     getPlayer,
     mayPayDiscardChoiceRequired,
+    mayPayHandAutoSelection,
+    mayPayHandLegCount,
     mayPaySacrificeChoiceRequired,
     mayPaySacrificeThreshold,
     normalizeMayPayCost,
@@ -181,7 +183,8 @@ const mayPayCandidates: ChoiceCandidateGenerator = (state, choice) => {
     const lifePaid = norm.life ?? 0;
     const player = getPlayer(state, playerId);
 
-    // CR 701.16b — the sacrifice leg, when it admits a real victim choice.
+    // CR 701.16b / 701.24 — the PERMANENT leg, when it admits a real choice
+    // (a `"return"` leg always does — ADR 0079).
     const sacrificeSets: CardInstanceState[][] = [];
     if (mayPaySacrificeChoiceRequired(state, playerId, cost)) {
         const victims = instancesById(
@@ -198,7 +201,7 @@ const mayPayCandidates: ChoiceCandidateGenerator = (state, choice) => {
         } else {
             // Fixed cardinal: give up the least valuable permanents (brain.ts
             // picks worst-first for the same reason).
-            const count = norm.sacrifice!.count as number;
+            const count = norm.permanent!.count as number;
             const worstFirst = [...victims].sort(
                 (a, b) => permanentWorth(state, a) - permanentWorth(state, b)
             );
@@ -217,13 +220,23 @@ const mayPayCandidates: ChoiceCandidateGenerator = (state, choice) => {
             player.hand,
             getMayPayDiscardCandidateIds(state, playerId, cost)
         );
-        const count = norm.discard!.count;
+        const count = mayPayHandLegCount(cost);
         const worstFirst = [...cards].sort(
             (a, b) =>
                 prospectiveCardWorth(state, a) - prospectiveCardWorth(state, b)
         );
         if (worstFirst.length < count) return out;
-        discardSet = worstFirst.slice(0, count);
+        // CR 118.9 — worst-first is a PREFERENCE, not the pick: the leg's
+        // per-requirement filters decide what is legal, so route the ordering
+        // through the shared assignment the submit boundary validates against.
+        const chosenIds = mayPayHandAutoSelection(
+            state,
+            playerId,
+            cost,
+            worstFirst.map((c) => c.id)
+        );
+        if (chosenIds.length < count) return out;
+        discardSet = instancesById(player.hand, chosenIds);
     }
 
     const discardIds = discardSet?.map((c) => c.id);

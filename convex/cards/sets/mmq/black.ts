@@ -31,7 +31,7 @@ export const snuffOut: CardDefinition = {
         {
             id: "pitch-pay-4-life",
             description: "Pay 4 life",
-            payLife: 4,
+            life: 4,
             condition: { kind: "control", filter: { subtypes: "Swamp" } },
         },
     ],

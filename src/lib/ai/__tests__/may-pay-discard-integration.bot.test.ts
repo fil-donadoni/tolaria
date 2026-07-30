@@ -20,11 +20,13 @@ import {
     makeState,
 } from "@convex/cards/__tests__/setup";
 import {
+    mayPayHandSelectionLegal,
     resolveTopOfStack,
     type CardInstanceState,
     type GameState,
     type StackItem,
 } from "@convex/gre/state";
+import type { MayPayCost } from "@convex/cards/types";
 import { applyMayPaySubmit } from "@convex/gre/pendingChoiceSubmit";
 import { projectPublicState } from "@convex/gameProjections";
 import { chooseOwedChoiceAction } from "../brain";
@@ -39,6 +41,8 @@ const ANCESTRAL_RECALL_ID = "70e7ddf2-5604-41e7-bb9d-ddd03d3e9d0b";
 // Grizzly Bears (LEA) — a plain vanilla Creature, reused as the searched-for
 // library creature.
 const GRIZZLY_BEARS_ID = "ce2d603a-3231-4a8c-bf39-1617586ea870";
+// Forest (LEA) — a basic Land, the bot's cheapest-valued hand card.
+const FOREST_ID = "6f1c8cb0-38eb-408b-94e8-16db83999b3b";
 
 /** Fake mutation surface routing `submitMayPay` (with its discard pick)
  *  through the SAME engine primitive the real `game.ts` mutation calls. Every
@@ -196,6 +200,120 @@ describe("may-pay discard choice — bot driver (issue #1507, CR 701.9 / 118.3)"
     });
 });
 
+// PR #1963 review round 2 — the client Brain was a SECOND, unfixed consumer of
+// the may-pay hand leg: `mayPayIsAffordable` keyed off the SUMMED count
+// (`hand.length >= total`) and the policy sliced `discardCount` cards off the
+// candidate union. Both are wrong for a FILTERED multi-requirement leg, which
+// ADR 0079 / #1933 made representable — the first reports a false AFFORDABLE
+// (the server's pay path then throws), the second submits a pick the server's
+// `mayPayHandSelectionLegal` boundary rejects, whereupon the driver resets its
+// signature and re-answers the same state forever (bot freeze). The vs-AI Brain
+// runs client-side against these same engine modules (ADR 0074), so this is a
+// live path, not dead code.
+describe("may-pay FILTERED hand leg — client Brain (CR 701.9 / 118.9, PR #1963)", () => {
+    /** "Discard a creature card and another card" (Foil's shape). The creature
+     *  requirement is the one a top-N slice of the candidate union misses: the
+     *  bot ranks worst-FIRST, and its two cheapest cards are precisely the ones
+     *  that do NOT satisfy it. Also unpayable from a creature-less hand,
+     *  however many cards that hand holds. */
+    const DISCARD_A_CREATURE_AND_ANOTHER: MayPayCost = {
+        hand: {
+            action: "discard",
+            requirements: [
+                { filter: { type: "Creature" }, count: 1 },
+                { filter: {}, count: 1 },
+            ],
+        },
+    };
+
+    function seedFilteredLeg(
+        cost: MayPayCost,
+        hand: CardInstanceState[]
+    ): GameState {
+        const state = makeState({
+            players: [
+                makePlayer(HUMAN, { life: 20 }),
+                makePlayer(BOT, { hand, life: 20 }),
+            ],
+            activePlayerId: BOT,
+            priorityPlayerId: BOT,
+        });
+        state.pendingChoices = [
+            {
+                stackItemId: "stack-1",
+                step: 0,
+                choiceId: BOT,
+                playerId: BOT,
+                kind: "may-pay",
+                count: 1,
+                prompt: "Pay the cost?",
+                cost,
+                zone: "hand",
+                candidateIds: hand.map((c) => c.id),
+            },
+        ];
+        return state;
+    }
+
+    const handCard = (defId: string, id: string) =>
+        makeInstance(defId, {
+            id,
+            controllerId: BOT,
+            ownerId: BOT,
+            zone: "hand",
+        });
+
+    it("supplies a pick the SERVER's submit boundary accepts (no freeze)", () => {
+        const state = seedFilteredLeg(DISCARD_A_CREATURE_AND_ANOTHER, [
+            // Worst-first ranks the land cheapest, then the spell, then the
+            // creature — so the two cheapest cards cover NEITHER requirement's
+            // creature clause.
+            handCard(FOREST_ID, "forest"),
+            handCard(ANCESTRAL_RECALL_ID, "recall"),
+            handCard(GRIZZLY_BEARS_ID, "bear"),
+        ]);
+        const view = buildBotView(projectPublicState(state, 1, BOT), BOT);
+        expect(view.owedChoice?.affordable).toBe(true);
+
+        const action = chooseOwedChoiceAction(view.owedChoice!);
+        if (action.kind !== "may-pay") throw new Error("expected may-pay");
+        expect(action.accept).toBe(true);
+        // The old `worstFirst(candidates).slice(0, discardCount)` returned
+        // [forest, recall] here — count-correct, creature requirement
+        // uncovered, rejected by the server. The assignment authority spends
+        // the bear on the creature requirement and keeps worst-first for the
+        // rest.
+        expect(action.discardIds).toBeDefined();
+        expect(action.discardIds).toHaveLength(2);
+        expect(action.discardIds).toContain("bear");
+        expect(
+            mayPayHandSelectionLegal(
+                state,
+                BOT,
+                DISCARD_A_CREATURE_AND_ANOTHER,
+                action.discardIds!
+            )
+        ).toBe(true);
+    });
+
+    it("declines a leg the hand cannot cover, however many cards it holds", () => {
+        const state = seedFilteredLeg(DISCARD_A_CREATURE_AND_ANOTHER, [
+            handCard(ANCESTRAL_RECALL_ID, "recall-a"),
+            handCard(ANCESTRAL_RECALL_ID, "recall-b"),
+            handCard(ANCESTRAL_RECALL_ID, "recall-c"),
+        ]);
+        const view = buildBotView(projectPublicState(state, 1, BOT), BOT);
+        // Three cards for a two-card leg — the summed-count check this replaced
+        // said AFFORDABLE, the bot accepted, and the server threw.
+        expect(view.owedChoice?.affordable).toBe(false);
+
+        const action = chooseOwedChoiceAction(view.owedChoice!);
+        if (action.kind !== "may-pay") throw new Error("expected may-pay");
+        expect(action.accept).toBe(false);
+        expect(action.discardIds).toBeUndefined();
+    });
+});
+
 describe("may-pay combined sacrifice+discard cost shape (issue #1507 regression)", () => {
     it("botActionToMove propagates BOTH sacrificeIds and discardIds when the brain answers with both", () => {
         // CR 117.3a/118.4/701.16/701.9 — `MayPayCost` allows a sacrifice leg
@@ -220,8 +338,15 @@ describe("may-pay combined sacrifice+discard cost shape (issue #1507 regression)
                 count: 1,
                 prompt: "Pay the cost?",
                 cost: {
-                    sacrifice: { filter: {}, count: 1 },
-                    discard: { count: 1 },
+                    permanent: {
+                        action: "sacrifice",
+                        filter: {},
+                        count: 1,
+                    },
+                    hand: {
+                        action: "discard",
+                        requirements: [{ filter: {}, count: 1 }],
+                    },
                 },
             },
         ];

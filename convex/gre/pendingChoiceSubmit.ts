@@ -16,6 +16,8 @@ import {
     mayPaySacrificeSetPower,
     getMayPayDiscardCandidateIds,
     mayPayDiscardChoiceRequired,
+    mayPayHandLegCount,
+    mayPayHandSelectionLegal,
     normalizeMayPayCost,
     grantKnowledge,
     finalizeAuraHost,
@@ -105,8 +107,8 @@ export function applyMayPaySubmit(
         ) {
             throw new Error("Cannot pay the cost");
         }
-        // CR 701.16b — validate the payer's sacrifice pick when the leg admits a
-        // real choice. The candidate set is recomputed live (the board may have
+        // CR 701.16b / 701.24 — validate the payer's permanent pick when the
+        // leg admits a real choice. The candidate set is recomputed live (the board may have
         // shifted since the choice was enqueued). Two shapes:
         //   - fixed cardinal (`count: number`): the pick must name exactly
         //     `count` distinct, currently-legal candidates.
@@ -146,10 +148,12 @@ export function applyMayPaySubmit(
                     );
                 }
             } else {
-                const need = norm.sacrifice!.count as number;
+                const need = norm.permanent!.count as number;
                 if (ids.length !== need) {
                     throw new Error(
-                        `Must choose ${need} permanent(s) to sacrifice`
+                        norm.permanent!.action === "return"
+                            ? `Must choose ${need} permanent(s) to return`
+                            : `Must choose ${need} permanent(s) to sacrifice`
                     );
                 }
             }
@@ -163,7 +167,6 @@ export function applyMayPaySubmit(
         // choice is required the ids are ignored and the pay auto-selects.
         let discardIds = args.discardIds;
         if (mayPayDiscardChoiceRequired(state, args.playerId, head.cost)) {
-            const norm = normalizeMayPayCost(head.cost);
             const ids = args.discardIds ?? [];
             if (new Set(ids).size !== ids.length) {
                 throw new Error("Duplicate discard choice");
@@ -176,9 +179,19 @@ export function applyMayPaySubmit(
                     throw new Error("Illegal discard choice");
                 }
             }
-            const need = norm.discard!.count;
+            const need = mayPayHandLegCount(head.cost);
             if (ids.length !== need) {
                 throw new Error(`Must choose ${need} card(s) to discard`);
+            }
+            // CR 118.9 — the candidate check above is per-CARD (does SOME
+            // requirement admit it); this is per-LEG: the picked cards together
+            // must cover EVERY requirement from distinct cards. Without it a
+            // filtered / multi-requirement leg accepts a count-correct pick the
+            // pay path would then quietly reassign.
+            if (
+                !mayPayHandSelectionLegal(state, args.playerId, head.cost, ids)
+            ) {
+                throw new Error("Illegal discard choice");
             }
         } else {
             discardIds = undefined;

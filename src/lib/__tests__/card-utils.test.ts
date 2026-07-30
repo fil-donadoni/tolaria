@@ -29,6 +29,7 @@ import {
     hasManaAbility,
     isLandwalkUnblockable,
     mayPayCanAfford,
+    mayPayDiscardPickSatisfied,
     mayPayRequiredSacrifices,
     mayPayCostLabel,
     mayPaySacrificeCount,
@@ -2815,12 +2816,20 @@ describe("may-pay cost union helpers (CR 117.3a / 118.4 / 702.24, #638)", () => 
         );
         expect(
             mayPayCostLabel({
-                sacrifice: { filter: { types: "Land" as const }, count: 1 },
+                permanent: {
+                    action: "sacrifice" as const,
+                    filter: { types: "Land" as const },
+                    count: 1,
+                },
             })
         ).toBe("sacrifice");
         expect(
             mayPayCostLabel({
-                sacrifice: { filter: { types: "Land" as const }, count: 2 },
+                permanent: {
+                    action: "sacrifice" as const,
+                    filter: { types: "Land" as const },
+                    count: 2,
+                },
             })
         ).toBe("sacrifice 2");
     });
@@ -2835,7 +2844,11 @@ describe("may-pay cost union helpers (CR 117.3a / 118.4 / 702.24, #638)", () => 
         expect(mayPayCanAfford({ life: 2 }, {}, 1, 0)).toBe(false);
         // sacrifice leg (candidate count supplied by the caller)
         const sac = {
-            sacrifice: { filter: { types: "Land" as const }, count: 2 },
+            permanent: {
+                action: "sacrifice" as const,
+                filter: { types: "Land" as const },
+                count: 2,
+            },
         };
         expect(mayPayCanAfford(sac, {}, 20, 2)).toBe(true);
         expect(mayPayCanAfford(sac, {}, 20, 1)).toBe(false);
@@ -2922,6 +2935,144 @@ describe("may-pay cost union helpers (CR 117.3a / 118.4 / 702.24, #638)", () => 
         ).toBe(true);
     });
 
+    // PR #1963 review round 2 — the UI's Pay gate was a THIRD unfixed consumer
+    // of the may-pay hand leg (after the client Brain and the bot view):
+    // `mayPayCanAfford` compared the chooser's HAND SIZE against the summed
+    // requirement count, and `mayPayDiscardPickSatisfied` checked only the size
+    // of the click buffer. Both ignore the per-requirement filters ADR 0079 /
+    // #1933 made representable, so Pay enabled on picks the server rejects.
+    // Both now run the engine's ONE hand-leg assignment authority.
+    describe("may-pay FILTERED hand leg — UI Pay gate (CR 701.9 / 118.9, PR #1963)", () => {
+        // Grizzly Bears (LEA) — a vanilla Creature; Ancestral Recall (LEA) — an
+        // Instant. Real registry ids: the filter matcher resolves the card
+        // DEFINITION, so a synthetic id would fail closed and prove nothing.
+        const BEARS = "ce2d603a-3231-4a8c-bf39-1617586ea870";
+        const RECALL = "70e7ddf2-5604-41e7-bb9d-ddd03d3e9d0b";
+        const handCard = (id: string, defId: string) =>
+            makeCardInstance({ id, card: { id: defId }, zone: "hand" });
+
+        const DISCARD_A_CREATURE = {
+            hand: {
+                action: "discard" as const,
+                requirements: [
+                    { filter: { type: "Creature" as const }, count: 1 },
+                ],
+            },
+        };
+        /** Restrictive FIRST, per the `CostLegs.hand` authoring constraint. */
+        const DISCARD_A_CREATURE_AND_ANOTHER = {
+            hand: {
+                action: "discard" as const,
+                requirements: [
+                    { filter: { type: "Creature" as const }, count: 1 },
+                    { filter: {}, count: 1 },
+                ],
+            },
+        };
+
+        it("mayPayCanAfford gates the hand leg per REQUIREMENT, not on hand size", () => {
+            const withCreature = [
+                handCard("r1", RECALL),
+                handCard("b1", BEARS),
+            ];
+            const noCreature = [
+                handCard("r1", RECALL),
+                handCard("r2", RECALL),
+                handCard("r3", RECALL),
+            ];
+            expect(
+                mayPayCanAfford(
+                    DISCARD_A_CREATURE,
+                    {},
+                    20,
+                    0,
+                    undefined,
+                    undefined,
+                    withCreature
+                )
+            ).toBe(true);
+            // Three cards for a one-card leg — the summed-count gate this
+            // replaced said affordable and the server then threw.
+            expect(
+                mayPayCanAfford(
+                    DISCARD_A_CREATURE,
+                    {},
+                    20,
+                    0,
+                    undefined,
+                    undefined,
+                    noCreature
+                )
+            ).toBe(false);
+            // Two-requirement leg: enough cards, but no creature.
+            expect(
+                mayPayCanAfford(
+                    DISCARD_A_CREATURE_AND_ANOTHER,
+                    {},
+                    20,
+                    0,
+                    undefined,
+                    undefined,
+                    noCreature
+                )
+            ).toBe(false);
+            expect(
+                mayPayCanAfford(
+                    DISCARD_A_CREATURE_AND_ANOTHER,
+                    {},
+                    20,
+                    0,
+                    undefined,
+                    undefined,
+                    withCreature
+                )
+            ).toBe(true);
+        });
+
+        it("mayPayDiscardPickSatisfied enforces the per-requirement cover, not just the count", () => {
+            const hand = [handCard("r1", RECALL), handCard("b1", BEARS)];
+            // Trivially satisfied with no hand leg.
+            expect(mayPayDiscardPickSatisfied(undefined, [], hand)).toBe(true);
+            // Count-correct but the creature requirement is uncovered — the
+            // exact shape the count-only check used to enable Pay on.
+            expect(
+                mayPayDiscardPickSatisfied(DISCARD_A_CREATURE, ["r1"], hand)
+            ).toBe(false);
+            expect(
+                mayPayDiscardPickSatisfied(DISCARD_A_CREATURE, ["b1"], hand)
+            ).toBe(true);
+            // Wrong count is still rejected.
+            expect(
+                mayPayDiscardPickSatisfied(
+                    DISCARD_A_CREATURE,
+                    ["b1", "r1"],
+                    hand
+                )
+            ).toBe(false);
+            // Duplicates never satisfy a leg needing DISTINCT cards.
+            expect(
+                mayPayDiscardPickSatisfied(
+                    DISCARD_A_CREATURE_AND_ANOTHER,
+                    ["b1", "b1"],
+                    hand
+                )
+            ).toBe(false);
+            // Both click orders satisfy the restrictive-first leg.
+            for (const ids of [
+                ["b1", "r1"],
+                ["r1", "b1"],
+            ]) {
+                expect(
+                    mayPayDiscardPickSatisfied(
+                        DISCARD_A_CREATURE_AND_ANOTHER,
+                        ids,
+                        hand
+                    )
+                ).toBe(true);
+            }
+        });
+    });
+
     it("mayPayCostLabel renders the energy leg as repeated {E} tokens (CR 122.1, #1194)", () => {
         expect(mayPayCostLabel({ energy: 3 })).toBe("{E}{E}{E}");
         expect(mayPayCostLabel({ energy: 1 })).toBe("{E}");
@@ -2938,7 +3089,13 @@ describe("may-pay cost union helpers (CR 117.3a / 118.4 / 702.24, #638)", () => 
         ];
         expect(
             mayPaySacrificeCount(
-                { sacrifice: { filter: { types: "Land" as const }, count: 1 } },
+                {
+                    permanent: {
+                        action: "sacrifice" as const,
+                        filter: { types: "Land" as const },
+                        count: 1,
+                    },
+                },
                 bf
             )
         ).toBe(2);
@@ -2950,12 +3107,20 @@ describe("may-pay cost union helpers (CR 117.3a / 118.4 / 702.24, #638)", () => 
     it("mayPayRequiredSacrifices reads the sacrifice leg's count (CR 701.16b)", () => {
         expect(
             mayPayRequiredSacrifices({
-                sacrifice: { filter: {}, count: 1 },
+                permanent: {
+                    action: "sacrifice" as const,
+                    filter: {},
+                    count: 1,
+                },
             })
         ).toBe(1);
         expect(
             mayPayRequiredSacrifices({
-                sacrifice: { filter: { types: "Land" as const }, count: 2 },
+                permanent: {
+                    action: "sacrifice" as const,
+                    filter: { types: "Land" as const },
+                    count: 2,
+                },
             })
         ).toBe(2);
         // No sacrifice leg / cost-less → 0.

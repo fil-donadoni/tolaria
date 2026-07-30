@@ -29,7 +29,7 @@ export const pyrokinesis: CardDefinition = {
         {
             id: "pitch-exile-red",
             description: "Exile a red card from your hand",
-            handCost: {
+            hand: {
                 action: "exile",
                 requirements: [{ filter: { color: "R" }, count: 1 }],
             },

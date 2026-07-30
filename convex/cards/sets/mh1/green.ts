@@ -30,7 +30,7 @@ export const forceOfVigor: CardDefinition = {
             id: "pitch-exile-green",
             description: "Exile a green card from your hand",
             condition: { kind: "not-your-turn" },
-            handCost: {
+            hand: {
                 action: "exile",
                 requirements: [{ filter: { color: "G" }, count: 1 }],
             },

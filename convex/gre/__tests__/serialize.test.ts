@@ -1479,6 +1479,37 @@ describe("optional field round-trip smoke tests", () => {
         expect(roundTrip(state).pendingChoices).toEqual(state.pendingChoices);
     });
 
+    it("pendingChoices with a may-pay permanent leg (ADR 0079, #1933)", () => {
+        // The `permanent` cost leg and the denormalized `permanentAction` the
+        // client's pick prompt reads must both survive the DB round-trip —
+        // `pendingChoices` rides the generic optional-key loop as raw JSON, so
+        // a nested leg reshape is exactly what could silently drop here.
+        const state = freshState();
+        state.pendingChoices = [
+            {
+                stackItemId: "s1",
+                step: 0,
+                choiceId: "c1",
+                playerId: "p1",
+                kind: "may-pay",
+                zone: "battlefield",
+                count: 1,
+                prompt: "Return a Forest?",
+                cost: {
+                    permanent: {
+                        action: "return",
+                        filter: { subtypes: "Forest" },
+                        count: 1,
+                    },
+                    life: 1,
+                },
+                permanentAction: "return",
+                candidateIds: ["l1", "l2"],
+            },
+        ];
+        expect(roundTrip(state).pendingChoices).toEqual(state.pendingChoices);
+    });
+
     it("pendingChoices with option-pick options (#289)", () => {
         const state = freshState();
         state.pendingChoices = [

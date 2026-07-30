@@ -15,7 +15,11 @@ import { registerTokenDefinition } from "../../cards";
 
 /** A fixed-cardinal sacrifice leg (CR 701.16b) over creatures. */
 const SAC_ONE_CREATURE: MayPayCost = {
-    sacrifice: { count: 1, filter: { types: ["Creature"] } },
+    permanent: {
+        action: "sacrifice",
+        count: 1,
+        filter: { types: ["Creature"] },
+    },
 };
 import {
     decidingPlayer,
@@ -1609,7 +1613,12 @@ describe("dslChoicePrior: OP_VALUERS context-aware (issue #1433)", () => {
             "MP Big Burn",
             [{ op: "dealDamage", amount: 20, to: { player: "opponent" } }]
         );
-        const cost: MayPayCost = { discard: { count: 1 } };
+        const cost: MayPayCost = {
+            hand: {
+                action: "discard",
+                requirements: [{ filter: {}, count: 1 }],
+            },
+        };
 
         function stateWithHand(cardIds: string[]): GameState {
             const state = makeState({

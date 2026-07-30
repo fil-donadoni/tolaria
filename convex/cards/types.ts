@@ -1236,74 +1236,117 @@ export interface AnimateSpec {
 import type { PermanentFilter } from "./filters";
 export type { PermanentFilter } from "./filters";
 
+// --- Cost legs (CR 117.3a / 118.4 / 118.9 / 702.24, ADR 0079) ---
+
+/** The single authority on **what a cost is made of** (ADR 0079, issue #1933).
+ *
+ *  The repo used to carry two overlapping leg vocabularies — `AlternativeCost`
+ *  (CR 118.9) and `MayPayCost` (CR 117.3a / 118.4) — and they had drifted in
+ *  BOTH directions: the may-pay discard leg had no filter where the alt-cost
+ *  hand leg did, and the alt cost had no summed-power threshold where the
+ *  may-pay sacrifice leg did. Neither had a return-to-hand leg for a may-pay.
+ *  `CostLegs` is the union of the two: every leg is written once, and both
+ *  vocabularies are now defined in terms of it ({@link AlternativeCost} adds
+ *  `id`/`description`/`condition`; {@link MayPayCost} is `CostLegs` plus the
+ *  historical bare-`ManaCost` shorthand).
+ *
+ *  Legs are ORTHOGONAL and ALL-OR-NOTHING: every present leg is paid together,
+ *  an absent leg costs nothing. The nesting is deliberate — `permanent` and
+ *  `hand` group the fields that only make sense together, so an orphan `count`
+ *  with no `filter`, or an `action` with neither, is unrepresentable. */
+export interface CostLegs {
+    /** MANA leg (CR 117.3a / 118.9). For a may-pay this is mana paid on top of
+     *  nothing; for an alternative cost it is mana paid INSTEAD of the printed
+     *  cost (Dash, CR 702.109a — a pure mana-for-mana swap). */
+    mana?: ManaCost;
+    /** PERMANENT leg (CR 701.16 sacrifice / 701.24 return): permanents matching
+     *  `filter` that the payer controls leave the battlefield to pay the cost.
+     *
+     *   - `action: "sacrifice"` — moved to the owner's graveyard as a sacrifice
+     *     (CR 701.16; shock lands, cumulative upkeep, Fireblast, Mine Collapse).
+     *   - `action: "return"` — bounced to the owner's hand (CR 701.24 / 118.9;
+     *     Gush / Thwart / Daze, and the may-pay "unless you return a land you
+     *     control to its owner's hand" shape).
+     *
+     *  `count` selects between two payment shapes:
+     *
+     *   - **fixed cardinal** (`number`) — "give up N matching permanents". The
+     *     payer picks exactly `count` (CR 701.16b); the historical shape.
+     *   - **summed-power threshold** (`{ minTotalPower: N }`) — "sacrifice ANY
+     *     NUMBER of matching permanents with total power ≥ N" (CR 118 / 701.16,
+     *     Phyrexian Dreadnought). The payer picks a variable-size set whose
+     *     summed EFFECTIVE power (layer pipeline, CR 613) meets or exceeds `N`;
+     *     over-payment is legal, minimality is not required. Threshold mode is
+     *     a may-pay-only shape today — no printed alternative cost uses it.
+     *
+     *  The threshold rides the COST leg (a punisher paid through `mayPay`)
+     *  rather than a generic `choice`-Op rider deliberately: Phyrexian
+     *  Dreadnought's "sacrifice unless you sacrifice …" is a
+     *  cost-or-lose-the-permanent decision, which is exactly what the `mayPay`
+     *  pipeline already models (accept → pay the whole union; decline → the
+     *  `if !$paid` consequence sacrifices the source). A general "sacrifice
+     *  things totalling power N" `choice` rider is deferred until a card needs
+     *  it OUTSIDE a cost context (YAGNI).
+     *
+     *  WHICH permanents pay is ALWAYS the payer's choice, routed through the
+     *  unified `convex/gre/sacrificeChoice.ts` layer. A `"return"` leg never
+     *  auto-picks, not even with exactly one legal permanent — a forced pick is
+     *  still information the player must see. */
+    permanent?: {
+        action: "return" | "sacrifice";
+        filter: PermanentFilter;
+        count: number | { minTotalPower: number };
+    };
+    /** LIFE leg (CR 118.4 / 119.4 — "Pay N life"). Snuff Out pays 4, Force of
+     *  Will pays 1, a shock land pays 2. Affordable only when the payer's life
+     *  total ≥ this amount (CR 119.4). Deterministic — no picker. */
+    life?: number;
+    /** HAND leg (CR 701.9 discard / 701.13 exile): cards the payer gives up
+     *  FROM HAND — exiled (Force of Will / Force of Negation / Pyrokinesis /
+     *  the MH2 evoke Incarnations) or discarded (Foil; the may-pay "you may
+     *  discard a card" shape, issue #899, Formidable Speaker).
+     *
+     *  Each requirement is a distinct card filter × count and must be satisfied
+     *  by DISTINCT cards (Foil: "an Island card and another card"). An EMPTY
+     *  filter (`{}`) constrains nothing — the untyped "discard a card" shape.
+     *  A cast card itself never pays for its own cost (it is on the stack, not
+     *  in hand). WHICH cards pay is the payer's choice (parks for a picker when
+     *  real, auto-resolves when forced).
+     *
+     *  **AUTHORING CONSTRAINT — declare the MOST RESTRICTIVE requirement
+     *  FIRST.** Requirements are satisfied by a GREEDY pass in DECLARATION
+     *  ORDER (`assignMayPayHandCards`, `gre/state.ts`; `canPayHandCost`,
+     *  `gre/alternativeCost.ts`), not by a bipartite matching. With OVERLAPPING
+     *  requirements a permissive-first ordering can spend the only qualifying
+     *  card on the permissive leg and then report a FALSE unaffordable —
+     *  `[{ filter: {} }, { filter: { type: "Land" } }]` against a hand of one
+     *  land and one spell fails, while the same two requirements declared
+     *  land-first succeed. Foil's shape works precisely because its Island
+     *  requirement is declared first. The greedy is kept deliberately: it is
+     *  the behaviour BOTH cost vocabularies have always had, and identical
+     *  pricing across them is worth more here than the generality a matching
+     *  rewrite would buy (no printed card needs it). */
+    hand?: {
+        action: "exile" | "discard";
+        requirements: { filter: EffectCardFilter; count: number }[];
+    };
+    /** ENERGY leg (CR 122.1 — "pay {E}"). Fixed count only (a "pay {E}{E}{E}"
+     *  declared cost, Guide of Souls, issue #1194) — unlike mana's symbol
+     *  multiset this is a single scalar, so there is no further shape to
+     *  generalize. Paid all-or-nothing alongside every other present leg via
+     *  the existing `SpellContext.payEnergy` primitive (#697's Energy resource,
+     *  `PlayerState.energyCounters`). No printed alternative cost uses it. */
+    energy?: number;
+}
+
 // --- May-pay cost union (CR 117.3a / 118.4 / 702.24) ---
 
-/** The cost a `requestMayPay` decision offers to pay. Generalized from a bare
- *  `ManaCost` to the small union the Ice Age block's cumulative upkeep
- *  (CR 702.24) actually demands (ADR 0042): any combination of mana, a flat
- *  life payment, and a typed sacrifice. All present legs must be paid together
- *  (all-or-nothing); an absent leg costs nothing.
- *
- *  A plain `ManaCost` is still a legal value (the historical mana-only shape) —
- *  `normalizeMayPayCost` widens it to `{ mana }`, so every existing mana-only
- *  caller is unaffected. */
-export type MayPayCost =
-    | ManaCost
-    | {
-          /** Mana leg (CR 117.3a). */
-          mana?: ManaCost;
-          /** Flat life leg (CR 118.4 — "Pay N life"). */
-          life?: number;
-          /** Typed sacrifice leg (CR 701.16 — "Sacrifice a land"). Permanents
-           *  matching `filter` controlled by the payer are sacrificed on
-           *  accept. `count` selects between two payment shapes:
-           *
-           *   - **fixed cardinal** (`number`) — "sacrifice N matching
-           *     permanents". The payer picks exactly `count` victims (CR
-           *     701.16b); the historical shape (shock lands, cumulative
-           *     upkeep, ADR 0042).
-           *   - **summed-power threshold** (`{ minTotalPower: N }`) —
-           *     "sacrifice ANY NUMBER of matching permanents with total power
-           *     ≥ N" (CR 118 / 701.16, Phyrexian Dreadnought). The payer picks
-           *     a variable-size set whose summed EFFECTIVE power (layer
-           *     pipeline, CR 613) meets or exceeds `N`; over-payment is legal,
-           *     minimality is not required.
-           *
-           *  The threshold rides the COST leg (a punisher paid through
-           *  `mayPay`) rather than a generic `choice`-Op rider deliberately:
-           *  Phyrexian Dreadnought's "sacrifice unless you sacrifice …" is a
-           *  cost-or-lose-the-permanent decision, which is exactly what the
-           *  `mayPay` pipeline already models (accept → pay the whole union;
-           *  decline → the `if !$paid` consequence sacrifices the source). A
-           *  general "sacrifice things totalling power N" `choice` rider is
-           *  deferred until a card needs it OUTSIDE a cost context (YAGNI). */
-          sacrifice?: {
-              filter: PermanentFilter;
-              count: number | { minTotalPower: number };
-          };
-          /** Discard leg (CR 701.9 / 118.3 — "discard a card"). Mirrors the
-           *  sacrifice leg's picker, but from HAND instead of the battlefield:
-           *  the payer chooses which `count` distinct card(s) from their hand
-           *  to discard on accept (issue #899, Formidable Speaker — "you may
-           *  discard a card. If you do, search your library for a creature
-           *  card…"). Fixed cardinal only — no summed-power threshold shape
-           *  exists for a discard leg (that's a sacrifice-specific CR 118
-           *  wrinkle, Phyrexian Dreadnought); add one only if a card demands it
-           *  (YAGNI). No type filter either: every printed "discard a card"
-           *  may-pay leg is untyped — add a `filter` leg the same way the
-           *  sacrifice leg has one, only when a card needs it. */
-          discard?: {
-              count: number;
-          };
-          /** Energy leg (CR 122.1 — "pay {E}"). Fixed count only (a "pay
-           *  {E}{E}{E}" declared cost, Guide of Souls, issue #1194) — unlike
-           *  mana's symbol multiset this is a single scalar, so there is no
-           *  further shape to generalize. Paid all-or-nothing alongside every
-           *  other present leg via the existing `SpellContext.payEnergy`
-           *  primitive (#697's Energy resource, `PlayerState.energyCounters`).
-           *  Absent leg costs nothing, matching every other leg's contract. */
-          energy?: number;
-      };
+/** The cost a `requestMayPay` decision offers to pay: the shared
+ *  {@link CostLegs} vocabulary (ADR 0079), or a plain `ManaCost` — the
+ *  historical mana-only shape, retained as a shorthand.
+ *  `normalizeMayPayCost` widens the bare form to `{ mana }`, so every existing
+ *  mana-only caller is unaffected (ADR 0042). */
+export type MayPayCost = ManaCost | CostLegs;
 
 /** A dynamically-derived `mayPay` mana cost (issue #1150): "pay object X's own
  *  printed mana cost, reduced by a fixed generic amount" — the cost is not
@@ -10961,66 +11004,26 @@ export interface AiCombatHint {
  *  with no keyword name, so it carries no Mechanics Registry row (the registry
  *  censuses named keywords/Ops; the resolution Ops here — draw / counter /
  *  dealDamage — are already censused). */
-export interface AlternativeCost {
+export type AlternativeCost = CostLegs & {
     /** Stable id referenced by `announceCast.alternativeCostId` to pick this
      *  variant. Unique within a card's `alternativeCosts`. */
     id: string;
     /** Player-facing label for the cast-option picker (e.g. "Return two
      *  Islands"). */
     description: string;
-    /** MANA leg (CR 118.9 / 702.109a): a mana cost paid INSTEAD of the printed
-     *  one — unlike every other leg here (which give up a permanent/life/hand
-     *  card), this leg still spends mana, just a DIFFERENT amount. Absent for
-     *  every alt cost that fully replaces mana with a non-mana give-up (Gush,
-     *  Force of Will, Snuff Out — the shape every other field on this type was
-     *  originally designed for). Present for Dash (CR 702.109 — "Dash [cost]"
-     *  is "you may cast this creature for its dash cost rather than its mana
-     *  cost", a pure mana-for-mana swap with no permanent/life/hand leg of its
-     *  own): `convex/game.ts`'s cast-commit sites read `mana ?? {}` as the
-     *  cast's actual `manaCost` (was unconditionally zeroed before this field
-     *  existed) and route it through the SAME tap-lands payment machinery a
-     *  printed cost uses (`isManaCostCovered` / `payManaCostForSpell` /
-     *  `pendingCast.manaCost`) — an alt cost with a real mana leg parks for
-     *  payment exactly like an ordinary cast when the pool doesn't already
-     *  cover it. `convex/gre/rules.ts`'s "cast" legality gate mirrors this:
-     *  a card is castable when the PRINTED cost is affordable OR at least one
-     *  alt cost's mana leg (this field, `{}` for every zero-mana variant) is. */
-    mana?: ManaCost;
-    /** PERMANENT leg (CR 118.9): how the matching permanents leave the
-     *  battlefield — `"return"` bounces them to their owner's hand (CR 701.24),
-     *  `"sacrifice"` moves them to the graveyard as a sacrifice (CR 701.16).
-     *  Optional: a life-only or hand-cost alternative (Snuff Out, Force of Will,
-     *  Foil) has no permanent leg. Present iff `count`/`filter` are. */
-    action?: "return" | "sacrifice";
-    /** How many matching permanents the caster must return / sacrifice
-     *  (permanent leg only). */
-    count?: number;
-    /** Which of the caster's permanents qualify (permanent leg only; matched
-     *  against the caster's own battlefield; "you control" is implicit). */
-    filter?: PermanentFilter;
-    /** LIFE leg (CR 118.4 / 119.4): life paid as part of the alternative cost.
-     *  Snuff Out ("pay 4 life"), Force of Will / Force of Negation ("pay 1
-     *  life and exile a blue card"). Paid at cast commit; affordable only when
-     *  the caster's life total ≥ this amount (CR 119.4). */
-    payLife?: number;
-    /** HAND leg (CR 118.9): cards the caster gives up FROM HAND — exiled
-     *  (Force of Will / Force of Negation / Force of Vigor / Pyrokinesis) or
-     *  discarded (Foil). Each requirement is a distinct card filter × count and
-     *  must be satisfied by DISTINCT cards (Foil: "an Island card and another
-     *  card"). The cast card itself never pays for its own cost (it is on the
-     *  stack, not in hand). WHICH cards pay is the caster's choice (parks for a
-     *  picker when real, auto-resolves when forced). */
-    handCost?: {
-        /** Whether the chosen hand cards are exiled (CR 701.13) or discarded
-         *  (CR 701.9). */
-        action: "exile" | "discard";
-        requirements: { filter: EffectCardFilter; count: number }[];
-    };
     /** Cast-availability CONDITION (CR 118.9 — "if it's not your turn", "if you
      *  control a Swamp"). The variant is only offered/legal when it holds; an
-     *  absent condition means always available. */
+     *  absent condition means always available.
+     *
+     *  This is the one field that is NOT a cost leg and therefore does NOT live
+     *  on {@link CostLegs}: an alternative cost REPLACES a mana cost (CR 118.9)
+     *  and so is SELECTED among the card's cast options, while a may-pay ADDS
+     *  to one (CR 601.2f) and is simply offered. Only the LEGS are shared; the
+     *  selection-level helpers (`getAlternativeCost`, `affordableAlternativeCosts`,
+     *  `canPayAlternativeCost`, `alternativeCostConditionMet`) stay
+     *  alternative-cost-only (ADR 0079). */
     condition?: AlternativeCostCondition;
-}
+};
 
 /** When an {@link AlternativeCost} variant is legal to choose (CR 118.9). */
 export type AlternativeCostCondition =
