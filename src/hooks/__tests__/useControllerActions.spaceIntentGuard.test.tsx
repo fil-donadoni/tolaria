@@ -103,6 +103,7 @@ function renderCtrl() {
         priorityPlayerId: "me",
         phase: "PRECOMBAT_MAIN",
         turn: 1,
+        engineTurn: 1,
         stackCount: 0,
         allPlayers: [player("me"), player("opp")],
         showAllCards: false,

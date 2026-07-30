@@ -130,6 +130,7 @@ function makeContext(): React.ContextType<typeof GameContext> {
         priorityPlayerId: "me",
         phase: "PRECOMBAT_MAIN",
         turn: 1,
+        engineTurn: 1,
         stackCount: 0,
         allPlayers: [makePlayer("me"), makePlayer("opp")],
         showAllCards: false,

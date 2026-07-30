@@ -27,6 +27,7 @@ function ctxFor(allPlayers: unknown) {
         priorityPlayerId: "p1",
         phase: "PRECOMBAT_MAIN" as const,
         turn: 1,
+        engineTurn: 1,
         stackCount: 0,
         allPlayers: allPlayers as never,
         showAllCards: false,

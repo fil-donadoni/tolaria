@@ -1465,6 +1465,19 @@ export const PERSISTED_OPTIONAL_KEYS = [
     // lose it (a plain string[] of player ids, no fat card refs — round-trips
     // via the generic optional-key loop with no per-field compaction).
     "skipDrawStepThisTurn",
+    // CR 506.3 / 508.1 — "a creature attacked this turn" (a plain boolean),
+    // read at the end step by Keldon Twilight's CR 603.4 intervening-if. The
+    // save point between attacker declaration and the end step is several
+    // priority rounds wide, so losing it across the DB write would silently
+    // re-arm the trigger on a turn where combat happened.
+    "creatureAttackedThisTurn",
+    // Control continuity (`gre/controlContinuity.ts`) — the turn-scoped ledger
+    // of instance ids whose controller changed this turn. A plain string[] of
+    // instance ids, no fat card refs, so it round-trips through the generic
+    // optional-key loop. It cannot be reconstructed after the fact (the control
+    // change has already happened and may even have been reverted), so dropping
+    // it across a write would silently widen what may be sacrificed.
+    "controlChangedThisTurn",
 ] as const;
 
 /** Optional GameState keys that are intentionally ephemeral — never

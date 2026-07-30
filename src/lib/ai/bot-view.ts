@@ -26,6 +26,7 @@ import {
 import { cardValueById } from "@convex/gre";
 import { manaValue, parseHybridCostKey } from "@convex/gre/constants";
 import { matchesPermanentFilter } from "@convex/cards/filters";
+import { hasControlledSinceTurnStart } from "@convex/gre/controlContinuity";
 import { getColorsFromCost, getCardColorIdentity } from "@convex/cards/colors";
 import { tryGetDefinition } from "@convex/cards";
 import { isExileCostEligible } from "@convex/cards/exileCostEligibility";
@@ -342,6 +343,17 @@ function readChoiceZone(
                                         (c.card as { id: string }).id
                                     )?.manaCost
                                 )) as Color[],
+                            // CR 400.7 — the two DERIVED turn-scoped flags,
+                            // computed off state rather than stored on the
+                            // instance. Same fail-CLOSED stall risk as
+                            // `controllerRelation` below: without them a
+                            // "creature you controlled since the beginning of
+                            // the turn" sacrifice choice enumerates ZERO
+                            // candidates and the bot freezes on a choice it
+                            // must answer.
+                            enteredThisTurn: c.enteredOnTurn === state.turn,
+                            controlledSinceTurnStart:
+                                hasControlledSinceTurnStart(state, c),
                         },
                         filter,
                         // CR 701.16 (issue #1938 fixup 2) — resolves

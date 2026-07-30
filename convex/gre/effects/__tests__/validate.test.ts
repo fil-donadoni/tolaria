@@ -1333,6 +1333,93 @@ describe("EffectCardFilter.isAttacking — rejected outside a live battlefield r
     });
 });
 
+// --- EffectCardFilter.controlledSinceTurnStart — battlefield-only
+// (issue #1944) --------------------------------------------------------------
+//
+// The third sibling of `hasAbility`/`isAttacking`: Keldon Twilight's "…that
+// they controlled since the beginning of the turn" reads a LIVE permanent's
+// controller against the turn-scoped control-continuity ledger
+// (`gre/controlContinuity.ts`) via `toPermanentFilter`. A card in a hidden
+// zone has no controller at all (CR 108.4), so the field is REJECTED there
+// rather than silently matching every card.
+describe("EffectCardFilter.controlledSinceTurnStart — rejected outside a live battlefield read (issue #1944)", () => {
+    it("accepts it on a choice Op scoped to zone: battlefield", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "choice",
+                kind: "sacrifice-permanents",
+                player: { target: 0 },
+                zone: "battlefield",
+                filter: { type: "Creature", controlledSinceTurnStart: true },
+                count: 1,
+                prompt: "Sacrifice a creature you have held all turn.",
+                bind: "$sac",
+            },
+        ];
+        expect(validateEffectScript(host({ effects }))).toEqual([]);
+    });
+
+    it("rejects it on a choice Op scoped to zone: graveyard", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "choice",
+                kind: "choose-graveyard-card",
+                player: { target: 0 },
+                zone: "graveyard",
+                filter: { type: "Creature", controlledSinceTurnStart: true },
+                count: 1,
+                prompt: "Choose a creature card.",
+                bind: "$picked",
+            },
+        ];
+        const errors = validateEffectScript(host({ effects }));
+        expect(
+            errors.some((e) =>
+                /filter\.controlledSinceTurnStart.*zone: "battlefield"/.test(e)
+            )
+        ).toBe(true);
+    });
+
+    it("rejects it on a forEach graveyard selector", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "forEach",
+                select: {
+                    set: "graveyard",
+                    controller: "controller",
+                    filter: {
+                        type: "Creature",
+                        controlledSinceTurnStart: true,
+                    },
+                },
+                effects: [
+                    { op: "moveZone", target: { ref: "$each" }, to: "hand" },
+                ],
+            },
+        ];
+        const errors = validateEffectScript(host({ effects }));
+        expect(errors.some((e) => /field "select"/.test(e))).toBe(true);
+    });
+
+    it("accepts it on a forEach permanents (battlefield) selector", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    filter: {
+                        type: "Creature",
+                        controlledSinceTurnStart: true,
+                    },
+                },
+                effects: [{ op: "skipNextUntap", target: { ref: "$each" } }],
+            },
+        ];
+        expect(validateEffectScript(host({ effects }))).toEqual([]);
+    });
+});
+
 // --- EffectCardFilter.manaCostEquals — REJECTED on a live battlefield read
 // (issue #1898 finding 3) ----------------------------------------------------
 //

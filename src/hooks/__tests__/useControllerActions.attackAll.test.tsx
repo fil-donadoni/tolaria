@@ -138,6 +138,7 @@ function renderCtrl(
         priorityPlayerId: "me",
         phase: "DECLARE_ATTACKERS",
         turn: 1,
+        engineTurn: 1,
         stackCount: 0,
         allPlayers: [me, opp],
         combat: {

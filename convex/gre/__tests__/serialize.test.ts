@@ -2098,6 +2098,21 @@ describe("optional field round-trip smoke tests", () => {
         expect(roundTrip(state).skipDrawStepThisTurn).toEqual(["p1"]);
     });
 
+    it("creatureAttackedThisTurn (Keldon Twilight, CR 506.3 / 603.4, issue #1944)", () => {
+        const state = freshState();
+        state.creatureAttackedThisTurn = true;
+        expect(roundTrip(state).creatureAttackedThisTurn).toBe(true);
+    });
+
+    it("controlChangedThisTurn (control continuity, issue #1944)", () => {
+        const state = freshState();
+        state.controlChangedThisTurn = ["stolen-1", "stolen-2"];
+        expect(roundTrip(state).controlChangedThisTurn).toEqual([
+            "stolen-1",
+            "stolen-2",
+        ]);
+    });
+
     it("combatDamageRedirectToPermanent (Kjeldoran Royal Guard, CR 614.6)", () => {
         const state = freshState();
         state.combatDamageRedirectToPermanent = [

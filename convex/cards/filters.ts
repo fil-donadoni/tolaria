@@ -99,6 +99,18 @@ export interface PermanentFilter {
      *  untap step) and is re-set by a control change on a permanent that never
      *  changed zones — both would be false positives here. */
     enteredThisTurn?: boolean;
+    /** "…that they controlled since the beginning of the turn" (Keldon
+     *  Twilight, PLS). `true` keeps only permanents whose CURRENT controller
+     *  has controlled them continuously since this turn began; `false` keeps
+     *  only the ones that entered or changed control during it. Omitted = no
+     *  constraint. Read off `MatchablePermanent.controlledSinceTurnStart`,
+     *  populated by engine call sites from `hasControlledSinceTurnStart`
+     *  (`convex/gre/controlContinuity.ts`) — the `enteredOnTurn` entry stamp
+     *  AND the turn-scoped `GameState.controlChangedThisTurn` ledger together.
+     *
+     *  Strictly stronger than `!enteredThisTurn`, which sees only zone changes
+     *  and would let a creature stolen this turn through. */
+    controlledSinceTurnStart?: boolean;
     /** Exclude these instance ids from the match set. Used to skip a
      *  permanent's own id when an effect specifies "another permanent"
      *  (CR 109.2) or "permanents other than ~". */
@@ -251,6 +263,15 @@ export interface MatchablePermanent {
      *  undefined (fails closed, mirroring every other optional field here,
      *  e.g. `isToken`). */
     enteredThisTurn?: boolean;
+    /** Control-continuity flag — true iff the permanent's current controller
+     *  has controlled it since the beginning of the CURRENT turn (the engine's
+     *  `hasControlledSinceTurnStart`, `convex/gre/controlContinuity.ts`). Read
+     *  by `PermanentFilter.controlledSinceTurnStart`. Callers that use that
+     *  filter must populate this field; a caller that doesn't leaves it
+     *  undefined, which fails CLOSED against a `true` filter — the safe
+     *  direction for a restriction ("a creature you have controlled since…"
+     *  narrows what may be sacrificed). */
+    controlledSinceTurnStart?: boolean;
     colors?: ReadonlyArray<Color>;
     power?: number;
     toughness?: number;
@@ -364,6 +385,13 @@ export function matchesPermanentFilter(
     if (filter.enteredThisTurn !== undefined) {
         const cardEnteredThisTurn = card.enteredThisTurn === true;
         if (filter.enteredThisTurn !== cardEnteredThisTurn) return false;
+    }
+    // "…that they controlled since the beginning of the turn" — same
+    // boolean-equality shape; an unpopulated field reads false and so fails
+    // closed against `true` (see `MatchablePermanent.controlledSinceTurnStart`).
+    if (filter.controlledSinceTurnStart !== undefined) {
+        const held = card.controlledSinceTurnStart === true;
+        if (filter.controlledSinceTurnStart !== held) return false;
     }
     if (filter.isAttacking !== undefined) {
         const cardIsAttacking = card.isAttacking === true;

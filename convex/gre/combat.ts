@@ -57,6 +57,43 @@ export function markAttacking(
     permanent.isAttacking = true;
 }
 
+/** CR 506.3 / 508.1 — records that `permanent` was DECLARED as an attacker
+ *  this turn. Deliberately separate from {@link markAttacking}: that one means
+ *  "is an attacking creature right now" and is also used for a creature PUT
+ *  onto the battlefield attacking (CR 506.3c), which was never declared as an
+ *  attacker and so must NOT count as having attacked.
+ *
+ *  Sets two flags that answer the same question at different scopes:
+ *  - `permanent.hasAttackedThisTurn` — per creature (Erg Raiders, Whirling
+ *    Dervish);
+ *  - `state.creatureAttackedThisTurn` — per GAME ("if no creatures attacked
+ *    this turn", Keldon Twilight, issue #1944). It is not derivable from the
+ *    per-card flags: CR 506.4 keeps a creature that attacked "having attacked"
+ *    after it is removed from combat, and an attacker that DIED is no longer on
+ *    any battlefield to scan — so a scan would report "no creatures attacked"
+ *    on exactly the turns that saw the most combat.
+ *
+ *  FOUR declaration paths call this, and they are the complete set: the
+ *  `confirmAttackers` mutation (`game.ts`), the auto-pass auto-confirm in
+ *  `advancePhase` (`phases.ts`), the ISMCTS search sim (`search.ts`), and the
+ *  1-ply greedy sim (`applyMove.ts`). Nothing enforces that mechanically — the
+ *  greedy path shipped with `markAttacking` alone and left
+ *  `state.creatureAttackedThisTurn` unset in every leaf, so the greedy
+ *  evaluator read "no creatures attacked this turn" immediately after
+ *  attacking (issue #1944 review fixup). A NEW declaration site must call this
+ *  next to its `markAttacking`; grep `markAttacking(` and check each hit.
+ *
+ *  Deliberately excluded, and the reason the two helpers are separate: the
+ *  enters-attacking token path (`state.ts`, CR 506.3c) calls `markAttacking`
+ *  ONLY — such a creature was never DECLARED as an attacker. */
+export function recordAttackerDeclared(
+    state: GameState,
+    permanent: CardInstanceState
+): void {
+    permanent.hasAttackedThisTurn = true;
+    state.creatureAttackedThisTurn = true;
+}
+
 /** True when any permanent with the given card id is on any player's
  *  battlefield. Used for global World-enchantment effects (CR 109.2 — the
  *  effect applies regardless of controller). */

@@ -124,6 +124,7 @@ function renderBattlefield(compact?: ReturnType<typeof landscapeCardMetrics>) {
                     priorityPlayerId: "me",
                     phase: "PRECOMBAT_MAIN",
                     turn: 1,
+                    engineTurn: 1,
                     stackCount: 0,
                     allPlayers: [player],
                     showAllCards: false,

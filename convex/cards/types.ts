@@ -7173,6 +7173,16 @@ export interface TriggerStateView {
      *  without waiting for resolve — Osai Vultures' end-step intervening-if
      *  reads it. Mirrors `GameState.deathsThisTurn`; undefined defaults to 0. */
     deathsThisTurn?: number;
+    /** CR 506.3 / 508.1 — true once ANY player's creature has been declared as
+     *  an attacker this turn. Exposed so a CR 603.4 / 603.4d intervening-if can
+     *  answer "if no creatures attacked this turn" at BOTH trigger-check time
+     *  and resolution — Keldon Twilight's end-step trigger reads
+     *  `state?.creatureAttackedThisTurn !== true`. Mirrors
+     *  `GameState.creatureAttackedThisTurn`; undefined means no attack has been
+     *  declared this turn. Game-level, NOT a per-creature scan: CR 506.4 keeps
+     *  a creature "having attacked" once it is removed from combat, and an
+     *  attacker that died is no longer on any battlefield to be scanned. */
+    creatureAttackedThisTurn?: boolean;
     /** Life gained by each player this turn (CR 119.3 tally, issue #1457),
      *  keyed by player id. Exposed so a CR 603.4 / 603.4d intervening-if can
      *  answer "if you gained life this turn" at BOTH trigger-check time and
@@ -8319,6 +8329,27 @@ export interface EffectCardFilter {
      *  for its token-only variant, or `enteredThisTurn: true` alone for any
      *  creature. */
     enteredThisTurn?: boolean;
+    /** "…that they controlled since the beginning of the turn" (Keldon
+     *  Twilight, PLS) — a battlefield permanent matches if the player whose
+     *  battlefield is being scanned has controlled it CONTINUOUSLY since this
+     *  turn began. Read off `hasControlledSinceTurnStart`
+     *  (`gre/controlContinuity.ts`), which combines the `enteredOnTurn` entry
+     *  stamp with the turn-scoped `GameState.controlChangedThisTurn` ledger.
+     *
+     *  Strictly stronger than `enteredThisTurn: false`: that clause sees only
+     *  ZONE changes, so a creature stolen (or handed back) mid-turn would slip
+     *  through it. Use this one whenever the oracle text says "controlled
+     *  since"; use `enteredThisTurn` for "entered the battlefield this turn".
+     *
+     *  Battlefield-only, exactly like `enteredThisTurn` / `isToken`:
+     *  `matchesCardFilter` (the hidden-zone matcher) does not check it — a card
+     *  in hand or a library has no controller at all (CR 108.4). Propagated
+     *  onto `PermanentFilter.controlledSinceTurnStart` by `toPermanentFilter`,
+     *  and admitted by the Effect Script validator ONLY at battlefield-
+     *  guaranteed selector sites (`allowControlledSinceTurnStart`), so a
+     *  hidden-zone script carrying it fails validation instead of silently
+     *  matching everything. */
+    controlledSinceTurnStart?: boolean;
     excludeType?: CardType | CardType[];
     /** Match cards by exact printed name (CR 201.2 — "each other card named
      *  Accumulated Knowledge", Relentless Rats' "cards named ~", issue #985). A

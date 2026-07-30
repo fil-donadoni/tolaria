@@ -317,6 +317,13 @@ export interface CardInstance {
      *  `may-pay` sacrifice filter's `createdBy` clause matches the server
      *  (issue #1938 fixup 2). */
     createdBy?: string;
+    /** CR 400.7 — the turn this permanent entered the battlefield (the
+     *  `markEnteredThisTurn` stamp). Mirrors `CardInstanceState.enteredOnTurn`
+     *  (`convex/gre/state.ts`); forwarded by `slimCard` (the projection only
+     *  strips `card`/`knownTo`). Read by `toMatchablePermanent` and by the
+     *  client mirror of `controlledSinceTurnStart` so the sacrifice picker
+     *  highlights exactly the permanents the server will accept. */
+    enteredOnTurn?: number;
 }
 
 export interface Combat {

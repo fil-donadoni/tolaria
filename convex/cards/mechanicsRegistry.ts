@@ -3187,7 +3187,19 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  `forEach { set: "permanents" }` (both route through `toPermanentFilter` →
  *  `ctx.getBattlefieldIds`) — and composes with every other clause,
  *  including `isToken`. Deliberately shipped with no card consumer of its
- *  own; its first consumer is Ocelot Pride (issue #1461). */
+ *  own; its first consumer is Ocelot Pride (issue #1461).
+ *  `EffectCardFilter.controlledSinceTurnStart` (issue #1944, Keldon Twilight)
+ *  is its sibling and likewise NOT an Op and NOT a new grammar member — a
+ *  plain boolean card-filter clause, battlefield-only, mirroring
+ *  `enteredThisTurn`'s shape and scope exactly and earning no
+ *  EFFECT_OP_REGISTRY row. It differs from `enteredThisTurn` in what it reads:
+ *  the entry stamp AND the new turn-scoped `GameState.controlChangedThisTurn`
+ *  ledger (`gre/controlContinuity.ts`), so a creature whose CONTROLLER changed
+ *  mid-turn without changing zones is excluded — the one thing zone-based
+ *  clauses cannot see. The Effect Script validator admits it only at
+ *  battlefield-guaranteed selector sites (`allowControlledSinceTurnStart`,
+ *  the `hasAbility`/`isAttacking` opt-IN gate), since a card in a hidden zone
+ *  has no controller at all (CR 108.4). */
 export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // --- Architecture-setting foundations (implemented before the skins) ---
     // delayedTrigger SHIPPED (issue #838, ADR 0048) and moveZone SHIPPED

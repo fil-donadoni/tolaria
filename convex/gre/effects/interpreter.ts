@@ -639,6 +639,14 @@ function toPermanentFilter(
         // `isToken`'s own mapping exactly (battlefield-only, no hidden-zone
         // counterpart in `matchesCardFilter`).
         enteredThisTurn: filter.enteredThisTurn,
+        // "…that they controlled since the beginning of the turn" (Keldon
+        // Twilight) — propagated 1:1 onto
+        // `PermanentFilter.controlledSinceTurnStart`, which reads the
+        // `MatchablePermanent` flag every battlefield call site derives from
+        // `hasControlledSinceTurnStart` (`gre/controlContinuity.ts`).
+        // Battlefield-only, exactly like `enteredThisTurn` above; the Effect
+        // Script validator only admits it at battlefield-guaranteed sites.
+        controlledSinceTurnStart: filter.controlledSinceTurnStart,
         // CR 508.1 (issue #1097 — Tangle's "each attacking creature"),
         // propagated 1:1 onto `PermanentFilter.isAttacking`
         // (`convex/cards/filters.ts`), already read by combat-scoped choice

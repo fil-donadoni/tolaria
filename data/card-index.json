@@ -6856,6 +6856,14 @@
         "firstPrintSet": "leg"
     },
     {
+        "name": "Keldon Twilight",
+        "scryfallId": "e071665e-bb72-42e0-a42d-0d0ff02abd2b",
+        "oracleId": "c886a076-dbe2-4d80-8dab-537b84d0837a",
+        "firstSet": "pls",
+        "firstPrintId": "e071665e-bb72-42e0-a42d-0d0ff02abd2b",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Keldon Warlord",
         "scryfallId": "8fe3fd83-969c-4add-888f-86f4306b067c",
         "oracleId": "acc869f8-dcbe-4d57-baa0-3eef4aceb251",

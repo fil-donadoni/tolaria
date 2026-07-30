@@ -84,6 +84,10 @@ import {
     runDelayedTriggerBody,
 } from "./effects/interpreter";
 import { matchesPermanentFilter } from "../cards/filters";
+import {
+    hasControlledSinceTurnStart,
+    recordControlChangeThisTurn,
+} from "./controlContinuity";
 import type { Phase, Zone, PhaseReturnCondition } from "./types";
 import type { KickerPayments } from "./kicker";
 import { kickerPaidCount, totalKickerCount } from "./kicker";
@@ -3111,6 +3115,31 @@ export type GameState = {
      *  magecraft, Aetherflux) reuse it rather than reinventing their own
      *  counter. */
     spellsCastThisTurn?: number;
+    /** CR 506.3 / 508.1 — true once ANY player's creature has been declared as
+     *  an attacker this turn. Set at attacker confirmation (`phases.ts`);
+     *  reset at the start of each turn (`advanceTurn`), mirroring
+     *  `deathsThisTurn` / `spellsCastThisTurn`.
+     *
+     *  Deliberately a GAME-level fact rather than a scan of the per-creature
+     *  `hasAttackedThisTurn` flags: CR 506.4 keeps a creature that attacked
+     *  "having attacked" after it is removed from combat, and an attacker that
+     *  died in combat (or was bounced) is no longer on any battlefield to be
+     *  scanned at all — so the scan would report "no creatures attacked" on
+     *  exactly the turns where the fight was bloodiest. Read by "if no
+     *  creatures attacked this turn" intervening-ifs (CR 603.4, Keldon
+     *  Twilight). */
+    creatureAttackedThisTurn?: boolean;
+    /** Turn-scoped control-continuity ledger — instance ids whose CONTROLLER
+     *  changed at some point during the current turn (either direction), so
+     *  neither the old nor the new controller has controlled them "since the
+     *  beginning of the turn". Appended by `recordControlChangeThisTurn`
+     *  (`gre/controlContinuity.ts`) from `applyControlChange` /
+     *  `revertControlChange`; reset at the start of each turn (`advanceTurn`).
+     *  Read — together with the per-permanent `enteredOnTurn` entry stamp — by
+     *  `hasControlledSinceTurnStart`, which backs
+     *  `PermanentFilter.controlledSinceTurnStart`. See that module's header for
+     *  why this is a ledger of BREAKS and not a start-of-turn snapshot. */
+    controlChangedThisTurn?: string[];
     /** Cumulative damage taken by each player this turn (CR 120.3 tally).
      *  Map `playerId → total damage`. Incremented every time damage actually
      *  lands on a player (after replacement / prevention / protection).
@@ -6610,6 +6639,9 @@ export function applyControlChange(
         },
     ];
     found.card.controllerId = newControllerId;
+    // Control continuity — neither controller has held it "since the beginning
+    // of the turn" any more (`gre/controlContinuity.ts`).
+    recordControlChangeThisTurn(state, found.card.id);
     if (found.card.types.includes("Creature")) {
         found.card.isSummoningSick = true;
     }
@@ -6680,6 +6712,10 @@ export function revertControlChange(
     found.card.controlChanges = nextStack.length > 0 ? nextStack : undefined;
     if (found.card.controllerId === restoredControllerId) return;
     found.card.controllerId = restoredControllerId;
+    // Control continuity — a control change REVERTING mid-turn breaks
+    // continuity for the restored controller just as gaining it did for the
+    // other (`gre/controlContinuity.ts`).
+    recordControlChangeThisTurn(state, found.card.id);
     if (found.card.types.includes("Creature")) {
         found.card.isSummoningSick = true;
     }
@@ -13593,6 +13629,14 @@ export function buildSpellContext(
                             // — that flag stays true across the opponent's
                             // whole turn and is re-set on a control change.
                             enteredThisTurn: c.enteredOnTurn === state.turn,
+                            // "…that they controlled since the beginning of
+                            // the turn" (Keldon Twilight) — entry stamp AND
+                            // the turn-scoped control-change ledger, see
+                            // `gre/controlContinuity.ts`. `playerId` is the
+                            // battlefield being scanned, so the "controls it
+                            // now" half is already established.
+                            controlledSinceTurnStart:
+                                hasControlledSinceTurnStart(state, c),
                         },
                         filter,
                         { supertypesOf: liveSupertypesOf }

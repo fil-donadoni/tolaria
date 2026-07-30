@@ -124,6 +124,7 @@ function renderForDefender(
         priorityPlayerId: "me",
         phase: "DECLARE_BLOCKERS",
         turn: 1,
+        engineTurn: 1,
         stackCount: 0,
         allPlayers: [me, opp],
         showAllCards: false,

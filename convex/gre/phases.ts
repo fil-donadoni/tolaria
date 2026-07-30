@@ -49,6 +49,10 @@ import {
     tickDuration,
 } from "./state";
 import { tryGetDefinition } from "../cards";
+import {
+    hasControlledSinceTurnStart,
+    resetControlContinuity,
+} from "./controlContinuity";
 import { advanceSagasAtPrecombatMain } from "./sagas";
 import { seededShuffle } from "./rng";
 import { describeDamageSource } from "./replacements";
@@ -66,7 +70,12 @@ import {
     buildReboundReflexiveTrigger,
     placeTriggersOnStack,
 } from "./triggers";
-import { hasAnyLegalBlock, getRequiredAttackerIds } from "./combat";
+import {
+    hasAnyLegalBlock,
+    getRequiredAttackerIds,
+    markAttacking,
+    recordAttackerDeclared,
+} from "./combat";
 import {
     getEffectiveBlockGraph,
     getDamageAssignerId,
@@ -311,12 +320,23 @@ export function effectivePermanentView(
     // filters (Magnetic Mountain's "blue creatures") match on the battlefield.
     // `colors` honors layer-5 colorOverride + grantedColors via getColors.
     const colors = STATIC_EFFECT_CTX.getColors(card);
+    // CR 400.7 — the two DERIVED turn-scoped `MatchablePermanent` flags. Both
+    // are computed off state, not stored on the instance, so a raw
+    // `CardInstanceState` handed to `matchesPermanentFilter` leaves them
+    // undefined and the filter fails CLOSED — i.e. the pending-choice submit
+    // validator would reject a pick the choice itself offered. Derived here,
+    // once, for every caller of this view.
+    const turnFlags = {
+        enteredThisTurn: card.enteredOnTurn === state.turn,
+        controlledSinceTurnStart: hasControlledSinceTurnStart(state, card),
+    };
     if (!card.types.includes("Creature")) {
-        return { ...card, colors } as CardInstanceState;
+        return { ...card, colors, ...turnFlags } as CardInstanceState;
     }
     return {
         ...card,
         colors,
+        ...turnFlags,
         power: getEffectivePower(state, card),
         toughness: getEffectiveToughness(state, card),
     } as CardInstanceState;
@@ -3004,6 +3024,13 @@ function advanceTurn(state: GameState): void {
     // turn" mechanics (prowess/magecraft/Aetherflux-style) read this same
     // field and reset at the same boundary.
     state.spellsCastThisTurn = undefined;
+    // CR 506.3 / 508.1 — "no creatures attacked this turn" must read true again
+    // the instant a new turn begins (Keldon Twilight's CR 603.4 intervening-if).
+    state.creatureAttackedThisTurn = undefined;
+    // The control-continuity window restarts with the turn: every permanent on
+    // the battlefield right now has been controlled "since the beginning of the
+    // turn" until something changes its controller (`gre/controlContinuity.ts`).
+    resetControlContinuity(state);
 }
 
 /**
@@ -3292,8 +3319,11 @@ export function drainAutoPasses(state: GameState): void {
                         // it taps to attack.
                         tapPermanent(state, card);
                     }
-                    card.isAttacking = true;
-                    card.hasAttackedThisTurn = true;
+                    markAttacking(state, card);
+                    // CR 506.3 — the shared declaration record (per-card +
+                    // game-level), so this auto-confirm path cannot drift from
+                    // the `confirmAttackers` mutation (issue #1944).
+                    recordAttackerDeclared(state, card);
                 }
             }
             state.combat.confirmed = true;
