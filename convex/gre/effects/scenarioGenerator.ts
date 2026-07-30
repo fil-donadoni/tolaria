@@ -644,6 +644,15 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // interpreter tests plus the migrated cards' per-card tests.
             req.skip ??= `Op "discardAtRandom" removes random cards from a target player's hand — the canned generator does not provision the target's hand contents; covered by the Op's interpreter tests`;
             return;
+        case "randomExileToHand":
+            // `randomExileToHand` (CR 400.7, issue #1947) picks a RANDOM
+            // card from a source-linked exile pile. The canned generator
+            // does not provision a linked exile pile with known contents,
+            // so which card (if any) gets picked is unpredictable from
+            // here — reported as an explicit skip; execution coverage is
+            // the Op's own interpreter tests.
+            req.skip ??= `Op "randomExileToHand" picks a random card from a source-linked exile pile — the canned generator does not provision the pile; covered by the Op's interpreter tests`;
+            return;
         case "digToHand":
             // A `digToHand` Op suspends resolution for a live look-distribute
             // pick (issue #984) — a canned scenario cannot submit the
@@ -2001,6 +2010,14 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // Kept for the 1:1 coverage guard; the random-discard loop is covered by
     // the Op's own interpreter tests.
     discardAtRandom() {
+        return null;
+    },
+    // `randomExileToHand` (CR 400.7, issue #1947) — never reached:
+    // `analyseOp` skips every script with this Op (the canned generator
+    // does not provision a source-linked exile pile, so there is no
+    // deterministic pick it can assert). Kept for the 1:1 coverage guard;
+    // the random pick is covered by the Op's own interpreter tests.
+    randomExileToHand() {
         return null;
     },
     // `digToHand` (CR 401.4, issue #984) — never reached: `analyseOp` skips

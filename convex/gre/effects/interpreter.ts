@@ -1613,6 +1613,17 @@ export const OP_EXECUTORS: {
             });
         }
     },
+    // CR 400.7 / 607 (issue #1947) — choose a card AT RANDOM from the exile
+    // pile linked to $source, and put it into its OWNER's hand (Skyship
+    // Weatherlight). A thin declarative skin over `pickRandomCardExiledWith`
+    // + `moveCardById`, one execution path (ADR 0045). Skipped (CR 608.2b
+    // no-op) when the pile is empty — the official ruling that the ability
+    // is still activatable with nothing exiled; it simply does nothing.
+    randomExileToHand(ctx) {
+        const picked = ctx.pickRandomCardExiledWith(ctx.sourceInstanceId);
+        if (!picked) return;
+        ctx.moveCardById(picked.ownerId, picked.id, "exile", "hand");
+    },
     // CR 500.7 (issue #686) — schedule an extra turn for `player` (Time
     // Warp). Skipped when the player cannot be resolved (CR 608.2b).
     extraTurn(ctx, op) {
@@ -2278,6 +2289,16 @@ export const OP_EXECUTORS: {
                     }
                 } else {
                     ctx.moveCardById(playerId, id, op.from, op.to);
+                    // CR 400.7 / 607 (issue #1947) — link each just-exiled
+                    // card back to this ability's OWN source so a later
+                    // "choose a card exiled with ~" ability can name exactly
+                    // this pile (`getCardsExiledWith` /
+                    // `pickRandomCardExiledWith`) — the same link `hideaway`
+                    // stamps for its single exiled card, generalized here to
+                    // an arbitrary-count tutor sweep (Skyship Weatherlight).
+                    if (op.to === "exile" && op.linkToSource) {
+                        ctx.linkExileToSource(id, ctx.sourceInstanceId);
+                    }
                 }
             }
             return;

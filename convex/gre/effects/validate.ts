@@ -2154,6 +2154,9 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         required: { player: isPlayerRef, count: isEffectValue },
         optional: { bind: isBindingName },
     },
+    // issue #1947 — no fields: always picks from the pile linked to
+    // $source and routes to that card's own owner's hand.
+    randomExileToHand: { required: {} },
     gainLife: { required: { player: isPlayerRef, amount: isEffectValue } },
     getEnergy: { required: { player: isPlayerRef, amount: isEffectValue } },
     loseLife: { required: { player: isPlayerRef, amount: isEffectValue } },
@@ -2394,6 +2397,10 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             // issue #1726 — battlefield → library at a 1-based position from
             // the top (Teferi, Hero of Dominaria's −3 "third from the top").
             position: isPositiveInt,
+            // issue #1947 — stamp `linkExileToSource` on every moved card
+            // (the "cards" shape's own search-and-exile sweep), valid only
+            // alongside `to: "exile"` (Skyship Weatherlight).
+            linkToSource: isBoolean,
         },
         check: (entry) => {
             const hasTarget = "target" in entry;
@@ -2434,6 +2441,20 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                 if ("controller" in entry) {
                     errors.push('field "controller" is not valid with "cards"');
                 }
+                // issue #1947 — `linkToSource` stamps `linkExileToSource` on
+                // every moved card; only meaningful when the destination
+                // actually IS exile (Skyship Weatherlight's search-and-exile
+                // sweep).
+                if ("linkToSource" in entry && entry.to !== "exile") {
+                    errors.push(
+                        'field "linkToSource" is only valid with "cards" and to: "exile" (issue #1947)'
+                    );
+                }
+            }
+            if ("linkToSource" in entry && !hasCards) {
+                errors.push(
+                    'field "linkToSource" is only valid on the "cards" shape (issue #1947)'
+                );
             }
             if (hasTarget) {
                 if ("player" in entry) {

@@ -23796,6 +23796,302 @@ describe("Effect Script Op: hideaway (CR 702.75a, issue #783)", () => {
     });
 });
 
+// --- moveZone: the `cards` shape's `linkToSource` flag (CR 400.7 / 607,
+// issue #1947) --------------------------------------------------------------
+// A parametrization of the EXISTING `moveZone` `cards` shape (issue #677) —
+// not a new Op — that stamps `linkExileToSource` on every card moved to
+// exile, generalizing `hideaway`'s single-card CR 607 stamp to an
+// arbitrary-count tutor sweep (Skyship Weatherlight: "search your library
+// for any number of artifact and/or creature cards, exile them").
+describe("moveZone: cards-shape linkToSource flag (CR 400.7 / 607, issue #1947)", () => {
+    const libOf = (owner: "p1" | "p2", ids: string[]) =>
+        ids.map((cid) =>
+            makeInstance(BEAR_ID, {
+                id: cid,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "library",
+            })
+        );
+
+    it("stamps exiledBySourceId on every card moved to exile when linkToSource is set", () => {
+        const id = registerScript("test-op-movezone-link", [
+            {
+                op: "choice",
+                kind: "search-library",
+                player: "controller",
+                zone: "library",
+                count: { min: 0, max: 2 },
+                prompt: "Search your library for up to two cards to exile.",
+                bind: "$found",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$found" },
+                player: "controller",
+                from: "library",
+                to: "exile",
+                linkToSource: true,
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libOf("p1", ["a", "b"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        const sourceInstanceId = state.stack[0].id;
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["a", "b"],
+        });
+        expect(state.players[0].exile).toHaveLength(2);
+        for (const c of state.players[0].exile) {
+            expect(c.exiledBySourceId).toBe(sourceInstanceId);
+        }
+    });
+
+    it("does NOT stamp the link when linkToSource is omitted — the flag is opt-in (regression guard)", () => {
+        const id = registerScript("test-op-movezone-nolink", [
+            {
+                op: "choice",
+                kind: "search-library",
+                player: "controller",
+                zone: "library",
+                count: { min: 0, max: 1 },
+                prompt: "Search your library for a card to exile.",
+                bind: "$found",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$found" },
+                player: "controller",
+                from: "library",
+                to: "exile",
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libOf("p1", ["a"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["a"],
+        });
+        expect(state.players[0].exile).toHaveLength(1);
+        expect(state.players[0].exile[0].exiledBySourceId).toBeUndefined();
+    });
+
+    it("the link survives the wire projection and a serializer round trip", () => {
+        const id = registerScript("test-op-movezone-link-wire", [
+            {
+                op: "choice",
+                kind: "search-library",
+                player: "controller",
+                zone: "library",
+                count: { min: 0, max: 1 },
+                prompt: "Search your library for a card to exile.",
+                bind: "$found",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$found" },
+                player: "controller",
+                from: "library",
+                to: "exile",
+                linkToSource: true,
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libOf("p1", ["a"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        const sourceInstanceId = state.stack[0].id;
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["a"],
+        });
+        // Exile is a public zone (CR 400.2) — the identity survives the wire.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].exile.find((c) => c.id === "a")!;
+        expect(slim.card.id).toBe(BEAR_ID);
+        const round = expandState(compactState(state));
+        const roundExiled = round.players[0].exile.find((c) => c.id === "a")!;
+        expect(roundExiled.exiledBySourceId).toBe(sourceInstanceId);
+    });
+});
+
+// --- randomExileToHand: choose a card at random from the exile pile linked
+// to $source, put it into its OWNER's hand (CR 400.7 / 701.13, issue #1947).
+// A genuinely NEW Op (not a reused-Op DSL card) — full test regime: this
+// describe block IS the Op's permanent test, inherited free by any later
+// card reusing it.
+describe("Effect Script Op: randomExileToHand (CR 400.7 / 701.13, issue #1947)", () => {
+    /** `n` cards sitting in `owner`'s exile, all linked to `sourceInstanceId`. */
+    function linkedExileOf(
+        owner: "p1" | "p2",
+        ids: string[],
+        sourceInstanceId: string
+    ): CardInstanceState[] {
+        return ids.map((cid) => {
+            const c = makeInstance(BEAR_ID, {
+                id: cid,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "exile",
+            });
+            c.exiledBySourceId = sourceInstanceId;
+            return c;
+        });
+    }
+
+    it("is a no-op when the linked pile is empty (CR 608.2b — still activatable, does nothing)", () => {
+        const id = registerScript("test-op-random-exile-empty", [
+            { op: "randomExileToHand" },
+        ]);
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1");
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.players[0].hand).toHaveLength(0);
+        expect(state.players[1].hand).toHaveLength(0);
+    });
+
+    it("a single linked card is picked deterministically and moves to hand", () => {
+        const id = registerScript("test-op-random-exile-single", [
+            { op: "randomExileToHand" },
+        ]);
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const item = pushSpell(state, id, "p1");
+        const sourceInstanceId = item.id;
+        state.players[0].exile = linkedExileOf(
+            "p1",
+            ["only"],
+            sourceInstanceId
+        );
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["only"]);
+        expect(state.players[0].exile).toHaveLength(0);
+    });
+
+    it("routes to the picked card's OWN owner's hand, even when that differs from the resolving controller", () => {
+        const id = registerScript("test-op-random-exile-owner", [
+            { op: "randomExileToHand" },
+        ]);
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const item = pushSpell(state, id, "p1"); // p1 controls/resolves the ability
+        const sourceInstanceId = item.id;
+        // The linked card sits in P2's exile — CR 400.7's destination is its
+        // OWNER (p2), never the activating controller (p1).
+        state.players[1].exile = linkedExileOf(
+            "p2",
+            ["theirs"],
+            sourceInstanceId
+        );
+        resolveTopOfStack(state);
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["theirs"]);
+        expect(state.players[0].hand).toHaveLength(0);
+    });
+
+    it("never picks a card exiled by a DIFFERENT source, even when it sits in the same exile zone", () => {
+        const id = registerScript("test-op-random-exile-decoy", [
+            { op: "randomExileToHand" },
+        ]);
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const item = pushSpell(state, id, "p1");
+        const sourceInstanceId = item.id;
+        const decoy = makeInstance(BEAR_ID, {
+            id: "decoy",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "exile",
+        });
+        decoy.exiledBySourceId = "some-other-permanent";
+        state.players[0].exile = [
+            decoy,
+            ...linkedExileOf("p1", ["linked"], sourceInstanceId),
+        ];
+        resolveTopOfStack(state);
+        // Only the linked card ever moves — the decoy (a DIFFERENT source's
+        // pile) is untouched, deterministically (it's the only candidate).
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["linked"]);
+        expect(state.players[0].exile.map((c) => c.id)).toEqual(["decoy"]);
+    });
+
+    it("the retrieved card reaches hand through the wire projection", () => {
+        const id = registerScript("test-op-random-exile-wire", [
+            { op: "randomExileToHand" },
+        ]);
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const item = pushSpell(state, id, "p1");
+        const sourceInstanceId = item.id;
+        state.players[0].exile = linkedExileOf(
+            "p1",
+            ["only"],
+            sourceInstanceId
+        );
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].hand.find((c) => c?.id === "only");
+        expect(slim).toBeDefined();
+        expect(slim!.card.id).toBe(BEAR_ID);
+    });
+
+    it("with several linked candidates, the same rngSeed always picks the same card (replay determinism)", () => {
+        const runOnce = () => {
+            const id = registerScript("test-op-random-exile-determinism", [
+                { op: "randomExileToHand" },
+            ]);
+            const state = makeState({
+                players: [makePlayer("p1"), makePlayer("p2")],
+                rngSeed: 12345,
+                rngCounter: 0,
+            });
+            const item = pushSpell(state, id, "p1");
+            const sourceInstanceId = item.id;
+            state.players[0].exile = linkedExileOf(
+                "p1",
+                ["x", "y", "z"],
+                sourceInstanceId
+            );
+            resolveTopOfStack(state);
+            return state.players[0].hand.map((c) => c.id);
+        };
+        expect(runOnce()).toEqual(runOnce());
+    });
+});
+
 // --- count { zone: "library", smallestAcrossPlayers } (CR 122 / 401, issue
 // #783) ----------------------------------------------------------------------
 // "if a library has twenty or fewer cards in it" (Shelldock Isle) is the MIN

@@ -17,10 +17,13 @@ import {
     dromarsCavern,
     meteorCrater,
     rithsGrove,
+    skyshipWeatherlight,
+    skyshipWeatherlightAlt,
     starCompass,
     trevasRuins,
 } from "../colorless";
 import { forest, island, mountain, plains, swamp } from "../../lea/colorless";
+import { blackLotus } from "../../lea/colorless";
 import { crawWurm } from "../../lea/green";
 import { lightningBolt } from "../../lea/red";
 import { quirionExplorer } from "../green";
@@ -36,12 +39,17 @@ import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import type { CardDefinition } from "../../../types";
 import {
     canPayMayPayCost,
+    removePermanentTo,
     resolveTopOfStack,
     type CardInstanceState,
     type GameState,
     type StackItem,
 } from "../../../../gre/state";
-import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
+import {
+    applyMayPaySubmit,
+    applyPendingChoiceSubmit,
+} from "../../../../gre/pendingChoiceSubmit";
+import { compactState, expandState } from "../../../../gre/serialize";
 import { tapSourceIntoPayment } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
 
@@ -620,5 +628,393 @@ describe("descriptor sources don't inflate CR 106.4 'could produce' (issue #1941
         expect(getDefinitionProducibleColors(fellwarStone).size).toBe(0);
         // The instance-level twin agrees when given no board.
         expect(getProducibleColors(makeInstance(meteorCrater.id)).size).toBe(0);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// C8f — Skyship Weatherlight (CR 400.7 / 701.13, issue #1947). Introduces
+// the `randomExileToHand` Op (a genuinely NEW Op — full test regime, not
+// the per-Op smoke-sweep) and the `moveZone` `cards` shape's new
+// `linkToSource` flag (a parametrization of an EXISTING Op).
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Puts Skyship Weatherlight's self-ETB trigger on the stack, mirroring
+ *  `fireLairEtb` above. */
+function fireSkyshipEtb(state: GameState, skyship: CardInstanceState): void {
+    state.stack.push({
+        ...skyship,
+        zone: "stack",
+        castById: skyship.controllerId,
+        triggeredAbilityId: "skyship-weatherlight-etb",
+        triggerSourceId: skyship.id,
+        triggerEvent: {
+            type: "PERMANENT_ENTERED",
+            instanceId: skyship.id,
+            controllerId: skyship.controllerId,
+            types: ["Artifact"],
+        } as StackItem["triggerEvent"],
+        targets: [],
+    });
+    resolveTopOfStack(state);
+}
+
+/** Puts Skyship Weatherlight's activated ability on the stack. */
+function fireSkyshipActivated(
+    state: GameState,
+    skyship: CardInstanceState
+): void {
+    state.stack.push({
+        ...skyship,
+        zone: "stack",
+        castById: skyship.controllerId,
+        abilityId: "skyship-weatherlight-random",
+        targets: [],
+    });
+    resolveTopOfStack(state);
+}
+
+/** Submits the current head pending choice (search-library pick) with the
+ *  given ordered ids, mirroring `ice/__tests__/helpers.ts`'s `submitChoice`. */
+function submitLibraryPick(state: GameState, cardInstanceIds: string[]): void {
+    const head = state.pendingChoices![0];
+    applyPendingChoiceSubmit(state, {
+        playerId: head.playerId,
+        stackItemId: head.stackItemId,
+        step: head.step,
+        choiceId: head.choiceId,
+        cardInstanceIds,
+    });
+}
+
+describe("Skyship Weatherlight (CR 400.7 / 701.13, issue #1947)", () => {
+    it("is a Legendary Artifact with one search-and-exile ETB trigger and one {4},{T} random-retrieval activated ability", () => {
+        expect(skyshipWeatherlight.types).toEqual(["Artifact"]);
+        expect(skyshipWeatherlight.supertypes).toEqual(["Legendary"]);
+        expect(skyshipWeatherlight.manaCost).toEqual({ X: 4 });
+        expect(skyshipWeatherlight.triggeredAbilities).toHaveLength(1);
+        expect(skyshipWeatherlight.triggeredAbilities![0].id).toBe(
+            "skyship-weatherlight-etb"
+        );
+        const ability = skyshipWeatherlight.activatedAbilities![0];
+        expect(ability.id).toBe("skyship-weatherlight-random");
+        expect(ability.cost).toEqual({ mana: { X: 4 }, tap: true });
+        expect(ability.useStack).toBe(true);
+        expect(ability.effects).toEqual([{ op: "randomExileToHand" }]);
+    });
+
+    it("the alternate PLS 133★ print resolves to the same CardDefinition (ADR 0014)", () => {
+        expect(skyshipWeatherlightAlt.definitionId).toBe(
+            skyshipWeatherlight.id
+        );
+        expect(skyshipWeatherlightAlt.setCode).toBe("pls");
+        expect(skyshipWeatherlightAlt.rarity).toBe("rare");
+        expect(skyshipWeatherlightAlt.printId).not.toBe(skyshipWeatherlight.id);
+    });
+
+    describe("ETB — search for any number of artifact and/or creature cards, exile + link, then shuffle", () => {
+        function libraryOf(owner: "p1" | "p2") {
+            return [
+                makeInstance(blackLotus.id, {
+                    id: "lotus",
+                    controllerId: owner,
+                    ownerId: owner,
+                    zone: "library",
+                }),
+                makeInstance(crawWurm.id, {
+                    id: "wurm",
+                    controllerId: owner,
+                    ownerId: owner,
+                    zone: "library",
+                }),
+                makeInstance(lightningBolt.id, {
+                    id: "bolt",
+                    controllerId: owner,
+                    ownerId: owner,
+                    zone: "library",
+                }),
+                makeInstance(forest.id, {
+                    id: "forest1",
+                    controllerId: owner,
+                    ownerId: owner,
+                    zone: "library",
+                }),
+            ];
+        }
+
+        it("offers only the artifact/creature cards as candidates (instants and lands are excluded)", () => {
+            const skyship = makeInstance(skyshipWeatherlight.id, {
+                id: "skyship",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        battlefield: [skyship],
+                        library: libraryOf("p1"),
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+            fireSkyshipEtb(state, skyship);
+            const head = state.pendingChoices![0];
+            expect(head.kind).toBe("search-library");
+            expect(new Set(head.candidateIds)).toEqual(
+                new Set(["lotus", "wurm"])
+            );
+            // "any number" — clamped down to the 2 matching candidates, not
+            // the unbounded Number.MAX_SAFE_INTEGER the card declares.
+            expect(head.count).toEqual({ min: 0, max: 2 });
+        });
+
+        it("exiling BOTH matches links each to Skyship Weatherlight and shuffles the rest back into the library", () => {
+            const skyship = makeInstance(skyshipWeatherlight.id, {
+                id: "skyship",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        battlefield: [skyship],
+                        library: libraryOf("p1"),
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+            fireSkyshipEtb(state, skyship);
+            submitLibraryPick(state, ["lotus", "wurm"]);
+            expect(state.pendingChoices ?? []).toHaveLength(0);
+            // Both moved to the OWNER's exile, linked to Skyship Weatherlight.
+            const exileIds = state.players[0].exile.map((c) => c.id).sort();
+            expect(exileIds).toEqual(["lotus", "wurm"]);
+            for (const c of state.players[0].exile) {
+                expect(c.exiledBySourceId).toBe("skyship");
+            }
+            // The non-matching cards stay in the library (shuffled — order
+            // not asserted).
+            expect(state.players[0].library.map((c) => c.id).sort()).toEqual([
+                "bolt",
+                "forest1",
+            ]);
+        });
+
+        it("choosing ZERO is legal — the search may find nothing exiled (2004-10-04 ruling)", () => {
+            const skyship = makeInstance(skyshipWeatherlight.id, {
+                id: "skyship",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        battlefield: [skyship],
+                        library: libraryOf("p1"),
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+            fireSkyshipEtb(state, skyship);
+            submitLibraryPick(state, []);
+            expect(state.players[0].exile).toHaveLength(0);
+            expect(state.players[0].library).toHaveLength(4);
+        });
+    });
+
+    describe("activated ability — {4},{T}: random pick from the linked pile to its OWNER's hand", () => {
+        it("with an empty pile the ability is still activatable and simply does nothing (CR 608.2b)", () => {
+            const skyship = makeInstance(skyshipWeatherlight.id, {
+                id: "skyship",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", { battlefield: [skyship] }),
+                    makePlayer("p2"),
+                ],
+            });
+            expect(() => fireSkyshipActivated(state, skyship)).not.toThrow();
+            expect(state.players[0].hand).toHaveLength(0);
+        });
+
+        it("a single linked card is picked deterministically and moves to its OWNER's hand — even when that owner is NOT the activating player", () => {
+            const skyship = makeInstance(skyshipWeatherlight.id, {
+                id: "skyship",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            // CR 400.7 — the linked card sits in P2's exile (an opponent's
+            // card the source somehow exiled), proving the destination is
+            // the card's OWN owner, not p1 (the activating controller).
+            const decoy = makeInstance(crawWurm.id, {
+                id: "decoy",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "exile",
+            });
+            const linked = makeInstance(blackLotus.id, {
+                id: "linked",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "exile",
+            });
+            linked.exiledBySourceId = "skyship";
+            const state = makeState({
+                players: [
+                    makePlayer("p1", { battlefield: [skyship] }),
+                    makePlayer("p2", { exile: [decoy, linked] }),
+                ],
+            });
+            fireSkyshipActivated(state, skyship);
+            expect(state.players[1].hand.map((c) => c.id)).toEqual(["linked"]);
+            // p1 (the activator) never receives it.
+            expect(state.players[0].hand).toHaveLength(0);
+            // The unlinked decoy never moves — only the linked pile is
+            // eligible, never a card exiled by anything else.
+            expect(state.players[1].exile.map((c) => c.id)).toEqual(["decoy"]);
+        });
+
+        it("a SECOND Skyship Weatherlight's pile is entirely disjoint — never picks from another source's exile", () => {
+            const skyshipA = makeInstance(skyshipWeatherlight.id, {
+                id: "skyshipA",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const skyshipB = makeInstance(skyshipWeatherlight.id, {
+                id: "skyshipB",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const linkedToA = makeInstance(blackLotus.id, {
+                id: "linkedA",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "exile",
+            });
+            linkedToA.exiledBySourceId = "skyshipA";
+            const linkedToB = makeInstance(crawWurm.id, {
+                id: "linkedB",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "exile",
+            });
+            linkedToB.exiledBySourceId = "skyshipB";
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        battlefield: [skyshipA, skyshipB],
+                        exile: [linkedToA, linkedToB],
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+            fireSkyshipActivated(state, skyshipA);
+            // Only A's linked card (the sole candidate in A's pile) moved.
+            expect(state.players[0].hand.map((c) => c.id)).toEqual(["linkedA"]);
+            expect(state.players[0].exile.map((c) => c.id)).toEqual([
+                "linkedB",
+            ]);
+        });
+
+        it("the retrieved card survives the wire projection (owner sees it in hand)", () => {
+            const skyship = makeInstance(skyshipWeatherlight.id, {
+                id: "skyship",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const linked = makeInstance(blackLotus.id, {
+                id: "linked",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "exile",
+            });
+            linked.exiledBySourceId = "skyship";
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        battlefield: [skyship],
+                        exile: [linked],
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+            fireSkyshipActivated(state, skyship);
+            expect(state.players[0].hand.map((c) => c.id)).toEqual(["linked"]);
+            const projected = projectPublicState(state, 1, "p1");
+            expect(projected.players[0].hand.map((c) => c?.card.id)).toContain(
+                blackLotus.id
+            );
+        });
+
+        it("stamps and pick both survive a serializer round trip (CR 400.7 pile persistence)", () => {
+            const skyship = makeInstance(skyshipWeatherlight.id, {
+                id: "skyship",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const linkedA = makeInstance(blackLotus.id, {
+                id: "linkedA",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "exile",
+            });
+            linkedA.exiledBySourceId = "skyship";
+            const linkedB = makeInstance(crawWurm.id, {
+                id: "linkedB",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "exile",
+            });
+            linkedB.exiledBySourceId = "skyship";
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        battlefield: [skyship],
+                        exile: [linkedA, linkedB],
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+            const round = expandState(compactState(state));
+            const roundExile = round.players[0].exile;
+            expect(roundExile).toHaveLength(2);
+            for (const c of roundExile) {
+                expect(c.exiledBySourceId).toBe("skyship");
+            }
+        });
+    });
+
+    describe("Skyship Weatherlight leaving the battlefield (CR 400.7 — the pile does not return)", () => {
+        it("the remaining exiled cards stay in exile — they are not returned when the source is destroyed", () => {
+            const skyship = makeInstance(skyshipWeatherlight.id, {
+                id: "skyship",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const linked = makeInstance(blackLotus.id, {
+                id: "linked",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "exile",
+            });
+            linked.exiledBySourceId = "skyship";
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        battlefield: [skyship],
+                        exile: [linked],
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+            removePermanentTo(state, "skyship", "graveyard", "destroy");
+            // The card is still sitting in exile — CR 400.7 / the official
+            // 2004-10-04 ruling: "If this card leaves the battlefield, the
+            // remaining cards that were exiled don't come back."
+            expect(state.players[0].exile.map((c) => c.id)).toContain("linked");
+            expect(state.players[0].hand).toHaveLength(0);
+            expect(state.players[0].library).toHaveLength(0);
+        });
     });
 });
