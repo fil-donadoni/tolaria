@@ -8008,6 +8008,14 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Meteor Crater",
+        "scryfallId": "043a2299-1cfc-4732-a10a-58c773b9992c",
+        "oracleId": "ebddf68c-1b22-4313-83e1-13a5c1aec19e",
+        "firstSet": "pls",
+        "firstPrintId": "043a2299-1cfc-4732-a10a-58c773b9992c",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Meteor Shower",
         "scryfallId": "50b4851e-677b-468e-9baa-e47a3b4b8339",
         "oracleId": "d2110083-b30f-43f1-9352-7536f5e19d3c",
@@ -9782,6 +9790,14 @@
         "firstSet": "mir",
         "firstPrintId": "be9a64fb-1e8d-4ed8-b4c5-3d44db9c1d3b",
         "firstPrintSet": "mir"
+    },
+    {
+        "name": "Quirion Explorer",
+        "scryfallId": "141a031d-f899-497b-adf7-4af142078085",
+        "oracleId": "766c8a68-9c51-44ea-903c-1f5cb30941d1",
+        "firstSet": "pls",
+        "firstPrintId": "141a031d-f899-497b-adf7-4af142078085",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Quirion Sentinel",
@@ -11846,6 +11862,14 @@
         "firstSet": "drk",
         "firstPrintId": "6d4c853e-2231-4af2-bcb0-1781c18ec3be",
         "firstPrintSet": "drk"
+    },
+    {
+        "name": "Star Compass",
+        "scryfallId": "b1d0beb4-c3dd-4bb1-b49b-a48b2d4ad38d",
+        "oracleId": "b5e9599f-9561-4e3f-9904-9a4dab98cabb",
+        "firstSet": "pls",
+        "firstPrintId": "b1d0beb4-c3dd-4bb1-b49b-a48b2d4ad38d",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Starting Town",

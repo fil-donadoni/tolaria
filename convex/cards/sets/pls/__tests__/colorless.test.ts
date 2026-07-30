@@ -15,10 +15,23 @@ import {
     crosissCatacombs,
     darigaazsCaldera,
     dromarsCavern,
+    meteorCrater,
     rithsGrove,
+    starCompass,
     trevasRuins,
 } from "../colorless";
-import { forest } from "../../lea/colorless";
+import { forest, island, mountain, plains, swamp } from "../../lea/colorless";
+import { crawWurm } from "../../lea/green";
+import { lightningBolt } from "../../lea/red";
+import { quirionExplorer } from "../green";
+import { fellwarStone } from "../../drk/colorless";
+import {
+    getDefinitionProducibleColors,
+    getEffectiveManaChoices,
+    getManaTapOptionsDetailed,
+    getProducibleColors,
+} from "../../../../gre/constants";
+import { getLegalActions } from "../../../../gre/rules";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import type { CardDefinition } from "../../../types";
 import {
@@ -236,5 +249,376 @@ describe("Planeshift Lair cycle (CR 117.3a / 701.16 / 701.24, issue #1938)", () 
         const p1 = afterProjection.players[0];
         expect(p1.battlefield.map((c) => c.id)).toEqual(["lair"]);
         expect(p1.hand).toHaveLength(1);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// C6 — Board-derived restricted-colour mana abilities (CR 605.1a, issue #1941).
+// Star Compass and Meteor Crater declare `ActivatedAbility.manaColorSource`
+// descriptors that exercise the two orthogonal axes: WHICH permanents
+// contribute (a `PermanentFilter` — a BASIC land you control vs. ANY permanent
+// you control) and HOW each yields a colour (`"produces"`, CR 106.4 — what it
+// could tap for — vs. `"isColor"`, CR 105.2 — what colour it IS). Assertions
+// drive the shared authorities (`getEffectiveManaChoices`,
+// `getManaTapOptionsDetailed`), not the descriptor in isolation.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The `battlefields` argument every board-derived mana consumer takes. */
+function manaBoards(state: GameState) {
+    return state.players.map((p) => ({
+        playerId: p.id,
+        battlefield: p.battlefield,
+    }));
+}
+
+function manaChoicesFor(
+    state: GameState,
+    source: CardInstanceState,
+    controllerId: string
+) {
+    return getEffectiveManaChoices(source, controllerId, manaBoards(state));
+}
+
+describe("Star Compass (CR 110.5b + 605.1a / 106.4 — colours YOUR basic lands could produce)", () => {
+    it("is a {2} artifact that enters tapped, with the modern oracle text", () => {
+        expect(starCompass.manaCost).toEqual({ X: 2 });
+        expect(starCompass.types).toEqual(["Artifact"]);
+        expect(starCompass.entersTapped).toBe(true);
+        expect(starCompass.oracleText).toBe(
+            "This artifact enters tapped.\n{T}: Add one mana of any color that a basic land you control could produce."
+        );
+    });
+
+    it("is a mana ability — resolves immediately, never uses the stack (CR 605.3a)", () => {
+        const ability = starCompass.activatedAbilities![0];
+        expect(ability.useStack).toBe(false);
+        expect(ability.cost).toEqual({ tap: true });
+    });
+
+    it("offers one mana of each colour the controller's BASIC lands produce", () => {
+        const compass = makeInstance(starCompass.id, { controllerId: "p1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        compass,
+                        makeInstance(forest.id, { controllerId: "p1" }),
+                        makeInstance(island.id, { controllerId: "p1" }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(manaChoicesFor(state, compass, "p1")).toEqual([
+            { U: 1 },
+            { G: 1 },
+        ]);
+    });
+
+    it("ignores NONBASIC lands (a Lair produces three colours and contributes none)", () => {
+        const compass = makeInstance(starCompass.id, { controllerId: "p1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        compass,
+                        // Crosis's Catacombs taps for {U}/{B}/{R} but has no
+                        // Basic supertype (CR 205.4a).
+                        makeInstance(crosissCatacombs.id, {
+                            controllerId: "p1",
+                        }),
+                        makeInstance(plains.id, { controllerId: "p1" }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(manaChoicesFor(state, compass, "p1")).toEqual([{ W: 1 }]);
+    });
+
+    it("ignores the OPPONENT's basic lands (CR 109.5 — 'you')", () => {
+        const compass = makeInstance(starCompass.id, { controllerId: "p1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [compass] }),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(mountain.id, { controllerId: "p2" }),
+                    ],
+                }),
+            ],
+        });
+        expect(manaChoicesFor(state, compass, "p1")).toEqual([]);
+        expect(
+            getManaTapOptionsDetailed(compass, "p1", manaBoards(state))
+        ).toHaveLength(0);
+    });
+
+    it("the restricted colour set is visible to the castability gate", () => {
+        const bolt = makeInstance(lightningBolt.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const compass = makeInstance(starCompass.id, { controllerId: "p1" });
+        // The controller's only land is TAPPED, so Star Compass is the only
+        // available source — but a tapped land still "could produce" its
+        // colour (CR 106.4), so the compass reads {R} off it.
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [bolt],
+                    battlefield: [
+                        compass,
+                        makeInstance(mountain.id, {
+                            controllerId: "p1",
+                            isTapped: true,
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(getLegalActions(state, state.players[0], bolt)).toContain(
+            "cast"
+        );
+
+        // Swap the tapped Mountain for a tapped Forest: the compass now offers
+        // only {G} and Bolt is correctly reported NOT castable.
+        state.players[0].battlefield[1] = makeInstance(forest.id, {
+            controllerId: "p1",
+            isTapped: true,
+        });
+        expect(getLegalActions(state, state.players[0], bolt)).not.toContain(
+            "cast"
+        );
+    });
+
+    it("survives the wire projection — the client's picker matches the server's list", () => {
+        const compass = makeInstance(starCompass.id, { controllerId: "p1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        compass,
+                        makeInstance(swamp.id, { controllerId: "p1" }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const onFat = manaChoicesFor(state, compass, "p1");
+        expect(onFat).toEqual([{ B: 1 }]);
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === compass.id
+        )! as unknown as CardInstanceState;
+        expect(
+            getEffectiveManaChoices(
+                slim,
+                "p1",
+                projected.players.map((p) => ({
+                    playerId: p.id,
+                    battlefield:
+                        p.battlefield as unknown as CardInstanceState[],
+                }))
+            )
+        ).toEqual(onFat);
+    });
+});
+
+describe("Meteor Crater (CR 605.1a / 105.2 — a COLOUR OF a permanent you control)", () => {
+    it("is a land with the modern oracle text", () => {
+        expect(meteorCrater.manaCost).toEqual({});
+        expect(meteorCrater.types).toEqual(["Land"]);
+        expect(meteorCrater.oracleText).toBe(
+            "{T}: Choose a color of a permanent you control. Add one mana of that color."
+        );
+    });
+
+    it("is a mana ability — resolves immediately, never uses the stack (CR 605.3a)", () => {
+        const ability = meteorCrater.activatedAbilities![0];
+        expect(ability.useStack).toBe(false);
+        expect(ability.cost).toEqual({ tap: true });
+    });
+
+    it("reads what a permanent IS, not what it produces — a Forest contributes nothing", () => {
+        const crater = makeInstance(meteorCrater.id, { controllerId: "p1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        crater,
+                        // A Forest taps for {G} but is a COLOURLESS land
+                        // (CR 202.2 — no mana cost, no colour), so the
+                        // "isColor" derivation reads nothing off it.
+                        makeInstance(forest.id, { controllerId: "p1" }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(manaChoicesFor(state, crater, "p1")).toEqual([]);
+        expect(
+            getManaTapOptionsDetailed(crater, "p1", manaBoards(state))
+        ).toHaveLength(0);
+    });
+
+    it("offers the colours of ANY permanent the controller has, not just lands", () => {
+        const crater = makeInstance(meteorCrater.id, { controllerId: "p1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        crater,
+                        // {3}{G} — a green permanent (CR 202.2).
+                        makeInstance(crawWurm.id, { controllerId: "p1" }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(manaChoicesFor(state, crater, "p1")).toEqual([{ G: 1 }]);
+    });
+
+    it("ignores the OPPONENT's permanents (CR 109.5 — 'you')", () => {
+        const crater = makeInstance(meteorCrater.id, { controllerId: "p1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [crater] }),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(crawWurm.id, { controllerId: "p2" }),
+                    ],
+                }),
+            ],
+        });
+        expect(manaChoicesFor(state, crater, "p1")).toEqual([]);
+    });
+
+    it("survives the wire projection — the client's picker matches the server's list", () => {
+        const crater = makeInstance(meteorCrater.id, { controllerId: "p1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        crater,
+                        makeInstance(crawWurm.id, { controllerId: "p1" }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const onFat = manaChoicesFor(state, crater, "p1");
+        expect(onFat).toEqual([{ G: 1 }]);
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === crater.id
+        )! as unknown as CardInstanceState;
+        expect(
+            getEffectiveManaChoices(
+                slim,
+                "p1",
+                projected.players.map((p) => ({
+                    playerId: p.id,
+                    battlefield:
+                        p.battlefield as unknown as CardInstanceState[],
+                }))
+            )
+        ).toEqual(onFat);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CR 106.4 — a DESCRIPTOR mana ability's static `manaChoices` is a no-board
+// FALLBACK, not a "could produce" claim. Unioning it into
+// `producibleColorsFromAbilities` made every `manaColorSource` permanent read
+// as a WUBRG source, so a lone Meteor Crater (which right now can produce
+// NOTHING — its controller has no other permanent) inflated every CR 106.4
+// consumer: Quirion Explorer / Fellwar Stone offered all five colours, and the
+// castability gate reported Lightning Bolt castable off illegal mana
+// (CR 605.1a). The `"produces"` read is now descriptor-AWARE — it evaluates
+// the contributing permanent's own `manaColorSource` against the SAME board,
+// bounded at one level of nesting (`MAX_NESTED_MANA_COLOR_SOURCE_DEPTH`).
+// ─────────────────────────────────────────────────────────────────────────────
+describe("descriptor sources don't inflate CR 106.4 'could produce' (issue #1941)", () => {
+    /** p2's only permanent is a Meteor Crater — a Land whose colour set is
+     *  board-derived and currently EMPTY (p2 controls no other permanent). */
+    function boardWithLoneMeteorCrater(mine: CardInstanceState) {
+        return makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mine] }),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(meteorCrater.id, { controllerId: "p2" }),
+                    ],
+                }),
+            ],
+        });
+    }
+
+    it("Quirion Explorer offers nothing off an opponent's lone Meteor Crater", () => {
+        const explorer = makeInstance(quirionExplorer.id, {
+            controllerId: "p1",
+        });
+        const state = boardWithLoneMeteorCrater(explorer);
+        expect(manaChoicesFor(state, explorer, "p1")).toEqual([]);
+        expect(
+            getManaTapOptionsDetailed(explorer, "p1", manaBoards(state))
+        ).toHaveLength(0);
+    });
+
+    it("Fellwar Stone offers nothing off an opponent's lone Meteor Crater", () => {
+        const stone = makeInstance(fellwarStone.id, { controllerId: "p1" });
+        const state = boardWithLoneMeteorCrater(stone);
+        expect(manaChoicesFor(state, stone, "p1")).toEqual([]);
+    });
+
+    it("Lightning Bolt is NOT castable off the inflated colour set", () => {
+        const bolt = makeInstance(lightningBolt.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const explorer = makeInstance(quirionExplorer.id, {
+            controllerId: "p1",
+        });
+        const state = boardWithLoneMeteorCrater(explorer);
+        state.players[0].hand = [bolt];
+        expect(getLegalActions(state, state.players[0], bolt)).not.toContain(
+            "cast"
+        );
+    });
+
+    it("one level of nesting IS honoured — an opponent's Meteor Crater next to a green creature is a green source", () => {
+        const explorer = makeInstance(quirionExplorer.id, {
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [explorer] }),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(meteorCrater.id, { controllerId: "p2" }),
+                        makeInstance(crawWurm.id, { controllerId: "p2" }),
+                    ],
+                }),
+            ],
+        });
+        expect(manaChoicesFor(state, explorer, "p1")).toEqual([{ G: 1 }]);
+    });
+
+    it("definition-level 'could produce' reports no colour for a board-derived source", () => {
+        // Off a battlefield there is no board to read, so a descriptor source
+        // contributes nothing — NOT the five-colour fallback list (which the
+        // limited drafter's Fixing Value term would read as perfect fixing).
+        expect(getDefinitionProducibleColors(meteorCrater).size).toBe(0);
+        expect(getDefinitionProducibleColors(starCompass).size).toBe(0);
+        expect(getDefinitionProducibleColors(quirionExplorer).size).toBe(0);
+        expect(getDefinitionProducibleColors(fellwarStone).size).toBe(0);
+        // The instance-level twin agrees when given no board.
+        expect(getProducibleColors(makeInstance(meteorCrater.id)).size).toBe(0);
     });
 });

@@ -1195,7 +1195,11 @@ function manaTapNeedsChoice(
     if (options.length === 0) return false;
     return (
         options.length >= 2 ||
-        !!(ability?.manaChoices || ability?.getManaChoices)
+        !!(
+            ability?.manaChoices ||
+            ability?.getManaChoices ||
+            ability?.manaColorSource
+        )
     );
 }
 

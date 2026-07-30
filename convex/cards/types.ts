@@ -1088,6 +1088,38 @@ export interface ActivatedAbility {
             }>;
         }>
     ) => ManaCost[];
+    /** DECLARATIVE board-derived colour set for a mana ability (CR 605.1a) —
+     *  the data form of {@link getManaChoices} for the common case where the
+     *  offered colours are simply "every colour some described set of
+     *  permanents contributes", one mana of each:
+     *
+     *  - "…any color that a land an opponent controls could produce"
+     *    (`{ filter: { types: "Land", controllerRelation: "opponents" },
+     *       colors: "produces" }`)
+     *  - "…any color that a basic land you control could produce"
+     *    (`{ filter: { types: "Land", supertypes: "Basic",
+     *       controllerRelation: "you" }, colors: "produces" }`)
+     *  - "Choose a color of a permanent you control…"
+     *    (`{ filter: { controllerRelation: "you" }, colors: "isColor" }`)
+     *
+     *  Evaluated by `boardDerivedManaChoices` (`gre/constants.ts`) at EVERY
+     *  activation, through the one `getDynamicManaChoices` authority every
+     *  consumer already reads — the castability probe, the auto-tap solver,
+     *  the bot's payment planner, the three tap mutations and the client
+     *  picker — so the offered set tracks the board as it changes and never
+     *  desyncs between the index the client submits and the list the server
+     *  validates.
+     *
+     *  Prefer this over `getManaChoices`: it is JSON-pure (ADR 0046), so it
+     *  survives the wire and can be inspected by any consumer, where a closure
+     *  is opaque. `getManaChoices` stays for genuinely COMPUTED lists that no
+     *  filter can express (Vivi Ornitier's power-derived {U}/{R} split). When
+     *  both are present the descriptor wins.
+     *
+     *  `manaChoices` remains the representative / fallback list for
+     *  best-effort callers with no board snapshot, exactly as for
+     *  `getManaChoices`. */
+    manaColorSource?: BoardManaColorSource;
     /** Restricts activation timing to a specific subset of phases (CR 602.5).
      *  When set, the ability is activatable only while `state.phase` is in
      *  this list. Used by Jade Statue ("activate only during combat"). */
@@ -1257,6 +1289,31 @@ export interface AnimateSpec {
 
 import type { PermanentFilter } from "./filters";
 export type { PermanentFilter } from "./filters";
+
+/** Where a mana ability's COLOUR options come from when they are derived from
+ *  the board instead of printed on the card (CR 605.1a). See
+ *  {@link ActivatedAbility.manaColorSource}.
+ *
+ *  Deliberately two orthogonal axes and nothing else — WHICH permanents
+ *  contribute, and HOW each one yields a colour. Everything else (whose
+ *  battlefield, land vs. basic land vs. any permanent) is already expressible
+ *  as a {@link PermanentFilter}, so this adds no second selector vocabulary. */
+export interface BoardManaColorSource {
+    /** Selector over the contributing permanents, evaluated against EVERY
+     *  player's battlefield. `controllerRelation` is what scopes it: `"you"`
+     *  = the activating player's own permanents, `"opponents"` = every OTHER
+     *  player's (CR 109.5); omitted = the whole board. Matched with the
+     *  engine's single `matchesPermanentFilter` authority, against a
+     *  layer-aware view (live colours, live supertypes), so a Blood-Moon'd or
+     *  colour-shifted permanent contributes what it CURRENTLY is. */
+    filter: PermanentFilter;
+    /** How a matching permanent yields a colour:
+     *  - `"produces"` — every colour it COULD produce if tapped (CR 106.4);
+     *    colourless {C} is not a colour and never contributes (CR 202.2).
+     *  - `"isColor"` — the permanent's OWN colours (CR 105.2 / 202.2, read
+     *    post-layer-5 so a colour-changing effect is honoured). */
+    colors: "produces" | "isColor";
+}
 
 // --- Cost legs (CR 117.3a / 118.4 / 118.9 / 702.24, ADR 0079) ---
 

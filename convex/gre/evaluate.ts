@@ -35,7 +35,7 @@ import {
     isLand,
     isUntappedManaSource,
     hasNonManaActivatedAbility,
-    getProducibleColors,
+    getProducibleColorsOnBoard,
     manaValue,
 } from "./constants";
 import {
@@ -568,6 +568,10 @@ const W_SOURCE_DUAL_PURPOSE = 20;
 function untappedSourceQuality(state: GameState, playerId: string): number {
     const me = state.players.find((p) => p.id === playerId);
     if (!me) return 0;
+    const battlefields = state.players.map((p) => ({
+        playerId: p.id,
+        battlefield: p.battlefield,
+    }));
     let bonus = 0;
     for (const perm of me.battlefield) {
         // CR 605.1a / 305.6 — score only sources that can produce mana; a
@@ -576,11 +580,15 @@ function untappedSourceQuality(state: GameState, playerId: string): number {
         // a board-conditional source currently producing zero (issue #1889).
         if (!isUntappedManaSource(perm, me.battlefield)) continue;
         // Only score a source with a real definition — a token without one
-        // (`getProducibleColors` reads the throwing `getDefinition`) contributes
+        // (`getProducibleColorsOnBoard` reads the throwing `getDefinition`) contributes
         // nothing to source quality.
         if (!tryGetDefinition((perm.card as { id?: string }).id ?? ""))
             continue;
-        const breadth = getProducibleColors(perm).size;
+        // CR 106.4 (issue #1941) — BOARD-aware breadth: a board-derived
+        // colour set (Meteor Crater, Fellwar Stone) is worth exactly what it
+        // currently offers, not the five-colour no-board fallback its static
+        // `manaChoices` carries.
+        const breadth = getProducibleColorsOnBoard(perm, battlefields).size;
         if (breadth > 1) bonus += (breadth - 1) * W_SOURCE_BREADTH;
         if (hasNonManaActivatedAbility(perm)) bonus += W_SOURCE_DUAL_PURPOSE;
     }

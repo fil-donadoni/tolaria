@@ -104,3 +104,54 @@ export const mirrorwoodTreefolk: CardDefinition = {
         },
     ],
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// C6 — Board-derived restricted-colour mana abilities (CR 605.1a, issue #1941).
+// Quirion Explorer's colour set is not fixed and not "any colour": it is
+// derived from a described slice of the board and recomputed at every
+// activation. It is expressed as an `ActivatedAbility.manaColorSource`
+// descriptor (`convex/cards/types.ts`) — declarative data, evaluated by the
+// engine's single `boardDerivedManaChoices` authority (`gre/constants.ts`)
+// that the castability probe, the auto-tap solver, the bot's payment planner
+// and the client picker all already read. Same descriptor family as Fellwar
+// Stone (`drk/colorless.ts`) and PLS's own Star Compass / Meteor Crater
+// (`pls/colorless.ts`).
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Quirion Explorer — {1}{G} Creature — Elf Druid Scout, 1/1. "{T}: Add one
+// mana of any color that a land an opponent controls could produce."
+// (CR 605.1a mana ability — `useStack: false`, resolves immediately, never
+// uses the stack. CR 106.4 "could produce" over the OPPONENT's lands, so the
+// offered colours come from THEIR mana base, not this creature's controller's.)
+export const quirionExplorer: CardDefinition = {
+    id: "141a031d-f899-497b-adf7-4af142078085",
+    rarity: "common",
+    name: "Quirion Explorer",
+    oracleText:
+        "{T}: Add one mana of any color that a land an opponent controls could produce.",
+    manaCost: { X: 1, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Elf", "Druid", "Scout"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "quirion-explorer-mana",
+            oracleText:
+                "{T}: Add one mana of any color that a land an opponent controls could produce.",
+            cost: { tap: true },
+            useStack: false,
+            // Representative / fallback list for best-effort callers with no
+            // board snapshot; the descriptor below overrides it wherever a
+            // board is available (same contract as Fellwar Stone's).
+            manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
+            // CR 106.4 / 109.5 — every colour any LAND an OPPONENT controls
+            // could produce; empty (no colour offered, no false affordance)
+            // while no opponent controls a colour-producing land.
+            manaColorSource: {
+                filter: { types: "Land", controllerRelation: "opponents" },
+                colors: "produces",
+            },
+        },
+    ],
+};
