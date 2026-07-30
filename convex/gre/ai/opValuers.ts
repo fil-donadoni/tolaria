@@ -526,6 +526,18 @@ const revealAndCategorize: Valuer<"revealAndCategorize"> = (op) => ({
     tags: ["cardAdvantage"],
 });
 
+// CR 702.75a (issue #783) — HIDEAWAY: one card of the looked-at window is set
+// aside face down for a LATER conditional free play. Worth less than an
+// impulse-drawn card in hand (the payoff is gated on a condition that may never
+// be met and the card is unusable until then) but strictly more than nothing:
+// half a card's selection value, never scaling (`look` is the keyword's literal
+// N and does not change how many cards are exiled — always exactly one).
+const HIDEAWAY_YIELD = 0.5;
+const hideaway: Valuer<"hideaway"> = () => ({
+    points: Math.round(HIDEAWAY_YIELD * CARD_SELECTION_VALUE),
+    tags: ["cardAdvantage"],
+});
+
 const digToHand: Valuer<"digToHand"> = (op, ctx) => {
     const { amount, scaling } = op.take
         ? ctx.value(op.take)
@@ -918,6 +930,7 @@ export const OP_VALUERS: {
     reflexiveTrigger,
     digMatchingToHand,
     digToHand,
+    hideaway,
     revealAndCategorize,
     discard,
     discardAtRandom,
@@ -1094,6 +1107,7 @@ const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     setIslandSanctuaryProtection: "beneficial",
     emblem: "beneficial",
     digToHand: "beneficial",
+    hideaway: "beneficial",
     digMatchingToHand: "beneficial",
     winGame: "beneficial",
     // ── Attacks on the recipient ──────────────────────────────────────────

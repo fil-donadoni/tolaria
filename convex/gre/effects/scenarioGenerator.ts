@@ -629,6 +629,15 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // the migrated cards' suspension/resume tests (per-Op regime).
             req.skip ??= `Op "digToHand" suspends for a look-distribute pick — covered by the Op's interpreter tests`;
             return;
+        case "hideaway":
+            // CR 702.75a (issue #783) — same shape as `digToHand`: the Op
+            // suspends on a live look-distribute pick that a canned scenario
+            // cannot submit, and its outcome (a FACE-DOWN exile whose identity
+            // is per-viewer) is not a state delta the generator asserts.
+            // Explicit skip; execution coverage is the Op's own interpreter
+            // tests plus the wire-format both-viewpoints assertion.
+            req.skip ??= `Op "hideaway" suspends for a look-distribute pick and exiles face down — covered by the Op's interpreter tests`;
+            return;
         case "revealAndCategorize":
             // Same shape as `digToHand` (issue #1364): the Op suspends on a
             // live categorized look-distribute pick, which a canned scenario
@@ -1958,6 +1967,13 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // scenario can assert). Kept for the 1:1 coverage guard; the look / keep /
     // bottom is covered by the Op's own interpreter tests.
     digToHand() {
+        return null;
+    },
+    // `hideaway` (CR 702.75a, issue #783) — never reached: `analyseOp` skips
+    // every script carrying it (it suspends on a live look-distribute pick).
+    // Kept for the 1:1 coverage guard; the look / face-down exile / CR 607 link
+    // / random bottom is covered by the Op's own interpreter tests.
+    hideaway() {
         return null;
     },
     // `revealAndCategorize` (CR 701.20a / 401.4, issue #1364) — never reached:

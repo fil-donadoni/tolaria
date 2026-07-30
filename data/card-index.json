@@ -10984,6 +10984,14 @@
         "firstPrintSet": "leg"
     },
     {
+        "name": "Shelldock Isle",
+        "scryfallId": "4216656e-90e8-45fc-a0f6-0d0d79d0a021",
+        "oracleId": "f748b2fb-6c2a-400a-8e96-fa4e4a1dfe80",
+        "firstSet": "lrw",
+        "firstPrintId": "4216656e-90e8-45fc-a0f6-0d0d79d0a021",
+        "firstPrintSet": "lrw"
+    },
+    {
         "name": "Sheoldred, the Apocalypse",
         "scryfallId": "d67be074-cdd4-41d9-ac89-0a0456c4e4b2",
         "oracleId": "34f34409-326d-4994-a0ea-1a69aa278f03",

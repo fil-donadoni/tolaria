@@ -10,6 +10,7 @@
 import { describe, it, expect } from "vitest";
 import type { CardDefinition, EffectOp } from "../../../cards/types";
 import {
+    FACE_DOWN_CARD_ID,
     getCardByName,
     getDefinition,
     registerTokenDefinition,
@@ -22549,5 +22550,303 @@ describe("Effect Script Op: revealTopAndRoute (CR 701.20a)", () => {
         resolveTopOfStack(state);
         expect(state.pendingChoices ?? []).toHaveLength(0);
         expect(state.stack).toHaveLength(0);
+    });
+});
+
+// --- hideaway Op: look at top N, exile ONE face down (linked to the source),
+// bottom the rest in a random order (CR 702.75a, issue #783) -----------------
+// Structurally `digToHand` with the kept card routed to FACE-DOWN, source-LINKED
+// exile instead of to hand. The two properties `digToHand` cannot express and
+// that the whole keyword hangs on:
+//   * PER-VIEWER visibility (CR 406.3) — the exiled card's identity is known to
+//     its controller ALONE, via the `knownTo` grant `exileFaceDown` stamps. The
+//     wire assertion below drives BOTH viewpoints through `projectPublicState`;
+//     a hand-built state would mask a dropped redaction entirely.
+//   * The CR 607 / 406.6 LINK — `exiledBySourceId` back to the resolving
+//     ability's source, the only channel by which a SECOND ability ("you may
+//     play the exiled card") can name what this one exiled.
+describe("Effect Script Op: hideaway (CR 702.75a, issue #783)", () => {
+    const libOf = (owner: "p1" | "p2", ids: string[]) =>
+        ids.map((cid) =>
+            makeInstance(BEAR_ID, {
+                id: cid,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "library",
+            })
+        );
+
+    /** Drives the suspended look-distribute choice to exile `pick`. */
+    const submitPick = (state: GameState, pick: string) => {
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: [pick],
+        });
+    };
+
+    it("looks at the top four, exiles the chosen card FACE DOWN and bottoms the rest (random order — no ordering pick, no knowledge)", () => {
+        const id = registerScript("test-op-hideaway-basic", [
+            { op: "hideaway", player: "controller", look: 4 },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf("p1", ["a", "b", "c", "d", "e"]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        // Suspends on ONE look-distribute pick over exactly the looked-at top 4.
+        expect(resolveTopOfStack(state)).toBeNull();
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("look-distribute");
+        expect(head.candidateIds).toEqual(["a", "b", "c", "d"]);
+        // CR 702.75a exiles EXACTLY one — not a "may", never more.
+        expect(head.count).toEqual({ min: 1, max: 1 });
+        // "in a random order" ⇒ no bottom-ordering drag for the client.
+        expect(head.randomizeRest).toBe(true);
+
+        submitPick(state, "b");
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        // The pick sits in its OWNER's exile, not in hand and not in the library.
+        const exiled = state.players[0].exile.find((c) => c.id === "b");
+        expect(exiled).toBeDefined();
+        expect(state.players[0].hand.map((c) => c.id)).not.toContain("b");
+        // CR 406.3 — face down: knowledge granted to the controller ALONE.
+        expect(exiled!.knownTo).toEqual(["p1"]);
+        // The untouched fifth card is on top; the three un-picked looked-at
+        // cards are on the true bottom.
+        expect(state.players[0].library.map((c) => c.id)).toEqual([
+            "e",
+            "a",
+            "c",
+            "d",
+        ]);
+        // CR 401.4 random order is unobservable ⇒ NO knowledge on the bottomed
+        // cards (the `randomBottom` contract `digToHand` shares).
+        for (const cid of ["a", "c", "d"]) {
+            const card = state.players[0].library.find((c) => c.id === cid)!;
+            expect(card.knownTo ?? []).toEqual([]);
+        }
+    });
+
+    it("stamps the CR 607 / 406.6 link back to the resolving ability's source", () => {
+        const id = registerScript("test-op-hideaway-link", [
+            { op: "hideaway", player: "controller", look: 2 },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libOf("p1", ["a", "b"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        const sourceInstanceId = state.stack[0].id;
+        resolveTopOfStack(state);
+        submitPick(state, "a");
+        const exiled = state.players[0].exile.find((c) => c.id === "a")!;
+        expect(exiled.exiledBySourceId).toBe(sourceInstanceId);
+    });
+
+    it("wire format: the controller sees the exiled card's identity, the opponent sees a face-down placeholder (CR 406.3)", () => {
+        const id = registerScript("test-op-hideaway-wire", [
+            { op: "hideaway", player: "controller", look: 3 },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libOf("p1", ["a", "b", "c"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        submitPick(state, "c");
+
+        // Controller's projection — the real identity crosses the wire.
+        const ownView = projectPublicState(state, 1, "p1");
+        const ownExiled = ownView.players[0].exile.find((c) => c.id === "c");
+        expect(ownExiled).toBeDefined();
+        expect(ownExiled!.card.id).toBe(BEAR_ID);
+
+        // Opponent's projection — the SAME card object, identity redacted. The
+        // card is still visible as an exile entry (exile is a public zone, CR
+        // 406) but its identity is the face-down sentinel.
+        const oppView = projectPublicState(state, 1, "p2");
+        const oppExiled = oppView.players[0].exile.find((c) => c.id === "c");
+        expect(oppExiled).toBeDefined();
+        expect(oppExiled!.card.id).not.toBe(BEAR_ID);
+        expect(oppExiled!.card.id).toBe(FACE_DOWN_CARD_ID);
+    });
+
+    it("survives a DB round-trip: the face-down knowledge and the CR 607 link persist", () => {
+        const id = registerScript("test-op-hideaway-serialize", [
+            { op: "hideaway", player: "controller", look: 2 },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libOf("p1", ["a", "b"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        const sourceInstanceId = state.stack[0].id;
+        resolveTopOfStack(state);
+        submitPick(state, "b");
+        const round = expandState(compactState(state));
+        const exiled = round.players[0].exile.find((c) => c.id === "b")!;
+        expect(exiled.knownTo).toEqual(["p1"]);
+        expect(exiled.exiledBySourceId).toBe(sourceInstanceId);
+    });
+
+    it("CR 608.2b: an empty library skips the Op entirely — no look, no suspend", () => {
+        const id = registerScript("test-op-hideaway-empty", [
+            { op: "hideaway", player: "controller", look: 4 },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.stack).toHaveLength(0);
+        // Nothing exiled; the sorcery itself resolved to the graveyard.
+        expect(state.players[0].exile).toHaveLength(0);
+        expect(state.players[0].graveyard.map((c) => c.card.id)).toContain(id);
+    });
+
+    it("CR 608.2b: a non-positive look is a no-op", () => {
+        const id = registerScript("test-op-hideaway-zero", [
+            { op: "hideaway", player: "controller", look: 0 },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libOf("p1", ["a", "b"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.players[0].library.map((c) => c.id)).toEqual(["a", "b"]);
+    });
+
+    it("a library shorter than N looks at only what is there (CR 401.4)", () => {
+        const id = registerScript("test-op-hideaway-short", [
+            { op: "hideaway", player: "controller", look: 4 },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libOf("p1", ["a", "b"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.pendingChoices![0].candidateIds).toEqual(["a", "b"]);
+        submitPick(state, "a");
+        expect(state.players[0].exile.map((c) => c.id)).toContain("a");
+        expect(state.players[0].library.map((c) => c.id)).toEqual(["b"]);
+    });
+});
+
+// --- count { zone: "library", smallestAcrossPlayers } (CR 122 / 401, issue
+// #783) ----------------------------------------------------------------------
+// "if a library has twenty or fewer cards in it" (Shelldock Isle) is the MIN
+// library size across all players compared against the threshold — the Oracle's
+// indefinite article means ANY library, the controller's own included.
+describe("Effect Script count: library size (CR 122 / 401, issue #783)", () => {
+    const libOf = (owner: "p1" | "p2", n: number) =>
+        Array.from({ length: n }, (_, i) =>
+            makeInstance(BEAR_ID, {
+                id: `${owner}-lib-${i}`,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "library",
+            })
+        );
+
+    const scriptWithGate = (id: string) =>
+        registerScript(id, [
+            {
+                op: "if",
+                predicate: {
+                    left: {
+                        count: {
+                            zone: "library",
+                            smallestAcrossPlayers: true,
+                        },
+                    },
+                    op: "le",
+                    right: 3,
+                },
+                then: [{ op: "draw", player: "controller", count: 1 }],
+            },
+        ]);
+
+    it("counts one player's own library", () => {
+        const id = registerScript("test-count-library-own", [
+            {
+                op: "if",
+                predicate: {
+                    left: {
+                        count: { zone: "library", controller: "controller" },
+                    },
+                    op: "eq",
+                    right: 5,
+                },
+                then: [{ op: "gainLife", player: "controller", amount: 7 }],
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libOf("p1", 5) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(27);
+    });
+
+    it("smallestAcrossPlayers fires when the OPPONENT's library is the small one", () => {
+        const id = scriptWithGate("test-count-library-min-opp");
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libOf("p1", 10) }),
+                makePlayer("p2", { library: libOf("p2", 2) }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand).toHaveLength(1);
+    });
+
+    it("smallestAcrossPlayers fires when the CONTROLLER's own library is the small one", () => {
+        const id = scriptWithGate("test-count-library-min-own");
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libOf("p1", 2) }),
+                makePlayer("p2", { library: libOf("p2", 10) }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand).toHaveLength(1);
+    });
+
+    it("smallestAcrossPlayers does NOT fire when every library is above the threshold", () => {
+        const id = scriptWithGate("test-count-library-min-none");
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libOf("p1", 10) }),
+                makePlayer("p2", { library: libOf("p2", 10) }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand).toHaveLength(0);
     });
 });
