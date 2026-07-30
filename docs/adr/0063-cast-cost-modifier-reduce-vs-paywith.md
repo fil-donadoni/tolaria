@@ -36,7 +36,18 @@ Ordering per cast: `reduce` → `payWith` prompt → `solveSmartAutoTap` for the
 The fast-follow landed. Hogaak, Arisen Necropolis (`{5}{B/G}{B/G}`) exercises the whole cluster; the rails above carried it at low cost, exactly as predicted.
 
 - **Convoke (CR 702.51) is the COLOURED `payWith`.** Modeled as a second Model-2 pre-payment picker — `PendingCast.convokeCreatureChoice`, a **creature** picker (never auto-picked; tapping your best blocker is tactical). Unlike delve (generic-only) a tapped creature pays a generic pip, a single-colour pip, OR a guild-hybrid pip (a creature of either colour). Summoning sickness does **not** block a convoke tap (CR 702.51e — not a `{T}` cost). Owned by `convex/gre/payWith.ts` (`spellHasConvoke`, `convokeEligibleCreatures`, `creatureConvokeColors`, `buildConvokeCreatureChoice`) and the shared greedy `coverColoredAndHybridPips`, which the castability probe (`coloredCostLeftover`) reuses so probe and payment can't diverge. Payment: `recordConvokeCreaturePick` / the `selectConvokeCreatures` mutation; creatures tap at cast commit.
-- **Guild-hybrid pips are a narrow `ManaCost.hybrid` field.** `Array<[Color, Color]>`, one entry per `{B/G}`-style pip. `manaValue` counts each +1 (CR 202.3f), `getColorsFromCost` folds both colours in (CR 105.2). Deliberately **out**: monocolour-hybrid (`{2/B}`), Phyrexian-hybrid, and land-based hybrid **auto-tap** payment (paying `{B/G}` from a Swamp) — the last is tracked-by **#782**. `normalizeManaCost` keeps hybrid pips OUT of the flat generic/colour record; they are satisfied only by the convoke path, which is sound because the only shipped hybrid card forbids spending mana.
+- **Guild-hybrid pips are a narrow `ManaCost.hybrid` field.** `Array<[Color, Color]>`, one entry per `{B/G}`-style pip. `manaValue` counts each +1 (CR 202.3f), `getColorsFromCost` folds both colours in (CR 105.2). At the time of this amendment, deliberately **out**: monocolour-hybrid (`{2/B}`), Phyrexian-hybrid, and land-based hybrid **auto-tap** payment (paying `{B/G}` from a Swamp) — the last tracked-by #782. `normalizeManaCost` kept hybrid pips OUT of the flat generic/colour record; they were satisfied only by the convoke path, sound because the only shipped hybrid card forbade spending mana.
+
+    **Amendment 2 (PRD #1736, #782 closed):** land-based hybrid auto-tap landed
+    in #1738/#1739 — `normalizeManaCost` now folds guild-hybrid pips into
+    composite `"R/W"`-style keys and the land auto-tap solver settles them
+    directly, no convoke required. Figure of Destiny/Figure of Fable, Lutri,
+    Lurrus, Deathrite Shaman, Thopter Foundry and the ECL evoke trio
+    (Carnage Interpreter, Vibrance, Deceit, Wistfulness) all pay real
+    guild-hybrid pips this way (#1755, #1926, #1927). Still out: monocolour
+    hybrid `{2/W}` (tracked-by #1743) and Phyrexian-hybrid (no consumer,
+    closed out-of-scope).
+
 - **`cantSpendManaToCast` (CR 601.2f) is a generic `CardDefinition` flag.** It drops ALL real mana sources from `coloredCostLeftover`'s probe, forcing every pip through convoke/delve; the payment path drives `manaCost` to zero via the pickers so `solveSmartAutoTap` taps nothing (with a guard in `autoTapForPayment` so a mid-cast auto-tap never spends mana). Since delve pays only generic, Hogaak's two `{B/G}` pips must be convoked by black-or-green creatures.
 - **Prompt ordering.** Convoke prompts FIRST (it alone pays the hybrid pips + reduces the generic); the delve picker is built afterwards, on the reduced cost, by `recordConvokeCreaturePick`. Commit gates on convoke before delve.
 - **Intrinsic graveyard cast.** Hogaak's "You may cast this card from your graveyard" is a new `CardDefinition.castableFromOwnGraveyard` flag + a `locateCastSource` branch + a `getLegalActions` branch — distinct from Flashback/Escape (alternative cost) and the external Yawgmoth's-Will/Lurrus permissions; the card resolves and lands in the graveyard normally (no exile-on-resolve).

@@ -1066,10 +1066,13 @@ carte inerti.
 
 **Engine — meccaniche mancanti**
 
-- **Mana ibrido** (PRD #1736) — pagare `{R/W}` con mana. Sblocca un'intera ondata
-  di carte oggi bloccate come stub (#782). Include pip ibridi monocolore `{2/W}`
-  (#1743) e Phyrexian-ibridi `{G/U/P}` (#1744), il rendering dei pip (#1740) e la
-  pianificazione mana del bot (#1741).
+- **Mana ibrido** (PRD #1736) — pagare `{R/W}` con mana. Il pip ibrido guild
+  (auto-tap da terreno #1738/#1739/#1755, rendering pip #1740, pianificazione
+  mana del bot #1741) è spedito e ha sbloccato l'ondata di carte prima stub
+  sotto #782 (ora chiuso): Figure of Destiny/Fable, Lutri, Lurrus, Deathrite
+  Shaman, Thopter Foundry, Carnage Interpreter, Vibrance/Deceit/Wistfulness.
+  Residuo aperto: pip ibridi monocolore `{2/W}` (#1743). Phyrexian-ibridi
+  `{G/U/P}` chiuso out-of-scope (nessun consumer, #1744).
 - **Framework Saga** (PRD #1878, ADR 0078) — contatori lore e abilità di capitolo;
   Urza's Saga come caso di prova.
 - **Staged self-respec** (PRD #1737) — Op indefiniti, ciclo Figure.

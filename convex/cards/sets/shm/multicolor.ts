@@ -6,13 +6,14 @@
 // import type { CardDefinition } from "../../types";
 
 // Manamorphose — "Add two mana in any combination of colors. Draw a card."
-// (issue #1306, parent PRD #620.) STOP-AND-ISSUE, TWO independent gaps:
-//  1. Cost: {1}{R/G} is a single HYBRID pip. `ManaCost` (cards/types.ts) has
-//     no hybrid representation at all (no `hybrid`/alternate-pip field, only
-//     fixed per-colour counts) — no faithful way to declare "castable for
-//     either {1}{R} or {1}{G}" today. Tracked by #782 ([engine] Hybrid mana
-//     cost encoding), the same gap blocking Deathrite Shaman (`rtr/
-//     multicolor.ts`) and the ecl hybrid cards.
+// (issue #1306, parent PRD #620.) STOP-AND-ISSUE, ONE remaining gap:
+//  1. Cost: {1}{R/G} is a single HYBRID pip. This is no longer a blocker —
+//     `ManaCost.hybrid` (cards/types.ts) now declares guild-hybrid pips,
+//     `normalizeManaCost` folds them into composite keys, and the
+//     payment/coverage layer settles them off either colour of land (issues
+//     #1738/#1739/#1755). If this card shipped, its cost would be
+//     `{ generic: 1, hybrid: [["R", "G"]] }` — same shape as Deathrite Shaman
+//     (`rtr/multicolor.ts`).
 //  2. Effect: the draw half is trivial (`draw` Op), but "any combination of
 //     colors" needs a runtime colour choice PER mana instance at
 //     spell-resolution time. `EffectManaPool` (the `addMana` Op's mana spec)
@@ -22,9 +23,10 @@
 //     choice), not applicable to an Instant's one-shot resolution. Same
 //     underlying gap as Coalition Relic (`convex/cards/sets/fut/
 //     colorless.ts`), tracked-by #1368.
-// `manaCost` is omitted below (mirrors the Deathrite Shaman stub) since #782
-// leaves no faithful encoding to write. Left as a tracked stub pending BOTH
-// engine capabilities. tracked-by: #782, #1368
+// `manaCost` is omitted below since the effect (point 2) still has no
+// faithful encoding — the cost gap alone (point 1) is closed. Left as a
+// tracked stub pending that ONE remaining engine capability. tracked-by:
+// #1368
 // export const manamorphose: CardDefinition = {
 //     id: "50283122-b8c4-4fb3-8eba-6252b72222f4",
 //     name: "Manamorphose",
