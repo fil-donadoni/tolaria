@@ -2155,12 +2155,19 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             withoutPayingManaCost: isBoolean,
         },
     },
-    // CR 608.2f (issue #1477 / #1478) — cast a card as part of this resolution
-    // (a "you may cast" with no duration). `player` names the caster; `free`
-    // (optional) waives the mana cost (Malcolm); `resultBind` (optional) names
-    // a boolean outcome binding a downstream `if` reads (Chandra, issue #1478).
+    // CR 608.2g (issue #1477 / #1478 / #1961) — play a card as part of this
+    // resolution (a "you may cast/play" with no duration). `player` names the
+    // caster; `free` (optional) waives the mana cost (Malcolm); `includesLand`
+    // (optional, CR 116.2a/305) opts the LAND branch in — set it only when the
+    // Oracle text says "play" (Hideaway); `resultBind` (optional) names a
+    // boolean outcome binding a downstream `if` reads (Chandra, issue #1478).
     // Two mutually-exclusive card SOURCES:
-    //   - `card` (bare picks ref) + `source` ("graveyard"/"exile") — Malcolm.
+    //   - `card` + `source` ("graveyard"/"exile") — either a bare picks ref
+    //     (Malcolm) or the CR 607 linked-exile selector
+    //     `{ exiledWithSource: true }` (issue #1961 — Hideaway's "you may play
+    //     the exiled card", which no binding can name because the exiling and
+    //     the playing ability resolve separately); the linked selector requires
+    //     `source: "exile"`.
     //   - `fromTopOfLibrary: true` — exile + offer the top of the caster's
     //     library (cast from exile), Chandra's +1. `card`/`source` omitted.
     castDuringResolution: {
@@ -2168,10 +2175,14 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             player: isPlayerRef,
         },
         optional: {
-            card: isBarePicksRef,
+            card: (v: unknown) =>
+                isExiledWithSourceSelector(v) || isBarePicksRef(v),
             source: (v: unknown) => v === "graveyard" || v === "exile",
             fromTopOfLibrary: (v: unknown) => v === true,
             free: isBoolean,
+            // CR 116.2a / 305.9 (issue #1961) — true iff the granting Oracle
+            // text says "play" (land-inclusive), never for a "cast"-only grant.
+            includesLand: isBoolean,
             resultBind: isBindingName,
         },
         check: (entry) => {
@@ -2192,11 +2203,20 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             } else {
                 if (!hasCard) {
                     errors.push(
-                        'requires "card" (a bare picks ref) unless "fromTopOfLibrary: true" is set'
+                        'requires "card" (a bare picks ref or { exiledWithSource: true }) unless "fromTopOfLibrary: true" is set'
                     );
                 }
                 if (!("source" in entry)) {
                     errors.push('field "source" is required with "card"');
+                } else if (
+                    isExiledWithSourceSelector(entry.card) &&
+                    entry.source !== "exile"
+                ) {
+                    // CR 607 / 406 — the linked selector names a card the source
+                    // permanent EXILED, so it can only be played from exile.
+                    errors.push(
+                        'field "source" must be "exile" with { exiledWithSource: true }'
+                    );
                 }
             }
             return errors;

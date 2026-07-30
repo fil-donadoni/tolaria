@@ -7,6 +7,12 @@
 // visibility (its controller may look; nobody else may) — the last asserted
 // through `projectPublicState` from BOTH viewpoints, since a hand-built state
 // would mask a dropped redaction entirely.
+//
+// The play half is a CR 608.2g play-during-resolution (issue #1961): the
+// permission has no stated duration, so it exists ONLY while the ability
+// resolves — playable immediately and ONLY immediately, ignoring card-type
+// timing (a creature on the OPPONENT's turn, the card's whole point), with the
+// land branch stayed narrow by CR 305.2a / 305.3 / 305.2b.
 
 import { describe, it, expect } from "vitest";
 import { shelldockIsle } from "../colorless";
@@ -88,6 +94,20 @@ function submitPick(state: GameState, pick: string): void {
         step: head.step,
         choiceId: head.choiceId,
         cardInstanceIds: [pick],
+    });
+}
+
+/** Answers the CR 608.2g Cast/Play-or-Decline `option-pick` the play ability
+ *  raises mid-resolution. `option` is the accept token `"cast"` (the shared
+ *  accept id for both the cast and the land-play branch) or `"decline"`. */
+function answerOffer(state: GameState, option: "cast" | "decline"): void {
+    const head = state.pendingChoices![0];
+    applyPendingChoiceSubmit(state, {
+        playerId: head.playerId,
+        stackItemId: head.stackItemId,
+        step: head.step,
+        choiceId: head.choiceId,
+        cardInstanceIds: [option],
     });
 }
 
@@ -224,7 +244,7 @@ describe("Shelldock Isle — hideaway ETB leg (CR 702.75a / 406.3 / 607)", () =>
     });
 });
 
-describe("Shelldock Isle — linked play ability (CR 607 / 601.3e / 305.9)", () => {
+describe("Shelldock Isle — linked play ability (CR 607 / 608.2g / 305)", () => {
     /** ETB-exiles a card face down and returns its instance id. */
     function hideOne(state: GameState, isle: CardInstanceState): string {
         resolveTrigger(state, isle, HIDEAWAY_TRIGGER_ID);
@@ -232,41 +252,105 @@ describe("Shelldock Isle — linked play ability (CR 607 / 601.3e / 305.9)", () 
         return "p1-lib-0";
     }
 
-    it("grants a free PLAY permission on the linked card when a library has twenty or fewer cards", () => {
+    /** Hands the turn to the opponent — the case the card exists for. */
+    function passTurnToOpponent(state: GameState): void {
+        state.turn += 1;
+        state.activePlayerId = "p2";
+        state.priorityPlayerId = "p2";
+    }
+
+    it("CR 608.2g — offers the play DURING the ability's own resolution, and the offer is a resolution choice, not priority", () => {
         // p1's own library is small after the hideaway (6 - 1 = 5 cards).
+        const { state, isle } = setup(6, 40);
+        hideOne(state, isle);
+        resolveActivated(state, isle, PLAY_ABILITY_ID);
+
+        const offer = state.pendingChoices![0];
+        expect(offer.kind).toBe("option-pick");
+        expect(offer.playerId).toBe("p1");
+        expect(offer.options?.map((o) => o.id)).toEqual(["cast", "decline"]);
+        // CR 608.2g — the ability is STILL resolving (suspended on the offer),
+        // so no player has received priority: the opponent cannot respond here.
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].abilityId).toBe(PLAY_ABILITY_ID);
+    });
+
+    it("CR 608.2g / 302.1 — a hidden CREATURE is playable on the OPPONENT's turn (the card's defining function)", () => {
+        // Grizzly Bears is a plain creature: at sorcery timing only, on p1's own
+        // turn, under normal permissions. Casting during a resolution happens
+        // OUTSIDE priority, so CR 302.1's "any time they have priority … during
+        // their main phase" simply does not gate it (CR 608.2g).
+        const { state, isle } = setup(6, 40);
+        const hidden = hideOne(state, isle);
+        passTurnToOpponent(state);
+
+        resolveActivated(state, isle, PLAY_ABILITY_ID);
+        expect(state.pendingChoices![0].kind).toBe("option-pick");
+
+        answerOffer(state, "cast");
+        // CR 608.2g — the spell became the TOPMOST object on the stack and the
+        // granting ability finished resolving (it is gone), with no priority in
+        // between.
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[state.stack.length - 1].id).toBe(hidden);
+        expect(state.stack[0].castById).toBe("p1");
+        expect(state.players[0].exile.some((c) => c.id === hidden)).toBe(false);
+
+        // It is a real spell afterwards — resolving it puts the creature onto
+        // p1's battlefield on the OPPONENT's turn.
+        resolveTopOfStack(state);
+        expect(state.players[0].battlefield.some((c) => c.id === hidden)).toBe(
+            true
+        );
+    });
+
+    it("CR 608.2g — the window CLOSES with the resolution: no this-turn impulse permission is left behind", () => {
+        // The other half of the reported bug. Declining must NOT leave the card
+        // playable later in the turn — the permission has no stated duration, so
+        // it dies with the resolution.
         const { state, isle } = setup(6, 40);
         const hidden = hideOne(state, isle);
         resolveActivated(state, isle, PLAY_ABILITY_ID);
+        answerOffer(state, "decline");
 
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.stack).toHaveLength(0);
         const card = state.players[0].exile.find((c) => c.id === hidden)!;
-        expect(card.castableFromExileBy).toBe("p1");
-        // "without paying its mana cost" (CR 601.3e / 117.6).
-        expect(card.castFromExileWithoutPayingManaCost).toBe(true);
-        // "PLAY the exiled card" — a land under the grant is playable (CR 305.9).
-        expect(card.castableFromExileIncludesLand).toBe(true);
+        // CR 702.88c-style: the card just stays exiled — and still face down,
+        // still visible only to its controller (CR 406.3).
+        expect(card).toBeDefined();
+        expect(card.knownTo).toEqual(["p1"]);
+        // No impulse window of ANY kind was stamped (this is what
+        // `grantCastFromExile` used to do, and what made the card playable
+        // later in the turn).
+        expect(card.castableFromExileBy).toBeUndefined();
+        expect(card.castFromExileWithoutPayingManaCost).toBeUndefined();
+        expect(card.castableFromExileIncludesLand).toBeUndefined();
+        expect(card.castableFromExileUntilTurn).toBeUndefined();
     });
 
     it("fires off the OPPONENT's library too — the Oracle's 'a library' is any library", () => {
         // p1's library is huge; p2 is the one at/below the threshold.
         const { state, isle } = setup(40, 15);
-        const hidden = hideOne(state, isle);
+        hideOne(state, isle);
         resolveActivated(state, isle, PLAY_ABILITY_ID);
-        const card = state.players[0].exile.find((c) => c.id === hidden)!;
-        expect(card.castableFromExileBy).toBe("p1");
+        expect(state.pendingChoices![0].kind).toBe("option-pick");
     });
 
-    it("grants nothing while EVERY library is above twenty cards (checked on resolution)", () => {
+    it("offers nothing while EVERY library is above twenty cards (checked on resolution)", () => {
         const { state, isle } = setup(40, 40);
         const hidden = hideOne(state, isle);
         resolveActivated(state, isle, PLAY_ABILITY_ID);
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.stack).toHaveLength(0);
         const card = state.players[0].exile.find((c) => c.id === hidden)!;
-        expect(card.castableFromExileBy).toBeUndefined();
-        expect(card.castFromExileWithoutPayingManaCost).toBeUndefined();
-        // The card stays exiled and face down either way.
+        // The card stays exiled and face down.
         expect(card.knownTo).toEqual(["p1"]);
+        expect(card.castableFromExileBy).toBeUndefined();
     });
 
-    it("CR 607 — the grant reaches ONLY the card this land exiled, never another face-down exile", () => {
+    it("CR 607 — the offer plays ONLY the card this land exiled, never another face-down exile", () => {
         const { state, isle } = setup(6, 15);
         const hidden = hideOne(state, isle);
         // A second face-down exile, linked to a DIFFERENT source.
@@ -281,14 +365,14 @@ describe("Shelldock Isle — linked play ability (CR 607 / 601.3e / 305.9)", () 
         state.players[0].exile.push(other);
 
         resolveActivated(state, isle, PLAY_ABILITY_ID);
-        expect(
-            state.players[0].exile.find((c) => c.id === hidden)!
-                .castableFromExileBy
-        ).toBe("p1");
-        expect(
-            state.players[0].exile.find((c) => c.id === "other-hidden")!
-                .castableFromExileBy
-        ).toBeUndefined();
+        answerOffer(state, "cast");
+        expect(state.stack[state.stack.length - 1].id).toBe(hidden);
+        // The unlinked card never moved and gained no permission at all.
+        const untouched = state.players[0].exile.find(
+            (c) => c.id === "other-hidden"
+        )!;
+        expect(untouched).toBeDefined();
+        expect(untouched.castableFromExileBy).toBeUndefined();
     });
 
     it("CR 608.2b — nothing hidden yet: activating the ability is a silent no-op", () => {
@@ -296,33 +380,81 @@ describe("Shelldock Isle — linked play ability (CR 607 / 601.3e / 305.9)", () 
         resolveActivated(state, isle, PLAY_ABILITY_ID);
         expect(state.players[0].exile).toHaveLength(0);
         expect(state.stack).toHaveLength(0);
+        expect(state.pendingChoices).toBeUndefined();
     });
 
-    it("wire format — once granted, the controller's exile entry carries a CASTABLE affordance", () => {
+    it("wire format — the Cast/Decline offer survives the projection for the caster, and the hidden card stays redacted for the opponent", () => {
         const { state, isle } = setup(6, 15);
         const hidden = hideOne(state, isle);
         resolveActivated(state, isle, PLAY_ABILITY_ID);
+
+        // SURFACE assertion driven THROUGH the reducer: the client renders the
+        // generic option-pick prompt straight off the projected `pendingChoices`.
         const own = projectPublicState(state, 1, "p1");
-        const projected = own.players[0].exile.find((c) => c.id === hidden)!;
-        // The grantee sees the real card AND the legal-action annotation the
-        // projection only attaches when `castableFromExileBy === viewer`. A bare
-        // `toBeDefined()` is near-tautological — the projection attaches the
-        // array for ANY non-empty grant, INCLUDING an empty `[]` — so assert the
-        // affordance the UI actually needs is in it (CR 601.3e).
-        expect(projected.card.id).toBe(BEAR_ID);
-        expect(projected.legalActions).toContain("cast");
-        // The opponent still sees nothing but a face-down placeholder.
+        expect(own.pendingChoices?.[0]?.kind).toBe("option-pick");
+        expect(own.pendingChoices?.[0]?.options?.map((o) => o.id)).toEqual([
+            "cast",
+            "decline",
+        ]);
+        // CR 406.3 — the card being offered is still face down on the wire for
+        // the opponent. The prompt deliberately carries no card identity (no
+        // `subjectCardId`, no name in the text), because `pendingChoices`
+        // crosses to BOTH viewers unredacted.
+        expect(own.pendingChoices?.[0]?.subjectCardId).toBeUndefined();
+        expect(own.players[0].exile.find((c) => c.id === hidden)!.card.id).toBe(
+            BEAR_ID
+        );
         const opp = projectPublicState(state, 1, "p2");
-        const oppView = opp.players[0].exile.find((c) => c.id === hidden)!;
-        expect(oppView.card.id).toBe(FACE_DOWN_CARD_ID);
-        expect(oppView.legalActions).toBeUndefined();
+        expect(opp.players[0].exile.find((c) => c.id === hidden)!.card.id).toBe(
+            FACE_DOWN_CARD_ID
+        );
+        // …and the OFFER crosses to the opponent too: `pendingChoices` rides the
+        // projection unredacted and `<PendingChoicePrompt>` renders `prompt`
+        // verbatim to the NON-chooser ("Waiting for P1 — …"). So the prompt and
+        // the option labels must carry nothing derived from the hidden card's
+        // characteristics — no name, no type, no "cast" vs "play" tell.
+        const oppOffer = opp.pendingChoices?.[0];
+        expect(oppOffer?.subjectCardId).toBeUndefined();
+        expect(oppOffer?.prompt).not.toMatch(
+            /grizzly|bears|island|land|creature|instant|sorcery|cast/i
+        );
+        expect(oppOffer?.options?.map((o) => o.label).join(" ")).not.toMatch(
+            /cast/i
+        );
     });
 
-    it("CR 305.9 — a hidden LAND is offered as PLAY, end to end through the projection", () => {
-        // "You may PLAY the exiled card" (not "cast"), so `includesLand: true`
-        // must survive all the way to the wire as a `play` affordance — the path
-        // the flag exists for, and the one a Grizzly-Bears-only fixture never
-        // exercises.
+    it("CR 406.3 — the offer is BYTE-IDENTICAL for a hidden land and a hidden nonland on the opponent's projection", () => {
+        // The leak this pins shut: the land branch and the cast branch used to
+        // send different prompt text and different option labels, so the
+        // opponent's screen said "You may play the exiled card" exactly when the
+        // face-down card was a land and "You may cast the card" when it wasn't.
+        // Both branches must now be indistinguishable to any observer.
+        const offerAsSeenByOpponent = (topCardId?: string) => {
+            const { state, isle } = setup(6, 15, topCardId);
+            hideOne(state, isle);
+            resolveActivated(state, isle, PLAY_ABILITY_ID);
+            // Driven THROUGH the reducer — a hand-built view would mask exactly
+            // the field the client renders.
+            const offer = projectPublicState(state, 1, "p2")
+                .pendingChoices?.[0];
+            expect(offer?.kind).toBe("option-pick");
+            return {
+                prompt: offer?.prompt,
+                options: offer?.options,
+                subjectCardId: offer?.subjectCardId,
+            };
+        };
+
+        const nonland = offerAsSeenByOpponent(); // Grizzly Bears (cast branch)
+        const land = offerAsSeenByOpponent(ISLAND_ID); // Island (land branch)
+        expect(land).toEqual(nonland);
+        expect(land.subjectCardId).toBeUndefined();
+    });
+
+    it("CR 305.2a — a hidden LAND is played on your own turn and CONSUMES the land drop", () => {
+        // "You may PLAY the exiled card" (not "cast"), so the land branch is
+        // live: playing a land during a resolution still counts against the
+        // per-turn drop (CR 305.2a).
         const { state, isle } = setup(6, 15, ISLAND_ID);
         const hidden = hideOne(state, isle);
         expect(
@@ -330,24 +462,78 @@ describe("Shelldock Isle — linked play ability (CR 607 / 601.3e / 305.9)", () 
         ).toContain("Land");
 
         resolveActivated(state, isle, PLAY_ABILITY_ID);
-        const card = state.players[0].exile.find((c) => c.id === hidden)!;
-        expect(card.castableFromExileBy).toBe("p1");
-        expect(card.castableFromExileIncludesLand).toBe(true);
+        const offer = state.pendingChoices![0];
+        expect(offer.kind).toBe("option-pick");
+        // CR 116.2a / 116.1 — a land is never CAST, so the button says Play. It
+        // says Play on the SPELL branch of this same grant too (asserted
+        // separately): the label is chosen by the grant's `includesLand`, never
+        // by the hidden card's actual type, or it would leak it (CR 406.3).
+        expect(offer.options?.map((o) => o.label)).toEqual(["Play", "Decline"]);
 
-        const own = projectPublicState(state, 1, "p1");
-        const projected = own.players[0].exile.find((c) => c.id === hidden)!;
-        expect(projected.card.id).toBe(ISLAND_ID);
-        // CR 116.2a — a land is never CAST; the affordance must be `play`.
-        expect(projected.legalActions).toContain("play");
-        expect(projected.legalActions).not.toContain("cast");
+        answerOffer(state, "cast");
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.stack).toHaveLength(0); // a land never uses the stack
+        expect(state.players[0].battlefield.some((c) => c.id === hidden)).toBe(
+            true
+        );
+        expect(state.players[0].landsPlayedThisTurn).toBe(1);
     });
 
-    it("CR 400.7 / 607 — a bounced-and-replayed land grants ONLY its own hidden card, not the previous incarnation's", () => {
+    it("CR 305.3 — a hidden LAND is NOT offered on the opponent's turn, and the resolution completes cleanly", () => {
+        // The asymmetry the fix must preserve: a creature flashes in on the
+        // opponent's turn, a LAND does not ("ignore any part of an effect" that
+        // says to play a land when it isn't your turn).
+        const { state, isle } = setup(6, 15, ISLAND_ID);
+        const hidden = hideOne(state, isle);
+        passTurnToOpponent(state);
+
+        expect(() =>
+            resolveActivated(state, isle, PLAY_ABILITY_ID)
+        ).not.toThrow();
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.stack).toHaveLength(0);
+        // The land stayed exiled, face down, with no lingering permission.
+        const card = state.players[0].exile.find((c) => c.id === hidden)!;
+        expect(card).toBeDefined();
+        expect(card.knownTo).toEqual(["p1"]);
+        expect(card.castableFromExileBy).toBeUndefined();
+        expect(state.players[0].landsPlayedThisTurn ?? 0).toBe(0);
+    });
+
+    it("CR 305.2b — a hidden LAND is NOT offered once the land drop is spent, and the resolution completes cleanly", () => {
+        const { state, isle } = setup(6, 15, ISLAND_ID);
+        const hidden = hideOne(state, isle);
+        state.players[0].landsPlayedThisTurn = 1;
+
+        expect(() =>
+            resolveActivated(state, isle, PLAY_ABILITY_ID)
+        ).not.toThrow();
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[0].exile.some((c) => c.id === hidden)).toBe(true);
+        expect(state.players[0].landsPlayedThisTurn).toBe(1);
+    });
+
+    it("declining the LAND play leaves it exiled and face down (CR 406.3)", () => {
+        const { state, isle } = setup(6, 15, ISLAND_ID);
+        const hidden = hideOne(state, isle);
+        resolveActivated(state, isle, PLAY_ABILITY_ID);
+        answerOffer(state, "decline");
+
+        const card = state.players[0].exile.find((c) => c.id === hidden)!;
+        expect(card).toBeDefined();
+        expect(card.knownTo).toEqual(["p1"]);
+        expect(state.players[0].landsPlayedThisTurn ?? 0).toBe(0);
+        expect(state.players[0].battlefield.some((c) => c.id === hidden)).toBe(
+            false
+        );
+    });
+
+    it("CR 400.7 / 607 — a bounced-and-replayed land offers ONLY its own hidden card, not the previous incarnation's", () => {
         // Instance ids survive zone changes and `exiledBySourceId` is cleared
         // only when the exiled card leaves EXILE — so before the fix the
         // returned land (a NEW object per CR 400.7) still read as the linking
-        // source of the card its PREVIOUS battlefield existence exiled, and the
-        // linked ability (CR 607) granted a free play of BOTH.
+        // source of the card its PREVIOUS battlefield existence exiled.
         const { state, isle } = setup(8, 15);
         const first = hideOne(state, isle);
 
@@ -371,14 +557,9 @@ describe("Shelldock Isle — linked play ability (CR 607 / 601.3e / 305.9)", () 
         expect(second).not.toBe(first);
 
         resolveActivated(state, returned, PLAY_ABILITY_ID);
-        // Only the card THIS incarnation hid is playable.
-        expect(
-            state.players[0].exile.find((c) => c.id === second)!
-                .castableFromExileBy
-        ).toBe("p1");
-        expect(
-            state.players[0].exile.find((c) => c.id === first)!
-                .castableFromExileBy
-        ).toBeUndefined();
+        answerOffer(state, "cast");
+        // Only the card THIS incarnation hid was played.
+        expect(state.stack[state.stack.length - 1].id).toBe(second);
+        expect(state.players[0].exile.some((c) => c.id === first)).toBe(true);
     });
 });

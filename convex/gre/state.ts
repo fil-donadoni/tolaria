@@ -54,7 +54,12 @@ import {
     manaFromPlan,
     solveSmartAutoTap,
 } from "./autoTap";
-import { applyPlayLand, enqueueLandEntryChoice } from "./playLand";
+import {
+    applyPlayLand,
+    applyPlayLandFromExile,
+    applyPlayLandFromGraveyard,
+    enqueueLandEntryChoice,
+} from "./playLand";
 import { handCardMatchesFilter } from "./alternativeCost";
 import {
     ASCEND_KEYWORD,
@@ -10682,23 +10687,38 @@ export function buildSpellContext(
             const [card] = player.hand.splice(idx, 1);
             return putReanimatedOnBattlefield(state, card, playerId);
         },
-        // CR 305.2 / 116.2a — PLAY a land from `playerId`'s hand under their
-        // control, "if able". Unlike `putFromHandOntoBattlefield` (a free zone
-        // change that does NOT consume a land drop), this models the special
-        // action of playing a land: it consumes the player's one-land-per-turn
-        // drop and is refused when that drop is already spent. Word of Command
-        // ("The player plays that card if able") uses it to play the chosen
-        // land under the controlled opponent's control. The land enters via the
+        // CR 305.2 / 116.2a — PLAY a land from `playerId`'s hand (or, issue
+        // #1961, their graveyard / exile) under their control, "if able".
+        // Unlike `putFromHandOntoBattlefield` (a free zone change that does NOT
+        // consume a land drop), this models the special action of playing a
+        // land: it consumes the player's one-land-per-turn drop and is refused
+        // when that drop is already spent. Word of Command ("The player plays
+        // that card if able") uses it to play the chosen land under the
+        // controlled opponent's control; the CR 608.2g play-during-resolution
+        // Op (Hideaway) uses the `"exile"` source. The land enters via the
         // canonical play-land sequence (drop bookkeeping → CR 302.6 entry clock
         // → CR 603.6a ETB notification + pending-action triggers); the resolve
         // flow runs SBAs afterwards. Returns true if the land was played, false
-        // if not able (not in hand, not a Land, or the land drop is spent —
-        // honoring "if able"). Land-play locks (Worms of the Earth) are NOT
-        // re-checked here: WoC playing a land is a resolution effect, not the
-        // active player's land-play action.
-        playLandForPlayer(playerId: string, cardInstanceId: string): boolean {
+        // if not able (not in the source zone, not a Land, or the land drop is
+        // spent — honoring "if able").
+        //
+        // Deliberately TIMING-AGNOSTIC: CR 305.3 ("a player can't play a land if
+        // it isn't their turn") is NOT checked here, because Word of Command's
+        // own resolution plays a land under the NON-active player's control.
+        // The CR 305.3 gate belongs to the caller's legality lookup
+        // (`getChosenLandPlayable`), which the CR 608.2g Op consults before it
+        // even offers the play. (Word of Command's own CR 305.3 divergence
+        // predates this and is tracked separately — tracked-by: #1981.)
+        playLandForPlayer(
+            playerId: string,
+            cardInstanceId: string,
+            opts?: { sourceZone?: "hand" | "graveyard" | "exile" }
+        ): boolean {
             const player = getPlayer(state, playerId);
-            const card = player.hand.find((c) => c.id === cardInstanceId);
+            const sourceZone = opts?.sourceZone ?? "hand";
+            const card = player[sourceZone].find(
+                (c) => c.id === cardInstanceId
+            );
             if (!card || !card.types.includes("Land")) return false;
             // CR 614 — a land-play lock (Worms of the Earth) blocks the play.
             if (landPlayLockActive(state)) return false;
@@ -10707,11 +10727,29 @@ export function buildSpellContext(
             // ("if able").
             const maxDrops = LAND_DROPS_PER_TURN + getExtraLandDrops(player);
             if ((player.landsPlayedThisTurn ?? 0) >= maxDrops) return false;
-            // Route through the canonical land-play transition: it records the
-            // land drop (CR 305.2), sets the control-continuity / summoning-sick
-            // clock (CR 302.6), emits the ETB (CR 603.6a) and settles SBAs.
-            applyPlayLand(state, player, cardInstanceId);
-            return true;
+            // Route through the canonical land-play transition for the source
+            // zone: each records the land drop (CR 305.2), sets the
+            // control-continuity / summoning-sick clock (CR 302.6), emits the
+            // ETB (CR 603.6a) and settles SBAs through the SAME
+            // `settleEnteredLand` tail (`gre/playLand.ts`), so a resolve-time
+            // exile play and a normal hand drop can never drift.
+            switch (sourceZone) {
+                case "hand":
+                    applyPlayLand(state, player, cardInstanceId);
+                    return true;
+                case "exile":
+                    applyPlayLandFromExile(state, player, cardInstanceId);
+                    return true;
+                case "graveyard":
+                    applyPlayLandFromGraveyard(state, player, cardInstanceId);
+                    return true;
+                default: {
+                    // Exhaustive: a newly added source zone must break the
+                    // build here rather than silently reading the wrong zone.
+                    const never: never = sourceZone;
+                    return never;
+                }
+            }
         },
         // CR 701.20a: to tap a permanent is to turn it sideways from an
         // untapped position. Already-tapped permanents are unaffected.
@@ -14414,6 +14452,37 @@ export function buildSpellContext(
             const def = cardId ? tryGetDefinition(cardId) : undefined;
             if (!def) return false;
             return !(def.types ?? []).includes("Land");
+        },
+        getChosenLandPlayable(playerId, cardInstanceId, sourceZone) {
+            // CR 116.2a / 305 (issue #1961) — the LAND twin of
+            // `getChosenCardCastable`, for a play-during-resolution permission
+            // whose Oracle text says "play" (Hideaway). Playing a land is a
+            // SPECIAL ACTION, not casting, and — unlike the CR 608.2g cast
+            // branch, which ignores card-type timing entirely — it stays
+            // narrowly gated by CR 305. Every false here makes the caller pass
+            // SILENTLY ("ignore any part of an effect that instructs a player
+            // to do so", CR 305.3): no dead prompt, no error, resolution
+            // completes.
+            const owner = getPlayer(state, playerId);
+            const found = owner[sourceZone].find(
+                (c) => c.id === cardInstanceId
+            );
+            if (!found) return false; // CR 608.2b — empty/absent source
+            const cardId = (found.card as { id?: string }).id;
+            const def = cardId ? tryGetDefinition(cardId) : undefined;
+            if (!def) return false;
+            if (!(def.types ?? []).includes("Land")) return false;
+            // CR 305.3 — "A player can't play a land, for any reason, if it
+            // isn't their turn." This is what makes a HIDDEN LAND unplayable on
+            // the opponent's turn while a hidden creature/sorcery is not.
+            if (state.activePlayerId !== playerId) return false;
+            // CR 614 — a land-play lock (Worms of the Earth) blocks the play.
+            if (landPlayLockActive(state)) return false;
+            // CR 305.2a/305.2b — a land played during the resolution of a spell
+            // or ability counts against the per-turn drop, so it is playable
+            // only while a drop remains (plus any extra-drop grants).
+            const maxDrops = LAND_DROPS_PER_TURN + getExtraLandDrops(owner);
+            return (owner.landsPlayedThisTurn ?? 0) < maxDrops;
         },
         getCardModes(casterId, cardInstanceId) {
             // CR 700.2 / 108.1 — the modes of a chosen card, read from the

@@ -266,12 +266,41 @@ const OPTION_CHOICE_ID = "optionChoiceMode";
  *  re-reads its own on a re-walk (no re-roll, CR 608.3 / ADR 0023). */
 const COIN_FLIP_ID = "coinFlipOutcome";
 
-/** CR 608.2f (issue #1477) — the Cast / Decline options offered by the
+/** CR 608.2g (issue #1477) — the Cast / Decline options offered by the
  *  cast-during-resolution Op's "you may cast" prompt (an `option-pick`). */
 const CAST_DECLINE_OPTIONS: { id: string; label: string }[] = [
     { id: "cast", label: "Cast" },
     { id: "decline", label: "Decline" },
 ];
+
+/** CR 116.1 / 116.2a / 608.2g (issue #1961) — the offer used by EVERY branch of
+ *  a play-during-resolution Op that can reach a land (`includesLand`): a land is
+ *  PLAYED, never cast (CR 116.2a), and "play" also covers casting a spell
+ *  (CR 116.1), so this one wording is accurate whichever branch is taken. That
+ *  is the point: it must be IDENTICAL on both, see `OFFER_PROMPT` below. The
+ *  option ID stays `"cast"` deliberately — it is the accept token the shared
+ *  answer plumbing (`submitResolutionChoice`, the bot's `optionPickCandidates`)
+ *  already understands, and inventing a second accept id would fork that
+ *  plumbing for a label. */
+const PLAY_DECLINE_OPTIONS: { id: string; label: string }[] = [
+    { id: "cast", label: "Play" },
+    { id: "decline", label: "Decline" },
+];
+
+/** CR 406.3 — the prompt text of the play-during-resolution offer, keyed by
+ *  whether the grant can reach a land. `pendingChoices` crosses the wire
+ *  UNREDACTED to both viewers and the non-chooser's client renders `prompt`
+ *  verbatim ("Waiting for P1 — …"), so a land-flavoured prompt on the land
+ *  branch and a cast-flavoured one on the spell branch would tell the opponent
+ *  which branch was taken — i.e. whether the FACE-DOWN hideaway card is a land.
+ *  A grant that can reach a land therefore uses ONE prompt and ONE option list
+ *  for BOTH branches, so the branch actually taken is indistinguishable to any
+ *  observer (the same reason the prompt names no card and pins no
+ *  `subjectCardId`). */
+const OFFER_PROMPT = {
+    play: "You may play the card. Play it or decline.",
+    cast: "You may cast the card. Cast it or decline.",
+} as const;
 
 /** Boolean payload stored by a `mayPay` Op (issue #806): the single-element
  *  `["yes"]` / `["no"]` array `requestMayPay` persists (mirroring the may-pay
@@ -1713,18 +1742,28 @@ export const OP_EXECUTORS: {
                 : undefined
         );
     },
-    // CR 608.2f (issue #1477) — cast a card as PART OF this resolution: a "you
-    // may cast <card>" with no stated duration, which exists ONLY during the
-    // resolution of the ability that grants it. Reuses the resolve-time
+    // CR 608.2g (issue #1477) — play a card as PART OF this resolution: a "you
+    // may cast/play <card>" with no stated duration, which exists ONLY during
+    // the resolution of the ability that grants it. Reuses the resolve-time
     // mini-cast (`SpellContext.castChosenSpell`, ADR 0037) and the
     // interpreter's own suspend/resume seam. SELF-cast: actingPlayer ==
     // controller == `player`. NO priority passes to the opponent between the
     // offer and the inline cast — the Cast/Decline prompt and the cast card's
     // own target/mode/X picks are resolve-time choices, not priority; normal
     // priority resumes only once the parent ability finishes with the new
-    // spell on the stack (CR 608.2f). Timing / card-type restrictions are
-    // ignored. Distinct from `grantCastFrom*` (which stamp a later-in-turn
-    // impulse window) — nothing is saved for later (Malcolm's Oracle ruling).
+    // spell on the stack (CR 608.2g). Timing / card-type restrictions are
+    // ignored: CR 117.1a / 302.1 / 307.1 grant their permissions to "a player
+    // WHO HAS PRIORITY", and this happens outside priority, so the effect
+    // itself is the permission — a creature or sorcery is effectively castable
+    // at instant speed, on either player's turn. Distinct from
+    // `grantCastFrom*` (which stamp a later-in-turn impulse window) — nothing
+    // is saved for later (Malcolm's Oracle ruling; Hideaway's too, #1961).
+    //
+    // The LAND branch (`includesLand`, issue #1961) is genuinely NARROWER, not
+    // instant-speed: playing a land is a SPECIAL ACTION (CR 116.2a) that
+    // consumes the drop even mid-resolution (CR 305.2a), can't happen on the
+    // opponent's turn (CR 305.3) and can't happen with the drop spent
+    // (CR 305.2b). See `getChosenLandPlayable`.
     castDuringResolution(ctx, op) {
         // Idempotent across a re-walk (CR 608.3 — a completed step never
         // re-runs): once the mini-cast has committed (or the Op has terminally
@@ -1753,15 +1792,26 @@ export const OP_EXECUTORS: {
             }
         };
 
-        // Resolve the card to offer and its effective SOURCE zone. Two shapes:
+        // Resolve the card to offer and its effective SOURCE zone. Three shapes:
         //  - `fromTopOfLibrary` (issue #1478, Chandra +1) — exile the top card
         //    of the caster's library UNCONDITIONALLY as the first thing the Op
-        //    does (CR 608.2f), then offer that exiled card; a decline / can't-
+        //    does (CR 608.2g), then offer that exiled card; a decline / can't-
         //    pay leaves it in exile. The exiled id is persisted under the Op's
         //    checkpoint so a suspend/resume re-walk reuses it rather than
         //    exiling a second card (CR 608.3).
-        //  - `card` + `source` (issue #1477, Malcolm) — a bare picks ref to a
-        //    card an earlier Op bound, cast from its graveyard/exile source.
+        //  - `card` as a bare picks ref + `source` (issue #1477, Malcolm) — a
+        //    card an earlier Op in the SAME script bound, played from its
+        //    graveyard/exile source.
+        //  - `card` as `{ exiledWithSource: true }` (issue #1961, CR 607 LINKED
+        //    abilities — Hideaway's "you may play the exiled card"): the card
+        //    THIS ability's own source permanent exiled and stamped via
+        //    `linkExileToSource`, read back through `getCardsExiledWith`. No
+        //    binding can name it, because the exiling ability and the play
+        //    ability are two SEPARATE abilities resolving at different times and
+        //    a `bind` cannot span two resolutions — the CR 607 link IS the
+        //    identity. Always from exile. Hideaway links exactly one card; a
+        //    source that linked several offers the first (the Oracle text says
+        //    "THE exiled card", singular).
         let cardInstanceId: string | undefined;
         let sourceZone: "graveyard" | "exile";
         if (op.fromTopOfLibrary) {
@@ -1780,32 +1830,99 @@ export const OP_EXECUTORS: {
                 ctx.noteChoice(exiledKey, [topId]);
                 cardInstanceId = topId;
             }
+        } else if (op.card !== undefined && "exiledWithSource" in op.card) {
+            sourceZone = "exile";
+            cardInstanceId = ctx.getCardsExiledWith(ctx.sourceInstanceId)[0]
+                ?.id;
+        } else if (op.card !== undefined) {
+            sourceZone = op.source ?? "exile";
+            const ids = resolvePicks(ctx, op.card);
+            cardInstanceId = ids && ids.length > 0 ? ids[0] : undefined;
         } else {
             sourceZone = op.source ?? "exile";
-            const ids = op.card ? resolvePicks(ctx, op.card) : undefined;
-            cardInstanceId = ids && ids.length > 0 ? ids[0] : undefined;
+            cardInstanceId = undefined;
         }
 
-        // Silent pass (CR 608.2b / the Malcolm land ruling): the binding was
-        // never captured, the card is no longer in the source zone (empty
-        // source), or it is a land (lands are played, not cast). No prompt is
-        // offered at all — the trigger finishes silently.
-        if (
-            cardInstanceId === undefined ||
-            !ctx.getChosenCardCastable(playerId, cardInstanceId, sourceZone)
-        ) {
+        // Silent pass (CR 608.2b): the selector resolved to nothing — the
+        // binding was never captured, or the CR 607 source linked nothing.
+        if (cardInstanceId === undefined) {
             finish(false, "pass");
             return;
         }
 
-        // "you may cast" — a Cast / Decline `option-pick`, a resolve-time
-        // choice routed to the caster (CR 608.2f: NOT priority, the opponent
-        // cannot act here). Reuses the existing suspend/resume seam.
+        // CR 406.3 — ONE offer shape for the whole Op when it can reach a land:
+        // the prompt and the option labels must not differ between the land
+        // branch and the cast branch, or the mere wording discloses the hidden
+        // card's type to the opponent (`pendingChoices` is projected unredacted
+        // and the non-chooser's client renders `prompt` verbatim).
+        const offerOptions = op.includesLand
+            ? PLAY_DECLINE_OPTIONS
+            : CAST_DECLINE_OPTIONS;
+        const offerPrompt = op.includesLand
+            ? OFFER_PROMPT.play
+            : OFFER_PROMPT.cast;
+
+        // CR 116.2a / 305.9 — a LAND is PLAYED, never cast. `includesLand` is
+        // set only by a grant whose Oracle text says "play" (Hideaway); without
+        // it a land silently passes, which is the official Malcolm land ruling
+        // and stays the default for every "cast" grant. A land+other-type card
+        // can only be played as a land (CR 305.9), so this branch wins first.
+        if (
+            op.includesLand &&
+            ctx.getChosenLandPlayable(playerId, cardInstanceId, sourceZone)
+        ) {
+            // "you may PLAY the exiled card" — the same resolve-time
+            // `option-pick` as the cast branch, byte-identical in prompt and
+            // options (see `OFFER_PROMPT`). The text deliberately does NOT name
+            // the card either: a hideaway card is FACE DOWN (CR 406.3, visible
+            // only to its controller) and `pendingChoices` crosses the wire
+            // unredacted to BOTH viewers, so naming it in the prompt — or
+            // pinning it via `subjectCardId` — would leak the hidden identity.
+            const landDecision = ctx.requestOptionChoice({
+                playerId,
+                choiceId: "cdr:decide",
+                options: offerOptions,
+                prompt: offerPrompt,
+            });
+            if (landDecision === undefined) return "suspend"; // enqueued — wait
+            if (landDecision !== "cast") {
+                // Declined — the land stays in its source zone (still face down
+                // if it was), nothing enters, and no later-in-turn window is
+                // stamped: the CR 608.2g permission dies with this resolution.
+                finish(false, "decline");
+                return;
+            }
+            // CR 305.2a — the land enters through the canonical play-land
+            // transition and CONSUMES the player's land drop.
+            const played = ctx.playLandForPlayer(playerId, cardInstanceId, {
+                sourceZone,
+            });
+            finish(played, played ? "cast" : "pass");
+            return;
+        }
+
+        // Silent pass (CR 608.2b / the Malcolm land ruling): the card is no
+        // longer in the source zone (empty source), or it is a land the grant
+        // can't reach — either a "cast"-only grant (no `includesLand`) or a
+        // "play" grant whose CR 305 legality failed (opponent's turn per CR
+        // 305.3, land drop already spent per CR 305.2b, a CR 614 land-play
+        // lock). No prompt is offered at all — the ability finishes silently
+        // and the resolution completes cleanly.
+        if (!ctx.getChosenCardCastable(playerId, cardInstanceId, sourceZone)) {
+            finish(false, "pass");
+            return;
+        }
+
+        // "you may cast" — a Cast / Decline `option-pick` (Play / Decline for a
+        // grant that can also reach a land, identical to the land branch above
+        // so the branch taken stays hidden — CR 406.3), a resolve-time choice
+        // routed to the caster (CR 608.2g: NOT priority, the opponent cannot act
+        // here). Reuses the existing suspend/resume seam.
         const decision = ctx.requestOptionChoice({
             playerId,
             choiceId: "cdr:decide",
-            options: CAST_DECLINE_OPTIONS,
-            prompt: "You may cast the card. Cast it or decline.",
+            options: offerOptions,
+            prompt: offerPrompt,
         });
         if (decision === undefined) return "suspend"; // enqueued — wait
         if (decision !== "cast") {

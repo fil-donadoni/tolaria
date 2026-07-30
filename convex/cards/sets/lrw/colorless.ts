@@ -19,9 +19,10 @@ import type { CardDefinition } from "../../types";
 //      never folded into the keyword.
 //   3. The two activated abilities: the mana ability, and the CR 607 LINKED
 //      "play the exiled card" ability. The latter reaches exactly the card
-//      hideaway exiled via `grantCastFromExile`'s `{ exiledWithSource: true }`
+//      hideaway exiled via `castDuringResolution`'s `{ exiledWithSource: true }`
 //      selector (the link `linkExileToSource` stamped at exile time) — no
-//      target, no picker, nothing to disambiguate.
+//      target, no picker, nothing to disambiguate — and plays it DURING its own
+//      resolution (CR 608.2g), the timing that makes the card what it is.
 //
 // "if a library has twenty or fewer cards in it" is ANY library, the
 // controller's included (the Oracle's indefinite article) — expressed as the
@@ -74,28 +75,33 @@ export const shelldockIsle: CardDefinition = {
                     then: [
                         {
                             // CR 607 / 702.75a — the LINKED half: reaches only
-                            // the card this land's own hideaway ability exiled.
-                            // "play" (not "cast") ⇒ `includesLand`, CR 305.9.
+                            // the card this land's own hideaway ability exiled,
+                            // named by the CR 607 link (a `bind` cannot span the
+                            // two abilities' separate resolutions).
                             //
-                            // DIVERGENCE (CR 608.2f) — Deferred: the printed
-                            // card plays the exiled card DURING THIS ABILITY'S
-                            // RESOLUTION, ignoring timing restrictions (which
-                            // is the card's whole point — flashing in a Wrath
-                            // or a Cryptic Command on the opponent's turn).
-                            // This grants the ordinary this-turn impulse window
-                            // instead, so the hidden card is playable only when
-                            // its OWN timing allows. `castDuringResolution`
-                            // (the CR 608.2f mechanism) cannot be reused as-is:
-                            // it silently passes on a LAND (it is "cast", not
-                            // "play") and it names its card by a same-script
-                            // picks ref, which a CR 607 linked pair spanning two
-                            // resolutions cannot supply.
-                            // tracked-by: #1961
-                            op: "grantCastFromExile",
+                            // CR 608.2g — "you may play the exiled card" states
+                            // NO duration, so the permission exists only during
+                            // THIS ability's resolution: the card is offered
+                            // right here, once, and the window closes when the
+                            // resolution ends. Card-type timing restrictions do
+                            // not apply (CR 117.1a / 302.1 / 307.1 grant their
+                            // permissions to a player WHO HAS PRIORITY, and this
+                            // happens outside priority) — which is the card's
+                            // whole point: flashing in a Wrath of God or a
+                            // Cryptic Command on the OPPONENT's turn.
+                            //
+                            // `includesLand` — the Oracle says "play", not
+                            // "cast" (CR 116.2a / 305.9), so a hidden LAND is
+                            // offered too. Its branch is narrower by CR 305: it
+                            // consumes the land drop (305.2a), and it is not
+                            // offered on the opponent's turn (305.3) or with the
+                            // drop spent (305.2b) — in which case the resolution
+                            // just completes.
+                            op: "castDuringResolution",
                             card: { exiledWithSource: true },
                             player: "controller",
-                            window: "this-turn",
-                            withoutPayingManaCost: true,
+                            source: "exile",
+                            free: true,
                             includesLand: true,
                         },
                     ],

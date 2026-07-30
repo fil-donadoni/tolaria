@@ -159,9 +159,11 @@ function moveCardAcrossPlayers(
  *  cast-from-exile flags are dropped as the card leaves exile.
  *
  *  Scope: the interactive `entersTappedUnlessPay` pay-choice (shock lands, CR
- *  614.12) is NOT wired for the exile origin — its finalizer sources from hand.
- *  No shipped impulse card exiles a shock land; a land's own `entersTapped` and
- *  board replacements (Kismet) still apply via `shouldEnterTapped`. */
+ *  614.12) is NOT wired for the exile origin — its finalizer sources from hand,
+ *  so such a land enters untapped for free from here. A land's own
+ *  `entersTapped` and board replacements (Kismet) still apply via
+ *  `shouldEnterTapped`. Genuinely reachable since hideaway (CR 702.75) can exile
+ *  ANY card off the top four of your own library — tracked-by: #1980. */
 export function applyPlayLandFromExile(
     state: GameState,
     player: PlayerState,
