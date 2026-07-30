@@ -482,7 +482,7 @@ export function applyTransientDamageRedirections(
                 continue;
             }
             kept.push(sh);
-        } else if (sh.kind === "from-source-to-permanent-redirect-to-player") {
+        } else if (sh.kind === "from-source-to-permanent-redirect") {
             const sourceMatches =
                 sh.sourceInstanceId === undefined ||
                 sh.sourceInstanceId === current.sourceInstanceId;
@@ -492,11 +492,13 @@ export function applyTransientDamageRedirections(
                 current.target.id === sh.targetInstanceId &&
                 sh.remaining > 0
             ) {
-                // Jade Monolith: redirect damage to a chosen player. Charges
-                // decrement per match; keep the shield while still charged.
+                // Jade Monolith / Mirrorwood Treefolk (CR 614): redirect
+                // damage to the chosen destination — a player or a
+                // permanent (issue #1939 generalization). Charges decrement
+                // per match; keep the shield while still charged.
                 current = {
                     ...current,
-                    target: { type: "player", id: sh.redirectToPlayerId },
+                    target: sh.redirectTo,
                 };
                 if (sh.remaining - 1 > 0) {
                     kept.push({ ...sh, remaining: sh.remaining - 1 });

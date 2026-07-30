@@ -2868,9 +2868,12 @@ export interface SpellContext {
      *    life equal to amount prevented".
      *  - `to-self-redirect-to-owner`: Personal Incarnation's `{0}: next 1
      *    damage to ~ is dealt to its owner instead`.
-     *  - `from-source-to-permanent-redirect-to-player`: Jade Monolith's
-     *    `{1}: the next time source X would deal damage to creature C,
-     *    that damage is dealt to you instead`.
+     *  - `from-source-to-permanent-redirect`: the next time source X (or,
+     *    when `sourceInstanceId` is unset, ANY source) would deal damage to
+     *    creature C, that damage is dealt to `redirectTo` instead — a
+     *    player (Jade Monolith's `{1}`, always the activator) or a
+     *    permanent (Mirrorwood Treefolk's `{2}{R}{W}`, "any target" chosen
+     *    as the ability resolves, CR 115.4, issue #1939).
      *
      *  Unconsumed entries are purged when `duration` expires (typically
      *  end-of-turn). */
@@ -2889,11 +2892,18 @@ export interface SpellContext {
                   duration: DurationSpec;
               }
             | {
-                  kind: "from-source-to-permanent-redirect-to-player";
-                  /** undefined = any source (Jade Monolith). */
+                  kind: "from-source-to-permanent-redirect";
+                  /** undefined = any source (Jade Monolith / Mirrorwood
+                   *  Treefolk both use the wildcard — neither filters by
+                   *  source). */
                   sourceInstanceId?: string;
                   targetInstanceId: string;
-                  redirectToPlayerId: string;
+                  /** Destination of the redirected damage — a player or a
+                   *  permanent, reusing `TargetSelection`'s shape rather
+                   *  than a bespoke type (primitive reuse). */
+                  redirectTo:
+                      | { type: "player"; id: string }
+                      | { type: "permanent"; id: string };
                   remaining: number;
                   duration: DurationSpec;
               }
