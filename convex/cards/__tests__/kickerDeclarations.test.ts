@@ -23,17 +23,24 @@
 
 import { describe, it, expect } from "vitest";
 import { getAllCards } from "../index";
-import type { CardDefinition, EffectOp, KickerCost } from "../types";
+// The SHARED site enumeration (`effectSites.ts`) — not a second hand-rolled
+// walker. A private one shipped omitting `modes[].effects` and `aiEffects`,
+// which is exactly how a `{ kickerPaid }` inside a modal card's mode script
+// would escape the fail-closed trap below.
+import { allEffectScriptValues } from "./effectSites";
+import type { KickerCost } from "../types";
 
 const cardsWithKickers = getAllCards().filter(
     (c) => (c.kickers?.length ?? 0) > 0
 );
 
 /** Every `{ kickerPaid: "<id>" }` id reachable anywhere in a card's declaration —
- *  spell `effects`, activated / triggered ability `effects`, and every nested
- *  structural construct (`if` branches, `forEach` bodies, `bind` values). Walks
- *  the raw JSON rather than the typed union so a value nested in a shape this
- *  test doesn't know about is still found. */
+ *  every site `allEffectScriptValues` enumerates (spell `effects`/`aiEffects`,
+ *  activated / triggered / grant-template ability scripts, cast-time
+ *  `modes[].effects`) and every nested structural construct within them (`if`
+ *  branches, `forEach` bodies, `bind` values). Walks the raw JSON rather than
+ *  the typed union so a value nested in a shape this test doesn't know about is
+ *  still found. */
 function kickerPaidIdsIn(value: unknown, out: Set<string>): void {
     if (Array.isArray(value)) {
         for (const v of value) kickerPaidIdsIn(v, out);
@@ -43,17 +50,6 @@ function kickerPaidIdsIn(value: unknown, out: Set<string>): void {
     const rec = value as Record<string, unknown>;
     if (typeof rec.kickerPaid === "string") out.add(rec.kickerPaid);
     for (const v of Object.values(rec)) kickerPaidIdsIn(v, out);
-}
-
-function allEffectSites(card: CardDefinition): unknown[] {
-    const sites: unknown[] = [];
-    const push = (e: EffectOp[] | undefined) => {
-        if (e) sites.push(e);
-    };
-    push(card.effects);
-    for (const a of card.activatedAbilities ?? []) push(a.effects);
-    for (const t of card.triggeredAbilities ?? []) push(t.effects);
-    return sites;
 }
 
 function legCount(k: KickerCost): number {
@@ -126,7 +122,7 @@ describe("Kicker declarations (CR 702.33 / 702.33e, ADR 0079)", () => {
         (_name, card) => {
             const declared = new Set((card.kickers ?? []).map((k) => k.id));
             const referenced = new Set<string>();
-            kickerPaidIdsIn(allEffectSites(card), referenced);
+            kickerPaidIdsIn(allEffectScriptValues(card), referenced);
             for (const id of referenced) expect(declared).toContain(id);
         }
     );
@@ -139,10 +135,60 @@ describe("Kicker declarations (CR 702.33 / 702.33e, ADR 0079)", () => {
         for (const card of getAllCards()) {
             if ((card.kickers?.length ?? 0) > 0) continue;
             const referenced = new Set<string>();
-            kickerPaidIdsIn(allEffectSites(card), referenced);
+            kickerPaidIdsIn(allEffectScriptValues(card), referenced);
             if (referenced.size > 0) offenders.push(card.name ?? card.id);
         }
         expect(offenders).toEqual([]);
+    });
+
+    it("the trap reaches mode sites and aiEffects shadows (site enumeration is complete)", () => {
+        // The sweep is only as good as its site list: a `{ kickerPaid }` hiding
+        // in a modal card's `modes[].effects` or in an `aiEffects` shadow used
+        // to walk right past it (the private walker this guard shipped with
+        // knew only `effects` + activated/triggered abilities). Assert the
+        // shared enumeration actually reaches both, so the sweep above cannot
+        // go quietly vacuous over a whole site kind.
+        const referenced = new Set<string>();
+        kickerPaidIdsIn(
+            allEffectScriptValues({
+                id: "test:site-coverage",
+                name: "Site Coverage Probe",
+                rarity: "common",
+                types: ["Instant"],
+                manaCost: {},
+                aiEffects: [
+                    {
+                        op: "if",
+                        predicate: {
+                            left: { kickerPaid: "from-ai-shadow" },
+                            op: "ge",
+                            right: 1,
+                        },
+                        then: [],
+                    },
+                ],
+                modes: [
+                    {
+                        id: "m1",
+                        label: "Mode",
+                        oracleText: "Mode",
+                        effects: [
+                            {
+                                op: "if",
+                                predicate: {
+                                    left: { kickerPaid: "from-mode" },
+                                    op: "ge",
+                                    right: 1,
+                                },
+                                then: [],
+                            },
+                        ],
+                    },
+                ],
+            }),
+            referenced
+        );
+        expect([...referenced].sort()).toEqual(["from-ai-shadow", "from-mode"]);
     });
 
     it("a card declaring kickedTargetRequirement also declares a kicker", () => {

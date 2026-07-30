@@ -32,6 +32,7 @@ import {
 import { getDefinition, registerTokenDefinition } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
 import { bloodchiefsThirst } from "../../cards/sets/znr/black";
+import { drought } from "../../cards/sets/ice/white";
 import { tearAsunder } from "../../cards/sets/dmu/green";
 import { burstLightning } from "../../cards/sets/zen/red";
 import {
@@ -39,6 +40,7 @@ import {
     grizzlyBears,
     blackLotus,
     forest,
+    swamp,
 } from "../../cards/sets/lea";
 
 // A synthetic probe card carrying BOTH a Kicker (CR 702.33a — an ADDITIONAL
@@ -780,5 +782,165 @@ describe("Kicker — two kickers are paid independently (CR 702.33, ADR 0079)", 
         expect(state.pendingCast?.sacrificeSelection?.requirements).toEqual([
             { filter: { types: ["Land"] }, count: 2, explicit: true },
         ]);
+    });
+});
+
+describe("Kicker — the cast's OWN additional cost survives a kicked cast (CR 601.2f / 118.5)", () => {
+    // REGRESSION (issue #1937 review). A mana-only Kicker still produces one
+    // `kickerCostLegs` entry per payment, so gating the cast's permanent-cost
+    // picker on "the kicker produced any leg" sent EVERY kicked cast down the
+    // cost-legs branch — which returns `undefined` for a mana-only Kicker and
+    // therefore silently DISCARDED the cast's own additional-cost sacrifice.
+    // Drought (board-wide, CR 118.5: 'Spells cost an additional "Sacrifice a
+    // Swamp" for each black mana symbol') × Bloodchief's Thirst ({B}, one black
+    // pip) is the shipped-card reproduction: unkicked the Swamp goes, kicked it
+    // used to survive while the spell still reached the stack.
+    function thirstUnderDrought(kicked: boolean) {
+        const thirst = makeInstance(bloodchiefsThirst.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+            id: "thirstD",
+        });
+        const droughtInst = makeInstance(drought.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "drought1",
+        });
+        const swampInst = makeInstance(swamp.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "swamp1",
+        });
+        const victim = makeInstance(grizzlyBears.id, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "victimD",
+            power: 2,
+            toughness: 2,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [thirst],
+                    battlefield: [droughtInst, swampInst],
+                    // 4 black covers the kicked total {2}{B}{B}.
+                    manaPool: { W: 0, U: 0, B: 4, R: 0, G: 0, C: 0 },
+                }),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        const pt: PendingTarget = {
+            playerId: "p1",
+            cardInstanceId: "thirstD",
+            targetType: ["Creature", "Planeswalker"],
+            count: 1,
+            selected: [{ type: "permanent", id: "victimD" }],
+            ...(kicked ? { kickerPayments: { kicker: 1 } } : {}),
+        };
+        finalizeTargetSelection(state, pt, "p1");
+        return state;
+    }
+
+    it("sacrifices the Swamp on an UNKICKED cast (baseline)", () => {
+        const state = thirstUnderDrought(false);
+        const p1 = getPlayer(state, "p1");
+        expect(p1.battlefield.some((c) => c.id === "swamp1")).toBe(false);
+        expect(p1.graveyard.some((c) => c.id === "swamp1")).toBe(true);
+        expect(state.stack.some((s) => s.id === "thirstD")).toBe(true);
+    });
+
+    it("STILL sacrifices the Swamp on a KICKED cast", () => {
+        const state = thirstUnderDrought(true);
+        const p1 = getPlayer(state, "p1");
+        // Before the fix the Swamp survived and the spell reached the stack
+        // anyway — a spell resolving with an unpaid additional cost.
+        expect(p1.battlefield.some((c) => c.id === "swamp1")).toBe(false);
+        expect(p1.graveyard.some((c) => c.id === "swamp1")).toBe(true);
+        const onStack = state.stack.find((s) => s.id === "thirstD");
+        expect(onStack?.kickerPayments).toEqual({ kicker: 1 });
+        // The kicker mana was folded on top: {B} printed + {2}{B} kicker = 4.
+        expect(p1.manaPool.B).toBe(0);
+    });
+});
+
+// A probe whose printed cost carries a BLACK pip (so Drought imposes its
+// "Sacrifice a Swamp" additional cost, CR 118.5) AND whose Kicker owes a
+// PERMANENT leg. No printed card has this shape — it is the only way to reach
+// the one-slot collision the announcement guard fails closed on.
+const PIP_SAC_PROBE_ID = "test:kicker-permleg-plus-additional-cost-probe";
+const pipSacProbe: CardDefinition = {
+    id: PIP_SAC_PROBE_ID,
+    rarity: "common",
+    name: "Kicker Permanent-Leg Probe",
+    manaCost: { B: 1 },
+    types: ["Sorcery"],
+    kickers: [
+        {
+            id: "kicker-sac",
+            description: "Kicker — Sacrifice two lands",
+            permanent: {
+                action: "sacrifice",
+                filter: { types: ["Land"] },
+                count: 2,
+            },
+        },
+    ],
+    effects: [],
+};
+registerTokenDefinition(pipSacProbe);
+
+describe("Kicker — a permanent leg colliding with another additional cost fails CLOSED (CR 601.2f)", () => {
+    function pipSacState(kicked: boolean) {
+        const probe = makeInstance(PIP_SAC_PROBE_ID, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+            id: "pipsac1",
+        });
+        const droughtInst = makeInstance(drought.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "drought2",
+        });
+        const swampInst = makeInstance(swamp.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "swamp2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [probe],
+                    battlefield: [
+                        droughtInst,
+                        swampInst,
+                        land("pl1"),
+                        land("pl2"),
+                    ],
+                    manaPool: { W: 0, U: 0, B: 1, R: 0, G: 0, C: 0 },
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        return () =>
+            finalizeTargetSelection(
+                state,
+                probePendingTarget(
+                    "pipsac1",
+                    kicked ? { "kicker-sac": 1 } : undefined
+                ),
+                "p1"
+            );
+    }
+
+    it("throws rather than silently dropping the cast's own sacrifice", () => {
+        // `?? ownSac` would have quietly paid the kicker's two lands and NOT
+        // Drought's Swamp — a spell on the stack with an unpaid cost.
+        expect(pipSacState(true)).toThrow(/kicker cost cannot be paid/i);
+    });
+
+    it("leaves the UNKICKED cast (no permanent leg owed) untouched", () => {
+        expect(pipSacState(false)).not.toThrow();
     });
 });

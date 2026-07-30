@@ -231,11 +231,11 @@ import {
 // shared `CostLegs` vocabulary, payment recorded per kicker id.
 import type { KickerPayments } from "./gre/kicker";
 import {
+    assertKickerPermanentSlotFree,
     buildCastHandCostChoice,
     buildCastPermanentCostChoice,
     canPayKickerLegs,
     foldKickerCosts,
-    kickerCostLegs,
     kickerLifeCost,
     resolveKickerPayments,
     totalKickerCount,
@@ -5702,37 +5702,46 @@ export function finalizeTargetSelection(
     // alt choice takes the cast's single `sacrificeSelection` slot.
     // CR 702.33a — a paid Kicker's PERMANENT leg (sacrifice two lands, return a
     // creature you control) joins that same selection, marked `explicit` so it is
-    // never auto-picked (ADR 0079). Guarded on "has a leg at all" so a cast with
-    // no kicker leg keeps the exact historical branch.
-    const kickerLegs = kickerCostLegs(cardDef, kickerPayments);
-    const castSac =
-        chosenAltCost || kickerLegs.length > 0
-            ? buildCastPermanentCostChoice(
-                  state,
-                  playerId,
-                  chosenAltCost,
-                  cardDef,
-                  kickerPayments,
-                  cardDef.name ??
-                      (chosenAltCost ? "Alternative cost" : "Kicker")
-              )
-            : additionalSac;
+    // never auto-picked (ADR 0079).
+    //
+    // The branch is decided by what the builder actually PRODUCES, never by "did
+    // the kicker produce a leg at all": `kickerCostLegs` yields one entry per
+    // PAYMENT, so a mana-only Kicker — every shipped one — makes that count
+    // positive while contributing NOTHING to the permanent picker. Gating on it
+    // sent every kicked cast down this branch and silently discarded
+    // `additionalSac`, i.e. Drought's "Sacrifice a Swamp" (CR 118.5) went unpaid
+    // on a kicked spell. The builder returns `undefined` when nothing
+    // contributes, so the `?? additionalSac` fallback keeps the historical
+    // branch byte-identical for an unkicked or mana-only-kicked cast; when an
+    // ALT cost is chosen, dropping `additionalSac` is the historical (alt-cost
+    // cards carry none) behaviour and is preserved deliberately.
+    assertKickerPermanentSlotFree(cardDef, kickerPayments, additionalSac);
+    const castPermSel = buildCastPermanentCostChoice(
+        state,
+        playerId,
+        chosenAltCost,
+        cardDef,
+        kickerPayments,
+        cardDef.name ?? (chosenAltCost ? "Alternative cost" : "Kicker")
+    );
+    const castSac = chosenAltCost
+        ? castPermSel
+        : (castPermSel ?? additionalSac);
     // CR 118.9 — the HAND leg of the chosen alternative cost (Force of Will
     // "exile a blue card", Foil "discard an Island card and another card"). A
     // player-chosen filtered give-up FROM HAND, paid at commit through the
     // cast's `alternativeCostHandChoice` picker (parks when real, auto-resolves
     // when forced). None of these cards also carries a permanent leg, so the
-    // two never coexist.
-    const altHandChoice =
-        chosenAltCost || kickerLegs.length > 0
-            ? buildCastHandCostChoice(
-                  player,
-                  chosenAltCost,
-                  cardDef,
-                  kickerPayments,
-                  cardInstanceId
-              )
-            : undefined;
+    // two never coexist. CR 702.33a — a paid Kicker's HAND leg joins the same
+    // picker. Same rule as the permanent selection above: the builder itself
+    // returns `undefined` when no leg contributes, so no leg-count gate.
+    const altHandChoice = buildCastHandCostChoice(
+        player,
+        chosenAltCost,
+        cardDef,
+        kickerPayments,
+        cardInstanceId
+    );
     // CR 702.34a / 118.5 — the flashback-only "Exile a <colour> card from your
     // hand" cost (generalized `FlashbackCost.exileFromHand`) also applies to a
     // TARGETED flashback cast (e.g. a Lava-Dart-shaped card that both targets
@@ -6857,32 +6866,34 @@ export const announceCast = mutation({
         // CR 702.33a / 601.2f — the NON-MANA legs of every paid Kicker (ADR 0079).
         // A permanent leg becomes the cast's `SacrificeSelection`, marked
         // `explicit` so it always parks for the caster's own pick; a hand leg
-        // becomes the cast's hand picker. No shipped card carries both a Kicker
-        // leg and its own additional-cost sacrifice, so the kicker selection takes
-        // the single slot (mirroring the alternative-cost branch above).
-        const kickerLegs = kickerCostLegs(cardDef, kickerPayments);
-        const kickerPermSel =
-            kickerLegs.length > 0
-                ? buildCastPermanentCostChoice(
-                      state,
-                      args.playerId,
-                      undefined,
-                      cardDef,
-                      kickerPayments,
-                      cardDef.name ?? "Kicker"
-                  )
-                : undefined;
+        // becomes the cast's hand picker.
+        //
+        // The cast has ONE selection slot, so a Kicker permanent leg and the
+        // cast's own additional-cost sacrifice (its own, or a board-wide one
+        // like Drought) cannot both be honoured — `?? ownSac` would silently
+        // drop the latter, i.e. mispay a cost. Fail CLOSED instead (the same
+        // answer `resolveKickerPayments` gives a mixed sacrifice/return
+        // composition); no printed card reaches it. No leg-COUNT gate: a
+        // mana-only Kicker yields one entry per payment while contributing
+        // nothing to either picker, and both builders already return `undefined`
+        // when nothing contributes.
+        assertKickerPermanentSlotFree(cardDef, kickerPayments, ownSac);
+        const kickerPermSel = buildCastPermanentCostChoice(
+            state,
+            args.playerId,
+            undefined,
+            cardDef,
+            kickerPayments,
+            cardDef.name ?? "Kicker"
+        );
         const castSac = kickerPermSel ?? ownSac;
-        const kickerHandChoice =
-            kickerLegs.length > 0
-                ? buildCastHandCostChoice(
-                      player,
-                      undefined,
-                      cardDef,
-                      kickerPayments,
-                      args.cardInstanceId
-                  )
-                : undefined;
+        const kickerHandChoice = buildCastHandCostChoice(
+            player,
+            undefined,
+            cardDef,
+            kickerPayments,
+            args.cardInstanceId
+        );
         // CR 702.34a / 118.5 — Flash of Insight's flashback-only additional
         // cost "Exile X blue cards from your graveyard". Applies ONLY on a
         // flashback cast (from the graveyard); X = the announced chosenX.

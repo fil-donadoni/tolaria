@@ -192,6 +192,41 @@ export function kickerCostLegs(
     return legs;
 }
 
+/** Does any paid Kicker owe a PERMANENT leg (CR 702.33a — "sacrifice two
+ *  lands", "return a creature you control")? The only leg kind that claims the
+ *  cast's single `SacrificeSelection` slot; a mana leg folds into the total and
+ *  a life leg into `payLife`, neither of which needs a picker. Every shipped
+ *  Kicker is mana-only, so this is `false` catalogue-wide today. */
+export function hasKickerPermanentLeg(
+    cardDef: CardDefinition,
+    payments: KickerPayments | undefined
+): boolean {
+    return kickerCostLegs(cardDef, payments).some(
+        (leg) => leg.permanent !== undefined
+    );
+}
+
+/** CR 601.2f / 601.2h — the cast has exactly ONE permanent-cost selection slot,
+ *  and a paid Kicker's permanent leg claims it. When the cast ALSO owes its own
+ *  additional-cost sacrifice — the card's own (CR 601.2f) or a board-wide one
+ *  (Drought's "Sacrifice a Swamp", CR 118.5) — one of the two would have to be
+ *  dropped, i.e. the spell would reach the stack having silently MISPAID a
+ *  cost. Fail CLOSED at announcement instead, exactly as `resolveKickerPayments`
+ *  refuses a mixed sacrifice/return composition. Unreachable from any printed
+ *  card today (every shipped Kicker is mana-only); merging the two selections is
+ *  the work the first card that needs it pays for. */
+export function assertKickerPermanentSlotFree(
+    cardDef: CardDefinition,
+    payments: KickerPayments | undefined,
+    ownSacrifice: SacrificeSelection | undefined
+): void {
+    if (!ownSacrifice) return;
+    if (!hasKickerPermanentLeg(cardDef, payments)) return;
+    throw new Error(
+        "This spell's kicker cost cannot be paid alongside its other additional costs"
+    );
+}
+
 /** CR 601.2f / 601.2h — the cast's ONE permanent-cost selection, folding the
  *  chosen ALTERNATIVE cost's permanent leg (CR 118.9) and every paid KICKER's
  *  permanent legs (CR 702.33a) into a single explicit pick. Returns `undefined`

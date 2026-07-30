@@ -8,10 +8,12 @@
 // See per-card behaviour in the mmq (Gush/Thwart) and vis (Fireblast) set tests.
 
 import { describe, it, expect } from "vitest";
-import type { AlternativeCost } from "../../cards/types";
+import type { AlternativeCost, CostLegs } from "../../cards/types";
 import {
     canPayAlternativeCost,
     buildAlternativeCostChoice,
+    buildCostLegsHandChoice,
+    buildCostLegsPermanentChoice,
     matchingPermanentsForAltCost,
 } from "../alternativeCost";
 import {
@@ -214,5 +216,90 @@ describe("applySacrificeSelection — alternative-cost terminal actions (CR 118.
         const p1 = state.players[0];
         expect(p1.battlefield).toHaveLength(0);
         expect(p1.graveyard).toHaveLength(2);
+    });
+});
+
+describe("merged cost legs must agree on their terminal action (CR 601.2f, issue #1937)", () => {
+    // `buildCostLegs*Choice` is the point where an ALTERNATIVE cost's leg and a
+    // paid KICKER's leg (CR 702.33a) become ONE selection/picker. The action
+    // rides on that selection, not per requirement, so two legs disagreeing on
+    // it cannot both be honoured. `resolveKickerPayments` reconciles
+    // kicker-vs-kicker only and never sees this pairing — letting the first
+    // leg's action win would silently bounce a permanent that should have been
+    // sacrificed (or discard a card that should have been exiled).
+    const returnLeg: CostLegs = {
+        permanent: {
+            action: "return" as const,
+            filter: { subtypes: ["Island"] },
+            count: 1,
+        },
+    };
+    const sacrificeLeg: CostLegs = {
+        permanent: {
+            action: "sacrifice" as const,
+            filter: { subtypes: ["Mountain"] },
+            count: 1,
+        },
+    };
+
+    it("throws on a return leg merged with a sacrifice leg", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(island.id, {
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            id: "i1",
+                        }),
+                        makeInstance(mountain.id, {
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            id: "m1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(() =>
+            buildCostLegsPermanentChoice(
+                state,
+                "p1",
+                [{ legs: returnLeg }, { legs: sacrificeLeg, explicit: true }],
+                "Probe"
+            )
+        ).toThrow(/cannot be paid together/i);
+        // Agreeing legs still merge into one selection.
+        const ok = buildCostLegsPermanentChoice(
+            state,
+            "p1",
+            [{ legs: sacrificeLeg }, { legs: sacrificeLeg, explicit: true }],
+            "Probe"
+        );
+        expect(ok?.action).toBe("sacrifice");
+        expect(ok?.requirements).toHaveLength(2);
+    });
+
+    it("throws on an exile hand leg merged with a discard hand leg", () => {
+        const player = makePlayer("p1");
+        const exileLeg: CostLegs = {
+            hand: {
+                action: "exile" as const,
+                requirements: [{ filter: { type: "Creature" }, count: 1 }],
+            },
+        };
+        const discardLeg: CostLegs = {
+            hand: {
+                action: "discard" as const,
+                requirements: [{ filter: { type: "Land" }, count: 1 }],
+            },
+        };
+        expect(() =>
+            buildCostLegsHandChoice(player, [exileLeg, discardLeg], "x1")
+        ).toThrow(/cannot be paid together/i);
+        expect(
+            buildCostLegsHandChoice(player, [exileLeg, exileLeg], "x1")?.action
+        ).toBe("exile");
     });
 });

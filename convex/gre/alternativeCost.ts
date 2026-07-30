@@ -395,8 +395,12 @@ export function buildAlternativeCostChoice(
  *  instead of replacing it.
  *
  *  Every contributing leg must agree on the terminal `action` (the action rides
- *  on the selection, not the requirement); a disagreeing set is rejected upstream
- *  by `resolveKickerPayments`, and here the FIRST contributing leg's action wins.
+ *  on the SELECTION, not the requirement), and a disagreeing merged set THROWS
+ *  here. `resolveKickerPayments` reconciles kicker-vs-kicker only, so it cannot
+ *  see an alternative cost's `return` leg meeting a Kicker's `sacrifice` one;
+ *  letting the first leg's action win would silently bounce a permanent that
+ *  should have been sacrificed. The reconciliation belongs where the legs are
+ *  MERGED — unreachable from any printed card today, fail-closed regardless.
  *  `explicit` entries are never auto-resolved and MUST be declared last —
  *  `autoResolveFungible` stops at the first one, since picks are allocated to
  *  requirements greedily in order. */
@@ -416,7 +420,11 @@ export function buildCostLegsPermanentChoice(
         // leg" rather than a throw on a path the client also walks.
         const count = altCostPermanentCardinal(entry.legs);
         if (count === undefined) continue;
-        action ??= leg.action === "return" ? "return" : "sacrifice";
+        const legAction = leg.action === "return" ? "return" : "sacrifice";
+        if (action !== undefined && action !== legAction) {
+            throw new Error("These costs cannot be paid together");
+        }
+        action = legAction;
         requirements.push({
             filter: leg.filter,
             count,
@@ -485,9 +493,12 @@ export type CastHandCostChoice = {
  *  generalized form `buildAlternativeCostHandChoice` delegates to.
  *
  *  Every contributing leg must agree on the terminal `action` (exile vs discard
- *  rides on the picker, not the requirement); the FIRST contributing leg's
- *  action wins, and a disagreeing composition is not reachable from any printed
- *  card. Requirements concatenate in leg order, so the AUTHORING CONSTRAINT on
+ *  rides on the PICKER, not the requirement), and a disagreeing merged set
+ *  THROWS — the hand-leg twin of the permanent-leg reconciliation above: an
+ *  alternative cost's `exile` leg meeting a Kicker's `discard` one would
+ *  otherwise silently send a card to the wrong zone. Not reachable from any
+ *  printed card. Requirements concatenate in leg order, so the AUTHORING
+ *  CONSTRAINT on
  *  `CostLegs.hand` (most restrictive requirement first) extends across legs. */
 export function buildCostLegsHandChoice(
     player: PlayerState,
@@ -498,7 +509,10 @@ export function buildCostLegsHandChoice(
     let action: "exile" | "discard" | undefined;
     for (const leg of legs) {
         if (!leg.hand) continue;
-        action ??= leg.hand.action;
+        if (action !== undefined && action !== leg.hand.action) {
+            throw new Error("These costs cannot be paid together");
+        }
+        action = leg.hand.action;
         for (const r of leg.hand.requirements) {
             requirements.push({ filter: r.filter, count: r.count });
         }
