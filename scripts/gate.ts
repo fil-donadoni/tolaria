@@ -35,6 +35,7 @@
  *   TOLARIA_ALLOW_FULL_SUITE=1 escape hatch for the issue-worktree guard
  *   TOLARIA_VITEST_WORKERS     worker cap read by vitest.config.ts
  *   TOLARIA_GATE_LOCK_ROOT     lock location override (tests only)
+ *   TOLARIA_GATE_HEARTBEAT_MS  owner-stamp refresh period override (tests only)
  */
 import { spawn, spawnSync } from "node:child_process";
 import {
@@ -53,8 +54,17 @@ const LOCK_ROOT =
     process.env.TOLARIA_GATE_LOCK_ROOT ?? join(homedir(), ".cache", "tolaria");
 const LOCK_DIR = join(LOCK_ROOT, "gate.lock");
 const OWNER_FILE = join(LOCK_DIR, "owner.json");
-/** A held lock older than this is assumed orphaned even if its pid still exists. */
+/** A lock whose owner stamp is older than this is assumed orphaned even if its
+ *  pid still exists. `ts` is a HEARTBEAT, not the acquisition time: the holder
+ *  refreshes it every HEARTBEAT_MS (issue #1924 — a ladder run legitimately
+ *  holds for hours), so only a holder that stopped heartbeating for 45 min is
+ *  pruned. Dead-pid pruning is unchanged and remains the primary path. */
 const STALE_MS = 45 * 60 * 1000;
+/** Owner-stamp refresh period while the heavy tier holds the lock.
+ *  Overridable so the test suite can observe a refresh in milliseconds. */
+const HEARTBEAT_MS = Number(
+    process.env.TOLARIA_GATE_HEARTBEAT_MS ?? 5 * 60 * 1000
+);
 const POLL_MS = 2000;
 const NCPU = cpus().length;
 /** Full-speed worker count for the heavy tier — leave one core for the OS. */
@@ -231,6 +241,22 @@ async function main() {
     const nested = process.env.TOLARIA_GATE_HELD === "1";
     if (tier === "heavy" && !nested) {
         await acquire();
+        // Heartbeat: keep the owner stamp fresh so a legitimately long hold
+        // (the bot ladder runs for hours) is never pruned as stale by a
+        // waiter. `unref` so the timer never keeps the process alive.
+        const hb = setInterval(() => {
+            const owner = readOwner();
+            if (!owner || owner.pid !== process.pid) return; // not ours
+            try {
+                writeFileSync(
+                    OWNER_FILE,
+                    JSON.stringify({ ...owner, ts: Date.now() })
+                );
+            } catch {
+                /* lock may be mid-release — never crash the gate for this */
+            }
+        }, HEARTBEAT_MS);
+        hb.unref();
         process.on("exit", release);
         for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
             process.on(sig, () => {

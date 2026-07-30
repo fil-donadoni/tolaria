@@ -1,6 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { spawn, spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, rmSync, existsSync } from "node:fs";
+import {
+    mkdtempSync,
+    mkdirSync,
+    rmSync,
+    existsSync,
+    readFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -115,6 +121,25 @@ describe("gate.ts — machine-wide mutex", () => {
         expect(Number.isFinite(bStart)).toBe(true);
         // B may only begin once A has released — i.e. after A's last statement.
         expect(bStart).toBeGreaterThan(aOut);
+    }, 20_000);
+
+    it("heartbeats the owner stamp while holding — a long hold never reads stale (issue #1924)", async () => {
+        const child = spawn("bun", [GATE, "heavy", "sleep 2"], {
+            cwd: lockRoot,
+            env: env({ TOLARIA_GATE_HEARTBEAT_MS: "200" }),
+        } as never);
+        const ownerFile = join(lockRoot, "gate.lock", "owner.json");
+        const readTs = () =>
+            (JSON.parse(readFileSync(ownerFile, "utf8")) as { ts: number }).ts;
+        await new Promise((r) => setTimeout(r, 700));
+        const t1 = readTs();
+        await new Promise((r) => setTimeout(r, 800));
+        const t2 = readTs();
+        await new Promise<void>((r) => child.on("exit", () => r()));
+        // The stamp must advance while the command runs: waiters measure
+        // staleness from it, so a refreshed stamp is what protects a
+        // multi-hour ladder hold from the 45-min prune.
+        expect(t2).toBeGreaterThan(t1);
     }, 20_000);
 
     it("prunes a lock whose holder is dead instead of waiting for it", () => {

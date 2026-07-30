@@ -108,6 +108,9 @@ import {
     getRootDecisionSink,
     type RootDecisionMechanism,
 } from "./ai/decisionTelemetry";
+// Ladder A/B config seam (issue #1924) — null in live play, so every knob
+// below stays at its production default outside a ladder run.
+import { getSearchVariant } from "./ai/searchVariant";
 import {
     applyLandEntrySubmit,
     applyMayPaySubmit,
@@ -1069,7 +1072,8 @@ export function selectRolloutMove(
 
 function ucb1(edge: Edge): number {
     const exploit = edge.totalReward / edge.visits;
-    const explore = UCB_C * Math.sqrt(Math.log(edge.avail) / edge.visits);
+    const c = getSearchVariant()?.ucbC ?? UCB_C;
+    const explore = c * Math.sqrt(Math.log(edge.avail) / edge.visits);
     return exploit + explore;
 }
 

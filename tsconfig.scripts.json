@@ -6,6 +6,14 @@
         "module": "ESNext",
         "types": ["node", "bun"],
         "skipLibCheck": true,
+        // scripts/ladder.ts pulls src/lib/ai/selfplay/* (which imports the
+        // engine via @convex/…), so this project needs the same alias map as
+        // tsconfig.app.json.
+        "paths": {
+            "~/*": ["./src/*"],
+            "@/*": ["./src/*"],
+            "@convex/*": ["./convex/*"]
+        },
 
         /* Bundler mode */
         "moduleResolution": "bundler",
