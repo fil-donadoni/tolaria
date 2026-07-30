@@ -120,6 +120,23 @@ describe("matchesPermanentFilter", () => {
         ).toBe(true);
     });
 
+    it("excludeSubtypes rejects permanents carrying any listed subtype ('non-Lair land', issue #1938)", () => {
+        const forest = permanent({ types: ["Land"], subtypes: ["Forest"] });
+        const lair = permanent({ types: ["Land"], subtypes: ["Lair"] });
+        const nonLairLand = {
+            types: "Land" as const,
+            excludeSubtypes: "Lair",
+        };
+        expect(matchesPermanentFilter(forest, nonLairLand)).toBe(true);
+        expect(matchesPermanentFilter(lair, nonLairLand)).toBe(false);
+        // Array form, AND with `types`.
+        expect(
+            matchesPermanentFilter(lair, {
+                excludeSubtypes: ["Cave", "Lair"],
+            })
+        ).toBe(false);
+    });
+
     it("honors requireAbility / excludeAbility", () => {
         const card = permanent({ staticAbilities: ["flying"] });
         expect(matchesPermanentFilter(card, { requireAbility: "flying" })).toBe(

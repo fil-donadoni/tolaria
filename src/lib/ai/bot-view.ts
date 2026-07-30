@@ -343,7 +343,16 @@ function readChoiceZone(
                                     )?.manaCost
                                 )) as Color[],
                         },
-                        filter
+                        filter,
+                        // CR 701.16 (issue #1938 fixup 2) — resolves
+                        // `controllerRelation` ("sacrifice two Swamps YOU
+                        // control", Infernal Denizen / Minion of Leshrac)
+                        // against the CHOOSER. Without this the filter fails
+                        // CLOSED, the candidate pool goes empty even though
+                        // `head.candidateIds` (intersected below) already
+                        // lists legal picks, and the bot can't enumerate a
+                        // move for the pick — a silent stall, not a crash.
+                        { selfControllerId: head.playerId }
                     )
                 );
             }
@@ -409,7 +418,15 @@ function mayPayIsAffordable(
     if (norm.life !== undefined && bot.life < norm.life) return false;
     if (norm.permanent) {
         const matching = bot.battlefield.filter((c) =>
-            matchesPermanentFilter(c, norm.permanent!.filter)
+            matchesPermanentFilter(c, norm.permanent!.filter, {
+                // CR 701.16 (issue #1938 fixup 2) — resolves
+                // `controllerRelation` ("sacrifice two Swamps YOU control")
+                // against the bot itself, the mayPay's payer. Without this the
+                // filter fails CLOSED and the bot always evaluates a
+                // controllerRelation-gated sacrifice leg as unaffordable, even
+                // with legal candidates on board.
+                selfControllerId: botId,
+            })
         );
         if (typeof norm.permanent.count === "object") {
             // CR 118 threshold mode — affordable iff the payer's matching

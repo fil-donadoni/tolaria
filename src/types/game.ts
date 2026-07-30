@@ -302,6 +302,21 @@ export interface CardInstance {
      *  strips `card`/`knownTo`), so the client can hide a used-up activation
      *  identically to the server's `assertActivationTimingLegal` (issue #1694). */
     activationsThisTurn?: Readonly<Record<string, number>>;
+    /** CR 111.5 / 701.16 — true iff this permanent is a token (not backed by a
+     *  card). Mirrors `CardInstanceState.isToken` (`convex/gre/state.ts`);
+     *  forwarded by `slimCard` (the projection only strips `card`/`knownTo`).
+     *  Read by `toMatchablePermanent` (`~/lib/card-utils.ts`) so a client-side
+     *  `may-pay` sacrifice affordability check (`PermanentFilter.isToken`,
+     *  "sacrifice a nontoken permanent") matches the server instead of
+     *  silently treating every permanent as non-token (issue #1938 fixup 2). */
+    isToken?: boolean;
+    /** CR 111 / 707.1 — instance id of the permanent that created this token
+     *  (token provenance, e.g. Tetravus). Mirrors `CardInstanceState.createdBy`
+     *  (`convex/gre/state.ts`); forwarded by `slimCard` (the projection only
+     *  strips `card`/`knownTo`). Read by `toMatchablePermanent` so a client-side
+     *  `may-pay` sacrifice filter's `createdBy` clause matches the server
+     *  (issue #1938 fixup 2). */
+    createdBy?: string;
 }
 
 export interface Combat {

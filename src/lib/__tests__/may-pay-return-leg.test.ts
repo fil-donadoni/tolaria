@@ -9,13 +9,24 @@
 
 import { describe, expect, it } from "vitest";
 import { projectPublicState } from "@convex/gameProjections";
-import { makePlayer, makeState } from "@convex/cards/__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "@convex/cards/__tests__/setup";
 import {
     RETURN_A_LAND,
     fireReturnLegEtb,
     returnLegLand,
     returnLegProbeInstance,
 } from "@convex/gre/__tests__/fixtures/mayPayReturnLegProbe";
+import { crosissCatacombs } from "@convex/cards/sets/pls/colorless";
+import {
+    resolveTopOfStack,
+    type CardInstanceState,
+    type GameState,
+    type StackItem,
+} from "@convex/gre/state";
 import type { PendingChoice } from "~/types/game";
 import {
     mayPayCanAfford,
@@ -24,6 +35,7 @@ import {
     mayPayRequiredSacrifices,
     mayPaySacrificeCount,
     mayPaySacrificePickSatisfied,
+    mayPaySacrificePower,
     normalizeMayPayCost,
 } from "~/lib/card-utils";
 import {
@@ -144,5 +156,72 @@ describe("may-pay return leg — prompt wiring (issue #1933)", () => {
         const legacy: PendingChoice = { ...choice };
         delete legacy.permanentAction;
         expect(mayPayPermanentPickVerb(legacy)).toBe("sacrifice");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Real Lair card, zero legal return candidates (issue #1938 fixup)
+//
+// The probe fixture's own filter (`{ subtypes: "Forest" }`) never exercises
+// `excludeSubtypes`, so it can't catch a client gate that silently ignores
+// it. This drives the REAL Planeshift Lair cost
+// (`{ types: "Land", excludeSubtypes: "Lair" }`) through the same reducer
+// path, on a battlefield where the Lair is the ONLY permanent — its own
+// return-leg filter excludes itself, so there is no legal candidate. Server
+// proof of the same scenario:
+// convex/cards/sets/pls/__tests__/colorless.test.ts ("with no legal non-Lair
+// land, the Lair is sacrificed..." — `canPayMayPayCost` is `false`). Before
+// the fixup, the client mirror (`matchesPermanentFilter` in card-utils.ts)
+// had no `excludeSubtypes` branch, so `mayPaySacrificeCount` counted the Lair
+// itself as a legal candidate and `mayPayCanAfford` came back `true` — the
+// Pay button enabled with nothing legal to pick, and `submitMayPay` then
+// threw "Cannot pay the cost" server-side.
+// ---------------------------------------------------------------------------
+
+/** Puts a Lair's self-ETB trigger on the stack with its `triggerSourceId`
+ *  set, mirroring `fireReturnLegEtb` above and `fireLairEtb` in
+ *  `convex/cards/sets/pls/__tests__/colorless.test.ts` (the server-side proof
+ *  for this exact scenario). */
+function fireLairEtb(state: GameState, lair: CardInstanceState): void {
+    state.stack.push({
+        ...lair,
+        zone: "stack",
+        castById: lair.controllerId,
+        triggeredAbilityId: crosissCatacombs.triggeredAbilities![0].id,
+        triggerSourceId: lair.id,
+        triggerEvent: {
+            type: "PERMANENT_ENTERED",
+            instanceId: lair.id,
+            controllerId: lair.controllerId,
+            types: ["Land"],
+        } as StackItem["triggerEvent"],
+        targets: [],
+    });
+    resolveTopOfStack(state);
+}
+
+describe("may-pay return leg — real Lair card, zero legal candidates (issue #1938 fixup)", () => {
+    it("mayPaySacrificeCount / mayPayCanAfford / mayPaySacrificePower agree with the server (0 / false / 0)", () => {
+        const lair = makeInstance(crosissCatacombs.id, {
+            id: "lair",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [lair] }),
+                makePlayer("p2"),
+            ],
+        });
+        fireLairEtb(state, lair);
+
+        const projected = projectPublicState(state, 1, "p1");
+        const choice = projected.pendingChoices![0] as PendingChoice;
+        const battlefield = projected.players[0].battlefield;
+
+        const count = mayPaySacrificeCount(choice.cost, battlefield);
+        expect(count).toBe(0);
+        expect(mayPaySacrificePower(choice.cost, battlefield)).toBe(0);
+        expect(mayPayCanAfford(choice.cost, {}, 20, count)).toBe(false);
     });
 });

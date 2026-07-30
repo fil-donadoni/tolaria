@@ -2472,6 +2472,14 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Crosis's Catacombs",
+        "scryfallId": "7caad74f-c0d0-4eca-94be-b89a2c9a3980",
+        "oracleId": "e9a7dede-3968-4b0e-a707-419d46a6fec9",
+        "firstSet": "pls",
+        "firstPrintId": "7caad74f-c0d0-4eca-94be-b89a2c9a3980",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Crown of Flames",
         "scryfallId": "f2c82741-2869-41f9-82f4-6ed88756e2fd",
         "oracleId": "f14fb965-5ebc-427a-a5b8-149f54c64171",
@@ -2686,6 +2694,14 @@
         "firstSet": "inv",
         "firstPrintId": "6f22b575-443a-4c06-8e75-d4140cbd3660",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Darigaaz's Caldera",
+        "scryfallId": "752f6f0c-af30-4937-b4a7-48f493e007a0",
+        "oracleId": "19b58ec9-bb88-4193-8ea8-c8f09ceec1ed",
+        "firstSet": "pls",
+        "firstPrintId": "752f6f0c-af30-4937-b4a7-48f493e007a0",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Dark Banishing",
@@ -3222,6 +3238,14 @@
         "firstSet": "inv",
         "firstPrintId": "24936fa9-41a3-4da5-91cf-c28fa45f47c9",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Dromar's Cavern",
+        "scryfallId": "85f10cee-6a63-438e-a9df-6b902dd025b8",
+        "oracleId": "d8b57707-796d-4488-8f91-65bb75bc6281",
+        "firstSet": "pls",
+        "firstPrintId": "85f10cee-6a63-438e-a9df-6b902dd025b8",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Drop of Honey",
@@ -10328,6 +10352,14 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Rith's Grove",
+        "scryfallId": "740fa25d-9c1f-44eb-9eb4-0dd514cb315a",
+        "oracleId": "e13289e5-370b-435b-a38e-cf57c3078cec",
+        "firstSet": "pls",
+        "firstPrintId": "740fa25d-9c1f-44eb-9eb4-0dd514cb315a",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Ritual of Subdual",
         "scryfallId": "5c5c01e7-8116-45fc-afc3-d52a31a635cb",
         "oracleId": "e0587218-206e-41ed-af3c-f06b7a668e90",
@@ -13110,6 +13142,14 @@
         "firstSet": "inv",
         "firstPrintId": "9857af81-fb95-4dc4-b048-9ce4e96d1eca",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Treva's Ruins",
+        "scryfallId": "8bae2458-b54f-426a-ad40-13529a73c423",
+        "oracleId": "7b2c7758-2b89-49ff-8838-8dc9880c7209",
+        "firstSet": "pls",
+        "firstPrintId": "8bae2458-b54f-426a-ad40-13529a73c423",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Tribal Flames",
