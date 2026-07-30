@@ -42,8 +42,8 @@ The fast-follow landed. Hogaak, Arisen Necropolis (`{5}{B/G}{B/G}`) exercises th
     in #1738/#1739 — `normalizeManaCost` now folds guild-hybrid pips into
     composite `"R/W"`-style keys and the land auto-tap solver settles them
     directly, no convoke required. Figure of Destiny/Figure of Fable, Lutri,
-    Lurrus, Deathrite Shaman, Thopter Foundry and the ECL evoke trio
-    (Carnage Interpreter, Vibrance, Deceit, Wistfulness) all pay real
+    Lurrus, Deathrite Shaman, Thopter Foundry, Carnage Interpreter (CLU)
+    and the ECL evoke trio (Vibrance, Deceit, Wistfulness) all pay real
     guild-hybrid pips this way (#1755, #1926, #1927). Still out: monocolour
     hybrid `{2/W}` (tracked-by #1743) and Phyrexian-hybrid (no consumer,
     closed out-of-scope).
