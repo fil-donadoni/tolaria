@@ -9368,6 +9368,14 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Phyrexian Tyranny",
+        "scryfallId": "e8440ca8-73ca-462b-a735-f6fb3d0de603",
+        "oracleId": "55082cd0-a33c-4f1d-9f46-9578f63e6bb6",
+        "firstSet": "pls",
+        "firstPrintId": "e8440ca8-73ca-462b-a735-f6fb3d0de603",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Piety",
         "scryfallId": "f649c571-d7ec-4ebc-9e18-b0657cab495b",
         "oracleId": "0c017406-7fc3-4701-93ec-ddb02044c12a",

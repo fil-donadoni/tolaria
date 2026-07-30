@@ -3541,6 +3541,21 @@ export const EVENT_FIELD_REGISTRY: Record<
                 e.type === "PERMANENT_LEFT" ? e.ownerId : undefined,
         },
     },
+    // CR 121.1 / 117.3a / issue #1946 — "whenever a player draws a card, THAT
+    // PLAYER loses 2 life unless they pay {2}" (Phyrexian Tyranny). The
+    // drawing player is CR 117.3a's "triggering player" for the mayPay
+    // decision — usually NOT the enchantment's controller. Mirrors
+    // `PHASE_BEGIN.activePlayerId` (issue #1066): unblocks a `drawTrigger({
+    // scope: "each", effects: [...] })` DSL body to read the drawing player
+    // straight off the firing `CardDrawnEvent` via `{ ref: "$event.playerId"
+    // }` instead of the plain `"controller"` selector, which under `scope:
+    // "each"` resolves to the SOURCE's controller, not the player who drew.
+    CARD_DRAWN: {
+        playerId: {
+            family: "player",
+            resolve: (e) => (e.type === "CARD_DRAWN" ? e.playerId : undefined),
+        },
+    },
 };
 
 /** The registry row for a `(GameEventType, field)` pair, or undefined when the
