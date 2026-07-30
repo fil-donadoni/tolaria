@@ -667,6 +667,85 @@ describe("OP_VALUERS — representative backfilled valuers (issue #1430)", () =>
             expect(v.tags).not.toContain("targeted"); // a `ref` source, not an announced target
         });
     });
+
+    // Issue #1945 — the SAME `$each` / bound-ref trap `dealDamage` guards
+    // against (#1521 / #1548). Both shipped `chooseCategorized` cards are
+    // symmetric "each player …" sweepers wrapped in `forEach { set:
+    // "players" }` and name the iteration variable `{ ref: "$each" }`. The
+    // context-free `isSelf` maps EVERY `{ ref }` object to self, and the
+    // walker evaluates a `forEach` body ONCE — so without the guard the
+    // caster's own symmetric sweeper scores as pure self-harm and the bot
+    // never casts it.
+    describe("chooseCategorized (CR 601.2b / 701.9) — issue #1945", () => {
+        const eachPlayerSweep: EffectOp = {
+            op: "chooseCategorized",
+            player: { ref: "$each" },
+            zone: "hand",
+            categories: [{ label: "White", filter: { color: "W" } }],
+            onPicked: "keep",
+            sweep: { filter: { excludeType: "Land" }, action: "discard" },
+        };
+        const eachPlayerBounce: EffectOp = {
+            op: "chooseCategorized",
+            player: { ref: "$each" },
+            zone: "battlefield",
+            categories: [{ label: "Plains", filter: { subtype: "Plains" } }],
+            onPicked: "returnToHand",
+        };
+
+        it("scores an each-player hand sweep NEUTRAL, never a self-cost", () => {
+            const v = valueOp(eachPlayerSweep, cf);
+            expect(v.points).toBe(0);
+            expect(v.tags).not.toContain("self-cost");
+        });
+
+        it("scores an each-player battlefield bounce NEUTRAL, never a self-cost", () => {
+            const v = valueOp(eachPlayerBounce, cf);
+            expect(v.points).toBe(0);
+            expect(v.tags).not.toContain("self-cost");
+        });
+
+        it("a symmetric each-player script does not net negative (the bot would never cast it)", () => {
+            const script: EffectOp[] = [
+                {
+                    op: "forEach",
+                    select: { set: "players" },
+                    effects: [eachPlayerSweep],
+                },
+            ];
+            expect(valueEffectScript(script, cf).points).toBe(0);
+        });
+
+        it("an opponent-directed sweep stays positive", () => {
+            const v = valueOp(
+                { ...eachPlayerSweep, player: "opponent" } as EffectOp,
+                cf
+            );
+            expect(v.points).toBeGreaterThan(0);
+            expect(v.tags).not.toContain("self-cost");
+        });
+
+        it("the LITERAL controller string is the only genuine self-cost", () => {
+            const v = valueOp(
+                { ...eachPlayerSweep, player: "controller" } as EffectOp,
+                cf
+            );
+            expect(v.points).toBeLessThan(0);
+            expect(v.tags).toContain("self-cost");
+        });
+
+        it("a BOUND player ref is harmful-by-default (opponent-directed), not self", () => {
+            const v = valueOp(
+                {
+                    ...eachPlayerSweep,
+                    player: { ref: "$slain.controller" },
+                } as EffectOp,
+                cf
+            );
+            expect(v.points).toBeGreaterThan(0);
+            expect(v.tags).not.toContain("self-cost");
+        });
+    });
 });
 
 describe("walker — structural constructs (PRD #1423)", () => {

@@ -679,14 +679,38 @@ function buildOwedChoice(
         // (`discardCount`) AND the concrete, per-requirement-legal `discardIds`
         // the bot submits. Undefined for a plain yes/no or auto-resolving pay.
         ...mayPayDiscardPick(state, head, candidatesForChoice),
-        // issue #1364 (Atraxa) — a CATEGORIZED look-distribute constrains the
-        // keep beyond the count bounds (at most one card per category, each
-        // card claimable by only one), so the policy must test each addition
-        // rather than blindly take `max` best-valued cards; an over-picked
-        // submission is rejected server-side, which freezes the bot. Undefined
-        // for an ordinary dig.
+        // issue #1364 (Atraxa) / #1945 (Noxious Vapors, Planar Overlay) — a
+        // CATEGORIZED pick constrains the keep beyond the count bounds (at
+        // most one member per category, each claimable by only one), so the
+        // policy must test each addition rather than blindly take `max`
+        // best-valued members; an over-picked submission is rejected
+        // server-side, which freezes the bot. `choose-categorized` is
+        // `look-distribute`'s hand/battlefield sibling (same `categories`
+        // shape, `gre/categorizedPick.ts`'s bipartite legality) — both route
+        // through the SAME `chooseResolution` branch (`brain.ts`). Undefined
+        // for an ordinary dig / any other kind.
         categories:
-            head.kind === "look-distribute" ? head.categories : undefined,
+            head.kind === "look-distribute" ||
+            head.kind === "choose-categorized"
+                ? head.categories
+                : undefined,
+        // issue #1945 — the two extra signals a `choose-categorized` pick
+        // carries, both invisible in `categories` alone and both required for
+        // a LEGAL, non-self-harming answer:
+        //   `categoryRule: "cover"` — the submission must answer EVERY
+        //     non-empty category (a partial answer is rejected server-side →
+        //     bot freeze, the recurring "bot stalls on a new choice mechanic"
+        //     class).
+        //   `pickPolarity` — whether the picks are the half the chooser KEEPS
+        //     (Noxious Vapors) or the half it LOSES (Planar Overlay's
+        //     bounce). Without it the shared branch ranks a bounce "best
+        //     first" and the bot returns its two best lands.
+        // Both are undefined for `look-distribute` and every other kind, so
+        // that branch keeps its pre-#1945 behaviour exactly.
+        categoryRule:
+            head.kind === "choose-categorized" ? head.categoryRule : undefined,
+        pickPolarity:
+            head.kind === "choose-categorized" ? head.pickPolarity : undefined,
         // issue #242 — the discard heuristic needs the board's mana picture to
         // protect scarce lands and rank spells by castability.
         manaSituation:
