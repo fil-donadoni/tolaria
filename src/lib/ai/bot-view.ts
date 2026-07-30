@@ -22,7 +22,7 @@ import {
     isSearchableChoiceNode,
 } from "@convex/gre";
 import { cardValueById } from "@convex/gre";
-import { manaValue } from "@convex/gre/constants";
+import { manaValue, parseHybridCostKey } from "@convex/gre/constants";
 import { matchesPermanentFilter } from "@convex/cards/filters";
 import { getColorsFromCost, getCardColorIdentity } from "@convex/cards/colors";
 import { tryGetDefinition } from "@convex/cards";
@@ -173,6 +173,23 @@ function buildManaSpendChoiceView(
             const pips = norm[color] ?? 0;
             if (pips > 0) {
                 colorUsefulness[color] = (colorUsefulness[color] ?? 0) + pips;
+            }
+        }
+        // Issue #1741 — a guild-hybrid pip (CR 202.1a) is folded into the
+        // normalized cost under a COMPOSITE key (`"R/W"`, issue #1738), not a
+        // flat colour key, so the flat-key scan above always reads zero pips
+        // for a hybrid card: a hand-only {R/W} one-drop contributed nothing to
+        // either colour's usefulness and the bot couldn't tell a Mountain was
+        // worth protecting for it. Count each hybrid pip toward EVERY
+        // candidate colour that can pay it — either one makes the card
+        // castable, so both are "useful" to protect.
+        for (const [key, count] of Object.entries(norm)) {
+            if (count <= 0) continue;
+            const pair = parseHybridCostKey(key);
+            if (!pair) continue;
+            for (const color of pair) {
+                if (!parked.choice.candidateColors.includes(color)) continue;
+                colorUsefulness[color] = (colorUsefulness[color] ?? 0) + count;
             }
         }
     }
