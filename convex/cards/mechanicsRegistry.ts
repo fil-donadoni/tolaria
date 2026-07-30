@@ -3489,6 +3489,30 @@ export const EVENT_FIELD_REGISTRY: Record<
                 e.type === "PERMANENT_ENTERED" ? e.controllerId : undefined,
         },
     },
+    // CR 603.10 / 400.7 / issue #1940 — "whenever a permanent is returned to
+    // a player's hand, THAT PLAYER discards a card" (Warped Devotion).
+    // `PERMANENT_LEFT` already IS the battlefield-departure event (`toZone:
+    // "hand"` narrows a `leftTrigger` to bounces) and already carries
+    // `ownerId` (CR 109.5, last-known information) — this row is the ONLY
+    // thing that was missing: a censused `$event.ownerId` read so a
+    // `leftTrigger({ scope: "any", toZone: "hand" })` DSL `effects[]` body
+    // can target the RETURNING permanent's owner (CR 108.3 — always the
+    // owner's hand), which is the "that player" the ability acts on — NOT
+    // necessarily the ability's own controller, since the trigger fires
+    // symmetrically on either player's bounce. Mirrors
+    // `PERMANENT_ENTERED.controllerId` above. (Owner-arbitrated rework of
+    // issue #1940: an earlier draft shipped a dedicated
+    // `PERMANENT_RETURNED_TO_HAND` event; review established `PERMANENT_LEFT`
+    // already covers the "returned to hand" case per ADR 0001's one-event-
+    // per-zone-of-origin rule, so the new event was retired in favor of this
+    // single field row.)
+    PERMANENT_LEFT: {
+        ownerId: {
+            family: "player",
+            resolve: (e) =>
+                e.type === "PERMANENT_LEFT" ? e.ownerId : undefined,
+        },
+    },
 };
 
 /** The registry row for a `(GameEventType, field)` pair, or undefined when the
