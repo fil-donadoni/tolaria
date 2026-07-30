@@ -8138,6 +8138,27 @@ export function emitCardsExiled(
     ];
 }
 
+/** Emits ONE LIBRARY_SEARCHED event when a `search-library` PendingChoice
+ *  commits (CR 701.19a, issue #788 — the residual "whenever an opponent
+ *  searches their library" trigger condition, Wan Shi Tong, Librarian). The
+ *  single choke point every library search funnels through
+ *  (`applyPendingChoiceSubmit`, `gre/pendingChoiceSubmit.ts`), regardless of
+ *  whether the search was authored as a DSL `choice(kind: "search-library")`
+ *  Op or an imperative `resolve()` tutor closure — both commit through the
+ *  SAME PendingChoice queue, so every shipped tutor and fetchland is covered
+ *  with no per-card wiring. Fires even on a zero-pick "whiff" search (a
+ *  fetchland with no basic land left still SEARCHED, CR 701.19a — the ACT of
+ *  searching is what matters, not the result). */
+export function emitLibrarySearchedEvent(
+    state: GameState,
+    playerId: string
+): void {
+    state.pendingEvents = [
+        ...(state.pendingEvents ?? []),
+        { type: "LIBRARY_SEARCHED", playerId },
+    ];
+}
+
 /** Emits a CARDS_EXILED entry for a single card that just left the
  *  battlefield into exile via `removePermanentTo` (issue #1558) — either a
  *  DIRECT exile request (`ctx.exile`, `exileWithAttachments`) or an IMPLICIT
@@ -10487,6 +10508,16 @@ export function buildSpellContext(
             // of the source taken AFTER cost payment but it retains the counters
             // it had — read them so the count reflects the pre-sacrifice state.
             if (target.id === item.id) return item.counters?.[type] ?? 0;
+            return 0;
+        },
+        // CR 107.3 / 601.2b (issue #788) — resolve()-body sibling of
+        // `PermanentView.chosenXOnCast`; see the SpellContext interface doc
+        // (`cards/types.ts`) for why `ctx.getX()` doesn't work here.
+        getChosenXOnCast(target: TargetSelection): number {
+            if (target.type !== "permanent") return 0;
+            const found = findOnBattlefield(state, target.id);
+            if (found) return found.card.chosenXOnCast ?? 0;
+            if (target.id === item.id) return item.chosenXOnCast ?? 0;
             return 0;
         },
         isEscaped(target: TargetSelection): boolean {

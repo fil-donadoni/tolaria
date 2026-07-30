@@ -2085,6 +2085,22 @@ export interface SpellContext {
     /** Reads the count of a given counter type on `target` (CR 122.6). Returns
      *  0 if the target has no counters of that type or has left play. */
     getCounterCount: (target: TargetSelection, type: string) => number;
+    /** Reads `target`'s `chosenXOnCast` (CR 107.3 / 601.2b) — the value chosen
+     *  for {X} in the permanent's OWN casting cost, snapshotted the instant it
+     *  entered the battlefield. The `resolve()`-body sibling of
+     *  `PermanentView.chosenXOnCast` (read by `matches`/`condition`/
+     *  `interveningIf`, which already receive `self: PermanentView` directly):
+     *  a triggered ability's `resolve` callback gets no `self`, so an ETB
+     *  effect that needs the announced X post-resolution (Wan Shi Tong,
+     *  Librarian's "put X +1/+1 counters ... draw half X, rounded down" —
+     *  arithmetic the frozen Effect Script grammar can't express, ADR 0045)
+     *  reads it here instead. NOT `ctx.getX()` — that reads the CURRENTLY
+     *  resolving stack item's `chosenX`, which for a trigger resolving after
+     *  its source's own spell has already left the stack is a stale/dropped
+     *  artefact (see `chosenXOnCast`'s own doc, `gre/state.ts`, the Jacked
+     *  Rabbit precedent). Returns 0 if the target has left the battlefield or
+     *  was never cast with a chosen {X}. */
+    getChosenXOnCast: (target: TargetSelection) => number;
     /** Re-writes a permanent's stored modal choice (`chosenModeId`, CR 700.2c)
      *  post-ETB — the "choose a color" half of a re-choosable modal permanent
      *  (Chromatic Armor: "{X}: Put a sleight counter on this Aura and choose a
@@ -6361,7 +6377,8 @@ export type GameEventType =
     | "COUNTER_ADDED"
     | "BECAME_TARGET"
     | "TOKENS_CREATED"
-    | "CARDS_EXILED";
+    | "CARDS_EXILED"
+    | "LIBRARY_SEARCHED";
 
 /** Damage event emitted whenever a source inflicts damage on a target
  *  (CR 120.3). Used by "whenever ~ deals damage" triggers. The
@@ -7023,6 +7040,29 @@ export interface CardsExiledEvent {
     }>;
 }
 
+/** Library-search event (CR 701.19a "search a library", 603.2 trigger
+ *  condition) — emitted ONCE per completed `search-library` PendingChoice
+ *  commit (issue #788, residual of the trigger-condition trio started by
+ *  `BecameTargetEvent`/#1265 and `TokensCreatedEvent`/#1345: "whenever an
+ *  opponent searches their library", Wan Shi Tong, Librarian). The single
+ *  choke point every library search funnels through
+ *  (`applyPendingChoiceSubmit`, `gre/pendingChoiceSubmit.ts`) regardless of
+ *  whether the search was authored as a DSL `choice(kind:
+ *  "search-library")` Op or an imperative `resolve()` tutor closure — every
+ *  shipped tutor and fetchland already routes through the same
+ *  `SpellContext.requestChoice` / PendingChoice commit path, so this one
+ *  emit site covers the whole catalogue with no per-card wiring. Fires even
+ *  on a zero-pick "whiff" search (a fetchland with no basic land left still
+ *  SEARCHED, CR 701.19a — the ACT of searching is the trigger condition,
+ *  not the result). */
+export interface LibrarySearchedEvent {
+    type: "LIBRARY_SEARCHED";
+    /** The player who performed the search (CR 701.19a) — the "opponent" in
+     *  "whenever an opponent searches their library" is this player,
+     *  relative to the trigger source's controller. */
+    playerId: string;
+}
+
 export type GameEvent =
     | DamageDealtEvent
     | PhaseBeginEvent
@@ -7047,7 +7087,8 @@ export type GameEvent =
     | CounterAddedEvent
     | BecameTargetEvent
     | TokensCreatedEvent
-    | CardsExiledEvent;
+    | CardsExiledEvent
+    | LibrarySearchedEvent;
 
 /** Read-only window over the live `GameState` exposed to `matches()` for
  *  state triggers (CR 603.8). Kept narrow on purpose so card definitions can

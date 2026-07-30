@@ -1476,9 +1476,26 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // Jade Monolith / Personal Incarnation / Reverse Damage shape). FREE /
         // AFK-ready / X-only unchanged. Net: total 467->468 (+1 new closure),
         // Op-blocked 149->150. Partition: 304+14+150=468.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(468);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(304);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(295);
+        //
+        // #788 (Wan Shi Tong, Librarian, tla/blue.ts): a BRAND-NEW catalogue
+        // card, not a migration. Its ETB ability ("put X counters, THEN draw
+        // half X cards, rounded down") is a `resolve()` closure because the
+        // integer-division clause is arithmetic the frozen `EffectValue`
+        // grammar can't express (ADR 0045) — a genuine, documented
+        // resolve() justification, not a missing-Op gap. The static
+        // clause-mapper only sees the `addCounter`/`drawCards` calls, both
+        // COVERED primitives, so it scores FREE — the same Urza's Saga-style
+        // false positive the census tolerates (a heuristic over call shapes,
+        // not a purity checker); the card ships with a per-card test file
+        // (`sets/tla/__tests__/blue.test.ts`), so it lands in the AFK-ready
+        // subset. The card's SECOND ability ("whenever an opponent searches
+        // their library...") is pure DSL (`effects: EffectOp[]`, no
+        // `resolve()`) and does not add to this census at all. Net: total
+        // 468->469 (+1 new closure), FREE 304->305, AFK-ready 295->296.
+        // X-only / Op-blocked unchanged. Partition: 305+14+150=469.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(469);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(305);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(296);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(150);
     });

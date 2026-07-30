@@ -21,6 +21,7 @@ import {
     normalizeMayPayCost,
     grantKnowledge,
     finalizeAuraHost,
+    emitLibrarySearchedEvent,
     type CardInstanceState,
     type GameState,
 } from "./state";
@@ -953,6 +954,22 @@ export function applyPendingChoiceSubmit(
             args.cardInstanceIds,
             head.playerId
         );
+    }
+
+    // CR 701.19a / 603.2 (issue #788) — a `search-library` choice commits
+    // exactly when the player finishes searching, whether or not they found
+    // anything (a fetchland whiff still "searched"). This is the single
+    // choke point every tutor/fetchland library search funnels through
+    // regardless of DSL-vs-resolve() authoring — see
+    // `emitLibrarySearchedEvent`'s doc comment. The searcher is the LIBRARY
+    // OWNER (`zoneOwnerId`), not necessarily the prompted chooser
+    // (`playerId`) — a Word of Command-style acting-player search (ADR 0037,
+    // the controller picks through the effect) still has the CONTROLLED
+    // player searching THEIR OWN library for CR purposes ("target player
+    // searches their library"), so it falls back to `playerId` only for the
+    // ordinary case where they're the same player.
+    if (head.kind === "search-library") {
+        emitLibrarySearchedEvent(state, head.zoneOwnerId ?? head.playerId);
     }
 
     queue.shift();
