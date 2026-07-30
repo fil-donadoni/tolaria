@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 import { isManaCostCovered, manaCostToString } from "../card-utils";
 import { normalizeManaCost } from "@convex/gre/state";
 import { getDefinition } from "@convex/cards";
+import { projectPublicState } from "@convex/gameProjections";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "@convex/cards/__tests__/setup";
 
 // Guild-hybrid pips on the CLIENT (CR 202.1a, issues #1738/#1740). Two cost
 // SHAPES reach these helpers and both must work: a card's PRINTED cost (the
@@ -65,5 +71,68 @@ describe("client isManaCostCovered agrees with the engine (CR 601.2g)", () => {
         expect(isManaCostCovered({ R: 1, G: 1 }, cost)).toBe(true);
         // Two mana of an unrelated colour cover the generic but not the pip.
         expect(isManaCostCovered({ G: 2 }, cost)).toBe(false);
+    });
+});
+
+// Frontend-wiring mandate (`.claude/rules/gre-development.md` § Frontend
+// wiring analysis) — a hand-built `PendingCast`/cost object cannot prove the
+// pip survives the wire; `pendingCast` must cross `projectPublicState`
+// unmangled. It does today only because `projectPublicState` spreads
+// `...state` and never touches `pendingCast`, but that is exactly the kind of
+// silent field-drop the reducer walk exists to catch pre-emptively — assert
+// it explicitly so a future projection rewrite that starts picking fields
+// individually cannot drop it unnoticed (#1740).
+describe("pendingCast hybrid pip survives projectPublicState (CR 202.1a, issue #1740)", () => {
+    function stateWithHybridPendingCast() {
+        const figure = makeInstance(FIGURE_OF_DESTINY, {
+            id: "figure",
+            zone: "hand",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { hand: [figure] }), makePlayer("p2")],
+        });
+        state.pendingCast = {
+            playerId: "p1",
+            cardInstanceId: "figure",
+            // The pending cast carries the NORMALIZED shape (composite
+            // "R/W" keys) — `announceCast` never leaves the printed
+            // `hybrid` array on it.
+            manaCost: normalizeManaCost(
+                getDefinition(FIGURE_OF_DESTINY).manaCost!
+            ),
+            tappedLandIds: [],
+        };
+        return state;
+    }
+
+    it("is owed and clears on payment — on the FAT state", () => {
+        const state = stateWithHybridPendingCast();
+        const cost = state.pendingCast!.manaCost;
+        expect(manaCostToString(cost)).toBe("{R/W}");
+        expect(isManaCostCovered({}, cost)).toBe(false);
+        expect(isManaCostCovered({ R: 1 }, cost)).toBe(true);
+        expect(isManaCostCovered({ W: 1 }, cost)).toBe(true);
+    });
+
+    it("the same pip, read off the PROJECTED wire state, is still owed and payable", () => {
+        const state = stateWithHybridPendingCast();
+        for (const viewerId of ["p1", "p2"]) {
+            const projected = projectPublicState(state, 1, viewerId);
+            expect(projected.pendingCast, `viewer ${viewerId}`).toBeDefined();
+            const wireCost = projected.pendingCast!.manaCost;
+            expect(manaCostToString(wireCost), `viewer ${viewerId}`).toBe(
+                "{R/W}"
+            );
+            expect(
+                isManaCostCovered({}, wireCost),
+                `viewer ${viewerId} empty pool`
+            ).toBe(false);
+            expect(
+                isManaCostCovered({ R: 1 }, wireCost),
+                `viewer ${viewerId} paid with R`
+            ).toBe(true);
+        }
     });
 });
