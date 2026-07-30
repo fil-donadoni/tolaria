@@ -190,9 +190,12 @@ export const lurrus: CardDefinition = {
 //     name: "Zirda, the Dawnwaker",
 //     oracleText:
 //         "Companion — Each permanent card in your starting deck has an activated ability. (If this card is your chosen companion, you may put it into your hand from outside the game for {3} as a sorcery.)\nAbilities you activate that aren't mana abilities cost {2} less to activate. This effect can't reduce the mana in that cost to less than one mana.\n{1}, {T}: Target creature can't block this turn.",
-//     // DIVERGENCE (tracked-by: #782): printed cost is {1}{R/W}{R/W} — two
-//     // HYBRID R/W pips, the same land-based-hybrid-payment gap narrowed on
-//     // `lutri`/`lurrus` above. Declared here as {1}{R}{W}.
+//     // DIVERGENCE (tracked-by: #1339): printed cost is {1}{R/W}{R/W} — two
+//     // HYBRID R/W pips. #782 (the land-based-hybrid-payment gap narrowed on
+//     // `lutri`/`lurrus` above) is now closed, so this would use `manaCost.hybrid`
+//     // like they do if shipped — but Zirda stays commented for the SEPARATE,
+//     // still-open #1339 (the cost-reduction-ability gap above). Declared here
+//     // as {1}{R}{W} pending that.
 //     manaCost: { generic: 1, R: 1, W: 1 },
 //     types: ["Creature"],
 //     supertypes: ["Legendary"],
