@@ -14,18 +14,12 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // game init to auto-declare it into the slot when the controller's Maindeck
 // qualifies.
 //
-// DIVERGENCE (tracked-by: #782): Lutri's printed cost is {1}{U/R}{U/R} — TWO
-// HYBRID U/R pips. `ManaCost` (cards/types.ts) has no hybrid-pip
-// representation at all (no `hybrid`/alternate-pip field, only fixed
-// per-colour counts) — the exact gap that stubs Deathrite Shaman
-// (rtr/multicolor.ts, also tracked-by #782). Declared here as the closest
-// faithful NON-hybrid narrowing — {1}{U}{R} (`generic: 1, U: 1, R: 1`) —
-// which never permits an illegal cast, only forbids some legal ones a
-// hybrid-flexible deck (e.g. mono-red or mono-blue heavy) could otherwise
-// make. This keeps the Companion FRAMEWORK (the point of #1391 — slot,
-// auto-declare, {3} summon special action) fully exercisable end-to-end
-// through a real, castable card while the underlying hybrid-mana capability
-// remains its own tracked gap, consistent with the existing #782 precedent.
+// Printed cost is {1}{U/R}{U/R} — TWO HYBRID U/R pips, declared via
+// `manaCost.hybrid` (issue #1338) and payable with mana off either colour of
+// land (issues #1738/#1739, PRD #1736, landed #1755) — see Figure of Destiny
+// (eve/multicolor.ts) for the reference shape. This closes the divergence
+// this card previously shipped under (tracked-by #782), the same gap that
+// stubbed Deathrite Shaman (rtr/multicolor.ts).
 export const lutri: CardDefinition = {
     // Kept as a literal (not imported from `gre/companion.ts`'s `LUTRI_ID`):
     // that module imports `tryGetDefinition` from the card registry
@@ -44,7 +38,13 @@ export const lutri: CardDefinition = {
     name: "Lutri, the Spellchaser",
     oracleText:
         "Companion — Each nonland card in your starting deck has a different name. (If this card is your chosen companion, you may put it into your hand from outside the game for {3} as a sorcery.)\nFlash\nWhen Lutri enters, if you cast it, copy target instant or sorcery spell you control. You may choose new targets for the copy.",
-    manaCost: { generic: 1, U: 1, R: 1 },
+    manaCost: {
+        generic: 1,
+        hybrid: [
+            ["U", "R"],
+            ["U", "R"],
+        ],
+    },
     types: ["Creature"],
     // CR 205.4a — type line is "Legendary Creature — Elemental Otter"
     // (Scryfall); the legend rule (CR 704.5j) only applies via this
@@ -112,17 +112,13 @@ export const lutri: CardDefinition = {
 // reads at game init to auto-declare it into the slot when the controller's
 // Maindeck qualifies.
 //
-// DIVERGENCE (tracked-by: #782): Lurrus's printed cost is {1}{W/B}{W/B} — TWO
-// HYBRID W/B pips. `ManaCost` (cards/types.ts) has no hybrid-pip
-// representation at all — the exact gap that stubs Deathrite Shaman
-// (rtr/multicolor.ts) and narrows Lutri (`lutri` above, same file).
-// Declared here as the closest faithful NON-hybrid narrowing — {1}{W}{B}
-// (`generic: 1, W: 1, B: 1`) — which never permits an illegal cast, only
-// forbids some legal ones a hybrid-flexible deck (e.g. mono-white or
-// mono-black heavy) could otherwise make. This keeps the Companion FRAMEWORK
-// and Lurrus's own graveyard-cast permission fully exercisable end-to-end
-// through a real, castable card while the underlying hybrid-mana capability
-// remains its own tracked gap, consistent with the existing #782 precedent.
+// Printed cost is {1}{W/B}{W/B} — TWO HYBRID W/B pips, declared via
+// `manaCost.hybrid` (issue #1338) and payable with mana off either colour of
+// land (issues #1738/#1739, PRD #1736, landed #1755) — see Figure of Destiny
+// (eve/multicolor.ts) for the reference shape. This closes the divergence
+// this card previously shipped under (tracked-by #782), the same gap that
+// stubbed Deathrite Shaman (rtr/multicolor.ts) and previously narrowed Lutri
+// (`lutri` above, same file).
 //
 // The graveyard-cast ability ("Once during each of your turns, you may cast
 // a permanent spell with mana value 2 or less from your graveyard") is a
@@ -144,7 +140,13 @@ export const lurrus: CardDefinition = {
     name: "Lurrus of the Dream-Den",
     oracleText:
         "Companion — Each permanent card in your starting deck has mana value 2 or less. (If this card is your chosen companion, you may put it into your hand from outside the game for {3} as a sorcery.)\nLifelink\nOnce during each of your turns, you may cast a permanent spell with mana value 2 or less from your graveyard.",
-    manaCost: { generic: 1, W: 1, B: 1 },
+    manaCost: {
+        generic: 1,
+        hybrid: [
+            ["W", "B"],
+            ["W", "B"],
+        ],
+    },
     types: ["Creature"],
     // CR 205.4a — type line is "Legendary Creature — Cat Nightmare"
     // (Scryfall); the legend rule (CR 704.5j) only applies via this

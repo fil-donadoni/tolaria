@@ -3,24 +3,132 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-// TODO(issue #1303 residue audit — Deathrite Shaman's cost is a single
-// HYBRID pip {B/G}; `ManaCost` (cards/types.ts) has no hybrid representation
-// at all (no `hybrid`/alternate-pip field, only fixed per-colour counts) —
-// there is no faithful way to declare "castable for either B or G" today.
-// The three graveyard-exile abilities themselves (moveZone to exile +
-// gainLife/loseLife, one mana-ability effect closure) would be DSL-clean
-// once the cost can be declared. Re-confirmed still absent on re-audit
-// (originally stubbed under the now-closed #676; moved here from
-// colorless.ts — a B/G hybrid cost is a multicolor identity per ADR 0043,
-// not colourless). Stop-and-issue per gre-development.md; tracked-by: #782.
-// export const deathriteShaman: CardDefinition = {
-//     id: "70496f16-c4c0-4c03-beef-454eb4824cd1",
-//     name: "Deathrite Shaman",
-//     rarity: "rare",
-//     types: ["Creature"],
-//     subtypes: ["Elf", "Shaman"],
-//     power: 1,
-//     toughness: 2,
-// };
+import type { CardDefinition } from "../../types";
 
-export {};
+// Deathrite Shaman — {B/G} Creature — Elf Shaman, 1/2 (issue #1926, PRD
+// #1736 hybrid mana wave). Printed cost is a single GUILD-HYBRID pip,
+// declared via `manaCost.hybrid` (issue #1338) and payable with mana off
+// either colour of land (issues #1738/#1739, landed #1755) — see Figure of
+// Destiny (eve/multicolor.ts) for the reference shape. This unblocks the
+// stub previously tracked at #782 (closed).
+//
+// Current Oracle text (Ravnica Remastered — modern wording, no printed-era
+// "if it was a basic land card" clause):
+//   "{T}: Exile target land card from a graveyard. Add one mana of any
+//    color.
+//    {B}, {T}: Exile target instant or sorcery card from a graveyard. Each
+//    opponent loses 2 life.
+//    {G}, {T}: Exile target creature card from a graveyard. You gain 2
+//    life."
+//
+// CR 605.1a — NONE of the three abilities are mana abilities, despite the
+// first one adding mana: a mana ability may not require a target (CR
+// 605.1a), and all three name a target ("target land/instant or sorcery/
+// creature card from a graveyard"). This is a real, official ruling (WotC,
+// 2016-06-08: "Because the first ability requires a target, it is not a
+// mana ability. It uses the stack and can be responded to."), not a
+// simplification — all three abilities are ordinary `useStack: true`
+// activated abilities. `zone: "graveyard", controller: "any"` targets a
+// card in ANY player's graveyard (CR 400.7), matching "a graveyard" (not
+// "your graveyard") in the Oracle text — same shape as Grave Robbers / Eater
+// of the Dead (drk/black.ts).
+//
+// The runtime "add one mana of any color" choice has no dedicated Op
+// (`addMana`'s own Mechanics Registry note scopes out a runtime colour
+// choice) — the established composition for a `useStack: true` ability
+// (`manaChoices`/`effect` is reserved for `useStack: false` mana abilities
+// only, per `ActivatedAbility.effect`'s own doc) is a 5-mode `optionChoice`,
+// each mode a bare `addMana` for that colour, exactly as Phyrexian Altar
+// (inv/colorless.ts) already ships — both Ops already exercised
+// catalogue-wide (per-Op regime, no hand-written test required).
+export const deathriteShaman: CardDefinition = {
+    id: "70496f16-c4c0-4c03-beef-454eb4824cd1",
+    rarity: "rare",
+    name: "Deathrite Shaman",
+    oracleText:
+        "{T}: Exile target land card from a graveyard. Add one mana of any color.\n{B}, {T}: Exile target instant or sorcery card from a graveyard. Each opponent loses 2 life.\n{G}, {T}: Exile target creature card from a graveyard. You gain 2 life.",
+    manaCost: { hybrid: [["B", "G"]] },
+    types: ["Creature"],
+    subtypes: ["Elf", "Shaman"],
+    power: 1,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "deathrite-shaman-land-mana",
+            oracleText:
+                "{T}: Exile target land card from a graveyard. Add one mana of any color.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Land",
+                count: 1,
+                zone: "graveyard",
+                controller: "any",
+            },
+            effects: [
+                { op: "moveZone", target: { target: 0 }, to: "exile" },
+                {
+                    op: "optionChoice",
+                    player: "controller",
+                    prompt: "Choose a color.",
+                    modes: [
+                        {
+                            label: "White",
+                            effects: [{ op: "addMana", mana: { W: 1 } }],
+                        },
+                        {
+                            label: "Blue",
+                            effects: [{ op: "addMana", mana: { U: 1 } }],
+                        },
+                        {
+                            label: "Black",
+                            effects: [{ op: "addMana", mana: { B: 1 } }],
+                        },
+                        {
+                            label: "Red",
+                            effects: [{ op: "addMana", mana: { R: 1 } }],
+                        },
+                        {
+                            label: "Green",
+                            effects: [{ op: "addMana", mana: { G: 1 } }],
+                        },
+                    ],
+                },
+            ],
+        },
+        {
+            id: "deathrite-shaman-graveyard-hate",
+            oracleText:
+                "{B}, {T}: Exile target instant or sorcery card from a graveyard. Each opponent loses 2 life.",
+            cost: { tap: true, mana: { B: 1 } },
+            useStack: true,
+            targetRequirement: {
+                type: ["Instant", "Sorcery"],
+                count: 1,
+                zone: "graveyard",
+                controller: "any",
+            },
+            effects: [
+                { op: "moveZone", target: { target: 0 }, to: "exile" },
+                { op: "loseLife", player: "opponent", amount: 2 },
+            ],
+        },
+        {
+            id: "deathrite-shaman-lifegain",
+            oracleText:
+                "{G}, {T}: Exile target creature card from a graveyard. You gain 2 life.",
+            cost: { tap: true, mana: { G: 1 } },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                zone: "graveyard",
+                controller: "any",
+            },
+            effects: [
+                { op: "moveZone", target: { target: 0 }, to: "exile" },
+                { op: "gainLife", player: "controller", amount: 2 },
+            ],
+        },
+    ],
+};
