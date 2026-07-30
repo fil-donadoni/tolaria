@@ -108,7 +108,18 @@ export type SeatConfig = {
  *  card (mirrors how `resolvePending` failures are exercised). */
 type SearchFn = typeof search;
 
-const MAX_PLIES = 4000;
+/** Hard ply ceiling — a game past it is a non-terminating loop, not a long
+ *  game, and ends as the `max-plies` guard stop (excluded from win rates).
+ *
+ *  Calibrated on the 2026-07-30 decision-tier corpus (issue #1929): over 160
+ *  real games the ply count ran p50 421, p90 606, p99 775, max 863, so this
+ *  cap keeps every genuine game with ~1.7× headroom. The previous 4000 was
+ *  ~4.6× the observed maximum and therefore not a working guard: a single
+ *  degenerate game blocked the corpus run for over an hour (a stalled board
+ *  makes each ply's search far more expensive than the 260ms median, so the
+ *  cap's wall-clock cost is superlinear in its value). A PLY cap, not a
+ *  wall-clock one — the outcome must stay deterministic (decision #1895 §2). */
+const MAX_PLIES = 1500;
 
 /** List the legal candidate instances for a zone-pick choice, honoring the
  *  precomputed allow-list (`candidateIds`) when present, else the declared zone
