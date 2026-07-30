@@ -2,9 +2,14 @@
 // the page title and its one-line purpose, then the page's own body. Every
 // admin page uses it so the section reads as one place instead of six panels
 // that happen to share a URL prefix.
+//
+// It also owns the admin pages' `document.title`: the frame already receives
+// the page's name, so a new admin page gets a correct tab title by using the
+// frame, with nothing extra to remember.
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import AmbientPageGround from "@/components/ui/ambient-page-ground";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
 export default function AdminPageFrame({
     title,
@@ -15,6 +20,8 @@ export default function AdminPageFrame({
     description?: string;
     children: ReactNode;
 }) {
+    useDocumentTitle(title);
+
     return (
         <div className="relative">
             <AmbientPageGround />

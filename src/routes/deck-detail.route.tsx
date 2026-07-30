@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "@tanstack/react-router";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import DeckDetail from "~/components/lobby/deck-detail";
+import { useDocumentTitle } from "~/hooks/useDocumentTitle";
 import { usePageVisible } from "~/hooks/usePageVisible";
 import { useUserDecks, useUserDeckMutations } from "~/hooks/useUserDecks";
 import { findDeckBySlug } from "~/lib/deckLookup";
@@ -32,6 +33,10 @@ export default function DeckDetailRoute() {
         () => findDeckBySlug(slug, allDecks),
         [slug, allDecks]
     );
+
+    // Above the early returns: the hook must run on every render, and the deck
+    // name only exists once both deck queries have landed.
+    useDocumentTitle(deck?.name ?? "Deck");
 
     useEffect(() => {
         if (presetDecks === undefined || userDecks === undefined) return;

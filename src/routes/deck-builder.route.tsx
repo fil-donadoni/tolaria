@@ -6,6 +6,7 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import DeckBuilder from "~/components/lobby/deck-builder/deck-builder";
 import { Button } from "~/components/ui/button";
+import { useDocumentTitle } from "~/hooks/useDocumentTitle";
 import {
     useUserDecks,
     useUserDeckMutations,
@@ -21,6 +22,19 @@ import {
     type DeckBuilderSinks,
     toUpdatePatch,
 } from "~/lib/deckBuilderDispatch";
+
+/** The page name for `<title>`. Edit mode names the deck being edited once
+ *  its query lands, and falls back to the generic label while it is loading
+ *  or when the slug matches nothing. */
+function deckBuilderTitle(
+    mode: "create" | "edit",
+    kind: DeckBuilderKind,
+    editingName: string | undefined
+): string {
+    const noun = kind === "preset" ? "Preset" : "Deck";
+    if (mode === "create") return `New ${noun}`;
+    return editingName ? `Edit ${editingName}` : `Edit ${noun}`;
+}
 
 interface DeckBuilderRouteProps {
     mode: "create" | "edit";
@@ -92,6 +106,16 @@ export default function DeckBuilderRoute({
         kind === "user" && slug && !deleting
             ? { id: slug as Id<"userDecks"> }
             : "skip"
+    );
+
+    // Above the early returns — the hook must run on every render.
+    useDocumentTitle(
+        deckBuilderTitle(
+            mode,
+            kind,
+            (kind === "preset" ? editingPreset?.name : editingUserDeck?.name) ??
+                undefined
+        )
     );
 
     if (mode === "edit") {

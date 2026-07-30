@@ -17,8 +17,10 @@
 //    boundary, guarded by `scripts/__tests__/draft-lab-admin-gating.test.ts`.
 import AmbientPageGround from "@/components/ui/ambient-page-ground";
 import DraftLabWorkbench from "@/components/draft-lab/draft-lab-workbench";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
 export default function DraftLabRoute() {
+    useDocumentTitle("Draft Lab");
     return (
         <div className="relative">
             <AmbientPageGround />

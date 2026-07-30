@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery } from "convex/react";
+import type { FunctionReturnType } from "convex/server";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import Board from "~/components/board/board";
@@ -10,8 +11,23 @@ import AiDecisionTraceBox from "~/components/debug/ai-decision-trace-box";
 import DevPanelRail from "~/components/debug/dev-panel-rail";
 import LoadingScreen from "~/components/ui/loading-screen";
 import WaitingForOpponent from "~/components/board/waiting-for-opponent";
+import { useDocumentTitle } from "~/hooks/useDocumentTitle";
 import { usePageVisible } from "~/hooks/usePageVisible";
 import { clearSession, getStoredSession } from "~/lib/session";
+
+type GameStatus = NonNullable<
+    FunctionReturnType<typeof api.game.getGame>
+>["status"];
+
+// `/game` is one route with four faces; the title names the one on screen.
+// Exhaustive by construction — a new status is a type error here, not a
+// silently generic tab.
+const GAME_STATUS_TITLE: Record<GameStatus, string> = {
+    waiting: "Waiting for Opponent",
+    pregame: "Pregame",
+    playing: "Game",
+    finished: "Game Over",
+};
 
 export default function GameRoute() {
     const navigate = useNavigate();
@@ -31,6 +47,10 @@ export default function GameRoute() {
             void navigate({ to: "/", replace: true });
         }
     }, [session, navigate]);
+
+    // The board is one route with four faces; the title names the one on
+    // screen. Above the early returns, as the hook must run every render.
+    useDocumentTitle(game ? GAME_STATUS_TITLE[game.status] : "Game");
 
     const handleLeave = () => {
         // Delete the abandoned waiting room server-side so the user is free to

@@ -5,8 +5,10 @@ import { Link } from "@tanstack/react-router";
 import AmbientPageGround from "@/components/ui/ambient-page-ground";
 import { Panel, PanelHeader, PanelBody } from "@/components/ui/panel";
 import { ADMIN_NAV } from "@/lib/adminNav";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
 export default function AdminIndexRoute() {
+    useDocumentTitle("Admin");
     return (
         <div className="relative">
             <AmbientPageGround />

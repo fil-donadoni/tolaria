@@ -10,6 +10,7 @@ import {
 import { Banner } from "~/components/ui/banner";
 import { Button } from "~/components/ui/button";
 import LobbyBackground from "~/components/lobby/lobby-background";
+import { useDocumentTitle } from "~/hooks/useDocumentTitle";
 
 type Flow = "signIn" | "signUp";
 
@@ -43,6 +44,10 @@ export function AuthForm() {
     const [nickname, setNickname] = useState("");
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    // The auth screen replaces the whole app (`AuthGate`), so it is a page in
+    // its own right — no route ever mounts underneath it to name the tab.
+    useDocumentTitle(flow === "signIn" ? "Sign In" : "Create Account");
 
     const submit = async (e: FormEvent) => {
         e.preventDefault();

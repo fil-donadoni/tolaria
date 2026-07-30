@@ -13,9 +13,13 @@ import { useState } from "react";
 import AmbientPageGround from "@/components/ui/ambient-page-ground";
 import { getImageFallbackUrl, getImageUrl } from "@/lib/images";
 import { pickLostInCard } from "@/lib/lostInCards";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
 export default function NotFoundPage() {
     const [card] = useState(pickLostInCard);
+    // Also the title a non-admin gets on an admin path — same page, same tab
+    // title, no confirmation that the surface exists.
+    useDocumentTitle("Page Not Found");
     // Scryfall's WebP renditions can be missing on some printings; the legacy
     // `normal` JPG always exists. Same one-step fallback `CardImage` uses.
     const [useJpgFallback, setUseJpgFallback] = useState(false);

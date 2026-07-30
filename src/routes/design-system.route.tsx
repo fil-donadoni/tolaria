@@ -3,6 +3,7 @@
 // component variants, and the phase-3 unification map. PERMANENT — unlike
 // /prototype/* spikes this page is kept and evolves with the system.
 import AmbientPageGround from "@/components/ui/ambient-page-ground";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { FoundationsSections } from "./design-system/sections-foundations";
 import { ButtonsSection } from "./design-system/sections-buttons";
 import { BannersSection } from "./design-system/sections-banners";
@@ -27,6 +28,7 @@ const TOC: Array<[string, string]> = [
 ];
 
 export default function DesignSystemRoute() {
+    useDocumentTitle("Design System");
     return (
         <div className="relative flex-1 bg-surface-base text-text">
             <AmbientPageGround />
