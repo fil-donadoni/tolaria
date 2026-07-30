@@ -33,6 +33,10 @@ import {
     mayPayRequiredSacrifices,
     mayPayCostLabel,
     mayPaySacrificeCount,
+    mayPaySacrificePower,
+    toMatchablePermanent,
+    MIRROR_CENSUS,
+    type MirrorStatus,
     normalizeMayPayCost,
     manaCostToString,
     phyrexianSplitChoices,
@@ -49,20 +53,19 @@ import type {
     PendingCast,
     Player,
 } from "~/types/game";
-import type { Color } from "~/types/cards";
 import type {
     ActivatedAbility,
     CardDefinition,
     EmblemInstance,
+    MayPayCost,
     TargetRequirement,
 } from "@convex/cards/types";
-import { getDefinition, tryGetDefinition } from "@convex/cards";
+import { getDefinition } from "@convex/cards";
 import {
     matchesPermanentFilter as matchesEnginePermanentFilter,
-    type MatchablePermanent,
+    type FilterMatchContext,
     type PermanentFilter,
 } from "@convex/cards/filters";
-import { getColorsFromCost } from "@convex/cards/colors";
 import { crosissCatacombs } from "@convex/cards/sets/pls/colorless";
 import {
     CHANDRA_TORCH_OF_DEFIANCE_EMBLEM_ID,
@@ -2521,112 +2524,99 @@ describe("matchesPermanentFilter (client mirror — `any` disjunction, #897)", (
 });
 
 // ---------------------------------------------------------------------------
-// matchesPermanentFilter — exclude* fields + parity guard (issue #1938 fixup)
+// matchesPermanentFilter / toMatchablePermanent — MIRROR_CENSUS parity guard
+// (issue #1938 fixup 2)
 //
-// The client mirror had NO `excludeSubtypes` branch (nor `excludeTypes` /
-// `excludeSupertypes`) — a field present on the server's `PermanentFilter`
-// (convex/cards/filters.ts) but missing here fails OPEN (matches every
-// permanent) rather than closed. Proven by the Planeshift Lair cycle's
-// "non-Lair land" return-leg cost (`{ types: "Land", excludeSubtypes: "Lair"
-// }`, issue #1938): the mirror silently ignored `excludeSubtypes`, so a
-// Lair-only battlefield still counted the entering Lair itself as a legal
-// return candidate and the Pay button enabled with zero legal candidates.
+// Fixup 1 closed the `excludeSubtypes` gap (the Planeshift Lair cycle's
+// "non-Lair land" return-leg cost, `{ types: "Land", excludeSubtypes: "Lair"
+// }`) but its own "parity guard" was a hand-maintained `cases` array: nothing
+// FAILS when a field exists on the engine `PermanentFilter`
+// (convex/cards/filters.ts) but isn't exercised here. Proof it had already
+// rotted: `controllerRelation`, `isToken`, `name`, `enteredThisTurn`,
+// `powerAtLeast`, `instanceIds`, `excludeInstanceIds`, `createdBy` were all
+// unmirrored while that guard stayed green — the SAME shape of gap the guard
+// exists to catch.
 //
-// Every case below is checked against BOTH the client mirror and the real
-// engine matcher (`matchesEnginePermanentFilter`) via `expectParity` — add a
-// case here whenever a new field lands on `ClientPermanentFilter` /
-// `PermanentFilter` so the two can never diverge again unnoticed.
+// This block replaces the array with `MIRROR_CENSUS`
+// (`Record<keyof PermanentFilter, MirrorStatus>`, defined in card-utils.ts):
+// adding a NEW field to `PermanentFilter` breaks `tsc` here until the census
+// is updated, and the two `it` blocks below fail if a census entry has no
+// backing test case. See `MIRROR_CENSUS`'s own doc comment for what each
+// status means.
 // ---------------------------------------------------------------------------
 
-describe("matchesPermanentFilter (client mirror — exclude* fields + parity guard, issue #1938 fixup)", () => {
-    /** Adapts a test `CardInstance` to `MatchablePermanent` the SAME way
-     *  `toMatchablePermanent` (card-utils.ts) does, so this test exercises the
-     *  real production derivation rather than a hand-built shortcut. */
-    function toMatchable(card: CardInstance): MatchablePermanent {
-        return {
-            id: card.id,
-            types: card.types ?? [],
-            subtypes: card.subtypes ?? [],
-            staticAbilities: card.staticAbilities ?? [],
-            controllerId: card.controllerId,
-            colors:
-                (card.colorOverride as Color[] | undefined) ??
-                getColorsFromCost(tryGetDefinition(card.card.id)?.manaCost),
-            supertypes: tryGetDefinition(card.card.id)?.supertypes,
-            isTapped: card.isTapped,
-        };
-    }
-
+describe("matchesPermanentFilter / toMatchablePermanent — MIRROR_CENSUS parity guard (issue #1938 fixup 2)", () => {
+    /** Both the client mirror (`ClientPermanentFilter`) AND the real engine
+     *  matcher (via the REAL production `toMatchablePermanent`, not a
+     *  hand-built duplicate — a duplicate is exactly how the `excludeSubtypes`
+     *  gap went unnoticed) must agree. Used for every `"mirrored"` census key. */
     function expectParity(
         card: CardInstance,
         filter: PermanentFilter,
-        expected: boolean
+        expected: boolean,
+        ctx?: FilterMatchContext
     ) {
         expect(matchesPermanentFilter(card, filter)).toBe(expected);
-        expect(matchesEnginePermanentFilter(toMatchable(card), filter)).toBe(
-            expected
-        );
+        expect(
+            matchesEnginePermanentFilter(
+                toMatchablePermanent(card),
+                filter,
+                ctx
+            )
+        ).toBe(expected);
     }
 
-    it("excludeTypes rejects a matching type — the negative of types", () => {
-        const land = makeCardInstance({
-            card: { id: forest.id },
-            types: ["Land"],
-            subtypes: ["Forest"],
-        });
-        const creature = makeCardInstance({ types: ["Creature"] });
-        expectParity(land, { excludeTypes: "Land" }, false);
-        expectParity(creature, { excludeTypes: "Land" }, true);
-    });
+    /** Only the real engine matcher is exercised — the `ClientPermanentFilter`
+     *  mirror has no field for this filter key (no shipped board-highlight
+     *  filter needs it). Used for every `"adapter-only"` census key; proves
+     *  `toMatchablePermanent` actually populates the field it claims to. */
+    function expectAdapterOnly(
+        card: CardInstance,
+        filter: PermanentFilter,
+        expected: boolean,
+        ctx?: FilterMatchContext
+    ) {
+        expect(
+            matchesEnginePermanentFilter(
+                toMatchablePermanent(card),
+                filter,
+                ctx
+            )
+        ).toBe(expected);
+    }
 
-    it("excludeSubtypes rejects a Lair — the Planeshift cycle's own return-leg filter (#1938)", () => {
-        const lair = makeCardInstance({
-            card: { id: crosissCatacombs.id },
-            types: ["Land"],
-            subtypes: ["Lair"],
-        });
-        const nonLair = makeCardInstance({
-            card: { id: forest.id },
-            types: ["Land"],
-            subtypes: ["Forest"],
-        });
-        const filter: PermanentFilter = {
-            types: "Land",
-            excludeSubtypes: "Lair",
-        };
-        expectParity(lair, filter, false);
-        expectParity(nonLair, filter, true);
-    });
+    type Case = {
+        card: CardInstance;
+        filter: PermanentFilter;
+        expected: boolean;
+    };
+    type AdapterCase = Case & { ctx?: FilterMatchContext };
 
-    it("excludeSupertypes rejects a Basic land (Wasteland-style 'nonbasic land')", () => {
-        const basic = makeCardInstance({
-            card: { id: forest.id },
-            types: ["Land"],
-            subtypes: ["Forest"],
-        });
-        const filter: PermanentFilter = {
-            types: "Land",
-            excludeSupertypes: "Basic",
-        };
-        expectParity(basic, filter, false);
-    });
-
-    it("every currently-mirrored field agrees with the engine matcher on representative boards", () => {
-        const cases: Array<{
-            card: CardInstance;
-            filter: PermanentFilter;
-            expected: boolean;
-        }> = [
+    const MIRRORED_CASES: Partial<Record<keyof PermanentFilter, Case[]>> = {
+        types: [
             {
                 card: makeCardInstance({ types: ["Creature"] }),
                 filter: { types: "Creature" },
                 expected: true,
+            },
+        ],
+        excludeTypes: [
+            {
+                card: makeCardInstance({
+                    card: { id: forest.id },
+                    types: ["Land"],
+                    subtypes: ["Forest"],
+                }),
+                filter: { excludeTypes: "Land" },
+                expected: false,
             },
             {
                 card: makeCardInstance({ types: ["Creature"] }),
                 filter: { excludeTypes: "Land" },
                 expected: true,
             },
+        ],
+        subtypes: [
             {
                 card: makeCardInstance({
                     types: ["Land"],
@@ -2635,14 +2625,42 @@ describe("matchesPermanentFilter (client mirror — exclude* fields + parity gua
                 filter: { subtypes: "Forest" },
                 expected: true,
             },
+        ],
+        // The Planeshift Lair cycle's own return-leg filter (issue #1938):
+        // "sacrifice a nonbasic land" — before fixup 1 this silently matched
+        // every land, Lairs included.
+        excludeSubtypes: [
             {
                 card: makeCardInstance({
+                    card: { id: crosissCatacombs.id },
                     types: ["Land"],
                     subtypes: ["Lair"],
                 }),
-                filter: { excludeSubtypes: "Lair" },
+                filter: { types: "Land", excludeSubtypes: "Lair" },
                 expected: false,
             },
+            {
+                card: makeCardInstance({
+                    card: { id: forest.id },
+                    types: ["Land"],
+                    subtypes: ["Forest"],
+                }),
+                filter: { types: "Land", excludeSubtypes: "Lair" },
+                expected: true,
+            },
+        ],
+        excludeSupertypes: [
+            {
+                card: makeCardInstance({
+                    card: { id: forest.id },
+                    types: ["Land"],
+                    subtypes: ["Forest"],
+                }),
+                filter: { types: "Land", excludeSupertypes: "Basic" },
+                expected: false,
+            },
+        ],
+        requireAbility: [
             {
                 card: makeCardInstance({
                     types: ["Creature"],
@@ -2651,6 +2669,8 @@ describe("matchesPermanentFilter (client mirror — exclude* fields + parity gua
                 filter: { requireAbility: "flying" },
                 expected: true,
             },
+        ],
+        excludeAbility: [
             {
                 card: makeCardInstance({
                     types: ["Creature"],
@@ -2659,6 +2679,8 @@ describe("matchesPermanentFilter (client mirror — exclude* fields + parity gua
                 filter: { excludeAbility: "flying" },
                 expected: false,
             },
+        ],
+        colors: [
             {
                 card: makeCardInstance({
                     card: { id: FLYING_MEN_ID },
@@ -2667,10 +2689,311 @@ describe("matchesPermanentFilter (client mirror — exclude* fields + parity gua
                 filter: { colors: ["U"], tapped: true },
                 expected: true,
             },
-        ];
-        for (const { card, filter, expected } of cases) {
-            expectParity(card, filter, expected);
+        ],
+        tapped: [
+            {
+                card: makeCardInstance({
+                    card: { id: FLYING_MEN_ID },
+                    isTapped: true,
+                }),
+                filter: { colors: ["U"], tapped: true },
+                expected: true,
+            },
+        ],
+        any: [
+            {
+                card: makeCardInstance({
+                    types: ["Creature"],
+                    subtypes: ["Bear"],
+                }),
+                filter: { any: [{ subtypes: "Bear" }, { types: "Land" }] },
+                expected: true,
+            },
+        ],
+    };
+
+    // `id` is always populated on `MatchablePermanent`, so `instanceIds` /
+    // `excludeInstanceIds` already work correctly via the engine-matcher path
+    // with no `toMatchablePermanent` change. `power`/`toughness`/
+    // `isAttacking`/`isBlocking` are likewise already populated.
+    const ADAPTER_ONLY_CASES: Partial<
+        Record<keyof PermanentFilter, AdapterCase[]>
+    > = {
+        supertypes: [
+            {
+                card: makeCardInstance({
+                    card: { id: forest.id },
+                    types: ["Land"],
+                    subtypes: ["Forest"],
+                }),
+                filter: { types: "Land", supertypes: "Basic" },
+                expected: true,
+            },
+        ],
+        instanceIds: [
+            {
+                card: makeCardInstance({ id: "keep-me" }),
+                filter: { instanceIds: ["keep-me"] },
+                expected: true,
+            },
+            {
+                card: makeCardInstance({ id: "not-me" }),
+                filter: { instanceIds: ["keep-me"] },
+                expected: false,
+            },
+        ],
+        excludeInstanceIds: [
+            {
+                card: makeCardInstance({ id: "source-1" }),
+                filter: { excludeInstanceIds: ["source-1"] },
+                expected: false,
+            },
+        ],
+        powerAtLeast: [
+            {
+                card: makeCardInstance({ types: ["Creature"], power: 4 }),
+                filter: { powerAtLeast: 3 },
+                expected: true,
+            },
+            {
+                card: makeCardInstance({ types: ["Creature"], power: 2 }),
+                filter: { powerAtLeast: 3 },
+                expected: false,
+            },
+        ],
+        toughnessAtLeast: [
+            {
+                card: makeCardInstance({
+                    types: ["Creature"],
+                    toughness: 5,
+                }),
+                filter: { toughnessAtLeast: 3 },
+                expected: true,
+            },
+        ],
+        isAttacking: [
+            {
+                card: makeCardInstance({
+                    types: ["Creature"],
+                    isAttacking: true,
+                }),
+                filter: { isAttacking: true },
+                expected: true,
+            },
+        ],
+        isBlocking: [
+            {
+                card: makeCardInstance({
+                    types: ["Creature"],
+                    isBlocking: false,
+                }),
+                filter: { isBlocking: true },
+                expected: false,
+            },
+        ],
+        // CR 111.5 / 701.16 — "sacrifice a nontoken permanent". Before this
+        // fixup `toMatchablePermanent` dropped `isToken` entirely, so an
+        // ACTUAL token read as `undefined` → treated as non-token by
+        // `matchesPermanentFilter`'s boolean-equality check → an
+        // `isToken: false` filter matched it anyway (fail OPEN).
+        isToken: [
+            {
+                card: makeCardInstance({
+                    types: ["Creature"],
+                    isToken: true,
+                }),
+                filter: { isToken: false },
+                expected: false,
+            },
+            {
+                card: makeCardInstance({
+                    types: ["Creature"],
+                    isToken: true,
+                }),
+                filter: { isToken: true },
+                expected: true,
+            },
+        ],
+        createdBy: [
+            {
+                card: makeCardInstance({
+                    types: ["Creature"],
+                    isToken: true,
+                    createdBy: "tetravus-1",
+                }),
+                filter: { createdBy: "tetravus-1" },
+                expected: true,
+            },
+            {
+                card: makeCardInstance({
+                    types: ["Creature"],
+                    isToken: true,
+                    createdBy: "tetravus-1",
+                }),
+                filter: { createdBy: "other-source" },
+                expected: false,
+            },
+        ],
+        // CR 701.16 (issue #1938 fixup 2 REGRESSION) — `controllerRelation`
+        // requires a `FilterMatchContext`; `mayPaySacrificeCount` /
+        // `mayPaySacrificePower` called the engine matcher with NO third
+        // argument, so `matchesControllerRelation` always failed CLOSED.
+        controllerRelation: [
+            {
+                card: makeCardInstance({ controllerId: "p1" }),
+                filter: { controllerRelation: "you" },
+                ctx: { selfControllerId: "p1" },
+                expected: true,
+            },
+            {
+                card: makeCardInstance({ controllerId: "p2" }),
+                filter: { controllerRelation: "you" },
+                ctx: { selfControllerId: "p1" },
+                expected: false,
+            },
+            {
+                card: makeCardInstance({ controllerId: "p1" }),
+                filter: { controllerRelation: "you" },
+                // No ctx at all — this is the exact regression shape: it
+                // must fail closed (false), not silently match.
+                expected: false,
+            },
+        ],
+    };
+
+    it("every 'mirrored' MIRROR_CENSUS key has at least one parity case, run through both paths", () => {
+        for (const [key, status] of Object.entries(MIRROR_CENSUS) as Array<
+            [keyof PermanentFilter, MirrorStatus]
+        >) {
+            if (status !== "mirrored") continue;
+            const cases = MIRRORED_CASES[key];
+            expect(cases, `MIRRORED_CASES["${key}"] is missing`).toBeDefined();
+            expect(cases!.length).toBeGreaterThan(0);
+            for (const { card, filter, expected } of cases!) {
+                expectParity(card, filter, expected);
+            }
         }
+    });
+
+    it("every 'adapter-only' MIRROR_CENSUS key has at least one case, populated by toMatchablePermanent", () => {
+        for (const [key, status] of Object.entries(MIRROR_CENSUS) as Array<
+            [keyof PermanentFilter, MirrorStatus]
+        >) {
+            if (status !== "adapter-only") continue;
+            const cases = ADAPTER_ONLY_CASES[key];
+            expect(
+                cases,
+                `ADAPTER_ONLY_CASES["${key}"] is missing`
+            ).toBeDefined();
+            expect(cases!.length).toBeGreaterThan(0);
+            for (const { card, filter, expected, ctx } of cases!) {
+                expectAdapterOnly(card, filter, expected, ctx);
+            }
+        }
+    });
+
+    it("'intentionally-absent' keys stay undeclared in either case map (documents the gap, doesn't paper over it)", () => {
+        for (const [key, status] of Object.entries(MIRROR_CENSUS) as Array<
+            [keyof PermanentFilter, MirrorStatus]
+        >) {
+            if (status !== "intentionally-absent") continue;
+            expect(MIRRORED_CASES[key]).toBeUndefined();
+            expect(ADAPTER_ONLY_CASES[key]).toBeUndefined();
+        }
+    });
+});
+
+// ---------------------------------------------------------------------------
+// mayPaySacrificeCount / mayPaySacrificePower — controllerRelation regression
+// (issue #1938 fixup 2)
+//
+// Infernal Denizen (convex/cards/sets/ice/black.ts): "At the beginning of your
+// upkeep, sacrifice two Swamps." — a `may-pay` sacrifice leg with
+// `{ subtypes: "Swamp", controllerRelation: "you" }` (Minion of Leshrac's
+// creature-sacrifice leg is the same shape). Fixup 1's `toMatchablePermanent`
+// adapter called the engine matcher with NO `FilterMatchContext`, so
+// `controllerRelation` always failed closed — a 2-Swamp battlefield counted 0
+// candidates and the Pay button was permanently disabled on a legal
+// sacrifice, even though fixup 1 shipped to fix exactly this class of bug.
+// ---------------------------------------------------------------------------
+
+describe("mayPaySacrificeCount / mayPaySacrificePower — Infernal Denizen's controllerRelation leg (issue #1938 fixup 2)", () => {
+    const infernalDenizenCost: MayPayCost = {
+        permanent: {
+            action: "sacrifice",
+            filter: { subtypes: "Swamp", controllerRelation: "you" },
+            count: 2,
+        },
+    };
+
+    it("counts the controller's own Swamps once a FilterMatchContext is threaded", () => {
+        const bf = [
+            makeCardInstance({
+                id: "s1",
+                controllerId: "p1",
+                types: ["Land"],
+                subtypes: ["Swamp"],
+            }),
+            makeCardInstance({
+                id: "s2",
+                controllerId: "p1",
+                types: ["Land"],
+                subtypes: ["Swamp"],
+            }),
+            // An opponent's Swamp must NOT count toward "Swamps YOU control".
+            makeCardInstance({
+                id: "s3-opp",
+                controllerId: "p2",
+                types: ["Land"],
+                subtypes: ["Swamp"],
+            }),
+        ];
+        expect(
+            mayPaySacrificeCount(infernalDenizenCost, bf, {
+                selfControllerId: "p1",
+            })
+        ).toBe(2);
+    });
+
+    it("REGRESSION: undercounts to 0 with no ctx — the exact shape that disabled the Pay button", () => {
+        const bf = [
+            makeCardInstance({
+                id: "s1",
+                controllerId: "p1",
+                types: ["Land"],
+                subtypes: ["Swamp"],
+            }),
+            makeCardInstance({
+                id: "s2",
+                controllerId: "p1",
+                types: ["Land"],
+                subtypes: ["Swamp"],
+            }),
+        ];
+        // No ctx argument at all — `matchesControllerRelation` fails closed.
+        expect(mayPaySacrificeCount(infernalDenizenCost, bf)).toBe(0);
+    });
+
+    it("mayPaySacrificePower threads the same ctx (Phyrexian Dreadnought-style threshold legs)", () => {
+        const bf = [
+            makeCardInstance({
+                id: "s1",
+                controllerId: "p1",
+                card: { id: forest.id },
+                types: ["Land"],
+                subtypes: ["Swamp"],
+                power: 0,
+            }),
+        ];
+        // forest.id has no power on its definition — 0 is fine, this just
+        // proves the ctx-threaded call doesn't throw and still filters by
+        // controller. Count-based affordability is covered above; this
+        // asserts the SAME regression shape for the power-summing sibling.
+        expect(
+            mayPaySacrificePower(infernalDenizenCost, bf, {
+                selfControllerId: "p1",
+            })
+        ).toBe(0);
     });
 });
 

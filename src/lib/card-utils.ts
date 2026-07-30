@@ -11,6 +11,7 @@ import type { CardType, Color, ManaCost } from "~/types/cards";
 import type { Phase } from "@convex/gre/types";
 import {
     matchesPermanentFilter as matchesEnginePermanentFilter,
+    type FilterMatchContext,
     type MatchablePermanent,
     type PermanentFilter,
 } from "@convex/cards/filters";
@@ -2660,8 +2661,15 @@ export function mayPayCanAfford(
  *  included), and the Pay button enabled with zero legal return candidates.
  *  `types`/`subtypes` are optional on the wire (`CardInstance`) but required
  *  by `MatchablePermanent` — default to `[]`, the engine's own fail-closed
- *  default for a permanent with no printed types/subtypes. */
-function toMatchablePermanent(card: CardInstance): MatchablePermanent {
+ *  default for a permanent with no printed types/subtypes.
+ *
+ *  Exported (not just for `mayPaySacrificeCount`/`mayPaySacrificePower`) so
+ *  `card-utils.test.ts`'s `MIRROR_CENSUS` parity guard exercises this EXACT
+ *  production derivation rather than a hand-duplicated test-only copy — a
+ *  second copy is exactly how the `excludeSubtypes` gap above went unnoticed
+ *  (issue #1938 fixup 2). See `MIRROR_CENSUS` below for which
+ *  `PermanentFilter` fields this adapter populates. */
+export function toMatchablePermanent(card: CardInstance): MatchablePermanent {
     return {
         id: card.id,
         types: card.types ?? [],
@@ -2673,30 +2681,143 @@ function toMatchablePermanent(card: CardInstance): MatchablePermanent {
         colors:
             (card.colorOverride as Color[] | undefined) ??
             getColorsFromCost(tryGetDefinition(card.card.id)?.manaCost),
-        // CR 205.4a — printed supertypes, for a permanent leg's
-        // `excludeSupertypes` clause ("sacrifice a nonbasic land"). No
-        // shipped may-pay permanent leg uses it yet; populated so one that
-        // does doesn't silently fail open the way `excludeSubtypes` did.
+        // CR 205.4a — printed supertypes, for a permanent leg's `supertypes` /
+        // `excludeSupertypes` clause ("sacrifice a nonbasic land"). No shipped
+        // may-pay permanent leg uses it yet (latent-only); populated so one
+        // that does doesn't silently fail open the way `excludeSubtypes` did.
         supertypes: tryGetDefinition(card.card.id)?.supertypes,
         power: card.power,
         toughness: card.toughness,
         isAttacking: card.isAttacking,
         isBlocking: card.isBlocking,
         isTapped: card.isTapped,
+        // CR 111.5 / 701.16 — token-ness, for a permanent leg's `isToken`
+        // clause ("sacrifice a nontoken permanent"). `card.isToken` crosses
+        // the wire (`slimCard` forwards it unchanged) — populated so a filter
+        // that uses it doesn't silently fail OPEN the way `excludeSubtypes`
+        // did (issue #1938 fixup 2): `undefined` reads as "not a token" in
+        // `matchesPermanentFilter`'s boolean-equality check, which would let
+        // an ACTUAL token through an `isToken: false` filter.
+        isToken: card.isToken,
+        // CR 111 / 707.1 — token provenance, for a permanent leg's
+        // `createdBy` clause (Tetravus-style "tokens created with this").
+        // Same wire/fail-open reasoning as `isToken` above.
+        createdBy: card.createdBy,
     };
 }
 
+/** Compile-time census of every `PermanentFilter` field's client-side support,
+ *  keyed by `keyof PermanentFilter` so adding a NEW field to `PermanentFilter`
+ *  (`convex/cards/filters.ts`) breaks `tsc` here until this census is updated
+ *  — the fix for the parity guard rotting silently (issue #1938 fixup 2): a
+ *  hand-maintained test `cases` array has no such property, and
+ *  `controllerRelation` / `isToken` / `name` / `enteredThisTurn` /
+ *  `powerAtLeast` / `instanceIds` / `excludeInstanceIds` / `createdBy` all
+ *  went unmirrored while that guard stayed green.
+ *
+ *  - `"mirrored"` — supported by BOTH the may-pay engine-matcher path
+ *    (`toMatchablePermanent` + the real `matchesPermanentFilter`) AND the
+ *    older `ClientPermanentFilter` mirror above (used for board highlighting).
+ *    `card-utils.test.ts`'s parity guard asserts every `"mirrored"` key has at
+ *    least one `MIRRORED_CASES` entry, run through BOTH paths.
+ *  - `"adapter-only"` — supported by the engine-matcher path only
+ *    (`toMatchablePermanent` populates the underlying `MatchablePermanent`
+ *    field); NOT supported by the `ClientPermanentFilter` mirror, which has no
+ *    field for it (no shipped board-highlight filter needs it yet). The
+ *    parity guard asserts every `"adapter-only"` key has at least one
+ *    `ADAPTER_ONLY_CASES` entry, run through the engine-matcher path only.
+ *  - `"intentionally-absent"` — supported by NEITHER path today, with the
+ *    reason recorded inline below rather than left as a scattered comment. */
+export type MirrorStatus = "mirrored" | "adapter-only" | "intentionally-absent";
+
+export const MIRROR_CENSUS: Record<keyof PermanentFilter, MirrorStatus> = {
+    // — mirrored: ClientPermanentFilter has the field + a parity test case —
+    types: "mirrored",
+    excludeTypes: "mirrored",
+    subtypes: "mirrored",
+    excludeSubtypes: "mirrored",
+    // Mirrored on BOTH paths, but the two reads diverge on liveness: the
+    // `ClientPermanentFilter` mirror reads PRINTED supertypes only
+    // (`tryGetDefinition(...).supertypes`, no snow-mutation awareness), the
+    // same static fallback `toMatchablePermanent` uses above — stricter than
+    // the server's own `matchesPermanentFilter`, which can resolve LIVE
+    // supertypes via an injected `ctx.supertypesOf` (Melting / Arcum's
+    // Weathervane). Neither client path threads that live resolver — a
+    // latent gap (no shipped client-reachable filter needs the live value
+    // yet), tracked here instead of as a prose note (issue #1938 fixup 2).
+    excludeSupertypes: "mirrored",
+    requireAbility: "mirrored",
+    excludeAbility: "mirrored",
+    colors: "mirrored",
+    tapped: "mirrored",
+    any: "mirrored",
+    // — adapter-only: no ClientPermanentFilter field, but toMatchablePermanent
+    // populates the underlying MatchablePermanent field so the engine-matcher
+    // path (mayPaySacrificeCount / mayPaySacrificePower) matches correctly —
+    // ClientPermanentFilter has no POSITIVE `supertypes` field (no shipped
+    // board-highlight filter needs it), but the engine path already reads the
+    // same printed-supertypes fallback as `excludeSupertypes` above.
+    supertypes: "adapter-only",
+    // `id` is always populated on MatchablePermanent, so both instance-id
+    // filters already work via the engine-matcher path.
+    instanceIds: "adapter-only",
+    excludeInstanceIds: "adapter-only",
+    // `power`/`toughness` are always populated.
+    powerAtLeast: "adapter-only",
+    toughnessAtLeast: "adapter-only",
+    // `isAttacking`/`isBlocking` are always populated.
+    isAttacking: "adapter-only",
+    isBlocking: "adapter-only",
+    // Populated above (this fixup) from the `isToken`/`createdBy` fields added
+    // to the client `CardInstance` type (`~/types/game.ts`) — `slimCard`
+    // already forwarded them on the wire, they just weren't in the TS shape
+    // or read by this adapter.
+    isToken: "adapter-only",
+    createdBy: "adapter-only",
+    // Requires a `FilterMatchContext` with `selfControllerId` (`"you"` /
+    // `"opponents"`) or `selfInstanceId` (`"self"`) — threaded by every
+    // engine-matcher call site as of issue #1938 fixup 2
+    // (`mayPaySacrificeCount`/`mayPaySacrificePower`'s new `ctx` parameter).
+    controllerRelation: "adapter-only",
+    // — intentionally-absent: neither path supports it, reason recorded here —
+    // No battlefield permanent shape (`CardInstanceState` server-side,
+    // `CardInstance` client-side) carries a live `name` field at all — the
+    // server's OWN `sacrificeCandidates` (`convex/gre/state.ts`) doesn't
+    // populate it either, so this is a pre-existing gap on both paths, not a
+    // client-only drift. No shipped may-pay/board-highlight filter uses it.
+    name: "intentionally-absent",
+    // Requires the CURRENT TURN NUMBER to compare against the permanent's
+    // `enteredOnTurn` stamp (`c.enteredOnTurn === state.turn`, the server's
+    // own derivation in `convex/gre/state.ts`) — neither
+    // `mayPaySacrificeCount`/`mayPaySacrificePower` nor `toMatchablePermanent`
+    // currently receive a turn number. No shipped may-pay sacrifice leg uses
+    // it yet; add a `currentTurn` parameter (mirroring the `ctx` parameter
+    // this fixup added for `controllerRelation`) before shipping one that
+    // does.
+    enteredThisTurn: "intentionally-absent",
+};
+
 /** Count of a chooser's battlefield permanents that satisfy a `may-pay` cost's
  *  sacrifice leg (CR 701.16). Returns 0 when the cost has no sacrifice leg.
- *  Used by the UI affordability gate to know whether the Pay button is legal. */
+ *  Used by the UI affordability gate to know whether the Pay button is legal.
+ *
+ *  `ctx` resolves `PermanentFilter.controllerRelation` ("sacrifice two Swamps
+ *  YOU control", Infernal Denizen / Minion of Leshrac, CR 701.16) — without it
+ *  `matchesControllerRelation` (`convex/cards/filters.ts`) fails CLOSED (the
+ *  filter never matches), undercounting a legal sacrifice to 0 and permanently
+ *  disabling the Pay button (issue #1938 fixup 2 regression). Callers pass the
+ *  CHOOSER's own id as `selfControllerId` — the mayPay's payer, mirroring the
+ *  server's own `sacrificeCandidates` (`convex/gre/state.ts`), which passes
+ *  `{ selfControllerId: playerId }`. */
 export function mayPaySacrificeCount(
     cost: MayPayCost | undefined,
-    battlefield: CardInstance[]
+    battlefield: CardInstance[],
+    ctx?: FilterMatchContext
 ): number {
     if (!cost || !("permanent" in cost) || !cost.permanent) return 0;
     const filter: PermanentFilter = cost.permanent.filter;
     return battlefield.filter((c) =>
-        matchesEnginePermanentFilter(toMatchablePermanent(c), filter)
+        matchesEnginePermanentFilter(toMatchablePermanent(c), filter, ctx)
     ).length;
 }
 
@@ -2733,16 +2854,20 @@ export function mayPaySacrificeThreshold(
 
 /** Summed PRINTED power (CR 208.2) of a `may-pay` cost's matching sacrifice
  *  candidates on `battlefield`. Feeds the threshold-mode affordability gate
- *  (CR 118). Returns 0 when the cost has no sacrifice leg. */
+ *  (CR 118). Returns 0 when the cost has no sacrifice leg.
+ *
+ *  `ctx` — see {@link mayPaySacrificeCount}; same `controllerRelation`
+ *  fail-closed hazard applies here (issue #1938 fixup 2). */
 export function mayPaySacrificePower(
     cost: MayPayCost | undefined,
-    battlefield: CardInstance[]
+    battlefield: CardInstance[],
+    ctx?: FilterMatchContext
 ): number {
     if (!cost || !("permanent" in cost) || !cost.permanent) return 0;
     const filter: PermanentFilter = cost.permanent.filter;
     return battlefield
         .filter((c) =>
-            matchesEnginePermanentFilter(toMatchablePermanent(c), filter)
+            matchesEnginePermanentFilter(toMatchablePermanent(c), filter, ctx)
         )
         .reduce((sum, c) => sum + (tryGetDefinition(c.card.id)?.power ?? 0), 0);
 }
