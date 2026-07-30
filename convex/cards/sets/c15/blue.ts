@@ -10,7 +10,7 @@
 // Effect Script `optionChoice` and the legacy `CardDefinition.modes`
 // mechanism — both pick EXACTLY ONE mode (CR 700.2b "choose one"). This
 // card needs "choose three, repeats allowed" — a strictly more general shape
-// than the "choose two DISTINCT modes" gap already tracked by #920
+// than the "choose two DISTINCT modes" gap already tracked by #1566
 // (Kolaghan's Command). No choose-N-with-repeat construct exists yet.
 // Stop-and-issue per gre-development.md; tracked stub.
 // tracked-by: #930

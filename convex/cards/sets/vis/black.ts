@@ -50,18 +50,38 @@ export const vampiricTutor: CardDefinition = {
 // battlefield with Necromancy.' Put target creature card from a graveyard
 // onto the battlefield under your control and attach this enchantment to it.
 // When this enchantment leaves the battlefield, that creature's controller
-// sacrifices it." (CR 400.7 reanimation.) UNBLOCKED — no engine gap remains,
-// authoring only. All three pieces the self-transform-and-dynamic-attach
-// pattern needs have shipped: `addSubtype` (`convex/cards/types.ts`) turns
-// $source into an Aura mid-resolution; `attach` (`types.ts`, executor
-// `convex/gre/effects/interpreter.ts`) targets a BOUND ref from the same
-// resolution — Cori-Steel Cutter creates a token, binds it (`$monk`), then
-// attaches to `{ ref: "$monk" }` in one script (`tdm/red.ts`); and
-// `leftTrigger`/`PERMANENT_LEFT` (`convex/cards/abilities/triggers/leftTrigger.ts`)
-// covers the sacrifice-on-leave clause, with Dance of the Dead
-// (`ice/black.ts`) as the near precedent (also an Aura-reanimation card with
-// a leftTrigger sacrifice).
-// tracked-by: #1965
+// sacrifices it." (CR 400.7 reanimation.) STILL BLOCKED — two real engine
+// gaps remain. What #920 originally flagged as the blocker (the
+// self-transform-and-dynamic-attach pattern) IS genuinely closed: `addSubtype`
+// (`convex/gre/state.ts:10425`) turns $source into an Aura mid-resolution;
+// `attach` (`types.ts`, executor `convex/gre/effects/interpreter.ts`) targets
+// a BOUND ref from the same resolution — Cori-Steel Cutter creates a token,
+// binds it (`$monk`), then attaches to `{ ref: "$monk" }` in one script
+// (`tdm/red.ts`); and `leftTrigger`/`PERMANENT_LEFT`
+// (`convex/cards/abilities/triggers/leftTrigger.ts`) covers the
+// sacrifice-on-leave clause. But two clauses beyond that pattern are NOT
+// covered: (a) the per-instance enchant restriction (CR 303.4 / 704.5m) —
+// `checkAuraAttachmentSBA` (`convex/gre/sba.ts:141`) calls
+// `hostMatchesAuraRestriction` (`sba.ts:230-249`), which resolves "enchant
+// creature" from the COMPILE-TIME `def.targetRequirement` (`sba.ts:236`), not
+// from the instance `addSubtype` just mutated. Necromancy has no cast-time
+// `targetRequirement` (its host is chosen by the ETB trigger, CR 303.4i), so
+// this returns `false` and the aura is judged illegally attached the instant
+// the trigger resolves — `removePermanentTo` bins it right away. This is the
+// SAME compile-time-vs-per-instance shape as Carnage's `hasAttackRequirement`
+// (`spm/multicolor.ts`) above. Dance of the Dead (`ice/black.ts:409-415`) is
+// NOT a usable precedent — it works only because it is PRINTED as an Aura
+// with a cast-time `targetRequirement`; giving Necromancy that shape would
+// force a target at cast time and diverge from modern Oracle text (ADR
+// 0004). (b) the "sacrifice at the beginning of the next cleanup step, if
+// cast when a sorcery couldn't have been cast" clause needs a cleanup-step
+// delayed trigger and flash-timing memory, neither of which exist:
+// `DelayedTriggerTiming` (`convex/cards/types.ts:4411-4416`) offers only
+// `next-end-step` / `next-end-of-combat` / `next-draw-step` /
+// `next-main-phase` / `next-upkeep` and an instance-scoped leave-watch — no
+// cleanup boundary — and nothing in the engine records whether a spell was
+// cast when a sorcery couldn't have been.
+// tracked-by: #1975
 // export const necromancy: CardDefinition = {
 //     id: "311a6257-dd77-4bb6-81cb-c8e7862350f3",
 //     name: "Necromancy",

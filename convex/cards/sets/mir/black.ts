@@ -8,7 +8,7 @@
 // graveyard" needs a deterministic (non-player-choice) "top of graveyard"
 // object selector; every graveyard-card selection Op today
 // (`choice(zone: "graveyard")`) is a player pick, not an implicit positional
-// one (issue #920). Corpse Dance (`convex/cards/sets/tmp/black.ts`) shares
+// one (issue #1967). Corpse Dance (`convex/cards/sets/tmp/black.ts`) shares
 // this identical gap — co-tracked.
 // tracked-by: #1967
 // export const shallowGrave: CardDefinition = {
