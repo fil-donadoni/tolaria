@@ -233,7 +233,9 @@ import * as soi from "./sets/soi";
 // earliest paper printing is New Capenna Commander (ncc, ADR 0041).
 import * as ncc from "./sets/ncc";
 // Cube FREE residue: token makers (issue #1304). c21/stx already registered
-// above; arb is new (Thopter Foundry, a tracked stub blocked on #782).
+// above; arb is new (Thopter Foundry, shipped under #1926 — its guild-hybrid
+// {W/B}{U} cost was previously a tracked stub blocked on the now-closed
+// #782).
 import * as arb from "./sets/arb";
 // Cube FREE (residue): ETB/dies/attack triggers (issue #1305, parent PRD
 // #620) — Torsten, Founder of Benalia's earliest paper printing is Dominaria
