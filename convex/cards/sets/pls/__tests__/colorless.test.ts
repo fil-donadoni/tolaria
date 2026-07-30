@@ -23,9 +23,13 @@ import {
 import { forest, island, mountain, plains, swamp } from "../../lea/colorless";
 import { crawWurm } from "../../lea/green";
 import { lightningBolt } from "../../lea/red";
+import { quirionExplorer } from "../green";
+import { fellwarStone } from "../../drk/colorless";
 import {
+    getDefinitionProducibleColors,
     getEffectiveManaChoices,
     getManaTapOptionsDetailed,
+    getProducibleColors,
 } from "../../../../gre/constants";
 import { getLegalActions } from "../../../../gre/rules";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
@@ -524,5 +528,97 @@ describe("Meteor Crater (CR 605.1a / 105.2 — a COLOUR OF a permanent you contr
                 }))
             )
         ).toEqual(onFat);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CR 106.4 — a DESCRIPTOR mana ability's static `manaChoices` is a no-board
+// FALLBACK, not a "could produce" claim. Unioning it into
+// `producibleColorsFromAbilities` made every `manaColorSource` permanent read
+// as a WUBRG source, so a lone Meteor Crater (which right now can produce
+// NOTHING — its controller has no other permanent) inflated every CR 106.4
+// consumer: Quirion Explorer / Fellwar Stone offered all five colours, and the
+// castability gate reported Lightning Bolt castable off illegal mana
+// (CR 605.1a). The `"produces"` read is now descriptor-AWARE — it evaluates
+// the contributing permanent's own `manaColorSource` against the SAME board,
+// bounded at one level of nesting (`MAX_NESTED_MANA_COLOR_SOURCE_DEPTH`).
+// ─────────────────────────────────────────────────────────────────────────────
+describe("descriptor sources don't inflate CR 106.4 'could produce' (issue #1941)", () => {
+    /** p2's only permanent is a Meteor Crater — a Land whose colour set is
+     *  board-derived and currently EMPTY (p2 controls no other permanent). */
+    function boardWithLoneMeteorCrater(mine: CardInstanceState) {
+        return makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mine] }),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(meteorCrater.id, { controllerId: "p2" }),
+                    ],
+                }),
+            ],
+        });
+    }
+
+    it("Quirion Explorer offers nothing off an opponent's lone Meteor Crater", () => {
+        const explorer = makeInstance(quirionExplorer.id, {
+            controllerId: "p1",
+        });
+        const state = boardWithLoneMeteorCrater(explorer);
+        expect(manaChoicesFor(state, explorer, "p1")).toEqual([]);
+        expect(
+            getManaTapOptionsDetailed(explorer, "p1", manaBoards(state))
+        ).toHaveLength(0);
+    });
+
+    it("Fellwar Stone offers nothing off an opponent's lone Meteor Crater", () => {
+        const stone = makeInstance(fellwarStone.id, { controllerId: "p1" });
+        const state = boardWithLoneMeteorCrater(stone);
+        expect(manaChoicesFor(state, stone, "p1")).toEqual([]);
+    });
+
+    it("Lightning Bolt is NOT castable off the inflated colour set", () => {
+        const bolt = makeInstance(lightningBolt.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const explorer = makeInstance(quirionExplorer.id, {
+            controllerId: "p1",
+        });
+        const state = boardWithLoneMeteorCrater(explorer);
+        state.players[0].hand = [bolt];
+        expect(getLegalActions(state, state.players[0], bolt)).not.toContain(
+            "cast"
+        );
+    });
+
+    it("one level of nesting IS honoured — an opponent's Meteor Crater next to a green creature is a green source", () => {
+        const explorer = makeInstance(quirionExplorer.id, {
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [explorer] }),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(meteorCrater.id, { controllerId: "p2" }),
+                        makeInstance(crawWurm.id, { controllerId: "p2" }),
+                    ],
+                }),
+            ],
+        });
+        expect(manaChoicesFor(state, explorer, "p1")).toEqual([{ G: 1 }]);
+    });
+
+    it("definition-level 'could produce' reports no colour for a board-derived source", () => {
+        // Off a battlefield there is no board to read, so a descriptor source
+        // contributes nothing — NOT the five-colour fallback list (which the
+        // limited drafter's Fixing Value term would read as perfect fixing).
+        expect(getDefinitionProducibleColors(meteorCrater).size).toBe(0);
+        expect(getDefinitionProducibleColors(starCompass).size).toBe(0);
+        expect(getDefinitionProducibleColors(quirionExplorer).size).toBe(0);
+        expect(getDefinitionProducibleColors(fellwarStone).size).toBe(0);
+        // The instance-level twin agrees when given no board.
+        expect(getProducibleColors(makeInstance(meteorCrater.id)).size).toBe(0);
     });
 });

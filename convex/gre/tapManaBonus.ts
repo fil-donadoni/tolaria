@@ -34,7 +34,7 @@ import { matchesPermanentFilter } from "../cards/filters";
 import { tryGetDefinition } from "../cards";
 import {
     abilitiesSuppressed,
-    getProducibleColors,
+    getProducibleColorsOnBoard,
     MANA_COLORS,
 } from "./constants";
 
@@ -115,7 +115,14 @@ export function tapManaBonusUnits(
             }
         } else {
             // perProducedColor — the colours the land could itself make.
-            const produced = getProducibleColors(land);
+            // CR 106.4 (issue #1941) — board-aware over the CONTROLLER's
+            // battlefield, the only one this helper receives: a `"you"`-scoped
+            // board-derived land (Meteor Crater, Star Compass) resolves
+            // correctly, an `"opponents"`-scoped one resolves empty, which is
+            // the conservative direction (no phantom colour is ever claimed).
+            const produced = getProducibleColorsOnBoard(land, [
+                { playerId: land.controllerId, battlefield },
+            ]);
             if (produced.size === 0) continue;
             for (let i = 0; i < amount.count; i++) {
                 units.push(new Set<Color>(produced));
