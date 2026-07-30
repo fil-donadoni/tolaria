@@ -20,6 +20,7 @@ import {
     type Node,
 } from "../search";
 import { makeRng } from "../rng";
+import { LADDER_VARIANTS, setSearchVariant } from "../ai/searchVariant";
 import { evaluate } from "../evaluate";
 import { greedySelectMove } from "../greedy";
 import { enumerateMoves } from "../moves";
@@ -514,6 +515,63 @@ describe("search — reward band stays monotonic in eval (ADR 0018, issue #194)"
         expect(reward(ahead, "p1")).toBeGreaterThan(reward(evenish, "p1"));
         expect(reward(lost, "p1")).toBeLessThan(reward(evenish, "p1"));
         expect(reward(won, "p1")).toBeGreaterThan(reward(lost, "p1"));
+    });
+});
+
+describe("search — calibrated reward mapping variant (issue #1929)", () => {
+    // The `rewardMapping: "calibrated"` knob must actually BITE: a registered
+    // variant whose knob is never consulted turns the ladder A/B into a silent
+    // control-vs-control null run — 4–5h to an INCONCLUSIVE that measured
+    // nothing. This pins the consultation, not the fitted constant's value.
+    const lifeState = (myLife: number, oppLife: number) =>
+        makeState({
+            players: [
+                makePlayer("p1", { life: myLife }),
+                makePlayer("p2", { life: oppLife }),
+            ],
+        });
+    const CAL = {
+        name: "reward-calibrated",
+        rewardMapping: "calibrated" as const,
+    };
+    const underVariant = (fn: () => number): number => {
+        setSearchVariant(CAL);
+        try {
+            return fn();
+        } finally {
+            setSearchVariant(null);
+        }
+    };
+
+    it("changes the open-band reward at a nonzero margin", () => {
+        const ahead = lifeState(20, 5);
+        const dflt = reward(ahead, "p1");
+        const cal = underVariant(() => reward(ahead, "p1"));
+        expect(cal).not.toBe(dflt);
+        // Same side of the band center: calibration rescales, never flips.
+        expect(Math.sign(cal - 0.5)).toBe(Math.sign(dflt - 0.5));
+    });
+
+    it("keeps the terminal bands untouched (issue #138 outcome dominance)", () => {
+        const won = lifeState(20, 0);
+        const lost = lifeState(0, 20);
+        expect(underVariant(() => reward(won, "p1"))).toBe(reward(won, "p1"));
+        expect(underVariant(() => reward(lost, "p1"))).toBe(reward(lost, "p1"));
+    });
+
+    it("stays monotone in eval under the variant", () => {
+        let prev = -Infinity;
+        for (let oppLife = 20; oppLife >= 1; oppLife--) {
+            const r = underVariant(() => reward(lifeState(20, oppLife), "p1"));
+            expect(r).toBeGreaterThanOrEqual(prev);
+            expect(r).toBeGreaterThan(0);
+            expect(r).toBeLessThan(1);
+            prev = r;
+        }
+    });
+
+    it("LADDER_VARIANTS registers the knob under the name the CLI accepts", () => {
+        expect(LADDER_VARIANTS["reward-calibrated"]).toEqual(CAL);
     });
 });
 

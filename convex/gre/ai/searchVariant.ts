@@ -24,6 +24,10 @@ export type SearchVariant = {
     name: string;
     /** Override for the UCB1 exploration constant (`UCB_C` in search.ts). */
     ucbC?: number;
+    /** Open-band reward mapping (issue #1929): "calibrated" swaps the linear
+     *  clip (`materialSignal`) for the fitted logistic margin → win-prob
+     *  (`CALIBRATED_REWARD_K` in search.ts). Absent = production linear clip. */
+    rewardMapping?: "calibrated";
 };
 
 let activeVariant: SearchVariant | null = null;
@@ -39,8 +43,13 @@ export function getSearchVariant(): SearchVariant | null {
 }
 
 /** The named candidate configs `bun run ladder --variant <name>` can run.
- *  Deliberately empty until the first strength experiment registers its flag
- *  (reward calibration / priors+FPU / rollout truncation — map #1892).
  *  A ladder run with NO variant is the control-vs-control null experiment:
  *  its aggregate CI must straddle 50%, which measures the harness noise floor. */
-export const LADDER_VARIANTS: Record<string, SearchVariant> = {};
+export const LADDER_VARIANTS: Record<string, SearchVariant> = {
+    // issue #1929 — margin → win-prob logistic fitted on the ladder corpus,
+    // replacing the hand-set linear clip in the open reward band.
+    "reward-calibrated": {
+        name: "reward-calibrated",
+        rewardMapping: "calibrated",
+    },
+};

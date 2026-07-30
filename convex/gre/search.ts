@@ -245,6 +245,23 @@ function materialSignal(margin: number): number {
     return x < -1 ? -1 : x > 1 ? 1 : x;
 }
 
+/** Calibrated margin → win-probability slope (issue #1929, map #1892 step 3):
+ *  P(win | margin m) = σ(CALIBRATED_REWARD_K · m), fitted on the ladder
+ *  self-play corpus by `bun scripts/fit-reward-mapping.ts` (one-parameter
+ *  logistic MLE, intercept pinned to 0 by game symmetry). Consulted only under
+ *  the `rewardMapping: "calibrated"` search variant until the ladder verdict
+ *  lands it as the default. */
+export const CALIBRATED_REWARD_K = 2.3e-3; // placeholder — set by the fit
+
+/** Calibrated replacement for `materialSignal` in the OPEN band: the fitted
+ *  win probability rescaled to [-1, 1]. The terminal bands keep the linear
+ *  material tie-break — outcome dominance and the within-band surviving-
+ *  material discrimination (issue #138) are properties the calibration must
+ *  not disturb; what it replaces is the mid-game margin RESOLUTION. */
+function calibratedSignal(margin: number): number {
+    return 2 / (1 + Math.exp(-CALIBRATED_REWARD_K * margin)) - 1;
+}
+
 export type Edge = {
     move: Move;
     /** The tree key this edge is stored under (its key in `Node.children`).
@@ -386,7 +403,13 @@ function rewardFromValue(v: number): number {
         const material = 0.5 + 0.5 * materialSignal(v + WIN_SCORE);
         return TERMINAL_BAND * material;
     }
-    const material = 0.5 + 0.5 * materialSignal(v);
+    // Open band: variant-selectable margin mapping (issue #1929) — production
+    // default is the linear clip; the ladder A/Bs the calibrated logistic.
+    const signal =
+        getSearchVariant()?.rewardMapping === "calibrated"
+            ? calibratedSignal(v)
+            : materialSignal(v);
+    const material = 0.5 + 0.5 * signal;
     return TERMINAL_BAND + (1 - 2 * TERMINAL_BAND) * material;
 }
 
