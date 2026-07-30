@@ -55,7 +55,14 @@ export function useBattlefieldVisualState(player: Player) {
         combat,
         allPlayers,
         emblems,
+        turn,
+        controlChangedThisTurn,
     } = useGameContext();
+    // The two wire fields a "…controlled since the beginning of the turn"
+    // choice filter needs (`@convex/gre/controlContinuity`). Passed to
+    // `matchesPermanentFilter` so the highlight matches the server's own
+    // pending-choice submit validation exactly.
+    const controlContinuity = { turn, controlChangedThisTurn };
     const bufferCtx = usePendingChoiceBuffer();
     const attackSequence = useAttackSequence();
     const isMe = player.id === playerId;
@@ -274,7 +281,11 @@ export function useBattlefieldVisualState(player: Player) {
             }
             if (
                 activeChoice.filter &&
-                !matchesPermanentFilter(card, activeChoice.filter)
+                !matchesPermanentFilter(
+                    card,
+                    activeChoice.filter,
+                    controlContinuity
+                )
             ) {
                 return false;
             }

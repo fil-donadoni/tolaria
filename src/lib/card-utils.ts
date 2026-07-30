@@ -19,6 +19,10 @@ import {
     canPayTapOtherCost,
     crewPowerContribution,
 } from "@convex/gre/tapOtherCost";
+import {
+    hasControlledSinceTurnStart,
+    type ControlContinuityView,
+} from "@convex/gre/controlContinuity";
 import type {
     ActivatedAbility,
     AlternativeCost,
@@ -546,11 +550,22 @@ export interface ClientPermanentFilter {
      *  `any` collapses to all-fields-undefined and fails OPEN (highlights
      *  every permanent as a legal pick). */
     any?: ClientPermanentFilter[];
+    /** "…that they controlled since the beginning of the turn" (Keldon
+     *  Twilight, PLS). Mirrors `PermanentFilter.controlledSinceTurnStart`.
+     *  Answering it needs the two turn-scoped `GameState` fields, so callers
+     *  must pass `turnState` — without it this branch fails CLOSED (the filter
+     *  is a restriction, so refusing to highlight is the safe direction: the
+     *  server would reject the pick anyway). */
+    controlledSinceTurnStart?: boolean;
 }
 
 export function matchesPermanentFilter(
     card: CardInstance,
-    filter: ClientPermanentFilter
+    filter: ClientPermanentFilter,
+    /** Projected `{ turn, controlChangedThisTurn }` — required only by the
+     *  `controlledSinceTurnStart` clause. Both fields cross the wire verbatim;
+     *  `useGameContext` forwards them. */
+    turnState?: ControlContinuityView
 ): boolean {
     if (filter.types !== undefined) {
         const types = Array.isArray(filter.types)
@@ -623,6 +638,16 @@ export function matchesPermanentFilter(
             return false;
         }
     }
+    // "…that they controlled since the beginning of the turn" — delegated to
+    // the ONE engine authority (`hasControlledSinceTurnStart`) rather than
+    // re-derived here, so the board highlight and the server's pending-choice
+    // submit validation can never disagree. No `turnState` → fail closed.
+    if (filter.controlledSinceTurnStart !== undefined) {
+        const held = turnState
+            ? hasControlledSinceTurnStart(turnState, card)
+            : false;
+        if (filter.controlledSinceTurnStart !== held) return false;
+    }
     // issue #897 — OR ACROSS filter dimensions. Every other field above is
     // ANDed; `any` is the one disjunctive clause list this filter supports.
     // Recurses through this same matcher (each clause is a full AND-of-fields
@@ -630,7 +655,9 @@ export function matchesPermanentFilter(
     // everything) — this check is what enforces that.
     if (
         filter.any !== undefined &&
-        !filter.any.some((clause) => matchesPermanentFilter(card, clause))
+        !filter.any.some((clause) =>
+            matchesPermanentFilter(card, clause, turnState)
+        )
     ) {
         return false;
     }
@@ -2717,7 +2744,13 @@ export function mayPayCanAfford(
  *  second copy is exactly how the `excludeSubtypes` gap above went unnoticed
  *  (issue #1938 fixup 2). See `MIRROR_CENSUS` below for which
  *  `PermanentFilter` fields this adapter populates. */
-export function toMatchablePermanent(card: CardInstance): MatchablePermanent {
+export function toMatchablePermanent(
+    card: CardInstance,
+    /** Projected `{ turn, controlChangedThisTurn }`. Required only by the two
+     *  turn-scoped derived flags below; omitted, both stay undefined and their
+     *  filters fail closed. */
+    turnState?: ControlContinuityView
+): MatchablePermanent {
     return {
         id: card.id,
         types: card.types ?? [],
@@ -2751,6 +2784,22 @@ export function toMatchablePermanent(card: CardInstance): MatchablePermanent {
         // `createdBy` clause (Tetravus-style "tokens created with this").
         // Same wire/fail-open reasoning as `isToken` above.
         createdBy: card.createdBy,
+        // CR 400.7 — "entered the battlefield this turn": the same
+        // `enteredOnTurn === turn` derivation the server does
+        // (`convex/gre/state.ts`), now that the turn number is available.
+        // Closes the gap the census recorded against this key.
+        ...(turnState
+            ? {
+                  enteredThisTurn: card.enteredOnTurn === turnState.turn,
+                  // "…that they controlled since the beginning of the turn" —
+                  // the ONE engine authority, shared with the server
+                  // (ADR 0074: the frontend may import pure engine modules).
+                  controlledSinceTurnStart: hasControlledSinceTurnStart(
+                      turnState,
+                      card
+                  ),
+              }
+            : {}),
     };
 }
 
@@ -2834,15 +2883,22 @@ export const MIRROR_CENSUS: Record<keyof PermanentFilter, MirrorStatus> = {
     // populate it either, so this is a pre-existing gap on both paths, not a
     // client-only drift. No shipped may-pay/board-highlight filter uses it.
     name: "intentionally-absent",
-    // Requires the CURRENT TURN NUMBER to compare against the permanent's
-    // `enteredOnTurn` stamp (`c.enteredOnTurn === state.turn`, the server's
-    // own derivation in `convex/gre/state.ts`) — neither
-    // `mayPaySacrificeCount`/`mayPaySacrificePower` nor `toMatchablePermanent`
-    // currently receive a turn number. No shipped may-pay sacrifice leg uses
-    // it yet; add a `currentTurn` parameter (mirroring the `ctx` parameter
-    // this fixup added for `controllerRelation`) before shipping one that
-    // does.
-    enteredThisTurn: "intentionally-absent",
+    // Was "intentionally-absent" until `toMatchablePermanent` gained its
+    // optional `turnState` parameter (the `currentTurn` parameter that note
+    // asked for, added alongside `controlledSinceTurnStart` below since both
+    // read the same two wire fields). The adapter now derives it exactly as
+    // the server does (`enteredOnTurn === turn`); the `ClientPermanentFilter`
+    // mirror still has no field for it, because no shipped board-highlight
+    // filter needs it.
+    enteredThisTurn: "adapter-only",
+    // Mirrored on BOTH paths: `ClientPermanentFilter.controlledSinceTurnStart`
+    // (board highlighting for Keldon Twilight's sacrifice picker) and the
+    // adapter above. Both delegate to the same engine helper
+    // `hasControlledSinceTurnStart` (`convex/gre/controlContinuity.ts`) — one
+    // authority, so the highlight and the server's submit validation cannot
+    // disagree. Both fail CLOSED without a `turnState`, which the parity
+    // cases assert explicitly.
+    controlledSinceTurnStart: "mirrored",
 };
 
 /** Count of a chooser's battlefield permanents that satisfy a `may-pay` cost's

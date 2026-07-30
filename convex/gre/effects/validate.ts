@@ -195,6 +195,7 @@ function isCardFilter(
     opts?: {
         allowHasAbility?: boolean;
         allowIsAttacking?: boolean;
+        allowControlledSinceTurnStart?: boolean;
         rejectManaCostEquals?: boolean;
     }
 ): boolean {
@@ -203,6 +204,8 @@ function isCardFilter(
     }
     const allowHasAbility = opts?.allowHasAbility ?? false;
     const allowIsAttacking = opts?.allowIsAttacking ?? false;
+    const allowControlledSinceTurnStart =
+        opts?.allowControlledSinceTurnStart ?? false;
     // issue #1898 finding 3 — `manaCostEquals` is honest ONLY on a hidden-zone
     // card shape (`matchesCardFilter`'s `card.cost`, read from the registry by
     // `getHandCards`/`getLibraryCards`/`getGraveyardCards`/`getExileCards`).
@@ -323,6 +326,7 @@ function isCardFilter(
                     isCardFilter(clause, {
                         allowHasAbility,
                         allowIsAttacking,
+                        allowControlledSinceTurnStart,
                         rejectManaCostEquals,
                     })
                 )
@@ -355,6 +359,15 @@ function isCardFilter(
         // battlefield-guaranteed selector sites `hasAbility` already uses.
         if (k === "isAttacking") {
             if (!allowIsAttacking) return false;
+            return typeof v === "boolean";
+        }
+        // "…that they controlled since the beginning of the turn" (Keldon
+        // Twilight, PLS). Same battlefield-only honesty rule as
+        // `hasAbility`/`isAttacking` above: a card in a hidden zone has no
+        // controller at all (CR 108.4), so accepting the field there would
+        // validate and then match every card at runtime.
+        if (k === "controlledSinceTurnStart") {
+            if (!allowControlledSinceTurnStart) return false;
             return typeof v === "boolean";
         }
         return false;
@@ -395,6 +408,25 @@ function filterUsesIsAttacking(value: unknown): boolean {
     return (
         Array.isArray(f.any) &&
         f.any.some((clause) => filterUsesIsAttacking(clause))
+    );
+}
+
+/** Whether an `EffectCardFilter` uses `controlledSinceTurnStart`, directly or
+ *  nested inside an `any` clause — the third sibling of
+ *  `filterUsesHasAbility`/`filterUsesIsAttacking`, same rationale (a card in a
+ *  hidden zone has no controller at all, CR 108.4) and same single call site
+ *  (the `choice` Op's cross-field `check`). */
+function filterUsesControlledSinceTurnStart(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    const f = value as Record<string, unknown>;
+    if (typeof f.controlledSinceTurnStart === "boolean") {
+        return true;
+    }
+    return (
+        Array.isArray(f.any) &&
+        f.any.some((clause) => filterUsesControlledSinceTurnStart(clause))
     );
 }
 
@@ -781,6 +813,7 @@ function isCountValue(value: unknown): boolean {
         !isCardFilter(s.filter, {
             allowHasAbility: s.zone === "battlefield",
             allowIsAttacking: s.zone === "battlefield",
+            allowControlledSinceTurnStart: s.zone === "battlefield",
             rejectManaCostEquals: s.zone === "battlefield",
         })
     ) {
@@ -1726,6 +1759,7 @@ function isPredicate(value: unknown): boolean {
             isCardFilter(obj.filter, {
                 allowHasAbility: true,
                 allowIsAttacking: true,
+                allowControlledSinceTurnStart: true,
                 rejectManaCostEquals: true,
             })
         );
@@ -1867,6 +1901,7 @@ function isForEachSelector(value: unknown): boolean {
         !isCardFilter(s.filter, {
             allowHasAbility: true,
             allowIsAttacking: true,
+            allowControlledSinceTurnStart: true,
             rejectManaCostEquals: true,
         })
     ) {
@@ -1916,6 +1951,7 @@ function isPileObjectSelector(value: unknown): boolean {
             !isCardFilter(s.filter, {
                 allowHasAbility: true,
                 allowIsAttacking: true,
+                allowControlledSinceTurnStart: true,
                 rejectManaCostEquals: true,
             })
         ) {
@@ -3069,6 +3105,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                 isCardFilter(v, {
                     allowHasAbility: true,
                     allowIsAttacking: true,
+                    allowControlledSinceTurnStart: true,
                 }),
             zoneOwnerId: isPlayerRef,
             id: isNonEmptyString,
@@ -3111,6 +3148,17 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             ) {
                 errors.push(
                     '"filter.isAttacking" is valid only with zone: "battlefield" — a hand/library/graveyard/exile card carries no combat-role data to match against'
+                );
+            }
+            // `controlledSinceTurnStart` — the `hasAbility`/`isAttacking` rule
+            // again, applied to control continuity: a card in a hidden zone has
+            // no controller at all (CR 108.4).
+            if (
+                entry.zone !== "battlefield" &&
+                filterUsesControlledSinceTurnStart(entry.filter)
+            ) {
+                errors.push(
+                    '"filter.controlledSinceTurnStart" is valid only with zone: "battlefield" — a hand/library/graveyard/exile card has no controller to have controlled it'
                 );
             }
             // `manaCostEquals` (issue #1898 finding 3) is the INVERSE of

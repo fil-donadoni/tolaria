@@ -66,6 +66,7 @@ import {
     type FilterMatchContext,
     type PermanentFilter,
 } from "@convex/cards/filters";
+import type { ControlContinuityView } from "@convex/gre/controlContinuity";
 import {
     crosissCatacombs,
     meteorCrater,
@@ -2567,12 +2568,13 @@ describe("matchesPermanentFilter / toMatchablePermanent — MIRROR_CENSUS parity
         card: CardInstance,
         filter: PermanentFilter,
         expected: boolean,
-        ctx?: FilterMatchContext
+        ctx?: FilterMatchContext,
+        turnState?: ControlContinuityView
     ) {
-        expect(matchesPermanentFilter(card, filter)).toBe(expected);
+        expect(matchesPermanentFilter(card, filter, turnState)).toBe(expected);
         expect(
             matchesEnginePermanentFilter(
-                toMatchablePermanent(card),
+                toMatchablePermanent(card, turnState),
                 filter,
                 ctx
             )
@@ -2587,11 +2589,12 @@ describe("matchesPermanentFilter / toMatchablePermanent — MIRROR_CENSUS parity
         card: CardInstance,
         filter: PermanentFilter,
         expected: boolean,
-        ctx?: FilterMatchContext
+        ctx?: FilterMatchContext,
+        turnState?: ControlContinuityView
     ) {
         expect(
             matchesEnginePermanentFilter(
-                toMatchablePermanent(card),
+                toMatchablePermanent(card, turnState),
                 filter,
                 ctx
             )
@@ -2602,10 +2605,45 @@ describe("matchesPermanentFilter / toMatchablePermanent — MIRROR_CENSUS parity
         card: CardInstance;
         filter: PermanentFilter;
         expected: boolean;
+        /** Projected `{ turn, controlChangedThisTurn }` — only the two
+         *  turn-scoped derived flags need it (issue #1944). */
+        turnState?: ControlContinuityView;
     };
     type AdapterCase = Case & { ctx?: FilterMatchContext };
 
     const MIRRORED_CASES: Partial<Record<keyof PermanentFilter, Case[]>> = {
+        // Keldon Twilight's "…that they controlled since the beginning of the
+        // turn" (issue #1944). Both paths delegate to the ONE engine helper
+        // `hasControlledSinceTurnStart`, so the board highlight and the
+        // server's pending-choice submit validation cannot disagree.
+        controlledSinceTurnStart: [
+            {
+                card: makeCardInstance({ id: "long-held", enteredOnTurn: 1 }),
+                filter: { controlledSinceTurnStart: true },
+                turnState: { turn: 5 },
+                expected: true,
+            },
+            {
+                card: makeCardInstance({ id: "just-cast", enteredOnTurn: 5 }),
+                filter: { controlledSinceTurnStart: true },
+                turnState: { turn: 5 },
+                expected: false,
+            },
+            {
+                card: makeCardInstance({ id: "stolen", enteredOnTurn: 1 }),
+                filter: { controlledSinceTurnStart: true },
+                turnState: { turn: 5, controlChangedThisTurn: ["stolen"] },
+                expected: false,
+            },
+            {
+                // No turnState — must fail CLOSED on both paths (the filter is
+                // a restriction; highlighting a pick the server would reject is
+                // the worse failure).
+                card: makeCardInstance({ id: "long-held", enteredOnTurn: 1 }),
+                filter: { controlledSinceTurnStart: true },
+                expected: false,
+            },
+        ],
         types: [
             {
                 card: makeCardInstance({ types: ["Creature"] }),
@@ -2741,6 +2779,30 @@ describe("matchesPermanentFilter / toMatchablePermanent — MIRROR_CENSUS parity
                 }),
                 filter: { types: "Land", supertypes: "Basic" },
                 expected: true,
+            },
+        ],
+        // CR 400.7 (issue #1944) — derived by the adapter from the projected
+        // turn number, exactly as the server derives it. The client mirror has
+        // no field for it (no shipped board-highlight filter needs it).
+        enteredThisTurn: [
+            {
+                card: makeCardInstance({ id: "fresh", enteredOnTurn: 5 }),
+                filter: { enteredThisTurn: true },
+                turnState: { turn: 5 },
+                expected: true,
+            },
+            {
+                card: makeCardInstance({ id: "old", enteredOnTurn: 2 }),
+                filter: { enteredThisTurn: true },
+                turnState: { turn: 5 },
+                expected: false,
+            },
+            {
+                // No turnState — the adapter leaves the flag undefined, which
+                // reads as "did not enter this turn".
+                card: makeCardInstance({ id: "fresh", enteredOnTurn: 5 }),
+                filter: { enteredThisTurn: true },
+                expected: false,
             },
         ],
         instanceIds: [
@@ -2882,8 +2944,8 @@ describe("matchesPermanentFilter / toMatchablePermanent — MIRROR_CENSUS parity
             const cases = MIRRORED_CASES[key];
             expect(cases, `MIRRORED_CASES["${key}"] is missing`).toBeDefined();
             expect(cases!.length).toBeGreaterThan(0);
-            for (const { card, filter, expected } of cases!) {
-                expectParity(card, filter, expected);
+            for (const { card, filter, expected, turnState } of cases!) {
+                expectParity(card, filter, expected, undefined, turnState);
             }
         }
     });
@@ -2899,8 +2961,8 @@ describe("matchesPermanentFilter / toMatchablePermanent — MIRROR_CENSUS parity
                 `ADAPTER_ONLY_CASES["${key}"] is missing`
             ).toBeDefined();
             expect(cases!.length).toBeGreaterThan(0);
-            for (const { card, filter, expected, ctx } of cases!) {
-                expectAdapterOnly(card, filter, expected, ctx);
+            for (const { card, filter, expected, ctx, turnState } of cases!) {
+                expectAdapterOnly(card, filter, expected, ctx, turnState);
             }
         }
     });

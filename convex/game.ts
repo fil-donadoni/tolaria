@@ -302,6 +302,7 @@ import {
     collectAttackSacrificeTax,
     collectAttackManaTax,
     markAttacking,
+    recordAttackerDeclared,
 } from "./gre/combat";
 import {
     getEffectiveBlockGraph,
@@ -9953,7 +9954,10 @@ export function finalizeConfirmAttackers(state: GameState): void {
             // AND `isAttacking` together, the single sync point every
             // combat-scoped read depends on.
             markAttacking(state, card);
-            card.hasAttackedThisTurn = true;
+            // CR 506.3 — the shared declaration record: per-card
+            // `hasAttackedThisTurn` plus the game-level
+            // `creatureAttackedThisTurn` (issue #1944).
+            recordAttackerDeclared(state, card);
         }
     }
     combat.confirmed = true;

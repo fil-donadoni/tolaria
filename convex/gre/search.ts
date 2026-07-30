@@ -64,6 +64,7 @@ import {
 import { cloneGameState } from "./clone";
 import { predictCombatOutcome } from "./dangerClock";
 import { recordBlockedAttackers } from "./banding";
+import { markAttacking, recordAttackerDeclared } from "./combat";
 import { enumerateMoves, type Move } from "./moves";
 import { manaValue } from "./constants";
 import { getInstanceManaCost } from "../cards";
@@ -663,8 +664,12 @@ export function applyMoveInSearch(
             for (const id of combat.attackerIds) {
                 const atk = findCreature(state, id);
                 if (!atk) continue;
-                atk.isAttacking = true;
-                atk.hasAttackedThisTurn = true;
+                markAttacking(state, atk);
+                // CR 506.3 — the shared declaration record, so the SEARCH's
+                // model of a declaration matches the server's exactly and the
+                // bot can see "no creatures attacked this turn" effects
+                // (issue #1944).
+                recordAttackerDeclared(state, atk);
                 if (!atk.staticAbilities.includes("vigilance")) {
                     // CR 708.9 / ADR 0013 — face-down attacker turns up on tap.
                     tapPermanent(state, atk);

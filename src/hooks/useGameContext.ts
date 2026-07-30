@@ -51,6 +51,14 @@ type GameContext = {
      *  this turn" predicate reads the SAME number the server's CR 603.4
      *  intervening-if does. */
     lifeGainedThisTurn?: Record<string, number>;
+    /** Control continuity (`@convex/gre/controlContinuity`) — instance ids
+     *  whose controller changed during the current turn, forwarded from the
+     *  wire `GameState.controlChangedThisTurn`. Combined with `turn` (above)
+     *  it forms the `ControlContinuityView` the board's choice-picker passes to
+     *  `matchesPermanentFilter`, so a "creature you controlled since the
+     *  beginning of the turn" restriction highlights exactly the permanents the
+     *  server's submit validation will accept. */
+    controlChangedThisTurn?: string[];
     /** CR 702.16b/i (issue #674, The One Ring) — players who currently have
      *  protection from everything, forwarded from the wire
      *  `GameState.playerProtectionFromEverything`. Read by

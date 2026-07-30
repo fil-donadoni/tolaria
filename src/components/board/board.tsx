@@ -457,6 +457,7 @@ export default function Board({
                 meleeCombat,
                 cannotActivateAbilitiesThisTurn,
                 lifeGainedThisTurn: state.lifeGainedThisTurn,
+                controlChangedThisTurn: state.controlChangedThisTurn,
                 playerProtectionFromEverything:
                     state.playerProtectionFromEverything,
                 gameOver,
