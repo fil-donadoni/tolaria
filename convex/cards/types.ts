@@ -110,18 +110,20 @@ export type ManaCost = {
     /** CR 202.1a / 107.4e — GUILD-HYBRID mana pips ({B/G}, {W/U}, …). Each entry
      *  is one hybrid pip, listed as the two colours it may be paid with (order
      *  irrelevant). Hogaak `{5}{B/G}{B/G}` → `[["B","G"],["B","G"]]`. A hybrid
-     *  pip is paid at cast time with one mana of EITHER colour (or, here, by a
-     *  Convoke creature of either colour — CR 702.51). This field only DECLARES
-     *  the pips; the flat generic/single-colour requirement stays in the other
-     *  keys, so `normalizeManaCost` deliberately IGNORES this field (hybrid pips
-     *  are satisfied by the payWith / convoke path, `convex/gre/payWith.ts`).
+     *  pip is paid at cast time with one mana of EITHER colour (or by a Convoke
+     *  creature of either colour — CR 702.51). This field DECLARES the pips; the
+     *  flat generic/single-colour requirement stays in the other keys, and
+     *  `normalizeManaCost` folds each pip into a composite `"B/G"` key (issue
+     *  #1738) so every payment consumer owes it — pool payment, the castability
+     *  probe, land AUTO-TAP (`convex/gre/autoTap.ts`, issue #1739) and the
+     *  payWith / convoke path (`convex/gre/payWith.ts`) alike.
      *  `manaValue` counts each pip as 1 (CR 202.3f), and `getColorsFromCost`
      *  includes BOTH colours of each pip in the card's colour (CR 105.2 / 202.2).
-     *  NARROW scope (issue #1338): only two-colour guild hybrid — monocolour
-     *  hybrid ({2/B}) and Phyrexian-hybrid are NOT modelled (no pool card needs
-     *  them). Land-based hybrid AUTO-TAP payment (paying {B/G} from a Swamp) is
-     *  deferred to #782; the only shipped hybrid card is Hogaak, which forbids
-     *  spending mana, so its hybrids are always convoked. */
+     *  NARROW scope (issue #1338): only two-colour guild hybrid — MONOCOLOUR
+     *  hybrid ({2/B}) is still unmodelled (issue #1743). Shipped hybrid cards
+     *  pay these pips with real mana (Figure of Fable, the ECL Elemental
+     *  Incarnations, Carnage Interpreter); Hogaak is the exception only because
+     *  it forbids spending mana, so its pips are always convoked. */
     hybrid?: Array<[Color, Color]>;
 };
 
@@ -4626,10 +4628,13 @@ export interface PermanentView {
      *  THIS resolution only): this field is a PERSISTENT record on the
      *  permanent, readable by a LATER triggered ability's `condition` (CR
      *  603.4 check-time predicate) — e.g. "when this enters, if {R}{R} was
-     *  spent to cast it, ..." (Vibrance/Deceit/Wistfulness, ECL; blocked from
-     *  shipping only by missing hybrid `ManaCost` pip representation, issue
-     *  #782 — this field is the tracking half of #900 and is otherwise ready
-     *  for them). Undefined when the card doesn't opt into `noteManaSpent`. */
+     *  spent to cast it, ...". The shipped readers are the ECL Elemental
+     *  Incarnations — Vibrance/Deceit/Wistfulness (`cards/sets/ecl/multicolor.ts`,
+     *  issue #1927) — each of which gates two ETB triggers on this snapshot;
+     *  paying their GUILD-HYBRID evoke cost ({R/G}{R/G}) with two mana of ONE
+     *  colour records that colour twice here, so the matching half fires and
+     *  the other does not. This field is the tracking half of #900. Undefined
+     *  when the card doesn't opt into `noteManaSpent`. */
     notedManaSpentOnCast?: Record<string, number>;
     /** CR 702.33 / 614.1c — true iff this permanent's spell was cast with its
      *  Kicker cost paid, snapshotted from the resolving stack item's
