@@ -38,6 +38,23 @@ describe("playLadderGame (micro smoke)", () => {
         }
     });
 
+    it("samples one S0-perspective margin per turn (issue #1929)", () => {
+        const out = playLadderGame(SPEC, null);
+        expect(out.marginSamples.length).toBeGreaterThan(0);
+        // One sample per sampled turn, strictly increasing turn numbers.
+        const turns = out.marginSamples.map((s) => s.turn);
+        expect(new Set(turns).size).toBe(turns.length);
+        for (let i = 1; i < turns.length; i++) {
+            expect(turns[i]).toBeGreaterThan(turns[i - 1]);
+        }
+        // Samples never exceed the game's reported turn count and every
+        // margin is a finite evaluate value.
+        expect(turns[turns.length - 1]).toBeLessThanOrEqual(out.turns);
+        for (const s of out.marginSamples) {
+            expect(Number.isFinite(s.margin)).toBe(true);
+        }
+    });
+
     it("is bit-reproducible: same spec + variant, identical outcome", () => {
         const a = playLadderGame(SPEC, null);
         const b = playLadderGame(SPEC, null);
@@ -53,6 +70,9 @@ describe("playLadderGame (micro smoke)", () => {
         expect(o1.winnerSeat).toBe(o0.winnerSeat);
         expect(o1.turns).toBe(o0.turns);
         expect(o1.plies).toBe(o0.plies);
+        // The margin trace is a property of the game, not of the candidate
+        // attribution — identical across the pair (issue #1929).
+        expect(o1.marginSamples).toEqual(o0.marginSamples);
         if (o0.candidateWon !== null) {
             expect(o1.candidateWon).toBe(!o0.candidateWon);
         }

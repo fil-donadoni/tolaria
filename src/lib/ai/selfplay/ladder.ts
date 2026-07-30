@@ -13,7 +13,12 @@
 // The two orientations of a ladder pair pass the SAME spec except
 // `candidateSeat` — identical shuffles, agents swapped.
 
-import { search, createInitialGameState, type SearchBudget } from "@convex/gre";
+import {
+    search,
+    createInitialGameState,
+    evaluate,
+    type SearchBudget,
+} from "@convex/gre";
 import {
     setSearchVariant,
     type SearchVariant,
@@ -40,6 +45,12 @@ export type LadderGameOutcome = {
     reason: GameEndReason;
     turns: number;
     plies: number;
+    /** Per-turn `evaluate` margin from seat S0's perspective, taken at the
+     *  FIRST search-decided node of each game turn (issue #1929). Read-only
+     *  probes of the live state — `evaluate` is pure, so sampling cannot
+     *  perturb the game and bit-reproducibility holds. These lines are the
+     *  margin → win-probability calibration corpus. */
+    marginSamples: { turn: number; margin: number }[];
 };
 
 export function playLadderGame(
@@ -53,7 +64,17 @@ export function playLadderGame(
     const state = createInitialGameState(players, spec.seed);
     const budget: SearchBudget = { iterations: spec.iterations };
 
+    const marginSamples: { turn: number; margin: number }[] = [];
+    let lastSampledTurn = -1;
+
     const variantAwareSearch: typeof search = (st, pid, b, sd) => {
+        // First search-decided node of a new turn → one calibration sample
+        // (issue #1929). Always from S0's perspective so a game's samples
+        // share one sign convention with its outcome label.
+        if (st.turn > lastSampledTurn) {
+            lastSampledTurn = st.turn;
+            marginSamples.push({ turn: st.turn, margin: evaluate(st, "S0") });
+        }
         setSearchVariant(pid === spec.candidateSeat ? candidate : null);
         try {
             return search(st, pid, b, sd);
@@ -81,5 +102,6 @@ export function playLadderGame(
         reason: result.reason,
         turns: result.turns,
         plies: result.plies,
+        marginSamples,
     };
 }

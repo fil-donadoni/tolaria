@@ -328,6 +328,7 @@ if (workers === 1) {
             turns: outcome.turns,
             plies: outcome.plies,
             ms: Date.now() - t0,
+            marginSamples: outcome.marginSamples,
         });
     }
 } else {

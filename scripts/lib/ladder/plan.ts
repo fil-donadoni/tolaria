@@ -84,6 +84,12 @@ export type LadderGameRecord = {
     turns: number;
     plies: number;
     ms: number;
+    /** Per-turn evaluation margin from seat S0's perspective, sampled at the
+     *  FIRST search-decided node of each game turn (issue #1929) — the
+     *  calibration corpus for margin → win-probability fitting. Optional so
+     *  pre-#1929 run files still parse; absent on guard-stop-truncated games
+     *  only when the stop hit before the first sample. */
+    marginSamples?: { turn: number; margin: number }[];
 };
 
 /** Expand the pairing registry into the full deterministic game list. */
