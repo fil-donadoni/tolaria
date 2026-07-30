@@ -10976,6 +10976,14 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Sensei's Divining Top",
+        "scryfallId": "4a08ca06-58db-4ce6-b490-be4bea8956a1",
+        "oracleId": "13575cf9-65c1-4861-b21e-eb2155e07766",
+        "firstSet": "chk",
+        "firstPrintId": "4a08ca06-58db-4ce6-b490-be4bea8956a1",
+        "firstPrintSet": "chk"
+    },
+    {
         "name": "Seraph",
         "scryfallId": "ab675291-3189-43f3-b11b-0724eca8b941",
         "oracleId": "a1c50bd1-120d-44ac-af20-13a90fc991e6",
