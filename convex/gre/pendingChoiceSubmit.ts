@@ -961,24 +961,39 @@ export function applyPendingChoiceSubmit(
     // anything (a fetchland whiff still "searched"). This is the single
     // choke point every tutor/fetchland library search funnels through
     // regardless of DSL-vs-resolve() authoring — see
-    // `emitLibrarySearchedEvent`'s doc comment. The SEARCHER is the stack
-    // item's controller (`stackItem.controllerId`) — under the ADR 0037
-    // Word-of-Command acting-player routing, the controlled player is who
-    // "searches", and the controller controls the stack item, so this is
-    // also right for that case. The LIBRARY OWNER is `head.zoneOwnerId ??
-    // head.playerId` — the two are equal for the ordinary "target player
-    // searches their own library" case, but DIFFER for a Jester's
-    // Cap/Jester's Mask/Lobotomy-shaped "search TARGET PLAYER's library"
-    // (bugfix, post-review): there the controller is the searcher while the
-    // target player owns the library, and a single collapsed field wrongly
-    // let the controller's own "whenever an opponent searches their
-    // library" trigger fire off a search of an OPPONENT's library.
-    // `librarySearchedTrigger`'s scope gate requires the two fields to be
-    // equal before applying scope, so this cross-library shape never fires.
+    // `emitLibrarySearchedEvent`'s doc comment. The SEARCHER is derived from
+    // the CHOICE, not the stack item: `head.actingPlayerId ?? head.playerId`.
+    // `head.playerId` is who the prompt is addressed to — for Path to
+    // Exile/Erode-shaped effects (`ctx.requestChoice({ playerId:
+    // controllerId })` with the TARGET's controller and no `zoneOwnerId`)
+    // that is the searcher, distinct from the stack item's controller. Under
+    // ADR 0037 Word-of-Command acting-player routing, `head.actingPlayerId`
+    // carries the CONTROLLED player when the prompt itself is redirected to
+    // the WoC controller (`state.ts:13161-13167`), so it — not the stack
+    // item's `controllerId`/`castById` — is who "searches" in that case too.
+    // Reading off the stack item was tried and reverted: `controllerId` is
+    // not the engine's canonical stack-item controller (`castById` is —
+    // `buildSpellContext` sets `controller: item.castById`,
+    // `state.ts:9534`; `removeFromZone` leaves a stale `controllerId` on
+    // cross-player casts like Dauthi Voidwalker), and using it made the
+    // opponent-searches-your-library case (Path to Exile/Erode) wrongly
+    // suppress. The LIBRARY OWNER is `head.zoneOwnerId ?? head.playerId` —
+    // the two are equal for the ordinary "target player searches their own
+    // library" case (self-tutor, Path/Erode's "you exile target creature,
+    // its controller searches their OWN library" — no `zoneOwnerId`, so it
+    // falls back to `head.playerId`, the same person), but DIFFER for a
+    // Jester's Cap/Jester's Mask/Lobotomy-shaped "search TARGET PLAYER's
+    // library" (bugfix, post-review): there the prompted player is the
+    // searcher while a DIFFERENT player (`zoneOwnerId`) owns the library,
+    // and a single collapsed field wrongly let the searcher's own "whenever
+    // an opponent searches their library" trigger fire off a search of an
+    // OPPONENT's library. `librarySearchedTrigger`'s scope gate requires the
+    // two fields to be equal before applying scope, so this cross-library
+    // shape never fires.
     if (head.kind === "search-library") {
         emitLibrarySearchedEvent(
             state,
-            stackItem.controllerId,
+            head.actingPlayerId ?? head.playerId,
             head.zoneOwnerId ?? head.playerId
         );
     }

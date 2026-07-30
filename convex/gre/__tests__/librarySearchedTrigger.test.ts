@@ -23,6 +23,8 @@ import {
 import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
 import { registerTokenDefinition } from "../../cards";
 import { librarySearchedTrigger } from "../../cards/abilities/triggers/librarySearchedTrigger";
+import { pathToExile } from "../../cards/sets/con/white";
+import { grizzlyBears, forest } from "../../cards/sets/lea";
 import {
     makeInstance,
     makePlayer,
@@ -457,5 +459,85 @@ describe("librarySearchedTrigger fires end-to-end (issue #788)", () => {
                 ].includes(s.triggeredAbilityId ?? "")
             )
         ).toBe(false);
+    });
+
+    // Must-fire regression (re-review finding, issue #788): Path to
+    // Exile/Erode-shaped effects have the CASTER (stack item controller)
+    // make the TARGET's controller search THEIR OWN library — searcher and
+    // library owner are the SAME player, but that player is DIFFERENT from
+    // the stack item's `controllerId`. A prior fixup derived the searcher
+    // from `stackItem.controllerId` instead of the choice's own `playerId`
+    // (`head.actingPlayerId ?? head.playerId`); that reads p1 (the caster)
+    // as the searcher and p2 (`zoneOwnerId ?? playerId` = p2) as the library
+    // owner — DIFFERENT people — so `librarySearchedTrigger`'s equality gate
+    // wrongly suppressed every watcher. This drives the REAL `pathToExile`
+    // card (not a synthetic tutor) through `resolveTopOfStack` +
+    // `applyPendingChoiceSubmit` end-to-end and asserts it correctly fires:
+    // this test FAILS against the `stackItem.controllerId`-derived searcher.
+    it("fires for Path to Exile (caster makes the TARGET's controller search their OWN library, searcher == library owner != stack-item controller)", () => {
+        const watcherYou = makeInstance(WATCHER_YOU_ID, {
+            id: "watcher-path-you",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const watcherOpponents = makeInstance(WATCHER_OPPONENTS_ID, {
+            id: "watcher-path-opponents",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const victim = makeInstance(grizzlyBears.id, {
+            id: "path-victim",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [watcherOpponents], life: 20 }),
+                makePlayer("p2", {
+                    battlefield: [victim, watcherYou],
+                    library: [
+                        makeInstance(forest.id, {
+                            id: "path-lib1",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "library",
+                        }),
+                    ],
+                    life: 20,
+                }),
+            ],
+        });
+
+        // p1 casts Path to Exile targeting p2's creature. The stack item's
+        // controller is p1, but the `search-library` choice prompts p2 (the
+        // exiled creature's controller) to search p2's OWN library.
+        pushSpell(state, pathToExile.id, "p1", [
+            { type: "permanent", id: "path-victim" },
+        ]);
+        expect(resolveTopOfStack(state)).toBeNull(); // suspends on the search
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("search-library");
+        expect(head.playerId).toBe("p2");
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["path-lib1"],
+        });
+
+        // p2 (the searcher AND library owner) triggers p2's OWN "you"-scope
+        // watcher, and p1's "opponents"-scope watcher (p2 is p1's opponent).
+        expect(
+            state.stack.some(
+                (s) => s.triggeredAbilityId === "test-library-searched-you"
+            )
+        ).toBe(true);
+        expect(
+            state.stack.some(
+                (s) =>
+                    s.triggeredAbilityId === "test-library-searched-opponents"
+            )
+        ).toBe(true);
     });
 });
