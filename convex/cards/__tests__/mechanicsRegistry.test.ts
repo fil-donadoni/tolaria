@@ -664,19 +664,18 @@ describe("Event field registry ($event.<field>, ADR 0049, issue #865)", () => {
             "player"
         );
         // issue #1940 — Warped Devotion's "that player discards" (the
-        // RETURNING permanent's owner, not the ability's controller).
-        expect(
-            getEventFieldRow("PERMANENT_RETURNED_TO_HAND", "ownerId")?.family
-        ).toBe("player");
+        // RETURNING permanent's owner, not the ability's controller) reads
+        // straight off PERMANENT_LEFT's existing `ownerId` field.
+        expect(getEventFieldRow("PERMANENT_LEFT", "ownerId")?.family).toBe(
+            "player"
+        );
         expect(isRegisteredEventField("BLOCKERS_CONFIRMED", "blockerId")).toBe(
             true
         );
         expect(isRegisteredEventField("PHASE_BEGIN", "activePlayerId")).toBe(
             true
         );
-        expect(
-            isRegisteredEventField("PERMANENT_RETURNED_TO_HAND", "ownerId")
-        ).toBe(true);
+        expect(isRegisteredEventField("PERMANENT_LEFT", "ownerId")).toBe(true);
         // Uncensused pairs are rejected — no runtime skip, a validation failure.
         expect(getEventFieldRow("BLOCKERS_CONFIRMED", "bogus")).toBeUndefined();
         expect(getEventFieldRow("PHASE_BEGIN", "phase")).toBeUndefined();
@@ -696,22 +695,23 @@ describe("Event field registry ($event.<field>, ADR 0049, issue #865)", () => {
         ).toBe("p2");
     });
 
-    it("PERMANENT_RETURNED_TO_HAND.ownerId flattens to the returning player id", () => {
+    it("PERMANENT_LEFT.ownerId flattens to the returning/departing player id", () => {
         const event: GameEvent = {
-            type: "PERMANENT_RETURNED_TO_HAND",
+            type: "PERMANENT_LEFT",
             instanceId: "bounced",
-            ownerId: "p2",
             controllerId: "p1",
+            ownerId: "p2",
             types: ["Creature"],
+            subtypes: [],
+            wasAura: false,
+            toZone: "hand",
         };
         expect(
-            getEventFieldRow("PERMANENT_RETURNED_TO_HAND", "ownerId")!.resolve(
-                event
-            )
+            getEventFieldRow("PERMANENT_LEFT", "ownerId")!.resolve(event)
         ).toBe("p2");
         // A different event type never resolves through this row.
         expect(
-            getEventFieldRow("PERMANENT_RETURNED_TO_HAND", "ownerId")!.resolve({
+            getEventFieldRow("PERMANENT_LEFT", "ownerId")!.resolve({
                 type: "PHASE_BEGIN",
                 phase: "UPKEEP",
                 activePlayerId: "p1",

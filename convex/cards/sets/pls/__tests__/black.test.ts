@@ -1,20 +1,22 @@
 // Planeshift (PLS) — black behavior tests (ADR 0043 colour split, issue #1940).
 //
-// Warped Devotion introduces the new `PERMANENT_RETURNED_TO_HAND` event (ADR
-// 0001) plus its `EVENT_FIELD_REGISTRY` row (`ownerId`, ADR 0049) — a
-// genuinely new construct combination the auto-generated canned-scenario
-// smoke sweep cannot drive: its generator treats ANY `{ ref: "$event.*" }`
-// player parameter as "depends on a runtime snapshot" and reports an explicit
-// skip (`scenarioGenerator.ts`'s `resolveScenarioPlayer`), exactly the signal
-// documented in `.claude/rules/gre-development.md` to add a hand-written
-// test — mirroring Collapsing Borders' own hand-written test
-// (`inv/__tests__/red.test.ts`) for the identical reason (a `$event.<field>`
-// ref reading the SCOPED player rather than `ctx.controller`). Per the
-// per-Op regime (ADR 0045/0046) this earns its own coverage here.
+// Warped Devotion reuses `PERMANENT_LEFT` (CR 603.10) via `leftTrigger({
+// scope: "any", toZone: "hand" })` plus a new `EVENT_FIELD_REGISTRY` row
+// (`PERMANENT_LEFT.ownerId`, ADR 0049) — a genuinely new construct
+// combination (a `{ ref: "$event.ownerId" }` read of the LEAVING permanent's
+// owner rather than `ctx.controller`) that the auto-generated
+// canned-scenario smoke sweep cannot drive: its generator treats ANY
+// `{ ref: "$event.*" }` player parameter as "depends on a runtime snapshot"
+// and reports an explicit skip (`scenarioGenerator.ts`'s
+// `resolveScenarioPlayer`), exactly the signal documented in
+// `.claude/rules/gre-development.md` to add a hand-written test — mirroring
+// Collapsing Borders' own hand-written test (`inv/__tests__/red.test.ts`)
+// for the identical reason. Per the per-Op regime (ADR 0045/0046) this earns
+// its own coverage here.
 
 import { describe, it, expect } from "vitest";
 import { warpedDevotion } from "../black";
-import { unsummon, savannahLions, grizzlyBears } from "../../lea";
+import { unsummon, savannahLions, grizzlyBears, island } from "../../lea";
 import {
     makeInstance,
     makePlayer,
@@ -25,9 +27,14 @@ import {
     resolveTopOfStack,
     removePermanentTo,
     processPendingActionTriggers,
+    buildSpellContext,
+    drawCard,
+    emitCardDrawn,
+    getPlayer,
     type GameState,
 } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
+import { applySacrificeSelection } from "../../../../gre/sacrificeChoice";
 import { projectPublicState } from "../../../../gameProjections";
 
 /** Answers the head `pendingChoices` entry (a `choice(kind: "choose-hand-card")`
@@ -236,7 +243,25 @@ describe("Warped Devotion (CR 603.2 returned-to-hand trigger, issue #1940)", () 
         );
     });
 
-    it("does NOT fire when a card moves to hand from a non-battlefield zone (a draw)", () => {
+    it("fires when a permanent is returned to hand as a COST PAYMENT (sacrificeChoice action: return)", () => {
+        // `applySacrificeSelection` with `action: "return"` is the exact
+        // real-path function backing every return-to-hand alternative /
+        // additional cost (Gush/Thwart, Kicker return-costs — CR 118.9 /
+        // 701.24). It bounces via `removePermanentTo`, the SAME funnel a
+        // spell effect uses, so it fires PERMANENT_LEFT (toZone: "hand")
+        // identically — no separate wiring needed for a cost-driven bounce.
+        const paidIsland = makeInstance(island.id, {
+            id: "island-cost",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const p1Filler = makeInstance(grizzlyBears.id, {
+            id: "p1-filler-cost",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
         const devotion = makeInstance(warpedDevotion.id, {
             id: "devotion",
             controllerId: "p1",
@@ -244,21 +269,97 @@ describe("Warped Devotion (CR 603.2 returned-to-hand trigger, issue #1940)", () 
         });
         const state = makeState({
             players: [
-                makePlayer("p1", { battlefield: [devotion] }),
+                makePlayer("p1", {
+                    battlefield: [devotion, paidIsland],
+                    hand: [p1Filler],
+                }),
                 makePlayer("p2"),
             ],
         });
-        // A CARD_DRAWN event (library → hand) is a structurally DIFFERENT
-        // event type from PERMANENT_RETURNED_TO_HAND (battlefield → hand);
-        // Warped Devotion's ability declares a scalar `event:
-        // "PERMANENT_RETURNED_TO_HAND"`, so the trigger scan's event-type
-        // narrowing (`triggerHandlesEventType`) rejects a CARD_DRAWN event
-        // before `matches()` is ever consulted.
-        state.pendingEvents = [
-            { type: "CARD_DRAWN", playerId: "p1", count: 1 },
-        ];
+        applySacrificeSelection(state, {
+            playerId: "p1",
+            reason: "Gush-style return-to-hand cost",
+            requirements: [{ filter: { subtypes: "Island" }, count: 1 }],
+            picked: ["island-cost"],
+            action: "return",
+        });
         processPendingActionTriggers(state);
-        expect(state.stack).toHaveLength(0);
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].triggeredAbilityId).toBe(
+            "warped-devotion-bounce"
+        );
+        resolveTopOfStack(state);
+        expect(state.pendingChoices![0].playerId).toBe("p1");
+        submitDiscard(state, "p1-filler-cost");
+        expect(
+            state.players[0].graveyard.some((c) => c.id === "p1-filler-cost")
+        ).toBe(true);
+    });
+
+    it("does NOT fire on a real draw (library → hand never touches the battlefield)", () => {
+        const devotion = makeInstance(warpedDevotion.id, {
+            id: "devotion",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [devotion],
+                    library: [
+                        makeInstance(savannahLions.id, { zone: "library" }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const stackBefore = state.stack.length;
+        // Real draw path — the same two calls `commitDrawPlan`'s "normal"
+        // case makes: `drawCard` actually moves the card library → hand,
+        // `emitCardDrawn` queues the real CARD_DRAWN event. No
+        // PERMANENT_LEFT is ever involved — the card was never a
+        // battlefield permanent.
+        expect(drawCard(getPlayer(state, "p1"))).not.toBeNull();
+        emitCardDrawn(state, "p1", 1);
+        processPendingActionTriggers(state);
+        expect(state.stack).toHaveLength(stackBefore);
         expect(state.pendingChoices ?? []).toHaveLength(0);
+    });
+
+    it("does NOT fire on a real graveyard → hand move (e.g. a Regrowth-style effect)", () => {
+        const devotion = makeInstance(warpedDevotion.id, {
+            id: "devotion",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const inGraveyard = makeInstance(savannahLions.id, {
+            id: "gy-card",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [devotion],
+                    graveyard: [inGraveyard],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const item = pushSpell(state, grizzlyBears.id, "p1");
+        const ctx = buildSpellContext(state, item);
+        const stackBefore = state.stack.length;
+        // Real zone-move path: `moveCardById` routes through
+        // `moveCardWithGraveyardReplacement`, NEVER `removePermanentTo` — a
+        // graveyard card isn't a battlefield permanent, so PERMANENT_LEFT
+        // never fires regardless of destination zone.
+        ctx.moveCardById("p1", "gy-card", "graveyard", "hand");
+        processPendingActionTriggers(state);
+        expect(state.stack).toHaveLength(stackBefore);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.players[0].hand.some((c) => c.id === "gy-card")).toBe(
+            true
+        );
     });
 });

@@ -6223,8 +6223,7 @@ export type GameEventType =
     | "COUNTER_ADDED"
     | "BECAME_TARGET"
     | "TOKENS_CREATED"
-    | "CARDS_EXILED"
-    | "PERMANENT_RETURNED_TO_HAND";
+    | "CARDS_EXILED";
 
 /** Damage event emitted whenever a source inflicts damage on a target
  *  (CR 120.3). Used by "whenever ~ deals damage" triggers. The
@@ -6417,46 +6416,6 @@ export interface PermanentLeftEvent {
      *  `abilities/triggers/leftTrigger.ts` — never a controller-agnostic
      *  reader. */
     causerControllerId?: string;
-}
-
-/** Narrow zone-of-origin event (ADR 0001, issue #1940) emitted whenever a
- *  permanent transitions battlefield → hand via `removePermanentTo`,
- *  regardless of cause (a spell, an ability, or a cost payment). Coexists
- *  intentionally with `PermanentLeftEvent` — a bounced permanent fires BOTH
- *  `PERMANENT_LEFT` (`toZone: "hand"`) and this event, mirroring how a dying
- *  creature fires both `PERMANENT_LEFT` and `CREATURE_DIED`. Card authors
- *  pick the factory matching the oracle phrasing: `leftTrigger` for a
- *  generic "leaves the battlefield" line, `returnedToHandTrigger`
- *  (`abilities/triggers/returnedToHandTrigger.ts`) for "returned to a
- *  player's hand" (Warped Devotion). Unlike `CreatureDiedEvent`, this is NOT
- *  restricted to creatures — CR 400.7 zone changes apply to any permanent
- *  type, and Warped Devotion's oracle text says "a permanent", not "a
- *  creature". Emitted unconditionally by the shared `removePermanentTo`
- *  funnel so no bounce site (spell effect, activated/triggered ability,
- *  a cost payment such as a Kicker return-cost) can silently skip it. */
-export interface PermanentReturnedToHandEvent {
-    type: "PERMANENT_RETURNED_TO_HAND";
-    /** Instance id of the permanent that returned to hand. */
-    instanceId: string;
-    /** Owner of the permanent (CR 108.3 / 400.7 — a permanent is always
-     *  returned to its OWNER's hand, regardless of who controlled it). This
-     *  is the "player" in "that player discards a card" — the discarding
-     *  player is whoever's hand the card entered, not necessarily this
-     *  ability's own controller (the trigger fires symmetrically on either
-     *  player's bounce). */
-    ownerId: string;
-    /** Controller of the permanent immediately before it left the
-     *  battlefield (CR 603.10 last-known information) — read by a
-     *  `scope: "yours"` / `"opponents"` relative match against the trigger
-     *  source, mirroring `PermanentLeftEvent.controllerId`. */
-    controllerId: string;
-    /** Card definition id (mirrors `card.id`) so type-based filters can run
-     *  without re-reading the registry. */
-    cardId?: string;
-    /** Card types snapshotted at the moment of departure (CR 603.10). */
-    types: ReadonlyArray<CardType>;
-    /** Card subtypes snapshotted at the moment of departure (CR 205.3). */
-    subtypes?: ReadonlyArray<string>;
 }
 
 /** Spell-cast event emitted when a spell is put on the stack (CR 601.2i).
@@ -6950,8 +6909,7 @@ export type GameEvent =
     | CounterAddedEvent
     | BecameTargetEvent
     | TokensCreatedEvent
-    | CardsExiledEvent
-    | PermanentReturnedToHandEvent;
+    | CardsExiledEvent;
 
 /** Read-only window over the live `GameState` exposed to `matches()` for
  *  state triggers (CR 603.8). Kept narrow on purpose so card definitions can
