@@ -195,11 +195,10 @@ export function kickerCostLegs(
 /** Does any paid Kicker owe a PERMANENT leg (CR 702.33a — "sacrifice two
  *  lands", "return a creature you control")? The only leg kind that claims the
  *  cast's single `SacrificeSelection` slot; a mana leg folds into the total and
- *  a life leg into `payLife`, neither of which needs a picker. Magma Burst
- *  (`pls/red.ts`, "Kicker—Sacrifice two lands", issue #1951) is the
- *  catalogue's first non-mana Kicker leg, so this is no longer vacuously
- *  `false` catalogue-wide — it returns `true` when Magma Burst's Kicker is
- *  paid. */
+ *  a life leg into `payLife`, neither of which needs a picker. Returns `true`
+ *  whenever a PAID Kicker declares a permanent leg — Magma Burst (`pls/red.ts`,
+ *  "Kicker—Sacrifice two lands", issue #1951) is one such card, not
+ *  necessarily the only or first one in the catalogue. */
 export function hasKickerPermanentLeg(
     cardDef: CardDefinition,
     payments: KickerPayments | undefined

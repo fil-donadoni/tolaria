@@ -713,7 +713,16 @@ export const thunderscapeBattlemage: CardDefinition = {
             // CR 603.4 check-time gate (see the card-level doc comment above
             // for the residual partial-kick divergence, tracked-by: #2015):
             // closes the common fully-unkicked case at zero cost.
-            condition: (_event, self) => self.wasKicked === true,
+            // `conditionOnSelf` (not `condition`) — the predicate reads only
+            // `self`, and `enteredTrigger`'s own contract says to prefer it
+            // in exactly that case: `withTriggerGate` then stamps a DECIDED
+            // gate weight from it (`gre/ai/cardScriptValue.ts`), so the bot's
+            // value model correctly scores an unkicked Battlemage as if
+            // NEITHER trigger fires; `condition` would stamp
+            // `UNDECIDABLE_TRIGGER_GATE` instead and the bot would over-value
+            // an unkicked permanent as if both always resolve (issue #1936,
+            // review round 2).
+            conditionOnSelf: (self) => self.wasKicked === true,
             targetRequirement: { type: "player", count: 1 },
             effects: [
                 {
@@ -748,8 +757,10 @@ export const thunderscapeBattlemage: CardDefinition = {
                 "When this creature enters, if it was kicked with its {G} kicker, destroy target enchantment.",
             scope: "self",
             // CR 603.4 check-time gate — see the discard trigger's identical
-            // comment above (tracked-by: #2015 for the residual gap).
-            condition: (_event, self) => self.wasKicked === true,
+            // comment above (tracked-by: #2015 for the residual gap;
+            // `conditionOnSelf` over `condition` for the same decided-gate-
+            // weight reason).
+            conditionOnSelf: (self) => self.wasKicked === true,
             targetRequirement: { type: "Enchantment", count: 1 },
             effects: [
                 {

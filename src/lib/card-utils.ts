@@ -1240,6 +1240,19 @@ export function buildTriggerStateView(
                 // `crewPowerBonus` above — the wire carries no per-permanent
                 // supertype field.
                 supertypes: tryGetDefinition(c.card.id)?.supertypes,
+                // CR 111.5 / 701.16 — token-ness, for a `sacrificeFilter`
+                // activation cost narrowed by `isToken` (Thopter Foundry's
+                // "sacrifice a NONTOKEN artifact", Caribou Range's "sacrifice
+                // a Caribou TOKEN"). `CardInstanceState.isToken` IS a real
+                // persisted/wire field (unlike `supertypes`/`colors` above,
+                // which need a registry lookup) — read it straight off the
+                // instance rather than the definition. Omitting this left
+                // every view entry reading `isToken: undefined`, which
+                // `matchesPermanentFilter` treats as `false` — silently
+                // hiding a token-sacrifice ability with tokens on board and
+                // silently OFFERING a nontoken-only sacrifice ability whose
+                // only candidates were tokens (issue #1951 review, round 2).
+                isToken: c.isToken === true,
             })),
         })),
         activePlayerId,
@@ -1654,12 +1667,19 @@ export function getStackAbilities(
         // the ability stays offered and the server rejects it (fail-open,
         // same discipline as every other board-dependent gate here).
         if (a.cost.sacrificeFilter && stateView) {
-            const mine = stateView.players.find(
-                (p) => p.id === card.controllerId
-            );
+            // CR 602.1 / 118.5 — the sacrifice is paid by the ACTIVATOR, not
+            // necessarily the source's controller ("any player may
+            // activate"/enchanted-controller abilities, `activatorId` above):
+            // `activateAbilityOnState` (`convex/game.ts`) scans
+            // `getPlayer(state, args.playerId).battlefield` — the activator's
+            // own board — for the sacrifice candidate. Latent today (no
+            // shipped card combines `sacrificeFilter` with either shape), but
+            // mirroring the server exactly here is what keeps it that way.
+            const payerId = activatorId ?? card.controllerId;
+            const mine = stateView.players.find((p) => p.id === payerId);
             const hasCandidate = (mine?.battlefield ?? []).some((c) =>
                 matchesEnginePermanentFilter(c, a.cost.sacrificeFilter!, {
-                    selfControllerId: card.controllerId,
+                    selfControllerId: payerId,
                 })
             );
             if (!hasCandidate) return false;
