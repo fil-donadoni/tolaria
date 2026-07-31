@@ -58,6 +58,7 @@ import { getAllCards } from "../index";
 import type {
     ActivatedAbility,
     CardDefinition,
+    DelayedTriggerDef,
     TriggeredAbility,
 } from "../types";
 
@@ -95,9 +96,32 @@ function isEffectShorthandSpell(card: CardDefinition): boolean {
     return !!card.effect;
 }
 
-/** All of `card`'s activated + triggered abilities, the two ability-level
- *  effect sites walked by the ability-level guard (issue #1519 SCOPE). */
+/** All of `card`'s activated + triggered abilities, PLUS its scheduled
+ *  `delayedTriggers[]` template bodies — three ability-level effect sites
+ *  walked by the ability-level guard (issue #1519 SCOPE; `delayedTriggers[]`
+ *  folded in by PR #2010's review, MINOR 7 — it was previously invisible to
+ *  this guard entirely, so a bare `resolve()` delayed-trigger body could ship
+ *  with no `aiEffects` and no error). `DelayedTriggerDef` carries `id` /
+ *  `resolve` / `effects` / `aiEffects` — the same shape this guard already
+ *  reads on `ActivatedAbility`/`TriggeredAbility` — just no `resolveSteps`
+ *  (template-path delayed triggers don't have a stepped-resolution variant),
+ *  which `isResolveOnlyAbility` below already treats as optional. */
 function abilitiesOf(
+    card: CardDefinition
+): (ActivatedAbility | TriggeredAbility | DelayedTriggerDef)[] {
+    return [
+        ...(card.activatedAbilities ?? []),
+        ...(card.triggeredAbilities ?? []),
+        ...(card.delayedTriggers ?? []),
+    ];
+}
+
+/** Just the activated + triggered abilities — the ORIGINAL `abilitiesOf`
+ *  scope (issue #1519), before `delayedTriggers[]` was folded in (PR #2010's
+ *  review, MINOR 7). `ABILITY_AI_EFFECTS_ALLOWLIST`'s own EXACT-count test
+ *  scopes to this so it isn't polluted by the (separately audited)
+ *  `delayedTriggers[]` residue below. */
+function abilityOnlyOf(
     card: CardDefinition
 ): (ActivatedAbility | TriggeredAbility)[] {
     return [
@@ -106,17 +130,22 @@ function abilitiesOf(
     ];
 }
 
+/** Just `card.delayedTriggers[]` — the dedicated scope
+ *  `DELAYED_TRIGGER_AI_EFFECTS_ALLOWLIST` (issue #2020) audits. */
+function delayedTriggersOf(card: CardDefinition): DelayedTriggerDef[] {
+    return card.delayedTriggers ?? [];
+}
+
 /** True when `ability`'s own effect is a bare `resolve()`/`resolveSteps`
  *  closure with no real Effect Script the value model can walk — the
  *  ability-level mirror of `isResolveOnlySpell` (issue #1519 SCOPE). */
 function isResolveOnlyAbility(
-    ability: ActivatedAbility | TriggeredAbility
+    ability: ActivatedAbility | TriggeredAbility | DelayedTriggerDef
 ): boolean {
     if (ability.effects && ability.effects.length > 0) return false;
-    return (
-        !!ability.resolve ||
-        !!(ability.resolveSteps && ability.resolveSteps.length > 0)
-    );
+    const resolveSteps =
+        "resolveSteps" in ability ? ability.resolveSteps : undefined;
+    return !!ability.resolve || !!(resolveSteps && resolveSteps.length > 0);
 }
 
 /** True when `ability` already plugs the AI-blind gap on its OWN — an
@@ -126,7 +155,7 @@ function isResolveOnlyAbility(
  *  (`gre/cardValue.ts` `latentValue`), so it plugs every ability gap on that
  *  card too without needing its own per-ability field. */
 function abilityHasShadowScript(
-    ability: ActivatedAbility | TriggeredAbility
+    ability: ActivatedAbility | TriggeredAbility | DelayedTriggerDef
 ): boolean {
     return !!ability.aiEffects && ability.aiEffects.length > 0;
 }
@@ -3046,6 +3075,215 @@ const ABILITY_AI_EFFECTS_ALLOWLIST: readonly AbilityAllowlistEntry[] = [
     },
 ];
 
+interface DelayedTriggerAllowlistEntry {
+    /** The card's registry id (`CardDefinition.id`). */
+    readonly cardId: string;
+    /** The card's name — a stale-name assertion below catches an id that has
+     *  drifted onto a different card (a rebuilt/renumbered catalogue). */
+    readonly name: string;
+    /** The offending `DelayedTriggerDef.id` — a card can carry more than one
+     *  offending delayed trigger, each getting its own entry. */
+    readonly delayedTriggerId: string;
+    /** Real, OPEN tracking issue this entry is filed against. Every entry
+     *  below is #2020 today; a future PR splitting one off into its own
+     *  fix gets its own issue number when it's fixed, not when it's added. */
+    readonly issue: number;
+    /** The `// no honest shadow script: <why>` disposition. */
+    readonly note: string;
+}
+
+// `abilitiesOf` now also walks `card.delayedTriggers[]` (PR #2010's review,
+// MINOR 7 — a bare `resolve()` delayed-trigger body was previously invisible
+// to this guard entirely, so it could ship with no `aiEffects` and no
+// error). The 25 entries below are every PRE-EXISTING delayed-trigger body
+// this newly reaches, at the moment the scope extension landed (issue
+// #2020) — none are new abilities, and none of these 25 sketch trivially:
+// each acts on an EXTERNAL object captured via `payload` at scheduling time
+// (`ctx.scheduleDelayedTrigger(..., { targetId })`), which the standalone
+// `aiEffects` shadow (walked by `OP_VALUERS` with no access to that
+// `payload`) has no way to reference — see #2020 for the per-entry detail
+// and the fix-or-empty-out discipline (same as `ABILITY_AI_EFFECTS_ALLOWLIST`
+// above: remove a row the moment its delayed trigger gets a real shadow
+// script or its owning card gets an `aiValue`, never leave a stale one).
+const DELAYED_TRIGGER_AI_EFFECTS_ALLOWLIST: readonly DelayedTriggerAllowlistEntry[] =
+    [
+        {
+            cardId: "d992b336-3b6e-43e1-8662-d85664349b44",
+            name: "Siren's Call",
+            delayedTriggerId: "sirens-call-destroy",
+            issue: 2020,
+            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+        },
+        {
+            cardId: "8105973c-a94d-444c-ba20-ab0fa978bee8",
+            name: "Nettling Imp",
+            delayedTriggerId: "nettling-imp-destroy",
+            issue: 2020,
+            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+        },
+        {
+            cardId: "e173c8ce-2352-405e-ad00-e3bb94ced1ad",
+            name: "Berserk",
+            delayedTriggerId: "destroy-if-attacked",
+            issue: 2020,
+            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+        },
+        {
+            cardId: "9cd91814-6177-4a3d-a1c1-a3be7d7c7957",
+            name: "Cockatrice",
+            delayedTriggerId: "cockatrice-combat-kill-destroy",
+            issue: 2020,
+            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+        },
+        {
+            cardId: "e92cce01-b3bd-4307-aae5-9a7c8fa386ab",
+            name: "Thicket Basilisk",
+            delayedTriggerId: "basilisk-combat-kill-destroy",
+            issue: 2020,
+            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+        },
+        {
+            cardId: "dc60077f-d577-4a6c-a78f-697317024c40",
+            name: "Infinite Authority",
+            delayedTriggerId: "infinite-authority-destroy",
+            issue: 2020,
+            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+        },
+        {
+            cardId: "dc60077f-d577-4a6c-a78f-697317024c40",
+            name: "Infinite Authority",
+            delayedTriggerId: "infinite-authority-counter",
+            issue: 2020,
+            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+        },
+        {
+            cardId: "e691adef-3027-4e6a-889f-9f4e2df36a7c",
+            name: "Mana Drain",
+            delayedTriggerId: "mana-drain-add",
+            issue: 2020,
+            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+        },
+        {
+            cardId: "e11bf79b-a951-4d0c-acdf-d8ba5290a648",
+            name: "Farrelite Priest",
+            delayedTriggerId: "farrelite-priest-sacrifice",
+            issue: 2020,
+            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+        },
+        {
+            cardId: "5be87527-3b8f-4529-afdb-a61ad4e787e1",
+            name: "Initiates of the Ebon Hand",
+            delayedTriggerId: "initiates-ebon-hand-sacrifice",
+            issue: 2020,
+            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+        },
+        {
+            cardId: "a0a27ac3-2273-469a-92ba-3f4a3d55de6f",
+            name: "Goblin Kites",
+            delayedTriggerId: "goblin-kites-flip",
+            issue: 2020,
+            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+        },
+        {
+            cardId: "c1b138e1-f8fc-435c-9aed-98004768479c",
+            name: "Rainbow Vale",
+            delayedTriggerId: "rainbow-vale-handoff",
+            issue: 2020,
+            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+        },
+        {
+            cardId: "d721569d-9cf2-4c3c-b11c-4c46c258a0d2",
+            name: "Sacred Boon",
+            delayedTriggerId: "sacred-boon-counters",
+            issue: 2020,
+            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+        },
+        {
+            cardId: "ab675291-3189-43f3-b11b-0724eca8b941",
+            name: "Seraph",
+            delayedTriggerId: "seraph-reanimate",
+            issue: 2020,
+            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+        },
+        {
+            cardId: "a779aca7-ff2c-48d8-9484-6ad04b2c6bcb",
+            name: "Winter's Chill",
+            delayedTriggerId: "winters-chill-destroy",
+            issue: 2020,
+            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+        },
+        {
+            cardId: "717c5dda-8e38-4c76-b241-685198402284",
+            name: "Krovikan Vampire",
+            delayedTriggerId: "krovikan-vampire-reanimate",
+            issue: 2020,
+            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+        },
+        {
+            cardId: "54d7a0c1-efb4-4a8d-ad92-a96d43835052",
+            name: "Necropotence",
+            delayedTriggerId: "necropotence-return-to-hand",
+            issue: 2020,
+            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+        },
+        {
+            cardId: "35abefe6-c39b-4fe5-b2e3-d213f0c4f447",
+            name: "Norritt",
+            delayedTriggerId: "norritt-destroy",
+            issue: 2020,
+            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+        },
+        {
+            cardId: "fe65a045-dacb-4392-bcb6-843394ef98c9",
+            name: "Barbarian Guides",
+            delayedTriggerId: "barbarian-guides-bounce",
+            issue: 2020,
+            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+        },
+        {
+            cardId: "de839540-a7b9-4f91-91df-3fd4f5c0bc4e",
+            name: "Goblin Sappers",
+            delayedTriggerId: "goblin-sappers-destroy-both",
+            issue: 2020,
+            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+        },
+        {
+            cardId: "de839540-a7b9-4f91-91df-3fd4f5c0bc4e",
+            name: "Goblin Sappers",
+            delayedTriggerId: "goblin-sappers-destroy-target",
+            issue: 2020,
+            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+        },
+        {
+            cardId: "73c07c87-0e44-4a5a-92b7-728350cd02de",
+            name: "Arcum's Whistle",
+            delayedTriggerId: "arcums-whistle-destroy",
+            issue: 2020,
+            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+        },
+        {
+            cardId: "2bc0e8d3-633b-4281-863f-c51c69eed0b6",
+            name: "Celestial Sword",
+            delayedTriggerId: "celestial-sword-sacrifice",
+            issue: 2020,
+            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+        },
+        {
+            cardId: "a15d33d6-7213-4482-a1be-ac0a73644af6",
+            name: "Memory Jar",
+            delayedTriggerId: "memory-jar-return",
+            issue: 2020,
+            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+        },
+        {
+            cardId: "55707746-da6e-46e5-a5ca-7ac843fdc38e",
+            name: "Phelia, Exuberant Shepherd",
+            delayedTriggerId: "phelia-return",
+            issue: 2020,
+            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+        },
+    ];
+
 describe("aiEffects shadow-script guard (issue #1431)", () => {
     it("every resolve()/resolveSteps card with no effects[] carries aiEffects, aiValue, or a well-formed allowlist entry", () => {
         const allowlistIds = new Set(AI_EFFECTS_ALLOWLIST.map((e) => e.cardId));
@@ -3173,9 +3411,21 @@ describe("aiEffects shadow-script guard — effect-shorthand cards (issue #1519)
 
 describe("aiEffects shadow-script guard — ability-level resolve() (issue #1519)", () => {
     it("every ability-level resolve()/resolveSteps site with no effects[] carries aiEffects, the owning card's aiValue, or a well-formed allowlist entry", () => {
-        const allowlistIds = new Set(
+        // Ability-level (activated/triggered) offenders are excused by
+        // `ABILITY_AI_EFFECTS_ALLOWLIST`; `delayedTriggers[]` offenders (a
+        // DISTINCT DelayedTriggerDef shape, no `abilityId` in the same
+        // sense) get their OWN dedicated list, `DELAYED_TRIGGER_AI_EFFECTS_
+        // ALLOWLIST` (issue #2020) — kept separate so each has its own
+        // fix-or-empty-out audit trail rather than one undifferentiated
+        // bucket.
+        const abilityAllowlistIds = new Set(
             ABILITY_AI_EFFECTS_ALLOWLIST.map(
                 (e) => `${e.cardId} ${e.abilityId}`
+            )
+        );
+        const delayedTriggerAllowlistIds = new Set(
+            DELAYED_TRIGGER_AI_EFFECTS_ALLOWLIST.map(
+                (e) => `${e.cardId} ${e.delayedTriggerId}`
             )
         );
         const offenders: string[] = [];
@@ -3184,7 +3434,9 @@ describe("aiEffects shadow-script guard — ability-level resolve() (issue #1519
             for (const ability of abilitiesOf(card)) {
                 if (!isResolveOnlyAbility(ability)) continue;
                 if (abilityHasShadowScript(ability)) continue;
-                if (allowlistIds.has(`${card.id} ${ability.id}`)) continue;
+                const key = `${card.id} ${ability.id}`;
+                if (abilityAllowlistIds.has(key)) continue;
+                if (delayedTriggerAllowlistIds.has(key)) continue;
                 offenders.push(
                     `${card.id} (${card.name}) ability:${ability.id}`
                 );
@@ -3192,13 +3444,13 @@ describe("aiEffects shadow-script guard — ability-level resolve() (issue #1519
         }
         expect(
             offenders,
-            "activated/triggered ability(-ies) with a bare resolve()/resolveSteps body, " +
-                "no effects[]/aiEffects, and no owning-card aiValue — either sketch an " +
-                "aiEffects shadow script on the ability (walked by the same OP_VALUERS a " +
-                "real effects[] script uses), set the card's aiValue, or — ONLY for a " +
-                "pre-existing backfill straggler, never a NEW ability — add a narrow " +
-                "ABILITY_AI_EFFECTS_ALLOWLIST entry in this test file with a real " +
-                "disposition (issue #1519)."
+            "activated/triggered/delayed-trigger site(s) with a bare resolve()/resolveSteps " +
+                "body, no effects[]/aiEffects, and no owning-card aiValue — either sketch an " +
+                "aiEffects shadow script on the site (walked by the same OP_VALUERS a real " +
+                "effects[] script uses), set the card's aiValue, or — ONLY for a pre-existing " +
+                "backfill straggler, never a NEW ability — add a narrow " +
+                "ABILITY_AI_EFFECTS_ALLOWLIST or DELAYED_TRIGGER_AI_EFFECTS_ALLOWLIST entry in " +
+                "this test file with a real disposition and a real tracking issue."
         ).toEqual([]);
     });
 
@@ -3218,7 +3470,7 @@ describe("aiEffects shadow-script guard — ability-level resolve() (issue #1519
                 entry.note.length,
                 `${entry.cardId} (${entry.name}) allowlist entry needs a non-empty disposition note`
             ).toBeGreaterThan(0);
-            const ability = abilitiesOf(card!).find(
+            const ability = abilityOnlyOf(card!).find(
                 (a) => a.id === entry.abilityId
             );
             expect(
@@ -3244,7 +3496,7 @@ describe("aiEffects shadow-script guard — ability-level resolve() (issue #1519
         let actual = 0;
         for (const card of getAllCards()) {
             if (card.aiValue !== undefined) continue;
-            for (const ability of abilitiesOf(card)) {
+            for (const ability of abilityOnlyOf(card)) {
                 if (
                     isResolveOnlyAbility(ability) &&
                     !abilityHasShadowScript(ability)
@@ -3260,6 +3512,73 @@ describe("aiEffects shadow-script guard — ability-level resolve() (issue #1519
                 "either a new offender landed (see the first test) or an allowlisted ability " +
                 "was fixed without removing its entry (see the second test)"
         ).toBe(ABILITY_AI_EFFECTS_ALLOWLIST.length);
+    });
+});
+
+describe("aiEffects shadow-script guard — delayedTriggers[] residue (issue #2020)", () => {
+    it("every DELAYED_TRIGGER_AI_EFFECTS_ALLOWLIST entry is well-formed and non-stale", () => {
+        const cards = getAllCards();
+        for (const entry of DELAYED_TRIGGER_AI_EFFECTS_ALLOWLIST) {
+            const card = cards.find((c) => c.id === entry.cardId);
+            expect(
+                card,
+                `no card with id ${entry.cardId} (${entry.name}) — stale allowlist entry`
+            ).toBeDefined();
+            expect(
+                card!.name,
+                `allowlist entry name "${entry.name}" no longer matches card ${entry.cardId} (now "${card!.name}") — stale allowlist entry`
+            ).toBe(entry.name);
+            expect(
+                entry.note.length,
+                `${entry.cardId} (${entry.name}) allowlist entry needs a non-empty disposition note`
+            ).toBeGreaterThan(0);
+            expect(
+                entry.issue,
+                `${entry.cardId}/${entry.delayedTriggerId} allowlist entry needs a real tracking issue number`
+            ).toBeGreaterThan(0);
+            const trigger = delayedTriggersOf(card!).find(
+                (t) => t.id === entry.delayedTriggerId
+            );
+            expect(
+                trigger,
+                `${entry.cardId} (${entry.name}) has no delayedTriggers[] entry with id ${entry.delayedTriggerId} — stale allowlist entry, remove it`
+            ).toBeDefined();
+            expect(
+                isResolveOnlyAbility(trigger!),
+                `${entry.cardId} (${entry.name}) delayed trigger ${entry.delayedTriggerId} is no longer a resolve()-only body (gained effects[]) — stale allowlist entry, remove it`
+            ).toBe(true);
+            expect(
+                abilityHasShadowScript(trigger!),
+                `${entry.cardId} (${entry.name}) delayed trigger ${entry.delayedTriggerId} now carries aiEffects — stale allowlist entry, remove it`
+            ).toBe(false);
+            expect(
+                card!.aiValue,
+                `${entry.cardId} (${entry.name}) now carries a card-level aiValue, which already plugs every ability gap — stale allowlist entry, remove it`
+            ).toBeUndefined();
+        }
+    });
+
+    it("EXACT count: the allowlist covers exactly the current delayedTriggers[] resolve()-only-with-no-shadow-script residue — the list cannot silently grow", () => {
+        let actual = 0;
+        for (const card of getAllCards()) {
+            if (card.aiValue !== undefined) continue;
+            for (const trigger of delayedTriggersOf(card)) {
+                if (
+                    isResolveOnlyAbility(trigger) &&
+                    !abilityHasShadowScript(trigger)
+                ) {
+                    actual++;
+                }
+            }
+        }
+        expect(
+            actual,
+            "the live count of delayedTriggers[] resolve()-only sites with no aiEffects (and no " +
+                "owning-card aiValue) no longer matches DELAYED_TRIGGER_AI_EFFECTS_ALLOWLIST.length " +
+                "— either a NEW offender landed (never allowed — a new delayed trigger must ship " +
+                "with a real aiEffects shadow or the card's aiValue, not a new allowlist row) or an " +
+                "allowlisted trigger was fixed without removing its entry (see the first test)"
+        ).toBe(DELAYED_TRIGGER_AI_EFFECTS_ALLOWLIST.length);
     });
 });
 

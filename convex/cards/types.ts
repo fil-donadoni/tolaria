@@ -4668,6 +4668,14 @@ export interface DelayedTriggerDef {
      *  interpreter's environment before the script runs. Mutually exclusive
      *  with `resolve`. */
     effects?: EffectOp[];
+    /** AI-only SHADOW Effect Script for a `resolve()` body (PRD #1423, issue
+     *  #1519 — extended to `delayedTriggers[]` by PR #2010's review, MINOR
+     *  7): never executed, only walked by `OP_VALUERS` so the bot's value
+     *  model can see what an imperative delayed-trigger body does. Same
+     *  contract as `CardDefinition.aiEffects` / `ActivatedAbility.aiEffects`
+     *  / `TriggeredAbility.aiEffects`. Meaningless alongside `effects` (a
+     *  real script is already valued). */
+    aiEffects?: EffectOp[];
 }
 
 // --- Continuous static effects (CR 611, 613) ---
