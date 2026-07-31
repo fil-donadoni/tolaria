@@ -1744,6 +1744,14 @@
         "firstPrintSet": "tor"
     },
     {
+        "name": "Caldera Kavu",
+        "scryfallId": "fcad32aa-2ce1-402d-a9d8-ad5c81fe4c5b",
+        "oracleId": "7cdcfbdf-5ec7-451b-8c96-f19d75a4d76c",
+        "firstSet": "pls",
+        "firstPrintId": "fcad32aa-2ce1-402d-a9d8-ad5c81fe4c5b",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Call to Arms",
         "scryfallId": "a92f0d4a-23d8-47d4-b910-d142e0eefd3d",
         "oracleId": "72eaaa73-3263-46e9-aa86-5862d3aed20a",
@@ -2822,6 +2830,14 @@
         "firstSet": "nem",
         "firstPrintId": "d03bff25-0d5e-4dcf-8d75-6df846afea3b",
         "firstPrintSet": "nem"
+    },
+    {
+        "name": "Deadapult",
+        "scryfallId": "bdc93b3d-bde4-422f-9edc-e337719be7b4",
+        "oracleId": "5e0fea29-0fd5-4535-b1df-cd66e50662cc",
+        "firstSet": "pls",
+        "firstPrintId": "bdc93b3d-bde4-422f-9edc-e337719be7b4",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Death or Glory",
@@ -6320,6 +6336,14 @@
         "firstPrintSet": "fem"
     },
     {
+        "name": "Implode",
+        "scryfallId": "a76ee318-8126-4ebf-884d-8369ae8726ac",
+        "oracleId": "bfde73b2-46bd-4fdb-9468-35819af609f7",
+        "firstSet": "pls",
+        "firstPrintId": "a76ee318-8126-4ebf-884d-8369ae8726ac",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Imposing Visage",
         "scryfallId": "cca42b74-9b42-482b-b12a-79cafdcd087e",
         "oracleId": "6f67058b-ed14-4e3c-9af3-d61570870e36",
@@ -6454,6 +6478,14 @@
         "firstSet": "roe",
         "firstPrintId": "6a3ff5c3-0fdb-4d54-b4e5-ce7bad9953f0",
         "firstPrintSet": "roe"
+    },
+    {
+        "name": "Insolence",
+        "scryfallId": "d8009a37-f966-4a71-9a2a-469127758dc6",
+        "oracleId": "33a6d78a-a3c7-44f1-8ce9-d6632123fec1",
+        "firstSet": "pls",
+        "firstPrintId": "d8009a37-f966-4a71-9a2a-469127758dc6",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Inspiring Vantage",
@@ -6920,6 +6952,14 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Kavu Recluse",
+        "scryfallId": "6f04ac02-3eff-4a66-8320-ee7b4357522f",
+        "oracleId": "d44ff432-7485-448f-a08d-8417e18b8820",
+        "firstSet": "pls",
+        "firstPrintId": "6f04ac02-3eff-4a66-8320-ee7b4357522f",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Kavu Runner",
         "scryfallId": "2bc1b462-4e3c-47cc-87c5-f6e29dd70c01",
         "oracleId": "2c90b7fa-d5bf-4c46-92d5-3014ea1bec50",
@@ -6950,6 +6990,14 @@
         "firstSet": "leg",
         "firstPrintId": "6a4a524a-fdc7-432d-994b-953808528349",
         "firstPrintSet": "leg"
+    },
+    {
+        "name": "Keldon Mantle",
+        "scryfallId": "35bb73df-f488-468c-a9ad-72f52c8da3dc",
+        "oracleId": "170cc0c4-0fba-4751-8613-e934b0438364",
+        "firstSet": "pls",
+        "firstPrintId": "35bb73df-f488-468c-a9ad-72f52c8da3dc",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Keldon Twilight",
@@ -7720,6 +7768,14 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Magma Burst",
+        "scryfallId": "d9752bc3-0bdf-4657-8750-73c8cbc8e83f",
+        "oracleId": "f5af6d60-decd-4e04-8841-da2d3000a405",
+        "firstSet": "pls",
+        "firstPrintId": "d9752bc3-0bdf-4657-8750-73c8cbc8e83f",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Magnetic Mountain",
         "scryfallId": "95fde48b-e40a-4183-b324-1ec276dde015",
         "oracleId": "5c28fc22-7da6-4f15-b02b-6ff10981466c",
@@ -8288,6 +8344,14 @@
         "firstPrintSet": "drk"
     },
     {
+        "name": "Mire Kavu",
+        "scryfallId": "ccdd0086-eb27-48b3-91cb-a113aa1de102",
+        "oracleId": "0bc58096-7925-4870-bb95-58cce51ea8e7",
+        "firstSet": "pls",
+        "firstPrintId": "ccdd0086-eb27-48b3-91cb-a113aa1de102",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Mirri's Guile",
         "scryfallId": "73d51a3c-95c0-4810-b847-4b8afd12fd64",
         "oracleId": "7f89c0ee-b914-406c-8a3f-98424a52ae14",
@@ -8382,6 +8446,22 @@
         "firstSet": "tmp",
         "firstPrintId": "ca2ecfd4-c874-4468-8601-87aa110d5a00",
         "firstPrintSet": "tmp"
+    },
+    {
+        "name": "Mogg Jailer",
+        "scryfallId": "52513235-0e6c-40ea-8ead-a050e6da676e",
+        "oracleId": "423659f1-1b48-4a2b-a1dc-f39fd62c6b6a",
+        "firstSet": "pls",
+        "firstPrintId": "52513235-0e6c-40ea-8ead-a050e6da676e",
+        "firstPrintSet": "pls"
+    },
+    {
+        "name": "Mogg Sentry",
+        "scryfallId": "8536ec54-cebd-4d44-8e52-42344a3e6daa",
+        "oracleId": "ac6f490b-6cf7-4afc-910e-4c8b51fcb2de",
+        "firstSet": "pls",
+        "firstPrintId": "8536ec54-cebd-4d44-8e52-42344a3e6daa",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Mold Demon",
@@ -9582,6 +9662,14 @@
         "firstSet": "inv",
         "firstPrintId": "24315eaa-ef55-4fd6-9145-e75b3de6f492",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Planeswalker's Fury",
+        "scryfallId": "6fa09e3a-bc7e-4292-aa5d-ce97c1b1f79f",
+        "oracleId": "2e482522-2eef-4f6c-887a-fcc51be61dc2",
+        "firstSet": "pls",
+        "firstPrintId": "6fa09e3a-bc7e-4292-aa5d-ce97c1b1f79f",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Planeswalker's Mischief",
@@ -11400,6 +11488,14 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Singe",
+        "scryfallId": "32323277-db9a-48a7-b9a4-8e6914386e26",
+        "oracleId": "e7fbdebf-2275-4bf6-b364-6a1849765f94",
+        "firstSet": "pls",
+        "firstPrintId": "32323277-db9a-48a7-b9a4-8e6914386e26",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Singing Tree",
         "scryfallId": "3003bf1e-8085-45d8-882b-c449109e7631",
         "oracleId": "23f9bee4-ac7e-4828-82c0-576fee0d29b7",
@@ -11558,6 +11654,14 @@
         "firstSet": "inv",
         "firstPrintId": "8e82044d-88cd-4ee4-8ec9-e71a0a85ed46",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Slingshot Goblin",
+        "scryfallId": "81825aef-bef7-46b7-bf52-29e32c1836b0",
+        "oracleId": "b377595f-c6c2-4c54-b462-73ef4eba519b",
+        "firstSet": "pls",
+        "firstPrintId": "81825aef-bef7-46b7-bf52-29e32c1836b0",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Slinking Serpent",
@@ -12280,6 +12384,14 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Strafe",
+        "scryfallId": "ec8b77cf-9c1e-4c8f-b452-295cc1570d0e",
+        "oracleId": "6ac7990b-b86e-4725-974c-d6affa2af2f9",
+        "firstSet": "pls",
+        "firstPrintId": "ec8b77cf-9c1e-4c8f-b452-295cc1570d0e",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Stream of Life",
         "scryfallId": "aa1c4d4b-2645-4cd9-823e-3c9bb2eb48f9",
         "oracleId": "9eb2912d-2130-49f2-9529-b58fa5a97a15",
@@ -12416,19 +12528,19 @@
         "firstPrintSet": "drk"
     },
     {
-        "name": "Sunscape Familiar",
-        "scryfallId": "9621f341-bf85-4b77-bf19-2fb013b4c955",
-        "oracleId": "615603bb-3899-4419-9444-e4b64c94a438",
-        "firstSet": "pls",
-        "firstPrintId": "9621f341-bf85-4b77-bf19-2fb013b4c955",
-        "firstPrintSet": "pls"
-    },
-    {
         "name": "Sunken Hope",
         "scryfallId": "5f12ac0c-cfe6-4f08-b6df-20be4ce83e8c",
         "oracleId": "1820b6e9-83fd-40b9-953e-ba1a8ae69614",
         "firstSet": "pls",
         "firstPrintId": "5f12ac0c-cfe6-4f08-b6df-20be4ce83e8c",
+        "firstPrintSet": "pls"
+    },
+    {
+        "name": "Sunscape Familiar",
+        "scryfallId": "9621f341-bf85-4b77-bf19-2fb013b4c955",
+        "oracleId": "615603bb-3899-4419-9444-e4b64c94a438",
+        "firstSet": "pls",
+        "firstPrintId": "9621f341-bf85-4b77-bf19-2fb013b4c955",
         "firstPrintSet": "pls"
     },
     {
@@ -12566,6 +12678,14 @@
         "firstSet": "atq",
         "firstPrintId": "6d7a2718-301f-4191-b348-0c44c7c07d43",
         "firstPrintSet": "atq"
+    },
+    {
+        "name": "Tahngarth, Talruum Hero",
+        "scryfallId": "c1778f37-af01-4f8c-ab9d-a4c60abf7e78",
+        "oracleId": "c5b4131e-13aa-4a22-b8f5-e5f9d366cb4f",
+        "firstSet": "pls",
+        "firstPrintId": "c1778f37-af01-4f8c-ab9d-a4c60abf7e78",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Taiga",
@@ -13062,6 +13182,22 @@
         "firstSet": "inv",
         "firstPrintId": "75a0b075-5414-48d3-a2b1-47dc20213e96",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Thunderscape Battlemage",
+        "scryfallId": "d707243e-7f11-44bc-b8b8-af635ab1dc87",
+        "oracleId": "9aa66e7d-d5e3-4c48-9c68-b61ff2af0b1a",
+        "firstSet": "pls",
+        "firstPrintId": "d707243e-7f11-44bc-b8b8-af635ab1dc87",
+        "firstPrintSet": "pls"
+    },
+    {
+        "name": "Thunderscape Familiar",
+        "scryfallId": "26c9c0aa-9412-4320-aaee-e05369b8bc7b",
+        "oracleId": "40f6ea6f-71e1-46bd-8d9a-ccb5f437892c",
+        "firstSet": "pls",
+        "firstPrintId": "26c9c0aa-9412-4320-aaee-e05369b8bc7b",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Thunderscape Master",

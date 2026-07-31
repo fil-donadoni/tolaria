@@ -330,7 +330,7 @@ export const magmaBurst: CardDefinition = {
     kickers: [
         {
             id: "kicker",
-            description: "Kicker — Sacrifice two lands",
+            description: "Kicker—Sacrifice two lands",
             permanent: {
                 action: "sacrifice",
                 filter: { types: "Land" },

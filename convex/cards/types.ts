@@ -7211,6 +7211,31 @@ export interface TriggerStateView {
              *  matcher (`toMatchablePermanent`, `src/lib/card-utils.ts`): no
              *  live snow-mutation awareness (Melting-style un-snow effects). */
             supertypes?: ReadonlyArray<string>;
+            /** CR 508/509 — combat-role filters (a `sacrificeFilter`/
+             *  `tapOtherFilter` scoped to attackers/blockers). Mirrors
+             *  `PermanentFilter.isAttacking`/`isBlocking`'s exact semantics
+             *  (`card.isAttacking === true`). Populated from the raw
+             *  `CardInstanceState` fields (issue #1951 review round 3). */
+            isAttacking?: boolean;
+            isBlocking?: boolean;
+            /** CR 111 / 707.1 — token provenance, for a `sacrificeFilter`/
+             *  `tapOtherFilter` cost scoped to "tokens created with <this>"
+             *  (Tetravus-style). Populated from the raw
+             *  `CardInstanceState.createdBy` field, which crosses the wire
+             *  unchanged (issue #1951 review round 3). */
+            createdBy?: string;
+            /** CR 400.7 — "entered the battlefield this turn". Only
+             *  populated when `buildTriggerStateView`'s optional
+             *  `turnState` param is supplied (mirrors
+             *  `toMatchablePermanent`'s identical turn-scoped derivation) —
+             *  omitted otherwise, so a filter using it fails CLOSED rather
+             *  than silently matching everything (issue #1951 review
+             *  round 3). */
+            enteredThisTurn?: boolean;
+            /** CR 400.7 / Keldon Twilight (PLS) — "controlled since the
+             *  beginning of the turn". Same `turnState`-gated population as
+             *  `enteredThisTurn` above. */
+            controlledSinceTurnStart?: boolean;
         }>;
         hand: { readonly length: number };
         landsPlayedThisTurn?: number;

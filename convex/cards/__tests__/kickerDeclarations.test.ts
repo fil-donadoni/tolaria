@@ -109,54 +109,55 @@ describe("Kicker declarations (CR 702.33 / 702.33e, ADR 0079)", () => {
     );
 
     it.each(cardsWithKickers.map((c) => [c.name ?? c.id, c] as const))(
-        "%s — a mana-only kicker's description matches its OWN cost exactly (issue #962 Everflowing Chalice class)",
+        "%s — kicker description matches its own cost, an Oracle prefix anchor catches a forgotten leg, and multi matches the Oracle label (issue #962 Everflowing Chalice class)",
         (_name, card) => {
-            // The description is what the cast-cost dialog shows the caster,
-            // so for the plain "Kicker {2}" / "Multikicker {2}" shape it must
-            // EXACTLY restate that Kicker's own mana cost — a drifted one
-            // mislabels the toggle (this is how Everflowing Chalice's
-            // "Multikicker {2}" was caught reading "Kicker {2}"). Comparing
-            // against the Kicker's OWN `mana` field — never a substring/
-            // prefix check against the combined Oracle line — is what
-            // actually catches a MISLABELLED second Kicker on a two-Kicker
-            // "and/or" card (the Battlemage cycle, ADR 0079/#1937): a
-            // `{1}{G}` leg wrongly described as "Kicker {G}" (or vice versa)
-            // would still pass a mere Oracle-substring check, since both
-            // fragments independently appear somewhere in a string like
-            // "Kicker {1}{B} and/or {G}". A NON-MANA leg has no fixed cost
-            // string to compare against (its wording is prose), so only the
-            // mana-only case is asserted here.
-            for (const k of card.kickers ?? []) {
-                if (legCount(k) !== 1 || k.mana === undefined) continue;
-                expect(k.description).toBe(
-                    (k.multi ? "Multikicker " : "Kicker ") +
-                        manaCostToString(k.mana)
-                );
-            }
-        }
-    );
-
-    it.each(cardsWithKickers.map((c) => [c.name ?? c.id, c] as const))(
-        "%s — a single Kicker's multi flag matches its Oracle wording (issue #962 Everflowing Chalice class)",
-        (_name, card) => {
-            // `multi` is what actually makes a Kicker repeatable (CR
-            // 702.33e) — the description-matching test above derives its
-            // expected LABEL from `k.multi` itself, so it can never catch
-            // `multi` being wrong in the first place. A card printed
-            // "Multikicker {2}" but declared as `{ description: "Kicker
-            // {2}", mana: { X: 2 } }` with `multi` omitted (or vice versa)
-            // is exactly the Everflowing Chalice bug class this guard
-            // exists to prevent: it would ship payable only once (or,
-            // inverted, repeatably when it should not be). Restricted to a
-            // SINGLE-Kicker card — no printed "and/or" card has ever paired
-            // Multikicker with a second Kicker, so the two-Kicker "and/or"
-            // Oracle line never starts with "Multikicker" and this
-            // assertion would be vacuous there.
             const oracle = card.oracleText ?? "";
             const kickers = card.kickers ?? [];
-            if (kickers.length !== 1 || oracle.length === 0) return;
-            const k = kickers[0];
-            expect(k.multi === true).toBe(oracle.startsWith("Multikicker"));
+            if (kickers.length === 0) return;
+
+            // 2. Oracle PREFIX anchor on the FIRST declared Kicker. Runs
+            // regardless of leg shape (mana or not) — Magma Burst's
+            // "Kicker—Sacrifice two lands" needs this exactly as much as a
+            // mana-only leg. This is what catches a FORGOTTEN leg: a card
+            // whose real Oracle is "Kicker {1}{B} and/or {G} (…)" but that
+            // declares only ONE Kicker (`{ description: "Kicker {G}", mana:
+            // { G: 1 } }`, the {1}{B} leg dropped) passes an exact
+            // cost<->description check (its lone entry is internally
+            // consistent) — the Oracle does NOT start with "Kicker {G}", so
+            // this anchor is what actually fails.
+            if (oracle.length > 0) {
+                expect(oracle.startsWith(kickers[0].description)).toBe(true);
+            }
+
+            kickers.forEach((k) => {
+                // 1. Exact description <-> cost restatement for a mana-only
+                // leg — a drifted one mislabels the cast-cost dialog's
+                // toggle (this is how Everflowing Chalice's "Multikicker
+                // {2}" was caught reading "Kicker {2}"). A NON-MANA leg has
+                // no fixed cost string to compare against (its wording is
+                // prose), so only the mana-only case is asserted here.
+                if (legCount(k) === 1 && k.mana !== undefined) {
+                    expect(k.description).toBe(
+                        `${k.multi ? "Multikicker" : "Kicker"} ${manaCostToString(k.mana)}`
+                    );
+                }
+            });
+
+            // 3. `multi` cross-check, newline-tolerant (CR 702.33e — `multi`
+            // is what actually makes a Kicker repeatable; check 1 above
+            // derives its expected LABEL from `k.multi` itself, so it can
+            // never catch `multi` being wrong in the first place). A card
+            // printed "Multikicker {2}" but declared with `multi` omitted
+            // (or vice versa) is the Everflowing Chalice bug class this
+            // guard exists to prevent. Restricted to a SINGLE-Kicker card —
+            // no printed "and/or" card has ever paired Multikicker with a
+            // second Kicker, so a two-Kicker Oracle line never reads
+            // "Multikicker" and this assertion would be vacuous there.
+            if (kickers.length === 1 && oracle.length > 0) {
+                expect(kickers[0].multi === true).toBe(
+                    /(^|\n)Multikicker\b/.test(oracle)
+                );
+            }
         }
     );
 
