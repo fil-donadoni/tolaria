@@ -3416,6 +3416,72 @@ describe("hexproof backend gate (#958, CR 702.11b)", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Permanent-scoped shroud, dynamic-grant bridge (issue #959, CR 702.18)
+//
+// Every PRINTED-shroud card already gets `cantBeTargeted` enforcement via an
+// explicit `permanent-guard` staticEffect on its `CardDefinition`. This suite
+// covers the previously-inert path: a card that grants shroud DYNAMICALLY via
+// `SpellContext.grantStaticAbility(target, "shroud", …)` — Skyshroud Blessing
+// (`pls/green.ts`), Homarid Warrior / Svyelunite Priest (`fem/blue.ts`),
+// Sylvan Safekeeper (`jud/green.ts`) — appends ONLY the bare `"shroud"` string
+// to `staticAbilities`, with no paired `permanent-guard` staticEffect.
+// `isGuardedAgainst`'s `hasShroud` helper (`permanentGuard.ts`, mirroring the
+// existing `hasHexproof` bridge for CR 702.11b) now reads that bare string
+// directly, so the grant is enforced with no per-card staticEffect required.
+// Unlike hexproof, shroud is UNFILTERED (CR 702.18): it bars every source,
+// including the permanent's own controller's.
+// ---------------------------------------------------------------------------
+
+describe("shroud dynamic-grant backend gate (issue #959, CR 702.18)", () => {
+    const makeBoard = (staticAbilities: string[] = []) => {
+        const bear = makeCard({
+            id: "bear",
+            card: CREATURE,
+            staticAbilities,
+        });
+        bear.controllerId = "p1";
+        bear.ownerId = "p1";
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1", battlefield: [bear] }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+        return { state, bear };
+    };
+
+    it("blocks an opponent's spell/ability once the bare 'shroud' string is granted", () => {
+        const { state, bear } = makeBoard(["shroud"]);
+        expect(
+            isGuardedAgainst(state, bear, "cantBeTargeted", {
+                isSpell: true,
+                controllerId: "p2",
+            })
+        ).toBe(true);
+    });
+
+    it("also blocks the permanent's OWN controller — shroud is unfiltered, unlike hexproof", () => {
+        const { state, bear } = makeBoard(["shroud"]);
+        expect(
+            isGuardedAgainst(state, bear, "cantBeTargeted", {
+                isSpell: true,
+                controllerId: "p1",
+            })
+        ).toBe(true);
+    });
+
+    it("does not block targeting when no shroud grant is present (no regression)", () => {
+        const { state, bear } = makeBoard([]);
+        expect(
+            isGuardedAgainst(state, bear, "cantBeTargeted", {
+                isSpell: true,
+                controllerId: "p2",
+            })
+        ).toBe(false);
+    });
+});
+
+// ---------------------------------------------------------------------------
 // Player-scoped shroud (CR 702.18 applied to a player via CR 115.4, #1128)
 //
 // A player-level sibling of the `permanent-guard`/`isGuardedAgainst` suite

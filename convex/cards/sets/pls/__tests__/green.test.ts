@@ -1004,7 +1004,7 @@ describe("Nemata, Grove Guardian ({4}{G}{G} Legendary 4/5 — Saproling maker + 
         expect(getEffectiveToughness(state, saprolings[0])).toBe(1);
     });
 
-    it("Sacrifice a Saproling: every OTHER Saproling you control gets +1/+1 until end of turn", () => {
+    it("Sacrifice a Saproling: EVERY Saproling creature gets +1/+1 until end of turn — not scoped to the controller (CR 611, Oracle text names no controller)", () => {
         const nemata = makeInstance(nemataGroveGuardian.id, {
             id: "nemata2",
             controllerId: "p1",
@@ -1028,20 +1028,38 @@ describe("Nemata, Grove Guardian ({4}{G}{G} Legendary 4/5 — Saproling maker + 
             power: 1,
             toughness: 1,
         });
+        // An OPPONENT's Saproling — pinning the scope in a test rather than
+        // just a comment: the `forEach` has no `controller`, so
+        // `selectForEachMembers` sweeps every player's battlefield
+        // (`interpreter.ts`), and the effect must pump this too.
+        const oppSap = makeInstance(nemataGroveGuardian.id, {
+            id: "opp-sap",
+            controllerId: "p2",
+            ownerId: "p2",
+            types: ["Creature"],
+            subtypes: ["Saproling"],
+            power: 1,
+            toughness: 1,
+        });
         const state = makeState({
             players: [
                 // sap1 already "sacrificed" (the cost's own payment) — only
                 // sap2 remains on the battlefield when the effect resolves.
                 makePlayer("p1", { battlefield: [nemata, sap2] }),
-                makePlayer("p2"),
+                makePlayer("p2", { battlefield: [oppSap] }),
             ],
         });
         pushActivated(state, nemata, "nemata-pump-saprolings");
         const sap2After = state.players[0].battlefield.find(
             (c) => c.id === "sap2"
         )!;
+        const oppSapAfter = state.players[1].battlefield.find(
+            (c) => c.id === "opp-sap"
+        )!;
         expect(getEffectivePower(state, sap2After)).toBe(2);
         expect(getEffectiveToughness(state, sap2After)).toBe(2);
+        expect(getEffectivePower(state, oppSapAfter)).toBe(2);
+        expect(getEffectiveToughness(state, oppSapAfter)).toBe(2);
         void sap1;
     });
 

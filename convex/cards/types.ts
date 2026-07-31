@@ -6209,6 +6209,29 @@ export const BASIC_LAND_SUBTYPES: readonly string[] = [
     "Forest",
 ];
 
+/** The five basic land types' landwalk keyword (CR 702.14 landwalk variants
+ *  restricted to CR 305.6 basics — no "desertwalk", since Desert isn't a
+ *  basic land type), keyed by basic land subtype. Lives in this
+ *  dependency-free leaf (not `gre/constants.ts`, which imports the card
+ *  registry, `../cards`) so cross-set card files can import it directly
+ *  without the set↔registry eval-time cycle `gre/constants.ts` documents at
+ *  its own `LANDWALK_KEYWORDS` (the same constraint `BASIC_LAND_SUBTYPES`
+ *  above exists to avoid). `gre/constants.ts`'s `LANDWALK_KEYWORDS` (keyword
+ *  → subtype, the inverse direction, plus the non-basic `desertwalk` entry)
+ *  derives from this table so the two can't drift. Consumers: Magnigoth
+ *  Treefolk (`cards/sets/pls/green.ts`, Domain landwalk fan-out) and
+ *  Traveler's Cloak (`cards/sets/inv/blue.ts`, chosen-land-type landwalk
+ *  fan-out) — both used to hand-author an identical local copy of this
+ *  table before this export existed. */
+export const LANDWALK_KEYWORD_BY_BASIC_TYPE: Readonly<Record<string, string>> =
+    {
+        Plains: "plainswalk",
+        Island: "islandwalk",
+        Swamp: "swampwalk",
+        Mountain: "mountainwalk",
+        Forest: "forestwalk",
+    };
+
 /** "Basic land card" (CR 205.4a + CR 305.6) — a card with the `Basic`
  *  SUPERTYPE and the `Land` type. NOT "a land with a basic land SUBTYPE": a
  *  dual land (Tundra — `Land — Plains Island`, no supertype) carries basic

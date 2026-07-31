@@ -14,6 +14,7 @@ import {
     AURA_AFFECTS_HOST,
     BASIC_LAND_SUBTYPES,
     EFFECT_AFFECTS_SELF,
+    LANDWALK_KEYWORD_BY_BASIC_TYPE,
 } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
@@ -350,18 +351,6 @@ export const gaeasMight: CardDefinition = {
     ],
 };
 
-// The five basic land types' landwalk keyword, keyed by basic land subtype
-// (CR 702.14 landwalk variants) — the fan-out table Magnigoth Treefolk's
-// per-type keyword-grant needs, mirroring Traveler's Cloak's own
-// `LANDWALK_BY_TYPE` table (`inv/blue.ts`).
-const LANDWALK_BY_BASIC_LAND_TYPE: Readonly<Record<string, string>> = {
-    Plains: "plainswalk",
-    Island: "islandwalk",
-    Swamp: "swampwalk",
-    Mountain: "mountainwalk",
-    Forest: "forestwalk",
-};
-
 // Does `controllerId` control a land with the basic land subtype `landType`
 // (CR 305.6)? The per-TYPE sibling of `countDomain`'s aggregate scan (same
 // module, same board-read convention — raw `PermanentView.subtypes`, no
@@ -391,7 +380,13 @@ function controllerControlsBasicLandType(
 // `condition` in place of Traveler's Cloak's stored chosen-type flag. No new
 // construct: `keyword-grant`'s `condition` (CR 611.2c "as long as") already
 // re-evaluates every stable transition via `refreshCounterGatedStatics`, so
-// gaining/losing a basic land type mid-game keeps the granted set current.)
+// gaining/losing a basic land type mid-game keeps the granted set current.
+// The subtype → keyword lookup is the shared `LANDWALK_KEYWORD_BY_BASIC_TYPE`
+// (`cards/types.ts` — a dependency-free leaf, unlike `gre/constants.ts`,
+// which imports the card registry and can't be imported FROM a `cards/sets/**`
+// file without reopening the set↔registry eval-time cycle) — Traveler's
+// Cloak's own `LANDWALK_BY_TYPE` table used to be a second, hand-authored
+// copy of the same map; both now import the one export.)
 export const magnigothTreefolk: CardDefinition = {
     id: "90c2869b-43cf-4d5e-8a54-9ae200f5bff9", // PLS 82
     name: "Magnigoth Treefolk",
@@ -412,7 +407,7 @@ export const magnigothTreefolk: CardDefinition = {
                 source.controllerId,
                 landType
             ),
-        keyword: LANDWALK_BY_BASIC_LAND_TYPE[landType],
+        keyword: LANDWALK_KEYWORD_BY_BASIC_TYPE[landType],
     })),
 };
 
@@ -488,9 +483,14 @@ const NEMATA_SAPROLING_TOKEN: TokenSpec = {
 // Priest-of-Yawgmoth cost shape) restricted to the Saproling subtype, then a
 // `forEach { set: "permanents", filter: { subtype: "Saproling" } }` mass
 // `pump` — the Sengir Vampire-family anthem-until-end-of-turn shape (`big/
-// green.ts`'s own forEach+pump sweep) — over EVERY Saproling the controller
-// controls, including a Saproling created by an activation of this same
-// ability, since the sweep re-scans the battlefield at resolution.)
+// green.ts`'s own forEach+pump sweep) — over EVERY Saproling on the
+// battlefield REGARDLESS OF CONTROLLER (the `forEach` carries no
+// `controller` field, so `selectForEachMembers` scans every player's
+// battlefield — `interpreter.ts`), matching Nemata's Oracle text exactly:
+// "Saproling creatures get +1/+1 until end of turn" names no controller, so
+// an opponent's Saproling is pumped too, same as this ability's own
+// controller's. Also includes a Saproling created by an activation of this
+// same ability, since the sweep re-scans the battlefield at resolution.)
 export const nemataGroveGuardian: CardDefinition = {
     id: "8c6a0ca4-5006-4c9b-91cd-e01d77e4fdc2", // PLS 85
     name: "Nemata, Grove Guardian",
@@ -776,12 +776,25 @@ export const rootGreevil: CardDefinition = {
 };
 
 // Skyshroud Blessing — {1}{G} Instant. "All lands gain shroud until end of
-// turn. Draw a card." (CR 702.17c shroud grant — `forEach { set:
+// turn. Draw a card." (CR 702.18 shroud grant — `forEach { set:
 // "permanents", zone: "battlefield", filter: { type: "Land" } }` (no
 // `controller`, so EVERY player's lands, CR 305) + `grantAbility` per
 // member, then a plain `draw`. No new construct: `grantAbility`'s single-
 // slot `target` composes with `forEach`'s `$each` exactly like `pump`/
-// `counters` already do.)
+// `counters` already do.
+//
+// The granted shroud is LIVE, not decorative: `grantAbility{ability:"shroud"}`
+// routes to `ctx.grantStaticAbility`, which appends the bare keyword string
+// to the target's `staticAbilities` — and `permanentGuard.ts::isGuardedAgainst`
+// now bridges that string directly (the `hasShroud` helper, mirroring the
+// existing `hasHexproof` bridge for CR 702.11) in its `cantBeTargeted` clause,
+// unfiltered per CR 702.18. This closes the catalogue-wide dynamic-shroud-
+// grant gap the Mechanics Registry's shroud row (`cards/mechanicsRegistry.ts`)
+// used to document as inert (issue #959) — it now covers every dynamic grant
+// site (Homarid Warrior / Svyelunite Priest `fem/blue.ts`, Sylvan Safekeeper
+// `jud/green.ts`, Blurred Mongoose's activated ability `inv/green.ts`, the
+// `usg/green.ts` grant) plus this card, with one engine-level fix rather than
+// a per-card `permanent-guard` staticEffect.)
 export const skyshroudBlessing: CardDefinition = {
     id: "c0c10b16-97b1-4a36-b2b4-f0c28ead3eb4", // PLS 92
     name: "Skyshroud Blessing",

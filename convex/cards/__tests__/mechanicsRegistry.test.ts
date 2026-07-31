@@ -118,11 +118,13 @@ describe("Mechanics Registry (CR 701 keyword actions + CR 702 keyword abilities,
         // #959 — shroud: reconciled from a stale "planned" (the registry
         // previously said the keyword STRING was unenforced, true only for
         // dynamically-granted shroud). Every printed-shroud card pairs the
-        // string with a `permanent-guard` staticEffect that IS enforced.
+        // string with a `permanent-guard` staticEffect that IS enforced, and
+        // `isGuardedAgainst` now ALSO bridges the bare keyword string directly
+        // (mirroring hexproof), closing the dynamic-grant gap catalogue-wide.
         [
             "shroud",
             "702.18",
-            "permanent-guard staticEffect (gre/permanentGuard.ts isGuardedAgainst)",
+            "permanent-guard staticEffect OR bare `staticAbilities` keyword string (gre/permanentGuard.ts isGuardedAgainst)",
         ],
     ] as const)(
         "%s is implemented with binding %s",
