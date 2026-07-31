@@ -723,13 +723,23 @@ describe("Sinister Strength (CR 303.4 aura, layer 7c pt-buff + layer 5 color-gra
             expect.arrayContaining(["W", "B"])
         );
 
-        // Wire format — the pt-buff read survives the projection.
+        // Wire format — both the pt-buff AND the color-grant read survive the
+        // projection (issue #1950 review round 3, MINOR 3 — colour is
+        // precisely what drives client-side target legality via
+        // `excludeColors`/`colorFilter`, so this is a mandatory wire
+        // assertion, not just the P/T half). `grantedColors` is a plain field
+        // on the host's `CardInstanceState`, untouched by `slimCard` (which
+        // only reshapes `card`/`knownTo`/`stormSnapshot`), so it survives the
+        // projection unchanged.
         const projected = projectPublicState(state, 1, "p1");
         const slimHost = projected.players[0].battlefield.find(
             (c) => c.id === "host"
         )!;
         expect(getEffectivePower(projected, slimHost)).toBe(5);
         expect(getEffectiveToughness(projected, slimHost)).toBe(2);
+        expect(STATIC_EFFECT_CTX.getColors(slimHost)).toEqual(
+            expect.arrayContaining(["W", "B"])
+        );
     });
 });
 

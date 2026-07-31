@@ -74,18 +74,25 @@ export function matchesGraveyardTarget(
     const reqTypes = Array.isArray(pendingTarget.targetType)
         ? pendingTarget.targetType
         : [pendingTarget.targetType];
-    if (!reqTypes.includes("card")) {
-        const cardTypes = reqTypes.filter(
-            (t) =>
-                t !== "player" &&
-                t !== "any" &&
-                t !== "spell" &&
-                t !== "spell-or-permanent" &&
-                t !== "card"
-        );
-        if (cardTypes.length > 0) {
-            if (!cardTypes.some((t) => ownTypes.includes(t))) return false;
-        }
+    // Issue #1950 review round 3, MINOR 5 — copies `selectTarget`'s
+    // graveyard-card structural gate (`convex/game.ts`) VERBATIM, including
+    // its unconditional rejection when `cardTypes` ends up empty and
+    // `"card"` wasn't requested (e.g. a bare `["any"]` requirement) — the
+    // server THROWS in that case, so the client must reject too, not fall
+    // through to "unrestricted" the way an `if (cardTypes.length > 0)` guard
+    // used to. Unreachable across all 37 shipped graveyard requirements
+    // today, but it's the one gate that wasn't yet delegated byte-for-byte.
+    const wantsAnyCard = reqTypes.includes("card");
+    const cardTypes = reqTypes.filter(
+        (t) =>
+            t !== "player" &&
+            t !== "any" &&
+            t !== "spell" &&
+            t !== "spell-or-permanent" &&
+            t !== "card"
+    );
+    if (!wantsAnyCard && !cardTypes.some((t) => ownTypes.includes(t))) {
+        return false;
     }
 
     // Sound: the wire-projected `CardInstance` is a structural superset of
