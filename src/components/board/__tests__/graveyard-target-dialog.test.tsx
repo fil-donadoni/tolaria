@@ -93,6 +93,7 @@ function renderDialog(
             allPlayers={players}
             gameId={"g1" as never}
             playerId="me"
+            activePlayerId="me"
         />
     );
 }

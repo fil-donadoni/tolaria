@@ -114,6 +114,7 @@ export {
     checkSpellTargetFilters,
     checkPlayerTargetFilters,
     checkCardTargetFilters,
+    pickCardFilterValues,
     spellMatchesExcludeTypeFilter,
     spellMatchesCreaturePtFilter,
     spellWouldDestroyLandControlledBy,

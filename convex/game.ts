@@ -196,6 +196,7 @@ import {
     checkSpellTargetFilters,
     checkPlayerTargetFilters,
     checkCardTargetFilters,
+    pickCardFilterValues,
     type TargetFilterCtx,
     getPendingTargetSourceColors,
     getPendingTargetSourceTypes,
@@ -8996,14 +8997,20 @@ export function applyOneTargetSelection(
         }
         // CR 109.3 / 102.1 / 202.3 / 109.1 — every CARD-kind filter
         // (`controller` — the graveyard's OWNER, anti-spoof #904's
-        // card-flavored twin — `mvFilter`, and `excludeTypes` — issue
-        // #1378's "nonland permanent card" gate), routed through the
-        // SINGLE shared authority — the target-filter registry (ADR 0068
-        // / issue #1410, T3). `getLegalTargets` runs the SAME
-        // `checkCardTargetFilters` per candidate, so the offered set and
-        // the accepted set can't diverge. This ALSO fixes a real latent
-        // gap: this branch never implemented `controller: "active"`
-        // before this slice, while `getLegalTargets` already did.
+        // card-flavored twin — `mvFilter`, `excludeTypes` — issue #1378's
+        // "nonland permanent card" gate — `subtypeFilter`/`excludeSubtypes` —
+        // issue #1950's "target Zombie card" gate — and `colorFilterAny` —
+        // issue #1950 review round 2's "target white or black creature
+        // card" gate), routed through the SINGLE shared authority — the
+        // target-filter registry (ADR 0068 / issue #1410, T3). `getLegalTargets`
+        // runs the SAME `checkCardTargetFilters` per candidate, so the
+        // offered set and the accepted set can't diverge. This ALSO fixes a
+        // real latent gap: this branch never implemented `controller:
+        // "active"` before this slice, while `getLegalTargets` already did.
+        // `pickCardFilterValues` (issue #1950 review round 2, MINOR 5) reads
+        // `pt` keyed off `CARD_FILTER_KEYS` — a FUTURE key registered there
+        // is picked up here by construction, closing the hand-maintained-
+        // literal drift that let BLOCKER 2 / MAJOR 4 both slip through.
         const cardFilterCtx: TargetFilterCtx = {
             state,
             sourceColors: [],
@@ -9015,17 +9022,7 @@ export function applyOneTargetSelection(
         const cardFilterViolation = checkCardTargetFilters(
             cardFilterCtx,
             matchedCard,
-            {
-                controller: pt.controller,
-                mvFilter: pt.mvFilter,
-                excludeTypes: pt.excludeTypes,
-                // Issue #1950 review, BLOCKER 2 — `CARD_FILTER_KEYS` gained
-                // these two; carried here so the accepted set enforces
-                // exactly what `getLegalTargets` already offers (Lord of the
-                // Undead's "target Zombie card").
-                subtypeFilter: pt.subtypeFilter,
-                excludeSubtypes: pt.excludeSubtypes,
-            }
+            pickCardFilterValues(pt)
         );
         if (cardFilterViolation) throw new Error(cardFilterViolation);
     } else if (input.targetType === "permanent") {

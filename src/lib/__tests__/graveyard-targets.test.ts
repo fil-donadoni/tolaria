@@ -79,6 +79,7 @@ describe("matchesGraveyardTarget (mirror of server filter, CR 109.2)", () => {
                 card,
                 "opp",
                 pending({ controller: "you" }),
+                "me",
                 "me"
             )
         ).toBe(false);
@@ -90,6 +91,7 @@ describe("matchesGraveyardTarget (mirror of server filter, CR 109.2)", () => {
                 card,
                 "me",
                 pending({ controller: "opponent" }),
+                "me",
                 "me"
             )
         ).toBe(false);
@@ -100,6 +102,7 @@ describe("matchesGraveyardTarget (mirror of server filter, CR 109.2)", () => {
                 gyCard("c", "opp", ["Creature"]),
                 "opp",
                 pending({ controller: "any" }),
+                "me",
                 "me"
             )
         ).toBe(true);
@@ -111,6 +114,7 @@ describe("matchesGraveyardTarget (mirror of server filter, CR 109.2)", () => {
                 land,
                 "me",
                 pending({ targetType: "Creature" }),
+                "me",
                 "me"
             )
         ).toBe(false);
@@ -122,6 +126,7 @@ describe("matchesGraveyardTarget (mirror of server filter, CR 109.2)", () => {
                 land,
                 "me",
                 pending({ targetType: "card" }),
+                "me",
                 "me"
             )
         ).toBe(true);
@@ -142,20 +147,24 @@ describe("matchesGraveyardTarget — mvFilter (CR 202.3, issue #1378)", () => {
         const cheap = gyCard("cheap", "me", ["Creature"], { generic: 2 });
         const pricey = gyCard("pricey", "me", ["Creature"], { generic: 4 });
         const pt = pending({ mvFilter: { max: 3 } });
-        expect(matchesGraveyardTarget(cheap, "me", pt, "me")).toBe(true);
-        expect(matchesGraveyardTarget(pricey, "me", pt, "me")).toBe(false);
+        expect(matchesGraveyardTarget(cheap, "me", pt, "me", "me")).toBe(true);
+        expect(matchesGraveyardTarget(pricey, "me", pt, "me", "me")).toBe(
+            false
+        );
     });
 
     it("mvFilter still applies when targetType is the catch-all 'card' (the short-circuit this fix removed)", () => {
         const pricey = gyCard("pricey2", "me", ["Artifact"], { generic: 5 });
         const pt = pending({ targetType: "card", mvFilter: { max: 3 } });
-        expect(matchesGraveyardTarget(pricey, "me", pt, "me")).toBe(false);
+        expect(matchesGraveyardTarget(pricey, "me", pt, "me", "me")).toBe(
+            false
+        );
     });
 
     it("no mvFilter on the PendingTarget leaves the target unrestricted by mana value", () => {
         const pricey = gyCard("pricey3", "me", ["Creature"], { generic: 9 });
         const pt = pending({});
-        expect(matchesGraveyardTarget(pricey, "me", pt, "me")).toBe(true);
+        expect(matchesGraveyardTarget(pricey, "me", pt, "me", "me")).toBe(true);
     });
 
     it("mvFilter.min / .equals are also enforced, mirroring the server's matchesMvFilter", () => {
@@ -165,6 +174,7 @@ describe("matchesGraveyardTarget — mvFilter (CR 202.3, issue #1378)", () => {
                 three,
                 "me",
                 pending({ mvFilter: { min: 4 } }),
+                "me",
                 "me"
             )
         ).toBe(false);
@@ -173,6 +183,7 @@ describe("matchesGraveyardTarget — mvFilter (CR 202.3, issue #1378)", () => {
                 three,
                 "me",
                 pending({ mvFilter: { equals: 2 } }),
+                "me",
                 "me"
             )
         ).toBe(false);
@@ -181,6 +192,7 @@ describe("matchesGraveyardTarget — mvFilter (CR 202.3, issue #1378)", () => {
                 three,
                 "me",
                 pending({ mvFilter: { equals: 3 } }),
+                "me",
                 "me"
             )
         ).toBe(true);
@@ -204,7 +216,7 @@ describe("matchesGraveyardTarget — excludeTypes (CR 109.1, issue #1378)", () =
             targetType: "Creature",
             excludeTypes: ["Land"],
         });
-        expect(matchesGraveyardTarget(landCreature, "me", pt, "me")).toBe(
+        expect(matchesGraveyardTarget(landCreature, "me", pt, "me", "me")).toBe(
             false
         );
     });
@@ -215,9 +227,9 @@ describe("matchesGraveyardTarget — excludeTypes (CR 109.1, issue #1378)", () =
             targetType: "Creature",
             excludeTypes: ["Land"],
         });
-        expect(matchesGraveyardTarget(plainCreature, "me", pt, "me")).toBe(
-            true
-        );
+        expect(
+            matchesGraveyardTarget(plainCreature, "me", pt, "me", "me")
+        ).toBe(true);
     });
 
     it("no excludeTypes on the PendingTarget leaves the target unrestricted", () => {
@@ -226,7 +238,9 @@ describe("matchesGraveyardTarget — excludeTypes (CR 109.1, issue #1378)", () =
             "Creature",
         ]);
         const pt = pending({ targetType: "Creature" });
-        expect(matchesGraveyardTarget(landCreature, "me", pt, "me")).toBe(true);
+        expect(matchesGraveyardTarget(landCreature, "me", pt, "me", "me")).toBe(
+            true
+        );
     });
 });
 
@@ -322,6 +336,7 @@ describe("matchesGraveyardTarget — driven through projectPublicState (wiring r
                 projectedLandCreature,
                 "p1",
                 projectedPendingTarget,
+                "p1",
                 "p1"
             )
         ).toBe(false);
@@ -330,6 +345,7 @@ describe("matchesGraveyardTarget — driven through projectPublicState (wiring r
                 projectedPlainCreature,
                 "p1",
                 projectedPendingTarget,
+                "p1",
                 "p1"
             )
         ).toBe(true);
@@ -346,6 +362,7 @@ describe("getEligibleGraveyards", () => {
         const result = getEligibleGraveyards(
             pending({ controller: "any" }),
             [opp, me],
+            "me",
             "me"
         );
         expect(result.map((g) => g.playerId)).toEqual(["me", "opp"]);
@@ -360,6 +377,7 @@ describe("getEligibleGraveyards", () => {
         const result = getEligibleGraveyards(
             pending({ controller: "any" }),
             [me, opp],
+            "me",
             "me"
         );
         expect(result.length).toBe(1);

@@ -32,12 +32,17 @@ export default function GraveyardTargetDialog({
     allPlayers,
     gameId,
     playerId,
+    activePlayerId,
 }: {
     pendingTarget: PendingTarget;
     me: Player | undefined;
     allPlayers: Player[];
     gameId: Id<"games">;
     playerId: string;
+    /** CR 109.5 — the current active player (issue #1950 review round 2,
+     *  BLOCKER 2), needed by `getEligibleGraveyards`'s delegated
+     *  `checkCardTargetFilters` call for a `controller: "active"` filter. */
+    activePlayerId: string;
 }) {
     const selectTarget = useMutation(api.game.selectTarget);
     const cancelTarget = useMutation(api.game.cancelTarget);
@@ -47,8 +52,14 @@ export default function GraveyardTargetDialog({
     );
 
     const eligible = useMemo(
-        () => getEligibleGraveyards(pendingTarget, allPlayers, playerId),
-        [pendingTarget, allPlayers, playerId]
+        () =>
+            getEligibleGraveyards(
+                pendingTarget,
+                allPlayers,
+                playerId,
+                activePlayerId
+            ),
+        [pendingTarget, allPlayers, playerId, activePlayerId]
     );
 
     const cardInHand = me?.hand.find(

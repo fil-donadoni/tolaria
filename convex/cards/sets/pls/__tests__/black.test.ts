@@ -683,18 +683,21 @@ describe("Lord of the Undead (CR 611 layer 7c anthem + CR 400.7 graveyard-return
     });
 });
 
-// Sinister Strength — an Aura `staticEffects[]` pt-buff (CR 611 layer 7c),
-// mandatory hand-written GRE + wire test per the same convention as Lord of
-// the Undead above. The "is black" clause is a documented DIVERGENCE (issue
-// #1950 review, BLOCKER 1, tracked-by #2009 — see the card's own comment):
-// CR 613.1e makes it a layer-5 colour SET, and the engine's only layer-5
-// static effect (`color-grant`) is additive, so shipping it would have made
-// the host BOTH its printed colour and black. This test locks in the
-// deferred behaviour — colours are UNCHANGED — so a future accidental
-// `color-grant` re-add (reintroducing the CR-incorrect additive shape) fails
-// here instead of shipping silently.
-describe("Sinister Strength (CR 303.4 aura, layer 7c pt-buff; colour clause deferred to #2009, PLS 54)", () => {
-    it("gives the enchanted creature +3/+1 and leaves its colours untouched (colour clause deferred)", () => {
+// Sinister Strength — an Aura `staticEffects[]` pt-buff + color-grant pair
+// (CR 611 layer 7c / layer 5), mandatory hand-written GRE + wire test per the
+// same convention as Lord of the Undead above — mirrors Kormus Bell's own
+// pt-cda + color-grant pairing (`lea/__tests__/colorless.test.ts`). The
+// colour clause is a documented DIVERGENCE (issue #1950 review round 2,
+// BLOCKER 1, tracked-by #2009 — see the card's own comment): CR 613.1e makes
+// "is black" a layer-5 colour SET, and the engine's only layer-5 static
+// effect (`color-grant`) is additive, so the host keeps its printed colour
+// AND gains black rather than becoming black outright. This ADDITIVE shape
+// was confirmed to DOMINATE shipping no grant at all — every
+// `excludeColors`/`colorFilter`/protection interaction a bare grant gets
+// wrong, dropping the grant gets wrong too, so the honest fix is to ship the
+// grant, not omit it. This test asserts the shipped (additive) behaviour.
+describe("Sinister Strength (CR 303.4 aura, layer 7c pt-buff + layer 5 color-grant; colour SET deferred to #2009, PLS 54)", () => {
+    it("gives the enchanted creature +3/+1 and ADDS black (colour SET deferred — host keeps its printed colour too)", () => {
         const host = makeInstance(savannahLions.id, { id: "host" });
         const aura = makeInstance(sinisterStrength.id, {
             id: "aura",
@@ -711,10 +714,14 @@ describe("Sinister Strength (CR 303.4 aura, layer 7c pt-buff; colour clause defe
         // Savannah Lions is a printed 2/1 (`lea/white.ts`); +3/+1 → 5/2.
         expect(getEffectivePower(state, host)).toBe(5);
         expect(getEffectiveToughness(state, host)).toBe(2);
-        // Colour clause deferred (tracked-by #2009) — no color-grant ships,
-        // so the host stays exactly its printed colour (white), never black.
+        // color-grant is a materialized (`grantedColors`) effect, applied via
+        // `applySourceStaticEffects` (Kormus Bell's own precedent) rather than
+        // read live. Additive (tracked-by #2009): the host is BOTH white
+        // (printed) and black (granted), not black-only.
         applySourceStaticEffects(state, aura);
-        expect(STATIC_EFFECT_CTX.getColors(host)).toEqual(["W"]);
+        expect(STATIC_EFFECT_CTX.getColors(host)).toEqual(
+            expect.arrayContaining(["W", "B"])
+        );
 
         // Wire format — the pt-buff read survives the projection.
         const projected = projectPublicState(state, 1, "p1");

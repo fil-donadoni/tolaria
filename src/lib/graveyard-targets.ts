@@ -1,6 +1,10 @@
 import type { CardInstance, PendingTarget, Player } from "~/types/game";
-import { getInstanceManaCost } from "@convex/cards";
-import { manaValue } from "@convex/gre/constants";
+import type { CardInstanceState, GameState } from "@convex/gre/state";
+import {
+    checkCardTargetFilters,
+    pickCardFilterValues,
+    type TargetFilterCtx,
+} from "@convex/gre/targetFilters";
 
 /** A player's graveyard that is eligible for the current graveyard target,
  *  together with the legal cards inside it (issue #314). */
@@ -30,41 +34,41 @@ export function isGraveyardTargetForViewer(
 }
 
 /** Client-side mirror of the backend's graveyard-target validation in
- *  `selectTarget` (convex/game.ts). Returns true if `card` in the graveyard
- *  owned by `ownerId` satisfies the pending target's controller-relationship,
- *  card-type (positive AND negative), and mana-value filters. Must stay in
- *  sync with the server check.
+ *  `selectTarget` (`convex/game.ts`). Returns true if `card` in the
+ *  graveyard owned by `ownerId` satisfies the pending target's requirement.
  *
- *  CR 109.2 / 400.7 — graveyard-zone target. The card-type union (the pending
- *  target's `targetType` minus the non-card tokens) is matched with OR
- *  semantics; `"card"` matches any card. `excludeTypes` (CR 109.1, issue
- *  #1378 review follow-up — Guardian Scalelord's "nonland permanent card",
- *  the Phelia idiom) EXCLUDES a card whose types intersect the excluded set —
- *  checked independently of the positive `targetType` match, since a
- *  DUAL-TYPED card (a land Creature) can satisfy the positive list while
- *  still needing to be excluded. `mvFilter` (CR 202.3, issue #1378 —
- *  Guardian Scalelord's dynamic power-based ceiling, and every existing
- *  literal-ceiling graveyard reanimator: Sevinne's Reclamation
- *  (`c19/white.ts`), Karmic Guide-style sos/multicolor.ts, ulg/black.ts) is
- *  ALREADY a plain-number bound by the time it reaches `PendingTarget` — the
- *  server resolves any `"X"` / `"sourcePower"` sentinel BEFORE building
- *  `PendingTarget.mvFilter` (`pendingTargetFiltersFromRequirement`,
- *  `gre/rules.ts`), so the client never needs to know the dynamic grammar,
- *  only the already-resolved bound. `mvFilter` and `excludeTypes` were
- *  previously UNCHECKED here — every such-restricted graveyard target
- *  offered every card in the graveyard as clickable regardless of mana value
- *  / excluded type, relying entirely on the server's `selectTarget`
- *  rejection to catch an illegal pick after the fact. */
+ *  CR 109.2 / 400.7 — graveyard-zone target. The structural CardType gate
+ *  (the pending target's `targetType` minus the non-card tokens, OR
+ *  semantics, `"card"` matches any card) is checked directly here — it's the
+ *  requirement's own STRUCTURAL `type` field, not a registry filter (ADR
+ *  0068's `StructuralKey` list). Every OTHER filter dimension (`controller`,
+ *  `mvFilter`, `excludeTypes`, `subtypeFilter`, `excludeSubtypes`,
+ *  `colorFilterAny`, and whatever `CARD_FILTER_KEYS` grows next) delegates to
+ *  `checkCardTargetFilters` — the SAME registry (`convex/gre/targetFilters.ts`,
+ *  ADR 0068) `getLegalTargets` (the offered set) and the `selectTarget`
+ *  mutation (the accepted set, `convex/game.ts`) already share, via
+ *  `pickCardFilterValues` (issue #1950 review round 2, MINOR 5) so a future
+ *  `CARD_FILTER_KEYS` addition is honored here automatically — no
+ *  hand-maintained per-dimension mirror to keep in sync. This closes the
+ *  BLOCKER 2 defect class: a hand-rolled mirror here previously checked only
+ *  `controller`/type/`excludeTypes`/`mvFilter`, so `subtypeFilter` (Lord of
+ *  the Undead's "target Zombie card") and `colorFilterAny` (Dreams of the
+ *  Dead's "target white or black creature card") were offered as clickable
+ *  here while the server's `selectTarget` correctly rejected them — a
+ *  client/server split, not merely a CR gap.
+ *
+ *  `pendingTarget` already carries every filter field PRE-LOWERED
+ *  (`PendingTarget`, `convex/gre/state.ts`) — the identical
+ *  `CardFilterValues` shape `selectTarget` builds server-side from the very
+ *  same object — so this only FORWARDS those fields via `pickCardFilterValues`,
+ *  it never re-derives them from a `TargetRequirement`. */
 export function matchesGraveyardTarget(
     card: CardInstance,
     ownerId: string,
     pendingTarget: PendingTarget,
-    viewerId: string
+    viewerId: string,
+    activePlayerId: string
 ): boolean {
-    const controllerFilter = pendingTarget.controller ?? "any";
-    if (controllerFilter === "you" && ownerId !== viewerId) return false;
-    if (controllerFilter === "opponent" && ownerId === viewerId) return false;
-
     const ownTypes = card.types ?? [];
 
     const reqTypes = Array.isArray(pendingTarget.targetType)
@@ -84,22 +88,39 @@ export function matchesGraveyardTarget(
         }
     }
 
-    const excludeTypes = pendingTarget.excludeTypes;
-    if (excludeTypes && excludeTypes.some((t) => ownTypes.includes(t))) {
-        return false;
-    }
+    // Sound: the wire-projected `CardInstance` is a structural superset of
+    // the fields `checkCardTargetFilters`/the layer system read off
+    // `CardInstanceState` (the same cast pattern `matchesPermanentTargetFilters`,
+    // `card-utils.ts`, uses for a battlefield candidate). The registry's
+    // `card`-kind `controller` check reads `candidate.ownerId` (CR 109.3 /
+    // 400.7 — a graveyard card's controller-relationship filter is checked
+    // against the GRAVEYARD'S OWNER, not a battlefield-only `controllerId`),
+    // so it's pinned here to the graveyard we're scanning rather than trusted
+    // to already be correct on the wire object.
+    const candidate = {
+        ...card,
+        ownerId,
+    } as unknown as CardInstanceState;
 
-    const mvFilter = pendingTarget.mvFilter;
-    if (mvFilter) {
-        const mv = manaValue(getInstanceManaCost(card));
-        if (mvFilter.equals !== undefined && mv !== mvFilter.equals) {
-            return false;
-        }
-        if (mvFilter.min !== undefined && mv < mvFilter.min) return false;
-        if (mvFilter.max !== undefined && mv > mvFilter.max) return false;
-    }
+    const ctx: TargetFilterCtx = {
+        // Minimal `GameState`-shaped view — the registry's `controller`
+        // check only needs `chooserId`/`activePlayerId`, never a full board
+        // scan, for the card kind.
+        state: {} as unknown as GameState,
+        sourceColors: [],
+        sourceTypes: [],
+        sourceSubtypes: [],
+        chooserId: viewerId,
+        activePlayerId,
+    };
 
-    return true;
+    return (
+        checkCardTargetFilters(
+            ctx,
+            candidate,
+            pickCardFilterValues(pendingTarget)
+        ) === null
+    );
 }
 
 /** Computes the graveyards (and their legal cards) eligible for the current
@@ -109,12 +130,19 @@ export function matchesGraveyardTarget(
 export function getEligibleGraveyards(
     pendingTarget: PendingTarget,
     allPlayers: Player[],
-    viewerId: string
+    viewerId: string,
+    activePlayerId: string
 ): EligibleGraveyard[] {
     const result: EligibleGraveyard[] = [];
     for (const player of allPlayers) {
         const cards = player.graveyard.filter((c) =>
-            matchesGraveyardTarget(c, player.id, pendingTarget, viewerId)
+            matchesGraveyardTarget(
+                c,
+                player.id,
+                pendingTarget,
+                viewerId,
+                activePlayerId
+            )
         );
         if (cards.length === 0) continue;
         result.push({

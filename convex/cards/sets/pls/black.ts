@@ -438,41 +438,35 @@ export const maggotCarrier: CardDefinition = {
 };
 
 // Morgue Toad — {2}{B} Creature — Frog, 2/2. "Sacrifice this creature: Add
-// {U}{R}." (CR 605.1a mana ability, sacrifice-self cost.)
+// {U}{R}." (CR 605.1a mana ability, sacrifice-self cost, NO tap component.)
 //
-// `manaProduced` is the sole executing authority here (issue #1950 review,
-// MINOR 3) — NOT `effects`/`effect`. `activateManaAbility` (`game.ts`)
-// throws for any `cost.tap || cost.sacrifice` mana ability ("Use tapUntap
-// for tap mana abilities"); the reachable path for a sacrifice-cost mana
-// ability is `tapUntap`/`tapSourceIntoPayment`, which reads the produced
-// mana straight off `manaProduced` (`getActivatedManaColor`) and never
-// invokes an effect body at all. An earlier version of this card carried a
-// redundant `effects: [{ op: "addMana", ... }]` alongside `manaProduced`,
-// claiming (incorrectly) that it was the DSL-first execution path; it was
-// dead code that would have double-added {U}{R} the day this cost shape
-// ever DID start honouring an effect body. Mirrors the same
-// `manaProduced`-only shape Tinder Wall's `Sacrifice this creature: Add
-// {R}{R}.` half uses (`ice/green.ts`).
-export const morgueToad: CardDefinition = {
-    id: "77d8ae73-70d1-4082-8581-5f74c1aaa63b", // PLS 46
-    name: "Morgue Toad",
-    rarity: "common",
-    oracleText: "Sacrifice this creature: Add {U}{R}.",
-    manaCost: { X: 2, B: 1 },
-    types: ["Creature"],
-    subtypes: ["Frog"],
-    power: 2,
-    toughness: 2,
-    activatedAbilities: [
-        {
-            id: "morgue-toad-mana",
-            oracleText: "Sacrifice this creature: Add {U}{R}.",
-            cost: { sacrifice: true },
-            useStack: false,
-            manaProduced: { U: 1, R: 1 },
-        },
-    ],
-};
+// STOP-AND-ISSUE (issue #1950 review round 2, BLOCKER 3) — this is a genuine
+// ENGINE BUG, not a card-data problem: neither mutation that can activate a
+// mana ability correctly handles a cost that is sacrifice-only with no `{T}`.
+// `tapUntap`'s redirect guard (`convex/game.ts`) only sends a `!cost.tap &&
+// cost.mana` shape to `activateManaAbility`; a `!cost.tap && cost.sacrifice`
+// shape (this card) falls through into `tapUntap`'s sacrifice branch, which
+// looks up the produced mana via `getActivatedManaColor`/
+// `getActivatedManaProduced` (`gre/constants.ts`) — BOTH of which require
+// `cost.tap` to match at all — so it silently produces NO mana while still
+// sacrificing the source. `activateManaAbility` explicitly REJECTS
+// `cost.sacrifice` outright ("Use tapUntap for tap mana abilities"), so
+// there is no working path today. Confirmed the SAME bug already affects the
+// shipped Tinder Wall (`ice/green.ts`, "Sacrifice this creature: Add
+// {R}{R}.") — Lotus Petal (`tmp/colorless.ts`) is NOT a counter-example,
+// its cost is `{T}, Sacrifice...` (tap-based, sacrifice merely additional),
+// which both functions already handle via the `cost.tap` branch. Left as a
+// commented stub rather than shipped with a broken ability. tracked-by: #2021
+// export const morgueToad: CardDefinition = {
+//     id: "77d8ae73-70d1-4082-8581-5f74c1aaa63b", // PLS 46
+//     name: "Morgue Toad",
+//     rarity: "common",
+//     manaCost: { X: 2, B: 1 },
+//     types: ["Creature"],
+//     subtypes: ["Frog"],
+//     power: 2,
+//     toughness: 2,
+// };
 
 // Nightscape Battlemage — {2}{B} Creature — Zombie Wizard, 2/2. "Kicker
 // {2}{U} and/or {2}{R}. When this creature enters, if it was kicked with
@@ -715,23 +709,30 @@ export const shriekOfDread: CardDefinition = {
 
 // Sinister Strength — {1}{B} Enchantment — Aura. "Enchant creature.
 // Enchanted creature gets +3/+1 and is black." (CR 303.4 aura; CR 611 layer
-// 7c pt-buff via the shared `AURA_AFFECTS_HOST` predicate, the same
-// per-instance shape Unholy Strength uses, `lea/black.ts`.)
+// 7c pt-buff + layer 5 color-grant, both scoped via the shared
+// `AURA_AFFECTS_HOST` predicate — Kormus Bell's own pt-cda + color-grant
+// pairing, `lea/colorless.ts`, adapted to a per-instance `pt-buff` the way
+// Unholy Strength does, `lea/black.ts`.)
 //
-// DIVERGENCE (issue #1950 review, BLOCKER 1) — the "is black" clause ships
-// only PARTIALLY. CR 613.1e / 105.2 make "is black" a layer-5 colour SET
-// (replaces every other colour derivation outright); the engine's only
-// layer-5 static effect today, `color-grant` (`gre/layers.ts`'s
-// `STATIC_EFFECT_CTX.getColors`), is additive — it UNIONS the granted colour
-// with the enchanted permanent's printed colours, never removes them. Kormus
-// Bell (`lea/colorless.ts`) is not a counter-precedent: it grants black to
-// colourless Swamps, where ADD and SET coincide. Shipping `color-grant` here
-// on a green/red/etc. host would leave it BOTH its printed colour AND black —
-// e.g. a green creature enchanted would still match `colorFilter: "G"`
-// (Slay, this same file) and still be legally destroyed by it, when per CR it
-// is black only. Ships the +3/+1 only; the colour clause needs the CR 613.1e
-// colour-SET static effect tracked by sibling issue #2009 ("[engine] Layer 5
-// color-SET continuous static effect (Shifting Sky)"). tracked-by: #2009
+// DIVERGENCE (issue #1950 review round 2, BLOCKER 1) — colour is ADDED, not
+// SET (host keeps its printed colours). CR 613.1e / 105.2 make "is black" a
+// layer-5 colour SET (replaces every other colour derivation outright); the
+// engine's only layer-5 static effect today, `color-grant`
+// (`gre/layers.ts`'s `STATIC_EFFECT_CTX.getColors`), is additive — it UNIONS
+// the granted colour with the host's printed colours rather than replacing
+// them. Reviewed and confirmed the additive shape DOMINATES dropping the
+// grant entirely: on every interaction a bare +3/+1 (no grant at all) gets
+// wrong (`excludeColors: "B"` — Death Bomb/Terror, this file and
+// `lea/black.ts` — wrongly treats an enchanted non-black host as illegal;
+// `colorFilter: "B"` wrongly treats it as an illegal "target black creature"
+// target; protection from black wouldn't apply when it should), the additive
+// grant gets it right too, while ALSO getting `colorFilter: "G"`
+// (Slay, this file) wrong the same way a bare-hued host would (Slay destroys
+// the green host under BOTH shapes — the additive grant does not make that
+// interaction any worse). Ships the additive grant now; the colour-SET
+// clause needs the CR 613.1e colour-SET static effect tracked by sibling
+// issue #2009 ("[engine] Layer 5 color-SET continuous static effect
+// (Shifting Sky)"). tracked-by: #2009
 export const sinisterStrength: CardDefinition = {
     id: "afe487b8-c1ae-483d-bcd5-62c62b66a22e", // PLS 54
     name: "Sinister Strength",
@@ -747,6 +748,11 @@ export const sinisterStrength: CardDefinition = {
             applies: AURA_AFFECTS_HOST,
             power: 3,
             toughness: 1,
+        },
+        {
+            kind: "color-grant",
+            applies: AURA_AFFECTS_HOST,
+            colors: ["B"],
         },
     ],
 };
