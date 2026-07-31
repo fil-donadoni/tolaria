@@ -2956,7 +2956,7 @@ describe("Nettling Imp (CR 508.1d, 603.7a — forced attack + delayed destroy)",
     it("creature forced to attack is required by mustAttack()", () => {
         const { state, imp, victim } = setup();
         activate(state, imp, "victim");
-        expect(mustAttack(victim)).toBe(true);
+        expect(mustAttack(victim, state)).toBe(true);
     });
 
     it("delayed trigger does NOT destroy if creature attacked", () => {

@@ -1497,20 +1497,17 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // stayed pure DSL (`effects: EffectOp[]`, no `resolve()`) and never
         // contributed to this census. Partition: 304+14+150=468.
         //
-        // #1948 (Samite Elder, pls/white.ts): a BRAND-NEW catalogue card. Its
-        // `{T}` ability is a protocol-card `resolve()` closure — the granted
-        // set of protection qualities is read off a target permanent's LIVE
-        // colours at resolution (0-5 colours), so the Op vocabulary has no
-        // "for each colour of X" construct to express it (ADR 0045). The
-        // static clause-mapper's `grantStaticAbility`-loop heuristic scores
-        // it FREE/AFK-ready (the same class of heuristic over-count the Wan
-        // Shi Tong note above describes — a real per-card test exists, so it
-        // counts as AFK-ready regardless of the classifier's coarse read).
-        // Net: total 468->469, FREE 304->305, AFK-ready 295->296. X-only /
-        // Op-blocked unchanged. Partition: 305+14+150=469.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(469);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(305);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(296);
+        // #1948 (Samite Elder, pls/white.ts): a BRAND-NEW catalogue card,
+        // briefly landed with a `resolve()` ability, then re-reviewed and
+        // rewritten as a pure Effect Script (`objectMatchesFilter`, issue
+        // #1747, reads the target's live colours per KNOWN-AT-AUTHORING-TIME
+        // candidate colour — the same `forEach`+5×`if` shape Dominaria's
+        // Judgment already uses in this file, so no runtime "for each colour
+        // of X" construct was actually needed). No net closure added — the
+        // baseline is unchanged at 468/304/295/14/150.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(468);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(304);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(295);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(150);
     });
