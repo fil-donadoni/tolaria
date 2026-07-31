@@ -11,6 +11,10 @@ import {
 } from "../../types";
 import { chooseColorEffects } from "../../abilities/chooseColor";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+import {
+    kickerPaidCondition,
+    kickerPaidInterveningIf,
+} from "../../abilities/triggers/shared";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
 // Planar Overlay — {2}{U} Sorcery. "Each player chooses a land they control
@@ -609,29 +613,28 @@ export const sleepingPotion: CardDefinition = {
 // Battlemage template (`pls/red.ts`, issue #1951/PR #2005), the cycle's
 // first-landed sibling.)
 //
-// Each trigger's `targetRequirement` is announced when the creature enters
-// REGARDLESS of which Kicker(s) were paid — there is no per-Kicker check-time
-// predicate reachable before the ability hits the stack (only the aggregate
-// `wasKicked` boolean is, `PermanentView.wasKicked`'s own doc); the `if {
-// kickerPaid }` gate inside `effects[]` then no-ops the UNPAID trigger at
-// resolution. This is the ADR-documented shape (ADR 0079: "a new frozen
-// Effect Script value `{ kickerPaid: "<id>" }` answers the Battlemages'
-// per-kicker intervening-ifs") — a target is still requested for a trigger
-// that may resolve to nothing, the accepted divergence from a literal CR
-// 603.4d "never hits the stack" intervening-if. `{ kickerPaid }` reads
-// `ctx.getKickerPaidCount()` off the RESOLVING stack item's own
-// `kickerPayments` (`StackItem.kickerPayments`, a properly TYPED, and —
-// while the item sits on the stack — SERIALIZED field, `serialize.ts`'s
-// `compactStackItem`) — `buildTriggerItem` (`gre/triggers.ts`) spreads the
-// entering permanent's fields onto each new triggered-ability stack item it
-// raises, carrying `kickerPayments` along without any card-level cast. No
-// `conditionOnSelf`/raw-field read needed here — an earlier draft of this
-// card gated the black-kicker trigger's ANNOUNCEMENT with `conditionOnSelf`
-// reading an untyped stray `kickerPayments` off `PermanentView`, which PR
-// #2010's review (MAJOR 3) flagged as relying on a field not yet promoted to
-// a typed, serialized one (tracked-by #2014) — this shape sidesteps that
-// gap entirely by reading the value the same way every other Kicker card's
-// `{ kickerCount }`/`{ kickerPaid }` intervening-if already does.
+// Each trigger is gated PER KICKER at CHECK time (CR 603.4) by
+// `kickerPaidCondition("<id>")`, plus CR 603.4d's resolution-time re-check via
+// `kickerPaidInterveningIf` — the shared predicate over the permanent's own
+// per-Kicker payment record (`PermanentView.kickerPayments`). This card
+// originally shipped with NO check-time gate at all: both triggers went on the
+// stack on every ETB, so a Battlemage kicked only with {W} still announced the
+// {2}{B} trigger's "target nonblack creature" and emitted a real
+// `BECAME_TARGET` event, taxing the chosen creature's controller (ward, a
+// "becomes the target" trigger) for an ability CR 603.4 says never came into
+// being. The reason was timing, not design: an earlier draft's
+// `conditionOnSelf` read an UNTYPED, unserialized stray `kickerPayments` off
+// `PermanentView`, which PR #2010's review (MAJOR 3) rightly rejected pending
+// its promotion (#2014). That promotion landed with #1950 — the field is now
+// typed on `CardInstanceState`/`PermanentView`, persisted by `compactCard`,
+// and cleared on a CR 400.7 zone change — so the gate is now sound (#2015).
+//
+// The `if { kickerPaid: "<id>" }` gate inside each `effects[]` STAYS as ADR
+// 0079's documented resolution-time answer, reading `ctx.getKickerPaidCount()`
+// off the resolving item's own `kickerPayments` (`buildTriggerItem`,
+// `gre/triggers.ts`, spreads the entering permanent's fields onto each
+// triggered-ability item it raises). Both gates read the one record, so they
+// cannot disagree.
 export const stormscapeBattlemage: CardDefinition = {
     id: "7d46a39d-c6f4-4281-b31f-f0a0c9fba887", // PLS 35
     rarity: "uncommon",
@@ -662,6 +665,9 @@ export const stormscapeBattlemage: CardDefinition = {
             oracleText:
                 "When this creature enters, if it was kicked with its {W} kicker, you gain 3 life.",
             scope: "self",
+            // CR 603.4 / 603.4d per-Kicker gate — see the card-level comment.
+            conditionOnSelf: kickerPaidCondition("kicker-w"),
+            interveningIf: kickerPaidInterveningIf("kicker-w"),
             effects: [
                 {
                     op: "if",
@@ -679,6 +685,9 @@ export const stormscapeBattlemage: CardDefinition = {
             oracleText:
                 "When this creature enters, if it was kicked with its {2}{B} kicker, destroy target nonblack creature. That creature can't be regenerated.",
             scope: "self",
+            // CR 603.4 / 603.4d per-Kicker gate — see the card-level comment.
+            conditionOnSelf: kickerPaidCondition("kicker-b"),
+            interveningIf: kickerPaidInterveningIf("kicker-b"),
             targetRequirement: {
                 type: "Creature",
                 count: 1,
