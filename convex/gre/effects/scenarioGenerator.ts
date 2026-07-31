@@ -355,6 +355,16 @@ function analyseValue(value: EffectValue, req: Requirements): void {
     if (value.count.filter?.excludeSupertype !== undefined) {
         req.skip ??= `count set excludes supertype(s) — the filler doesn't model supertype exclusion`;
     }
+    // issue #1952 — `countFillerId` seeds a filler card by type/subtype only
+    // (`gen-count-filler-<type>-<subtype>`, no `colors`); a count filter that
+    // ALSO restricts by color (Pygmy Kavu's "black creature") would silently
+    // seed a colorless filler that never matches the color check, mispredicting
+    // a nonzero amount as the wrong 0 instead of skipping. Same treatment as
+    // `name`/`excludeSupertype` above — skip-with-reason, hand-written test is
+    // the behavioural guarantor.
+    if (value.count.filter?.color !== undefined) {
+        req.skip ??= `count set filters by color "${value.count.filter.color}" — the filler doesn't model color`;
+    }
     if (value.count.times !== undefined) {
         req.skip ??= `count set applies a ${value.count.times}× multiplier — not modelled by the canned predictor`;
     }

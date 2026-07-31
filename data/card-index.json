@@ -288,6 +288,14 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Alpha Kavu",
+        "scryfallId": "545ed916-59fc-4c60-9260-8c2dc88e67a1",
+        "oracleId": "f1a76cca-829a-4576-a560-f1af34b80b87",
+        "firstSet": "pls",
+        "firstPrintId": "545ed916-59fc-4c60-9260-8c2dc88e67a1",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Altar of Bone",
         "scryfallId": "75d5b014-8675-4d91-a539-ac5c31d44b35",
         "oracleId": "607a3f5f-4a36-4077-b5cf-40ffd52fa580",
@@ -4864,6 +4872,14 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Gaea's Might",
+        "scryfallId": "67e5adce-7735-4fa5-aa14-8dce012e9fcc",
+        "oracleId": "73b26f12-78eb-4d01-9dd6-ee643c7a80a8",
+        "firstSet": "pls",
+        "firstPrintId": "67e5adce-7735-4fa5-aa14-8dce012e9fcc",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Gaea's Touch",
         "scryfallId": "0e1ae3d6-6d96-4db6-bbc4-cee91bae6cf7",
         "oracleId": "ddd053ea-5b91-4def-a003-2e297a170d99",
@@ -7832,6 +7848,14 @@
         "firstPrintSet": "arn"
     },
     {
+        "name": "Magnigoth Treefolk",
+        "scryfallId": "90c2869b-43cf-4d5e-8a54-9ae200f5bff9",
+        "oracleId": "b153e4c4-6557-43a6-8404-e4450f879945",
+        "firstSet": "pls",
+        "firstPrintId": "90c2869b-43cf-4d5e-8a54-9ae200f5bff9",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Magus of the Unseen",
         "scryfallId": "86da04e9-b94d-42af-add3-02baf772bd33",
         "oracleId": "d8857977-c8a5-4703-9aaa-331b17c7a713",
@@ -8704,6 +8728,14 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Multani's Harmony",
+        "scryfallId": "c76352ea-e3d2-4221-8ebe-e953301c35ab",
+        "oracleId": "81c223a5-5ff2-43e5-bd0b-25c4f72b2150",
+        "firstSet": "pls",
+        "firstPrintId": "c76352ea-e3d2-4221-8ebe-e953301c35ab",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Multiversal Passage",
         "scryfallId": "f5fb426a-5618-4dd4-9c51-0cc847be8c1d",
         "oracleId": "17770eeb-ecbf-4510-af2d-acececfbe146",
@@ -8846,6 +8878,14 @@
         "firstSet": "ice",
         "firstPrintId": "54d7a0c1-efb4-4a8d-ad92-a96d43835052",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "Nemata, Grove Guardian",
+        "scryfallId": "8c6a0ca4-5006-4c9b-91cd-e01d77e4fdc2",
+        "oracleId": "5ce58279-7f1e-4ef7-a352-ecbaee31b6ff",
+        "firstSet": "pls",
+        "firstPrintId": "8c6a0ca4-5006-4c9b-91cd-e01d77e4fdc2",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Nether Shadow",
@@ -9936,6 +9976,14 @@
         "firstPrintSet": "atq"
     },
     {
+        "name": "Primal Growth",
+        "scryfallId": "1d4a3c83-faaa-4dd9-9349-abcaf09cc7a8",
+        "oracleId": "3cbdf37b-7fe3-4791-b33c-8591158b0ce5",
+        "firstSet": "pls",
+        "firstPrintId": "1d4a3c83-faaa-4dd9-9349-abcaf09cc7a8",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Primordial Ooze",
         "scryfallId": "a46e47e1-8639-48f7-94c4-5f9e9666839a",
         "oracleId": "133109c3-a2ca-4231-b3b1-baa700800b07",
@@ -10048,6 +10096,14 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Pygmy Kavu",
+        "scryfallId": "b31c69ec-feb5-430a-a3e9-3a6f3fb8ee1c",
+        "oracleId": "17407b73-0dbe-4a71-84ec-3aaca9651f5b",
+        "firstSet": "pls",
+        "firstPrintId": "b31c69ec-feb5-430a-a3e9-3a6f3fb8ee1c",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Pyknite",
         "scryfallId": "6ffc64e4-ae3c-49f9-8ed6-518dd497bfe6",
         "oracleId": "857f9a8d-ba77-4afd-922d-994f66e478ef",
@@ -10102,6 +10158,14 @@
         "firstSet": "sos",
         "firstPrintId": "318486e0-f255-40f5-8150-dc272eec9d7d",
         "firstPrintSet": "sos"
+    },
+    {
+        "name": "Quirion Dryad",
+        "scryfallId": "f6841ae6-b15f-488e-9cae-2cc5ec668278",
+        "oracleId": "f42b6510-7322-4733-85ea-7ae6bd6ca8fc",
+        "firstSet": "pls",
+        "firstPrintId": "f6841ae6-b15f-488e-9cae-2cc5ec668278",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Quirion Elves",
@@ -10790,6 +10854,14 @@
         "firstSet": "inv",
         "firstPrintId": "61e1a445-129d-4bb9-a8b0-3f55e3e0bc58",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Root Greevil",
+        "scryfallId": "306e3429-b3b4-4186-935b-18cfc308d22c",
+        "oracleId": "e43b25be-fe67-4eaa-80df-85718f38f904",
+        "firstSet": "pls",
+        "firstPrintId": "306e3429-b3b4-4186-935b-18cfc308d22c",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Royal Assassin",
@@ -11720,6 +11792,14 @@
         "firstPrintSet": "pls"
     },
     {
+        "name": "Skyshroud Blessing",
+        "scryfallId": "c0c10b16-97b1-4a36-b2b4-f0c28ead3eb4",
+        "oracleId": "ffcedb73-538a-45ea-8564-7b92624537e0",
+        "firstSet": "pls",
+        "firstPrintId": "c0c10b16-97b1-4a36-b2b4-f0c28ead3eb4",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Slay",
         "scryfallId": "eccda747-2680-4793-8a13-35e49b4de12f",
         "oracleId": "64418e1f-4fb1-4029-a31e-135b2d2c0ab9",
@@ -12390,6 +12470,14 @@
         "firstSet": "lea",
         "firstPrintId": "7ffaedb9-25f8-4304-9085-e12505b93312",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Stone Kavu",
+        "scryfallId": "36a1cdca-d48c-4936-ad6a-4610aeb991ce",
+        "oracleId": "01565f61-a3c8-42ca-99f3-07cfc64034a2",
+        "firstSet": "pls",
+        "firstPrintId": "36a1cdca-d48c-4936-ad6a-4610aeb991ce",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Stone Rain",
@@ -13150,6 +13238,22 @@
         "firstSet": "inv",
         "firstPrintId": "505da522-73a8-4232-ae1a-d3365f3e598f",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Thornscape Battlemage",
+        "scryfallId": "13f24f89-3996-4740-a6c9-d26b8869554b",
+        "oracleId": "8d4d6806-cb01-49e3-91cc-fb0e7f7a8684",
+        "firstSet": "pls",
+        "firstPrintId": "13f24f89-3996-4740-a6c9-d26b8869554b",
+        "firstPrintSet": "pls"
+    },
+    {
+        "name": "Thornscape Familiar",
+        "scryfallId": "76c6e426-6165-4f8e-8766-de768ae13452",
+        "oracleId": "3f92c684-f2fd-4fe5-bfb5-e27061d2c45b",
+        "firstSet": "pls",
+        "firstPrintId": "76c6e426-6165-4f8e-8766-de768ae13452",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Thornscape Master",
