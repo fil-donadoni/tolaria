@@ -5,10 +5,7 @@
 
 import type { CardDefinition, CardPrint, SpellContext } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
-import {
-    kickerPaidCondition,
-    kickerPaidInterveningIf,
-} from "../../abilities/triggers/shared";
+import { kickerPaidCondition } from "../../abilities/triggers/shared";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 import { chooseColorEffects } from "../../abilities/chooseColor";
@@ -686,15 +683,21 @@ export const tahngarthTalruumHeroAlt: CardPrint = {
 // (`gre/ai/cardScriptValue.ts`) so the bot's value model scores an unkicked
 // Battlemage as if neither trigger fires; `condition` would stamp
 // `UNDECIDABLE_TRIGGER_GATE` and the bot would over-value it (issue #1936).
-// `kickerPaidInterveningIf` adds CR 603.4d's resolution-time re-check, the
-// same two-leg shape Nightscape Battlemage (`pls/black.ts`) uses.
 //
-// The `if { kickerPaid: "<id>" }` gate inside each `effects[]` STAYS: it is
-// ADR 0079's documented resolution-time answer (the frozen Effect Script
-// value introduced for this cycle), reading the resolving item's own
-// `kickerPayments`, and it is what still holds if an ability COPY reaches the
-// stack without re-running `matches` (CR 707.10). Belt and braces over one
-// record — the two gates cannot disagree.
+// The resolution-time half is the `if { kickerPaid: "<id>" }` gate inside
+// each `effects[]` — ADR 0079's documented answer, reading the RESOLVING
+// STACK ITEM's own `kickerPayments` (`buildTriggerItem`'s `...self` spread,
+// `gre/triggers.ts`), i.e. CR 603.10 last known information, and what still
+// holds if an ability COPY reaches the stack without re-running `matches`
+// (CR 707.10). It is deliberately NOT also declared as `interveningIf`:
+// `resolveTopOfStackInner` re-evaluates an `interveningIf` against the LIVE
+// battlefield permanent found by `triggerSourceId`, and a blink/flicker
+// (Ephemerate) returns the SAME instance object with `kickerPayments`
+// already deleted by `resetBattlefieldTransientState` — so an `interveningIf`
+// would read a cleared record and fizzle a trigger that must resolve off LKI.
+// Check-time `conditionOnSelf` + resolution-time `if { kickerPaid }` is the
+// correct pair; the blink case is locked by a regression test in
+// `__tests__/red.test.ts`.
 export const thunderscapeBattlemage: CardDefinition = {
     id: "d707243e-7f11-44bc-b8b8-af635ab1dc87", // PLS 75
     rarity: "uncommon",
@@ -724,9 +727,8 @@ export const thunderscapeBattlemage: CardDefinition = {
             oracleText:
                 "When this creature enters, if it was kicked with its {1}{B} kicker, target player discards two cards.",
             scope: "self",
-            // CR 603.4 / 603.4d per-Kicker gate — see the card-level comment.
+            // CR 603.4 per-Kicker check-time gate — see the card-level comment.
             conditionOnSelf: kickerPaidCondition("kicker-b"),
-            interveningIf: kickerPaidInterveningIf("kicker-b"),
             targetRequirement: { type: "player", count: 1 },
             effects: [
                 {
@@ -760,9 +762,8 @@ export const thunderscapeBattlemage: CardDefinition = {
             oracleText:
                 "When this creature enters, if it was kicked with its {G} kicker, destroy target enchantment.",
             scope: "self",
-            // CR 603.4 / 603.4d per-Kicker gate — see the card-level comment.
+            // CR 603.4 per-Kicker check-time gate — see the card-level comment.
             conditionOnSelf: kickerPaidCondition("kicker-g"),
-            interveningIf: kickerPaidInterveningIf("kicker-g"),
             targetRequirement: { type: "Enchantment", count: 1 },
             effects: [
                 {

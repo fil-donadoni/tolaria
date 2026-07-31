@@ -11,10 +11,7 @@ import {
 } from "../../types";
 import { chooseColorEffects } from "../../abilities/chooseColor";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
-import {
-    kickerPaidCondition,
-    kickerPaidInterveningIf,
-} from "../../abilities/triggers/shared";
+import { kickerPaidCondition } from "../../abilities/triggers/shared";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
 // Planar Overlay — {2}{U} Sorcery. "Each player chooses a land they control
@@ -614,8 +611,7 @@ export const sleepingPotion: CardDefinition = {
 // first-landed sibling.)
 //
 // Each trigger is gated PER KICKER at CHECK time (CR 603.4) by
-// `kickerPaidCondition("<id>")`, plus CR 603.4d's resolution-time re-check via
-// `kickerPaidInterveningIf` — the shared predicate over the permanent's own
+// `kickerPaidCondition("<id>")` — the shared predicate over the permanent's own
 // per-Kicker payment record (`PermanentView.kickerPayments`). This card
 // originally shipped with NO check-time gate at all: both triggers went on the
 // stack on every ETB, so a Battlemage kicked only with {W} still announced the
@@ -633,8 +629,13 @@ export const sleepingPotion: CardDefinition = {
 // 0079's documented resolution-time answer, reading `ctx.getKickerPaidCount()`
 // off the resolving item's own `kickerPayments` (`buildTriggerItem`,
 // `gre/triggers.ts`, spreads the entering permanent's fields onto each
-// triggered-ability item it raises). Both gates read the one record, so they
-// cannot disagree.
+// triggered-ability item it raises) — i.e. CR 603.10 last known information.
+// The same predicate is deliberately NOT also declared as `interveningIf`:
+// that re-check runs against the LIVE battlefield permanent found by
+// `triggerSourceId`, and a blink/flicker returns the SAME instance object
+// with `kickerPayments` already cleared by `resetBattlefieldTransientState`,
+// which would fizzle a trigger that must resolve off LKI. See the Thunderscape
+// Battlemage note in `pls/red.ts` and its regression test.
 export const stormscapeBattlemage: CardDefinition = {
     id: "7d46a39d-c6f4-4281-b31f-f0a0c9fba887", // PLS 35
     rarity: "uncommon",
@@ -665,9 +666,8 @@ export const stormscapeBattlemage: CardDefinition = {
             oracleText:
                 "When this creature enters, if it was kicked with its {W} kicker, you gain 3 life.",
             scope: "self",
-            // CR 603.4 / 603.4d per-Kicker gate — see the card-level comment.
+            // CR 603.4 per-Kicker check-time gate — see the card-level comment.
             conditionOnSelf: kickerPaidCondition("kicker-w"),
-            interveningIf: kickerPaidInterveningIf("kicker-w"),
             effects: [
                 {
                     op: "if",
@@ -685,9 +685,8 @@ export const stormscapeBattlemage: CardDefinition = {
             oracleText:
                 "When this creature enters, if it was kicked with its {2}{B} kicker, destroy target nonblack creature. That creature can't be regenerated.",
             scope: "self",
-            // CR 603.4 / 603.4d per-Kicker gate — see the card-level comment.
+            // CR 603.4 per-Kicker check-time gate — see the card-level comment.
             conditionOnSelf: kickerPaidCondition("kicker-b"),
-            interveningIf: kickerPaidInterveningIf("kicker-b"),
             targetRequirement: {
                 type: "Creature",
                 count: 1,

@@ -19,10 +19,9 @@
 //      event they gate on (CR 120.3 / 603.10).
 //   4. Check-time gate marking (`withTriggerGate`) — the one place a factory
 //      records that its ability is CONDITIONAL (CR 603.4), plus the per-Kicker
-//      check-time predicates (`kickerPaidCondition` /
-//      `kickerPaidInterveningIf`) that the Battlemage cycle's "if it was
-//      kicked with its {A} kicker" triggers are gated on (CR 702.33, ADR 0079,
-//      issue #2015).
+//      check-time predicate (`kickerPaidCondition`) that the Battlemage
+//      cycle's "if it was kicked with its {A} kicker" triggers are gated on
+//      (CR 702.33, ADR 0079, issue #2015).
 //
 // The scope vocabularies are fixed at ADR 0002 — keep this file as the single
 // source of truth so the factories stay in lockstep.
@@ -419,30 +418,23 @@ function kickerPaidTimes(self: PermanentView, kickerId: string): number {
  *  can stamp a DECIDED gate the bot's value model can evaluate, instead of
  *  `UNDECIDABLE_TRIGGER_GATE` (issue #1936).
  *
- *  Pair it with {@link kickerPaidInterveningIf} for the CR 603.4d resolution-
- *  time re-check. */
+ *  Do NOT also declare this predicate as the ability's `interveningIf`.
+ *  `resolveTopOfStackInner` (`gre/state.ts`) re-evaluates an `interveningIf`
+ *  against the LIVE battlefield permanent found by `triggerSourceId`, and only
+ *  falls back to the stack item's own last-known information when the source
+ *  is NOT on the battlefield. A CR 400.7 zone change that returns the same
+ *  instance object — a blink/flicker (Ephemerate), a bounce-and-replay —
+ *  re-finds the permanent by that id AFTER `resetBattlefieldTransientState`
+ *  has deleted `kickerPayments`, so the re-check would read a CLEARED record
+ *  and fizzle a trigger that CR 603.10 says must resolve off last known
+ *  information. The correct resolution-time answer is the
+ *  `if { kickerPaid: "<id>" }` branch inside the ability's own `effects[]`:
+ *  it reads the RESOLVING STACK ITEM's payment record (`buildTriggerItem`'s
+ *  `...self` spread, `gre/triggers.ts`), which is exactly the LKI snapshot,
+ *  and it also still holds for an ability COPY that reaches the stack without
+ *  re-running `matches` (CR 707.10). */
 export function kickerPaidCondition(
     kickerId: string
 ): (self: PermanentView) => boolean {
     return (self) => kickerPaidTimes(self, kickerId) >= 1;
-}
-
-/** CR 603.4d — {@link kickerPaidCondition}'s predicate in `interveningIf`
- *  shape, re-evaluated by the engine when the trigger RESOLVES (a false answer
- *  fizzles it, emitting `TRIGGER_FIZZLED`). Whether a Kicker was paid is a
- *  one-shot fact fixed at CR 601.2b announcement that nothing revisits, so in
- *  practice this can only ever agree with the check-time gate — it is declared
- *  because CR 603.4d says an intervening-if IS re-checked, and because the
- *  trigger's own stack item carries the payment record forward as last known
- *  information (`buildTriggerItem`'s `...self` spread, `gre/triggers.ts`) even
- *  when the source permanent has since left the battlefield (CR 603.10).
- *
- *  The event parameter is typed `unknown` on purpose: the predicate never reads
- *  the firing event, and `unknown` keeps the returned closure assignable to
- *  every factory's narrowed `interveningIf` signature. */
-export function kickerPaidInterveningIf(
-    kickerId: string
-): (event: unknown, self: PermanentView) => boolean {
-    const paid = kickerPaidCondition(kickerId);
-    return (_event, self) => paid(self);
 }

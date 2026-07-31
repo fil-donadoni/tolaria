@@ -10,7 +10,7 @@
 // fail-CLOSED rows below carry the weight of this file: every shape that is not
 // an unambiguous "this exact Kicker was paid at least once" must read false.
 import { describe, expect, it } from "vitest";
-import { kickerPaidCondition, kickerPaidInterveningIf } from "../shared";
+import { kickerPaidCondition } from "../shared";
 import { kickerPaidCount } from "../../../../gre/kicker";
 import type { CardType, PermanentView } from "../../../types";
 
@@ -81,10 +81,6 @@ describe("kickerPaidCondition (CR 702.33 / 603.4 per-Kicker check-time gate, iss
                 >,
             }),
         },
-        {
-            label: "a prototype-chain name that is not an own entry",
-            self: makeSelf({ kickerPayments: {} }),
-        },
     ];
 
     for (const row of failClosed) {
@@ -121,17 +117,20 @@ describe("kickerPaidCondition (CR 702.33 / 603.4 per-Kicker check-time gate, iss
             }
         }
     });
-});
-
-describe("kickerPaidInterveningIf (CR 603.4d resolution-time re-check)", () => {
-    it("mirrors the check-time predicate and ignores the firing event", () => {
-        const kicked = makeSelf({ kickerPayments: { "kicker-b": 1 } });
-        const unkicked = makeSelf();
-        const iff = kickerPaidInterveningIf("kicker-b");
-        expect(iff({ type: "PERMANENT_ENTERED" }, kicked)).toBe(true);
-        expect(iff({ type: "PERMANENT_ENTERED" }, unkicked)).toBe(false);
-        // Same answer regardless of what the event is — the predicate reads
-        // only `self`, which is what makes it a legal `conditionOnSelf` too.
-        expect(iff(undefined, kicked)).toBe(true);
+    // The predicate is deliberately CHECK-TIME ONLY: it must never be wired
+    // as the ability's `interveningIf`. The engine re-evaluates an
+    // `interveningIf` against the LIVE battlefield permanent (found by
+    // `triggerSourceId`), and a CR 400.7 return of the same instance —
+    // blink/flicker — arrives with `kickerPayments` already deleted by
+    // `resetBattlefieldTransientState`, so the re-check would read a cleared
+    // record and fizzle a trigger CR 603.10 says resolves off last known
+    // information. The end-to-end lock for that is the Ephemerate regression
+    // test in `cards/sets/pls/__tests__/red.test.ts`; here we just pin the
+    // module surface so a re-added helper can't slip back in unnoticed.
+    it("exposes no `interveningIf` variant for card authors to wire up", async () => {
+        const shared = await import("../shared");
+        expect(
+            Object.keys(shared).filter((k) => k.startsWith("kickerPaid"))
+        ).toEqual(["kickerPaidCondition"]);
     });
 });

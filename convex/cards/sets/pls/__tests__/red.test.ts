@@ -37,7 +37,10 @@ import {
     thunderscapeBattlemage,
     thunderscapeFamiliar,
 } from "../red";
+import { stormscapeBattlemage } from "../blue";
+import { nightscapeBattlemage } from "../black";
 import { grizzlyBears, savannahLions, swamp } from "../../lea";
+import { ephemerate } from "../../mh1/white";
 import {
     makeInstance,
     makePlayer,
@@ -422,12 +425,13 @@ describe("Magma Burst — sacrifice-two-lands Kicker widens the target count (CR
 });
 
 // Thunderscape Battlemage — the catalogue's first TWO-Kicker "and/or" card
-// (ADR 0079/#1937). Each ETB trigger's own intervening-if is a per-Kicker
-// `{ kickerPaid: "<id>" }` read (already exercised generically by
-// `interpreter.test.ts`), but this is the first CARD exercising two
-// INDEPENDENT Kickers gating two INDEPENDENT triggers on one creature — worth
-// a confirming test per the project's "genuinely new construct combination"
-// bar, even though no new Op is introduced.
+// (ADR 0079/#1937). Each ETB trigger is gated per-Kicker at CHECK time
+// (`kickerPaidCondition`, CR 603.4) and again at RESOLUTION time by the
+// `if { kickerPaid: "<id>" }` branch inside its own `effects[]` (already
+// exercised generically by `interpreter.test.ts`), but this is the first CARD
+// exercising two INDEPENDENT Kickers gating two INDEPENDENT triggers on one
+// creature — worth a confirming test per the project's "genuinely new
+// construct combination" bar, even though no new Op is introduced.
 const BM_ENCHANTMENT_ID = "test-pls-battlemage-enchantment";
 registerTokenDefinition({
     id: BM_ENCHANTMENT_ID,
@@ -437,7 +441,7 @@ registerTokenDefinition({
     types: ["Enchantment"],
 });
 
-describe("Thunderscape Battlemage — two independent Kickers, two independent intervening-if ETB triggers", () => {
+describe("Thunderscape Battlemage — two independent Kickers, two independently gated ETB triggers", () => {
     function bmTrigger(
         state: GameState,
         battlemage: CardInstanceState,
@@ -637,6 +641,124 @@ describe("Thunderscape Battlemage — two independent Kickers, two independent i
         resolveTopOfStack(state); // creature resolves, enters, triggers scanned
         expect(state.stack).toHaveLength(0);
         expect(state.pendingChoices ?? []).toHaveLength(0);
+    });
+
+    // ── CR 603.10 LKI across a blink (PR #2039 review) ────────────────────
+    //
+    // Why this test exists: the per-Kicker predicate is CHECK-TIME ONLY. It
+    // was briefly ALSO declared as each ability's `interveningIf`, on the
+    // (false) reasoning that a one-shot cast fact can never change, so the
+    // re-check "can only agree". It can disagree, and this is the case where
+    // it does. `resolveTopOfStackInner` (`gre/state.ts`) resolves an
+    // `interveningIf` against the LIVE battlefield permanent located by
+    // `triggerSourceId`, falling back to the stack item's own last known
+    // information ONLY when the source is not on the battlefield. Instance ids
+    // survive a CR 400.7 return (`stageReanimatedOnBattlefield` mutates the
+    // same object), and that path runs `resetBattlefieldTransientState`, which
+    // deletes `kickerPayments`. So a Battlemage blinked while its ETB trigger
+    // sits on the stack is re-found by id with a CLEARED record, and the
+    // re-check fizzles a trigger CR 603.10 says must resolve off LKI.
+    //
+    // Removing a predicate is invisible to a suite that never blinks the
+    // source, which is what this test fixes: it fails (the enchantment
+    // survives) the moment `interveningIf: kickerPaidInterveningIf(...)` is
+    // re-added to the card.
+    it("CR 603.10: a kicked Battlemage blinked while its ETB trigger is on the stack still resolves that trigger off LKI", () => {
+        const bm = makeInstance(thunderscapeBattlemage.id, {
+            id: "blink-bm",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        (
+            bm as CardInstanceState & {
+                kickerPayments?: Record<string, number>;
+            }
+        ).kickerPayments = { "kicker-g": 1 };
+        const enchantment = makeInstance(BM_ENCHANTMENT_ID, {
+            id: "blink-ench",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bm] }),
+                makePlayer("p2", { battlefield: [enchantment] }),
+            ],
+        });
+
+        // The {G} destroy trigger is on the stack, target already announced…
+        bmTrigger(state, bm, "thunderscape-battlemage-destroy", [
+            { type: "permanent", id: "blink-ench" },
+        ]);
+        // …and Ephemerate ("Exile target creature you control, then return it
+        // to the battlefield", `mh1/white.ts`) resolves ON TOP of it.
+        pushSpell(state, ephemerate.id, "p1", [
+            { type: "permanent", id: "blink-bm" },
+        ]);
+        resolveTopOfStack(state);
+
+        // The blink brought the SAME instance id back (CR 400.7 makes it a new
+        // OBJECT, but the engine reuses the row) with its per-Kicker record
+        // wiped — the exact state an `interveningIf` would misread.
+        const returned = state.players[0].battlefield.find(
+            (c) => c.id === "blink-bm"
+        );
+        expect(returned).toBeDefined();
+        expect(
+            (returned as CardInstanceState & { kickerPayments?: unknown })
+                .kickerPayments
+        ).toBeUndefined();
+        // The returned permanent is unkicked, so the CHECK-TIME gate correctly
+        // raises no fresh ETB trigger for it.
+        expect(
+            state.stack.filter((s) => s.triggeredAbilityId !== undefined)
+        ).toHaveLength(1);
+
+        resolveTopOfStack(state);
+
+        // The trigger resolved off its own last known information — the
+        // enchantment is destroyed, and nothing fizzled.
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "blink-ench")
+        ).toBe(false);
+        expect(
+            state.players[1].graveyard.some((c) => c.id === "blink-ench")
+        ).toBe(true);
+        expect(
+            (state.pendingEvents ?? []).some(
+                (e) => e.type === "TRIGGER_FIZZLED"
+            )
+        ).toBe(false);
+    });
+
+    // The structural half of the same lock: no Battlemage in the cycle may
+    // declare an `interveningIf` at all. The blink test above catches the
+    // shared `kickerPaidCondition` being re-wired as one on Thunderscape; this
+    // catches a hand-rolled inline closure, and covers Stormscape
+    // (`pls/blue.ts`) and Nightscape (`pls/black.ts`) — same bug, same cycle.
+    it("no Battlemage in the cycle declares an `interveningIf` (the re-check would read a blinked permanent's cleared record)", () => {
+        for (const card of [
+            thunderscapeBattlemage,
+            stormscapeBattlemage,
+            nightscapeBattlemage,
+        ]) {
+            for (const ability of card.triggeredAbilities ?? []) {
+                expect({
+                    card: card.name,
+                    ability: ability.id,
+                    interveningIf: ability.interveningIf,
+                }).toEqual({
+                    card: card.name,
+                    ability: ability.id,
+                    interveningIf: undefined,
+                });
+                // …and each one still carries BOTH halves of the correct pair:
+                // the check-time gate, and a resolution-time `if { kickerPaid }`
+                // branch reading the resolving stack item's own record.
+                expect(ability.gate).toBeDefined();
+                expect(JSON.stringify(ability.effects)).toContain("kickerPaid");
+            }
+        }
     });
 });
 
