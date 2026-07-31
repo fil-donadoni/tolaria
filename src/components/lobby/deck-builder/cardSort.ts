@@ -91,22 +91,71 @@ export function colorRank(entry: CardIndexEntry): number {
 
 type Comparator = (a: CardIndexEntry, b: CardIndexEntry) => number;
 
-/** Name is the universal tiebreaker so every sort is stable and deterministic. */
+/** Name is the final tiebreaker so every sort is stable and deterministic. */
 const byName: Comparator = (a, b) => a.name.localeCompare(b.name);
 
-const COMPARATORS: Record<SortKey, Comparator> = {
+const byManaValue: Comparator = (a, b) => a.manaValue - b.manaValue;
+
+/** Card-type ordering for the third sort level: permanents that affect the
+ *  board first (creatures → planeswalkers → artifacts → enchantments →
+ *  battles), then the spells (instants → sorceries). A card carrying several
+ *  types (Artifact Creature) ranks by the FIRST match in this list, so an
+ *  Artifact Creature sorts with the creatures. Types outside the list — Land
+ *  above all, plus Kindred/Tribal and anything a future set adds — sort last. */
+const TYPE_ORDER = [
+    "Creature",
+    "Planeswalker",
+    "Artifact",
+    "Enchantment",
+    "Battle",
+    "Instant",
+    "Sorcery",
+] as const;
+
+const UNRANKED_TYPE = TYPE_ORDER.length;
+
+/** Sort rank for the type ordering. Lower sorts first. */
+export function typeRank(entry: CardIndexEntry): number {
+    for (let i = 0; i < TYPE_ORDER.length; i++) {
+        if (entry.types.includes(TYPE_ORDER[i])) return i;
+    }
+    return UNRANKED_TYPE;
+}
+
+const byType: Comparator = (a, b) => typeRank(a) - typeRank(b);
+
+/** Primary comparators — the selected sort key alone, no tiebreak baked in.
+ *  The tiebreak chain is composed in `compareEntries`. */
+const PRIMARY: Record<SortKey, Comparator> = {
     name: byName,
-    manaValue: (a, b) => a.manaValue - b.manaValue || byName(a, b),
+    manaValue: byManaValue,
     // Sort by the ORIGINAL printing's set (`prints[0]`, original-first per the
-    // card index), then name.
+    // card index).
     set: (a, b) =>
-        (a.prints[0]?.setCode ?? "").localeCompare(
-            b.prints[0]?.setCode ?? ""
-        ) || byName(a, b),
-    color: (a, b) => colorRank(a) - colorRank(b) || byName(a, b),
+        (a.prints[0]?.setCode ?? "").localeCompare(b.prints[0]?.setCode ?? ""),
+    color: (a, b) => colorRank(a) - colorRank(b),
 };
 
-/** The comparator for a sort key. */
-export function compareEntries(key: SortKey): Comparator {
-    return COMPARATORS[key];
+/** Secondary ordering applied within a primary-key tie. `name` when the search
+ *  is scoped to one or more sets — the results then read like a set list, where
+ *  alphabetical is the natural second axis — and `manaValue` otherwise, where a
+ *  curve-shaped ordering is more useful than an alphabetical one. */
+export type Tiebreak = "name" | "manaValue";
+
+/** Pick the tiebreak from the active filters: a set filter selects `name`. */
+export function tiebreakForSets(sets: readonly string[]): Tiebreak {
+    return sets.length > 0 ? "name" : "manaValue";
+}
+
+/** The comparator for a sort key: primary key, then the tiebreak, then card
+ *  type, then name as the deterministic final fallback (each level a no-op when
+ *  it repeats a level already applied above it). */
+export function compareEntries(
+    key: SortKey,
+    tiebreak: Tiebreak = "manaValue"
+): Comparator {
+    const primary = PRIMARY[key];
+    const secondary = tiebreak === "name" ? byName : byManaValue;
+    return (a, b) =>
+        primary(a, b) || secondary(a, b) || byType(a, b) || byName(a, b);
 }

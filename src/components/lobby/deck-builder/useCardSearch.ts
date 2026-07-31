@@ -4,7 +4,7 @@ import { api } from "@convex/_generated/api";
 import type { CardPrinting } from "@convex/cards";
 import { foldAccents } from "@convex/cards/textNormalize";
 import { FORMAT_RULES, type FormatId } from "@convex/formats";
-import { compareEntries, type SortKey } from "./cardSort";
+import { compareEntries, tiebreakForSets, type SortKey } from "./cardSort";
 
 export interface CardIndexEntry {
     cardId: string;
@@ -260,7 +260,9 @@ export function useCardSearch(
                 matchesManaValue(e.manaValue, filters.manaValues) &&
                 matchesSets(e.prints, filters.sets, filters.setMode)
         );
-        return filtered.sort(compareEntries(filters.sort));
+        return filtered.sort(
+            compareEntries(filters.sort, tiebreakForSets(filters.sets))
+        );
     }, [all, filters, idle, allowedSets, cubeIds]);
 
     return { entries, total: all?.length ?? 0, idle };

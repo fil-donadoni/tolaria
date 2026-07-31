@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { colorRank, compareEntries } from "../cardSort";
+import {
+    colorRank,
+    compareEntries,
+    tiebreakForSets,
+    typeRank,
+} from "../cardSort";
 import type { CardIndexEntry } from "../useCardSearch";
 
 /** Minimal `CardIndexEntry` fixture — only the fields the comparators read
@@ -27,9 +32,10 @@ function mk(
 /** Sort by a key and return the resulting names, for terse assertions. */
 function sortedNames(
     entries: CardIndexEntry[],
-    key: Parameters<typeof compareEntries>[0]
+    key: Parameters<typeof compareEntries>[0],
+    tiebreak?: Parameters<typeof compareEntries>[1]
 ): string[] {
-    return [...entries].sort(compareEntries(key)).map((e) => e.name);
+    return [...entries].sort(compareEntries(key, tiebreak)).map((e) => e.name);
 }
 
 describe("cardSort — color ordering (WUBRG combinatorial)", () => {
@@ -158,5 +164,115 @@ describe("cardSort — other keys", () => {
         ];
         // lea (A, C) before leb (B); within lea, name order.
         expect(sortedNames(entries, "set")).toEqual(["A", "C", "B"]);
+    });
+});
+
+describe("cardSort — type ordering", () => {
+    it("ranks the declared type order", () => {
+        const order = [
+            "Creature",
+            "Planeswalker",
+            "Artifact",
+            "Enchantment",
+            "Battle",
+            "Instant",
+            "Sorcery",
+        ];
+        const ranks = order.map((t) => typeRank(mk({ name: t, types: [t] })));
+        expect(ranks).toEqual([...ranks].sort((a, b) => a - b));
+        expect(new Set(ranks).size).toBe(order.length);
+    });
+
+    it("ranks a multi-type card by its first matching type", () => {
+        const artifactCreature = mk({
+            name: "Juggernaut",
+            types: ["Artifact", "Creature"],
+        });
+        expect(typeRank(artifactCreature)).toBe(
+            typeRank(mk({ name: "Bear", types: ["Creature"] }))
+        );
+    });
+
+    it("ranks lands and unlisted types last", () => {
+        const land = typeRank(mk({ name: "Forest", types: ["Land"] }));
+        const sorcery = typeRank(mk({ name: "Wrath", types: ["Sorcery"] }));
+        expect(sorcery).toBeLessThan(land);
+        expect(typeRank(mk({ name: "Weird", types: ["Kindred"] }))).toBe(land);
+    });
+});
+
+describe("cardSort — tiebreak selection", () => {
+    it("picks name when a set filter is active, mana value otherwise", () => {
+        expect(tiebreakForSets(["lea"])).toBe("name");
+        expect(tiebreakForSets([])).toBe("manaValue");
+    });
+
+    it("breaks a primary-key tie by mana value with no set filter", () => {
+        const entries = [
+            mk({ name: "Aaa", colors: ["W"], manaValue: 5 }),
+            mk({ name: "Zzz", colors: ["W"], manaValue: 1 }),
+        ];
+        expect(sortedNames(entries, "color", "manaValue")).toEqual([
+            "Zzz",
+            "Aaa",
+        ]);
+    });
+
+    it("breaks a primary-key tie by name when a set filter is active", () => {
+        const entries = [
+            mk({ name: "Aaa", colors: ["W"], manaValue: 5 }),
+            mk({ name: "Zzz", colors: ["W"], manaValue: 1 }),
+        ];
+        expect(sortedNames(entries, "color", "name")).toEqual(["Aaa", "Zzz"]);
+    });
+
+    it("falls back to name when primary and tiebreak both tie", () => {
+        const entries = [
+            mk({ name: "Zzz", colors: ["W"], manaValue: 2 }),
+            mk({ name: "Aaa", colors: ["W"], manaValue: 2 }),
+        ];
+        expect(sortedNames(entries, "color", "manaValue")).toEqual([
+            "Aaa",
+            "Zzz",
+        ]);
+    });
+
+    it("keeps name sort deterministic when the tiebreak is mana value", () => {
+        const entries = [
+            mk({ name: "Bear", manaValue: 2 }),
+            mk({ name: "Ancestral", manaValue: 1 }),
+        ];
+        expect(sortedNames(entries, "name", "manaValue")).toEqual([
+            "Ancestral",
+            "Bear",
+        ]);
+    });
+
+    it("breaks a mana-value tie by type, before falling back to name", () => {
+        const entries = [
+            mk({ name: "Aaa Sorcery", manaValue: 2, types: ["Sorcery"] }),
+            mk({ name: "Bbb Instant", manaValue: 2, types: ["Instant"] }),
+            mk({ name: "Ccc Creature", manaValue: 2, types: ["Creature"] }),
+            mk({ name: "Ddd Artifact", manaValue: 2, types: ["Artifact"] }),
+        ];
+        expect(sortedNames(entries, "manaValue", "manaValue")).toEqual([
+            "Ccc Creature",
+            "Ddd Artifact",
+            "Bbb Instant",
+            "Aaa Sorcery",
+        ]);
+    });
+
+    it("orders a set-filtered mana-value sort by name within a mana value", () => {
+        const entries = [
+            mk({ name: "Zzz", manaValue: 1 }),
+            mk({ name: "Aaa", manaValue: 1 }),
+            mk({ name: "Mmm", manaValue: 0 }),
+        ];
+        expect(sortedNames(entries, "manaValue", "name")).toEqual([
+            "Mmm",
+            "Aaa",
+            "Zzz",
+        ]);
     });
 });
