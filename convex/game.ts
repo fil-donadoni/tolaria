@@ -5722,6 +5722,13 @@ export function finalizeTargetSelection(
     // branch byte-identical for an unkicked or mana-only-kicked cast; when an
     // ALT cost is chosen, dropping `additionalSac` is the historical (alt-cost
     // cards carry none) behaviour and is preserved deliberately.
+    //
+    // Defence-in-depth (issue #1986): `announceCast`'s shared prelude already
+    // ran the identical check (`assertKickerAnnouncementLegal`) before this
+    // spell's `pendingTarget` was ever written, so a colliding composition
+    // can no longer reach this line via the UI — a real cast either never
+    // opened target selection, or (unkicked / non-colliding) is guaranteed to
+    // pass here too.
     assertKickerPermanentSlotFree(cardDef, kickerPayments, additionalSac);
     const castPermSel = buildCastPermanentCostChoice(
         state,
@@ -6164,6 +6171,57 @@ export function buildCastSacrificeSelection(
     return { selection, exilePicker };
 }
 
+/** CR 601.2f / 601.2h — announcement-PRELUDE gate for a paid Kicker's
+ *  permanent leg (CR 702.33a — "sacrifice two lands", "return a creature you
+ *  control") colliding with the cast's own additional-cost sacrifice (its own
+ *  `additionalCosts`, or a board-wide one like Drought, CR 118.5): the cast has
+ *  exactly ONE permanent-cost selection slot, and honouring both would mean
+ *  silently mispaying one of them (`assertKickerPermanentSlotFree`'s own
+ *  docstring). Neither `buildCastSacrificeSelection`'s inputs nor
+ *  `hasKickerPermanentLeg`'s depend on which targets were chosen, so this
+ *  runs identically for a targeted or an untargeted cast.
+ *
+ *  MUST be called from `announceCast`'s SHARED prelude — before the branch
+ *  fork that writes `state.pendingTarget` (targeted) or `state.pendingCast`
+ *  (untargeted) for the first time (issue #1986). Before this gate existed,
+ *  the targeted path only discovered the collision downstream, in
+ *  `finalizeTargetSelection`, called from a SEPARATE later mutation
+ *  (`selectTarget`/`selectTargets`/`confirmTargets`) — by then a PRIOR
+ *  mutation had already persisted `pendingTarget`, so the throw left the
+ *  player stuck with a pending target selection that could never finalize
+ *  (the soft-lock shape `game.ts`'s "gates belong in the prelude" convention,
+ *  ADR 0047, exists to prevent). The untargeted no-target branch already ran
+ *  this check before its own writes; it is unchanged.
+ *
+ *  Exported (not just inlined in `announceCast`) so integration tests can
+ *  drive the identical composition the mutation runs, in the same order,
+ *  without a convex-test mutation harness (ADR 0001) — see
+ *  `additional-cost-cast.test.ts` for the established pattern. The downstream
+ *  `assertKickerPermanentSlotFree` calls (in `finalizeTargetSelection` and
+ *  the no-target branch here) remain as defence-in-depth; a real UI cast can
+ *  no longer reach either of them with a colliding composition. */
+export function assertKickerAnnouncementLegal(
+    state: GameState,
+    cardDef: CardDefinition,
+    cardInHand: CardInstanceState,
+    player: PlayerState,
+    kickerPayments: KickerPayments | undefined,
+    castFromZone: CastFromZone
+): void {
+    if (!kickerPayments) return;
+    const rawCost = castRawManaCost(state, cardInHand, castFromZone);
+    const { selection: ownSac } = buildCastSacrificeSelection(
+        state,
+        rawCost,
+        cardInHand,
+        player,
+        cardDef.additionalCosts,
+        cardDef.name ?? "Sacrifice",
+        castFromZone
+    );
+    assertKickerPermanentSlotFree(cardDef, kickerPayments, ownSac);
+}
+
 /** Apply a selection and extract the snapshot-flagged victim's mv/subtypes/power
  *  for the resulting stack item (CR 117.9 / 602.1 — Priest of Yawgmoth,
  *  Freyalise Supplicant). Shared by the cast and activation commit paths. */
@@ -6494,6 +6552,22 @@ export const announceCast = mutation({
         ) {
             throw new Error("Can't pay the kicker cost");
         }
+        // CR 601.2f / 601.2h — a paid Kicker's PERMANENT leg and the cast's own
+        // additional-cost sacrifice claim the SAME single permanent-cost
+        // selection slot; reject the collision HERE, in the shared prelude,
+        // before either the targeted branch's `pendingTarget` write below or
+        // the no-target branch's `pendingCast` write can run (issue #1986 —
+        // this used to only throw downstream, in `finalizeTargetSelection`,
+        // from a SEPARATE later mutation, by which point a prior mutation had
+        // already persisted `pendingTarget` — a soft-lock).
+        assertKickerAnnouncementLegal(
+            state,
+            cardDef,
+            cardInHand,
+            player,
+            kickerPayments,
+            castFromZone
+        );
 
         // CR 702.27 — validate and canonicalize the optional Buyback choice
         // for this cast (false = not paid). Throws for a card with no Buyback
@@ -6884,6 +6958,11 @@ export const announceCast = mutation({
         // mana-only Kicker yields one entry per payment while contributing
         // nothing to either picker, and both builders already return `undefined`
         // when nothing contributes.
+        //
+        // Defence-in-depth (issue #1986): the shared prelude above already ran
+        // the identical check (`assertKickerAnnouncementLegal`) before reaching
+        // this no-target branch at all, so a colliding composition can no
+        // longer reach this line via the UI.
         assertKickerPermanentSlotFree(cardDef, kickerPayments, ownSac);
         const kickerPermSel = buildCastPermanentCostChoice(
             state,

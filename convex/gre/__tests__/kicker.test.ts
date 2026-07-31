@@ -12,7 +12,10 @@
 // (`StackItem.kickerPayments`) with the total always DERIVED (`totalKickerCount`).
 
 import { describe, it, expect } from "vitest";
-import { finalizeTargetSelection } from "../../game";
+import {
+    finalizeTargetSelection,
+    assertKickerAnnouncementLegal,
+} from "../../game";
 import {
     canPayKickerLegs,
     kickerLifeCost,
@@ -21,7 +24,14 @@ import {
     totalKickerCount,
 } from "../kicker";
 import { getLegalTargets, getLegalActions } from "../rules";
-import { getPlayer, resolveTopOfStack, type PendingTarget } from "../state";
+import {
+    getPlayer,
+    resolveTopOfStack,
+    type PendingTarget,
+    type GameState,
+    type CardInstanceState,
+    type PlayerState,
+} from "../state";
 import { compactState, expandState } from "../serialize";
 import {
     makeInstance,
@@ -942,5 +952,207 @@ describe("Kicker — a permanent leg colliding with another additional cost fail
 
     it("leaves the UNKICKED cast (no permanent leg owed) untouched", () => {
         expect(pipSacState(false)).not.toThrow();
+    });
+});
+
+// Same collision as `pipSacProbe` above, but with a `targetRequirement` — so
+// casting it goes through `announceCast`'s TARGETED branch, the one that
+// writes `state.pendingTarget` at announcement (before target selection even
+// starts) rather than committing directly. No printed card has this shape
+// (see the header comment on `pipSacProbe`); it exists to reach the targeted
+// announcement path the untargeted `pipSacProbe` above cannot.
+const PIP_SAC_TARGETED_PROBE_ID =
+    "test:kicker-permleg-plus-additional-cost-targeted-probe";
+const pipSacTargetedProbe: CardDefinition = {
+    id: PIP_SAC_TARGETED_PROBE_ID,
+    rarity: "common",
+    name: "Kicker Permanent-Leg Targeted Probe",
+    manaCost: { B: 1 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "any", count: 1 },
+    kickers: [
+        {
+            id: "kicker-sac",
+            description: "Kicker — Sacrifice two lands",
+            permanent: {
+                action: "sacrifice",
+                filter: { types: ["Land"] },
+                count: 2,
+            },
+        },
+    ],
+    effects: [],
+};
+registerTokenDefinition(pipSacTargetedProbe);
+
+// issue #1986 — `assertKickerPermanentSlotFree` used to be checked ONLY from
+// `finalizeTargetSelection` (the "throws rather than silently dropping the
+// cast's own sacrifice" test above), which on a TARGETED cast runs in a
+// SEPARATE, LATER mutation (`selectTarget`/`selectTargets`/`confirmTargets`)
+// than the one that opens target selection (`announceCast`). By the time that
+// later mutation threw, a PRIOR mutation had already persisted
+// `state.pendingTarget` — the throw rolled back nothing (Convex mutations are
+// transactional) but left the ALREADY-COMMITTED `pendingTarget` behind, and
+// every subsequent attempt to finalize the same selection would throw again
+// at the same spot: a soft-lock with no way out but `cancelTarget`.
+//
+// `assertKickerAnnouncementLegal` (game.ts) is the fix: `announceCast`'s
+// SHARED prelude — the code that runs identically before either the targeted
+// branch's `pendingTarget` write or the no-target branch's `pendingCast`
+// write — now runs this exact check first. These tests drive the real
+// exported piece the mutation calls, in the same order, mirroring the
+// no-convex-test-harness pattern (`additional-cost-cast.test.ts`, ADR 0001).
+describe("Kicker permanent-leg collision — rejected in announceCast's PRELUDE, before pendingTarget is ever persisted (issue #1986)", () => {
+    function targetedAnnouncementState(kicked: boolean) {
+        const probe = makeInstance(PIP_SAC_TARGETED_PROBE_ID, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+            id: "pipsacT1",
+        });
+        const droughtInst = makeInstance(drought.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "droughtT",
+        });
+        const swampInst = makeInstance(swamp.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "swampT",
+        });
+        const state: GameState = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [probe],
+                    battlefield: [
+                        droughtInst,
+                        swampInst,
+                        land("plT1"),
+                        land("plT2"),
+                    ],
+                    manaPool: { W: 0, U: 0, B: 1, R: 0, G: 0, C: 0 },
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const player = getPlayer(state, "p1");
+        const cardInHand = player.hand.find((c) => c.id === "pipsacT1")!;
+        const kickerPayments = kicked ? { "kicker-sac": 1 } : undefined;
+        return { state, player, cardInHand, kickerPayments };
+    }
+
+    /** Mirrors `announceCast`'s targeted-branch control flow (game.ts): the
+     *  prelude gate runs FIRST; only if it doesn't throw does the mutation go
+     *  on to write `state.pendingTarget` and open target selection. Because
+     *  this is a plain synchronous function call, a throw on the gate line
+     *  makes the write below UNREACHABLE — the same guarantee the real
+     *  mutation gets from running the two statements in this order. */
+    function simulateTargetedAnnouncement(
+        state: GameState,
+        cardDef: CardDefinition,
+        cardInHand: CardInstanceState,
+        player: PlayerState,
+        kickerPayments: Record<string, number> | undefined
+    ): void {
+        assertKickerAnnouncementLegal(
+            state,
+            cardDef,
+            cardInHand,
+            player,
+            kickerPayments,
+            "hand"
+        );
+        state.pendingTarget = {
+            playerId: player.id,
+            cardInstanceId: cardInHand.id,
+            targetType: "any",
+            count: 1,
+            selected: [],
+        };
+    }
+
+    it("throws at announcement, and pendingTarget is never persisted", () => {
+        const { state, player, cardInHand, kickerPayments } =
+            targetedAnnouncementState(true);
+        expect(() =>
+            simulateTargetedAnnouncement(
+                state,
+                pipSacTargetedProbe,
+                cardInHand,
+                player,
+                kickerPayments
+            )
+        ).toThrow(/kicker cost cannot be paid/i);
+        // The proof this issue asks for: no pendingTarget survives the
+        // rejection — unlike the pre-fix shape, where a PRIOR mutation had
+        // already committed it before this exact collision was discovered.
+        expect(state.pendingTarget).toBeUndefined();
+    });
+
+    it("an unkicked targeted cast is unaffected — pendingTarget is written normally", () => {
+        const { state, player, cardInHand, kickerPayments } =
+            targetedAnnouncementState(false);
+        expect(() =>
+            simulateTargetedAnnouncement(
+                state,
+                pipSacTargetedProbe,
+                cardInHand,
+                player,
+                kickerPayments
+            )
+        ).not.toThrow();
+        expect(state.pendingTarget).toBeDefined();
+        expect(state.pendingTarget?.cardInstanceId).toBe("pipsacT1");
+    });
+
+    it("the untargeted probe's collision is ALSO caught by the same prelude gate (no path left ungated)", () => {
+        // `pipSacProbe` (above) has no `targetRequirement`, so it reaches
+        // `announceCast`'s no-target branch instead — already correctly
+        // gated before this issue (site B in the issue's producer census).
+        // Asserting `assertKickerAnnouncementLegal` also rejects it proves
+        // BOTH announcement paths now share the one prelude gate.
+        const probe = makeInstance(PIP_SAC_PROBE_ID, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+            id: "pipsacU1",
+        });
+        const droughtInst = makeInstance(drought.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "droughtU",
+        });
+        const swampInst = makeInstance(swamp.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "swampU",
+        });
+        const state: GameState = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [probe],
+                    battlefield: [
+                        droughtInst,
+                        swampInst,
+                        land("plU1"),
+                        land("plU2"),
+                    ],
+                    manaPool: { W: 0, U: 0, B: 1, R: 0, G: 0, C: 0 },
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const player = getPlayer(state, "p1");
+        const cardInHand = player.hand.find((c) => c.id === "pipsacU1")!;
+        expect(() =>
+            assertKickerAnnouncementLegal(
+                state,
+                pipSacProbe,
+                cardInHand,
+                player,
+                { "kicker-sac": 1 },
+                "hand"
+            )
+        ).toThrow(/kicker cost cannot be paid/i);
     });
 });
