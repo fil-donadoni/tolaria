@@ -205,6 +205,7 @@ import {
     raiseTriggerTargetSelection,
     solvePhyrexianSplit,
     siblingControllerIdFor,
+    isAlreadySelectedTarget,
     genericManaShortfall,
 } from "./gre/rules";
 import {
@@ -9265,6 +9266,17 @@ export function applyOneTargetSelection(
             }
         );
         if (spellFilterViolation) throw new Error(spellFilterViolation);
+    }
+
+    // CR 601.2c — reject a target already chosen under THIS SAME requirement
+    // (Magma Burst's kicked "another target"; Dust to Dust's "two target
+    // artifacts"). Fail CLOSED: a repeat pick is illegal by rule for every
+    // multi-slot requirement, not a card-specific restriction. Mirrors
+    // `getLegalTargets`'s offered-set exclusion (`isAlreadySelectedTarget`,
+    // `targetFilters.ts`) so the offered and accepted sets can never diverge
+    // (ADR 0068).
+    if (isAlreadySelectedTarget(target, pt.selected)) {
+        throw new Error("That target has already been chosen for this spell");
     }
 
     pt.selected.push(target);

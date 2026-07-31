@@ -817,6 +817,31 @@ export function siblingControllerIdFor(
     return undefined;
 }
 
+/** CR 601.2c — every target chosen for a SINGLE instance of the word
+ *  "target" must be a DISTINCT object/player, whether that instance names
+ *  one target (`count: 1`) or several (`count: N` — Dust to Dust's "two
+ *  target artifacts", Magma Burst's kicked "another target"). A
+ *  `TargetRequirement` with `count > 1` models exactly ONE such instance, so
+ *  its slots are pairwise distinct by rule, not by card-specific wording —
+ *  there is no printed shape where re-picking the same object for a second
+ *  slot of the SAME requirement is legal (a card that wants that would need
+ *  a SECOND, independent `targetRequirement`/`kickedTargetRequirement`
+ *  instance, which this predicate is never consulted across).
+ *
+ *  Single authority for the exclusion (ADR 0068 "lower once, check
+ *  everywhere"): `getLegalTargets` (the offered set), `applyOneTargetSelection`
+ *  (the accepted set, `game.ts`) and the bot's `legalActions.ts` enumerator
+ *  all call this so the three can never drift — the Phelia bug class applied
+ *  to target IDENTITY rather than a filter field. */
+export function isAlreadySelectedTarget(
+    candidate: { type: string; id: string },
+    selected: ReadonlyArray<{ type: string; id: string }>
+): boolean {
+    return selected.some(
+        (s) => s.type === candidate.type && s.id === candidate.id
+    );
+}
+
 // CR 202.3 — mana-value filter, X-resolved at `lower` time.
 const mvFilterDescriptor = defineFilter<{
     min?: number;

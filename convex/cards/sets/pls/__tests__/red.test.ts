@@ -617,4 +617,21 @@ describe("Thunderscape Battlemage — two independent Kickers, two independent i
             true
         );
     });
+
+    it("CR 603.4 check-time gate: cast fully unkicked through the REAL cast/ETB path, neither trigger ever hits the stack", () => {
+        // Unlike the manually-constructed-trigger tests above, this pushes
+        // the CREATURE SPELL itself and lets the real engine path
+        // (resolveTopOfStack -> battlefield entry -> collectTriggers via
+        // processPendingActionTriggers) decide whether each trigger's
+        // `condition` lets it onto the stack at all — the thing the new
+        // `condition: self.wasKicked === true` gate changes (issue #2015).
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        pushSpell(state, thunderscapeBattlemage.id, "p1");
+        // No `kickerPayments` set on the stack item — cast fully unkicked.
+        resolveTopOfStack(state); // creature resolves, enters, triggers scanned
+        expect(state.stack).toHaveLength(0);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+    });
 });

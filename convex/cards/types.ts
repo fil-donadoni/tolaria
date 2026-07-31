@@ -7201,6 +7201,16 @@ export interface TriggerStateView {
              *  frontend's Crew N affordability hint weighs a candidate exactly
              *  as the server's `tapOtherContribution` does. */
             crewPowerBonus?: number;
+            /** CR 205.4a — PRINTED supertypes (Basic/Legendary/Snow/World),
+             *  for a `sacrificeFilter` activation-cost affordability hint that
+             *  narrows by supertype (Sunstone's "Sacrifice a snow land",
+             *  Glacial Crevasses' "Sacrifice a snow Mountain"). Populated by
+             *  `buildTriggerStateView` from a card-registry lookup (the
+             *  wire projection carries no per-permanent supertype field) —
+             *  same PRINTED-only limitation as the may-pay permanent-leg
+             *  matcher (`toMatchablePermanent`, `src/lib/card-utils.ts`): no
+             *  live snow-mutation awareness (Melting-style un-snow effects). */
+            supertypes?: ReadonlyArray<string>;
         }>;
         hand: { readonly length: number };
         landsPlayedThisTurn?: number;

@@ -581,16 +581,28 @@ export const strafe: CardDefinition = {
 // 4/4. "Vigilance\n{1}{R}, {T}: Tahngarth deals damage equal to its power to
 // target creature. That creature deals damage equal to its power to
 // Tahngarth." (CR 702.20b vigilance; the mutual-damage "fight" shape (CR
-// 701.12-style) — the Karplusan Yeti precedent `ice/red.ts`, same body behind
-// a {1}{R} + tap cost instead of a bare tap.)
+// 701.12-style) — Karplusan Yeti (`ice/red.ts`) ships the identical body
+// behind a bare tap instead of {1}{R} + tap, but predates the DSL-first rule
+// and carries no tracking ref, so it is NOT valid `resolve()` precedent on
+// its own.)
 //
-// NOT DSL-migratable (ADR 0045, established gap — Karplusan Yeti's own
-// precedent, not a new one): the mutual-damage exchange is the
-// `SpellContext.fight` primitive, which has no registered Effect Script Op
-// (`EFFECT_OP_REGISTRY` carries no "fight" row). `fight` snapshots both
-// permanents' effective power and deals both instances of damage
-// simultaneously — a single primitive, not decomposable into two independent
-// `dealDamage` Ops without losing the CR 701.12 simultaneity.
+// STOP-AND-ISSUE, not a `resolve()`-forever card (ADR 0045 — "the Op I need
+// doesn't exist yet" is explicitly NOT a valid justification): `fight` is
+// `status: "implemented"` as a KEYWORD-ACTION in the Mechanics Registry
+// (CR 701.14, binding `SpellContext.fight`) but has no sibling
+// `EFFECT_OP_REGISTRY` row, i.e. an uncensused Op, not a missing primitive.
+// tracked-by: #2013 (adds the `fight` Effect Op via the standard 7-registry
+// checklist; once it lands this ability migrates to
+// `effects: [{ op: "fight", target: { target: 0 } }]`). Stays `resolve()`
+// only until that issue closes.
+//
+// DIVERGENCE (tracked-by: #2012): `SpellContext.fight` (`resolveFight`,
+// `gre/state.ts`) does not model CR 608.2h last-known-information — if
+// Tahngarth (or the target) leaves the battlefield in response to this
+// ability, `resolveFight` no-ops ENTIRELY instead of still dealing the half
+// of the exchange sourced from whichever creature is still around. Karplusan
+// Yeti shares this exact gap (same primitive); #2012 tracks fixing
+// `resolveFight` for both.
 //
 // Two printings in the same set (ADR 0014): PLS 74 (canonical) and PLS 74★
 // (the foil-only alternate-illustration variant) — one CardDefinition plus
@@ -621,11 +633,12 @@ export const tahngarthTalruumHero: CardDefinition = {
                 if (target?.type === "permanent") ctx.fight(target);
             },
             // aiEffects (PRD #1423, issue #1431/#1519) — `fight` has no
-            // registered Op (see the NOT DSL-migratable note above), so the
-            // bot's value model has nothing to walk without a shadow. Both
-            // directions are approximated with Tahngarth's own printed power
-            // (4) — a flat, representative amount for each side of the
-            // exchange (one-representative-value idiom).
+            // registered Op yet (tracked-by: #2013, see the stop-and-issue
+            // note above), so the bot's value model has nothing to walk
+            // without a shadow. Both directions are approximated with
+            // Tahngarth's own printed power (4) — a flat, representative
+            // amount for each side of the exchange (one-representative-value
+            // idiom).
             aiEffects: [
                 { op: "dealDamage", amount: 4, to: { target: 0 } },
                 { op: "dealDamage", amount: 4, to: { ref: "$source" } },
@@ -654,16 +667,20 @@ export const tahngarthTalruumHeroAlt: CardPrint = {
 // (the frozen Effect Script value ADR 0079 introduced specifically for this
 // cycle), NOT a single combined Kicker.)
 //
-// Each trigger's `targetRequirement` is announced when the creature enters
-// REGARDLESS of which Kicker(s) were paid (the engine has no per-Kicker
-// check-time predicate reachable before the ability hits the stack — only
-// the aggregate `wasKicked` boolean is, see `PermanentView.wasKicked`'s doc
-// comment); the `if { kickerPaid }` gate inside `effects[]` then no-ops the
-// UNPAID trigger at resolution. This is the ADR-documented shape (ADR 0079:
-// "a new frozen Effect Script value `{ kickerPaid: "<id>" }` answers the
-// Battlemages' per-kicker intervening-ifs") — a target is still requested for
-// a trigger that may resolve to nothing, which is the accepted divergence
-// from a literal CR 603.4d "never hits the stack" intervening-if.
+// `condition: (_e, self) => self.wasKicked === true` (CR 603.4 check-time
+// gate) keeps BOTH triggers off the stack entirely in the common case — cast
+// fully unkicked — using the aggregate `wasKicked` flag
+// (`PermanentView.wasKicked`'s doc comment). It cannot fully close CR 603.4d
+// for the PARTIAL-kick case: `wasKicked` only says "kicked with *something*",
+// not WHICH Kicker, so kicking with {G} alone still leaves `wasKicked` true
+// and the {1}{B}-gated discard trigger still goes on the stack and announces
+// a target — the `if { kickerPaid: "kicker-b" }` gate inside `effects[]` then
+// correctly no-ops it at resolution (ADR 0079's documented resolution-time
+// answer), but CR 603.4d says a false intervening-if should never have hit
+// the stack at all. DIVERGENCE, tracked-by: #2015 (a genuine per-Kicker
+// check-time predicate needs `kickerPayments`, not just `wasKicked`, exposed
+// to `condition` — a distinct, narrower gap than ADR 0079 itself, which only
+// promised the resolution-time answer).
 export const thunderscapeBattlemage: CardDefinition = {
     id: "d707243e-7f11-44bc-b8b8-af635ab1dc87", // PLS 75
     rarity: "uncommon",
@@ -693,6 +710,10 @@ export const thunderscapeBattlemage: CardDefinition = {
             oracleText:
                 "When this creature enters, if it was kicked with its {1}{B} kicker, target player discards two cards.",
             scope: "self",
+            // CR 603.4 check-time gate (see the card-level doc comment above
+            // for the residual partial-kick divergence, tracked-by: #2015):
+            // closes the common fully-unkicked case at zero cost.
+            condition: (_event, self) => self.wasKicked === true,
             targetRequirement: { type: "player", count: 1 },
             effects: [
                 {
@@ -726,6 +747,9 @@ export const thunderscapeBattlemage: CardDefinition = {
             oracleText:
                 "When this creature enters, if it was kicked with its {G} kicker, destroy target enchantment.",
             scope: "self",
+            // CR 603.4 check-time gate — see the discard trigger's identical
+            // comment above (tracked-by: #2015 for the residual gap).
+            condition: (_event, self) => self.wasKicked === true,
             targetRequirement: { type: "Enchantment", count: 1 },
             effects: [
                 {

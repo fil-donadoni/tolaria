@@ -67,6 +67,7 @@ import {
 import { canPayKickerLegs } from "@convex/gre/kicker";
 import {
     checkPermanentTargetFilters,
+    isAlreadySelectedTarget,
     type PermanentFilterValues,
     type TargetFilterCtx,
 } from "@convex/gre/targetFilters";
@@ -831,6 +832,20 @@ export function matchesPermanentTargetFilters(
     activePlayerId: string,
     emblems?: ReadonlyArray<EmblemInstance>
 ): boolean {
+    // CR 601.2c — a permanent already chosen under THIS SAME requirement is
+    // never a legal SECOND pick (Magma Burst's kicked "another target", Dust
+    // to Dust's "two target artifacts"). Mirrors the server's own exclusion
+    // (`isAlreadySelectedTarget`, `getLegalTargets`/`selectTarget`) so an
+    // already-picked permanent can't still read as clickable — the inverse
+    // of the #1697 symptom this function otherwise guards against.
+    if (
+        isAlreadySelectedTarget(
+            { type: "permanent", id: card.id },
+            pendingTarget.selected
+        )
+    ) {
+        return false;
+    }
     const siblingControllerId = ((): string | undefined => {
         if (
             !pendingTarget.sameController ||
@@ -1219,6 +1234,12 @@ export function buildTriggerStateView(
                 // affordability hint below; without it a board that CAN crew
                 // only thanks to the bonus would never be offered the ability.
                 crewPowerBonus: tryGetDefinition(c.card.id)?.crewPowerBonus,
+                // CR 205.4a — PRINTED supertypes, for a `sacrificeFilter`
+                // activation cost narrowed by supertype (Sunstone's "sacrifice
+                // a snow land"). Same registry-lookup precedent as `colors`/
+                // `crewPowerBonus` above — the wire carries no per-permanent
+                // supertype field.
+                supertypes: tryGetDefinition(c.card.id)?.supertypes,
             })),
         })),
         activePlayerId,
@@ -1469,6 +1490,15 @@ export function getStackAbilities(
                 count?: number;
                 totalPower?: number;
             };
+            /** CR 602.1 / 118.5 — "sacrifice a permanent matching <filter>"
+             *  as an activation cost (Deadapult's "Sacrifice a Zombie",
+             *  Priest of Yawgmoth's "Sacrifice an artifact"). Distinct from
+             *  `tapOtherFilter`: no self-exclusion — the source itself is a
+             *  legal candidate when it matches (the server's own
+             *  `matchesPermanentFilter` check, `game.ts`, doesn't exclude it
+             *  either — Thopter Foundry's "sacrifice a nontoken artifact" can
+             *  legally sacrifice itself). */
+            sacrificeFilter?: PermanentFilter;
         };
         activationPhaseRestriction?: ReadonlyArray<Phase>;
         sorcerySpeedOnly?: boolean;
@@ -1610,6 +1640,29 @@ export function getStackAbilities(
             if (!canPayTapOtherCost(a.cost.tapOtherFilter, candidates)) {
                 return false;
             }
+        }
+        // CR 602.1 / 118.5 — "sacrifice a permanent matching <filter>" as an
+        // activation cost (Deadapult's "Sacrifice a Zombie") is unpayable
+        // when the controller has no matching permanent to give up — the
+        // exact shape `getStackAbilities`'s sibling gates (`tapOtherFilter`,
+        // `exileFromGraveyard`) already cover for other cost kinds; this one
+        // was previously missing, so a `sacrificeFilter` ability was always
+        // offered even with zero legal candidates, hitting the server's own
+        // "No legal permanent to pay the sacrifice cost" throw (`game.ts`).
+        // Weighed against the SAME `matchesPermanentFilter` authority the
+        // server uses, off the viewer-visible `stateView` board; without it
+        // the ability stays offered and the server rejects it (fail-open,
+        // same discipline as every other board-dependent gate here).
+        if (a.cost.sacrificeFilter && stateView) {
+            const mine = stateView.players.find(
+                (p) => p.id === card.controllerId
+            );
+            const hasCandidate = (mine?.battlefield ?? []).some((c) =>
+                matchesEnginePermanentFilter(c, a.cost.sacrificeFilter!, {
+                    selfControllerId: card.controllerId,
+                })
+            );
+            if (!hasCandidate) return false;
         }
         // CR 606 — a LOYALTY ABILITY (signed `cost.loyalty`) is offered only as
         // a UI hint when its three restrictions can be met; the `activateAbility`

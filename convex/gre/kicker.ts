@@ -195,8 +195,11 @@ export function kickerCostLegs(
 /** Does any paid Kicker owe a PERMANENT leg (CR 702.33a — "sacrifice two
  *  lands", "return a creature you control")? The only leg kind that claims the
  *  cast's single `SacrificeSelection` slot; a mana leg folds into the total and
- *  a life leg into `payLife`, neither of which needs a picker. Every shipped
- *  Kicker is mana-only, so this is `false` catalogue-wide today. */
+ *  a life leg into `payLife`, neither of which needs a picker. Magma Burst
+ *  (`pls/red.ts`, "Kicker—Sacrifice two lands", issue #1951) is the
+ *  catalogue's first non-mana Kicker leg, so this is no longer vacuously
+ *  `false` catalogue-wide — it returns `true` when Magma Burst's Kicker is
+ *  paid. */
 export function hasKickerPermanentLeg(
     cardDef: CardDefinition,
     payments: KickerPayments | undefined
@@ -212,9 +215,13 @@ export function hasKickerPermanentLeg(
  *  (Drought's "Sacrifice a Swamp", CR 118.5) — one of the two would have to be
  *  dropped, i.e. the spell would reach the stack having silently MISPAID a
  *  cost. Fail CLOSED at announcement instead, exactly as `resolveKickerPayments`
- *  refuses a mixed sacrifice/return composition. Unreachable from any printed
- *  card today (every shipped Kicker is mana-only); merging the two selections is
- *  the work the first card that needs it pays for. */
+ *  refuses a mixed sacrifice/return composition. `hasKickerPermanentLeg` is no
+ *  longer vacuously `false` (Magma Burst, issue #1951, is a permanent-leg
+ *  Kicker), so this `throw` branch is reachable in principle — but only for a
+ *  card that ALSO owes its own additional-cost sacrifice on top of a
+ *  permanent-leg Kicker, which no shipped card (Magma Burst included — its
+ *  own base cost is pure mana) combines yet; merging the two selections
+ *  remains the work the first card that needs BOTH at once pays for. */
 export function assertKickerPermanentSlotFree(
     cardDef: CardDefinition,
     payments: KickerPayments | undefined,

@@ -53,7 +53,8 @@ type Shape =
     | "removeCounter"
     | "discardFilter"
     | "loyalty"
-    | "tapOtherFilter";
+    | "tapOtherFilter"
+    | "sacrificeFilter";
 
 /** Finds a REAL catalogue card definition matching an `EffectCardFilter`'s
  *  `type`/`subtype` fields (the two dimensions a `discardFilter` cost is
@@ -195,6 +196,38 @@ function findMatchingPermanentCardId(
     return null;
 }
 
+/** A REAL catalogue permanent (any type — unlike `findMatchingPermanentCardId`,
+ *  a `sacrificeFilter` cost can name an artifact/enchantment/land, not only a
+ *  creature: Priest of Yawgmoth "Sacrifice an artifact", Deadapult "Sacrifice
+ *  a Zombie") matching the given `PermanentFilter`. Returns null when the
+ *  catalogue has no such card, which the sweep reports as a skip rather than
+ *  a failure. */
+function findMatchingAnyPermanentCardId(
+    filter: PermanentFilter
+): string | null {
+    for (const def of getAllCards()) {
+        const view = {
+            id: "probe",
+            controllerId: VIEWER,
+            ownerId: VIEWER,
+            types: def.types,
+            subtypes: def.subtypes ?? [],
+            supertypes: def.supertypes ?? [],
+            staticAbilities: def.staticAbilities ?? [],
+            power: def.power,
+            toughness: def.toughness,
+            isTapped: false,
+            colors: getColorsFromCost(def.manaCost),
+        };
+        if (
+            matchesPermanentFilter(view, filter, { selfControllerId: VIEWER })
+        ) {
+            return def.id;
+        }
+    }
+    return null;
+}
+
 /** An untapped creature the viewer controls, built from a real card id so the
  *  reducer can derive its colours / crew bonus. */
 function crewHelper(
@@ -234,18 +267,54 @@ function shapesOf(a: ActivatedAbility): Shape[] {
     // affordability hint in `getStackAbilities` (once-per-turn / sorcery-speed /
     // not-below-0), so it joins the sweep (issue #700).
     if (a.cost.loyalty !== undefined) out.push("loyalty");
+    // CR 602.1 / 118.5 — "sacrifice a permanent matching <filter>" (Deadapult
+    // "Sacrifice a Zombie") has a `getStackAbilities` gate weighing the
+    // viewer's own battlefield — the "new cost shape pays the entry fee once"
+    // this sweep is built around (issue #1951 review).
+    if (a.cost.sacrificeFilter) out.push("sacrificeFilter");
     return out;
 }
 
 /** True when the ability's payability rides on a predicate this sweep can't
  *  generically satisfy — reported as a skip rather than a failure. */
-function skipReason(a: ActivatedAbility): string | null {
+function skipReason(a: ActivatedAbility, def: CardDefinition): string | null {
     if (a.canActivate) return "canActivate predicate";
     if (
         a.cost.tapOtherFilter &&
         findMatchingPermanentCardId(a.cost.tapOtherFilter.filter) === null
     ) {
         return "no catalogue creature matches the tapOtherFilter";
+    }
+    if (a.cost.sacrificeFilter) {
+        if (findMatchingAnyPermanentCardId(a.cost.sacrificeFilter) === null) {
+            return "no catalogue permanent matches the sacrificeFilter";
+        }
+        // Self-referential sacrifice (Thopter Foundry's "sacrifice a nontoken
+        // artifact" on an artifact source): the ability's OWN source is
+        // always on the battlefield in this harness, so a "zero legal
+        // candidates" break can't be constructed without removing the
+        // ability's own home permanent — skip rather than assert an
+        // unreachable HIDDEN case.
+        if (
+            matchesPermanentFilter(
+                {
+                    id: "self-probe",
+                    controllerId: VIEWER,
+                    types: def.types,
+                    subtypes: def.subtypes ?? [],
+                    supertypes: def.supertypes ?? [],
+                    staticAbilities: def.staticAbilities ?? [],
+                    power: def.power,
+                    toughness: def.toughness,
+                    isTapped: false,
+                    colors: getColorsFromCost(def.manaCost),
+                },
+                a.cost.sacrificeFilter,
+                { selfControllerId: VIEWER }
+            )
+        ) {
+            return "sacrificeFilter self-matches the ability's own source";
+        }
     }
     if (a.getTargetRequirement) return "getTargetRequirement predicate";
     // CR 602.2b — the no-legal-target gate needs a candidate on the board. The
@@ -273,7 +342,7 @@ for (const def of getAllCards()) {
         if (!a.useStack) continue; // mana abilities aren't macro-offered
         const shapes = shapesOf(a);
         if (shapes.length === 0) continue;
-        const reason = skipReason(a);
+        const reason = skipReason(a, def);
         if (reason) {
             skips.push(`${def.name} · ${a.id} — ${reason}`);
             continue;
@@ -362,6 +431,39 @@ function env(c: Case, broken: boolean) {
             tapHelpers.push(crewHelper(`tap${i}`, match.id, helperDef));
         }
     }
+    // CR 602.1 / 118.5 — one matching permanent to pay a `sacrificeFilter`
+    // cost (Deadapult's "Sacrifice a Zombie"); the break removes it entirely
+    // (there is no partial sacrifice — either a legal candidate exists or it
+    // doesn't, CR 602.1's "illegal if no matching permanent" is a boolean
+    // gate, unlike `tapOtherFilter`'s countable pool).
+    const sacrificeHelpers: CardInstance[] = [];
+    if (ability.cost.sacrificeFilter) {
+        const matchId = findMatchingAnyPermanentCardId(
+            ability.cost.sacrificeFilter
+        )!;
+        const helperDef = getAllCards().find((d) => d.id === matchId)!;
+        if (!(broken && shape === "sacrificeFilter")) {
+            sacrificeHelpers.push(crewHelper("sac0", matchId, helperDef));
+        }
+    }
+    // The viewer's target dummy deliberately carries EVERY permanent type so
+    // it satisfies any unrelated targeting requirement — which means it also
+    // accidentally satisfies a plain `types`-only `sacrificeFilter`
+    // (Priest of Yawgmoth's "Sacrifice an artifact" et al.), masking the
+    // "zero legal candidates" break the same way an untapped dummy would
+    // mask `tapOtherFilter` above. Every catalogue `sacrificeFilter.types`
+    // checked here differs from its OWN ability's `targetRequirement.type`
+    // (verified case by case: Sylvan Safekeeper sacrifices a Land but
+    // targets a Creature; Shivan Harvest sacrifices a Creature but targets a
+    // Land; Skull Catapult / Goblin Bombardment target "any", which the
+    // player fallback satisfies without the dummy at all) — so it is safe to
+    // drop exactly the sacrificed type(s) from the dummy without breaking
+    // its OWN targeting role.
+    const dummySacrificeTypes = ability.cost.sacrificeFilter?.types
+        ? Array.isArray(ability.cost.sacrificeFilter.types)
+            ? ability.cost.sacrificeFilter.types
+            : [ability.cost.sacrificeFilter.types]
+        : [];
     const view = buildTriggerStateView(
         [
             {
@@ -378,8 +480,14 @@ function env(c: Case, broken: boolean) {
                     {
                         ...targetDummy("dummy-you", VIEWER),
                         isTapped: ability.cost.tapOtherFilter !== undefined,
+                        types: (
+                            targetDummy("dummy-you", VIEWER).types ?? []
+                        ).filter(
+                            (t) => !dummySacrificeTypes.includes(t as never)
+                        ),
                     },
                     ...tapHelpers,
+                    ...sacrificeHelpers,
                 ],
                 graveyard: viewerGrave,
             },

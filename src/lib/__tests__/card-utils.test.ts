@@ -330,7 +330,8 @@ describe("matchesPermanentTargetFilters (CR 109/202/205/613/701.20/702, issue #1
         plainCreatureOverrides: Partial<
             Parameters<typeof makeInstance>[1]
         > = {},
-        emblems?: EmblemInstance[]
+        emblems?: EmblemInstance[],
+        selected: PendingTarget["selected"] = []
     ) {
         const legendary = makeInstance(livonyaSilone.id, {
             id: "legendary-1",
@@ -359,7 +360,7 @@ describe("matchesPermanentTargetFilters (CR 109/202/205/613/701.20/702, issue #1
                 cardInstanceId: "karakas-1",
                 targetType: req.type,
                 count: 1,
-                selected: [],
+                selected,
                 ...pendingTargetFiltersFromRequirement(req, undefined),
             } as PendingTarget,
             emblems,
@@ -530,6 +531,39 @@ describe("matchesPermanentTargetFilters (CR 109/202/205/613/701.20/702, issue #1
         expect(
             matchesPermanentTargetFilters(
                 legendaryClient,
+                pendingTarget,
+                players,
+                "p1"
+            )
+        ).toBe(true);
+    });
+
+    it("CR 601.2c: a permanent already chosen under this SAME requirement no longer reads as clickable, through the real wire projection", () => {
+        // Dust to Dust's "two target artifacts" shape: count > 1, one slot
+        // already filled. A hand-built view would mask exactly this class of
+        // bug (the server's own `isAlreadySelectedTarget` exclusion silently
+        // dropped client-side) — this goes through the real
+        // `pendingTarget.selected` the wire projection carries, not a
+        // fixture built by hand.
+        const req: TargetRequirement = { type: "Creature", count: 2 };
+        const { players, pendingTarget, legendaryClient, plainClient } =
+            projectScenario(req, {}, {}, undefined, [
+                { type: "permanent", id: "legendary-1" },
+            ]);
+
+        // Already picked — must NOT read as clickable for a second slot.
+        expect(
+            matchesPermanentTargetFilters(
+                legendaryClient,
+                pendingTarget,
+                players,
+                "p1"
+            )
+        ).toBe(false);
+        // Not yet picked — still a legal second-slot candidate.
+        expect(
+            matchesPermanentTargetFilters(
+                plainClient,
                 pendingTarget,
                 players,
                 "p1"
@@ -849,7 +883,39 @@ describe("getStackAbilities", () => {
     // only once each turn". Driven through the real reducer
     // (`buildTriggerStateView`), not a hand-built view.
     it("offers Gate to Phyrexia's ability on the first activation in the controller's upkeep, hides it once activationsThisTurn records a use", () => {
-        const view = buildTriggerStateView([], "p1");
+        // A Creature to pay the "Sacrifice a creature" cost (`sacrificeFilter`,
+        // issue #1951 review) and an Artifact for its "destroy target
+        // artifact" requirement — both orthogonal to what THIS test exercises
+        // (the `oncePerTurn` gate), supplied fully-affordable to isolate it.
+        // (A non-empty `stateView.players` also stops
+        // `hasBattlefieldTargetCandidate`'s empty-view fail-open from masking
+        // a missing target candidate — the artifact is genuinely needed once
+        // the sacrifice fixture makes the view non-empty.)
+        const sacrificeFodder = makeCardInstance({
+            id: "fodder",
+            card: { id: crawWurm.id },
+            types: ["Creature"],
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const targetArtifact = makeCardInstance({
+            id: "target-artifact",
+            card: { id: powerArmor.id },
+            types: ["Artifact"],
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const view = buildTriggerStateView(
+            [
+                {
+                    id: "p1",
+                    life: 20,
+                    hand: [],
+                    battlefield: [sacrificeFodder, targetArtifact],
+                },
+            ],
+            "p1"
+        );
         const card = makeCardInstance({
             card: { id: gateToPhyrexia.id },
             types: ["Enchantment"],
@@ -873,7 +939,33 @@ describe("getStackAbilities", () => {
     });
 
     it("fails OPEN on a oncePerTurn ability when `activationsThisTurn` is absent (an unknown counter must never hide a legal activation)", () => {
-        const view = buildTriggerStateView([], "p1");
+        // Same sacrifice-fodder + target-artifact setup as the test above —
+        // orthogonal to the `activationsThisTurn` gate under test here.
+        const sacrificeFodder = makeCardInstance({
+            id: "fodder2",
+            card: { id: crawWurm.id },
+            types: ["Creature"],
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const targetArtifact = makeCardInstance({
+            id: "target-artifact2",
+            card: { id: powerArmor.id },
+            types: ["Artifact"],
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const view = buildTriggerStateView(
+            [
+                {
+                    id: "p1",
+                    life: 20,
+                    hand: [],
+                    battlefield: [sacrificeFodder, targetArtifact],
+                },
+            ],
+            "p1"
+        );
         const card = makeCardInstance({
             card: { id: gateToPhyrexia.id },
             types: ["Enchantment"],
