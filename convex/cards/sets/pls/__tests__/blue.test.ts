@@ -504,7 +504,7 @@ describe("Rushing River (Kicker—Sacrifice a land, additive second target, CR 7
         expect(rushingRiver.kickers).toEqual([
             {
                 id: "kicker",
-                description: "Kicker — Sacrifice a land",
+                description: "Kicker—Sacrifice a land",
                 permanent: {
                     action: "sacrifice",
                     filter: { types: "Land" },

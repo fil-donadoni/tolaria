@@ -47,7 +47,10 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
-import { finalizeTargetSelection } from "../../../../game";
+import {
+    finalizeTargetSelection,
+    activateAbilityOnState,
+} from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     getDynamicManaChoices,
@@ -1333,6 +1336,64 @@ describe("Sorrow's Path — swap blockers (CR 509.1 / 506.4)", () => {
             (c) => c.id === "blk1"
         )!;
         expect(blk1.isBlocking).toBe(true);
+    });
+
+    // CR 602.2b (issue #1951 review round 2) — activating a `count: 2`
+    // ability must be rejected UP FRONT when fewer than 2 legal targets
+    // exist, not accepted on "at least one candidate" and left to dead-end
+    // mid-selection with an unfillable second slot. Exercises the REAL
+    // `activateAbilityOnState` legality gate (not `resolveActivated`, which
+    // bypasses it), since the fix lives in the mutation's own pre-check.
+    it("activation is rejected up front with only ONE legal blocking creature (CR 602.2b) — no dead-end second target slot", () => {
+        const path = makeInstance(sorrowsPath.id, {
+            id: "path",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const atk1 = makeInstance(goblinHero.id, {
+            id: "atk1",
+            controllerId: "p1",
+            ownerId: "p1",
+            power: 2,
+            toughness: 2,
+            isAttacking: true,
+        });
+        // Only ONE blocking creature on p2's side — `legal.length` is 1, not
+        // 0, so the old `legal.length === 0` check alone let this through.
+        const blk1 = makeInstance(squire.id, {
+            id: "blk1",
+            controllerId: "p2",
+            ownerId: "p2",
+            power: 1,
+            toughness: 3,
+            isBlocking: true,
+        });
+        const state = makeState({
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            phase: "DECLARE_BLOCKERS",
+            players: [
+                makePlayer("p1", { battlefield: [path, atk1] }),
+                makePlayer("p2", { battlefield: [blk1] }),
+            ],
+            combat: {
+                attackerIds: ["atk1"],
+                confirmed: true,
+                blockerAssignments: { blk1: ["atk1"] },
+                blockedAttackerIds: ["atk1"],
+                blockersConfirmed: true,
+            },
+        });
+        expect(() =>
+            activateAbilityOnState(state, {
+                playerId: "p1",
+                cardInstanceId: "path",
+                abilityId: "sorrows-path-swap-blockers",
+            })
+        ).toThrow(/Not enough legal targets/);
+        // Rejected at announcement — no pendingTarget left half-open with a
+        // dead second slot.
+        expect(state.pendingTarget).toBeUndefined();
     });
 });
 

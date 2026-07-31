@@ -1521,11 +1521,31 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // what "AFK-ready" tracks ("has per-card test"): AFK-ready 295->297,
         // "need test first" 11->9 (the same two closures moving out of it).
         // Partition: 306+14+151=471.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(471);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(306);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(297);
+        // #1951 (PLS red free tranche, F4): six NEW resolve() closures landed,
+        // each with its own recorded NOT-DSL-migratable justification (an
+        // established gap, not a fresh one — matches Seizures/Stonehands/
+        // Regeneration/Karplusan Yeti precedent): Insolence's host-controller
+        // damage (tappedTrigger's effects[] site binds no cross-player
+        // selector), Keldon Mantle's three Aura activated abilities
+        // (getAttachedTo — no attached-host object selector), Planeswalker's
+        // Fury (revealRandomHandCard's random pick has no bound ref), and
+        // Tahngarth's fight ability (no registered `fight` Op, tracked-by
+        // #2013). The static clause-mapper scores by primitive coverage, not
+        // by the recorded justification: Insolence + Keldon Mantle's three
+        // abilities call only COVERED primitives (dealDamage,
+        // applyRegenerationShield, addTemporaryPTBuff, grantStaticAbility) so
+        // they land FREE — and all four already have a per-card test (this
+        // PR's own), so AFK-ready moves with FREE one-for-one. Planeswalker's
+        // Fury (revealRandomHandCard) and Tahngarth (fight) call primitives
+        // absent from "Covered Ops", so they land Op-blocked. Net: total
+        // 471->477, FREE 306->310, AFK-ready 297->301 (need-test-first
+        // unchanged at 9), X-only unchanged at 14, Op-blocked 151->153.
+        // Partition: 310+14+153=477.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(477);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(310);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(301);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(151);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(153);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

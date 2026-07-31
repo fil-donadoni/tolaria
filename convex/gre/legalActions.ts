@@ -522,17 +522,16 @@ function targetActions(
             getPendingTargetSourceSubtypes(state, pt.cardInstanceId, kind),
             // CR 113.3 — an activated ability is not a spell; casts and
             // copy/retargets are.
-            kind !== "ability"
+            kind !== "ability",
+            // CR 601.2c — `getLegalTargets` itself now excludes objects
+            // already chosen under this same requirement
+            // (`isAlreadySelectedTarget`, `targetFilters.ts`) — the single
+            // authority the human path (`selectTarget`, `game.ts`) also
+            // calls, so this enumerator no longer needs its own copy of the
+            // check.
+            pt.selected
         );
         for (const target of legal) {
-            // CR 601.2c — each target of a spell must be distinct.
-            if (
-                pt.selected.some(
-                    (s) => s.type === target.type && s.id === target.id
-                )
-            ) {
-                continue;
-            }
             actions.push(
                 wrap({
                     kind: "select-target",

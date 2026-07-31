@@ -123,7 +123,7 @@ export const arcticMerfolk: CardDefinition = {
         {
             id: "kicker",
             description:
-                "Kicker — Return a creature you control to its owner's hand",
+                "Kicker—Return a creature you control to its owner's hand",
             permanent: {
                 action: "return",
                 filter: { types: "Creature" },
@@ -377,7 +377,7 @@ export const rushingRiver: CardDefinition = {
     kickers: [
         {
             id: "kicker",
-            description: "Kicker — Sacrifice a land",
+            description: "Kicker—Sacrifice a land",
             permanent: {
                 action: "sacrifice",
                 filter: { types: "Land" },

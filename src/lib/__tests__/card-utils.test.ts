@@ -37,6 +37,8 @@ import {
     toMatchablePermanent,
     MIRROR_CENSUS,
     type MirrorStatus,
+    TRIGGER_STATE_VIEW_CENSUS,
+    type TriggerStateViewFieldStatus,
     normalizeMayPayCost,
     manaCostToString,
     phyrexianSplitChoices,
@@ -91,6 +93,9 @@ import { dominate } from "@convex/cards/sets/nem";
 import { fellwarStone, deepWater, gaeasTouch } from "@convex/cards/sets/drk";
 import { disruptingScepter, forest } from "@convex/cards/sets/lea";
 import { powerArmor } from "@convex/cards/sets/inv";
+import { thopterFoundry } from "@convex/cards/sets/arb/multicolor";
+import { caribouRange } from "@convex/cards/sets/ice/white";
+import { sorrowsPath } from "@convex/cards/sets/drk/colorless";
 import { dauthiVoidwalker } from "@convex/cards/sets/mh2/black";
 import { viviOrnitier } from "@convex/cards/sets/fin";
 import { metallicRebuke } from "@convex/cards/sets/aer/blue";
@@ -330,7 +335,8 @@ describe("matchesPermanentTargetFilters (CR 109/202/205/613/701.20/702, issue #1
         plainCreatureOverrides: Partial<
             Parameters<typeof makeInstance>[1]
         > = {},
-        emblems?: EmblemInstance[]
+        emblems?: EmblemInstance[],
+        selected: PendingTarget["selected"] = []
     ) {
         const legendary = makeInstance(livonyaSilone.id, {
             id: "legendary-1",
@@ -359,7 +365,7 @@ describe("matchesPermanentTargetFilters (CR 109/202/205/613/701.20/702, issue #1
                 cardInstanceId: "karakas-1",
                 targetType: req.type,
                 count: 1,
-                selected: [],
+                selected,
                 ...pendingTargetFiltersFromRequirement(req, undefined),
             } as PendingTarget,
             emblems,
@@ -530,6 +536,39 @@ describe("matchesPermanentTargetFilters (CR 109/202/205/613/701.20/702, issue #1
         expect(
             matchesPermanentTargetFilters(
                 legendaryClient,
+                pendingTarget,
+                players,
+                "p1"
+            )
+        ).toBe(true);
+    });
+
+    it("CR 601.2c: a permanent already chosen under this SAME requirement no longer reads as clickable, through the real wire projection", () => {
+        // Dust to Dust's "two target artifacts" shape: count > 1, one slot
+        // already filled. A hand-built view would mask exactly this class of
+        // bug (the server's own `isAlreadySelectedTarget` exclusion silently
+        // dropped client-side) — this goes through the real
+        // `pendingTarget.selected` the wire projection carries, not a
+        // fixture built by hand.
+        const req: TargetRequirement = { type: "Creature", count: 2 };
+        const { players, pendingTarget, legendaryClient, plainClient } =
+            projectScenario(req, {}, {}, undefined, [
+                { type: "permanent", id: "legendary-1" },
+            ]);
+
+        // Already picked — must NOT read as clickable for a second slot.
+        expect(
+            matchesPermanentTargetFilters(
+                legendaryClient,
+                pendingTarget,
+                players,
+                "p1"
+            )
+        ).toBe(false);
+        // Not yet picked — still a legal second-slot candidate.
+        expect(
+            matchesPermanentTargetFilters(
+                plainClient,
                 pendingTarget,
                 players,
                 "p1"
@@ -849,7 +888,39 @@ describe("getStackAbilities", () => {
     // only once each turn". Driven through the real reducer
     // (`buildTriggerStateView`), not a hand-built view.
     it("offers Gate to Phyrexia's ability on the first activation in the controller's upkeep, hides it once activationsThisTurn records a use", () => {
-        const view = buildTriggerStateView([], "p1");
+        // A Creature to pay the "Sacrifice a creature" cost (`sacrificeFilter`,
+        // issue #1951 review) and an Artifact for its "destroy target
+        // artifact" requirement — both orthogonal to what THIS test exercises
+        // (the `oncePerTurn` gate), supplied fully-affordable to isolate it.
+        // (A non-empty `stateView.players` also stops
+        // `hasBattlefieldTargetCandidate`'s empty-view fail-open from masking
+        // a missing target candidate — the artifact is genuinely needed once
+        // the sacrifice fixture makes the view non-empty.)
+        const sacrificeFodder = makeCardInstance({
+            id: "fodder",
+            card: { id: crawWurm.id },
+            types: ["Creature"],
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const targetArtifact = makeCardInstance({
+            id: "target-artifact",
+            card: { id: powerArmor.id },
+            types: ["Artifact"],
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const view = buildTriggerStateView(
+            [
+                {
+                    id: "p1",
+                    life: 20,
+                    hand: [],
+                    battlefield: [sacrificeFodder, targetArtifact],
+                },
+            ],
+            "p1"
+        );
         const card = makeCardInstance({
             card: { id: gateToPhyrexia.id },
             types: ["Enchantment"],
@@ -873,7 +944,33 @@ describe("getStackAbilities", () => {
     });
 
     it("fails OPEN on a oncePerTurn ability when `activationsThisTurn` is absent (an unknown counter must never hide a legal activation)", () => {
-        const view = buildTriggerStateView([], "p1");
+        // Same sacrifice-fodder + target-artifact setup as the test above —
+        // orthogonal to the `activationsThisTurn` gate under test here.
+        const sacrificeFodder = makeCardInstance({
+            id: "fodder2",
+            card: { id: crawWurm.id },
+            types: ["Creature"],
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const targetArtifact = makeCardInstance({
+            id: "target-artifact2",
+            card: { id: powerArmor.id },
+            types: ["Artifact"],
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const view = buildTriggerStateView(
+            [
+                {
+                    id: "p1",
+                    life: 20,
+                    hand: [],
+                    battlefield: [sacrificeFodder, targetArtifact],
+                },
+            ],
+            "p1"
+        );
         const card = makeCardInstance({
             card: { id: gateToPhyrexia.id },
             types: ["Enchantment"],
@@ -2979,6 +3076,204 @@ describe("matchesPermanentFilter / toMatchablePermanent — MIRROR_CENSUS parity
 });
 
 // ---------------------------------------------------------------------------
+// buildTriggerStateView — TRIGGER_STATE_VIEW_CENSUS (issue #1951 review round
+// 3, MAJOR 5). A THIRD reducer distinct from MIRROR_CENSUS's two paths — the
+// shape getStackAbilities' sacrificeFilter/tapOtherFilter affordability gates
+// read through. The isToken BLOCKER (round 2) was exactly a field this
+// reducer silently failed to populate; this guards the whole field set at
+// once, run through the REAL reducer (not a hand-built view — that would mask
+// precisely the class of bug this exists to catch).
+// ---------------------------------------------------------------------------
+
+describe("buildTriggerStateView — TRIGGER_STATE_VIEW_CENSUS (issue #1951 review round 3, MAJOR 5)", () => {
+    /** One representative permanent exercising every "populated" filter
+     *  dimension at once, run through the real `buildTriggerStateView`. */
+    function representativeEntry(turnState?: ControlContinuityView) {
+        const card = {
+            id: "rep",
+            card: { id: crawWurm.id },
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield" as const,
+            types: ["Creature"] as const,
+            subtypes: ["Bear"],
+            staticAbilities: ["trample"],
+            power: 3,
+            toughness: 3,
+            isTapped: true,
+            isToken: true,
+            isAttacking: true,
+            isBlocking: false,
+            createdBy: "source-1",
+            enteredOnTurn: 5,
+        } as unknown as CardInstance;
+        const view = buildTriggerStateView(
+            [{ id: "p1", life: 20, hand: [], battlefield: [card] }],
+            "p1",
+            undefined,
+            undefined,
+            turnState
+        );
+        return view.players[0].battlefield[0];
+    }
+
+    it("populates every field the census marks 'populated', through the real reducer", () => {
+        const entry = representativeEntry();
+        expect(entry.id).toBe("rep");
+        expect(entry.controllerId).toBe("p1");
+        expect(entry.types).toEqual(["Creature"]);
+        expect(entry.subtypes).toEqual(["Bear"]);
+        expect(entry.staticAbilities).toEqual(["trample"]);
+        expect(entry.power).toBe(3);
+        expect(entry.toughness).toBe(3);
+        expect(entry.isTapped).toBe(true);
+        // The exact BLOCKER field from round 2 — still verified here too.
+        expect(entry.isToken).toBe(true);
+        // MAJOR 5 — the four fields this round adds.
+        expect(entry.isAttacking).toBe(true);
+        expect(entry.isBlocking).toBe(false);
+        expect(entry.createdBy).toBe("source-1");
+    });
+
+    it("populates the turnState-conditional fields ONLY when turnState is supplied (fails CLOSED otherwise, matching every other unsupplied filter dimension)", () => {
+        const withoutTurnState = representativeEntry();
+        expect(withoutTurnState.enteredThisTurn).toBeUndefined();
+        expect(withoutTurnState.controlledSinceTurnStart).toBeUndefined();
+
+        const turnState: ControlContinuityView = {
+            turn: 5,
+            controlChangedThisTurn: [],
+        };
+        const withTurnState = representativeEntry(turnState);
+        // The fixture entered ON turn 5 (the checked turn) — CR 400.7:
+        // "entered this turn" is true, and (correctly the INVERSE here,
+        // proving the derivation is real and not a stub) it therefore
+        // canNOT have been controlled since the turn's beginning.
+        expect(withTurnState.enteredThisTurn).toBe(true);
+        expect(withTurnState.controlledSinceTurnStart).toBe(false);
+    });
+
+    it("every 'populated'/'conditional-on-turnState' census key is exercised by the tests above", () => {
+        // Not a behavioural assertion — the census's own completeness check:
+        // `entry` above (from `representativeEntry()`) carries every field a
+        // "populated" or "conditional-on-turnState" key needs to be judged;
+        // if a future key is added to `TRIGGER_STATE_VIEW_CENSUS` with either
+        // status but the test above is never extended to cover it, THIS
+        // still passes today (that's a per-key authoring omission, not
+        // something a generic loop can catch) — but the loop below at least
+        // asserts the census hasn't silently dropped every key down to
+        // `"intentionally-absent"`/`"structural"`, which would make the
+        // guard vacuous the same way an empty catalogue sweep would be.
+        const populatedOrConditional = (
+            Object.entries(TRIGGER_STATE_VIEW_CENSUS) as Array<
+                [keyof PermanentFilter, TriggerStateViewFieldStatus]
+            >
+        ).filter(
+            ([, status]) =>
+                status === "populated" || status === "conditional-on-turnState"
+        );
+        expect(populatedOrConditional.length).toBeGreaterThan(0);
+    });
+
+    it("MINOR 6 — Caribou Range's sibling: a token-only board correctly HIDES a nontoken-only sacrificeFilter ability (Thopter Foundry fail-OPEN direction)", () => {
+        // Thopter Foundry (`arb/multicolor.ts`): `sacrificeFilter: { types:
+        // "Artifact", isToken: false }`. The sweep's catalogue test reports
+        // this card as a self-referential skip (its OWN source already
+        // matches its own filter, so a "zero candidates" break can't be
+        // constructed there) — this test instead builds a board where the
+        // ONLY artifacts are TOKENS, through the real buildTriggerStateView
+        // reducer, and asserts the ability does NOT read as offered. Before
+        // the `isToken` BLOCKER fix (round 2), every view entry read
+        // `isToken: undefined` (≈ false), so a token-only board would have
+        // WRONGLY offered this ability — the fail-OPEN direction.
+        const tokenArtifact: CardInstance = {
+            id: "token-art",
+            card: { id: thopterFoundry.id },
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            types: ["Artifact", "Creature"],
+            subtypes: ["Thopter"],
+            staticAbilities: [],
+            isTapped: false,
+            isToken: true,
+        };
+        const foundry: CardInstance = {
+            id: "foundry",
+            card: { id: thopterFoundry.id },
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            types: ["Artifact"],
+            subtypes: [],
+            staticAbilities: [],
+            isTapped: false,
+            isToken: true, // the Foundry itself is ALSO a token here
+        };
+        const view = buildTriggerStateView([
+            {
+                id: "p1",
+                life: 20,
+                hand: [],
+                battlefield: [foundry, tokenArtifact],
+            },
+        ]);
+        const ids = getStackAbilities(foundry, undefined, true, view).map(
+            (a) => a.id
+        );
+        expect(ids).not.toContain("thopter-foundry-make-thopter");
+    });
+
+    it("MINOR 7 — isToken survives projectPublicState into the shape getStackAbilities reads (Caribou Range)", () => {
+        // Real server-side GameState (not a hand-built view — a hand-built
+        // fixture would mask exactly the class of bug the isToken BLOCKER
+        // (round 2) was: `CardInstanceState.isToken` dropped somewhere
+        // between the server and `buildTriggerStateView`). Projects through
+        // the REAL wire boundary (`projectPublicState`), then re-runs the
+        // affordability check against the PROJECTED battlefield.
+        const range = makeInstance(caribouRange.id, {
+            id: "range",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const caribouToken = makeInstance(crawWurm.id, {
+            id: "caribou-token",
+            controllerId: "p1",
+            ownerId: "p1",
+            subtypes: ["Caribou"],
+            isToken: true,
+        });
+        const state = makeState({
+            players: [
+                makeServerPlayer("p1", { battlefield: [range, caribouToken] }),
+                makeServerPlayer("p2"),
+            ],
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const projectedP1 = projected.players.find((p) => p.id === "p1")!;
+        const projectedRange = projectedP1.battlefield.find(
+            (c) => c.id === "range"
+        )! as unknown as CardInstance;
+        const view = buildTriggerStateView([
+            {
+                id: "p1",
+                life: 20,
+                hand: [],
+                battlefield:
+                    projectedP1.battlefield as unknown as CardInstance[],
+            },
+        ]);
+        const ids = getStackAbilities(
+            projectedRange,
+            undefined,
+            true,
+            view
+        ).map((a) => a.id);
+        expect(ids).toContain("caribou-range-gain-life");
+    });
+});
+
+// ---------------------------------------------------------------------------
 // mayPaySacrificeCount / mayPaySacrificePower — controllerRelation regression
 // (issue #1938 fixup 2)
 //
@@ -4522,6 +4817,68 @@ describe("Emry, Lurker of the Loch — graveyard-targeting {T} ability surfaces 
                 view
             )
         ).toHaveLength(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Sorrow's Path — a `count: 2` targeting ability's affordability gate (issue
+// #1951 review round 3, MINOR 8). `hasBattlefieldTargetCandidate` used to
+// return true on the FIRST matching candidate, so a `count >= 2` ability
+// (Sorrow's Path's "choose two target blocking creatures", General Jarkeld's
+// swap, Garruk Wildspeaker's "+1: Untap two target lands") stayed offered
+// with only ONE legal candidate — a dead menu entry, since
+// `activateAbilityOnState` (`convex/game.ts`) now rejects that up front (the
+// CR 601.2c distinct-targets fix from an earlier review round made the
+// mismatch reachable). Driven through the REAL reducer
+// (`buildTriggerStateView`), never a hand-built view.
+// ---------------------------------------------------------------------------
+
+describe("Sorrow's Path — count:2 targeting ability's affordability gate (CR 602.2b, issue #1951 review round 3)", () => {
+    function sorrowsPathOnBoard(): CardInstance {
+        return makeCardInstance({
+            id: "path",
+            card: { id: sorrowsPath.id },
+            types: ["Land"],
+            isTapped: false,
+        });
+    }
+    function blocker(id: string): CardInstance {
+        return makeCardInstance({
+            id,
+            card: { id: sorrowsPath.id },
+            controllerId: "p2",
+            types: ["Creature"],
+            isBlocking: true,
+        });
+    }
+
+    it("is HIDDEN with only ONE legal blocking creature (would dead-end mid-selection)", () => {
+        const path = sorrowsPathOnBoard();
+        const view = buildTriggerStateView([
+            { id: "p1", life: 20, hand: [], battlefield: [path] },
+            { id: "p2", life: 20, hand: [], battlefield: [blocker("blk1")] },
+        ]);
+        const ids = getStackAbilities(path, undefined, true, view).map(
+            (a) => a.id
+        );
+        expect(ids).not.toContain("sorrows-path-swap-blockers");
+    });
+
+    it("is OFFERED with two legal blocking creatures", () => {
+        const path = sorrowsPathOnBoard();
+        const view = buildTriggerStateView([
+            { id: "p1", life: 20, hand: [], battlefield: [path] },
+            {
+                id: "p2",
+                life: 20,
+                hand: [],
+                battlefield: [blocker("blk1"), blocker("blk2")],
+            },
+        ]);
+        const ids = getStackAbilities(path, undefined, true, view).map(
+            (a) => a.id
+        );
+        expect(ids).toContain("sorrows-path-swap-blockers");
     });
 });
 

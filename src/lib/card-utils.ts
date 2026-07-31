@@ -67,6 +67,7 @@ import {
 import { canPayKickerLegs } from "@convex/gre/kicker";
 import {
     checkPermanentTargetFilters,
+    isAlreadySelectedTarget,
     type PermanentFilterValues,
     type TargetFilterCtx,
 } from "@convex/gre/targetFilters";
@@ -715,6 +716,22 @@ const NON_PERMANENT_TARGET_TYPES = new Set([
  * So a "no candidates" answer is reliable; a "has candidates" answer only means
  * the ability is worth offering.
  */
+/** The minimum number of targets `requirement.count` demands (CR 601.2c) —
+ *  the client-side mirror of `game.ts`'s own `minTargetCount`, widened to
+ *  also accept the literal `"X"` count form (a `TargetRequirement.count` this
+ *  function's caller may see before `chosenX` is known, unlike the cast-commit
+ *  path `game.ts`'s helper serves). No chosen-X value is threaded into this
+ *  UI-hint gate, so `"X"` resolves to `1` — a conservative floor (an
+ *  affordability HINT undercounting a genuinely larger X only risks a false
+ *  "unaffordable" READ if X ends up 0, which the server's own `hasEnoughLegalTargets`
+ *  gate has final say over regardless). */
+function minTargetCountHint(
+    count: number | "X" | { min: number; max?: number }
+): number {
+    if (count === "X") return 1;
+    return typeof count === "number" ? count : count.min;
+}
+
 export function hasBattlefieldTargetCandidate(
     requirement: TargetRequirement,
     source: CardInstance,
@@ -753,6 +770,21 @@ export function hasBattlefieldTargetCandidate(
                 : [requirement.subtypeFilter]
             : undefined,
     };
+    // CR 602.2b (issue #1951 review round 3, MINOR 8) — a `count >= 2`
+    // ability (Sorrow's Path / General Jarkeld's swap-blockers, Garruk
+    // Wildspeaker's "+1: Untap two target lands") needs at LEAST that many
+    // legal candidates, not merely one: the old "return true on the first
+    // hit" check let the tap menu offer the ability with a single legal
+    // blocking creature, and `activateAbilityOnState`'s own matching
+    // `minTargetCount` rejection (`convex/game.ts`) then threw "Not enough
+    // legal targets" the moment the player tried it — a dead menu entry, the
+    // exact symptom this gate exists to prevent for every other cost shape.
+    const required = minTargetCountHint(requirement.count);
+    // A zero-minimum requirement (an open "up to N" divide-as-you-choose
+    // range, e.g. Fire Covenant/Meteor Shower with X = 0) needs no candidate
+    // at all — CR 601.2d, there is nothing to divide.
+    if (required <= 0) return true;
+    let matchCount = 0;
     for (const player of stateView.players) {
         for (const permanent of player.battlefield) {
             if (
@@ -778,7 +810,8 @@ export function hasBattlefieldTargetCandidate(
             ) {
                 continue;
             }
-            return true;
+            matchCount++;
+            if (matchCount >= required) return true;
         }
     }
     return false;
@@ -831,6 +864,20 @@ export function matchesPermanentTargetFilters(
     activePlayerId: string,
     emblems?: ReadonlyArray<EmblemInstance>
 ): boolean {
+    // CR 601.2c — a permanent already chosen under THIS SAME requirement is
+    // never a legal SECOND pick (Magma Burst's kicked "another target", Dust
+    // to Dust's "two target artifacts"). Mirrors the server's own exclusion
+    // (`isAlreadySelectedTarget`, `getLegalTargets`/`selectTarget`) so an
+    // already-picked permanent can't still read as clickable — the inverse
+    // of the #1697 symptom this function otherwise guards against.
+    if (
+        isAlreadySelectedTarget(
+            { type: "permanent", id: card.id },
+            pendingTarget.selected
+        )
+    ) {
+        return false;
+    }
     const siblingControllerId = ((): string | undefined => {
         if (
             !pendingTarget.sameController ||
@@ -1174,7 +1221,17 @@ export function buildTriggerStateView(
      *  `canActivate` / condition predicate can answer "if you gained life this
      *  turn" with the SAME number the server's intervening-if reads. Dropping
      *  it here would make any such affordance permanently invisible. */
-    lifeGainedThisTurn?: Readonly<Record<string, number>>
+    lifeGainedThisTurn?: Readonly<Record<string, number>>,
+    /** Projected `{ turn, controlChangedThisTurn }` — mirrors
+     *  `toMatchablePermanent`'s identical optional param exactly (issue
+     *  #1951 review round 3, MAJOR 5). Required only by the two turn-scoped
+     *  `PermanentFilter` dimensions (`enteredThisTurn`/
+     *  `controlledSinceTurnStart`); omitted, both stay undefined and any
+     *  filter using them fails closed (see `TRIGGER_STATE_VIEW_CENSUS`
+     *  below). No shipped `sacrificeFilter`/`tapOtherFilter` cost uses
+     *  either dimension yet, so no existing caller is required to pass
+     *  this — it exists so a FUTURE one can, without another silent gap. */
+    turnState?: ControlContinuityView
 ): TriggerStateView {
     return {
         players: players.map((p) => ({
@@ -1219,6 +1276,50 @@ export function buildTriggerStateView(
                 // affordability hint below; without it a board that CAN crew
                 // only thanks to the bonus would never be offered the ability.
                 crewPowerBonus: tryGetDefinition(c.card.id)?.crewPowerBonus,
+                // CR 205.4a — PRINTED supertypes, for a `sacrificeFilter`
+                // activation cost narrowed by supertype (Sunstone's "sacrifice
+                // a snow land"). Same registry-lookup precedent as `colors`/
+                // `crewPowerBonus` above — the wire carries no per-permanent
+                // supertype field.
+                supertypes: tryGetDefinition(c.card.id)?.supertypes,
+                // CR 111.5 / 701.16 — token-ness, for a `sacrificeFilter`
+                // activation cost narrowed by `isToken` (Thopter Foundry's
+                // "sacrifice a NONTOKEN artifact", Caribou Range's "sacrifice
+                // a Caribou TOKEN"). `CardInstanceState.isToken` IS a real
+                // persisted/wire field (unlike `supertypes`/`colors` above,
+                // which need a registry lookup) — read it straight off the
+                // instance rather than the definition. Omitting this left
+                // every view entry reading `isToken: undefined`, which
+                // `matchesPermanentFilter` treats as `false` — silently
+                // hiding a token-sacrifice ability with tokens on board and
+                // silently OFFERING a nontoken-only sacrifice ability whose
+                // only candidates were tokens (issue #1951 review, round 2).
+                isToken: c.isToken === true,
+                // CR 508/509 — combat-role filters (a `sacrificeFilter`/
+                // `tapOtherFilter` scoped to attackers/blockers). Same
+                // fail-closed-vs-fail-open class as `isToken` above: an
+                // unpopulated `isAttacking`/`isBlocking` reads as `false`
+                // regardless of reality (issue #1951 review round 3, MAJOR 5
+                // — "fix the class, not the field").
+                isAttacking: c.isAttacking === true,
+                isBlocking: c.isBlocking === true,
+                // CR 111 / 707.1 — token provenance, for a `sacrificeFilter`
+                // scoped to "tokens created with <this>" (Tetravus-style).
+                // Direct wire field, same as `isToken`, no registry lookup.
+                createdBy: c.createdBy,
+                // CR 400.7 / Keldon Twilight-style continuity filters. Only
+                // meaningful with `turnState` (mirrors `toMatchablePermanent`
+                // exactly); omitted, both stay undefined — fail-closed, same
+                // as every other unsupplied filter dimension here.
+                ...(turnState
+                    ? {
+                          enteredThisTurn: c.enteredOnTurn === turnState.turn,
+                          controlledSinceTurnStart: hasControlledSinceTurnStart(
+                              turnState,
+                              c
+                          ),
+                      }
+                    : {}),
             })),
         })),
         activePlayerId,
@@ -1469,6 +1570,15 @@ export function getStackAbilities(
                 count?: number;
                 totalPower?: number;
             };
+            /** CR 602.1 / 118.5 — "sacrifice a permanent matching <filter>"
+             *  as an activation cost (Deadapult's "Sacrifice a Zombie",
+             *  Priest of Yawgmoth's "Sacrifice an artifact"). Distinct from
+             *  `tapOtherFilter`: no self-exclusion — the source itself is a
+             *  legal candidate when it matches (the server's own
+             *  `matchesPermanentFilter` check, `game.ts`, doesn't exclude it
+             *  either — Thopter Foundry's "sacrifice a nontoken artifact" can
+             *  legally sacrifice itself). */
+            sacrificeFilter?: PermanentFilter;
         };
         activationPhaseRestriction?: ReadonlyArray<Phase>;
         sorcerySpeedOnly?: boolean;
@@ -1610,6 +1720,36 @@ export function getStackAbilities(
             if (!canPayTapOtherCost(a.cost.tapOtherFilter, candidates)) {
                 return false;
             }
+        }
+        // CR 602.1 / 118.5 — "sacrifice a permanent matching <filter>" as an
+        // activation cost (Deadapult's "Sacrifice a Zombie") is unpayable
+        // when the controller has no matching permanent to give up — the
+        // exact shape `getStackAbilities`'s sibling gates (`tapOtherFilter`,
+        // `exileFromGraveyard`) already cover for other cost kinds; this one
+        // was previously missing, so a `sacrificeFilter` ability was always
+        // offered even with zero legal candidates, hitting the server's own
+        // "No legal permanent to pay the sacrifice cost" throw (`game.ts`).
+        // Weighed against the SAME `matchesPermanentFilter` authority the
+        // server uses, off the viewer-visible `stateView` board; without it
+        // the ability stays offered and the server rejects it (fail-open,
+        // same discipline as every other board-dependent gate here).
+        if (a.cost.sacrificeFilter && stateView) {
+            // CR 602.1 / 118.5 — the sacrifice is paid by the ACTIVATOR, not
+            // necessarily the source's controller ("any player may
+            // activate"/enchanted-controller abilities, `activatorId` above):
+            // `activateAbilityOnState` (`convex/game.ts`) scans
+            // `getPlayer(state, args.playerId).battlefield` — the activator's
+            // own board — for the sacrifice candidate. Latent today (no
+            // shipped card combines `sacrificeFilter` with either shape), but
+            // mirroring the server exactly here is what keeps it that way.
+            const payerId = activatorId ?? card.controllerId;
+            const mine = stateView.players.find((p) => p.id === payerId);
+            const hasCandidate = (mine?.battlefield ?? []).some((c) =>
+                matchesEnginePermanentFilter(c, a.cost.sacrificeFilter!, {
+                    selfControllerId: payerId,
+                })
+            );
+            if (!hasCandidate) return false;
         }
         // CR 606 — a LOYALTY ABILITY (signed `cost.loyalty`) is offered only as
         // a UI hint when its three restrictions can be met; the `activateAbility`
@@ -2905,6 +3045,74 @@ export const MIRROR_CENSUS: Record<keyof PermanentFilter, MirrorStatus> = {
     // disagree. Both fail CLOSED without a `turnState`, which the parity
     // cases assert explicitly.
     controlledSinceTurnStart: "mirrored",
+};
+
+/** `buildTriggerStateView`'s battlefield-entry support for a `PermanentFilter`
+ *  field — a THIRD reducer, distinct from `MIRROR_CENSUS`'s two (the
+ *  `toMatchablePermanent` engine-matcher adapter and the `ClientPermanentFilter`
+ *  board-highlight mirror). This is the shape `getStackAbilities`'
+ *  `sacrificeFilter`/`tapOtherFilter` activation-cost affordability gates read
+ *  through (issue #1951 review round 3, MAJOR 5 — the `isToken` BLOCKER from
+ *  round 2 is exactly what silently rotting THIS reducer's shape looks like: a
+ *  filter field the reducer doesn't populate reads as `false`/`undefined` in
+ *  `matchesPermanentFilter`'s boolean-equality checks, which is fail-CLOSED
+ *  against a `true`-valued filter — an ability permanently hidden — and
+ *  fail-OPEN against a `false`-valued one — an illegal ability offered).
+ *  Keyed by `keyof PermanentFilter` so adding a NEW field to `PermanentFilter`
+ *  (`convex/cards/filters.ts`) breaks `tsc` here until this census is updated,
+ *  the same "fix the class, not the field" discipline `MIRROR_CENSUS` already
+ *  established. */
+export type TriggerStateViewFieldStatus =
+    | "populated"
+    | "structural"
+    | "conditional-on-turnState"
+    | "intentionally-absent";
+
+export const TRIGGER_STATE_VIEW_CENSUS: Record<
+    keyof PermanentFilter,
+    TriggerStateViewFieldStatus
+> = {
+    types: "populated",
+    excludeTypes: "populated",
+    subtypes: "populated",
+    excludeSubtypes: "populated",
+    supertypes: "populated",
+    excludeSupertypes: "populated",
+    requireAbility: "populated",
+    excludeAbility: "populated",
+    colors: "populated",
+    tapped: "populated",
+    isToken: "populated",
+    isAttacking: "populated",
+    isBlocking: "populated",
+    createdBy: "populated",
+    powerAtLeast: "populated",
+    toughnessAtLeast: "populated",
+    // `id` is always populated, so both instance-id filters already work.
+    instanceIds: "populated",
+    excludeInstanceIds: "populated",
+    // Needs a `FilterMatchContext` with `selfControllerId`/`selfInstanceId` —
+    // threaded by the gate's own call (`getStackAbilities`'
+    // `sacrificeFilter`/`tapOtherFilter` branches pass `selfControllerId`),
+    // not by this reducer; `controllerId` is populated, which is all
+    // `matchesPermanentFilter` needs from the CANDIDATE side.
+    controllerRelation: "populated",
+    // "structural": a recursive OR-across-fields combinator, not itself a
+    // data dependency — it re-checks the SAME populated fields its clauses
+    // reference, so it works automatically once those do.
+    any: "structural",
+    // Only populated when `buildTriggerStateView`'s optional `turnState`
+    // param is supplied (mirrors `toMatchablePermanent`'s identical
+    // turn-scoped derivation); no shipped `sacrificeFilter`/`tapOtherFilter`
+    // cost uses either dimension yet, so no existing caller passes it today —
+    // distinct from "populated" above (those are unconditional).
+    enteredThisTurn: "conditional-on-turnState",
+    controlledSinceTurnStart: "conditional-on-turnState",
+    // No battlefield permanent shape carries a live `name` field anywhere —
+    // server-side `CardInstanceState` doesn't have one either (the SAME
+    // project-wide gap `MIRROR_CENSUS.name` records above), so this is not a
+    // reducer-specific drift.
+    name: "intentionally-absent",
 };
 
 /** Count of a chooser's battlefield permanents that satisfy a `may-pay` cost's
