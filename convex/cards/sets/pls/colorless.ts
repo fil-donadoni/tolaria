@@ -10,6 +10,8 @@ import type {
     MayPayCost,
 } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
+import { makeTapForMana } from "../../abilities";
 
 // CR 117.3a / 701.16 / 701.24 — the Planeshift "Lair" cycle (5 tri-colour tap
 // lands: Crosis's Catacombs, Darigaaz's Caldera, Dromar's Cavern, Rith's
@@ -366,4 +368,148 @@ export const skyshipWeatherlightAlt: CardPrint = {
     definitionId: skyshipWeatherlight.id,
     setCode: "pls",
     rarity: "rare",
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLS free tranche — colourless cards (#1954, parent PRD #1935): Forsaken
+// City, Mana Cylix, Terminal Moraine. All three are already-exercised Ops
+// (`does-not-untap` self keyword + `mayPay`/`tapUntap` upkeep pattern —
+// Brass Man, arn/colorless.ts; `manaChoices: ANY_SINGLE_COLOR` — Star
+// Compass, above; `choice`(search-library) + `moveZone`(tapped) + shuffle —
+// Fabled Passage, eld/colorless.ts). No new Op, no `resolve()`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Forsaken City — Land. "This land doesn't untap during your untap step. At
+// the beginning of your upkeep, you may exile a card from your hand. If you
+// do, untap this land. {T}: Add one mana of any color." Mirrors Brass Man's
+// `does-not-untap` + upkeep may-pay-to-untap shape (arn/colorless.ts)
+// exactly, with a HAND leg (`{ hand: { action: "exile", requirements: [{
+// filter: {}, count: 1 }] } }`, ADR 0079 `CostLegs`) instead of a mana cost —
+// the same hand-leg shape Formidable Speaker's "you may discard a card" uses
+// (ecl/green.ts), substituting `action: "exile"` for `"discard"` (CR 701.13
+// vs 701.9).
+export const forsakenCity: CardDefinition = {
+    id: "676703fe-bd80-413c-8704-1da5d3248b7e", // PLS 139
+    rarity: "rare",
+    name: "Forsaken City",
+    oracleText:
+        "This land doesn't untap during your untap step.\nAt the beginning of your upkeep, you may exile a card from your hand. If you do, untap this land.\n{T}: Add one mana of any color.",
+    types: ["Land"],
+    staticAbilities: ["does-not-untap"],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "forsaken-city-untap-option",
+            oracleText:
+                "At the beginning of your upkeep, you may exile a card from your hand. If you do, untap this land.",
+            phase: "UPKEEP",
+            scope: "your",
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
+                    cost: {
+                        hand: {
+                            action: "exile",
+                            requirements: [{ filter: {}, count: 1 }],
+                        },
+                    },
+                    prompt: "Exile a card from your hand to untap Forsaken City?",
+                    bind: "$paid",
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$paid" },
+                    then: [
+                        {
+                            op: "tapUntap",
+                            action: "untap",
+                            target: { ref: "$source" },
+                        },
+                    ],
+                },
+            ],
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "forsaken-city-mana",
+            oracleText: "{T}: Add one mana of any color.",
+            cost: { tap: true },
+            useStack: false,
+            manaChoices: ANY_SINGLE_COLOR,
+        },
+    ],
+};
+
+// Mana Cylix — {1} Artifact. "{1}, {T}: Add one mana of any color." (Modern
+// Oracle, verified via Scryfall — no "colours already spent this turn"
+// restriction; that recollection was wrong. A plain unrestricted five-colour
+// rock, the SAME `manaChoices: ANY_SINGLE_COLOR` shape Star Compass uses
+// above, with no `manaColorSource` board restriction.)
+export const manaCylix: CardDefinition = {
+    id: "c6f95767-afda-4d74-bbd4-1b702eeae54b", // PLS 132
+    rarity: "uncommon",
+    name: "Mana Cylix",
+    oracleText: "{1}, {T}: Add one mana of any color.",
+    manaCost: { X: 1 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "mana-cylix-mana",
+            oracleText: "{1}, {T}: Add one mana of any color.",
+            cost: { mana: { X: 1 }, tap: true },
+            useStack: false,
+            manaChoices: ANY_SINGLE_COLOR,
+        },
+    ],
+};
+
+// Terminal Moraine — Land. "{T}: Add {C}.\n{2}, {T}, Sacrifice this land:
+// Search your library for a basic land card, put that card onto the
+// battlefield tapped, then shuffle." Mirrors Fabled Passage's fetch ability
+// (eld/colorless.ts) exactly — `choice`(search-library, `supertype: "Basic"`)
+// + `moveZone`(cards, `to: "battlefield"`, `tapped: true`) + `libraryLook`
+// (shuffle) — with an added `{2}` mana leg on the activation cost.
+export const terminalMoraine: CardDefinition = {
+    id: "353a8ea8-3f1f-4f77-95bc-b09b96996285", // PLS 142
+    rarity: "uncommon",
+    name: "Terminal Moraine",
+    oracleText:
+        "{T}: Add {C}.\n{2}, {T}, Sacrifice this land: Search your library for a basic land card, put that card onto the battlefield tapped, then shuffle.",
+    types: ["Land"],
+    activatedAbilities: [
+        makeTapForMana({
+            id: "terminal-moraine-mana",
+            oracleText: "{T}: Add {C}.",
+            produces: { C: 1 },
+        }),
+        {
+            id: "terminal-moraine-fetch",
+            oracleText:
+                "{2}, {T}, Sacrifice this land: Search your library for a basic land card, put that card onto the battlefield tapped, then shuffle.",
+            cost: { mana: { X: 2 }, tap: true, sacrifice: true },
+            useStack: true,
+            effects: [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    filter: { supertype: "Basic" },
+                    count: 1,
+                    prompt: "Search your library for a basic land card.",
+                    bind: "$picked",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$picked" },
+                    player: "controller",
+                    from: "library",
+                    to: "battlefield",
+                    tapped: true,
+                },
+                { op: "libraryLook", action: "shuffle", player: "controller" },
+            ],
+        },
+    ],
 };
