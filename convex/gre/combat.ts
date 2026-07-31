@@ -212,18 +212,39 @@ export type AttackerValidation =
     | { eligible: false; reason: string };
 
 /** Collects `attack-restriction` static effects from a card's definition
- *  (CR 508.1c). Mirrors `collectBlockRestrictions` — reads the card
- *  definition via the registry. */
+ *  AND from any auras attached to it (CR 303.4 — aura effects apply to their
+ *  host), mirroring `collectBlockRestrictions` exactly (issue #1948, Hobble:
+ *  "Enchanted creature can't attack" — an Aura-granted restriction, not a
+ *  card-own one like Vodalian Serpent/Sea Serpent). `state` is optional to
+ *  keep every existing call site (which didn't previously thread it) source
+ *  compatible; without it only the card's own restrictions are returned,
+ *  same degrade-gracefully contract `collectBlockRestrictions` already
+ *  documents. */
 function collectAttackRestrictions(
-    card: CardInstanceState
+    card: CardInstanceState,
+    state?: GameState
 ): StaticAttackRestriction[] {
-    const cardId = (card.card as { id?: string }).id;
-    if (!cardId) return [];
-    const def = tryGetDefinition(cardId);
-    if (!def?.staticEffects) return [];
-    return def.staticEffects.filter(
-        (e): e is StaticAttackRestriction => e.kind === "attack-restriction"
-    );
+    const restrictions: StaticAttackRestriction[] = [];
+    const collect = (cardId: string | undefined) => {
+        if (!cardId) return;
+        const def = tryGetDefinition(cardId);
+        if (!def?.staticEffects) return;
+        for (const effect of def.staticEffects) {
+            if (effect.kind === "attack-restriction") {
+                restrictions.push(effect);
+            }
+        }
+    };
+    collect((card.card as { id?: string }).id);
+    if (state) {
+        for (const player of state.players) {
+            for (const perm of player.battlefield) {
+                if (perm.attachedTo !== card.id) continue;
+                collect((perm.card as { id?: string }).id);
+            }
+        }
+    }
+    return restrictions;
 }
 
 /** Validates whether a card instance is eligible to be declared as an attacker
@@ -268,7 +289,7 @@ export function validateAttackerEligibility(
     }
     // CR 508.1c — card-level attack restrictions from staticEffects[].
     if (defenderBattlefield) {
-        for (const r of collectAttackRestrictions(card)) {
+        for (const r of collectAttackRestrictions(card, state)) {
             if (!r.predicate(card, defenderBattlefield)) {
                 return { eligible: false, reason: r.oracleText };
             }
