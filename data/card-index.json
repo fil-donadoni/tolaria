@@ -776,6 +776,14 @@
         "firstPrintSet": "one"
     },
     {
+        "name": "Aura Blast",
+        "scryfallId": "090f5ad6-e10e-49b3-8643-51a4e792517c",
+        "oracleId": "4e3c3bdc-667d-42ec-b960-159a39c53cb3",
+        "firstSet": "pls",
+        "firstPrintId": "090f5ad6-e10e-49b3-8643-51a4e792517c",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Aura Mutation",
         "scryfallId": "38421179-615e-4aba-91a4-503bfee05403",
         "oracleId": "19bb51dd-2b93-45f0-927d-bbafddadd0a3",
@@ -806,6 +814,14 @@
         "firstSet": "ice",
         "firstPrintId": "7e973a84-7f7d-4524-9f2f-ec9a014d52ee",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "Aurora Griffin",
+        "scryfallId": "bfd6c695-1944-4bb0-a701-0daf47cdbcb4",
+        "oracleId": "4d74c735-8035-4c42-bfb1-1bc97e5bdd9a",
+        "firstSet": "pls",
+        "firstPrintId": "bfd6c695-1944-4bb0-a701-0daf47cdbcb4",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Avacyn's Pilgrim",
@@ -3032,6 +3048,14 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Disciple of Kangee",
+        "scryfallId": "e268fe16-070b-4b78-9793-59755edb2fd5",
+        "oracleId": "778fb830-2d2b-4f81-a193-e6b652981695",
+        "firstSet": "pls",
+        "firstPrintId": "e268fe16-070b-4b78-9793-59755edb2fd5",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Disenchant",
         "scryfallId": "2722d7e2-61c6-4934-9c21-875ee78fd06c",
         "oracleId": "a7e97fa9-4b72-4548-b854-5be5f18a6f1a",
@@ -3134,6 +3158,14 @@
         "firstSet": "inv",
         "firstPrintId": "05f63cd9-e82b-4cf8-b8ce-f0aa0157692b",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Dominaria's Judgment",
+        "scryfallId": "9703d090-b415-48e2-8158-dd8fc57ecc50",
+        "oracleId": "41998d4d-ca01-4a9c-8bd6-399e4c3e25b1",
+        "firstSet": "pls",
+        "firstPrintId": "9703d090-b415-48e2-8158-dd8fc57ecc50",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Dominate",
@@ -5744,6 +5776,14 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Hobble",
+        "scryfallId": "54c76a22-f9e3-408b-a5bd-403add57e31a",
+        "oracleId": "c2398875-0912-4210-90bd-b2d568a580cf",
+        "firstSet": "pls",
+        "firstPrintId": "54c76a22-f9e3-408b-a5bd-403add57e31a",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Hogaak, Arisen Necropolis",
         "scryfallId": "0049e68d-0caf-474f-9523-dad343f1250a",
         "oracleId": "97acd977-164d-49d5-b3a1-72e0d75c9016",
@@ -5830,6 +5870,14 @@
         "firstSet": "chk",
         "firstPrintId": "ad732186-eeb9-4edb-a17a-51f8bac71802",
         "firstPrintSet": "chk"
+    },
+    {
+        "name": "Honorable Scout",
+        "scryfallId": "bd311758-0352-4b7d-a24f-7f3f2b5d7b0f",
+        "oracleId": "16345f75-f33e-4a31-adb1-d3563358fcec",
+        "firstSet": "pls",
+        "firstPrintId": "bd311758-0352-4b7d-a24f-7f3f2b5d7b0f",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Hooded Kavu",
@@ -7808,6 +7856,14 @@
         "firstPrintSet": "dft"
     },
     {
+        "name": "March of Souls",
+        "scryfallId": "f07dd0f1-b80b-4af0-ae76-907ec55ec7d5",
+        "oracleId": "bca7101b-e74b-42af-ac63-1b3defb4137d",
+        "firstSet": "pls",
+        "firstPrintId": "f07dd0f1-b80b-4af0-ae76-907ec55ec7d5",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Marhault Elsdragon",
         "scryfallId": "67330004-6720-46d9-9de0-c79230110583",
         "oracleId": "c202f124-4283-48f6-aef1-470ad9ded22b",
@@ -9030,6 +9086,14 @@
         "firstSet": "fem",
         "firstPrintId": "5af19ab0-4bd0-4d5f-8d2e-507e4fe87c18",
         "firstPrintSet": "fem"
+    },
+    {
+        "name": "Orim's Chant",
+        "scryfallId": "055afa78-b969-498f-a3ad-c792426e5ee6",
+        "oracleId": "26d3a818-7faf-443a-a6bd-9773edaedf17",
+        "firstSet": "pls",
+        "firstPrintId": "055afa78-b969-498f-a3ad-c792426e5ee6",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Orim's Touch",
@@ -10632,12 +10696,28 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Samite Elder",
+        "scryfallId": "b3c5dccc-2a48-4dcc-a796-fa6fdc11a14e",
+        "oracleId": "8feb27aa-1f62-46e5-ba20-72c712de0862",
+        "firstSet": "pls",
+        "firstPrintId": "b3c5dccc-2a48-4dcc-a796-fa6fdc11a14e",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Samite Healer",
         "scryfallId": "efba235e-04e5-449c-906c-0ac33f6d7929",
         "oracleId": "95a0ca48-d924-47f4-86ed-42c673ee778c",
         "firstSet": "lea",
         "firstPrintId": "efba235e-04e5-449c-906c-0ac33f6d7929",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Samite Pilgrim",
+        "scryfallId": "c12529e4-f4b1-45be-8252-28783badbec5",
+        "oracleId": "542c5eaf-8b03-4406-a794-30c56b61d637",
+        "firstSet": "pls",
+        "firstPrintId": "c12529e4-f4b1-45be-8252-28783badbec5",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Sand Silos",
@@ -12240,6 +12320,14 @@
         "firstPrintSet": "drk"
     },
     {
+        "name": "Sunscape Familiar",
+        "scryfallId": "9621f341-bf85-4b77-bf19-2fb013b4c955",
+        "oracleId": "615603bb-3899-4419-9444-e4b64c94a438",
+        "firstSet": "pls",
+        "firstPrintId": "9621f341-bf85-4b77-bf19-2fb013b4c955",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Sunscape Master",
         "scryfallId": "ebb7203d-529d-45d2-8e03-cd342c153f38",
         "oracleId": "e3be8e19-cec1-43ae-9e22-d7cb374570bb",
@@ -12270,6 +12358,14 @@
         "firstSet": "fin",
         "firstPrintId": "f61693a2-7042-44e0-85ba-9bf12ab94e7e",
         "firstPrintSet": "fin"
+    },
+    {
+        "name": "Surprise Deployment",
+        "scryfallId": "9a26148b-b981-4af5-995b-52b1426737e3",
+        "oracleId": "61a1748c-e772-4338-9edd-720cd5d2fc12",
+        "firstSet": "pls",
+        "firstPrintId": "9a26148b-b981-4af5-995b-52b1426737e3",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Survival of the Fittest",
@@ -13854,6 +13950,14 @@
         "firstSet": "inv",
         "firstPrintId": "f30a5a06-32ce-4d71-b71f-e3e1d8d4511a",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Voice of All",
+        "scryfallId": "75f37536-db3d-4726-9e45-b9108247d0e6",
+        "oracleId": "b1631e9c-a993-4d44-b009-b2624d79560c",
+        "firstSet": "pls",
+        "firstPrintId": "75f37536-db3d-4726-9e45-b9108247d0e6",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Volcanic Eruption",
