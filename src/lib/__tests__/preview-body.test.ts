@@ -228,3 +228,44 @@ describe("buildPreviewBody — chosen mode in the live oracle text", () => {
         expect(body.oracleParagraphs?.some((p) => p.includes("("))).toBe(false);
     });
 });
+
+// CR 614.12 / 201.3 — a permanent that named a card as it entered (Meddling
+// Mage) must SAY which one in its live rules box. The printed text only says
+// "the chosen name", and the pick is per-instance: two Mages on the same board
+// lock different cards, so without this the board had no way to read either.
+describe("buildPreviewBody — chosen card name in the live oracle text", () => {
+    const MEDDLING_MAGE = getCardByName("Meddling Mage");
+
+    function mage(chosenName?: string): CardInstance {
+        return {
+            id: "mage-1",
+            card: { id: MEDDLING_MAGE.id },
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            isTapped: false,
+            types: ["Creature"],
+            subtypes: ["Human", "Wizard"],
+            ...(chosenName ? { chosenName } : {}),
+        } as CardInstance;
+    }
+
+    it("names the chosen card next to the printed phrase", () => {
+        const body = buildPreviewBody(MEDDLING_MAGE.id, mage("Lightning Bolt"));
+        const line = body.oracleParagraphs?.find((p) => /chosen name/i.test(p));
+        expect(line).toBeDefined();
+        expect(line).toContain("(Lightning Bolt)");
+    });
+
+    it("is per-instance — a second Mage shows its own pick", () => {
+        const body = buildPreviewBody(MEDDLING_MAGE.id, mage("Counterspell"));
+        expect(
+            body.oracleParagraphs?.find((p) => /chosen name/i.test(p))
+        ).toContain("(Counterspell)");
+    });
+
+    it("leaves the printed text alone before a name is chosen (CR 400.7 — a reanimated Mage has none)", () => {
+        const body = buildPreviewBody(MEDDLING_MAGE.id, mage());
+        expect(body.oracleParagraphs?.some((p) => p.includes("("))).toBe(false);
+    });
+});

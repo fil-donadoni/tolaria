@@ -196,6 +196,7 @@ function compactCard(
     }
     if (card.startedTurnUntapped) out.startedTurnUntapped = true;
     if (card.chosenModeId) out.chosenModeId = card.chosenModeId;
+    if (card.chosenName) out.chosenName = card.chosenName;
     if (card.manaCommitted) out.manaCommitted = true;
     if (card.tapTriggerCommitted) out.tapTriggerCommitted = true;
     if (card.damageMarked) out.damageMarked = card.damageMarked;
@@ -524,6 +525,7 @@ function expandCard(
 
     if (compact.chosenModeId)
         result.chosenModeId = compact.chosenModeId as string;
+    if (compact.chosenName) result.chosenName = compact.chosenName as string;
     if (compact.isToken) result.isToken = true;
     if (compact.isSummoningSick) result.isSummoningSick = true;
     if (typeof compact.enteredOnTurn === "number") {

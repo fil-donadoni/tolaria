@@ -352,6 +352,14 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Ancient Spider",
+        "scryfallId": "75ca99de-57e7-47c4-b40a-6e41e3b18069",
+        "oracleId": "28537019-3061-4efc-8e87-9bb805bf520f",
+        "firstSet": "pls",
+        "firstPrintId": "75ca99de-57e7-47c4-b40a-6e41e3b18069",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Ancient Spring",
         "scryfallId": "004eefa4-947b-45fc-b45c-5263bfd763bc",
         "oracleId": "2160849a-184f-4a49-8931-fd021e16f7cb",
@@ -1904,6 +1912,14 @@
         "firstPrintSet": "drk"
     },
     {
+        "name": "Cavern Harpy",
+        "scryfallId": "adfb0804-50d6-4bca-8733-72e01030a543",
+        "oracleId": "81c40bd8-b989-41e8-9527-eae8fb87311d",
+        "firstSet": "pls",
+        "firstPrintId": "adfb0804-50d6-4bca-8733-72e01030a543",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Caverns of Despair",
         "scryfallId": "209f7479-b3a0-4c27-9602-78babb8d2e99",
         "oracleId": "a1034a02-36cf-4586-a001-9dc3fb76e904",
@@ -2206,6 +2222,14 @@
         "firstSet": "lea",
         "firstPrintId": "f00d33dd-4eb2-4446-9813-1923d8e2d2f3",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Cloud Cover",
+        "scryfallId": "943b3886-5556-474f-8dc1-18219e25abc3",
+        "oracleId": "a4cd8dd1-adb9-4c4c-bda9-6f6b6c167702",
+        "firstSet": "pls",
+        "firstPrintId": "943b3886-5556-474f-8dc1-18219e25abc3",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Coal Golem",
@@ -2768,6 +2792,14 @@
         "firstPrintSet": "pls"
     },
     {
+        "name": "Daring Leap",
+        "scryfallId": "37ec6c4b-2de0-4759-a25d-007706cb18cc",
+        "oracleId": "10bc00f7-d501-46e3-9f23-af1ddc3f6c4c",
+        "firstSet": "pls",
+        "firstPrintId": "37ec6c4b-2de0-4759-a25d-007706cb18cc",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Dark Banishing",
         "scryfallId": "f7dc2716-ed62-4797-ad2b-227eca5408d0",
         "oracleId": "0df450be-9bd2-45be-ae59-fa8d19f6a391",
@@ -3240,6 +3272,14 @@
         "firstPrintSet": "nem"
     },
     {
+        "name": "Doomsday Specter",
+        "scryfallId": "85206cc1-5484-40c6-b11d-b8d6fad4fc5c",
+        "oracleId": "5811effb-5010-44b9-bb97-9d7eb358327f",
+        "firstSet": "pls",
+        "firstPrintId": "85206cc1-5484-40c6-b11d-b8d6fad4fc5c",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Draconian Cylix",
         "scryfallId": "a419c9e3-5615-44f9-9256-94a3022bb69f",
         "oracleId": "0880b36a-6141-4955-b532-cf88daca0869",
@@ -3286,6 +3326,14 @@
         "firstSet": "lea",
         "firstPrintId": "ea3830c5-cc66-453e-9e53-0636e00ee0ee",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Dralnu's Crusade",
+        "scryfallId": "6a35d227-4489-4a0b-8f81-eb8e5949e1fc",
+        "oracleId": "ff48cf80-4950-4ae4-9f7c-8d826b2f26f7",
+        "firstSet": "pls",
+        "firstPrintId": "6a35d227-4489-4a0b-8f81-eb8e5949e1fc",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Dread Wight",
@@ -3598,6 +3646,14 @@
         "firstSet": "arn",
         "firstPrintId": "c4b610d3-2005-4347-bcda-c30b5b7972e5",
         "firstPrintSet": "arn"
+    },
+    {
+        "name": "Eladamri's Call",
+        "scryfallId": "dcb79f39-5ef3-4ad6-9a43-04beb27d8480",
+        "oracleId": "4acb6612-54e8-428d-acb6-c7259a5ad6a8",
+        "firstSet": "pls",
+        "firstPrintId": "dcb79f39-5ef3-4ad6-9a43-04beb27d8480",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Elder Druid",
@@ -4456,6 +4512,14 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Fleetfoot Panther",
+        "scryfallId": "b70220d8-f81b-44a4-b92e-d66de8c1b4ce",
+        "oracleId": "d99e8f94-4a8a-42a1-b5d0-2b08cacb8676",
+        "firstSet": "pls",
+        "firstPrintId": "b70220d8-f81b-44a4-b92e-d66de8c1b4ce",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Flickerwisp",
         "scryfallId": "5bb3cb5c-8d66-4f5e-a9a9-917e6045f024",
         "oracleId": "b23a3d30-6b8e-4aad-890f-db0c3af43ace",
@@ -4974,6 +5038,14 @@
         "firstSet": "inv",
         "firstPrintId": "e744b593-13fe-4967-b492-ac02f5815e57",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Gerrard's Command",
+        "scryfallId": "d0fda263-b6a7-43e3-998a-72a9d84c4572",
+        "oracleId": "de8ebe4b-d86d-478b-946e-f83e1409b63f",
+        "firstSet": "pls",
+        "firstPrintId": "d0fda263-b6a7-43e3-998a-72a9d84c4572",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Ghazbán Ogre",
@@ -6000,6 +6072,14 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Horned Kavu",
+        "scryfallId": "ecd79fbf-626d-4549-917b-435f16b973d9",
+        "oracleId": "14817050-9f2d-453f-b36b-e6429fa29165",
+        "firstSet": "pls",
+        "firstPrintId": "ecd79fbf-626d-4549-917b-435f16b973d9",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Hornet Cobra",
         "scryfallId": "27180bad-9bbc-462b-8832-626dc403a3fd",
         "oracleId": "4958baf3-2f5a-4087-bc14-ffee9887db1d",
@@ -6038,6 +6118,14 @@
         "firstSet": "lea",
         "firstPrintId": "51f8f6e1-a451-4262-90d3-5107caf54175",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Hull Breach",
+        "scryfallId": "6907fa19-29ed-4319-8835-68f424c92831",
+        "oracleId": "2da232d8-580f-4116-b977-2c59cd21b5a4",
+        "firstSet": "pls",
+        "firstPrintId": "6907fa19-29ed-4319-8835-68f424c92831",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Hullbreacher",
@@ -7392,6 +7480,14 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Lava Zombie",
+        "scryfallId": "fd87185b-1242-4fb3-abee-44bc267ee5fb",
+        "oracleId": "2232c38e-49eb-4823-a325-2342a952db72",
+        "firstSet": "pls",
+        "firstPrintId": "fd87185b-1242-4fb3-abee-44bc267ee5fb",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Lavaspur Boots",
         "scryfallId": "e50709de-e6ef-4dbc-af1e-290fed279f34",
         "oracleId": "63bfb9ca-d9d5-4c17-be39-82eb115bc20c",
@@ -7896,6 +7992,14 @@
         "firstPrintSet": "mh3"
     },
     {
+        "name": "Malicious Advice",
+        "scryfallId": "7b1547c2-ae9f-4871-a675-4026bf20e7e1",
+        "oracleId": "14c1adf8-950b-4f64-9c84-956a623448f4",
+        "firstSet": "pls",
+        "firstPrintId": "7b1547c2-ae9f-4871-a675-4026bf20e7e1",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Mana Clash",
         "scryfallId": "72955141-d990-459f-adbe-7d3d0f5f6c95",
         "oracleId": "a2f5a5fd-14dc-48e8-bdb0-984a83288023",
@@ -8040,6 +8144,14 @@
         "firstPrintSet": "leg"
     },
     {
+        "name": "Marsh Crocodile",
+        "scryfallId": "813279d1-d7bd-4d49-bd9d-fc9a6595dd39",
+        "oracleId": "1d6f3934-d8f1-4758-b87a-8df8d7dc492c",
+        "firstSet": "pls",
+        "firstPrintId": "813279d1-d7bd-4d49-bd9d-fc9a6595dd39",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Marsh Flats",
         "scryfallId": "45026d57-0324-4312-8b86-2e7d4f581ee9",
         "oracleId": "dab520d0-20b4-4273-ba6b-eb07f85ea433",
@@ -8118,6 +8230,14 @@
         "firstSet": "drk",
         "firstPrintId": "42dcceee-2a47-4eaa-a6a3-2931b3d50244",
         "firstPrintSet": "drk"
+    },
+    {
+        "name": "Meddling Mage",
+        "scryfallId": "176f84c6-aa5e-449c-bd2b-cc91a898f0c7",
+        "oracleId": "a5d02339-9f6d-486e-87d8-5ec2274cf680",
+        "firstSet": "pls",
+        "firstPrintId": "176f84c6-aa5e-449c-bd2b-cc91a898f0c7",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Meekstone",
@@ -8830,6 +8950,14 @@
         "firstSet": "war",
         "firstPrintId": "8c39f9b4-02b9-4d44-b8d6-4fd02ebbb0c5",
         "firstPrintSet": "war"
+    },
+    {
+        "name": "Natural Emergence",
+        "scryfallId": "c3eb4857-7c66-42e4-913c-97a0306366d5",
+        "oracleId": "ce19d2dd-4b2c-493e-8963-ad97649248e2",
+        "firstSet": "pls",
+        "firstPrintId": "c3eb4857-7c66-42e4-913c-97a0306366d5",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Natural Order",
@@ -10400,6 +10528,14 @@
         "firstPrintSet": "jud"
     },
     {
+        "name": "Razing Snidd",
+        "scryfallId": "d2090b80-2ce2-4c9a-87fe-d221f3c677b4",
+        "oracleId": "bbcd2045-cf51-4346-a561-ebae8ffdc181",
+        "firstSet": "pls",
+        "firstPrintId": "d2090b80-2ce2-4c9a-87fe-d221f3c677b4",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Razorfoot Griffin",
         "scryfallId": "819e2046-9b78-4fd0-92f8-798bfac51195",
         "oracleId": "c7ecb785-2bfc-4953-b356-db7c27406dbb",
@@ -11104,6 +11240,14 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Sawtooth Loon",
+        "scryfallId": "31b0a87f-e946-4ef1-b30d-fe32c19a0f52",
+        "oracleId": "b917e472-2550-4381-b756-45487c2c187a",
+        "firstSet": "pls",
+        "firstPrintId": "31b0a87f-e946-4ef1-b30d-fe32c19a0f52",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Scalding Tarn",
         "scryfallId": "327cf118-cc92-4073-85d0-94d2a0a6989a",
         "oracleId": "cb027150-848c-4a66-88ad-e20222304dd8",
@@ -11576,6 +11720,14 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Shivan Wurm",
+        "scryfallId": "4bc72997-78b0-47aa-a029-bf55f77c3e73",
+        "oracleId": "fc988ce3-0cad-41a5-8f13-656caca732df",
+        "firstSet": "pls",
+        "firstPrintId": "4bc72997-78b0-47aa-a029-bf55f77c3e73",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Shivan Zombie",
         "scryfallId": "f4c99269-f730-4d33-bbce-9e855e9ad0fc",
         "oracleId": "fb3d438e-5e04-45a0-8d16-db63f0faff75",
@@ -11614,6 +11766,14 @@
         "firstSet": "ice",
         "firstPrintId": "47364ad2-5ce9-4b19-a9d2-f6a33188b882",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "Silver Drake",
+        "scryfallId": "ac35ee86-96b2-47aa-a1ba-2988737f11ee",
+        "oracleId": "ec7eb7d8-92b2-4442-856e-a9790301c3b3",
+        "firstSet": "pls",
+        "firstPrintId": "ac35ee86-96b2-47aa-a1ba-2988737f11ee",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Silver Erne",
@@ -12128,6 +12288,14 @@
         "firstPrintSet": "snc"
     },
     {
+        "name": "Sparkcaster",
+        "scryfallId": "daf442b3-fa39-4f6a-90a0-22dcd9df649c",
+        "oracleId": "84c912e8-6a92-47f7-88b6-e777bd0bb424",
+        "firstSet": "pls",
+        "firstPrintId": "daf442b3-fa39-4f6a-90a0-22dcd9df649c",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Sparring Golem",
         "scryfallId": "d829d9de-83fa-4feb-8efc-0075315163c6",
         "oracleId": "c54879da-0f1d-4ad0-b082-95f0e4d35685",
@@ -12406,6 +12574,14 @@
         "firstSet": "gpt",
         "firstPrintId": "054f2276-2dd5-43da-bb26-c57c560861fe",
         "firstPrintSet": "gpt"
+    },
+    {
+        "name": "Steel Leaf Paladin",
+        "scryfallId": "28e8697f-fdf3-4a1a-a84d-dd29b17336c2",
+        "oracleId": "15e0250e-a23b-499a-a8d2-24fc13084c28",
+        "firstSet": "pls",
+        "firstPrintId": "28e8697f-fdf3-4a1a-a84d-dd29b17336c2",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Stench of Evil",
@@ -13062,6 +13238,14 @@
         "firstSet": "scg",
         "firstPrintId": "0559352e-95c1-403b-bd8f-d0679717cfa2",
         "firstPrintSet": "scg"
+    },
+    {
+        "name": "Terminate",
+        "scryfallId": "190ca502-672d-4cc0-b6e0-b9de517058d0",
+        "oracleId": "6257c2fd-005f-41e3-8a72-af76df1eb134",
+        "firstSet": "pls",
+        "firstPrintId": "190ca502-672d-4cc0-b6e0-b9de517058d0",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Terror",
@@ -14102,6 +14286,14 @@
         "firstSet": "inv",
         "firstPrintId": "680c75b1-e766-40be-84d7-2332047bb3de",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Urza's Guilt",
+        "scryfallId": "d429233e-1cf9-4f87-b191-894a73e7a876",
+        "oracleId": "b0aeeeb6-490c-4638-a4ad-498e4d85413e",
+        "firstSet": "pls",
+        "firstPrintId": "d429233e-1cf9-4f87-b191-894a73e7a876",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Urza's Mine",

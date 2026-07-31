@@ -509,6 +509,58 @@ function enumerateTargetTuples(
     return tuples.length > 0 ? tuples : min === 0 ? [[]] : [];
 }
 
+/** CR 601.2c — every legal target tuple across ALL of a cast's independent
+ *  target GROUPS (the primary requirement plus each
+ *  `additionalTargetRequirements` entry, card- or mode-level), as the FLAT
+ *  concatenation the rest of the pipeline expects.
+ *
+ *  Flat is the authoritative shape, not a convenience: `finalizeTargetSelection`
+ *  (`game.ts`) commits `[...priorSelected, ...selected]` onto the stack item in
+ *  declaration order, and an Effect Script reads groups positionally off that
+ *  one list (`{ target: 0 }` = the artifact, `{ target: 1 }` = the enchantment
+ *  for Hull Breach's third mode). Producing the same flat list here means both
+ *  the executor (one batched `selectTargets`) and the in-search appliers — which
+ *  copy `move.targets` straight onto the stack item — get the complete
+ *  announcement, so mode `both` no longer evaluates identically to mode
+ *  `artifact` in the tree.
+ *
+ *  Groups are enumerated independently against the SAME pre-cast board the
+ *  server validates each group against in `announceCast`, and the cartesian
+ *  product is capped at `MAX_COMBINATIONS`. An empty group list, or one whose
+ *  requirements are all absent/zero-count, yields the single empty tuple. */
+function enumerateTargetGroupTuples(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    groups: (TargetRequirement | undefined)[],
+    chosenX: number | undefined
+): TargetSelection[][] {
+    let acc: TargetSelection[][] = [[]];
+    for (const req of groups) {
+        const groupTuples = enumerateTargetTuples(
+            state,
+            player,
+            card,
+            req,
+            chosenX
+        );
+        // CR 601.2c — a group with no legal way to be filled makes the whole
+        // announcement illegal (`announceCast` throws "Not enough legal
+        // targets"), so the cast is not a move at all.
+        if (groupTuples.length === 0) return [];
+        const next: TargetSelection[][] = [];
+        for (const prefix of acc) {
+            for (const tuple of groupTuples) {
+                next.push([...prefix, ...tuple]);
+                if (next.length >= MAX_COMBINATIONS) break;
+            }
+            if (next.length >= MAX_COMBINATIONS) break;
+        }
+        acc = next;
+    }
+    return acc;
+}
+
 /** CR 601.2c (issue #1104) — true iff every PERMANENT-type target in `combo`
  *  shares one live controllerId (Barrin's Spite's "two target creatures
  *  controlled by the same player"). A combo of size ≤ 1, or one with no
@@ -565,13 +617,54 @@ function enumerateCastMoves(
     }
 
     // Modal spells (CR 700.2): one variant per mode, each with its own targets.
+    //
+    // CR 601.2c — a variant's target requirements are a LIST of independent
+    // GROUPS, not a single requirement: the primary one plus every entry of
+    // `additionalTargetRequirements` (Fumarole's "target creature and target
+    // land"; Hull Breach's third mode, whose groups live on the MODE, issue
+    // #1953). Reading only the primary requirement here enumerated a mode-3
+    // Hull Breach with ONE target: `announceCast` then filled group 0, left the
+    // enchantment group pending, and the executor's next `tapForPayment` threw
+    // on `assertExpectedInput(expect: "priority")` — the Bot stalling on a move
+    // it generated itself.
+    //
+    // Both `??` chains below are the SAME shape `announceCast` uses, checked
+    // line by line against `game.ts`:
+    //  - primary  ← `chosenMode?.targetRequirement ??
+    //    kickerAdjustedTargetRequirement(cardDef, kickerPayments)`
+    //    (game.ts `activeTargetRequirement`). `??`, NOT a ternary on `mode`:
+    //    a modal card whose chosen MODE carries no requirement while the CARD
+    //    does — Prismatic Ward, Chromatic Armor, Magical Hack, Phantasmal
+    //    Terrain, Sleight of Mind, where `modes` are the as-enters colour /
+    //    subtype pick and the target lives on the card — must still fall back
+    //    to the card level. A ternary yielded `undefined` for every mode, so
+    //    the Bot emitted one zero-target cast per colour and the executor's
+    //    next `tapForPayment` threw the same `expect: "priority"` stall.
+    //    `kickerAdjustedTargetRequirement` reduces to `cardDef
+    //    .targetRequirement` here because this enumerator never pays kicker
+    //    (no `kickerPayments` anywhere in this file), so the fallback is
+    //    identical for every move it can emit.
+    //  - extra    ← `chosenMode?.additionalTargetRequirements ??
+    //    cardDef.additionalTargetRequirements ?? []` (game.ts
+    //    `additionalRequirements`) — textually the same chain.
+    const groupsFor = (mode?: {
+        targetRequirement?: TargetRequirement;
+        additionalTargetRequirements?: TargetRequirement[];
+    }): (TargetRequirement | undefined)[] => {
+        const primary = mode?.targetRequirement ?? def?.targetRequirement;
+        const extra =
+            mode?.additionalTargetRequirements ??
+            def?.additionalTargetRequirements ??
+            [];
+        return [primary, ...extra];
+    };
     const modeVariants =
         def?.modes && def.modes.length > 0
             ? def.modes.map((m) => ({
                   modeId: m.id as string | undefined,
-                  req: m.targetRequirement,
+                  groups: groupsFor(m),
               }))
-            : [{ modeId: undefined, req: def?.targetRequirement }];
+            : [{ modeId: undefined, groups: groupsFor() }];
 
     // X spells: enumerate X = 0..maxAffordable. Fixed (numeric) costs use a
     // single X = undefined. The X ceiling comes from the SHARED
@@ -630,7 +723,22 @@ function enumerateCastMoves(
         phyPips === 0 ? getCostModifiers(state, card, "spell") : undefined;
 
     const moves: Move[] = [];
-    for (const { modeId, req } of modeVariants) {
+    for (const { modeId, groups } of modeVariants) {
+        // CR 601.2c — the executor sends every announced target in ONE batched
+        // `selectTargets` call and then AT MOST ONE trailing `confirmTargets`.
+        // A fixed-count group auto-advances inside that batch
+        // (`advanceTargetGroupOrFinalize` mutates the pending target in place,
+        // so the batch's identity pin still holds), which is what makes a flat
+        // concatenation of the groups executable. A VARIABLE-count group
+        // (X / `{min,max}`) does NOT auto-advance — it waits for its own
+        // confirm — so only the LAST group may be variable; anything else
+        // would need a confirm mid-batch the executor has no shape for. This
+        // is a structural property of the requirement list, not a card list:
+        // no shipped card has a non-final variable group, and if one lands the
+        // Bot declines to enumerate it rather than emitting an unexecutable
+        // move.
+        if (groups.slice(0, -1).some((g) => isVariableCount(g))) continue;
+        const lastReq = groups[groups.length - 1];
         for (const x of xValues) {
             const normCost = normalizeManaCost(rawCost, { chosenX: x ?? 0 });
             // CR 601.2f (ADR 0063, issue #1337) — fold in battlefield
@@ -701,11 +809,11 @@ function enumerateCastMoves(
             }
             const tapPlan = planManaPayment(state, player, normCost);
             if (tapPlan === null) continue;
-            for (const targets of enumerateTargetTuples(
+            for (const targets of enumerateTargetGroupTuples(
                 state,
                 player,
                 card,
-                req,
+                groups,
                 x
             )) {
                 moves.push({
@@ -714,7 +822,10 @@ function enumerateCastMoves(
                     chosenModeId: modeId,
                     chosenX: x,
                     targets,
-                    confirmTargets: isVariableCount(req) && targets.length > 0,
+                    // Only the LAST group can be variable (guarded above), so
+                    // it alone decides whether the cast needs a confirm.
+                    confirmTargets:
+                        isVariableCount(lastReq) && targets.length > 0,
                     tapPlan,
                     ...(payLife > 0 ? { payLife } : {}),
                 });

@@ -284,6 +284,13 @@ export type CardInstanceState = {
      *  from the stack to the battlefield so the layer system can read
      *  mode-specific static effects (e.g. Phantasmal Terrain). */
     chosenModeId?: string;
+    /** CR 614.12 as-enters NAME choice (issue #1953 — Meddling Mage). Written
+     *  by `SpellContext.setSelfChosenName` onto the permanent spell still on
+     *  the stack, so it is already present the moment the permanent enters and
+     *  its continuous effects start applying. Persisted (a `cast-restriction`
+     *  static reads it on every later cast attempt, so it must survive the DB
+     *  write); the open-ended twin of `chosenModeId`. */
+    chosenName?: string;
     /** Set when this land's mana has been consumed by a spell. Cannot be manually untapped. Resets at untap step. */
     manaCommitted?: boolean;
     /** Set when this source's most-recent tap-for-mana caused one or more
@@ -8880,6 +8887,15 @@ function resetBattlefieldTransientState(card: CardInstanceState): void {
     // at all (CR 601.2b applies to casting only) — would inherit the old one.
     delete card.chosenXOnCast;
     delete (card as { chosenX?: number }).chosenX;
+    // CR 614.12 / 400.7 (issue #1953) — the as-enters chosen card NAME
+    // (Meddling Mage) is a fact about the OBJECT that entered; a zone change
+    // makes a new object, and the new entry owes its own CR 614.12 choice.
+    // Exactly the `chosenPlayerId` / `chosenSubtypes` / `chosenXOnCast` pairs
+    // above. Left uncleared, a Mage that died naming "Lightning Bolt" and came
+    // back by a NON-cast path (reanimation, `putFromHandOntoBattlefield` —
+    // paths that never run the creature spell's `resolveSteps`, so no new name
+    // is ever asked for) would silently re-lock the old name.
+    delete card.chosenName;
 }
 
 /** Phase 1 of reanimation (issue #1094, CR 400.7): clears battlefield-only
@@ -9826,6 +9842,20 @@ export function buildSpellContext(
                 }
                 recipient.staticAbilities = next;
             }
+        },
+
+        setSelfChosenName(name: string): void {
+            // CR 614.12 — an as-enters NAME choice, stamped on the object that
+            // is entering. Recipient resolution is deliberately identical to
+            // `setSelfBody` above: during a permanent spell's `resolveSteps`
+            // the recipient is the spell still on the stack (`item`, about to
+            // enter the battlefield), so the name is already in place when the
+            // permanent's continuous effects begin applying (CR 614.12's whole
+            // point — the choice is made as part of the entry, never after).
+            const recipient =
+                findOnBattlefield(state, item.triggerSourceId ?? item.id)
+                    ?.card ?? item;
+            recipient.chosenName = name;
         },
 
         forEachPlayer(fn: (playerId: string) => void) {
