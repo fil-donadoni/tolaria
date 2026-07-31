@@ -3,7 +3,13 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition, Color, TriggeredAbility } from "../../types";
+import type {
+    CardDefinition,
+    CardPrint,
+    Color,
+    TriggeredAbility,
+} from "../../types";
+import { PERMANENT_TYPES } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { drawTrigger } from "../../abilities/triggers/drawTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
@@ -1244,6 +1250,446 @@ export const meddlingMage: CardDefinition = {
             forbids: (_caster, spell, source, _state, ctx) =>
                 source.chosenName !== undefined &&
                 ctx.getName(spell) === source.chosenName,
+        },
+    ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLS free tranche — three-colour gold cards + Ertai / Phelddagrif (#1954,
+// parent PRD #1935). The four wedge Charms (Crosis's / Darigaaz's / Dromar's /
+// Treva's) are modal instants (CR 601.2b "Choose one —"): the mode is chosen
+// at ANNOUNCEMENT, before the spell goes on the stack, so each is
+// `CardDefinition.modes: SpellMode[]` (the cast-time modal framework) rather
+// than a resolution-time `optionChoice` Op — `optionChoice`'s own registry
+// note and the catalogue guard `modalSpells.test.ts` both close that
+// substitution for a genuine CR 700.2 spell mode (issue #1274). Each mode's
+// body is an ordinary `effects: EffectOp[]`, the exact shape Hull Breach
+// (this file, above) already ships. Every mode reuses already-exercised Ops
+// (destroy / moveZone / dealDamage / pump / gainLife / counter / exile /
+// draw / discard / choice) — no new Op, no `resolve()`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Crosis's Charm — {U}{B}{R} Instant. "Choose one — Return target permanent
+// to its owner's hand. / Destroy target nonblack creature. It can't be
+// regenerated. / Destroy target artifact." (Modern Oracle text, verified
+// against Scryfall — the 2001 printing read differently.) Mode 2 mirrors Dark
+// Banishing's `excludeColors` + `cantBeRegenerated` shape exactly (ice/black.ts).
+export const crosissCharm: CardDefinition = {
+    id: "b59a9e75-9988-4040-a718-b1655fc20d11", // PLS 99
+    rarity: "uncommon",
+    name: "Crosis's Charm",
+    oracleText:
+        "Choose one —\n• Return target permanent to its owner's hand.\n• Destroy target nonblack creature. It can't be regenerated.\n• Destroy target artifact.",
+    manaCost: { U: 1, B: 1, R: 1 },
+    types: ["Instant"],
+    modes: [
+        {
+            id: "bounce",
+            label: "Return target permanent to its owner's hand",
+            oracleText: "Return target permanent to its owner's hand.",
+            // "target permanent" of any type (Boomerang precedent, leg/blue.ts):
+            // `type: "any"` only covers the CR 115.4 damageable set, so the
+            // full CR 300.1 permanent-type list is used instead.
+            targetRequirement: { type: [...PERMANENT_TYPES], count: 1 },
+            effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
+        },
+        {
+            id: "destroy-nonblack-creature",
+            label: "Destroy target nonblack creature. It can't be regenerated.",
+            oracleText:
+                "Destroy target nonblack creature. It can't be regenerated.",
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                excludeColors: "B",
+            },
+            effects: [
+                {
+                    op: "destroy",
+                    target: { target: 0 },
+                    cantBeRegenerated: true,
+                },
+            ],
+        },
+        {
+            id: "destroy-artifact",
+            label: "Destroy target artifact",
+            oracleText: "Destroy target artifact.",
+            targetRequirement: { type: "Artifact", count: 1 },
+            effects: [{ op: "destroy", target: { target: 0 } }],
+        },
+    ],
+};
+
+// Darigaaz's Charm — {B}{R}{G} Instant. "Choose one — Return target creature
+// card from your graveyard to your hand. / Darigaaz's Charm deals 3 damage to
+// any target. / Target creature gets +3/+3 until end of turn." Mode 1 mirrors
+// Raise Dead's graveyard-target shape (lea/black.ts); mode 3 mirrors Giant
+// Growth's `pump` shape (lea/green.ts).
+export const darigaazsCharm: CardDefinition = {
+    id: "cf4c9d6a-86eb-45be-9405-473eb263b94c", // PLS 100
+    rarity: "uncommon",
+    name: "Darigaaz's Charm",
+    oracleText:
+        "Choose one —\n• Return target creature card from your graveyard to your hand.\n• Darigaaz's Charm deals 3 damage to any target.\n• Target creature gets +3/+3 until end of turn.",
+    manaCost: { B: 1, R: 1, G: 1 },
+    types: ["Instant"],
+    modes: [
+        {
+            id: "regrowth-creature",
+            label: "Return target creature card from your graveyard to your hand",
+            oracleText:
+                "Return target creature card from your graveyard to your hand.",
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                zone: "graveyard",
+                controller: "you",
+            },
+            effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
+        },
+        {
+            id: "damage",
+            label: "Darigaaz's Charm deals 3 damage to any target",
+            oracleText: "Darigaaz's Charm deals 3 damage to any target.",
+            targetRequirement: { type: "any", count: 1 },
+            effects: [{ op: "dealDamage", amount: 3, to: { target: 0 } }],
+        },
+        {
+            id: "pump",
+            label: "Target creature gets +3/+3 until end of turn",
+            oracleText: "Target creature gets +3/+3 until end of turn.",
+            targetRequirement: { type: "Creature", count: 1 },
+            effects: [
+                {
+                    op: "pump",
+                    target: { target: 0 },
+                    power: 3,
+                    toughness: 3,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
+};
+
+// Dromar's Charm — {W}{U}{B} Instant. "Choose one — You gain 5 life. /
+// Counter target spell. / Target creature gets -2/-2 until end of turn."
+export const dromarsCharm: CardDefinition = {
+    id: "c7a1894c-af4e-4530-960f-2225916be8cb", // PLS 105
+    rarity: "uncommon",
+    name: "Dromar's Charm",
+    oracleText:
+        "Choose one —\n• You gain 5 life.\n• Counter target spell.\n• Target creature gets -2/-2 until end of turn.",
+    manaCost: { W: 1, U: 1, B: 1 },
+    types: ["Instant"],
+    modes: [
+        {
+            id: "gain-life",
+            label: "You gain 5 life",
+            oracleText: "You gain 5 life.",
+            effects: [{ op: "gainLife", player: "controller", amount: 5 }],
+        },
+        {
+            id: "counter",
+            label: "Counter target spell",
+            oracleText: "Counter target spell.",
+            targetRequirement: { type: "spell", count: 1 },
+            effects: [{ op: "counter", target: { target: 0 } }],
+        },
+        {
+            id: "shrink",
+            label: "Target creature gets -2/-2 until end of turn",
+            oracleText: "Target creature gets -2/-2 until end of turn.",
+            targetRequirement: { type: "Creature", count: 1 },
+            effects: [
+                {
+                    op: "pump",
+                    target: { target: 0 },
+                    power: -2,
+                    toughness: -2,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
+};
+
+// Treva's Charm — {G}{W}{U} Instant. "Choose one — Destroy target
+// enchantment. / Exile target attacking creature. / Draw a card, then discard
+// a card." Mode 2's `combatRoleFilter: "attacking"` mirrors the DRK
+// precedent (drk/colorless.ts); mode 3's draw-then-discard mirrors Jalum
+// Tome's loot shape (atq/colorless.ts).
+export const trevasCharm: CardDefinition = {
+    id: "72acb67d-01cb-4fde-8b0b-199e8d1e396a", // PLS 129
+    rarity: "uncommon",
+    name: "Treva's Charm",
+    oracleText:
+        "Choose one —\n• Destroy target enchantment.\n• Exile target attacking creature.\n• Draw a card, then discard a card.",
+    manaCost: { G: 1, W: 1, U: 1 },
+    types: ["Instant"],
+    modes: [
+        {
+            id: "destroy-enchantment",
+            label: "Destroy target enchantment",
+            oracleText: "Destroy target enchantment.",
+            targetRequirement: { type: "Enchantment", count: 1 },
+            effects: [{ op: "destroy", target: { target: 0 } }],
+        },
+        {
+            id: "exile-attacker",
+            label: "Exile target attacking creature",
+            oracleText: "Exile target attacking creature.",
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                combatRoleFilter: "attacking",
+            },
+            effects: [{ op: "exile", target: { target: 0 } }],
+        },
+        {
+            id: "loot",
+            label: "Draw a card, then discard a card",
+            oracleText: "Draw a card, then discard a card.",
+            effects: [
+                { op: "draw", player: "controller", count: 1 },
+                {
+                    op: "choice",
+                    kind: "choose-hand-card",
+                    player: "controller",
+                    zone: "hand",
+                    count: 1,
+                    prompt: "Discard a card.",
+                    bind: "$discard",
+                },
+                {
+                    op: "discard",
+                    player: "controller",
+                    cards: { ref: "$discard" },
+                },
+            ],
+        },
+    ],
+};
+
+// Destructive Flow — {B}{R}{G} Enchantment. "At the beginning of each
+// player's upkeep, that player sacrifices a nonbasic land of their choice."
+// (Modern Oracle — the 2001 printing read "loses 2 life" for a nonland
+// permanent; current wording is the land-sacrifice-only version verified via
+// Scryfall.) Mirrors Mana Vortex's each-upkeep land-sacrifice trigger
+// (drk/blue.ts) exactly, filtered to nonbasic via `excludeSupertype: "Basic"`
+// instead of a bare land filter. `{ ref: "$event.activePlayerId" }` (issue
+// #1066 / ADR 0049) reads the player whose upkeep it is — needed under
+// `scope: "each"`, where that differs from the ability's own `"controller"`
+// on the opponent's turn. Zero matching nonbasic lands clamps the choice to
+// zero and the sacrifice is a no-op (CR 701.16a / 608.2b).
+export const destructiveFlow: CardDefinition = {
+    id: "7db86e34-c3ec-4a29-8779-81350a985644", // PLS 102
+    rarity: "rare",
+    name: "Destructive Flow",
+    oracleText:
+        "At the beginning of each player's upkeep, that player sacrifices a nonbasic land of their choice.",
+    manaCost: { B: 1, R: 1, G: 1 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "destructive-flow-upkeep-sac",
+            oracleText:
+                "At the beginning of each player's upkeep, that player sacrifices a nonbasic land of their choice.",
+            phase: "UPKEEP",
+            scope: "each",
+            effects: [
+                {
+                    op: "choice",
+                    kind: "sacrifice-permanents",
+                    player: { ref: "$event.activePlayerId" },
+                    zone: "battlefield",
+                    filter: { type: "Land", excludeSupertype: "Basic" },
+                    count: 1,
+                    prompt: "Destructive Flow: sacrifice a nonbasic land.",
+                    bind: "$sac",
+                },
+                { op: "sacrifice", permanents: { ref: "$sac" } },
+            ],
+        }),
+    ],
+};
+
+// Ertai, the Corrupted — {2}{W}{U}{B} Legendary Creature — Phyrexian Human
+// Wizard, 3/4. "{U}, {T}, Sacrifice a creature or enchantment: Counter target
+// spell." (Modern Oracle — the 2001 printing additionally named "activated or
+// triggered ability"; current wording, verified via Scryfall, counters only a
+// spell.) Two printings within PLS itself (PLS 107 / 107★ foil-only alt art,
+// ADR 0014) — the canonical `CardDefinition` plus a sibling `CardPrint`,
+// mirroring Skyship Weatherlight's own alt-art pair (colorless.ts, this set).
+export const ertaiTheCorrupted: CardDefinition = {
+    id: "66b950d9-8fef-4deb-b51b-26edb90abc56", // PLS 107 (canonical art)
+    rarity: "rare",
+    name: "Ertai, the Corrupted",
+    oracleText:
+        "{U}, {T}, Sacrifice a creature or enchantment: Counter target spell.",
+    manaCost: { X: 2, W: 1, U: 1, B: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Phyrexian", "Human", "Wizard"],
+    power: 3,
+    toughness: 4,
+    activatedAbilities: [
+        {
+            id: "ertai-corrupted-counter",
+            oracleText:
+                "{U}, {T}, Sacrifice a creature or enchantment: Counter target spell.",
+            cost: {
+                mana: { U: 1 },
+                tap: true,
+                sacrificeFilter: { types: ["Creature", "Enchantment"] },
+            },
+            useStack: true,
+            targetRequirement: { type: "spell", count: 1 },
+            effects: [{ op: "counter", target: { target: 0 } }],
+        },
+    ],
+};
+
+export const ertaiTheCorruptedAlt: CardPrint = {
+    printId: "fbbfeb32-1654-4bf6-9a38-891f1a03e02b", // PLS 107★
+    definitionId: ertaiTheCorrupted.id,
+    setCode: "pls",
+    rarity: "rare",
+};
+
+// Questing Phelddagrif — {1}{G}{W}{U} Legendary Creature — Phelddagrif, 4/4.
+// "{G}: This creature gets +1/+1 until end of turn. Target opponent creates a
+// 1/1 green Hippo creature token.\n{W}: This creature gains protection from
+// black and from red until end of turn. Target opponent gains 2 life.\n{U}:
+// This creature gains flying until end of turn. Target opponent may draw a
+// card." Each ability pumps/grants Phelddagrif a keyword AND hands the
+// TARGETED opponent a benefit — three independent `activatedAbilities[]`, no
+// `resolve()`: the {U} ability's "target opponent MAY draw a card" is a
+// cost-free `mayPay` whose `player` ref is the announced opponent target
+// (`{ target: 0 }`, not `"controller"`) — the exact cross-player mayPay shape
+// already shipped for "Counter target spell unless ITS CONTROLLER pays {N}"
+// (`player: { controllerOf: { target: 0 } }`, e.g. ice/blue.ts), just resolved
+// through the plain `{ target }` selector instead of `controllerOf`. The {W}
+// ability's two-colour protection grant is two independent `grantAbility`
+// Ops (Crimson Acolyte / Obsidian Acolyte precedent, inv/white.ts) — a
+// temporary grant has no combined-quality string, unlike a permanent
+// `staticAbilities[]` declaration (Sabertooth Nishoba, inv/multicolor.ts).
+// Token art: Scryfall carries no printed "1/1 green Hippo" token (Questing
+// Phelddagrif predates linked token products) — the TAKH Hippo token (3/3
+// green Hippo) is the only Hippo token Scryfall has at all, pinned as a
+// same-characteristics substitute (name/colour/creature-type match; P/T is
+// carried by the TokenSpec itself, not the art).
+export const questingPhelddagrif: CardDefinition = {
+    id: "cea4cfef-6736-42a5-9f3e-10de8d0cd8d3", // PLS 119
+    rarity: "rare",
+    name: "Questing Phelddagrif",
+    oracleText:
+        "{G}: This creature gets +1/+1 until end of turn. Target opponent creates a 1/1 green Hippo creature token.\n{W}: This creature gains protection from black and from red until end of turn. Target opponent gains 2 life.\n{U}: This creature gains flying until end of turn. Target opponent may draw a card.",
+    manaCost: { X: 1, G: 1, W: 1, U: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Phelddagrif"],
+    power: 4,
+    toughness: 4,
+    activatedAbilities: [
+        {
+            id: "questing-phelddagrif-green",
+            oracleText:
+                "{G}: This creature gets +1/+1 until end of turn. Target opponent creates a 1/1 green Hippo creature token.",
+            cost: { mana: { G: 1 } },
+            useStack: true,
+            targetRequirement: {
+                type: "player",
+                count: 1,
+                controller: "opponent",
+            },
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 1,
+                    toughness: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+                {
+                    op: "createToken",
+                    token: {
+                        name: "Hippo",
+                        types: ["Creature"],
+                        subtypes: ["Hippo"],
+                        power: 1,
+                        toughness: 1,
+                        colors: ["G"],
+                        // TAKH's printed Hippo token — same-characteristics
+                        // substitute (see card-level note above).
+                        imagePrintId: "1aea5e0b-dc4e-4055-9e13-1dfbc25a2f00",
+                    },
+                    controller: { target: 0 },
+                },
+            ],
+        },
+        {
+            id: "questing-phelddagrif-white",
+            oracleText:
+                "{W}: This creature gains protection from black and from red until end of turn. Target opponent gains 2 life.",
+            cost: { mana: { W: 1 } },
+            useStack: true,
+            targetRequirement: {
+                type: "player",
+                count: 1,
+                controller: "opponent",
+            },
+            effects: [
+                {
+                    op: "grantAbility",
+                    ability: "protection from black",
+                    target: { ref: "$source" },
+                    duration: { phase: "end-of-turn" },
+                },
+                {
+                    op: "grantAbility",
+                    ability: "protection from red",
+                    target: { ref: "$source" },
+                    duration: { phase: "end-of-turn" },
+                },
+                {
+                    op: "gainLife",
+                    player: { target: 0 },
+                    amount: 2,
+                },
+            ],
+        },
+        {
+            id: "questing-phelddagrif-blue",
+            oracleText:
+                "{U}: This creature gains flying until end of turn. Target opponent may draw a card.",
+            cost: { mana: { U: 1 } },
+            useStack: true,
+            targetRequirement: {
+                type: "player",
+                count: 1,
+                controller: "opponent",
+            },
+            effects: [
+                {
+                    op: "grantAbility",
+                    ability: "flying",
+                    target: { ref: "$source" },
+                    duration: { phase: "end-of-turn" },
+                },
+                {
+                    op: "mayPay",
+                    player: { target: 0 },
+                    prompt: "Draw a card (Questing Phelddagrif)?",
+                    bind: "$draw",
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$draw" },
+                    then: [{ op: "draw", player: { target: 0 }, count: 1 }],
+                },
+            ],
         },
     ],
 };

@@ -15,7 +15,11 @@
 import { describe, it, expect } from "vitest";
 import {
     cloudCover,
+    crosissCharm,
+    darigaazsCharm,
     dralnusCrusade,
+    dromarsCharm,
+    ertaiTheCorrupted,
     hullBreach,
     keldonTwilight,
     maliciousAdvice,
@@ -23,7 +27,9 @@ import {
     meddlingMage,
     naturalEmergence,
     phyrexianTyranny,
+    questingPhelddagrif,
     sawtoothLoon,
+    trevasCharm,
     urzasGuilt,
 } from "../multicolor";
 import {
@@ -1618,5 +1624,497 @@ describe("Malicious Advice — the life loss is NOT independent of the targets (
         const state = castAdvice("bears-adv", []);
         expect(state.players[0].life).toBe(20);
         expect(state.stack).toHaveLength(0);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLS free tranche — three-colour gold cards + Ertai / Phelddagrif (#1954).
+// The four Charms are modal (CR 601.2b): mode chosen at announcement via
+// `CardDefinition.modes`, mirroring Hull Breach / Vision Charm above. Every
+// mode reuses already-exercised Ops, so per the per-Op regime
+// (`.claude/rules/gre-development.md`) NO hand-written test is strictly
+// required — the catalogue-wide static sweep + auto-generated smoke test
+// already cover it. These are added anyway because modal announcement +
+// per-mode targeting is this slice's highest-risk surface; each test proves
+// ONE mode's wiring end-to-end via a direct `chosenModeId` push (the same
+// shape Vision Charm's `pushModalVisionCharm` uses) rather than re-deriving
+// the generic modal machinery Hull Breach's integration test already proves.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("Crosis's Charm ({U}{B}{R} modal instant, CR 601.2b, issue #1954)", () => {
+    it("declares three modes with no card-level resolve/targetRequirement", () => {
+        expect(crosissCharm.resolve).toBeUndefined();
+        expect(crosissCharm.targetRequirement).toBeUndefined();
+        expect(crosissCharm.modes!.map((m) => m.id)).toEqual([
+            "bounce",
+            "destroy-nonblack-creature",
+            "destroy-artifact",
+        ]);
+    });
+
+    it("mode 2 destroys a NONBLACK creature and can't be regenerated (CR 701.15c)", () => {
+        const target = makeInstance(monssGoblinRaiders.id, {
+            id: "raiders",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [target] }),
+            ],
+        });
+        const item = pushSpell(state, crosissCharm.id, "p1", [
+            { type: "permanent", id: "raiders" },
+        ]);
+        item.chosenModeId = "destroy-nonblack-creature";
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "raiders")
+        ).toBeUndefined();
+        expect(state.players[1].graveyard.some((c) => c.id === "raiders")).toBe(
+            true
+        );
+    });
+
+    it("mode 1 returns target permanent (any type) to its owner's hand", () => {
+        const target = makeInstance(blackLotus.id, {
+            id: "lotus",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [target] }),
+            ],
+        });
+        const item = pushSpell(state, crosissCharm.id, "p1", [
+            { type: "permanent", id: "lotus" },
+        ]);
+        item.chosenModeId = "bounce";
+        resolveTopOfStack(state);
+        expect(state.players[1].hand.some((c) => c.id === "lotus")).toBe(true);
+    });
+
+    it("mode 3 destroys target artifact", () => {
+        const target = makeInstance(blackLotus.id, {
+            id: "lotus2",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [target] }),
+            ],
+        });
+        const item = pushSpell(state, crosissCharm.id, "p1", [
+            { type: "permanent", id: "lotus2" },
+        ]);
+        item.chosenModeId = "destroy-artifact";
+        resolveTopOfStack(state);
+        expect(state.players[1].graveyard.some((c) => c.id === "lotus2")).toBe(
+            true
+        );
+    });
+});
+
+describe("Darigaaz's Charm ({B}{R}{G} modal instant, CR 601.2b, issue #1954)", () => {
+    it("declares three modes with no card-level resolve/targetRequirement", () => {
+        expect(darigaazsCharm.resolve).toBeUndefined();
+        expect(darigaazsCharm.targetRequirement).toBeUndefined();
+        expect(darigaazsCharm.modes!.map((m) => m.id)).toEqual([
+            "regrowth-creature",
+            "damage",
+            "pump",
+        ]);
+    });
+
+    it("mode 1 returns target creature card from YOUR graveyard to your hand", () => {
+        const dead = makeInstance(grizzlyBears.id, {
+            id: "dead-bears",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [dead] }),
+                makePlayer("p2"),
+            ],
+        });
+        const item = pushSpell(state, darigaazsCharm.id, "p1", [
+            { type: "graveyard-card", id: "dead-bears", playerId: "p1" },
+        ]);
+        item.chosenModeId = "regrowth-creature";
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.some((c) => c.id === "dead-bears")).toBe(
+            true
+        );
+    });
+
+    it("mode 2 deals 3 damage to any target (a player)", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const item = pushSpell(state, darigaazsCharm.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        item.chosenModeId = "damage";
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(17);
+    });
+
+    it("mode 3 gives target creature +3/+3 until end of turn", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        const item = pushSpell(state, darigaazsCharm.id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
+        item.chosenModeId = "pump";
+        resolveTopOfStack(state);
+        const live = state.players[0].battlefield.find((c) => c.id === "bear")!;
+        expect(getEffectivePower(state, live)).toBe(5);
+        expect(getEffectiveToughness(state, live)).toBe(5);
+    });
+});
+
+describe("Dromar's Charm ({W}{U}{B} modal instant, CR 601.2b, issue #1954)", () => {
+    it("declares three modes with no card-level resolve/targetRequirement", () => {
+        expect(dromarsCharm.resolve).toBeUndefined();
+        expect(dromarsCharm.targetRequirement).toBeUndefined();
+        expect(dromarsCharm.modes!.map((m) => m.id)).toEqual([
+            "gain-life",
+            "counter",
+            "shrink",
+        ]);
+    });
+
+    it("mode 1 gains the caster 5 life (no target)", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const item = pushSpell(state, dromarsCharm.id, "p1");
+        item.chosenModeId = "gain-life";
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(25);
+    });
+
+    it("mode 2 counters target spell", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const victim = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        const item = pushSpell(state, dromarsCharm.id, "p1", [
+            { type: "spell", id: victim.id },
+        ]);
+        item.chosenModeId = "counter";
+        resolveTopOfStack(state);
+        expect(state.stack.some((s) => s.id === victim.id)).toBe(false);
+        expect(state.players[1].graveyard.some((c) => c.id === victim.id)).toBe(
+            true
+        );
+    });
+
+    it("mode 3 gives target creature -2/-2 until end of turn", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear-shrink",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        const item = pushSpell(state, dromarsCharm.id, "p1", [
+            { type: "permanent", id: "bear-shrink" },
+        ]);
+        item.chosenModeId = "shrink";
+        resolveTopOfStack(state);
+        const live = state.players[1].battlefield.find(
+            (c) => c.id === "bear-shrink"
+        )!;
+        expect(getEffectivePower(state, live)).toBe(0);
+        expect(getEffectiveToughness(state, live)).toBe(0);
+    });
+});
+
+describe("Treva's Charm ({G}{W}{U} modal instant, CR 601.2b, issue #1954)", () => {
+    it("declares three modes with no card-level resolve/targetRequirement", () => {
+        expect(trevasCharm.resolve).toBeUndefined();
+        expect(trevasCharm.targetRequirement).toBeUndefined();
+        expect(trevasCharm.modes!.map((m) => m.id)).toEqual([
+            "destroy-enchantment",
+            "exile-attacker",
+            "loot",
+        ]);
+    });
+
+    it("mode 1 destroys target enchantment", () => {
+        const ench = makeInstance(dralnusCrusade.id, {
+            id: "ench-1",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [ench] }),
+            ],
+        });
+        const item = pushSpell(state, trevasCharm.id, "p1", [
+            { type: "permanent", id: "ench-1" },
+        ]);
+        item.chosenModeId = "destroy-enchantment";
+        resolveTopOfStack(state);
+        expect(state.players[1].graveyard.some((c) => c.id === "ench-1")).toBe(
+            true
+        );
+    });
+
+    it("mode 2 exiles only an ATTACKING creature (CR 508/509 combat role)", () => {
+        const attacker = makeInstance(grizzlyBears.id, {
+            id: "attacker",
+            controllerId: "p2",
+            ownerId: "p2",
+            isAttacking: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [attacker] }),
+            ],
+        });
+        const mode = trevasCharm.modes!.find((m) => m.id === "exile-attacker")!;
+        expect(
+            getLegalTargets(state, mode.targetRequirement!, [], "p1").some(
+                (t) => "id" in t && t.id === "attacker"
+            )
+        ).toBe(true);
+        const item = pushSpell(state, trevasCharm.id, "p1", [
+            { type: "permanent", id: "attacker" },
+        ]);
+        item.chosenModeId = "exile-attacker";
+        resolveTopOfStack(state);
+        expect(state.players[1].exile.some((c) => c.id === "attacker")).toBe(
+            true
+        );
+    });
+
+    it("mode 3 draws a card then discards a card (loot)", () => {
+        const drawn = makeInstance(grizzlyBears.id, {
+            id: "top-of-library",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { library: [drawn] }), makePlayer("p2")],
+        });
+        const item = pushSpell(state, trevasCharm.id, "p1");
+        item.chosenModeId = "loot";
+        expect(resolveTopOfStack(state)).toBeNull(); // suspends at the discard choice
+        expect(
+            state.players[0].hand.some((c) => c.id === "top-of-library")
+        ).toBe(true);
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["top-of-library"],
+        });
+        expect(
+            state.players[0].graveyard.some((c) => c.id === "top-of-library")
+        ).toBe(true);
+    });
+});
+
+describe("Ertai, the Corrupted ({2}{W}{U}{B}, CR 701.5a, issue #1954)", () => {
+    const ABILITY = ertaiTheCorrupted.activatedAbilities!.find(
+        (a) => a.id === "ertai-corrupted-counter"
+    )!;
+
+    it("costs {U}, tap, sacrifice a creature or enchantment; targets a spell", () => {
+        expect(ABILITY.cost).toEqual({
+            mana: { U: 1 },
+            tap: true,
+            sacrificeFilter: { types: ["Creature", "Enchantment"] },
+        });
+        expect(ABILITY.targetRequirement).toEqual({ type: "spell", count: 1 });
+    });
+
+    it("counters target spell on resolution", () => {
+        const ertai = makeInstance(ertaiTheCorrupted.id, {
+            id: "ertai-1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [ertai] }),
+                makePlayer("p2"),
+            ],
+        });
+        const victim = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        state.stack.push({
+            ...ertai,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "ertai-corrupted-counter",
+            targets: [{ type: "spell", id: victim.id }],
+        });
+        resolveTopOfStack(state);
+        expect(state.stack.some((s) => s.id === victim.id)).toBe(false);
+        expect(state.players[1].graveyard.some((c) => c.id === victim.id)).toBe(
+            true
+        );
+        // Ertai itself stays on the battlefield — an activated ability's
+        // source is not consumed by the ability object going on the stack.
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "ertai-1")
+        ).toBe(true);
+    });
+});
+
+describe("Questing Phelddagrif ({1}{G}{W}{U}, three self-pump / opponent-benefit abilities, issue #1954)", () => {
+    function setup() {
+        const phelddagrif = makeInstance(questingPhelddagrif.id, {
+            id: "phelddagrif-1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [phelddagrif] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, phelddagrif };
+    }
+
+    function resolveAbility(
+        state: GameState,
+        source: CardInstanceState,
+        abilityId: string
+    ): void {
+        state.stack.push({
+            ...source,
+            zone: "stack",
+            castById: source.controllerId,
+            abilityId,
+            targets: [{ type: "player", id: "p2" }],
+        });
+        resolveTopOfStack(state);
+    }
+
+    it("declares three activated abilities, each targeting an opponent", () => {
+        for (const id of [
+            "questing-phelddagrif-green",
+            "questing-phelddagrif-white",
+            "questing-phelddagrif-blue",
+        ]) {
+            const ability = questingPhelddagrif.activatedAbilities!.find(
+                (a) => a.id === id
+            )!;
+            expect(ability.targetRequirement).toEqual({
+                type: "player",
+                count: 1,
+                controller: "opponent",
+            });
+        }
+    });
+
+    it("{G}: pumps itself +1/+1 and gives target opponent a 1/1 green Hippo token", () => {
+        const { state, phelddagrif } = setup();
+        resolveAbility(state, phelddagrif, "questing-phelddagrif-green");
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "phelddagrif-1"
+        )!;
+        expect(getEffectivePower(state, live)).toBe(5);
+        expect(getEffectiveToughness(state, live)).toBe(5);
+        const hippo = state.players[1].battlefield.find(
+            (c) => c.card.id !== questingPhelddagrif.id
+        );
+        expect(hippo).toBeDefined();
+        expect(hippo!.power).toBe(1);
+        expect(hippo!.toughness).toBe(1);
+        expect(hippo!.controllerId).toBe("p2");
+    });
+
+    it("{W}: grants protection from black and red, target opponent gains 2 life", () => {
+        const { state, phelddagrif } = setup();
+        resolveAbility(state, phelddagrif, "questing-phelddagrif-white");
+        expect(state.players[1].life).toBe(22);
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "phelddagrif-1"
+        )!;
+        expect(live.grantedStaticAbilities ?? []).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({ ability: "protection from black" }),
+                expect.objectContaining({ ability: "protection from red" }),
+            ])
+        );
+    });
+
+    it("{U}: grants flying; target opponent MAY draw a card — accept", () => {
+        const { state, phelddagrif } = setup();
+        const topCard = makeInstance(grizzlyBears.id, {
+            id: "p2-top",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "library",
+        });
+        state.players[1].library = [topCard];
+        resolveAbility(state, phelddagrif, "questing-phelddagrif-blue");
+        // Suspends at the opponent's Pay/Skip decision.
+        expect(state.pendingChoices?.[0]?.kind).toBe("may-pay");
+        expect(state.pendingChoices![0].playerId).toBe("p2");
+        applyMayPaySubmit(state, { playerId: "p2", accept: true });
+        expect(state.players[1].hand.some((c) => c.id === "p2-top")).toBe(true);
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "phelddagrif-1"
+        )!;
+        expect(live.grantedStaticAbilities ?? []).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({ ability: "flying" }),
+            ])
+        );
+    });
+
+    it("{U}: target opponent MAY draw a card — decline draws nothing", () => {
+        const { state, phelddagrif } = setup();
+        const topCard = makeInstance(grizzlyBears.id, {
+            id: "p2-top-declined",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "library",
+        });
+        state.players[1].library = [topCard];
+        resolveAbility(state, phelddagrif, "questing-phelddagrif-blue");
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        expect(
+            state.players[1].hand.some((c) => c.id === "p2-top-declined")
+        ).toBe(false);
+        expect(
+            state.players[1].library.some((c) => c.id === "p2-top-declined")
+        ).toBe(true);
     });
 });
