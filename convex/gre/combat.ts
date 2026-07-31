@@ -912,24 +912,40 @@ function hasAttackRequirement(
  * (CR 508.1d) and is currently eligible to attack. Creatures with the
  * requirement but no legal attack (tapped, sick, defender, etc.) are not
  * required — CR 508.1d only forces requirements that can be obeyed.
- */
+ *
+ * `state` is REQUIRED (issue #1948 review, BLOCKER 1) — this function used to
+ * take it optionally and every real call site simply never supplied it, so
+ * `validateAttackerEligibility`'s aura-attached `attack-restriction` scan
+ * (Hobble: "enchanted creature can't attack") silently never ran on the
+ * must-attack path: a Hobbled Juggernaut ("attacks each combat if able")
+ * would be pushed into `combat.attackerIds` by `confirmAttackers` /
+ * auto-pass-confirm with NO downstream re-validation, violating CR 508.1a. An
+ * optional param on a legality predicate is exactly the fail-open shape —
+ * the type system now forces every caller to supply real state. */
 export function mustAttack(
     card: CardInstanceState,
+    state: GameState,
     defenderBattlefield?: CardInstanceState[],
     massAttackPlayerId?: string
 ): boolean {
     if (!hasAttackRequirement(card, massAttackPlayerId)) return false;
-    return validateAttackerEligibility(card, defenderBattlefield).eligible;
+    return validateAttackerEligibility(card, defenderBattlefield, state)
+        .eligible;
 }
 
-/** Ids of creatures on `battlefield` that are required to attack this combat. */
+/** Ids of creatures on `battlefield` that are required to attack this combat.
+ *  `state` is REQUIRED — see `mustAttack`'s doc comment (issue #1948 review,
+ *  BLOCKER 1). */
 export function getRequiredAttackerIds(
     battlefield: CardInstanceState[],
+    state: GameState,
     defenderBattlefield?: CardInstanceState[],
     massAttackPlayerId?: string
 ): string[] {
     return battlefield
-        .filter((c) => mustAttack(c, defenderBattlefield, massAttackPlayerId))
+        .filter((c) =>
+            mustAttack(c, state, defenderBattlefield, massAttackPlayerId)
+        )
         .map((c) => c.id);
 }
 

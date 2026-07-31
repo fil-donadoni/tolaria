@@ -979,7 +979,7 @@ export function enumerateAttackerMoves(
         (c) => validateAttackerEligibility(c, defBf, state).eligible
     );
     const required = new Set(
-        getRequiredAttackerIds(player.battlefield, defBf, undefined)
+        getRequiredAttackerIds(player.battlefield, state, defBf, undefined)
     );
     const optional = eligible.filter((c) => !required.has(c.id));
     const requiredIds = [...required];

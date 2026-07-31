@@ -31,9 +31,25 @@ export function isEligibleAttacker(
     const hasHaste = card.staticAbilities?.includes("haste") ?? false;
     if (card.isSummoningSick && !hasHaste) return false;
 
-    // CR 508.1c — card-level attack restrictions from staticEffects[].
-    const def = getDefinition(card.card.id);
-    if (def.staticEffects) {
+    // CR 508.1c — card-level attack restrictions from staticEffects[], PLUS
+    // any attached Aura's (CR 303.4 — aura effects apply to their host;
+    // Hobble: "Enchanted creature can't attack" — issue #1948 review BLOCKER
+    // 2). Mirrors the server's `collectAttackRestrictions` (`gre/combat.ts`)
+    // exactly: scan the card's OWN definition, then every permanent across
+    // `allPlayers` whose `attachedTo` points at this card. `attachedTo`
+    // survives `slimCard` (`convex/gameProjections.ts`), so it's available on
+    // the wire.
+    const restrictionSourceIds = [card.card.id];
+    for (const player of allPlayers) {
+        for (const perm of player.battlefield) {
+            if (perm.attachedTo === card.id) {
+                restrictionSourceIds.push(perm.card.id);
+            }
+        }
+    }
+    for (const sourceId of restrictionSourceIds) {
+        const def = getDefinition(sourceId);
+        if (!def.staticEffects) continue;
         for (const eff of def.staticEffects) {
             if (eff.kind !== "attack-restriction") continue;
             if (!eff.predicate(card as never, opponentBattlefield as never)) {

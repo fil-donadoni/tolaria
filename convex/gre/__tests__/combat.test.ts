@@ -26,6 +26,7 @@ import {
     wallOfSwords,
 } from "../../cards/sets/lea";
 import { mightstone } from "../../cards/sets/atq/colorless";
+import { hobble as hobbleAuraDef } from "../../cards/sets/pls/white";
 import { buildSpellContext, resolveTopOfStack } from "../state";
 import { pushSpell } from "../../cards/__tests__/setup";
 import { getEffectivePower } from "../layers";
@@ -588,7 +589,7 @@ describe("validateBlockerEligibility — Ironclaw Orcs power-bound (CR 509.1b + 
 describe("mustAttack / getRequiredAttackerIds (CR 508.1d)", () => {
     it("eligible creature with attack-requirement must attack", () => {
         const jug = makeInstance(juggernaut.id, { id: "jug" });
-        expect(mustAttack(jug)).toBe(true);
+        expect(mustAttack(jug, makeState())).toBe(true);
     });
 
     it("tapped creature with attack-requirement is not required (can't attack)", () => {
@@ -596,7 +597,7 @@ describe("mustAttack / getRequiredAttackerIds (CR 508.1d)", () => {
             id: "jug",
             isTapped: true,
         });
-        expect(mustAttack(jug)).toBe(false);
+        expect(mustAttack(jug, makeState())).toBe(false);
     });
 
     it("summoning-sick creature with attack-requirement is not required", () => {
@@ -604,7 +605,7 @@ describe("mustAttack / getRequiredAttackerIds (CR 508.1d)", () => {
             id: "jug",
             isSummoningSick: true,
         });
-        expect(mustAttack(jug)).toBe(false);
+        expect(mustAttack(jug, makeState())).toBe(false);
     });
 
     it("creature with defender + attack-requirement is not required", () => {
@@ -612,7 +613,7 @@ describe("mustAttack / getRequiredAttackerIds (CR 508.1d)", () => {
             id: "jug",
             staticAbilities: ["defender"],
         });
-        expect(mustAttack(jug)).toBe(false);
+        expect(mustAttack(jug, makeState())).toBe(false);
     });
 
     it("getRequiredAttackerIds collects from staticEffects[] data-driven", () => {
@@ -622,9 +623,40 @@ describe("mustAttack / getRequiredAttackerIds (CR 508.1d)", () => {
             isSummoningSick: true,
         });
         const bears = makeInstance(savannahLions.id, { id: "bears" });
-        expect(getRequiredAttackerIds([eligible, sick, bears])).toEqual([
-            "jug1",
-        ]);
+        expect(
+            getRequiredAttackerIds([eligible, sick, bears], makeState())
+        ).toEqual(["jug1"]);
+    });
+
+    it("required-attacker check honors an aura-granted attack-restriction (Hobble, issue #1948 review BLOCKER 1)", () => {
+        // Regression for the fail-open bug: mustAttack/getRequiredAttackerIds
+        // previously never threaded `state` through to
+        // validateAttackerEligibility, so a Juggernaut-style "attacks each
+        // combat if able" creature Hobbled by the opponent was still forced
+        // to attack. `state` is now a required parameter specifically to
+        // close this.
+        const jug = makeInstance(juggernaut.id, {
+            id: "jug",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const hobbleAura = makeInstance(hobbleAuraDef.id, {
+            id: "hobble-aura",
+            controllerId: "p2",
+            ownerId: "p2",
+            attachedTo: "jug",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [jug, hobbleAura] }),
+                makePlayer("p2"),
+            ],
+        });
+        const defenderBattlefield = state.players[1].battlefield;
+        expect(mustAttack(jug, state, defenderBattlefield)).toBe(false);
+        expect(
+            getRequiredAttackerIds([jug], state, defenderBattlefield)
+        ).toEqual([]);
     });
 });
 

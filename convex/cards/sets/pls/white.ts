@@ -9,7 +9,6 @@ import type {
     EffectTokenSpec,
     ManaCost,
     PermanentView,
-    SpellContext,
 } from "../../types";
 import {
     AURA_AFFECTS_HOST,
@@ -392,7 +391,7 @@ export const dominariasJudgment: CardDefinition = {
 // Barricade-style "as though it didn't have defender" overrides key off the
 // literal keyword), which this card's oracle text never grants.
 export const hobble: CardDefinition = {
-    id: "54c76a22-f9e3-408b-a5bd-403add57e31a", // PLS 5
+    id: "54c76a22-f9e3-408b-a5bd-403add57e31a", // PLS 7
     name: "Hobble",
     rarity: "common",
     oracleText:
@@ -433,7 +432,7 @@ export const hobble: CardDefinition = {
 // is an OR filter, CR 202.2, so a black-red creature counts once, exactly
 // "black and/or red" and never double.)
 export const honorableScout: CardDefinition = {
-    id: "bd311758-0352-4b7d-a24f-7f3f2b5d7b0f", // PLS 6
+    id: "bd311758-0352-4b7d-a24f-7f3f2b5d7b0f", // PLS 8
     name: "Honorable Scout",
     rarity: "common",
     oracleText:
@@ -509,7 +508,7 @@ const MARCH_OF_SOULS_SPIRIT: EffectTokenSpec = {
 // per-iteration snapshot — LKI (CR 608.2h), so it still resolves after the
 // creature has left play — giving the token to ITS controller, not the caster.
 export const marchOfSouls: CardDefinition = {
-    id: "f07dd0f1-b80b-4af0-ae76-907ec55ec7d5", // PLS 7
+    id: "f07dd0f1-b80b-4af0-ae76-907ec55ec7d5", // PLS 10
     name: "March of Souls",
     rarity: "rare",
     oracleText:
@@ -570,7 +569,7 @@ export const marchOfSouls: CardDefinition = {
 // the overwhelming majority of games — and narrower than the full CR 508.1a
 // scope only in that one edge case.
 export const orimsChant: CardDefinition = {
-    id: "055afa78-b969-498f-a3ad-c792426e5ee6", // PLS 8
+    id: "055afa78-b969-498f-a3ad-c792426e5ee6", // PLS 11
     name: "Orim's Chant",
     rarity: "rare",
     oracleText:
@@ -609,25 +608,16 @@ export const orimsChant: CardDefinition = {
 // control gain protection from the colors of target permanent you control
 // until end of turn." (CR 702.16 protection, CR 611.1b temporary grant.)
 //
-// PROTOCOL CARD — resolve() justified (DSL-first exception, ADR 0045, flagged
-// as a likely resolve() candidate by issue #1948 itself): the granted set of
-// protection qualities is DYNAMIC, read off the target permanent's LIVE
-// colours at resolution (0-5 colours — colourless artifacts included, WUBRG
-// multicolor included) and fanned out across EVERY creature the controller
-// controls. `grantAbility`'s `ability` field is one FIXED string per Op — the
-// Effect Script grammar has no "grant one ability per element of a
-// runtime-computed set" construct (unlike Dominaria's Judgment above, whose
-// five colour/land pairs are all KNOWN AT AUTHORING TIME, just conditionally
-// applied). Composing N `grantAbility` Ops via `forEach` would need the
-// colour SET itself as a frozen selector, which does not exist for "a
-// permanent's live colours" (only `{ set: "permanents" }` / `{ set:
-// "targets" }` / `{ set: "graveyard" }` / `{ set: "bound" }` — none iterate a
-// colour list). Reads `ctx.getColors` (layer 5, already resolved) and
-// `ctx.getBattlefieldIds` + `ctx.grantStaticAbility` — three already-shipped
-// primitives, just composed imperatively because the DSL has no "for each
-// colour of X" loop.
+// DSL Effect Script (issue #1948 review, MAJOR 4 — the original `resolve()`
+// justification was wrong): the candidate colours are the FIVE known at
+// authoring time (exactly like Dominaria's Judgment above), and
+// `objectMatchesFilter` (issue #1747) reads the target's LIVE, layer-
+// materialised colours per candidate colour — there is no need to iterate an
+// arbitrary runtime colour SET. `forEach` over the controller's creatures,
+// with FIVE `if(objectMatchesFilter(target 0, color X))` checks in the body,
+// each conditionally granting "protection from X" to the current `$each`.
 export const samiteElder: CardDefinition = {
-    id: "b3c5dccc-2a48-4dcc-a796-fa6fdc11a14e", // PLS 9
+    id: "b3c5dccc-2a48-4dcc-a796-fa6fdc11a14e", // PLS 14
     name: "Samite Elder",
     rarity: "rare",
     oracleText:
@@ -649,14 +639,7 @@ export const samiteElder: CardDefinition = {
                 count: 1,
                 controller: "you",
             },
-            // AI-only shadow script (PRD #1423, issue #1519): the real body
-            // grants a DYNAMIC set of protection qualities the value model
-            // can't walk (no Op reads "the colours of an arbitrary runtime
-            // object" as a set to iterate). Sketch the OUTCOME instead —
-            // granting a representative protection to the controller's own
-            // creatures, the same defensive shape the real ability has.
-            // Never executed; only `OP_VALUERS` reads it.
-            aiEffects: [
+            effects: [
                 {
                     op: "forEach",
                     select: {
@@ -665,34 +648,23 @@ export const samiteElder: CardDefinition = {
                         controller: "controller",
                         filter: { type: "Creature" },
                     },
-                    effects: [
-                        {
-                            op: "grantAbility",
-                            ability: "protection from white",
-                            target: { ref: "$each" },
-                            duration: { phase: "end-of-turn" },
+                    effects: PLS_WHITE_COLORS.map((color) => ({
+                        op: "if",
+                        predicate: {
+                            objectMatchesFilter: { target: 0 },
+                            filter: { color },
                         },
-                    ],
+                        then: [
+                            {
+                                op: "grantAbility",
+                                ability: `protection from ${PLS_WHITE_COLOR_NAMES[color]}`,
+                                target: { ref: "$each" },
+                                duration: { phase: "end-of-turn" },
+                            },
+                        ],
+                    })),
                 },
             ],
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (!target) return; // CR 608.2b — target left, no colours to read
-                const colors = ctx.getColors(target);
-                if (colors.length === 0) return; // colourless source grants nothing
-                const creatureIds = ctx.getBattlefieldIds(ctx.controller, {
-                    types: ["Creature"],
-                });
-                for (const id of creatureIds) {
-                    for (const color of colors) {
-                        ctx.grantStaticAbility(
-                            { type: "permanent", id },
-                            `protection from ${PLS_WHITE_COLOR_NAMES[color as (typeof PLS_WHITE_COLORS)[number]]}`,
-                            { phase: "end-of-turn" }
-                        );
-                    }
-                }
-            },
         },
     ],
 };
@@ -706,7 +678,7 @@ export const samiteElder: CardDefinition = {
 // carries no `staticAbilities[]` entry, matching every other shipped Domain
 // card (Tribal Flames / Wandering Stream / Power Armor, `inv/*.ts`).
 export const samitePilgrim: CardDefinition = {
-    id: "c12529e4-f4b1-45be-8252-28783badbec5", // PLS 10
+    id: "c12529e4-f4b1-45be-8252-28783badbec5", // PLS 15
     name: "Samite Pilgrim",
     rarity: "common",
     oracleText:
@@ -740,12 +712,21 @@ export const samitePilgrim: CardDefinition = {
 // Sunscape Familiar — {1}{W} Creature — Wall, 0/3. "Defender (This creature
 // can't attack.)\nGreen spells and blue spells you cast cost {1} less to
 // cast." (CR 702.3 defender; CR 601.2f generic cost reduction via a
-// `cost-modifier` static, TWO entries — one per reduced colour — mirroring
-// Alabaster Leech's `inv/white.ts` cost-increase precedent exactly, just a
-// reduction and gated to the controller's OWN spells via the matching
-// `effectSource` check.)
+// `cost-modifier` static, gated to the controller's OWN spells via the
+// matching `effectSource` check — Alabaster Leech's `inv/white.ts`
+// cost-increase precedent, just a reduction.)
+//
+// A SINGLE `cost-modifier` entry with an OR predicate (issue #1948 review,
+// BLOCKER 3) — not two independent entries. `getCostModifiers`
+// (`gre/state.ts`) accumulates `reductionGeneric` per MATCHING effect with no
+// per-source cap, so two entries (one gated green, one gated blue) would both
+// match a spell that is BOTH colours and double the reduction to {2} — a
+// gold green-blue spell would cost {2} less instead of the printed {1} less.
+// One entry whose predicate is true for "green OR blue" applies the {1}
+// reduction exactly once regardless of how many of the two colours the spell
+// has.
 export const sunscapeFamiliar: CardDefinition = {
-    id: "9621f341-bf85-4b77-bf19-2fb013b4c955", // PLS 12
+    id: "9621f341-bf85-4b77-bf19-2fb013b4c955", // PLS 17
     name: "Sunscape Familiar",
     rarity: "common",
     oracleText:
@@ -760,14 +741,8 @@ export const sunscapeFamiliar: CardDefinition = {
         {
             kind: "cost-modifier",
             appliesToSpell: (card, ctx, effectSource) =>
-                ctx.getColors(card).includes("G") &&
-                card.controllerId === effectSource?.controllerId,
-            costReduction: { X: 1 },
-        },
-        {
-            kind: "cost-modifier",
-            appliesToSpell: (card, ctx, effectSource) =>
-                ctx.getColors(card).includes("U") &&
+                (ctx.getColors(card).includes("G") ||
+                    ctx.getColors(card).includes("U")) &&
                 card.controllerId === effectSource?.controllerId,
             costReduction: { X: 1 },
         },
@@ -787,7 +762,7 @@ export const sunscapeFamiliar: CardDefinition = {
 // still-stubbed comment describes as blocking; CR 603.7 delayed trigger for
 // the return, ADR 0048.)
 export const surpriseDeployment: CardDefinition = {
-    id: "9a26148b-b981-4af5-995b-52b1426737e3", // PLS 13
+    id: "9a26148b-b981-4af5-995b-52b1426737e3", // PLS 18
     name: "Surprise Deployment",
     rarity: "uncommon",
     oracleText:
@@ -844,8 +819,18 @@ export const surpriseDeployment: CardDefinition = {
 // `staticAbilities` at apply time so every protection consumer —
 // `getLegalTargets`/`selectTarget`/`dealDamage`/block validation — sees it
 // identically to a printed keyword.)
+//
+// DIVERGENCE (tracked-by: #2019, issue #1948 review MINOR 7): `chosenModeId`
+// is only ever populated from the `castSpell` mutation's announcement-time
+// pick — there is no equivalent stamping when this creature enters WITHOUT
+// being cast (reanimation, a "put onto the battlefield" effect, a token
+// copy). CR 614.12 says the choice happens "as it enters", not "as it is
+// cast", so a non-cast entry currently grants protection from nothing. This
+// is INHERITED from the shared `modes`/`chosenModeId` idiom — Prismatic Ward
+// (`ice/white.ts`) and Quirion Elves (`mir/green.ts`) carry the identical
+// gap, not something this card introduces.
 export const voiceOfAll: CardDefinition = {
-    id: "75f37536-db3d-4726-9e45-b9108247d0e6", // PLS 14
+    id: "75f37536-db3d-4726-9e45-b9108247d0e6", // PLS 19
     name: "Voice of All",
     rarity: "uncommon",
     oracleText:

@@ -3307,9 +3307,20 @@ export function drainAutoPasses(state: GameState): void {
         ) {
             const activePlayer = getPlayer(state, state.activePlayerId);
             // CR 508.1d: fold in any eligible creature required to attack.
+            // `defenderBattlefield` (issue #1948 review BLOCKER 1 follow-up)
+            // must be a real array, not `undefined` — `validateAttackerEligibility`
+            // only runs the (state-gated) attack-restriction scan when this
+            // param is truthy, so an omitted value here would silently skip
+            // an aura-granted "can't attack" (Hobble) on THIS auto-pass path
+            // even after threading `state` through.
+            const defenderBattlefield = getPlayer(
+                state,
+                getOpponentId(state, state.activePlayerId)
+            ).battlefield;
             for (const requiredId of getRequiredAttackerIds(
                 activePlayer.battlefield,
-                undefined,
+                state,
+                defenderBattlefield,
                 state.allCreaturesMustAttack
             )) {
                 if (!state.combat.attackerIds.includes(requiredId)) {

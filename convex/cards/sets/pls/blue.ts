@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition, PermanentView } from "../../types";
+import type { CardDefinition } from "../../types";
 import {
     AURA_AFFECTS_HOST,
     BASIC_LAND_SUBTYPES,
@@ -12,7 +12,6 @@ import {
 import { chooseColorEffects } from "../../abilities/chooseColor";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
-import { kickerPaidCount, type KickerPayments } from "../../../gre/kicker";
 
 // Planar Overlay — {2}{U} Sorcery. "Each player chooses a land they control
 // of each basic land type. Return those lands to their owners' hands." (CR
@@ -249,8 +248,10 @@ export const huntingDrake: CardDefinition = {
 // "reveal a card at random from hand" has no Op skin — only the PRIVATE
 // sibling `lookRandomHand` (a single-knower look) is wired into the
 // interpreter; `SpellContext.revealRandomHandCard` (the public primitive
-// this card needs) has no DSL wrapper. The exile → grant-cast →
-// conditional-return sequence composes `revealRandomHandCard` +
+// this card needs) has no DSL wrapper. tracked-by: #2004 (opened for
+// Planeswalker's Scorn, the black member of this same "Planeswalker's ___"
+// cycle — the Op this card needs is the identical gap). The exile →
+// grant-cast → conditional-return sequence composes `revealRandomHandCard` +
 // `moveCardById` + `grantCastFromExile` + a legacy `delayedTriggers[]`
 // template exactly like the established Elkin Bottle / Ice Cauldron /
 // Robber of the Rich precedent (`ice/colorless.ts`, `eld/red.ts`) — no Op
@@ -340,6 +341,16 @@ export const planeswalkersMischief: CardDefinition = {
                 if (ctx.getExileCardOwner(cardId) === undefined) return;
                 ctx.moveCardById(ownerId, cardId, "exile", "hand");
             },
+            // aiEffects (PRD #1423, issue #1519, MINOR 7 of PR #2010's
+            // review): `delayedTriggers[]` is a bare `resolve()` body with no
+            // Op skin either (same protocol note as the scheduling ability
+            // above). Its own incremental value for the bot's search is near
+            // zero either way — reaching this step means the exiled card was
+            // never cast, i.e. the opportunity the FIRST ability's own
+            // `aiEffects` already values is already gone; giving the card
+            // back merely restores the status quo. `amount: 0` is an honest
+            // near-neutral placeholder, not a real valuation.
+            aiEffects: [{ op: "gainLife", player: "controller", amount: 0 }],
         },
     ],
 };
@@ -529,7 +540,9 @@ export const sisaysIngenuity: CardDefinition = {
 // The ETB "tap enchanted creature" trigger stays `resolve()`: NOT
 // DSL-migratable (ADR 0045) — there is no attached-host `EffectObjectSelector`
 // in the DSL (only announced target slots, `$source`, `$each`), the exact,
-// already-established gap Venarian Gold's own ETB trigger documents.
+// already-established gap Venarian Gold's own ETB trigger documents (leaving
+// it unticketed there was the PR #2010 review's MINOR 6 finding).
+// tracked-by: #2016.
 export const sleepingPotion: CardDefinition = {
     id: "6f79f4b2-71cd-4f78-a161-d75b162c745e", // PLS 34
     rarity: "common",
@@ -592,24 +605,33 @@ export const sleepingPotion: CardDefinition = {
 // with its {2}{B} kicker, destroy target nonblack creature. That creature
 // can't be regenerated." (CR 702.33a "Kicker {A} and/or {B}" — TWO
 // independently-payable Kickers, ADR 0079/#1937's flagship shape, each with
-// its own `{ kickerPaid: "<id>" }` intervening-if.)
+// its own `{ kickerPaid: "<id>" }` intervening-if — the EXACT Thunderscape
+// Battlemage template (`pls/red.ts`, issue #1951/PR #2005), the cycle's
+// first-landed sibling.)
 //
-// `conditionOnSelf` (issue #1936) gates the target announcement itself, not
-// just the resolve-time effect — the black-kicker mode needs its "target
-// nonblack creature" NEVER asked for when that kicker wasn't paid.
-// `PermanentView` doesn't declare `kickerPayments` (it isn't part of the
-// public view shape, unlike the total `wasKicked` boolean), but the RUNTIME
-// object `self` is the live permanent (`StackItem` persists its
-// `kickerPayments` post-resolution onto the entered permanent) — the same
-// "cast to read an extra runtime field PermanentView doesn't declare"
-// idiom `gre/layers.ts`'s `STATIC_EFFECT_CTX.getColors` already uses for
-// `colorOverride`/`grantedColors`.
-function selfKickerPaid(self: PermanentView, kickerId: string): boolean {
-    const payments = (self as { kickerPayments?: KickerPayments })
-        .kickerPayments;
-    return kickerPaidCount(payments, kickerId) >= 1;
-}
-
+// Each trigger's `targetRequirement` is announced when the creature enters
+// REGARDLESS of which Kicker(s) were paid — there is no per-Kicker check-time
+// predicate reachable before the ability hits the stack (only the aggregate
+// `wasKicked` boolean is, `PermanentView.wasKicked`'s own doc); the `if {
+// kickerPaid }` gate inside `effects[]` then no-ops the UNPAID trigger at
+// resolution. This is the ADR-documented shape (ADR 0079: "a new frozen
+// Effect Script value `{ kickerPaid: "<id>" }` answers the Battlemages'
+// per-kicker intervening-ifs") — a target is still requested for a trigger
+// that may resolve to nothing, the accepted divergence from a literal CR
+// 603.4d "never hits the stack" intervening-if. `{ kickerPaid }` reads
+// `ctx.getKickerPaidCount()` off the RESOLVING stack item's own
+// `kickerPayments` (`StackItem.kickerPayments`, a properly TYPED, and —
+// while the item sits on the stack — SERIALIZED field, `serialize.ts`'s
+// `compactStackItem`) — `buildTriggerItem` (`gre/triggers.ts`) spreads the
+// entering permanent's fields onto each new triggered-ability stack item it
+// raises, carrying `kickerPayments` along without any card-level cast. No
+// `conditionOnSelf`/raw-field read needed here — an earlier draft of this
+// card gated the black-kicker trigger's ANNOUNCEMENT with `conditionOnSelf`
+// reading an untyped stray `kickerPayments` off `PermanentView`, which PR
+// #2010's review (MAJOR 3) flagged as relying on a field not yet promoted to
+// a typed, serialized one (tracked-by #2014) — this shape sidesteps that
+// gap entirely by reading the value the same way every other Kicker card's
+// `{ kickerCount }`/`{ kickerPaid }` intervening-if already does.
 export const stormscapeBattlemage: CardDefinition = {
     id: "7d46a39d-c6f4-4281-b31f-f0a0c9fba887", // PLS 35
     rarity: "uncommon",
@@ -623,12 +645,16 @@ export const stormscapeBattlemage: CardDefinition = {
     toughness: 2,
     kickers: [
         { id: "kicker-w", description: "Kicker {W}", mana: { W: 1 } },
-        // The SECOND leg of "Kicker {W} and/or {2}{B}" — described as its bare
-        // mana cost (no redundant "Kicker" prefix) so it matches the printed
-        // "and/or {2}{B}" continuation verbatim (the catalogue-wide
-        // description-matches-Oracle guard checks a non-first mana-only
-        // kicker via substring, not prefix — see `kickerDeclarations.test.ts`).
-        { id: "kicker-b", description: "{2}{B}", mana: { X: 2, B: 1 } },
+        // The SECOND leg of "Kicker {W} and/or {2}{B}" keeps the CANONICAL
+        // "Kicker {cost}" description — the cast-cost dialog's per-Kicker
+        // toggle renders `description` verbatim (`CastCostKickerField`), so
+        // it must read "Pay Kicker {2}{B}", not a bare "Pay {2}{B}", for the
+        // toggle to be legible standalone. The catalogue-wide
+        // description-matches-Oracle guard (`kickerDeclarations.test.ts`)
+        // checks a non-first mana-only kicker's cost PORTION (stripped of
+        // its own "Kicker " prefix) as a substring of the combined "and/or"
+        // Oracle line, not as a literal prefix of the whole line.
+        { id: "kicker-b", description: "Kicker {2}{B}", mana: { X: 2, B: 1 } },
     ],
     triggeredAbilities: [
         enteredTrigger({
@@ -636,15 +662,23 @@ export const stormscapeBattlemage: CardDefinition = {
             oracleText:
                 "When this creature enters, if it was kicked with its {W} kicker, you gain 3 life.",
             scope: "self",
-            conditionOnSelf: (self) => selfKickerPaid(self, "kicker-w"),
-            effects: [{ op: "gainLife", player: "controller", amount: 3 }],
+            effects: [
+                {
+                    op: "if",
+                    predicate: {
+                        left: { kickerPaid: "kicker-w" },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [{ op: "gainLife", player: "controller", amount: 3 }],
+                },
+            ],
         }),
         enteredTrigger({
             id: "stormscape-battlemage-black-kicker",
             oracleText:
                 "When this creature enters, if it was kicked with its {2}{B} kicker, destroy target nonblack creature. That creature can't be regenerated.",
             scope: "self",
-            conditionOnSelf: (self) => selfKickerPaid(self, "kicker-b"),
             targetRequirement: {
                 type: "Creature",
                 count: 1,
@@ -652,9 +686,19 @@ export const stormscapeBattlemage: CardDefinition = {
             },
             effects: [
                 {
-                    op: "destroy",
-                    target: { target: 0 },
-                    cantBeRegenerated: true,
+                    op: "if",
+                    predicate: {
+                        left: { kickerPaid: "kicker-b" },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [
+                        {
+                            op: "destroy",
+                            target: { target: 0 },
+                            cantBeRegenerated: true,
+                        },
+                    ],
                 },
             ],
         }),

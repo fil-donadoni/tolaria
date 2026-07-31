@@ -6,12 +6,20 @@ import {
     heroicDefiance,
     hobble,
     samiteElder,
+    auroraGriffin,
+    discipleOfKangee,
+    dominariasJudgment,
+    honorableScout,
+    marchOfSouls,
+    orimsChant,
+    samitePilgrim,
+    surpriseDeployment,
 } from "../white";
-import { crawWurm } from "../../lea/green";
+import { crawWurm, grizzlyBears } from "../../lea/green";
 import { lightningBolt, dragonWhelp } from "../../lea/red";
 import { benalishHero } from "../../lea/white";
 import { blackKnight } from "../../lea/black";
-import { plains } from "../../lea/colorless";
+import { plains, island, swamp, mountain, forest } from "../../lea/colorless";
 import {
     makeInstance,
     makePlayer,
@@ -27,6 +35,8 @@ import {
     resolveTopOfStack,
     runDamageReplacement,
 } from "../../../../gre/state";
+import { fireDelayedTriggers } from "../../../../gre/phases";
+import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -36,6 +46,7 @@ import {
     validateAttackerEligibility,
     validateBlockerEligibility,
 } from "../../../../gre/combat";
+import { castProhibitionReason } from "../../../castRestrictions";
 
 /** Local resolveActivated shim (mirrors `inv/__tests__/helpers.ts`'s helper of
  *  the same name) — pushes an activated ability's stack item and resolves it,
@@ -671,6 +682,89 @@ describe("Hobble ({2}{W} Aura — can't-attack + conditional can't-block, CR 508
             ).eligible
         ).toBe(true);
     });
+
+    it("the attack-restriction survives the wire projection (mandatory — issue #1948 review MAJOR 6)", () => {
+        // The new aura scan reads PROJECTED fields (`perm.attachedTo`,
+        // `perm.card.id`) on a path the client Brain also executes
+        // (`gre/ai/blade/combatSetup.ts`) — mirrors `leg/__tests__/white.test.ts`
+        // ("the lock survives projection (wire format)") and
+        // `ice/__tests__/colorless.test.ts`'s identical pattern.
+        const target = makeInstance(crawWurm.id, {
+            id: "target",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const aura = makeInstance(hobble.id, {
+            id: "aura",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "target",
+        });
+        const state = makeState({
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [target, aura] }),
+                makePlayer("p2"),
+            ],
+        });
+        const projected = projectPublicState(
+            state,
+            1,
+            "p1"
+        ) as unknown as typeof state;
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "target"
+        )!;
+        expect(validateAttackerEligibility(slim, [], projected).eligible).toBe(
+            false
+        );
+    });
+
+    it("the block-restriction survives the wire projection (mandatory — issue #1948 review MAJOR 6)", () => {
+        const attacker = makeInstance(benalishHero.id, {
+            id: "attacker",
+            controllerId: "p2",
+            ownerId: "p2",
+            isAttacking: true,
+        });
+        const blackBlocker = makeInstance(blackKnight.id, {
+            id: "blackBlocker",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const aura = makeInstance(hobble.id, {
+            id: "aura",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "blackBlocker",
+        });
+        const state = makeState({
+            activePlayerId: "p2",
+            players: [
+                makePlayer("p1", { battlefield: [blackBlocker, aura] }),
+                makePlayer("p2", { battlefield: [attacker] }),
+            ],
+        });
+        const projected = projectPublicState(
+            state,
+            1,
+            "p1"
+        ) as unknown as typeof state;
+        const slimAttacker = projected.players[1].battlefield.find(
+            (c) => c.id === "attacker"
+        )!;
+        const slimBlocker = projected.players[0].battlefield.find(
+            (c) => c.id === "blackBlocker"
+        )!;
+        expect(
+            validateBlockerEligibility(
+                slimAttacker,
+                slimBlocker,
+                [slimBlocker],
+                projected
+            ).eligible
+        ).toBe(false);
+    });
 });
 
 describe("Samite Elder ({2}{W} Creature — dynamic protection grant, CR 702.16)", () => {
@@ -789,5 +883,651 @@ describe("Samite Elder ({2}{W} Creature — dynamic protection grant, CR 702.16)
             (c) => c.id === "bear"
         );
         expect(slimBear?.staticAbilities).toContain("protection from red");
+    });
+});
+
+describe("Aurora Griffin ({W}: target permanent becomes white until end of turn, CR 613.1e)", () => {
+    it("is a {3}{W} 2/2 flying Griffin with the modern oracle text", () => {
+        expect(auroraGriffin.manaCost).toEqual({ X: 3, W: 1 });
+        expect(auroraGriffin.types).toEqual(["Creature"]);
+        expect(auroraGriffin.subtypes).toEqual(["Griffin"]);
+        expect(auroraGriffin.power).toBe(2);
+        expect(auroraGriffin.toughness).toBe(2);
+        expect(auroraGriffin.staticAbilities).toContain("flying");
+        expect(auroraGriffin.oracleText).toBe(
+            "Flying\n{W}: Target permanent becomes white until end of turn."
+        );
+    });
+
+    it("changes a target permanent's colour to white until end of turn (setColor, CR 613.1e)", () => {
+        const griffin = makeInstance(auroraGriffin.id, {
+            id: "griffin",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const bear = makeInstance(crawWurm.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [griffin] }),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        resolveActivated(state, griffin, "aurora-griffin-color", [
+            { type: "permanent", id: "bear" },
+        ]);
+        const bearAfter = state.players[1].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(bearAfter.colorOverride).toEqual(["W"]);
+    });
+});
+
+describe("Disciple of Kangee ({U},{T}: target creature gains flying and becomes blue until end of turn)", () => {
+    it("is a {2}{W} 2/2 Human Wizard with the modern oracle text", () => {
+        expect(discipleOfKangee.manaCost).toEqual({ X: 2, W: 1 });
+        expect(discipleOfKangee.types).toEqual(["Creature"]);
+        expect(discipleOfKangee.subtypes).toEqual(["Human", "Wizard"]);
+        expect(discipleOfKangee.power).toBe(2);
+        expect(discipleOfKangee.toughness).toBe(2);
+    });
+
+    it("grants flying and changes the target's colour to blue until end of turn", () => {
+        const disciple = makeInstance(discipleOfKangee.id, {
+            id: "disciple",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const bear = makeInstance(crawWurm.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [disciple, bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, disciple, "disciple-of-kangee-fly-blue", [
+            { type: "permanent", id: "bear" },
+        ]);
+        const bearAfter = state.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(bearAfter.staticAbilities).toContain("flying");
+        expect(bearAfter.colorOverride).toEqual(["U"]);
+    });
+});
+
+describe("Dominaria's Judgment (per-basic-land-type conditional protection, CR 702.16)", () => {
+    it("is a {2}{W} Instant with the modern oracle text", () => {
+        expect(dominariasJudgment.manaCost).toEqual({ X: 2, W: 1 });
+        expect(dominariasJudgment.types).toEqual(["Instant"]);
+    });
+
+    it("grants protection from white and blue only, when controlling exactly a Plains and an Island", () => {
+        const bear = makeInstance(crawWurm.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const plainsLand = makeInstance(plains.id, {
+            id: "plains1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const islandLand = makeInstance(island.id, {
+            id: "island1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [bear, plainsLand, islandLand],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, dominariasJudgment.id, "p1");
+        resolveTopOfStack(state);
+        const bearAfter = state.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(bearAfter.staticAbilities).toContain("protection from white");
+        expect(bearAfter.staticAbilities).toContain("protection from blue");
+        expect(bearAfter.staticAbilities).not.toContain(
+            "protection from black"
+        );
+        expect(bearAfter.staticAbilities).not.toContain("protection from red");
+        expect(bearAfter.staticAbilities).not.toContain(
+            "protection from green"
+        );
+    });
+
+    it("grants protection from all five colours when controlling one of each basic land type (Draco-style board)", () => {
+        const bear = makeInstance(crawWurm.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const lands = [
+            makeInstance(plains.id, {
+                id: "p",
+                controllerId: "p1",
+                ownerId: "p1",
+            }),
+            makeInstance(island.id, {
+                id: "i",
+                controllerId: "p1",
+                ownerId: "p1",
+            }),
+            makeInstance(swamp.id, {
+                id: "s",
+                controllerId: "p1",
+                ownerId: "p1",
+            }),
+            makeInstance(mountain.id, {
+                id: "m",
+                controllerId: "p1",
+                ownerId: "p1",
+            }),
+            makeInstance(forest.id, {
+                id: "f",
+                controllerId: "p1",
+                ownerId: "p1",
+            }),
+        ];
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear, ...lands] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, dominariasJudgment.id, "p1");
+        resolveTopOfStack(state);
+        const bearAfter = state.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        for (const color of ["white", "blue", "black", "red", "green"]) {
+            expect(bearAfter.staticAbilities).toContain(
+                `protection from ${color}`
+            );
+        }
+    });
+
+    it("only affects creatures the caster controls, never the opponent's", () => {
+        const myBear = makeInstance(crawWurm.id, {
+            id: "myBear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const oppBear = makeInstance(grizzlyBears.id, {
+            id: "oppBear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const plainsLand = makeInstance(plains.id, {
+            id: "plains1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [myBear, plainsLand] }),
+                makePlayer("p2", { battlefield: [oppBear] }),
+            ],
+        });
+        pushSpell(state, dominariasJudgment.id, "p1");
+        resolveTopOfStack(state);
+        const myBearAfter = state.players[0].battlefield.find(
+            (c) => c.id === "myBear"
+        )!;
+        const oppBearAfter = state.players[1].battlefield.find(
+            (c) => c.id === "oppBear"
+        )!;
+        expect(myBearAfter.staticAbilities).toContain("protection from white");
+        expect(oppBearAfter.staticAbilities ?? []).not.toContain(
+            "protection from white"
+        );
+    });
+});
+
+describe("Honorable Scout (ETB: gain 2 life per black/red creature target opponent controls)", () => {
+    /** Pushes Honorable Scout's ETB trigger directly with the target already
+     *  announced (mirrors Xantid Swarm's `resolveAttackTrigger`,
+     *  `sets/scg/__tests__/green.test.ts`) — exercises the ability's own
+     *  effect resolution without re-driving the generic CR 603.3d
+     *  announcement pipeline every ETB trigger already shares. */
+    function resolveScoutTrigger(
+        state: GameState,
+        source: CardInstanceState,
+        opponentId: string
+    ): void {
+        state.stack.push({
+            ...source,
+            zone: "stack",
+            castById: source.controllerId,
+            triggeredAbilityId: "honorable-scout-etb",
+            triggerSourceId: source.id,
+            triggerEvent: {
+                type: "PERMANENT_ENTERED",
+                instanceId: source.id,
+                controllerId: source.controllerId,
+                types: source.types,
+            } as StackItem["triggerEvent"],
+            targets: [{ type: "player", id: opponentId }],
+        } as StackItem);
+        resolveTopOfStack(state);
+    }
+
+    it("is a {W} 1/1 Human Soldier Scout with the modern oracle text", () => {
+        expect(honorableScout.manaCost).toEqual({ W: 1 });
+        expect(honorableScout.types).toEqual(["Creature"]);
+        expect(honorableScout.subtypes).toEqual(["Human", "Soldier", "Scout"]);
+        expect(honorableScout.power).toBe(1);
+        expect(honorableScout.toughness).toBe(1);
+    });
+
+    it("gains 2 life for each black and/or red creature the targeted opponent controls", () => {
+        const scout = makeInstance(honorableScout.id, {
+            id: "scout",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const blackCreature = makeInstance(blackKnight.id, {
+            id: "bk",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const redCreature = makeInstance(dragonWhelp.id, {
+            id: "dw",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const goldRedBlack = makeInstance(dragonWhelp.id, {
+            id: "extra-red",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const greenCreature = makeInstance(crawWurm.id, {
+            id: "cw",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [scout] }),
+                makePlayer("p2", {
+                    battlefield: [
+                        blackCreature,
+                        redCreature,
+                        goldRedBlack,
+                        greenCreature,
+                    ],
+                }),
+            ],
+        });
+        const before = state.players[0].life;
+        resolveScoutTrigger(state, scout, "p2");
+        // 3 matching creatures (black knight + 2 red dragon whelps), the
+        // green creature does not count — 2 life each = 6.
+        expect(state.players[0].life).toBe(before + 6);
+    });
+
+    it("gains no life when the targeted opponent controls no black/red creatures", () => {
+        const scout = makeInstance(honorableScout.id, {
+            id: "scout",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const greenCreature = makeInstance(crawWurm.id, {
+            id: "cw",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [scout] }),
+                makePlayer("p2", { battlefield: [greenCreature] }),
+            ],
+        });
+        const before = state.players[0].life;
+        resolveScoutTrigger(state, scout, "p2");
+        expect(state.players[0].life).toBe(before);
+    });
+});
+
+describe("March of Souls (destroy all creatures, token per actually-destroyed creature, CR 701.8 / 111)", () => {
+    it("is a {4}{W} Sorcery with the modern oracle text", () => {
+        expect(marchOfSouls.manaCost).toEqual({ X: 4, W: 1 });
+        expect(marchOfSouls.types).toEqual(["Sorcery"]);
+    });
+
+    it("destroys all creatures and each controller creates their own 1/1 white flying Spirit token", () => {
+        const myBear = makeInstance(crawWurm.id, {
+            id: "myBear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const oppBear = makeInstance(grizzlyBears.id, {
+            id: "oppBear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [myBear] }),
+                makePlayer("p2", { battlefield: [oppBear] }),
+            ],
+        });
+        pushSpell(state, marchOfSouls.id, "p1");
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "myBear")
+        ).toBe(false);
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "oppBear")
+        ).toBe(false);
+        expect(state.players[0].graveyard.map((c) => c.id)).toContain("myBear");
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain(
+            "oppBear"
+        );
+        const p1Spirits = state.players[0].battlefield.filter((c) =>
+            c.subtypes?.includes("Spirit")
+        );
+        const p2Spirits = state.players[1].battlefield.filter((c) =>
+            c.subtypes?.includes("Spirit")
+        );
+        expect(p1Spirits).toHaveLength(1);
+        expect(p2Spirits).toHaveLength(1);
+        expect(p1Spirits[0].power).toBe(1);
+        expect(p1Spirits[0].toughness).toBe(1);
+        expect(p1Spirits[0].staticAbilities).toContain("flying");
+    });
+
+    it("does NOT create a token for an indestructible creature that survives (CR 701.8, only ACTUALLY-destroyed creatures get one)", () => {
+        const indestructibleBear = makeInstance(crawWurm.id, {
+            id: "indBear",
+            controllerId: "p1",
+            ownerId: "p1",
+            staticAbilities: ["indestructible"],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [indestructibleBear] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, marchOfSouls.id, "p1");
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "indBear")
+        ).toBe(true);
+        const spirits = state.players[0].battlefield.filter((c) =>
+            c.subtypes?.includes("Spirit")
+        );
+        expect(spirits).toHaveLength(0);
+    });
+});
+
+describe("Orim's Chant (Kicker {W}; target player can't cast spells this turn; if kicked, creatures can't attack this turn)", () => {
+    it("is a {W} Instant with a single {W} Kicker and the modern oracle text", () => {
+        expect(orimsChant.manaCost).toEqual({ W: 1 });
+        expect(orimsChant.types).toEqual(["Instant"]);
+        expect(orimsChant.kickers).toEqual([
+            { id: "kicker", description: "Kicker {W}", mana: { W: 1 } },
+        ]);
+    });
+
+    it("locks the target player out of casting spells this turn, unkicked", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        pushSpell(state, orimsChant.id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        expect(state.cannotCastSpellsThisTurn).toEqual([
+            { playerId: "p2", cardTypes: undefined },
+        ]);
+        const bolt = makeInstance(lightningBolt.id, { id: "bolt" });
+        expect(castProhibitionReason("p2", bolt, state)).toBeDefined();
+        expect(castProhibitionReason("p1", bolt, state)).toBeUndefined();
+    });
+
+    it("unkicked does NOT restrict any creature from attacking", () => {
+        const myBear = makeInstance(crawWurm.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [myBear] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, orimsChant.id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        const bearAfter = state.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(bearAfter.cantAttackThisTurn).not.toBe(true);
+    });
+
+    it("kicked ALSO makes every creature currently in play (both players') unable to attack this turn", () => {
+        const myBear = makeInstance(crawWurm.id, {
+            id: "myBear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const oppBear = makeInstance(grizzlyBears.id, {
+            id: "oppBear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [myBear] }),
+                makePlayer("p2", { battlefield: [oppBear] }),
+            ],
+        });
+        const item = pushSpell(state, orimsChant.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        item.kickerPayments = { kicker: 1 };
+        resolveTopOfStack(state);
+        const myBearAfter = state.players[0].battlefield.find(
+            (c) => c.id === "myBear"
+        )!;
+        const oppBearAfter = state.players[1].battlefield.find(
+            (c) => c.id === "oppBear"
+        )!;
+        expect(myBearAfter.cantAttackThisTurn).toBe(true);
+        expect(oppBearAfter.cantAttackThisTurn).toBe(true);
+        // The base "can't cast spells" clause still applies when kicked too.
+        expect(state.cannotCastSpellsThisTurn).toEqual([
+            { playerId: "p2", cardTypes: undefined },
+        ]);
+    });
+});
+
+describe("Samite Pilgrim (Domain — {T}: prevent the next X damage to target creature this turn)", () => {
+    it("is a {1}{W} 1/1 Human Cleric with the modern oracle text", () => {
+        expect(samitePilgrim.manaCost).toEqual({ X: 1, W: 1 });
+        expect(samitePilgrim.types).toEqual(["Creature"]);
+        expect(samitePilgrim.subtypes).toEqual(["Human", "Cleric"]);
+        expect(samitePilgrim.power).toBe(1);
+        expect(samitePilgrim.toughness).toBe(1);
+    });
+
+    it("prevents damage equal to the Domain count (basic land types among lands the controller controls)", () => {
+        const pilgrim = makeInstance(samitePilgrim.id, {
+            id: "pilgrim",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const bear = makeInstance(crawWurm.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const lands = [
+            makeInstance(plains.id, {
+                id: "p",
+                controllerId: "p1",
+                ownerId: "p1",
+            }),
+            makeInstance(island.id, {
+                id: "i",
+                controllerId: "p1",
+                ownerId: "p1",
+            }),
+            makeInstance(swamp.id, {
+                id: "s",
+                controllerId: "p1",
+                ownerId: "p1",
+            }),
+        ];
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [pilgrim, bear, ...lands] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, pilgrim, "samite-pilgrim-prevent", [
+            { type: "permanent", id: "bear" },
+        ]);
+        // Domain = 3 (Plains/Island/Swamp) — Lightning Bolt's 3 damage is
+        // fully absorbed.
+        pushSpell(state, lightningBolt.id, "p2", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+        const bearAfter = state.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(bearAfter.damageMarked ?? 0).toBe(0);
+    });
+
+    it("prevents nothing with Domain 0 (no basic land types among lands controlled)", () => {
+        const pilgrim = makeInstance(samitePilgrim.id, {
+            id: "pilgrim",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const bear = makeInstance(crawWurm.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [pilgrim, bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, pilgrim, "samite-pilgrim-prevent", [
+            { type: "permanent", id: "bear" },
+        ]);
+        pushSpell(state, lightningBolt.id, "p2", [
+            { type: "permanent", id: "bear" },
+        ]);
+        resolveTopOfStack(state);
+        const bearAfter = state.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(bearAfter.damageMarked ?? 0).toBe(3);
+    });
+});
+
+describe("Surprise Deployment (combat-only instant; put a nonwhite creature from hand onto the battlefield, return it at next end step)", () => {
+    it("is a {3}{W} Instant restricted to every combat step, with the modern oracle text", () => {
+        expect(surpriseDeployment.manaCost).toEqual({ X: 3, W: 1 });
+        expect(surpriseDeployment.types).toEqual(["Instant"]);
+        expect(surpriseDeployment.castPhaseRestriction).toEqual([
+            "BEGINNING_OF_COMBAT",
+            "DECLARE_ATTACKERS",
+            "DECLARE_BLOCKERS",
+            "FIRST_STRIKE_DAMAGE",
+            "COMBAT_DAMAGE",
+            "END_OF_COMBAT",
+        ]);
+    });
+
+    it("puts the chosen nonwhite creature onto the battlefield, then returns EXACTLY that creature to hand at the next end step", () => {
+        const bear = makeInstance(crawWurm.id, {
+            id: "deployed-bear",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { hand: [bear] }), makePlayer("p2")],
+        });
+        pushSpell(state, surpriseDeployment.id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("choose-hand-card");
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["deployed-bear"],
+        });
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "deployed-bear")
+        ).toBe(true);
+        expect(state.players[0].hand).toHaveLength(0);
+        expect(state.delayedTriggers).toHaveLength(1);
+        fireDelayedTriggers(state, "next-end-step");
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "deployed-bear")
+        ).toBe(false);
+        expect(state.players[0].hand.map((c) => c.id)).toContain(
+            "deployed-bear"
+        );
+    });
+
+    it("declining the optional put is a safe no-op (CR 608.2b — nothing on the battlefield to return)", () => {
+        const bear = makeInstance(crawWurm.id, {
+            id: "declined-bear",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { hand: [bear] }), makePlayer("p2")],
+        });
+        pushSpell(state, surpriseDeployment.id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: [],
+        });
+        expect(state.players[0].hand.map((c) => c.id)).toContain(
+            "declined-bear"
+        );
+        // The delayed trigger is still SCHEDULED (the script has no branch
+        // construct to skip it), but its capture never bound anything (no
+        // creature entered) — firing it at the next end step is a no-op
+        // rather than an error (CR 608.2b — the effect does as much as it
+        // can), exactly the "if you do" idiom Spinal Embrace already relies
+        // on (`inv/multicolor.ts`).
+        expect(state.delayedTriggers).toHaveLength(1);
+        fireDelayedTriggers(state, "next-end-step");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.map((c) => c.id)).toContain(
+            "declined-bear"
+        );
     });
 });

@@ -1513,11 +1513,17 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // they're genuinely blocked on a missing object-selector — the SAME
         // known over-count class the Wan Shi Tong note above documents, not
         // a certification these two should actually migrate today (FREE
-        // 304->306, AFK-ready unchanged at 295 — both land in "need test
-        // first", 9->11). Partition: 306+14+151=471.
+        // 304->306). Per PR #2010's review (BLOCKER 1, mandatory hand-written
+        // tests for a `resolve()` site — `gre-development.md` § Card testing
+        // convention), both FREE-scored closures (Sleeping Potion's ETB tap,
+        // Planeswalker's Mischief's delayed-trigger return body) landed a
+        // per-card test in `pls/__tests__/blue.test.ts`, which is exactly
+        // what "AFK-ready" tracks ("has per-card test"): AFK-ready 295->297,
+        // "need test first" 11->9 (the same two closures moving out of it).
+        // Partition: 306+14+151=471.
         expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(471);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(306);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(295);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(297);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(151);
     });

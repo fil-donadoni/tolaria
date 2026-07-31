@@ -3270,6 +3270,7 @@ describe("Siren's Call (CR 508.1d — all creatures must attack)", () => {
 
         const required = getRequiredAttackerIds(
             p1.battlefield,
+            state,
             undefined,
             state.allCreaturesMustAttack
         );
@@ -3294,6 +3295,7 @@ describe("Siren's Call (CR 508.1d — all creatures must attack)", () => {
 
         const required = getRequiredAttackerIds(
             p1.battlefield,
+            state,
             undefined,
             state.allCreaturesMustAttack
         );
