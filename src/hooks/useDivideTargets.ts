@@ -7,6 +7,7 @@ import {
     wantsPlayerTarget,
 } from "~/lib/card-utils";
 import { isPlayerUntargetableByPending } from "~/lib/targeting";
+import { isAlreadySelectedTarget } from "@convex/gre/targetFilters";
 
 /** One legal target of an active divide-as-you-choose spell (CR 601.2d). The
  *  divide dialog renders these inline (a mini-card / player chip + its own
@@ -83,6 +84,12 @@ export function useDivideTargets(): DivideTargetItem[] {
     if (wantsPlayerTarget(pendingTarget.targetType)) {
         for (const p of allPlayers) {
             if (
+                // CR 601.2c — already-chosen exclusion (see
+                // `matchesPermanentTargetFilters`'s identical guard above).
+                !isAlreadySelectedTarget(
+                    { type: "player", id: p.id },
+                    pendingTarget.selected
+                ) &&
                 (!pendingTarget.playerAttackedThisTurn ||
                     p.battlefield.some((c) => c.hasAttackedThisTurn)) &&
                 !isPlayerUntargetableByPending(

@@ -88,6 +88,7 @@ import {
     checkCardTargetFilters,
     lowerCardFilters,
     siblingControllerIdFor,
+    isAlreadySelectedTarget,
     type TargetFilterCtx,
     type PermanentFilterValues,
 } from "./targetFilters";
@@ -118,6 +119,7 @@ export {
     spellMatchesCreaturePtFilter,
     spellWouldDestroyLandControlledBy,
     siblingControllerIdFor,
+    isAlreadySelectedTarget,
     type TargetFilterCtx,
     type PermanentFilterValues,
     type SpellFilterValues,
@@ -2015,7 +2017,11 @@ export function getLegalTargets(
                 });
             }
         }
-        return targets;
+        // CR 601.2c — exclude objects already chosen under THIS SAME
+        // requirement (see `isAlreadySelectedTarget`'s doc).
+        return targets.filter(
+            (t) => !isAlreadySelectedTarget(t, alreadySelected)
+        );
     }
 
     // CR 114: "spell-or-permanent" targets any permanent (not just
@@ -2266,7 +2272,12 @@ export function getLegalTargets(
         }
     }
 
-    return targets;
+    // CR 601.2c — exclude objects already chosen under THIS SAME requirement
+    // (see `isAlreadySelectedTarget`'s doc) — the offered-set half of the
+    // distinct-targets invariant (Magma Burst's kicked "another target" is
+    // the first catalogue card whose `count: 2` requirement made the gap
+    // observable, but the invariant is general, not card-specific).
+    return targets.filter((t) => !isAlreadySelectedTarget(t, alreadySelected));
 }
 
 /** Colors of the source whose target-selection is in progress (CR 202.2).

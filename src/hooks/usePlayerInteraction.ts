@@ -1,6 +1,7 @@
 import type { Player } from "~/types/game";
 import { wantsPlayerTarget } from "~/lib/card-utils";
 import { isPlayerUntargetableByPending } from "~/lib/targeting";
+import { isAlreadySelectedTarget } from "@convex/gre/targetFilters";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { useDivideBuffer } from "~/hooks/useDivideBuffer";
@@ -83,6 +84,17 @@ export function usePlayerInteraction(player: Player): PlayerInteraction {
         // Accepts scalar "player"/"any" AND the array form (Lava Spike's
         // ["player", "Planeswalker"]) — a raw === "player" missed arrays.
         wantsPlayerTarget(pendingTarget.targetType) &&
+        // CR 601.2c — a player already chosen under THIS SAME requirement is
+        // never a legal second pick (Magma Burst's kicked "another target" —
+        // clicking the same opponent's avatar twice must not read as
+        // clickable a second time). Mirrors the server's own exclusion
+        // (`isAlreadySelectedTarget`, `getLegalTargets`/`selectTarget`) and
+        // `matchesPermanentTargetFilters`' identical guard for a permanent
+        // candidate.
+        !isAlreadySelectedTarget(
+            { type: "player", id: player.id },
+            pendingTarget.selected
+        ) &&
         // CR 506.2 — "target player who attacked this turn" (Fire and
         // Brimstone): a player is only clickable when they control a creature
         // flagged as having attacked. The server enforces this too, but gating

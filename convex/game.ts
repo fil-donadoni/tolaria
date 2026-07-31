@@ -205,6 +205,7 @@ import {
     raiseTriggerTargetSelection,
     solvePhyrexianSplit,
     siblingControllerIdFor,
+    isAlreadySelectedTarget,
     genericManaShortfall,
 } from "./gre/rules";
 import {
@@ -9267,6 +9268,17 @@ export function applyOneTargetSelection(
         if (spellFilterViolation) throw new Error(spellFilterViolation);
     }
 
+    // CR 601.2c — reject a target already chosen under THIS SAME requirement
+    // (Magma Burst's kicked "another target"; Dust to Dust's "two target
+    // artifacts"). Fail CLOSED: a repeat pick is illegal by rule for every
+    // multi-slot requirement, not a card-specific restriction. Mirrors
+    // `getLegalTargets`'s offered-set exclusion (`isAlreadySelectedTarget`,
+    // `targetFilters.ts`) so the offered and accepted sets can never diverge
+    // (ADR 0068).
+    if (isAlreadySelectedTarget(target, pt.selected)) {
+        throw new Error("That target has already been chosen for this spell");
+    }
+
     pt.selected.push(target);
 
     // CR 601.2d / 120.4 — divide-as-you-choose: record the amount assigned
@@ -12015,6 +12027,20 @@ export function activateAbilityOnState(
             effectiveTargetReq.count,
             targetChosenX
         );
+        // CR 602.2b / 601.2c — mirrors the cast path's identical check
+        // (`legalTargets.length < required` above): activating with a
+        // `count >= 2` requirement and fewer legal candidates than that
+        // (e.g. Sorrow's Path / General Jarkeld's `count: 2` with only ONE
+        // legal blocking creature on the board) must be rejected up front,
+        // not accepted on `legal.length !== 0` and then dead-end mid-
+        // selection with a second target slot nothing can fill (the CR
+        // 601.2c distinct-targets fix, issue #1951 review round 2, is what
+        // makes the dead-end reachable: a repeat pick used to silently
+        // paper over the shortfall).
+        const abilityRequired = minTargetCount(abilityCount);
+        if (legal.length < abilityRequired) {
+            throw new Error("Not enough legal targets");
+        }
         // CR 601.2d / 120.4 — divide-as-you-choose budget for an activated
         // ability (Arc Mage). Mirrors the spell-cast path: resolve the total
         // against the chosen X, cap an open-ended `{ min }` count at the

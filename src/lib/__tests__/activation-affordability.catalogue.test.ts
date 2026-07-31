@@ -53,7 +53,8 @@ type Shape =
     | "removeCounter"
     | "discardFilter"
     | "loyalty"
-    | "tapOtherFilter";
+    | "tapOtherFilter"
+    | "sacrificeFilter";
 
 /** Finds a REAL catalogue card definition matching an `EffectCardFilter`'s
  *  `type`/`subtype` fields (the two dimensions a `discardFilter` cost is
@@ -170,6 +171,15 @@ function gvCard(id: string, ownerId: string): CardInstance {
 function findMatchingPermanentCardId(
     filter: PermanentFilter
 ): { id: string; power: number } | null {
+    // `isToken` is an INSTANCE property (was THIS permanent created via
+    // createToken?), never a property of the printed card definition — every
+    // catalogue definition, cast normally, is a nontoken permanent. Matching
+    // WITH `isToken` folded in would make an `isToken: true` filter
+    // unsatisfiable by ANY definition and always report a skip rather than
+    // asserting real behavior; match on every OTHER dimension and declare the
+    // probe `isToken: false` (the "cast normally" case) explicitly.
+    const { isToken: _isToken, ...structuralFilter } = filter;
+    void _isToken;
     for (const def of getAllCards()) {
         if (!def.types.includes("Creature")) continue;
         if (def.power === undefined || def.power < 1) continue;
@@ -185,11 +195,57 @@ function findMatchingPermanentCardId(
             toughness: def.toughness,
             isTapped: false,
             colors: getColorsFromCost(def.manaCost),
+            isToken: false,
         };
         if (
-            matchesPermanentFilter(view, filter, { selfControllerId: VIEWER })
+            matchesPermanentFilter(view, structuralFilter, {
+                selfControllerId: VIEWER,
+            })
         ) {
             return { id: def.id, power: def.power };
+        }
+    }
+    return null;
+}
+
+/** A REAL catalogue permanent (any type — unlike `findMatchingPermanentCardId`,
+ *  a `sacrificeFilter` cost can name an artifact/enchantment/land, not only a
+ *  creature: Priest of Yawgmoth "Sacrifice an artifact", Deadapult "Sacrifice
+ *  a Zombie") matching the given `PermanentFilter`. Returns null when the
+ *  catalogue has no such card, which the sweep reports as a skip rather than
+ *  a failure. */
+function findMatchingAnyPermanentCardId(
+    filter: PermanentFilter
+): string | null {
+    // Same `isToken`-is-an-instance-property reasoning as
+    // `findMatchingPermanentCardId` above — Caribou Range's "Sacrifice a
+    // Caribou TOKEN" (`{ subtypes: "Caribou", isToken: true }`) must find a
+    // real Caribou-subtype DEFINITION here (ignoring `isToken`); the fixture
+    // builder below (`sacrificeHelpers`) is what actually stamps the
+    // resulting instance as a token, matching the card's real cost.
+    const { isToken: _isToken, ...structuralFilter } = filter;
+    void _isToken;
+    for (const def of getAllCards()) {
+        const view = {
+            id: "probe",
+            controllerId: VIEWER,
+            ownerId: VIEWER,
+            types: def.types,
+            subtypes: def.subtypes ?? [],
+            supertypes: def.supertypes ?? [],
+            staticAbilities: def.staticAbilities ?? [],
+            power: def.power,
+            toughness: def.toughness,
+            isTapped: false,
+            colors: getColorsFromCost(def.manaCost),
+            isToken: false,
+        };
+        if (
+            matchesPermanentFilter(view, structuralFilter, {
+                selfControllerId: VIEWER,
+            })
+        ) {
+            return def.id;
         }
     }
     return null;
@@ -218,6 +274,48 @@ function crewHelper(
     };
 }
 
+/** A synthetic sacrifice-cost fixture built DIRECTLY from a `sacrificeFilter`'s
+ *  own declared dimensions — the fallback for a filter with NO backing
+ *  catalogue `CardDefinition` (Caribou Range's "Sacrifice a Caribou TOKEN":
+ *  "Caribou" is a TOKEN-ONLY creature type in this catalogue — and in real
+ *  Magic — so `getAllCards()` can never find a nontoken card with it).
+ *  Bypasses the registry-derived `colors` path `crewHelper` relies on (an
+ *  unregistered card id resolves to no definition) by setting
+ *  `colorOverride` and every structural field directly off the filter — the
+ *  same "synthetic, non-catalogue fixture" shape `targetDummy`/`gvCard`
+ *  already use elsewhere in this file. `CardInstance` has no `supertypes`
+ *  field (`buildTriggerStateView` only ever derives it via a registry lookup
+ *  by real card id, which a synthetic id can't provide) so a
+ *  `supertypes`-gated filter can't be satisfied through this path — every
+ *  catalogue `sacrificeFilter` that needs a supertype (Sunstone,
+ *  Glacial Crevasses) has a real snow-land catalogue match, so it never
+ *  reaches this fallback. Only covers types/subtypes/colors/isToken; an
+ *  unhandled dimension surfaces as a loud assertion failure rather than
+ *  silently passing (verified once by `skipReason` before this fixture is
+ *  trusted). */
+function syntheticSacrificeFixture(
+    id: string,
+    filter: PermanentFilter
+): CardInstance {
+    const asArray = <T>(v: T | T[] | undefined): T[] =>
+        v === undefined ? [] : Array.isArray(v) ? v : [v];
+    const types = asArray(filter.types);
+    return {
+        id,
+        card: { id: "synthetic-sacrifice-fixture" },
+        controllerId: VIEWER,
+        ownerId: VIEWER,
+        zone: "battlefield",
+        isTapped: false,
+        isSummoningSick: false,
+        types: types.length > 0 ? types : ["Artifact"],
+        subtypes: asArray(filter.subtypes),
+        staticAbilities: [],
+        isToken: filter.isToken ?? false,
+        colorOverride: asArray(filter.colors),
+    };
+}
+
 /** Which affordability shapes an ability declares (only the enumerable ones). */
 function shapesOf(a: ActivatedAbility): Shape[] {
     const out: Shape[] = [];
@@ -234,18 +332,79 @@ function shapesOf(a: ActivatedAbility): Shape[] {
     // affordability hint in `getStackAbilities` (once-per-turn / sorcery-speed /
     // not-below-0), so it joins the sweep (issue #700).
     if (a.cost.loyalty !== undefined) out.push("loyalty");
+    // CR 602.1 / 118.5 — "sacrifice a permanent matching <filter>" (Deadapult
+    // "Sacrifice a Zombie") has a `getStackAbilities` gate weighing the
+    // viewer's own battlefield — the "new cost shape pays the entry fee once"
+    // this sweep is built around (issue #1951 review).
+    if (a.cost.sacrificeFilter) out.push("sacrificeFilter");
     return out;
 }
 
 /** True when the ability's payability rides on a predicate this sweep can't
  *  generically satisfy — reported as a skip rather than a failure. */
-function skipReason(a: ActivatedAbility): string | null {
+function skipReason(a: ActivatedAbility, def: CardDefinition): string | null {
     if (a.canActivate) return "canActivate predicate";
     if (
         a.cost.tapOtherFilter &&
         findMatchingPermanentCardId(a.cost.tapOtherFilter.filter) === null
     ) {
         return "no catalogue creature matches the tapOtherFilter";
+    }
+    if (a.cost.sacrificeFilter) {
+        // A real catalogue match is preferred (`findMatchingAnyPermanentCardId`),
+        // but its absence is no longer a skip: `syntheticSacrificeFixture`
+        // covers a filter with no backing card definition (Caribou Range's
+        // TOKEN-ONLY "Caribou" subtype). Verify the synthetic fixture
+        // actually satisfies the filter once here — an unhandled filter
+        // dimension (something beyond types/subtypes/supertypes/colors/
+        // isToken) is the one case still worth a skip rather than a false
+        // assertion.
+        if (
+            findMatchingAnyPermanentCardId(a.cost.sacrificeFilter) === null &&
+            !matchesPermanentFilter(
+                syntheticSacrificeFixture(
+                    "synthetic-probe",
+                    a.cost.sacrificeFilter
+                ) as unknown as Parameters<typeof matchesPermanentFilter>[0],
+                a.cost.sacrificeFilter,
+                { selfControllerId: VIEWER }
+            )
+        ) {
+            return "no catalogue permanent (real or synthetic) matches the sacrificeFilter";
+        }
+        // Self-referential sacrifice (Thopter Foundry's "sacrifice a nontoken
+        // artifact" on an artifact source): the ability's OWN source is
+        // always on the battlefield in this harness, so a "zero legal
+        // candidates" break can't be constructed without removing the
+        // ability's own home permanent — skip rather than assert an
+        // unreachable HIDDEN case.
+        if (
+            matchesPermanentFilter(
+                {
+                    id: "self-probe",
+                    controllerId: VIEWER,
+                    types: def.types,
+                    subtypes: def.subtypes ?? [],
+                    supertypes: def.supertypes ?? [],
+                    staticAbilities: def.staticAbilities ?? [],
+                    power: def.power,
+                    toughness: def.toughness,
+                    isTapped: false,
+                    colors: getColorsFromCost(def.manaCost),
+                    // The ability's own SOURCE is a real printed permanent
+                    // (cast normally), never a token itself — declaring this
+                    // explicitly (rather than leaving it undefined) is what
+                    // correctly fails an `isToken: true` sacrificeFilter here
+                    // (Caribou Range doesn't sacrifice ITSELF, only the
+                    // Caribou tokens it made) instead of masking the check.
+                    isToken: false,
+                },
+                a.cost.sacrificeFilter,
+                { selfControllerId: VIEWER }
+            )
+        ) {
+            return "sacrificeFilter self-matches the ability's own source";
+        }
     }
     if (a.getTargetRequirement) return "getTargetRequirement predicate";
     // CR 602.2b — the no-legal-target gate needs a candidate on the board. The
@@ -273,7 +432,7 @@ for (const def of getAllCards()) {
         if (!a.useStack) continue; // mana abilities aren't macro-offered
         const shapes = shapesOf(a);
         if (shapes.length === 0) continue;
-        const reason = skipReason(a);
+        const reason = skipReason(a, def);
         if (reason) {
             skips.push(`${def.name} · ${a.id} — ${reason}`);
             continue;
@@ -362,6 +521,62 @@ function env(c: Case, broken: boolean) {
             tapHelpers.push(crewHelper(`tap${i}`, match.id, helperDef));
         }
     }
+    // CR 602.1 / 118.5 — one matching permanent to pay a `sacrificeFilter`
+    // cost (Deadapult's "Sacrifice a Zombie"); the break removes it entirely
+    // (there is no partial sacrifice — either a legal candidate exists or it
+    // doesn't, CR 602.1's "illegal if no matching permanent" is a boolean
+    // gate, unlike `tapOtherFilter`'s countable pool).
+    const sacrificeHelpers: CardInstance[] = [];
+    if (ability.cost.sacrificeFilter) {
+        const matchId = findMatchingAnyPermanentCardId(
+            ability.cost.sacrificeFilter
+        );
+        if (!(broken && shape === "sacrificeFilter")) {
+            if (matchId) {
+                const helperDef = getAllCards().find((d) => d.id === matchId)!;
+                sacrificeHelpers.push({
+                    ...crewHelper("sac0", matchId, helperDef),
+                    // `findMatchingAnyPermanentCardId` matched every OTHER
+                    // dimension while ignoring `isToken` (a real card
+                    // definition can never itself be a token) — stamp the
+                    // FIXTURE's own `isToken` to whatever the cost actually
+                    // requires (Caribou Range's "Sacrifice a Caribou TOKEN"
+                    // needs `isToken: true` here; the common "Sacrifice a
+                    // Zombie"/"an artifact" shape needs `false`, matching a
+                    // normally-cast permanent).
+                    isToken: ability.cost.sacrificeFilter.isToken ?? false,
+                });
+            } else {
+                // No backing catalogue definition (Caribou Range's
+                // TOKEN-ONLY "Caribou" subtype) — the synthetic fallback,
+                // verified satisfiable by `skipReason` before this point.
+                sacrificeHelpers.push(
+                    syntheticSacrificeFixture(
+                        "sac0",
+                        ability.cost.sacrificeFilter
+                    )
+                );
+            }
+        }
+    }
+    // The viewer's target dummy deliberately carries EVERY permanent type so
+    // it satisfies any unrelated targeting requirement — which means it also
+    // accidentally satisfies a plain `types`-only `sacrificeFilter`
+    // (Priest of Yawgmoth's "Sacrifice an artifact" et al.), masking the
+    // "zero legal candidates" break the same way an untapped dummy would
+    // mask `tapOtherFilter` above. Every catalogue `sacrificeFilter.types`
+    // checked here differs from its OWN ability's `targetRequirement.type`
+    // (verified case by case: Sylvan Safekeeper sacrifices a Land but
+    // targets a Creature; Shivan Harvest sacrifices a Creature but targets a
+    // Land; Skull Catapult / Goblin Bombardment target "any", which the
+    // player fallback satisfies without the dummy at all) — so it is safe to
+    // drop exactly the sacrificed type(s) from the dummy without breaking
+    // its OWN targeting role.
+    const dummySacrificeTypes = ability.cost.sacrificeFilter?.types
+        ? Array.isArray(ability.cost.sacrificeFilter.types)
+            ? ability.cost.sacrificeFilter.types
+            : [ability.cost.sacrificeFilter.types]
+        : [];
     const view = buildTriggerStateView(
         [
             {
@@ -378,8 +593,14 @@ function env(c: Case, broken: boolean) {
                     {
                         ...targetDummy("dummy-you", VIEWER),
                         isTapped: ability.cost.tapOtherFilter !== undefined,
+                        types: (
+                            targetDummy("dummy-you", VIEWER).types ?? []
+                        ).filter(
+                            (t) => !dummySacrificeTypes.includes(t as never)
+                        ),
                     },
                     ...tapHelpers,
+                    ...sacrificeHelpers,
                 ],
                 graveyard: viewerGrave,
             },

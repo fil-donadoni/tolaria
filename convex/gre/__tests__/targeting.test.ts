@@ -2384,10 +2384,10 @@ describe("getLegalTargets: sameController (CR 601.2c, issue #1104)", () => {
             sameController: true,
         };
         // bear1 (p1) already picked — the sameController filter now excludes
-        // p2's bear2 from the offered set. (Self-exclusion of an
-        // already-picked id for a multi-count SAME requirement is a separate,
-        // pre-existing concern this filter does not address — `getLegalTargets`
-        // reports every controller-matching candidate, bear1 included.)
+        // p2's bear2 from the offered set, AND (CR 601.2c — every target
+        // fixed) `getLegalTargets` itself excludes bear1 from a SECOND pick
+        // under this SAME requirement (`isAlreadySelectedTarget`,
+        // `targetFilters.ts`) — only bear3 remains.
         const targets = getLegalTargets(
             state,
             req,
@@ -2399,7 +2399,7 @@ describe("getLegalTargets: sameController (CR 601.2c, issue #1104)", () => {
             undefined,
             [{ type: "permanent", id: "bear1" }]
         );
-        expect(targets.map((t) => t.id).sort()).toEqual(["bear1", "bear3"]);
+        expect(targets.map((t) => t.id).sort()).toEqual(["bear3"]);
     });
 
     it("siblingControllerIdFor: undefined when unset, when nothing selected, or when the sibling left the battlefield", () => {
@@ -2430,6 +2430,82 @@ describe("getLegalTargets: sameController (CR 601.2c, issue #1104)", () => {
                 { type: "permanent", id: "bear1" },
             ])
         ).toBe("p2");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Distinct targets within ONE requirement (CR 601.2c) — a `count > 1`
+// `TargetRequirement` models a single instance of the word "target" with N
+// targets, so its slots must always be pairwise distinct (Magma Burst's
+// kicked "another target", Dust to Dust's "two target artifacts"). This is a
+// general engine invariant enforced by the shared `isAlreadySelectedTarget`
+// predicate (`targetFilters.ts`), not a card-specific check — the bot path
+// (`legalActions.ts`) already implemented it; this closes the human path
+// (`getLegalTargets` here, `applyOneTargetSelection`/`selectTarget` in
+// `game.ts`, tested below).
+// ---------------------------------------------------------------------------
+
+describe("getLegalTargets: distinct targets within one requirement (CR 601.2c)", () => {
+    it("excludes a permanent already chosen under the SAME requirement from a SECOND pick", () => {
+        const bear1 = makeCard({ id: "bear1", card: CREATURE });
+        const bear2 = makeCard({ id: "bear2", card: CREATURE });
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1", battlefield: [bear1, bear2] }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+        const req: TargetRequirement = { type: "Creature", count: 2 };
+        // bear1 already picked — only bear2 remains offered.
+        const targets = getLegalTargets(
+            state,
+            req,
+            [],
+            undefined,
+            undefined,
+            [],
+            [],
+            undefined,
+            [{ type: "permanent", id: "bear1" }]
+        );
+        expect(targets.map((t) => t.id)).toEqual(["bear2"]);
+    });
+
+    it("excludes a player already chosen under the SAME requirement (Magma Burst's kicked 'another target')", () => {
+        const state = makeGameState({
+            players: [makePlayer({ id: "p1" }), makePlayer({ id: "p2" })],
+        });
+        const req: TargetRequirement = { type: "any", count: 2 };
+        const targets = getLegalTargets(
+            state,
+            req,
+            [],
+            undefined,
+            undefined,
+            [],
+            [],
+            undefined,
+            [{ type: "player", id: "p2" }]
+        );
+        expect(targets.some((t) => t.type === "player" && t.id === "p2")).toBe(
+            false
+        );
+        expect(targets.some((t) => t.type === "player" && t.id === "p1")).toBe(
+            true
+        );
+    });
+
+    it("with NOTHING selected yet, the same object is offered normally (the first pick is unconstrained)", () => {
+        const bear1 = makeCard({ id: "bear1", card: CREATURE });
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1", battlefield: [bear1] }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+        const req: TargetRequirement = { type: "Creature", count: 2 };
+        const targets = getLegalTargets(state, req);
+        expect(targets.map((t) => t.id)).toEqual(["bear1"]);
     });
 });
 
