@@ -3479,6 +3479,38 @@ describe("shroud dynamic-grant backend gate (issue #959, CR 702.18)", () => {
             })
         ).toBe(false);
     });
+
+    // Round-2 review (PR #2040): the bridge is the first shroud path to
+    // depend on `staticAbilities` surviving `projectPublicState` — every
+    // pre-existing `isGuardedAgainst` guard is exercised through the wire
+    // format somewhere in the catalogue (`mrd/__tests__/colorless.test.ts`,
+    // `ths/__tests__/green.test.ts`, `leg/__tests__/blue.test.ts`) and this
+    // one wasn't. It does survive: `slimCard` (`gameProjections.ts`) spreads
+    // the whole `CardInstanceState` and only strips `card`/`knownTo`/
+    // `stormSnapshot`, so a dynamically-granted `"shroud"` string rides the
+    // wire unchanged — this is the confirming assertion, not a fix.
+    it("the dynamic shroud grant survives projectPublicState (wire format)", () => {
+        const { state } = makeBoard(["shroud"]);
+        const projected = projectPublicState(state, 1, "p2");
+        const slimBear = projected.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(slimBear.staticAbilities).toContain("shroud");
+        expect(
+            isGuardedAgainst(projected, slimBear, "cantBeTargeted", {
+                isSpell: true,
+                controllerId: "p2",
+            })
+        ).toBe(true);
+        // Unfiltered (CR 702.18) — the projected permanent's OWN controller
+        // is barred too, same as the fat-state assertion above.
+        expect(
+            isGuardedAgainst(projected, slimBear, "cantBeTargeted", {
+                isSpell: true,
+                controllerId: "p1",
+            })
+        ).toBe(true);
+    });
 });
 
 // ---------------------------------------------------------------------------

@@ -22,6 +22,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    resolveTriggerOrder,
 } from "../../../__tests__/setup";
 import { projectPublicState } from "../../../../gameProjections";
 import {
@@ -49,7 +50,10 @@ import {
     advancePhase,
 } from "../../../../gre/phases";
 import { getLegalActions } from "../../../../gre/rules";
-import type { TargetSelection } from "../../../types";
+import { applyOneTargetSelection } from "../../../../game";
+import { registerTokenDefinition } from "../../..";
+import { kickerPaidCondition } from "../../../abilities/triggers/shared";
+import type { TargetSelection, PermanentView } from "../../../types";
 
 /** Pushes a triggered ability directly onto the stack (bypassing the real
  *  cast/announcement pipeline) and resolves it — mirrors `pls/blue.test.ts`'s
@@ -1488,5 +1492,232 @@ describe("Thornscape Battlemage ({2}{G} 2/2 — Kicker {R} and/or {W}, two indep
         expect(state.players[1].battlefield.some((c) => c.id === "art4")).toBe(
             false
         );
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// Thornscape Battlemage — CR 603.4 per-Kicker check-time gate (PR #2040
+// round 2, issue #2015). The tests above push the trigger stack items
+// DIRECTLY (`pushTrigger`), which bypasses `matches`/`collectTriggers`
+// entirely and therefore never exercises the gate itself — the bug (#2039's
+// class, reproduced on this card because it shipped before #2039 landed) is
+// that BOTH triggers used to always reach the stack regardless of which
+// Kicker was actually paid, announcing a target and firing a real
+// `BECAME_TARGET` event even for the unpaid leg. Only the REAL cast path
+// (`pushSpell` -> `resolveTopOfStack` -> battlefield entry -> `collectTriggers`)
+// exercises `matches`/`gate`, so this block pushes the CREATURE SPELL, not
+// the trigger, and censuses which of the two ETB abilities the engine
+// actually allows onto the stack — one test per (kickers paid) cell,
+// including the must-NOT cells, which are the whole point (mirrors
+// Thunderscape Battlemage's `pls/red.ts` census exactly).
+// ─────────────────────────────────────────────────────────────────────────
+const TB_ARTIFACT_ID = "test-pls-green-battlemage-artifact";
+registerTokenDefinition({
+    id: TB_ARTIFACT_ID,
+    name: TB_ARTIFACT_ID,
+    rarity: "common",
+    manaCost: { X: 1 },
+    types: ["Artifact"],
+});
+
+const TB_WITNESS_ID = "test-pls-green-battlemage-target-witness";
+registerTokenDefinition({
+    id: TB_WITNESS_ID,
+    name: TB_WITNESS_ID,
+    rarity: "common",
+    manaCost: { X: 1 },
+    types: ["Creature"],
+    power: 1,
+    toughness: 1,
+    triggeredAbilities: [
+        {
+            id: "tb-witness-player-became-target",
+            oracleText:
+                "Whenever a player becomes the target of an ability, you gain 5 life.",
+            event: "BECAME_TARGET",
+            matches: (event) =>
+                event.type === "BECAME_TARGET" &&
+                event.target.type === "player",
+            effects: [{ op: "gainLife", player: "controller", amount: 5 }],
+        },
+    ],
+});
+
+describe("Thornscape Battlemage — CR 603.4 per-Kicker check-time gate (issue #2015)", () => {
+    /** Every queued `BECAME_TARGET` naming a PLAYER — the exact event a
+     *  phantom red-kicker announcement fires (`emitBecameTargetEvents`). Read
+     *  before the engine drains `pendingEvents`; the witness creature covers
+     *  the already-drained case. */
+    function playerBecameTargetEvents(state: GameState) {
+        return (state.pendingEvents ?? []).filter(
+            (e) => e.type === "BECAME_TARGET" && e.target.type === "player"
+        );
+    }
+
+    /** Casts the Battlemage through the real path with the given per-Kicker
+     *  payment record, resolves the creature spell (choosing a player target
+     *  for the {R} trigger when it reaches the stack, since "any" offers
+     *  more than one legal candidate and is never auto-selected), and
+     *  reports which ETB triggers the engine actually allowed onto the
+     *  stack. */
+    function castKickedWith(payments?: Record<string, number>): {
+        state: GameState;
+        triggersOnStack: string[];
+    } {
+        const artifact = makeInstance(TB_ARTIFACT_ID, {
+            id: "gate-art",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const witness = makeInstance(TB_WITNESS_ID, {
+            id: "gate-witness",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [artifact, witness],
+                    life: 20,
+                }),
+            ],
+        });
+        const item = pushSpell(state, thornscapeBattlemage.id, "p1");
+        if (payments) item.kickerPayments = payments;
+        resolveTopOfStack(state);
+        // CR 603.3b — when BOTH triggers fire from the same event the engine
+        // suspends on a `trigger-order` PendingChoice and holds the batch
+        // off-stack; submit the ordering so the census below sees the stack.
+        resolveTriggerOrder(state);
+        if (state.pendingTarget?.targetType === "any") {
+            applyOneTargetSelection(state, "p1", {
+                targetType: "player",
+                targetId: "p2",
+            });
+        }
+        return {
+            state,
+            triggersOnStack: state.stack
+                .map((s) => s.triggeredAbilityId)
+                .filter((id): id is string => id !== undefined),
+        };
+    }
+
+    /** Resolves everything left on the stack — the damage trigger's own
+     *  resolution, then any secondary trigger it raises (the witness's
+     *  BECAME_TARGET gain-life ability) — so a test can observe the fully
+     *  resolved outcome after first taking its "reached the stack" census. */
+    function drainStack(state: GameState): void {
+        let guard = 0;
+        while (state.stack.length > 0 && guard++ < 10) {
+            resolveTopOfStack(state);
+            resolveTriggerOrder(state);
+        }
+    }
+
+    it("unkicked: NEITHER trigger reaches the stack (no target announced at all)", () => {
+        const { state, triggersOnStack } = castKickedWith();
+        expect(triggersOnStack).toEqual([]);
+        expect(state.pendingTarget).toBeUndefined();
+        expect(playerBecameTargetEvents(state)).toEqual([]);
+        expect(state.players[1].life).toBe(20); // no BECAME_TARGET witnessed
+    });
+
+    it("kicked with {W} ONLY: the artifact-destroy trigger reaches the stack; the {R} damage trigger does NOT, and announces no target", () => {
+        const { state, triggersOnStack } = castKickedWith({ "kicker-w": 1 });
+        expect(triggersOnStack).toEqual(["thornscape-battlemage-white-kicker"]);
+        expect(triggersOnStack).not.toContain(
+            "thornscape-battlemage-red-kicker"
+        );
+        // The regression this issue exists for: the {R} trigger used to ride
+        // onto the stack on the aggregate `wasKicked` flag and prompt for
+        // "any target", firing a real BECAME_TARGET on the chosen target.
+        expect(state.pendingTarget).toBeUndefined();
+        expect(playerBecameTargetEvents(state)).toEqual([]);
+        expect(state.players[1].life).toBe(20);
+        // The {W} trigger's own target IS announced (sole legal artifact,
+        // auto-selected per CR 603.3d) — the gate suppresses only the unpaid
+        // Kicker's trigger, never the paid one.
+        const destroyItem = state.stack.find(
+            (s) => s.triggeredAbilityId === "thornscape-battlemage-white-kicker"
+        );
+        expect(destroyItem?.targets).toEqual([
+            { type: "permanent", id: "gate-art" },
+        ]);
+    });
+
+    it("kicked with {R} ONLY: the damage trigger reaches the stack and announces a target; the {W} destroy trigger does NOT", () => {
+        const { state, triggersOnStack } = castKickedWith({ "kicker-r": 1 });
+        expect(triggersOnStack).toEqual(["thornscape-battlemage-red-kicker"]);
+        expect(triggersOnStack).not.toContain(
+            "thornscape-battlemage-white-kicker"
+        );
+        // Choosing the player target DOES fire BECAME_TARGET — the witness
+        // proves the event path is live, so the must-NOT rows above are
+        // meaningful absence, not a dead observation.
+        expect(playerBecameTargetEvents(state)).toHaveLength(1);
+        // …and the witness actually collects it once the stack drains, which
+        // is what makes its SILENCE in the must-NOT rows above meaningful.
+        drainStack(state);
+        // 20 base − 2 (the {R} trigger's own damage, targeted at the player)
+        // + 5 (the witness's BECAME_TARGET gain-life ability) = 23.
+        expect(state.players[1].life).toBe(23);
+    });
+
+    it("kicked with BOTH Kickers: both triggers reach the stack", () => {
+        const { triggersOnStack } = castKickedWith({
+            "kicker-r": 1,
+            "kicker-w": 1,
+        });
+        expect(triggersOnStack.sort()).toEqual([
+            "thornscape-battlemage-red-kicker",
+            "thornscape-battlemage-white-kicker",
+        ]);
+    });
+
+    it("no Battlemage in the cycle declares an `interveningIf` (the re-check would read a blinked permanent's cleared record) — Thornscape included", () => {
+        for (const ability of thornscapeBattlemage.triggeredAbilities ?? []) {
+            expect({
+                ability: ability.id,
+                interveningIf: ability.interveningIf,
+            }).toEqual({
+                ability: ability.id,
+                interveningIf: undefined,
+            });
+            // …and each one still carries BOTH halves of the correct pair:
+            // the check-time gate, and a resolution-time `if { kickerPaid }`
+            // branch reading the resolving stack item's own record.
+            expect(ability.gate).toBeDefined();
+            expect(JSON.stringify(ability.effects)).toContain("kickerPaid");
+        }
+    });
+
+    it("wire format: the per-Kicker record survives projectPublicState, so the gate reads the same answer client-side", () => {
+        const { state } = castKickedWith({ "kicker-w": 1 });
+        const bm = state.players[0].battlefield.find(
+            (c) => c.card.id === thornscapeBattlemage.id
+        )!;
+        expect(
+            kickerPaidCondition("kicker-w")(bm as unknown as PermanentView)
+        ).toBe(true);
+        expect(
+            kickerPaidCondition("kicker-r")(bm as unknown as PermanentView)
+        ).toBe(false);
+
+        // `projectPublicState` strips `card.card` to `{ id }` and reshapes
+        // the hidden zones; re-run the same assertion on the projected
+        // permanent, since the client-side Brain evaluates the very same
+        // gate predicate.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === bm.id
+        )!;
+        expect(
+            kickerPaidCondition("kicker-w")(slim as unknown as PermanentView)
+        ).toBe(true);
+        expect(
+            kickerPaidCondition("kicker-r")(slim as unknown as PermanentView)
+        ).toBe(false);
     });
 });

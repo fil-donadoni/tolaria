@@ -27,11 +27,18 @@ import {
  *  narrowed because they're optional on `CardInstance` but required on
  *  `PermanentView` (server-projected battlefield cards always carry them). */
 // The guard reads only a handful of structural fields (`card.id`, `id`,
-// `isTapped`, `attachedTo`, `types`, `subtypes`), all carried by a
-// spread-projected `CardInstance`. We cast to `CardInstanceState` at this
-// boundary so the pure guard signature is satisfied without forcing every
-// optional server-only field (`zone`, `staticAbilities`) onto the projection —
-// the same pragmatic projection `effective-stats.ts` performs for the layers.
+// `isTapped`, `attachedTo`, `types`, `subtypes`, `staticAbilities`), all
+// carried by a spread-projected `CardInstance` — `staticAbilities` included:
+// `projectPublicState`'s `slimCard` (`convex/gameProjections.ts`) forwards it
+// verbatim (it only strips `card`/`knownTo`/`stormSnapshot`), and it is a
+// first-class optional field on `CardInstance` itself
+// (`src/types/game.ts`). We cast to `CardInstanceState` at this boundary so
+// the pure guard signature is satisfied without forcing every optional
+// server-only field (`zone`, the rest of `PermanentView`) onto the
+// projection — the same pragmatic projection `effective-stats.ts` performs
+// for the layers. This is what makes the CR 702.18 dynamic-shroud-grant
+// bridge (`gre/permanentGuard.ts`'s `hasShroud`, issue #959) work client-side
+// for free: it reads `card.staticAbilities` directly, no new wiring needed.
 function toGuardTarget(card: CardInstance): CardInstanceState {
     return {
         ...card,

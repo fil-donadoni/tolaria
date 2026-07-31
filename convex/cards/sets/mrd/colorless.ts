@@ -195,17 +195,24 @@ export const aetherSpellbomb: CardDefinition = {
 //
 // Shroud (CR 702.18) is NOT itself a keyword-grant-only effect — every
 // printed-shroud card in this catalogue (Blastoderm, `nem/green.ts`; the
-// Mechanics Registry `shroud` row) pairs the `staticAbilities: ["shroud"]`
-// reminder string with a `permanent-guard` staticEffect (`cantBeTargeted:
-// true`) that `isGuardedAgainst` (`gre/permanentGuard.ts`) actually reads —
-// the reminder string alone is decorative and enforces nothing. Sterling
-// Grove (`inv/multicolor.ts`) is the precedent for a GRANTED (not
-// self-printed) shroud: it pairs a `keyword-grant` (the reminder string) with
-// a `permanent-guard` (the real enforcement), BOTH scoped by the same
+// Mechanics Registry `shroud` row, status "implemented") pairs the
+// `staticAbilities: ["shroud"]` reminder string with a `permanent-guard`
+// staticEffect (`cantBeTargeted: true`) that `isGuardedAgainst`
+// (`gre/permanentGuard.ts`) actually reads. Sterling Grove
+// (`inv/multicolor.ts`) is the precedent for a GRANTED (not self-printed)
+// shroud: it pairs a `keyword-grant` (the reminder string) with a
+// `permanent-guard` (the real enforcement), BOTH scoped by the same
 // predicate — here `AURA_AFFECTS_HOST` instead of Sterling Grove's
 // enchantment-group filter, since Lightning Greaves grants to its equipped
 // HOST specifically (CR 303.4-style attach relationship), not a battlefield-
-// wide group.
+// wide group. As of issue #959's dynamic-grant bridge, the bare keyword
+// string is ALSO independently enforced: `isGuardedAgainst`'s `hasShroud`
+// helper reads `staticAbilities` directly (mirroring the existing
+// `hasHexproof` bridge for CR 702.11b), so even a hypothetical grant that
+// forgot the paired `permanent-guard` staticEffect would still be honoured.
+// The explicit `permanent-guard` here is kept anyway — belt-and-braces,
+// matching the established per-card pattern — not because the string alone
+// is inert.
 export const lightningGreaves: CardDefinition = {
     id: "61a28870-cf78-4323-9d82-cee764067764",
     name: "Lightning Greaves",

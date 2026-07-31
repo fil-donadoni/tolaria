@@ -482,16 +482,18 @@ export const wingsOfHope: CardDefinition = {
 // Armored Guardian — {3}{W}{U} Creature — Cat Soldier, 2/5. "{1}{W}{W}:
 // Target creature you control gains protection from the color of your
 // choice until end of turn. {1}{U}{U}: This creature gains shroud until end
-// of turn." tracked-by: #1086 (same root cause as Glimmering Angel,
-// `inv/white.ts`: `shroud` is `status: "planned"` in the Mechanics Registry —
-// `grantAbility` would append the literal string "shroud" to
-// `staticAbilities`, but no engine check anywhere reads a dynamically-granted
-// "shroud" string, so granting it would be inert, the exact "shipped but
-// dead" anti-pattern the registry census exists to catch. The FIRST ability
-// alone is free (a straight `protectionColorModes` reuse, precedent Mother of
-// Runes / Giver of Runes), but "never ship silent partials" (PRD #1063) means
-// the whole card waits for the same hexproof-style `permanentGuard.ts`
-// bridge before shipping either ability.)
+// of turn." tracked-by: #1086 — UNBLOCKED (PR #2040, issue #959): same root
+// cause as Glimmering Angel (`inv/white.ts`) — `shroud` is now `status:
+// "implemented"` in the Mechanics Registry, and `gre/permanentGuard.ts`'s
+// `isGuardedAgainst` bridges a dynamically-granted "shroud" string (the
+// `hasShroud` helper, mirroring the existing `hexproof` bridge) so
+// `grantAbility` appending the literal string to `staticAbilities` is
+// enforced live, no longer inert. The engine-level gap that blocked BOTH
+// abilities is closed; the card is still a STUB in this pass (out of scope
+// for the shroud-bridge slice) — a future pass can ship the FIRST ability
+// (a straight `protectionColorModes` reuse, precedent Mother of Runes /
+// Giver of Runes) and the second (a `grantAbility` DSL body over
+// "shroud") together, per "never ship silent partials" (PRD #1063).
 
 // Kangee, Aerie Keeper — {2}{W}{U} Legendary Creature — Bird Wizard, 2/2.
 // "Kicker {X}{2}. Flying. When Kangee enters, if it was kicked, put X

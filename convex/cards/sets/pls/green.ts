@@ -17,6 +17,7 @@ import {
     LANDWALK_KEYWORD_BY_BASIC_TYPE,
 } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+import { kickerPaidCondition } from "../../abilities/triggers/shared";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 import { colorChoiceModes } from "../../abilities/chooseColor";
 import { tokenPrintIdFor } from "../../tokenPrintLookup";
@@ -881,10 +882,22 @@ export const stoneKavu: CardDefinition = {
 // following its shipped siblings' exact template: Stormscape Battlemage
 // (`pls/blue.ts`), Thunderscape Battlemage (`pls/red.ts`), Nightscape
 // Battlemage (`pls/black.ts`). Two independently-payable Kickers, two
-// `enteredTrigger`s each announcing its target unconditionally and gating
-// resolution via `{ op: "if", predicate: { left: { kickerPaid: "<id>" },
-// op: "ge", right: 1 } }` — the Stormscape shape, no `conditionOnSelf`
-// needed.)
+// `enteredTrigger`s each gated PER KICKER at CHECK time (CR 603.4) by
+// `conditionOnSelf: kickerPaidCondition("<id>")` — the shared predicate over
+// the permanent's own per-Kicker payment record — and again at RESOLUTION
+// time by the `{ op: "if", predicate: { left: { kickerPaid: "<id>" }, op:
+// "ge", right: 1 } }` branch inside each `effects[]`. Thornscape shipped
+// (PR #2040) with NO check-time gate — the exact bug #2039 fixed for its
+// three siblings while this card was in flight — so an unkicked-for-{R}
+// Battlemage still announced "any target" and emitted a real `BECAME_TARGET`
+// event for a trigger CR 603.4 says never came into being. Fixed to match
+// the cycle (PR #2040 round 2, issue #2015). Do NOT also declare this
+// predicate as `interveningIf` — see the Thunderscape Battlemage note
+// (`pls/red.ts`) and issue #2042: `resolveTopOfStackInner` re-checks an
+// `interveningIf` against the LIVE battlefield permanent, and a CR 400.7
+// blink returns the same instance id with `kickerPayments` already cleared
+// by `resetBattlefieldTransientState`, fizzling a trigger that must resolve
+// off CR 603.10 last known information.
 export const thornscapeBattlemage: CardDefinition = {
     id: "13f24f89-3996-4740-a6c9-d26b8869554b", // PLS 94
     rarity: "uncommon",
@@ -906,6 +919,8 @@ export const thornscapeBattlemage: CardDefinition = {
             oracleText:
                 "When this creature enters, if it was kicked with its {R} kicker, it deals 2 damage to any target.",
             scope: "self",
+            // CR 603.4 per-Kicker check-time gate — see the card-level comment.
+            conditionOnSelf: kickerPaidCondition("kicker-r"),
             targetRequirement: { type: "any", count: 1 },
             effects: [
                 {
@@ -930,6 +945,8 @@ export const thornscapeBattlemage: CardDefinition = {
             oracleText:
                 "When this creature enters, if it was kicked with its {W} kicker, destroy target artifact.",
             scope: "self",
+            // CR 603.4 per-Kicker check-time gate — see the card-level comment.
+            conditionOnSelf: kickerPaidCondition("kicker-w"),
             targetRequirement: { type: "Artifact", count: 1 },
             effects: [
                 {

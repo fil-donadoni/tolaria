@@ -17,15 +17,24 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 // can't be the target of spells or abilities.)" (CR 701.5c can't-be-countered
 // flag, issue #1065; CR 702.18 Shroud.)
 //
-// The registry's `staticAbilities: ["shroud"]` string is decorative on its
-// own (`mechanicsRegistry.ts` — "shroud" is registry status "planned": no
-// engine path derives real target-illegality from the bare keyword string
-// generically). The established per-card pattern for a printed Shroud/self-
-// guard clause (Lurker `drk/green.ts`, Spectral Cloak `leg/blue.ts`) is an
+// The registry's `staticAbilities: ["shroud"]` string is registry status
+// "implemented" (`mechanicsRegistry.ts`) — `gre/permanentGuard.ts`'s
+// `isGuardedAgainst` derives real target-illegality from the bare keyword
+// string generically (the `hasShroud` bridge, mirroring `hasHexproof` for CR
+// 702.11b, issue #959), consumed by `rules.ts::getLegalTargets` +
+// `game.ts::selectTarget`. This card additionally pairs the keyword with an
 // explicit `permanent-guard` static effect scoped to the permanent itself
-// (`target.id === source.id`) — unconditional and unfiltered here (unlike
-// Lurker's combat-gated version), matching CR 702.18's unqualified "can't be
-// the target of spells or abilities."
+// (`target.id === source.id`) — the established per-card pattern (Lurker
+// `drk/green.ts`, Spectral Cloak `leg/blue.ts`) — unconditional and
+// unfiltered here (unlike Lurker's combat-gated version), matching CR
+// 702.18's unqualified "can't be the target of spells or abilities." The two
+// are redundant-but-agreeing, not a conflict: the keyword-string bridge is
+// what closes the gap for cards that grant shroud DYNAMICALLY via
+// `SpellContext.grantStaticAbility` with no paired `permanent-guard`
+// staticEffect of their own (Homarid Warrior / Svyelunite Priest
+// `fem/blue.ts`, Sylvan Safekeeper `jud/green.ts`, Skyshroud Blessing
+// `pls/green.ts`) — this card's own printed shroud was never part of that
+// gap, since it always carried the explicit static effect above.
 export const blurredMongoose: CardDefinition = {
     id: "4b073e3f-6a6f-495a-ab16-39d906b660f1",
     rarity: "uncommon",
