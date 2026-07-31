@@ -79,7 +79,12 @@ describe("graveyard target dialog full path (#314)", () => {
         });
 
         const pending = pendingFor(resurrection, "p1");
-        const eligible = getEligibleGraveyards(pending, asPlayers(state), "p1");
+        const eligible = getEligibleGraveyards(
+            pending,
+            asPlayers(state),
+            "p1",
+            "p1"
+        );
 
         // Exactly one eligible graveyard → the dialog skips the choice step.
         expect(eligible.length).toBe(1);
@@ -133,7 +138,12 @@ describe("graveyard target dialog full path (#314)", () => {
         });
 
         const pending = pendingFor(animateDead, "p1");
-        const eligible = getEligibleGraveyards(pending, asPlayers(state), "p1");
+        const eligible = getEligibleGraveyards(
+            pending,
+            asPlayers(state),
+            "p1",
+            "p1"
+        );
 
         // Both graveyards hold a legal creature → the choice step is required,
         // viewer's own graveyard first.
@@ -193,7 +203,12 @@ describe("graveyard target dialog full path (#314)", () => {
             ],
         });
         const pending = pendingFor(animateDead, "p1");
-        const eligible = getEligibleGraveyards(pending, asPlayers(state), "p1");
+        const eligible = getEligibleGraveyards(
+            pending,
+            asPlayers(state),
+            "p1",
+            "p1"
+        );
         expect(eligible.length).toBe(1);
         expect(eligible[0].playerId).toBe("p1");
     });

@@ -836,6 +836,7 @@ export default function Board({
                                                 allPlayers={allPlayers}
                                                 gameId={gameId}
                                                 playerId={viewerId}
+                                                activePlayerId={activePlayerId}
                                             />
                                         ) : (
                                             <TargetSelectionBanner

@@ -11,6 +11,16 @@ import type {
     GameState,
     PlayerState,
 } from "@convex/gre/state";
+import { pendingTargetFiltersFromRequirement } from "@convex/gre/rules";
+import { lordOfTheUndead } from "@convex/cards/sets/pls/black";
+import { dreamsOfTheDead } from "@convex/cards/sets/ice/blue";
+import { kjeldoranWarrior } from "@convex/cards/sets/ice/white";
+import { balduvianBears } from "@convex/cards/sets/ice/green";
+import {
+    checkCardTargetFilters,
+    type CardFilterValues,
+    type TargetFilterCtx,
+} from "@convex/gre/targetFilters";
 
 function gyCard(
     id: string,
@@ -79,6 +89,7 @@ describe("matchesGraveyardTarget (mirror of server filter, CR 109.2)", () => {
                 card,
                 "opp",
                 pending({ controller: "you" }),
+                "me",
                 "me"
             )
         ).toBe(false);
@@ -90,6 +101,7 @@ describe("matchesGraveyardTarget (mirror of server filter, CR 109.2)", () => {
                 card,
                 "me",
                 pending({ controller: "opponent" }),
+                "me",
                 "me"
             )
         ).toBe(false);
@@ -100,6 +112,7 @@ describe("matchesGraveyardTarget (mirror of server filter, CR 109.2)", () => {
                 gyCard("c", "opp", ["Creature"]),
                 "opp",
                 pending({ controller: "any" }),
+                "me",
                 "me"
             )
         ).toBe(true);
@@ -111,6 +124,7 @@ describe("matchesGraveyardTarget (mirror of server filter, CR 109.2)", () => {
                 land,
                 "me",
                 pending({ targetType: "Creature" }),
+                "me",
                 "me"
             )
         ).toBe(false);
@@ -122,6 +136,7 @@ describe("matchesGraveyardTarget (mirror of server filter, CR 109.2)", () => {
                 land,
                 "me",
                 pending({ targetType: "card" }),
+                "me",
                 "me"
             )
         ).toBe(true);
@@ -142,20 +157,24 @@ describe("matchesGraveyardTarget — mvFilter (CR 202.3, issue #1378)", () => {
         const cheap = gyCard("cheap", "me", ["Creature"], { generic: 2 });
         const pricey = gyCard("pricey", "me", ["Creature"], { generic: 4 });
         const pt = pending({ mvFilter: { max: 3 } });
-        expect(matchesGraveyardTarget(cheap, "me", pt, "me")).toBe(true);
-        expect(matchesGraveyardTarget(pricey, "me", pt, "me")).toBe(false);
+        expect(matchesGraveyardTarget(cheap, "me", pt, "me", "me")).toBe(true);
+        expect(matchesGraveyardTarget(pricey, "me", pt, "me", "me")).toBe(
+            false
+        );
     });
 
     it("mvFilter still applies when targetType is the catch-all 'card' (the short-circuit this fix removed)", () => {
         const pricey = gyCard("pricey2", "me", ["Artifact"], { generic: 5 });
         const pt = pending({ targetType: "card", mvFilter: { max: 3 } });
-        expect(matchesGraveyardTarget(pricey, "me", pt, "me")).toBe(false);
+        expect(matchesGraveyardTarget(pricey, "me", pt, "me", "me")).toBe(
+            false
+        );
     });
 
     it("no mvFilter on the PendingTarget leaves the target unrestricted by mana value", () => {
         const pricey = gyCard("pricey3", "me", ["Creature"], { generic: 9 });
         const pt = pending({});
-        expect(matchesGraveyardTarget(pricey, "me", pt, "me")).toBe(true);
+        expect(matchesGraveyardTarget(pricey, "me", pt, "me", "me")).toBe(true);
     });
 
     it("mvFilter.min / .equals are also enforced, mirroring the server's matchesMvFilter", () => {
@@ -165,6 +184,7 @@ describe("matchesGraveyardTarget — mvFilter (CR 202.3, issue #1378)", () => {
                 three,
                 "me",
                 pending({ mvFilter: { min: 4 } }),
+                "me",
                 "me"
             )
         ).toBe(false);
@@ -173,6 +193,7 @@ describe("matchesGraveyardTarget — mvFilter (CR 202.3, issue #1378)", () => {
                 three,
                 "me",
                 pending({ mvFilter: { equals: 2 } }),
+                "me",
                 "me"
             )
         ).toBe(false);
@@ -181,6 +202,7 @@ describe("matchesGraveyardTarget — mvFilter (CR 202.3, issue #1378)", () => {
                 three,
                 "me",
                 pending({ mvFilter: { equals: 3 } }),
+                "me",
                 "me"
             )
         ).toBe(true);
@@ -204,7 +226,7 @@ describe("matchesGraveyardTarget — excludeTypes (CR 109.1, issue #1378)", () =
             targetType: "Creature",
             excludeTypes: ["Land"],
         });
-        expect(matchesGraveyardTarget(landCreature, "me", pt, "me")).toBe(
+        expect(matchesGraveyardTarget(landCreature, "me", pt, "me", "me")).toBe(
             false
         );
     });
@@ -215,9 +237,9 @@ describe("matchesGraveyardTarget — excludeTypes (CR 109.1, issue #1378)", () =
             targetType: "Creature",
             excludeTypes: ["Land"],
         });
-        expect(matchesGraveyardTarget(plainCreature, "me", pt, "me")).toBe(
-            true
-        );
+        expect(
+            matchesGraveyardTarget(plainCreature, "me", pt, "me", "me")
+        ).toBe(true);
     });
 
     it("no excludeTypes on the PendingTarget leaves the target unrestricted", () => {
@@ -226,7 +248,9 @@ describe("matchesGraveyardTarget — excludeTypes (CR 109.1, issue #1378)", () =
             "Creature",
         ]);
         const pt = pending({ targetType: "Creature" });
-        expect(matchesGraveyardTarget(landCreature, "me", pt, "me")).toBe(true);
+        expect(matchesGraveyardTarget(landCreature, "me", pt, "me", "me")).toBe(
+            true
+        );
     });
 });
 
@@ -322,6 +346,7 @@ describe("matchesGraveyardTarget — driven through projectPublicState (wiring r
                 projectedLandCreature,
                 "p1",
                 projectedPendingTarget,
+                "p1",
                 "p1"
             )
         ).toBe(false);
@@ -330,6 +355,142 @@ describe("matchesGraveyardTarget — driven through projectPublicState (wiring r
                 projectedPlainCreature,
                 "p1",
                 projectedPendingTarget,
+                "p1",
+                "p1"
+            )
+        ).toBe(true);
+    });
+
+    // Issue #1950 review round 3, MAJOR 2 — the round-2 fixup (delegating
+    // `matchesGraveyardTarget` to `checkCardTargetFilters` via
+    // `pickCardFilterValues`) shipped with no assertion that `subtypeFilter`
+    // / `colorFilterAny` actually change the client's accept/reject outcome,
+    // and nothing drove it through `pendingTargetFiltersFromRequirement` (the
+    // REAL carry the server uses) or `projectPublicState` (the wire). These
+    // two tests close that: each builds the PendingTarget from the SHIPPED
+    // card's own `targetRequirement` (Lord of the Undead's `subtypeFilter`,
+    // Dreams of the Dead's `colorFilterAny`), not a hand-picked filter value.
+    it("Lord of the Undead's REAL subtypeFilter requirement: a Zombie graveyard card matches, a Bear does not", () => {
+        const req = lordOfTheUndead.activatedAbilities![0].targetRequirement!;
+        const zombie = makeInstance({ id: "gy-zombie", subtypes: ["Zombie"] });
+        const bear = makeInstance({ id: "gy-bear", subtypes: ["Bear"] });
+        const state: GameState = {
+            players: [
+                makeServerPlayer("p1", [zombie, bear]),
+                makeServerPlayer("p2", []),
+            ],
+            stack: [],
+            turn: 1,
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            passCount: 0,
+            phase: "PRECOMBAT_MAIN",
+            rngSeed: 0,
+            rngCounter: 0,
+            pendingTarget: {
+                playerId: "p1",
+                cardInstanceId: "lord",
+                targetType: req.type,
+                count: 1,
+                kind: "ability",
+                abilityId: "lord-of-the-undead-return",
+                selected: [],
+                ...pendingTargetFiltersFromRequirement(req, undefined),
+            } as PendingTarget,
+        };
+        const projected = projectPublicState(state, 1, "p1");
+        const projectedPendingTarget = projected.pendingTarget as PendingTarget;
+        const projectedGraveyard = projected.players[0]
+            .graveyard as unknown as CardInstance[];
+        const projectedZombie = projectedGraveyard.find(
+            (c) => c.id === "gy-zombie"
+        )!;
+        const projectedBear = projectedGraveyard.find(
+            (c) => c.id === "gy-bear"
+        )!;
+        expect(
+            matchesGraveyardTarget(
+                projectedZombie,
+                "p1",
+                projectedPendingTarget,
+                "p1",
+                "p1"
+            )
+        ).toBe(true);
+        expect(
+            matchesGraveyardTarget(
+                projectedBear,
+                "p1",
+                projectedPendingTarget,
+                "p1",
+                "p1"
+            )
+        ).toBe(false);
+    });
+
+    it("Dreams of the Dead's REAL colorFilterAny requirement: a white creature card matches, a green one does not", () => {
+        const req = dreamsOfTheDead.activatedAbilities![0].targetRequirement!;
+        // Real registered card ids (not a synthetic `def-…` id): the wire
+        // projection's `slimCard` reduces `card` to `{ id }` ONLY, stripping
+        // any embedded `manaCost` — so `hasColor` must resolve colour through
+        // `tryGetDefinition(id)`, the same as the real server/client path.
+        const green = makeInstance({
+            id: "gy-green",
+            card: { id: balduvianBears.id },
+        });
+        const white = makeInstance({
+            id: "gy-white",
+            card: { id: kjeldoranWarrior.id },
+        });
+        const state: GameState = {
+            players: [
+                makeServerPlayer("p1", [green, white]),
+                makeServerPlayer("p2", []),
+            ],
+            stack: [],
+            turn: 1,
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            passCount: 0,
+            phase: "PRECOMBAT_MAIN",
+            rngSeed: 0,
+            rngCounter: 0,
+            pendingTarget: {
+                playerId: "p1",
+                cardInstanceId: "dreams",
+                targetType: req.type,
+                count: 1,
+                kind: "ability",
+                abilityId: "dreams-of-the-dead-reanimate",
+                selected: [],
+                ...pendingTargetFiltersFromRequirement(req, undefined),
+            } as PendingTarget,
+        };
+        const projected = projectPublicState(state, 1, "p1");
+        const projectedPendingTarget = projected.pendingTarget as PendingTarget;
+        const projectedGraveyard = projected.players[0]
+            .graveyard as unknown as CardInstance[];
+        const projectedGreen = projectedGraveyard.find(
+            (c) => c.id === "gy-green"
+        )!;
+        const projectedWhite = projectedGraveyard.find(
+            (c) => c.id === "gy-white"
+        )!;
+        expect(
+            matchesGraveyardTarget(
+                projectedGreen,
+                "p1",
+                projectedPendingTarget,
+                "p1",
+                "p1"
+            )
+        ).toBe(false);
+        expect(
+            matchesGraveyardTarget(
+                projectedWhite,
+                "p1",
+                projectedPendingTarget,
+                "p1",
                 "p1"
             )
         ).toBe(true);
@@ -346,6 +507,7 @@ describe("getEligibleGraveyards", () => {
         const result = getEligibleGraveyards(
             pending({ controller: "any" }),
             [opp, me],
+            "me",
             "me"
         );
         expect(result.map((g) => g.playerId)).toEqual(["me", "opp"]);
@@ -360,9 +522,71 @@ describe("getEligibleGraveyards", () => {
         const result = getEligibleGraveyards(
             pending({ controller: "any" }),
             [me, opp],
+            "me",
             "me"
         );
         expect(result.length).toBe(1);
         expect(result[0].playerId).toBe("me");
+    });
+});
+
+// Issue #1950 review round 3, MINOR 4 — `matchesGraveyardTarget`
+// (`~/lib/graveyard-targets.ts`) hands `checkCardTargetFilters` a hand-
+// stubbed `ctx` (`state: {} as unknown as GameState`, empty
+// `sourceColors`/`sourceTypes`/`sourceSubtypes`). That's sound TODAY because
+// none of the six `CARD_FILTER_KEYS` checks (`controller`, `mvFilter`,
+// `excludeTypes`, `subtypeFilter`, `excludeSubtypes`, `colorFilterAny`) reads
+// `ctx.state` or a source quality — but nothing enforces that going forward,
+// and a future card-kind check that DOES would be silently wrong (or throw)
+// on the CLIENT ONLY, since both server call sites (`getLegalTargets`,
+// `selectTarget`) always pass a real live `GameState`. This canary proves the
+// contract holds: every currently-registered card-kind check runs clean
+// against a `ctx.state` that THROWS if merely read.
+describe("checkCardTargetFilters — client stubbed-ctx contract (issue #1950 review round 3, MINOR 4)", () => {
+    it("no CARD_FILTER_KEYS check reads ctx.state — the client's hand-stubbed empty state stays safe", () => {
+        const poisonedState = new Proxy(
+            {},
+            {
+                get(_target, prop) {
+                    throw new Error(
+                        `a card-kind filter check read ctx.state.${String(prop)} — ` +
+                            "the client mirror (~/lib/graveyard-targets.ts) stubs " +
+                            "ctx.state and needs a real GameState built from allPlayers now"
+                    );
+                },
+            }
+        ) as unknown as import("@convex/gre/state").GameState;
+
+        const candidate = {
+            id: "gy-candidate",
+            card: { id: kjeldoranWarrior.id },
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+            types: ["Creature"],
+            subtypes: ["Zombie"],
+            staticAbilities: [],
+            isTapped: false,
+        } as unknown as import("@convex/gre/state").CardInstanceState;
+
+        const ctx: TargetFilterCtx = {
+            state: poisonedState,
+            sourceColors: [],
+            sourceTypes: [],
+            sourceSubtypes: [],
+            chooserId: "p1",
+            activePlayerId: "p1",
+        };
+        const values: CardFilterValues = {
+            controller: "you",
+            mvFilter: { max: 5 },
+            excludeTypes: ["Land"],
+            subtypeFilter: ["Zombie"],
+            excludeSubtypes: ["Wall"],
+            colorFilterAny: ["W", "B"],
+        };
+        expect(() =>
+            checkCardTargetFilters(ctx, candidate, values)
+        ).not.toThrow();
     });
 });

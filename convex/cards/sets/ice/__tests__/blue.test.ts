@@ -91,7 +91,10 @@ import {
 import { effectiveTriggeredAbilities } from "../../../../gre/copy";
 import { collectTriggers } from "../../../../gre/triggers";
 import { projectPublicState } from "../../../../gameProjections";
-import { getLegalTargets } from "../../../../gre/rules";
+import {
+    getLegalTargets,
+    pendingTargetFiltersFromRequirement,
+} from "../../../../gre/rules";
 import { enumerateMoves } from "../../../../gre/moves";
 import {
     advancePhase,
@@ -134,7 +137,10 @@ import {
 } from "../../../../gre/constants";
 import { mountain, island, forest } from "../../lea";
 import { jayemdaeTome } from "../../lea/colorless";
-import { activateAbilityOnState } from "../../../../game";
+import {
+    activateAbilityOnState,
+    applyOneTargetSelection,
+} from "../../../../game";
 
 // ===========================================================================
 // Blue free tranche (#631)
@@ -1148,6 +1154,104 @@ describe("Dreams of the Dead (reanimate + granted CU {2} + exile-on-leave)", () 
             false
         );
         expect(state.players[0].exile.some((c) => c.id === "dead")).toBe(true);
+    });
+
+    // Issue #1950 review round 3, MAJOR 1 — `colorFilterAny` gained a
+    // `card`-kind check in `convex/gre/targetFilters.ts` (CARD_FILTER_KEYS),
+    // closing the SAME fail-open class as Lord of the Undead's
+    // `subtypeFilter` guard (`pls/__tests__/black.test.ts`), for the ONE
+    // shipped card that actually carries `colorFilterAny` on a
+    // `zone: "graveyard"` requirement. Proves a green creature card is
+    // neither offered (`getLegalTargets`) nor accepted
+    // (`applyOneTargetSelection`, the real `selectTarget` logic), while a
+    // white one is both.
+    it("neither offers nor accepts a green creature card as the reanimation target (colorFilterAny: [W, B])", () => {
+        const dreams = makeInstance(dreamsOfTheDead.id, {
+            id: "dreams-guard",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        const whiteDead = makeInstance(kjeldoranWarrior.id, {
+            id: "gy-white-guard",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const greenDead = makeInstance(balduvianBears.id, {
+            id: "gy-green-guard",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [dreams],
+                    graveyard: [whiteDead, greenDead],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const req = dreamsOfTheDead.activatedAbilities![0].targetRequirement!;
+
+        // Offered set (`getLegalTargets`): the green creature is never in it.
+        const legal = getLegalTargets(state, req, [], "p1");
+        const legalIds = legal
+            .filter((t) => t.type === "graveyard-card")
+            .map((t) => t.id);
+        expect(legalIds).toContain("gy-white-guard");
+        expect(legalIds).not.toContain("gy-green-guard");
+
+        // Accepted set (`applyOneTargetSelection`, the real `selectTarget`
+        // logic): the white creature is accepted, the green one is rejected —
+        // both through the SAME `pendingTargetFiltersFromRequirement` carry
+        // the real activation path uses.
+        const pendingTargetFor = () => ({
+            playerId: "p1",
+            cardInstanceId: "dreams-guard",
+            targetType: req.type,
+            count: 1 as const,
+            selected: [],
+            kind: "ability" as const,
+            abilityId: "dreams-of-the-dead-reanimate",
+            ...pendingTargetFiltersFromRequirement(req, undefined),
+        });
+
+        const acceptState = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [dreams],
+                    graveyard: [whiteDead, greenDead],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        acceptState.pendingTarget = pendingTargetFor();
+        expect(() =>
+            applyOneTargetSelection(acceptState, "p1", {
+                targetType: "graveyard-card",
+                targetId: "gy-white-guard",
+                targetPlayerId: "p1",
+            })
+        ).not.toThrow();
+
+        const rejectState = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [dreams],
+                    graveyard: [whiteDead, greenDead],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        rejectState.pendingTarget = pendingTargetFor();
+        expect(() =>
+            applyOneTargetSelection(rejectState, "p1", {
+                targetType: "graveyard-card",
+                targetId: "gy-green-guard",
+                targetPlayerId: "p1",
+            })
+        ).toThrow();
     });
 });
 

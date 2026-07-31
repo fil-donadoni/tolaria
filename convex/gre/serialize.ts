@@ -460,6 +460,14 @@ function compactCard(
     if (card.wasKicked) {
         out.wasKicked = card.wasKicked;
     }
+    // CR 702.33 (ADR 0079, issue #1950) — `wasKicked`'s per-Kicker-id twin
+    // must survive the same save/load window: a two-Kicker permanent's ETB
+    // trigger (Nightscape Battlemage — "if it was kicked with its {2}{U}
+    // kicker") re-checks its CR 603.4d intervening-if only once the trigger
+    // resolves, which can be after a stable point was already written.
+    if (card.kickerPayments && Object.keys(card.kickerPayments).length > 0) {
+        out.kickerPayments = card.kickerPayments;
+    }
     // CR 107.3 / 601.2b (issue #674) — the chosen {X} snapshot must survive a
     // save/load: Ravenous's ETB trigger goes on the stack, the game reaches a
     // stable point (state written to `game_state`), and only THEN does the
@@ -795,6 +803,14 @@ function expandCard(
     // marker.
     if (compact.wasKicked) {
         result.wasKicked = compact.wasKicked as boolean;
+    }
+    // CR 702.33 (ADR 0079, issue #1950) — restore the per-Kicker-id payment
+    // record.
+    if (compact.kickerPayments) {
+        result.kickerPayments = compact.kickerPayments as Record<
+            string,
+            number
+        >;
     }
     // CR 107.3 / 601.2b (issue #674) — restore the chosen {X} snapshot.
     if (compact.chosenXOnCast !== undefined) {

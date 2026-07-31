@@ -1191,6 +1191,28 @@ export type CardInstanceState = {
      *  inherit a stale `true` onto the battlefield. Undefined for a permanent
      *  cast unkicked / without a Kicker cost. */
     wasKicked?: boolean;
+    /** CR 702.33 (ADR 0079, issue #1950) — the PER-KICKER-ID twin of
+     *  `wasKicked`, for a card that declares TWO OR MORE independently
+     *  payable Kickers ("Kicker {A} and/or {B}", the Planeshift Battlemage
+     *  cycle): `wasKicked`'s single boolean can say "kicked at all" but never
+     *  WHICH of two, and the Battlemage's own ETB triggers are worded "if it
+     *  was kicked with its {2}{U} kicker" / "…{2}{R} kicker" — genuinely
+     *  distinct CR 603.4d intervening-ifs. Snapshotted from the resolving
+     *  stack item's `kickerPayments` the instant it enters the battlefield
+     *  (`finalizeSpellResolution`), the same instant `wasKicked` is derived
+     *  from it via `totalKickerCount` — so the two never drift. Before this
+     *  field existed, a resolved stack item still carried its `kickerPayments`
+     *  onto the battlefield object as an untyped stray property (the object
+     *  IS pushed as-is, per `finalizeSpellResolution`), which is what let
+     *  `wasKicked` be computed at all; this promotes that from "incidental
+     *  leftover a future cleanup could reasonably delete" to a supported,
+     *  typed, documented read — exactly the promotion `wasKicked` itself
+     *  already got over the `+1/+1`-counter-count proxy it replaced (issue
+     *  #1716). Same CR 400.7 zone-change lifecycle as `wasKicked`:
+     *  `resetBattlefieldTransientState` clears it on a bounce to hand/library
+     *  and before any reanimation-style re-entry. Undefined for a permanent
+     *  cast without a Kicker cost, or one whose Kickers were all declined. */
+    kickerPayments?: KickerPayments;
     /** CR 107.3 / 601.2b — the value chosen for {X} in this permanent's own
      *  casting cost, snapshotted from the resolving stack item's `chosenX` the
      *  instant it enters the battlefield (`finalizeSpellResolution`). The
@@ -8841,14 +8863,12 @@ function resetBattlefieldTransientState(card: CardInstanceState): void {
     // uncleared, a kicked permanent bounced to hand and recast unkicked would
     // still read `wasKicked: true` (`game.ts` builds every stack item as
     // `{ ...card, ... }`), and a reanimated/blinked kicked permanent would
-    // return with the grant it no longer earned. `kickerPayments` is not part of
-    // `CardInstanceState` (it lives on `StackItem`/`PendingCast`), but a
-    // resolved stack item IS pushed onto `battlefield` as-is
-    // (`finalizeSpellResolution`), so the runtime object still carries it as
-    // an untyped extra property — clear it here too, the battlefield→hand
-    // sibling of the buyback stack→hand clear in `resetStackTransientState`.
+    // return with the grant it no longer earned. `kickerPayments` (issue
+    // #1950, ADR 0079) is its per-Kicker-id twin — same lifecycle, cleared
+    // here too, the battlefield→hand sibling of the buyback stack→hand clear
+    // in `resetStackTransientState`.
     delete card.wasKicked;
-    delete (card as { kickerPayments?: KickerPayments }).kickerPayments;
+    delete card.kickerPayments;
     // CR 107.3 / 400.7 (issue #674) — the chosen {X} is a one-shot fact about
     // the OBJECT that resolved; a zone change makes a new object with no
     // memory of it. Exactly the `wasKicked` pair above: the typed snapshot

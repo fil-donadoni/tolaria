@@ -23,6 +23,7 @@ import type {
     PermanentLeftEvent,
     PermanentView,
     SpellContext,
+    TargetRequirement,
     TriggerStateView,
     TriggeredAbility,
 } from "../../types";
@@ -83,6 +84,17 @@ export interface LeftTriggerArgs {
      *  fire here — they belong in a `condition` callback that walks the
      *  registry. */
     filter?: PermanentFilter;
+    /** CR 603.3d (issue #1950) — announcement-time target requirement for a
+     *  TARGETED leaves-the-battlefield trigger (Phyrexian Bloodstock: "When
+     *  this creature leaves the battlefield, destroy target white creature").
+     *  Forwarded verbatim onto the built `TriggeredAbility`, mirroring
+     *  `EnteredTriggerArgs.targetRequirement` (`enteredTrigger.ts`) exactly —
+     *  the engine locks the target(s) as the trigger goes on the stack, and
+     *  the resolve/effects body reads the announced slot via `ctx.targets` /
+     *  `{ target: 0 }`. Independent of the LEAVING permanent itself (which is
+     *  reached through the flattened `LeavingPermanent` payload / event
+     *  fields instead, never through targeting). */
+    targetRequirement?: TargetRequirement;
     /** CR 603.4 trigger condition. Evaluated once at fire time. Combine with
      *  `scope` / `filter` for state lookups the event payload doesn't carry.
      *  `wasSacrificed` (this module) is the common "was this a sacrifice, not
@@ -236,6 +248,7 @@ export function leftTrigger(args: LeftTriggerArgs): TriggeredAbility {
         scope,
         toZone,
         filter,
+        targetRequirement,
         condition,
         interveningIf,
         effects,
@@ -293,6 +306,10 @@ export function leftTrigger(args: LeftTriggerArgs): TriggeredAbility {
             if (event.type !== "PERMANENT_LEFT") return false;
             return interveningIf(event, self, state);
         };
+    }
+
+    if (targetRequirement !== undefined) {
+        ability.targetRequirement = targetRequirement;
     }
 
     return withTriggerGate(ability, args);
