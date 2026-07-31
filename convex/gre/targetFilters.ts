@@ -526,6 +526,20 @@ const subtypeFilterDescriptor = defineFilter<string[]>({
             value.some((s) => card.subtypes.includes(s))
                 ? null
                 : `Target must be ${value.join(" or ")}`,
+        // CR 205.3 / 400.7 (issue #1950 review, BLOCKER 2): a graveyard-zone
+        // "target Zombie card" (Lord of the Undead) is a CARD-kind candidate,
+        // not a permanent — before this the check simply didn't exist for
+        // `card`, so `CARD_FILTER_KEYS` had no entry for `subtypeFilter` and
+        // BOTH `getLegalTargets` (offered set) and `selectTarget` (accepted
+        // set) silently ignored it, fail-open (`target_filter_single_authority`
+        // rule — the offered and accepted sets must come from ONE registry
+        // check, never a structural-only gate). Same predicate shape as the
+        // `permanent` check above — `CardInstanceState.subtypes` is the same
+        // field a graveyard card carries.
+        card: (card, value) =>
+            value.some((s) => card.subtypes.includes(s))
+                ? null
+                : `Target must be ${value.join(" or ")}`,
     },
 });
 
@@ -605,6 +619,13 @@ const excludeSubtypesDescriptor = defineFilter<string[]>({
     lower: (req) => arr(req.excludeSubtypes),
     checks: {
         permanent: (card, value) =>
+            value.some((s) => card.subtypes.includes(s))
+                ? `Target must not be ${value.join(" or ")}`
+                : null,
+        // CR 205.3 / 400.7 (issue #1950 review, BLOCKER 2) — the CARD-kind
+        // twin of the `permanent` check above, for a graveyard-zone
+        // "target nonartifact card"-style negative subtype requirement.
+        card: (card, value) =>
             value.some((s) => card.subtypes.includes(s))
                 ? `Target must not be ${value.join(" or ")}`
                 : null,
@@ -1375,25 +1396,33 @@ export function lowerPlayerFilters(
 
 // ─── T3 card-kind gate (ADR 0068 / issue #1410) ─────────────────────────────
 // "card" candidates are graveyard (and, if a future card ever needs it, hand)
-// targets (CR 109.2 / 400.7 — Regrowth-style recursion). All three filter
-// keys here are cross-kind (`controller`, `mvFilter`, `excludeTypes` — issue
-// #1378), already registered by `PERMANENT_FILTER_KEYS` — there is no
-// card-ONLY filter today (the POSITIVE CardType filter graveyard targets use
-// is the requirement's own STRUCTURAL `type` field, not a registry filter —
-// see the ADR's `StructuralKey` list; `excludeTypes` is its NEGATIVE
-// counterpart and, unlike `type`, DOES route through the registry).
+// targets (CR 109.2 / 400.7 — Regrowth-style recursion). `controller`,
+// `mvFilter` and `excludeTypes` are cross-kind (issue #1378), already
+// registered by `PERMANENT_FILTER_KEYS`. `subtypeFilter` / `excludeSubtypes`
+// (issue #1950 review, BLOCKER 2 — Lord of the Undead's "target Zombie card")
+// are the first CARD-kind subtype gate: before this, a `zone: "graveyard"`
+// requirement's `subtypeFilter` was silently dropped by BOTH `getLegalTargets`
+// and `selectTarget` (fail-open — the offered set was wider than the Oracle
+// text and the accepted set matched it, so nothing ever caught the drift).
+// The POSITIVE CardType filter graveyard targets use is the requirement's
+// own STRUCTURAL `type` field, not a registry filter — see the ADR's
+// `StructuralKey` list; `excludeTypes` is its NEGATIVE counterpart and,
+// unlike `type`, DOES route through the registry.
 
 /** The full ordered set of filter keys a `type: "card"`-zone (graveyard)
  *  candidate is checked against. `controller` first, matching the
- *  pre-refactor check order (owner-relationship, then mana value); `excludeTypes`
- *  (issue #1378) appended last — a purely additive check order change, so
- *  every pre-existing violation message still wins over it. NOT
+ *  pre-refactor check order (owner-relationship, then mana value);
+ *  `excludeTypes` (issue #1378) next — a purely additive check order change,
+ *  so every pre-existing violation message still wins over it; `subtypeFilter`
+ *  / `excludeSubtypes` (issue #1950) appended last, for the same reason. NOT
  *  `keyof Omit<TargetRequirement, StructuralKey>` yet — T4's keystone
  *  (ADR 0068). */
 export const CARD_FILTER_KEYS = [
     "controller",
     "mvFilter",
     "excludeTypes",
+    "subtypeFilter",
+    "excludeSubtypes",
 ] as const;
 
 export type CardFilterKey = (typeof CARD_FILTER_KEYS)[number];
@@ -1405,6 +1434,8 @@ export type CardFilterValues = Partial<{
     controller: TargetRequirement["controller"];
     mvFilter: { min?: number; max?: number; equals?: number };
     excludeTypes: CardType[];
+    subtypeFilter: string[];
+    excludeSubtypes: string[];
 }>;
 
 /** Runs every SET filter in `values` against `candidate` (a graveyard card)

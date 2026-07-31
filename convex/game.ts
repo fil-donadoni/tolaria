@@ -9019,6 +9019,12 @@ export function applyOneTargetSelection(
                 controller: pt.controller,
                 mvFilter: pt.mvFilter,
                 excludeTypes: pt.excludeTypes,
+                // Issue #1950 review, BLOCKER 2 — `CARD_FILTER_KEYS` gained
+                // these two; carried here so the accepted set enforces
+                // exactly what `getLegalTargets` already offers (Lord of the
+                // Undead's "target Zombie card").
+                subtypeFilter: pt.subtypeFilter,
+                excludeSubtypes: pt.excludeSubtypes,
             }
         );
         if (cardFilterViolation) throw new Error(cardFilterViolation);

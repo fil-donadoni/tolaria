@@ -63,6 +63,10 @@ import {
 } from "../../../../gre/layers";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { applySacrificeSelection } from "../../../../gre/sacrificeChoice";
+import {
+    getLegalTargets,
+    pendingTargetFiltersFromRequirement,
+} from "../../../../gre/rules";
 import { projectPublicState } from "../../../../gameProjections";
 import { registerTokenDefinition } from "../../..";
 
@@ -618,14 +622,79 @@ describe("Lord of the Undead (CR 611 layer 7c anthem + CR 400.7 graveyard-return
         expect(state.players[0].hand.map((c) => c.id)).toEqual(["gy-zombie"]);
         expect(state.players[0].graveyard).toHaveLength(0);
     });
+
+    // Issue #1950 review, BLOCKER 2 — `subtypeFilter` on a `zone: "graveyard"`
+    // requirement is the FIRST pairing of the two in the catalogue. Proves
+    // the single-authority registry gate (`CARD_FILTER_KEYS`) enforces it on
+    // BOTH the offered set (`getLegalTargets`) and the accepted set
+    // (`applyOneTargetSelection`, the real `selectTarget` logic) — a
+    // non-Zombie creature card is neither offered nor accepted.
+    it("neither offers nor accepts a non-Zombie creature card as the graveyard-return target", () => {
+        const lord = makeInstance(lordOfTheUndead.id, { id: "lord" });
+        const gyZombie = makeInstance(grizzlyBears.id, {
+            id: "gy-zombie-guard",
+            subtypes: ["Zombie"],
+            zone: "graveyard",
+        });
+        const gyBear = makeInstance(grizzlyBears.id, {
+            id: "gy-bear-guard",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [lord],
+                    graveyard: [gyZombie, gyBear],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const req = lordOfTheUndead.activatedAbilities![0].targetRequirement!;
+
+        // Offered set (`getLegalTargets`): the Bear is never in it.
+        const legal = getLegalTargets(state, req, [], "p1");
+        const legalIds = legal
+            .filter((t) => t.type === "graveyard-card")
+            .map((t) => t.id);
+        expect(legalIds).toContain("gy-zombie-guard");
+        expect(legalIds).not.toContain("gy-bear-guard");
+
+        // Accepted set (`applyOneTargetSelection`, the real `selectTarget`
+        // logic): submitting the Bear anyway is rejected, not silently
+        // honored — the same `pendingTargetFiltersFromRequirement` carry the
+        // real activation path uses.
+        state.pendingTarget = {
+            playerId: "p1",
+            cardInstanceId: "lord",
+            targetType: req.type,
+            count: 1,
+            selected: [],
+            kind: "ability",
+            abilityId: "lord-of-the-undead-return",
+            ...pendingTargetFiltersFromRequirement(req, undefined),
+        };
+        expect(() =>
+            applyOneTargetSelection(state, "p1", {
+                targetType: "graveyard-card",
+                targetId: "gy-bear-guard",
+                targetPlayerId: "p1",
+            })
+        ).toThrow();
+    });
 });
 
-// Sinister Strength — an Aura `staticEffects[]` pt-buff + color-grant pair
-// (CR 611 layer 7c / layer 5), mandatory hand-written GRE + wire test per the
-// same convention as Lord of the Undead above — mirrors Kormus Bell's own
-// pt-cda + color-grant pairing (`lea/__tests__/colorless.test.ts`).
-describe("Sinister Strength (CR 303.4 aura, layer 7c pt-buff + layer 5 color-grant, PLS 54)", () => {
-    it("gives the enchanted creature +3/+1 and makes it black", () => {
+// Sinister Strength — an Aura `staticEffects[]` pt-buff (CR 611 layer 7c),
+// mandatory hand-written GRE + wire test per the same convention as Lord of
+// the Undead above. The "is black" clause is a documented DIVERGENCE (issue
+// #1950 review, BLOCKER 1, tracked-by #2009 — see the card's own comment):
+// CR 613.1e makes it a layer-5 colour SET, and the engine's only layer-5
+// static effect (`color-grant`) is additive, so shipping it would have made
+// the host BOTH its printed colour and black. This test locks in the
+// deferred behaviour — colours are UNCHANGED — so a future accidental
+// `color-grant` re-add (reintroducing the CR-incorrect additive shape) fails
+// here instead of shipping silently.
+describe("Sinister Strength (CR 303.4 aura, layer 7c pt-buff; colour clause deferred to #2009, PLS 54)", () => {
+    it("gives the enchanted creature +3/+1 and leaves its colours untouched (colour clause deferred)", () => {
         const host = makeInstance(savannahLions.id, { id: "host" });
         const aura = makeInstance(sinisterStrength.id, {
             id: "aura",
@@ -642,13 +711,10 @@ describe("Sinister Strength (CR 303.4 aura, layer 7c pt-buff + layer 5 color-gra
         // Savannah Lions is a printed 2/1 (`lea/white.ts`); +3/+1 → 5/2.
         expect(getEffectivePower(state, host)).toBe(5);
         expect(getEffectiveToughness(state, host)).toBe(2);
-        // color-grant is a materialized (`grantedColors`) effect, applied via
-        // `applySourceStaticEffects` (Kormus Bell's own precedent) rather than
-        // read live.
+        // Colour clause deferred (tracked-by #2009) — no color-grant ships,
+        // so the host stays exactly its printed colour (white), never black.
         applySourceStaticEffects(state, aura);
-        expect(STATIC_EFFECT_CTX.getColors(host)).toEqual(
-            expect.arrayContaining(["W", "B"])
-        );
+        expect(STATIC_EFFECT_CTX.getColors(host)).toEqual(["W"]);
 
         // Wire format — the pt-buff read survives the projection.
         const projected = projectPublicState(state, 1, "p1");
