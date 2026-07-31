@@ -19,6 +19,8 @@ import {
     canPayTapOtherCost,
     crewPowerContribution,
 } from "@convex/gre/tapOtherCost";
+import { totalKickerCount } from "@convex/gre/kicker";
+import type { SpellFilterKey } from "@convex/gre/targetFilters";
 import {
     hasControlledSinceTurnStart,
     type ControlContinuityView,
@@ -1189,6 +1191,156 @@ export function matchesStackObjectFilter(
         }
     }
     return true;
+}
+
+/** True if a stack item is a legal target under the `spellTargetsTypeFilter`
+ *  requirement (CR 114.1 / 109.2 — Confound's "counter target spell that
+ *  targets a creature"): the candidate must ITSELF target at least one
+ *  permanent of a listed type. "A creature" is a creature PERMANENT, so only
+ *  `"permanent"` selections resolved against the live battlefield count — a
+ *  player/spell/graveyard-card target never does, and neither does a permanent
+ *  target that has already left the battlefield. Fail-CLOSED: an untargeted
+ *  spell never qualifies. Mirrors `spellTargetsTypeFilterDescriptor` in
+ *  `gre/targetFilters.ts`. With no filter, any stack item qualifies. */
+export function matchesSpellTargetsTypeFilter(
+    item: { targets?: { type: string; id: string }[] },
+    spellTargetsTypeFilter: string[] | undefined,
+    players: ReadonlyArray<{ battlefield: ReadonlyArray<CardInstance> }>
+): boolean {
+    if (!spellTargetsTypeFilter || spellTargetsTypeFilter.length === 0) {
+        return true;
+    }
+    for (const t of item.targets ?? []) {
+        if (t.type !== "permanent") continue;
+        for (const p of players) {
+            const perm = p.battlefield.find((c) => c.id === t.id);
+            if (
+                perm &&
+                spellTargetsTypeFilter.some((ty) =>
+                    (perm.types ?? []).includes(ty as CardType)
+                )
+            ) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+/** True if a stack item is a legal target under the `spellWasKicked`
+ *  requirement (CR 702.33a — Ertai's Trickery): the candidate's own Kicker
+ *  state must equal the requested one. Read through `totalKickerCount`, the
+ *  same single authority the server's descriptor uses (ADR 0079), so a spell
+ *  with two independently payable Kickers counts as kicked when EITHER was
+ *  paid. With the filter unset, any stack item qualifies. */
+export function matchesSpellWasKicked(
+    item: { kickerPayments?: Record<string, number> },
+    spellWasKicked: boolean | undefined
+): boolean {
+    if (spellWasKicked === undefined) return true;
+    return totalKickerCount(item.kickerPayments) > 0 === spellWasKicked;
+}
+
+/** Which SPELL-kind filters the CLIENT re-checks before marking a stack item
+ *  clickable, and which it deliberately leaves to the server.
+ *
+ *  **This map is the fail-closed discriminator for the frontend half of the
+ *  target-filter registry (issue #1956).** The server side can't drift —
+ *  `getLegalTargets` and `selectTarget` share one descriptor (ADR 0068) — but
+ *  the client never calls that registry (it works on the wire projection, not
+ *  a `GameState`), so a spell filter added server-side used to reach the UI as
+ *  a SILENT fail-open: `<GameStack>` kept offering the target and the server
+ *  rejected the click. `satisfies Record<SpellFilterKey, …>` turns that into a
+ *  compile error — a new spell filter cannot land without an author
+ *  classifying it here.
+ *
+ *  `"server-only"` is a real, deliberate answer, not a TODO bucket: the click
+ *  is still safe because `selectTarget` re-validates through the registry;
+ *  the only cost is an offered target the server refuses. The three entries
+ *  below are the cross-kind numeric/colour filters, unchecked client-side
+ *  since before this map existed. */
+export const CLIENT_SPELL_FILTER_COVERAGE = {
+    spellStackKind: "checked",
+    controller: "checked",
+    stackSourceTypeFilter: "checked",
+    spellTargetsInstanceIds: "checked",
+    colorFilter: "server-only",
+    colorFilterAny: "server-only",
+    mvFilter: "server-only",
+    spellTypeFilter: "checked",
+    spellExcludeTypeFilter: "checked",
+    spellCreaturePtFilter: "checked",
+    spellSingleTargetingController: "checked",
+    spellWouldDestroyLandYouControl: "checked",
+    spellTargetsTypeFilter: "checked",
+    spellWasKicked: "checked",
+} satisfies Record<SpellFilterKey, "checked" | "server-only">;
+
+/** The ONE client-side predicate for "is this stack item clickable as a spell
+ *  target", composing every `"checked"` filter in
+ *  `CLIENT_SPELL_FILTER_COVERAGE`. `<GameStack>` calls this instead of
+ *  chaining the per-filter helpers by hand — a chain is where a newly added
+ *  filter goes missing without anything failing. */
+export function matchesSpellPendingTarget(
+    item: {
+        card: { id: string };
+        types?: string[];
+        abilityId?: string;
+        triggeredAbilityId?: string;
+        delayedTriggerId?: string;
+        power?: number;
+        toughness?: number;
+        castById?: string;
+        targets?: { type: string; id: string }[];
+        kickerPayments?: Record<string, number>;
+    },
+    pendingTarget: PendingTarget | undefined,
+    ctx: {
+        playerId: string;
+        activePlayerId: string;
+        players: { id: string; battlefield: CardInstance[] }[];
+    }
+): boolean {
+    return (
+        matchesSpellTypeFilter(item, pendingTarget?.spellTypeFilter) &&
+        matchesSpellExcludeTypeFilter(
+            item,
+            pendingTarget?.spellExcludeTypeFilter
+        ) &&
+        matchesSpellCreaturePtFilter(
+            item,
+            pendingTarget?.spellCreaturePtFilter
+        ) &&
+        matchesSpellSingleTargetingController(
+            item,
+            pendingTarget?.spellSingleTargetingController,
+            ctx.playerId
+        ) &&
+        matchesSpellController(
+            item,
+            pendingTarget?.controller,
+            ctx.playerId,
+            ctx.activePlayerId
+        ) &&
+        matchesSpellWouldDestroyLand(
+            item,
+            pendingTarget?.spellWouldDestroyLandYouControl,
+            ctx.players,
+            ctx.playerId
+        ) &&
+        matchesSpellTargetsTypeFilter(
+            item,
+            pendingTarget?.spellTargetsTypeFilter,
+            ctx.players
+        ) &&
+        matchesSpellWasKicked(item, pendingTarget?.spellWasKicked) &&
+        matchesStackObjectFilter(
+            item,
+            pendingTarget?.spellStackKind,
+            pendingTarget?.stackSourceTypeFilter,
+            pendingTarget?.spellTargetsInstanceIds
+        )
+    );
 }
 
 /** Builds a `TriggerStateView` (the shape `canActivate` predicates read,

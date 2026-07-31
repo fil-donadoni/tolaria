@@ -2280,15 +2280,16 @@ describe("checkCardTargetFilters — shared offered/accepted gate (ADR 0068, iss
 describe("target-filter registry — FilterKey exhaustiveness keystone (ADR 0068, issue #1411)", () => {
     it("REGISTRY is non-empty and covers every filter migrated by T1-T3", () => {
         const keys = Object.keys(REGISTRY);
-        // 20 permanent + 8 spell-only + 1 player-only (T1 + T2 + T3) — see
+        // 20 permanent + 10 spell-only + 1 player-only (T1 + T2 + T3) — see
         // PERMANENT_FILTER_KEYS / SPELL_ONLY_FILTER_KEYS / PLAYER_ONLY_FILTER_KEYS
         // in targetFilters.ts. Card-kind reuses `controller`/`mvFilter`, both
         // already counted under the permanent set — no additional keys.
         // (`requireAbilityAny` joined the permanent set with Minsc & Boo;
         // `sameController` joined it with Barrin's Spite, issue #1104;
         // `isToken` joined it with Satya, Aetherflux Genius / Dance of Many,
-        // issue #1195.)
-        expect(keys.length).toBe(29);
+        // issue #1195; `spellTargetsTypeFilter` + `spellWasKicked` joined the
+        // spell-only set with Confound / Ertai's Trickery, issue #1956.)
+        expect(keys.length).toBe(31);
     });
 
     it("every registered filter has a `lower` function and at least one `checks` predicate", () => {

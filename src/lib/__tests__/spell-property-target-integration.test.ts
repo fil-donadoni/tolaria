@@ -1,0 +1,212 @@
+// Integration: SPELL-PROPERTY target filters (Confound / Ertai's Trickery,
+// issue #1956) from the server's offered set all the way to client clickability
+// — asserted THROUGH the real view reducer, never against a hand-built view.
+//
+// Why this file exists. The server half of the target-filter registry cannot
+// drift: `getLegalTargets` and `selectTarget` share one descriptor (ADR 0068).
+// The CLIENT half can and did — `<GameStack>` never calls that registry (it
+// works on the wire projection, not a `GameState`), so a filter added
+// server-side reaches the UI as a silent fail-open: the stack tile stays
+// clickable and the mutation rejects the click. The assertion below is
+// therefore not "the mirror returns true for this item" but "the mirror's
+// verdict over the PROJECTED state equals `getLegalTargets`' verdict over the
+// fat state, for every item on the stack".
+//
+// The project has no convex-test harness (ADR 0001), so the server side is
+// driven through the SAME exported builder `announceCast` uses
+// (`pendingTargetFiltersFromRequirement`) — the established shape of
+// `stifle-target-integration.test.ts`.
+
+import { describe, it, expect } from "vitest";
+import {
+    getLegalTargets,
+    pendingTargetFiltersFromRequirement,
+} from "@convex/gre/rules";
+import { SPELL_FILTER_KEYS } from "@convex/gre/targetFilters";
+import { projectPublicState } from "@convex/gameProjections";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    pushSpell,
+} from "@convex/cards/__tests__/setup";
+import { grizzlyBears, island, lightningBolt } from "@convex/cards/sets/lea";
+import { stoneRain } from "@convex/cards/sets/lea/red";
+import { confound, ertaisTrickery } from "@convex/cards/sets/pls/blue";
+import { urzasRage } from "@convex/cards/sets/inv/red";
+import type { GameState } from "@convex/gre/state";
+import type { CardInstance, PendingTarget } from "~/types/game";
+import {
+    CLIENT_SPELL_FILTER_COVERAGE,
+    matchesSpellPendingTarget,
+    matchesSpellTargetsTypeFilter,
+    matchesSpellWasKicked,
+    wantsSpellTarget,
+} from "~/lib/card-utils";
+
+function scenario(): {
+    state: GameState;
+    ids: Record<string, string>;
+} {
+    const state = makeState({
+        players: [
+            makePlayer("p1", { life: 20 }),
+            makePlayer("p2", {
+                life: 20,
+                battlefield: [
+                    makeInstance(grizzlyBears.id, {
+                        id: "bear",
+                        controllerId: "p2",
+                        ownerId: "p2",
+                    }),
+                    makeInstance(island.id, {
+                        id: "isle",
+                        controllerId: "p2",
+                        ownerId: "p2",
+                    }),
+                ],
+            }),
+        ],
+    });
+    const targetsCreature = pushSpell(state, lightningBolt.id, "p2", [
+        { type: "permanent", id: "bear" },
+    ]);
+    const targetsPlayer = pushSpell(state, lightningBolt.id, "p2", [
+        { type: "player", id: "p1" },
+    ]);
+    const targetsLand = pushSpell(state, stoneRain.id, "p2", [
+        { type: "permanent", id: "isle" },
+    ]);
+    const kicked = pushSpell(state, urzasRage.id, "p2", [
+        { type: "permanent", id: "bear" },
+    ]);
+    kicked.kickerPayments = { kicker: 1 };
+    return {
+        state,
+        ids: {
+            targetsCreature: targetsCreature.id,
+            targetsPlayer: targetsPlayer.id,
+            targetsLand: targetsLand.id,
+            kicked: kicked.id,
+        },
+    };
+}
+
+/** The client verdict for every stack item, computed off the PROJECTED state
+ *  (the only thing the browser ever sees) with the pending target the server
+ *  actually builds. */
+function clientClickable(
+    state: GameState,
+    requirement: NonNullable<typeof confound.targetRequirement>
+): string[] {
+    const projected = projectPublicState(state, 1, "p1");
+    const pendingTarget = {
+        playerId: "p1",
+        cardInstanceId: "src",
+        targetType: requirement.type,
+        count: 1,
+        selected: [],
+        ...pendingTargetFiltersFromRequirement(requirement, undefined),
+    } as unknown as PendingTarget;
+    const players = projected.players.map((p) => ({
+        id: p.id,
+        battlefield: p.battlefield as unknown as CardInstance[],
+    }));
+    return projected.stack
+        .filter((item) =>
+            matchesSpellPendingTarget(item, pendingTarget, {
+                playerId: "p1",
+                activePlayerId: projected.activePlayerId,
+                players,
+            })
+        )
+        .map((item) => item.id);
+}
+
+const serverOffered = (
+    state: GameState,
+    requirement: NonNullable<typeof confound.targetRequirement>
+) => getLegalTargets(state, requirement, [], "p1").map((t) => t.id);
+
+describe("spell-property target filters — server offered set == client clickable set (issue #1956)", () => {
+    it("Confound: the projected client verdict matches getLegalTargets exactly", () => {
+        const { state, ids } = scenario();
+        const req = confound.targetRequirement!;
+        expect(clientClickable(state, req).sort()).toEqual(
+            serverOffered(state, req).sort()
+        );
+        // …and is not vacuous: exactly the two creature-targeting spells.
+        expect(clientClickable(state, req).sort()).toEqual(
+            [ids.targetsCreature, ids.kicked].sort()
+        );
+    });
+
+    it("Ertai's Trickery: the projected client verdict matches getLegalTargets exactly", () => {
+        const { state, ids } = scenario();
+        const req = ertaisTrickery.targetRequirement!;
+        expect(clientClickable(state, req)).toEqual(serverOffered(state, req));
+        expect(clientClickable(state, req)).toEqual([ids.kicked]);
+    });
+
+    it("both requirements enable stack-spell selection (wantsSpellTarget)", () => {
+        expect(wantsSpellTarget(confound.targetRequirement!.type)).toBe(true);
+        expect(wantsSpellTarget(ertaisTrickery.targetRequirement!.type)).toBe(
+            true
+        );
+    });
+
+    it("the target prompt resolves to a real label, not a raw fallback", () => {
+        // Neither card introduces a new `TargetRequirement.type`: both are
+        // `"spell"`, which `TARGET_LABEL` already spells "a spell on the
+        // stack", and neither narrows `spellStackKind` away from the default
+        // (which is what would reword the prompt to an ability).
+        for (const req of [
+            confound.targetRequirement!,
+            ertaisTrickery.targetRequirement!,
+        ]) {
+            expect(req.type).toBe("spell");
+            expect(
+                pendingTargetFiltersFromRequirement(req, undefined)
+                    .spellStackKind
+            ).toBe("spell");
+        }
+    });
+
+    it("every registry spell filter is CLASSIFIED for the client (fail-closed coverage map)", () => {
+        // The compile-time `satisfies Record<SpellFilterKey, …>` is the real
+        // guard; this is its runtime echo, and it also pins that the two
+        // filters this slice adds are actually CHECKED rather than deferred.
+        for (const key of SPELL_FILTER_KEYS) {
+            expect(CLIENT_SPELL_FILTER_COVERAGE).toHaveProperty(key);
+        }
+        expect(CLIENT_SPELL_FILTER_COVERAGE.spellTargetsTypeFilter).toBe(
+            "checked"
+        );
+        expect(CLIENT_SPELL_FILTER_COVERAGE.spellWasKicked).toBe("checked");
+    });
+
+    it("the client mirrors fail CLOSED on the projected shape (no targets / no kicker record)", () => {
+        const { state } = scenario();
+        const projected = projectPublicState(state, 1, "p1");
+        const players = projected.players.map((p) => ({
+            battlefield: p.battlefield as unknown as CardInstance[],
+        }));
+        expect(matchesSpellTargetsTypeFilter({}, ["Creature"], players)).toBe(
+            false
+        );
+        expect(
+            matchesSpellTargetsTypeFilter(
+                { targets: [{ type: "player", id: "p1" }] },
+                ["Creature"],
+                players
+            )
+        ).toBe(false);
+        expect(matchesSpellWasKicked({}, true)).toBe(false);
+        expect(matchesSpellWasKicked({ kickerPayments: {} }, true)).toBe(false);
+        // …and stay inert when the requirement doesn't declare them.
+        expect(matchesSpellTargetsTypeFilter({}, undefined, players)).toBe(
+            true
+        );
+        expect(matchesSpellWasKicked({}, undefined)).toBe(true);
+    });
+});

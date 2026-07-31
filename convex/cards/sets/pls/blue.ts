@@ -794,3 +794,62 @@ export const sunkenHope: CardDefinition = {
         }),
     ],
 };
+
+// Confound — {1}{U} Instant. "Counter target spell that targets a creature.
+// Draw a card." (CR 114.1 / 109.2, issue #1956, parent PRD #1935.) The
+// restriction is a genuine TARGETING restriction, so it is declared as a
+// registry filter (`spellTargetsTypeFilter`, ADR 0068) rather than checked at
+// resolution: `getLegalTargets` and `selectTarget` both run the SAME
+// descriptor, so the stack items the client offers and the ones the mutation
+// accepts cannot diverge. "A creature" is a creature PERMANENT (CR 109.2) —
+// a spell targeting only players, only other spells, or nothing at all is
+// never a legal target.
+//
+// The draw is a SEPARATE sentence and is not conditional on the counter
+// succeeding: an uncounterable target still leaves Confound resolving, the
+// `counter` Op doing nothing, and the `draw` Op running. (If Confound's own
+// target has become illegal it is countered on resolution and never draws —
+// CR 608.2b, the general fizzle rule, not a card clause.)
+export const confound: CardDefinition = {
+    id: "4f3b7d39-ce98-48e2-b2bf-0d55b4d3102b", // PLS 22
+    name: "Confound",
+    rarity: "common",
+    oracleText: "Counter target spell that targets a creature.\nDraw a card.",
+    manaCost: { X: 1, U: 1 },
+    types: ["Instant"],
+    targetRequirement: {
+        type: "spell",
+        count: 1,
+        spellTargetsTypeFilter: "Creature",
+    },
+    effects: [
+        { op: "counter", target: { target: 0 } },
+        { op: "draw", player: "controller", count: 1 },
+    ],
+};
+
+// Ertai's Trickery — {U} Instant. "Counter target spell if it was kicked."
+// (CR 702.33a, issue #1956, parent PRD #1935.) `spellWasKicked` reads the
+// candidate stack item's PER-KICKER payment record through `totalKickerCount`
+// (ADR 0079), so a card carrying two independently payable Kickers — the
+// Planeshift Battlemage cycle's "Kicker {A} and/or {B}" — qualifies when
+// EITHER leg was paid, which a single stored total could never express.
+//
+// DIVERGENCE (tracked-by: #2044): Oracle's "if it was kicked" is a
+// resolution-time intervening condition (CR 608.2a), not a targeting
+// restriction — as printed the spell may be cast targeting an unkicked spell
+// and simply do nothing. It ships here as a target FILTER per this slice's
+// acceptance criteria (#1956), which makes the card uncastable with no kicked
+// spell on the stack. Closing #2044 needs an Effect Script value that reads a
+// TARGET's kicker payments at resolution (today's `{ kickerCount: true }`
+// reads the RESOLVING spell's own).
+export const ertaisTrickery: CardDefinition = {
+    id: "544e3575-9fb6-41f7-a4e6-f8460dfae344", // PLS 24
+    name: "Ertai's Trickery",
+    rarity: "uncommon",
+    oracleText: "Counter target spell if it was kicked.",
+    manaCost: { U: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "spell", count: 1, spellWasKicked: true },
+    effects: [{ op: "counter", target: { target: 0 } }],
+};

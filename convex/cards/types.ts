@@ -495,6 +495,27 @@ export interface TargetRequirement {
      *  single target if that target is you", CR 114.1 / 115.10). Ignored for
      *  non-spell target types. */
     spellSingleTargetingController?: boolean;
+    /** Restricts legal SPELL targets (`type: "spell"`) to spells that THEMSELVES
+     *  target at least one PERMANENT of one of these card types (CR 114.1 —
+     *  Confound's "Counter target spell that targets a creature"). The filter
+     *  reads the candidate stack item's own chosen `targets`, resolves each
+     *  `"permanent"` selection against the battlefield, and requires at least
+     *  one hit whose `types` include a listed type. Fail-CLOSED by
+     *  construction: a spell with no targets, a spell whose targets are all
+     *  players / other spells / graveyard cards, and a spell whose permanent
+     *  target has already left the battlefield all fail. Non-permanent target
+     *  kinds are never counted — CR 109.2 makes "a creature" a creature
+     *  PERMANENT, not a creature card in another zone. Single string is
+     *  shorthand for one type. Ignored for non-spell target types. */
+    spellTargetsTypeFilter?: CardType | CardType[];
+    /** Restricts legal SPELL targets (`type: "spell"`) to spells that were
+     *  KICKED (CR 702.33a) — at least one Kicker cost was paid as the spell was
+     *  cast. Read off the candidate stack item's `kickerPayments` record (the
+     *  per-Kicker payment map, ADR 0079), so a card with two distinct Kickers
+     *  qualifies when EITHER was paid. `false` is the negative form (only
+     *  UNkicked spells qualify). An ability on the stack is never kicked.
+     *  Ignored for non-spell target types. */
+    spellWasKicked?: boolean;
     /** Divide-as-you-choose marker (CR 601.2d / 120.4). When set, this spell
      *  divides a fixed total of damage / counters among the chosen targets,
      *  each target getting at least 1. `total` resolves the budget:

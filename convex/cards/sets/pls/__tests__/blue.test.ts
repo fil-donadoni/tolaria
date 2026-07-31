@@ -23,7 +23,23 @@ import {
     stormscapeBattlemage,
     stormscapeFamiliar,
     sunkenHope,
+    confound,
+    ertaisTrickery,
 } from "../blue";
+import { thornscapeBattlemage } from "../green";
+import { urzasRage } from "../../inv/red";
+import { stoneRain } from "../../lea/red";
+import {
+    getLegalTargets,
+    pendingTargetFiltersFromRequirement,
+} from "../../../../gre/rules";
+import {
+    lowerSpellOnlyFilters,
+    SPELL_FILTER_KEYS,
+    SPELL_ONLY_FILTER_KEYS,
+} from "../../../../gre/targetFilters";
+import { CLEARED_PENDING_TARGET_FILTER_KEYS } from "../../../../game";
+import type { CardDefinition } from "../../../types";
 import {
     plains,
     island,
@@ -1390,5 +1406,426 @@ describe("Planeswalker's Mischief (protocol: reveal-random + grantCastFromExile 
         );
         expect(slimExiled).toBeDefined();
         expect(slimExiled?.castableFromExileBy).toBe("p1");
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Confound & Ertai's Trickery — SPELL-PROPERTY target filters
+// (CR 114.1 / 109.2 / 702.33a, ADR 0068, issue #1956)
+//
+// These two counterspells restrict their target by a property of the CANDIDATE
+// SPELL — the targets it itself chose (Confound), and whether it was kicked
+// (Ertai's Trickery) — rather than by the candidate's own characteristics. Both
+// are declared as registry descriptors, so `getLegalTargets` (offered set) and
+// `applyOneTargetSelection` (the `selectTarget` mutation's accepted set) run
+// the identical predicate.
+//
+// The tests below are written one-per-row from the PRODUCER CENSUS of every
+// site that consumes a spell-target filter, INCLUDING the must-NOT rows (a
+// spell-only filter must never reach the permanent/player kinds, and must never
+// be carried onto a non-spell requirement). Tests derived from the
+// implementation cannot falsify the implementation's assumptions.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("Confound / Ertai's Trickery — spell-property target filters (issue #1956)", () => {
+    const CONFOUND_REQ = confound.targetRequirement!;
+    const TRICKERY_REQ = ertaisTrickery.targetRequirement!;
+
+    /** p1 casts the counterspell; p2 owns the creature/land the candidate
+     *  spells point at. */
+    function board(): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1", { life: 20 }),
+                makePlayer("p2", {
+                    life: 20,
+                    battlefield: [
+                        makeInstance(grizzlyBears.id, {
+                            id: "bear",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                        makeInstance(island.id, {
+                            id: "isle",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+        });
+    }
+
+    const offered = (state: GameState, req = CONFOUND_REQ) =>
+        getLegalTargets(state, req, [], "p1").map((t) => t.id);
+
+    /** The REAL accepted-set path: builds the `PendingTarget` with the same
+     *  shared carry `announceCast` uses, then drives the exported
+     *  `applyOneTargetSelection` (the `selectTarget` mutation's own body).
+     *  Returns true when the submission is accepted. */
+    function accepts(
+        state: GameState,
+        req: NonNullable<CardDefinition["targetRequirement"]>,
+        spellId: string
+    ): boolean {
+        const probe: GameState = {
+            ...state,
+            pendingTarget: {
+                playerId: "p1",
+                cardInstanceId: "counterspell-source",
+                targetType: req.type,
+                // Open-ended max so a successful pick does NOT auto-finalize
+                // into the cast-commit path (which needs a real hand card this
+                // probe never seeds) — same convention as
+                // `convex/__tests__/distinctTargets.test.ts`. The filter gate
+                // under test runs strictly before finalization.
+                count: { min: 1, max: 2 },
+                selected: [],
+                ...pendingTargetFiltersFromRequirement(req, undefined),
+            },
+        };
+        try {
+            applyOneTargetSelection(probe, "p1", {
+                targetType: "spell",
+                targetId: spellId,
+            });
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    // ── Confound: `spellTargetsTypeFilter` (row: getLegalTargets spell branch)
+
+    it("Confound OFFERS a spell that targets a creature (CR 114.1)", () => {
+        const state = board();
+        const bolt = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "permanent", id: "bear" },
+        ]);
+        expect(offered(state)).toContain(bolt.id);
+    });
+
+    it("Confound does NOT offer a spell that targets only a PLAYER", () => {
+        const state = board();
+        const bolt = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        expect(offered(state)).not.toContain(bolt.id);
+    });
+
+    it("Confound does NOT offer an UNTARGETED spell (fail-closed on no targets)", () => {
+        const state = board();
+        const untargeted = pushSpell(state, planarOverlay.id, "p2", []);
+        expect(offered(state)).not.toContain(untargeted.id);
+    });
+
+    it("Confound does NOT offer a spell targeting a NON-creature permanent (CR 109.2)", () => {
+        const state = board();
+        const rain = pushSpell(state, stoneRain.id, "p2", [
+            { type: "permanent", id: "isle" },
+        ]);
+        expect(offered(state)).not.toContain(rain.id);
+    });
+
+    it("Confound stops offering a spell whose creature target has LEFT the battlefield (CR 608.2b)", () => {
+        const state = board();
+        const bolt = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "permanent", id: "bear" },
+        ]);
+        expect(offered(state)).toContain(bolt.id);
+        state.players[1].battlefield = state.players[1].battlefield.filter(
+            (c) => c.id !== "bear"
+        );
+        expect(offered(state)).not.toContain(bolt.id);
+    });
+
+    // ── Ertai's Trickery: `spellWasKicked`
+
+    it("Ertai's Trickery OFFERS a kicked spell and NOT an unkicked one (CR 702.33a)", () => {
+        const state = board();
+        const kicked = pushSpell(state, urzasRage.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        kicked.kickerPayments = { kicker: 1 };
+        const unkicked = pushSpell(state, urzasRage.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        const ids = offered(state, TRICKERY_REQ);
+        expect(ids).toContain(kicked.id);
+        expect(ids).not.toContain(unkicked.id);
+    });
+
+    it("Ertai's Trickery reads the PER-KICKER record — a two-Kicker card qualifies on EITHER leg (ADR 0079)", () => {
+        for (const payments of [
+            { "kicker-r": 1 },
+            { "kicker-w": 1 },
+            { "kicker-r": 1, "kicker-w": 1 },
+        ] as KickerPayments[]) {
+            const state = board();
+            const bm = pushSpell(state, thornscapeBattlemage.id, "p2", []);
+            bm.kickerPayments = payments;
+            expect(offered(state, TRICKERY_REQ)).toContain(bm.id);
+        }
+        // …and an all-zero record is NOT kicked (the record, not its presence,
+        // is what counts).
+        const state = board();
+        const bm = pushSpell(state, thornscapeBattlemage.id, "p2", []);
+        bm.kickerPayments = { "kicker-r": 0, "kicker-w": 0 };
+        expect(offered(state, TRICKERY_REQ)).not.toContain(bm.id);
+    });
+
+    // ── Offered set == accepted set (ADR 0068's whole point). Sweeps EVERY
+    //    stack item through BOTH authorities and asserts they agree — the
+    //    single assertion the Phelia bug class cannot survive.
+
+    it("offered set and accepted set are IDENTICAL for both cards (ADR 0068)", () => {
+        const state = board();
+        const targetsCreature = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "permanent", id: "bear" },
+        ]);
+        const targetsPlayer = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        const targetsLand = pushSpell(state, stoneRain.id, "p2", [
+            { type: "permanent", id: "isle" },
+        ]);
+        const untargeted = pushSpell(state, planarOverlay.id, "p2", []);
+        const kicked = pushSpell(state, urzasRage.id, "p2", [
+            { type: "permanent", id: "bear" },
+        ]);
+        kicked.kickerPayments = { kicker: 1 };
+
+        const all = [
+            targetsCreature,
+            targetsPlayer,
+            targetsLand,
+            untargeted,
+            kicked,
+        ];
+        for (const req of [CONFOUND_REQ, TRICKERY_REQ]) {
+            const offeredIds = new Set(offered(state, req));
+            for (const item of all) {
+                expect({
+                    id: item.id,
+                    accepted: accepts(state, req, item.id),
+                }).toEqual({
+                    id: item.id,
+                    accepted: offeredIds.has(item.id),
+                });
+            }
+        }
+        // Sanity: the sweep is not vacuous in either direction.
+        expect(offered(state, CONFOUND_REQ).sort()).toEqual(
+            [targetsCreature.id, kicked.id].sort()
+        );
+        expect(offered(state, TRICKERY_REQ)).toEqual([kicked.id]);
+    });
+
+    // ── Carry (`pendingTargetFiltersFromRequirement`) + its must-NOT row
+
+    it("the shared carry propagates both filters onto the PendingTarget", () => {
+        const c = pendingTargetFiltersFromRequirement(CONFOUND_REQ, undefined);
+        expect(c.spellTargetsTypeFilter).toEqual(["Creature"]);
+        const t = pendingTargetFiltersFromRequirement(TRICKERY_REQ, undefined);
+        expect(t.spellWasKicked).toBe(true);
+    });
+
+    it("must NOT carry a spell-only filter onto a non-spell requirement", () => {
+        const carried = pendingTargetFiltersFromRequirement(
+            {
+                type: "Creature",
+                count: 1,
+                spellTargetsTypeFilter: "Creature",
+                spellWasKicked: true,
+            },
+            undefined
+        );
+        expect(carried.spellTargetsTypeFilter).toBeUndefined();
+        expect(carried.spellWasKicked).toBeUndefined();
+    });
+
+    it("must NOT filter PERMANENT targets — a spell-kind filter is inert on the permanent kind", () => {
+        const state = board();
+        const ids = getLegalTargets(
+            state,
+            {
+                type: "Creature",
+                count: 1,
+                spellTargetsTypeFilter: "Creature",
+                spellWasKicked: true,
+            },
+            [],
+            "p1"
+        ).map((t) => t.id);
+        expect(ids).toEqual(["bear"]);
+    });
+
+    // ── The retarget producers (Fork copy / resolution-time retarget) delegate
+    //    to `lowerSpellOnlyFilters`; assert the delegate is COMPLETE, which is
+    //    what stops those producers from dropping a filter one at a time.
+
+    it("lowerSpellOnlyFilters carries EVERY spell-only key (retarget producers, ADR 0068)", () => {
+        const lowered = lowerSpellOnlyFilters(
+            {
+                type: "spell",
+                count: 1,
+                spellStackKind: "any",
+                stackSourceTypeFilter: "Artifact",
+                spellTargetsInstanceIds: ["x"],
+                spellTypeFilter: "Instant",
+                spellExcludeTypeFilter: "Creature",
+                spellCreaturePtFilter: { maxPowerOrToughness: 2 },
+                spellSingleTargetingController: true,
+                spellWouldDestroyLandYouControl: true,
+                spellTargetsTypeFilter: "Creature",
+                spellWasKicked: true,
+            },
+            undefined
+        );
+        expect(Object.keys(lowered).sort()).toEqual(
+            [...SPELL_ONLY_FILTER_KEYS].sort()
+        );
+    });
+
+    it("the multi-group PendingTarget reset clears EVERY spell filter (no cross-group leak, CR 601.2c)", () => {
+        for (const key of SPELL_FILTER_KEYS) {
+            expect(CLEARED_PENDING_TARGET_FILTER_KEYS).toHaveProperty(key);
+        }
+    });
+
+    // ── Resolution (CR 608.2b fizzle + the unconditional draw)
+
+    it("Confound counters its target and draws a card", () => {
+        const state = board();
+        state.players[0].library = [
+            makeInstance(island.id, {
+                id: "lib1",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            }),
+        ];
+        const bolt = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "permanent", id: "bear" },
+        ]);
+        pushSpell(state, confound.id, "p1", [{ type: "spell", id: bolt.id }]);
+        resolveTopOfStack(state);
+        expect(state.stack.some((s) => s.id === bolt.id)).toBe(false);
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["lib1"]);
+    });
+
+    it("Confound STILL draws when the target can't be countered (CR 701.5c — separate Oracle sentence)", () => {
+        const state = board();
+        state.players[0].library = [
+            makeInstance(island.id, {
+                id: "lib1",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            }),
+        ];
+        const rage = pushSpell(state, urzasRage.id, "p2", [
+            { type: "permanent", id: "bear" },
+        ]);
+        pushSpell(state, confound.id, "p1", [{ type: "spell", id: rage.id }]);
+        resolveTopOfStack(state);
+        // Urza's Rage survives the counter attempt…
+        expect(state.stack.some((s) => s.id === rage.id)).toBe(true);
+        // …and the draw happens regardless.
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["lib1"]);
+    });
+
+    it("Confound is countered on resolution once its target left the stack (CR 608.2b) — and draws nothing", () => {
+        const state = board();
+        state.players[0].library = [
+            makeInstance(island.id, {
+                id: "lib1",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            }),
+        ];
+        const bolt = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "permanent", id: "bear" },
+        ]);
+        const cf = pushSpell(state, confound.id, "p1", [
+            { type: "spell", id: bolt.id },
+        ]);
+        // Someone else countered the Bolt first: Confound's only target has
+        // left the stack, so Confound is countered by the game rules and no
+        // part of it — including the draw — happens.
+        state.stack = state.stack.filter((s) => s.id !== bolt.id);
+        resolveTopOfStack(state);
+        expect(state.stack.some((s) => s.id === cf.id)).toBe(false);
+        expect(state.players[0].hand).toHaveLength(0);
+        expect(state.players[0].graveyard.map((c) => c.card.id)).toContain(
+            confound.id
+        );
+    });
+
+    // Scope note, asserted rather than assumed: `targetLegalityGate`
+    // (`gre/state.ts`) re-checks ZONE EXISTENCE only, by documented design —
+    // characteristic-based illegality acquired after targeting is enforced at
+    // SELECTION, not at resolution. So a Bolt that stops targeting a creature
+    // (its creature died) is still a legal target for an already-announced
+    // Confound. This pins the engine-wide behaviour so a future widening of
+    // that gate shows up here rather than as a surprise.
+    it("a target that lost the spell PROPERTY after announcement still resolves (engine-wide gate scope)", () => {
+        const state = board();
+        state.players[0].library = [
+            makeInstance(island.id, {
+                id: "lib1",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            }),
+        ];
+        const bolt = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "permanent", id: "bear" },
+        ]);
+        pushSpell(state, confound.id, "p1", [{ type: "spell", id: bolt.id }]);
+        state.players[1].battlefield = state.players[1].battlefield.filter(
+            (c) => c.id !== "bear"
+        );
+        resolveTopOfStack(state);
+        expect(state.stack.some((s) => s.id === bolt.id)).toBe(false);
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["lib1"]);
+    });
+
+    // ── Wire format (row: projectPublicState / SlimStackItem). The filters read
+    //    `targets` and `kickerPayments` OFF THE STACK ITEM — if the projection
+    //    dropped either, the client would compute a different offered set.
+
+    it("wire format: the projection preserves the stack fields both filters read", () => {
+        const state = board();
+        const bolt = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "permanent", id: "bear" },
+        ]);
+        const rage = pushSpell(state, urzasRage.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        rage.kickerPayments = { kicker: 1 };
+        const projected = projectPublicState(state, 1, "p1");
+        const slimBolt = projected.stack.find((s) => s.id === bolt.id)!;
+        const slimRage = projected.stack.find((s) => s.id === rage.id)!;
+        expect(slimBolt.targets).toEqual([{ type: "permanent", id: "bear" }]);
+        expect(slimRage.kickerPayments).toEqual({ kicker: 1 });
+    });
+
+    // ── Card data (Scryfall + modern Oracle)
+
+    it("card data matches Scryfall / modern Oracle text", () => {
+        expect(confound.manaCost).toEqual({ X: 1, U: 1 });
+        expect(confound.types).toEqual(["Instant"]);
+        expect(confound.rarity).toBe("common");
+        expect(confound.oracleText).toBe(
+            "Counter target spell that targets a creature.\nDraw a card."
+        );
+        expect(ertaisTrickery.manaCost).toEqual({ U: 1 });
+        expect(ertaisTrickery.types).toEqual(["Instant"]);
+        expect(ertaisTrickery.rarity).toBe("uncommon");
+        expect(ertaisTrickery.oracleText).toBe(
+            "Counter target spell if it was kicked."
+        );
     });
 });

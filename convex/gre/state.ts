@@ -69,6 +69,7 @@ import {
 } from "./cityBlessing";
 import { checkStateBasedActions } from "./sba";
 import { getExtraLandDrops, getLegalTargets } from "./rules";
+import { lowerSpellOnlyFilters } from "./targetFilters";
 import { resolveEntersTapped } from "../cards/entersTapped";
 import {
     entryAbilitiesSuppressed,
@@ -2707,6 +2708,17 @@ export type PendingTarget = {
      *  TargetRequirement.spellWouldDestroyLandYouControl. Used by Equinox's
      *  granted counter ability. Ignored for non-spell target types. */
     spellWouldDestroyLandYouControl?: boolean;
+    /** Restricts legal SPELL targets to spells that THEMSELVES target a
+     *  permanent of one of these types (CR 114.1 / 109.2). Propagated from
+     *  TargetRequirement.spellTargetsTypeFilter. Used by Confound ("counter
+     *  target spell that targets a creature"). Ignored for non-spell target
+     *  types. */
+    spellTargetsTypeFilter?: CardType[];
+    /** Restricts legal SPELL targets by the candidate's own Kicker state
+     *  (CR 702.33a — `true` = kicked only, `false` = unkicked only).
+     *  Propagated from TargetRequirement.spellWasKicked. Used by Ertai's
+     *  Trickery. Ignored for non-spell target types. */
+    spellWasKicked?: boolean;
     /** Restricts a stack-object target by object kind (CR 113 / 114.1).
      *  Propagated from TargetRequirement.spellStackKind. Used by Brown Ouphe
      *  ("counter target activated ability ...") and Stifle ("... activated or
@@ -9490,26 +9502,27 @@ function requestCopyRetargetOn(state: GameState, copy: StackItem): void {
         ...(excludeSubtypes ? { excludeSubtypes } : {}),
         ...(excludeSupertypes ? { excludeSupertypes } : {}),
         ...(mvFilter ? { mvFilter } : {}),
-        ...(req.spellTypeFilter
-            ? {
-                  spellTypeFilter: Array.isArray(req.spellTypeFilter)
-                      ? req.spellTypeFilter
-                      : [req.spellTypeFilter],
-              }
-            : {}),
-        ...(req.spellExcludeTypeFilter
-            ? {
-                  spellExcludeTypeFilter: Array.isArray(
-                      req.spellExcludeTypeFilter
-                  )
-                      ? req.spellExcludeTypeFilter
-                      : [req.spellExcludeTypeFilter],
-              }
-            : {}),
-        ...(req.spellCreaturePtFilter
-            ? { spellCreaturePtFilter: req.spellCreaturePtFilter }
+        // ADR 0068 / issue #1956 — every SPELL-ONLY filter, lowered through
+        // the registry rather than hand-copied. This used to spread exactly
+        // three of them (`spellTypeFilter` / `spellExcludeTypeFilter` /
+        // `spellCreaturePtFilter`) and silently drop the rest, so a Fork copy
+        // of a filtered counterspell could be retargeted at a spell the
+        // original could never have chosen. The cross-kind fields
+        // (`controller` / `colorFilter` / `mvFilter`) stay hand-carried above
+        // — `mvFilter` in particular is already resolved against the copied
+        // spell's announced X.
+        ...(spellRequirement(req)
+            ? (lowerSpellOnlyFilters(req, undefined) as Partial<PendingTarget>)
             : {}),
     };
+}
+
+/** True when a `TargetRequirement` admits a STACK-OBJECT target — the gate
+ *  for carrying the spell-only lowered filters onto a `PendingTarget`
+ *  (CR 114.1, mirrors `pendingTargetFiltersFromRequirement` in `rules.ts`). */
+function spellRequirement(req: TargetRequirement): boolean {
+    const types = Array.isArray(req.type) ? req.type : [req.type];
+    return types.includes("spell") || types.includes("spell-or-permanent");
 }
 
 /** Storm's per-copy retarget offer (CR 707.10b "you may choose new targets
@@ -13291,29 +13304,14 @@ export function buildSpellContext(
                     : {}),
                 ...(excludeSubtypes ? { excludeSubtypes } : {}),
                 ...(excludeSupertypes ? { excludeSupertypes } : {}),
-                ...(requirement.spellTypeFilter
-                    ? {
-                          spellTypeFilter: Array.isArray(
-                              requirement.spellTypeFilter
-                          )
-                              ? requirement.spellTypeFilter
-                              : [requirement.spellTypeFilter],
-                      }
-                    : {}),
-                ...(requirement.spellExcludeTypeFilter
-                    ? {
-                          spellExcludeTypeFilter: Array.isArray(
-                              requirement.spellExcludeTypeFilter
-                          )
-                              ? requirement.spellExcludeTypeFilter
-                              : [requirement.spellExcludeTypeFilter],
-                      }
-                    : {}),
-                ...(requirement.spellCreaturePtFilter
-                    ? {
-                          spellCreaturePtFilter:
-                              requirement.spellCreaturePtFilter,
-                      }
+                // ADR 0068 / issue #1956 — every SPELL-ONLY filter, lowered
+                // through the registry rather than hand-copied (see
+                // `requestCopyRetargetOn` above for the full rationale).
+                ...(spellRequirement(requirement)
+                    ? (lowerSpellOnlyFilters(
+                          requirement,
+                          undefined
+                      ) as Partial<PendingTarget>)
                     : {}),
             };
         },
