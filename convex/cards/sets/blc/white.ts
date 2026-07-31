@@ -69,6 +69,21 @@ export const jackedRabbit: CardDefinition = {
             // (`interveningIf`). Both legs are declared so an X<5 cast never
             // puts a doomed trigger on the stack in front of the player, and
             // the resolution-time check still holds the CR line.
+            //
+            // DIVERGENCE (CR 603.10): the `interveningIf` leg below misfires
+            // when the rabbit is blinked while this trigger is on the stack.
+            // `resolveTopOfStackInner` (`gre/state.ts`) re-evaluates it
+            // against the LIVE permanent found by `triggerSourceId`, and a CR
+            // 400.7 return reuses the same instance id after
+            // `resetBattlefieldTransientState` has deleted `chosenXOnCast` —
+            // so an X=6 Ravenous trigger blinked by Ephemerate draws 0 cards
+            // instead of 1. The PLS Battlemage cycle (`pls/*.ts`, issue
+            // #2015) sidesteps the same bug by moving its resolution-time
+            // gate into `effects[]` as an `if { kickerPaid }` branch over the
+            // resolving stack item's own record; there is no `chosenX` twin
+            // of that predicate today, and the real fix is an engine-level
+            // re-entry identity stamp with a wide blast radius.
+            // tracked-by: #2042.
             condition: (_event, self) => (self.chosenXOnCast ?? 0) >= 5,
             interveningIf: (_event, self) => (self.chosenXOnCast ?? 0) >= 5,
             effects: [{ op: "draw", player: "controller", count: 1 }],

@@ -432,7 +432,16 @@ function kickerPaidTimes(self: PermanentView, kickerId: string): number {
  *  it reads the RESOLVING STACK ITEM's payment record (`buildTriggerItem`'s
  *  `...self` spread, `gre/triggers.ts`), which is exactly the LKI snapshot,
  *  and it also still holds for an ability COPY that reaches the stack without
- *  re-running `matches` (CR 707.10). */
+ *  re-running `matches` (CR 707.10).
+ *
+ *  This is not a Kicker-specific hazard — `interveningIf` is the wrong seam
+ *  for ANY one-shot cast fact `resetBattlefieldTransientState` clears
+ *  (`chosenXOnCast`/`chosenX` and `wasKicked` alongside `kickerPayments`).
+ *  Jacked Rabbit's Ravenous trigger (`sets/blc/white.ts`) still ships the
+ *  buggy shape: blinked at X=6 it draws 0 cards. The engine-level fix — a
+ *  re-entry identity stamp so a reused instance id stops reading as the same
+ *  object — is tracked-by: #2042. Until it lands, gate at check time here and
+ *  at resolution time inside `effects[]`. */
 export function kickerPaidCondition(
     kickerId: string
 ): (self: PermanentView) => boolean {

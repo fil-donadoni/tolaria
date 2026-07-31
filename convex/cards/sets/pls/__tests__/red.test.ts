@@ -660,9 +660,14 @@ describe("Thunderscape Battlemage — two independent Kickers, two independently
     // re-check fizzles a trigger CR 603.10 says must resolve off LKI.
     //
     // Removing a predicate is invisible to a suite that never blinks the
-    // source, which is what this test fixes: it fails (the enchantment
-    // survives) the moment `interveningIf: kickerPaidInterveningIf(...)` is
-    // re-added to the card.
+    // source, which is what this test fixes. To confirm it is load-bearing,
+    // add an `interveningIf` back to Thunderscape Battlemage's
+    // `thunderscape-battlemage-destroy` ability in `pls/red.ts` — either
+    // `interveningIf: kickerPaidCondition("kicker-g")` (the shared check-time
+    // predicate, re-wired at the wrong seam) or the hand-rolled
+    // `(_event, self) => (self.kickerPayments?.["kicker-g"] ?? 0) > 0`. Both
+    // make this test fail: the re-check reads the blinked permanent's cleared
+    // record, the trigger fizzles, and the enchantment survives.
     it("CR 603.10: a kicked Battlemage blinked while its ETB trigger is on the stack still resolves that trigger off LKI", () => {
         const bm = makeInstance(thunderscapeBattlemage.id, {
             id: "blink-bm",

@@ -885,7 +885,10 @@ export const voiceOfAll: CardDefinition = {
 //     `inv/*.ts`, the shipped precedent for leaving a card unshipped rather
 //     than working around it). It NO LONGER APPLIES: `kickerPayments` is now a
 //     typed, serialized field on `CardInstanceState`/`PermanentView` (#1950),
-//     and `kickerPaidCondition`/`kickerPaidInterveningIf`
-//     (`abilities/triggers/shared.ts`, issue #2015) are the shared per-Kicker
-//     predicates its three shipped cycle siblings already use. The card is
+//     and `kickerPaidCondition` (`abilities/triggers/shared.ts`, issue #2015)
+//     is the shared per-Kicker CHECK-TIME predicate its three shipped cycle
+//     siblings already use — paired, as they all are, with a resolution-time
+//     `if { kickerPaid: "<id>" }` branch inside the ability's own
+//     `effects[]` (never an `interveningIf`; see that helper's doc block for
+//     why the re-check misreads a blinked permanent). The card is
 //     unblocked and needs only ordinary card work. tracked-by: #1328.
