@@ -1496,11 +1496,30 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // SECOND ability ("whenever an opponent searches their library...")
         // stayed pure DSL (`effects: EffectOp[]`, no `resolve()`) and never
         // contributed to this census. Partition: 304+14+150=468.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(468);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(304);
+        //
+        // Issue #1949 (PLS free tranche — Blue) added THREE new `resolve()`
+        // closures, all protocol-justified (no Op skin for the primitive
+        // each needs — `.claude/rules/gre-development.md` § DSL-first
+        // authoring): Planeswalker's Mischief's activated ability (blocked
+        // on the backlog's `revealHand` — the public
+        // `SpellContext.revealRandomHandCard` primitive has no Op wrapper,
+        // only the private `lookRandomHand` sibling does) scores Op-blocked
+        // (150->151); its `delayedTriggers[]` return-body (`moveCardById`,
+        // `getExileCardOwner`) and Sleeping Potion's ETB tap trigger
+        // (`ctx.tap`/`ctx.getAttachedToId` — no attached-host
+        // `EffectObjectSelector` exists in the DSL, the established Venarian
+        // Gold precedent gap) both lean on COVERED primitives (`tap`,
+        // `moveCardById`) the static heuristic scores FREE even though
+        // they're genuinely blocked on a missing object-selector — the SAME
+        // known over-count class the Wan Shi Tong note above documents, not
+        // a certification these two should actually migrate today (FREE
+        // 304->306, AFK-ready unchanged at 295 — both land in "need test
+        // first", 9->11). Partition: 306+14+151=471.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(471);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(306);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(295);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(150);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(151);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

@@ -96,12 +96,27 @@ describe("Kicker declarations (CR 702.33 / 702.33e, ADR 0079)", () => {
             // is how Everflowing Chalice's "Multikicker {2}" was caught reading
             // "Kicker {2}"). A NON-MANA leg has no Oracle prefix to match against
             // (its wording is prose), so only the mana-only case is asserted.
+            //
+            // "Kicker {A} and/or {B}" (two independently-payable Kickers on one
+            // printed line, ADR 0079/#1937 — Stormscape Battlemage) joins BOTH
+            // legs' wording into ONE Oracle sentence, so only the FIRST Kicker's
+            // description is a strict PREFIX of the full Oracle text; a later
+            // one's description is still checked, just as a substring anywhere
+            // in that joined line — still catches a drifted/typo'd description
+            // (it simply wouldn't appear in the Oracle text at all), while not
+            // demanding an impossible second "starts with" on the same string.
             const oracle = card.oracleText ?? "";
-            for (const k of card.kickers ?? []) {
-                if (legCount(k) !== 1 || k.mana === undefined) continue;
-                if (oracle.length === 0) continue;
-                expect(oracle.startsWith(k.description)).toBe(true);
-            }
+            const manaOnlyKickers = (card.kickers ?? []).filter(
+                (k) => legCount(k) === 1 && k.mana !== undefined
+            );
+            manaOnlyKickers.forEach((k, i) => {
+                if (oracle.length === 0) return;
+                if (i === 0) {
+                    expect(oracle.startsWith(k.description)).toBe(true);
+                } else {
+                    expect(oracle.includes(k.description)).toBe(true);
+                }
+            });
         }
     );
 
