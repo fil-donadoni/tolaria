@@ -41,6 +41,7 @@ import {
     BASIC_LAND_SUBTYPES,
     countDomain,
     EFFECT_AFFECTS_SELF,
+    LANDWALK_KEYWORD_BY_BASIC_TYPE,
     PERMANENT_TYPES,
 } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
@@ -545,14 +546,13 @@ export const zanamDjinn: CardDefinition = {
 // `AURA_AFFECTS_HOST` and the stored chosen type — since `keyword-grant`'s
 // `keyword` field is a fixed string, a per-type grant is required (no
 // computed-keyword form exists), mirroring how Illusionary Terrain's
-// `subtype-set` needed a computed `subtypesFor` for its OWN mechanic.
-const LANDWALK_BY_TYPE: Record<string, string> = {
-    Plains: "plainswalk",
-    Island: "islandwalk",
-    Swamp: "swampwalk",
-    Mountain: "mountainwalk",
-    Forest: "forestwalk",
-};
+// `subtype-set` needed a computed `subtypesFor` for its OWN mechanic. The
+// subtype → keyword lookup is the shared `LANDWALK_KEYWORD_BY_BASIC_TYPE`
+// (`cards/types.ts` — a dependency-free leaf; NOT `gre/constants.ts`, which
+// imports the card registry and can't be imported FROM a `cards/sets/**`
+// file without reopening the set↔registry eval-time cycle) — Magnigoth
+// Treefolk (`pls/green.ts`) needs the same fan-out for its own Domain
+// landwalk grant and imports the same table.
 export const travelersCloak: CardDefinition = {
     id: "977f0f82-0542-40c9-9a48-73077941dbd1",
     name: "Traveler's Cloak",
@@ -572,7 +572,7 @@ export const travelersCloak: CardDefinition = {
         ) =>
             AURA_AFFECTS_HOST(target, source, ctx) &&
             source.chosenSubtypes?.[0] === landType,
-        keyword: LANDWALK_BY_TYPE[landType],
+        keyword: LANDWALK_KEYWORD_BY_BASIC_TYPE[landType],
     })),
     triggeredAbilities: [
         enteredTrigger({

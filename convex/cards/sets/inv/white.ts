@@ -921,15 +921,15 @@ export const teferisCare: CardDefinition = {
 // resolve() logic beyond a straight reuse of Balance's helper).
 
 // Glimmering Angel — {3}{W} Creature — Angel, 2/2. "Flying. {U}: This
-// creature gains shroud until end of turn." tracked-by: #1086 (`shroud` is
-// `status: "planned"` in the Mechanics Registry, `mechanicsRegistry.ts`:
-// ships-decorative-only note — `grantAbility` would append the literal
-// string "shroud" to `staticAbilities`, but unlike `hexproof` (bridged to the
-// `cantBeTargeted` permanent-guard gate, issue #958) no engine check anywhere
-// reads a dynamically-granted "shroud" string — granting it would be inert,
-// the exact "shipped but dead" anti-pattern this registry census exists to
-// catch. Needs the same hexproof-style `permanentGuard.ts` bridge before this
-// card can ship for real.
+// creature gains shroud until end of turn." tracked-by: #1086 — UNBLOCKED
+// (PR #2040, issue #959): `shroud` is now `status: "implemented"` in the
+// Mechanics Registry (`mechanicsRegistry.ts`) and `gre/permanentGuard.ts`'s
+// `isGuardedAgainst` bridges a dynamically-granted "shroud" string the same
+// way it already bridges `hexproof` (issue #958) — `grantAbility` appending
+// the literal string to `staticAbilities` is enforced live, no longer inert.
+// The engine-level gap that blocked this card is closed; it is still a
+// STUB in this pass (out of scope for the shroud-bridge slice) — a future
+// pass can uncomment/ship it as a straightforward `grantAbility` DSL card.
 
 // Pledge of Loyalty — {1}{W} Enchantment — Aura. "Enchant creature.
 // Enchanted creature has protection from the colors of permanents you

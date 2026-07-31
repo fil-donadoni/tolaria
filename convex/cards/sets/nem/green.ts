@@ -16,9 +16,14 @@ import { tokenPrintIdFor } from "../../tokenPrintLookup";
 // Fading is expanded implicitly at the getDefinition seam (ADR 0054): the
 // `"fading 3"` string injects `entersWith` three fade counters plus the upkeep
 // remove-or-sacrifice trigger — no per-card boilerplate. Shroud follows the
-// established per-card pattern (Blurred Mongoose `inv/green.ts`): the
-// `staticAbilities: ["shroud"]` string is decorative reminder data, and an
-// unconditional self-scoped `permanent-guard` static effect enforces CR 702.18.
+// established per-card pattern (Blurred Mongoose `inv/green.ts`): an
+// unconditional self-scoped `permanent-guard` static effect enforces CR
+// 702.18. The registry's `staticAbilities: ["shroud"]` string is now
+// registry status "implemented" too (`mechanicsRegistry.ts`, issue #959) —
+// `gre/permanentGuard.ts`'s `hasShroud` bridge derives the same enforcement
+// generically from the bare keyword string, so the static effect above and
+// the keyword string agree redundantly rather than the string being inert
+// decoration.
 export const blastoderm: CardDefinition = {
     id: "9db5d6c2-b11f-442a-b172-c0c99c9bec07",
     rarity: "common",

@@ -6,15 +6,14 @@ import type { CardDefinition } from "../../types";
 // control gains shroud until end of turn." (CR 702.18 shroud; CR 118.5
 // sacrifice-a-permanent activation cost.)
 //
-// Deviation (documented per gre-development.md — "planned" registry status
-// is a legal declaration, not a block; mechanicsRegistry.ts note: "GAP:
-// granted via SpellContext.grantStaticAbility on multiple fem/blue.ts cards
-// but no target-legality check anywhere reads the string — decorative only,
-// same class as haste"): shroud is granted the same way haste/hexproof are
-// elsewhere in the catalogue — the keyword is placed on the target, but no
-// targeting-legality check currently reads it, so the granted shroud is
-// presently decorative rather than rules-enforced. Not specific to this
-// card; tracked project-wide, not a stop-and-issue case for a single card.
+// The granted shroud is LIVE: `permanentGuard.ts::isGuardedAgainst` bridges
+// the bare `staticAbilities: ["shroud"]` keyword string directly (the
+// `hasShroud` helper, mirroring the existing `hasHexproof` bridge for CR
+// 702.11b), unfiltered per CR 702.18, so `grantStaticAbility`'s plain string
+// push is enforced without a per-card `permanent-guard` staticEffect. (This
+// used to be documented here as decorative; the catalogue-wide gap closed in
+// `permanentGuard.ts`, not per-card — see the Mechanics Registry's shroud
+// row, issue #959.)
 export const sylvanSafekeeper: CardDefinition = {
     id: "f1b8413f-c9fc-4cea-b416-a1fcf651b009",
     name: "Sylvan Safekeeper",

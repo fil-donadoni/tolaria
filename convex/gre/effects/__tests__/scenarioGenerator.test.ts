@@ -211,6 +211,30 @@ describe("unsatisfiable-requirement reporting (issue #804)", () => {
         expect(plan.reason).toMatch(/both|mix/i);
     });
 
+    it("skips a script whose count set filters by color — the filler doesn't model color (issue #1952)", () => {
+        // `countFillerId` seeds a filler card by type/subtype only
+        // (`gen-count-filler-<type>-<subtype>`, no `colors`), so a count
+        // filter that ALSO restricts by color (Pygmy Kavu's "black creature")
+        // would silently seed a colorless filler that never matches the color
+        // check — mispredicting a nonzero amount as 0 instead of skipping.
+        const plan = planSmokeTest([
+            {
+                op: "draw",
+                player: "controller",
+                count: {
+                    count: {
+                        zone: "battlefield",
+                        controller: "controller",
+                        filter: { type: "Creature", color: "B" },
+                    },
+                },
+            },
+        ]);
+        expect(plan.kind).toBe("skip");
+        if (plan.kind !== "skip") return;
+        expect(plan.reason).toMatch(/color/i);
+    });
+
     it("skips a script with a `choice` Op — a canned scenario cannot submit picks (issue #805)", () => {
         // A `choice` Op suspends resolution for a live player decision; a
         // canned scenario has no way to answer, so the plan is an explicit

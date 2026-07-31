@@ -77,6 +77,33 @@ function hasHexproof(card: CardInstanceState): boolean {
     return card.staticAbilities?.includes(HEXPROOF_KEYWORD) ?? false;
 }
 
+// CR 702.18 shroud — the PERMANENT-scoped keyword-string bridge, mirroring
+// `hasHexproof` above. Every PRINTED-shroud card already pairs the
+// `staticAbilities: ["shroud"]` reminder string with an explicit
+// `permanent-guard` staticEffect (`cantBeTargeted: true`) declared on its
+// `CardDefinition`, so this keyword-string read is a second, REDUNDANT path
+// for those — harmless, since it agrees with the declared static effect.
+// What it newly covers is the keyword-only path: a card that grants shroud
+// DYNAMICALLY via `SpellContext.grantStaticAbility(target, "shroud", …)`
+// (Skyshroud Blessing `pls/green.ts`, Homarid Warrior / Svyelunite Priest
+// `fem/blue.ts`, Sylvan Safekeeper `jud/green.ts`, Blurred Mongoose's own
+// activated ability and the `usg/green.ts` grant — the "GAP" the Mechanics
+// Registry's shroud row (`cards/mechanicsRegistry.ts`) used to document as
+// decorative-only, issue #959) appends ONLY the bare string to `staticAbilities`
+// with no accompanying `permanent-guard` static effect, so nothing read it.
+// Bridging the string here — the same mechanism hexproof already uses —
+// closes the gap for every dynamic-grant site at once instead of requiring
+// each card to hand-author its own `permanent-guard` staticEffect. Unlike
+// hexproof, shroud is UNFILTERED (CR 702.18 bars every spell/ability source,
+// including the permanent's own controller's), so the check below needs no
+// `actionSource`/controller narrowing.
+const SHROUD_KEYWORD = "shroud";
+
+/** True if `card`'s effective keywords include shroud (CR 702.18). */
+function hasShroud(card: CardInstanceState): boolean {
+    return card.staticAbilities?.includes(SHROUD_KEYWORD) ?? false;
+}
+
 type GuardClause = keyof Pick<
     StaticPermanentGuard,
     | "cantBeTargeted"
@@ -140,6 +167,13 @@ export function isGuardedAgainst(
         ) {
             return true;
         }
+    }
+
+    // CR 702.18 shroud — the PERMANENT-scoped keyword-string bridge (see
+    // `hasShroud` above). Unfiltered: bars every source, including the
+    // permanent's own controller's, so no `actionSource` narrowing applies.
+    if (clause === "cantBeTargeted" && hasShroud(target)) {
+        return true;
     }
 
     for (const player of state.players) {

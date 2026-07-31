@@ -3416,6 +3416,104 @@ describe("hexproof backend gate (#958, CR 702.11b)", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Permanent-scoped shroud, dynamic-grant bridge (issue #959, CR 702.18)
+//
+// Every PRINTED-shroud card already gets `cantBeTargeted` enforcement via an
+// explicit `permanent-guard` staticEffect on its `CardDefinition`. This suite
+// covers the previously-inert path: a card that grants shroud DYNAMICALLY via
+// `SpellContext.grantStaticAbility(target, "shroud", …)` — Skyshroud Blessing
+// (`pls/green.ts`), Homarid Warrior / Svyelunite Priest (`fem/blue.ts`),
+// Sylvan Safekeeper (`jud/green.ts`) — appends ONLY the bare `"shroud"` string
+// to `staticAbilities`, with no paired `permanent-guard` staticEffect.
+// `isGuardedAgainst`'s `hasShroud` helper (`permanentGuard.ts`, mirroring the
+// existing `hasHexproof` bridge for CR 702.11b) now reads that bare string
+// directly, so the grant is enforced with no per-card staticEffect required.
+// Unlike hexproof, shroud is UNFILTERED (CR 702.18): it bars every source,
+// including the permanent's own controller's.
+// ---------------------------------------------------------------------------
+
+describe("shroud dynamic-grant backend gate (issue #959, CR 702.18)", () => {
+    const makeBoard = (staticAbilities: string[] = []) => {
+        const bear = makeCard({
+            id: "bear",
+            card: CREATURE,
+            staticAbilities,
+        });
+        bear.controllerId = "p1";
+        bear.ownerId = "p1";
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1", battlefield: [bear] }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+        return { state, bear };
+    };
+
+    it("blocks an opponent's spell/ability once the bare 'shroud' string is granted", () => {
+        const { state, bear } = makeBoard(["shroud"]);
+        expect(
+            isGuardedAgainst(state, bear, "cantBeTargeted", {
+                isSpell: true,
+                controllerId: "p2",
+            })
+        ).toBe(true);
+    });
+
+    it("also blocks the permanent's OWN controller — shroud is unfiltered, unlike hexproof", () => {
+        const { state, bear } = makeBoard(["shroud"]);
+        expect(
+            isGuardedAgainst(state, bear, "cantBeTargeted", {
+                isSpell: true,
+                controllerId: "p1",
+            })
+        ).toBe(true);
+    });
+
+    it("does not block targeting when no shroud grant is present (no regression)", () => {
+        const { state, bear } = makeBoard([]);
+        expect(
+            isGuardedAgainst(state, bear, "cantBeTargeted", {
+                isSpell: true,
+                controllerId: "p2",
+            })
+        ).toBe(false);
+    });
+
+    // Round-2 review (PR #2040): the bridge is the first shroud path to
+    // depend on `staticAbilities` surviving `projectPublicState` — every
+    // pre-existing `isGuardedAgainst` guard is exercised through the wire
+    // format somewhere in the catalogue (`mrd/__tests__/colorless.test.ts`,
+    // `ths/__tests__/green.test.ts`, `leg/__tests__/blue.test.ts`) and this
+    // one wasn't. It does survive: `slimCard` (`gameProjections.ts`) spreads
+    // the whole `CardInstanceState` and only strips `card`/`knownTo`/
+    // `stormSnapshot`, so a dynamically-granted `"shroud"` string rides the
+    // wire unchanged — this is the confirming assertion, not a fix.
+    it("the dynamic shroud grant survives projectPublicState (wire format)", () => {
+        const { state } = makeBoard(["shroud"]);
+        const projected = projectPublicState(state, 1, "p2");
+        const slimBear = projected.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(slimBear.staticAbilities).toContain("shroud");
+        expect(
+            isGuardedAgainst(projected, slimBear, "cantBeTargeted", {
+                isSpell: true,
+                controllerId: "p2",
+            })
+        ).toBe(true);
+        // Unfiltered (CR 702.18) — the projected permanent's OWN controller
+        // is barred too, same as the fat-state assertion above.
+        expect(
+            isGuardedAgainst(projected, slimBear, "cantBeTargeted", {
+                isSpell: true,
+                controllerId: "p1",
+            })
+        ).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
 // Player-scoped shroud (CR 702.18 applied to a player via CR 115.4, #1128)
 //
 // A player-level sibling of the `permanent-guard`/`isGuardedAgainst` suite

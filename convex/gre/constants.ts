@@ -17,6 +17,7 @@ import type {
 import { matchesPermanentFilter } from "../cards/filters";
 import type { MatchablePermanent } from "../cards/filters";
 import { liveSupertypesOf } from "../cards/snowReads";
+import { LANDWALK_KEYWORD_BY_BASIC_TYPE } from "../cards/types";
 import type { ManaRestriction } from "./types";
 import { getDefinition, tryGetDefinition } from "../cards";
 // CR 611.1b / 613.1f (issue #1880) — the POST-LAYER activated-ability set
@@ -58,13 +59,26 @@ export const PLACEHOLDER_CARD_ID = "placeholder:hidden-library";
  *  is unaffected. */
 export { LAND_SUBTYPE_MANA };
 
-/** Landwalk keywords mapped to the land subtype they reference (CR 702.13c-g). */
+// Landwalk keywords mapped to the land subtype they reference (CR 702.13c-g).
+// The five-basic-type leg is DERIVED from `LANDWALK_KEYWORD_BY_BASIC_TYPE`
+// (`cards/types.ts` — inverted here), not a hand-authored parallel table, so
+// the two can't drift; only the non-basic `desertwalk` entry is added on top.
+// `LANDWALK_KEYWORD_BY_BASIC_TYPE` itself lives in `cards/types.ts` rather
+// than here because this module imports the card registry (`../cards`,
+// below) — a `cards/sets/**` card file importing FROM this module re-opens
+// the set↔registry eval-time cycle documented at `arn/white.ts` /
+// `inv/red.ts` (confirmed by trial: `LANDWALK_KEYWORD_BY_BASIC_TYPE` read as
+// `undefined` mid-evaluation when defined here and imported by two set
+// files loaded together through the registry). `cards/types.ts` is a
+// dependency-free leaf, so cross-set card files (Magnigoth Treefolk
+// `pls/green.ts`, Traveler's Cloak `inv/blue.ts`) import the basic-type table
+// from there instead.
 export const LANDWALK_KEYWORDS: Record<string, string> = {
-    plainswalk: "Plains",
-    islandwalk: "Island",
-    swampwalk: "Swamp",
-    mountainwalk: "Mountain",
-    forestwalk: "Forest",
+    ...Object.fromEntries(
+        Object.entries(LANDWALK_KEYWORD_BY_BASIC_TYPE).map(
+            ([subtype, keyword]) => [keyword, subtype]
+        )
+    ),
     desertwalk: "Desert",
 };
 

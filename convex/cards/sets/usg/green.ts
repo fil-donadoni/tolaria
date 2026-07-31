@@ -11,11 +11,14 @@ import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 // Enchantress' optional "you may draw"), so its effect is a DSL Effect Script
 // rather than a resolve() closure (ADR 0045).
 //
-// SHROUD GAP (CR 702.18): `shroud` is a registered keyword name but its status
-// is `planned` — no target-legality check reads the `staticAbilities` string
-// yet (same decorative class as the granted shroud on fem/blue.ts and
-// jud/green.ts). The keyword is shipped on the printed definition for parity;
-// the enchantress is not yet actually untargetable. Tracked by the registry.
+// The printed shroud is LIVE, not decorative: unlike the paired
+// `permanent-guard` staticEffect pattern used by e.g. Blastoderm
+// (`nem/green.ts`), `permanentGuard.ts::isGuardedAgainst` also bridges the
+// bare `staticAbilities: ["shroud"]` string directly (the `hasShroud`
+// helper, mirroring the existing `hasHexproof` bridge for CR 702.11b),
+// unfiltered per CR 702.18 — so no separate staticEffect is required here.
+// See the Mechanics Registry's shroud row (issue #959) for the catalogue-
+// wide fix.
 export const argothianEnchantress: CardDefinition = {
     id: "9ababc1a-515e-4e20-8819-19d84d9b0af5",
     rarity: "rare",
