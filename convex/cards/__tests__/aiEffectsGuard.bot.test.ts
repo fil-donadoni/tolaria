@@ -58,6 +58,7 @@ import { getAllCards } from "../index";
 import type {
     ActivatedAbility,
     CardDefinition,
+    DelayedTriggerDef,
     TriggeredAbility,
 } from "../types";
 
@@ -95,14 +96,23 @@ function isEffectShorthandSpell(card: CardDefinition): boolean {
     return !!card.effect;
 }
 
-/** All of `card`'s activated + triggered abilities, the two ability-level
- *  effect sites walked by the ability-level guard (issue #1519 SCOPE). */
+/** All of `card`'s activated + triggered abilities, PLUS its scheduled
+ *  `delayedTriggers[]` template bodies — three ability-level effect sites
+ *  walked by the ability-level guard (issue #1519 SCOPE; `delayedTriggers[]`
+ *  folded in by PR #2010's review, MINOR 7 — it was previously invisible to
+ *  this guard entirely, so a bare `resolve()` delayed-trigger body could ship
+ *  with no `aiEffects` and no error). `DelayedTriggerDef` carries `id` /
+ *  `resolve` / `effects` / `aiEffects` — the same shape this guard already
+ *  reads on `ActivatedAbility`/`TriggeredAbility` — just no `resolveSteps`
+ *  (template-path delayed triggers don't have a stepped-resolution variant),
+ *  which `isResolveOnlyAbility` below already treats as optional. */
 function abilitiesOf(
     card: CardDefinition
-): (ActivatedAbility | TriggeredAbility)[] {
+): (ActivatedAbility | TriggeredAbility | DelayedTriggerDef)[] {
     return [
         ...(card.activatedAbilities ?? []),
         ...(card.triggeredAbilities ?? []),
+        ...(card.delayedTriggers ?? []),
     ];
 }
 
@@ -110,13 +120,12 @@ function abilitiesOf(
  *  closure with no real Effect Script the value model can walk — the
  *  ability-level mirror of `isResolveOnlySpell` (issue #1519 SCOPE). */
 function isResolveOnlyAbility(
-    ability: ActivatedAbility | TriggeredAbility
+    ability: ActivatedAbility | TriggeredAbility | DelayedTriggerDef
 ): boolean {
     if (ability.effects && ability.effects.length > 0) return false;
-    return (
-        !!ability.resolve ||
-        !!(ability.resolveSteps && ability.resolveSteps.length > 0)
-    );
+    const resolveSteps =
+        "resolveSteps" in ability ? ability.resolveSteps : undefined;
+    return !!ability.resolve || !!(resolveSteps && resolveSteps.length > 0);
 }
 
 /** True when `ability` already plugs the AI-blind gap on its OWN — an
@@ -126,7 +135,7 @@ function isResolveOnlyAbility(
  *  (`gre/cardValue.ts` `latentValue`), so it plugs every ability gap on that
  *  card too without needing its own per-ability field. */
 function abilityHasShadowScript(
-    ability: ActivatedAbility | TriggeredAbility
+    ability: ActivatedAbility | TriggeredAbility | DelayedTriggerDef
 ): boolean {
     return !!ability.aiEffects && ability.aiEffects.length > 0;
 }
@@ -3043,6 +3052,161 @@ const ABILITY_AI_EFFECTS_ALLOWLIST: readonly AbilityAllowlistEntry[] = [
         name: "Zelyon Sword",
         abilityId: "zelyon-sword-buff",
         note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
+    },
+    // `abilitiesOf` now also walks `card.delayedTriggers[]` (PR #2010's
+    // review, MINOR 7 — a bare `resolve()` delayed-trigger body was
+    // previously invisible to this guard entirely). The 25 entries below are
+    // every PRE-EXISTING delayed-trigger body this newly reaches, at the
+    // moment the scope extension landed — none are new abilities.
+    {
+        cardId: "d992b336-3b6e-43e1-8662-d85664349b44",
+        name: "Siren's Call",
+        abilityId: "sirens-call-destroy",
+        note: "no honest shadow script: pre-existing delayedTriggers[] resolve() body, scope extension tracked by #1519 (PR #2010 review, MINOR 7)",
+    },
+    {
+        cardId: "8105973c-a94d-444c-ba20-ab0fa978bee8",
+        name: "Nettling Imp",
+        abilityId: "nettling-imp-destroy",
+        note: "no honest shadow script: pre-existing delayedTriggers[] resolve() body, scope extension tracked by #1519 (PR #2010 review, MINOR 7)",
+    },
+    {
+        cardId: "e173c8ce-2352-405e-ad00-e3bb94ced1ad",
+        name: "Berserk",
+        abilityId: "destroy-if-attacked",
+        note: "no honest shadow script: pre-existing delayedTriggers[] resolve() body, scope extension tracked by #1519 (PR #2010 review, MINOR 7)",
+    },
+    {
+        cardId: "9cd91814-6177-4a3d-a1c1-a3be7d7c7957",
+        name: "Cockatrice",
+        abilityId: "cockatrice-combat-kill-destroy",
+        note: "no honest shadow script: pre-existing delayedTriggers[] resolve() body, scope extension tracked by #1519 (PR #2010 review, MINOR 7)",
+    },
+    {
+        cardId: "e92cce01-b3bd-4307-aae5-9a7c8fa386ab",
+        name: "Thicket Basilisk",
+        abilityId: "basilisk-combat-kill-destroy",
+        note: "no honest shadow script: pre-existing delayedTriggers[] resolve() body, scope extension tracked by #1519 (PR #2010 review, MINOR 7)",
+    },
+    {
+        cardId: "dc60077f-d577-4a6c-a78f-697317024c40",
+        name: "Infinite Authority",
+        abilityId: "infinite-authority-destroy",
+        note: "no honest shadow script: pre-existing delayedTriggers[] resolve() body, scope extension tracked by #1519 (PR #2010 review, MINOR 7)",
+    },
+    {
+        cardId: "dc60077f-d577-4a6c-a78f-697317024c40",
+        name: "Infinite Authority",
+        abilityId: "infinite-authority-counter",
+        note: "no honest shadow script: pre-existing delayedTriggers[] resolve() body, scope extension tracked by #1519 (PR #2010 review, MINOR 7)",
+    },
+    {
+        cardId: "e691adef-3027-4e6a-889f-9f4e2df36a7c",
+        name: "Mana Drain",
+        abilityId: "mana-drain-add",
+        note: "no honest shadow script: pre-existing delayedTriggers[] resolve() body, scope extension tracked by #1519 (PR #2010 review, MINOR 7)",
+    },
+    {
+        cardId: "e11bf79b-a951-4d0c-acdf-d8ba5290a648",
+        name: "Farrelite Priest",
+        abilityId: "farrelite-priest-sacrifice",
+        note: "no honest shadow script: pre-existing delayedTriggers[] resolve() body, scope extension tracked by #1519 (PR #2010 review, MINOR 7)",
+    },
+    {
+        cardId: "5be87527-3b8f-4529-afdb-a61ad4e787e1",
+        name: "Initiates of the Ebon Hand",
+        abilityId: "initiates-ebon-hand-sacrifice",
+        note: "no honest shadow script: pre-existing delayedTriggers[] resolve() body, scope extension tracked by #1519 (PR #2010 review, MINOR 7)",
+    },
+    {
+        cardId: "a0a27ac3-2273-469a-92ba-3f4a3d55de6f",
+        name: "Goblin Kites",
+        abilityId: "goblin-kites-flip",
+        note: "no honest shadow script: pre-existing delayedTriggers[] resolve() body, scope extension tracked by #1519 (PR #2010 review, MINOR 7)",
+    },
+    {
+        cardId: "c1b138e1-f8fc-435c-9aed-98004768479c",
+        name: "Rainbow Vale",
+        abilityId: "rainbow-vale-handoff",
+        note: "no honest shadow script: pre-existing delayedTriggers[] resolve() body, scope extension tracked by #1519 (PR #2010 review, MINOR 7)",
+    },
+    {
+        cardId: "d721569d-9cf2-4c3c-b11c-4c46c258a0d2",
+        name: "Sacred Boon",
+        abilityId: "sacred-boon-counters",
+        note: "no honest shadow script: pre-existing delayedTriggers[] resolve() body, scope extension tracked by #1519 (PR #2010 review, MINOR 7)",
+    },
+    {
+        cardId: "ab675291-3189-43f3-b11b-0724eca8b941",
+        name: "Seraph",
+        abilityId: "seraph-reanimate",
+        note: "no honest shadow script: pre-existing delayedTriggers[] resolve() body, scope extension tracked by #1519 (PR #2010 review, MINOR 7)",
+    },
+    {
+        cardId: "a779aca7-ff2c-48d8-9484-6ad04b2c6bcb",
+        name: "Winter's Chill",
+        abilityId: "winters-chill-destroy",
+        note: "no honest shadow script: pre-existing delayedTriggers[] resolve() body, scope extension tracked by #1519 (PR #2010 review, MINOR 7)",
+    },
+    {
+        cardId: "717c5dda-8e38-4c76-b241-685198402284",
+        name: "Krovikan Vampire",
+        abilityId: "krovikan-vampire-reanimate",
+        note: "no honest shadow script: pre-existing delayedTriggers[] resolve() body, scope extension tracked by #1519 (PR #2010 review, MINOR 7)",
+    },
+    {
+        cardId: "54d7a0c1-efb4-4a8d-ad92-a96d43835052",
+        name: "Necropotence",
+        abilityId: "necropotence-return-to-hand",
+        note: "no honest shadow script: pre-existing delayedTriggers[] resolve() body, scope extension tracked by #1519 (PR #2010 review, MINOR 7)",
+    },
+    {
+        cardId: "35abefe6-c39b-4fe5-b2e3-d213f0c4f447",
+        name: "Norritt",
+        abilityId: "norritt-destroy",
+        note: "no honest shadow script: pre-existing delayedTriggers[] resolve() body, scope extension tracked by #1519 (PR #2010 review, MINOR 7)",
+    },
+    {
+        cardId: "fe65a045-dacb-4392-bcb6-843394ef98c9",
+        name: "Barbarian Guides",
+        abilityId: "barbarian-guides-bounce",
+        note: "no honest shadow script: pre-existing delayedTriggers[] resolve() body, scope extension tracked by #1519 (PR #2010 review, MINOR 7)",
+    },
+    {
+        cardId: "de839540-a7b9-4f91-91df-3fd4f5c0bc4e",
+        name: "Goblin Sappers",
+        abilityId: "goblin-sappers-destroy-both",
+        note: "no honest shadow script: pre-existing delayedTriggers[] resolve() body, scope extension tracked by #1519 (PR #2010 review, MINOR 7)",
+    },
+    {
+        cardId: "de839540-a7b9-4f91-91df-3fd4f5c0bc4e",
+        name: "Goblin Sappers",
+        abilityId: "goblin-sappers-destroy-target",
+        note: "no honest shadow script: pre-existing delayedTriggers[] resolve() body, scope extension tracked by #1519 (PR #2010 review, MINOR 7)",
+    },
+    {
+        cardId: "73c07c87-0e44-4a5a-92b7-728350cd02de",
+        name: "Arcum's Whistle",
+        abilityId: "arcums-whistle-destroy",
+        note: "no honest shadow script: pre-existing delayedTriggers[] resolve() body, scope extension tracked by #1519 (PR #2010 review, MINOR 7)",
+    },
+    {
+        cardId: "2bc0e8d3-633b-4281-863f-c51c69eed0b6",
+        name: "Celestial Sword",
+        abilityId: "celestial-sword-sacrifice",
+        note: "no honest shadow script: pre-existing delayedTriggers[] resolve() body, scope extension tracked by #1519 (PR #2010 review, MINOR 7)",
+    },
+    {
+        cardId: "a15d33d6-7213-4482-a1be-ac0a73644af6",
+        name: "Memory Jar",
+        abilityId: "memory-jar-return",
+        note: "no honest shadow script: pre-existing delayedTriggers[] resolve() body, scope extension tracked by #1519 (PR #2010 review, MINOR 7)",
+    },
+    {
+        cardId: "55707746-da6e-46e5-a5ca-7ac843fdc38e",
+        name: "Phelia, Exuberant Shepherd",
+        abilityId: "phelia-return",
+        note: "no honest shadow script: pre-existing delayedTriggers[] resolve() body, scope extension tracked by #1519 (PR #2010 review, MINOR 7)",
     },
 ];
 

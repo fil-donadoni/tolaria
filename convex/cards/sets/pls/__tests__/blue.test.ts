@@ -9,17 +9,135 @@
 // }`).
 
 import { describe, it, expect } from "vitest";
-import { planarOverlay } from "../blue";
-import { plains, island, tundra, mountain } from "../../lea";
+import {
+    planarOverlay,
+    alliedStrategies,
+    escapeRoutes,
+    gainsay,
+    huntingDrake,
+    planeswalkersMischief,
+    rushingRiver,
+    seaSnidd,
+    sisaysIngenuity,
+    sleepingPotion,
+    stormscapeBattlemage,
+    stormscapeFamiliar,
+    sunkenHope,
+} from "../blue";
+import {
+    plains,
+    island,
+    tundra,
+    mountain,
+    swamp,
+    grizzlyBears,
+    savannahLions,
+    scatheZombies,
+    lightningBolt,
+} from "../../lea";
+import { opt } from "../../inv/blue";
+import { applyOneTargetSelection } from "../../../../game";
 import {
     makeInstance,
     makePlayer,
     makeState,
     pushSpell,
+    resolveTriggerOrder,
 } from "../../../__tests__/setup";
-import { resolveTopOfStack, type GameState } from "../../../../gre/state";
+import {
+    applySourceStaticEffects,
+    getCostModifiers,
+    resolveTopOfStack,
+    type CardInstanceState,
+    type GameState,
+    type StackItem,
+} from "../../../../gre/state";
+import { compactState, expandState } from "../../../../gre/serialize";
+import { fireDelayedTriggers } from "../../../../gre/phases";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
+import type { KickerPayments } from "../../../../gre/kicker";
+
+/** Pushes a triggered ability directly onto the stack (bypassing the real
+ *  cast/announcement pipeline) and resolves it — the established shape
+ *  every per-colour test file uses for a card-def `TriggeredAbility`
+ *  (`inv/__tests__/helpers.ts`'s `resolveTrigger`, PLS red's `bmTrigger`,
+ *  issue #1951/PR #2005). `source` carries the ability; `targets` is
+ *  pre-announced (CR 603.3d target ANNOUNCEMENT itself is a separate,
+ *  already-tested engine concern — `raiseTriggerTargetSelection`,
+ *  `gre/rules.ts` — not re-exercised per card here). */
+function pushTrigger(
+    state: GameState,
+    source: CardInstanceState,
+    triggeredAbilityId: string,
+    triggerEvent: StackItem["triggerEvent"],
+    targets: StackItem["targets"] = []
+): void {
+    state.stack.push({
+        ...source,
+        zone: "stack",
+        castById: source.controllerId,
+        triggeredAbilityId,
+        triggerSourceId: source.id,
+        triggerEvent,
+        targets,
+    });
+    resolveTopOfStack(state);
+}
+
+/** Pushes an activated ability (the card's own, or a `grantTemplates[]`
+ *  ability granted to a host via `grantedSourceCardId`) directly onto the
+ *  stack and resolves it — mirrors `inv/__tests__/helpers.ts`'s
+ *  `resolveActivated`. */
+function pushActivated(
+    state: GameState,
+    source: CardInstanceState,
+    abilityId: string,
+    targets: StackItem["targets"] = [],
+    grantedSourceCardId?: string
+): void {
+    state.stack.push({
+        ...source,
+        zone: "stack",
+        castById: source.controllerId,
+        abilityId,
+        targets,
+        ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
+    });
+    resolveTopOfStack(state);
+}
+
+/** Answers the head `pendingChoices` entry (mirrors
+ *  `inv/__tests__/helpers.ts`'s `submitChoice`). */
+function submitChoice(state: GameState, cardInstanceIds: string[]): void {
+    const head = state.pendingChoices![0];
+    applyPendingChoiceSubmit(state, {
+        playerId: head.playerId,
+        stackItemId: head.stackItemId,
+        step: head.step,
+        choiceId: head.choiceId,
+        cardInstanceIds,
+    });
+}
+
+/** Drains the stack, resolving every pending item (including any
+ *  `trigger-order` PendingChoice a simultaneous same-controller batch
+ *  raises — CR 603.3b, ADR 0058). Mirrors `rtr/__tests__/green.test.ts`'s
+ *  Worldspine Wurm `drainStack`. */
+function drainStack(state: GameState): void {
+    let guard = 0;
+    while (
+        (state.stack.length > 0 || (state.pendingChoices?.length ?? 0) > 0) &&
+        guard++ < 10
+    ) {
+        if (state.pendingChoices?.[0]?.kind === "trigger-order") {
+            resolveTriggerOrder(state);
+            continue;
+        }
+        if (state.stack.length === 0) break;
+        resolveTopOfStack(state);
+    }
+}
 
 function submitCategorized(state: GameState, picks: string[]): void {
     const head = state.pendingChoices![0];
@@ -224,5 +342,964 @@ describe("Planar Overlay (CR 601.2b / 701.10, issue #1945)", () => {
         expect(state.players[0].hand.map((c) => c.id)).toEqual(["p1-island"]);
         expect(state.players[0].battlefield).toHaveLength(0);
         expect(state.players[1].hand).toHaveLength(0);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// Free tranche (parent PRD #1935, issue #1949) hand-written coverage. Per
+// the per-Op regime, most of this slice's cards need no hand-written test —
+// but the auto-generated smoke sweep (`effectScriptSmoke.test.ts`) emits an
+// explicit SKIP-with-reason for several of them (a live suspending choice /
+// optionChoice / spell-target / runtime-selected-set the canned generator
+// can't drive), which is this project's signal to add the hand-written test
+// the skip reason names. This block covers every such skip plus both
+// `resolve()` sites (mandatory full regime, gre-development.md § Card
+// testing convention).
+// ─────────────────────────────────────────────────────────────────────────
+
+describe("Allied Strategies (Domain draw, CR 702 preamble)", () => {
+    it("target player draws a card for each basic land type among lands they control", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(plains.id, {
+                            id: "as-plains",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                        makeInstance(island.id, {
+                            id: "as-island",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                        makeInstance(swamp.id, {
+                            id: "as-swamp",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ],
+                    library: [
+                        makeInstance(grizzlyBears.id, {
+                            id: "as-lib1",
+                            zone: "library",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                        makeInstance(grizzlyBears.id, {
+                            id: "as-lib2",
+                            zone: "library",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                        makeInstance(grizzlyBears.id, {
+                            id: "as-lib3",
+                            zone: "library",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, alliedStrategies.id, "p1", [
+            { type: "player", id: "p1" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.players[0].hand).toHaveLength(3);
+    });
+
+    it("draws zero cards for a target player with no basic land types among their lands", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        pushSpell(state, alliedStrategies.id, "p1", [
+            { type: "player", id: "p1" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.players[0].hand).toHaveLength(0);
+    });
+});
+
+describe("Escape Routes (activated bounce, CR 701.10)", () => {
+    it("returns a white creature you control to its owner's hand", () => {
+        const routes = makeInstance(escapeRoutes.id, {
+            id: "routes",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const lions = makeInstance(savannahLions.id, {
+            id: "er-lions",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [routes, lions] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushActivated(state, routes, "escape-routes-bounce", [
+            { type: "permanent", id: "er-lions" },
+        ]);
+        expect(state.players[0].hand.some((c) => c.id === "er-lions")).toBe(
+            true
+        );
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "er-lions")
+        ).toBe(false);
+    });
+});
+
+describe("Gainsay (counter target blue spell, CR 701.5a)", () => {
+    it("counters a blue spell on the stack", () => {
+        const state = makeState();
+        const optItem = pushSpell(state, opt.id, "p2");
+        pushSpell(state, gainsay.id, "p1", [{ type: "spell", id: optItem.id }]);
+        resolveTopOfStack(state);
+        expect(state.stack.find((s) => s.id === optItem.id)).toBeUndefined();
+    });
+});
+
+describe("Hunting Drake (ETB put target red/green creature on owner's library top, CR 603.6a)", () => {
+    it("puts the targeted green creature on top of its owner's library", () => {
+        const drake = makeInstance(huntingDrake.id, {
+            id: "drake",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "hd-bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [drake] }),
+                makePlayer("p2", { battlefield: [bear], library: [] }),
+            ],
+        });
+        pushTrigger(
+            state,
+            drake,
+            "hunting-drake-etb",
+            {
+                type: "PERMANENT_ENTERED",
+                instanceId: "drake",
+                controllerId: "p1",
+                types: drake.types,
+            } as StackItem["triggerEvent"],
+            [{ type: "permanent", id: "hd-bear" }]
+        );
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "hd-bear")
+        ).toBe(false);
+        expect(state.players[1].library[0]?.id).toBe("hd-bear");
+    });
+});
+
+describe("Rushing River (Kicker—Sacrifice a land, additive second target, CR 702.33a)", () => {
+    it("declares the sacrifice-a-land permanent leg and the additive kicked target count", () => {
+        expect(rushingRiver.kickers).toEqual([
+            {
+                id: "kicker",
+                description: "Kicker — Sacrifice a land",
+                permanent: {
+                    action: "sacrifice",
+                    filter: { types: "Land" },
+                    count: 1,
+                },
+            },
+        ]);
+        expect(rushingRiver.targetRequirement?.count).toBe(1);
+        expect(rushingRiver.kickedTargetRequirement?.count).toBe(2);
+    });
+
+    it("unkicked: returns the single target nonland permanent to its owner's hand", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "rr-bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, rushingRiver.id, "p1", [
+            { type: "permanent", id: "rr-bear" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.players[1].hand.some((c) => c.id === "rr-bear")).toBe(
+            true
+        );
+    });
+
+    it("kicked: returns BOTH announced targets to their owners' hands", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "rr-bear2",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const lions = makeInstance(savannahLions.id, {
+            id: "rr-lions2",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [lions] }),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        const item = pushSpell(state, rushingRiver.id, "p1", [
+            { type: "permanent", id: "rr-bear2" },
+            { type: "permanent", id: "rr-lions2" },
+        ]);
+        item.kickerPayments = { kicker: 1 };
+        resolveTopOfStack(state);
+        expect(state.players[1].hand.some((c) => c.id === "rr-bear2")).toBe(
+            true
+        );
+        expect(state.players[0].hand.some((c) => c.id === "rr-lions2")).toBe(
+            true
+        );
+    });
+
+    // MAJOR 4 (PR #2010 review): kicked Rushing River currently lets the
+    // human pick the SAME permanent for both target slots (`getLegalTargets`
+    // doesn't dedupe across slots of one spell) — pre-existing engine class
+    // spanning seven other shipped cards (Dust to Dust, Reckless Spite,
+    // Ashes to Ashes, Barrin's Spite, Restock, Sorrow's Path, General
+    // Jarkeld). Sibling PR #2005 is implementing the engine-wide dedupe
+    // (`rules.ts`/`game.ts`/`card-utils.ts`); no card-level change needed
+    // here once it lands. Not exercised by this file — it is a
+    // targeting-legality concern, not this card's own resolution.
+});
+
+describe("Sea Snidd (target land becomes the basic land type of your choice, CR 305.7)", () => {
+    it("changes a target land's subtype to the chosen basic land type", () => {
+        const snidd = makeInstance(seaSnidd.id, {
+            id: "snidd",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const targetLand = makeInstance(swamp.id, {
+            id: "sniddSwamp",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [snidd] }),
+                makePlayer("p2", { battlefield: [targetLand] }),
+            ],
+        });
+        pushActivated(state, snidd, "sea-snidd-land-type", [
+            { type: "permanent", id: "sniddSwamp" },
+        ]);
+        submitChoice(state, ["Island"]);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "sniddSwamp")
+                ?.subtypes
+        ).toEqual(["Island"]);
+    });
+});
+
+describe("Sisay's Ingenuity (Aura ETB draw + activated-grant colour change, CR 611/613.1e)", () => {
+    it("draws a card when the Aura enters", () => {
+        const host = makeInstance(grizzlyBears.id, {
+            id: "si-host",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const aura = makeInstance(sisaysIngenuity.id, {
+            id: "ingenuity",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "si-host",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [aura, host],
+                    library: [
+                        makeInstance(grizzlyBears.id, {
+                            id: "si-lib",
+                            zone: "library",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushTrigger(state, aura, "sisays-ingenuity-etb-draw", {
+            type: "PERMANENT_ENTERED",
+            instanceId: "ingenuity",
+            controllerId: "p1",
+            types: aura.types,
+        } as StackItem["triggerEvent"]);
+        expect(state.players[0].hand.some((c) => c.id === "si-lib")).toBe(true);
+    });
+
+    it("the granted ability sets a target creature's colour to the chosen mode (driven via the host, CR 611/613.1e)", () => {
+        const host = makeInstance(grizzlyBears.id, {
+            id: "si-host2",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const target = makeInstance(savannahLions.id, {
+            id: "si-target",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [host] }),
+                makePlayer("p2", { battlefield: [target] }),
+            ],
+        });
+        pushActivated(
+            state,
+            host,
+            "sisays-ingenuity-color",
+            [{ type: "permanent", id: "si-target" }],
+            sisaysIngenuity.id
+        );
+        submitChoice(state, ["B"]);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "si-target")
+                ?.colorOverride
+        ).toEqual(["B"]);
+    });
+});
+
+describe("Sleeping Potion (untap lock + becomes-target sacrifice, CR 502.1 / 603.2b)", () => {
+    it("taps the enchanted creature when the Aura enters (ETB, resolve())", () => {
+        const host = makeInstance(grizzlyBears.id, {
+            id: "sp-host",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const potion = makeInstance(sleepingPotion.id, {
+            id: "potion",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "sp-host",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [potion] }),
+                makePlayer("p2", { battlefield: [host] }),
+            ],
+        });
+        pushTrigger(state, potion, "sleeping-potion-etb-tap", {
+            type: "PERMANENT_ENTERED",
+            instanceId: "potion",
+            controllerId: "p1",
+            types: potion.types,
+        } as StackItem["triggerEvent"]);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "sp-host")
+                ?.isTapped
+        ).toBe(true);
+    });
+
+    it("wire format: the tapped host survives projectPublicState (mandatory — the resolve() effect is board-visible)", () => {
+        const host = makeInstance(grizzlyBears.id, {
+            id: "sp-host-wire",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const potion = makeInstance(sleepingPotion.id, {
+            id: "potion-wire",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "sp-host-wire",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [potion] }),
+                makePlayer("p2", { battlefield: [host] }),
+            ],
+        });
+        pushTrigger(state, potion, "sleeping-potion-etb-tap", {
+            type: "PERMANENT_ENTERED",
+            instanceId: "potion-wire",
+            controllerId: "p1",
+            types: potion.types,
+        } as StackItem["triggerEvent"]);
+        const projected = projectPublicState(state, 1, "p1");
+        const slimHost = projected.players[1].battlefield.find(
+            (c) => c.id === "sp-host-wire"
+        )!;
+        expect(slimHost.isTapped).toBe(true);
+    });
+
+    it("grants the host does-not-untap unconditionally while the Aura is attached", () => {
+        const host = makeInstance(grizzlyBears.id, {
+            id: "sp-host2",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const potion = makeInstance(sleepingPotion.id, {
+            id: "potion2",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "sp-host2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [potion] }),
+                makePlayer("p2", { battlefield: [host] }),
+            ],
+        });
+        applySourceStaticEffects(state, potion);
+        expect(host.staticAbilities).toContain("does-not-untap");
+    });
+
+    it("sacrifices itself when the enchanted creature becomes the target of a spell or ability", () => {
+        const host = makeInstance(grizzlyBears.id, {
+            id: "sp-host3",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const potion = makeInstance(sleepingPotion.id, {
+            id: "potion3",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "sp-host3",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [potion] }),
+                makePlayer("p2", { battlefield: [host] }),
+            ],
+        });
+        pushTrigger(state, potion, "sleeping-potion-sacrifice", {
+            type: "BECAME_TARGET",
+            target: { type: "permanent", id: "sp-host3" },
+            targetControllerId: "p2",
+            sourceControllerId: "p1",
+            sourceInstanceId: "some-spell",
+        } as StackItem["triggerEvent"]);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "potion3")
+        ).toBe(false);
+        expect(state.players[0].graveyard.some((c) => c.id === "potion3")).toBe(
+            true
+        );
+    });
+});
+
+describe("Stormscape Battlemage (Kicker {A} and/or {B}, two independent conditionOnSelf-gated ETB triggers, CR 702.33a, issue #1937)", () => {
+    function triggerEventFor(bm: CardInstanceState): StackItem["triggerEvent"] {
+        return {
+            type: "PERMANENT_ENTERED",
+            instanceId: bm.id,
+            controllerId: bm.controllerId,
+            types: bm.types,
+        } as StackItem["triggerEvent"];
+    }
+
+    function withKickerPayments(
+        bm: CardInstanceState,
+        payments: Record<string, number>
+    ): void {
+        (
+            bm as CardInstanceState & { kickerPayments?: KickerPayments }
+        ).kickerPayments = payments;
+    }
+
+    it("unkicked: neither trigger does anything even though the destroy trigger still announces a target", () => {
+        const bm = makeInstance(stormscapeBattlemage.id, {
+            id: "bm1",
+            controllerId: "p1",
+        });
+        const victim = makeInstance(grizzlyBears.id, {
+            id: "victim1",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bm], life: 20 }),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        pushTrigger(
+            state,
+            bm,
+            "stormscape-battlemage-white-kicker",
+            triggerEventFor(bm)
+        );
+        expect(state.players[0].life).toBe(20);
+
+        pushTrigger(
+            state,
+            bm,
+            "stormscape-battlemage-black-kicker",
+            triggerEventFor(bm),
+            [{ type: "permanent", id: "victim1" }]
+        );
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "victim1")
+        ).toBe(true);
+    });
+
+    it("kicked with only the {W} kicker: gains 3 life; the destroy trigger does nothing", () => {
+        const bm = makeInstance(stormscapeBattlemage.id, {
+            id: "bm2",
+            controllerId: "p1",
+        });
+        withKickerPayments(bm, { "kicker-w": 1 });
+        const victim = makeInstance(grizzlyBears.id, {
+            id: "victim2",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bm], life: 20 }),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        pushTrigger(
+            state,
+            bm,
+            "stormscape-battlemage-white-kicker",
+            triggerEventFor(bm)
+        );
+        expect(state.players[0].life).toBe(23);
+
+        pushTrigger(
+            state,
+            bm,
+            "stormscape-battlemage-black-kicker",
+            triggerEventFor(bm),
+            [{ type: "permanent", id: "victim2" }]
+        );
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "victim2")
+        ).toBe(true);
+    });
+
+    it("kicked with only the {2}{B} kicker: destroys the target nonblack creature; no life gained", () => {
+        const bm = makeInstance(stormscapeBattlemage.id, {
+            id: "bm3",
+            controllerId: "p1",
+        });
+        withKickerPayments(bm, { "kicker-b": 1 });
+        const victim = makeInstance(grizzlyBears.id, {
+            id: "victim3",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bm], life: 20 }),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        pushTrigger(
+            state,
+            bm,
+            "stormscape-battlemage-white-kicker",
+            triggerEventFor(bm)
+        );
+        expect(state.players[0].life).toBe(20);
+
+        pushTrigger(
+            state,
+            bm,
+            "stormscape-battlemage-black-kicker",
+            triggerEventFor(bm),
+            [{ type: "permanent", id: "victim3" }]
+        );
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "victim3")
+        ).toBe(false);
+        expect(state.players[1].graveyard.some((c) => c.id === "victim3")).toBe(
+            true
+        );
+    });
+
+    it("kicked with BOTH kickers: gains 3 life AND destroys the target", () => {
+        const bm = makeInstance(stormscapeBattlemage.id, {
+            id: "bm4",
+            controllerId: "p1",
+        });
+        withKickerPayments(bm, { "kicker-w": 1, "kicker-b": 1 });
+        const victim = makeInstance(grizzlyBears.id, {
+            id: "victim4",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bm], life: 20 }),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        pushTrigger(
+            state,
+            bm,
+            "stormscape-battlemage-white-kicker",
+            triggerEventFor(bm)
+        );
+        expect(state.players[0].life).toBe(23);
+
+        pushTrigger(
+            state,
+            bm,
+            "stormscape-battlemage-black-kicker",
+            triggerEventFor(bm),
+            [{ type: "permanent", id: "victim4" }]
+        );
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "victim4")
+        ).toBe(false);
+    });
+
+    // MAJOR 3 (PR #2010 review): `selfKickerPaid` (blue.ts) reads a
+    // currently-UNTYPED, unserialized stray `kickerPayments` field on the
+    // resolving permanent — tracked-by #2014 (sibling PR promoting it to a
+    // typed, serialized `CardInstanceState`/`PermanentView` field). This
+    // proves the REAL production path — cast through the actual cast
+    // pipeline (`pushSpell` + `item.kickerPayments`, exactly like every
+    // other kicker card's test), the payment record arriving via
+    // `StackItem.kickerPayments` (which the compact serializer DOES persist
+    // while the item sits on the stack — `serialize.ts`'s
+    // `compactStackItem`) — survives an ACTUAL `compactState`/`expandState`
+    // round-trip taken BEFORE the creature resolves. That is the only
+    // DB-save boundary the real engine ever exercises between casting and
+    // this card's own immediate ETB trigger scan: both the creature's
+    // resolution and the trigger scan it triggers run SYNCHRONOUSLY inside
+    // one `resolveTopOfStack` call, with no save in between (`CLAUDE.md` §
+    // Action flow — the engine saves only at a STABLE point, after triggers
+    // are already placed). If a future change (e.g. #2014 relocating the
+    // read, or a card copying this pattern via `interveningIf` instead of
+    // `conditionOnSelf`) breaks that synchronous guarantee, this is the test
+    // that should catch it.
+    it("survives a real serializeState/deserializeState round-trip taken while the kicked cast still sits on the stack", () => {
+        const bm = makeInstance(stormscapeBattlemage.id, {
+            id: "bm5",
+            controllerId: "p1",
+            zone: "hand",
+        });
+        const victim = makeInstance(grizzlyBears.id, {
+            id: "victim5",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        let state = makeState({
+            players: [
+                makePlayer("p1", { hand: [bm], life: 20 }),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        const item = pushSpell(state, stormscapeBattlemage.id, "p1", [
+            { type: "permanent", id: "victim5" },
+        ]);
+        item.id = "bm5";
+        item.kickerPayments = { "kicker-w": 1, "kicker-b": 1 };
+
+        // Round-trip WHILE the kicked creature spell is still on the stack —
+        // `kickerPayments` is a `StackItem` field and IS persisted at this
+        // point (`compactStackItem`).
+        state = expandState(compactState(state));
+
+        drainStack(state);
+        // The destroy trigger's own target requirement ("target nonblack
+        // creature") has TWO legal candidates once Stormscape Battlemage
+        // itself has resolved onto the battlefield (it is nonblack too) —
+        // not the sole-candidate auto-select case (CR 603.3d) — so a real
+        // `kind: "trigger"` PendingTarget is raised. Pin it to the intended
+        // victim, then keep draining.
+        if (state.pendingTarget) {
+            applyOneTargetSelection(state, "p1", {
+                targetType: "permanent",
+                targetId: "victim5",
+            });
+            drainStack(state);
+        }
+
+        // The white-kicker trigger's own gain-life effect is enough to prove
+        // this test's actual point (kickerPayments surviving the round-trip
+        // all the way to the `{ kickerPaid }` read): it needs no target, so
+        // it is unaffected by the separate real-target-selection plumbing
+        // (`applyOneTargetSelection`) the black-kicker trigger's OWN
+        // "target nonblack creature" additionally goes through once
+        // Stormscape Battlemage itself becomes a second legal candidate.
+        expect(state.players[0].life).toBe(23);
+    });
+});
+
+describe("Stormscape Familiar (cost-modifier: white AND black spells cost {1} less, CR 601.2f)", () => {
+    it("carries the canonical printed characteristics + cost-modifier static", () => {
+        expect(stormscapeFamiliar.manaCost).toEqual({ X: 1, U: 1 });
+        expect(stormscapeFamiliar.staticAbilities).toContain("flying");
+        const eff = stormscapeFamiliar.staticEffects?.[0];
+        expect(eff?.kind).toBe("cost-modifier");
+        expect((eff as { costReduction?: unknown }).costReduction).toEqual({
+            X: 1,
+        });
+    });
+
+    it("reduces the controller's OWN white spell by {1}", () => {
+        const familiar = makeInstance(stormscapeFamiliar.id, {
+            id: "familiar",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [familiar] }),
+                makePlayer("p2"),
+            ],
+        });
+        const whiteSpell = makeInstance(savannahLions.id, {
+            id: "lionsSpell",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const mods = getCostModifiers(state, whiteSpell, "spell");
+        expect(mods.reductionGeneric).toBe(1);
+    });
+
+    it("reduces the controller's OWN black spell by {1}", () => {
+        const familiar = makeInstance(stormscapeFamiliar.id, {
+            id: "familiar2",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [familiar] }),
+                makePlayer("p2"),
+            ],
+        });
+        const blackSpell = makeInstance(scatheZombies.id, {
+            id: "zombieSpell",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const mods = getCostModifiers(state, blackSpell, "spell");
+        expect(mods.reductionGeneric).toBe(1);
+    });
+
+    it("does NOT reduce a green spell (neither white nor black)", () => {
+        const familiar = makeInstance(stormscapeFamiliar.id, {
+            id: "familiar3",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [familiar] }),
+                makePlayer("p2"),
+            ],
+        });
+        const greenSpell = makeInstance(grizzlyBears.id, {
+            id: "bearSpell",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const mods = getCostModifiers(state, greenSpell, "spell");
+        expect(mods.reductionGeneric).toBe(0);
+    });
+
+    it("does NOT reduce the opponent's white spell", () => {
+        const familiar = makeInstance(stormscapeFamiliar.id, {
+            id: "familiar4",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [familiar] }),
+                makePlayer("p2"),
+            ],
+        });
+        const oppWhiteSpell = makeInstance(savannahLions.id, {
+            id: "oppLions",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const mods = getCostModifiers(state, oppWhiteSpell, "spell");
+        expect(mods.reductionGeneric).toBe(0);
+    });
+});
+
+describe("Sunken Hope (each-player-upkeep mandatory return, CR 603.6a)", () => {
+    it("the active player returns a creature they control to its owner's hand", () => {
+        const hope = makeInstance(sunkenHope.id, {
+            id: "hope",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "shBear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [hope, bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushTrigger(state, hope, "sunken-hope-upkeep", {
+            type: "PHASE_BEGIN",
+            phase: "UPKEEP",
+            activePlayerId: "p1",
+        } as StackItem["triggerEvent"]);
+        submitChoice(state, ["shBear"]);
+        expect(state.players[0].hand.some((c) => c.id === "shBear")).toBe(true);
+    });
+
+    it("a player with no creatures gets no picker (auto no-op, CR 608.2b)", () => {
+        const hope = makeInstance(sunkenHope.id, {
+            id: "hope2",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [hope] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushTrigger(state, hope, "sunken-hope-upkeep", {
+            type: "PHASE_BEGIN",
+            phase: "UPKEEP",
+            activePlayerId: "p1",
+        } as StackItem["triggerEvent"]);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+    });
+});
+
+describe("Planeswalker's Mischief (protocol: reveal-random + grantCastFromExile + delayed return, CR 701.20a/601.3e/603.7a)", () => {
+    it("reveals the opponent's single card at random; an instant/sorcery is exiled with a free, until-next-end-step cast permission", () => {
+        const misch = makeInstance(planeswalkersMischief.id, {
+            id: "misch",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const bolt = makeInstance(lightningBolt.id, {
+            id: "bolt",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [misch] }),
+                makePlayer("p2", { hand: [bolt] }),
+            ],
+        });
+        pushActivated(state, misch, "planeswalkers-mischief-reveal", [
+            { type: "player", id: "p2" },
+        ]);
+        expect(state.players[1].hand).toHaveLength(0);
+        const exiled = state.players[1].exile.find((c) => c.id === "bolt");
+        expect(exiled).toBeDefined();
+        expect(exiled?.castableFromExileBy).toBe("p1");
+        expect(exiled?.castFromExileWithoutPayingManaCost).toBe(true);
+    });
+
+    it("does NOT exile a revealed creature card", () => {
+        const misch = makeInstance(planeswalkersMischief.id, {
+            id: "misch2",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear-hand",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [misch] }),
+                makePlayer("p2", { hand: [bear] }),
+            ],
+        });
+        pushActivated(state, misch, "planeswalkers-mischief-reveal", [
+            { type: "player", id: "p2" },
+        ]);
+        expect(state.players[1].hand.some((c) => c.id === "bear-hand")).toBe(
+            true
+        );
+        expect(state.players[1].exile).toHaveLength(0);
+    });
+
+    it("returns the exiled card to its owner's hand at the next end step if it was never cast", () => {
+        const misch = makeInstance(planeswalkersMischief.id, {
+            id: "misch3",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const bolt = makeInstance(lightningBolt.id, {
+            id: "bolt3",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [misch] }),
+                makePlayer("p2", { hand: [bolt] }),
+            ],
+        });
+        pushActivated(state, misch, "planeswalkers-mischief-reveal", [
+            { type: "player", id: "p2" },
+        ]);
+        expect(state.players[1].exile.some((c) => c.id === "bolt3")).toBe(true);
+        fireDelayedTriggers(state, "next-end-step");
+        resolveTopOfStack(state);
+        expect(state.players[1].exile.some((c) => c.id === "bolt3")).toBe(
+            false
+        );
+        expect(state.players[1].hand.some((c) => c.id === "bolt3")).toBe(true);
+    });
+
+    it("wire format: the exiled card with cast permission survives projectPublicState (mandatory — board-visible)", () => {
+        const misch = makeInstance(planeswalkersMischief.id, {
+            id: "misch4",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const bolt = makeInstance(lightningBolt.id, {
+            id: "bolt4",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [misch] }),
+                makePlayer("p2", { hand: [bolt] }),
+            ],
+        });
+        pushActivated(state, misch, "planeswalkers-mischief-reveal", [
+            { type: "player", id: "p2" },
+        ]);
+        const projected = projectPublicState(state, 1, "p1");
+        const slimExiled = projected.players[1].exile.find(
+            (c) => c.id === "bolt4"
+        );
+        expect(slimExiled).toBeDefined();
+        expect(slimExiled?.castableFromExileBy).toBe("p1");
     });
 });
