@@ -2840,6 +2840,14 @@
         "firstPrintSet": "drk"
     },
     {
+        "name": "Dark Suspicions",
+        "scryfallId": "d518e2fd-7767-43d7-92e3-62a4a465154c",
+        "oracleId": "cf5cf174-d976-4cd8-9721-c30fe784fb70",
+        "firstSet": "pls",
+        "firstPrintId": "d518e2fd-7767-43d7-92e3-62a4a465154c",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Darkness",
         "scryfallId": "53b04dab-45b7-418b-a0f0-bcf35145fc53",
         "oracleId": "932708ae-9d5c-4561-aa8b-0d2222d37fdc",

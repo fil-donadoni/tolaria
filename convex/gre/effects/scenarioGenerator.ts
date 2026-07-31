@@ -314,6 +314,17 @@ function analyseValue(value: EffectValue, req: Requirements): void {
         req.skip ??= `amount reads a player's life gained this turn — the canned generator does not gain life before resolving`;
         return;
     }
+    // difference (issue #2006): `from` minus `minus`. The filler seeds ONE
+    // count set at COUNT_SET_SIZE and the predictor reads that fixed size back,
+    // so a TWO-operand amount has no faithful prediction here — and a hand
+    // operand (the shape this member exists for) is a zone the generator does
+    // not own at all (see the `hand` skip below). Skip-with-reason — the
+    // member's own interpreter test is the behavioural guarantor (per
+    // DSL-first authoring, new-construct regime).
+    if ("difference" in value) {
+        req.skip ??= `amount is a difference of two values — the canned predictor sizes exactly one count set, not an arithmetic combination`;
+        return;
+    }
     req.countSets.push(value.count);
     // A count set's own controller may itself be a ref — unmodelable.
     const c = value.count.controller;
@@ -343,6 +354,13 @@ function analyseValue(value: EffectValue, req: Requirements): void {
     // explicit skip with a reason, never a silent pass).
     if (value.count.zone === "library") {
         req.skip ??= `count set counts a LIBRARY — the canned generator's library depth is owned by the draw filler, not the count filler`;
+    }
+    // issue #2006 — a HAND count set, the library skip's twin. The hand is
+    // seeded by the cast filler (the spell being resolved came from it), not by
+    // the count filler, so predicting COUNT_SET_SIZE would be a silently wrong
+    // assertion rather than an honest skip.
+    if (value.count.zone === "hand") {
+        req.skip ??= `count set counts a HAND — the canned generator's hand contents are owned by the cast filler, not the count filler`;
     }
     if (value.count.filter?.name !== undefined) {
         req.skip ??= `count set filters by card name "${value.count.filter.name}" — filler doesn't synthesize an exact name`;
@@ -1344,6 +1362,7 @@ function predictAmount(value: EffectValue): number | null {
     if ("counters" in value) return null; // skipped earlier — defensive
     if ("domain" in value) return null; // skipped earlier — defensive
     if ("lifeGainedThisTurn" in value) return null; // skipped earlier
+    if ("difference" in value) return null; // skipped earlier — defensive
     return COUNT_SET_SIZE;
 }
 

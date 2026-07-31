@@ -8313,10 +8313,14 @@ export interface EffectCountSpec {
      *  player controls (CR 110); `graveyard` counts cards in the player's
      *  graveyard (CR 404); `library` counts cards in the player's library
      *  (CR 401, issue #783 — Shelldock Isle's "if a library has twenty or
-     *  fewer cards in it"). A library count is a pure CARDINALITY read (the
-     *  library is hidden, CR 401.2, and its SIZE is public information) — a
-     *  `filter` is meaningless there and is rejected by the validator. */
-    zone: "battlefield" | "graveyard" | "library";
+     *  fewer cards in it"); `hand` counts cards in the player's hand (CR 402,
+     *  issue #2006 — Dark Suspicions' "the number of cards in that player's
+     *  hand"). Both `library` and `hand` are pure CARDINALITY reads: the zone
+     *  is hidden (CR 401.2 / 402.2) but its SIZE is public information every
+     *  player may count, so a `filter` is meaningless there (it would ask the
+     *  engine to read cards the counting player may not see) and is rejected
+     *  by the validator, as is the graveyard-only `countTypes`. */
+    zone: "battlefield" | "graveyard" | "library" | "hand";
     /** Whose zone (CR 109.5 relative selectors). Required UNLESS
      *  `acrossAllPlayers` is set, in which case it is omitted (the count spans
      *  every player's zone, not one player's). */
@@ -8692,14 +8696,64 @@ export type EffectDomainValue = {
     domain: { of: EffectPlayerRef; times?: number };
 };
 
+/** One operand of a `difference` value (issue #2006). Deliberately a TERMINAL,
+ *  never a full `EffectValue`: a literal integer or a single `count`. Making
+ *  the operand type non-recursive is the whole defence — an expression TREE
+ *  (`(a - b) - c`, `a - (b * c)`) is not merely discouraged, it is
+ *  unrepresentable in the type system. */
+export type EffectDifferenceOperand = number | EffectCount;
+
+/** difference — `from` MINUS `minus` (issue #2006), the one place the value
+ *  grammar performs arithmetic between two operands.
+ *
+ *  Reason to exist: Dark Suspicions (PLS) is "that player loses X life, where
+ *  X is the number of cards in that player's hand minus the number of cards in
+ *  your hand" — two INDEPENDENT counts, which no refinement of a single
+ *  `count` can express (`times` scales ONE count by a constant; there is no
+ *  second count to scale). A catalogue survey found the same surface shape on
+ *  The Rack (ATQ, "3 minus the number of cards in their hand") and Storm World
+ *  (LEG, "4 minus the number of cards in their hand"), which is why both
+ *  operands accept a literal as well as a count.
+ *
+ *  What this deliberately is NOT, and must not become:
+ *  - NOT a fifth STRUCTURAL construct. The frozen set stays bind/ref/if/
+ *    forEach (ADR 0045); this is a thirteenth `EffectValue` MEMBER, the same
+ *    kind of addition as `X` (#852), `counters` (#1015), `domain` (#1066) and
+ *    `lifeGainedThisTurn` (#1457), none of which reopened the ADR.
+ *  - NOT an expression grammar. There is exactly ONE operator (subtraction),
+ *    exactly TWO operands, and the operands are terminals — so the value
+ *    grammar stays DEPTH-1. A card wanting `a + b`, `max(a, b)` or a nested
+ *    difference does not get to write it here; that is a new design decision
+ *    with its own issue, not an implied door this member opened.
+ *  - NOT an Op. It earns no `EFFECT_OP_REGISTRY` row (see the value-grammar
+ *    census in `convex/cards/mechanicsRegistry.ts`).
+ *
+ *  Sign (CR 107.1b): the result is SIGNED and may be negative — "you can't
+ *  choose a negative number, deal negative damage, or gain negative life", but
+ *  a calculated game value can be less than zero. The clamping belongs at the
+ *  CONSUMING Op, which every amount-taking Op already does (`amount <= 0`
+ *  returns), and that is exactly the Oracle ruling for Dark Suspicions: when
+ *  the opponent holds fewer cards than you, X is negative and no life is lost
+ *  — it never becomes a life GAIN. */
+export interface EffectDifferenceValue {
+    difference: {
+        /** Minuend — the value subtracted FROM. */
+        from: EffectDifferenceOperand;
+        /** Subtrahend — the value subtracted. */
+        minus: EffectDifferenceOperand;
+    };
+}
+
 /** A runtime numeric parameter of an Op (ADR 0045): a literal count, a `ref`
  *  reading a bound object's numeric property, a `count` of a selected set, the
  *  chosen-cost `X` (issue #852), a `counters` count on a selected object
  *  (issue #1015), a selected object's `manaValue` (issue #680), a player's
- *  `domain` (issue #1066), a permanent's `escaped` flag (issue #695), or the
+ *  `domain` (issue #1066), a permanent's `escaped` flag (issue #695), the
  *  currently-resolving triggered ability's `abilityResolutionCount` (issue
- *  #1189). The value grammar is capped at these — no arithmetic, no
- *  expressions (the frozen-grammar defence, ADR 0045). */
+ *  #1189), or the `difference` of two terminals (issue #2006). The value
+ *  grammar is capped at these — beyond `difference`'s single, non-nestable
+ *  subtraction there is no arithmetic and there are no expressions (the
+ *  frozen-grammar defence, ADR 0045). */
 export type EffectValue =
     | number
     | EffectRef
@@ -8712,7 +8766,8 @@ export type EffectValue =
     | EffectDomainValue
     | EffectEscapedValue
     | EffectAbilityResolutionCountValue
-    | EffectLifeGainedThisTurnValue;
+    | EffectLifeGainedThisTurnValue
+    | EffectDifferenceValue;
 
 /** lifeGainedThisTurn — the total life a PLAYER has gained so far this turn
  *  (CR 119.3, issue #1457), a thin JSON-pure skin over

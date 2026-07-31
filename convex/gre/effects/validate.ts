@@ -766,14 +766,19 @@ function isCountValue(value: unknown): boolean {
     if (
         s.zone !== "battlefield" &&
         s.zone !== "graveyard" &&
-        s.zone !== "library"
+        s.zone !== "library" &&
+        s.zone !== "hand"
     ) {
         return false;
     }
-    // CR 401 (issue #783) — a `library` count is a pure cardinality read: the
-    // zone is hidden (CR 401.2) so there is nothing a filter could honestly
-    // match, and `countTypes` is a graveyard-only Delirium reading.
-    if (s.zone === "library" && ("filter" in s || "countTypes" in s)) {
+    // CR 401 / 402 (issues #783, #2006) — a `library` or `hand` count is a pure
+    // cardinality read: the zone is hidden (CR 401.2 / 402.2) so there is
+    // nothing a filter could honestly match, and `countTypes` is a
+    // graveyard-only Delirium reading.
+    if (
+        (s.zone === "library" || s.zone === "hand") &&
+        ("filter" in s || "countTypes" in s)
+    ) {
         return false;
     }
     // issue #999 — an optional positive-integer multiplier ("twice the
@@ -976,12 +981,45 @@ function isLifeGainedThisTurnValue(value: unknown): boolean {
     return isPlayerRef(s.of);
 }
 
+/** One operand of a `difference` (issue #2006) — a TERMINAL only: a
+ *  positive-int literal or a `count`. Deliberately NOT `isEffectValue`: making
+ *  the operand check non-recursive is what keeps the value grammar depth-1 and
+ *  an expression tree unrepresentable, matching the `EffectDifferenceOperand`
+ *  type. A `0`/negative literal is rejected by the same CR 107.1 positive-int
+ *  literal rule the rest of the grammar uses — `{ from: 0, minus: v }` would
+ *  be a back-door unary negation, which the SIGNED grammar's `negate` (issue
+ *  #926) already owns at the one site where it has CR meaning. */
+function isDifferenceOperand(value: unknown): boolean {
+    return isPositiveInt(value) || isCountValue(value);
+}
+
+/** `{ difference: { from, minus } }` — SHAPE of the subtraction value construct
+ *  (issue #2006, CR 107.1b). Exactly two keys, both required, each a terminal
+ *  operand. One operator, two operands, no nesting: this is the entire
+ *  arithmetic surface of the value grammar and must stay that way (a `plus` /
+ *  `max` / nested `difference` is a new design decision with its own issue, not
+ *  an incremental widening of this checker). */
+function isDifferenceValue(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    if (keys.length !== 1 || keys[0] !== "difference") return false;
+    const spec = (value as { difference: unknown }).difference;
+    if (typeof spec !== "object" || spec === null) return false;
+    const s = spec as Record<string, unknown>;
+    if (!Object.keys(s).every((k) => k === "from" || k === "minus")) {
+        return false;
+    }
+    return isDifferenceOperand(s.from) && isDifferenceOperand(s.minus);
+}
+
 /** A numeric Op parameter (ADR 0045 value grammar): a positive-int literal,
  *  a `ref`, a `count`, the chosen-cost `X` (issue #852), a `counters` count
  *  on a selected object (issue #1015), a selected object's `manaValue` (issue
  *  #680), a player's `domain` (issue #1066), an object's `escaped` flag
- *  (issue #695), or the resolving triggered ability's `abilityResolutionCount`
- *  (issue #1189). Exactly those — no arithmetic, no expressions. */
+ *  (issue #695), the resolving triggered ability's `abilityResolutionCount`
+ *  (issue #1189), or the `difference` of two terminals (issue #2006). Exactly
+ *  those — one non-nestable subtraction, and beyond it no arithmetic and no
+ *  expressions. */
 function isEffectValue(value: unknown): boolean {
     return (
         isPositiveInt(value) ||
@@ -995,7 +1033,8 @@ function isEffectValue(value: unknown): boolean {
         isDomainValue(value) ||
         isEscapedValue(value) ||
         isAbilityResolutionCountValue(value) ||
-        isLifeGainedThisTurnValue(value)
+        isLifeGainedThisTurnValue(value) ||
+        isDifferenceValue(value)
     );
 }
 

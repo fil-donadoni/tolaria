@@ -287,6 +287,13 @@ function countZoneCardsFor(
         // validator rejects a `filter` there), so the pile size IS the count.
         case "library":
             return player.library;
+        // CR 402 (issue #2006) — the hand is the library's twin here: hidden
+        // zone, public SIZE, validator rejects a `filter`, so the pile size IS
+        // the count. Dark Suspicions' "the number of cards in that player's
+        // hand". The bot reads the real pile because a hand SIZE is public
+        // information (CR 402.2) — no hidden-information leak.
+        case "hand":
+            return player.hand;
         default: {
             const exhaustive: never = zone;
             return exhaustive;
@@ -452,6 +459,25 @@ function resolveValueAgainstBoard(
         return v.lifeGainedThisTurn.of === "controller"
             ? (state.lifeGainedThisTurn?.[perspectivePlayerId] ?? 0)
             : CF_ASSUMED_REF_FALLBACK;
+    }
+    // difference (issue #2006) — both operands are terminals (a literal or a
+    // `count`), and a `count` is exactly the member this function already
+    // resolves genuinely against the live board, so the whole difference is
+    // resolvable pre-cast. CR 107.1b: the result may be negative, and it is
+    // returned SIGNED — the consuming Op's own clamp is what turns "the
+    // opponent holds fewer cards than me" into a zero-value effect, and a
+    // clamp here would instead price Dark Suspicions as if it always did
+    // something.
+    if ("difference" in v) {
+        const operand = (o: number | { count: EffectCountSpec }): number =>
+            typeof o === "number"
+                ? o
+                : resolveCountSpecAgainstBoard(
+                      state,
+                      perspectivePlayerId,
+                      o.count
+                  );
+        return operand(v.difference.from) - operand(v.difference.minus);
     }
     // ref / manaValue / domain — object- or player-scoped reads with no
     // resolvable object/announcement pre-cast.

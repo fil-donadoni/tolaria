@@ -3215,7 +3215,31 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  clauses cannot see. The Effect Script validator admits it only at
  *  battlefield-guaranteed selector sites (`allowControlledSinceTurnStart`,
  *  the `hasAbility`/`isAttacking` opt-IN gate), since a card in a hidden zone
- *  has no controller at all (CR 108.4). */
+ *  has no controller at all (CR 108.4).
+ *  `EffectCountSpec.zone: "hand"` (issue #2006, CR 402) is likewise NOT an Op
+ *  and NOT a new grammar member — it is a REFINEMENT of the existing `count`
+ *  value, the exact twin of the already-shipped `library` zone member (#783):
+ *  a hidden zone (CR 402.2) whose SIZE is public information, therefore a pure
+ *  CARDINALITY read with `filter`/`countTypes` rejected by the validator. It
+ *  earns no EFFECT_OP_REGISTRY row.
+ *  `difference` (issue #2006, `{ difference: { from, minus } }`) IS a new
+ *  value-grammar member — the THIRTEENTH — and the only one that performs
+ *  arithmetic between two operands. It earns no EFFECT_OP_REGISTRY row (not an
+ *  Op) and it does NOT reopen ADR 0045: the frozen set is the four STRUCTURAL
+ *  constructs (bind/ref/if/forEach), and this is a value member exactly like
+ *  `X` (#852), `counters` (#1015), `domain` (#1066) and `lifeGainedThisTurn`
+ *  (#1457) before it. What keeps it from being the thin end of an expression
+ *  grammar is its OPERAND type: `EffectDifferenceOperand` is a literal or a
+ *  `count` — a TERMINAL, never an `EffectValue` — so nesting is
+ *  unrepresentable in the type system and the value grammar stays depth-1.
+ *  One operator, two operands, no recursion. It unblocks the "X is A minus B"
+ *  class the `count`'s `times` multiplier cannot reach (that scales ONE count
+ *  by a constant; here there are two independent counts): Dark Suspicions
+ *  (PLS, hand-count minus hand-count) is the shipped consumer, with The Rack
+ *  (ATQ) and Storm World (LEG) — both "N minus the number of cards in their
+ *  hand" — the literal-minus-count variants the operand union also covers.
+ *  A `plus` / `max` / nested difference is deliberately absent and is a NEW
+ *  design decision with its own issue, not an implied widening of this row. */
 export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // --- Architecture-setting foundations (implemented before the skins) ---
     // delayedTrigger SHIPPED (issue #838, ADR 0048) and moveZone SHIPPED

@@ -7,6 +7,7 @@ import type { CardDefinition } from "../../types";
 import { AURA_AFFECTS_HOST } from "../../types";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { kickerPaidCondition } from "../../abilities/triggers/shared";
 
 // Warped Devotion — {2}{B} Enchantment. "Whenever a permanent is returned to
@@ -147,11 +148,13 @@ export const noxiousVapors: CardDefinition = {
 // ─────────────────────────────────────────────────────────────────────────
 // Free tranche (parent PRD #1935, issue #1950) — every card below is
 // expressible with already-shipped Ops/keywords, per the issue's own scope
-// statement. Two cards are commented stubs instead (Dark Suspicions,
-// Planeswalker's Scorn) — see each one's own comment for the specific
-// tracked gap; both are stop-and-issue cases per
-// `.claude/rules/gre-development.md` § DSL-first authoring ("the Op I need
-// doesn't exist yet" is explicitly not a valid `resolve()` justification).
+// statement. ONE card is a commented stub instead (Planeswalker's Scorn) —
+// see its own comment for the specific tracked gap; it is a stop-and-issue
+// case per `.claude/rules/gre-development.md` § DSL-first authoring ("the Op
+// I need doesn't exist yet" is explicitly not a valid `resolve()`
+// justification). Dark Suspicions was the second such stub and has since
+// SHIPPED (issue #2006 closed both its gaps: the `count` construct's
+// `zone: "hand"` and the `{ difference: { from, minus } }` value).
 // ─────────────────────────────────────────────────────────────────────────
 
 // Bog Down — {2}{B} Sorcery. "Kicker—Sacrifice two lands. Target player
@@ -238,26 +241,69 @@ export const bogDown: CardDefinition = {
 // Dark Suspicions — {2}{B}{B} Enchantment. "At the beginning of each
 // opponent's upkeep, that player loses X life, where X is the number of
 // cards in that player's hand minus the number of cards in your hand."
+// (CR 603.6a upkeep trigger, CR 402.2 hand size is public information,
+// CR 119.3b life loss.)
 //
-// STOP-AND-ISSUE (`.claude/rules/gre-development.md` § DSL-first authoring):
-// this needs TWO Effect Script gaps together, neither of which exists today
-// — (1) the `count` construct's `EffectCountSpec.zone` only counts
-// `"battlefield" | "graveyard" | "library"` (`cards/types.ts`), not `"hand"`;
-// (2) ADR 0045's frozen grammar has no arithmetic composition between two
-// values ("no expressions" — a parameter is a literal, a `ref`, or a
-// `count`, never `A - B` of two of those), and this card needs exactly that
-// (opponent hand count MINUS caster hand count). Neither is an invented
-// name to paper over — both are real, scoped gaps left for a deliberate
-// design decision rather than a card-shaped `resolve()` ("the Op I need
-// doesn't exist yet" is explicitly not a valid `resolve()` justification).
-// tracked-by: #2006
-// export const darkSuspicions: CardDefinition = {
-//     id: "d518e2fd-7767-43d7-92e3-62a4a465154c", // PLS 40
-//     name: "Dark Suspicions",
-//     rarity: "rare",
-//     manaCost: { X: 2, B: 2 },
-//     types: ["Enchantment"],
-// };
+// The card this set's two Effect Script gaps were opened for (issue #2006),
+// and it is now ordinary declarative data:
+//   * `{ count: { zone: "hand", … } }` — the `count` construct's `library`
+//     twin (CR 402.2: hidden zone, PUBLIC size, so a pure cardinality read
+//     with no filter);
+//   * `{ difference: { from, minus } }` — the value grammar's one arithmetic
+//     member, two TERMINAL operands and no nesting (ADR 0045 stays frozen at
+//     four STRUCTURAL constructs; this is a value member, not a fifth
+//     construct).
+// `scope: "opponents"` fires once per opponent's upkeep and
+// `{ ref: "$event.activePlayerId" }` reads THAT opponent (Collapsing
+// Borders' precedent) — the plain `"controller"` selector would read the
+// enchantment's controller, which is the OTHER side of this subtraction.
+//
+// CR 107.1b — when the opponent holds no more cards than you the difference
+// is zero or negative and nothing happens: `loseLife` returns on a
+// non-positive amount, which is exactly the Oracle ruling (a negative X
+// loses no life; it never becomes a life GAIN for the opponent).
+export const darkSuspicions: CardDefinition = {
+    id: "d518e2fd-7767-43d7-92e3-62a4a465154c", // PLS 40
+    name: "Dark Suspicions",
+    rarity: "rare",
+    manaCost: { X: 2, B: 2 },
+    types: ["Enchantment"],
+    oracleText:
+        "At the beginning of each opponent's upkeep, that player loses X life, where X is the number of cards in that player's hand minus the number of cards in your hand.",
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "dark-suspicions-upkeep",
+            oracleText:
+                "At the beginning of each opponent's upkeep, that player loses X life, where X is the number of cards in that player's hand minus the number of cards in your hand.",
+            phase: "UPKEEP",
+            scope: "opponents",
+            effects: [
+                {
+                    op: "loseLife",
+                    player: { ref: "$event.activePlayerId" },
+                    amount: {
+                        difference: {
+                            from: {
+                                count: {
+                                    zone: "hand",
+                                    controller: {
+                                        ref: "$event.activePlayerId",
+                                    },
+                                },
+                            },
+                            minus: {
+                                count: {
+                                    zone: "hand",
+                                    controller: "controller",
+                                },
+                            },
+                        },
+                    },
+                },
+            ],
+        }),
+    ],
+};
 
 // Death Bomb — {3}{B} Instant. "As an additional cost to cast this spell,
 // sacrifice a creature. Destroy target nonblack creature. It can't be

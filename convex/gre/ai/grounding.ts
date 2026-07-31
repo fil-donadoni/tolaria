@@ -70,6 +70,17 @@ export function contextFreeGrounding(): GroundingContext {
         if ("X" in v) return { amount: CF_ASSUMED_X, scaling: true };
         if ("ref" in v) return { amount: CF_ASSUMED_REF, scaling: false };
         if ("count" in v) return { amount: CF_ASSUMED_COUNT, scaling: true };
+        // difference (issue #2006) — `from` minus `minus`, both terminals. With
+        // no board context each `count` operand is the representative
+        // CF_ASSUMED_COUNT, so a count-minus-count difference grounds at 0 and
+        // would price the effect at nothing. That is the wrong context-FREE
+        // floor (the context-aware path below reads the real board), so a
+        // difference grounds at the same CF_ASSUMED_COUNT a single count does,
+        // board-scaling: it is a board-dependent magnitude, and the one thing
+        // the floor must not do is claim to know it is zero.
+        if ("difference" in v) {
+            return { amount: CF_ASSUMED_COUNT, scaling: true };
+        }
         // counters / manaValue / domain / kickerCount / kickerPaid / escaped /
         // abilityResolutionCount / lifeGainedThisTurn — dynamic reads off
         // runtime state.
