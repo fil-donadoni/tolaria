@@ -1040,6 +1040,95 @@ describe("Stormscape Battlemage (Kicker {A} and/or {B}, two independent conditio
     });
 });
 
+// CR 603.4 per-Kicker check-time gate (issue #2015). The `pushTrigger`-based
+// rows above force each ability onto the stack and therefore only exercise the
+// RESOLUTION-time `{ kickerPaid }` gate. These rows go through the REAL cast
+// path — push the creature SPELL, let it enter, let `collectTriggers` decide —
+// which is the only place the check-time gate is observable. Stormscape
+// Battlemage originally shipped with NO check-time gate at all, so a
+// {W}-kicked-only cast still announced the {2}{B} trigger's "target nonblack
+// creature" and emitted a real `BECAME_TARGET` against it.
+describe("Stormscape Battlemage — CR 603.4 per-Kicker check-time gate (issue #2015)", () => {
+    function castKickedWith(payments?: KickerPayments): {
+        state: GameState;
+        triggersOnStack: string[];
+    } {
+        const victim = makeInstance(grizzlyBears.id, {
+            id: "gate-victim",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20 }),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        const item = pushSpell(state, stormscapeBattlemage.id, "p1");
+        if (payments) item.kickerPayments = payments;
+        resolveTopOfStack(state);
+        resolveTriggerOrder(state); // CR 603.3b, only raised when BOTH fire
+        return {
+            state,
+            triggersOnStack: state.stack
+                .map((s) => s.triggeredAbilityId)
+                .filter((id): id is string => id !== undefined),
+        };
+    }
+
+    function becameTargetEvents(state: GameState) {
+        return (state.pendingEvents ?? []).filter(
+            (e) => e.type === "BECAME_TARGET"
+        );
+    }
+
+    it("unkicked: NEITHER trigger reaches the stack", () => {
+        const { state, triggersOnStack } = castKickedWith();
+        expect(triggersOnStack).toEqual([]);
+        expect(state.pendingTarget).toBeUndefined();
+        expect(becameTargetEvents(state)).toEqual([]);
+        expect(state.players[0].life).toBe(20);
+    });
+
+    it("kicked with {W} ONLY: the life trigger reaches the stack; the {2}{B} destroy trigger does NOT, and targets nothing", () => {
+        const { state, triggersOnStack } = castKickedWith({ "kicker-w": 1 });
+        expect(triggersOnStack).toEqual(["stormscape-battlemage-white-kicker"]);
+        expect(state.pendingTarget).toBeUndefined();
+        expect(becameTargetEvents(state)).toEqual([]);
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "gate-victim")
+        ).toBe(true);
+    });
+
+    it("kicked with {2}{B} ONLY: the destroy trigger reaches the stack; the {W} life trigger does NOT", () => {
+        const { state, triggersOnStack } = castKickedWith({ "kicker-b": 1 });
+        expect(triggersOnStack).toEqual(["stormscape-battlemage-black-kicker"]);
+        // "target nonblack creature" has two legal candidates (the Battlemage
+        // itself is nonblack), so a real PendingTarget is owed — pin it.
+        expect(state.pendingTarget?.targetType).toBe("Creature");
+        applyOneTargetSelection(state, "p1", {
+            targetType: "permanent",
+            targetId: "gate-victim",
+        });
+        drainStack(state);
+        expect(state.players[0].life).toBe(20); // no phantom life gain
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "gate-victim")
+        ).toBe(false);
+    });
+
+    it("kicked with BOTH Kickers: both triggers reach the stack", () => {
+        const { triggersOnStack } = castKickedWith({
+            "kicker-w": 1,
+            "kicker-b": 1,
+        });
+        expect(triggersOnStack.sort()).toEqual([
+            "stormscape-battlemage-black-kicker",
+            "stormscape-battlemage-white-kicker",
+        ]);
+    });
+});
+
 describe("Stormscape Familiar (cost-modifier: white AND black spells cost {1} less, CR 601.2f)", () => {
     it("carries the canonical printed characteristics + cost-modifier static", () => {
         expect(stormscapeFamiliar.manaCost).toEqual({ X: 1, U: 1 });

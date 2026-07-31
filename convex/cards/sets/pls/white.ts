@@ -878,12 +878,17 @@ export const voiceOfAll: CardDefinition = {
 //     kicked with its {2}{U} kicker, draw two cards." Each ETB clause is a
 //     SEPARATELY-firing `TriggeredAbility` (CR 603.6a, a new stack item
 //     pushed after the permanent enters) whose `interveningIf` needs to read
-//     WHICH kicker was paid — but `StackItem.kickerPayments` is gone by the
-//     time that trigger fires (`delete item.kickerCount`, `gre/state.ts`):
-//     nothing persists a per-Kicker tally onto the entering permanent for a
-//     later-firing trigger to read. Exactly the root cause issue #1328
-//     tracks (its gap 1, "ETB-trigger readability of kicker" — Shivan
-//     Emissary / Benalish Emissary, `inv/*.ts`, are the shipped precedent for
-//     leaving a card unshipped rather than working around it), generalized
-//     from "was it kicked" to "which of TWO kickers was paid". tracked-by:
-//     #1328.
+//     WHICH kicker was paid. That was the blocker when this note was written:
+//     nothing persisted a per-Kicker tally onto the entering permanent for a
+//     later-firing trigger to read (issue #1328's gap 1, "ETB-trigger
+//     readability of kicker" — Shivan Emissary / Benalish Emissary,
+//     `inv/*.ts`, the shipped precedent for leaving a card unshipped rather
+//     than working around it). It NO LONGER APPLIES: `kickerPayments` is now a
+//     typed, serialized field on `CardInstanceState`/`PermanentView` (#1950),
+//     and `kickerPaidCondition` (`abilities/triggers/shared.ts`, issue #2015)
+//     is the shared per-Kicker CHECK-TIME predicate its three shipped cycle
+//     siblings already use — paired, as they all are, with a resolution-time
+//     `if { kickerPaid: "<id>" }` branch inside the ability's own
+//     `effects[]` (never an `interveningIf`; see that helper's doc block for
+//     why the re-check misreads a blinked permanent). The card is
+//     unblocked and needs only ordinary card work. tracked-by: #1328.

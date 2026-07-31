@@ -7,6 +7,7 @@ import type { CardDefinition } from "../../types";
 import { AURA_AFFECTS_HOST } from "../../types";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+import { kickerPaidCondition } from "../../abilities/triggers/shared";
 
 // Warped Devotion — {2}{B} Enchantment. "Whenever a permanent is returned to
 // a player's hand, that player discards a card." (CR 603.2 triggered
@@ -476,17 +477,30 @@ export const maggotCarrier: CardDefinition = {
 // the Battlemage cycle's own headline shape: two INDEPENDENTLY payable
 // Kickers, each with its own CR 603.4d intervening-if ETB trigger.)
 //
-// The per-Kicker intervening-if reads `self.kickerPayments?.["<id>"]`
-// (`PermanentView.kickerPayments`, issue #1950) — the per-Kicker-id twin of
-// the existing `wasKicked` boolean (`CardInstanceState.wasKicked`), which
-// can only say "kicked at all", never WHICH of two. Declared BOTH as
-// `condition` (fire-time — CR 603.4: an unmet condition means the ability
-// never triggers at all, never even reaches the stack) AND as
-// `interveningIf` (the CR 603.4d resolution-time re-check) with the SAME
-// predicate, exactly Ravenous's own two-leg pattern for a one-shot fact
-// (`blc/white.ts`'s Jacked Rabbit) — the value cannot change between the
-// two checks, but CR 603.4's fire-time gate is still real and observable
-// (an unkicked cast never even prompts for the bounce/land target).
+// The per-Kicker gate is `kickerPaidCondition("<id>")` — the shared predicate
+// over `PermanentView.kickerPayments` (issue #1950), the per-Kicker-id twin of
+// the aggregate `wasKicked` boolean (`CardInstanceState.wasKicked`), which can
+// only say "kicked at all", never WHICH of two. Declared as `conditionOnSelf`
+// (fire-time — CR 603.4: an unmet condition means the ability never triggers
+// at all, never even reaches the stack; an unkicked cast never even prompts
+// for the bounce/land target).
+//
+// It is deliberately NOT also declared as the ability's `interveningIf`.
+// `resolveTopOfStackInner` (`gre/state.ts`) re-evaluates an `interveningIf`
+// against the LIVE battlefield permanent found by `triggerSourceId`, falling
+// back to the stack item's last known information only when the source is NOT
+// on the battlefield. A blink/flicker (Ephemerate) returns the SAME instance
+// object after `resetBattlefieldTransientState` deleted `kickerPayments`, so
+// the re-check would read a cleared record and fizzle a trigger CR 603.10 says
+// must resolve off LKI. The resolution-time answer is instead the
+// `if { kickerPaid: "<id>" }` branch inside `effects[]` — the resolving stack
+// item's own record, the same shape Thunderscape (`pls/red.ts`) and
+// Stormscape (`pls/blue.ts`) use, and what still holds for an ability COPY
+// that never re-runs `matches` (CR 707.10). This card
+// wrote the predicate as a raw inline closure until issue #2015 extracted it,
+// so all three shipped Battlemages share one gate (`conditionOnSelf` over
+// `condition` so `withTriggerGate` stamps a DECIDED gate the bot can
+// evaluate, issue #1936).
 export const nightscapeBattlemage: CardDefinition = {
     id: "d5389643-4cc0-4a17-bc2d-7f9b76d30f9f", // PLS 47
     name: "Nightscape Battlemage",
@@ -516,18 +530,25 @@ export const nightscapeBattlemage: CardDefinition = {
             oracleText:
                 "When this creature enters, if it was kicked with its {2}{U} kicker, return up to two target nonblack creatures to their owners' hands.",
             scope: "self",
-            condition: (_event, self) =>
-                (self.kickerPayments?.["kicker-u"] ?? 0) >= 1,
-            interveningIf: (_event, self) =>
-                (self.kickerPayments?.["kicker-u"] ?? 0) >= 1,
+            conditionOnSelf: kickerPaidCondition("kicker-u"),
             targetRequirement: {
                 type: "Creature",
                 count: { min: 0, max: 2 },
                 excludeColors: "B",
             },
             effects: [
-                { op: "moveZone", target: { target: 0 }, to: "hand" },
-                { op: "moveZone", target: { target: 1 }, to: "hand" },
+                {
+                    op: "if",
+                    predicate: {
+                        left: { kickerPaid: "kicker-u" },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [
+                        { op: "moveZone", target: { target: 0 }, to: "hand" },
+                        { op: "moveZone", target: { target: 1 }, to: "hand" },
+                    ],
+                },
             ],
         }),
         enteredTrigger({
@@ -535,12 +556,19 @@ export const nightscapeBattlemage: CardDefinition = {
             oracleText:
                 "When this creature enters, if it was kicked with its {2}{R} kicker, destroy target land.",
             scope: "self",
-            condition: (_event, self) =>
-                (self.kickerPayments?.["kicker-r"] ?? 0) >= 1,
-            interveningIf: (_event, self) =>
-                (self.kickerPayments?.["kicker-r"] ?? 0) >= 1,
+            conditionOnSelf: kickerPaidCondition("kicker-r"),
             targetRequirement: { type: "Land", count: 1 },
-            effects: [{ op: "destroy", target: { target: 0 } }],
+            effects: [
+                {
+                    op: "if",
+                    predicate: {
+                        left: { kickerPaid: "kicker-r" },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [{ op: "destroy", target: { target: 0 } }],
+                },
+            ],
         }),
     ],
 };

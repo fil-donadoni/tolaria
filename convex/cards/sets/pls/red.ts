@@ -5,6 +5,7 @@
 
 import type { CardDefinition, CardPrint, SpellContext } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+import { kickerPaidCondition } from "../../abilities/triggers/shared";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 import { chooseColorEffects } from "../../abilities/chooseColor";
@@ -667,20 +668,36 @@ export const tahngarthTalruumHeroAlt: CardPrint = {
 // (the frozen Effect Script value ADR 0079 introduced specifically for this
 // cycle), NOT a single combined Kicker.)
 //
-// `condition: (_e, self) => self.wasKicked === true` (CR 603.4 check-time
-// gate) keeps BOTH triggers off the stack entirely in the common case — cast
-// fully unkicked — using the aggregate `wasKicked` flag
-// (`PermanentView.wasKicked`'s doc comment). It cannot fully close CR 603.4d
-// for the PARTIAL-kick case: `wasKicked` only says "kicked with *something*",
-// not WHICH Kicker, so kicking with {G} alone still leaves `wasKicked` true
-// and the {1}{B}-gated discard trigger still goes on the stack and announces
-// a target — the `if { kickerPaid: "kicker-b" }` gate inside `effects[]` then
-// correctly no-ops it at resolution (ADR 0079's documented resolution-time
-// answer), but CR 603.4d says a false intervening-if should never have hit
-// the stack at all. DIVERGENCE, tracked-by: #2015 (a genuine per-Kicker
-// check-time predicate needs `kickerPayments`, not just `wasKicked`, exposed
-// to `condition` — a distinct, narrower gap than ADR 0079 itself, which only
-// promised the resolution-time answer).
+// Each trigger is gated PER KICKER at CHECK time (CR 603.4) by
+// `kickerPaidCondition("<id>")` — the shared predicate over the permanent's
+// own per-Kicker payment record (`PermanentView.kickerPayments`, ADR 0079 /
+// issue #1950), NOT the aggregate `wasKicked` boolean. `wasKicked` says only
+// "kicked with *something*", so gating on it left the residual partial-kick
+// bug this card was the reference case for (issue #2015): kicked with {G}
+// alone, the {1}{B}-gated DISCARD trigger still went on the stack and
+// announced a target — a real `BECAME_TARGET` event taxing the chosen
+// player/permanent for a trigger CR 603.4 says never came into being. The
+// per-Kicker predicate closes it: the unpaid Kicker's trigger never triggers.
+// `conditionOnSelf` (not `condition`) because the predicate reads only
+// `self` — `withTriggerGate` then stamps a DECIDED gate weight
+// (`gre/ai/cardScriptValue.ts`) so the bot's value model scores an unkicked
+// Battlemage as if neither trigger fires; `condition` would stamp
+// `UNDECIDABLE_TRIGGER_GATE` and the bot would over-value it (issue #1936).
+//
+// The resolution-time half is the `if { kickerPaid: "<id>" }` gate inside
+// each `effects[]` — ADR 0079's documented answer, reading the RESOLVING
+// STACK ITEM's own `kickerPayments` (`buildTriggerItem`'s `...self` spread,
+// `gre/triggers.ts`), i.e. CR 603.10 last known information, and what still
+// holds if an ability COPY reaches the stack without re-running `matches`
+// (CR 707.10). It is deliberately NOT also declared as `interveningIf`:
+// `resolveTopOfStackInner` re-evaluates an `interveningIf` against the LIVE
+// battlefield permanent found by `triggerSourceId`, and a blink/flicker
+// (Ephemerate) returns the SAME instance object with `kickerPayments`
+// already deleted by `resetBattlefieldTransientState` — so an `interveningIf`
+// would read a cleared record and fizzle a trigger that must resolve off LKI.
+// Check-time `conditionOnSelf` + resolution-time `if { kickerPaid }` is the
+// correct pair; the blink case is locked by a regression test in
+// `__tests__/red.test.ts`.
 export const thunderscapeBattlemage: CardDefinition = {
     id: "d707243e-7f11-44bc-b8b8-af635ab1dc87", // PLS 75
     rarity: "uncommon",
@@ -710,19 +727,8 @@ export const thunderscapeBattlemage: CardDefinition = {
             oracleText:
                 "When this creature enters, if it was kicked with its {1}{B} kicker, target player discards two cards.",
             scope: "self",
-            // CR 603.4 check-time gate (see the card-level doc comment above
-            // for the residual partial-kick divergence, tracked-by: #2015):
-            // closes the common fully-unkicked case at zero cost.
-            // `conditionOnSelf` (not `condition`) — the predicate reads only
-            // `self`, and `enteredTrigger`'s own contract says to prefer it
-            // in exactly that case: `withTriggerGate` then stamps a DECIDED
-            // gate weight from it (`gre/ai/cardScriptValue.ts`), so the bot's
-            // value model correctly scores an unkicked Battlemage as if
-            // NEITHER trigger fires; `condition` would stamp
-            // `UNDECIDABLE_TRIGGER_GATE` instead and the bot would over-value
-            // an unkicked permanent as if both always resolve (issue #1936,
-            // review round 2).
-            conditionOnSelf: (self) => self.wasKicked === true,
+            // CR 603.4 per-Kicker check-time gate — see the card-level comment.
+            conditionOnSelf: kickerPaidCondition("kicker-b"),
             targetRequirement: { type: "player", count: 1 },
             effects: [
                 {
@@ -756,11 +762,8 @@ export const thunderscapeBattlemage: CardDefinition = {
             oracleText:
                 "When this creature enters, if it was kicked with its {G} kicker, destroy target enchantment.",
             scope: "self",
-            // CR 603.4 check-time gate — see the discard trigger's identical
-            // comment above (tracked-by: #2015 for the residual gap;
-            // `conditionOnSelf` over `condition` for the same decided-gate-
-            // weight reason).
-            conditionOnSelf: (self) => self.wasKicked === true,
+            // CR 603.4 per-Kicker check-time gate — see the card-level comment.
+            conditionOnSelf: kickerPaidCondition("kicker-g"),
             targetRequirement: { type: "Enchantment", count: 1 },
             effects: [
                 {

@@ -17,6 +17,11 @@
 //      `damageDealtTrigger` / `damageTakenTrigger` — both factories listen to
 //      the same `DAMAGE_DEALT` event and differ only in which side of the
 //      event they gate on (CR 120.3 / 603.10).
+//   4. Check-time gate marking (`withTriggerGate`) — the one place a factory
+//      records that its ability is CONDITIONAL (CR 603.4), plus the per-Kicker
+//      check-time predicate (`kickerPaidCondition`) that the Battlemage
+//      cycle's "if it was kicked with its {A} kicker" triggers are gated on
+//      (CR 702.33, ADR 0079, issue #2015).
 //
 // The scope vocabularies are fixed at ADR 0002 — keep this file as the single
 // source of truth so the factories stay in lockstep.
@@ -366,4 +371,79 @@ export function withTriggerGate<T extends TriggeredAbility>(
         ability.gate = UNDECIDABLE_TRIGGER_GATE;
     }
     return ability;
+}
+
+// ---------------------------------------------------------------------------
+// 5. Per-Kicker check-time predicates (CR 702.33 / 603.4, issue #2015)
+// ---------------------------------------------------------------------------
+
+/** CR 702.33 — how many times the NAMED Kicker was paid to cast this
+ *  permanent's spell, read from the per-Kicker payment record snapshotted onto
+ *  the permanent as it entered the battlefield
+ *  ({@link PermanentView.kickerPayments}, ADR 0079 / issue #1950).
+ *
+ *  FAIL-CLOSED by construction: an id the permanent has no entry for — a
+ *  mistyped kicker id, a permanent that was never cast as a spell (a token, a
+ *  reanimated card), a permanent whose payment record a CR 400.7 zone change
+ *  already cleared — reads 0, never a truthy default. A gate built on this can
+ *  therefore only ever fail to fire, never fire spuriously; a spurious fire is
+ *  the strictly worse error, because a trigger that reaches the stack ANNOUNCES
+ *  targets and emits `BECAME_TARGET` (issue #2015).
+ *
+ *  Deliberately a local read of the documented public field rather than an
+ *  import of `gre/kicker.ts`'s `kickerPaidCount` (the RESOLUTION-time authority
+ *  over the same record): `gre/kicker.ts` pulls in `gre/state.ts`, and this
+ *  module is imported — transitively — by every card file in the catalogue, so
+ *  that edge would drag the whole engine into every card module's init graph.
+ *  The two are pinned to identical behaviour by an agreement test
+ *  (`__tests__/kickerPaidCondition.test.ts`). */
+function kickerPaidTimes(self: PermanentView, kickerId: string): number {
+    const n = self.kickerPayments?.[kickerId];
+    return typeof n === "number" && n > 0 ? n : 0;
+}
+
+/** CR 603.4 check-time predicate — "if it was kicked with its {A} kicker",
+ *  evaluated the instant the triggering event occurs, BEFORE the ability is
+ *  put on the stack. A false answer means the ability never triggers at all
+ *  (CR 603.4): no stack item, no target announcement, and therefore no
+ *  `BECAME_TARGET` event to tax the auto-selected permanent's controller with
+ *  a ward / "becomes the target" trigger (issue #2015).
+ *
+ *  Built for the Planeshift Battlemage cycle — "Kicker {A} and/or {B}" with one
+ *  intervening-if ETB trigger per Kicker — where the AGGREGATE `wasKicked`
+ *  boolean is not enough: it says "kicked with SOMETHING", so a Battlemage
+ *  kicked with only its {G} Kicker would still put its {1}{B}-gated trigger on
+ *  the stack. Pass it as `conditionOnSelf` (not `condition`) wherever the
+ *  factory offers both: the predicate reads only `self`, so `withTriggerGate`
+ *  can stamp a DECIDED gate the bot's value model can evaluate, instead of
+ *  `UNDECIDABLE_TRIGGER_GATE` (issue #1936).
+ *
+ *  Do NOT also declare this predicate as the ability's `interveningIf`.
+ *  `resolveTopOfStackInner` (`gre/state.ts`) re-evaluates an `interveningIf`
+ *  against the LIVE battlefield permanent found by `triggerSourceId`, and only
+ *  falls back to the stack item's own last-known information when the source
+ *  is NOT on the battlefield. A CR 400.7 zone change that returns the same
+ *  instance object — a blink/flicker (Ephemerate), a bounce-and-replay —
+ *  re-finds the permanent by that id AFTER `resetBattlefieldTransientState`
+ *  has deleted `kickerPayments`, so the re-check would read a CLEARED record
+ *  and fizzle a trigger that CR 603.10 says must resolve off last known
+ *  information. The correct resolution-time answer is the
+ *  `if { kickerPaid: "<id>" }` branch inside the ability's own `effects[]`:
+ *  it reads the RESOLVING STACK ITEM's payment record (`buildTriggerItem`'s
+ *  `...self` spread, `gre/triggers.ts`), which is exactly the LKI snapshot,
+ *  and it also still holds for an ability COPY that reaches the stack without
+ *  re-running `matches` (CR 707.10).
+ *
+ *  This is not a Kicker-specific hazard — `interveningIf` is the wrong seam
+ *  for ANY one-shot cast fact `resetBattlefieldTransientState` clears
+ *  (`chosenXOnCast`/`chosenX` and `wasKicked` alongside `kickerPayments`).
+ *  Jacked Rabbit's Ravenous trigger (`sets/blc/white.ts`) still ships the
+ *  buggy shape: blinked at X=6 it draws 0 cards. The engine-level fix — a
+ *  re-entry identity stamp so a reused instance id stops reading as the same
+ *  object — is tracked-by: #2042. Until it lands, gate at check time here and
+ *  at resolution time inside `effects[]`. */
+export function kickerPaidCondition(
+    kickerId: string
+): (self: PermanentView) => boolean {
+    return (self) => kickerPaidTimes(self, kickerId) >= 1;
 }

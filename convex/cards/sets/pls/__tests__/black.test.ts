@@ -807,15 +807,23 @@ describe("Nightscape Familiar (CR 601.2f cost reduction for blue AND red spells,
 });
 
 // Nightscape Battlemage — the plural-Kicker "and/or" flagship (CR 702.33,
-// ADR 0079, issue #1950). New construct combination — a triggered ability's
-// own `condition`/`interveningIf` reading the new `PermanentView.kickerPayments`
-// field — that the catalogue-wide auto-generated smoke sweep cannot drive
-// (its generator explicitly skips any script reading `kickerPaid`/
-// `kickerCount`, and this card's per-Kicker gate lives OUTSIDE `effects[]`
-// entirely, in the trigger's own `condition`/`interveningIf` callbacks). Per
-// the per-Op regime (ADR 0045/0046) this earns its own coverage here, mirroring
-// Jacked Rabbit's own hand-written intervening-if test
-// (`blc/__tests__/white.test.ts`) for the identical one-shot-fact shape.
+// ADR 0079, issue #1950). New construct combination — a per-Kicker gate split
+// across TWO seams, both reading the new `kickerPayments` record:
+//
+//   • check time (CR 603.4): `conditionOnSelf: kickerPaidCondition("<id>")`,
+//     a callback OUTSIDE `effects[]` reading `PermanentView.kickerPayments`,
+//     so an unpaid Kicker's trigger never reaches the stack at all;
+//   • resolution time (CR 603.10): an `if { kickerPaid: "<id>" }` branch
+//     INSIDE the ability's own `effects[]`, reading the resolving stack
+//     item's own payment record — its last known information, which survives
+//     a blink of the source. Deliberately NOT an `interveningIf` (issue
+//     #2015; see `kickerPaidCondition`'s doc block and the blink regression
+//     in `pls/__tests__/red.test.ts`).
+//
+// The catalogue-wide auto-generated smoke sweep cannot drive either half (its
+// generator explicitly skips any script reading `kickerPaid`/`kickerCount`,
+// and it never invokes a `conditionOnSelf` callback), so per the per-Op
+// regime (ADR 0045/0046) this card earns its own coverage here.
 describe("Nightscape Battlemage (CR 702.33 plural Kicker — two independent ETB triggers, PLS 47)", () => {
     it("fires NEITHER ETB trigger when cast unkicked", () => {
         const oppCreature = makeInstance(grizzlyBears.id, {
