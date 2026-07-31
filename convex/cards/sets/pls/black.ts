@@ -185,7 +185,7 @@ export const bogDown: CardDefinition = {
     kickers: [
         {
             id: "kicker",
-            description: "Kicker — Sacrifice two lands",
+            description: "Kicker—Sacrifice two lands",
             permanent: {
                 action: "sacrifice",
                 filter: { types: ["Land"] },
@@ -647,7 +647,7 @@ export const phyrexianScuta: CardDefinition = {
     kickers: [
         {
             id: "kicker",
-            description: "Kicker — Pay 3 life",
+            description: "Kicker—Pay 3 life",
             life: 3,
         },
     ],
