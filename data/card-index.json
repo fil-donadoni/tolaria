@@ -1488,6 +1488,14 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Bog Down",
+        "scryfallId": "8752a605-38f8-4d75-b122-063a788dff6e",
+        "oracleId": "8574f57a-768d-42a0-ac8c-cc0a1de181e0",
+        "firstSet": "pls",
+        "firstPrintId": "8752a605-38f8-4d75-b122-063a788dff6e",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Bog Imp",
         "scryfallId": "e3bb7271-634a-4612-9073-7a5438e8c2b8",
         "oracleId": "45b94e3c-a905-435b-aee5-bec9239fd24c",
@@ -2824,6 +2832,14 @@
         "firstPrintSet": "nem"
     },
     {
+        "name": "Death Bomb",
+        "scryfallId": "f8a84715-c5dc-4a19-af6a-796c6ee912c2",
+        "oracleId": "e323d468-def5-4090-af5b-19481289168f",
+        "firstSet": "pls",
+        "firstPrintId": "f8a84715-c5dc-4a19-af6a-796c6ee912c2",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Death or Glory",
         "scryfallId": "81f967c9-b38d-489d-96cc-44a6b1804e10",
         "oracleId": "b2ae0968-28ed-4ebb-a4e8-69ff6e6a6f1d",
@@ -3030,6 +3046,14 @@
         "firstSet": "inv",
         "firstPrintId": "064f013f-e74f-419d-8d17-7748bd91885e",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Diabolic Intent",
+        "scryfallId": "76d1b5c5-cc47-465f-8549-4fd1ca4280df",
+        "oracleId": "038519b9-bca8-4b27-b5ac-2409595469d0",
+        "firstSet": "pls",
+        "firstPrintId": "76d1b5c5-cc47-465f-8549-4fd1ca4280df",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Diabolic Machine",
@@ -3966,6 +3990,14 @@
         "firstSet": "inv",
         "firstPrintId": "8ee35d99-9a8a-421b-bf43-74446909d87d",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Exotic Disease",
+        "scryfallId": "4e9624e5-79a2-41de-997b-12d871d4be66",
+        "oracleId": "9480e142-289a-439d-b6a5-2666fb0e5be3",
+        "firstSet": "pls",
+        "firstPrintId": "4e9624e5-79a2-41de-997b-12d871d4be66",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Expedition Map",
@@ -7608,6 +7640,14 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Lord of the Undead",
+        "scryfallId": "0a7f50f4-37a0-476e-8655-edba228aafd6",
+        "oracleId": "7714af0e-41d9-4609-967f-27233b46055f",
+        "firstSet": "pls",
+        "firstPrintId": "0a7f50f4-37a0-476e-8655-edba228aafd6",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Lorehold Charm",
         "scryfallId": "5fe70295-e550-4577-a341-dab6c25aabfd",
         "oracleId": "a5729f11-6cde-4830-b882-ab4c5251c1a9",
@@ -7710,6 +7750,14 @@
         "firstSet": "ice",
         "firstPrintId": "5277656c-70f5-4660-bd58-7d9261d53fb5",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "Maggot Carrier",
+        "scryfallId": "ab2c3dc4-bb49-4ec3-a6c8-4256d1939326",
+        "oracleId": "e4ad4b81-3685-4f95-84c0-755263b9d3b1",
+        "firstSet": "pls",
+        "firstPrintId": "ab2c3dc4-bb49-4ec3-a6c8-4256d1939326",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Magical Hack",
@@ -8456,6 +8504,14 @@
         "firstPrintSet": "drk"
     },
     {
+        "name": "Morgue Toad",
+        "scryfallId": "77d8ae73-70d1-4082-8581-5f74c1aaa63b",
+        "oracleId": "c615540b-bf85-4e16-8ac2-9d541cba732f",
+        "firstSet": "pls",
+        "firstPrintId": "77d8ae73-70d1-4082-8581-5f74c1aaa63b",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Moss Monster",
         "scryfallId": "9903c043-9a7a-4994-b532-136d4c46edfd",
         "oracleId": "60efa8a2-6903-4756-92fd-29f6ba6ef67a",
@@ -8798,6 +8854,22 @@
         "firstSet": "lea",
         "firstPrintId": "b8cdd6a7-f772-4ccb-914f-63f52ed54d6b",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Nightscape Battlemage",
+        "scryfallId": "d5389643-4cc0-4a17-bc2d-7f9b76d30f9f",
+        "oracleId": "e96e68b4-cb32-4b75-a885-e1781f4b74ab",
+        "firstSet": "pls",
+        "firstPrintId": "d5389643-4cc0-4a17-bc2d-7f9b76d30f9f",
+        "firstPrintSet": "pls"
+    },
+    {
+        "name": "Nightscape Familiar",
+        "scryfallId": "24fa6853-09b0-4c9f-a138-9dd005780255",
+        "oracleId": "57296ea3-3c0d-49b7-bc08-0d0d8414e9ad",
+        "firstSet": "pls",
+        "firstPrintId": "24fa6853-09b0-4c9f-a138-9dd005780255",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Nightscape Master",
@@ -9408,6 +9480,14 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Phyrexian Bloodstock",
+        "scryfallId": "785e1a67-af94-48e8-bb37-4999d1fb4c66",
+        "oracleId": "dfeaec62-ca77-46dc-8eae-f627a5e1c02a",
+        "firstSet": "pls",
+        "firstPrintId": "785e1a67-af94-48e8-bb37-4999d1fb4c66",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Phyrexian Delver",
         "scryfallId": "e66d87a5-7b67-4ec5-b5e2-518d67123118",
         "oracleId": "a13cbac0-4c76-4970-b61e-5f4e020ee95c",
@@ -9462,6 +9542,14 @@
         "firstSet": "inv",
         "firstPrintId": "ccdd498b-1081-43fe-8193-518337a5a3ea",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Phyrexian Scuta",
+        "scryfallId": "eb57e656-c94e-4cc2-ae8d-9300f51f941f",
+        "oracleId": "af2845cf-8770-4efa-8a83-bf9eb4122b78",
+        "firstSet": "pls",
+        "firstPrintId": "eb57e656-c94e-4cc2-ae8d-9300f51f941f",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Phyrexian Slayer",
@@ -11352,6 +11440,14 @@
         "firstPrintSet": "usg"
     },
     {
+        "name": "Shriek of Dread",
+        "scryfallId": "54a7fb3b-8e81-4763-b2a1-7c2108a00afe",
+        "oracleId": "ee5a4902-f993-4fe6-92da-38636962c558",
+        "firstSet": "pls",
+        "firstPrintId": "54a7fb3b-8e81-4763-b2a1-7c2108a00afe",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Shyft",
         "scryfallId": "99a60c33-b641-42c4-870d-95d07bc975dc",
         "oracleId": "40c3007a-be6c-4400-9139-12b9ca098ac4",
@@ -11406,6 +11502,14 @@
         "firstSet": "arn",
         "firstPrintId": "3003bf1e-8085-45d8-882b-c449109e7631",
         "firstPrintSet": "arn"
+    },
+    {
+        "name": "Sinister Strength",
+        "scryfallId": "afe487b8-c1ae-483d-bcd5-62c62b66a22e",
+        "oracleId": "deb499bd-71d4-4430-8a58-a31f5ab1b239",
+        "firstSet": "pls",
+        "firstPrintId": "afe487b8-c1ae-483d-bcd5-62c62b66a22e",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Sinkhole",
@@ -11525,6 +11629,14 @@
         "oracleId": "57889a8e-0039-45c2-a608-ab315d51aa3a",
         "firstSet": "pls",
         "firstPrintId": "63f5498b-bb12-48ec-811b-b52e45ffddaf",
+        "firstPrintSet": "pls"
+    },
+    {
+        "name": "Slay",
+        "scryfallId": "eccda747-2680-4793-8a13-35e49b4de12f",
+        "oracleId": "64418e1f-4fb1-4029-a31e-135b2d2c0ab9",
+        "firstSet": "pls",
+        "firstPrintId": "eccda747-2680-4793-8a13-35e49b4de12f",
         "firstPrintSet": "pls"
     },
     {
@@ -14078,6 +14190,14 @@
         "firstSet": "leb",
         "firstPrintId": "0324641d-af55-4c53-b4dc-c8262e967da5",
         "firstPrintSet": "leb"
+    },
+    {
+        "name": "Volcano Imp",
+        "scryfallId": "a8281cc6-2132-4f76-841e-d1ade9cafb84",
+        "oracleId": "d2b1b4dd-e860-40d8-8e07-1dee5be65bc4",
+        "firstSet": "pls",
+        "firstPrintId": "a8281cc6-2132-4f76-841e-d1ade9cafb84",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Voldaren Epicure",

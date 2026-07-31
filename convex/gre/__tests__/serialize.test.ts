@@ -858,6 +858,11 @@ describe("game_state serialize round-trip", () => {
         // (issue #1753); must survive a mid-game save/load like every other
         // transient field in this block.
         lion.wasKicked = true;
+        // CR 702.33 (ADR 0079, issue #1950) — `wasKicked`'s per-Kicker-id
+        // twin, needed by a two-Kicker permanent's own ETB trigger (Nightscape
+        // Battlemage) to re-check "if it was kicked with its {2}{U} kicker"
+        // after a save/load, same lifecycle as `wasKicked` above.
+        lion.kickerPayments = { "kicker-u": 1 };
         // CR 107.3 / 601.2b (issue #674) — the chosen-{X} ETB snapshot, the
         // sibling of `wasKicked` above. Ravenous's ETB trigger re-checks its
         // intervening-if AFTER the state has been persisted at a stable point,
@@ -982,6 +987,7 @@ describe("game_state serialize round-trip", () => {
         expect(got.transformed).toBe(true);
         expect(got.transformedFrom).toBe("front-def-id");
         expect(got.wasKicked).toBe(true);
+        expect(got.kickerPayments).toEqual({ "kicker-u": 1 });
         expect(got.chosenXOnCast).toBe(5);
     });
 

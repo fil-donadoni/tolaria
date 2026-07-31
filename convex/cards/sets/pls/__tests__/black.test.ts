@@ -15,14 +15,34 @@
 // its own coverage here.
 
 import { describe, it, expect } from "vitest";
-import { warpedDevotion, noxiousVapors } from "../black";
-import { unsummon, savannahLions, grizzlyBears, island } from "../../lea";
+import {
+    warpedDevotion,
+    noxiousVapors,
+    lordOfTheUndead,
+    sinisterStrength,
+    nightscapeFamiliar,
+    nightscapeBattlemage,
+    phyrexianBloodstock,
+} from "../black";
+import {
+    unsummon,
+    savannahLions,
+    grizzlyBears,
+    island,
+    earthquake,
+    darkRitual,
+} from "../../lea";
 import {
     makeInstance,
     makePlayer,
     makeState,
     pushSpell,
+    resolveTriggerOrder,
 } from "../../../__tests__/setup";
+import {
+    applyOneTargetSelection,
+    advanceTargetGroupOrFinalize,
+} from "../../../../game";
 import {
     resolveTopOfStack,
     removePermanentTo,
@@ -31,12 +51,39 @@ import {
     drawCard,
     emitCardDrawn,
     getPlayer,
+    getCostModifiers,
+    applySourceStaticEffects,
     type GameState,
+    type StackItem,
 } from "../../../../gre/state";
+import {
+    getEffectivePower,
+    getEffectiveToughness,
+    STATIC_EFFECT_CTX,
+} from "../../../../gre/layers";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { applySacrificeSelection } from "../../../../gre/sacrificeChoice";
 import { projectPublicState } from "../../../../gameProjections";
 import { registerTokenDefinition } from "../../..";
+
+/** Resolves an activated ability directly against a real source permanent,
+ *  mirroring the per-set shim already used by `inv/__tests__/black.test.ts`
+ *  for the identical shape (Lord of the Undead's graveyard-return ability). */
+function resolveActivated(
+    state: GameState,
+    source: ReturnType<typeof makeInstance>,
+    abilityId: string,
+    targets: StackItem["targets"] = []
+): void {
+    state.stack.push({
+        ...source,
+        zone: "stack",
+        castById: source.controllerId,
+        abilityId,
+        targets,
+    });
+    resolveTopOfStack(state);
+}
 
 /** Answers the head `pendingChoices` entry (a `choice(kind: "choose-hand-card")`
  *  suspension) with the given card instance id (CR 608.2). */
@@ -508,5 +555,362 @@ describe("Noxious Vapors (CR 601.2b / 701.9, issue #1945)", () => {
             .map((c) => c.id)
             .sort();
         expect(projectedSweptIds).toEqual(["p1-artifact", "p1-white-b"].sort());
+    });
+});
+
+// Lord of the Undead — a `staticEffects[]` anthem (CR 611 layer 7c) MUST have
+// its own hand-written GRE + wire-format test per the project's testing
+// convention table (staticEffects[] is outside the Effect Script DSL
+// entirely, so the per-Op regime does not cover it) — mirrors Lord of
+// Atlantis's own test shape (`lea/__tests__/blue.test.ts`) exactly.
+describe("Lord of the Undead (CR 611 layer 7c anthem + CR 400.7 graveyard-return, PLS 44)", () => {
+    it("buffs other Zombies +1/+1 but excludes itself and non-Zombies", () => {
+        const lord = makeInstance(lordOfTheUndead.id, { id: "lord" });
+        const otherZombie = makeInstance(grizzlyBears.id, {
+            id: "other-zombie",
+            subtypes: ["Zombie"],
+        });
+        const nonZombie = makeInstance(savannahLions.id, { id: "non-zombie" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [lord, otherZombie, nonZombie],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(getEffectivePower(state, otherZombie)).toBe(3);
+        expect(getEffectiveToughness(state, otherZombie)).toBe(3);
+        expect(getEffectivePower(state, nonZombie)).toBe(2);
+        expect(getEffectivePower(state, lord)).toBe(2);
+        expect(getEffectiveToughness(state, lord)).toBe(2);
+
+        // Wire format — the same reads survive the projection (ADR 0045 GRE
+        // testing convention's mandatory wire-format re-assertion).
+        const projected = projectPublicState(state, 1, "p1");
+        const slimZombie = projected.players[0].battlefield.find(
+            (c) => c.id === "other-zombie"
+        )!;
+        expect(getEffectivePower(projected, slimZombie)).toBe(3);
+        expect(getEffectiveToughness(projected, slimZombie)).toBe(3);
+    });
+
+    it("returns a targeted Zombie card from the controller's own graveyard to hand ({1}{B}, {T})", () => {
+        const lord = makeInstance(lordOfTheUndead.id, { id: "lord" });
+        const gyZombie = makeInstance(grizzlyBears.id, {
+            id: "gy-zombie",
+            subtypes: ["Zombie"],
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [lord],
+                    graveyard: [gyZombie],
+                    manaPool: { W: 0, U: 0, B: 1, R: 0, G: 0, C: 0 },
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, lord, "lord-of-the-undead-return", [
+            { type: "graveyard-card", id: "gy-zombie", playerId: "p1" },
+        ]);
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["gy-zombie"]);
+        expect(state.players[0].graveyard).toHaveLength(0);
+    });
+});
+
+// Sinister Strength — an Aura `staticEffects[]` pt-buff + color-grant pair
+// (CR 611 layer 7c / layer 5), mandatory hand-written GRE + wire test per the
+// same convention as Lord of the Undead above — mirrors Kormus Bell's own
+// pt-cda + color-grant pairing (`lea/__tests__/colorless.test.ts`).
+describe("Sinister Strength (CR 303.4 aura, layer 7c pt-buff + layer 5 color-grant, PLS 54)", () => {
+    it("gives the enchanted creature +3/+1 and makes it black", () => {
+        const host = makeInstance(savannahLions.id, { id: "host" });
+        const aura = makeInstance(sinisterStrength.id, {
+            id: "aura",
+            attachedTo: "host",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [host, aura] }),
+                makePlayer("p2"),
+            ],
+        });
+        // pt-buff is read live through the layer pipeline (Unholy Strength's
+        // own pattern) — no separate "apply" step needed.
+        // Savannah Lions is a printed 2/1 (`lea/white.ts`); +3/+1 → 5/2.
+        expect(getEffectivePower(state, host)).toBe(5);
+        expect(getEffectiveToughness(state, host)).toBe(2);
+        // color-grant is a materialized (`grantedColors`) effect, applied via
+        // `applySourceStaticEffects` (Kormus Bell's own precedent) rather than
+        // read live.
+        applySourceStaticEffects(state, aura);
+        expect(STATIC_EFFECT_CTX.getColors(host)).toEqual(
+            expect.arrayContaining(["W", "B"])
+        );
+
+        // Wire format — the pt-buff read survives the projection.
+        const projected = projectPublicState(state, 1, "p1");
+        const slimHost = projected.players[0].battlefield.find(
+            (c) => c.id === "host"
+        )!;
+        expect(getEffectivePower(projected, slimHost)).toBe(5);
+        expect(getEffectiveToughness(projected, slimHost)).toBe(2);
+    });
+});
+
+// Nightscape Familiar — a `cost-modifier` static effect scoped to TWO
+// colours (CR 601.2f), mirroring Derelor's own dedicated behavior test
+// (`fem/__tests__/black.test.ts`) for the identical static-effect kind.
+describe("Nightscape Familiar (CR 601.2f cost reduction for blue AND red spells, PLS 48)", () => {
+    it("reduces the controller's own blue and red spells by {1}, but not black or an opponent's", () => {
+        const familiar = makeInstance(nightscapeFamiliar.id, { id: "fam" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [familiar] }),
+                makePlayer("p2"),
+            ],
+        });
+        const myBlueSpell = makeInstance(unsummon.id, {
+            id: "my-blue",
+            zone: "hand",
+        });
+        const myRedSpell = makeInstance(earthquake.id, {
+            id: "my-red",
+            zone: "hand",
+        });
+        const myBlackSpell = makeInstance(darkRitual.id, {
+            id: "my-black",
+            zone: "hand",
+        });
+        const oppBlueSpell = makeInstance(unsummon.id, {
+            id: "opp-blue",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        expect(
+            getCostModifiers(state, myBlueSpell, "spell").reductionGeneric
+        ).toBe(1);
+        expect(
+            getCostModifiers(state, myRedSpell, "spell").reductionGeneric
+        ).toBe(1);
+        expect(
+            getCostModifiers(state, myBlackSpell, "spell").reductionGeneric
+        ).toBe(0);
+        expect(
+            getCostModifiers(state, oppBlueSpell, "spell").reductionGeneric
+        ).toBe(0);
+    });
+
+    it("carries a real regenerate activated ability ({1}{B})", () => {
+        const familiar = makeInstance(nightscapeFamiliar.id, { id: "fam" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [familiar],
+                    manaPool: { W: 0, U: 0, B: 1, R: 0, G: 0, C: 1 },
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, familiar, "nightscape-familiar-regen");
+        const onField = state.players[0].battlefield.find(
+            (c) => c.id === "fam"
+        )!;
+        expect(onField.regenerationShields ?? 0).toBeGreaterThanOrEqual(1);
+    });
+});
+
+// Nightscape Battlemage — the plural-Kicker "and/or" flagship (CR 702.33,
+// ADR 0079, issue #1950). New construct combination — a triggered ability's
+// own `condition`/`interveningIf` reading the new `PermanentView.kickerPayments`
+// field — that the catalogue-wide auto-generated smoke sweep cannot drive
+// (its generator explicitly skips any script reading `kickerPaid`/
+// `kickerCount`, and this card's per-Kicker gate lives OUTSIDE `effects[]`
+// entirely, in the trigger's own `condition`/`interveningIf` callbacks). Per
+// the per-Op regime (ADR 0045/0046) this earns its own coverage here, mirroring
+// Jacked Rabbit's own hand-written intervening-if test
+// (`blc/__tests__/white.test.ts`) for the identical one-shot-fact shape.
+describe("Nightscape Battlemage (CR 702.33 plural Kicker — two independent ETB triggers, PLS 47)", () => {
+    it("fires NEITHER ETB trigger when cast unkicked", () => {
+        const oppCreature = makeInstance(grizzlyBears.id, {
+            id: "opp-creature",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const land = makeInstance(island.id, { id: "a-land" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [land] }),
+                makePlayer("p2", { battlefield: [oppCreature] }),
+            ],
+        });
+        pushSpell(state, nightscapeBattlemage.id, "p1");
+        resolveTopOfStack(state);
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[1].battlefield.map((c) => c.id)).toEqual([
+            "opp-creature",
+        ]);
+        expect(state.players[0].battlefield.map((c) => c.id)).toContain(
+            "a-land"
+        );
+    });
+
+    it("fires ONLY the bounce trigger when kicked with just its {2}{U} kicker", () => {
+        const oppCreature = makeInstance(grizzlyBears.id, {
+            id: "opp-creature",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [oppCreature] }),
+            ],
+        });
+        const item = pushSpell(state, nightscapeBattlemage.id, "p1");
+        item.kickerPayments = { "kicker-u": 1 };
+        resolveTopOfStack(state); // creature resolves, ETB trigger lands
+        // "Up to two" (CR 601.2c min:0) never auto-selects even with a single
+        // legal candidate — the caster's own explicit pick, then finalize.
+        expect(state.pendingTarget).toBeDefined();
+        applyOneTargetSelection(state, "p1", {
+            targetType: "permanent",
+            targetId: "opp-creature",
+        });
+        advanceTargetGroupOrFinalize(state, state.pendingTarget!, "p1");
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].triggeredAbilityId).toBe(
+            "nightscape-battlemage-bounce"
+        );
+        resolveTopOfStack(state);
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[1].hand.some((c) => c.id === "opp-creature")).toBe(
+            true
+        );
+        expect(state.players[1].battlefield).toHaveLength(0);
+
+        // Wire format — the bounced creature is visible in the projected hand.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(
+            projected.players[1].hand.some((c) => c?.id === "opp-creature")
+        ).toBe(true);
+    });
+
+    it("fires ONLY the destroy-land trigger when kicked with just its {2}{R} kicker", () => {
+        const land = makeInstance(island.id, {
+            id: "opp-land",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [land] }),
+            ],
+        });
+        const item = pushSpell(state, nightscapeBattlemage.id, "p1");
+        item.kickerPayments = { "kicker-r": 1 };
+        resolveTopOfStack(state);
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].triggeredAbilityId).toBe(
+            "nightscape-battlemage-destroy-land"
+        );
+        resolveTopOfStack(state);
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[1].battlefield).toHaveLength(0);
+        expect(
+            state.players[1].graveyard.some((c) => c.id === "opp-land")
+        ).toBe(true);
+    });
+
+    it("fires BOTH ETB triggers independently when kicked with both kickers", () => {
+        const oppCreature = makeInstance(grizzlyBears.id, {
+            id: "opp-creature-both",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const land = makeInstance(island.id, {
+            id: "opp-land-both",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [oppCreature, land] }),
+            ],
+        });
+        const item = pushSpell(state, nightscapeBattlemage.id, "p1");
+        item.kickerPayments = { "kicker-u": 1, "kicker-r": 1 };
+        resolveTopOfStack(state);
+        // Two simultaneous triggers under the SAME controller (p1) suspend on
+        // a CR 603.3b trigger-order choice (ADR 0058) before landing; the
+        // bounce trigger's own "up to two" target (CR 601.2c min:0) then
+        // raises its own pendingTarget in turn (chained, one at a time).
+        resolveTriggerOrder(state);
+        if (state.pendingTarget) {
+            applyOneTargetSelection(state, "p1", {
+                targetType: "permanent",
+                targetId: "opp-creature-both",
+            });
+            advanceTargetGroupOrFinalize(state, state.pendingTarget!, "p1");
+        }
+        expect(state.stack).toHaveLength(2);
+        resolveTopOfStack(state);
+        resolveTopOfStack(state);
+        expect(state.stack).toHaveLength(0);
+        expect(
+            state.players[1].hand.some((c) => c.id === "opp-creature-both")
+        ).toBe(true);
+        expect(
+            state.players[1].graveyard.some((c) => c.id === "opp-land-both")
+        ).toBe(true);
+    });
+});
+
+// Phyrexian Bloodstock — the FIRST leaves-the-battlefield trigger in the
+// catalogue with a CR 603.3d announcement-time target (`leftTrigger`'s
+// `targetRequirement`, added this issue mirroring
+// `EnteredTriggerArgs.targetRequirement` exactly). New construct combination
+// for the `leftTrigger` factory — earns its own coverage here per the same
+// per-Op-regime rationale as Nightscape Battlemage above.
+describe("Phyrexian Bloodstock (CR 603.10 leaves-the-battlefield trigger with a target, PLS 50)", () => {
+    it("destroys a targeted white creature when it leaves the battlefield", () => {
+        const bloodstock = makeInstance(phyrexianBloodstock.id, {
+            id: "bloodstock",
+        });
+        const whiteCreature = makeInstance(savannahLions.id, {
+            id: "white-victim",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bloodstock] }),
+                makePlayer("p2", { battlefield: [whiteCreature] }),
+            ],
+        });
+        removePermanentTo(state, "bloodstock", "graveyard");
+        processPendingActionTriggers(state);
+        // A single legal target (CR 603.3d) auto-selects — the trigger lands
+        // on the stack ready to resolve, mirroring Palace Jailer's own
+        // sole-legal-target precedent (`cn2/__tests__/white.test.ts`).
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].triggeredAbilityId).toBe(
+            "phyrexian-bloodstock-ltb"
+        );
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield).toHaveLength(0);
+        expect(
+            state.players[1].graveyard.some((c) => c.id === "white-victim")
+        ).toBe(true);
+
+        // Wire format — the destroyed creature's absence survives the
+        // projection.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[1].battlefield).toHaveLength(0);
     });
 });

@@ -4869,6 +4869,17 @@ export interface PermanentView {
      *  doc. Mirrors `evoked`/`dashed` above. Undefined for a permanent cast
      *  unkicked / without a Kicker cost. */
     wasKicked?: boolean;
+    /** CR 702.33 (ADR 0079, issue #1950) — the PER-KICKER-ID twin of
+     *  `wasKicked`, exposed for a two-Kicker permanent's own CR 603.4d
+     *  intervening-if ("if it was kicked with its {2}{U} kicker" — the
+     *  Planeshift Battlemage cycle): `wasKicked`'s single boolean can say
+     *  "kicked at all" but never WHICH of two, so each Kicker's own
+     *  intervening-if reads this map by id instead
+     *  (`self.kickerPayments?.["<id>"]`). Snapshotted the same instant and by
+     *  the same write as `wasKicked` — see
+     *  {@link CardInstanceState.kickerPayments} (`gre/state.ts`) for the full
+     *  doc. Undefined for a permanent cast without a Kicker cost. */
+    kickerPayments?: Record<string, number>;
     /** CR 107.3 / 601.2b — the value chosen for {X} in this permanent's own
      *  casting cost, snapshotted from the resolving stack item's `chosenX` the
      *  instant it entered the battlefield (`finalizeSpellResolution`,
