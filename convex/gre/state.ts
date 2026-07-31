@@ -8887,6 +8887,15 @@ function resetBattlefieldTransientState(card: CardInstanceState): void {
     // at all (CR 601.2b applies to casting only) — would inherit the old one.
     delete card.chosenXOnCast;
     delete (card as { chosenX?: number }).chosenX;
+    // CR 614.12 / 400.7 (issue #1953) — the as-enters chosen card NAME
+    // (Meddling Mage) is a fact about the OBJECT that entered; a zone change
+    // makes a new object, and the new entry owes its own CR 614.12 choice.
+    // Exactly the `chosenPlayerId` / `chosenSubtypes` / `chosenXOnCast` pairs
+    // above. Left uncleared, a Mage that died naming "Lightning Bolt" and came
+    // back by a NON-cast path (reanimation, `putFromHandOntoBattlefield` —
+    // paths that never run the creature spell's `resolveSteps`, so no new name
+    // is ever asked for) would silently re-lock the old name.
+    delete card.chosenName;
 }
 
 /** Phase 1 of reanimation (issue #1094, CR 400.7): clears battlefield-only

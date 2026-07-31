@@ -459,9 +459,12 @@ export const lavaZombie: CardDefinition = {
 // player chooses freely among them (all X may be lands).
 //
 // The life loss is X too, read through the `{ X: true }` EffectValue. It is
-// life LOSS, not damage (CR 119.3) — unpreventable by damage prevention, and it
-// happens even if every target has become illegal (CR 608.2b only skips the
-// tap half).
+// life LOSS, not damage (CR 119.3) — unpreventable by damage prevention. It is
+// NOT independent of the targets, though: CR 608.2b fizzles the whole spell
+// when EVERY target is illegal on resolution (`targetLegalityGate`,
+// `gre/state.ts`), so nothing resolves and no life is lost. With at least one
+// legal target left the spell resolves in full — the illegal targets are
+// skipped and the life loss is still the announced X, not the surviving count.
 export const maliciousAdvice: CardDefinition = {
     id: "7b1547c2-ae9f-4871-a675-4026bf20e7e1", // PLS printing (scryfallId)
     rarity: "common",
@@ -517,9 +520,14 @@ export const marshCrocodile: CardDefinition = {
                             kind: "discard-hand",
                             player: { ref: "$each" },
                             zone: "hand",
-                            // CR 701.9a / 608.2b — an empty hand discards
-                            // nothing; `min: 0` is the clamp, not an option.
-                            count: { min: 0, max: 1 },
+                            // CR 701.9a / 608.2b — the discard is MANDATORY, so
+                            // it is an EXACT numeric count (the submit path
+                            // enforces it as both floor and ceiling). The
+                            // interpreter already clamps it to the hand
+                            // actually held, raising no choice at all on an
+                            // empty hand — `{ min: 0, max: 1 }` was not that
+                            // clamp, it was a licence to discard nothing.
+                            count: 1,
                             prompt: "Discard a card.",
                             bind: "$crocDiscard",
                         },
@@ -721,7 +729,14 @@ export const urzasGuilt: CardDefinition = {
                     kind: "discard-hand",
                     player: { ref: "$each" },
                     zone: "hand",
-                    count: { min: 0, max: 3 },
+                    // CR 701.9a / 608.2b — the discard is MANDATORY: a plain
+                    // numeric count is an EXACT count the submit path enforces
+                    // as both floor and ceiling, and the interpreter already
+                    // clamps it down to the hand actually held
+                    // (`Math.min(op.count, available)`, and no choice at all on
+                    // an empty hand). A `{ min: 0, max: 3 }` range would let a
+                    // player legally submit `[]` and keep every card.
+                    count: 3,
                     prompt: "Discard three cards.",
                     bind: "$guiltDiscard",
                 },
@@ -1170,6 +1185,19 @@ export const hullBreach: CardDefinition = {
 // (CR 601 / 305.1), so a restriction keyed to a land name is inert either way,
 // and the only player it could disadvantage is the one who chose it. Widening
 // the restriction vocabulary for a strictly cosmetic gain is out of scope here.
+//
+// DIVERGENCE — the CR 614.12 choice is raised only from the creature SPELL's
+// `resolveSteps`, but an as-enters replacement applies on EVERY entry, not just
+// spell resolution. A Mage that reaches the battlefield by a non-cast path
+// (reanimation, `putFromHandOntoBattlefield`, a copy effect) therefore gets no
+// name choice at all. This is the whole as-enters class, not a Meddling Mage
+// bug — Illusionary Terrain (`ice/blue.ts`, `chosenSubtypes`) and Primal Clay
+// (`atq/colorless.ts`) lose their pick on exactly the same paths — and the
+// engine-side fix is tracked-by: #2019 (the identical cast-time-only gap for
+// `chosenModeId`). Until it lands, a non-cast Mage is a vanilla 2/2 with an
+// inert restriction, which is the safe failure direction: nothing gets locked
+// that shouldn't be, and no stale name survives a zone change
+// (`resetBattlefieldTransientState` clears `chosenName`, CR 400.7).
 export const meddlingMage: CardDefinition = {
     id: "176f84c6-aa5e-449c-bd2b-cc91a898f0c7", // PLS printing (scryfallId)
     rarity: "rare",
@@ -1207,10 +1235,9 @@ export const meddlingMage: CardDefinition = {
             id: "meddling-mage-name-lock",
             oracleText: "Spells with the chosen name can't be cast.",
             // CR 201.3 — names are compared exactly. `chosenName` is undefined
-            // only if the permanent reached the battlefield without resolving
-            // as a spell (a reanimation/`putOntoBattlefield` path never runs
-            // the creature spell's `resolveSteps`), in which case no name was
-            // ever chosen and nothing is locked.
+            // whenever the permanent reached the battlefield without resolving
+            // as a spell (see the DIVERGENCE note above, tracked-by: #2019), in
+            // which case no name was ever chosen and nothing is locked.
             forbids: (_caster, spell, source, _state, ctx) =>
                 source.chosenName !== undefined &&
                 ctx.getName(spell) === source.chosenName,

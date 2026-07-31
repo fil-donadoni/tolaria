@@ -131,13 +131,16 @@ export function buildPreviewBody(
     const showOracleText =
         shouldShowOracleText(def, types, subtypes) && !abilitiesStripped;
     const oracleParagraphs = showOracleText
-        ? resolveChosenMode(
-              resolveChosenSubtypes(
-                  def!.oracleText!.split("\n").filter((p) => p.length > 0),
-                  cardInstance?.chosenSubtypes
+        ? resolveChosenName(
+              resolveChosenMode(
+                  resolveChosenSubtypes(
+                      def!.oracleText!.split("\n").filter((p) => p.length > 0),
+                      cardInstance?.chosenSubtypes
+                  ),
+                  def ?? undefined,
+                  cardInstance?.chosenModeId
               ),
-              def ?? undefined,
-              cardInstance?.chosenModeId
+              cardInstance?.chosenName
           )
         : null;
     const basePower = def?.power;
@@ -377,6 +380,40 @@ function resolveChosenMode(
     }
     if (paragraphs.some((p) => /\bchosen\b/i.test(p))) {
         return [...paragraphs, `Chosen: ${label}`];
+    }
+    return paragraphs;
+}
+
+/** CR 614.12 / 201.3 — names the card a PERMANENT locked in as it entered, in
+ *  its own printed oracle text.
+ *
+ *  "Spells with the chosen name can't be cast" (Meddling Mage) says nothing
+ *  about WHICH name is chosen, and the name is per-instance: two Mages on the
+ *  same board lock different cards. The pick is stored on the instance as
+ *  `chosenName` (forwarded intact by `slimCard`), so the preview annotates the
+ *  phrase in place — printed wording preserved, live answer added: "… the
+ *  chosen name (Lightning Bolt)".
+ *
+ *  Falls back to a trailing "Chosen: <name>" line when the text speaks of a
+ *  choice the phrase-match didn't catch, exactly like `resolveChosenMode`. A
+ *  permanent with no name locked in (never chosen, or cleared by a zone change
+ *  per CR 400.7) is left alone. */
+function resolveChosenName(
+    paragraphs: string[],
+    chosenName: string | undefined
+): string[] {
+    if (!chosenName) return paragraphs;
+    const phrase = /chosen name/i;
+    if (paragraphs.some((p) => phrase.test(p))) {
+        return paragraphs.map((p) =>
+            p.replace(
+                new RegExp(phrase.source, "gi"),
+                (match) => `${match} (${chosenName})`
+            )
+        );
+    }
+    if (paragraphs.some((p) => /\bchosen\b/i.test(p))) {
+        return [...paragraphs, `Chosen: ${chosenName}`];
     }
     return paragraphs;
 }

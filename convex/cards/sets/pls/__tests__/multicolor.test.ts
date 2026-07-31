@@ -18,10 +18,13 @@ import {
     dralnusCrusade,
     hullBreach,
     keldonTwilight,
+    maliciousAdvice,
+    marshCrocodile,
     meddlingMage,
     naturalEmergence,
     phyrexianTyranny,
     sawtoothLoon,
+    urzasGuilt,
 } from "../multicolor";
 import {
     grizzlyBears,
@@ -46,6 +49,8 @@ import {
     applySourceStaticEffects,
     emitCardDrawn,
     processPendingActionTriggers,
+    putReanimatedSetOnBattlefield,
+    removePermanentTo,
     resolveTopOfStack,
     type CardInstanceState,
     type GameState,
@@ -1337,5 +1342,281 @@ describe("Hull Breach ({R}{G} — modal, third mode takes TWO independent target
         expect(pt.remainingRequirements).toEqual([
             { type: "Enchantment", count: 1 },
         ]);
+    });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// Mandatory discard is an EXACT count, never `{ min: 0, … }` (review round 4).
+//
+// `min` is what the server enforces (`pendingChoiceSubmit.ts` —
+// "Select at least N cards"), so `{ min: 0, max: 3 }` on a MANDATORY "then
+// discards three cards" is not a hand-size clamp, it is a licence to submit
+// `[]` and keep everything. The interpreter already clamps a plain numeric
+// count down to the cards actually held (`Math.min(op.count, available)`, and
+// raises no choice at all at zero), which is why the range was never needed.
+// Both tests below submit `[]` and require the server to refuse.
+// ───────────────────────────────────────────────────────────────────────────
+
+/** Fills `player`'s hand with `n` distinct Grizzly Bears. */
+function fillHand(playerId: string, n: number): CardInstanceState[] {
+    return Array.from({ length: n }, (_, i) =>
+        makeInstance(grizzlyBears.id, {
+            id: `${playerId}-hand-${i}`,
+            controllerId: playerId,
+            ownerId: playerId,
+            zone: "hand",
+        })
+    );
+}
+
+describe("Urza's Guilt — the discard is MANDATORY (CR 701.9a / 608.2b, issue #1953)", () => {
+    function resolveGuilt(handSize: number) {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: fillHand("p1", handSize),
+                    library: fillHand("p1", 4).map((c) => ({
+                        ...c,
+                        zone: "library" as const,
+                    })),
+                }),
+                makePlayer("p2", {
+                    library: fillHand("p2", 4).map((c) => ({
+                        ...c,
+                        zone: "library" as const,
+                    })),
+                }),
+            ],
+        });
+        pushSpell(state, urzasGuilt.id, "p1");
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    it("raises a THREE-card discard, not a 0-to-3 range", () => {
+        const state = resolveGuilt(6);
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("discard-hand");
+        // Exact count: the submit path enforces it as both floor and ceiling.
+        expect(head.count).toBe(3);
+    });
+
+    it("refuses an empty submission — a player cannot keep their whole hand", () => {
+        const state = resolveGuilt(6);
+        const head = state.pendingChoices![0];
+        expect(() =>
+            applyPendingChoiceSubmit(state, {
+                playerId: head.playerId,
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: [],
+            })
+        ).toThrow(/at least 3/i);
+    });
+
+    it("still clamps to a SHORT hand (CR 608.2b) — two cards held means two discarded", () => {
+        // Drew two, so the hand is exactly 2 when the discard pass runs.
+        const state = resolveGuilt(0);
+        const head = state.pendingChoices![0];
+        expect(head.count).toBe(2);
+        expect(() =>
+            applyPendingChoiceSubmit(state, {
+                playerId: head.playerId,
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: state.players
+                    .find((p) => p.id === head.playerId)!
+                    .hand.slice(0, 2)
+                    .map((c) => c.id),
+            })
+        ).not.toThrow();
+    });
+});
+
+describe("Marsh Crocodile — 'each player discards a card' is MANDATORY (CR 701.9a, issue #1953)", () => {
+    /** Casts Marsh Crocodile for real and walks its two ETB triggers up to (but
+     *  NOT through) the discard choice, so the raised choice is the one the
+     *  server would actually present. The mandatory blue-or-black bounce takes
+     *  whatever the engine offers (the Crocodile itself on this board — it is
+     *  the only blue or black creature in play). */
+    function fireDiscardEtb(handSize: number) {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { hand: fillHand("p1", handSize) }),
+                makePlayer("p2", { hand: fillHand("p2", handSize) }),
+            ],
+        });
+        pushSpell(state, marshCrocodile.id, "p1");
+
+        let guard = 0;
+        while (guard++ < 30) {
+            const head = state.pendingChoices?.[0];
+            if (head) {
+                if (head.kind === "trigger-order") {
+                    resolveTriggerOrder(state);
+                    continue;
+                }
+                if (head.choiceId === "$bounce") {
+                    const croc = state.players[0].battlefield.find(
+                        (c) => c.card.id === marshCrocodile.id
+                    )!;
+                    submitChoice(state, [croc.id]);
+                    continue;
+                }
+                // The discard choice — stop here, it is what we assert on.
+                break;
+            }
+            if (state.stack.length === 0) break;
+            resolveTopOfStack(state);
+        }
+        return state;
+    }
+
+    it("raises an exact ONE-card discard per player, not a 0-or-1 range", () => {
+        const state = fireDiscardEtb(3);
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("discard-hand");
+        expect(head.count).toBe(1);
+    });
+
+    it("refuses an empty submission", () => {
+        const state = fireDiscardEtb(3);
+        const head = state.pendingChoices![0];
+        expect(() =>
+            applyPendingChoiceSubmit(state, {
+                playerId: head.playerId,
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: [],
+            })
+        ).toThrow(/at least 1/i);
+    });
+
+    it("skips the player whose hand is empty (CR 608.2b) — only the holder is asked", () => {
+        // p1 opens with nothing but bounces the Crocodile into an otherwise
+        // empty hand, so exactly one card is discardable; p2 holds nothing and
+        // is never asked. The clamp is the interpreter's
+        // `Math.min(count, available)`, not a `min: 0` licence.
+        const state = fireDiscardEtb(0);
+        const head = state.pendingChoices![0];
+        expect(head.playerId).toBe("p1");
+        expect(head.kind).toBe("discard-hand");
+        expect(head.count).toBe(1);
+        submitChoice(state, [state.players[0].hand[0].id]);
+        expect(state.players[0].hand).toHaveLength(0);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+    });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// CR 400.7 — `chosenName` must not survive a zone change (review round 4).
+// `resetBattlefieldTransientState` is the single choke point every
+// reanimation-style entry funnels through; before this fix `chosenName` was
+// written in exactly one place and cleared nowhere, so a Mage that left and
+// re-entered by a NON-cast path (which never runs the creature spell's
+// `resolveSteps`, and so never asks for a new name) silently re-locked the
+// name it chose in a previous life.
+// ───────────────────────────────────────────────────────────────────────────
+
+describe("Meddling Mage — the chosen name dies with the object (CR 400.7 / 614.12, issue #1953)", () => {
+    function mageOnBattlefield(name: string) {
+        const mage = makeInstance(meddlingMage.id, {
+            id: "mage-1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        mage.chosenName = name;
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mage] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, mage };
+    }
+
+    const boltInHand = () =>
+        makeInstance(lightningBolt.id, {
+            id: "bolt-2",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+
+    it("clears the name when the permanent is bounced to hand", () => {
+        const { state, mage } = mageOnBattlefield(lightningBolt.name);
+        removePermanentTo(state, mage.id, "hand");
+        expect(
+            state.players[0].hand.find((c) => c.id === "mage-1")!.chosenName
+        ).toBeUndefined();
+    });
+
+    it("does NOT carry the old name onto a REANIMATED Mage — the new object has no name and locks nothing", () => {
+        const { state, mage } = mageOnBattlefield(lightningBolt.name);
+        // Dies: the graveyard card is LKI-shaped and may still carry the name.
+        removePermanentTo(state, mage.id, "graveyard");
+        const inYard = state.players[0].graveyard.find(
+            (c) => c.id === "mage-1"
+        )!;
+        // Reanimated by a non-cast path — no creature spell, so no CR 614.12
+        // choice is ever raised for the new object.
+        state.players[0].graveyard = state.players[0].graveyard.filter(
+            (c) => c.id !== "mage-1"
+        );
+        putReanimatedSetOnBattlefield(state, [
+            { card: inYard, controllerId: "p1" },
+        ]);
+        const reborn = state.players[0].battlefield.find(
+            (c) => c.id === "mage-1"
+        )!;
+        expect(reborn.chosenName).toBeUndefined();
+        // ...and therefore nothing is locked (the restriction reads
+        // `source.chosenName !== undefined`).
+        expect(
+            castProhibitionReason("p2", boltInHand() as never, state)
+        ).toBeUndefined();
+    });
+});
+
+describe("Malicious Advice — the life loss is NOT independent of the targets (CR 608.2b, issue #1953)", () => {
+    /** Casts Malicious Advice for X = 1 at `targetId`, then resolves. */
+    function castAdvice(targetId: string, board: CardInstanceState[]) {
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: board }),
+            ],
+        });
+        const item = pushSpell(state, maliciousAdvice.id, "p1", [
+            { type: "permanent", id: targetId },
+        ]);
+        item.chosenX = 1;
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    const bears = () =>
+        makeInstance(grizzlyBears.id, {
+            id: "bears-adv",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+
+    it("taps the target and costs the caster X life when the target is still legal", () => {
+        const state = castAdvice("bears-adv", [bears()]);
+        expect(state.players[1].battlefield[0].isTapped).toBe(true);
+        expect(state.players[0].life).toBe(19);
+    });
+
+    // The comment on this card used to claim the life loss "happens even if
+    // every target has become illegal". It does not: `targetLegalityGate`
+    // fizzles the WHOLE spell (CR 608.2b), so nothing at all resolves.
+    it("fizzles entirely — and costs NO life — once every target is gone", () => {
+        const state = castAdvice("bears-adv", []);
+        expect(state.players[0].life).toBe(20);
+        expect(state.stack).toHaveLength(0);
     });
 });
