@@ -2568,6 +2568,14 @@
         "firstPrintSet": "pls"
     },
     {
+        "name": "Crosis's Charm",
+        "scryfallId": "b59a9e75-9988-4040-a718-b1655fc20d11",
+        "oracleId": "e59d70a2-40ac-45b0-995d-65b9caa290c8",
+        "firstSet": "pls",
+        "firstPrintId": "b59a9e75-9988-4040-a718-b1655fc20d11",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Crown of Flames",
         "scryfallId": "f2c82741-2869-41f9-82f4-6ed88756e2fd",
         "oracleId": "f14fb965-5ebc-427a-a5b8-149f54c64171",
@@ -2789,6 +2797,14 @@
         "oracleId": "19b58ec9-bb88-4193-8ea8-c8f09ceec1ed",
         "firstSet": "pls",
         "firstPrintId": "752f6f0c-af30-4937-b4a7-48f493e007a0",
+        "firstPrintSet": "pls"
+    },
+    {
+        "name": "Darigaaz's Charm",
+        "scryfallId": "cf4c9d6a-86eb-45be-9405-473eb263b94c",
+        "oracleId": "7ee01801-5e42-4916-a359-64e9975090a7",
+        "firstSet": "pls",
+        "firstPrintId": "cf4c9d6a-86eb-45be-9405-473eb263b94c",
         "firstPrintSet": "pls"
     },
     {
@@ -3086,6 +3102,14 @@
         "firstSet": "ice",
         "firstPrintId": "53e381a4-810e-4b75-aed3-c16cf0eb06fa",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "Destructive Flow",
+        "scryfallId": "7db86e34-c3ec-4a29-8779-81350a985644",
+        "oracleId": "f7544a96-46b3-4cdc-8b14-c7b6daecdabd",
+        "firstSet": "pls",
+        "firstPrintId": "7db86e34-c3ec-4a29-8779-81350a985644",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Detonate",
@@ -3405,6 +3429,14 @@
         "oracleId": "d8b57707-796d-4488-8f91-65bb75bc6281",
         "firstSet": "pls",
         "firstPrintId": "85f10cee-6a63-438e-a9df-6b902dd025b8",
+        "firstPrintSet": "pls"
+    },
+    {
+        "name": "Dromar's Charm",
+        "scryfallId": "c7a1894c-af4e-4530-960f-2225916be8cb",
+        "oracleId": "e9950393-8458-4132-9dc7-01246282a41a",
+        "firstSet": "pls",
+        "firstPrintId": "c7a1894c-af4e-4530-960f-2225916be8cb",
         "firstPrintSet": "pls"
     },
     {
@@ -3974,6 +4006,14 @@
         "firstSet": "ice",
         "firstPrintId": "8346e741-61f8-4283-be51-f5f80e9595a5",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "Ertai, the Corrupted",
+        "scryfallId": "66b950d9-8fef-4deb-b51b-26edb90abc56",
+        "oracleId": "36934bd0-b275-4222-926c-b5a74cf0967d",
+        "firstSet": "pls",
+        "firstPrintId": "66b950d9-8fef-4deb-b51b-26edb90abc56",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Escape Routes",
@@ -4718,6 +4758,14 @@
         "firstSet": "ecl",
         "firstPrintId": "265522eb-4f6a-40e7-b374-3833fa63c80b",
         "firstPrintSet": "ecl"
+    },
+    {
+        "name": "Forsaken City",
+        "scryfallId": "676703fe-bd80-413c-8704-1da5d3248b7e",
+        "oracleId": "6bb00a28-8b5a-4049-93b7-3db02de88aeb",
+        "firstSet": "pls",
+        "firstPrintId": "676703fe-bd80-413c-8704-1da5d3248b7e",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Forth Eorlingas!",
@@ -8024,6 +8072,14 @@
         "firstPrintSet": "jou"
     },
     {
+        "name": "Mana Cylix",
+        "scryfallId": "c6f95767-afda-4d74-bbd4-1b702eeae54b",
+        "oracleId": "47f20da0-cd31-4877-8eca-0c8389a66e89",
+        "firstSet": "pls",
+        "firstPrintId": "c6f95767-afda-4d74-bbd4-1b702eeae54b",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Mana Drain",
         "scryfallId": "e691adef-3027-4e6a-889f-9f4e2df36a7c",
         "oracleId": "74d3277a-38e5-4732-afed-084a56148f20",
@@ -10294,6 +10350,14 @@
         "firstSet": "sos",
         "firstPrintId": "318486e0-f255-40f5-8150-dc272eec9d7d",
         "firstPrintSet": "sos"
+    },
+    {
+        "name": "Questing Phelddagrif",
+        "scryfallId": "cea4cfef-6736-42a5-9f3e-10de8d0cd8d3",
+        "oracleId": "97f3afdb-dcee-44da-b210-c8d20030baff",
+        "firstSet": "pls",
+        "firstPrintId": "cea4cfef-6736-42a5-9f3e-10de8d0cd8d3",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Quirion Dryad",
@@ -13248,6 +13312,14 @@
         "firstPrintSet": "scg"
     },
     {
+        "name": "Terminal Moraine",
+        "scryfallId": "353a8ea8-3f1f-4f77-95bc-b09b96996285",
+        "oracleId": "58eaaa8b-45c6-439b-bdd1-5f4e77a75a8c",
+        "firstSet": "pls",
+        "firstPrintId": "353a8ea8-3f1f-4f77-95bc-b09b96996285",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Terminate",
         "scryfallId": "190ca502-672d-4cc0-b6e0-b9de517058d0",
         "oracleId": "6257c2fd-005f-41e3-8a72-af76df1eb134",
@@ -13966,6 +14038,14 @@
         "firstSet": "inv",
         "firstPrintId": "9857af81-fb95-4dc4-b048-9ce4e96d1eca",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Treva's Charm",
+        "scryfallId": "72acb67d-01cb-4fde-8b0b-199e8d1e396a",
+        "oracleId": "e9795590-0918-49f9-b37c-1278c8616ab1",
+        "firstSet": "pls",
+        "firstPrintId": "72acb67d-01cb-4fde-8b0b-199e8d1e396a",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Treva's Ruins",
