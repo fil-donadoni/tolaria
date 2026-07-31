@@ -29,11 +29,13 @@ import { enumerateMoves, type Move } from "../moves";
 import { applyMoveInSearch } from "../search";
 import { dralnusCrusade, hullBreach } from "../../cards/sets/pls/multicolor";
 import { fumarole } from "../../cards/sets/ice/multicolor";
+import { prismaticWard } from "../../cards/sets/ice/white";
 import {
     blackLotus,
     forest,
     grizzlyBears,
     mountain,
+    plains,
     swamp,
 } from "../../cards/sets/lea";
 import { announceCast, selectTargets, tapForPayment } from "../../game";
@@ -206,6 +208,65 @@ describe("bot enumeration — mode-level additional target groups (Hull Breach, 
     });
 });
 
+// ─────────────────────────────────────────────────────────────────────────
+// The other half of the same `??` chain: a modal card whose chosen MODE
+// carries no `targetRequirement` while the CARD does. `announceCast` reads
+// `chosenMode?.targetRequirement ?? kickerAdjustedTargetRequirement(cardDef,
+// …)`, so it falls back to the card level; a ternary on `mode` here yielded
+// `undefined` instead and the Bot emitted one ZERO-target cast per mode.
+// Prismatic Ward is the reference shape — its five `modes` are the as-enters
+// colour pick (CR 700.2c), the Aura's "enchant creature" target lives on the
+// card. Same shape: Chromatic Armor, Magical Hack, Phantasmal Terrain,
+// Sleight of Mind.
+
+/** p1 holds Prismatic Ward with two untapped Plains; p2 has one creature. */
+function prismaticWardBoard(): GameState {
+    const ward = makeInstance(prismaticWard.id, {
+        id: "ward-1",
+        controllerId: "p1",
+        ownerId: "p1",
+        zone: "hand",
+    });
+    // {1}{W} — two Plains cover both the generic and the coloured pip.
+    const lands = [0, 1].map((i) =>
+        makeInstance(plains.id, {
+            id: `plains-${i}`,
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        })
+    );
+    const victim = makeInstance(grizzlyBears.id, {
+        id: "bears-1",
+        controllerId: "p2",
+        ownerId: "p2",
+        zone: "battlefield",
+    });
+    return makeState({
+        players: [
+            makePlayer("p1", { hand: [ward], battlefield: lands }),
+            makePlayer("p2", { battlefield: [victim] }),
+        ],
+        phase: "PRECOMBAT_MAIN",
+        activePlayerId: "p1",
+        priorityPlayerId: "p1",
+    });
+}
+
+describe("bot enumeration — a mode with no requirement falls back to the CARD's (Prismatic Ward, issue #1953)", () => {
+    it("gives every colour mode the card-level creature target, never zero targets", () => {
+        const moves = castMoves(prismaticWardBoard(), "ward-1");
+        // One move per colour mode (five), each carrying the Aura's target.
+        expect(moves.length).toBeGreaterThan(0);
+        expect(new Set(moves.map((m) => m.chosenModeId)).size).toBe(
+            prismaticWard.modes!.length
+        );
+        for (const m of moves) {
+            expect(m.targets.map((t) => t.id)).toEqual(["bears-1"]);
+        }
+    });
+});
+
 describe("bot execution — the enumerated multi-group move is executable end to end (issue #1953)", () => {
     it("replays mode `both` through the real mutations without stranding a target group", async () => {
         const state = hullBreachBoard();
@@ -277,5 +338,70 @@ describe("bot execution — the enumerated multi-group move is executable end to
             "ench-1",
         ]);
         expect(item.chosenModeId).toBe("both");
+    });
+
+    it("replays a mode-with-no-requirement cast (Prismatic Ward) through the real mutations", async () => {
+        const state = prismaticWardBoard();
+        const move = castMoves(state, "ward-1")[0];
+        expect(move.chosenModeId).toBeDefined();
+        const harness = makeMutationCtx("p1", [gameStateSeed(state)]);
+        const base = {
+            gameId: "game-1" as Id<"games">,
+            playerId: "p1",
+        };
+
+        await runMutation(
+            announceCast as unknown as Handler<Record<string, unknown>, void>,
+            harness.ctx,
+            {
+                ...base,
+                cardInstanceId: move.cardInstanceId,
+                chosenModeId: move.chosenModeId,
+            }
+        );
+
+        // `announceCast` opened the CARD-level creature group; the enumerated
+        // move must already carry a pick for it. With the old ternary
+        // `move.targets` was empty, this call sent nothing, and `tapForPayment`
+        // below threw "the game is waiting for target input, not priority".
+        expect(move.targets).toHaveLength(1);
+        await runMutation(
+            selectTargets as unknown as Handler<Record<string, unknown>, void>,
+            harness.ctx,
+            {
+                ...base,
+                targets: move.targets.map((t) => ({
+                    targetType: t.type,
+                    targetId: t.id,
+                    ...(t.playerId ? { targetPlayerId: t.playerId } : {}),
+                })),
+            }
+        );
+        expect(harness.state().pendingTarget).toBeUndefined();
+
+        await expect(
+            runMutation(
+                tapForPayment as unknown as Handler<
+                    Record<string, unknown>,
+                    void
+                >,
+                harness.ctx,
+                {
+                    ...base,
+                    payments: move.tapPlan.map((tap) => ({
+                        cardInstanceId: tap.cardInstanceId,
+                        ...(tap.manaChoiceIndex !== undefined
+                            ? { manaChoiceIndex: tap.manaChoiceIndex }
+                            : {}),
+                    })),
+                }
+            )
+        ).resolves.toBeUndefined();
+
+        const after = harness.state();
+        const item = after.stack.find((s) => s.card.id === prismaticWard.id)!;
+        expect(item).toBeDefined();
+        expect((item.targets ?? []).map((t) => t.id)).toEqual(["bears-1"]);
+        expect(item.chosenModeId).toBe(move.chosenModeId);
     });
 });

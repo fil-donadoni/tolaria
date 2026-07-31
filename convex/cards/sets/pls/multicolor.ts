@@ -1192,9 +1192,12 @@ export const hullBreach: CardDefinition = {
 // (reanimation, `putFromHandOntoBattlefield`, a copy effect) therefore gets no
 // name choice at all. This is the whole as-enters class, not a Meddling Mage
 // bug — Illusionary Terrain (`ice/blue.ts`, `chosenSubtypes`) and Primal Clay
-// (`atq/colorless.ts`) lose their pick on exactly the same paths — and the
-// engine-side fix is tracked-by: #2019 (the identical cast-time-only gap for
-// `chosenModeId`). Until it lands, a non-cast Mage is a vanilla 2/2 with an
+// (`atq/colorless.ts`, `ctx.setSelfBody`) lose their pick on exactly the same
+// paths — and the engine-side fix is tracked-by: #2043, which owns the
+// NON-modal as-enters storage fields. (#2019 is the declarative sibling, scoped
+// strictly to `modes`/`chosenModeId`; its ETB-replacement modal pick has
+// nothing to pick up from a `resolveSteps` name choice, so it does not own this
+// gap.) Until it lands, a non-cast Mage is a vanilla 2/2 with an
 // inert restriction, which is the safe failure direction: nothing gets locked
 // that shouldn't be, and no stale name survives a zone change
 // (`resetBattlefieldTransientState` clears `chosenName`, CR 400.7).
@@ -1236,7 +1239,7 @@ export const meddlingMage: CardDefinition = {
             oracleText: "Spells with the chosen name can't be cast.",
             // CR 201.3 — names are compared exactly. `chosenName` is undefined
             // whenever the permanent reached the battlefield without resolving
-            // as a spell (see the DIVERGENCE note above, tracked-by: #2019), in
+            // as a spell (see the DIVERGENCE note above, tracked-by: #2043), in
             // which case no name was ever chosen and nothing is locked.
             forbids: (_caster, spell, source, _state, ctx) =>
                 source.chosenName !== undefined &&

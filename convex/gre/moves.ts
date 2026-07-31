@@ -622,18 +622,36 @@ function enumerateCastMoves(
     // GROUPS, not a single requirement: the primary one plus every entry of
     // `additionalTargetRequirements` (Fumarole's "target creature and target
     // land"; Hull Breach's third mode, whose groups live on the MODE, issue
-    // #1953). The `??` chain mirrors `announceCast` exactly — a chosen mode's
-    // list wins, else the card-level list — so the Bot's groups and the
-    // server's can never disagree. Reading only the primary requirement here
-    // enumerated a mode-3 Hull Breach with ONE target: `announceCast` then
-    // filled group 0, left the enchantment group pending, and the executor's
-    // next `tapForPayment` threw on `assertExpectedInput(expect: "priority")`
-    // — the Bot stalling on a move it generated itself.
+    // #1953). Reading only the primary requirement here enumerated a mode-3
+    // Hull Breach with ONE target: `announceCast` then filled group 0, left the
+    // enchantment group pending, and the executor's next `tapForPayment` threw
+    // on `assertExpectedInput(expect: "priority")` — the Bot stalling on a move
+    // it generated itself.
+    //
+    // Both `??` chains below are the SAME shape `announceCast` uses, checked
+    // line by line against `game.ts`:
+    //  - primary  ← `chosenMode?.targetRequirement ??
+    //    kickerAdjustedTargetRequirement(cardDef, kickerPayments)`
+    //    (game.ts `activeTargetRequirement`). `??`, NOT a ternary on `mode`:
+    //    a modal card whose chosen MODE carries no requirement while the CARD
+    //    does — Prismatic Ward, Chromatic Armor, Magical Hack, Phantasmal
+    //    Terrain, Sleight of Mind, where `modes` are the as-enters colour /
+    //    subtype pick and the target lives on the card — must still fall back
+    //    to the card level. A ternary yielded `undefined` for every mode, so
+    //    the Bot emitted one zero-target cast per colour and the executor's
+    //    next `tapForPayment` threw the same `expect: "priority"` stall.
+    //    `kickerAdjustedTargetRequirement` reduces to `cardDef
+    //    .targetRequirement` here because this enumerator never pays kicker
+    //    (no `kickerPayments` anywhere in this file), so the fallback is
+    //    identical for every move it can emit.
+    //  - extra    ← `chosenMode?.additionalTargetRequirements ??
+    //    cardDef.additionalTargetRequirements ?? []` (game.ts
+    //    `additionalRequirements`) — textually the same chain.
     const groupsFor = (mode?: {
         targetRequirement?: TargetRequirement;
         additionalTargetRequirements?: TargetRequirement[];
     }): (TargetRequirement | undefined)[] => {
-        const primary = mode ? mode.targetRequirement : def?.targetRequirement;
+        const primary = mode?.targetRequirement ?? def?.targetRequirement;
         const extra =
             mode?.additionalTargetRequirements ??
             def?.additionalTargetRequirements ??
