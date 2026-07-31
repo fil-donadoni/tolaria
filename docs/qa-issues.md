@@ -62,6 +62,10 @@ Fable of the mirror-breaker
 - quirion elves: la scelta deve essere scritta nell'oracle text della card-preview, come per chromatic armor
 - filtri deckbuilder: aggiungi anche la direzione del sorting oltre a campo di sorting
 - Titania's Song toglie le abilità, ma posso ancora vedere un'abilità attivata e cliccarci sopra, per poi ricevere un errore server. il client deve essere sempr sincronizzato su questi casi e non mostarare le abilità che la carta ha perso per stato di gioco
+- I bersagli possibili di una Lair devono avere il ring di candidati. questo deve valere ogni volta che si devono scegliere bersagli, ma non lo stai facendo sempre. stessa cosa ad esempio sul sacrifice di Keldon Twilight, deve evidenziare solo le tue creature non entrate in questo turno. regola generale da applicare ovunque
+- quando in solo game tappo una terra che ha anche l'avversario, c'e' una strana animazione sui due fan: il mio e il suo, che però non dovrebbero interagire. forse c'è un conflitto nei conteggi per tenere insieme le terre con lo stesso state?
+- in Skyship Weatherlight le due parti di oracle text sono scambiate nella card-preview rispetto a quello che è stampato sulla carta originale. verifica la causa root e sistema globalmente.
+- chromatic armor non mostra il colore di cui sta prevenendo il danno, in card-preview
 
 # Bug gameplay
 

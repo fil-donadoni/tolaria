@@ -272,6 +272,14 @@
         "firstPrintSet": "arn"
     },
     {
+        "name": "Allied Strategies",
+        "scryfallId": "51d4f211-10e8-486d-b982-287ab0c060c9",
+        "oracleId": "a5ce2ccd-8c78-4749-8854-cb5fa5f4738e",
+        "firstSet": "pls",
+        "firstPrintId": "51d4f211-10e8-486d-b982-287ab0c060c9",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Alloy Golem",
         "scryfallId": "1fb6d6a1-9d71-405b-9c93-1a7f06c67abd",
         "oracleId": "410b7faf-365c-4b73-a64d-bddbe49cfded",
@@ -526,6 +534,14 @@
         "firstSet": "ice",
         "firstPrintId": "98f99c3e-dddc-492f-aab6-1d899346a385",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "Arctic Merfolk",
+        "scryfallId": "86369fe5-d86d-4f4c-8f3d-dedc174f2032",
+        "oracleId": "c56671e1-28a6-40c3-bad5-b5e617ddb7da",
+        "firstSet": "pls",
+        "firstPrintId": "86369fe5-d86d-4f4c-8f3d-dedc174f2032",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Arcum's Sleigh",
@@ -3848,6 +3864,14 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Escape Routes",
+        "scryfallId": "dbc9062e-ddd9-41ac-a88a-33f5a7b22103",
+        "oracleId": "65260087-48b5-4968-8584-7cc561bb312c",
+        "firstSet": "pls",
+        "firstPrintId": "dbc9062e-ddd9-41ac-a88a-33f5a7b22103",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Essence Filter",
         "scryfallId": "9b610103-dafd-4248-9d79-ce57f84b9e03",
         "oracleId": "b9f63388-d1ac-4895-84c5-e5b1db187463",
@@ -4798,6 +4822,14 @@
         "firstSet": "drk",
         "firstPrintId": "0e1ae3d6-6d96-4db6-bbc4-cee91bae6cf7",
         "firstPrintSet": "drk"
+    },
+    {
+        "name": "Gainsay",
+        "scryfallId": "a70a2092-5048-49c0-9351-a3f882c2f56e",
+        "oracleId": "5115eb6b-efae-4561-912a-f7909cc75775",
+        "firstSet": "pls",
+        "firstPrintId": "a70a2092-5048-49c0-9351-a3f882c2f56e",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Galina's Knight",
@@ -5958,6 +5990,14 @@
         "firstSet": "leg",
         "firstPrintId": "07d8e501-6857-4a52-a3b9-2bf0bee5b08c",
         "firstPrintSet": "leg"
+    },
+    {
+        "name": "Hunting Drake",
+        "scryfallId": "5b0293a9-48fe-4018-bd25-3e02c227a3dd",
+        "oracleId": "d5978943-52fc-4b57-9c1c-d802ade1b014",
+        "firstSet": "pls",
+        "firstPrintId": "5b0293a9-48fe-4018-bd25-3e02c227a3dd",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Hunting Kavu",
@@ -9544,6 +9584,14 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Planeswalker's Mischief",
+        "scryfallId": "79aa232c-3f16-4c68-99dc-09a7aeef477b",
+        "oracleId": "78e87805-19e3-415b-ad0b-3275183d7297",
+        "firstSet": "pls",
+        "firstPrintId": "79aa232c-3f16-4c68-99dc-09a7aeef477b",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Plateau",
         "scryfallId": "6eafa00b-c628-40f6-86eb-88e1361fc7a0",
         "oracleId": "c7a15ca4-085f-4d92-8387-c3711c04c8fa",
@@ -10624,6 +10672,14 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Rushing River",
+        "scryfallId": "52ddf7bf-de9c-4657-8d5b-79869d36fa63",
+        "oracleId": "6e2a695d-305a-4bbe-b302-11fdc5c2a451",
+        "firstSet": "pls",
+        "firstPrintId": "52ddf7bf-de9c-4657-8d5b-79869d36fa63",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Sabertooth Nishoba",
         "scryfallId": "8338c296-cf3f-41d7-b380-3fb4237cb41c",
         "oracleId": "ce82aa79-bb50-47bc-84f5-eae30249c7a5",
@@ -10934,6 +10990,14 @@
         "firstSet": "lea",
         "firstPrintId": "d0b333b7-db4d-4439-b0de-60414cbf8d7b",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Sea Snidd",
+        "scryfallId": "ca11015e-200b-488c-8bf5-662dcc03cd2d",
+        "oracleId": "c5fdcbc9-e7da-4a88-95cf-c526f10ad96e",
+        "firstSet": "pls",
+        "firstPrintId": "ca11015e-200b-488c-8bf5-662dcc03cd2d",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Sea Spirit",
@@ -11368,6 +11432,14 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Sisay's Ingenuity",
+        "scryfallId": "bbe20cc1-621a-4813-9bbb-ace006e173ff",
+        "oracleId": "3a487f20-6b1d-4be3-b51f-0c8f0a611601",
+        "firstSet": "pls",
+        "firstPrintId": "bbe20cc1-621a-4813-9bbb-ace006e173ff",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Sisters of the Flame",
         "scryfallId": "564e0ccd-decb-48d2-981f-cefa8045340f",
         "oracleId": "389a9d46-d3fb-47f0-91cd-f6d487636916",
@@ -11462,6 +11534,14 @@
         "firstSet": "inv",
         "firstPrintId": "3411f0fd-8b85-4d0d-a202-701a24ffac9f",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Sleeping Potion",
+        "scryfallId": "6f79f4b2-71cd-4f78-a161-d75b162c745e",
+        "oracleId": "c8fbcef0-2cbf-4a59-8322-374dd9153ebf",
+        "firstSet": "pls",
+        "firstPrintId": "6f79f4b2-71cd-4f78-a161-d75b162c745e",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Sleight of Mind",
@@ -12176,6 +12256,22 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Stormscape Battlemage",
+        "scryfallId": "7d46a39d-c6f4-4281-b31f-f0a0c9fba887",
+        "oracleId": "38ee748d-adcd-41df-9b23-d2a34829784c",
+        "firstSet": "pls",
+        "firstPrintId": "7d46a39d-c6f4-4281-b31f-f0a0c9fba887",
+        "firstPrintSet": "pls"
+    },
+    {
+        "name": "Stormscape Familiar",
+        "scryfallId": "4c831c42-77a0-4f4f-9628-ad630541cf66",
+        "oracleId": "a8f5a11f-3291-4ee9-a96d-4fa38af14932",
+        "firstSet": "pls",
+        "firstPrintId": "4c831c42-77a0-4f4f-9628-ad630541cf66",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Stormscape Master",
         "scryfallId": "9b704165-4587-48f1-8830-c5a07ec666cc",
         "oracleId": "bfcd6c5d-7189-4d84-b0df-0a5ce5f43528",
@@ -12325,6 +12421,14 @@
         "oracleId": "615603bb-3899-4419-9444-e4b64c94a438",
         "firstSet": "pls",
         "firstPrintId": "9621f341-bf85-4b77-bf19-2fb013b4c955",
+        "firstPrintSet": "pls"
+    },
+    {
+        "name": "Sunken Hope",
+        "scryfallId": "5f12ac0c-cfe6-4f08-b6df-20be4ce83e8c",
+        "oracleId": "1820b6e9-83fd-40b9-953e-ba1a8ae69614",
+        "firstSet": "pls",
+        "firstPrintId": "5f12ac0c-cfe6-4f08-b6df-20be4ce83e8c",
         "firstPrintSet": "pls"
     },
     {
