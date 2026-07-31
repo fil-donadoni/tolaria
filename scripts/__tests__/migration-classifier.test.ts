@@ -1541,11 +1541,22 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // 471->477, FREE 306->310, AFK-ready 297->301 (need-test-first
         // unchanged at 9), X-only unchanged at 14, Op-blocked 151->153.
         // Partition: 310+14+153=477.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(477);
+        //
+        // Issue #1953 (PLS free tranche — multicolour 2c) adds exactly ONE
+        // closure: Meddling Mage's `resolveSteps` CR 614.12 as-enters name
+        // choice (`requestNameCard` + the new `setSelfChosenName`). The
+        // clause-mapper scores it Op-blocked — `setSelfChosenName` is a
+        // `resolveSteps`-only primitive with no Effect Script Op wrapper, the
+        // same shape `setSelfBody` (Primal Clay / Shapeshifter) already
+        // occupies. Every OTHER card in that 24-card slice is a pure Effect
+        // Script and contributes no closure at all. Net: total 477->478,
+        // Op-blocked 153->154; FREE / AFK-ready / X-only all unchanged.
+        // Partition: 310+14+154=478.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(478);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(310);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(301);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(153);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(154);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

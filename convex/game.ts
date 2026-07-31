@@ -6648,8 +6648,16 @@ export const announceCast = mutation({
             // each additional requirement up front so a half-chosen cast can't
             // strand on an unfillable second group. The groups are chosen in
             // order after the primary one; `remainingRequirements` queues them.
+            // For a MODAL spell the groups come from the chosen mode (Hull
+            // Breach's "Destroy target artifact and target enchantment",
+            // issue #1953), mirroring how `activeTargetRequirement` above
+            // prefers `chosenMode.targetRequirement` — a modal card keeps its
+            // card-level requirements undefined by convention, so the `??`
+            // chain reduces to the card-level list for every non-modal spell.
             const additionalRequirements =
-                cardDef.additionalTargetRequirements ?? [];
+                chosenMode?.additionalTargetRequirements ??
+                cardDef.additionalTargetRequirements ??
+                [];
             for (const extra of additionalRequirements) {
                 const extraLegal = getLegalTargets(
                     state,

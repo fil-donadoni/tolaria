@@ -284,6 +284,13 @@ export type CardInstanceState = {
      *  from the stack to the battlefield so the layer system can read
      *  mode-specific static effects (e.g. Phantasmal Terrain). */
     chosenModeId?: string;
+    /** CR 614.12 as-enters NAME choice (issue #1953 — Meddling Mage). Written
+     *  by `SpellContext.setSelfChosenName` onto the permanent spell still on
+     *  the stack, so it is already present the moment the permanent enters and
+     *  its continuous effects start applying. Persisted (a `cast-restriction`
+     *  static reads it on every later cast attempt, so it must survive the DB
+     *  write); the open-ended twin of `chosenModeId`. */
+    chosenName?: string;
     /** Set when this land's mana has been consumed by a spell. Cannot be manually untapped. Resets at untap step. */
     manaCommitted?: boolean;
     /** Set when this source's most-recent tap-for-mana caused one or more
@@ -9826,6 +9833,20 @@ export function buildSpellContext(
                 }
                 recipient.staticAbilities = next;
             }
+        },
+
+        setSelfChosenName(name: string): void {
+            // CR 614.12 — an as-enters NAME choice, stamped on the object that
+            // is entering. Recipient resolution is deliberately identical to
+            // `setSelfBody` above: during a permanent spell's `resolveSteps`
+            // the recipient is the spell still on the stack (`item`, about to
+            // enter the battlefield), so the name is already in place when the
+            // permanent's continuous effects begin applying (CR 614.12's whole
+            // point — the choice is made as part of the entry, never after).
+            const recipient =
+                findOnBattlefield(state, item.triggerSourceId ?? item.id)
+                    ?.card ?? item;
+            recipient.chosenName = name;
         },
 
         forEachPlayer(fn: (playerId: string) => void) {

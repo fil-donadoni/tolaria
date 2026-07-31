@@ -248,6 +248,12 @@ export interface CardInstance {
      *  so the live oracle text names the colour actually chosen. Mirrors
      *  `CardInstanceState.chosenModeId` in `convex/gre/state.ts`. */
     chosenModeId?: string;
+    /** CR 614.12 as-enters NAME choice (Meddling Mage: "As this creature
+     *  enters, choose a nonland card name"). Forwarded by `slimCard` like
+     *  `chosenModeId`; read by the card preview so the permanent's oracle text
+     *  can name the card actually chosen. Mirrors `CardInstanceState.chosenName`
+     *  in `convex/gre/state.ts`. */
+    chosenName?: string;
     /** Layer 5 color override (CR 305.7, 613.1d). Set by lace instants. */
     colorOverride?: string[];
     /** Copy effect anchor (CR 707.2). When set, this permanent is a copy and

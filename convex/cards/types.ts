@@ -703,6 +703,21 @@ export interface SpellMode {
      *  targets need legal candidates per CR 700.2d). Undefined for modes
      *  with no targets. */
     targetRequirement?: TargetRequirement;
+    /** CR 601.2c — additional INDEPENDENT target groups for this mode, the
+     *  per-mode twin of `CardDefinition.additionalTargetRequirements`
+     *  (Hull Breach's third mode: "Destroy target artifact AND target
+     *  enchantment", issue #1953). Each entry is a separate group chosen
+     *  after `targetRequirement`, in array order; the picks concatenate onto
+     *  the stack item's flat `targets` list, so an Effect Script reads them
+     *  positionally (`{ target: 0 }` = `targetRequirement`'s pick,
+     *  `{ target: 1 }` = the first entry here).
+     *
+     *  Distinct from a single requirement with an array `type` and
+     *  `count: 2`: that would let the player pick two artifacts, whereas two
+     *  groups force exactly one of each. `announceCast` validates EVERY group
+     *  has enough legal candidates before the cast is announced, so a mode
+     *  whose second group is unfillable simply cannot be chosen (CR 700.2d). */
+    additionalTargetRequirements?: TargetRequirement[];
     /** Resolution body. Receives the full SpellContext; targets come from
      *  the announcement-time selection driven by `targetRequirement`. Omit
      *  for modes whose only effect is continuous (via `staticEffects`).
@@ -3947,6 +3962,22 @@ export interface SpellContext {
         addKeywords?: string[];
     }) => void;
 
+    /** CR 614.12 — persists an as-enters NAME choice onto the permanent that
+     *  is entering (issue #1953, Meddling Mage: "As this creature enters,
+     *  choose a nonland card name"). Sibling of `setSelfBody`, sharing its
+     *  recipient resolution: during a permanent spell's `resolveSteps` the
+     *  recipient is the spell still on the stack (about to enter), during a
+     *  later re-choice it is the source permanent on the battlefield.
+     *
+     *  Deliberately NOT folded into `setSelfBody`: a name is not part of a
+     *  creature's BODY (P/T, subtypes, keywords) and nothing about it feeds
+     *  the layer pipeline — it is a stored choice, the open-ended twin of the
+     *  `chosenModeId` a modal permanent carries. Any "name a card as this
+     *  enters" permanent (Nevermore, Runed Halo, Pithing Needle) reads it back
+     *  the same way: a `cast-restriction` / guard predicate comparing
+     *  `source.chosenName` against a candidate's name. */
+    setSelfChosenName: (name: string) => void;
+
     /** Active-player-then-non-active-player order (CR 101.4). In 2-player
      *  games, returns [activePlayerId, opponentId]. Used by spells like
      *  Balance where each player makes a choice in APNAP order. */
@@ -4809,6 +4840,14 @@ export interface PermanentView {
      *  static-effect and trigger predicates can read the chosen mode (Jihad's
      *  chosen colour). Mirrors the `CardInstanceState` field. */
     chosenModeId?: string;
+    /** CR 614.12 as-enters NAME choice (issue #1953 — Meddling Mage: "As this
+     *  creature enters, choose a nonland card name"). The open-ended twin of
+     *  `chosenModeId`'s fixed-set pick: stamped onto the entering permanent by
+     *  `SpellContext.setSelfChosenName` and read back by whatever continuous
+     *  effect the name feeds — for Meddling Mage a `cast-restriction` static
+     *  comparing it against the name of the spell about to be cast. Mirrors the
+     *  `CardInstanceState` field. */
+    chosenName?: string;
     /** Supertypes added to this permanent by a continuous `supertype-set`
      *  static effect or an indefinite `setSupertype` mutation (CR 205.4a).
      *  Each entry is source-keyed (`"indefinite"` for non-source-bound

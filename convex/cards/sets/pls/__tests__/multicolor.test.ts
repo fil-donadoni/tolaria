@@ -13,21 +13,37 @@
 // leave the card correct on the server and dead on the board.
 
 import { describe, it, expect } from "vitest";
-import { keldonTwilight, phyrexianTyranny } from "../multicolor";
+import {
+    cloudCover,
+    dralnusCrusade,
+    hullBreach,
+    keldonTwilight,
+    meddlingMage,
+    naturalEmergence,
+    phyrexianTyranny,
+    sawtoothLoon,
+} from "../multicolor";
 import {
     grizzlyBears,
     savannahLions,
     controlMagic,
     ancestralRecall,
+    blackLotus,
+    forest,
+    lightningBolt,
+    monssGoblinRaiders,
+    mountain,
 } from "../../lea";
 import {
     makeInstance,
     makePlayer,
     makeState,
     pushSpell,
+    resolveTriggerOrder,
 } from "../../../__tests__/setup";
 import {
     applyControlChange,
+    applySourceStaticEffects,
     emitCardDrawn,
     processPendingActionTriggers,
     resolveTopOfStack,
@@ -35,13 +51,28 @@ import {
     type GameState,
     type StackItem,
 } from "../../../../gre/state";
+import {
+    getEffectivePower,
+    getEffectiveToughness,
+} from "../../../../gre/layers";
+import { getLegalTargets } from "../../../../gre/rules";
+import { castProhibitionReason } from "../../../castRestrictions";
+import { announceCast } from "../../../../game";
+import {
+    gameStateSeed,
+    makeMutationCtx,
+    runMutation,
+    type Handler,
+} from "../../../../__tests__/gameMutationHarness";
+import type { Id } from "../../../../_generated/dataModel";
 import { collectTriggers } from "../../../../gre/triggers";
 import {
     applyMayPaySubmit,
+    applyNameCardSubmit,
     applyPendingChoiceSubmit,
 } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
-import type { PhaseBeginEvent } from "../../../types";
+import type { BecameTargetEvent, PhaseBeginEvent } from "../../../types";
 
 const ABILITY = keldonTwilight.triggeredAbilities!.find(
     (a) => a.id === "keldon-twilight-end-step-sac"
@@ -669,5 +700,642 @@ describe("Phyrexian Tyranny — wire format (the pending decision reaches the co
 
         const projectedForP1 = projectPublicState(state, 1, "p1");
         expect(projectedForP1.pendingChoices![0].playerId).toBe("p2");
+    });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// PLS free tranche — two-colour gold cards (issue #1953).
+//
+// Most of the slice is DSL cards reusing already-exercised Ops (`choice`,
+// `forEach`, `moveZone`, `destroy`, `pump`, `tapUntap`, `discard`,
+// `dealDamage`, `libraryLook`, `reveal`), so per the per-Op regime
+// (`.claude/rules/gre-development.md`) they are covered catalogue-wide by
+// `effectScripts.test.ts` + `effectScriptSmoke.test.ts` and need no
+// hand-written test here.
+//
+// What DOES earn coverage below, and why:
+//   * Natural Emergence / Dralnu's Crusade — `staticEffects[]`, the FULL
+//     regime including the mandatory wire-format re-assertion.
+//   * Sawtooth Loon — the `from: "hand"` → `to: "library"` `moveZone`
+//     combination no shipped card exercised before (bottom of library).
+//   * Cloud Cover — the new `EVENT_FIELD_REGISTRY.BECAME_TARGET` census row.
+//   * Meddling Mage — a `resolveSteps` as-enters name choice feeding a
+//     `cast-restriction` static, across the GRE → shared-cast-gate boundary.
+//   * Hull Breach — the new `SpellMode.additionalTargetRequirements`, driven
+//     through the REAL `announceCast` mutation, not a hand-built state.
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Answers the head choice through the REAL server submit path. */
+function submitChoice(state: GameState, cardInstanceIds: string[]): void {
+    const head = state.pendingChoices![0];
+    applyPendingChoiceSubmit(state, {
+        playerId: head.playerId,
+        stackItemId: head.stackItemId,
+        step: head.step,
+        choiceId: head.choiceId,
+        cardInstanceIds,
+    });
+}
+
+describe("Natural Emergence ({2}{R}{G} — lands you control are 2/2 first strikers and are still lands; CR 613/205, issue #1953)", () => {
+    /** Board with one Mountain under `landController` plus Natural Emergence
+     *  under p1, statics applied. */
+    function animatedBoard(landController: "p1" | "p2") {
+        const land = makeInstance(mountain.id, {
+            id: "land-1",
+            controllerId: landController,
+            ownerId: landController,
+            zone: "battlefield",
+        });
+        const ne = makeInstance(naturalEmergence.id, {
+            id: "ne-1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: landController === "p1" ? [land, ne] : [ne],
+                }),
+                makePlayer("p2", {
+                    battlefield: landController === "p2" ? [land] : [],
+                }),
+            ],
+        });
+        applySourceStaticEffects(state, ne);
+        return { state, land };
+    }
+
+    // CR 205 / 613 layer 4 — the Creature type is ADDED, never substituted.
+    // "They're still lands" is exactly the clause a naive type-SET would break,
+    // and it is what keeps the animated permanent tapping for mana.
+    it("adds Creature to your lands WITHOUT removing Land, and makes them 2/2 first strikers", () => {
+        const { state, land } = animatedBoard("p1");
+        expect(land.types).toContain("Creature");
+        expect(land.types).toContain("Land");
+        expect(getEffectivePower(state, land)).toBe(2);
+        expect(getEffectiveToughness(state, land)).toBe(2);
+        expect(land.staticAbilities).toContain("first strike");
+    });
+
+    // "Lands YOU control" — unlike Living Lands' global "All Forests".
+    it("leaves an opponent's lands alone", () => {
+        const { land } = animatedBoard("p2");
+        expect(land.types).not.toContain("Creature");
+        expect(land.types).toContain("Land");
+        expect(land.staticAbilities).not.toContain("first strike");
+    });
+
+    // MANDATORY wire-format leg: the client renders the animated land off the
+    // PROJECTED state, so the same assertions must survive `projectPublicState`.
+    it("survives the wire projection (P/T, keyword and both types)", () => {
+        const { state, land } = animatedBoard("p1");
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === land.id
+        )!;
+        expect(slim.types).toContain("Creature");
+        expect(slim.types).toContain("Land");
+        expect(slim.staticAbilities).toContain("first strike");
+        expect(getEffectivePower(projected as never, slim as never)).toBe(2);
+        expect(getEffectiveToughness(projected as never, slim as never)).toBe(
+            2
+        );
+    });
+
+    it("declares the mandatory red-or-green ENCHANTMENT bounce on entry", () => {
+        const etb = naturalEmergence.triggeredAbilities!.find(
+            (a) => a.id === "natural-emergence-etb-bounce"
+        )!;
+        expect(etb.event).toBe("PERMANENT_ENTERED");
+        const choice = etb.effects![0] as unknown as {
+            op: string;
+            filter: { type: string; color: string[] };
+        };
+        expect(choice.op).toBe("choice");
+        expect(choice.filter).toEqual({
+            type: "Enchantment",
+            color: ["R", "G"],
+        });
+    });
+});
+
+describe("Dralnu's Crusade ({1}{B}{R} — all Goblins get +1/+1, are black and are Zombies; CR 613, issue #1953)", () => {
+    function goblinBoard(goblinController: "p1" | "p2") {
+        const goblin = makeInstance(monssGoblinRaiders.id, {
+            id: "goblin-1",
+            controllerId: goblinController,
+            ownerId: goblinController,
+            zone: "battlefield",
+        });
+        const crusade = makeInstance(dralnusCrusade.id, {
+            id: "crusade-1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield:
+                        goblinController === "p1"
+                            ? [goblin, crusade]
+                            : [crusade],
+                }),
+                makePlayer("p2", {
+                    battlefield: goblinController === "p2" ? [goblin] : [],
+                }),
+            ],
+        });
+        applySourceStaticEffects(state, crusade);
+        return { state, goblin };
+    }
+
+    it("pumps a Goblin +1/+1 and adds Zombie in addition to its other types", () => {
+        const { state, goblin } = goblinBoard("p1");
+        // Mons's Goblin Raiders is a printed 1/1 Goblin.
+        expect(getEffectivePower(state, goblin)).toBe(2);
+        expect(getEffectiveToughness(state, goblin)).toBe(2);
+        expect(goblin.subtypes).toContain("Zombie");
+        // "In addition to their other creature types" — Goblin is retained,
+        // which is also what keeps the Crusade's own predicate matching.
+        expect(goblin.subtypes).toContain("Goblin");
+    });
+
+    // "ALL Goblins", not "Goblins you control" (CR 109.4).
+    it("applies to an OPPONENT's Goblins too", () => {
+        const { state, goblin } = goblinBoard("p2");
+        expect(getEffectivePower(state, goblin)).toBe(2);
+        expect(goblin.subtypes).toContain("Zombie");
+    });
+
+    it("does not touch non-Goblin creatures", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear-1",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        const crusade = makeInstance(dralnusCrusade.id, {
+            id: "crusade-1",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear, crusade] }),
+                makePlayer("p2"),
+            ],
+        });
+        applySourceStaticEffects(state, crusade);
+        expect(getEffectivePower(state, bear)).toBe(2); // printed 2/2, unbuffed
+        expect(bear.subtypes).not.toContain("Zombie");
+    });
+
+    // MANDATORY wire-format leg — the anthem and the tribal retype are both
+    // rendered client-side off the projected state.
+    it("survives the wire projection (P/T buff and added subtype)", () => {
+        const { state, goblin } = goblinBoard("p1");
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === goblin.id
+        )!;
+        expect(getEffectivePower(projected as never, slim as never)).toBe(2);
+        expect(getEffectiveToughness(projected as never, slim as never)).toBe(
+            2
+        );
+        expect(slim.subtypes).toContain("Zombie");
+        expect(slim.subtypes).toContain("Goblin");
+    });
+
+    // DIVERGENCE tripwire (tracked-by #2009): the engine's only layer-5 static
+    // is the ADDITIVE `color-grant`, so this pins the shape actually shipped
+    // rather than the CR 613.1e colour-SET the card wants. When #2009 lands and
+    // this flips to a set, the failure is the reminder to revisit the card.
+    it("declares the colour clause as the additive color-grant the engine ships (tracked-by #2009)", () => {
+        const colorEffect = dralnusCrusade.staticEffects!.find(
+            (e) => e.kind === "color-grant"
+        )!;
+        expect(colorEffect).toMatchObject({
+            kind: "color-grant",
+            colors: ["B"],
+        });
+    });
+});
+
+describe("Sawtooth Loon ({2}{W}{U} — draw two, put two from hand on the BOTTOM of your library; CR 401.4, issue #1953)", () => {
+    /** Casts Sawtooth Loon for real and drives BOTH of its ETB triggers to
+     *  completion (CR 603.3b puts them on the stack in the controller's chosen
+     *  order). Going through the real entry path — rather than hand-pushing one
+     *  trigger — is what proves the two ETBs coexist, and it is the only way
+     *  the drawn cards are genuinely in hand when the put-back choice opens.
+     *
+     *  Fixture: a Savannah Lions already on the battlefield gives the mandatory
+     *  white-or-blue bounce a victim other than the Loon itself, so the Loon
+     *  stays put and the filtering half is observed on a stable board. */
+    function castLoon(): GameState {
+        const lion = makeInstance(savannahLions.id, {
+            id: "lion-1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const library = ["lib-a", "lib-b", "lib-c"].map((id) =>
+            makeInstance(grizzlyBears.id, {
+                id,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            })
+        );
+        const hand = ["hand-a", "hand-b"].map((id) =>
+            makeInstance(savannahLions.id, {
+                id,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [lion], hand, library }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, sawtoothLoon.id, "p1");
+
+        let guard = 0;
+        while (guard++ < 30) {
+            const head = state.pendingChoices?.[0];
+            if (head) {
+                if (head.kind === "trigger-order") {
+                    resolveTriggerOrder(state);
+                } else if (head.choiceId === "$bounce") {
+                    submitChoice(state, ["lion-1"]);
+                } else if (head.kind === "choose-hand-card") {
+                    submitChoice(state, ["hand-a", "hand-b"]);
+                } else {
+                    throw new Error(`unexpected pending choice: ${head.kind}`);
+                }
+                continue;
+            }
+            if (state.stack.length === 0) break;
+            resolveTopOfStack(state);
+        }
+        return state;
+    }
+
+    it("puts the two chosen cards on the BOTTOM of the library, not the top", () => {
+        const state = castLoon();
+        const p1 = state.players[0];
+        // Drew two (lib-a, lib-b) and put back the two originals; the bounced
+        // Savannah Lions is in hand too (the sibling ETB).
+        const handIds = p1.hand.map((c) => c.id).sort();
+        expect(handIds).toEqual(["lib-a", "lib-b", "lion-1"]);
+
+        // `library[0]` is the TOP by convention, so the put-back cards must be
+        // the LAST two entries. A `putBack`-style top placement would land them
+        // at index 0/1 — the exact confusion this test exists to catch.
+        const libIds = p1.library.map((c) => c.id);
+        expect(libIds).toHaveLength(3);
+        expect([...libIds].slice(-2).sort()).toEqual(["hand-a", "hand-b"]);
+        expect(libIds[0]).toBe("lib-c");
+    });
+
+    it("also resolves the mandatory white-or-blue bounce (both ETBs coexist)", () => {
+        const state = castLoon();
+        const p1 = state.players[0];
+        expect(p1.battlefield.map((c) => c.id)).not.toContain("lion-1");
+        expect(p1.battlefield.some((c) => c.card.id === sawtoothLoon.id)).toBe(
+            true
+        );
+    });
+
+    // Wire leg — the owner's library crosses the projection as a COUNT, which
+    // must include the returned cards or the client renders a stale deck size.
+    it("survives the wire projection (library count includes the returned cards)", () => {
+        const state = castLoon();
+        const expectedLibrary = state.players[0].library.length;
+        const expectedHand = state.players[0].hand.length;
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].library.count).toBe(expectedLibrary);
+        expect(projected.players[0].hand).toHaveLength(expectedHand);
+    });
+});
+
+describe("Cloud Cover ({2}{W}{U} — bounce a targeted permanent you control; CR 603.2b, issue #1953)", () => {
+    const ABILITY = cloudCover.triggeredAbilities![0];
+
+    const becameTarget = (
+        targetId: string,
+        targetControllerId: string,
+        sourceControllerId: string
+    ): BecameTargetEvent => ({
+        type: "BECAME_TARGET",
+        target: { type: "permanent", id: targetId },
+        targetControllerId,
+        sourceControllerId,
+        sourceInstanceId: "opposing-spell",
+    });
+
+    function board() {
+        const cover = makeInstance(cloudCover.id, {
+            id: "cover-1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear-1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [cover, bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, cover, bear };
+    }
+
+    function fire(
+        state: GameState,
+        cover: CardInstanceState,
+        event: BecameTargetEvent
+    ) {
+        state.stack.push({
+            ...cover,
+            zone: "stack",
+            castById: "p1",
+            triggeredAbilityId: ABILITY.id,
+            triggerSourceId: cover.id,
+            triggerEvent: event,
+            targets: [],
+        } as StackItem);
+        resolveTopOfStack(state);
+    }
+
+    it("triggers only on an OPPONENT's spell/ability targeting ANOTHER permanent you control", () => {
+        const { cover, bear } = board();
+        const view = cover as never;
+        expect(ABILITY.matches(becameTarget(bear.id, "p1", "p2"), view)).toBe(
+            true
+        );
+        // Your own spell targeting your own permanent — no trigger.
+        expect(ABILITY.matches(becameTarget(bear.id, "p1", "p1"), view)).toBe(
+            false
+        );
+        // An opponent's permanent targeted — not "you control".
+        expect(ABILITY.matches(becameTarget(bear.id, "p2", "p2"), view)).toBe(
+            false
+        );
+        // "ANOTHER permanent" — Cloud Cover never returns itself.
+        expect(ABILITY.matches(becameTarget(cover.id, "p1", "p2"), view)).toBe(
+            false
+        );
+    });
+
+    // The census row under test: `$event.targetPermanent` must resolve to the
+    // permanent that became a target — not to `$source`, not to a target slot.
+    it("returns THAT permanent when the controller accepts the optional bounce", () => {
+        const { state, cover, bear } = board();
+        fire(state, cover, becameTarget(bear.id, "p1", "p2"));
+
+        const may = state.pendingChoices![0];
+        expect(may.kind).toBe("may-pay");
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+
+        expect(state.players[0].battlefield.map((c) => c.id)).not.toContain(
+            "bear-1"
+        );
+        expect(state.players[0].hand.map((c) => c.id)).toContain("bear-1");
+        // Cloud Cover itself stays put.
+        expect(state.players[0].battlefield.map((c) => c.id)).toContain(
+            "cover-1"
+        );
+    });
+
+    it("declines cleanly — the permanent stays on the battlefield", () => {
+        const { state, cover, bear } = board();
+        fire(state, cover, becameTarget(bear.id, "p1", "p2"));
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+        expect(state.players[0].battlefield.map((c) => c.id)).toContain(
+            "bear-1"
+        );
+        expect(state.players[0].hand.map((c) => c.id)).not.toContain("bear-1");
+    });
+});
+
+describe("Meddling Mage ({W}{U} — name a nonland card as it enters; that spell can't be cast; CR 614.12/601.3a, issue #1953)", () => {
+    /** Resolves Meddling Mage as a creature spell, answering the CR 614.12
+     *  name choice with `name`. */
+    function resolveMage(name: string) {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        pushSpell(state, meddlingMage.id, "p1");
+        resolveTopOfStack(state);
+
+        // Suspended on the CR 614.12 name choice BEFORE entering.
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("name-card");
+        applyNameCardSubmit(state, { playerId: "p1", cardName: name });
+
+        const mage = state.players[0].battlefield.find(
+            (c) => c.card.id === meddlingMage.id
+        )!;
+        return { state, mage };
+    }
+
+    const boltInHand = () =>
+        makeInstance(lightningBolt.id, {
+            id: "bolt-1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+
+    it("stamps the chosen name onto the permanent as it enters (CR 614.12)", () => {
+        const { mage } = resolveMage(lightningBolt.name);
+        expect(mage.chosenName).toBe(lightningBolt.name);
+    });
+
+    it("forbids casting a spell with the chosen name — for EITHER player (CR 601.3a)", () => {
+        const { state } = resolveMage(lightningBolt.name);
+        expect(castProhibitionReason("p2", boltInHand() as never, state)).toBe(
+            "Spells with the chosen name can't be cast."
+        );
+        // Name-scoped, not a blanket lock.
+        const bears = makeInstance(grizzlyBears.id, {
+            id: "bears-1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        expect(
+            castProhibitionReason("p2", bears as never, state)
+        ).toBeUndefined();
+        // ...and it binds Meddling Mage's own controller too.
+        expect(castProhibitionReason("p1", boltInHand() as never, state)).toBe(
+            "Spells with the chosen name can't be cast."
+        );
+    });
+
+    // The restriction is a READ-TIME battlefield scan — it must evaporate the
+    // moment Meddling Mage leaves play, with no per-instance cleanup.
+    it("stops forbidding once Meddling Mage leaves the battlefield", () => {
+        const { state } = resolveMage(lightningBolt.name);
+        state.players[0].battlefield = [];
+        expect(
+            castProhibitionReason("p2", boltInHand() as never, state)
+        ).toBeUndefined();
+    });
+
+    // FRONTEND WIRING (mandatory): the client never re-derives cast legality —
+    // it reads the SERVER-computed `legalActions` off the wire, and the shared
+    // gate is the thing that computes it. Re-running the assertion against the
+    // PROJECTED state is what proves the chosen name survives the projection
+    // and that both sides agree.
+    it("survives the wire projection — the chosen name and the lock both cross", () => {
+        const { state } = resolveMage(lightningBolt.name);
+        const projected = projectPublicState(state, 1, "p2");
+        const slimMage = projected.players[0].battlefield.find(
+            (c) => c.card.id === meddlingMage.id
+        )!;
+        expect(slimMage.chosenName).toBe(lightningBolt.name);
+        expect(
+            castProhibitionReason(
+                "p2",
+                boltInHand() as never,
+                projected as never
+            )
+        ).toBe("Spells with the chosen name can't be cast.");
+    });
+
+    it("carries an AI valuation so the bot does not price it at the blind floor (issue #1431)", () => {
+        expect(meddlingMage.aiValue).toBeGreaterThan(0);
+    });
+});
+
+describe("Hull Breach ({R}{G} — modal, third mode takes TWO independent targets; CR 700.2/601.2c, issue #1953)", () => {
+    const bothMode = hullBreach.modes!.find((m) => m.id === "both")!;
+
+    it("declares two independent target groups on the third mode only", () => {
+        expect(hullBreach.targetRequirement).toBeUndefined();
+        expect(hullBreach.modes!.map((m) => m.id)).toEqual([
+            "artifact",
+            "enchantment",
+            "both",
+        ]);
+        expect(bothMode.targetRequirement).toEqual({
+            type: "Artifact",
+            count: 1,
+        });
+        expect(bothMode.additionalTargetRequirements).toEqual([
+            { type: "Enchantment", count: 1 },
+        ]);
+        // Positional reads: group 0 is the artifact, group 1 the enchantment.
+        expect(bothMode.effects).toEqual([
+            { op: "destroy", target: { target: 0 } },
+            { op: "destroy", target: { target: 1 } },
+        ]);
+        for (const m of hullBreach.modes!.filter((x) => x.id !== "both")) {
+            expect(m.additionalTargetRequirements).toBeUndefined();
+        }
+    });
+
+    it("keeps the groups independent — artifacts for group 0, enchantments for group 1", () => {
+        const art = makeInstance(blackLotus.id, {
+            id: "art-1",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const ench = makeInstance(dralnusCrusade.id, {
+            id: "ench-1",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [art, ench] }),
+            ],
+        });
+        const ids = (ts: ReturnType<typeof getLegalTargets>) =>
+            ts.filter((t) => "id" in t).map((t) => (t as { id: string }).id);
+        expect(
+            ids(getLegalTargets(state, bothMode.targetRequirement!, [], "p1"))
+        ).toEqual(["art-1"]);
+        expect(
+            ids(
+                getLegalTargets(
+                    state,
+                    bothMode.additionalTargetRequirements![0],
+                    [],
+                    "p1"
+                )
+            )
+        ).toEqual(["ench-1"]);
+    });
+
+    // INTEGRATION (mandatory — the feature crosses GRE → game.ts → UI): the
+    // per-mode group list is composed inside `announceCast`, so this drives the
+    // REAL registered mutation. Pre-#1953 the card-level-only read queued NO
+    // second group and the cast finalized after the artifact pick.
+    it("queues the enchantment group through the real announceCast mutation", async () => {
+        const art = makeInstance(blackLotus.id, {
+            id: "art-1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const ench = makeInstance(dralnusCrusade.id, {
+            id: "ench-1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const breach = makeInstance(hullBreach.id, {
+            id: "breach-1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const lands = [mountain.id, forest.id].map((cardId, i) =>
+            makeInstance(cardId, {
+                id: `land-${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "battlefield",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [breach],
+                    battlefield: lands,
+                    manaPool: { R: 1, G: 1 },
+                }),
+                makePlayer("p2", { battlefield: [art, ench] }),
+            ],
+        });
+        const harness = makeMutationCtx("p1", [gameStateSeed(state)]);
+        await runMutation(
+            announceCast as unknown as Handler<Record<string, unknown>, void>,
+            harness.ctx,
+            {
+                gameId: "game-1" as Id<"games">,
+                playerId: "p1",
+                cardInstanceId: "breach-1",
+                chosenModeId: "both",
+            }
+        );
+        const pt = harness.state().pendingTarget!;
+        expect(pt.targetType).toBe("Artifact");
+        expect(pt.remainingRequirements).toEqual([
+            { type: "Enchantment", count: 1 },
+        ]);
     });
 });

@@ -3556,6 +3556,30 @@ export const EVENT_FIELD_REGISTRY: Record<
             resolve: (e) => (e.type === "CARD_DRAWN" ? e.playerId : undefined),
         },
     },
+    // CR 603.2b / issue #1953 — "whenever another permanent you control becomes
+    // the target of a spell or ability an opponent controls, you may return
+    // THAT PERMANENT to its owner's hand" (Cloud Cover). Every card that read
+    // `BECAME_TARGET` before this row acted on `self` (Ward, Nadu) or on an
+    // announced target slot (Leovold draws, Sleeping Potion sacrifices
+    // `$source`) — none needed to name the object that just became a target,
+    // which is why the event had no censused field at all. `targetPermanent`
+    // is the OBJECT-family flattening of the nested `TargetSelection`, exactly
+    // mirroring `DAMAGE_DEALT.damagedPermanent`: undefined when a PLAYER became
+    // the target (Cloud Cover's `matches` already excludes that case, but the
+    // row must be total), so the reading Op skips per CR 608.2b. No interpreter
+    // change — `resolveObjectRef`'s generic `$event.<field>` branch (ADR 0049)
+    // already resolves any object-family row through the battlefield-presence
+    // recheck, which is also what makes a permanent killed in response a silent
+    // no-op rather than an error.
+    BECAME_TARGET: {
+        targetPermanent: {
+            family: "object",
+            resolve: (e) =>
+                e.type === "BECAME_TARGET" && e.target.type === "permanent"
+                    ? e.target.id
+                    : undefined,
+        },
+    },
 };
 
 /** The registry row for a `(GameEventType, field)` pair, or undefined when the
