@@ -9681,7 +9681,7 @@ export const toggleAttacker = mutation({
         }
         if (idx !== -1) {
             // CR 508.1d: can't deselect a creature required to attack
-            if (mustAttack(card, defenderBattlefield)) {
+            if (mustAttack(card, state, defenderBattlefield)) {
                 throw new Error(
                     `${getDefinition(card.card.id as string).name} must attack this combat if able`
                 );
@@ -10143,6 +10143,7 @@ export const confirmAttackers = mutation({
         ).battlefield;
         for (const requiredId of getRequiredAttackerIds(
             player.battlefield,
+            state,
             defenderBattlefield,
             state.allCreaturesMustAttack
         )) {

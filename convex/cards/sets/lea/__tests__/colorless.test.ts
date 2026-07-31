@@ -412,9 +412,12 @@ describe("Juggernaut (CR 508.1d + 509.1b)", () => {
 
     it("mustAttack is true when eligible, false when tapped or sick", () => {
         const jug = makeInstance(juggernaut.id, { id: "jug" });
-        expect(mustAttack(jug)).toBe(true);
-        expect(mustAttack({ ...jug, isTapped: true })).toBe(false);
-        expect(mustAttack({ ...jug, isSummoningSick: true })).toBe(false);
+        const state = makeState();
+        expect(mustAttack(jug, state)).toBe(true);
+        expect(mustAttack({ ...jug, isTapped: true }, state)).toBe(false);
+        expect(mustAttack({ ...jug, isSummoningSick: true }, state)).toBe(
+            false
+        );
     });
 
     it("getRequiredAttackerIds picks up eligible Juggernauts only", () => {
@@ -424,7 +427,8 @@ describe("Juggernaut (CR 508.1d + 509.1b)", () => {
             isSummoningSick: true,
         });
         const bears = makeInstance(savannahLions.id, { id: "bears" });
-        expect(getRequiredAttackerIds([eligible, sick, bears])).toEqual([
+        const state = makeState();
+        expect(getRequiredAttackerIds([eligible, sick, bears], state)).toEqual([
             "jug1",
         ]);
     });

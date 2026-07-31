@@ -6,6 +6,16 @@ import type { CardInstance, Player } from "~/types/game";
 // the test drives the pure eligibility logic, not the catalogue.
 const DEFS: Record<string, { staticEffects?: unknown[] }> = {
     plain: { staticEffects: [] },
+    "hobble-stub": {
+        staticEffects: [
+            {
+                kind: "attack-restriction",
+                id: "hobble-cant-attack",
+                predicate: () => false,
+                oracleText: "Enchanted creature can't attack.",
+            },
+        ],
+    },
 };
 vi.mock("@convex/cards", () => ({
     getDefinition: (id: string) => DEFS[id] ?? { staticEffects: [] },
@@ -110,6 +120,35 @@ describe("isEligibleAttacker (CR 508.1a)", () => {
         } finally {
             prohibition = undefined;
         }
+    });
+
+    it("rejects a creature enchanted by an Aura carrying an attack-restriction (Hobble, issue #1948 review BLOCKER 2)", () => {
+        // The client mirror previously scanned only the card's OWN
+        // staticEffects[], never an attached Aura's — Hobbled creatures were
+        // never grayed out in the UI even though the server correctly
+        // rejected the attack. Regression for that gap: an Aura permanent
+        // whose `attachedTo` names the target must contribute its own
+        // attack-restriction to the target's eligibility check.
+        const target = creature({ id: "target" });
+        const aura = creature({
+            id: "aura",
+            card: { id: "hobble-stub" },
+            types: ["Enchantment"],
+            subtypes: ["Aura"],
+            attachedTo: "target",
+        });
+        const me = player("me", [target, aura]);
+        expect(isEligibleAttacker(target, opp.battlefield, [me, opp])).toBe(
+            false
+        );
+    });
+
+    it("does NOT restrict a creature with no Aura attached (no false-positive from the aura scan)", () => {
+        const target = creature({ id: "target2" });
+        const me = player("me", [target]);
+        expect(isEligibleAttacker(target, opp.battlefield, [me, opp])).toBe(
+            true
+        );
     });
 });
 

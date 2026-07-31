@@ -726,9 +726,12 @@ describe("Urborg Drake (flying + attacks-each-combat-if-able, CR 702.9b / 508.1d
 
     it("mustAttack is true when eligible, false when tapped or summoning sick", () => {
         const drake = makeInstance(urborgDrake.id, { id: "drake" });
-        expect(mustAttack(drake)).toBe(true);
-        expect(mustAttack({ ...drake, isTapped: true })).toBe(false);
-        expect(mustAttack({ ...drake, isSummoningSick: true })).toBe(false);
+        const state = makeState();
+        expect(mustAttack(drake, state)).toBe(true);
+        expect(mustAttack({ ...drake, isTapped: true }, state)).toBe(false);
+        expect(mustAttack({ ...drake, isSummoningSick: true }, state)).toBe(
+            false
+        );
     });
 });
 
