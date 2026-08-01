@@ -56,6 +56,7 @@ import {
     type GameState,
     type StackItem,
 } from "../../../../gre/state";
+import { sourcePreventionShieldApplies } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
@@ -574,7 +575,7 @@ describe("Restrain (CR 510.1c assigns-no-combat-damage + draw)", () => {
         });
         pushSpell(state, restrain.id, "p1", [{ type: "permanent", id: "atk" }]);
         resolveTopOfStack(state);
-        expect(state.assignsNoCombatDamageThisTurn).toContain("atk");
+        expect(sourcePreventionShieldApplies(state, "atk", true)).toBe(true);
         expect(state.players[0].hand.map((c) => c.id)).toContain("lib-top");
     });
 });

@@ -29,6 +29,7 @@ import {
     type PermanentView,
     type SpellCastEvent,
     type BecameTargetEvent,
+    type SourceDamagePreventionShield,
     type SpellContext,
     type StaticEffect,
     type TargetRequirement,
@@ -3457,14 +3458,25 @@ export type GameState = {
     /** When true, all combat damage is prevented this turn (CR 615, Fog).
      *  Checked at the top of `applyAllCombatDamage`; cleared at CLEANUP. */
     preventAllCombatDamageThisTurn?: boolean;
-    /** Instance ids of permanents that "assign no combat damage this turn"
-     *  (CR 510.1c, 702.x — Farrel's Mantle, Farrel's Zealot). A source in this
-     *  set deals no combat damage in any damage step this turn; checked on the
-     *  source side at the top of `applyOneCombatDamage`. Distinct from a
-     *  prevention shield: the creature simply assigns 0 (its combat-damage
-     *  assignment is skipped, so it can't be lethal to a blocker either).
-     *  Cleared at CLEANUP. */
-    assignsNoCombatDamageThisTurn?: string[];
+    /** CR 615 / 510.1c — SOURCE-scoped damage-prevention shields: each entry
+     *  prevents damage a matched SOURCE would deal, to ANY recipient (a
+     *  player, a creature, a planeswalker — recipient-agnostic, which is what
+     *  distinguishes this list from every other shield on `GameState`).
+     *
+     *  This is the ONE seam for source-side prevention. It carries both
+     *  spellings the catalogue needs:
+     *   - CR 510.1c "assigns no combat damage this turn" (Farrel's Mantle /
+     *     Zealot, Warning / Restrain) — `{ sourceIds, combatOnly: true }`.
+     *   - CR 615 "prevent all combat damage <X> would deal this turn"
+     *     (Falling Timber, Guard Dogs, Radiant Kavu) and its non-combat
+     *     superset "prevent all damage a source of your choice would deal
+     *     this turn" (Rith's Charm) — the same entry shape with `match` for
+     *     the filter-scoped case and `combatOnly: false` for all damage.
+     *
+     *  Consumed at ONE place — `runDamageReplacement`, the universal CR 614
+     *  pre-application funnel every damage sink calls — so a new damage path
+     *  cannot silently miss it. Cleared at CLEANUP (CR 514.2). */
+    sourcePreventionShields?: SourceDamagePreventionShield[];
     /** CR 601.3a / 514.2 — players under a turn-scoped "can't cast spells this
      *  turn" restriction (Xantid Swarm's attack trigger locks the defending
      *  player; Abeyance narrows it to instant/sorcery only via `cardTypes`).
@@ -4015,6 +4027,99 @@ export function consumePreventionIfAny(
         state.preventionEffects = undefined;
     }
     return true;
+}
+
+/** The minimal state shape {@link sourcePreventionShieldApplies} reads: the
+ *  shield list plus every battlefield, as `PermanentView`s. Deliberately
+ *  structural rather than `GameState` so the SAME predicate runs against a
+ *  wire-projected `PublicGameState` — the client Brain's combat evaluation
+ *  (`gre/evaluate.ts`) only ever sees the projection, and a
+ *  `GameState`-only signature is exactly how a shield ends up honoured
+ *  server-side and invisible to the bot. */
+export interface SourcePreventionStateView {
+    sourcePreventionShields?: SourceDamagePreventionShield[];
+    players: ReadonlyArray<{ battlefield: ReadonlyArray<PermanentView> }>;
+}
+
+/** CR 615 / 510.1c — true when a SOURCE-scoped prevention shield on `state`
+ *  covers a damage event from `sourceInstanceId`. Recipient-agnostic by
+ *  construction: the recipient is deliberately not a parameter, because
+ *  "prevent all damage <source> would deal" prevents it to a player, a
+ *  creature, a planeswalker and anything else alike.
+ *
+ *  `isCombat` gates the `combatOnly` entries (CR 510) — a Fog-on-one-creature
+ *  shield (Falling Timber) must not stop that creature's activated-ability
+ *  ping, while a "prevent ALL damage" shield (Rith's Charm) stops both.
+ *
+ *  The `match` arm is re-read from the LIVE board on every call, so a source
+ *  that becomes blue after the shield resolved is covered (Radiant Kavu,
+ *  CR 615.6): colours come from `STATIC_EFFECT_CTX.getColors` — the layer-5
+ *  materialised read (CR 613, `colorOverride`), NOT the printed mana cost that
+ *  `describeDamageSource` derives — and card types from the instance's live
+ *  `types` (layer 4). A source that is no longer on the battlefield matches no
+ *  `match` arm (it has no live characteristics to read) but still matches an
+ *  explicit `sourceIds` arm, which is right: a creature that dies after being
+ *  shielded and somehow still deals damage is still the shielded source. */
+export function sourcePreventionShieldApplies(
+    state: SourcePreventionStateView,
+    sourceInstanceId: string,
+    isCombat: boolean
+): boolean {
+    const shields = state.sourcePreventionShields;
+    if (!shields || shields.length === 0) return false;
+    let live: PermanentView | undefined;
+    let liveLoaded = false;
+    const liveSource = (): PermanentView | undefined => {
+        if (!liveLoaded) {
+            for (const player of state.players) {
+                live = player.battlefield.find(
+                    (c) => c.id === sourceInstanceId
+                );
+                if (live) break;
+            }
+            liveLoaded = true;
+        }
+        return live;
+    };
+    for (const shield of shields) {
+        // CR 510 — a combat-only shield ignores non-combat damage entirely.
+        if (shield.combatOnly && !isCombat) continue;
+        if (shield.sourceIds?.includes(sourceInstanceId)) return true;
+        const match = shield.match;
+        if (!match) continue;
+        const card = liveSource();
+        if (!card) continue;
+        if (match.cardType && !card.types.includes(match.cardType)) continue;
+        if (match.colors && match.colors.length > 0) {
+            // CR 202.2 — an OR-set: "blue creatures and black creatures" is a
+            // source that is blue OR black, not one that is both.
+            const colors = STATIC_EFFECT_CTX.getColors(card);
+            if (!match.colors.some((c) => colors.includes(c))) continue;
+        }
+        return true;
+    }
+    return false;
+}
+
+/** Registers a SOURCE-scoped prevention shield (CR 615), de-duplicating the
+ *  common "same creature shielded twice this turn" case so the list does not
+ *  grow without bound. */
+export function addSourcePreventionShield(
+    state: GameState,
+    shield: SourceDamagePreventionShield
+): void {
+    const list = state.sourcePreventionShields ?? [];
+    const duplicate = list.some(
+        (s) =>
+            JSON.stringify(s.sourceIds ?? null) ===
+                JSON.stringify(shield.sourceIds ?? null) &&
+            JSON.stringify(s.match ?? null) ===
+                JSON.stringify(shield.match ?? null) &&
+            (s.combatOnly ?? false) === (shield.combatOnly ?? false)
+    );
+    if (duplicate) return;
+    list.push(shield);
+    state.sourcePreventionShields = list;
 }
 
 /** Reduces an incoming damage amount by any matching `targetPreventionShields`
@@ -7032,19 +7137,45 @@ export function bumpArtifactDamageToPlayer(
     state.artifactDamageToPlayerThisTurn = tally;
 }
 
-/** Runs the CR 614 replacement layer for a damage event. Returns the
- *  rewritten target/amount (after every applicable replacement has been
- *  consulted in CR 616 order) or null if a replacement consumed the event.
- *  Shared by `SpellContext.dealDamage` and the combat damage steps so all
- *  damage paths go through the same redirection/cancel pipeline. */
+/** Runs the CR 614 replacement layer for a damage event, plus the CR 615
+ *  SOURCE-scoped prevention gate that sits alongside it. Returns the rewritten
+ *  target/amount (after every applicable replacement has been consulted in
+ *  CR 616 order) or null if a replacement — or a source-scoped shield —
+ *  consumed the event. Shared by every damage sink
+ *  (`SpellContext.dealDamage`, `dealDamageFromPermanentToPlayer`,
+ *  `markDamageFromPermanentSource`, `applyOneCombatDamage`) so all damage
+ *  paths go through the same redirection/cancel pipeline.
+ *
+ *  CR 616.1 — prevention and replacement effects that would apply to the same
+ *  event are ordered by the affected object's controller. The source-scoped
+ *  shield is applied FIRST here, which is a legal choice AND outcome-equivalent
+ *  for this shield shape: it prevents ALL of the damage from that source, so
+ *  no replacement (a redirect to another recipient, an amount rewrite) can
+ *  change the result — the damage is 0 either way, and a redirect does not
+ *  change WHICH source is dealing it. Putting the gate here rather than at the
+ *  four sinks is deliberate: `runDamageReplacement` is the one funnel every
+ *  sink already calls, so a future fifth damage path cannot silently miss the
+ *  shield (the failure mode a parallel per-sink check invites).
+ *
+ *  `unpreventable` (Urza's Rage's kicked mode: "the damage can't be
+ *  prevented") skips the CR 615 gate only — CR 614 replacement effects are a
+ *  distinct rule and still apply, exactly as at the sinks' own
+ *  `unpreventable` handling. */
 export function runDamageReplacement(
     state: GameState,
     sourceInstanceId: string,
     sourceControllerId: string,
     target: TargetSelection,
     amount: number,
-    isCombat: boolean
+    isCombat: boolean,
+    unpreventable: boolean = false
 ): { target: TargetSelection; amount: number } | null {
+    if (
+        !unpreventable &&
+        sourcePreventionShieldApplies(state, sourceInstanceId, isCombat)
+    ) {
+        return null;
+    }
     const desc = describeDamageSource(state, sourceInstanceId);
     const continuous = applyDamageReplacements(state, {
         kind: "damage",
@@ -10074,7 +10205,8 @@ export function buildSpellContext(
                 item.controllerId,
                 target,
                 amount,
-                false
+                false,
+                unpreventable
             );
             if (replaced === null) return;
             target = replaced.target;
@@ -12079,6 +12211,30 @@ export function buildSpellContext(
                 if (amount > 0) this.addCounter(target, type, amount);
             }
         },
+        // CR 615.1 / 601.2d / 120.4 — install a prevent-the-next-N shield on
+        // each announced target, sized by the split the caster assigned at
+        // announcement. Same `resolveChosenDivision` read (and the same
+        // deterministic ≥1-each fallback, which is what the bot's amount-free
+        // `selectTargets` leaves behind) as the two divide-as-chosen siblings
+        // above. Pollen Remedy. Empty targets / total <= 0 is a no-op.
+        preventNextNDamageDividedAsChosen(
+            targets: TargetSelection[],
+            totalAmount: number,
+            duration: DurationSpec
+        ): void {
+            if (targets.length === 0 || totalAmount <= 0) return;
+            const split = resolveChosenDivision(
+                item.targetAmounts,
+                targets,
+                totalAmount
+            );
+            for (const target of targets) {
+                const amount = split.get(targetKey(target)) ?? 0;
+                if (amount > 0) {
+                    this.preventNextNDamageToTarget(target, amount, duration);
+                }
+            }
+        },
         // CR 120.3: damage is dealt simultaneously to every matching entity.
         // Snapshot creature ids before iterating — dealDamage may remove them
         // from the battlefield (SBA lethal) and players have not yet taken
@@ -12808,12 +12964,29 @@ export function buildSpellContext(
 
         markAssignsNoCombatDamage(target: TargetSelection): void {
             // CR 510.1c — the target assigns no combat damage this turn
-            // (Farrel's Mantle, Farrel's Zealot). Idempotent; cleared at
-            // CLEANUP. No-op for non-permanent targets.
+            // (Farrel's Mantle, Farrel's Zealot; and the same-outcome CR 615
+            // spelling "prevent all combat damage that would be dealt by
+            // target attacking creature this turn", Warning / Restrain).
+            // Recorded as a combat-only, id-scoped entry on the ONE
+            // source-scoped shield list. Idempotent; cleared at CLEANUP.
+            // No-op for non-permanent targets.
             if (target.type !== "permanent") return;
-            const list = state.assignsNoCombatDamageThisTurn ?? [];
-            if (!list.includes(target.id)) list.push(target.id);
-            state.assignsNoCombatDamageThisTurn = list;
+            addSourcePreventionShield(state, {
+                sourceIds: [target.id],
+                combatOnly: true,
+            });
+        },
+
+        preventAllDamageFromSources(
+            shield: SourceDamagePreventionShield
+        ): void {
+            // CR 615 — register a source-scoped prevention shield: all damage
+            // (or all COMBAT damage, per `combatOnly`) the matched source
+            // would deal this turn is prevented, to any recipient. The single
+            // primitive behind the `preventDamage` Op's source modes; the
+            // match arms are validated by the Effect Script schema, so no
+            // shape normalization is needed here.
+            addSourcePreventionShield(state, shield);
         },
 
         redirectUnblockedCombatDamage(

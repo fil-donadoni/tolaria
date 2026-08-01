@@ -23,7 +23,7 @@
 // layer system so static buffs (counters, anthems) are reflected.
 
 import type { CardInstanceState, GameState, PlayerState } from "./state";
-import { isCombatDamageImmune } from "./state";
+import { isCombatDamageImmune, sourcePreventionShieldApplies } from "./state";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -398,8 +398,8 @@ export function evaluate(state: GameState, playerId: string): number {
 //     survives the damage steps, so without a phase guard the term would
 //     re-count damage already dealt against the already-reduced life;
 //   * every engine-modelled way the damage can fail to arrive zeroes it —
-//     `preventAllCombatDamageThisTurn` (Fog), `assignsNoCombatDamageThisTurn`
-//     (CR 510.1c), `combatDamageImmunity` (Ebony Horse), an unspent
+//     `preventAllCombatDamageThisTurn` (Fog), `sourcePreventionShields`
+//     (CR 510.1c / 615), `combatDamageImmunity` (Ebony Horse), an unspent
 //     `playerDamagePrevention` shield (CR 615.1) — and `blockedAttackerIds`
 //     (CR 509.1h) is consulted, not just the live block graph.
 //
@@ -484,9 +484,11 @@ function declaredFaceDamage(
         if ((byAttacker.get(atkId) ?? []).length > 0) continue;
         const atk = attacker.battlefield.find((c) => c.id === atkId);
         if (!atk) continue;
-        // CR 510.1c — "assigns no combat damage this turn" (Farrel's Mantle /
-        // Farrel's Zealot). Source-only; the damage step skips it outright.
-        if (state.assignsNoCombatDamageThisTurn?.includes(atk.id)) continue;
+        // CR 510.1c / 615 — a SOURCE-scoped prevention shield (Farrel's
+        // Mantle's "assigns no combat damage"; Falling Timber / Guard Dogs /
+        // Radiant Kavu's "prevent all combat damage <X> would deal"). Source-
+        // only; the damage step skips it outright.
+        if (sourcePreventionShieldApplies(state, atk.id, true)) continue;
         // CR 615 — Ebony Horse's shield prevents all combat damage BY the
         // shielded creature as well as to it.
         if (isCombatDamageImmune(state, atk.id)) continue;

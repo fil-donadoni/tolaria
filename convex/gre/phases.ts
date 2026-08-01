@@ -1218,12 +1218,13 @@ export function applyAllCombatDamage(
         rawAmount: number
     ): void {
         if (rawAmount <= 0) return;
-        // CR 510.1c — "assigns no combat damage this turn" (Farrel's Mantle,
-        // Farrel's Zealot): the source assigns 0 combat damage, so it deals
-        // none in any damage step this turn. Source-only (the creature can
-        // still BE dealt combat damage). Checked before the replacement
-        // pipeline since no damage event is generated at all.
-        if (state.assignsNoCombatDamageThisTurn?.includes(source.id)) return;
+        // CR 510.1c / 615 — the SOURCE-scoped prevention shields (Farrel's
+        // Mantle "assigns no combat damage", Falling Timber / Guard Dogs /
+        // Radiant Kavu "prevent all combat damage <X> would deal") are checked
+        // inside `runDamageReplacement` below, the one funnel every damage
+        // sink shares. Deliberately NOT re-checked here: a second, parallel
+        // check is how a shield ends up covering combat but not the
+        // activated-ability ping from the same creature.
         // CR 615 — Ebony Horse: prevent all combat damage to and by the
         // shielded creature. Block both directions before the replacement
         // pipeline (the damage simply never happens).
@@ -2818,10 +2819,19 @@ function tickAllDurations(state: GameState): void {
     if (state.preventAllCombatDamageThisTurn) {
         state.preventAllCombatDamageThisTurn = undefined;
     }
-    // CR 510.1c / 514.2 — "assigns no combat damage this turn" (Farrel's Mantle,
-    // Farrel's Zealot) expires at end of turn.
-    if (state.assignsNoCombatDamageThisTurn) {
-        state.assignsNoCombatDamageThisTurn = undefined;
+    // CR 615 / 510.1c / 514.2 — SOURCE-scoped prevention shields (Farrel's
+    // Mantle's "assigns no combat damage", Falling Timber / Guard Dogs /
+    // Radiant Kavu's combat-only shields, Rith's Charm's all-damage shield)
+    // are "this turn" effects, so an UNCONSUMED shield expires at CLEANUP —
+    // gated on `view.phase === "CLEANUP"` like `cannotCastSpellsThisTurn`
+    // below, NOT cleared on every tick. `tickAllDurations` also runs from
+    // `endCombatStep` (CR 511.3, once per combat phase); an unconditional
+    // clear there would drop the shield before a second combat phase the same
+    // turn, which is the shape of the still-open Fog bug on
+    // `preventAllCombatDamageThisTurn` just above (issue #1864 — deliberately
+    // left alone here, this list simply does not repeat it).
+    if (view.phase === "CLEANUP" && state.sourcePreventionShields) {
+        state.sourcePreventionShields = undefined;
     }
     // CR 614.6 / 514.2 — Kjeldoran Royal Guard's turn-scoped combat-damage
     // redirect expires at end of turn.

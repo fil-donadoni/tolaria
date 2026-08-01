@@ -2071,12 +2071,27 @@ describe("optional field round-trip smoke tests", () => {
         expect(roundTrip(state).preventAllCombatDamageThisTurn).toBe(true);
     });
 
-    it("assignsNoCombatDamageThisTurn (Farrel's Mantle / Zealot, CR 510.1c)", () => {
+    it("sourcePreventionShields (CR 615 / 510.1c — Farrel's Mantle, Falling Timber, Radiant Kavu)", () => {
         const state = freshState();
-        state.assignsNoCombatDamageThisTurn = ["inst-a", "inst-b"];
-        expect(roundTrip(state).assignsNoCombatDamageThisTurn).toEqual([
-            "inst-a",
-            "inst-b",
+        // A representative NON-EMPTY value exercising every arm of the shield
+        // shape: an id-scoped combat-only entry (Farrel's Mantle / Falling
+        // Timber), a filter-scoped combat-only entry (Radiant Kavu) and an
+        // id-scoped ALL-damage entry (Rith's Charm).
+        state.sourcePreventionShields = [
+            { sourceIds: ["inst-a", "inst-b"], combatOnly: true },
+            {
+                match: { colors: ["U", "B"], cardType: "Creature" },
+                combatOnly: true,
+            },
+            { sourceIds: ["inst-c"] },
+        ];
+        expect(roundTrip(state).sourcePreventionShields).toEqual([
+            { sourceIds: ["inst-a", "inst-b"], combatOnly: true },
+            {
+                match: { colors: ["U", "B"], cardType: "Creature" },
+                combatOnly: true,
+            },
+            { sourceIds: ["inst-c"] },
         ]);
     });
 

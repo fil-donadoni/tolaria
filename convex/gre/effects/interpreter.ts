@@ -441,6 +441,22 @@ function evalPredicate(ctx: SpellContext, pred: EffectPredicate): boolean {
             (pid) => ctx.getBattlefieldIds(pid, filter).length > 0
         );
     }
+    // sharesColor (issue #1955, CR 105.2 / 202.2) — true iff the two
+    // referenced objects have at least one colour in common. Both sides read
+    // through `ctx.getColors`, the layer-5 materialised colour (CR 613) — so
+    // a permanent painted blue by Painter's Servant shares blue exactly as a
+    // printed blue one does. A missing / gone / non-permanent side reads false
+    // (CR 608.2b), and so does a colourless side: colourless is the ABSENCE of
+    // colour, so it shares nothing, not even with another colourless object.
+    if ("sharesColor" in pred) {
+        const a = resolveObjectRef(ctx, pred.sharesColor);
+        const b = resolveObjectRef(ctx, pred.with);
+        if (!a || !b) return false;
+        const colorsA = ctx.getColors(a);
+        if (colorsA.length === 0) return false;
+        const colorsB = ctx.getColors(b);
+        return colorsA.some((c) => colorsB.includes(c));
+    }
     // hasCityBlessing (Ascend, CR 702.131b — issue #1460) — true iff the
     // resolved player holds the city's blessing designation. A pure
     // player-state read via the `hasCityBlessing` primitive (the monotonic
@@ -3371,6 +3387,54 @@ export const OP_EXECUTORS: {
             const target = resolveObjectRef(ctx, op.target);
             if (!target) return;
             ctx.preventAllCombatDamageToAndBy(target, op.duration);
+            return;
+        }
+        if (op.mode === "all-from-source") {
+            // CR 615 (issue #1955) — SOURCE-scoped, recipient-agnostic: all
+            // damage (or all combat damage) the named source would deal this
+            // turn is prevented, to anyone. Falling Timber / Guard Dogs
+            // (`combatOnly: true`), Rith's Charm's third mode (all damage).
+            // Skipped when the source is gone (CR 608.2b) or is not a
+            // permanent — a shield keyed on a player id would match nothing.
+            const source = resolveObjectRef(ctx, op.source);
+            if (!source || source.type !== "permanent") return;
+            ctx.preventAllDamageFromSources({
+                sourceIds: [source.id],
+                ...(op.combatOnly ? { combatOnly: true } : {}),
+            });
+            return;
+        }
+        if (op.mode === "all-from-matching") {
+            // CR 615 / 615.6 (issue #1955) — FILTER-scoped: no target is
+            // named, and the match is re-read at the moment damage would be
+            // dealt, so a creature that becomes blue after this resolves is
+            // covered too (Radiant Kavu).
+            ctx.preventAllDamageFromSources({
+                match: op.match,
+                ...(op.combatOnly ? { combatOnly: true } : {}),
+            });
+            return;
+        }
+        if (op.mode === "next-n-divided") {
+            // CR 615.1 / 601.2d / 120.4 (issue #1955) — the DIVIDED sibling of
+            // "next-n": one prevent-the-next-N shield per announced target,
+            // sized by the split the caster assigned at ANNOUNCEMENT. The
+            // split is read back through the same `resolveChosenDivision`
+            // path `dealDamageDividedAsChosen` uses (stack item
+            // `targetAmounts`, with the deterministic ≥1-each fallback when
+            // no explicit split was recorded — which is what the bot's
+            // amount-free `selectTargets` produces). Pollen Remedy.
+            const total =
+                op.total === "X"
+                    ? ctx.getX()
+                    : op.total === "X+1"
+                      ? ctx.getX() + 1
+                      : op.total;
+            ctx.preventNextNDamageDividedAsChosen(
+                ctx.targets,
+                total,
+                op.duration
+            );
             return;
         }
         // "next-n" (CR 615.1) — a prevent-the-next-N shield on a permanent or a

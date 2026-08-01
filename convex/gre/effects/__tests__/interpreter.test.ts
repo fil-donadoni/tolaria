@@ -29,6 +29,7 @@ import {
     applyControlChange,
     createTokenPermanents,
     buildSpellContext,
+    sourcePreventionShieldApplies,
 } from "../../state";
 import type { CardInstanceState, GameState, StackItem } from "../../state";
 import {
@@ -21884,7 +21885,11 @@ describe("Effect Script Op: markAssignsNoCombatDamage (CR 510.1c)", () => {
         const state = oneBear();
         pushSpell(state, id, "p1", [{ type: "permanent", id: "bearA" }]);
         resolveTopOfStack(state);
-        expect(state.assignsNoCombatDamageThisTurn).toContain("bearA");
+        expect(sourcePreventionShieldApplies(state, "bearA", true)).toBe(true);
+        // CR 510.1c is COMBAT-only: the bear's non-combat damage is untouched.
+        expect(sourcePreventionShieldApplies(state, "bearA", false)).toBe(
+            false
+        );
     });
 
     it("marks the resolving source via $source (Farrel's Zealot self-mark)", () => {
@@ -21935,7 +21940,9 @@ describe("Effect Script Op: markAssignsNoCombatDamage (CR 510.1c)", () => {
             targets: [],
         });
         resolveTopOfStack(state);
-        expect(state.assignsNoCombatDamageThisTurn).toContain("zealot1");
+        expect(sourcePreventionShieldApplies(state, "zealot1", true)).toBe(
+            true
+        );
     });
 
     it("is a no-op when the targeted permanent is gone (CR 608.2b) and still resolves", () => {
@@ -21945,9 +21952,7 @@ describe("Effect Script Op: markAssignsNoCombatDamage (CR 510.1c)", () => {
         const state = oneBear();
         pushSpell(state, id, "p1", [{ type: "permanent", id: "ghost" }]);
         expect(() => resolveTopOfStack(state)).not.toThrow();
-        expect(state.assignsNoCombatDamageThisTurn ?? []).not.toContain(
-            "bearA"
-        );
+        expect(sourcePreventionShieldApplies(state, "bearA", true)).toBe(false);
     });
 
     it("the combat-damage lock survives projection (wire format)", () => {
@@ -21958,7 +21963,12 @@ describe("Effect Script Op: markAssignsNoCombatDamage (CR 510.1c)", () => {
         pushSpell(state, id, "p1", [{ type: "permanent", id: "bearA" }]);
         resolveTopOfStack(state);
         const projected = projectPublicState(state, 1, "p1");
-        expect(projected.assignsNoCombatDamageThisTurn).toContain("bearA");
+        // Asserted THROUGH the reducer, not on a hand-built view: the shield
+        // list has to survive the wire for the client Brain's own combat
+        // evaluation (`evaluate.ts`) to see it.
+        expect(sourcePreventionShieldApplies(projected, "bearA", true)).toBe(
+            true
+        );
     });
 });
 

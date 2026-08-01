@@ -1889,6 +1889,42 @@ export interface CopyEffectOptions {
     additionalTriggeredAbilityIds?: string[];
 }
 
+/** CR 615 / 510.1c — a SOURCE-scoped damage-prevention shield: it prevents
+ *  damage the matched SOURCE would deal, to ANY recipient. Every other shield
+ *  on `GameState` is keyed on the RECIPIENT (`targetPreventionShields`,
+ *  `playerDamagePrevention`) or on a source/recipient PAIR
+ *  (`preventionEffects` — a Circle of Protection); this is the only
+ *  recipient-agnostic one, which is exactly the shape "prevent all combat
+ *  damage target creature would deal this turn" needs.
+ *
+ *  A source matches when EITHER match arm hits:
+ *   - `sourceIds` — an explicit instance-id list, locked in at resolution
+ *     (Falling Timber's announced target, Guard Dogs' target, Rith's Charm's
+ *     chosen source, Farrel's Mantle's marked creature).
+ *   - `match` — a DYNAMIC characteristic filter re-evaluated at the moment
+ *     damage would be dealt, so a creature that BECOMES blue after the shield
+ *     resolves is covered (Radiant Kavu, CR 615.6). `colors` is an OR-set
+ *     (CR 202.2 — "blue creatures and black creatures" means a source that is
+ *     blue OR black); `cardType` additionally requires that card type.
+ *
+ *  `combatOnly` narrows the shield to COMBAT damage (CR 510). Omitted/false
+ *  means ALL damage from the source is prevented, combat or not (Rith's
+ *  Charm). Every shield in this list is turn-scoped: unconsumed entries expire
+ *  at CLEANUP (CR 514.2). */
+export interface SourceDamagePreventionShield {
+    /** Instance ids of the shielded sources. Omit for a filter-only shield. */
+    sourceIds?: string[];
+    /** Dynamic characteristic match, evaluated at damage time. */
+    match?: {
+        /** OR-set of colours (CR 202.2). A source matches if it is any one. */
+        colors?: Color[];
+        /** Additionally require this card type on the source (CR 205.2). */
+        cardType?: CardType;
+    };
+    /** true → only combat damage is prevented (CR 510). */
+    combatOnly?: boolean;
+}
+
 // --- Spell resolution context ---
 
 export interface SpellContext {
@@ -2877,6 +2913,22 @@ export interface SpellContext {
         totalAmount: number,
         type: string
     ) => void;
+    /** Installs a prevent-the-next-N damage shield on each of the given
+     *  targets, with `totalAmount` DIVIDED AS YOU CHOOSE among them — each
+     *  chosen target getting at least 1 (CR 615.1 / 601.2d / 120.4). The third
+     *  member of the divide-as-chosen primitive family: identical
+     *  announcement-time split / deterministic-fallback rules to
+     *  `dealDamageDividedAsChosen` and `distributeCountersAsChosen`, but the
+     *  per-target amount sizes a SHIELD (`preventNextNDamageToTarget`) instead
+     *  of a damage or counter event. Used by Pollen Remedy ("Prevent the next
+     *  3 damage that would be dealt this turn to any number of targets,
+     *  divided as you choose"). No-op if `targets` is empty or
+     *  `totalAmount <= 0`. */
+    preventNextNDamageDividedAsChosen: (
+        targets: TargetSelection[],
+        totalAmount: number,
+        duration: DurationSpec
+    ) => void;
     /** Deals `amount` damage to every permanent / player matching the filter
      *  (CR 120.3). Creatures matching the filter are resolved at call time —
      *  creatures entering mid-resolution are not affected. Lethal damage uses
@@ -3096,6 +3148,16 @@ export interface SpellContext {
      *  (which is a two-way prevention shield). Idempotent; cleared at CLEANUP.
      *  No-op for non-permanent targets. */
     markAssignsNoCombatDamage: (target: TargetSelection) => void;
+    /** Registers a SOURCE-scoped prevention shield (CR 615): all damage — or
+     *  all COMBAT damage when `combatOnly` is set — that the matched source
+     *  would deal this turn is prevented, to ANY recipient. The one primitive
+     *  behind the `preventDamage` Op's source-scoped modes; the shield's match
+     *  arms (`sourceIds` for a resolution-locked source list, `match` for a
+     *  live characteristic filter) are documented on
+     *  {@link SourceDamagePreventionShield}. `markAssignsNoCombatDamage` is
+     *  the CR 510.1c spelling of the same list. Turn-scoped: an unconsumed
+     *  shield expires at CLEANUP (CR 514.2). */
+    preventAllDamageFromSources: (shield: SourceDamagePreventionShield) => void;
     /** Redirects all combat damage that unblocked creatures would deal to
      *  `playerId` this turn onto the permanent `toPermanentId` instead (CR
      *  614.6 — Kjeldoran Royal Guard). Turn-scoped; idempotent; cleared at
@@ -10656,6 +10718,55 @@ export type EffectOp =
           target: EffectObjectSelector;
           duration: DurationSpec;
       }
+    /** `"all-from-source"` (CR 615, issue #1955) → `preventAllDamageFromSources`
+     *  with an id-scoped shield: prevent ALL damage the named source would
+     *  deal this turn, to ANY recipient (a player, a creature, a
+     *  planeswalker). The SOURCE-side mirror of `"next-n"`, which is
+     *  recipient-side. `source` names the shielded object — an announced
+     *  target slot (Falling Timber / Guard Dogs' "target creature", Rith's
+     *  Charm's chosen source), `$source`, or a `forEach` `$each`. `combatOnly`
+     *  narrows it to COMBAT damage (CR 510 — Falling Timber, Guard Dogs,
+     *  Radiant Kavu); omit it for the all-damage form (Rith's Charm's third
+     *  mode: "Prevent all damage a source of your choice would deal this
+     *  turn"). Skipped when the source is gone (CR 608.2b). */
+    | {
+          op: "preventDamage";
+          mode: "all-from-source";
+          source: EffectObjectSelector;
+          combatOnly?: boolean;
+      }
+    /** `"all-from-matching"` (CR 615, issue #1955) → the same primitive with a
+     *  FILTER-scoped shield and no target named at all: prevent all damage
+     *  every source matching `match` would deal this turn (Radiant Kavu:
+     *  "Prevent all combat damage blue creatures and black creatures would
+     *  deal this turn"). The filter is re-evaluated at the moment damage would
+     *  be dealt, so a creature that BECOMES blue after this resolves is
+     *  covered too (CR 615.6). `match.colors` is an OR-set (CR 202.2 — blue OR
+     *  black, not both); `match.cardType` additionally requires that type.
+     *  `combatOnly` as above. */
+    | {
+          op: "preventDamage";
+          mode: "all-from-matching";
+          match: { colors?: Color[]; cardType?: CardType };
+          combatOnly?: boolean;
+      }
+    /** `"next-n-divided"` (CR 615.1 / 601.2d / 120.4, issue #1955) → the
+     *  DIVIDED sibling of `"next-n"`: install a prevent-the-next-N shield on
+     *  EACH announced target, with the per-target split chosen at ANNOUNCEMENT
+     *  (`targetRequirement.divideAsChosen`, each target ≥ 1) and snapshotted
+     *  onto the stack item's `targetAmounts` — the exact machinery
+     *  `dealDamageDividedAsChosen` already uses, read back through the same
+     *  `resolveChosenDivision` fallback. Pollen Remedy: "Prevent the next 3
+     *  damage that would be dealt this turn to any number of targets, divided
+     *  as you choose." `total` MUST mirror the card's `divideAsChosen.total`
+     *  and reuses its vocabulary (`number | "X" | "X+1"`); `duration` is the
+     *  shield's expiry (`{ phase: "end-of-turn" }` for a "this turn" shield). */
+    | {
+          op: "preventDamage";
+          mode: "next-n-divided";
+          total: number | "X" | "X+1";
+          duration: DurationSpec;
+      }
     /** CR 701.15 (issue #846) — stack a regeneration shield on a permanent. A
      *  thin declarative skin over the single SpellContext primitive
      *  `applyRegenerationShield`, one execution path (ADR 0045). `target` is an
@@ -11622,7 +11733,27 @@ export type EffectPredicate =
     | EffectPicksMatchFilterPredicate
     | EffectBoundMatchesFilterPredicate
     | EffectObjectMatchesFilterPredicate
+    | EffectSharesColorPredicate
     | EffectHasCityBlessingPredicate;
+
+/** Shares-a-colour predicate (issue #1955, CR 105.2 / 202.2): true iff the two
+ *  referenced objects have at least one colour in common. Both sides are
+ *  object selectors (an announced target slot, `$source`, a binding, a
+ *  `forEach` `$each`), and both colours are read LIVE through the layer
+ *  pipeline (`SpellContext.getColors`, layer 5 — a `colorOverride` from
+ *  Painter's Servant or a colour-changing effect counts exactly as a printed
+ *  colour does). Guard Dogs' "if it shares a color with that permanent":
+ *  `{ sharesColor: { target: 0 }, with: { ref: "$each" } }`.
+ *
+ *  Reads `false` when either side is missing, has left the battlefield, or is
+ *  not a permanent (CR 608.2b — the effect does as much as it can), and also
+ *  when either side is COLOURLESS: a colourless object shares no colour with
+ *  anything, including another colourless object (CR 202.2 — colourless is the
+ *  absence of colour, not a sixth colour). */
+export interface EffectSharesColorPredicate {
+    sharesColor: EffectObjectSelector;
+    with: EffectObjectSelector;
+}
 
 /** Boolean-binding predicate: true iff the named boolean binding is true
  *  (`{ binding }`) or false (`{ not: { binding } }`). The binding MUST be a

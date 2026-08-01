@@ -479,6 +479,10 @@ const TOKEN_SUPERTYPES = new Set([
 /** Valid `EffectTokenSpec.colors` members (CR 105.1, the five colors + C). */
 const TOKEN_COLORS = new Set(["W", "U", "B", "R", "G", "C"]);
 
+/** Valid colours in a source-scoped `preventDamage` shield's `match.colors`
+ *  (issue #1955) — WUBRG only (CR 105.1). */
+const SHIELD_MATCH_COLORS = new Set(["W", "U", "B", "R", "G"]);
+
 /** Valid `grantGraveyardPlay.zones` members (issue #1149) — which card kinds
  *  a graveyard-cast permission grant covers. */
 const GRAVEYARD_PLAY_ZONES = new Set(["land", "spell"]);
@@ -1284,14 +1288,53 @@ function isRevealRouteList(value: unknown): boolean {
     });
 }
 
-/** The `mode` discriminator of a `preventDamage` Op (issue #845, CR 615): the
- *  three prevention-shield shapes folded here. */
+/** The `mode` discriminator of a `preventDamage` Op (issue #845 / #1955,
+ *  CR 615): the six prevention-shield shapes folded here — three
+ *  recipient-scoped (`next-n`, `all-combat`, `combat-to-and-by`,
+ *  `next-n-divided`) and two SOURCE-scoped (`all-from-source`,
+ *  `all-from-matching`). */
 function isPreventDamageMode(value: unknown): boolean {
     return (
         value === "next-n" ||
         value === "all-combat" ||
-        value === "combat-to-and-by"
+        value === "combat-to-and-by" ||
+        value === "all-from-source" ||
+        value === "all-from-matching" ||
+        value === "next-n-divided"
     );
+}
+
+/** The `match` arm of a source-scoped `preventDamage` shield (issue #1955):
+ *  `{ colors?: Color[]; cardType?: CardType }`, at least one arm present. Kept
+ *  a NARROW purpose-built shape rather than an `EffectCardFilter` on purpose —
+ *  the matcher runs on the damage path against a live battlefield instance,
+ *  and an unknown filter field there would fail OPEN (silently shielding every
+ *  source). A closed vocabulary cannot. */
+function isSourceShieldMatch(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    const m = value as Record<string, unknown>;
+    for (const key of Object.keys(m)) {
+        if (key !== "colors" && key !== "cardType") return false;
+    }
+    if (m.colors !== undefined) {
+        if (!Array.isArray(m.colors) || m.colors.length === 0) return false;
+        // WUBRG only — CR 202.2: colourless is the ABSENCE of colour, so a
+        // "colourless sources" shield is not expressible as a colour match
+        // (and `"C"`, which `Color` carries for mana purposes, would silently
+        // never match `getColors`' output).
+        if (!m.colors.every((c) => SHIELD_MATCH_COLORS.has(c as string))) {
+            return false;
+        }
+    }
+    if (
+        m.cardType !== undefined &&
+        !TOKEN_CARD_TYPES.has(m.cardType as string)
+    ) {
+        return false;
+    }
+    return m.colors !== undefined || m.cardType !== undefined;
 }
 
 /** The destination zones a `moveZone` Op may name (issue #839, EffectMoveZone).
@@ -1801,6 +1844,17 @@ function isPredicate(value: unknown): boolean {
     // "controller"). A pure player-state predicate, no binding/target/zone.
     if (keys.length === 1 && keys[0] === "hasCityBlessing") {
         return isPlayerRef(obj.hasCityBlessing);
+    }
+    // sharesColor form (issue #1955, CR 105.2 / 202.2) — two OBJECT SELECTORS
+    // whose live, layer-materialised colours are intersected (Guard Dogs).
+    // Binding existence/family is checked by the ordered ref pass below, like
+    // every other selector-carrying predicate form.
+    if (
+        keys.length === 2 &&
+        keys.includes("sharesColor") &&
+        keys.includes("with")
+    ) {
+        return isObjectSelector(obj.sharesColor) && isObjectSelector(obj.with);
     }
     // picksMatchFilter form (issue #1343) — a `choice` Op's picks binding
     // (bare picks ref, same shape as `picksNonEmpty`), plus `player` (whose
@@ -3178,11 +3232,21 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             amount: isEffectValue,
             target: isObjectSelector,
             duration: isDurationSpec,
+            // Source-scoped modes (issue #1955).
+            source: isObjectSelector,
+            match: isSourceShieldMatch,
+            combatOnly: isBoolean,
+            // Divided recipient-scoped mode (issue #1955); `total` mirrors the
+            // card's `divideAsChosen.total` vocabulary exactly.
+            total: isDivideTotal,
         },
         check: (entry) => {
             const errors: string[] = [];
             const has = (k: string) => k in entry;
-            const requireFields = (fields: string[]) => {
+            const requireFields = (
+                fields: string[],
+                allowed: string[] = []
+            ) => {
                 for (const f of fields) {
                     if (!has(f)) {
                         errors.push(
@@ -3190,8 +3254,17 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                         );
                     }
                 }
-                for (const f of ["to", "amount", "target", "duration"]) {
-                    if (!fields.includes(f) && has(f)) {
+                for (const f of [
+                    "to",
+                    "amount",
+                    "target",
+                    "duration",
+                    "source",
+                    "match",
+                    "combatOnly",
+                    "total",
+                ]) {
+                    if (!fields.includes(f) && !allowed.includes(f) && has(f)) {
                         errors.push(
                             `field "${f}" is not valid with mode "${String(entry.mode)}"`
                         );
@@ -3204,6 +3277,12 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                 requireFields([]);
             } else if (entry.mode === "combat-to-and-by") {
                 requireFields(["target", "duration"]);
+            } else if (entry.mode === "all-from-source") {
+                requireFields(["source"], ["combatOnly"]);
+            } else if (entry.mode === "all-from-matching") {
+                requireFields(["match"], ["combatOnly"]);
+            } else if (entry.mode === "next-n-divided") {
+                requireFields(["total", "duration"]);
             }
             return errors;
         },
@@ -3929,6 +4008,13 @@ function collectPredicateRefUses(predicate: unknown, out: RefUse[]): void {
     // caught exactly as at every other selector site.
     if ("objectMatchesFilter" in p) {
         collectRefUses(p.objectMatchesFilter, "objectMatchesFilter", out);
+        return;
+    }
+    // sharesColor (issue #1955) — TWO object selectors, each of which may be a
+    // ref; route both through the shared object-position collector.
+    if ("sharesColor" in p) {
+        collectRefUses(p.sharesColor, "sharesColor", out);
+        collectRefUses(p.with, "with", out);
         return;
     }
     // Comparison: numeric refs on either side.
