@@ -53,6 +53,7 @@ import {
     canPayMayPayCost,
     getCostModifiers,
     normalizeManaCost,
+    normalizeMayPayCost,
     removePermanentTo,
     resolveTopOfStack,
     type CardInstanceState,
@@ -1355,7 +1356,9 @@ describe("Draco upkeep — {10} reduced by {2} per basic land type (CR 118 'unle
         const head = state.pendingChoices![0];
         expect(head.kind).toBe("may-pay");
         expect(head.playerId).toBe("p1");
-        expect(normalizeManaCost(head.cost!.mana ?? {})).toEqual({ X: owed });
+        expect(
+            normalizeManaCost(normalizeMayPayCost(head.cost!).mana ?? {})
+        ).toEqual({ X: owed });
     });
 
     it("Domain 5 floors the upkeep at {0} — never negative (CR 118.9)", () => {
@@ -1364,7 +1367,7 @@ describe("Draco upkeep — {10} reduced by {2} per basic land type (CR 118 'unle
         const head = state.pendingChoices![0];
         // {10} - 5 × {2} = {0}; `reduceGenericMana` drops the generic entry
         // entirely rather than emitting a negative one.
-        expect(head.cost!.mana ?? {}).toEqual({});
+        expect(normalizeMayPayCost(head.cost!).mana ?? {}).toEqual({});
         expect(canPayMayPayCost(state, "p1", head.cost!)).toBe(true);
     });
 
@@ -1401,6 +1404,8 @@ describe("Draco upkeep — {10} reduced by {2} per basic land type (CR 118 'unle
         expect(head.kind).toBe("may-pay");
         // {10} - 2 × {2} = {6} — the price the client renders, not the
         // printed {10}.
-        expect(normalizeManaCost(head.cost!.mana ?? {})).toEqual({ X: 6 });
+        expect(
+            normalizeManaCost(normalizeMayPayCost(head.cost!).mana ?? {})
+        ).toEqual({ X: 6 });
     });
 });

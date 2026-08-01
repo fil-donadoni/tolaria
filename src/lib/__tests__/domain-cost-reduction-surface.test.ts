@@ -32,7 +32,8 @@ import {
     normalizeManaCost,
     type GameState,
 } from "@convex/gre/state";
-import type { ManaCost, ManaPool, PendingCast } from "~/types/game";
+import type { ManaCost } from "@convex/cards/types";
+import type { ManaPool, PendingCast } from "~/types/game";
 import {
     isManaCostCovered,
     pendingCastRemainingGeneric,
