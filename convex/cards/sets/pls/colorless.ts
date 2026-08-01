@@ -573,14 +573,16 @@ export const terminalMoraine: CardDefinition = {
 // well as a referenced object's printed one, and `reducedBy` is now a full
 // `EffectValue` rather than a fixed integer, so it reuses the SAME Domain
 // value member the Effect Script grammar already exposes. The interpreter
-// floors the result at {0} (`reduceGenericMana`, CR 118.9), so at Domain 5 the
-// upkeep is free and the trigger auto-resolves as paid.
+// floors the result at {0} (`reduceGenericMana`, CR 118.9), so at Domain 5
+// there is nothing left to pay — but `requestMayPay` (`gre/state.ts`) has no
+// zero-cost shortcut, so the may-pay choice is still enqueued and the player
+// still confirms it; it just costs nothing to accept.
 //
 // NOTE the two Domain reads are INDEPENDENT: the cast reduction is evaluated
 // at announcement, the upkeep reduction at each upkeep resolution, off
 // whatever board exists then. Neither is snapshotted from the other.
 export const draco: CardDefinition = {
-    id: "212e3edb-62f1-4680-884f-70323547f8ad", // PLS 133
+    id: "212e3edb-62f1-4680-884f-70323547f8ad", // PLS 131
     rarity: "rare",
     name: "Draco",
     oracleText:
@@ -630,7 +632,7 @@ export const draco: CardDefinition = {
 // reduction as Draco at {1} per basic land type (so {5} at Domain 5), plus
 // plain trample — no upkeep leg.
 export const stratadon: CardDefinition = {
-    id: "324bc757-9942-4862-b691-5af42e07f682", // PLS 143
+    id: "324bc757-9942-4862-b691-5af42e07f682", // PLS 135
     rarity: "uncommon",
     name: "Stratadon",
     oracleText:

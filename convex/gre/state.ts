@@ -16977,6 +16977,22 @@ function isDomainDrivenCostReduction(
     );
 }
 
+/** True iff a `costReduction` value is the plain, fixed-literal `ManaCost`
+ *  shape (Stone Calendar, Power Artifact, Mana Matrix, Planar Gate) — the
+ *  third and last known `CostReductionAmount` member. Positively excludes
+ *  both count-driven shapes above rather than being assumed as an implicit
+ *  fallthrough default, so `resolveCostReductionGeneric` below can prove
+ *  exhaustiveness at compile time instead of silently resolving an
+ *  unrecognised future member to zero reduction. */
+function isManaCostReduction(
+    reduction: CostReductionAmount
+): reduction is ManaCost {
+    return (
+        !isCountDrivenCostReduction(reduction) &&
+        !isDomainDrivenCostReduction(reduction)
+    );
+}
+
 /** Resolve a CR 601.2f `costReduction`'s generic-mana amount. Three shapes,
  *  one resolver — shared by the battlefield-scan site and the self-host site
  *  below so they can never drift apart:
@@ -17022,7 +17038,17 @@ function resolveCostReductionGeneric(
         ).length;
         return per * n;
     }
-    return normalizeManaCost(reduction).X ?? 0;
+    if (isManaCostReduction(reduction)) {
+        return normalizeManaCost(reduction).X ?? 0;
+    }
+    // Exhaustiveness probe (issue #1958 review nit): every known
+    // `CostReductionAmount` member now has its own guarded branch above. If
+    // a fourth member is ever added to the union without a matching branch
+    // here, TS can no longer narrow `reduction` down to `never` and this
+    // assignment fails `bun run check:ts` — catching the gap at compile
+    // time instead of it silently falling through to a zero reduction.
+    const _exhaustive: never = reduction;
+    return normalizeManaCost(_exhaustive).X ?? 0;
 }
 
 /** Scan the battlefield for `cost-modifier` static effects that apply to the
