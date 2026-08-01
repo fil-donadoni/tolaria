@@ -892,3 +892,159 @@ export const voiceOfAll: CardDefinition = {
 //     `effects[]` (never an `interveningIf`; see that helper's doc block for
 //     why the re-check misreads a blinked permanent). The card is
 //     unblocked and needs only ordinary card work. tracked-by: #1328.
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLS C4 — source-scoped prevention shields + divided allocation (#1955,
+// parent PRD #1935).
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Guard Dogs — {3}{W} Creature — Dog, 2/2. "{2}{W}, {T}: Choose a permanent
+// you control. Prevent all combat damage target creature would deal this turn
+// if it shares a color with that permanent." (CR 615 / 105.2 / 202.2.)
+//
+// Two decisions, both from the printed Oracle text + the card's own rulings:
+//
+//  • The permanent is CHOSEN, not targeted (only the creature is a target), so
+//    it is a resolution-time `choice` Op (`choose-permanents` over the
+//    controller's own battlefield, count 1) — never a second target slot.
+//    Guard Dogs itself is always a legal candidate, so the choice can never be
+//    empty.
+//  • The colour comparison is made ONCE, ON RESOLUTION — the card's ruling is
+//    explicit: "You only check colors on resolution and not later when the
+//    damage prevention actually is applied." So this is an `if` gate around
+//    the shield, NOT a condition carried on the shield itself: a creature that
+//    changes colour after this resolves keeps (or keeps lacking) the shield.
+//    The gate is the `sharesColor` predicate (issue #1955), which reads BOTH
+//    sides' colours live through the layer pipeline (`SpellContext.getColors`,
+//    layer 5) so a permanent painted a colour by another effect counts exactly
+//    as a printed one does.
+//
+// The shield itself is the `preventDamage` mode `"all-from-source"` with
+// `combatOnly: true` — the same source-scoped, recipient-agnostic entry
+// Falling Timber uses (`pls/green.ts`).
+export const guardDogs: CardDefinition = {
+    id: "ba32eee7-10ba-4f0b-8a87-c3ecfa22ae41", // PLS 5
+    rarity: "uncommon",
+    name: "Guard Dogs",
+    oracleText:
+        "{2}{W}, {T}: Choose a permanent you control. Prevent all combat damage target creature would deal this turn if it shares a color with that permanent.",
+    manaCost: { X: 3, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Dog"],
+    power: 2,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "guard-dogs-prevent",
+            oracleText:
+                "{2}{W}, {T}: Choose a permanent you control. Prevent all combat damage target creature would deal this turn if it shares a color with that permanent.",
+            cost: { mana: { X: 2, W: 1 }, tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            effects: [
+                {
+                    op: "choice",
+                    kind: "choose-permanents",
+                    player: "controller",
+                    zone: "battlefield",
+                    count: 1,
+                    prompt: "Choose a permanent you control (Guard Dogs).",
+                    bind: "$chosen",
+                },
+                {
+                    op: "forEach",
+                    select: { set: "bound", ref: "$chosen" },
+                    effects: [
+                        {
+                            op: "if",
+                            predicate: {
+                                sharesColor: { target: 0 },
+                                with: { ref: "$each" },
+                            },
+                            then: [
+                                {
+                                    op: "preventDamage",
+                                    mode: "all-from-source",
+                                    source: { target: 0 },
+                                    combatOnly: true,
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    ],
+};
+
+// Pollen Remedy — {W} Instant. "Kicker—Sacrifice a land.\nPrevent the next 3
+// damage that would be dealt this turn to any number of targets, divided as
+// you choose. If this spell was kicked, prevent the next 6 damage this way
+// instead." (CR 615.1 / 601.2d / 120.4 / 702.33a.)
+//
+// The prevention ANALOGUE of the divided-damage idiom, and deliberately built
+// on the same machinery rather than a second one: the per-target split is
+// chosen at ANNOUNCEMENT via `targetRequirement.divideAsChosen` (each chosen
+// target ≥ 1, the sum validated to equal the total by `selectTarget` in
+// `convex/game.ts`), snapshotted onto the stack item's `targetAmounts`, and
+// read back at resolution by the `preventDamage` mode `"next-n-divided"` —
+// which installs one prevent-the-next-N shield per target instead of dealing
+// damage. "Any number of targets" is `count: { min: 1 }`, capped at the total
+// by the ≥1-each rule (Arc Lightning / Fiery Justice precedent).
+//
+// Kicked, BOTH halves change: the target requirement's total (via
+// `kickedTargetRequirement`, so the announcement-time stepper offers 6) and
+// the resolution-time total. The `if { kickerCount: true } >= 1` branch keeps
+// the two in lockstep.
+export const pollenRemedy: CardDefinition = {
+    id: "9797c813-0cda-44ad-ae41-330e9bde9cb9", // PLS 13
+    rarity: "common",
+    name: "Pollen Remedy",
+    oracleText:
+        "Kicker—Sacrifice a land. (You may sacrifice a land in addition to any other costs as you cast this spell.)\nPrevent the next 3 damage that would be dealt this turn to any number of targets, divided as you choose. If this spell was kicked, prevent the next 6 damage this way instead.",
+    manaCost: { W: 1 },
+    types: ["Instant"],
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker—Sacrifice a land",
+            permanent: {
+                action: "sacrifice",
+                filter: { types: "Land" },
+                count: 1,
+            },
+        },
+    ],
+    targetRequirement: {
+        type: "any",
+        count: { min: 1 },
+        divideAsChosen: { total: 3 },
+    },
+    kickedTargetRequirement: {
+        type: "any",
+        count: { min: 1 },
+        divideAsChosen: { total: 6 },
+    },
+    effects: [
+        {
+            op: "if",
+            predicate: { left: { kickerCount: true }, op: "ge", right: 1 },
+            then: [
+                {
+                    op: "preventDamage",
+                    mode: "next-n-divided",
+                    total: 6,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+            else: [
+                {
+                    op: "preventDamage",
+                    mode: "next-n-divided",
+                    total: 3,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
+};

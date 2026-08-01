@@ -1692,3 +1692,133 @@ export const questingPhelddagrif: CardDefinition = {
         },
     ],
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLS C4 — source-scoped prevention shields (#1955, parent PRD #1935).
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Radiant Kavu — {R}{G}{W} Creature — Kavu, 3/3. "{R}{G}{W}: Prevent all
+// combat damage blue creatures and black creatures would deal this turn."
+// (CR 615 / 615.6 / 202.2.)
+//
+// The FILTER-scoped prevention shape: no target is named at all, so this is
+// the `preventDamage` mode `"all-from-matching"` (issue #1955) rather than the
+// id-scoped `"all-from-source"` its two white/green siblings use. The match is
+// re-evaluated at the moment damage would be dealt, which is what makes "blue
+// creatures and black creatures" cover a creature that BECOMES blue or black
+// after the ability resolves (CR 615.6) as well as one that already was.
+// `colors` is an OR-set (CR 202.2 — blue OR black, not both), and `cardType`
+// pins it to creatures so a blue artifact's ping is untouched.
+export const radiantKavu: CardDefinition = {
+    id: "153077a8-38c0-44aa-9b84-cdd9ade50ad6", // PLS 120
+    rarity: "rare",
+    name: "Radiant Kavu",
+    oracleText:
+        "{R}{G}{W}: Prevent all combat damage blue creatures and black creatures would deal this turn.",
+    manaCost: { R: 1, G: 1, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Kavu"],
+    power: 3,
+    toughness: 3,
+    activatedAbilities: [
+        {
+            id: "radiant-kavu-prevent",
+            oracleText:
+                "{R}{G}{W}: Prevent all combat damage blue creatures and black creatures would deal this turn.",
+            cost: { mana: { R: 1, G: 1, W: 1 } },
+            useStack: true,
+            effects: [
+                {
+                    op: "preventDamage",
+                    mode: "all-from-matching",
+                    match: { colors: ["U", "B"], cardType: "Creature" },
+                    combatOnly: true,
+                },
+            ],
+        },
+    ],
+};
+
+// Rith's Charm — {R}{G}{W} Instant. "Choose one — Destroy target nonbasic
+// land. / Create three 1/1 green Saproling creature tokens. / Prevent all
+// damage a source of your choice would deal this turn." (Modern Oracle text,
+// verified against Scryfall.) A cast-time modal instant like its four wedge
+// siblings above (`modes: SpellMode[]`, CR 601.2b / 700.2).
+//
+// Mode 3 is the ALL-damage form of the source-scoped shield — `combatOnly`
+// omitted, so a shielded creature's activated-ability ping and a shielded
+// burn spell are prevented as well as combat damage. That is the whole point
+// of the clause versus Falling Timber's combat-only one.
+//
+// DIVERGENCE — "a source of your choice" is NOT a target (CR 609.7), but the
+// engine has no non-targeted source picker that can also reach a SPELL on the
+// stack, so the mode declares a `targetRequirement` instead. This follows the
+// shipped Circle of Protection precedent exactly (`makeCircleOfProtection`,
+// `cards/abilities/index.ts`, whose whole cycle chooses its source the same
+// way). Observable consequence: a shrouded/hexproof source cannot be chosen
+// and "becomes the target" triggers fire when they should not.
+// tracked-by: #2051.
+//
+// Players are excluded from the requirement (`PERMANENT_TYPES` + `"spell"`
+// rather than the CoP cycle's `"any"`): a damage source is an object
+// (CR 609.7), and a player-typed pick would key a shield that matches no
+// damage source at all.
+export const rithsCharm: CardDefinition = {
+    id: "dd30f389-bac8-4b82-a8a7-6948d43a9f60", // PLS 122
+    rarity: "uncommon",
+    name: "Rith's Charm",
+    oracleText:
+        "Choose one —\n• Destroy target nonbasic land.\n• Create three 1/1 green Saproling creature tokens.\n• Prevent all damage a source of your choice would deal this turn.",
+    manaCost: { R: 1, G: 1, W: 1 },
+    types: ["Instant"],
+    modes: [
+        {
+            id: "destroy-nonbasic-land",
+            label: "Destroy target nonbasic land",
+            oracleText: "Destroy target nonbasic land.",
+            targetRequirement: {
+                type: "Land",
+                count: 1,
+                excludeSupertypes: "Basic",
+            },
+            effects: [{ op: "destroy", target: { target: 0 } }],
+        },
+        {
+            id: "saprolings",
+            label: "Create three 1/1 green Saproling creature tokens",
+            oracleText: "Create three 1/1 green Saproling creature tokens.",
+            effects: [
+                {
+                    op: "createToken",
+                    token: {
+                        name: "Saproling",
+                        types: ["Creature"],
+                        subtypes: ["Saproling"],
+                        power: 1,
+                        toughness: 1,
+                        colors: ["G"],
+                    },
+                    controller: "controller",
+                    count: 3,
+                },
+            ],
+        },
+        {
+            id: "prevent-source",
+            label: "Prevent all damage a source of your choice would deal this turn",
+            oracleText:
+                "Prevent all damage a source of your choice would deal this turn.",
+            targetRequirement: {
+                type: [...PERMANENT_TYPES, "spell"],
+                count: 1,
+            },
+            effects: [
+                {
+                    op: "preventDamage",
+                    mode: "all-from-source",
+                    source: { target: 0 },
+                },
+            ],
+        },
+    ],
+};
