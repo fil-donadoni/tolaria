@@ -11,6 +11,7 @@ import {
     quirionDryad,
     quirionExplorer,
     thornscapeBattlemage,
+    fallingTimber,
 } from "../green";
 import { crawWurm, grizzlyBears } from "../../lea/green";
 import { lightningBolt } from "../../lea/red";
@@ -27,8 +28,11 @@ import {
 import { projectPublicState } from "../../../../gameProjections";
 import {
     applySourceStaticEffects,
+    dealDamageFromPermanentToPlayer,
     refreshCounterGatedStatics,
     resolveTopOfStack,
+    runDamageReplacement,
+    sourcePreventionShieldApplies,
 } from "../../../../gre/state";
 import type {
     CardInstanceState,
@@ -1719,5 +1723,273 @@ describe("Thornscape Battlemage — CR 603.4 per-Kicker check-time gate (issue #
         expect(
             kickerPaidCondition("kicker-r")(slim as unknown as PermanentView)
         ).toBe(false);
+    });
+});
+
+// ===========================================================================
+// Falling Timber (CR 615 / 601.2c / 702.33a) — issue #1955
+// ===========================================================================
+//
+// The first SOURCE-scoped prevention card in the set: the shield covers damage
+// the target creature would DEAL, to anyone, not damage dealt TO it. Asserted
+// through the real damage funnel (`runDamageReplacement`) rather than by
+// reading the shield list, so the test fails if the shield is registered but
+// never consulted.
+describe("Falling Timber (CR 615 — prevent all combat damage target creature would deal)", () => {
+    /** p2 controls two 2/2 bears; p1 casts Falling Timber at them. */
+    function twoBears(): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1", { battlefield: [] }),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(grizzlyBears.id, {
+                            id: "bearA",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                        makeInstance(grizzlyBears.id, {
+                            id: "bearB",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+        });
+    }
+
+    /** True when the damage funnel every sink shares consumes the event. */
+    function prevented(
+        state: GameState,
+        sourceId: string,
+        isCombat: boolean,
+        target: TargetSelection = { type: "player", id: "p1" }
+    ): boolean {
+        return (
+            runDamageReplacement(state, sourceId, "p2", target, 2, isCombat) ===
+            null
+        );
+    }
+
+    it("prevents the target's combat damage to ANY recipient — a player and a permanent alike (CR 615)", () => {
+        const state = twoBears();
+        pushSpell(state, fallingTimber.id, "p1", [
+            { type: "permanent", id: "bearA" },
+        ]);
+        resolveTopOfStack(state);
+        expect(prevented(state, "bearA", true)).toBe(true);
+        expect(
+            prevented(state, "bearA", true, {
+                type: "permanent",
+                id: "bearB",
+            })
+        ).toBe(true);
+        // Recipient-agnostic, but SOURCE-scoped: the other bear is untouched.
+        expect(prevented(state, "bearB", true)).toBe(false);
+    });
+
+    it("prevents only COMBAT damage — the shielded creature's non-combat damage still lands (CR 510)", () => {
+        const state = twoBears();
+        pushSpell(state, fallingTimber.id, "p1", [
+            { type: "permanent", id: "bearA" },
+        ]);
+        resolveTopOfStack(state);
+        expect(prevented(state, "bearA", false)).toBe(false);
+    });
+
+    it("unkicked, the second target's shield is NOT installed (CR 601.2c)", () => {
+        const state = twoBears();
+        pushSpell(state, fallingTimber.id, "p1", [
+            { type: "permanent", id: "bearA" },
+            { type: "permanent", id: "bearB" },
+        ]);
+        resolveTopOfStack(state);
+        expect(prevented(state, "bearA", true)).toBe(true);
+        expect(prevented(state, "bearB", true)).toBe(false);
+    });
+
+    it("kicked, BOTH targets are shielded (CR 702.33a)", () => {
+        const state = twoBears();
+        const item = pushSpell(state, fallingTimber.id, "p1", [
+            { type: "permanent", id: "bearA" },
+            { type: "permanent", id: "bearB" },
+        ]);
+        item.kickerPayments = { kicker: 1 };
+        resolveTopOfStack(state);
+        expect(prevented(state, "bearA", true)).toBe(true);
+        expect(prevented(state, "bearB", true)).toBe(true);
+    });
+
+    it("declares a land-sacrifice Kicker and a widened kicked target requirement", () => {
+        expect(fallingTimber.kickers?.[0].permanent).toEqual({
+            action: "sacrifice",
+            filter: { types: "Land" },
+            count: 1,
+        });
+        expect(fallingTimber.targetRequirement?.count).toBe(1);
+        expect(fallingTimber.kickedTargetRequirement?.count).toBe(2);
+    });
+
+    it("the shield survives the wire projection (wire format)", () => {
+        const state = twoBears();
+        pushSpell(state, fallingTimber.id, "p1", [
+            { type: "permanent", id: "bearA" },
+        ]);
+        resolveTopOfStack(state);
+        // Asserted THROUGH `projectPublicState`, not on a hand-built view: the
+        // client Brain's own combat evaluation (`gre/evaluate.ts`) only ever
+        // sees the projection.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(sourcePreventionShieldApplies(projected, "bearA", true)).toBe(
+            true
+        );
+        expect(sourcePreventionShieldApplies(projected, "bearB", true)).toBe(
+            false
+        );
+    });
+});
+
+// ===========================================================================
+// SOURCE-scoped prevention shields x replacement/target effects (CR 616.1,
+// issue #1955)
+// ===========================================================================
+//
+// CR 616.1 orders MULTIPLE applicable replacement/prevention effects by the
+// affected object's controller choosing the order — a player choice the
+// engine does not model anywhere (see `runDamageReplacement`'s doc comment,
+// `gre/state.ts`). The concrete choice this codebase makes is CONSERVATIVE:
+// the SOURCE-scoped `sourcePreventionShields` gate runs FIRST, inside
+// `runDamageReplacement`, before any CR 614 replacement (`damageRedirections`)
+// or CR 615.1 target-keyed shield (`targetPreventionShields`) is even
+// consulted. These four cases pin that ordering down with a real scenario
+// per outcome, rather than leaving it asserted only in a comment.
+describe("Source-scoped prevention shields win the CR 616.1 ordering choice (issue #1955)", () => {
+    /** p2 controls two 2/2 bears: "bear" (the shielded source) and "bearB"
+     *  (a second permanent, used as a redirect/damage target). p1 is empty. */
+    function board(): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1", { life: 20 }),
+                makePlayer("p2", {
+                    life: 20,
+                    battlefield: [
+                        makeInstance(grizzlyBears.id, {
+                            id: "bear",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                        makeInstance(grizzlyBears.id, {
+                            id: "bearB",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+        });
+    }
+
+    it("(a) a from-source-to-permanent-redirect shield on the recipient is NOT consumed — 0 damage dealt, the redirect charge stays at 1", () => {
+        const state = board();
+        state.sourcePreventionShields = [{ sourceIds: ["bear"] }];
+        const redirect = {
+            kind: "from-source-to-permanent-redirect" as const,
+            sourceInstanceId: "bear",
+            targetInstanceId: "bearB",
+            redirectTo: { type: "player" as const, id: "p1" },
+            remaining: 1,
+            duration: { phase: "end-of-turn" as const },
+        };
+        state.damageRedirections = [redirect];
+        const result = runDamageReplacement(
+            state,
+            "bear",
+            "p2",
+            { type: "permanent", id: "bearB" },
+            2,
+            false
+        );
+        // The source shield zeroes the event before the redirect is ever
+        // consulted — no damage of any kind is dealt, to bearB or to the
+        // redirect destination.
+        expect(result).toBeNull();
+        // The redirect's one-shot charge is untouched — `applyTransient-
+        // DamageRedirections` is never reached, so the shield never spends
+        // its "next damage" charge on an event that didn't happen.
+        expect(state.damageRedirections).toEqual([redirect]);
+    });
+
+    it("(b) a reflect-to-source-controller shield does not fire — no damage was dealt, so nothing is reflected", () => {
+        const state = board();
+        state.sourcePreventionShields = [{ sourceIds: ["bear"] }];
+        const reflect = {
+            kind: "reflect-to-source-controller" as const,
+            sourceInstanceId: "bear",
+            playerId: "p1",
+            remaining: 1,
+            duration: { phase: "end-of-turn" as const },
+        };
+        state.damageRedirections = [reflect];
+        const result = runDamageReplacement(
+            state,
+            "bear",
+            "p2",
+            { type: "player", id: "p1" },
+            2,
+            false
+        );
+        expect(result).toBeNull();
+        // Eye for an Eye's reflection ("that source's controller" takes an
+        // equal hit) never runs — bear's controller (p2) keeps their life,
+        // because there was no damage to mirror.
+        expect(state.players[1].life).toBe(20);
+        // And, as in (a), the shield is not spent on a non-event.
+        expect(state.damageRedirections).toEqual([reflect]);
+    });
+
+    it("(c) a targetPreventionShields entry on the recipient is NOT consumed — the source shield already zeroed the damage", () => {
+        const state = board();
+        state.sourcePreventionShields = [{ sourceIds: ["bear"] }];
+        const targetShield = {
+            targetType: "player" as const,
+            targetId: "p1",
+            remaining: 5,
+            duration: { phase: "end-of-turn" as const },
+        };
+        state.targetPreventionShields = [targetShield];
+        // `applyTargetPrevention` mutates a matched shield's `remaining` IN
+        // PLACE, so compare against a snapshot taken BEFORE the call — not
+        // against `targetShield` itself, which would trivially "equal" its
+        // own post-mutation value.
+        const beforeShields = state.targetPreventionShields.map((s) => ({
+            ...s,
+        }));
+        const bear = state.players[1].battlefield.find((c) => c.id === "bear")!;
+        // Driven through the real sink (not `runDamageReplacement` in
+        // isolation): `dealDamageFromPermanentToPlayer` calls
+        // `runDamageReplacement` first and returns immediately when it comes
+        // back null (gre/state.ts), so the target-keyed CR 615.1 shield's own
+        // consumption step (`applyTargetPrevention`, reached only AFTER a
+        // non-null replacement result) is never entered.
+        dealDamageFromPermanentToPlayer(state, bear, "p2", "p1", 2);
+        expect(state.players[0].life).toBe(20);
+        expect(state.targetPreventionShields).toEqual(beforeShields);
+    });
+
+    it("(d) damage already dealt before the shield existed is not retroactively undone once the shield is added", () => {
+        const state = board();
+        const bear = state.players[1].battlefield.find((c) => c.id === "bear")!;
+        // No shield yet: the first hit lands normally.
+        dealDamageFromPermanentToPlayer(state, bear, "p2", "p1", 3);
+        expect(state.players[0].life).toBe(17);
+        // Now the source shield goes up (e.g. Guard Dogs' conditional trigger
+        // firing mid-turn) and blocks all FURTHER damage from bear.
+        state.sourcePreventionShields = [{ sourceIds: ["bear"] }];
+        dealDamageFromPermanentToPlayer(state, bear, "p2", "p1", 2);
+        // The second hit is prevented (life doesn't drop further) — but the
+        // shield is prospective only (CR 615.1: "the next time … would deal
+        // damage"), so the FIRST hit's life loss is not healed back.
+        expect(state.players[0].life).toBe(17);
     });
 });

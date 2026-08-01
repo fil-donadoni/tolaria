@@ -1329,7 +1329,7 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // triggers reading the firing $event, ice/red (Orcish Squatters'
         // gain-control rider), fem/white (Heroism's per-attacker may-pay loop),
         // fem/white (Farrel's Zealot, a targeted trigger with a paired damage
-        // op + "may" clause). The flag is a top-level `state.assignsNoCombatDamageThisTurn`
+        // op + "may" clause). The flag is a top-level `state.sourcePreventionShields`
         // array set in the SAME resolution and carried to the wire by the
         // `...state` projection spread, so scenarioGenerator does a REAL
         // assertor (the id appears in the array), not a skip. Both migrated

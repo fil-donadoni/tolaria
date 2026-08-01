@@ -82,6 +82,7 @@ import {
     dealDamageFromPermanentToPlayer,
     applySourceStaticEffects,
 } from "../../../../gre/state";
+import { sourcePreventionShieldApplies } from "../../../../gre/state";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -2772,7 +2773,7 @@ describe("Cloak of Confusion — unblocked-attacker rider (CR 510.1c)", () => {
             choiceId: head.choiceId,
             cardInstanceIds: ["yes"],
         });
-        expect(state.assignsNoCombatDamageThisTurn).toContain("atk");
+        expect(sourcePreventionShieldApplies(state, "atk", true)).toBe(true);
         // Defending player discarded exactly one card at random.
         expect(state.players[1].hand.length).toBe(1);
         expect(state.players[1].graveyard.length).toBe(1);
@@ -2797,7 +2798,7 @@ describe("Cloak of Confusion — unblocked-attacker rider (CR 510.1c)", () => {
             choiceId: head.choiceId,
             cardInstanceIds: ["no"],
         });
-        expect(state.assignsNoCombatDamageThisTurn ?? []).not.toContain("atk");
+        expect(sourcePreventionShieldApplies(state, "atk", true)).toBe(false);
         expect(state.players[1].hand.length).toBe(2);
     });
 
@@ -2908,7 +2909,7 @@ describe("Gaze of Pain — turn-scoped unblocked rider (CR 603.7a)", () => {
         expect(state.players[1].graveyard.some((c) => c.id === "victim")).toBe(
             true
         );
-        expect(state.assignsNoCombatDamageThisTurn).toContain("atk");
+        expect(sourcePreventionShieldApplies(state, "atk", true)).toBe(true);
     });
 
     it("does NOT fire when the rider is not armed this turn", () => {

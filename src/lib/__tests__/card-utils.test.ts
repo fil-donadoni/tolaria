@@ -75,6 +75,8 @@ import {
     starCompass,
 } from "@convex/cards/sets/pls/colorless";
 import { quirionExplorer } from "@convex/cards/sets/pls/green";
+import { guardDogs, pollenRemedy } from "@convex/cards/sets/pls/white";
+import { radiantKavu, rithsCharm } from "@convex/cards/sets/pls/multicolor";
 import {
     forest as forestCard,
     island as islandCard,
@@ -591,6 +593,7 @@ describe("TARGET_LABEL exhaustive coverage", () => {
         "Enchantment",
         "Land",
         "Planeswalker",
+        "Battle",
         "player",
         "any",
         "spell",
@@ -4987,5 +4990,85 @@ describe("getManaChoices — board-derived colour sources through the wire reduc
         // Null, not the static five-colour fallback: the board IS known here
         // and it genuinely contributes nothing.
         expect(getManaChoices(slimSource, players)).toBeNull();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// PLS C4 — frontend wiring for the source-scoped prevention slice (#1955)
+// ---------------------------------------------------------------------------
+//
+// A card correct in the GRE is routinely dead in the UI because a client view
+// reducer drops a field the affordance reads. These drive the REAL reducers
+// (`getStackAbilities`, `buildTriggerStateView`, `matchesTargetRequirement`,
+// `wantsSpellTarget`) for every affordance the slice introduces.
+describe("PLS C4 prevention slice — client affordances (#1955)", () => {
+    it("Guard Dogs' {2}{W},{T} ability is offered in the tap menu (untapped, main phase)", () => {
+        const card = makeCardInstance({
+            card: { id: guardDogs.id },
+            types: ["Creature"],
+            subtypes: ["Dog"],
+            isTapped: false,
+        });
+        const view = buildTriggerStateView([], undefined, undefined);
+        expect(
+            getStackAbilities(card, "PRECOMBAT_MAIN", true, view)
+        ).toHaveLength(1);
+        // A tap cost is unpayable while already tapped (CR 602.2a).
+        const tapped = makeCardInstance({
+            card: { id: guardDogs.id },
+            types: ["Creature"],
+            subtypes: ["Dog"],
+            isTapped: true,
+        });
+        expect(
+            getStackAbilities(tapped, "PRECOMBAT_MAIN", true, view)
+        ).toHaveLength(0);
+    });
+
+    it("Radiant Kavu's mana-only ability is offered even while tapped", () => {
+        const card = makeCardInstance({
+            card: { id: radiantKavu.id },
+            types: ["Creature"],
+            subtypes: ["Kavu"],
+            isTapped: true,
+        });
+        expect(
+            getStackAbilities(
+                card,
+                "PRECOMBAT_MAIN",
+                true,
+                buildTriggerStateView([], undefined, undefined)
+            )
+        ).toHaveLength(1);
+    });
+
+    it("Rith's Charm mode 3 makes permanents clickable AND enables stack-spell selection", () => {
+        const req = rithsCharm.modes?.[2].targetRequirement;
+        const types = req?.type as string[];
+        // Every permanent type in the requirement marks a battlefield card
+        // clickable (CR 609.7 — the source may be any object).
+        for (const t of ["Creature", "Artifact", "Enchantment", "Land"]) {
+            const perm = makeCardInstance({ types: [t as never] });
+            expect(matchesTargetRequirement(perm, types)).toBe(true);
+        }
+        // …and the "spell" member opens stack selection, so a burn spell on
+        // the stack can be named as the source.
+        expect(wantsSpellTarget(types)).toBe(true);
+        expect(wantsPermanentTarget(types)).toBe(true);
+    });
+
+    it("Pollen Remedy declares a divided requirement, which drives the per-target stepper", () => {
+        // `divideAsChosen` is what sets `PendingTarget.divideTotal`, the single
+        // field the whole client divide UI (`useDivideTargets`,
+        // `useDivideBuffer`, `DivideTargetList`) keys off. Kicked and unkicked
+        // must both carry one, or the stepper never opens for that mode.
+        expect(pollenRemedy.targetRequirement?.divideAsChosen?.total).toBe(3);
+        expect(
+            pollenRemedy.kickedTargetRequirement?.divideAsChosen?.total
+        ).toBe(6);
+        // "Any target" is what makes both players and permanents clickable.
+        expect(wantsPermanentTarget(pollenRemedy.targetRequirement!.type)).toBe(
+            true
+        );
     });
 });

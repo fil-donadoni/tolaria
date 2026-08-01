@@ -77,6 +77,7 @@ import {
     resolveTopOfStack,
     applyExistingGrantsTo,
 } from "../../../../gre/state";
+import { sourcePreventionShieldApplies } from "../../../../gre/state";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -1497,7 +1498,7 @@ describe("Orcish Squatters — unblocked attack steals a land (CR 603.3d / 611.2
             state.players[0].battlefield.find((c) => c.id === "land") ??
             state.players[1].battlefield.find((c) => c.id === "land")!;
         expect(stolen.controllerId).toBe("p1");
-        expect(state.assignsNoCombatDamageThisTurn ?? []).toContain("sq");
+        expect(sourcePreventionShieldApplies(state, "sq", true)).toBe(true);
     });
 
     it("raises a player choice when 2+ defender lands are legal (CR 603.3d), then steals the chosen one", () => {
@@ -1546,7 +1547,7 @@ describe("Orcish Squatters — unblocked attack steals a land (CR 603.3d / 611.2
             state.players[1].battlefield.find((c) => c.id === "land2")!
                 .controllerId
         ).toBe("p2");
-        expect(state.assignsNoCombatDamageThisTurn ?? []).toContain("sq");
+        expect(sourcePreventionShieldApplies(state, "sq", true)).toBe(true);
     });
 
     it("declining the 'you may' keeps the land with its owner and combat damage intact", () => {
@@ -1576,7 +1577,7 @@ describe("Orcish Squatters — unblocked attack steals a land (CR 603.3d / 611.2
             state.players[1].battlefield.find((c) => c.id === "land")!
                 .controllerId
         ).toBe("p2");
-        expect(state.assignsNoCombatDamageThisTurn ?? []).not.toContain("sq");
+        expect(sourcePreventionShieldApplies(state, "sq", true)).toBe(false);
     });
 });
 

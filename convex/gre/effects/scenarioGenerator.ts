@@ -984,9 +984,10 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             recordSlot(req, op.target.target, "permanent");
             return;
         case "markAssignsNoCombatDamage":
-            // `markAssignsNoCombatDamage` (CR 510.1c, issue #1283) pushes the
-            // target's id onto the IMMEDIATE `state.assignsNoCombatDamageThisTurn`
-            // array (observable in the same resolution). The generator asserts it
+            // `markAssignsNoCombatDamage` (CR 510.1c, issue #1283) pushes a
+            // combat-only, id-scoped entry onto the IMMEDIATE
+            // `state.sourcePreventionShields` list (observable in the same
+            // resolution). The generator asserts it
             // on an announced permanent slot (seeds a filler creature there and
             // reads the array after resolution). A `$source` / `$each` target is
             // not modelled — skip and let the card's own per-card test cover it.
@@ -2141,10 +2142,11 @@ const OP_ASSERTORS: Record<string, Assertor> = {
         };
     },
     // `markAssignsNoCombatDamage` (CR 510.1c, issue #1283) — a source-side
-    // combat-damage lock on an announced permanent slot is observable as the
-    // permanent's id appearing in `state.assignsNoCombatDamageThisTurn`.
-    // `$source`/`$each` targets are skipped upstream in `analyseOp` (returns
-    // null defensively here).
+    // combat-damage lock on an announced permanent slot is observable as a
+    // combat-only SOURCE-scoped shield covering the permanent's id
+    // (`state.sourcePreventionShields`, issue #1955). `$source`/`$each`
+    // targets are skipped upstream in `analyseOp` (returns null defensively
+    // here).
     markAssignsNoCombatDamage(rawOp, scenario) {
         const op = rawOp as Extract<
             EffectOp,
@@ -2153,7 +2155,7 @@ const OP_ASSERTORS: Record<string, Assertor> = {
         if (!("target" in op.target)) return null;
         const permId = scenario.targetPermanentIds[op.target.target];
         return {
-            label: `combat-damage lock permanent ${permId} (assignsNoCombatDamageThisTurn contains id)`,
+            label: `combat-damage lock permanent ${permId} (source-scoped combat shield covers id)`,
             check: (post) => {
                 const perm = post.players
                     .flatMap((p) => p.battlefield)
@@ -2161,12 +2163,12 @@ const OP_ASSERTORS: Record<string, Assertor> = {
                 if (!perm) {
                     return { ok: false, detail: "target permanent gone" };
                 }
-                const marked = (
-                    post.assignsNoCombatDamageThisTurn ?? []
-                ).includes(permId);
+                const marked = (post.sourcePreventionShields ?? []).some((s) =>
+                    s.sourceIds?.includes(permId)
+                );
                 return {
                     ok: marked,
-                    detail: `assignsNoCombatDamageThisTurn ${marked ? "contains" : "missing"} ${permId}`,
+                    detail: `sourcePreventionShields ${marked ? "covers" : "misses"} ${permId}`,
                 };
             },
         };

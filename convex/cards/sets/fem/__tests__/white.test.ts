@@ -23,6 +23,7 @@ import {
     orderOfLeitbur,
 } from "..";
 import { resolveTopOfStack } from "../../../../gre/state";
+import { sourcePreventionShieldApplies } from "../../../../gre/state";
 import type {
     CardInstanceState,
     GameState,
@@ -32,6 +33,7 @@ import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { getEffectivePower, STATIC_EFFECT_CTX } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
 import {
+    advancePhase,
     applyAllCombatDamage,
     finalizeCleanup,
     fireDelayedTriggers,
@@ -333,7 +335,8 @@ describe("Farrelite Priest — activation-count drawback (CR 605.1a / 602.5 / 60
 // ===========================================================================
 // Combat-damage prevention / "assigns no combat damage" (CR 510.1c) — the
 // markAssignsNoCombatDamage primitive shared by Farrel's Mantle / Zealot and
-// Heroism. A source in `assignsNoCombatDamageThisTurn` deals 0 combat damage.
+// Heroism. A source covered by a combat-only `sourcePreventionShields`
+// entry deals 0 combat damage.
 // ===========================================================================
 
 describe("assigns no combat damage this turn (CR 510.1c)", () => {
@@ -362,7 +365,7 @@ describe("assigns no combat damage this turn (CR 510.1c)", () => {
                 blockedAttackerIds: ["atk"],
                 blockersConfirmed: true,
             },
-            assignsNoCombatDamageThisTurn: ["atk"],
+            sourcePreventionShields: [{ sourceIds: ["atk"], combatOnly: true }],
         });
         applyAllCombatDamage(state, { atk: { blk: 2 } });
         const blk = state.players[1].battlefield.find((c) => c.id === "blk");
@@ -407,10 +410,21 @@ describe("assigns no combat damage this turn (CR 510.1c)", () => {
         );
     });
 
-    it("the mark clears at cleanup (CR 514.2)", () => {
-        const state = makeState({ assignsNoCombatDamageThisTurn: ["atk"] });
+    it("the mark clears at CLEANUP, and NOT at end of combat (CR 514.2)", () => {
+        const state = makeState({
+            phase: "END_OF_COMBAT",
+            sourcePreventionShields: [{ sourceIds: ["atk"], combatOnly: true }],
+        });
+        // `tickAllDurations` also runs from `endCombatStep` (CR 511.3, once
+        // per combat phase). A "this turn" shield MUST survive that so it
+        // still applies in a SECOND combat phase the same turn — the shape of
+        // the still-open Fog bug on `preventAllCombatDamageThisTurn` (#1864),
+        // which this list deliberately does not repeat.
+        advancePhase(state);
+        expect(sourcePreventionShieldApplies(state, "atk", true)).toBe(true);
+        state.phase = "CLEANUP";
         finalizeCleanup(state);
-        expect(state.assignsNoCombatDamageThisTurn).toBeUndefined();
+        expect(state.sourcePreventionShields).toBeUndefined();
     });
 });
 
@@ -562,7 +576,7 @@ describe("Farrel's Zealot — CR 603.3d targeted unblocked-attack trigger", () =
             (c) => c.id === "bear"
         );
         expect(target?.damageMarked ?? 0).toBe(3);
-        expect(state.assignsNoCombatDamageThisTurn).toContain("zealot");
+        expect(sourcePreventionShieldApplies(state, "zealot", true)).toBe(true);
     });
 });
 
@@ -620,7 +634,9 @@ describe("Farrel's Mantle — CR 603.3d targeted unblocked-attack trigger", () =
 
         const t = state.players[1].battlefield.find((c) => c.id === "victim");
         expect(t?.damageMarked ?? 0).toBe(4);
-        expect(state.assignsNoCombatDamageThisTurn).toContain("attacker");
+        expect(sourcePreventionShieldApplies(state, "attacker", true)).toBe(
+            true
+        );
     });
 
     it("DIVERGENCE (tracked-by #1841): the enchanted creature is still a legal target — excludeSource excludes the Aura, not the attacker", () => {

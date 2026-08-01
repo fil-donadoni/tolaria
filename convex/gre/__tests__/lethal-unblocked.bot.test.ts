@@ -292,7 +292,7 @@ describe("lethalUnblockedDelta — EXACTLY ZERO off-pattern (ADR 0070 §5)", () 
         expect(lethalUnblockedDelta(state, ATTACKER)).toBe(0);
     });
 
-    it("skips attackers in `assignsNoCombatDamageThisTurn` (CR 510.1c)", () => {
+    it("skips attackers covered by a source-scoped prevention shield (CR 510.1c / 615)", () => {
         const state = position({
             attackers: Array.from({ length: 4 }, () => ({
                 power: 6,
@@ -301,10 +301,14 @@ describe("lethalUnblockedDelta — EXACTLY ZERO off-pattern (ADR 0070 §5)", () 
             defenderLife: 20,
         });
         // One of the four assigns nothing → 18 into 20, no longer lethal.
-        state.assignsNoCombatDamageThisTurn = ["a0"];
+        state.sourcePreventionShields = [
+            { sourceIds: ["a0"], combatOnly: true },
+        ];
         expect(lethalUnblockedDelta(state, DEFENDER)).toBe(0);
         // Silenced down to two attackers is likewise nothing (12 into 20).
-        state.assignsNoCombatDamageThisTurn = ["a0", "a1"];
+        state.sourcePreventionShields = [
+            { sourceIds: ["a0", "a1"], combatOnly: true },
+        ];
         expect(lethalUnblockedDelta(state, DEFENDER)).toBe(0);
     });
 

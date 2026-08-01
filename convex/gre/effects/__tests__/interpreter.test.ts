@@ -29,6 +29,9 @@ import {
     applyControlChange,
     createTokenPermanents,
     buildSpellContext,
+    sourcePreventionShieldApplies,
+    runDamageReplacement,
+    applyTargetPrevention,
 } from "../../state";
 import type { CardInstanceState, GameState, StackItem } from "../../state";
 import {
@@ -51,6 +54,7 @@ import {
 } from "../../sba";
 import { collectTriggers, placeTriggersOnStack } from "../../triggers";
 import { raiseTriggerTargetSelection } from "../../rules";
+import type { Color, TargetSelection } from "../../../cards/types";
 import { finalizeTargetSelection } from "../../../game";
 import { INLINE_DELAYED_TRIGGER_ID, runEffectScript } from "../interpreter";
 import { getEffectivePower, getEffectiveToughness } from "../../layers";
@@ -9302,6 +9306,316 @@ describe("Effect Script Op: preventDamage (CR 615, issue #845)", () => {
             (c) => c.id === "pdw1"
         )!;
         expect(slim.damageMarked).toBe(2);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// preventDamage — the SOURCE-scoped modes + the divided mode (issue #1955)
+// ─────────────────────────────────────────────────────────────────────────
+//
+// These are the three new modes' own per-Op tests (the "a new Op pays the
+// entry fee once, reuse rides free" contract): every later card reusing them
+// inherits this coverage. Every assertion goes through `runDamageReplacement`
+// — the one funnel every damage sink calls — rather than reading the shield
+// list, so a shield that is registered but never consulted fails here.
+describe("Effect Script Op: preventDamage source-scoped + divided modes (CR 615, issue #1955)", () => {
+    /** p2 controls two bears; p1 resolves the script. */
+    function twoBears(): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(BEAR_ID, {
+                            controllerId: "p2",
+                            id: "srcA",
+                        }),
+                        makeInstance(BEAR_ID, {
+                            controllerId: "p2",
+                            id: "srcB",
+                        }),
+                    ],
+                }),
+            ],
+        });
+    }
+
+    function blocked(
+        state: GameState,
+        sourceId: string,
+        isCombat: boolean,
+        target: TargetSelection = { type: "player", id: "p1" },
+        unpreventable = false
+    ): boolean {
+        return (
+            runDamageReplacement(
+                state,
+                sourceId,
+                "p2",
+                target,
+                2,
+                isCombat,
+                unpreventable
+            ) === null
+        );
+    }
+
+    it("all-from-source: prevents the named source's damage to every recipient", () => {
+        const id = registerScript("test-op-prevent-from-source", [
+            {
+                op: "preventDamage",
+                mode: "all-from-source",
+                source: { target: 0 },
+            },
+        ]);
+        const state = twoBears();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "srcA" }]);
+        resolveTopOfStack(state);
+        expect(blocked(state, "srcA", true)).toBe(true);
+        expect(blocked(state, "srcA", false)).toBe(true);
+        expect(
+            blocked(state, "srcA", false, { type: "permanent", id: "srcB" })
+        ).toBe(true);
+        expect(blocked(state, "srcB", true)).toBe(false);
+    });
+
+    it("all-from-source + combatOnly: leaves the source's NON-combat damage alone (CR 510)", () => {
+        const id = registerScript("test-op-prevent-from-source-combat", [
+            {
+                op: "preventDamage",
+                mode: "all-from-source",
+                source: { target: 0 },
+                combatOnly: true,
+            },
+        ]);
+        const state = twoBears();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "srcA" }]);
+        resolveTopOfStack(state);
+        expect(blocked(state, "srcA", true)).toBe(true);
+        expect(blocked(state, "srcA", false)).toBe(false);
+    });
+
+    it("all-from-source: is a no-op when the source is gone (CR 608.2b) and still resolves", () => {
+        const id = registerScript("test-op-prevent-from-source-gone", [
+            {
+                op: "preventDamage",
+                mode: "all-from-source",
+                source: { target: 0 },
+            },
+        ]);
+        const state = twoBears();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "ghost" }]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(blocked(state, "srcA", true)).toBe(false);
+    });
+
+    it("all-from-matching: covers a filter-matched source and re-reads the match live (CR 615.6)", () => {
+        const id = registerScript("test-op-prevent-matching", [
+            {
+                op: "preventDamage",
+                mode: "all-from-matching",
+                match: { colors: ["U", "B"], cardType: "Creature" },
+                combatOnly: true,
+            },
+        ]);
+        const state = twoBears();
+        pushSpell(state, id, "p1", []);
+        resolveTopOfStack(state);
+        // The bears are green — no match yet.
+        expect(blocked(state, "srcA", true)).toBe(false);
+        // Turn one blue AFTER the script resolved: the shield picks it up.
+        state.players[1].battlefield[0].colorOverride = ["U"];
+        expect(blocked(state, "srcA", true)).toBe(true);
+        expect(blocked(state, "srcB", true)).toBe(false);
+        // …and lets go when it stops matching.
+        state.players[1].battlefield[0].colorOverride = ["G"];
+        expect(blocked(state, "srcA", true)).toBe(false);
+    });
+
+    it("all-from-matching: the cardType arm narrows the colour OR-set (CR 202.2 / 205.2)", () => {
+        const id = registerScript("test-op-prevent-matching-type", [
+            {
+                op: "preventDamage",
+                mode: "all-from-matching",
+                match: { colors: ["U"], cardType: "Artifact" },
+            },
+        ]);
+        const state = twoBears();
+        pushSpell(state, id, "p1", []);
+        resolveTopOfStack(state);
+        state.players[1].battlefield[0].colorOverride = ["U"];
+        // Blue, but a Creature — the Artifact arm rejects it.
+        expect(blocked(state, "srcA", true)).toBe(false);
+        state.players[1].battlefield[0].types = ["Artifact", "Creature"];
+        expect(blocked(state, "srcA", true)).toBe(true);
+    });
+
+    it("a source-scoped shield does NOT stop damage flagged unpreventable (CR 615.1)", () => {
+        const id = registerScript("test-op-prevent-unpreventable", [
+            {
+                op: "preventDamage",
+                mode: "all-from-source",
+                source: { target: 0 },
+            },
+        ]);
+        const state = twoBears();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "srcA" }]);
+        resolveTopOfStack(state);
+        expect(blocked(state, "srcA", true)).toBe(true);
+        expect(
+            blocked(state, "srcA", true, { type: "player", id: "p1" }, true)
+        ).toBe(false);
+    });
+
+    it("next-n-divided: installs one shield per target sized by the announced split (CR 601.2d)", () => {
+        const id = registerScript("test-op-prevent-divided", [
+            {
+                op: "preventDamage",
+                mode: "next-n-divided",
+                total: 3,
+                duration: { phase: "end-of-turn" },
+            },
+        ]);
+        const state = twoBears();
+        const item = pushSpell(state, id, "p1", [
+            { type: "permanent", id: "srcA" },
+            { type: "permanent", id: "srcB" },
+        ]);
+        item.targetAmounts = { "permanent:srcA": 2, "permanent:srcB": 1 };
+        resolveTopOfStack(state);
+        expect(applyTargetPrevention(state, "permanent", "srcA", 5)).toBe(3);
+        expect(applyTargetPrevention(state, "permanent", "srcB", 5)).toBe(4);
+    });
+
+    it("next-n-divided: falls back to a ≥1-each split when no amounts were recorded", () => {
+        const id = registerScript("test-op-prevent-divided-fallback", [
+            {
+                op: "preventDamage",
+                mode: "next-n-divided",
+                total: 3,
+                duration: { phase: "end-of-turn" },
+            },
+        ]);
+        const state = twoBears();
+        pushSpell(state, id, "p1", [
+            { type: "permanent", id: "srcA" },
+            { type: "permanent", id: "srcB" },
+        ]);
+        resolveTopOfStack(state);
+        const shields = state.targetPreventionShields ?? [];
+        expect(shields).toHaveLength(2);
+        expect(shields.every((s) => s.remaining >= 1)).toBe(true);
+        expect(shields.reduce((n, s) => n + s.remaining, 0)).toBe(3);
+    });
+
+    it('next-n-divided: resolves total "X" against the announced X (CR 107.3)', () => {
+        const id = registerScript("test-op-prevent-divided-x", [
+            {
+                op: "preventDamage",
+                mode: "next-n-divided",
+                total: "X",
+                duration: { phase: "end-of-turn" },
+            },
+        ]);
+        const state = twoBears();
+        const item = pushSpell(state, id, "p1", [
+            { type: "permanent", id: "srcA" },
+        ]);
+        item.chosenX = 4;
+        item.targetAmounts = { "permanent:srcA": 4 };
+        resolveTopOfStack(state);
+        expect(applyTargetPrevention(state, "permanent", "srcA", 6)).toBe(2);
+    });
+
+    it("the source-scoped shield survives the wire projection (wire format)", () => {
+        const id = registerScript("test-op-prevent-from-source-wire", [
+            {
+                op: "preventDamage",
+                mode: "all-from-source",
+                source: { target: 0 },
+                combatOnly: true,
+            },
+        ]);
+        const state = twoBears();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "srcA" }]);
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(sourcePreventionShieldApplies(projected, "srcA", true)).toBe(
+            true
+        );
+        expect(sourcePreventionShieldApplies(projected, "srcB", true)).toBe(
+            false
+        );
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// `sharesColor` predicate (CR 105.2 / 202.2, issue #1955)
+// ─────────────────────────────────────────────────────────────────────────
+describe("Effect Script predicate: sharesColor (CR 202.2, issue #1955)", () => {
+    /** Two permanents whose colours the predicate compares. */
+    function pair(aColors?: Color[], bColors?: Color[]): GameState {
+        const a = makeInstance(BEAR_ID, { controllerId: "p1", id: "objA" });
+        const b = makeInstance(BEAR_ID, { controllerId: "p1", id: "objB" });
+        if (aColors) a.colorOverride = aColors;
+        if (bColors) b.colorOverride = bColors;
+        return makeState({
+            players: [
+                makePlayer("p1", { battlefield: [a, b] }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    /** Script that gains 1 life iff the two announced targets share a colour
+     *  (a zero-setup observable — unlike `draw`, it needs no library). */
+    const SCRIPT_ID = registerScript("test-pred-shares-color", [
+        {
+            op: "if",
+            predicate: { sharesColor: { target: 0 }, with: { target: 1 } },
+            then: [{ op: "gainLife", player: "controller", amount: 1 }],
+        },
+    ]);
+
+    function shared(state: GameState): boolean {
+        const before = state.players[0].life;
+        pushSpell(state, SCRIPT_ID, "p1", [
+            { type: "permanent", id: "objA" },
+            { type: "permanent", id: "objB" },
+        ]);
+        resolveTopOfStack(state);
+        return state.players[0].life > before;
+    }
+
+    it("is true when the two objects share at least one colour", () => {
+        expect(shared(pair(["W", "U"], ["U", "B"]))).toBe(true);
+    });
+
+    it("is false when they share none", () => {
+        expect(shared(pair(["W"], ["B"]))).toBe(false);
+    });
+
+    it("reads colour through layer 5, not the printed mana cost (CR 613.1d)", () => {
+        // Both bears are printed green; painting one blue and the other black
+        // makes them share nothing despite an identical printed cost.
+        expect(shared(pair(["U"], ["B"]))).toBe(false);
+        expect(shared(pair())).toBe(true); // both still green
+    });
+
+    it("a COLOURLESS object shares no colour, not even with another colourless one (CR 202.2)", () => {
+        expect(shared(pair([], []))).toBe(false);
+        expect(shared(pair([], ["G"]))).toBe(false);
+    });
+
+    it("is false when either side is gone (CR 608.2b)", () => {
+        const state = pair(["G"], ["G"]);
+        const before = state.players[0].life;
+        pushSpell(state, SCRIPT_ID, "p1", [
+            { type: "permanent", id: "objA" },
+            { type: "permanent", id: "ghost" },
+        ]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.players[0].life).toBe(before);
     });
 });
 
@@ -21884,7 +22198,11 @@ describe("Effect Script Op: markAssignsNoCombatDamage (CR 510.1c)", () => {
         const state = oneBear();
         pushSpell(state, id, "p1", [{ type: "permanent", id: "bearA" }]);
         resolveTopOfStack(state);
-        expect(state.assignsNoCombatDamageThisTurn).toContain("bearA");
+        expect(sourcePreventionShieldApplies(state, "bearA", true)).toBe(true);
+        // CR 510.1c is COMBAT-only: the bear's non-combat damage is untouched.
+        expect(sourcePreventionShieldApplies(state, "bearA", false)).toBe(
+            false
+        );
     });
 
     it("marks the resolving source via $source (Farrel's Zealot self-mark)", () => {
@@ -21935,7 +22253,9 @@ describe("Effect Script Op: markAssignsNoCombatDamage (CR 510.1c)", () => {
             targets: [],
         });
         resolveTopOfStack(state);
-        expect(state.assignsNoCombatDamageThisTurn).toContain("zealot1");
+        expect(sourcePreventionShieldApplies(state, "zealot1", true)).toBe(
+            true
+        );
     });
 
     it("is a no-op when the targeted permanent is gone (CR 608.2b) and still resolves", () => {
@@ -21945,9 +22265,7 @@ describe("Effect Script Op: markAssignsNoCombatDamage (CR 510.1c)", () => {
         const state = oneBear();
         pushSpell(state, id, "p1", [{ type: "permanent", id: "ghost" }]);
         expect(() => resolveTopOfStack(state)).not.toThrow();
-        expect(state.assignsNoCombatDamageThisTurn ?? []).not.toContain(
-            "bearA"
-        );
+        expect(sourcePreventionShieldApplies(state, "bearA", true)).toBe(false);
     });
 
     it("the combat-damage lock survives projection (wire format)", () => {
@@ -21958,7 +22276,12 @@ describe("Effect Script Op: markAssignsNoCombatDamage (CR 510.1c)", () => {
         pushSpell(state, id, "p1", [{ type: "permanent", id: "bearA" }]);
         resolveTopOfStack(state);
         const projected = projectPublicState(state, 1, "p1");
-        expect(projected.assignsNoCombatDamageThisTurn).toContain("bearA");
+        // Asserted THROUGH the reducer, not on a hand-built view: the shield
+        // list has to survive the wire for the client Brain's own combat
+        // evaluation (`evaluate.ts`) to see it.
+        expect(sourcePreventionShieldApplies(projected, "bearA", true)).toBe(
+            true
+        );
     });
 });
 

@@ -1441,7 +1441,7 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "playerPreferences",
     "landPlayLocked",
     "preventAllCombatDamageThisTurn",
-    "assignsNoCombatDamageThisTurn",
+    "sourcePreventionShields",
     "cannotCastSpellsThisTurn",
     "cannotActivateAbilitiesThisTurn",
     "combatDamageRedirectToPermanent",

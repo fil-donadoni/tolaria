@@ -771,8 +771,24 @@ const preventDamage: Valuer<"preventDamage"> = (op, ctx) => {
             tags: tagScaling(scaling, "protection"),
         };
     }
-    // "all-combat" (Fog) / "combat-to-and-by" (Maze of Ith) — no scalar
-    // amount, a flat defensive shield.
+    // "next-n-divided" (Pollen Remedy, issue #1955) — the same absorbed-damage
+    // scalar as "next-n", just spread over several targets. `total` mirrors
+    // `divideAsChosen.total` (number | "X" | "X+1"), the exact vocabulary
+    // `dealDamageDividedAsChosen`'s valuer already resolves, so reuse it.
+    if (op.mode === "next-n-divided") {
+        const { amount, scaling } =
+            typeof op.total === "number"
+                ? ctx.value(op.total)
+                : ctx.value({ X: true });
+        const total = op.total === "X+1" ? amount + 1 : amount;
+        return {
+            points: total * LIFE_PER_POINT,
+            tags: [...tagScaling(scaling, "protection"), "targeted"],
+        };
+    }
+    // "all-combat" (Fog) / "combat-to-and-by" (Maze of Ith) /
+    // "all-from-source" (Falling Timber, Rith's Charm) / "all-from-matching"
+    // (Radiant Kavu) — no scalar amount, a flat defensive shield.
     return { points: PREVENT_DAMAGE_FLAT_VALUE, tags: ["protection"] };
 };
 
