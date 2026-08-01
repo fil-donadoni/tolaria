@@ -17,6 +17,7 @@
 import { describe, it, expect } from "vitest";
 import {
     warpedDevotion,
+    darkSuspicions,
     noxiousVapors,
     lordOfTheUndead,
     sinisterStrength,
@@ -69,6 +70,7 @@ import {
 } from "../../../../gre/rules";
 import { projectPublicState } from "../../../../gameProjections";
 import { registerTokenDefinition } from "../../..";
+import type { PhaseBeginEvent } from "../../../types";
 
 /** Resolves an activated ability directly against a real source permanent,
  *  mirroring the per-set shim already used by `inv/__tests__/black.test.ts`
@@ -1003,5 +1005,193 @@ describe("Phyrexian Bloodstock (CR 603.10 leaves-the-battlefield trigger with a 
         // projection.
         const projected = projectPublicState(state, 1, "p1");
         expect(projected.players[1].battlefield).toHaveLength(0);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// Dark Suspicions (issue #2006) — the card the set's two Effect Script gaps
+// were opened for. It introduces NEW value grammar (`count`'s `zone: "hand"`
+// and the `{ difference: { from, minus } }` value), so the full per-Op regime
+// applies. The generic construct coverage — literal/count operands, the CR
+// 107.1b zero and negative cases, the wire-format assertion — is the value
+// members' own permanent test in
+// `convex/gre/effects/__tests__/interpreter.test.ts`; what this block owns is
+// the CARD: its Scryfall data, and that the trigger fires on the right
+// player's upkeep and subtracts the two hands in the right ORDER (the one
+// thing a generic value test cannot check). The auto-generated smoke sweep
+// skips it with a reason (`difference` has no canned prediction, and the
+// hand is the cast filler's zone), which is exactly the documented signal to
+// hand-write this.
+// ─────────────────────────────────────────────────────────────────────────
+
+const DARK_SUSPICIONS_ABILITY = darkSuspicions.triggeredAbilities!.find(
+    (a) => a.id === "dark-suspicions-upkeep"
+)!;
+
+/** Pushes a triggered ability directly onto the stack and resolves it, the
+ *  same per-set shim `pls/__tests__/blue.test.ts` uses for Sunken Hope's own
+ *  upkeep trigger. */
+function pushTrigger(
+    state: GameState,
+    source: ReturnType<typeof makeInstance>,
+    triggeredAbilityId: string,
+    triggerEvent: StackItem["triggerEvent"]
+): void {
+    state.stack.push({
+        ...source,
+        zone: "stack",
+        castById: source.controllerId,
+        triggeredAbilityId,
+        triggerSourceId: source.id,
+        triggerEvent,
+        targets: [],
+    });
+    resolveTopOfStack(state);
+}
+
+const upkeepEvent = (activePlayerId: string): PhaseBeginEvent => ({
+    type: "PHASE_BEGIN",
+    phase: "UPKEEP",
+    activePlayerId,
+});
+
+/** `n` filler cards in `owner`'s hand. */
+function handCards(owner: string, n: number) {
+    return Array.from({ length: n }, (_, i) =>
+        makeInstance(grizzlyBears.id, {
+            id: `${owner}-hand-${i}`,
+            controllerId: owner,
+            ownerId: owner,
+            zone: "hand",
+        })
+    );
+}
+
+/** Dark Suspicions under p1, with the two hands sized as given. */
+function darkSuspicionsBoard(p1Hand: number, p2Hand: number) {
+    const enchantment = makeInstance(darkSuspicions.id, {
+        id: "dark-suspicions",
+        controllerId: "p1",
+        ownerId: "p1",
+    });
+    const state = makeState({
+        players: [
+            makePlayer("p1", {
+                battlefield: [enchantment],
+                hand: handCards("p1", p1Hand),
+            }),
+            makePlayer("p2", { hand: handCards("p2", p2Hand) }),
+        ],
+    });
+    return { state, enchantment };
+}
+
+describe("Dark Suspicions — card data (Scryfall PLS 40 / modern Oracle text)", () => {
+    it("is a {2}{B}{B} rare Enchantment", () => {
+        expect(darkSuspicions.manaCost).toEqual({ X: 2, B: 2 });
+        expect(darkSuspicions.types).toEqual(["Enchantment"]);
+        expect(darkSuspicions.rarity).toBe("rare");
+        expect(darkSuspicions.oracleText).toBe(
+            "At the beginning of each opponent's upkeep, that player loses X life, where X is the number of cards in that player's hand minus the number of cards in your hand."
+        );
+    });
+
+    it("declares exactly one triggered ability, written as an Effect Script (ADR 0045)", () => {
+        expect(darkSuspicions.triggeredAbilities).toHaveLength(1);
+        expect(DARK_SUSPICIONS_ABILITY.effects).toBeDefined();
+        expect(DARK_SUSPICIONS_ABILITY.resolve).toBeUndefined();
+    });
+});
+
+describe("Dark Suspicions — each OPPONENT's upkeep (CR 603.6a / 402.2 / 107.1b)", () => {
+    it("fires on the opponent's upkeep and NOT on its own controller's", () => {
+        const { state, enchantment } = darkSuspicionsBoard(1, 4);
+        const self = { ...enchantment } as never;
+        expect(
+            DARK_SUSPICIONS_ABILITY.matches!(upkeepEvent("p2"), self, state)
+        ).toBe(true);
+        expect(
+            DARK_SUSPICIONS_ABILITY.matches!(upkeepEvent("p1"), self, state)
+        ).toBe(false);
+    });
+
+    it("the opponent loses (their hand − your hand) life — 4 − 1 = 3", () => {
+        const { state, enchantment } = darkSuspicionsBoard(1, 4);
+        pushTrigger(
+            state,
+            enchantment,
+            "dark-suspicions-upkeep",
+            upkeepEvent("p2")
+        );
+        expect(state.players[1].life).toBe(17);
+        // The subtraction runs in the printed ORDER: the enchantment's
+        // controller neither loses nor gains anything.
+        expect(state.players[0].life).toBe(20);
+    });
+
+    it("CR 107.1b — a non-positive X loses no life and never GAINS life", () => {
+        // Equal hands: X = 0.
+        const equal = darkSuspicionsBoard(3, 3);
+        pushTrigger(
+            equal.state,
+            equal.enchantment,
+            "dark-suspicions-upkeep",
+            upkeepEvent("p2")
+        );
+        expect(equal.state.players[1].life).toBe(20);
+
+        // The controller holds MORE: X is negative — still nothing, and
+        // emphatically not a life gain for the opponent (the Oracle ruling).
+        const negative = darkSuspicionsBoard(6, 2);
+        pushTrigger(
+            negative.state,
+            negative.enchantment,
+            "dark-suspicions-upkeep",
+            upkeepEvent("p2")
+        );
+        expect(negative.state.players[1].life).toBe(20);
+    });
+
+    // CR 402.2 — a hand's CONTENTS are hidden but its SIZE is public, which is
+    // precisely why this card may read it. The wire leg of that contract is
+    // that the projection carries the SIZE of a hand it will not show: the
+    // expected life total below is DERIVED from the projected hand lengths
+    // rather than restated as a literal, so a projection that dropped, padded
+    // or resized either hand fails here instead of quietly agreeing.
+    //
+    // The CLIENT leg — the same read re-run after `projectedToGameState`
+    // rehydrates that wire view into the vs-AI Brain's search world (ADR 0074)
+    // — cannot live in this file: the adapter is a bot-only module and an
+    // application test may not import one
+    // (`scripts/__tests__/bot-suite-boundary.test.ts`). It is owned by
+    // `src/lib/ai/__tests__/state-adapter-hand-size.bot.test.ts`, and it is the
+    // leg where this card was in fact broken (issue #2006): the adapter dropped
+    // the nulled opponent hand, so the count read 0 client-side.
+    it("the life loss and the public hand SIZES survive projection (wire format)", () => {
+        const { state, enchantment } = darkSuspicionsBoard(1, 4);
+        pushTrigger(
+            state,
+            enchantment,
+            "dark-suspicions-upkeep",
+            upkeepEvent("p2")
+        );
+        const projected = projectPublicState(state, 1, "p1");
+
+        // The opponent's hand is nulled but LENGTH-preserving; the caster's is
+        // visible. Both sides of the subtraction are therefore recoverable
+        // from the wire alone.
+        expect(projected.players[1].hand.every((c) => c === null)).toBe(true);
+        const opponentHand = projected.players[1].hand.length;
+        const casterHand = projected.players[0].hand.length;
+        expect(opponentHand).toBe(4);
+        expect(casterHand).toBe(1);
+
+        // Re-derive X from the projected sizes and check the life total the
+        // resolution produced against it.
+        expect(projected.players[1].life).toBe(
+            20 - (opponentHand - casterHand)
+        );
+        // The caster's own life is untouched — a difference reads, never moves.
+        expect(projected.players[0].life).toBe(20);
     });
 });

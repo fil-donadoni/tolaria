@@ -4,10 +4,29 @@
 // The brain consumes `projectPublicState(state, seq, botId)` — the SAME wire
 // projection a human client receives (criterion 5): the bot's own hand is
 // visible, the opponent's hand is nulled, and libraries are reduced to a count.
-// `enumerateMoves` only ever reads the acting player's hand and both
-// battlefields, so dropping the nulled opponent-hand placeholders loses nothing
-// the bot is allowed to act on. Slim card refs (`card: { id }`) are already
-// structurally valid `CardInstanceState`s — the engine reads only `card.id`.
+// Slim card refs (`card: { id }`) are already structurally valid
+// `CardInstanceState`s — the engine reads only `card.id`.
+//
+// Hands, like libraries, MUST be rebuilt to their wire LENGTH (issue #2006).
+// This adapter used to `filter(c => c !== null)` the opponent's hand away, on
+// the reasoning that `enumerateMoves` only reads the acting player's hand — but
+// a hand's SIZE is public information (CR 402.2) and the engine reads it at
+// every effect site the search walks through: `ctx.getHandSize` (The Rack,
+// Storm World, Storm Seeker, Ivory Tower) and the Effect Script `count`'s
+// `zone: "hand"` (Dark Suspicions, issue #2006). With the nulls dropped, both
+// read 0 for any NON-VIEWER in a client-side engine run, and the sign of the
+// error flips with who owns the card:
+//   * bot controls Dark Suspicions → the human's hand reads 0, so the trigger
+//     prices and simulates as a dead card;
+//   * human controls it            → the HUMAN's hand (the subtrahend) reads 0,
+//     so the bot simulates an inflated incoming life loss.
+// Padding to the wire length with the same opaque placeholders the library path
+// already uses restores the cardinality without inventing identities the bot may
+// not see — the placeholder id resolves to no `CardDefinition`, so
+// `getLegalActions` (`gre/rules.ts`, the PLACEHOLDER_CARD_ID guard) never
+// surfaces one as a legal move even once a simulated turn makes it the acting
+// player's hand. `determinize` then pools hand+library and re-deals at the same
+// sizes, so the padded hand stays consistent across ISMCTS iterations.
 //
 // Libraries, however, MUST be rebuilt to their wire `count` (issue #136).
 // Enumeration ignores libraries, but the ISMCTS search SIMULATES the game
@@ -42,19 +61,42 @@ import { tryGetDefinition } from "@convex/cards";
  *  to (only that player's library gets real identities). */
 export type OwnDeckList = { playerId: string; cardIds: string[] };
 
-/** One opaque library instance — identity intentionally absent. */
-function makePlaceholder(playerId: string, index: number): CardInstanceState {
+/** One opaque hidden-zone instance — identity intentionally absent. The ZONE is
+ *  part of the instance id so a player's hand placeholder and their library
+ *  placeholder at the same index can never collide (instance ids key the
+ *  search's choice candidates and dominance memo). */
+function makePlaceholder(
+    playerId: string,
+    index: number,
+    zone: "library" | "hand" = "library"
+): CardInstanceState {
     return {
-        id: `placeholder:${playerId}:${index}`,
+        id: `placeholder:${zone}:${playerId}:${index}`,
         card: { id: PLACEHOLDER_CARD_ID },
         controllerId: playerId,
         ownerId: playerId,
-        zone: "library",
+        zone,
         types: [],
         subtypes: [],
         staticAbilities: [],
         isTapped: false,
     };
+}
+
+/** Rebuild a player's hand to its WIRE LENGTH (issue #2006).
+ *
+ *  `projectPublicState` emits a non-viewer's hand as `null[]` — one null per
+ *  card — so the LENGTH is the public hand size (CR 402.2) even though every
+ *  identity is hidden. Visible entries (the viewer's own hand, and an
+ *  opponent's hand exposed face-up by a live cross-player hand pick) pass
+ *  through untouched; each null becomes an opaque placeholder, exactly as
+ *  `makeLibraryPlaceholders` does for a hidden library. */
+function rebuildHand(player: PublicPlayer): CardInstanceState[] {
+    return player.hand.map((c, i) =>
+        c === null
+            ? makePlaceholder(player.id, i, "hand")
+            : (c as unknown as CardInstanceState)
+    );
 }
 
 /** Build `count` opaque library instances for a player (no decklist known). */
@@ -164,8 +206,10 @@ export function projectedToGameState(
         ...state,
         players: state.players.map((p) => ({
             ...p,
-            // Drop nulled opponent-hand placeholders; keep the bot's own cards.
-            hand: p.hand.filter((c) => c !== null),
+            // Rebuild to the wire LENGTH: a hand's SIZE is public (CR 402.2)
+            // and every hand-size read in the engine goes through this pile
+            // (issue #2006 — see the header note).
+            hand: rebuildHand(p),
             // Library contents are hidden on the wire, but the simulated draw
             // step / draw spells / fetch searches need cards to take. Rebuild
             // to the wire count.

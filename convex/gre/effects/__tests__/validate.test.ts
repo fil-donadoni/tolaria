@@ -3493,3 +3493,155 @@ describe("hideaway Op + linked-exile / library-count vocabulary (CR 702.75, issu
         ).toBeGreaterThan(0);
     });
 });
+
+// --- hand count + difference value (issue #2006) ---------------------------
+//
+// The design's whole defence against an expression grammar is what the
+// validator REJECTS: a `difference` operand is a terminal (positive-int
+// literal or a single `count`), so nesting is unrepresentable; `from: 0` is
+// refused because it would be a back-door unary negation of `minus`; and a
+// `hand` count is a pure CARDINALITY read (CR 402.2 — hidden zone, public
+// size), so a `filter`/`countTypes` on it is refused exactly as it is on
+// `library`. Untested, those are claims rather than guarantees.
+
+describe('validateEffectScript — count zone:"hand" + difference (issue #2006)', () => {
+    const loseLife = (amount: unknown): EffectOp[] => [
+        { op: "loseLife", player: "opponent", amount } as unknown as EffectOp,
+    ];
+
+    const handCount = (extra: Record<string, unknown> = {}) => ({
+        count: { zone: "hand", controller: "opponent", ...extra },
+    });
+
+    it("accepts a bare hand count and a difference of the accepted operand shapes", () => {
+        expect(
+            validateEffectScript(host({ effects: loseLife(handCount()) }))
+        ).toEqual([]);
+        // count − count (Dark Suspicions), count − literal (Ivory Tower's
+        // "hand minus 4"), literal − count (The Rack's "3 minus their hand").
+        for (const difference of [
+            {
+                from: handCount(),
+                minus: { count: { zone: "hand", controller: "controller" } },
+            },
+            { from: handCount(), minus: 4 },
+            { from: 3, minus: handCount() },
+        ]) {
+            expect(
+                validateEffectScript(
+                    host({ effects: loseLife({ difference }) })
+                )
+            ).toEqual([]);
+        }
+    });
+
+    it("rejects `from: 0` — the back-door unary negation the signed grammar's `negate` already owns", () => {
+        for (const from of [0, -2]) {
+            expect(
+                validateEffectScript(
+                    host({
+                        effects: loseLife({
+                            difference: { from, minus: handCount() },
+                        }),
+                    })
+                ).length
+            ).toBeGreaterThan(0);
+        }
+        // Symmetrically on the subtrahend — neither operand slot is a hole.
+        expect(
+            validateEffectScript(
+                host({
+                    effects: loseLife({
+                        difference: { from: handCount(), minus: 0 },
+                    }),
+                })
+            ).length
+        ).toBeGreaterThan(0);
+    });
+
+    it("rejects a NESTED difference — the operand type is a terminal, so the grammar stays depth-1", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: loseLife({
+                        difference: {
+                            from: {
+                                difference: { from: handCount(), minus: 1 },
+                            },
+                            minus: 1,
+                        },
+                    }),
+                })
+            ).length
+        ).toBeGreaterThan(0);
+        // …and in the `minus` slot, and for a non-terminal value member
+        // (`X`) that `isEffectValue` would otherwise have accepted.
+        expect(
+            validateEffectScript(
+                host({
+                    effects: loseLife({
+                        difference: {
+                            from: 3,
+                            minus: {
+                                difference: { from: handCount(), minus: 1 },
+                            },
+                        },
+                    }),
+                })
+            ).length
+        ).toBeGreaterThan(0);
+        expect(
+            validateEffectScript(
+                host({
+                    effects: loseLife({
+                        difference: { from: { X: true }, minus: 1 },
+                    }),
+                })
+            ).length
+        ).toBeGreaterThan(0);
+    });
+
+    it("rejects a `filter`/`countTypes` on a hand count — a cardinality read has nothing to filter (CR 402.2)", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: loseLife(handCount({ filter: { type: "Land" } })),
+                })
+            ).length
+        ).toBeGreaterThan(0);
+        expect(
+            validateEffectScript(
+                host({ effects: loseLife(handCount({ countTypes: true })) })
+            ).length
+        ).toBeGreaterThan(0);
+        // Nested inside a difference operand too — the operand runs the same
+        // `isCountValue` check, so the rejection cannot be sidestepped there.
+        expect(
+            validateEffectScript(
+                host({
+                    effects: loseLife({
+                        difference: {
+                            from: handCount({ filter: { type: "Land" } }),
+                            minus: 1,
+                        },
+                    }),
+                })
+            ).length
+        ).toBeGreaterThan(0);
+    });
+
+    it("rejects a malformed difference shape (missing operand, extra key)", () => {
+        for (const difference of [
+            { from: handCount() },
+            { minus: handCount() },
+            { from: 3, minus: 1, plus: 1 },
+            {},
+        ]) {
+            expect(
+                validateEffectScript(
+                    host({ effects: loseLife({ difference }) })
+                ).length
+            ).toBeGreaterThan(0);
+        }
+    });
+});

@@ -75,6 +75,7 @@ import type {
     EffectComparisonOp,
     EffectMode,
     EffectCountSpec,
+    EffectDifferenceOperand,
     EffectForEachSelector,
     EffectListSelector,
     EffectObjectSelector,
@@ -611,7 +612,34 @@ function resolveValue(
         if (playerId === undefined) return undefined;
         return ctx.getLifeGainedThisTurn(playerId);
     }
+    // difference (issue #2006) — `from` MINUS `minus`, the single arithmetic
+    // member of the value grammar. Both operands are TERMINALS (a literal or a
+    // `count`), so this cannot recurse into an expression tree; see
+    // `EffectDifferenceValue` in `cards/types.ts` for what is deliberately not
+    // generalized here.
+    //
+    // CR 107.1b — the result is SIGNED and may legitimately be negative ("a
+    // game value can be less than zero"); the clamp belongs at the consuming
+    // Op, every one of which already returns on `amount <= 0`. That is exactly
+    // Dark Suspicions' Oracle ruling: a negative X loses no life and never
+    // becomes a life gain.
+    if ("difference" in value) {
+        const from = resolveDifferenceOperand(ctx, value.difference.from);
+        const minus = resolveDifferenceOperand(ctx, value.difference.minus);
+        return from - minus;
+    }
     return countSet(ctx, value.count);
+}
+
+/** One operand of a `difference` value (issue #2006): a literal integer or a
+ *  single `count`. A count that cannot resolve its player is already 0 in
+ *  `countSet` (CR 608.2b), so an operand never makes the whole difference
+ *  unresolvable — unlike a `ref`, which is not a legal operand here. */
+function resolveDifferenceOperand(
+    ctx: SpellContext,
+    operand: EffectDifferenceOperand
+): number {
+    return typeof operand === "number" ? operand : countSet(ctx, operand.count);
 }
 
 /** Maps the JSON-pure `EffectCardFilter` onto the engine's `PermanentFilter`
@@ -948,6 +976,14 @@ function countZoneForPlayer(
     // here) and no knowledge is granted by asking.
     if (spec.zone === "library") {
         return ctx.getLibraryCards(playerId).length;
+    }
+    // hand (CR 402, issue #2006) — the library branch's twin, and for the same
+    // reason: the hand is hidden (CR 402.2) but its SIZE is public information
+    // (CR 402.2 — "the number of cards in each player's hand" is known to all),
+    // so this is a pure CARDINALITY read with nothing to filter (the validator
+    // rejects a `filter`/`countTypes` here exactly as it does for `library`).
+    if (spec.zone === "hand") {
+        return ctx.getHandSize(playerId);
     }
     // graveyard (CR 404) — filter by the shared card-filter matcher, mirroring
     // the battlefield branch. An absent filter imposes no constraint.

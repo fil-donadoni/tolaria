@@ -596,15 +596,14 @@ export const ivoryTower: CardDefinition = {
     manaCost: { X: 1 },
     types: ["Artifact"],
     triggeredAbilities: [
-        // NOT DSL-migratable (ADR 0045): the gain amount is "hand size minus
-        // 4" — the `EffectCount` construct's `zone` is only
-        // `"battlefield" | "graveyard"` (no hand-size read) and, even if it
-        // were, the value grammar (literal | ref | count) has no arithmetic
-        // to subtract a constant from a live count. The clamp-at-0 (never
-        // lose life when hand < 4) compounds this — same class as the
-        // Stream of Life / Earthquake X-value gap the playbook documents.
-        // Blocked on: a hand-size count zone + an arithmetic/subtract value
-        // construct.
+        // UNBLOCKED since issue #2006, which shipped BOTH halves this needed:
+        // `count`'s `zone: "hand"` member (CR 402.2) and the value grammar's
+        // one subtraction, `{ difference: { from, minus } }` over two terminal
+        // operands. "Hand size minus 4" is `{ difference: { from: { count: {
+        // zone: "hand", controller: "controller" } }, minus: 4 } }`, and the
+        // clamp-at-0 is `gainLife`'s own non-positive guard (CR 107.1b), not a
+        // separate construct. The closure stays only because migrating it is
+        // free-tranche work with its own batch. tracked-by: #1438
         phaseTrigger({
             id: "ivory-tower-life",
             oracleText:
@@ -1276,19 +1275,18 @@ export const mishrasWarMachine: CardDefinition = {
                 "At the beginning of your upkeep, this creature deals 3 damage to you unless you discard a card. If it deals damage to you this way, tap it.",
             phase: "UPKEEP",
             scope: "your",
-            // NOT DSL-migratable (ADR 0045): re-assessed — `mayPay`'s discard
-            // leg (issue #899) and `if`/`else` now cover "unless you discard a
-            // card" + "if it deals damage this way, tap it" on their own, BUT
-            // this card's own test ("with an empty hand, deals 3 ... and taps
-            // itself") requires the prompt to never appear when hand is empty
-            // (`fireTrigger` called with no `mayPayAccept`, i.e. no suspend
-            // expected). An unconditional `mayPay` Op always enqueues the
-            // pending choice regardless of hand size, which would suspend that
-            // scenario and break the untouched test (playbook invariant: a
-            // migration that forces a test change is wrong). Gating the
-            // `mayPay` on "hand size > 0" needs a hand-size EffectValue/
-            // predicate the grammar still lacks (same class as Ivory Tower /
-            // The Rack above). Blocked on: a hand-size comparison construct.
+            // UNBLOCKED since issue #2006. `mayPay`'s discard leg (issue #899)
+            // and `if`/`else` already covered "unless you discard a card" +
+            // "if it deals damage this way, tap it"; what was missing was the
+            // GATE. This card's own test ("with an empty hand, deals 3 ... and
+            // taps itself") requires the prompt to never appear on an empty
+            // hand, and an unconditional `mayPay` Op always enqueues the
+            // pending choice — so the migration needed "hand size > 0" as a
+            // predicate. `count`'s `zone: "hand"` member (CR 402.2) now
+            // supplies exactly that: an `if` whose `predicate` is
+            // `{ left: { count: { zone: "hand", controller: "controller" } },
+            // op: "ge", right: 1 }`. The closure stays only because migrating
+            // it is free-tranche work with its own batch. tracked-by: #1438
             resolve: (ctx, _event, playerId) => {
                 const self: TargetSelection = {
                     type: "permanent",
@@ -1823,11 +1821,15 @@ export const theRack: CardDefinition = {
                 if (opponent) ctx.setChosenPlayer(opponent);
             },
         }),
-        // NOT DSL-migratable (ADR 0045): the damage amount is "3 minus hand
-        // size" — same arithmetic/value-grammar gap as Ivory Tower above
-        // (literal | ref | count has no subtraction, and `count` has no
-        // hand-size zone). Blocked on: a hand-size count zone + an
-        // arithmetic/subtract value construct.
+        // UNBLOCKED since issue #2006: "3 minus hand size" is
+        // `{ difference: { from: 3, minus: { count: { zone: "hand",
+        // controller: { ref: "$event.activePlayerId" } } } } }` — the same
+        // pair of members that unblocked Ivory Tower above (a `hand` count
+        // zone and the grammar's one two-terminal subtraction), and the
+        // `condition` already narrows the firing to the chosen player. Note
+        // the SIBLING trigger on this card is still genuinely blocked (see
+        // its own marker) — migrating this one alone is free-tranche work
+        // with its own batch. tracked-by: #1438
         phaseTrigger({
             id: "the-rack-upkeep-damage",
             oracleText:

@@ -287,6 +287,23 @@ function countZoneCardsFor(
         // validator rejects a `filter` there), so the pile size IS the count.
         case "library":
             return player.library;
+        // CR 402 (issue #2006) — the hand is the library's twin here: hidden
+        // zone, public SIZE, validator rejects a `filter`, so the pile size IS
+        // the count. Dark Suspicions' "the number of cards in that player's
+        // hand".
+        //
+        // What this reads is the pile's CARDINALITY, not real identities, and
+        // that distinction is the whole reason it leaks nothing. Server-side
+        // the pile happens to hold the real cards; in a CLIENT-side engine run
+        // (the vs-AI Brain, ADR 0074) it is the rehydrated wire view, where a
+        // non-viewer's hand is a run of opaque placeholders padded to the wire
+        // length by `projectedToGameState` (`src/lib/ai/state-adapter.ts`).
+        // Both give the same COUNT — which is exactly what a hand-size read is
+        // entitled to (CR 402.2) and all it may ever use. That padding is load-
+        // bearing: before it existed the adapter dropped the nulled hand
+        // entirely and every client-side hand-size read returned 0.
+        case "hand":
+            return player.hand;
         default: {
             const exhaustive: never = zone;
             return exhaustive;
@@ -452,6 +469,25 @@ function resolveValueAgainstBoard(
         return v.lifeGainedThisTurn.of === "controller"
             ? (state.lifeGainedThisTurn?.[perspectivePlayerId] ?? 0)
             : CF_ASSUMED_REF_FALLBACK;
+    }
+    // difference (issue #2006) — both operands are terminals (a literal or a
+    // `count`), and a `count` is exactly the member this function already
+    // resolves genuinely against the live board, so the whole difference is
+    // resolvable pre-cast. CR 107.1b: the result may be negative, and it is
+    // returned SIGNED — the consuming Op's own clamp is what turns "the
+    // opponent holds fewer cards than me" into a zero-value effect, and a
+    // clamp here would instead price Dark Suspicions as if it always did
+    // something.
+    if ("difference" in v) {
+        const operand = (o: number | { count: EffectCountSpec }): number =>
+            typeof o === "number"
+                ? o
+                : resolveCountSpecAgainstBoard(
+                      state,
+                      perspectivePlayerId,
+                      o.count
+                  );
+        return operand(v.difference.from) - operand(v.difference.minus);
     }
     // ref / manaValue / domain — object- or player-scoped reads with no
     // resolvable object/announcement pre-cast.

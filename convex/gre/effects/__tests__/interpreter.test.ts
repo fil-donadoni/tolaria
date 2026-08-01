@@ -1693,6 +1693,155 @@ describe("Effect Script value grammar: count by name across all graveyards (CR 1
     });
 });
 
+// New value-grammar members (issue #2006) → full per-Op regime, since they are
+// new grammar rather than a reused Op: the `count` construct's `zone: "hand"`
+// (CR 402.2 — hidden zone, PUBLIC size, so a pure cardinality read) and the
+// `{ difference: { from, minus } }` value (CR 107.1b — the grammar's ONE
+// arithmetic member: two TERMINAL operands, no nesting). This is their
+// permanent test, inherited free by every later card that reuses them; Dark
+// Suspicions (PLS) is the first consumer.
+describe("Effect Script value: hand count + difference (CR 402.2 / 107.1b)", () => {
+    /** `n` filler cards in `owner`'s hand. */
+    function handOf(owner: string, n: number): CardInstanceState[] {
+        return Array.from({ length: n }, (_, i) =>
+            makeInstance(BEAR_ID, {
+                id: `${owner}-hand-${i}`,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "hand",
+            })
+        );
+    }
+
+    /** Dark Suspicions' shape: the OPPONENT loses (their hand − your hand). */
+    const handDifference: EffectOp[] = [
+        {
+            op: "loseLife",
+            player: "opponent",
+            amount: {
+                difference: {
+                    from: { count: { zone: "hand", controller: "opponent" } },
+                    minus: {
+                        count: { zone: "hand", controller: "controller" },
+                    },
+                },
+            },
+        },
+    ];
+
+    function resolveWithHands(
+        scriptId: string,
+        p1Hand: number,
+        p2Hand: number,
+        effects: EffectOp[] = handDifference
+    ): GameState {
+        const id = registerScript(scriptId, effects);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { hand: handOf("p1", p1Hand) }),
+                makePlayer("p2", { hand: handOf("p2", p2Hand) }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    it("counts a player's hand (CR 402.2 — a hidden zone with a public size)", () => {
+        const id = registerScript("test-hand-count-plain", [
+            {
+                op: "loseLife",
+                player: "opponent",
+                amount: { count: { zone: "hand", controller: "opponent" } },
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { hand: handOf("p2", 4) }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(16);
+    });
+
+    it("subtracts count from count (5 − 2 = 3 life lost)", () => {
+        const state = resolveWithHands("test-diff-count-count", 2, 5);
+        expect(state.players[1].life).toBe(17);
+        // The caster is untouched — a difference reads, it never moves life.
+        expect(state.players[0].life).toBe(20);
+    });
+
+    it("subtracts count from a LITERAL operand (The Rack's '3 minus their hand')", () => {
+        const state = resolveWithHands("test-diff-literal-count", 0, 1, [
+            {
+                op: "loseLife",
+                player: "opponent",
+                amount: {
+                    difference: {
+                        from: 3,
+                        minus: {
+                            count: { zone: "hand", controller: "opponent" },
+                        },
+                    },
+                },
+            },
+        ]);
+        expect(state.players[1].life).toBe(18);
+    });
+
+    it("CR 107.1b — an EQUAL difference is zero and the Op is a no-op", () => {
+        const state = resolveWithHands("test-diff-zero", 3, 3);
+        expect(state.players[1].life).toBe(20);
+    });
+
+    it("CR 107.1b — a NEGATIVE difference loses no life and never GAINS life", () => {
+        // Dark Suspicions' Oracle ruling: X may be negative (7 − 2 = −5 the
+        // other way round), and the consuming Op's `amount <= 0` clamp is what
+        // turns that into nothing happening — not a life gain for the opponent.
+        const state = resolveWithHands("test-diff-negative", 7, 2);
+        expect(state.players[1].life).toBe(20);
+    });
+
+    it("the difference-driven life loss survives projection (wire format)", () => {
+        // The opponent's hand is projected as `null[]` for the viewer (CR 402.2
+        // — size public, contents hidden), so this is exactly the shape where a
+        // hand-count read can be right on the fat state and wrong downstream.
+        //
+        // The wire leg's real content is that BOTH operands stay recoverable
+        // from the projection: each seat can still count each hand. So derive
+        // the expected life total from the PROJECTED hand lengths instead of
+        // restating the literal — a projection that dropped or resized a hand
+        // then fails here rather than agreeing with itself.
+        //
+        // The CLIENT leg (`projectedToGameState`, which rehydrates this wire
+        // view into the vs-AI Brain's search world, ADR 0074) is a bot-only
+        // module an application test may not import
+        // (`scripts/__tests__/bot-suite-boundary.test.ts`); it is covered by
+        // `src/lib/ai/__tests__/state-adapter-hand-size.bot.test.ts`, where the
+        // hand-count read of this very value grammar was in fact broken
+        // (issue #2006 — the adapter dropped the nulled hand, so it read 0).
+        const state = resolveWithHands("test-diff-wire", 1, 4);
+        expect(state.players[1].life).toBe(17);
+
+        for (const viewer of ["p1", "p2"] as const) {
+            const wire = projectPublicState(state, 1, viewer);
+            const casterHand = wire.players[0].hand.length;
+            const opponentHand = wire.players[1].hand.length;
+            expect(casterHand).toBe(1);
+            expect(opponentHand).toBe(4);
+            expect(wire.players[1].life).toBe(20 - (opponentHand - casterHand));
+            // Exactly one hand is hidden from each seat, and hiding it never
+            // costs the count.
+            const hidden = viewer === "p1" ? 1 : 0;
+            expect(wire.players[hidden].hand.every((c) => c === null)).toBe(
+                true
+            );
+        }
+    });
+});
+
 describe("Effect Script Op: gainLife (CR 119.3a)", () => {
     it("the selected player gains life", () => {
         const id = registerScript("test-op-gain", [
