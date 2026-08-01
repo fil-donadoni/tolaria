@@ -2379,4 +2379,21 @@ describe("Rith's Charm ({R}{G}{W} Instant — three modes, CR 700.2)", () => {
         expect(types).not.toContain("player");
         expect(types).not.toContain("any");
     });
+
+    // CR 609.7 — "an activated ability, triggered ability, or spell can be a
+    // source of damage" is the entire reason mode 3's target requirement
+    // admits `"spell"` (issue #2051's divergence). A Lightning Bolt on the
+    // stack, shielded by mode 3, must deal NO damage when it resolves.
+    it("mode 3 shields a SPELL on the stack — the shielded Bolt deals no damage (CR 609.7, issue #2051)", () => {
+        const state = board();
+        const bolt = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        castMode(state, "prevent-source", [{ type: "spell", id: bolt.id }]);
+        // Rith's Charm has resolved (establishing the shield) and left only
+        // the Bolt on the stack; resolve it now.
+        expect(state.stack.map((s) => s.id)).toEqual([bolt.id]);
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(20);
+    });
 });

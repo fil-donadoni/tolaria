@@ -7146,16 +7146,35 @@ export function bumpArtifactDamageToPlayer(
  *  `markDamageFromPermanentSource`, `applyOneCombatDamage`) so all damage
  *  paths go through the same redirection/cancel pipeline.
  *
- *  CR 616.1 — prevention and replacement effects that would apply to the same
- *  event are ordered by the affected object's controller. The source-scoped
- *  shield is applied FIRST here, which is a legal choice AND outcome-equivalent
- *  for this shield shape: it prevents ALL of the damage from that source, so
- *  no replacement (a redirect to another recipient, an amount rewrite) can
- *  change the result — the damage is 0 either way, and a redirect does not
- *  change WHICH source is dealing it. Putting the gate here rather than at the
- *  four sinks is deliberate: `runDamageReplacement` is the one funnel every
- *  sink already calls, so a future fifth damage path cannot silently miss the
- *  shield (the failure mode a parallel per-sink check invites).
+ *  CR 616.1 — when two or more replacement/prevention effects would apply to
+ *  the same event, the RULES give the choice of which applies first to the
+ *  affected object's controller (or that player, for an event affecting a
+ *  player). This engine does not model that choice anywhere: the
+ *  source-scoped shield is unconditionally applied FIRST, before any CR 614
+ *  replacement (`applyDamageReplacements` / `state.damageRedirections`) or
+ *  CR 615.1 target-keyed shield is even consulted. That is a CONSERVATIVE,
+ *  hard-coded resolution, not a proof of equivalence — for most shield
+ *  shapes it happens to produce the same outcome (a source shield reduces
+ *  the damage to 0, so a redirect or amount-rewrite has nothing left to act
+ *  on), but NOT in general. Counter-example: `prevent-from-source-gain-life`
+ *  (Reverse Damage) grants the affected player life equal to the amount
+ *  PREVENTED; applying the source-scoped shield first means the damage is
+ *  gone before Reverse Damage's replacement is ever reached, so the player
+ *  gains no life and keeps their Reverse Damage shield unspent — a
+ *  different, and CR 616.1-legal-if-chosen, outcome than resolving Reverse
+ *  Damage first.
+ *
+ *  // divergence: CR 616.1's affected-player ordering choice is not modelled
+ *  anywhere in the engine; this funnel always takes the conservative
+ *  (source-shield-first) order documented above instead of offering the
+ *  choice. tracked-by: #2054.
+ *
+ *  Putting the gate here rather than at the four sinks is still deliberate:
+ *  `runDamageReplacement` is the one funnel every sink already calls, so a
+ *  future fifth damage path cannot silently miss the shield (the failure
+ *  mode a parallel per-sink check invites) — only the ORDER relative to
+ *  other replacements is the open question, not whether the shield is
+ *  consulted at all.
  *
  *  `unpreventable` (Urza's Rage's kicked mode: "the damage can't be
  *  prevented") skips the CR 615 gate only — CR 614 replacement effects are a
