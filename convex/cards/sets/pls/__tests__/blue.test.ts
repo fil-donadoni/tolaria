@@ -24,6 +24,7 @@ import {
     stormscapeFamiliar,
     sunkenHope,
     confound,
+    waterspoutElemental,
 } from "../blue";
 import { thornscapeBattlemage } from "../green";
 import { urzasRage } from "../../inv/red";
@@ -1405,6 +1406,107 @@ describe("Planeswalker's Mischief (protocol: reveal-random + grantCastFromExile 
         );
         expect(slimExiled).toBeDefined();
         expect(slimExiled?.castableFromExileBy).toBe("p1");
+    });
+});
+
+// Waterspout Elemental (CR 702.33 single Kicker, CR 603.4d intervening-if
+// ETB, CR 400.7 mass bounce, CR 614.10 skip-turn, issue #1957) — introduces
+// the `skipNextTurn` Op AND the `excludeSource` forEach-selector field, so
+// per the DSL-first authoring rule (new Op / new construct combination) this
+// card earns its own hand-written coverage beyond the catalogue-wide smoke
+// sweep (whose generator explicitly skips `skipNextTurn` — see
+// `scenarioGenerator.ts`).
+describe("Waterspout Elemental (single Kicker ETB — bounce + skip, PLS 38, issue #1957)", () => {
+    it("unkicked: the ETB trigger never fires — no bounce, no stack item, no skip (CR 603.4)", () => {
+        const oppCreature = makeInstance(grizzlyBears.id, {
+            id: "we-opp-creature",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const ownCreature = makeInstance(savannahLions.id, {
+            id: "we-own-creature",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [ownCreature] }),
+                makePlayer("p2", { battlefield: [oppCreature] }),
+            ],
+        });
+        pushSpell(state, waterspoutElemental.id, "p1");
+        resolveTopOfStack(state);
+        expect(state.stack).toHaveLength(0);
+        // Both creatures are untouched — neither bounced.
+        expect(state.players[0].battlefield.map((c) => c.id)).toEqual(
+            expect.arrayContaining(["we-own-creature"])
+        );
+        expect(state.players[1].battlefield.map((c) => c.id)).toEqual(
+            expect.arrayContaining(["we-opp-creature"])
+        );
+        // Waterspout Elemental itself entered normally.
+        expect(
+            state.players[0].battlefield.some(
+                (c) => (c.card as { id: string }).id === waterspoutElemental.id
+            )
+        ).toBe(true);
+        expect(state.players[0].skipNextTurn).toBeUndefined();
+    });
+
+    it("kicked: bounces ALL OTHER creatures (both players'), skips Waterspout Elemental itself, and the controller skips their next turn (CR 400.7 / 614.10)", () => {
+        const oppCreature = makeInstance(grizzlyBears.id, {
+            id: "we2-opp-creature",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const ownCreature = makeInstance(savannahLions.id, {
+            id: "we2-own-creature",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [ownCreature] }),
+                makePlayer("p2", { battlefield: [oppCreature] }),
+            ],
+        });
+        const item = pushSpell(state, waterspoutElemental.id, "p1");
+        item.kickerPayments = { kicker: 1 };
+        resolveTopOfStack(state); // Waterspout Elemental enters, ETB trigger lands
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].triggeredAbilityId).toBe(
+            "waterspout-elemental-kicked"
+        );
+        resolveTopOfStack(state); // trigger resolves
+        expect(state.stack).toHaveLength(0);
+
+        // Both OTHER creatures are bounced to their OWNERS' hands...
+        expect(
+            state.players[0].hand.some((c) => c.id === "we2-own-creature")
+        ).toBe(true);
+        expect(
+            state.players[1].hand.some((c) => c.id === "we2-opp-creature")
+        ).toBe(true);
+        expect(state.players[0].battlefield).toHaveLength(1);
+        expect(state.players[1].battlefield).toHaveLength(0);
+
+        // ...but Waterspout Elemental itself is EXCLUDED from the bounce
+        // (excludeSource) — still on the battlefield, not in a hand.
+        const wsOnField = state.players[0].battlefield.find(
+            (c) => (c.card as { id: string }).id === waterspoutElemental.id
+        );
+        expect(wsOnField).toBeDefined();
+
+        // The controller skips their next turn (CR 614.10) — a count of 1.
+        expect(state.players[0].skipNextTurn).toBe(1);
+
+        // Wire format — the bounced creatures and the skip count are visible
+        // client-side.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(
+            projected.players[1].hand.some((c) => c?.id === "we2-opp-creature")
+        ).toBe(true);
+        expect(projected.players[0].skipNextTurn).toBe(1);
     });
 });
 

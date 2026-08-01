@@ -86,6 +86,7 @@ const TRANSFORM_VALUE = 30; // a self-directed flip, assumed net-beneficial
 const ANIMATE_DISCOUNT = 0.7; // an animated permanent isn't a "real" creature card
 const EMBLEM_VALUE = 150; // a durable, uncounterable ultimate-style effect
 const EXTRA_TURN_VALUE = 300; // CR 500.7 — an entire additional turn
+const SKIP_TURN_VALUE = 300; // CR 614.10 — forfeiting an entire turn, the mirror of EXTRA_TURN_VALUE
 const WIN_GAME_VALUE = 100000; // CR 104.2a — an alternate win condition
 const ISLAND_SANCTUARY_PROTECTION_VALUE = 20; // player-wide "can't be attacked except by flying/islandwalk" — ground-only, tempered protection
 const PROTECTION_FROM_EVERYTHING_VALUE = 45; // player-wide untargetable + ALL damage prevented for a full turn cycle — strictly stronger than Island Sanctuary (no evasion carve-out, covers burn and abilities too)
@@ -662,6 +663,23 @@ const extraTurn: Valuer<"extraTurn"> = () => ({
     tags: ["tempo"],
 });
 
+// CR 614.10 (issue #1957) — the mirror of `extraTurn`: forfeiting a whole
+// turn is worth -SKIP_TURN_VALUE to whoever skips it, +SKIP_TURN_VALUE to the
+// CASTER when it is the opponent who skips. Harmful-by-default (mirrors
+// `loseLife`): an ambiguous player ref (an announced target slot) is assumed
+// to name the OPPONENT unless it resolves to the caster — `ctx.isSelf(op.player,
+// "opponent")`, not `"self"` (the latter is the BENEFICIAL-op assumption and
+// would price a future "target player skips their next turn" card as though
+// the bot always inflicted the skip on itself). The shipped card (Waterspout
+// Elemental) passes the literal `"controller"`, which `isSelf` resolves to
+// `true` regardless of the assumption, so its valuation is unchanged by this.
+const skipNextTurn: Valuer<"skipNextTurn"> = (op, ctx) => {
+    const self = ctx.isSelf(op.player, "opponent");
+    const tags: ValueTag[] = ["tempo"];
+    if (self) tags.push("self-cost");
+    return { points: (self ? -1 : 1) * SKIP_TURN_VALUE, tags };
+};
+
 const gainControl: Valuer<"gainControl"> = (op) => ({
     points: GAIN_CONTROL_VALUE,
     tags: isAnnouncedTarget(op.target)
@@ -988,6 +1006,7 @@ export const OP_VALUERS: {
     divideIntoPiles,
     emblem,
     extraTurn,
+    skipNextTurn,
     gainControl,
     getEnergy,
     grantAbility,
@@ -1182,6 +1201,7 @@ const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     restrictCombat: "harmful",
     markAssignsNoCombatDamage: "harmful",
     skipNextUntap: "harmful",
+    skipNextTurn: "harmful",
     skipDrawStepThisTurn: "harmful",
     unattach: "harmful",
     armGraveyardRedirect: "harmful",

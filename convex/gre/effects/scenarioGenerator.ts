@@ -466,6 +466,16 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // (tmp/__tests__/blue.test.ts).
             req.skip ??= `Op "extraTurn" mutates a turn-boundary queue, not a same-step outcome — covered by hand-written tests`;
             return;
+        case "skipNextTurn":
+            // CR 614.10 (issue #1957) — skipping a turn mutates the target
+            // player's pending-skip COUNT, drained by the turn-advance
+            // machinery (not the stack-resolution scenario harness) at a
+            // LATER turn boundary — not a same-step observable outcome this
+            // generator can size a deterministic assertion against. Covered
+            // instead by the Op's own hand-written interpreter test plus
+            // Waterspout Elemental's card test (pls/__tests__/blue.test.ts).
+            req.skip ??= `Op "skipNextTurn" mutates a turn-boundary count, not a same-step outcome — covered by hand-written tests`;
+            return;
         case "restrictCasting":
             // CR 601.3a (issue #1057) — a turn-scoped cast lock on a player; the
             // deterministic outcome is the player id (with its optional
@@ -2368,6 +2378,15 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // hand-written card test (tmp/__tests__/blue.test.ts) are the
     // behavioural guarantor.
     extraTurn() {
+        return null;
+    },
+    // `skipNextTurn` (CR 614.10, issue #1957) — never reached: `analyseOp`
+    // skips every script with this Op (it mutates the turn-boundary
+    // `skipNextTurn` count, not a same-step board/life delta the canned
+    // generator's immediate-post-resolution assertions can size). Kept for
+    // the 1:1 coverage guard; the Op's own interpreter test plus Waterspout
+    // Elemental's hand-written card test are the behavioural guarantor.
+    skipNextTurn() {
         return null;
     },
     // `setColor` (CR 613.1e layer 5, issue #1083) — never reached: `analyseOp`

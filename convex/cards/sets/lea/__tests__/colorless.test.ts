@@ -3330,7 +3330,7 @@ describe("Time Vault (skip-turn / extra-turn artifact, CR 614.10 + 500.7)", () =
         item.id = "vault"; // match battlefield source id
         item.abilityId = ability.id;
         resolveTopOfStack(state);
-        expect(state.players[0].skipNextTurn).toBe(true);
+        expect(state.players[0].skipNextTurn).toBe(1);
         const vaultAfter = state.players[0].battlefield.find(
             (c) => c.id === "vault"
         );
@@ -3362,10 +3362,7 @@ describe("Time Vault (skip-turn / extra-turn artifact, CR 614.10 + 500.7)", () =
             phase: "END_STEP",
             turn: 1,
             activePlayerId: "p1",
-            players: [
-                makePlayer("p1"),
-                makePlayer("p2", { skipNextTurn: true }),
-            ],
+            players: [makePlayer("p1"), makePlayer("p2", { skipNextTurn: 1 })],
         });
         advancePhase(state); // END_STEP → CLEANUP → next turn
         // p2's turn is skipped, so it goes to p1 again
@@ -3380,10 +3377,7 @@ describe("Time Vault (skip-turn / extra-turn artifact, CR 614.10 + 500.7)", () =
             phase: "END_STEP",
             turn: 2,
             activePlayerId: "p2",
-            players: [
-                makePlayer("p1", { skipNextTurn: true }),
-                makePlayer("p2"),
-            ],
+            players: [makePlayer("p1", { skipNextTurn: 1 }), makePlayer("p2")],
         });
         advancePhase(state); // p2's END_STEP → CLEANUP → next turn
         // p1's turn is skipped
@@ -3412,7 +3406,7 @@ describe("Time Vault (skip-turn / extra-turn artifact, CR 614.10 + 500.7)", () =
         item1.id = "vault"; // match battlefield source id
         item1.abilityId = skipAbility.id;
         resolveTopOfStack(state);
-        expect(state.players[0].skipNextTurn).toBe(true);
+        expect(state.players[0].skipNextTurn).toBe(1);
         expect(
             state.players[0].battlefield.find((c) => c.id === "vault")!.isTapped
         ).toBe(false);
@@ -3439,14 +3433,11 @@ describe("skipNextTurn serialization", () => {
         const { compactState, expandState } =
             await import("../../../../gre/serialize");
         const state = makeState({
-            players: [
-                makePlayer("p1", { skipNextTurn: true }),
-                makePlayer("p2"),
-            ],
+            players: [makePlayer("p1", { skipNextTurn: 1 }), makePlayer("p2")],
         });
         const compact = compactState(state);
         const expanded = expandState(compact);
-        expect(expanded.players[0].skipNextTurn).toBe(true);
+        expect(expanded.players[0].skipNextTurn).toBe(1);
         expect(expanded.players[1].skipNextTurn).toBeUndefined();
     });
 
@@ -3456,6 +3447,42 @@ describe("skipNextTurn serialization", () => {
         const compact = compactState(state);
         const players = compact.players as Array<Record<string, unknown>>;
         expect("skipNextTurn" in players[0]).toBe(false);
+    });
+
+    // issue #1957 — the boolean→count migration's whole point: a count > 1
+    // (two accumulated skip effects, CR 614.10a) must round-trip as that
+    // exact number, not collapse to a truthy flag.
+    it("round-trips a count of 2 (two accumulated skips, CR 614.10a)", async () => {
+        const { compactState, expandState } =
+            await import("../../../../gre/serialize");
+        const state = makeState({
+            players: [makePlayer("p1", { skipNextTurn: 2 }), makePlayer("p2")],
+        });
+        const compact = compactState(state);
+        const expanded = expandState(compact);
+        expect(expanded.players[0].skipNextTurn).toBe(2);
+    });
+
+    // issue #1957 — backward compatibility: a row persisted BEFORE the
+    // boolean→count migration carries a literal `true`. `expandPlayer` reads
+    // that as exactly 1 pending skip rather than crashing or silently
+    // dropping it.
+    it("reads a legacy persisted boolean `true` as a count of 1", async () => {
+        const { compactState, expandState } =
+            await import("../../../../gre/serialize");
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const compact = compactState(state) as {
+            players: Array<Record<string, unknown>>;
+        };
+        // Simulate a pre-migration row: the OLD compactPlayer wrote a literal
+        // boolean, not a count.
+        compact.players[0].skipNextTurn = true;
+        const expanded = expandState(
+            compact as unknown as Parameters<typeof expandState>[0]
+        );
+        expect(expanded.players[0].skipNextTurn).toBe(1);
     });
 });
 

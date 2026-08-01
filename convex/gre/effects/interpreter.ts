@@ -1676,6 +1676,16 @@ export const OP_EXECUTORS: {
         if (playerId === undefined) return;
         ctx.takeExtraTurn(playerId);
     },
+    // CR 614.10 / 614.10a (issue #1957) — `player` skips their next turn
+    // (Waterspout Elemental). Skipped when the player cannot be resolved
+    // (CR 608.2b). `ctx.setSkipNextTurn` INCREMENTS the pending count, so two
+    // resolutions against the same player accumulate to "skip the next two"
+    // rather than collapsing to one (CR 614.10a).
+    skipNextTurn(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return;
+        ctx.setSkipNextTurn(playerId);
+    },
     // CR 601.3a (issue #1057) — impose a turn-scoped per-player "can't cast
     // spells this turn" restriction (Xantid Swarm locks the defending player via
     // `player: "opponent"`; Abeyance, issue #1124, narrows it via `cardTypes`).
@@ -4515,9 +4525,17 @@ function selectForEachMembers(
             return filtered.map((c) => c.id);
         });
     }
-    return owners.flatMap((pid) =>
+    const ids = owners.flatMap((pid) =>
         ctx.getBattlefieldIds(pid, toPermanentFilter(select.filter))
     );
+    // Reflexive self-exclude (issue #1957, Waterspout Elemental — "return all
+    // OTHER creatures"): drop the resolving ability/spell's own source from
+    // the frozen member set. Mirrors `TargetRequirement.excludeSource`'s
+    // resolution (`raiseTriggerTargetSelection`, gre/rules.ts), just applied
+    // to a non-targeted mass-sweep selector instead of an announced target.
+    return select.excludeSource
+        ? ids.filter((id) => id !== ctx.sourceInstanceId)
+        : ids;
 }
 
 /** Executes one `forEach` construct (ADR 0045, issue #807) against the shared

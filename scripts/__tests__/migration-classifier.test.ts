@@ -1552,11 +1552,24 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // Script and contributes no closure at all. Net: total 477->478,
         // Op-blocked 153->154; FREE / AFK-ready / X-only all unchanged.
         // Partition: 310+14+154=478.
+        //
+        // Issue #1957 (skipNextTurn Effect Op + Waterspout Elemental) adds NO
+        // new resolve() closure of its own (Waterspout Elemental is pure
+        // Effect Script) but registers the `skipNextTurn` Op as a thin skin
+        // over the ALREADY-shipped `SpellContext.setSkipNextTurn` primitive —
+        // the exact primitive Time Vault's pre-existing `resolve()` closure
+        // ("Skip your next turn: Untap Time Vault.", lea/colorless.ts) already
+        // calls. That primitive becoming Op-covered flips Time Vault's
+        // closure from Op-blocked to FREE (it already has a per-card test —
+        // `colorless.test.ts`'s "Time Vault" describe block — so it lands
+        // AFK-ready too, not "need test first"). Net: total unchanged at 478,
+        // FREE 310->311, AFK-ready 301->302, Op-blocked 154->153; X-only
+        // unchanged at 14. Partition: 311+14+153=478.
         expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(478);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(310);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(301);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(311);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(302);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(154);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(153);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {
