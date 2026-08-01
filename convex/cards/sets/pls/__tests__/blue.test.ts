@@ -24,7 +24,6 @@ import {
     stormscapeFamiliar,
     sunkenHope,
     confound,
-    ertaisTrickery,
 } from "../blue";
 import { thornscapeBattlemage } from "../green";
 import { urzasRage } from "../../inv/red";
@@ -38,7 +37,7 @@ import {
     SPELL_FILTER_KEYS,
     SPELL_ONLY_FILTER_KEYS,
 } from "../../../../gre/targetFilters";
-import { CLEARED_PENDING_TARGET_FILTER_KEYS } from "../../../../game";
+import { PENDING_TARGET_FILTER_KEYS } from "../../../../gre/state";
 import type { CardDefinition } from "../../../types";
 import {
     plains,
@@ -1410,15 +1409,22 @@ describe("Planeswalker's Mischief (protocol: reveal-random + grantCastFromExile 
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Confound & Ertai's Trickery — SPELL-PROPERTY target filters
-// (CR 114.1 / 109.2 / 702.33a, ADR 0068, issue #1956)
+// Confound — SPELL-PROPERTY target filters
+// (CR 114.1 / 109.2 / 608.2b, ADR 0068, issue #1956)
 //
-// These two counterspells restrict their target by a property of the CANDIDATE
-// SPELL — the targets it itself chose (Confound), and whether it was kicked
-// (Ertai's Trickery) — rather than by the candidate's own characteristics. Both
-// are declared as registry descriptors, so `getLegalTargets` (offered set) and
-// `applyOneTargetSelection` (the `selectTarget` mutation's accepted set) run
-// the identical predicate.
+// Confound restricts its target by a property of the CANDIDATE SPELL — the
+// targets it itself chose — rather than by the candidate's own
+// characteristics. It is declared as a registry descriptor, so
+// `getLegalTargets` (offered set) and `applyOneTargetSelection` (the
+// `selectTarget` mutation's accepted set) run the identical predicate.
+//
+// `spellWasKicked` is the registry's OTHER spell-property filter and is
+// exercised here through a SYNTHETIC requirement, not a card: Ertai's Trickery
+// (the card that motivated it) is a tracked stub, because "counter target
+// spell if it was kicked" is a CR 608.2a intervening condition, not a
+// targeting restriction — see the stub note in `../blue.ts` (tracked-by:
+// #2044). The filter itself stays covered so the descriptor, its client mirror
+// and every census consumer keep a live proof.
 //
 // The tests below are written one-per-row from the PRODUCER CENSUS of every
 // site that consumes a spell-target filter, INCLUDING the must-NOT rows (a
@@ -1427,9 +1433,15 @@ describe("Planeswalker's Mischief (protocol: reveal-random + grantCastFromExile 
 // implementation cannot falsify the implementation's assumptions.
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe("Confound / Ertai's Trickery — spell-property target filters (issue #1956)", () => {
+describe("Confound — spell-property target filters (issue #1956)", () => {
     const CONFOUND_REQ = confound.targetRequirement!;
-    const TRICKERY_REQ = ertaisTrickery.targetRequirement!;
+    /** Synthetic — no shipped card declares `spellWasKicked` (see the section
+     *  note above, tracked-by: #2044). Keeps the registry filter proven. */
+    const KICKED_REQ: NonNullable<CardDefinition["targetRequirement"]> = {
+        type: "spell",
+        count: 1,
+        spellWasKicked: true,
+    };
 
     /** p1 casts the counterspell; p2 owns the creature/land the candidate
      *  spells point at. */
@@ -1539,9 +1551,9 @@ describe("Confound / Ertai's Trickery — spell-property target filters (issue #
         expect(offered(state)).not.toContain(bolt.id);
     });
 
-    // ── Ertai's Trickery: `spellWasKicked`
+    // ── `spellWasKicked` (synthetic requirement — CR 702.33a)
 
-    it("Ertai's Trickery OFFERS a kicked spell and NOT an unkicked one (CR 702.33a)", () => {
+    it("spellWasKicked OFFERS a kicked spell and NOT an unkicked one (CR 702.33a)", () => {
         const state = board();
         const kicked = pushSpell(state, urzasRage.id, "p2", [
             { type: "player", id: "p1" },
@@ -1550,12 +1562,12 @@ describe("Confound / Ertai's Trickery — spell-property target filters (issue #
         const unkicked = pushSpell(state, urzasRage.id, "p2", [
             { type: "player", id: "p1" },
         ]);
-        const ids = offered(state, TRICKERY_REQ);
+        const ids = offered(state, KICKED_REQ);
         expect(ids).toContain(kicked.id);
         expect(ids).not.toContain(unkicked.id);
     });
 
-    it("Ertai's Trickery reads the PER-KICKER record — a two-Kicker card qualifies on EITHER leg (ADR 0079)", () => {
+    it("spellWasKicked reads the PER-KICKER record — a two-Kicker card qualifies on EITHER leg (ADR 0079)", () => {
         for (const payments of [
             { "kicker-r": 1 },
             { "kicker-w": 1 },
@@ -1564,21 +1576,21 @@ describe("Confound / Ertai's Trickery — spell-property target filters (issue #
             const state = board();
             const bm = pushSpell(state, thornscapeBattlemage.id, "p2", []);
             bm.kickerPayments = payments;
-            expect(offered(state, TRICKERY_REQ)).toContain(bm.id);
+            expect(offered(state, KICKED_REQ)).toContain(bm.id);
         }
         // …and an all-zero record is NOT kicked (the record, not its presence,
         // is what counts).
         const state = board();
         const bm = pushSpell(state, thornscapeBattlemage.id, "p2", []);
         bm.kickerPayments = { "kicker-r": 0, "kicker-w": 0 };
-        expect(offered(state, TRICKERY_REQ)).not.toContain(bm.id);
+        expect(offered(state, KICKED_REQ)).not.toContain(bm.id);
     });
 
     // ── Offered set == accepted set (ADR 0068's whole point). Sweeps EVERY
     //    stack item through BOTH authorities and asserts they agree — the
     //    single assertion the Phelia bug class cannot survive.
 
-    it("offered set and accepted set are IDENTICAL for both cards (ADR 0068)", () => {
+    it("offered set and accepted set are IDENTICAL for both filters (ADR 0068)", () => {
         const state = board();
         const targetsCreature = pushSpell(state, lightningBolt.id, "p2", [
             { type: "permanent", id: "bear" },
@@ -1602,7 +1614,7 @@ describe("Confound / Ertai's Trickery — spell-property target filters (issue #
             untargeted,
             kicked,
         ];
-        for (const req of [CONFOUND_REQ, TRICKERY_REQ]) {
+        for (const req of [CONFOUND_REQ, KICKED_REQ]) {
             const offeredIds = new Set(offered(state, req));
             for (const item of all) {
                 expect({
@@ -1618,7 +1630,7 @@ describe("Confound / Ertai's Trickery — spell-property target filters (issue #
         expect(offered(state, CONFOUND_REQ).sort()).toEqual(
             [targetsCreature.id, kicked.id].sort()
         );
-        expect(offered(state, TRICKERY_REQ)).toEqual([kicked.id]);
+        expect(offered(state, KICKED_REQ)).toEqual([kicked.id]);
     });
 
     // ── Carry (`pendingTargetFiltersFromRequirement`) + its must-NOT row
@@ -1626,7 +1638,7 @@ describe("Confound / Ertai's Trickery — spell-property target filters (issue #
     it("the shared carry propagates both filters onto the PendingTarget", () => {
         const c = pendingTargetFiltersFromRequirement(CONFOUND_REQ, undefined);
         expect(c.spellTargetsTypeFilter).toEqual(["Creature"]);
-        const t = pendingTargetFiltersFromRequirement(TRICKERY_REQ, undefined);
+        const t = pendingTargetFiltersFromRequirement(KICKED_REQ, undefined);
         expect(t.spellWasKicked).toBe(true);
     });
 
@@ -1689,7 +1701,7 @@ describe("Confound / Ertai's Trickery — spell-property target filters (issue #
 
     it("the multi-group PendingTarget reset clears EVERY spell filter (no cross-group leak, CR 601.2c)", () => {
         for (const key of SPELL_FILTER_KEYS) {
-            expect(CLEARED_PENDING_TARGET_FILTER_KEYS).toHaveProperty(key);
+            expect(PENDING_TARGET_FILTER_KEYS).toHaveProperty(key);
         }
     });
 
@@ -1763,14 +1775,16 @@ describe("Confound / Ertai's Trickery — spell-property target filters (issue #
         );
     });
 
-    // Scope note, asserted rather than assumed: `targetLegalityGate`
-    // (`gre/state.ts`) re-checks ZONE EXISTENCE only, by documented design —
-    // characteristic-based illegality acquired after targeting is enforced at
-    // SELECTION, not at resolution. So a Bolt that stops targeting a creature
-    // (its creature died) is still a legal target for an already-announced
-    // Confound. This pins the engine-wide behaviour so a future widening of
-    // that gate shows up here rather than as a surprise.
-    it("a target that lost the spell PROPERTY after announcement still resolves (engine-wide gate scope)", () => {
+    // CR 608.2b — "a target that's no longer legal" is NOT only one that left
+    // its zone: a target that no longer MEETS the targeting requirements is
+    // illegal too. A Bolt whose creature target died has stopped being "a
+    // spell that targets a creature", so Confound's only target is illegal and
+    // Confound is countered by the game rules — the Bolt is NOT countered and
+    // no part of Confound happens, including the draw. This test previously
+    // enshrined the opposite (Bolt countered, card drawn) as the engine's
+    // documented "zone existence only" gate scope; `targetLegalityGate` now
+    // re-runs the spell-property restrictions for SPELL-kind targets.
+    it("Confound is countered when its target lost the spell PROPERTY after announcement (CR 608.2b)", () => {
         const state = board();
         state.players[0].library = [
             makeInstance(island.id, {
@@ -1783,10 +1797,46 @@ describe("Confound / Ertai's Trickery — spell-property target filters (issue #
         const bolt = pushSpell(state, lightningBolt.id, "p2", [
             { type: "permanent", id: "bear" },
         ]);
-        pushSpell(state, confound.id, "p1", [{ type: "spell", id: bolt.id }]);
+        const cf = pushSpell(state, confound.id, "p1", [
+            { type: "spell", id: bolt.id },
+        ]);
         state.players[1].battlefield = state.players[1].battlefield.filter(
             (c) => c.id !== "bear"
         );
+        resolveTopOfStack(state);
+        // Confound fizzled…
+        expect(state.stack.some((s) => s.id === cf.id)).toBe(false);
+        expect(state.players[0].graveyard.map((c) => c.card.id)).toContain(
+            confound.id
+        );
+        // …so the Bolt survives and nothing is drawn.
+        expect(state.stack.some((s) => s.id === bolt.id)).toBe(true);
+        expect(state.players[0].hand).toHaveLength(0);
+    });
+
+    // …and the re-check must not OVER-fizzle: a target that still satisfies
+    // the restriction resolves normally. (The gate's two documented
+    // narrowings live in `spellTargetStillMeetsRestrictions`, `gre/state.ts`:
+    // cross-kind filters — `mvFilter` above all, X-resolved at ANNOUNCEMENT —
+    // are not re-derived, and a resolving ABILITY keeps the
+    // zone-existence-only behaviour because its requirement is frequently
+    // pinned dynamically at trigger time, e.g. Ward.)
+    it("the CR 608.2b re-check does not fizzle a target that still qualifies", () => {
+        const state = board();
+        state.players[0].library = [
+            makeInstance(island.id, {
+                id: "lib1",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            }),
+        ];
+        // The Bolt keeps targeting a creature, so the spell-only half still
+        // holds and Confound resolves normally.
+        const bolt = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "permanent", id: "bear" },
+        ]);
+        pushSpell(state, confound.id, "p1", [{ type: "spell", id: bolt.id }]);
         resolveTopOfStack(state);
         expect(state.stack.some((s) => s.id === bolt.id)).toBe(false);
         expect(state.players[0].hand.map((c) => c.id)).toEqual(["lib1"]);
@@ -1820,12 +1870,6 @@ describe("Confound / Ertai's Trickery — spell-property target filters (issue #
         expect(confound.rarity).toBe("common");
         expect(confound.oracleText).toBe(
             "Counter target spell that targets a creature.\nDraw a card."
-        );
-        expect(ertaisTrickery.manaCost).toEqual({ U: 1 });
-        expect(ertaisTrickery.types).toEqual(["Instant"]);
-        expect(ertaisTrickery.rarity).toBe("uncommon");
-        expect(ertaisTrickery.oracleText).toBe(
-            "Counter target spell if it was kicked."
         );
     });
 });

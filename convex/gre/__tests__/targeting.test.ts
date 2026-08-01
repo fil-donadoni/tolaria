@@ -2986,6 +2986,7 @@ describe("pendingTargetFiltersFromRequirement — player/card filter carry-compl
 // ---------------------------------------------------------------------------
 
 import { counterspell, lightningBolt, giantGrowth } from "../../cards/sets/lea";
+import { stifle } from "../../cards/sets/scg/blue";
 
 describe("spell resolution: Counterspell (CR 701.5a)", () => {
     function makeCounterspellItem(
@@ -3182,6 +3183,13 @@ describe("spell resolution: Counterspell (CR 701.5a)", () => {
         ).toBe(true);
     });
 
+    // The `counter` Op's ability branch (CR 113.7a — an ability is not a card,
+    // so countering it moves nothing). The vehicle is STIFLE, not Counterspell:
+    // "Counter target spell" cannot target an ability (`spellStackKind`
+    // defaults to `"spell"`), and since issue #1956 `targetLegalityGate`
+    // re-runs the spell-property restrictions at resolution (CR 608.2b), so a
+    // Counterspell hand-placed on an ability now correctly FIZZLES instead of
+    // exercising this branch.
     it("counters an activated ability: ability item is removed but no card moves", () => {
         // Build a fake activated ability on the stack
         const state = makeGameState();
@@ -3203,16 +3211,63 @@ describe("spell resolution: Counterspell (CR 701.5a)", () => {
         };
         state.stack.push(abilityItem);
 
-        state.stack.push(
-            makeCounterspellItem("p1", [{ type: "spell", id: "ability1" }])
-        );
+        state.stack.push({
+            ...makeCard({
+                id: crypto.randomUUID(),
+                card: {
+                    id: stifle.id,
+                    name: stifle.name,
+                    types: stifle.types,
+                },
+                types: stifle.types,
+                zone: "stack",
+                ownerId: "p1",
+                controllerId: "p1",
+            }),
+            castById: "p1",
+            targets: [{ type: "spell", id: "ability1" }],
+        });
 
         resolveTopOfStack(state);
 
         // Stack emptied; ability item vanishes (not a card, doesn't go to graveyard).
         expect(state.stack).toHaveLength(0);
         expect(getPlayer(state, "p2").graveyard).toHaveLength(0);
-        // Counterspell itself still goes to p1's graveyard.
+        // Stifle itself still goes to p1's graveyard.
+        expect(getPlayer(state, "p1").graveyard).toHaveLength(1);
+    });
+
+    // The mirror of the above, and the direct CR 608.2b proof for the
+    // spell-property re-check (issue #1956): Counterspell placed on an ability
+    // has an ILLEGAL target at resolution, so it is countered by the game
+    // rules and the ability survives.
+    it("Counterspell aimed at an ability fizzles at resolution (CR 608.2b)", () => {
+        const state = makeGameState();
+        const abilityItem: StackItem = {
+            ...makeCard({
+                id: "ability1",
+                card: {
+                    id: "some-source-id",
+                    name: "Source Permanent",
+                    types: ["Artifact"],
+                },
+                types: ["Artifact"],
+                zone: "stack",
+                ownerId: "p2",
+                controllerId: "p2",
+            }),
+            castById: "p2",
+            abilityId: "ability-slot-1",
+        };
+        state.stack.push(abilityItem);
+        state.stack.push(
+            makeCounterspellItem("p1", [{ type: "spell", id: "ability1" }])
+        );
+
+        resolveTopOfStack(state);
+
+        // The ability is untouched; Counterspell fizzled into its graveyard.
+        expect(state.stack.map((s) => s.id)).toEqual(["ability1"]);
         expect(getPlayer(state, "p1").graveyard).toHaveLength(1);
     });
 

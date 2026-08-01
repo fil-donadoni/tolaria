@@ -829,27 +829,34 @@ export const confound: CardDefinition = {
 };
 
 // Ertai's Trickery — {U} Instant. "Counter target spell if it was kicked."
-// (CR 702.33a, issue #1956, parent PRD #1935.) `spellWasKicked` reads the
-// candidate stack item's PER-KICKER payment record through `totalKickerCount`
-// (ADR 0079), so a card carrying two independently payable Kickers — the
-// Planeshift Battlemage cycle's "Kicker {A} and/or {B}" — qualifies when
-// EITHER leg was paid, which a single stored total could never express.
+// (CR 608.2a / 702.33a, issue #1956, parent PRD #1935.)
 //
-// DIVERGENCE (tracked-by: #2044): Oracle's "if it was kicked" is a
-// resolution-time intervening condition (CR 608.2a), not a targeting
-// restriction — as printed the spell may be cast targeting an unkicked spell
-// and simply do nothing. It ships here as a target FILTER per this slice's
-// acceptance criteria (#1956), which makes the card uncastable with no kicked
-// spell on the stack. Closing #2044 needs an Effect Script value that reads a
-// TARGET's kicker payments at resolution (today's `{ kickerCount: true }`
-// reads the RESOLVING spell's own).
-export const ertaisTrickery: CardDefinition = {
-    id: "544e3575-9fb6-41f7-a4e6-f8460dfae344", // PLS 24
-    name: "Ertai's Trickery",
-    rarity: "uncommon",
-    oracleText: "Counter target spell if it was kicked.",
-    manaCost: { U: 1 },
-    types: ["Instant"],
-    targetRequirement: { type: "spell", count: 1, spellWasKicked: true },
-    effects: [{ op: "counter", target: { target: 0 } }],
-};
+// Left as a TRACKED STUB, not shipped. Oracle's "if it was kicked" is a
+// resolution-time INTERVENING CONDITION (CR 608.2a), not a targeting
+// restriction (CR 114.1c) — "target spell" is unqualified, so any spell on
+// the stack is a legal target and the kicker check happens on resolution.
+// The obvious shortcut (`targetRequirement.spellWasKicked: true`) is
+// materially wrong, not cosmetic: it makes the card uncastable while no
+// kicked spell is on the stack, which removes real legal plays — this engine
+// implements Storm / spells-cast-this-turn (ADR 0052), so casting Trickery at
+// an unkicked spell purely to raise the storm count or feed a cast-trigger is
+// a live line. #1956's acceptance criteria asked for the filter shape; an AC
+// does not outrank the Comprehensive Rules, so the card waits.
+//
+// The correct shape needs vocabulary that does not exist yet: an Effect
+// Script value that reads a TARGET stack item's kicker payments at
+// resolution. Today's `{ kickerCount: true }` / `{ kickerPaid: id }`
+// (`gre/effects/interpreter.ts`) read `ctx.getKickerCount()` — the RESOLVING
+// spell's own payments, never a target's. That is the stop-and-issue case
+// (an unbuilt capability is NOT a valid `resolve()` justification), so the
+// card ships as a stub and #2044 owns building the value plus
+// `targetRequirement: { type: "spell", count: 1 }` and a conditional counter.
+// tracked-by: #2044
+// export const ertaisTrickery: CardDefinition = {
+//     id: "544e3575-9fb6-41f7-a4e6-f8460dfae344", // PLS 24
+//     name: "Ertai's Trickery",
+//     rarity: "uncommon",
+//     oracleText: "Counter target spell if it was kicked.",
+//     manaCost: { U: 1 },
+//     types: ["Instant"],
+// };

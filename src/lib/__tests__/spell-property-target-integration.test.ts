@@ -1,6 +1,12 @@
-// Integration: SPELL-PROPERTY target filters (Confound / Ertai's Trickery,
-// issue #1956) from the server's offered set all the way to client clickability
-// — asserted THROUGH the real view reducer, never against a hand-built view.
+// Integration: SPELL-PROPERTY target filters (Confound, issue #1956) from the
+// server's offered set all the way to client clickability — asserted THROUGH
+// the real view reducer, never against a hand-built view.
+//
+// `spellWasKicked` is covered through a SYNTHETIC requirement rather than a
+// card: Ertai's Trickery, which motivated the filter, ships as a tracked stub
+// because "counter target spell if it was kicked" is a CR 608.2a intervening
+// condition, not a targeting restriction (tracked-by: #2044). The client
+// mirror still needs its proof, so the filter keeps one.
 //
 // Why this file exists. The server half of the target-filter registry cannot
 // drift: `getLegalTargets` and `selectTarget` share one descriptor (ADR 0068).
@@ -32,8 +38,9 @@ import {
 } from "@convex/cards/__tests__/setup";
 import { grizzlyBears, island, lightningBolt } from "@convex/cards/sets/lea";
 import { stoneRain } from "@convex/cards/sets/lea/red";
-import { confound, ertaisTrickery } from "@convex/cards/sets/pls/blue";
+import { confound } from "@convex/cards/sets/pls/blue";
 import { urzasRage } from "@convex/cards/sets/inv/red";
+import type { TargetRequirement } from "@convex/cards/types";
 import type { GameState } from "@convex/gre/state";
 import type { CardInstance, PendingTarget } from "~/types/game";
 import {
@@ -128,6 +135,14 @@ const serverOffered = (
     requirement: NonNullable<typeof confound.targetRequirement>
 ) => getLegalTargets(state, requirement, [], "p1").map((t) => t.id);
 
+/** Synthetic — no shipped card declares `spellWasKicked` (see the header note,
+ *  tracked-by: #2044). Keeps the filter's client mirror proven. */
+const KICKED_REQ: TargetRequirement = {
+    type: "spell",
+    count: 1,
+    spellWasKicked: true,
+};
+
 describe("spell-property target filters — server offered set == client clickable set (issue #1956)", () => {
     it("Confound: the projected client verdict matches getLegalTargets exactly", () => {
         const { state, ids } = scenario();
@@ -141,29 +156,25 @@ describe("spell-property target filters — server offered set == client clickab
         );
     });
 
-    it("Ertai's Trickery: the projected client verdict matches getLegalTargets exactly", () => {
+    it("spellWasKicked: the projected client verdict matches getLegalTargets exactly", () => {
         const { state, ids } = scenario();
-        const req = ertaisTrickery.targetRequirement!;
-        expect(clientClickable(state, req)).toEqual(serverOffered(state, req));
-        expect(clientClickable(state, req)).toEqual([ids.kicked]);
+        expect(clientClickable(state, KICKED_REQ)).toEqual(
+            serverOffered(state, KICKED_REQ)
+        );
+        expect(clientClickable(state, KICKED_REQ)).toEqual([ids.kicked]);
     });
 
     it("both requirements enable stack-spell selection (wantsSpellTarget)", () => {
         expect(wantsSpellTarget(confound.targetRequirement!.type)).toBe(true);
-        expect(wantsSpellTarget(ertaisTrickery.targetRequirement!.type)).toBe(
-            true
-        );
+        expect(wantsSpellTarget(KICKED_REQ.type)).toBe(true);
     });
 
     it("the target prompt resolves to a real label, not a raw fallback", () => {
-        // Neither card introduces a new `TargetRequirement.type`: both are
-        // `"spell"`, which `TARGET_LABEL` already spells "a spell on the
+        // Neither requirement introduces a new `TargetRequirement.type`: both
+        // are `"spell"`, which `TARGET_LABEL` already spells "a spell on the
         // stack", and neither narrows `spellStackKind` away from the default
         // (which is what would reword the prompt to an ability).
-        for (const req of [
-            confound.targetRequirement!,
-            ertaisTrickery.targetRequirement!,
-        ]) {
+        for (const req of [confound.targetRequirement!, KICKED_REQ]) {
             expect(req.type).toBe("spell");
             expect(
                 pendingTargetFiltersFromRequirement(req, undefined)

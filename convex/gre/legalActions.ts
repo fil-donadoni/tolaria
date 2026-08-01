@@ -21,13 +21,14 @@
 // `convex/gre/index.ts` barrel, ADR 0001). Combinatorial windows are capped at
 // `MAX_COMBINATIONS`, same policy as `moves.ts`.
 
-import type { Color, TargetRequirement, TargetSelection } from "../cards/types";
+import type { TargetRequirement, TargetSelection } from "../cards/types";
 import type {
     CardInstanceState,
     ExpectedInput,
     GameState,
     PendingChoice,
     PendingTarget,
+    PendingTargetFilterKey,
 } from "./state";
 import {
     canPayMayPayCost,
@@ -35,6 +36,7 @@ import {
     getPendingChoiceMin,
     getPlayer,
     matchesPermanentFilter,
+    PENDING_TARGET_FILTER_KEYS,
 } from "./state";
 import { computeExpectedInput, type GateRequest } from "./expectedInput";
 import {
@@ -456,34 +458,41 @@ function maxTargetCount(count: PendingTarget["count"]): number {
  *  enforces). Working from the snapshot rather than the card definition keeps
  *  this correct for modal spells, dynamic `getTargetRequirement` abilities,
  *  and copy-retargets alike, and X-dependent values (`mvFilter`) arrive
- *  already resolved. */
+ *  already resolved.
+ *
+ *  The filter half is copied through `PENDING_TARGET_FILTER_KEYS` (`state.ts`)
+ *  rather than a hand-written field list. The hand-written list was fail-OPEN
+ *  and had already drifted by TWELVE keys (issue #1956): every dropped filter
+ *  makes this enumerator offer a `select-target` action that
+ *  `applyOneTargetSelection` then rejects — proven with a Lightning Bolt
+ *  targeting a PLAYER on the stack, where `getLegalTargets` returned `[]` for
+ *  Confound while `legalActions` still yielded the action. `moves.ts` never
+ *  had the bug (it enumerates from the card's real requirement); this module
+ *  is the third co-authority `targetFilters.ts` names, so it gets the same
+ *  compile-forced key set as the clear list and the retarget producers.
+ *
+ *  Only the STRUCTURAL fields stay hand-written — `type` / `count` / `zone`
+ *  are `StructuralKey`s (not registry filters) and are renamed on the
+ *  `PendingTarget` (`targetType`), so they can't ride the generic copy. */
 function requirementFromPendingTarget(pt: PendingTarget): TargetRequirement {
-    return {
+    const out: Record<string, unknown> = {
         type: pt.targetType,
         count: pt.count,
-        colorFilter: pt.colorFilter as Color | undefined,
-        colorFilterAny: pt.colorFilterAny as ReadonlyArray<Color> | undefined,
-        subtypeFilter: pt.subtypeFilter,
-        supertypeFilter:
-            pt.supertypeFilter as TargetRequirement["supertypeFilter"],
-        powerFilter: pt.powerFilter,
-        toughnessFilter: pt.toughnessFilter,
-        excludeSubtypes: pt.excludeSubtypes,
-        excludeSupertypes:
-            pt.excludeSupertypes as TargetRequirement["excludeSupertypes"],
-        mvFilter: pt.mvFilter,
-        spellTypeFilter: pt.spellTypeFilter,
-        spellExcludeTypeFilter: pt.spellExcludeTypeFilter,
-        spellCreaturePtFilter: pt.spellCreaturePtFilter,
-        spellSingleTargetingController: pt.spellSingleTargetingController,
-        spellWouldDestroyLandYouControl: pt.spellWouldDestroyLandYouControl,
-        spellStackKind: pt.spellStackKind,
-        stackSourceTypeFilter: pt.stackSourceTypeFilter,
-        spellTargetsInstanceIds: pt.spellTargetsInstanceIds,
-        playerAttackedThisTurn: pt.playerAttackedThisTurn,
-        zone: pt.zone,
-        controller: pt.controller,
+        ...(pt.zone ? { zone: pt.zone } : {}),
     };
+    for (const key of Object.keys(
+        PENDING_TARGET_FILTER_KEYS
+    ) as PendingTargetFilterKey[]) {
+        const value = pt[key];
+        if (value !== undefined) out[key] = value;
+    }
+    // The `PendingTarget` field IS the lowered `TargetRequirement` value for
+    // each key by construction (`pendingTargetFiltersFromRequirement` writes
+    // `lower()`'s own output), so the deliberately WIDENED `PendingTarget`
+    // declarations (`colorFilter?: string` where the requirement says `Color`)
+    // carry across unchanged — one cast here instead of a per-key one, which
+    // is what let the old hand-written list drift in the first place.
+    return out as unknown as TargetRequirement;
 }
 
 function targetActions(

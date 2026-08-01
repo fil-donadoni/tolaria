@@ -1396,6 +1396,41 @@ export function checkSpellTargetFilters(
     return null;
 }
 
+/** Reads the SPELL-filter values back off a carrier that already holds the
+ *  LOWERED values — i.e. a `PendingTarget`, whose filter fields ARE
+ *  `lowerSpellFilters`' output by construction.
+ *
+ *  Exists so the ACCEPTED-set site (`applyOneTargetSelection`, `game.ts`)
+ *  stops hand-writing its forward list into `checkSpellTargetFilters`. A
+ *  hand-written forward list is fail-OPEN for a future key — the filter is
+ *  carried onto the `PendingTarget`, the check knows how to run it, and the
+ *  one line that hands it over is missing, so `selectTarget` silently accepts
+ *  a target `getLegalTargets` never offered. Iterating `SPELL_FILTER_KEYS` —
+ *  the very list `checkSpellTargetFilters` loops — makes the forwarded set
+ *  and the checked set the SAME set by construction. */
+export function spellFilterValuesFromCarrier(
+    carrier: Partial<Record<SpellFilterKey, unknown>>
+): SpellFilterValues {
+    const out: Record<string, unknown> = {};
+    for (const key of SPELL_FILTER_KEYS) {
+        const value = carrier[key];
+        if (value !== undefined) out[key] = value;
+    }
+    return out as SpellFilterValues;
+}
+
+/** True when a `TargetRequirement` admits a STACK-OBJECT target (CR 114.1) —
+ *  the gate every site uses before lowering/carrying/checking the spell-kind
+ *  filters. Single authority for the `"spell" | "spell-or-permanent"` test
+ *  that `pendingTargetFiltersFromRequirement` (`rules.ts`), the retarget
+ *  producers and the CR 608.2b fizzle gate (`state.ts`) all need; the
+ *  `type`-union widening rule (`gre-development.md` § Exhaustive target-type
+ *  matching) then has ONE place to update instead of three inline copies. */
+export function requirementAdmitsSpellTarget(req: TargetRequirement): boolean {
+    const types = Array.isArray(req.type) ? req.type : [req.type];
+    return types.includes("spell") || types.includes("spell-or-permanent");
+}
+
 /** The SPELL-ONLY half of `lowerSpellFilters` — the keys in
  *  `SPELL_ONLY_FILTER_KEYS`, excluding the cross-kind ones (`controller` /
  *  `colorFilter` / `colorFilterAny` / `mvFilter`).

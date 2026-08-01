@@ -67,6 +67,7 @@ import {
     dealDamageFromPermanentToPlayer,
     loseLifeEmitting,
     refreshCounterGatedStatics,
+    PENDING_TARGET_FILTER_KEYS,
 } from "./gre/state";
 import {
     selectCompanion,
@@ -185,7 +186,7 @@ import type {
     TargetRequirement,
     TargetSelection,
 } from "./cards/types";
-import type { FilterKey } from "./gre/targetFilters";
+import { spellFilterValuesFromCarrier } from "./gre/targetFilters";
 import {
     assertLegalAction,
     canCastFromGraveyardByPermission,
@@ -4954,48 +4955,6 @@ function finalizeDivideAmounts(
 // the gre trigger-target path (`raiseTriggerTargetSelection`) can build a
 // `PendingTarget` without importing `game.ts`. Imported above; same behavior.
 
-/** Every target-filter-registry key that is also a `PendingTarget` field —
- *  the exact set `applyRequirementToPendingTarget` must clear between two
- *  independent target groups (CR 601.2c). Declared as a `satisfies
- *  Record<FilterKey & keyof PendingTarget, true>` map rather than a run of
- *  assignments so that a new registry filter cannot be forgotten here: the
- *  intersection type makes an omission a compile error and an excess key
- *  (a filter that never reaches `PendingTarget`) a compile error too. Same
- *  forcing-function shape as `REGISTRY` itself (ADR 0068, issue #1956). */
-export const CLEARED_PENDING_TARGET_FILTER_KEYS = {
-    controller: true,
-    colorFilter: true,
-    colorFilterAny: true,
-    subtypeFilter: true,
-    supertypeFilter: true,
-    excludeSubtypes: true,
-    excludeSupertypes: true,
-    excludeTypes: true,
-    excludeColors: true,
-    excludeInstanceIds: true,
-    tappedFilter: true,
-    combatRoleFilter: true,
-    requireAbility: true,
-    requireAbilityAny: true,
-    excludeAbility: true,
-    powerFilter: true,
-    toughnessFilter: true,
-    mvFilter: true,
-    sameController: true,
-    isToken: true,
-    playerAttackedThisTurn: true,
-    spellStackKind: true,
-    stackSourceTypeFilter: true,
-    spellTargetsInstanceIds: true,
-    spellTypeFilter: true,
-    spellExcludeTypeFilter: true,
-    spellCreaturePtFilter: true,
-    spellSingleTargetingController: true,
-    spellWouldDestroyLandYouControl: true,
-    spellTargetsTypeFilter: true,
-    spellWasKicked: true,
-} satisfies Record<FilterKey & keyof PendingTarget, true>;
-
 /** Loads the next INDEPENDENT target group of a multi-group spell (CR 601.2c —
  *  Fumarole) into `pt` in place: clears every group-specific filter field and
  *  re-derives them from `req`, resetting `selected` for the fresh group. The
@@ -5010,15 +4969,15 @@ function applyRequirementToPendingTarget(
     pt.count = resolveTargetCount(req.count, chosenX);
     pt.selected = [];
     // Clear every optional filter so a prior group's constraint never leaks,
-    // then re-apply from the shared builder. The key set is COMPILE-FORCED
-    // (ADR 0068 / issue #1956): `satisfies Record<FilterKey & keyof
-    // PendingTarget, true>` fails `tsc` the moment a registry filter that
-    // lands on `PendingTarget` is missing here. It used to be a hand-written
-    // run of assignments, which is a fail-OPEN shape — a filter added to the
-    // registry but forgotten here silently leaks the previous group's
-    // constraint into the next one (Fumarole's creature-then-land walk), and
-    // ten permanent-kind filters had already drifted out of it.
-    for (const key of Object.keys(CLEARED_PENDING_TARGET_FILTER_KEYS)) {
+    // then re-apply from the shared builder. The key set is COMPILE-FORCED —
+    // `PENDING_TARGET_FILTER_KEYS` (`gre/state.ts`, ADR 0068 / issue #1956)
+    // fails `tsc` the moment a registry filter that lands on `PendingTarget`
+    // is missing from it. This used to be a hand-written run of assignments,
+    // which is a fail-OPEN shape — a filter added to the registry but
+    // forgotten here silently leaks the previous group's constraint into the
+    // next one (Fumarole's creature-then-land walk), and ten permanent-kind
+    // filters had already drifted out of it.
+    for (const key of Object.keys(PENDING_TARGET_FILTER_KEYS)) {
         (pt as Record<string, unknown>)[key] = undefined;
     }
     pt.zone = undefined;
@@ -9348,17 +9307,22 @@ export function applyOneTargetSelection(
         }
         const spell = state.stack.find((s) => s.id === input.targetId);
         if (!spell) throw new Error("Invalid spell target");
-        // CR 113 / 114.1 / 109.3 / 202.2 / 202.3 / 208.2 / 601.2c / 701.7 /
-        // 702 — every spell-kind filter (spellStackKind, controller,
-        // stackSourceTypeFilter, spellTargetsInstanceIds, colorFilter,
-        // mvFilter, spellTypeFilter, spellExcludeTypeFilter,
-        // spellCreaturePtFilter, spellSingleTargetingController,
-        // spellWouldDestroyLandYouControl), routed through the SINGLE
-        // shared authority — the target-filter registry (ADR 0068 /
-        // issue #1409, T2). `getLegalTargets` runs the SAME
-        // `checkSpellTargetFilters` per candidate, so the offered set
-        // and the accepted set can't diverge — the spell-flavored half
-        // of the Phelia bug class.
+        // CR 113 / 114.1 / 109.2 / 109.3 / 202.2 / 202.3 / 208.2 / 601.2c /
+        // 701.7 / 702 — EVERY spell-kind filter, routed through the SINGLE
+        // shared authority: the target-filter registry (ADR 0068 / issue
+        // #1409, T2). `getLegalTargets` runs the SAME
+        // `checkSpellTargetFilters` per candidate, so the offered set and the
+        // accepted set can't diverge — the spell-flavored half of the Phelia
+        // bug class.
+        //
+        // The forward set comes from `spellFilterValuesFromCarrier`, which
+        // iterates `SPELL_FILTER_KEYS` — the very list
+        // `checkSpellTargetFilters` loops. It used to be a hand-written map
+        // literal (complete at 14/14, but fail-OPEN for the NEXT key: a
+        // filter carried onto the `PendingTarget` and understood by the check
+        // would simply never be handed over, and `selectTarget` would accept
+        // a target `getLegalTargets` never offered). Forwarded set and
+        // checked set are now the same set by construction (issue #1956).
         const spellFilterCtx: TargetFilterCtx = {
             state,
             sourceColors: [],
@@ -9370,29 +9334,7 @@ export function applyOneTargetSelection(
         const spellFilterViolation = checkSpellTargetFilters(
             spellFilterCtx,
             spell,
-            {
-                spellStackKind: pt.spellStackKind,
-                controller: pt.controller,
-                stackSourceTypeFilter: pt.stackSourceTypeFilter,
-                spellTargetsInstanceIds: pt.spellTargetsInstanceIds,
-                colorFilter: pt.colorFilter as Color | undefined,
-                colorFilterAny: pt.colorFilterAny as
-                    | readonly Color[]
-                    | undefined,
-                mvFilter: pt.mvFilter,
-                spellTypeFilter: pt.spellTypeFilter,
-                spellExcludeTypeFilter: pt.spellExcludeTypeFilter,
-                spellCreaturePtFilter: pt.spellCreaturePtFilter,
-                spellSingleTargetingController:
-                    pt.spellSingleTargetingController,
-                spellWouldDestroyLandYouControl:
-                    pt.spellWouldDestroyLandYouControl,
-                // CR 114.1 / 109.2 / 702.33a — spell-PROPERTY filters (issue
-                // #1956): the candidate's own chosen targets (Confound) and
-                // its Kicker state (Ertai's Trickery).
-                spellTargetsTypeFilter: pt.spellTargetsTypeFilter,
-                spellWasKicked: pt.spellWasKicked,
-            }
+            spellFilterValuesFromCarrier(pt)
         );
         if (spellFilterViolation) throw new Error(spellFilterViolation);
     }

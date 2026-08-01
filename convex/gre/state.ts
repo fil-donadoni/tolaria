@@ -69,7 +69,16 @@ import {
 } from "./cityBlessing";
 import { checkStateBasedActions } from "./sba";
 import { getExtraLandDrops, getLegalTargets } from "./rules";
-import { lowerSpellOnlyFilters } from "./targetFilters";
+import {
+    checkSpellTargetFilters,
+    lowerSpellOnlyFilters,
+    requirementAdmitsSpellTarget,
+} from "./targetFilters";
+import type {
+    FilterKey,
+    SpellFilterKey,
+    TargetFilterCtx,
+} from "./targetFilters";
 import { resolveEntersTapped } from "../cards/entersTapped";
 import {
     entryAbilitiesSuppressed,
@@ -2850,6 +2859,75 @@ export type PendingTarget = {
     priorSelected?: TargetSelection[];
 };
 
+/** Every target-filter-registry key that is ALSO a `PendingTarget` field — the
+ *  set of filters that survive the async gap between "targets requested" and
+ *  "target submitted", and therefore the set every `PendingTarget` CONSUMER
+ *  has to handle.
+ *
+ *  Declared as a `satisfies`-checked map rather than a hand-written run of
+ *  field names because a hand-written list is fail-OPEN in both directions and
+ *  had already drifted twice (issue #1956):
+ *
+ *   - `applyRequirementToPendingTarget` (`game.ts`) CLEARS these between two
+ *     independent target groups (CR 601.2c — Fumarole's creature-then-land
+ *     walk); an omission leaks the previous group's constraint into the next.
+ *     Ten permanent-kind filters had drifted out of that list.
+ *   - `requirementFromPendingTarget` (`legalActions.ts`) REBUILDS a
+ *     `TargetRequirement` from these for the bot's move enumerator; an
+ *     omission makes the enumerator offer targets `applyOneTargetSelection`
+ *     then rejects (proven with a Lightning Bolt targeting a player on the
+ *     stack: `getLegalTargets` returned `[]` while `legalActions` still
+ *     yielded a `select-target` action).
+ *
+ *  The two `satisfies` constraints together are the forcing function:
+ *   - `Record<FilterKey & keyof PendingTarget, true>` — every registry filter
+ *     that reaches `PendingTarget` MUST appear here (omission = compile
+ *     error), and nothing that isn't one may (excess = compile error).
+ *   - `Record<SpellFilterKey, true>` — every SPELL filter must appear too,
+ *     which (given the first constraint bans excess keys) is only satisfiable
+ *     while every spell filter is genuinely a `PendingTarget` field. A spell
+ *     filter added to the registry but never carried across the async gap is
+ *     therefore a compile error rather than a silent always-undefined check.
+ *
+ *  Same shape as `REGISTRY` itself (ADR 0068, issue #1411). */
+export const PENDING_TARGET_FILTER_KEYS = {
+    controller: true,
+    colorFilter: true,
+    colorFilterAny: true,
+    subtypeFilter: true,
+    supertypeFilter: true,
+    excludeSubtypes: true,
+    excludeSupertypes: true,
+    excludeTypes: true,
+    excludeColors: true,
+    excludeInstanceIds: true,
+    tappedFilter: true,
+    combatRoleFilter: true,
+    requireAbility: true,
+    requireAbilityAny: true,
+    excludeAbility: true,
+    powerFilter: true,
+    toughnessFilter: true,
+    mvFilter: true,
+    sameController: true,
+    isToken: true,
+    playerAttackedThisTurn: true,
+    spellStackKind: true,
+    stackSourceTypeFilter: true,
+    spellTargetsInstanceIds: true,
+    spellTypeFilter: true,
+    spellExcludeTypeFilter: true,
+    spellCreaturePtFilter: true,
+    spellSingleTargetingController: true,
+    spellWouldDestroyLandYouControl: true,
+    spellTargetsTypeFilter: true,
+    spellWasKicked: true,
+} satisfies Record<FilterKey & keyof PendingTarget, true> &
+    Record<SpellFilterKey, true>;
+
+/** The keys of {@link PENDING_TARGET_FILTER_KEYS}, for a typed iteration. */
+export type PendingTargetFilterKey = keyof typeof PENDING_TARGET_FILTER_KEYS;
+
 /** Pre-game mulligan tracking (CR 103.5, London mulligan). Present only while
  *  `phase === "MULLIGAN"`. After all players have locked in their opening hand
  *  and any required bottoming choices have resolved, this field is cleared and
@@ -4192,32 +4270,119 @@ export function realizeManaAbilityTapBonus(state: GameState): void {
     state.pendingEvents = [...(state.pendingEvents ?? []), ...events];
 }
 
+/** CR 608.2b, spell-kind half — re-checks a still-on-the-stack SPELL target
+ *  against the resolving SPELL's own spell-PROPERTY targeting restrictions.
+ *
+ *  "A target that's no longer legal" is not only one that left its zone: a
+ *  target that no longer MEETS the targeting requirements is illegal too. The
+ *  restrictions this re-runs are exactly the ones whose truth value can change
+ *  while the target sits on the stack — Confound's "spell that targets a
+ *  creature" stops being satisfied the moment that creature dies, so a
+ *  Confound whose Bolt lost its only target must be countered by the game
+ *  rules and must NOT draw.
+ *
+ *  Two deliberate narrowings, each one avoiding a KNOWN wrong answer rather
+ *  than a hypothetical one:
+ *
+ *  1. **`SPELL_ONLY_FILTER_KEYS`, not every spell filter.** The cross-kind
+ *     ones (`controller` / `colorFilter` / `colorFilterAny` / `mvFilter`) are
+ *     excluded: `mvFilter` in particular is X-resolved at ANNOUNCEMENT
+ *     (`resolveMvFilter` against the announced X / source power), so
+ *     re-lowering it here — with no `chosenX` bound for the announcing
+ *     context — would silently re-derive a different bound than the one the
+ *     target was legally chosen under.
+ *  2. **Resolving SPELLS only, not abilities.** A triggered/activated
+ *     ability's requirement is frequently pinned DYNAMICALLY at trigger time
+ *     (`spellTargetsSelfSource` rewrites `spellTargetsInstanceIds` to the
+ *     source permanent — Ward, `rules.ts`). Re-deriving it from static card
+ *     data at resolution would fizzle a Ward trigger whenever its source
+ *     permanent left the battlefield, which CR 702.21a does not do. Abilities
+ *     therefore keep the zone-existence-only behaviour.
+ *
+ *  Anything this can't confidently resolve a requirement for falls back to
+ *  the pre-existing zone-existence answer (fail-OPEN by design: this gate
+ *  only ever ADDS illegality it can prove). */
+function spellTargetStillMeetsRestrictions(
+    state: GameState,
+    item: StackItem,
+    candidate: StackItem
+): boolean {
+    // Narrowing 2 — abilities keep the zone-existence-only behaviour.
+    if (
+        item.abilityId ||
+        item.triggeredAbilityId ||
+        item.delayedTriggerId ||
+        item.inlineTargetRequirement ||
+        item.reflexiveTrigger
+    ) {
+        return true;
+    }
+    const cardId = (item.card as { id?: string }).id;
+    const def = cardId ? tryGetDefinition(cardId) : undefined;
+    // CR 700.2d — a modal spell targets under its CHOSEN mode's requirement.
+    const req =
+        (item.chosenModeId
+            ? def?.modes?.find((m) => m.id === item.chosenModeId)
+                  ?.targetRequirement
+            : undefined) ?? def?.targetRequirement;
+    if (!req || !requirementAdmitsSpellTarget(req)) return true;
+    const values = lowerSpellOnlyFilters(req, item.chosenX);
+    const ctx: TargetFilterCtx = {
+        state,
+        // CR 109.5 / 702.16b — the source characteristics a filter's check may
+        // narrow by, read off the resolving stack item itself (still a spell).
+        sourceColors: STATIC_EFFECT_CTX.getColors(item),
+        sourceTypes: item.types,
+        sourceSubtypes: item.subtypes,
+        chooserId: item.controllerId,
+        activePlayerId: state.activePlayerId,
+        sourceIsSpell: true,
+    };
+    return checkSpellTargetFilters(ctx, candidate, values) === null;
+}
+
 /** Re-checks a single chosen target's legality at resolution (CR 608.2b/c).
  *  A target is illegal when the object it points at has left the zone it was
  *  chosen in: a permanent off the battlefield, a spell off the stack, a
  *  graveyard card no longer in that graveyard, or a vanished player.
  *
- *  Scope note: this gate intentionally checks ZONE EXISTENCE only, the actual
- *  crash class this fixes (a `resolve()` body reading a target that already
- *  left, e.g. Swords' `getController`). Characteristic-based illegality
- *  acquired after targeting — protection (CR 702.16b), shroud/hexproof
- *  (CR 702.11/702.18) — is enforced at target *selection* and at the aura
- *  re-check in `finalizeSpellResolution`; folding it in here would also reject
+ *  Scope note: for PERMANENT / PLAYER / GRAVEYARD-CARD targets this gate
+ *  intentionally checks ZONE EXISTENCE only, the actual crash class it fixes
+ *  (a `resolve()` body reading a target that already left, e.g. Swords'
+ *  `getController`). Characteristic-based illegality acquired after targeting
+ *  — protection (CR 702.16b), shroud/hexproof (CR 702.11/702.18) — is
+ *  enforced at target *selection* and at the aura re-check in
+ *  `finalizeSpellResolution`; folding it in here would also reject
  *  deliberately-constructed in-isolation effects (e.g. Deathlace recoloring a
- *  protected creature to exercise the layer-3 primitive). */
+ *  protected creature to exercise the layer-3 primitive).
+ *
+ *  SPELL targets are the exception (issue #1956): their restrictions describe
+ *  the candidate's own on-stack STATE (what it targets, how it was cast), not
+ *  a characteristic a test fixture manipulates in isolation, and they change
+ *  under ordinary play. See `spellTargetStillMeetsRestrictions`. */
 function isTargetStillLegal(
     state: GameState,
-    target: TargetSelection
+    target: TargetSelection,
+    /** The resolving stack item, for the CR 608.2b spell-restriction
+     *  re-check. Omitted by callers that only want zone existence. */
+    item?: StackItem
 ): boolean {
     switch (target.type) {
         case "player":
             // CR 800.4a — a player can leave the game, but in 1v1 the target
             // player always exists; treat a missing player id as illegal.
             return state.players.some((p) => p.id === target.id);
-        case "spell":
+        case "spell": {
             // CR 608.2b — a spell target that has left the stack (resolved or
-            // countered) is now illegal.
-            return state.stack.some((s) => s.id === target.id);
+            // countered) is now illegal…
+            const candidate = state.stack.find((s) => s.id === target.id);
+            if (!candidate) return false;
+            // …and so is one that no longer MEETS the restriction it was
+            // chosen under (Confound's Bolt whose creature target died).
+            return item
+                ? spellTargetStillMeetsRestrictions(state, item, candidate)
+                : true;
+        }
         case "graveyard-card": {
             const owner = state.players.find((p) => p.id === target.playerId);
             return owner?.graveyard.some((c) => c.id === target.id) ?? false;
@@ -4249,7 +4414,7 @@ function targetLegalityGate(
     const targets = item.targets ?? [];
     if (targets.length === 0) return "resolve"; // untargeted — unaffected
 
-    const legal = targets.filter((t) => isTargetStillLegal(state, t));
+    const legal = targets.filter((t) => isTargetStillLegal(state, t, item));
     if (legal.length === 0) return "fizzle"; // CR 608.2b — all targets illegal
 
     // CR 608.2c — prune illegal targets; the spell does as much as possible.
@@ -9511,18 +9676,10 @@ function requestCopyRetargetOn(state: GameState, copy: StackItem): void {
         // (`controller` / `colorFilter` / `mvFilter`) stay hand-carried above
         // — `mvFilter` in particular is already resolved against the copied
         // spell's announced X.
-        ...(spellRequirement(req)
+        ...(requirementAdmitsSpellTarget(req)
             ? (lowerSpellOnlyFilters(req, undefined) as Partial<PendingTarget>)
             : {}),
     };
-}
-
-/** True when a `TargetRequirement` admits a STACK-OBJECT target — the gate
- *  for carrying the spell-only lowered filters onto a `PendingTarget`
- *  (CR 114.1, mirrors `pendingTargetFiltersFromRequirement` in `rules.ts`). */
-function spellRequirement(req: TargetRequirement): boolean {
-    const types = Array.isArray(req.type) ? req.type : [req.type];
-    return types.includes("spell") || types.includes("spell-or-permanent");
 }
 
 /** Storm's per-copy retarget offer (CR 707.10b "you may choose new targets
@@ -13307,7 +13464,7 @@ export function buildSpellContext(
                 // ADR 0068 / issue #1956 — every SPELL-ONLY filter, lowered
                 // through the registry rather than hand-copied (see
                 // `requestCopyRetargetOn` above for the full rationale).
-                ...(spellRequirement(requirement)
+                ...(requirementAdmitsSpellTarget(requirement)
                     ? (lowerSpellOnlyFilters(
                           requirement,
                           undefined
