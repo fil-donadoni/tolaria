@@ -344,11 +344,30 @@ export function findVacuousAliasAssertions(
     return findings;
 }
 
+/** Cheap textual prefilter run before the AST parse.
+ *
+ *  Parsing all ~880 test files costs ~1s locally but 8s on CI's shared runner —
+ *  past vitest's 5s default, which is how this guard first landed red (the
+ *  detector was right; the sweep was just slow). A deep-equality matcher is
+ *  NECESSARY for a finding, so a file containing none can be skipped before
+ *  `createSourceFile` ever sees it. This is a pure cost optimisation: it can
+ *  only skip files that could not have produced a finding, never change a
+ *  verdict. The `it()` below still carries a generous explicit timeout, so a
+ *  future corpus that outgrows the prefilter fails loudly on its own merits
+ *  rather than on the clock. */
+const DEEP_EQUALITY_MATCHERS = [
+    "toEqual",
+    "toStrictEqual",
+    "toMatchObject",
+    "toContainEqual",
+];
+
 function scanRepo(): Finding[] {
     const findings: Finding[] = [];
     for (const file of testFiles()) {
         if (ALLOWLIST.has(file)) continue;
         const source = fs.readFileSync(path.join(REPO_ROOT, file), "utf-8");
+        if (!DEEP_EQUALITY_MATCHERS.some((m) => source.includes(m))) continue;
         findings.push(...findVacuousAliasAssertions(file, source));
     }
     return findings;
@@ -378,7 +397,10 @@ describe("vacuous alias assertions (proof-of-failure, shape 2)", () => {
                 `\`const ${f.name} = structuredClone(…)\`.`
         );
         expect(report, report.join("\n")).toEqual([]);
-    });
+        // Whole-corpus AST sweep: ~1s locally, ~8s on CI's shared runner —
+        // past vitest's 5s default. Explicit and generous so a slow runner
+        // never reads as a guard failure.
+    }, 120_000);
 
     it("every allowlist entry exists and is still needed", () => {
         for (const [file, reason] of ALLOWLIST) {
