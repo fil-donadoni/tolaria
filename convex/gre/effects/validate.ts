@@ -3842,7 +3842,14 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
                           // object under test, an `EffectObjectSelector`
                           // exactly like `target` (`{ ref: "$source" }` on
                           // Figure of Destiny's stage gates).
-                          keyHint === "objectMatchesFilter"
+                          keyHint === "objectMatchesFilter" ||
+                          // `sharesColor` / `with` (issue #1955) — the two
+                          // objects whose live colours the Guard Dogs gate
+                          // intersects, each an `EffectObjectSelector` exactly
+                          // like `target`. No other field in the vocabulary is
+                          // named `with`.
+                          keyHint === "sharesColor" ||
+                          keyHint === "with"
                         ? "object"
                         : "number",
         });

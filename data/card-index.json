@@ -4224,6 +4224,14 @@
         "firstPrintSet": "leg"
     },
     {
+        "name": "Falling Timber",
+        "scryfallId": "6e54c84d-ccc9-4c52-b02c-e0392e8fe447",
+        "oracleId": "4ea19457-97ef-4ac8-b67c-41be1109ca73",
+        "firstSet": "pls",
+        "firstPrintId": "6e54c84d-ccc9-4c52-b02c-e0392e8fe447",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "False Orders",
         "scryfallId": "7eb71ac4-796d-4011-9002-1129bc09c284",
         "oracleId": "38c5c952-8153-4d98-89b5-a75260383345",
@@ -5678,6 +5686,14 @@
         "firstSet": "lea",
         "firstPrintId": "ce2d603a-3231-4a8c-bf39-1617586ea870",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Guard Dogs",
+        "scryfallId": "ba32eee7-10ba-4f0b-8a87-c3ecfa22ae41",
+        "oracleId": "490af644-2e85-49c7-af63-d5f0a9babff8",
+        "firstSet": "pls",
+        "firstPrintId": "ba32eee7-10ba-4f0b-8a87-c3ecfa22ae41",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Guardian Angel",
@@ -10024,6 +10040,14 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Pollen Remedy",
+        "scryfallId": "9797c813-0cda-44ad-ae41-330e9bde9cb9",
+        "oracleId": "ff52f955-98de-4f12-9ec7-f1d73e3edae9",
+        "firstSet": "pls",
+        "firstPrintId": "9797c813-0cda-44ad-ae41-330e9bde9cb9",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Polluted Delta",
         "scryfallId": "0f7585c8-9e21-4eef-afc1-2852de23db2f",
         "oracleId": "ef86989d-ce80-4e55-aece-7d11710eeffa",
@@ -10422,6 +10446,14 @@
         "firstSet": "leg",
         "firstPrintId": "9d9b9eb8-6367-4ab5-8e00-a9c9e1d69032",
         "firstPrintSet": "leg"
+    },
+    {
+        "name": "Radiant Kavu",
+        "scryfallId": "153077a8-38c0-44aa-9b84-cdd9ade50ad6",
+        "oracleId": "ab46b957-5206-4390-a2f6-aba2e8d1debe",
+        "firstSet": "pls",
+        "firstPrintId": "153077a8-38c0-44aa-9b84-cdd9ade50ad6",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Raffine's Tower",
@@ -10982,6 +11014,14 @@
         "firstSet": "inv",
         "firstPrintId": "a26e8130-7fe9-4ef4-98af-928814f5b130",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Rith's Charm",
+        "scryfallId": "dd30f389-bac8-4b82-a8a7-6948d43a9f60",
+        "oracleId": "9dbccdc5-61f7-4a7d-bbbc-5cab393e24f7",
+        "firstSet": "pls",
+        "firstPrintId": "dd30f389-bac8-4b82-a8a7-6948d43a9f60",
+        "firstPrintSet": "pls"
     },
     {
         "name": "Rith's Grove",
