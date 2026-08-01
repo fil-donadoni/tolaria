@@ -13,6 +13,8 @@
 import { describe, it, expect } from "vitest";
 import {
     crosissCatacombs,
+    draco,
+    stratadon,
     darigaazsCaldera,
     dromarsCavern,
     meteorCrater,
@@ -22,7 +24,15 @@ import {
     starCompass,
     trevasRuins,
 } from "../colorless";
-import { forest, island, mountain, plains, swamp } from "../../lea/colorless";
+import {
+    forest,
+    island,
+    mountain,
+    plains,
+    swamp,
+    tundra,
+} from "../../lea/colorless";
+import { yavimayaCradleOfGrowth } from "../../mh2/colorless";
 import { blackLotus } from "../../lea/colorless";
 import { crawWurm } from "../../lea/green";
 import { lightningBolt } from "../../lea/red";
@@ -38,7 +48,11 @@ import { getLegalActions } from "../../../../gre/rules";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import type { CardDefinition } from "../../../types";
 import {
+    applyCostModifiers,
+    applySourceStaticEffects,
     canPayMayPayCost,
+    getCostModifiers,
+    normalizeManaCost,
     removePermanentTo,
     resolveTopOfStack,
     type CardInstanceState,
@@ -1016,5 +1030,377 @@ describe("Skyship Weatherlight (CR 400.7 / 701.13, issue #1947)", () => {
             expect(state.players[0].hand).toHaveLength(0);
             expect(state.players[0].library).toHaveLength(0);
         });
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// C3 — Domain-driven cost reduction (CR 601.2f / 702 preamble, issue #1958).
+// Draco ({16}, {2} less per basic land type) and Stratadon ({10}, {1} less)
+// declare `selfCostReduction` in the `countMode: "domain"` shape. Assertions
+// drive the SHARED CR 601.2f authority (`getCostModifiers` +
+// `applyCostModifiers`) that the payment path, the castability probe, the
+// auto-tap solver and the bot's move enumerator all route through — never a
+// bespoke Domain calculation.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Mirrors game.ts's plain hand-cast cost calc: normalize the printed cost,
+ *  then fold in cost modifiers (battlefield scan + self-host) — the exact pair
+ *  of functions the real cast site calls. */
+function effectiveCastCost(
+    state: GameState,
+    def: CardDefinition,
+    controllerId = "p1"
+): Record<string, number> {
+    const spellView = makeInstance(def.id, {
+        id: `${def.id}-spell-view`,
+        controllerId,
+        zone: "hand",
+    });
+    const cost = normalizeManaCost(def.manaCost ?? {});
+    applyCostModifiers(cost, getCostModifiers(state, spellView, "spell"));
+    return cost;
+}
+
+/** A board where `p1` controls one land of each of the first `n` basic types —
+ *  i.e. exactly Domain `n`. */
+function boardWithDomain(n: number, controllerId: "p1" | "p2" = "p1") {
+    const lands = [plains, island, swamp, mountain, forest]
+        .slice(0, n)
+        .map((def, i) =>
+            makeInstance(def.id, {
+                id: `dom-land-${i}`,
+                controllerId,
+                ownerId: controllerId,
+            })
+        );
+    return makeState({
+        players: [
+            makePlayer("p1", {
+                battlefield: controllerId === "p1" ? lands : [],
+            }),
+            makePlayer("p2", {
+                battlefield: controllerId === "p2" ? lands : [],
+            }),
+        ],
+    });
+}
+
+describe("Domain-driven self cost-reduction (CR 601.2f / 702 preamble, issue #1958)", () => {
+    it("Draco: {16} Artifact Creature — Dragon, 9/9, flying, {2} less per basic land type", () => {
+        expect(draco.manaCost).toEqual({ X: 16 });
+        expect(draco.types).toEqual(["Artifact", "Creature"]);
+        expect(draco.subtypes).toEqual(["Dragon"]);
+        expect(draco.power).toBe(9);
+        expect(draco.toughness).toBe(9);
+        expect(draco.staticAbilities).toContain("flying");
+        expect(draco.selfCostReduction).toEqual({
+            costReduction: { perCount: { X: 2 }, countMode: "domain" },
+        });
+    });
+
+    it("Stratadon: {10} Artifact Creature — Beast, 5/5, trample, {1} less per basic land type", () => {
+        expect(stratadon.manaCost).toEqual({ X: 10 });
+        expect(stratadon.types).toEqual(["Artifact", "Creature"]);
+        expect(stratadon.subtypes).toEqual(["Beast"]);
+        expect(stratadon.power).toBe(5);
+        expect(stratadon.toughness).toBe(5);
+        expect(stratadon.staticAbilities).toContain("trample");
+        expect(stratadon.selfCostReduction).toEqual({
+            costReduction: { perCount: { X: 1 }, countMode: "domain" },
+        });
+    });
+
+    it.each([
+        [0, 16, 10],
+        [1, 14, 9],
+        [2, 12, 8],
+        [3, 10, 7],
+        [4, 8, 6],
+        [5, 6, 5],
+    ])(
+        "Domain %i → Draco costs {%i} and Stratadon costs {%i}",
+        (domain, dracoCost, stratadonCost) => {
+            const state = boardWithDomain(domain);
+            expect(effectiveCastCost(state, draco)).toEqual({ X: dracoCost });
+            expect(effectiveCastCost(state, stratadon)).toEqual({
+                X: stratadonCost,
+            });
+        }
+    );
+
+    it("counts basic land TYPES, not lands — three Forests are Domain 1, not 3", () => {
+        const forests = [0, 1, 2].map((i) =>
+            makeInstance(forest.id, {
+                id: `forest-${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: forests }),
+                makePlayer("p2"),
+            ],
+        });
+        // Domain 1 → {2} off Draco, {1} off Stratadon. A permanent-COUNT
+        // reduction would have taken {6} / {3} here.
+        expect(effectiveCastCost(state, draco)).toEqual({ X: 14 });
+        expect(effectiveCastCost(state, stratadon)).toEqual({ X: 9 });
+    });
+
+    it("one dual land contributes BOTH of its basic types (CR 305.6) — Tundra alone is Domain 2", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(tundra.id, {
+                            id: "tundra-1",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(tundra.subtypes).toEqual(["Plains", "Island"]);
+        expect(effectiveCastCost(state, draco)).toEqual({ X: 12 });
+        expect(effectiveCastCost(state, stratadon)).toEqual({ X: 8 });
+    });
+
+    it("reads land types through the layer pipeline — a layer-4 subtype ADD counts (CR 613.1d)", () => {
+        const islandLand = makeInstance(island.id, {
+            id: "island-1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const yavimaya = makeInstance(yavimayaCradleOfGrowth.id, {
+            id: "yavimaya-1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [islandLand, yavimaya] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Before the static applies, only the printed Island subtype exists.
+        expect(effectiveCastCost(state, draco)).toEqual({ X: 14 });
+        // "Each land is a Forest in addition to its other types" — the real
+        // layer-4 apply pass, not a hand-edited `subtypes` array.
+        applySourceStaticEffects(state, yavimaya);
+        expect(islandLand.subtypes).toContain("Forest");
+        // Island + Forest = Domain 2 → {4} off Draco.
+        expect(effectiveCastCost(state, draco)).toEqual({ X: 12 });
+        expect(effectiveCastCost(state, stratadon)).toEqual({ X: 8 });
+    });
+
+    it("counts only the CASTER's own lands, never an opponent's (CR 601.2f 'you control')", () => {
+        const state = boardWithDomain(5, "p2");
+        expect(effectiveCastCost(state, draco, "p1")).toEqual({ X: 16 });
+        expect(effectiveCastCost(state, stratadon, "p1")).toEqual({ X: 10 });
+    });
+
+    it("counts by CONTROLLER, not owner — a stolen land still feeds its controller's Domain (CR 110.4)", () => {
+        // The Forest is OWNED by p2 but sits under p1's control; it is parked
+        // in p2's battlefield array, which is exactly the shape a control
+        // change leaves behind, so a `player.battlefield`-only scan would
+        // miss it.
+        const stolen = makeInstance(forest.id, {
+            id: "stolen-forest",
+            controllerId: "p1",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [stolen] }),
+            ],
+        });
+        expect(effectiveCastCost(state, draco, "p1")).toEqual({ X: 14 });
+        expect(effectiveCastCost(state, draco, "p2")).toEqual({ X: 16 });
+    });
+
+    it("is generic-only and never goes below zero (CR 601.2f / 118.9)", () => {
+        // Draco at Domain 5 reduces by {10}. Applied to a hypothetical
+        // {1}{U}{U} cost, the single generic pip is removed and the coloured
+        // pips are untouched — the reduction never underflows into them.
+        const state = boardWithDomain(5);
+        const spellView = makeInstance(draco.id, {
+            id: "draco-spell-view",
+            controllerId: "p1",
+            zone: "hand",
+        });
+        const modifiers = getCostModifiers(state, spellView, "spell");
+        expect(modifiers.reductionGeneric).toBe(10);
+        const cost: Record<string, number> = { X: 1, U: 2 };
+        applyCostModifiers(cost, modifiers);
+        expect(cost).toEqual({ U: 2 });
+    });
+
+    it("castability: NOT offered at Domain 0, offered once Domain makes it affordable", () => {
+        function stateWithDracoInHand(domain: number) {
+            const lands = [plains, island, swamp, mountain, forest]
+                .slice(0, domain)
+                .map((def, i) =>
+                    makeInstance(def.id, {
+                        id: `cast-land-${i}`,
+                        controllerId: "p1",
+                        ownerId: "p1",
+                    })
+                );
+            const dracoCard = makeInstance(draco.id, {
+                id: "draco-hand",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+            });
+            return makeState({
+                players: [
+                    makePlayer("p1", {
+                        hand: [dracoCard],
+                        battlefield: lands,
+                        // Six colourless floating — enough for the Domain-5
+                        // price of {6}, nowhere near the printed {16}.
+                        manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 6 },
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+        }
+        const poor = stateWithDracoInHand(0);
+        expect(
+            getLegalActions(poor, poor.players[0], poor.players[0].hand[0])
+        ).not.toContain("cast");
+
+        const rich = stateWithDracoInHand(5);
+        expect(
+            getLegalActions(rich, rich.players[0], rich.players[0].hand[0])
+        ).toContain("cast");
+
+        // The flip survives the wire projection (GRE → UI full path).
+        const projected = projectPublicState(rich, 1, "p1");
+        const projectedDraco = projected.players[0]
+            .hand[0] as CardInstanceState;
+        expect(
+            getLegalActions(
+                projected as unknown as GameState,
+                projected.players[0] as never,
+                projectedDraco
+            )
+        ).toContain("cast");
+    });
+});
+
+/** Puts Draco's upkeep trigger on the stack as if it had fired on its
+ *  controller's upkeep, then resolves — mirroring `fireLairEtb` above and the
+ *  Collapsing Borders `fireUpkeep` idiom (`inv/__tests__/red.test.ts`). */
+function fireDracoUpkeep(state: GameState, dracoPerm: CardInstanceState): void {
+    state.stack.push({
+        ...dracoPerm,
+        zone: "stack",
+        castById: dracoPerm.controllerId,
+        triggeredAbilityId: "draco-upkeep",
+        triggerSourceId: dracoPerm.id,
+        triggerEvent: {
+            type: "PHASE_BEGIN",
+            phase: "UPKEEP",
+            activePlayerId: dracoPerm.controllerId,
+        } as StackItem["triggerEvent"],
+        targets: [],
+    });
+    resolveTopOfStack(state);
+}
+
+/** Draco on the battlefield plus `domain` distinct basic land types and
+ *  `mana` colourless floating. */
+function dracoUpkeepBoard(domain: number, mana: number) {
+    const dracoPerm = makeInstance(draco.id, {
+        id: "draco-perm",
+        controllerId: "p1",
+        ownerId: "p1",
+    });
+    const lands = [plains, island, swamp, mountain, forest]
+        .slice(0, domain)
+        .map((def, i) =>
+            makeInstance(def.id, {
+                id: `upkeep-land-${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+    const state = makeState({
+        players: [
+            makePlayer("p1", {
+                battlefield: [dracoPerm, ...lands],
+                manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: mana },
+            }),
+            makePlayer("p2"),
+        ],
+        activePlayerId: "p1",
+    });
+    return { state, dracoPerm };
+}
+
+describe("Draco upkeep — {10} reduced by {2} per basic land type (CR 118 'unless', issue #1958)", () => {
+    it.each([
+        [0, 10],
+        [1, 8],
+        [3, 4],
+        [4, 2],
+    ])("Domain %i prices the upkeep at {%i}", (domain, owed) => {
+        const { state, dracoPerm } = dracoUpkeepBoard(domain, 0);
+        fireDracoUpkeep(state, dracoPerm);
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("may-pay");
+        expect(head.playerId).toBe("p1");
+        expect(normalizeManaCost(head.cost!.mana ?? {})).toEqual({ X: owed });
+    });
+
+    it("Domain 5 floors the upkeep at {0} — never negative (CR 118.9)", () => {
+        const { state, dracoPerm } = dracoUpkeepBoard(5, 0);
+        fireDracoUpkeep(state, dracoPerm);
+        const head = state.pendingChoices![0];
+        // {10} - 5 × {2} = {0}; `reduceGenericMana` drops the generic entry
+        // entirely rather than emitting a negative one.
+        expect(head.cost!.mana ?? {}).toEqual({});
+        expect(canPayMayPayCost(state, "p1", head.cost!)).toBe(true);
+    });
+
+    it("paying keeps Draco and spends the reduced amount", () => {
+        // Domain 3 → {4} owed; exactly {4} floating.
+        const { state, dracoPerm } = dracoUpkeepBoard(3, 4);
+        fireDracoUpkeep(state, dracoPerm);
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        expect(
+            state.players[0].battlefield.some((c) => c.id === dracoPerm.id)
+        ).toBe(true);
+        expect(state.players[0].manaPool.C).toBe(0);
+        expect(state.players[0].graveyard).toHaveLength(0);
+    });
+
+    it("declining sacrifices Draco (CR 701.16)", () => {
+        const { state, dracoPerm } = dracoUpkeepBoard(3, 4);
+        fireDracoUpkeep(state, dracoPerm);
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+        expect(
+            state.players[0].battlefield.some((c) => c.id === dracoPerm.id)
+        ).toBe(false);
+        expect(
+            state.players[0].graveyard.some((c) => c.id === dracoPerm.id)
+        ).toBe(true);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+    });
+
+    it("the priced prompt survives the wire projection (projectPublicState)", () => {
+        const { state, dracoPerm } = dracoUpkeepBoard(2, 0);
+        fireDracoUpkeep(state, dracoPerm);
+        const projected = projectPublicState(state, 1, "p1");
+        const head = projected.pendingChoices![0];
+        expect(head.kind).toBe("may-pay");
+        // {10} - 2 × {2} = {6} — the price the client renders, not the
+        // printed {10}.
+        expect(normalizeManaCost(head.cost!.mana ?? {})).toEqual({ X: 6 });
     });
 });
