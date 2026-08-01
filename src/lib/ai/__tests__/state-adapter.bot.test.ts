@@ -1,6 +1,7 @@
 // state-adapter (issue #110): the bot's projected wire view rehydrates into a
-// GameState the GRE enumerator can read — nulled opponent-hand placeholders and
-// hidden library contents are dropped, everything else is preserved.
+// GameState the GRE enumerator can read — hidden zones (library contents,
+// a non-viewer's hand) are rebuilt to their wire SIZE with opaque placeholders,
+// everything else is preserved.
 import { describe, expect, it } from "vitest";
 import type { PublicGameState } from "@convex/gameProjections";
 import { tryGetDefinition } from "@convex/cards";
@@ -62,10 +63,40 @@ describe("projectedToGameState (issue #110)", () => {
         expect(bot.hand[0].id).toBe("h1");
     });
 
-    it("drops nulled opponent-hand placeholders", () => {
+    it("rebuilds a nulled opponent hand to its wire LENGTH with placeholders (issue #2006)", () => {
         const gs = projectedToGameState(projected());
         const human = gs.players.find((p) => p.id === "human")!;
-        expect(human.hand).toHaveLength(0);
+        // CR 402.2 — the SIZE of a hand is public information, so the wire
+        // `null[]` length must survive the reducer. Dropping it (the pre-#2006
+        // behaviour) made every client-side hand-size read return 0.
+        expect(human.hand).toHaveLength(3);
+        for (const c of human.hand) {
+            expect(c.zone).toBe("hand");
+            expect(c.ownerId).toBe("human");
+            expect(c.controllerId).toBe("human");
+            // Opaque: the id resolves to no CardDefinition, so nothing about
+            // the opponent's actual cards is invented.
+            expect((c.card as { id: string }).id).toBe(PLACEHOLDER_CARD_ID);
+            expect(tryGetDefinition((c.card as { id: string }).id)).toBeNull();
+        }
+        // Hand and library placeholders never collide on instance id.
+        const ids = new Set([
+            ...human.hand.map((c) => c.id),
+            ...human.library.map((c) => c.id),
+        ]);
+        expect(ids.size).toBe(human.hand.length + human.library.length);
+    });
+
+    it("never surfaces a rehydrated opponent-hand placeholder as a legal move", () => {
+        const p = projected();
+        // Hand the opponent priority in their own main phase — enumeration
+        // would otherwise return nothing at all and prove nothing.
+        p.activePlayerId = "human";
+        p.priorityPlayerId = "human";
+        const gs = projectedToGameState(p);
+        // The padded hand must not become castable/enumerable: the padding
+        // restores a COUNT, never an actionable card.
+        expect(enumerateMoves(gs, "human")).toEqual([{ kind: "pass" }]);
     });
 
     it("rebuilds each library to its wire count with placeholders (issue #136)", () => {

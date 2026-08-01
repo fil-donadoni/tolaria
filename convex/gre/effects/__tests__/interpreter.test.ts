@@ -1807,20 +1807,38 @@ describe("Effect Script value: hand count + difference (CR 402.2 / 107.1b)", () 
     it("the difference-driven life loss survives projection (wire format)", () => {
         // The opponent's hand is projected as `null[]` for the viewer (CR 402.2
         // — size public, contents hidden), so this is exactly the shape where a
-        // hand-count read could be right on the fat state and wrong on the
-        // wire. Assert the resulting life total through `projectPublicState`
-        // from BOTH seats.
+        // hand-count read can be right on the fat state and wrong downstream.
+        //
+        // The wire leg's real content is that BOTH operands stay recoverable
+        // from the projection: each seat can still count each hand. So derive
+        // the expected life total from the PROJECTED hand lengths instead of
+        // restating the literal — a projection that dropped or resized a hand
+        // then fails here rather than agreeing with itself.
+        //
+        // The CLIENT leg (`projectedToGameState`, which rehydrates this wire
+        // view into the vs-AI Brain's search world, ADR 0074) is a bot-only
+        // module an application test may not import
+        // (`scripts/__tests__/bot-suite-boundary.test.ts`); it is covered by
+        // `src/lib/ai/__tests__/state-adapter-hand-size.bot.test.ts`, where the
+        // hand-count read of this very value grammar was in fact broken
+        // (issue #2006 — the adapter dropped the nulled hand, so it read 0).
         const state = resolveWithHands("test-diff-wire", 1, 4);
         expect(state.players[1].life).toBe(17);
 
-        const forCaster = projectPublicState(state, 1, "p1");
-        expect(forCaster.players[1].life).toBe(17);
-        // The projection still hides the opponent's cards while exposing size.
-        expect(forCaster.players[1].hand.length).toBe(4);
-        expect(forCaster.players[1].hand.every((c) => c === null)).toBe(true);
-
-        const forOpponent = projectPublicState(state, 1, "p2");
-        expect(forOpponent.players[1].life).toBe(17);
+        for (const viewer of ["p1", "p2"] as const) {
+            const wire = projectPublicState(state, 1, viewer);
+            const casterHand = wire.players[0].hand.length;
+            const opponentHand = wire.players[1].hand.length;
+            expect(casterHand).toBe(1);
+            expect(opponentHand).toBe(4);
+            expect(wire.players[1].life).toBe(20 - (opponentHand - casterHand));
+            // Exactly one hand is hidden from each seat, and hiding it never
+            // costs the count.
+            const hidden = viewer === "p1" ? 1 : 0;
+            expect(wire.players[hidden].hand.every((c) => c === null)).toBe(
+                true
+            );
+        }
     });
 });
 

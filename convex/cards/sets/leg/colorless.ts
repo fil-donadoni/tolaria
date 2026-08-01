@@ -323,10 +323,14 @@ export const mirrorUniverse: CardDefinition = {
             // 701.12b) has no Op — the mechanicsRegistry's `gainControl` note
             // explicitly scopes control-exchange composition as NOT covering
             // "the broader CR 701.12 keyword (exchanging life totals ...)".
-            // Also needs the delta between two players' life totals
-            // (arithmetic subtraction), which the frozen EffectValue grammar
-            // has no construct for. Blocked on: a life-exchange primitive/Op
-            // + an arithmetic/delta value construct.
+            // Also needs the delta between two players' LIFE TOTALS. Issue
+            // #2006 shipped the value grammar's one subtraction
+            // (`{ difference: { from, minus } }`), but deliberately with
+            // TERMINAL operands only — a positive-int literal or a `count`
+            // (i.e. a zone cardinality). A life total is neither, so the delta
+            // here is still unexpressible. Blocked on: a life-exchange
+            // primitive/Op + a life-total operand for `difference`.
+            // tracked-by: #1438
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
                 if (target?.type !== "player") return;

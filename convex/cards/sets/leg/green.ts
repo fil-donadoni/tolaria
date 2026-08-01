@@ -508,12 +508,13 @@ export const stormSeeker: CardDefinition = {
     manaCost: { X: 3, G: 1 },
     types: ["Instant"],
     targetRequirement: { type: "player", count: 1 },
-    // NOT DSL-migratable (ADR 0045): the damage amount is "the number of
-    // cards in that player's HAND" — the `count` EffectValue's zone grammar
-    // is `"battlefield" | "graveyard"` only (no `"hand"` member), so a
-    // hand-size read has no Op/value construct despite `getHandSize` being a
-    // plain getter (the migration classifier's read-heuristic false-positive
-    // caveat). Blocked on: a hand-size `count`/`EffectValue` member.
+    // UNBLOCKED since issue #2006: the damage amount is "the number of cards
+    // in that player's HAND", and `count` now has a `zone: "hand"` member
+    // (CR 402.2 — hidden zone, public SIZE, the `library` member's twin), so
+    // `{ count: { zone: "hand", controller: { target: 0 } } }` expresses this
+    // exactly. The closure stays only because migrating it is free-tranche
+    // work with its own batch, not part of the issue that shipped the member.
+    // tracked-by: #1438
     resolve: (ctx: SpellContext) => {
         const target = ctx.targets[0];
         if (target?.type !== "player") return;

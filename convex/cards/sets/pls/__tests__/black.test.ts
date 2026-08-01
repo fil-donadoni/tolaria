@@ -1152,6 +1152,21 @@ describe("Dark Suspicions — each OPPONENT's upkeep (CR 603.6a / 402.2 / 107.1b
         expect(negative.state.players[1].life).toBe(20);
     });
 
+    // CR 402.2 — a hand's CONTENTS are hidden but its SIZE is public, which is
+    // precisely why this card may read it. The wire leg of that contract is
+    // that the projection carries the SIZE of a hand it will not show: the
+    // expected life total below is DERIVED from the projected hand lengths
+    // rather than restated as a literal, so a projection that dropped, padded
+    // or resized either hand fails here instead of quietly agreeing.
+    //
+    // The CLIENT leg — the same read re-run after `projectedToGameState`
+    // rehydrates that wire view into the vs-AI Brain's search world (ADR 0074)
+    // — cannot live in this file: the adapter is a bot-only module and an
+    // application test may not import one
+    // (`scripts/__tests__/bot-suite-boundary.test.ts`). It is owned by
+    // `src/lib/ai/__tests__/state-adapter-hand-size.bot.test.ts`, and it is the
+    // leg where this card was in fact broken (issue #2006): the adapter dropped
+    // the nulled opponent hand, so the count read 0 client-side.
     it("the life loss and the public hand SIZES survive projection (wire format)", () => {
         const { state, enchantment } = darkSuspicionsBoard(1, 4);
         pushTrigger(
@@ -1160,14 +1175,23 @@ describe("Dark Suspicions — each OPPONENT's upkeep (CR 603.6a / 402.2 / 107.1b
             "dark-suspicions-upkeep",
             upkeepEvent("p2")
         );
-        // CR 402.2 — a hand's CONTENTS are hidden but its SIZE is public, which
-        // is precisely why this card can read it. Drive the assertion through
-        // the reducer: the projected opponent hand is `null[]` of the right
-        // length, and the life delta the count produced is intact.
         const projected = projectPublicState(state, 1, "p1");
-        expect(projected.players[1].life).toBe(17);
-        expect(projected.players[1].hand).toHaveLength(4);
+
+        // The opponent's hand is nulled but LENGTH-preserving; the caster's is
+        // visible. Both sides of the subtraction are therefore recoverable
+        // from the wire alone.
         expect(projected.players[1].hand.every((c) => c === null)).toBe(true);
-        expect(projected.players[0].hand).toHaveLength(1);
+        const opponentHand = projected.players[1].hand.length;
+        const casterHand = projected.players[0].hand.length;
+        expect(opponentHand).toBe(4);
+        expect(casterHand).toBe(1);
+
+        // Re-derive X from the projected sizes and check the life total the
+        // resolution produced against it.
+        expect(projected.players[1].life).toBe(
+            20 - (opponentHand - casterHand)
+        );
+        // The caster's own life is untouched — a difference reads, never moves.
+        expect(projected.players[0].life).toBe(20);
     });
 });

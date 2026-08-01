@@ -290,8 +290,18 @@ function countZoneCardsFor(
         // CR 402 (issue #2006) — the hand is the library's twin here: hidden
         // zone, public SIZE, validator rejects a `filter`, so the pile size IS
         // the count. Dark Suspicions' "the number of cards in that player's
-        // hand". The bot reads the real pile because a hand SIZE is public
-        // information (CR 402.2) — no hidden-information leak.
+        // hand".
+        //
+        // What this reads is the pile's CARDINALITY, not real identities, and
+        // that distinction is the whole reason it leaks nothing. Server-side
+        // the pile happens to hold the real cards; in a CLIENT-side engine run
+        // (the vs-AI Brain, ADR 0074) it is the rehydrated wire view, where a
+        // non-viewer's hand is a run of opaque placeholders padded to the wire
+        // length by `projectedToGameState` (`src/lib/ai/state-adapter.ts`).
+        // Both give the same COUNT — which is exactly what a hand-size read is
+        // entitled to (CR 402.2) and all it may ever use. That padding is load-
+        // bearing: before it existed the adapter dropped the nulled hand
+        // entirely and every client-side hand-size read returned 0.
         case "hand":
             return player.hand;
         default: {
