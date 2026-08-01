@@ -1672,30 +1672,47 @@ function isMayPayCost(value: unknown): boolean {
     return isManaCost(value);
 }
 
-/** A `mayPay` Op's dynamically-derived mana cost (issue #1150): `{
- *  manaCostOf, reducedBy }` — "pay a runtime-selected object's own printed
- *  mana cost, reduced by a fixed generic amount" (Flash, MIR — "pay its mana
- *  cost reduced by {2}"). `manaCostOf` is a bare PICKS ref (the object a
- *  `choice` Op selected, e.g. `{ ref: "$picked" }` — the ordered ref pass
- *  enforces the picks family, same position as `moveZone`'s `cards`);
- *  `reducedBy` is a non-negative integer generic amount. A SECOND accepted
- *  shape for `mayPay`'s `cost` field, alongside the static `isMayPayCost`
- *  union. */
+/** A `mayPay` Op's dynamically-derived mana cost (issue #1150, generalized
+ *  #1958): "pay <a base cost> reduced by <a generic amount>", where at least
+ *  one of the two isn't knowable at authoring time. A SECOND accepted shape
+ *  for `mayPay`'s `cost` field, alongside the static `isMayPayCost` union.
+ *
+ *  Exactly ONE base source, and it decides which printed shape this is:
+ *
+ *   - `manaCostOf` — a bare PICKS ref (the object a `choice` Op selected, e.g.
+ *     `{ ref: "$picked" }`; the ordered ref pass enforces the picks family,
+ *     same position as `moveZone`'s `cards`). Flash, MIR: "pay ITS mana cost
+ *     reduced by {2}".
+ *   - `mana` — a literal `ManaCost` base. Draco, PLS: "pay {10}. This cost is
+ *     reduced by {2} for each basic land type among lands you control."
+ *
+ *  `reducedBy` is a full `EffectValue` — a plain non-negative integer is the
+ *  historical fixed amount, anything else (Draco's `{ domain: { of:
+ *  "controller", times: 2 } }`) is resolved at execution time through the same
+ *  grammar every numeric Op parameter uses. `isEffectValue` already accepts a
+ *  bare number, so the fixed case needs no separate arm. */
 function isDynamicMayPayManaCost(value: unknown): boolean {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
         return false;
     }
     const obj = value as Record<string, unknown>;
     const keys = Object.keys(obj);
-    if (keys.length !== 2 || !("manaCostOf" in obj) || !("reducedBy" in obj)) {
+    if (keys.length !== 2 || !("reducedBy" in obj)) return false;
+    // Exactly one base source (the `keys.length === 2` above plus `reducedBy`
+    // already forces it to be the only other key).
+    if ("manaCostOf" in obj) {
+        if (!isBarePicksRef(obj.manaCostOf)) return false;
+    } else if ("mana" in obj) {
+        if (!isManaCost(obj.mana)) return false;
+    } else {
         return false;
     }
-    if (!isBarePicksRef(obj.manaCostOf)) return false;
-    return (
-        typeof obj.reducedBy === "number" &&
-        Number.isInteger(obj.reducedBy) &&
-        obj.reducedBy >= 0
-    );
+    // A negative fixed amount is nonsense (it would RAISE the cost); every
+    // other `EffectValue` is a runtime read the interpreter floors at {0}.
+    if (typeof obj.reducedBy === "number") {
+        return Number.isInteger(obj.reducedBy) && obj.reducedBy >= 0;
+    }
+    return isEffectValue(obj.reducedBy);
 }
 
 /** A `mayPay` Op's dynamically-derived ENERGY cost (issue #1195): `{
@@ -1719,10 +1736,15 @@ function isDynamicMayPayEnergyCost(value: unknown): boolean {
  *  or the dynamically-derived `{ energyEqualTo }` energy shape (issue
  *  #1195). */
 function isMayPayCostOrDynamic(value: unknown): boolean {
+    // Dynamic shapes FIRST: `{ mana, reducedBy }` (issue #1958) shares its
+    // `mana` key with the static `CostLegs` mana leg, and only the presence of
+    // `reducedBy` tells the two apart — testing the static union first would
+    // make the ordering load-bearing on `isMayPayCost` staying strict about
+    // unknown keys.
     return (
-        isMayPayCost(value) ||
         isDynamicMayPayManaCost(value) ||
-        isDynamicMayPayEnergyCost(value)
+        isDynamicMayPayEnergyCost(value) ||
+        isMayPayCost(value)
     );
 }
 

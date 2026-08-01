@@ -3320,6 +3320,14 @@
         "firstPrintSet": "pls"
     },
     {
+        "name": "Draco",
+        "scryfallId": "212e3edb-62f1-4680-884f-70323547f8ad",
+        "oracleId": "6157ade6-9037-4339-869b-493fdee71dcf",
+        "firstSet": "pls",
+        "firstPrintId": "212e3edb-62f1-4680-884f-70323547f8ad",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Draconian Cylix",
         "scryfallId": "a419c9e3-5615-44f9-9256-94a3022bb69f",
         "oracleId": "0880b36a-6141-4955-b532-cf88daca0869",
@@ -12837,6 +12845,14 @@
         "oracleId": "6ac7990b-b86e-4725-974c-d6affa2af2f9",
         "firstSet": "pls",
         "firstPrintId": "ec8b77cf-9c1e-4c8f-b452-295cc1570d0e",
+        "firstPrintSet": "pls"
+    },
+    {
+        "name": "Stratadon",
+        "scryfallId": "324bc757-9942-4862-b691-5af42e07f682",
+        "oracleId": "3b78b672-7773-44c6-9a21-f89c058966ff",
+        "firstSet": "pls",
+        "firstPrintId": "324bc757-9942-4862-b691-5af42e07f682",
         "firstPrintSet": "pls"
     },
     {

@@ -761,6 +761,10 @@ describe("copy-on-ETB class — declarative copySourceFilter (issue #938)", () =
 const EMRY = getCardByName("Emry, Lurker of the Loch").id; // {2}{U}, affinity for artifacts
 const ORNITHOPTER = getCardByName("Ornithopter").id; // {0} Artifact Creature
 const STONE_CALENDAR = getCardByName("Stone Calendar").id; // "Spells you cast cost {1} less"
+const DRACO = getCardByName("Draco").id; // {16}, {2} less per basic land type
+const SOL_RING = getCardByName("Sol Ring").id; // {T}: Add {C}{C}
+const PLAINS = getCardByName("Plains").id;
+const SWAMP = getCardByName("Swamp").id;
 
 function legalActionsFor(
     state: GameState,
@@ -846,6 +850,54 @@ describe("gate ↔ enumerator cost-modifier parity (CR 601.2f, issue #1337)", ()
         // reduction drops it to {G} alone, payable off the single Forest.
         expect(legalActionsFor(state, "p1", bears)).toContain("cast");
         expect(castsFor(state, "p1", bears.id)).toHaveLength(1);
+    });
+
+    // Domain-driven reducer (issue #1958). Draco is printed at {16}: without
+    // the reduction folded into the enumerator the Bot can NEVER cast it on any
+    // realistic board, so a server-only fix would leave it a dead card for the
+    // Bot (and for the client-side Brain, which runs this same enumerator).
+    it("Draco (Domain reducer): gate and enumerator agree it is castable off five basic land types + a Sol Ring", () => {
+        const dracoCard = makeInstance(DRACO, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const basics = [PLAINS, ISLAND, SWAMP, MOUNTAIN, FOREST].map((id) =>
+            land(id, "p1")
+        );
+        const p1 = makePlayer("p1", {
+            hand: [dracoCard],
+            // Domain 5 → {16} - 5 × {2} = {6}. Five basics give five mana; the
+            // Sol Ring's {C}{C} completes exactly {6}.
+            battlefield: [
+                ...basics,
+                makeInstance(SOL_RING, { controllerId: "p1", ownerId: "p1" }),
+            ],
+        });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+
+        expect(legalActionsFor(state, "p1", dracoCard)).toContain("cast");
+        expect(castsFor(state, "p1", dracoCard.id)).toHaveLength(1);
+    });
+
+    it("does NOT offer a Draco cast move at Domain 1 — six mana is nowhere near the {14} price", () => {
+        const dracoCard = makeInstance(DRACO, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        // Five Forests: five LANDS but Domain 1, so the reduction is only {2}.
+        const p1 = makePlayer("p1", {
+            hand: [dracoCard],
+            battlefield: [
+                ...[0, 1, 2, 3, 4].map(() => land(FOREST, "p1")),
+                makeInstance(SOL_RING, { controllerId: "p1", ownerId: "p1" }),
+            ],
+        });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+
+        expect(legalActionsFor(state, "p1", dracoCard)).not.toContain("cast");
+        expect(castsFor(state, "p1", dracoCard.id)).toHaveLength(0);
     });
 });
 
