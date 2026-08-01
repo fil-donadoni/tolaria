@@ -651,6 +651,36 @@ describe("advancePhase", () => {
             expect(state.players[1].turnsTaken).toBe(1);
             expect(state.extraTurns).toBeUndefined();
         });
+
+        it("two accumulated skips (CR 614.10a) skip the next TWO turn occurrences, not one", () => {
+            // p2 has two independent skip effects stacked against them
+            // (issue #1957 — a boolean could only ever represent ONE pending
+            // skip; this proves the count survives a single turn crossing
+            // instead of collapsing to zero after the first).
+            const state = makeGameState({
+                phase: "END_STEP",
+                turn: 1,
+                activePlayerId: "p1",
+            });
+            state.players[1].skipNextTurn = 2;
+
+            // Crossing 1: p1's END_STEP → CLEANUP → advanceTurn swaps to p2,
+            // sees a pending skip, decrements 2→1 (still pending — CR
+            // 614.10a: "one effect will be satisfied ... while the other
+            // will remain"), and recurses past p2 back to p1.
+            advancePhase(state);
+            expect(state.activePlayerId).toBe("p1");
+            expect(state.players[1].skipNextTurn).toBe(1);
+
+            // Crossing 2: p1's SECOND END_STEP → CLEANUP → advanceTurn swaps
+            // to p2 again, sees the remaining pending skip, decrements 1→0
+            // (cleared), and recurses past p2 back to p1 again. p2 never
+            // actively took a turn across either crossing.
+            state.phase = "END_STEP";
+            advancePhase(state);
+            expect(state.activePlayerId).toBe("p1");
+            expect(state.players[1].skipNextTurn).toBeUndefined();
+        });
     });
 
     describe("priority assignment", () => {

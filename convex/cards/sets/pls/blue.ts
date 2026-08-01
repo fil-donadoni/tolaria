@@ -795,6 +795,105 @@ export const sunkenHope: CardDefinition = {
     ],
 };
 
+// Waterspout Elemental — {3}{U}{U} Creature — Elemental, 3/4. "Kicker {U}.
+// Flying. When this creature enters, if it was kicked, return all other
+// creatures to their owners' hands and you skip your next turn." (CR 702.33
+// Kicker, CR 603.4d intervening-if ETB, CR 400.7 mass bounce, CR 614.10
+// skip-turn, issue #1957, parent PRD #1935.)
+//
+// A SINGLE Kicker (unlike the Battlemage cycle's "and/or" pair), so the
+// check-time gate is the plain aggregate `wasKicked` predicate via
+// `kickerPaidCondition("kicker")` — same helper the Battlemage cycle shares
+// (`abilities/triggers/shared.ts`), just with one id instead of two.
+//
+// The resolution-time re-check STAYS the `if { kickerPaid: "kicker" }`
+// branch inside `effects[]`, reading the resolving TRIGGER stack item's own
+// `kickerPayments` record (`buildTriggerItem`, gre/triggers.ts, spreads the
+// entering permanent's fields onto the item it raises — CR 603.10 last known
+// information) rather than a plain `interveningIf` against the LIVE
+// permanent: `resolveTopOfStackInner` (gre/state.ts) re-evaluates an
+// `interveningIf` off the LIVE battlefield object found by `triggerSourceId`,
+// and a blink/flicker returns the SAME instance with `kickerPayments`/
+// `wasKicked` already cleared by `resetBattlefieldTransientState` — which
+// would fizzle a trigger CR 603.10 says must resolve off LKI. Exact template:
+// Stormscape Battlemage / Nightscape Battlemage / Thunderscape Battlemage
+// (this same file / `pls/black.ts` / `pls/red.ts`).
+//
+// The bounce is "all OTHER creatures" — both players', excluding only this
+// permanent — via `forEach { set: "permanents", filter: { type: "Creature" },
+// excludeSource: true }`: no `controller`, so it scans APNAP order across
+// BOTH battlefields (mass sweeps default, `EffectForEachSelector`'s own doc),
+// and `excludeSource` (issue #1957, new field on that selector — mirrors
+// `TargetRequirement.excludeSource` exactly, ADR 0045 "generalize, don't
+// add") drops Waterspout Elemental's own instance id from the frozen member
+// set before any Op sees it — clean regardless of Waterspout Elemental's own
+// `type: "Creature"` matching the filter. `moveZone { to: "hand" }` routes
+// each bounced creature to its OWNER's hand by default (CR 400.7), matching
+// "their owners'", not "their controllers'".
+//
+// The skip is the NEW `skipNextTurn` Op (issue #1957) against `"controller"`
+// — Waterspout Elemental's clause never targets a player, it always names
+// the caster ("you skip your next turn").
+export const waterspoutElemental: CardDefinition = {
+    id: "425156e6-8eee-4bff-8f2f-86edd9a4f73b", // PLS 38
+    rarity: "rare",
+    name: "Waterspout Elemental",
+    oracleText:
+        "Kicker {U} (You may pay an additional {U} as you cast this spell.)\nFlying\nWhen this creature enters, if it was kicked, return all other creatures to their owners' hands and you skip your next turn.",
+    manaCost: { X: 3, U: 2 },
+    types: ["Creature"],
+    subtypes: ["Elemental"],
+    power: 3,
+    toughness: 4,
+    staticAbilities: ["flying"],
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker {U}",
+            mana: { U: 1 },
+        },
+    ],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "waterspout-elemental-kicked",
+            oracleText:
+                "When this creature enters, if it was kicked, return all other creatures to their owners' hands and you skip your next turn.",
+            scope: "self",
+            // CR 603.4 check-time gate — see the card-level comment.
+            conditionOnSelf: kickerPaidCondition("kicker"),
+            effects: [
+                {
+                    op: "if",
+                    predicate: {
+                        left: { kickerPaid: "kicker" },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "permanents",
+                                zone: "battlefield",
+                                filter: { type: "Creature" },
+                                excludeSource: true,
+                            },
+                            effects: [
+                                {
+                                    op: "moveZone",
+                                    target: { ref: "$each" },
+                                    to: "hand",
+                                },
+                            ],
+                        },
+                        { op: "skipNextTurn", player: "controller" },
+                    ],
+                },
+            ],
+        }),
+    ],
+};
+
 // Confound — {1}{U} Instant. "Counter target spell that targets a creature.
 // Draw a card." (CR 114.1 / 109.2, issue #1956, parent PRD #1935.) The
 // restriction is a genuine TARGETING restriction, so it is declared as a

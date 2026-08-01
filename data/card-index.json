@@ -15064,6 +15064,14 @@
         "firstPrintSet": "mh1"
     },
     {
+        "name": "Waterspout Elemental",
+        "scryfallId": "425156e6-8eee-4bff-8f2f-86edd9a4f73b",
+        "oracleId": "f86b8c03-9f1e-4d42-ac45-907c46e9e1c0",
+        "firstSet": "pls",
+        "firstPrintId": "425156e6-8eee-4bff-8f2f-86edd9a4f73b",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Watery Grave",
         "scryfallId": "139b90cd-8272-457a-be32-1298145345be",
         "oracleId": "fc9ec820-4245-4a96-b009-5308a818ca58",

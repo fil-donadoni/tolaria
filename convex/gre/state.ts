@@ -1457,9 +1457,20 @@ export type PlayerState = {
      *  Add {C}." until end of turn). Each entry is a reference to a template
      *  on another card; duration controls when CLEANUP purges it. */
     grantedAbilities?: GrantedAbilityInstance[];
-    /** When true, this player's next turn is skipped entirely (CR 614.10).
-     *  Checked and cleared by advanceTurn(). Set by Time Vault's untap ability. */
-    skipNextTurn?: boolean;
+    /** COUNT of this player's upcoming turns that are skipped entirely (CR
+     *  614.10). NOT a boolean (issue #1957): CR 614.10a — "If two effects
+     *  each cause a player to skip their next occurrence, that player must
+     *  skip the next two; one effect will be satisfied in skipping the first
+     *  occurrence, while the other will remain until another occurrence can
+     *  be skipped." `setSkipNextTurn` (below) increments this by 1 per call,
+     *  so two independent skip effects against the same player accumulate to
+     *  2 rather than collapsing to `true`. Decremented by 1 (and cleared at
+     *  0) by `advanceTurn()` each time it lands on this player, mirroring
+     *  `GameState.extraTurns`' own queue shape for the same reason — a turn
+     *  effect that can legitimately stack cannot be represented as a flag.
+     *  Set by Time Vault's untap ability and the `skipNextTurn` Effect Op
+     *  (Waterspout Elemental). */
+    skipNextTurn?: number;
     /** Override for this player's maximum hand size (CR 402.2). Absent means
      *  the default `MAX_HAND_SIZE` (7). `"unlimited"` represents the Library
      *  of Leng / Reliquary Tower clause "you have no maximum hand size";
@@ -14212,9 +14223,13 @@ export function buildSpellContext(
             player.restrictedMana = undefined;
             return drained;
         },
-        // CR 614.10: mark a player to skip their next turn (Time Vault).
+        // CR 614.10 / 614.10a (issue #1957): increment a player's pending
+        // skip COUNT by 1 — accumulates rather than collapsing to a flag, so
+        // two independent skip effects against the same player skip their
+        // next TWO turn occurrences (Time Vault, `skipNextTurn` Effect Op).
         setSkipNextTurn(playerId: string): void {
-            getPlayer(state, playerId).skipNextTurn = true;
+            const player = getPlayer(state, playerId);
+            player.skipNextTurn = (player.skipNextTurn ?? 0) + 1;
         },
 
         // --- Library peek / reorder (CR 401.4) ---

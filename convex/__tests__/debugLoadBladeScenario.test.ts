@@ -121,7 +121,7 @@ function arbitraryCurrentGameBaseState(): GameState {
                 spellsCastThisTurn: 2,
                 poisonCounters: 6,
                 energyCounters: 4,
-                skipNextTurn: true,
+                skipNextTurn: 1,
                 hasDrawnFromEmpty: true,
                 permanentYouControlledLeftThisTurn: true,
                 drawnThisTurn: ["stale-drawn-card"],

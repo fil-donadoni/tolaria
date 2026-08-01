@@ -1945,10 +1945,11 @@ function isDamageRecipient(value: unknown): boolean {
 
 /** The `forEach` construct's set selector (ADR 0045, issue #807) — `{ set:
  *  "players" }`, `{ set: "permanents", zone: "battlefield", controller?,
- *  filter? }`, `{ set: "graveyard", controller?, filter? }` (issue #1056), or
- *  `{ set: "bound", ref }`. Unknown keys are rejected (the grammar is frozen;
- *  selector SHAPES may grow like vocabulary, but only by extending this
- *  checker). */
+ *  filter?, excludeSource? }` (`excludeSource` — issue #1957 — drops the
+ *  resolving ability/spell's own source from the frozen member set), `{ set:
+ *  "graveyard", controller?, filter? }` (issue #1056), or `{ set: "bound",
+ *  ref }`. Unknown keys are rejected (the grammar is frozen; selector SHAPES
+ *  may grow like vocabulary, but only by extending this checker). */
 function isForEachSelector(value: unknown): boolean {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
         return false;
@@ -1981,11 +1982,21 @@ function isForEachSelector(value: unknown): boolean {
         return Object.keys(s).length === 1;
     }
     if (s.set !== "permanents") return false;
-    const allowed = new Set(["set", "zone", "controller", "filter"]);
+    const allowed = new Set([
+        "set",
+        "zone",
+        "controller",
+        "filter",
+        "excludeSource",
+    ]);
     if (!Object.keys(s).every((k) => allowed.has(k))) return false;
     // CR 110.1 — permanents only exist on the battlefield.
     if (s.zone !== "battlefield") return false;
     if ("controller" in s && !isPlayerRef(s.controller)) return false;
+    // issue #1957 — reflexive self-exclude (Waterspout Elemental).
+    if ("excludeSource" in s && typeof s.excludeSource !== "boolean") {
+        return false;
+    }
     // `zone` is confirmed "battlefield" above — `hasAbility` reads the LIVE
     // `staticAbilities` array and `isAttacking` (issue #1097 — Tangle's "each
     // attacking creature") reads the live combat-role flag, both via
@@ -2223,6 +2234,9 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     loseLife: { required: { player: isPlayerRef, amount: isEffectValue } },
     // CR 500.7 (issue #686) — schedule an extra turn for `player` (Time Warp).
     extraTurn: { required: { player: isPlayerRef } },
+    // CR 614.10 (issue #1957) — `player` skips their next turn (Waterspout
+    // Elemental).
+    skipNextTurn: { required: { player: isPlayerRef } },
     // CR 601.3a (issue #1057) — a turn-scoped per-player cast lock (Xantid
     // Swarm). `player` names whom to lock (the defending player via "opponent").
     // `cardTypes` (issue #1124, Abeyance) optionally narrows the lock to those

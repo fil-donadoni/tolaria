@@ -4178,8 +4178,15 @@ export interface SpellContext {
      *  Power (tap + drain + transfer to caster). */
     drainManaPool: (playerId: string) => ManaCost;
 
-    /** Marks `playerId` to skip their next turn (CR 614.10). The flag is
-     *  consumed and cleared by advanceTurn(). Used by Time Vault. */
+    /** Increments `playerId`'s pending skip COUNT by 1 (CR 614.10 / 614.10a —
+     *  issue #1957). `PlayerState.skipNextTurn` is a count, not a flag: two
+     *  calls against the same player (Time Vault's ability twice, or a
+     *  kicked Waterspout Elemental stacked with Time Vault) accumulate, so
+     *  that player skips their next TWO turn occurrences rather than
+     *  collapsing to one (CR 614.10a). `advanceTurn()` (phases.ts) decrements
+     *  by 1 each time it lands on a player with a pending count, clearing it
+     *  only once it reaches 0. Used by Time Vault and the `skipNextTurn`
+     *  Effect Op (Waterspout Elemental). */
     setSkipNextTurn: (playerId: string) => void;
 
     // --- Library peek / reorder (CR 401) ---
@@ -9087,6 +9094,18 @@ export type EffectForEachSelector =
           controller?: EffectPlayerRef;
           /** Optional type/subtype filter (AND, CR 205). Omitted = all. */
           filter?: EffectCardFilter;
+          /** Reflexive self-EXCLUDE (issue #1957, Waterspout Elemental —
+           *  "return all OTHER creatures to their owners' hands"): when
+           *  `true`, drops the resolving ability/spell's own source
+           *  (`ctx.sourceInstanceId`) from the frozen member set. Mirrors
+           *  `TargetRequirement.excludeSource` exactly (ADR 0045 "generalize,
+           *  don't add" — a symmetric field on an existing pattern, not a new
+           *  primitive), just exposed on the non-targeted mass-sweep selector
+           *  a `forEach` uses instead of an announced target set. Applied
+           *  AFTER `filter`/`controller` narrow the candidate set, so it
+           *  composes with either. A no-op when the source is not itself a
+           *  member of the selected set. */
+          excludeSource?: boolean;
       }
     | {
           /** A bulk graveyard-set sweep (issue #1056, CR 404) — iterate ALL
@@ -9276,6 +9295,26 @@ export type EffectOp =
      *  targets a player), the resolving controller, or a relative player.
      *  Skipped when the player cannot be resolved (CR 608.2b). */
     | { op: "extraTurn"; player: EffectPlayerRef }
+    /** CR 614.10 (issue #1957, Waterspout Elemental) — `player` skips their
+     *  next turn. A thin declarative skin over `SpellContext.setSkipNextTurn`,
+     *  one execution path (ADR 0045): the same primitive Time Vault's
+     *  pre-DSL activated-ability `resolve()` already calls (`lea/colorless.ts`)
+     *  and the `PlayerState.skipNextTurn` COUNT `advanceTurn` (phases.ts)
+     *  decrements at each turn boundary. `player` is an announced target slot,
+     *  the resolving controller, or a relative player. Skipped when the
+     *  player cannot be resolved (CR 608.2b).
+     *
+     *  COUNT, not boolean (CR 614.10a): "If two effects each cause a player
+     *  to skip their next occurrence, that player must skip the next two;
+     *  one effect will be satisfied in skipping the first occurrence, while
+     *  the other will remain until another occurrence can be skipped." Two
+     *  resolutions of this Op against the same player accumulate — the
+     *  primitive INCREMENTS `skipNextTurn` rather than setting a flag, so a
+     *  player hit twice skips two turns, never collapsing to one. Mirrors
+     *  `extraTurns`' own queue shape (CR 500.7) for the same reason: a turn
+     *  effect that can legitimately stack more than once cannot be a
+     *  boolean. */
+    | { op: "skipNextTurn"; player: EffectPlayerRef }
     /** CR 601.3a (issue #1057) — impose a turn-scoped "can't cast spells this
      *  turn" restriction on `player` (Xantid Swarm's attack trigger targets the
      *  defending player via `player: "opponent"`). A thin declarative skin over

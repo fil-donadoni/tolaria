@@ -2908,8 +2908,13 @@ function tickAllDurations(state: GameState): void {
 /** Advance turn: increment counter, swap active player, reset autoPass.
  *  CR 500.7: if an extra turn is queued, the next active player is the one
  *  at the end of the queue (LIFO) instead of the normal turn-order swap.
- *  CR 614.10: if the next active player has skipNextTurn set, clear the flag
- *  and skip their entire turn — advance to the following player instead. */
+ *  CR 614.10 / 614.10a (issue #1957): if the next active player has a
+ *  pending skip COUNT, decrement it by 1 and skip their entire turn —
+ *  advance to the following player instead. A count > 1 (two accumulated
+ *  skip effects) is NOT cleared in one crossing: it decrements to n-1 and
+ *  stays pending, so the SAME player is skipped again the next time it is
+ *  their turn — "must skip the next two", not "skip once no matter how many
+ *  effects said so". */
 function advanceTurn(state: GameState): void {
     state.turn += 1;
     // Arboria (CR 508.1c) — freeze the just-ended turn's qualifying-action
@@ -2927,11 +2932,15 @@ function advanceTurn(state: GameState): void {
     } else {
         state.activePlayerId = getOpponentId(state, state.activePlayerId);
     }
-    // CR 614.10: if the next active player's turn should be skipped, clear
-    // the flag and recurse to advance past their turn entirely.
+    // CR 614.10 / 614.10a: if the next active player's turn should be
+    // skipped, decrement the pending count (clearing it only once it hits 0)
+    // and recurse to advance past their turn entirely. A count still > 0
+    // after the decrement means a SECOND accumulated skip effect remains —
+    // it is satisfied the NEXT time this player would take a turn, not now.
     const candidate = getPlayer(state, state.activePlayerId);
-    if (candidate.skipNextTurn) {
-        candidate.skipNextTurn = undefined;
+    if (candidate.skipNextTurn && candidate.skipNextTurn > 0) {
+        candidate.skipNextTurn -= 1;
+        if (candidate.skipNextTurn <= 0) candidate.skipNextTurn = undefined;
         advanceTurn(state);
         return;
     }

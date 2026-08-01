@@ -917,7 +917,11 @@ type CompactPlayer = {
     drawnThisTurn?: string[];
     turnsTaken?: number;
     grantedAbilities?: PlayerState["grantedAbilities"];
-    skipNextTurn?: boolean;
+    /** COUNT of pending skipped turns (CR 614.10a, issue #1957) — see
+     *  `PlayerState.skipNextTurn`. Reads a legacy persisted `true` (rows
+     *  written before the boolean→count migration) as 1 on expand; never
+     *  written as a boolean by `compactPlayer` going forward. */
+    skipNextTurn?: number | boolean;
     maxHandSizeOverride?: number | "unlimited";
     qualifyingActionThisTurn?: boolean;
     qualifyingActionLastTurn?: boolean;
@@ -974,7 +978,7 @@ function compactPlayer(player: PlayerState, ctx: CompactCtx): CompactPlayer {
     if (player.grantedAbilities?.length) {
         out.grantedAbilities = player.grantedAbilities;
     }
-    if (player.skipNextTurn) out.skipNextTurn = true;
+    if (player.skipNextTurn) out.skipNextTurn = player.skipNextTurn;
     if (player.maxHandSizeOverride !== undefined) {
         out.maxHandSizeOverride = player.maxHandSizeOverride;
     }
@@ -1051,7 +1055,13 @@ function expandPlayer(player: CompactPlayer, ctx?: ExpandCtx): PlayerState {
     if (player.grantedAbilities) {
         result.grantedAbilities = player.grantedAbilities;
     }
-    if (player.skipNextTurn) result.skipNextTurn = true;
+    // issue #1957 — boolean→count migration: a legacy persisted `true`
+    // (written before this change) reads as 1 pending skip; a current-format
+    // numeric count is passed through verbatim.
+    if (player.skipNextTurn) {
+        result.skipNextTurn =
+            typeof player.skipNextTurn === "number" ? player.skipNextTurn : 1;
+    }
     if (player.maxHandSizeOverride !== undefined) {
         result.maxHandSizeOverride = player.maxHandSizeOverride;
     }

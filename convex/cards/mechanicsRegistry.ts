@@ -2596,6 +2596,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         note: 'Schedule an extra turn for `player` after the current one (CR 500.7, issue #686 — Time Warp). A thin declarative skin over the single SpellContext primitive `takeExtraTurn` (ADR 0045), one execution path: the SAME primitive already backs Time Walk\'s pre-DSL `resolve()` closure (`lea/blue.ts`) and the LIFO `state.extraTurns` queue `advanceTurn` (phases.ts) pops at each turn boundary — this Op adds no new engine capability, only a declarative front end over an already-shipped, already-exercised primitive (primitive-reuse mandate). `player` is an announced target slot (Time Warp: "target player"), the resolving controller, or a relative player. Skipped when the player cannot be resolved (CR 608.2b). SCOPE: only scheduling a plain extra turn is folded; an activated-ability source (Time Vault) or a turn with restrictions ("skip your next turn" riders) is out of reach of this Op and stays resolve() if it ever needs a variant shape.',
     },
     {
+        op: "skipNextTurn",
+        status: "implemented",
+        cr: "614.10",
+        binding: "SpellContext.setSkipNextTurn",
+        note: 'Cause `player` to skip their next turn (CR 614.10, issue #1957 — Waterspout Elemental: "you skip your next turn"). A thin declarative skin over the single SpellContext primitive `setSkipNextTurn` (ADR 0045), one execution path: the SAME primitive already backs Time Vault\'s pre-DSL activated-ability `resolve()` closure ("Skip your next turn: Untap Time Vault.", `lea/colorless.ts`) and the `PlayerState.skipNextTurn` count `advanceTurn` (phases.ts) decrements at each turn boundary — this Op adds no new engine capability, only a declarative front end over an already-shipped primitive (primitive-reuse mandate). `player` is an announced target slot, the resolving controller (Waterspout Elemental targets no one — "you skip your next turn" always names the controller), or a relative player. Skipped when the player cannot be resolved (CR 608.2b). COUNT, not boolean (CR 614.10a): the primitive INCREMENTS `skipNextTurn` rather than setting a flag, so two resolutions against the same player accumulate to "skip the next two" instead of collapsing to one.',
+    },
+    {
         op: "restrictCasting",
         status: "implemented",
         cr: "601.3a",

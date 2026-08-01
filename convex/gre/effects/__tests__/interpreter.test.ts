@@ -1992,6 +1992,181 @@ describe("Effect Script Op: extraTurn (CR 500.7, issue #686)", () => {
     });
 });
 
+// New Op (issue #1957, Waterspout Elemental) → full per-Op regime:
+// interpreter coverage of the construct combinations it participates in
+// (announced player slot, controller, accumulation across two resolutions),
+// plus a wire-format assertion through projectPublicState. `skipNextTurn` is
+// a thin declarative skin over the already-shipped `SpellContext.
+// setSkipNextTurn` primitive Time Vault's pre-DSL `resolve()` closure already
+// exercises (lea/colorless.ts) — the CR 614.10 turn-skip mechanics themselves
+// (count decrement, `advanceTurn` recursion) are covered by `phases.test.ts`;
+// this suite covers only the new Op's player-ref resolution, its CR 614.10a
+// accumulation behaviour, and wire survival.
+describe("Effect Script Op: skipNextTurn (CR 614.10, issue #1957)", () => {
+    it("marks the announced target player to skip their next turn", () => {
+        const id = registerScript(
+            "test-op-skip-turn-target",
+            [{ op: "skipNextTurn", player: { target: 0 } }],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState();
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        expect(state.players[1].skipNextTurn).toBeUndefined();
+        resolveTopOfStack(state);
+        expect(state.players[1].skipNextTurn).toBe(1);
+    });
+
+    it("marks the resolving controller (player: controller)", () => {
+        const id = registerScript("test-op-skip-turn-controller", [
+            { op: "skipNextTurn", player: "controller" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].skipNextTurn).toBe(1);
+    });
+
+    it("is a no-op when the announced target is not a player (CR 608.2b)", () => {
+        const id = registerScript(
+            "test-op-skip-turn-nonplayer",
+            [{ op: "skipNextTurn", player: { target: 0 } }],
+            { targetRequirement: { type: "Creature", count: 1 } }
+        );
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            id: "bearSkipTurn",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearSkipTurn" }]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.players[0].skipNextTurn).toBeUndefined();
+        expect(state.players[1].skipNextTurn).toBeUndefined();
+    });
+
+    // CR 614.10a — two independent resolutions against the SAME player
+    // accumulate to a count of 2, never collapsing to a flag (the exact
+    // reason `PlayerState.skipNextTurn` is a number, not a boolean).
+    it("accumulates across two resolutions against the same player (CR 614.10a)", () => {
+        const id = registerScript("test-op-skip-turn-accumulate", [
+            { op: "skipNextTurn", player: "controller" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].skipNextTurn).toBe(1);
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].skipNextTurn).toBe(2);
+    });
+
+    it("survives projection (wire format) — skipNextTurn is spread verbatim onto the public player", () => {
+        const id = registerScript("test-op-skip-turn-wire", [
+            { op: "skipNextTurn", player: "controller" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p2");
+        expect(projected.players[0].skipNextTurn).toBe(1);
+    });
+});
+
+// `excludeSource` (issue #1957, Waterspout Elemental) — a new field on the
+// already-shipped `forEach { set: "permanents" }` selector: drops the
+// resolving ability/spell's own source from the frozen member set (the "all
+// OTHER creatures" shape a non-targeted mass sweep has no other way to
+// express). Covered here as its own construct-combination test per the
+// per-Op/per-construct regime; Waterspout Elemental's own card test
+// (pls/__tests__/blue.test.ts) exercises it end-to-end through a real
+// triggered ability.
+describe('forEach { set: "permanents", excludeSource: true } (issue #1957)', () => {
+    it("drops the source's own instance id from the iterated set — the source stays on the battlefield, only the OTHER creature is bounced", () => {
+        const SRC = "test-foreach-exclude-source";
+        registerTokenDefinition({
+            id: SRC,
+            name: SRC,
+            rarity: "common",
+            manaCost: { generic: 1 },
+            // The source is itself a Creature — the exact shape that makes
+            // `excludeSource` load-bearing: without it, the filter below
+            // would ALSO match (and bounce) the ability's own permanent.
+            types: ["Creature"],
+            power: 1,
+            toughness: 1,
+            activatedAbilities: [
+                {
+                    id: "src-bounce-others",
+                    oracleText:
+                        "{1}: Return all other creatures to their owners' hands.",
+                    cost: { mana: { generic: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "permanents",
+                                zone: "battlefield",
+                                filter: { type: "Creature" },
+                                excludeSource: true,
+                            },
+                            effects: [
+                                {
+                                    op: "moveZone",
+                                    target: { ref: "$each" },
+                                    to: "hand",
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        });
+        const src = makeInstance(SRC, {
+            id: "exclSource",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const other = makeInstance(BEAR_ID, {
+            id: "exclOther",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [src] }),
+                makePlayer("p2", { battlefield: [other] }),
+            ],
+        });
+        const s = state.players[0].battlefield[0];
+        state.stack.push({
+            ...s,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "src-bounce-others",
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        // The OTHER creature is bounced to its owner's hand...
+        expect(state.players[1].hand.some((c) => c.id === "exclOther")).toBe(
+            true
+        );
+        // ...but the source itself is EXCLUDED from the iterated set, so it
+        // is never moved — still on the battlefield, never in a hand.
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "exclSource")
+        ).toBe(true);
+        expect(state.players[0].hand.some((c) => c.id === "exclSource")).toBe(
+            false
+        );
+    });
+});
+
 // New Op (issue #1057) → full per-Op regime: interpreter coverage of the
 // construct combinations it participates in (controller / opponent / announced
 // player slot), plus a wire-format assertion through projectPublicState.
