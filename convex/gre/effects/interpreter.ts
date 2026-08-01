@@ -1214,7 +1214,16 @@ function resolveMayPayCost(
         | undefined
 ): MayPayCost | undefined | typeof MAY_PAY_COST_UNRESOLVABLE {
     if (!cost) return cost;
-    if ("manaCostOf" in cost) {
+    if ("reducedBy" in cost) {
+        // CR 118.9 / 601.2f — "pay <base> reduced by <amount>". `reducedBy` is
+        // a full `EffectValue` (issue #1958): a plain number is Flash's fixed
+        // {2}, a `{ domain: … }` value is Draco's "{2} for each basic land
+        // type among lands you control", resolved through the SAME
+        // `resolveValue` every other numeric Op parameter uses.
+        const amount = resolveValue(ctx, cost.reducedBy);
+        if (amount === undefined) return MAY_PAY_COST_UNRESOLVABLE;
+        // LITERAL base (Draco's {10}) — nothing to look up.
+        if (cost.mana) return { mana: reduceGenericMana(cost.mana, amount) };
         const ids = resolvePicks(ctx, cost.manaCostOf);
         const id = ids?.[0];
         if (!id || ctx.getOwnerId(id) === undefined) {
@@ -1222,7 +1231,7 @@ function resolveMayPayCost(
         }
         const printed = ctx.getManaCost({ type: "permanent", id });
         if (!printed) return MAY_PAY_COST_UNRESOLVABLE;
-        return { mana: reduceGenericMana(printed, cost.reducedBy) };
+        return { mana: reduceGenericMana(printed, amount) };
     }
     if ("energyEqualTo" in cost) {
         const amount = resolveValue(ctx, cost.energyEqualTo);

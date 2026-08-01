@@ -1463,31 +1463,62 @@ export interface CostLegs {
  *  mana-only caller is unaffected (ADR 0042). */
 export type MayPayCost = ManaCost | CostLegs;
 
-/** A dynamically-derived `mayPay` mana cost (issue #1150): "pay object X's own
- *  printed mana cost, reduced by a fixed generic amount" — the cost is not
- *  knowable at authoring time, only once a runtime-selected/bound object
- *  exists (Flash, MIR — "sacrifice it unless you pay its mana cost reduced by
- *  {2}"). A SECOND shape accepted by the `mayPay` Op's `cost` field, alongside
- *  the static `MayPayCost` union (ADR 0045 "generalize, don't add" — the Op's
- *  cost model grows a leg rather than a new Op or a card-shaped primitive).
+/** A dynamically-derived `mayPay` mana cost (issue #1150, generalized #1958):
+ *  "pay <a base cost> reduced by <a generic amount>" — where at least one of
+ *  the two isn't knowable at authoring time. A SECOND shape accepted by the
+ *  `mayPay` Op's `cost` field, alongside the static `MayPayCost` union
+ *  (ADR 0045 "generalize, don't add" — the Op's cost model grows a leg rather
+ *  than a new Op or a card-shaped primitive).
+ *
+ *  Both halves vary independently, which is exactly the two printed shapes:
+ *
+ *   - **dynamic base, fixed reduction** — `manaCostOf` + `reducedBy: 2`
+ *     (Flash, MIR: "sacrifice it unless you pay its mana cost reduced by {2}");
+ *   - **fixed base, dynamic reduction** — `mana: { X: 10 }` + `reducedBy:
+ *     { domain: { of: "controller", times: 2 } }` (Draco, PLS: "sacrifice this
+ *     creature unless you pay {10}. This cost is reduced by {2} for each basic
+ *     land type among lands you control", issue #1958).
+ *
  *  Resolved by the interpreter at `mayPay` execution time, never by
- *  `SpellContext.requestMayPay` itself: `manaCostOf` is resolved to the
- *  referenced object, its printed cost read via `SpellContext.getManaCost`,
- *  the GENERIC portion reduced by `reducedBy` and floored at {0} (CR 118.9 —
- *  a cost can't be reduced below {0}; colored pips are never removed by a
+ *  `SpellContext.requestMayPay` itself: the base cost is read (from
+ *  `manaCostOf`'s referenced object via `SpellContext.getManaCost`, or taken
+ *  verbatim from the literal `mana`), `reducedBy` is resolved through the SAME
+ *  `EffectValue` grammar every other numeric Op parameter uses, and the
+ *  GENERIC portion is reduced by that amount and floored at {0} (CR 118.9 — a
+ *  cost can't be reduced below {0}; colored pips are never removed by a
  *  generic reduction, mirroring `applyCostModifiers`'s existing
- *  `Math.max(0, generic - reduction)` clamp), and the resulting concrete
- *  `ManaCost` is what actually reaches `requestMayPay`'s `mana` leg. */
-export interface DynamicMayPayManaCost {
-    /** The object whose printed mana cost is read: a bare PICKS ref (the
-     *  instance id an earlier `choice` Op selected, e.g. `{ ref: "$picked" }`
-     *  — Flash's "you may put a creature card from your hand onto the
-     *  battlefield... pay ITS mana cost"). Same position/family as
-     *  `moveZone`'s `cards` field; the ordered ref pass enforces it. */
-    manaCostOf: EffectRef;
-    /** Flat generic amount subtracted from the object's printed mana cost. */
-    reducedBy: number;
-}
+ *  `Math.max(0, generic - reduction)` clamp). The resulting concrete
+ *  `ManaCost` is what actually reaches `requestMayPay`'s `mana` leg.
+ *
+ *  Exactly ONE base source must be present — enforced by
+ *  `isDynamicMayPayManaCost` (`gre/effects/validate.ts`). */
+export type DynamicMayPayManaCost = {
+    /** Generic amount subtracted from the base cost. A plain `number` is the
+     *  historical fixed shape (Flash's {2}); any other `EffectValue` is
+     *  resolved at execution time — Draco's `{ domain: { of: "controller",
+     *  times: 2 } }` is "{2} for each basic land type among lands you
+     *  control", reusing the existing Domain value member rather than
+     *  recomputing Domain in the cost path. */
+    reducedBy: EffectValue;
+} & (
+    | {
+          /** The object whose printed mana cost is the base: a bare PICKS ref
+           *  (the instance id an earlier `choice` Op selected, e.g.
+           *  `{ ref: "$picked" }` — Flash's "you may put a creature card from
+           *  your hand onto the battlefield... pay ITS mana cost"). Same
+           *  position/family as `moveZone`'s `cards` field; the ordered ref
+           *  pass enforces it. */
+          manaCostOf: EffectRef;
+          mana?: never;
+      }
+    | {
+          /** A LITERAL base cost, for the "pay {N}, reduced by …" shape whose
+           *  base is printed on the card and whose reduction is what varies
+           *  (Draco's {10}). */
+          mana: ManaCost;
+          manaCostOf?: never;
+      }
+);
 
 /** A dynamically-derived `mayPay` ENERGY cost (issue #1195): "pay {E} equal
  *  to <some runtime amount>" — Satya, Aetherflux Genius's "sacrifice unless
@@ -5838,14 +5869,11 @@ export interface StaticCostModifier {
      *  portion is reduced — colored pips can't be reduced by a generic
      *  reduction. Defaults to nothing.
      *
-     *  Two shapes: a fixed literal `ManaCost` (Stone Calendar, Power Artifact,
-     *  Mana Matrix — unchanged) or a `CountDrivenCostReduction` — `perCount` ×
-     *  the number of `countFilter`-matching permanents on the reduction's own
-     *  player (Emry, Lurker of the Loch: "{1} less to cast for each artifact
-     *  you control", ADR 0063). Both are resolved by the single
-     *  `resolveCostReductionGeneric` helper in `gre/state.ts` so fixed and
-     *  count-driven consumers can never drift apart. */
-    costReduction?: ManaCost | CountDrivenCostReduction;
+     *  See {@link CostReductionAmount} for the three accepted shapes. All are
+     *  resolved by the single `resolveCostReductionGeneric` helper in
+     *  `gre/state.ts` so fixed, count-driven and Domain-driven consumers can
+     *  never drift apart. */
+    costReduction?: CostReductionAmount;
     /** Floor on the post-reduction TOTAL mana of the cost (sum of all pips),
      *  CR 601.2f / 118.7. Power Artifact's reminder text: "This effect can't
      *  reduce the cost to less than one mana", i.e. `minTotalMana: 1`. A
@@ -5874,6 +5902,59 @@ export interface CountDrivenCostReduction {
     countFilter: PermanentFilter;
 }
 
+/** Domain-driven CR 601.2f cost-reduction amount (issue #1958): `perCount`'s
+ *  generic portion is subtracted once per BASIC LAND TYPE among the lands the
+ *  reduction's own player controls — 0–5, CR 305.6 — evaluated at cast
+ *  announcement (Draco: "This spell costs {2} less to cast for each basic land
+ *  type among lands you control"; Stratadon: {1} less).
+ *
+ *  A SEPARATE shape from {@link CountDrivenCostReduction} rather than a
+ *  `dedupe` flag on its `countFilter`, because the thing being counted is
+ *  different in kind: a permanent filter counts PERMANENTS (three Forests are
+ *  three matches), Domain counts distinct basic land TYPES (three Forests are
+ *  ONE, and a single Tundra contributes TWO). No filter over permanents can
+ *  express that, so the count MODE is what varies, not the filter.
+ *
+ *  Consumes the SAME `countDomain` scan (`cards/types.ts`) every other Domain
+ *  site already uses — `SpellContext.getDomain` / the `{ domain: { of } }`
+ *  EffectValue, the Domain-scaled `StaticPTCDA.compute` closures, Collective
+ *  Restraint's `costPerAttacker` — rather than recomputing Domain in the cost
+ *  path (one execution path, CLAUDE.md § Primitive reuse). That also means the
+ *  land types are read from the LIVE `subtypes` array on each battlefield
+ *  instance, which layer-4 `subtype-set` / `subtype-add` statics materialize
+ *  onto the instance (`applySourceStaticEffects`, `gre/state.ts`) — so a land
+ *  whose type was added or changed counts correctly, CR 613.1d. */
+export interface DomainDrivenCostReduction {
+    /** Mana subtracted PER distinct basic land type (generic-only, CR 601.2f —
+     *  a Domain-driven reduction can't touch colored pips either). Draco:
+     *  `{ X: 2 }`; Stratadon: `{ X: 1 }`. */
+    perCount: ManaCost;
+    /** Discriminant: count basic land TYPES among the reduction's own player's
+     *  lands (CR 702 preamble "Domain"), never permanents. The only mode today;
+     *  a future census-style count mode adds a member here rather than a
+     *  parallel interface. */
+    countMode: "domain";
+}
+
+/** The amount a CR 601.2f cost reduction takes off the GENERIC portion of a
+ *  cost. Three shapes, one resolver (`resolveCostReductionGeneric`,
+ *  `gre/state.ts`):
+ *
+ *   - a fixed literal `ManaCost` — Stone Calendar, Power Artifact, Mana
+ *     Matrix, Planar Gate;
+ *   - {@link CountDrivenCostReduction} — `perCount` × matching PERMANENTS
+ *     (Emry, affinity, ADR 0063);
+ *   - {@link DomainDrivenCostReduction} — `perCount` × distinct basic land
+ *     TYPES (Draco, Stratadon, issue #1958).
+ *
+ *  Discriminated structurally: `countFilter` for the count-driven shape,
+ *  `countMode` for the Domain-driven one; no `ManaCost` mana-symbol key
+ *  collides with either. */
+export type CostReductionAmount =
+    | ManaCost
+    | CountDrivenCostReduction
+    | DomainDrivenCostReduction;
+
 /** CR 601.2f SELF-HOST cost reduction (ADR 0063): a spell's OWN intrinsic
  *  reduction to its own cast cost, declared directly on its `CardDefinition`
  *  rather than discovered via the battlefield `staticEffects` scan that
@@ -5888,7 +5969,7 @@ export interface CountDrivenCostReduction {
  *  reduction-amount resolver. Spell-only — an activated ability has no "self"
  *  spell object to self-reduce. */
 export interface SelfCostReduction {
-    costReduction: ManaCost | CountDrivenCostReduction;
+    costReduction: CostReductionAmount;
     minTotalMana?: number;
 }
 

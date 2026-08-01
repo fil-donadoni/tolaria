@@ -513,3 +513,135 @@ export const terminalMoraine: CardDefinition = {
         },
     ],
 };
+
+// ─────────────────────────────────────────────────────────────────────────
+// C3 — Domain-driven cost reduction (CR 601.2f / 702 preamble, issue #1958).
+// Draco and Stratadon each reduce their OWN cast cost by their controller's
+// Domain — the number of distinct basic land types among the lands they
+// control (0–5, CR 305.6). Both are `CardDefinition.selfCostReduction` in the
+// new `countMode: "domain"` shape (`DomainDrivenCostReduction`,
+// `cards/types.ts`), NOT the pre-existing permanent-count shape
+// (`countFilter`, Emry / affinity): a permanent filter counts PERMANENTS —
+// three Forests would be three — while Domain counts distinct basic land
+// TYPES, so three Forests are ONE and a single Tundra contributes TWO. The
+// thing being counted differs in kind, which is why it is a count MODE and
+// not a `dedupe` flag on the filter.
+//
+// Everything downstream is pre-existing and shared, so the reduction is
+// visible EVERYWHERE, not merely at payment: `getCostModifiers` /
+// `applyCostModifiers` (`gre/state.ts`) is the single CR 601.2f authority, and
+// its callers are the castability probe (`canPotentiallyPayCost` with
+// `foldCostModifiers`, driving `getLegalActions`' plain-cast branch —
+// so Draco is reported castable the moment Domain makes it affordable),
+// the announce/payment path (`announceCast` parks an ALREADY-reduced
+// `pendingCast.manaCost`, which is what the auto-tap solver taps for and what
+// the client's payment surface renders), the bot's move enumeration
+// (`enumerateCastMoves`, `gre/moves.ts` — which the client-side Brain runs
+// verbatim per ADR 0074) and the search-leaf replay (`applyMove.ts`).
+//
+// Three CR properties fall out of that shared path rather than needing
+// Domain-specific code: GENERIC-ONLY (`applyCostModifiers` only ever reduces
+// `manaCost.X`, so a coloured pip could never be removed — both cards are
+// colourless, but the guarantee is structural); NEVER BELOW ZERO (its
+// `Math.max(0, generic - reduction)` clamp); and FIXED AT ANNOUNCEMENT (the
+// reduced cost is computed once, at announce, and parked on `pendingCast` —
+// a land entering while the cast is being paid for cannot change the total,
+// CR 601.2f "the total cost is locked in").
+//
+// The Domain scan itself is the shared `countDomain` helper (`cards/types.ts`)
+// every other Domain site already uses — the `{ domain: { of } }` EffectValue,
+// `SpellContext.getDomain`, the Domain-scaled `pt-cda` closures. It reads the
+// LIVE `subtypes` array on each battlefield instance, which layer-4
+// `subtype-set` / `subtype-add` statics materialize onto the instance, so a
+// land whose type was added or changed counts correctly (CR 613.1d).
+// ─────────────────────────────────────────────────────────────────────────
+
+// Draco — {16} Artifact Creature — Dragon, 9/9 (PLS, rare). Modern Scryfall
+// Oracle text is authoritative (ADR 0004).
+//
+// Printed at {16}, so the Domain reduction is what makes it castable at all:
+// at Domain 5 it costs {6}, at Domain 0 the full {16}.
+//
+// The upkeep leg — "sacrifice this creature unless you pay {10}. This cost is
+// reduced by {2} for each basic land type among lands you control" — is the
+// same optional-payment idiom the Lair cycle above uses (`mayPay` + `if
+// !$paid` → `sacrifice($source)`, CR 118 "unless"), with a DYNAMICALLY-PRICED
+// mana leg: `{ mana: { X: 10 }, reducedBy: { domain: { of: "controller",
+// times: 2 } } }`. That is the pre-existing `DynamicMayPayManaCost` shape
+// (issue #1150, Flash's "pay its mana cost reduced by {2}") generalized on
+// both axes it already had implicitly — the base may now be a LITERAL cost as
+// well as a referenced object's printed one, and `reducedBy` is now a full
+// `EffectValue` rather than a fixed integer, so it reuses the SAME Domain
+// value member the Effect Script grammar already exposes. The interpreter
+// floors the result at {0} (`reduceGenericMana`, CR 118.9), so at Domain 5 the
+// upkeep is free and the trigger auto-resolves as paid.
+//
+// NOTE the two Domain reads are INDEPENDENT: the cast reduction is evaluated
+// at announcement, the upkeep reduction at each upkeep resolution, off
+// whatever board exists then. Neither is snapshotted from the other.
+export const draco: CardDefinition = {
+    id: "212e3edb-62f1-4680-884f-70323547f8ad", // PLS 133
+    rarity: "rare",
+    name: "Draco",
+    oracleText:
+        "Domain — This spell costs {2} less to cast for each basic land type among lands you control.\nFlying\nDomain — At the beginning of your upkeep, sacrifice this creature unless you pay {10}. This cost is reduced by {2} for each basic land type among lands you control.",
+    manaCost: { X: 16 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Dragon"],
+    power: 9,
+    toughness: 9,
+    staticAbilities: ["flying"],
+    selfCostReduction: {
+        costReduction: { perCount: { X: 2 }, countMode: "domain" },
+    },
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "draco-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, sacrifice this creature unless you pay {10}. This cost is reduced by {2} for each basic land type among lands you control.",
+            phase: "UPKEEP",
+            scope: "your",
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
+                    cost: {
+                        mana: { X: 10 },
+                        reducedBy: {
+                            domain: { of: "controller", times: 2 },
+                        },
+                    },
+                    prompt: "Pay Draco's upkeep cost ({10} reduced by {2} per basic land type you control), or sacrifice it?",
+                    bind: "$paid",
+                },
+                {
+                    op: "if",
+                    // CR 118 — the "unless" consequence.
+                    predicate: { not: { binding: "$paid" } },
+                    then: [{ op: "sacrifice", target: { ref: "$source" } }],
+                },
+            ],
+        }),
+    ],
+};
+
+// Stratadon — {10} Artifact Creature — Beast, 5/5 (PLS, uncommon). Modern
+// Scryfall Oracle text is authoritative (ADR 0004). The same self-host Domain
+// reduction as Draco at {1} per basic land type (so {5} at Domain 5), plus
+// plain trample — no upkeep leg.
+export const stratadon: CardDefinition = {
+    id: "324bc757-9942-4862-b691-5af42e07f682", // PLS 143
+    rarity: "uncommon",
+    name: "Stratadon",
+    oracleText:
+        "Domain — This spell costs {1} less to cast for each basic land type among lands you control.\nTrample",
+    manaCost: { X: 10 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Beast"],
+    power: 5,
+    toughness: 5,
+    staticAbilities: ["trample"],
+    selfCostReduction: {
+        costReduction: { perCount: { X: 1 }, countMode: "domain" },
+    },
+};

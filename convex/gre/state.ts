@@ -6,7 +6,9 @@ import {
     type Color,
     type ControlChangeCondition,
     type CounterDestination,
+    type CostReductionAmount,
     type CountDrivenCostReduction,
+    type DomainDrivenCostReduction,
     type DelayedTriggerInlineBody,
     type DelayedTriggerTiming,
     type DrawReplacementEvent,
@@ -16952,7 +16954,7 @@ export interface CostModifiers {
  *  rather than a fixed literal `ManaCost`. Discriminated on `countFilter` —
  *  no `ManaCost` mana-symbol key collides with it. */
 function isCountDrivenCostReduction(
-    reduction: CardManaCost | CountDrivenCostReduction
+    reduction: CostReductionAmount
 ): reduction is CountDrivenCostReduction {
     return (
         typeof reduction === "object" &&
@@ -16961,18 +16963,55 @@ function isCountDrivenCostReduction(
     );
 }
 
-/** Resolve a CR 601.2f `costReduction`'s generic-mana amount. A fixed literal
- *  (Stone Calendar, Power Artifact, Mana Matrix, Planar Gate) just normalizes
- *  to its own generic portion, unchanged from before. A count-driven amount
- *  (Emry, ADR 0063) multiplies `perCount`'s generic portion by the number of
- *  `countFilter`-matching permanents on `player`'s OWN battlefield — "for
- *  each artifact you control" is always evaluated against the reduction's own
- *  player, never an opponent's board. Shared by the battlefield-scan site and
- *  the self-host site below so the two can never drift apart. */
+/** True iff a `costReduction` value is the DOMAIN-driven shape (issue #1958,
+ *  Draco / Stratadon) rather than a fixed literal `ManaCost` or a
+ *  permanent-count. Discriminated on `countMode` — no `ManaCost` mana-symbol
+ *  key collides with it, and the count-driven shape has no such key. */
+function isDomainDrivenCostReduction(
+    reduction: CostReductionAmount
+): reduction is DomainDrivenCostReduction {
+    return (
+        typeof reduction === "object" &&
+        reduction !== null &&
+        "countMode" in reduction
+    );
+}
+
+/** Resolve a CR 601.2f `costReduction`'s generic-mana amount. Three shapes,
+ *  one resolver — shared by the battlefield-scan site and the self-host site
+ *  below so they can never drift apart:
+ *
+ *   - a fixed literal (Stone Calendar, Power Artifact, Mana Matrix, Planar
+ *     Gate) just normalizes to its own generic portion;
+ *   - a count-driven amount (Emry / affinity, ADR 0063) multiplies
+ *     `perCount`'s generic portion by the number of `countFilter`-matching
+ *     PERMANENTS on `player`'s OWN battlefield — "for each artifact you
+ *     control" is always evaluated against the reduction's own player, never
+ *     an opponent's board;
+ *   - a Domain-driven amount (Draco / Stratadon, issue #1958) multiplies it by
+ *     `player`'s Domain — the number of distinct basic land TYPES among the
+ *     lands they control (0–5, CR 305.6), so three Forests give 1 and one dual
+ *     land contributes both of its types. It calls the SAME shared
+ *     `countDomain` scan every other Domain site uses (`SpellContext.getDomain`,
+ *     the `{ domain: { of } }` EffectValue, the Domain-scaled `pt-cda`
+ *     closures) rather than recomputing Domain here — the live `subtypes` array
+ *     it reads is the post-layer-4 one, so a land whose type was added or
+ *     changed counts correctly (CR 613.1d).
+ *
+ *  Domain is board-wide, so it needs the whole `state`, not just the
+ *  announcing `player` (a land the announcer controls may sit in the other
+ *  player's `battlefield` array after a control change — `countDomain` scans
+ *  by CONTROLLER, CR 110.4). */
 function resolveCostReductionGeneric(
-    reduction: CardManaCost | CountDrivenCostReduction,
-    player: PlayerState
+    reduction: CostReductionAmount,
+    player: PlayerState,
+    state: GameState
 ): number {
+    if (isDomainDrivenCostReduction(reduction)) {
+        const per = normalizeManaCost(reduction.perCount).X ?? 0;
+        if (per <= 0) return 0;
+        return per * countDomain(state as never, player.id);
+    }
     if (isCountDrivenCostReduction(reduction)) {
         const per = normalizeManaCost(reduction.perCount).X ?? 0;
         if (per <= 0) return 0;
@@ -17027,7 +17066,8 @@ export function getCostModifiers(
                 if (effect.costReduction) {
                     reductionGeneric += resolveCostReductionGeneric(
                         effect.costReduction,
-                        player
+                        player,
+                        state
                     );
                     if (
                         effect.minTotalMana !== undefined &&
@@ -17051,7 +17091,8 @@ export function getCostModifiers(
             if (announcer) {
                 reductionGeneric += resolveCostReductionGeneric(
                     selfReduction.costReduction,
-                    announcer
+                    announcer,
+                    state
                 );
                 if (
                     selfReduction.minTotalMana !== undefined &&
