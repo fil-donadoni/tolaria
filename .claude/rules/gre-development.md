@@ -128,6 +128,59 @@ once, reuse rides free" trade the per-Op suite is built around (PRD #795).
 - Tests MUST reference the CR section they validate (e.g. `describe("lands (CR 305.2)")`)
 - Run `bun run test` after any change — zero failures required
 
+## Proof-of-failure (mandatory for every new test that guards a behaviour)
+
+**A test you have never seen fail is not evidence.** Before claiming a new test
+covers something, break the code it guards and watch it go red. Then revert the
+break. State what you broke and what failed — in the PR description, and in the
+receipt if you are a subagent.
+
+This is not a style preference, it is the only defence against an asymmetry
+that no amount of care survives:
+
+> A test that fails when it should pass is **loud** — CI goes red, you fix it
+> within minutes.
+> A test that passes when it should fail is **silent forever**.
+
+Nothing in the normal workflow ever exercises the second case. Writing the test,
+reading the test, reviewing the diff, and running the suite all look identical
+whether the assertion is load-bearing or vacuous. Only deliberately breaking the
+subject distinguishes them.
+
+**Three shapes this catches, all shipped in this repo:**
+
+1. **The test encodes the bug** — it asserts the current, wrong behaviour, so it
+   locks the defect in and goes red when someone fixes it.
+   (`state-adapter.bot.test.ts` asserted `hand.length === 0`, which was the bug;
+   a `blue.test.ts` test enshrined a CR 608.2b violation.)
+2. **The test asserts nothing** — expected and actual are the same object by
+   construction, so the comparison is vacuously true. (A prevention test
+   compared a shield against a reference into live state that the code under
+   test mutates **in place**; it passed with the feature disabled.)
+3. **The test never reaches the code** — a hand-built view instead of the real
+   reducer, or a catalogue guard that silently skips the card.
+
+Shape 3 already has a structural defence: the rule that a SURFACE assertion must
+run **through** `projectPublicState` / `buildTriggerStateView`. Note its form —
+it does not say "write good tests", it says "the test must traverse the real
+path". Prefer that kind of rule when you can find one; proof-of-failure is the
+general fallback for when you can't.
+
+**When it applies.** Every test whose job is to _catch_ something: a regression
+test, a catalogue guard, a CR-conformance assertion, anything added in response
+to a review finding. It does NOT apply to routine per-card DSL coverage that the
+generated smoke sweep already provides.
+
+**How to break it.** Whatever is cheapest and most local: comment out the new
+branch, invert a condition, re-introduce the original bug, delete the filter.
+For shape 2 specifically, check whether the code under test mutates its argument
+**in place** — if it does, snapshot the expected value with `structuredClone`
+before the act, or you are comparing an object with itself.
+
+**A test that still passes after you break the subject is a finding, not an
+inconvenience.** Fix the test before going further; it was never covering
+anything.
+
 ## Card testing convention (mandatory for `resolve()` cards and new Ops)
 
 This table governs `resolve()` / `resolveSteps` cards, and a DSL card
