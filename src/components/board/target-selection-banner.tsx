@@ -17,6 +17,7 @@ const TARGET_LABEL: Record<string, string> = {
     Enchantment: "an enchantment",
     Land: "a land",
     Planeswalker: "a planeswalker",
+    Battle: "a battle",
     player: "a player",
     any: "any target",
     spell: "a spell on the stack",

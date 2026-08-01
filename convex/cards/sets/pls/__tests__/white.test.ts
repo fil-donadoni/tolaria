@@ -50,6 +50,7 @@ import {
     validateBlockerEligibility,
 } from "../../../../gre/combat";
 import { castProhibitionReason } from "../../../castRestrictions";
+import { legalActions } from "../../../../gre/legalActions";
 
 /** Local resolveActivated shim (mirrors `inv/__tests__/helpers.ts`'s helper of
  *  the same name) — pushes an activated ability's stack item and resolves it,
@@ -1810,5 +1811,86 @@ describe("Pollen Remedy ({W} Instant — divided prevention shields, CR 615.1)",
         expect(projected.targetPreventionShields).toEqual(
             state.targetPreventionShields
         );
+    });
+});
+
+// ===========================================================================
+// Bot: Pollen Remedy's divided allocation must be enumerable (#1955)
+// ===========================================================================
+//
+// "The bot must not stall casting Pollen Remedy." It does not need a new
+// `BotAction` kind: divide-as-you-choose is announced through the ORDINARY
+// pending-target flow, so it rides the already-compile-time-exhaustive
+// `botActionRealisation` `"worker"` branch (`src/lib/ai/brain.ts`) — the same
+// path Arc Lightning / Fiery Justice have used since the divided-damage Op
+// shipped. What this test pins is the half that could actually break: that the
+// enumerator offers select-target actions carrying an `amount`, and a confirm
+// once the minimum is met, for THIS card's requirement.
+describe("Pollen Remedy — bot-enumerable divided allocation (CR 601.2d, #1955)", () => {
+    function pendingState(divideTotal: number): GameState {
+        const wurm = makeInstance(crawWurm.id, {
+            id: "wurm",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [wurm] }),
+                makePlayer("p2"),
+            ],
+        });
+        const item = pushSpell(state, pollenRemedy.id, "p1", []);
+        state.priorityPlayerId = "p1";
+        state.pendingTarget = {
+            playerId: "p1",
+            cardInstanceId: item.id,
+            kind: "cast",
+            targetType: "any",
+            count: { min: 1, max: divideTotal },
+            selected: [],
+            divideTotal,
+        };
+        return state;
+    }
+
+    it("offers a select-target action per legal target, each carrying amount 1", () => {
+        const state = pendingState(3);
+        const picks = legalActions(state).filter(
+            (a) => a.expect === "target" && a.action.kind === "select-target"
+        );
+        expect(picks.length).toBeGreaterThan(0);
+        for (const p of picks) {
+            expect((p.action as { amount?: number }).amount).toBe(1);
+        }
+    });
+
+    it("offers confirm-targets once the minimum is met, so the cast can finish", () => {
+        const state = pendingState(3);
+        state.pendingTarget!.selected = [{ type: "permanent", id: "wurm" }];
+        state.pendingTarget!.divideAmounts = { "permanent:wurm": 1 };
+        expect(
+            legalActions(state).some(
+                (a) =>
+                    a.expect === "target" && a.action.kind === "confirm-targets"
+            )
+        ).toBe(true);
+    });
+
+    it("stops offering further targets once the whole budget is allocated", () => {
+        const state = pendingState(3);
+        state.pendingTarget!.selected = [{ type: "permanent", id: "wurm" }];
+        state.pendingTarget!.divideAmounts = { "permanent:wurm": 3 };
+        expect(
+            legalActions(state).some(
+                (a) =>
+                    a.expect === "target" && a.action.kind === "select-target"
+            )
+        ).toBe(false);
+        expect(
+            legalActions(state).some(
+                (a) =>
+                    a.expect === "target" && a.action.kind === "confirm-targets"
+            )
+        ).toBe(true);
     });
 });
