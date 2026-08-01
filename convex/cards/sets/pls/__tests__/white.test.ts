@@ -14,6 +14,8 @@ import {
     orimsChant,
     samitePilgrim,
     surpriseDeployment,
+    guardDogs,
+    pollenRemedy,
 } from "../white";
 import { crawWurm, grizzlyBears } from "../../lea/green";
 import { lightningBolt, dragonWhelp } from "../../lea/red";
@@ -34,6 +36,7 @@ import {
     type StackItem,
     resolveTopOfStack,
     runDamageReplacement,
+    applyTargetPrevention,
 } from "../../../../gre/state";
 import { fireDelayedTriggers } from "../../../../gre/phases";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
@@ -1528,6 +1531,284 @@ describe("Surprise Deployment (combat-only instant; put a nonwhite creature from
         resolveTopOfStack(state);
         expect(state.players[0].hand.map((c) => c.id)).toContain(
             "declined-bear"
+        );
+    });
+});
+
+// ===========================================================================
+// Guard Dogs (CR 615 / 105.2 / 202.2) — issue #1955
+// ===========================================================================
+//
+// The colour comparison happens ONCE, ON RESOLUTION (the card's own ruling:
+// "You only check colors on resolution and not later when the damage
+// prevention actually is applied"), so these tests drive the choice through
+// the real pending-choice pipeline and then assert the OUTCOME through the
+// shared damage funnel — never by reading the shield list.
+describe("Guard Dogs ({3}{W} Creature — conditional source-scoped prevention, CR 615)", () => {
+    /** p1 controls Guard Dogs + one extra permanent; p2 controls one attacker. */
+    function board(opts: {
+        /** Card id of the permanent p1 will choose for the colour comparison. */
+        chosenCardId: string;
+        /** Card id of p2's creature — the announced prevention target. */
+        attackerCardId: string;
+    }): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(guardDogs.id, {
+                            id: "dogs",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            isSummoningSick: false,
+                        }),
+                        makeInstance(opts.chosenCardId, {
+                            id: "chosen",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(opts.attackerCardId, {
+                            id: "atk",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+        });
+    }
+
+    /** Resolves the ability, submitting `chosen` as the permanent pick. */
+    function activate(state: GameState): void {
+        const dogs = state.players[0].battlefield.find((c) => c.id === "dogs")!;
+        state.stack.push({
+            ...dogs,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "guard-dogs-prevent",
+            targets: [{ type: "permanent", id: "atk" }],
+        });
+        resolveTopOfStack(state);
+        const head = state.pendingChoices?.[0];
+        expect(head?.kind).toBe("choose-permanents");
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head!.stackItemId,
+            step: head!.step,
+            choiceId: head!.choiceId,
+            cardInstanceIds: ["chosen"],
+        });
+    }
+
+    function preventsCombat(state: GameState): boolean {
+        return (
+            runDamageReplacement(
+                state,
+                "atk",
+                "p2",
+                { type: "player", id: "p1" },
+                2,
+                true
+            ) === null
+        );
+    }
+
+    it("prevents when the target creature SHARES a colour with the chosen permanent", () => {
+        // Black Knight (B) vs. Swamp — no shared colour; use two black objects
+        // instead: the chosen permanent is a black creature.
+        const state = board({
+            chosenCardId: blackKnight.id,
+            attackerCardId: blackKnight.id,
+        });
+        activate(state);
+        expect(preventsCombat(state)).toBe(true);
+    });
+
+    it("prevents NOTHING when the two share no colour (tested both ways)", () => {
+        const state = board({
+            chosenCardId: benalishHero.id, // white
+            attackerCardId: blackKnight.id, // black
+        });
+        activate(state);
+        expect(preventsCombat(state)).toBe(false);
+    });
+
+    it("reads colour through the LAYER pipeline, not the printed mana cost (CR 613 layer 5)", () => {
+        // A white Benalish Hero painted BLACK by a layer-5 override now shares
+        // a colour with the black attacker — the printed {W} cost does not.
+        const state = board({
+            chosenCardId: benalishHero.id,
+            attackerCardId: blackKnight.id,
+        });
+        const chosen = state.players[0].battlefield.find(
+            (c) => c.id === "chosen"
+        )!;
+        chosen.colorOverride = ["B"];
+        expect(STATIC_EFFECT_CTX.getColors(chosen)).toEqual(["B"]);
+        activate(state);
+        expect(preventsCombat(state)).toBe(true);
+    });
+
+    it("a colourless object shares no colour with anything (CR 202.2)", () => {
+        const state = board({
+            chosenCardId: blackKnight.id,
+            attackerCardId: blackKnight.id,
+        });
+        const atk = state.players[1].battlefield.find((c) => c.id === "atk")!;
+        atk.colorOverride = [];
+        activate(state);
+        expect(preventsCombat(state)).toBe(false);
+    });
+
+    it("is a {3}{W} 2/2 Dog whose ability costs {2}{W} and a tap", () => {
+        expect(guardDogs.manaCost).toEqual({ X: 3, W: 1 });
+        expect(guardDogs.subtypes).toEqual(["Dog"]);
+        expect(guardDogs.power).toBe(2);
+        expect(guardDogs.toughness).toBe(2);
+        expect(guardDogs.activatedAbilities?.[0]?.cost).toEqual({
+            mana: { X: 2, W: 1 },
+            tap: true,
+        });
+    });
+});
+
+// ===========================================================================
+// Pollen Remedy (CR 615.1 / 601.2d / 120.4 / 702.33a) — issue #1955
+// ===========================================================================
+describe("Pollen Remedy ({W} Instant — divided prevention shields, CR 615.1)", () => {
+    /** p1 + two of p1's creatures, all candidate prevention recipients. */
+    function board(): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(crawWurm.id, {
+                            id: "wurmA",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                        makeInstance(crawWurm.id, {
+                            id: "wurmB",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    it("installs one shield per target sized by the announced split (CR 601.2d)", () => {
+        const state = board();
+        const item = pushSpell(state, pollenRemedy.id, "p1", [
+            { type: "permanent", id: "wurmA" },
+            { type: "player", id: "p1" },
+        ]);
+        item.targetAmounts = { "permanent:wurmA": 1, "player:p1": 2 };
+        resolveTopOfStack(state);
+        expect(state.targetPreventionShields).toEqual([
+            expect.objectContaining({
+                targetType: "permanent",
+                targetId: "wurmA",
+                remaining: 1,
+            }),
+            expect.objectContaining({
+                targetType: "player",
+                targetId: "p1",
+                remaining: 2,
+            }),
+        ]);
+    });
+
+    it("the shields actually absorb the allocated damage and no more (CR 615.1)", () => {
+        const state = board();
+        const item = pushSpell(state, pollenRemedy.id, "p1", [
+            { type: "player", id: "p1" },
+        ]);
+        item.targetAmounts = { "player:p1": 3 };
+        resolveTopOfStack(state);
+        expect(applyTargetPrevention(state, "player", "p1", 5)).toBe(2);
+        // Spent — the next event is unprotected.
+        expect(applyTargetPrevention(state, "player", "p1", 5)).toBe(5);
+    });
+
+    it("kicked, the total is 6 rather than 3 (CR 702.33a)", () => {
+        const state = board();
+        const item = pushSpell(state, pollenRemedy.id, "p1", [
+            { type: "player", id: "p1" },
+        ]);
+        item.kickerPayments = { kicker: 1 };
+        item.targetAmounts = { "player:p1": 6 };
+        resolveTopOfStack(state);
+        expect(applyTargetPrevention(state, "player", "p1", 10)).toBe(4);
+    });
+
+    it("with NO explicit split recorded (the bot's amount-free selectTargets) it still divides ≥1 each", () => {
+        const state = board();
+        pushSpell(state, pollenRemedy.id, "p1", [
+            { type: "permanent", id: "wurmA" },
+            { type: "permanent", id: "wurmB" },
+        ]);
+        resolveTopOfStack(state);
+        const shields = state.targetPreventionShields ?? [];
+        expect(shields).toHaveLength(2);
+        // Every chosen target gets at least 1, and the total is exactly 3.
+        expect(shields.every((s) => s.remaining >= 1)).toBe(true);
+        expect(shields.reduce((n, s) => n + s.remaining, 0)).toBe(3);
+    });
+
+    it("declares the divide-as-chosen requirement on BOTH the base and kicked target sets", () => {
+        expect(pollenRemedy.targetRequirement).toEqual({
+            type: "any",
+            count: { min: 1 },
+            divideAsChosen: { total: 3 },
+        });
+        expect(pollenRemedy.kickedTargetRequirement).toEqual({
+            type: "any",
+            count: { min: 1 },
+            divideAsChosen: { total: 6 },
+        });
+        // The resolution-time totals MUST mirror the announcement-time ones,
+        // or the caster allocates 6 and only 3 is honoured.
+        expect(pollenRemedy.effects).toEqual([
+            {
+                op: "if",
+                predicate: { left: { kickerCount: true }, op: "ge", right: 1 },
+                then: [
+                    {
+                        op: "preventDamage",
+                        mode: "next-n-divided",
+                        total: 6,
+                        duration: { phase: "end-of-turn" },
+                    },
+                ],
+                else: [
+                    {
+                        op: "preventDamage",
+                        mode: "next-n-divided",
+                        total: 3,
+                        duration: { phase: "end-of-turn" },
+                    },
+                ],
+            },
+        ]);
+    });
+
+    it("the shields survive the wire projection (wire format)", () => {
+        const state = board();
+        const item = pushSpell(state, pollenRemedy.id, "p1", [
+            { type: "permanent", id: "wurmA" },
+        ]);
+        item.targetAmounts = { "permanent:wurmA": 3 };
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.targetPreventionShields).toEqual(
+            state.targetPreventionShields
         );
     });
 });

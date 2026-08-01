@@ -11,6 +11,7 @@ import {
     quirionDryad,
     quirionExplorer,
     thornscapeBattlemage,
+    fallingTimber,
 } from "../green";
 import { crawWurm, grizzlyBears } from "../../lea/green";
 import { lightningBolt } from "../../lea/red";
@@ -29,6 +30,8 @@ import {
     applySourceStaticEffects,
     refreshCounterGatedStatics,
     resolveTopOfStack,
+    runDamageReplacement,
+    sourcePreventionShieldApplies,
 } from "../../../../gre/state";
 import type {
     CardInstanceState,
@@ -1719,5 +1722,129 @@ describe("Thornscape Battlemage — CR 603.4 per-Kicker check-time gate (issue #
         expect(
             kickerPaidCondition("kicker-r")(slim as unknown as PermanentView)
         ).toBe(false);
+    });
+});
+
+// ===========================================================================
+// Falling Timber (CR 615 / 601.2c / 702.33a) — issue #1955
+// ===========================================================================
+//
+// The first SOURCE-scoped prevention card in the set: the shield covers damage
+// the target creature would DEAL, to anyone, not damage dealt TO it. Asserted
+// through the real damage funnel (`runDamageReplacement`) rather than by
+// reading the shield list, so the test fails if the shield is registered but
+// never consulted.
+describe("Falling Timber (CR 615 — prevent all combat damage target creature would deal)", () => {
+    /** p2 controls two 2/2 bears; p1 casts Falling Timber at them. */
+    function twoBears(): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1", { battlefield: [] }),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(grizzlyBears.id, {
+                            id: "bearA",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                        makeInstance(grizzlyBears.id, {
+                            id: "bearB",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+        });
+    }
+
+    /** True when the damage funnel every sink shares consumes the event. */
+    function prevented(
+        state: GameState,
+        sourceId: string,
+        isCombat: boolean,
+        target: TargetSelection = { type: "player", id: "p1" }
+    ): boolean {
+        return (
+            runDamageReplacement(state, sourceId, "p2", target, 2, isCombat) ===
+            null
+        );
+    }
+
+    it("prevents the target's combat damage to ANY recipient — a player and a permanent alike (CR 615)", () => {
+        const state = twoBears();
+        pushSpell(state, fallingTimber.id, "p1", [
+            { type: "permanent", id: "bearA" },
+        ]);
+        resolveTopOfStack(state);
+        expect(prevented(state, "bearA", true)).toBe(true);
+        expect(
+            prevented(state, "bearA", true, {
+                type: "permanent",
+                id: "bearB",
+            })
+        ).toBe(true);
+        // Recipient-agnostic, but SOURCE-scoped: the other bear is untouched.
+        expect(prevented(state, "bearB", true)).toBe(false);
+    });
+
+    it("prevents only COMBAT damage — the shielded creature's non-combat damage still lands (CR 510)", () => {
+        const state = twoBears();
+        pushSpell(state, fallingTimber.id, "p1", [
+            { type: "permanent", id: "bearA" },
+        ]);
+        resolveTopOfStack(state);
+        expect(prevented(state, "bearA", false)).toBe(false);
+    });
+
+    it("unkicked, the second target's shield is NOT installed (CR 601.2c)", () => {
+        const state = twoBears();
+        pushSpell(state, fallingTimber.id, "p1", [
+            { type: "permanent", id: "bearA" },
+            { type: "permanent", id: "bearB" },
+        ]);
+        resolveTopOfStack(state);
+        expect(prevented(state, "bearA", true)).toBe(true);
+        expect(prevented(state, "bearB", true)).toBe(false);
+    });
+
+    it("kicked, BOTH targets are shielded (CR 702.33a)", () => {
+        const state = twoBears();
+        const item = pushSpell(state, fallingTimber.id, "p1", [
+            { type: "permanent", id: "bearA" },
+            { type: "permanent", id: "bearB" },
+        ]);
+        item.kickerPayments = { kicker: 1 };
+        resolveTopOfStack(state);
+        expect(prevented(state, "bearA", true)).toBe(true);
+        expect(prevented(state, "bearB", true)).toBe(true);
+    });
+
+    it("declares a land-sacrifice Kicker and a widened kicked target requirement", () => {
+        expect(fallingTimber.kickers?.[0].permanent).toEqual({
+            action: "sacrifice",
+            filter: { types: "Land" },
+            count: 1,
+        });
+        expect(fallingTimber.targetRequirement?.count).toBe(1);
+        expect(fallingTimber.kickedTargetRequirement?.count).toBe(2);
+    });
+
+    it("the shield survives the wire projection (wire format)", () => {
+        const state = twoBears();
+        pushSpell(state, fallingTimber.id, "p1", [
+            { type: "permanent", id: "bearA" },
+        ]);
+        resolveTopOfStack(state);
+        // Asserted THROUGH `projectPublicState`, not on a hand-built view: the
+        // client Brain's own combat evaluation (`gre/evaluate.ts`) only ever
+        // sees the projection.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(sourcePreventionShieldApplies(projected, "bearA", true)).toBe(
+            true
+        );
+        expect(sourcePreventionShieldApplies(projected, "bearB", true)).toBe(
+            false
+        );
     });
 });

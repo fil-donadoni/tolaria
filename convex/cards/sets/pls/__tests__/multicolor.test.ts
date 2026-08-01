@@ -31,6 +31,8 @@ import {
     sawtoothLoon,
     trevasCharm,
     urzasGuilt,
+    radiantKavu,
+    rithsCharm,
 } from "../multicolor";
 import {
     grizzlyBears,
@@ -42,6 +44,8 @@ import {
     lightningBolt,
     monssGoblinRaiders,
     mountain,
+    airElemental,
+    blackKnight,
 } from "../../lea";
 import {
     makeInstance,
@@ -58,6 +62,8 @@ import {
     putReanimatedSetOnBattlefield,
     removePermanentTo,
     resolveTopOfStack,
+    runDamageReplacement,
+    sourcePreventionShieldApplies,
     type CardInstanceState,
     type GameState,
     type StackItem,
@@ -65,6 +71,7 @@ import {
 import {
     getEffectivePower,
     getEffectiveToughness,
+    STATIC_EFFECT_CTX,
 } from "../../../../gre/layers";
 import { getLegalTargets } from "../../../../gre/rules";
 import { castProhibitionReason } from "../../../castRestrictions";
@@ -2116,5 +2123,260 @@ describe("Questing Phelddagrif ({1}{G}{W}{U}, three self-pump / opponent-benefit
         expect(
             state.players[1].library.some((c) => c.id === "p2-top-declined")
         ).toBe(true);
+    });
+});
+
+// ===========================================================================
+// Radiant Kavu (CR 615 / 615.6 / 202.2) — issue #1955
+// ===========================================================================
+//
+// The FILTER-scoped prevention shape: no target is named at all, and the match
+// is re-read at the moment damage would be dealt. Asserted through the shared
+// damage funnel so the test proves damage is actually stopped, not merely that
+// a shield object exists.
+describe("Radiant Kavu ({R}{G}{W} Creature — filter-scoped prevention, CR 615)", () => {
+    /** p2 controls one blue creature, one black creature and one red creature. */
+    function board(): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(radiantKavu.id, {
+                            id: "kavu",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            isSummoningSick: false,
+                        }),
+                    ],
+                }),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(airElemental.id, {
+                            id: "blueGuy",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                        makeInstance(blackKnight.id, {
+                            id: "blackGuy",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                        makeInstance(monssGoblinRaiders.id, {
+                            id: "redGuy",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+        });
+    }
+
+    function activate(state: GameState): void {
+        const kavu = state.players[0].battlefield.find((c) => c.id === "kavu")!;
+        state.stack.push({
+            ...kavu,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "radiant-kavu-prevent",
+            targets: [],
+        });
+        resolveTopOfStack(state);
+    }
+
+    function prevented(
+        state: GameState,
+        sourceId: string,
+        isCombat = true
+    ): boolean {
+        return (
+            runDamageReplacement(
+                state,
+                sourceId,
+                "p2",
+                { type: "player", id: "p1" },
+                2,
+                isCombat
+            ) === null
+        );
+    }
+
+    it("covers every blue and every black creature with no target named (CR 202.2 OR-set)", () => {
+        const state = board();
+        activate(state);
+        expect(prevented(state, "blueGuy")).toBe(true);
+        expect(prevented(state, "blackGuy")).toBe(true);
+        expect(prevented(state, "redGuy")).toBe(false);
+    });
+
+    it("covers a creature that BECOMES blue AFTER the ability resolves (CR 615.6)", () => {
+        const state = board();
+        activate(state);
+        expect(prevented(state, "redGuy")).toBe(false);
+        // The filter is re-read on the damage path, not snapshotted at
+        // resolution — a layer-5 colour change is picked up immediately.
+        const red = state.players[1].battlefield.find(
+            (c) => c.id === "redGuy"
+        )!;
+        red.colorOverride = ["U"];
+        expect(prevented(state, "redGuy")).toBe(true);
+    });
+
+    it("stops covering a creature that stops being blue or black (CR 615.6)", () => {
+        const state = board();
+        activate(state);
+        const blue = state.players[1].battlefield.find(
+            (c) => c.id === "blueGuy"
+        )!;
+        blue.colorOverride = ["R"];
+        expect(prevented(state, "blueGuy")).toBe(false);
+    });
+
+    it("is COMBAT-only: a blue creature's non-combat damage still lands (CR 510)", () => {
+        const state = board();
+        activate(state);
+        expect(prevented(state, "blueGuy", false)).toBe(false);
+    });
+
+    it("is a {R}{G}{W} 3/3 Kavu whose ability costs {R}{G}{W} and no tap", () => {
+        expect(radiantKavu.manaCost).toEqual({ R: 1, G: 1, W: 1 });
+        expect(radiantKavu.subtypes).toEqual(["Kavu"]);
+        expect(radiantKavu.power).toBe(3);
+        expect(radiantKavu.toughness).toBe(3);
+        expect(radiantKavu.activatedAbilities?.[0]?.cost).toEqual({
+            mana: { R: 1, G: 1, W: 1 },
+        });
+    });
+
+    it("the filter-scoped shield survives the wire projection (wire format)", () => {
+        const state = board();
+        activate(state);
+        const projected = projectPublicState(state, 1, "p1");
+        // Through the reducer: the slim battlefield card must still carry the
+        // live colour/type the matcher reads.
+        expect(sourcePreventionShieldApplies(projected, "blueGuy", true)).toBe(
+            true
+        );
+        expect(sourcePreventionShieldApplies(projected, "redGuy", true)).toBe(
+            false
+        );
+    });
+});
+
+// ===========================================================================
+// Rith's Charm (CR 601.2b / 700.2 / 615 / 111) — issue #1955
+// ===========================================================================
+describe("Rith's Charm ({R}{G}{W} Instant — three modes, CR 700.2)", () => {
+    function board(): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(forest.id, {
+                            id: "basicForest",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(grizzlyBears.id, {
+                            id: "bear",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+        });
+    }
+
+    function castMode(
+        state: GameState,
+        modeId: string,
+        targets: StackItem["targets"] = []
+    ): void {
+        const item = pushSpell(state, rithsCharm.id, "p1", targets);
+        item.chosenModeId = modeId;
+        resolveTopOfStack(state);
+    }
+
+    it("offers exactly the three printed modes (CR 700.2)", () => {
+        expect(rithsCharm.modes?.map((m) => m.id)).toEqual([
+            "destroy-nonbasic-land",
+            "saprolings",
+            "prevent-source",
+        ]);
+        expect(rithsCharm.manaCost).toEqual({ R: 1, G: 1, W: 1 });
+        expect(rithsCharm.types).toEqual(["Instant"]);
+    });
+
+    it("mode 1 targets only NONBASIC lands (CR 205.4a)", () => {
+        const req = rithsCharm.modes?.[0].targetRequirement;
+        expect(req).toEqual({
+            type: "Land",
+            count: 1,
+            excludeSupertypes: "Basic",
+        });
+    });
+
+    it("mode 2 creates three 1/1 green Saproling tokens (CR 111)", () => {
+        const state = board();
+        castMode(state, "saprolings");
+        const tokens = state.players[0].battlefield.filter(
+            (c) => c.id !== "basicForest"
+        );
+        expect(tokens).toHaveLength(3);
+        for (const t of tokens) {
+            expect(t.types).toEqual(["Creature"]);
+            expect(t.subtypes).toEqual(["Saproling"]);
+            expect(t.power).toBe(1);
+            expect(t.toughness).toBe(1);
+            expect(STATIC_EFFECT_CTX.getColors(t)).toEqual(["G"]);
+        }
+    });
+
+    it("mode 3 prevents ALL damage the chosen source would deal, combat AND non-combat (CR 615)", () => {
+        const state = board();
+        castMode(state, "prevent-source", [{ type: "permanent", id: "bear" }]);
+        const dealt = (isCombat: boolean) =>
+            runDamageReplacement(
+                state,
+                "bear",
+                "p2",
+                { type: "player", id: "p1" },
+                2,
+                isCombat
+            );
+        // This is the clause that distinguishes it from Falling Timber: the
+        // shield is NOT combat-only.
+        expect(dealt(true)).toBeNull();
+        expect(dealt(false)).toBeNull();
+    });
+
+    it("mode 3's shield is recipient-agnostic — it also stops damage to a permanent", () => {
+        const state = board();
+        castMode(state, "prevent-source", [{ type: "permanent", id: "bear" }]);
+        expect(
+            runDamageReplacement(
+                state,
+                "bear",
+                "p2",
+                { type: "permanent", id: "basicForest" },
+                2,
+                false
+            )
+        ).toBeNull();
+    });
+
+    it("mode 3's source requirement excludes players and admits spells (CR 609.7)", () => {
+        const req = rithsCharm.modes?.[2].targetRequirement;
+        const types = req?.type as string[];
+        expect(types).toContain("spell");
+        expect(types).toContain("Creature");
+        // A damage SOURCE is an object, never a player.
+        expect(types).not.toContain("player");
+        expect(types).not.toContain("any");
     });
 });
