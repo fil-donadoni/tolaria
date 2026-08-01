@@ -3394,10 +3394,14 @@ export const OP_EXECUTORS: {
             // damage (or all combat damage) the named source would deal this
             // turn is prevented, to anyone. Falling Timber / Guard Dogs
             // (`combatOnly: true`), Rith's Charm's third mode (all damage).
-            // Skipped when the source is gone (CR 608.2b) or is not a
-            // permanent — a shield keyed on a player id would match nothing.
+            // The shield is keyed on the source's INSTANCE id, which both a
+            // battlefield permanent and a stack spell have (a spell is a legal
+            // damage source — CR 609.7 — and `dealDamage` already uses the
+            // stack item's own id as `sourceInstanceId`). Skipped when the
+            // source is gone (CR 608.2b) or resolves to a PLAYER, whose id
+            // would key a shield that never matches any damage source.
             const source = resolveObjectRef(ctx, op.source);
-            if (!source || source.type !== "permanent") return;
+            if (!source || source.type === "player") return;
             ctx.preventAllDamageFromSources({
                 sourceIds: [source.id],
                 ...(op.combatOnly ? { combatOnly: true } : {}),

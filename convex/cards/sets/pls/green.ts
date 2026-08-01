@@ -989,3 +989,69 @@ export const thornscapeFamiliar: CardDefinition = {
         },
     ],
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLS C4 — source-scoped prevention shields (#1955, parent PRD #1935).
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Falling Timber — {2}{G} Instant. "Kicker—Sacrifice a land.\nPrevent all
+// combat damage target creature would deal this turn. If this spell was
+// kicked, prevent all combat damage another target creature would deal this
+// turn." (CR 615 / 702.33a.)
+//
+// The Oracle text is the SOURCE side of prevention — "damage target creature
+// would DEAL", to anyone — not the recipient side every `next-n` /
+// `combat-to-and-by` shield covers. That is the `preventDamage` mode
+// `"all-from-source"` with `combatOnly: true` (issue #1955): an id-scoped
+// entry on `GameState.sourcePreventionShields`, checked inside
+// `runDamageReplacement` so the shielded creature deals 0 to a blocker, to an
+// attacking creature it blocks, and to the defending player alike.
+//
+// The Kicker leg is a land sacrifice (`permanent`, ADR 0079/#1937) and the
+// kicked mode WIDENS the target count 1 → 2 via `kickedTargetRequirement` —
+// the Magma Burst precedent in this set (`pls/red.ts`), same shape. "ANOTHER
+// target creature" is the engine's distinct-targets invariant on the kicked
+// requirement, not a card-level filter. The second shield is gated on
+// `{ kickerCount: true } >= 1`, the standard kicker branch idiom.
+export const fallingTimber: CardDefinition = {
+    id: "6e54c84d-ccc9-4c52-b02c-e0392e8fe447", // PLS 79
+    rarity: "common",
+    name: "Falling Timber",
+    oracleText:
+        "Kicker—Sacrifice a land. (You may sacrifice a land in addition to any other costs as you cast this spell.)\nPrevent all combat damage target creature would deal this turn. If this spell was kicked, prevent all combat damage another target creature would deal this turn.",
+    manaCost: { X: 2, G: 1 },
+    types: ["Instant"],
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker—Sacrifice a land",
+            permanent: {
+                action: "sacrifice",
+                filter: { types: "Land" },
+                count: 1,
+            },
+        },
+    ],
+    targetRequirement: { type: "Creature", count: 1 },
+    kickedTargetRequirement: { type: "Creature", count: 2 },
+    effects: [
+        {
+            op: "preventDamage",
+            mode: "all-from-source",
+            source: { target: 0 },
+            combatOnly: true,
+        },
+        {
+            op: "if",
+            predicate: { left: { kickerCount: true }, op: "ge", right: 1 },
+            then: [
+                {
+                    op: "preventDamage",
+                    mode: "all-from-source",
+                    source: { target: 1 },
+                    combatOnly: true,
+                },
+            ],
+        },
+    ],
+};
