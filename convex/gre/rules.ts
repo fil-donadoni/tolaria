@@ -89,6 +89,7 @@ import {
     lowerCardFilters,
     siblingControllerIdFor,
     isAlreadySelectedTarget,
+    requirementAdmitsSpellTarget,
     type TargetFilterCtx,
     type PermanentFilterValues,
 } from "./targetFilters";
@@ -2463,7 +2464,11 @@ export function pendingTargetFiltersFromRequirement(
     // never target a spell. Only carry the spell-lowered fields when the
     // requirement actually admits a spell target.
     const reqTypes = Array.isArray(req.type) ? req.type : [req.type];
-    if (reqTypes.includes("spell") || reqTypes.includes("spell-or-permanent")) {
+    // Shared with the retarget producers and the CR 608.2b fizzle gate
+    // (`gre/state.ts`) — one authority for the `"spell" | "spell-or-permanent"`
+    // test instead of three inline copies of the same `includes` pair, which
+    // is the shape the exhaustive-target-type rule keeps having to re-audit.
+    if (requirementAdmitsSpellTarget(req)) {
         Object.assign(
             out,
             lowerSpellFilters(req, chosenX) as Partial<PendingTarget>

@@ -58,6 +58,7 @@ import {
     getEffectiveToughness,
 } from "./layers";
 import { hasSupertypeLive } from "./snow";
+import { totalKickerCount } from "./kicker";
 import { isLand, manaValue } from "./constants";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
 
@@ -1065,6 +1066,51 @@ const spellSingleTargetingControllerDescriptor = defineFilter<boolean>({
     },
 });
 
+// CR 114.1 / 109.2 — a SPELL-PROPERTY filter (issue #1956): the chosen spell
+// must itself target at least one permanent of a listed type ("Counter target
+// spell that targets a creature"). Reads the candidate's OWN chosen targets,
+// resolving each `"permanent"` selection against the live battlefield —
+// "a creature" is a creature PERMANENT (CR 109.2), so a `"player"` /
+// `"spell"` / graveyard-`"card"` selection never counts, and a permanent
+// target that has already left the battlefield stops counting the moment it
+// does (which is what makes Confound's own target go illegal, CR 608.2b).
+// Fail-CLOSED: an untargeted spell has no targets and never qualifies.
+const spellTargetsTypeFilterDescriptor = defineFilter<CardType[]>({
+    lower: (req) => arr(req.spellTargetsTypeFilter),
+    checks: {
+        spell: (item, value, ctx) => {
+            for (const t of item.targets ?? []) {
+                if (t.type !== "permanent") continue;
+                for (const p of ctx.state.players) {
+                    const perm = p.battlefield.find((c) => c.id === t.id);
+                    if (perm && value.some((ty) => perm.types.includes(ty))) {
+                        return null;
+                    }
+                }
+            }
+            return `Target spell does not target ${value.join(" or ").toLowerCase()}`;
+        },
+    },
+});
+
+// CR 702.33a — a SPELL-PROPERTY filter (issue #1956): the chosen spell's own
+// Kicker state ("Counter target spell if it was kicked"). Read through the
+// per-Kicker payment record `totalKickerCount` derives from (ADR 0079), so a
+// card with two independently payable Kickers qualifies when EITHER was paid —
+// never off a separately-stored total that could drift from the record. An
+// ability on the stack carries no `kickerPayments`, so it reads unkicked.
+const spellWasKickedDescriptor = defineFilter<boolean>({
+    lower: (req) => req.spellWasKicked,
+    checks: {
+        spell: (item, value) =>
+            totalKickerCount(item.kickerPayments) > 0 === value
+                ? null
+                : value
+                  ? "Target spell was not kicked"
+                  : "Target spell was kicked",
+    },
+});
+
 // CR 114.1 + 701.7 — Equinox's granted counter ability: the chosen spell
 // must be one that would destroy a land the activating player controls.
 const spellWouldDestroyLandYouControlDescriptor = defineFilter<boolean>({
@@ -1122,6 +1168,10 @@ export const SPELL_ONLY_FILTER_KEYS = [
     "spellCreaturePtFilter",
     "spellSingleTargetingController",
     "spellWouldDestroyLandYouControl",
+    // Spell-PROPERTY filters (issue #1956) — the candidate's own chosen
+    // targets / Kicker state rather than its characteristics.
+    "spellTargetsTypeFilter",
+    "spellWasKicked",
 ] as const;
 
 export type SpellOnlyFilterKey = (typeof SPELL_ONLY_FILTER_KEYS)[number];
@@ -1182,6 +1232,9 @@ export const REGISTRY = {
         spellSingleTargetingControllerDescriptor as FilterDescriptor<unknown>,
     spellWouldDestroyLandYouControl:
         spellWouldDestroyLandYouControlDescriptor as FilterDescriptor<unknown>,
+    spellTargetsTypeFilter:
+        spellTargetsTypeFilterDescriptor as FilterDescriptor<unknown>,
+    spellWasKicked: spellWasKickedDescriptor as FilterDescriptor<unknown>,
     playerAttackedThisTurn:
         playerAttackedThisTurnDescriptor as FilterDescriptor<unknown>,
     sameController: sameControllerDescriptor as FilterDescriptor<unknown>,
@@ -1284,6 +1337,8 @@ export const SPELL_FILTER_KEYS = [
     "spellCreaturePtFilter",
     "spellSingleTargetingController",
     "spellWouldDestroyLandYouControl",
+    "spellTargetsTypeFilter",
+    "spellWasKicked",
 ] as const;
 
 export type SpellFilterKey = (typeof SPELL_FILTER_KEYS)[number];
@@ -1304,6 +1359,8 @@ export type SpellFilterValues = Partial<{
     spellCreaturePtFilter: { maxPowerOrToughness: number };
     spellSingleTargetingController: boolean;
     spellWouldDestroyLandYouControl: boolean;
+    spellTargetsTypeFilter: CardType[];
+    spellWasKicked: boolean;
 }>;
 
 /** Runs every SET filter in `values` against `candidate` (a stack item)
@@ -1337,6 +1394,69 @@ export function checkSpellTargetFilters(
         if (violation) return violation;
     }
     return null;
+}
+
+/** Reads the SPELL-filter values back off a carrier that already holds the
+ *  LOWERED values — i.e. a `PendingTarget`, whose filter fields ARE
+ *  `lowerSpellFilters`' output by construction.
+ *
+ *  Exists so the ACCEPTED-set site (`applyOneTargetSelection`, `game.ts`)
+ *  stops hand-writing its forward list into `checkSpellTargetFilters`. A
+ *  hand-written forward list is fail-OPEN for a future key — the filter is
+ *  carried onto the `PendingTarget`, the check knows how to run it, and the
+ *  one line that hands it over is missing, so `selectTarget` silently accepts
+ *  a target `getLegalTargets` never offered. Iterating `SPELL_FILTER_KEYS` —
+ *  the very list `checkSpellTargetFilters` loops — makes the forwarded set
+ *  and the checked set the SAME set by construction. */
+export function spellFilterValuesFromCarrier(
+    carrier: Partial<Record<SpellFilterKey, unknown>>
+): SpellFilterValues {
+    const out: Record<string, unknown> = {};
+    for (const key of SPELL_FILTER_KEYS) {
+        const value = carrier[key];
+        if (value !== undefined) out[key] = value;
+    }
+    return out as SpellFilterValues;
+}
+
+/** True when a `TargetRequirement` admits a STACK-OBJECT target (CR 114.1) —
+ *  the gate every site uses before lowering/carrying/checking the spell-kind
+ *  filters. Single authority for the `"spell" | "spell-or-permanent"` test
+ *  that `pendingTargetFiltersFromRequirement` (`rules.ts`), the retarget
+ *  producers and the CR 608.2b fizzle gate (`state.ts`) all need; the
+ *  `type`-union widening rule (`gre-development.md` § Exhaustive target-type
+ *  matching) then has ONE place to update instead of three inline copies. */
+export function requirementAdmitsSpellTarget(req: TargetRequirement): boolean {
+    const types = Array.isArray(req.type) ? req.type : [req.type];
+    return types.includes("spell") || types.includes("spell-or-permanent");
+}
+
+/** The SPELL-ONLY half of `lowerSpellFilters` — the keys in
+ *  `SPELL_ONLY_FILTER_KEYS`, excluding the cross-kind ones (`controller` /
+ *  `colorFilter` / `colorFilterAny` / `mvFilter`).
+ *
+ *  Exists for the RETARGET producers (`requestCopyRetargetOn` and the
+ *  resolution-time `retargetSpell` in `state.ts`, issue #1956), which build a
+ *  `PendingTarget` by hand and already carry the cross-kind fields THEIR OWN
+ *  way — `mvFilter` in particular is pre-resolved against the copied spell's
+ *  announced X, so re-lowering it here with `chosenX: undefined` would
+ *  silently clobber a resolved bound. Those producers used to hand-copy a
+ *  hard-coded THREE of the spell-only filters and drop the rest, so a copy of
+ *  a filtered counterspell could be retargeted at a spell the original could
+ *  never have chosen — the fail-OPEN half of the Phelia bug class, one
+ *  producer removed from the registry. Iterating the key list closes it for
+ *  every spell-only filter at once, present and future: a filter added to
+ *  `SPELL_ONLY_FILTER_KEYS` is carried by these producers automatically. */
+export function lowerSpellOnlyFilters(
+    req: TargetRequirement,
+    chosenX: number | undefined
+): SpellFilterValues {
+    const out: Record<string, unknown> = {};
+    for (const key of SPELL_ONLY_FILTER_KEYS) {
+        const value = REGISTRY[key].lower(req, chosenX);
+        if (value !== undefined) out[key] = value;
+    }
+    return out as SpellFilterValues;
 }
 
 /** Runs every spell filter's `lower()` against `req`/`chosenX` and returns

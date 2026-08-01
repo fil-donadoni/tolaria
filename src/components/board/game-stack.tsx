@@ -2,16 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { StackItem } from "~/types/game";
-import {
-    matchesSpellTypeFilter,
-    matchesSpellExcludeTypeFilter,
-    matchesSpellCreaturePtFilter,
-    matchesSpellSingleTargetingController,
-    matchesSpellController,
-    matchesSpellWouldDestroyLand,
-    matchesStackObjectFilter,
-    wantsSpellTarget,
-} from "~/lib/card-utils";
+import { matchesSpellPendingTarget, wantsSpellTarget } from "~/lib/card-utils";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useArrowHighlight } from "~/hooks/arrowHighlightContext";
 import { useDraggable } from "~/hooks/useDraggable";
@@ -271,43 +262,17 @@ export default function GameStack({ stack, elevated, narrow }: GameStackProps) {
                         } flex-col gap-2 overflow-y-auto p-2`}
                     >
                         {visible.map((item, i) => {
+                            // ADR 0068 / issue #1956 — ONE composed predicate
+                            // covering every client-checked spell filter (the
+                            // per-filter chain that used to live here is where
+                            // a newly added filter silently went missing).
                             const isTargetable =
                                 canTargetSpell &&
-                                matchesSpellTypeFilter(
-                                    item,
-                                    pendingTarget?.spellTypeFilter
-                                ) &&
-                                matchesSpellExcludeTypeFilter(
-                                    item,
-                                    pendingTarget?.spellExcludeTypeFilter
-                                ) &&
-                                matchesSpellCreaturePtFilter(
-                                    item,
-                                    pendingTarget?.spellCreaturePtFilter
-                                ) &&
-                                matchesSpellSingleTargetingController(
-                                    item,
-                                    pendingTarget?.spellSingleTargetingController,
-                                    playerId
-                                ) &&
-                                matchesSpellController(
-                                    item,
-                                    pendingTarget?.controller,
+                                matchesSpellPendingTarget(item, pendingTarget, {
                                     playerId,
-                                    activePlayerId
-                                ) &&
-                                matchesSpellWouldDestroyLand(
-                                    item,
-                                    pendingTarget?.spellWouldDestroyLandYouControl,
-                                    allPlayers,
-                                    playerId
-                                ) &&
-                                matchesStackObjectFilter(
-                                    item,
-                                    pendingTarget?.spellStackKind,
-                                    pendingTarget?.stackSourceTypeFilter,
-                                    pendingTarget?.spellTargetsInstanceIds
-                                );
+                                    activePlayerId,
+                                    players: allPlayers,
+                                });
 
                             const dimmed =
                                 highlight?.nodes != null &&

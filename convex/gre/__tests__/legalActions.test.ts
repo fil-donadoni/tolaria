@@ -21,7 +21,9 @@ import {
     makeInstance,
     makePlayer,
     makeState,
+    pushSpell,
 } from "../../cards/__tests__/setup";
+import { getLegalTargets, pendingTargetFiltersFromRequirement } from "../rules";
 import type { GameState, PendingChoice } from "../state";
 import {
     assertExpectedInput,
@@ -497,6 +499,63 @@ describe("legalActions — mid-cast targeting (CR 601.2c)", () => {
         expect(
             (selects[0].action as { target: { id: string } }).target.id
         ).toBe(bearsB.id);
+    });
+
+    // ── `requirementFromPendingTarget` must not drop a filter (issue #1956)
+    //
+    // The enumerator rebuilds a `TargetRequirement` from the live
+    // `PendingTarget` and feeds it to `getLegalTargets`. That rebuild used to
+    // be a HAND-WRITTEN field list, which is fail-OPEN: a filter carried onto
+    // the `PendingTarget` but forgotten in the list simply vanishes, so the
+    // bot is offered a `select-target` action that `applyOneTargetSelection`
+    // (the `selectTarget` mutation's own body) then rejects. It had already
+    // drifted by twelve keys. The list is now driven off the compile-forced
+    // `PENDING_TARGET_FILTER_KEYS`, and the assertion below is the runtime
+    // proof: the enumerated set must equal `getLegalTargets`' own answer.
+    it("respects EVERY carried filter — enumerated targets == getLegalTargets (issue #1956)", () => {
+        const bolt = makeInstance(BOLT, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const creature = makeInstance(BEARS, {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { hand: [bolt] }),
+                makePlayer("p2", { battlefield: [creature] }),
+            ],
+        });
+        // Two candidate spells: one targeting the creature, one targeting a
+        // player. Confound ("counter target spell that targets a creature")
+        // may only be offered the first.
+        const targetsCreature = pushSpell(state, BOLT, "p2", [
+            { type: "permanent", id: creature.id },
+        ]);
+        const targetsPlayer = pushSpell(state, BOLT, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        const req = getCardByName("Confound").targetRequirement!;
+        state.pendingTarget = {
+            playerId: "p1",
+            cardInstanceId: bolt.id,
+            targetType: req.type,
+            count: 1,
+            selected: [],
+            ...pendingTargetFiltersFromRequirement(req, undefined),
+        };
+
+        const selects = legalActions(state)
+            .filter((a) => a.action.kind === "select-target")
+            .map((a) => (a.action as { target: { id: string } }).target.id);
+        const offered = getLegalTargets(state, req, [], "p1").map((t) => t.id);
+
+        expect(selects.sort()).toEqual(offered.sort());
+        // …and not vacuous in either direction.
+        expect(selects).toEqual([targetsCreature.id]);
+        expect(selects).not.toContain(targetsPlayer.id);
     });
 });
 

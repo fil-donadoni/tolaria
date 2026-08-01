@@ -2336,6 +2336,14 @@
         "firstPrintSet": "leg"
     },
     {
+        "name": "Confound",
+        "scryfallId": "4f3b7d39-ce98-48e2-b2bf-0d55b4d3102b",
+        "oracleId": "ca8a0e81-f885-47ee-82bb-fb25ec61bb1c",
+        "firstSet": "pls",
+        "firstPrintId": "4f3b7d39-ce98-48e2-b2bf-0d55b4d3102b",
+        "firstPrintSet": "pls"
+    },
+    {
         "name": "Conquer",
         "scryfallId": "ae610e66-7bcb-40ec-bed5-86dcfd098654",
         "oracleId": "be15e131-0753-4ceb-a36b-4f9172241080",
