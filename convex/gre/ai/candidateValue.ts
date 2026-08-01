@@ -388,11 +388,19 @@ function resolveCountSpecAgainstBoard(
  *  board. `bound`/`targets` selectors need a resolution-time binding or an
  *  announced target that doesn't exist for a card that hasn't been cast —
  *  falls back to the SAME representative-1 magnitude `contextFreeGrounding`
- *  uses for those (documented "unresolvable pre-cast", not a wrong answer). */
+ *  uses for those (documented "unresolvable pre-cast", not a wrong answer).
+ *  `sourceId`, when given, honours `select.excludeSource` (issue #1957) the
+ *  same way the interpreter's forEach-permanents branch does
+ *  (`interpreter.ts`): applied AFTER `filter`/`controller` narrow the
+ *  candidate set, a no-op when the source isn't itself among the matches —
+ *  which is always true for the current caller (a pre-cast library/hand
+ *  candidate is never on the battlefield yet), so leaving it `undefined`
+ *  reproduces today's count exactly. */
 function resolveForEachCountAgainstBoard(
     state: GameState,
     perspectivePlayerId: string,
-    select: EffectForEachSelector
+    select: EffectForEachSelector,
+    sourceId?: string
 ): number {
     switch (select.set) {
         case "players":
@@ -408,8 +416,12 @@ function resolveForEachCountAgainstBoard(
             const cards = pid
                 ? getPlayer(state, pid).battlefield
                 : state.players.flatMap((p) => p.battlefield);
-            return cards.filter((c) => matchesCountFilter(c, select.filter))
-                .length;
+            const matched = cards.filter((c) =>
+                matchesCountFilter(c, select.filter)
+            );
+            return select.excludeSource && sourceId
+                ? matched.filter((c) => c.id !== sourceId).length
+                : matched.length;
         }
         case "graveyard": {
             const pid = select.controller
@@ -502,10 +514,15 @@ function resolveValueAgainstBoard(
  *  discarder at a `may-pay` node). A `count`-scaled script ("damage equal to
  *  the number of creatures you control") now prices differently on an empty
  *  board vs. a crowded one, which `contextFreeGrounding`'s representative-1
- *  floor can never distinguish. */
+ *  floor can never distinguish. `sourceId` — the instance id of the card
+ *  whose script is being scored — is forwarded to `resolveForEachCount` so a
+ *  `permanents` selector's `excludeSource` (issue #1957) is honoured when the
+ *  scored card IS a battlefield member (an ability script); omitted by
+ *  every current caller, all of which score a pre-cast candidate. */
 export function contextAwareGroundingForChoice(
     state: GameState,
-    perspectivePlayerId: string
+    perspectivePlayerId: string,
+    sourceId?: string
 ): GroundingContext {
     return contextAwareGrounding({
         resolveValue: (v) =>
@@ -520,6 +537,11 @@ export function contextAwareGroundingForChoice(
             return true;
         },
         resolveForEachCount: (select) =>
-            resolveForEachCountAgainstBoard(state, perspectivePlayerId, select),
+            resolveForEachCountAgainstBoard(
+                state,
+                perspectivePlayerId,
+                select,
+                sourceId
+            ),
     });
 }

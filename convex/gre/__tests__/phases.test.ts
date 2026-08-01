@@ -681,6 +681,26 @@ describe("advancePhase", () => {
             expect(state.activePlayerId).toBe("p1");
             expect(state.players[1].skipNextTurn).toBeUndefined();
         });
+
+        it("a queued extra turn that is itself skipped: popped then skipped, next active is the opponent (CR 500.7 / 614.10a)", () => {
+            // p1 has an extra turn queued (Time Walk-style) AND a pending
+            // skip against them (Time Vault-style) at the same time. The
+            // queued extra turn is popped first (CR 500.7) — THEN the skip
+            // check fires against the popped player (CR 614.10a): the skip
+            // consumes that very extra turn, not some later natural one.
+            const state = makeGameState({
+                phase: "END_STEP",
+                turn: 1,
+                activePlayerId: "p1",
+            });
+            state.extraTurns = ["p1"];
+            state.players[0].skipNextTurn = 1;
+            advancePhase(state);
+            expect(state.activePlayerId).toBe("p2");
+            expect(state.extraTurns).toBeUndefined();
+            expect(state.players[0].skipNextTurn).toBeUndefined();
+            expect(state.players[0].turnsTaken).toBeUndefined();
+        });
     });
 
     describe("priority assignment", () => {

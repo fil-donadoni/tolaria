@@ -665,12 +665,20 @@ const extraTurn: Valuer<"extraTurn"> = () => ({
 
 // CR 614.10 (issue #1957) — the mirror of `extraTurn`: forfeiting a whole
 // turn is worth -SKIP_TURN_VALUE to whoever skips it, +SKIP_TURN_VALUE to the
-// CASTER when it is the opponent who skips (`ctx.isSelf` disambiguates which,
-// same pattern as `getEnergy`).
-const skipNextTurn: Valuer<"skipNextTurn"> = (op, ctx) => ({
-    points: (ctx.isSelf(op.player, "self") ? -1 : 1) * SKIP_TURN_VALUE,
-    tags: ["tempo"],
-});
+// CASTER when it is the opponent who skips. Harmful-by-default (mirrors
+// `loseLife`): an ambiguous player ref (an announced target slot) is assumed
+// to name the OPPONENT unless it resolves to the caster — `ctx.isSelf(op.player,
+// "opponent")`, not `"self"` (the latter is the BENEFICIAL-op assumption and
+// would price a future "target player skips their next turn" card as though
+// the bot always inflicted the skip on itself). The shipped card (Waterspout
+// Elemental) passes the literal `"controller"`, which `isSelf` resolves to
+// `true` regardless of the assumption, so its valuation is unchanged by this.
+const skipNextTurn: Valuer<"skipNextTurn"> = (op, ctx) => {
+    const self = ctx.isSelf(op.player, "opponent");
+    const tags: ValueTag[] = ["tempo"];
+    if (self) tags.push("self-cost");
+    return { points: (self ? -1 : 1) * SKIP_TURN_VALUE, tags };
+};
 
 const gainControl: Valuer<"gainControl"> = (op) => ({
     points: GAIN_CONTROL_VALUE,
