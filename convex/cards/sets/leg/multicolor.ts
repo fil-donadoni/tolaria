@@ -496,14 +496,16 @@ export const borisDevilboon: CardDefinition = {
 
 // Gwendlyn Di Corci — "{T}: Target player discards a card at random. Activate
 // only during your turn." (CR 602.5b turn restriction + CR 701.8a random
-// discard.)
+// discard.) Mana cost is {U}{B}{B}{R} (MTGJSON LEG.json, mana value 4) — no
+// generic pip at all; the stray `X: 1` (found by the widened data/json
+// conformance guard) overcosted this creature by one generic mana.
 export const gwendlynDiCorci: CardDefinition = {
     id: "473d70b6-a88c-49f4-9415-19919c4468ae",
     rarity: "rare",
     name: "Gwendlyn Di Corci",
     oracleText:
         "{T}: Target player discards a card at random. Activate only during your turn.",
-    manaCost: { X: 1, U: 1, B: 2, R: 1 },
+    manaCost: { U: 1, B: 2, R: 1 },
     types: ["Creature"],
     supertypes: ["Legendary"],
     subtypes: ["Human", "Rogue"],

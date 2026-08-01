@@ -11,12 +11,15 @@
 import type { CardDefinition, PermanentView, SpellContext } from "../../types";
 import { makeCircleOfProtection } from "../../abilities";
 
-// Argivian Archaeologist — {1}{W}{W} Artifact Creature — Human Artificer, 1/2
-// with "{W}{W}, {T}: Return target artifact card from your graveyard to your
+// Argivian Archaeologist — {1}{W}{W} Creature — Human Artificer, 1/1 (NOT an
+// artifact creature — a mundane archaeologist who works with artifacts) with
+// "{W}{W}, {T}: Return target artifact card from your graveyard to your
 // hand." (CR 605 activated ability; CR 400.7 zone change). The repeatable
 // engine version of Reconstruction. Same graveyard-zone target filter; the
 // {W}{W} + tap cost is paid at activation and the move resolves from the stack
-// (useStack: true). MTGJSON ATQ.json: casting cost {1}{W}{W}, 1/2.
+// (useStack: true). MTGJSON ATQ.json: casting cost {1}{W}{W}, types
+// ["Creature"], 1/1 — the "Artifact" type and 1/2 toughness above were both
+// wrong, caught by the widened data/json conformance guard.
 export const argivianArchaeologist: CardDefinition = {
     id: "ce83a3cb-467d-44f6-a051-4855c8cf52a6",
     rarity: "rare",
@@ -24,10 +27,10 @@ export const argivianArchaeologist: CardDefinition = {
     oracleText:
         "{W}{W}, {T}: Return target artifact card from your graveyard to your hand.",
     manaCost: { X: 1, W: 2 },
-    types: ["Artifact", "Creature"],
+    types: ["Creature"],
     subtypes: ["Human", "Artificer"],
     power: 1,
-    toughness: 2,
+    toughness: 1,
     activatedAbilities: [
         {
             id: "argivian-archaeologist-return",

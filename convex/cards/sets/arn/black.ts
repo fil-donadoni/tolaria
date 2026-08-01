@@ -243,6 +243,8 @@ export const ergRaiders: CardDefinition = {
     ],
 };
 
+// MTGJSON ARN.json: subtypes ["Human", "Wizard", "Sorcerer"] — "Sorcerer" was
+// missing, caught by the widened data/json conformance guard.
 export const sorceressQueen: CardDefinition = {
     id: "94742003-f0f1-4483-b1a0-e7163995db1b",
     rarity: "uncommon",
@@ -251,7 +253,7 @@ export const sorceressQueen: CardDefinition = {
         "{T}: Target creature other than Sorceress Queen has base power and toughness 0/2 until end of turn.",
     manaCost: { X: 1, B: 2 },
     types: ["Creature"],
-    subtypes: ["Human", "Wizard"],
+    subtypes: ["Human", "Wizard", "Sorcerer"],
     power: 1,
     toughness: 1,
     activatedAbilities: [

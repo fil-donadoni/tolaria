@@ -1210,7 +1210,9 @@ export const swordsToPlowshares: CardDefinition = {
 // dealt to Veteran Bodyguard instead." (CR 614 continuous damage
 // replacement, gated on self.isTapped + source-must-be-unblocked-attacker.)
 // The combat lookup comes through `ReplacementStateView.combat` which mirrors
-// `state.combat.{attackerIds, blockerAssignments}`.
+// `state.combat.{attackerIds, blockerAssignments}`. MTGJSON LEA.json:
+// subtypes ["Human"] (no "Soldier"), 2/5 — both "Soldier" and the 2/4
+// toughness were wrong, caught by the widened data/json conformance guard.
 export const veteranBodyguard: CardDefinition = {
     id: "cbd9ab01-a833-4fa4-8dee-151bd9800835",
     rarity: "rare",
@@ -1219,9 +1221,9 @@ export const veteranBodyguard: CardDefinition = {
         "As long as Veteran Bodyguard remains untapped, all damage that would be dealt to you by unblocked attacking creatures is dealt to Veteran Bodyguard instead.",
     manaCost: { X: 3, W: 2 },
     types: ["Creature"],
-    subtypes: ["Human", "Soldier"],
+    subtypes: ["Human"],
     power: 2,
-    toughness: 4,
+    toughness: 5,
     replacementEffects: [
         {
             id: "vbg-redirect",

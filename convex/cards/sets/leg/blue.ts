@@ -641,14 +641,18 @@ export const seaKingsBlessing: CardDefinition = {
 };
 
 // Part Water — "X target creatures gain islandwalk until end of turn."
-// (CR 107.3 X count + 702.19 keyword grant, end-of-turn duration.)
+// (CR 107.3 X count + 702.19 keyword grant, end-of-turn duration.) Mana cost
+// is {X}{X}{U} (MTGJSON LEG.json) — a doubled-X cost (CR 107.3, `xFactor: 2`,
+// same shape as Recall's `{X}{X}{U}` just above), found missing by the
+// widened data/json conformance guard (the stub shipped at half the real
+// per-X price).
 export const partWater: CardDefinition = {
     id: "4b659475-c8b7-493d-af63-04f34d8cc3b1",
     rarity: "uncommon",
     name: "Part Water",
     oracleText:
         "X target creatures gain islandwalk until end of turn. (They can't be blocked as long as defending player controls an Island.)",
-    manaCost: { X: "X", U: 1 },
+    manaCost: { X: "X", xFactor: 2, U: 1 },
     types: ["Sorcery"],
     targetRequirement: { type: "Creature", count: "X" },
     // Migrated resolve()→effects[] (ADR 0045, #795): the stale marker above
@@ -863,13 +867,17 @@ export const antiMagicAura: CardDefinition = {
 // CR 502.1 untap skip via a counter-gated `does-not-untap` grant, CR 603.6a
 // upkeep removal. Sleep counters live on the ENCHANTED CREATURE (oracle:
 // "put X sleep counters on it" / "if it has a sleep counter on it").
+// Mana cost is {X}{U}{U} (MTGJSON LEG.json) — `X: 0` (a FIXED zero, not the
+// variable marker) was a typo the widened data/json conformance guard
+// caught: with no announced X the ETB always put zero sleep counters,
+// i.e. this Aura was functionally inert.
 export const venarianGold: CardDefinition = {
     id: "11fb92c0-bb1e-463a-a6b6-887a5d0cb873",
     rarity: "common",
     name: "Venarian Gold",
     oracleText:
         "Enchant creature\nWhen this Aura enters, tap enchanted creature and put X sleep counters on it.\nEnchanted creature doesn't untap during its controller's untap step if it has a sleep counter on it.\nAt the beginning of the upkeep of enchanted creature's controller, remove a sleep counter from that creature.",
-    manaCost: { X: 0, U: 2 },
+    manaCost: { X: "X", U: 2 },
     types: ["Enchantment"],
     subtypes: ["Aura"],
     targetRequirement: { type: "Creature", count: 1 },

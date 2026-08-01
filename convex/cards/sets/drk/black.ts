@@ -695,13 +695,18 @@ export const uncleIstvan: CardDefinition = {
 };
 
 // Word of Binding — "Tap X target creatures." (CR 601.2c a variable number of
-// creature targets fixed at announcement by X; CR 701.20a tap each.)
+// creature targets fixed at announcement by X; CR 701.20a tap each.) Mana
+// cost is {X}{B}{B} (MTGJSON DRK.json) — `X: 1` (a FIXED generic amount, not
+// the variable marker `"X"`) was a typo the widened data/json conformance
+// guard caught: `hasX` (gre/moves.ts) keys on `typeof cost.X === "string"`,
+// so with a fixed X this was never offered as an X spell at all, and its own
+// `count: "X"` targetRequirement below had no announced X to resolve against.
 export const wordOfBinding: CardDefinition = {
     id: "ee30efdb-f1f1-497f-80a6-ec961db67c1d",
     rarity: "common",
     name: "Word of Binding",
     oracleText: "Tap X target creatures.",
-    manaCost: { X: 1, B: 2 },
+    manaCost: { X: "X", B: 2 },
     types: ["Sorcery"],
     // CR 601.2c — "X target creatures": the number of targets equals X. The
     // engine resolves the count from `chosenX` at announcement.

@@ -371,13 +371,17 @@ export const demonicTutor: CardDefinition = {
 // payment restriction AND the life-gain sub-cap ("not more than the target's
 // toughness / life total …") are both unmodelled — X is treated as generic
 // (matching Fireball) and life gained is exactly X. Deferred, not silent.
+// Mana cost is {X}{1}{B} (MTGJSON LEA.json, mana value 2) — the fixed {1}
+// generic pip alongside the variable {X} uses `generic` (Soul Burn's
+// `{X}{2}{B}` shape, ice/black.ts), found missing by the widened
+// data/json conformance guard (issue tracking PR #2047's guard gap).
 export const drainLife: CardDefinition = {
     id: "5d077a49-73d4-4958-b42a-31b814e110e8",
     rarity: "common",
     name: "Drain Life",
     oracleText:
         "Spend only black mana on X.\nDrain Life deals X damage to any target. You gain life equal to the damage dealt, but not more life than the player's life total before the damage was dealt, the planeswalker's loyalty before the damage was dealt, or the creature's toughness.",
-    manaCost: { X: "X", B: 1 },
+    manaCost: { X: "X", generic: 1, B: 1 },
     types: ["Sorcery"],
     targetRequirement: { type: "any", count: 1 },
     // Migrated resolve()→effects[] (ADR 0045, #852): X damage to any target

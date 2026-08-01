@@ -2351,6 +2351,11 @@ export const captainSisay: CardDefinition = {
         "{T}: Search your library for a legendary card, reveal that card, put it into your hand, then shuffle.",
     manaCost: { X: 2, G: 1, W: 1 },
     types: ["Creature"],
+    // Captain Sisay is Legendary (MTGJSON INV.json `supertypes: ["Legendary"]`)
+    // — missing here until the widened data/json conformance guard caught it
+    // (the mirror-image bug of Questing Phelddagrif shipping AS Legendary
+    // when it isn't, PR #2047).
+    supertypes: ["Legendary"],
     subtypes: ["Human", "Soldier"],
     power: 2,
     toughness: 2,
