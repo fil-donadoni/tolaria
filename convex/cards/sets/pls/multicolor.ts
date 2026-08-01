@@ -1588,7 +1588,6 @@ export const questingPhelddagrif: CardDefinition = {
         "{G}: This creature gets +1/+1 until end of turn. Target opponent creates a 1/1 green Hippo creature token.\n{W}: This creature gains protection from black and from red until end of turn. Target opponent gains 2 life.\n{U}: This creature gains flying until end of turn. Target opponent may draw a card.",
     manaCost: { X: 1, G: 1, W: 1, U: 1 },
     types: ["Creature"],
-    supertypes: ["Legendary"],
     subtypes: ["Phelddagrif"],
     power: 4,
     toughness: 4,

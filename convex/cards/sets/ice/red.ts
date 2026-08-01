@@ -172,18 +172,17 @@ export const anarchy: CardDefinition = {
 // keeps only live snow lands as legal targets (snow-aware — honors Melting /
 // Arcum's Weathervane).
 //
-// SIMPLIFICATION (flagged): the printed cost is {X}{2}{R}{R}. `ManaCost` encodes
-// `X` as EITHER the variable "X" OR a fixed generic, not both, so the fixed {2}
-// generic alongside variable X is not representable; this ships as {X}{R}{R}
-// (the stub's pre-existing encoding). The {2} lands when ManaCost grows a
-// separate "generic-with-variable-X" field — an engine limitation, not a snow
-// gap.
+// Mana cost is {X}{2}{R}{R} (MTGJSON ICE.json) — the fixed {2} generic pip
+// alongside the variable {X} uses `generic` (Soul Burn's `{X}{2}{B}` shape,
+// ice/black.ts). The stale "not representable" note above predated that
+// field; the widened data/json conformance guard caught the drift (the
+// stub had shipped one generic mana cheap as {X}{R}{R}).
 export const avalanche: CardDefinition = {
     id: "d3a925e5-0d0a-42ec-b1c6-9793b8e11625",
     name: "Avalanche",
     rarity: "uncommon",
     oracleText: "Destroy X target snow lands.",
-    manaCost: { X: "X", R: 2 },
+    manaCost: { X: "X", generic: 2, R: 2 },
     types: ["Sorcery"],
     targetRequirement: {
         type: "Land",

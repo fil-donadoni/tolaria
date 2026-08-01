@@ -2039,13 +2039,16 @@ export const mindRavel: CardDefinition = {
 // player discards those cards." (CR 702.x reveal-to-caster + CR 701.8 discard.)
 // The caster (not the target) chooses which X cards via a `discard-hand`
 // requestChoice scoped to the target's hand; the picks are then discarded.
+// Mana cost is {X}{3}{B} (MTGJSON ICE.json) — the fixed {3} generic pip
+// alongside the variable {X} uses `generic` (Soul Burn's `{X}{2}{B}` shape
+// just above), found missing by the widened data/json conformance guard.
 export const mindWarp: CardDefinition = {
     id: "de150cd6-0bbc-47f7-a781-cd1aa10eabc6",
     name: "Mind Warp",
     rarity: "uncommon",
     oracleText:
         "Look at target player's hand and choose X cards from it. That player discards those cards.",
-    manaCost: { X: "X", B: 1 },
+    manaCost: { X: "X", generic: 3, B: 1 },
     types: ["Sorcery"],
     targetRequirement: { type: "player", count: 1 },
     // NOT DSL-migratable (ADR 0045, #852): the discard count is min(X, hand

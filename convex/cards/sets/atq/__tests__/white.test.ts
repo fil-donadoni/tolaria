@@ -73,12 +73,10 @@ describe("Argivian Archaeologist ({W}{W},{T}: return artifact from graveyard, CR
         expect(state.players[0].hand.some((c) => c.id === "art")).toBe(true);
     });
 
-    it("is a 1/2 artifact creature costing {1}{W}{W}", () => {
-        expect(argivianArchaeologist.types).toEqual(
-            expect.arrayContaining(["Artifact", "Creature"])
-        );
+    it("is a 1/1 creature (not an artifact) costing {1}{W}{W}", () => {
+        expect(argivianArchaeologist.types).toEqual(["Creature"]);
         expect(argivianArchaeologist.power).toBe(1);
-        expect(argivianArchaeologist.toughness).toBe(2);
+        expect(argivianArchaeologist.toughness).toBe(1);
         expect(argivianArchaeologist.manaCost).toEqual({ X: 1, W: 2 });
     });
 });
