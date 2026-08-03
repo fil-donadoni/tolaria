@@ -53,6 +53,25 @@ const MOX_DEF = {
     ],
 };
 
+// CR 601.2f — a mana ability with its own MANA cost leg (Mana Cylix /
+// Celestial Prism / Chromatic Star "{1}, {T}: Add one mana of any color").
+// Synthetic rather than the real card, for the same reason as MOX_DEF: it
+// proves the affordance reads `cost.mana` generically, not one card's shape.
+const FILTER_ROCK_DEF = {
+    id: "filter-rock-def",
+    name: "Test Filter Rock",
+    staticEffects: [],
+    activatedAbilities: [
+        {
+            id: "test-filter-mana",
+            oracleText: "{1}, {T}: Add one mana of any color.",
+            cost: { mana: { X: 1 }, tap: true },
+            useStack: false,
+            manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
+        },
+    ],
+};
+
 // CR 702.126 — a spell declaring Improvise, for the artifact-tap-affordance
 // tests below. Distinct id from PLAIN_DEF so `hasImprovise` only reads true
 // for a card actually pointed at this definition.
@@ -63,19 +82,15 @@ const IMPROVISE_SPELL_DEF = {
     staticEffects: [],
 };
 
+const DEFS: Record<string, unknown> = {
+    "mox-def": MOX_DEF,
+    "improvise-spell-def": IMPROVISE_SPELL_DEF,
+    "filter-rock-def": FILTER_ROCK_DEF,
+};
+
 vi.mock("@convex/cards", () => ({
-    getDefinition: (id: string) =>
-        id === "mox-def"
-            ? MOX_DEF
-            : id === "improvise-spell-def"
-              ? IMPROVISE_SPELL_DEF
-              : PLAIN_DEF,
-    tryGetDefinition: (id: string) =>
-        id === "mox-def"
-            ? MOX_DEF
-            : id === "improvise-spell-def"
-              ? IMPROVISE_SPELL_DEF
-              : PLAIN_DEF,
+    getDefinition: (id: string) => DEFS[id] ?? PLAIN_DEF,
+    tryGetDefinition: (id: string) => DEFS[id] ?? PLAIN_DEF,
 }));
 
 function creature(overrides: Partial<CardInstance> = {}): CardInstance {
@@ -113,7 +128,11 @@ function moxCard(overrides: Partial<CardInstance> = {}): CardInstance {
     } as CardInstance;
 }
 
-function makePlayer(id: string, battlefield: CardInstance[]): Player {
+function makePlayer(
+    id: string,
+    battlefield: CardInstance[],
+    manaPool: Partial<Player["manaPool"]> = {}
+): Player {
     return {
         id,
         name: id,
@@ -124,7 +143,7 @@ function makePlayer(id: string, battlefield: CardInstance[]): Player {
         graveyard: [],
         exile: [],
         battlefield,
-        manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+        manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0, ...manaPool },
     } as Player;
 }
 
@@ -237,6 +256,71 @@ describe("useBattlefieldVisualState — mana ability canActivate gate (CR 602.5b
         });
 
         expect(result.current.canInteract(mox)).toBe(true);
+    });
+});
+
+// CR 601.2f / 605.1a — a mana ability whose activation cost includes MANA
+// (Mana Cylix, Celestial Prism, Chromatic Star, Fire Sprites) is rejected by
+// the server on an empty pool: `applyManaAbilityManaCost` pays the cost before
+// the produced mana is added. The board must not offer a tap the server will
+// refuse — the client mirrors the same pool check.
+describe("useBattlefieldVisualState — mana ability with its own mana cost (CR 601.2f)", () => {
+    function filterRock(overrides: Partial<CardInstance> = {}): CardInstance {
+        return {
+            id: "rock1",
+            card: { id: "filter-rock-def" },
+            controllerId: "me",
+            ownerId: "me",
+            zone: "battlefield",
+            isTapped: false,
+            isSummoningSick: false,
+            types: ["Artifact"],
+            subtypes: [],
+            staticAbilities: [],
+            ...overrides,
+        } as CardInstance;
+    }
+
+    it("is NOT clickable with an empty pool and no other mana source", () => {
+        const rock = filterRock();
+        const me = makePlayer("me", [rock]);
+        const { result } = renderVisualState(me, { phase: "PRECOMBAT_MAIN" });
+
+        expect(result.current.canInteract(rock)).toBe(false);
+    });
+
+    it("IS clickable once the pool covers the {1}", () => {
+        const rock = filterRock();
+        const me = makePlayer("me", [rock], { C: 1 });
+        const { result } = renderVisualState(me, { phase: "PRECOMBAT_MAIN" });
+
+        expect(result.current.canInteract(rock)).toBe(true);
+    });
+
+    // CR 601.2g — the affordance must not demand a PRE-FLOATED pool: the server
+    // auto-taps other sources to fund the cost, exactly as paying a spell does.
+    // An untapped land alongside the rock is enough.
+    it("IS clickable on an empty pool when another untapped mana source exists", () => {
+        const rock = filterRock();
+        const land = moxCard({
+            id: "land1",
+            counters: { "imprint-G": 1 }, // gate satisfied → a real mana source
+        });
+        const me = makePlayer("me", [rock, land]);
+        const { result } = renderVisualState(me, { phase: "PRECOMBAT_MAIN" });
+
+        expect(result.current.canInteract(rock)).toBe(true);
+    });
+
+    it("stays clickable while TAPPED on an empty pool — untap refunds the cost", () => {
+        // The pool is empty precisely BECAUSE the {1} was spent on the tap; the
+        // untap toggle reverses the whole activation, so gating it on
+        // affordability would strand the source tapped forever.
+        const rock = filterRock({ isTapped: true });
+        const me = makePlayer("me", [rock]);
+        const { result } = renderVisualState(me, { phase: "PRECOMBAT_MAIN" });
+
+        expect(result.current.canInteract(rock)).toBe(true);
     });
 });
 

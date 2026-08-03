@@ -67,14 +67,16 @@ describe("Moonshadow (CR 702.111 menace; CR 122.1 counters; CR 603.2 graveyard-f
             { type: "-1/-1", count: 6 },
         ]);
         // Leaving exactly ONE "put into graveyard from anywhere" trigger,
-        // listening on both PERMANENT_LEFT and CARD_DISCARDED via an array
-        // `event` (CR 603.2) — not two near-duplicate entries.
+        // listening via an array `event` (CR 603.2) on all FOUR events that
+        // partition graveyard entry — not four near-duplicate entries.
         expect(moonshadow.triggeredAbilities).toHaveLength(1);
         const removeCounter = moonshadow.triggeredAbilities![0];
         expect(removeCounter.id).toBe("moonshadow-remove-counter");
         expect(removeCounter.event).toEqual([
             "PERMANENT_LEFT",
             "CARD_DISCARDED",
+            "CARD_MILLED",
+            "CARD_PUT_INTO_GRAVEYARD",
         ]);
     });
 

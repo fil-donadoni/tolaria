@@ -48,6 +48,7 @@ import {
     LANDWALK_KEYWORDS,
     LANDWALK_SUPERTYPE_KEYWORDS,
     assignHybridPips,
+    getActivatedManaAbility,
     getEffectiveManaChoices,
     getManaTapOptions,
     hybridCostKey,
@@ -75,7 +76,7 @@ import {
 } from "@convex/gre/targetFilters";
 import { getDefinition, tryGetDefinition } from "@convex/cards";
 import { tryGetEmblemDefinition } from "@convex/cards/emblems";
-import { getColorsFromCost } from "@convex/cards/colors";
+import { getEffectiveColors } from "@convex/cards/effectiveColors";
 import {
     controlsLandWithSupertype,
     negatedLandwalkSubtypes,
@@ -630,14 +631,13 @@ export function matchesPermanentFilter(
         return false;
     }
     if (filter.colors !== undefined) {
-        // CR 202.2 / 613.1d — mirror the server's effective-color derivation:
-        // layer-5 colorOverride wins, else the printed cost's colors. NOTE:
-        // grantedColors aren't carried on the client CardInstance, so a color
-        // GRANTED by another permanent isn't reflected here — the controller's
-        // own printed/overridden colors suffice for the shipped color filters.
-        const cardColors =
-            card.colorOverride ??
-            getColorsFromCost(tryGetDefinition(card.card.id)?.manaCost);
+        // CR 202.2 / 613.1d — the server's own effective-colour derivation,
+        // imported rather than re-implemented (`cards/effectiveColors.ts`):
+        // layer-5 `colorOverride` SETS, `grantedColors` UNION. `grantedColors`
+        // DOES cross the wire (`slimCard` only strips `card`/`knownTo`), so a
+        // Goblin turned black by Dralnu's Crusade matches a "black creature"
+        // filter here exactly as it does server-side.
+        const cardColors = getEffectiveColors(card as unknown as PermanentView);
         const wanted = Array.isArray(filter.colors)
             ? filter.colors
             : [filter.colors];
@@ -1418,11 +1418,9 @@ export function buildTriggerStateView(
                 toughness: effectiveToughness(players, c),
                 isTapped: c.isTapped === true,
                 // CR 202.2 / 613.1d — effective colours for a tapOtherFilter
-                // colour clause (Hand of Justice): layer-5 override wins, else
-                // the printed cost's colours.
-                colors:
-                    (c.colorOverride as Color[] | undefined) ??
-                    getColorsFromCost(tryGetDefinition(c.card.id)?.manaCost),
+                // colour clause (Hand of Justice), via the single colour
+                // authority: layer-5 override SETS, `grantedColors` UNION.
+                colors: getEffectiveColors(c as unknown as PermanentView),
                 // CR 702.122b — "crews Vehicles as though its power were N
                 // greater" (Shorikai's Pilot token) feeds the Crew N
                 // affordability hint below; without it a board that CAN crew
@@ -2785,6 +2783,53 @@ export function isManaCostCovered(pool: ManaPool, cost: ManaCost): boolean {
     return coloredRemaining >= generic;
 }
 
+/** CR 605.1a / 601.2f — can the controller afford the MANA leg of this
+ *  source's own tap-for-mana activation cost, or REACH it by tapping something
+ *  else? A filter/upgrader rock ("{1}, {T}: Add one mana of any color" — Mana
+ *  Cylix, Celestial Prism, Chromatic Star/Sphere, Barbed Sextant, Implements of
+ *  Sacrifice, Standing Stones; "{G}, {T}: Add {R}" — Fire Sprites) charges mana
+ *  to activate, and the server pays it from the pool before adding the produced
+ *  mana (`applyManaAbilityManaCost`, `convex/game.ts`).
+ *
+ *  Deliberately PERMISSIVE, mirroring `getStackAbilities` (which never hides an
+ *  ability for want of mana): the server AUTO-TAPS the player's other sources to
+ *  fund the cost (`autoTapForManaAbilityCost`), exactly as paying a spell does,
+ *  so a floating pool is not a precondition — only the total absence of any way
+ *  to produce mana is. A pool-exact mirror here greyed the rock out whenever the
+ *  player hadn't manually pre-floated the mana, a cliff no other cost has.
+ *
+ *  True for the overwhelmingly common no-mana-cost mana ability, and true when
+ *  the source exposes no activated mana ability at all (a basic land's
+ *  intrinsic subtype tap) — this predicate only ever SUBTRACTS the hopeless
+ *  case, it never grants tappability on its own. */
+export function canAffordManaAbilityCost(
+    card: CardInstance,
+    pool: ManaPool,
+    battlefield: ReadonlyArray<CardInstance> = [],
+    manaGateView?: TriggerStateView
+): boolean {
+    const ability = getActivatedManaAbility(
+        card as unknown as Parameters<typeof getActivatedManaAbility>[0],
+        manaGateView
+    );
+    const cost = ability?.cost.mana;
+    if (!cost) return true;
+    // A live activation cost is already numeric — an `X: "X"` mana ability
+    // doesn't exist in the catalogue, and `isManaCostCovered` can't read one.
+    if (typeof cost.X === "string") return true;
+    if (isManaCostCovered(pool, cost)) return true;
+    // Any OTHER untapped mana source the engine's auto-tap could reach for.
+    // Colour-blind on purpose: the server runs the real solver and rejects a
+    // genuinely unpayable colour, the same way it rejects an unpayable spell
+    // after auto-tap falls short.
+    return battlefield.some(
+        (c) =>
+            c.id !== card.id &&
+            c.isTapped !== true &&
+            hasManaAbility(c, manaGateView)
+    );
+}
+
 /** Serializes a ManaCost into the symbol-token form used by formatOracleText
  *  (e.g. `{ X: 2, R: 1 }` → "{2}{R}"). String X (variable cost) renders as
  *  "{X}". Returns "" when undefined or empty. */
@@ -3073,11 +3118,9 @@ export function toMatchablePermanent(
         subtypes: card.subtypes ?? [],
         staticAbilities: card.staticAbilities ?? [],
         controllerId: card.controllerId,
-        // CR 202.2 / 613.1d — layer-5 override wins, else the printed cost's
-        // colours (mirrors the same fallback `buildTriggerStateView` uses).
-        colors:
-            (card.colorOverride as Color[] | undefined) ??
-            getColorsFromCost(tryGetDefinition(card.card.id)?.manaCost),
+        // CR 202.2 / 613.1d — the single colour authority (layer-5 override
+        // SETS, `grantedColors` UNION), same one `buildTriggerStateView` uses.
+        colors: getEffectiveColors(card as unknown as PermanentView),
         // CR 205.4a — printed supertypes, for a permanent leg's `supertypes` /
         // `excludeSupertypes` clause ("sacrifice a nonbasic land"). No shipped
         // may-pay permanent leg uses it yet (latent-only); populated so one

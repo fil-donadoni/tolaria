@@ -65,8 +65,14 @@ export function cardImageSignature(card: CardLike): string {
         parts.push(gt.map((g) => `${g.sourceCardId}#${g.abilityId}`).join(";"));
     }
 
-    // Layer-5 color override drives the "Color: …" badge.
+    // Layer-5 colour drives the "Color: …" badge and the overlay. Both shapes
+    // count: the SET (`colorOverride`) and the GRANT (`grantedColors`, Dralnu's
+    // Crusade) — omitting the grant leaves a stale overlay when the granting
+    // permanent enters or leaves.
     if (card.colorOverride) parts.push(`c:${card.colorOverride.join(",")}`);
+    if (card.grantedColors?.length) {
+        parts.push(`gc:${card.grantedColors.map((g) => g.color).join(",")}`);
+    }
 
     return parts.join("|");
 }

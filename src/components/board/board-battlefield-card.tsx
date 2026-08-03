@@ -4,7 +4,7 @@ import { useGameContext } from "~/hooks/useGameContext";
 import { useArrowHighlight } from "~/hooks/arrowHighlightContext";
 import { effectivePower, effectiveToughness } from "~/lib/effective-stats";
 import { isCreature } from "~/lib/card-utils";
-import { getColorOverrideDisplay } from "~/lib/color-override";
+import { getEffectiveColorDisplay } from "~/lib/color-override";
 import CardImage from "../cards/card-image";
 import CardTilt3D from "./card-tilt-3d";
 import {
@@ -191,9 +191,7 @@ export default function BoardBattlefieldCard({
             <div className="absolute inset-0 bg-black/40 rounded-sm pointer-events-none z-10" />
         ) : null;
 
-    const colorDisplay = card.colorOverride?.length
-        ? getColorOverrideDisplay(card.colorOverride)
-        : null;
+    const colorDisplay = getEffectiveColorDisplay(card);
 
     const colorOverrideOverlay = colorDisplay ? (
         <div

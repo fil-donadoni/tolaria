@@ -47,14 +47,6 @@ Fable of the mirror-breaker
 
 ## UX da migliorare
 
-- il dialog Pay kicker cost è brutto e incoerente col resto della UI.
-- restock: il testo della choiche dialog dice una carta, ma selezionandone 2 ne recupero 2, correttamente. correggere la ux
-- quando ho messo il companion in mano, la zona companion puo' anche scomparire per il resto del game
-- filtri deckbuilder: aggiungi anche la direzione del sorting oltre a campo di sorting
-- Titania's Song toglie le abilità, ma posso ancora vedere un'abilità attivata e cliccarci sopra, per poi ricevere un errore server. il client deve essere sempr sincronizzato su questi casi e non mostarare le abilità che la carta ha perso per stato di gioco
-- I bersagli possibili di una Lair devono avere il ring di candidati. questo deve valere ogni volta che si devono scegliere bersagli, ma non lo stai facendo sempre. stessa cosa ad esempio sul sacrifice di Keldon Twilight, deve evidenziare solo le tue creature non entrate in questo turno. regola generale da applicare ovunque
-- quando in solo game tappo una terra che ha anche l'avversario, c'e' una strana animazione sui due fan: il mio e il suo, che però non dovrebbero interagire. forse c'è un conflitto nei conteggi per tenere insieme le terre con lo stesso state?
-
 # Bug gameplay
 
 - quando dalla pagina scenarios clicco su test, se c'è già una partita in corso non deve comparire l'errore ma un dialog che mi chiede se voglio concedere quella partita, indicando tipologia e giocatore/bot avversario

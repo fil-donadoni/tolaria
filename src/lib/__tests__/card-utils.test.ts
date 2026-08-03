@@ -2590,6 +2590,46 @@ describe("matchesPermanentFilter (client mirror — colors + tapped)", () => {
         ).toBe(true);
     });
 
+    // CR 613.1d — the layer-5 colour GRANT (Dralnu's Crusade "All Goblins are
+    // black", Sinister Strength), the additive twin of `colorOverride`. The
+    // server writes `grantedColors` on the instance and `slimCard` forwards it
+    // across the wire, but this client mirror used to derive colours from
+    // `colorOverride ?? printed cost` alone — so a Goblin the engine treats as
+    // black never matched a "black creature" filter here, and the board
+    // highlighted the wrong (or no) targets.
+    it("folds in a layer-5 grantedColors colour (Dralnu's Crusade)", () => {
+        const card = makeCardInstance({
+            card: { id: GRIZZLY_BEARS_ID }, // printed green
+            types: ["Creature"],
+            isTapped: true,
+            grantedColors: [{ color: "B", sourceId: "crusade-1" }],
+        });
+        expect(
+            matchesPermanentFilter(card, { colors: ["B"], tapped: true })
+        ).toBe(true);
+        // Additive, not a replacement: the printed colour survives (CR 613.1d
+        // — only `colorOverride` REPLACES).
+        expect(
+            matchesPermanentFilter(card, { colors: ["G"], tapped: true })
+        ).toBe(true);
+    });
+
+    it("a colorOverride still REPLACES a granted colour (set beats grant)", () => {
+        const card = makeCardInstance({
+            card: { id: GRIZZLY_BEARS_ID }, // printed green
+            types: ["Creature"],
+            isTapped: true,
+            colorOverride: ["U"],
+            grantedColors: [{ color: "B", sourceId: "crusade-1" }],
+        });
+        expect(
+            matchesPermanentFilter(card, { colors: ["U"], tapped: true })
+        ).toBe(true);
+        expect(
+            matchesPermanentFilter(card, { colors: ["B"], tapped: true })
+        ).toBe(false);
+    });
+
     // DRK Flood (#412): "target creature without flying" — the excludeAbility
     // mirror of requireAbility, used for the keyword target filter.
     it("rejects a flyer under excludeAbility:flying (Flood)", () => {

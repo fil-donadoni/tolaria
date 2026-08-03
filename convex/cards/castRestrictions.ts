@@ -15,10 +15,9 @@
 // it carries no per-instance flag and auto-reverts when the source leaves play.
 
 import { tryGetDefinition } from ".";
-import { getColorsFromCost } from "./colors";
+import { getEffectiveColors } from "./effectiveColors";
 import type {
     CardType,
-    Color,
     ManaCost,
     PermanentView,
     StaticEffectContext,
@@ -30,16 +29,11 @@ import type {
  *  needs (`isCreature`, `getPrintedTypes`, `getColors`, `getName`) carry real
  *  logic; the rest delegate to the same registry lookups. */
 export const CAST_RESTRICTION_CTX: StaticEffectContext = {
-    getColors(card: PermanentView): Color[] {
-        const override = (card as { colorOverride?: Color[] }).colorOverride;
-        if (override) return override;
-        const embedded = (card.card as { manaCost?: ManaCost }).manaCost;
-        const cardId = (card.card as { id?: string }).id;
-        const cost =
-            embedded ??
-            (cardId ? tryGetDefinition(cardId)?.manaCost : undefined);
-        return getColorsFromCost(cost);
-    },
+    // CR 613.1d layer 5 — the single colour authority
+    // (`./effectiveColors.ts`), `grantedColors` included (this copy dropped
+    // them: a "you can't cast black spells" restriction must see a colour a
+    // layer-5 grant added).
+    getColors: getEffectiveColors,
     isCreature(card: PermanentView): boolean {
         return card.types.includes("Creature");
     },

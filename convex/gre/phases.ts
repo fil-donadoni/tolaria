@@ -426,6 +426,7 @@ export function untapStep(state: GameState): void {
                 card.chosenMana = undefined;
                 card.tapBonusMana = undefined;
                 card.lifePaidThisTap = undefined;
+                card.manaPaidThisTap = undefined;
                 // CR 502/603.3 — the source untaps (or is fully cleaned up
                 // this untap step), so a becomes-tapped trigger from a prior
                 // tap is water under the bridge: clear the irreversibility
@@ -445,6 +446,7 @@ export function untapStep(state: GameState): void {
                 card.chosenMana = undefined;
                 card.tapBonusMana = undefined;
                 card.lifePaidThisTap = undefined;
+                card.manaPaidThisTap = undefined;
                 // CR 502/603.3 — the source untaps (or is fully cleaned up
                 // this untap step), so a becomes-tapped trigger from a prior
                 // tap is water under the bridge: clear the irreversibility
@@ -463,6 +465,7 @@ export function untapStep(state: GameState): void {
                 card.chosenMana = undefined;
                 card.tapBonusMana = undefined;
                 card.lifePaidThisTap = undefined;
+                card.manaPaidThisTap = undefined;
                 // CR 502/603.3 — the source untaps (or is fully cleaned up
                 // this untap step), so a becomes-tapped trigger from a prior
                 // tap is water under the bridge: clear the irreversibility
@@ -488,6 +491,7 @@ export function untapStep(state: GameState): void {
                 card.chosenMana = undefined;
                 card.tapBonusMana = undefined;
                 card.lifePaidThisTap = undefined;
+                card.manaPaidThisTap = undefined;
                 // CR 502/603.3 — the source untaps (or is fully cleaned up
                 // this untap step), so a becomes-tapped trigger from a prior
                 // tap is water under the bridge: clear the irreversibility
@@ -518,6 +522,7 @@ export function untapStep(state: GameState): void {
                 card.chosenMana = undefined;
                 card.tapBonusMana = undefined;
                 card.lifePaidThisTap = undefined;
+                card.manaPaidThisTap = undefined;
                 // CR 502/603.3 — the source untaps (or is fully cleaned up
                 // this untap step), so a becomes-tapped trigger from a prior
                 // tap is water under the bridge: clear the irreversibility
@@ -538,6 +543,7 @@ export function untapStep(state: GameState): void {
                 card.chosenMana = undefined;
                 card.tapBonusMana = undefined;
                 card.lifePaidThisTap = undefined;
+                card.manaPaidThisTap = undefined;
                 // CR 502/603.3 — the source untaps (or is fully cleaned up
                 // this untap step), so a becomes-tapped trigger from a prior
                 // tap is water under the bridge: clear the irreversibility
@@ -556,6 +562,7 @@ export function untapStep(state: GameState): void {
                 card.chosenMana = undefined;
                 card.tapBonusMana = undefined;
                 card.lifePaidThisTap = undefined;
+                card.manaPaidThisTap = undefined;
                 // CR 502/603.3 — the source untaps (or is fully cleaned up
                 // this untap step), so a becomes-tapped trigger from a prior
                 // tap is water under the bridge: clear the irreversibility
@@ -577,6 +584,7 @@ export function untapStep(state: GameState): void {
                 card.chosenMana = undefined;
                 card.tapBonusMana = undefined;
                 card.lifePaidThisTap = undefined;
+                card.manaPaidThisTap = undefined;
                 // CR 502/603.3 — the source untaps (or is fully cleaned up
                 // this untap step), so a becomes-tapped trigger from a prior
                 // tap is water under the bridge: clear the irreversibility
@@ -593,6 +601,7 @@ export function untapStep(state: GameState): void {
             card.chosenMana = undefined;
             card.tapBonusMana = undefined;
             card.lifePaidThisTap = undefined;
+            card.manaPaidThisTap = undefined;
             // CR 502/603.3 — the source untapped, so a becomes-tapped trigger
             // from a prior tap is water under the bridge: clear the
             // irreversibility flag so next turn's fresh tap undoes normally.

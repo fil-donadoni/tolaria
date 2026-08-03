@@ -1,5 +1,5 @@
 import type { CardInstance } from "~/types/game";
-import { getColorOverrideDisplay } from "~/lib/color-override";
+import { getEffectiveColorDisplay } from "~/lib/color-override";
 import CardImage from "./card-image";
 
 export default function ColorOverlayCardImage({
@@ -16,9 +16,7 @@ export default function ColorOverlayCardImage({
     /** Forwarded to CardImage — the stack is a mid slot, so thumb is excluded. */
     includeThumb?: boolean;
 }) {
-    const colorDisplay = card.colorOverride?.length
-        ? getColorOverrideDisplay(card.colorOverride)
-        : null;
+    const colorDisplay = getEffectiveColorDisplay(card);
 
     return (
         <div className="relative">

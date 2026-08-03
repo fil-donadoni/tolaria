@@ -212,6 +212,7 @@ function compactCard(
     if (card.manaCounterRemoval)
         out.manaCounterRemoval = card.manaCounterRemoval;
     if (card.lifePaidThisTap) out.lifePaidThisTap = card.lifePaidThisTap;
+    if (card.manaPaidThisTap) out.manaPaidThisTap = card.manaPaidThisTap;
     if (card.tapBonusMana) out.tapBonusMana = card.tapBonusMana;
     if (card.grantedStaticAbilities?.length) {
         out.grantedStaticAbilities = card.grantedStaticAbilities;
@@ -562,6 +563,9 @@ function expandCard(
     }
     if (compact.lifePaidThisTap) {
         result.lifePaidThisTap = compact.lifePaidThisTap as number;
+    }
+    if (compact.manaPaidThisTap) {
+        result.manaPaidThisTap = compact.manaPaidThisTap as ManaCost;
     }
     if (compact.tapBonusMana) {
         result.tapBonusMana = compact.tapBonusMana as ManaCost;

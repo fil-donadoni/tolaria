@@ -50,7 +50,18 @@ function blightsteelColossusShuffleFromGraveyard(): TriggeredAbility {
         id: "blightsteel-colossus-shuffle",
         oracleText:
             "If Blightsteel Colossus would be put into a graveyard from anywhere, reveal Blightsteel Colossus and shuffle it into its owner's library instead.",
-        event: ["CREATURE_DIED", "CARD_DISCARDED", "CARD_MILLED"],
+        // The FOUR events that partition graveyard entry (CR 603.2): death,
+        // discard (CR 701.8), mill (CR 701.17), and CARD_PUT_INTO_GRAVEYARD —
+        // the residual catch-all for any other general zone move into a
+        // graveyard, without which "from anywhere" misses a
+        // "put the rest into your graveyard" dig (not a mill, CR 701.17a).
+        // Same shape as Worldspine Wurm's identical clause (rtr/green.ts).
+        event: [
+            "CREATURE_DIED",
+            "CARD_DISCARDED",
+            "CARD_MILLED",
+            "CARD_PUT_INTO_GRAVEYARD",
+        ],
         // CR 603.6e — functions from the graveyard: the graveyard trigger
         // scan (`collectTriggers`) matches every card CURRENTLY SITTING in a
         // graveyard against every event in the batch — the only path that
@@ -64,7 +75,8 @@ function blightsteelColossusShuffleFromGraveyard(): TriggeredAbility {
             }
             if (
                 event.type === "CARD_DISCARDED" ||
-                event.type === "CARD_MILLED"
+                event.type === "CARD_MILLED" ||
+                event.type === "CARD_PUT_INTO_GRAVEYARD"
             ) {
                 return event.cardInstanceId === self.id;
             }

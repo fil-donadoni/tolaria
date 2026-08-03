@@ -29,6 +29,7 @@ import {
     getPlayer,
     payMayPayCost,
     normalizeMayPayCost,
+    resetBattlefieldTransientState,
 } from "./state";
 import { checkStateBasedActions } from "./sba";
 import { checkAscendCityBlessing } from "./cityBlessing";
@@ -247,6 +248,21 @@ function settleEnteredLand(
     card: CardInstanceState,
     willEnterTapped: boolean
 ): CardInstanceState {
+    // CR 400.7 — the entering permanent is a NEW object. `moveCard` clears the
+    // battlefield-only transient block ONLY on a departure to hand/library; a
+    // battlefield→graveyard/exile departure deliberately PRESERVES it as
+    // last-known information for death/LTB triggers. So a land played from the
+    // graveyard (Icetill Explorer, Crucible of Worlds, Ramunap Excavator) or
+    // from exile arrives still carrying `isTapped` / `damageMarked` /
+    // `hasAttackedThisTurn` / granted abilities from its previous life — a land
+    // that died TAPPED re-entered tapped. Every reanimation-style entry already
+    // funnels through this same helper (`stageReanimatedOnBattlefield`); the
+    // play-a-land entry is the one that didn't, so do it here, at the shared
+    // settlement, rather than per-source. A from-hand play is a no-op (the card
+    // has no battlefield history). Runs FIRST: `markEnteredThisTurn` and the
+    // `willEnterTapped` write below must not be undone by the reset.
+    resetBattlefieldTransientState(card);
+
     // CR 305.2 — track the land drop.
     if (card.types.includes("Land")) {
         player.landsPlayedThisTurn = (player.landsPlayedThisTurn ?? 0) + 1;

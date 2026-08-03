@@ -101,11 +101,24 @@ function worldspineWurmShuffleFromGraveyard(): TriggeredAbility {
         id: "worldspine-wurm-shuffle",
         oracleText:
             "When Worldspine Wurm is put into a graveyard from anywhere, shuffle it into its owner's library.",
-        // "From anywhere" = one Oracle line spanning three engine events
-        // (battlefield death / discard / mill). ONE ability listening on all
-        // three via an array `event`, so the line is shown once — not three
-        // near-duplicate entries (CR 603.2).
-        event: ["CREATURE_DIED", "CARD_DISCARDED", "CARD_MILLED"],
+        // "From anywhere" = one Oracle line spanning the FOUR engine events that
+        // partition graveyard entry: battlefield death, discard (CR 701.8), mill
+        // (CR 701.17) and — the residual catch-all — any other general zone move
+        // into a graveyard. ONE ability listening on all four via an array
+        // `event`, so the line is shown once, not four near-duplicate entries
+        // (CR 603.2).
+        //
+        // CARD_PUT_INTO_GRAVEYARD is what makes "anywhere" actually mean
+        // anywhere: "reveal the top four cards … put the rest into your
+        // graveyard" (Malevolent Rumble) is NOT a mill (CR 701.17a), so before
+        // it existed a Wurm binned that way stayed in the graveyard and the
+        // shuffle-back never fired.
+        event: [
+            "CREATURE_DIED",
+            "CARD_DISCARDED",
+            "CARD_MILLED",
+            "CARD_PUT_INTO_GRAVEYARD",
+        ],
         // CR 603.6e — functions from the graveyard: scanned by
         // `collectTriggers`'s graveyard pass (every card currently sitting in
         // a graveyard, matched against every event in the batch), which is
@@ -118,7 +131,8 @@ function worldspineWurmShuffleFromGraveyard(): TriggeredAbility {
             }
             if (
                 event.type === "CARD_DISCARDED" ||
-                event.type === "CARD_MILLED"
+                event.type === "CARD_MILLED" ||
+                event.type === "CARD_PUT_INTO_GRAVEYARD"
             ) {
                 return event.cardInstanceId === self.id;
             }

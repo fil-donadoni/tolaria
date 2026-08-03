@@ -9,10 +9,9 @@
 // Crusade-style anthems (`pt-buff`) scan all permanents and buff a filtered set.
 
 import { tryGetDefinition } from ".";
-import { getColorsFromCost } from "./colors";
+import { getEffectiveColors } from "./effectiveColors";
 import type {
     CardType,
-    Color,
     ManaCost,
     PermanentView,
     StaticEffectContext,
@@ -24,16 +23,11 @@ import type {
  *  Only the helpers needed by the attack-restriction predicates are populated
  *  with real logic; the rest delegate to the same registry lookups. */
 export const ATTACK_RESTRICTION_CTX: StaticEffectContext = {
-    getColors(card: PermanentView): Color[] {
-        const override = (card as { colorOverride?: Color[] }).colorOverride;
-        if (override) return override;
-        const embedded = (card.card as { manaCost?: ManaCost }).manaCost;
-        const cardId = (card.card as { id?: string }).id;
-        const cost =
-            embedded ??
-            (cardId ? tryGetDefinition(cardId)?.manaCost : undefined);
-        return getColorsFromCost(cost);
-    },
+    // CR 613.1d layer 5 — the single colour authority
+    // (`./effectiveColors.ts`). It also folds in `grantedColors`, which this
+    // copy used to drop: a Goblin turned black by Dralnu's Crusade must be
+    // stopped by a "black creatures can't attack" restriction.
+    getColors: getEffectiveColors,
     isCreature(card: PermanentView): boolean {
         return card.types.includes("Creature");
     },

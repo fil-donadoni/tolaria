@@ -15,7 +15,7 @@ import {
     type DisplayAbilities,
 } from "~/lib/card-utils";
 import { effectivePower, effectiveToughness } from "~/lib/effective-stats";
-import { getColorOverrideDisplay } from "~/lib/color-override";
+import { getEffectiveColorDisplay } from "~/lib/color-override";
 import { getCounterDisplays, type CounterDisplay } from "~/lib/counters";
 import { attachmentHostName } from "~/lib/attachment";
 import {
@@ -201,8 +201,8 @@ export function buildPreviewBody(
               ?.name ?? null)
         : null;
 
-    const colorDisplay = cardInstance?.colorOverride?.length
-        ? getColorOverrideDisplay(cardInstance.colorOverride)
+    const colorDisplay = cardInstance
+        ? getEffectiveColorDisplay(cardInstance)
         : null;
 
     const counterDisplays = cardInstance

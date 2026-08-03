@@ -282,6 +282,14 @@ _Avoid_: Cost component, sub-cost, additional cost (that names the add-on _relat
 The record of which of a **Spell**'s kickers were paid as it was **Announced**, and how many times each — a map from kicker id to a count, snapshotted on the **Stack** item at cast commit and read at **Resolution**. A card may offer several kickers payable independently ("Kicker {A} and/or {B}" — the Planeshift Battlemages), so a single total cannot answer "was it kicked with its {2}{U} kicker"; the total remains available as the sum. A per-kicker count (rather than a boolean) is what lets Multikicker (CR 702.33e) be a property of one kicker rather than of the card.
 _Avoid_: Kicker count (that is the derived _total_, not the record), kicked flag
 
+**Additional Cost Keyword**:
+A **Keyword** whose cost half is "you may pay an additional [cost] as you cast this spell" — **Kicker** (CR 702.33a) and **Offspring** (CR 702.175a) word it identically, and Sticker kicker (CR 702.33h) is defined as meaning Kicker. They share one set of **Cost Legs**, one announcement, and one payment path, and are told apart only by which keyword an entry declares. That identity is load-bearing rather than cosmetic: **Kicked** is defined over kicker costs alone, so a spell whose offspring cost was paid was never kicked, and each keyword carries its own separately **Linked** abilities (CR 607).
+_Avoid_: Kicker (that is one member, not the family), optional cost
+
+**Kicked**:
+A property of a **Spell** whose controller declared the intention to pay any of its **Kicker** costs, and _only_ a kicker cost (CR 702.33d). Paying a different **Additional Cost Keyword**'s cost does not make a spell kicked. The question is asked by cards other than the one that was kicked ("counter target spell if it was kicked"), so it is a public property of the spell, not a private note.
+_Avoid_: Paid an additional cost (broader), kicker count (that is how many times)
+
 **Pile**:
 One of the two subsets a **Player** separates a set of objects into (all their nontoken lands, the top five cards of a **Library**, all creatures a player controls), after which _another_ player chooses one pile; an effect then applies asymmetrically to the chosen vs. unchosen pile (Fact or Fiction, Do or Die, Bend or Break). The divide-then-choose interaction is a two-step **Pending Choice** with distinct divider and chooser players.
 _Avoid_: Group, stack (that's the **Stack**), heap, partition (informal only)
@@ -320,6 +328,10 @@ _Avoid_: Play (for spells — "play" is reserved for lands)
 A **Spell** or **Ability** on the **Stack** completes its effect and leaves the **Stack**.
 _Avoid_: Execute, trigger, fire
 
+**Last Known Information (LKI)**:
+The values an object had the instant before it left the public zone it was expected to be in, used in place of failing when a **Resolving** effect asks about that object (CR 608.2h, CR 113.7a). An **Ability** exists on the **Stack** independently of its source, so by the time it resolves the source may be gone — "when this creature dies, it deals damage equal to its power" reads the power the creature had the moment it died, layered buffs folded in, not the printed value and not nothing. LKI is read for a **Source** and for any object an effect names without **Targeting** it; a **Target** that has left its zone is instead simply illegal (CR 608.2b), which is a different rule with a different outcome. Distinct from a cast-time snapshot such as a **Kicker Payment**: that records a choice frozen when it was made, whereas LKI is a live value read as late as possible and only then falling back.
+_Avoid_: Snapshot (that is the storage mechanism, not the rule), stale state, cached characteristics
+
 **Target**:
 A specific **Permanent**, **Player**, or **Spell** chosen during **Casting** that the effect will apply to.
 
@@ -328,12 +340,20 @@ A **Stack Item** created by copying another spell on the **Stack** (CR 707.10, e
 _Avoid_: Token spell, duplicate
 
 **Spells Cast This Turn**:
-A running count of how many **Spells** have been **Cast** by any **Player** this **Turn**, reset at each turn change (`GameState.spellsCastThisTurn`). A **Spell Copy** is put onto the **Stack**, not cast, so it never increments the count. The count read at cast time (the tally of spells cast _before_ this one) rides on the cast event as `priorSpellCount` — the value **Storm** uses for its copy count.
+A running count of how many **Spells** have been **Cast** by any **Player** this **Turn**, reset at each turn change (`GameState.spellsCastThisTurn`). A **Spell Copy** is put onto the **Stack**, not cast, so it never increments the count. The count read at cast time (the tally of spells cast _before_ this one) rides on the cast event as `priorSpellCount` — the value **Storm** uses for its copy count. Each **Player** also carries their OWN mirror of this count (`PlayerState.spellsCastThisTurn`), reset the same way — what a **Nth-spell-this-turn** trigger condition reads when it means "the CASTER's own spells", as opposed to the global count Storm reads.
 _Avoid_: Storm count, spell counter
+
+**Spells Cast This Game**:
+A running count of how many **Spells** a **Player** has **Cast**, NEVER reset (`PlayerState.spellsCastThisGame`) — the lifetime sibling of **Spells Cast This Turn**, incremented at the same choke point, never cleared at a turn change. Exists to answer "is this the first spell I've cast in the whole game" — an **Alternative Cost** condition (Once Upon a Time, issue #790), a question the per-turn count cannot answer.
+_Avoid_: Lifetime spell count, total spells cast
 
 **Permanent Copy**:
 A **Permanent** that has become a copy of another (CR 707.2, e.g. Clone, Copy Artifact, Vesuvan Doppelganger). The engine overwrites the copy's `card.id` with the copied object's definition id so every characteristic reader (abilities, colors, P/T, types) observes the copy; the printed identity is kept in `copiedFrom` and restored when the copy leaves the battlefield (`revertCopy`). Copy effects copy printed/copiable values only — never counters, damage, tap state, auras, or control. Exceptions (CR 707.9d) are expressed as options: a kept color via `colorOverride`, added types via `additionalTypes`, and a retained ability via a `retainedThroughCopy`-flagged trigger.
 _Avoid_: clone-as-token, transform
+
+**Copiable Values**:
+The subset of an object's characteristics a copy acquires (CR 707.2): those derived from its printed text — name, mana cost, colour indicator, card types, subtypes, supertypes, rules text, power, toughness, loyalty — as further modified by other copy effects, by **Face-Down** status, and by "as … enters" abilities that set power and toughness. Everything else is excluded: **Counters**, damage, tapped status, attached **Auras**, control, and every **Continuous Effect** from the **Layer** system. The distinction has teeth in both directions. A **Permanent Copy** made 1/1 by its own copy effect's "except" clause is 1/1 _copiably_, so a later copy of it is also 1/1 — whereas the same creature at 1/1 through a layer-7 buff would be copied at its printed size. And the values are recomputed at the moment of copying only (CR 707.2b): changing the original afterwards leaves the copy alone.
+_Avoid_: Printed values (the copiable set is printed values _as modified_), effective characteristics (that is the layered read), base P/T
 
 **Copy Choice (allControllers)**:
 A mid-resolution `choose-permanents` **Pending Choice** whose candidates span **every** player's battlefield (CR 707 "a copy of any creature/artifact on the battlefield"), flagged `allControllers`. Applied as the copy enters via `SpellContext.becomeCopyOf` in a resolve step.

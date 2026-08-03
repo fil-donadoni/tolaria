@@ -14,6 +14,7 @@ import {
     matchesPermanentTargetFilters,
     wantsPermanentTarget,
     isTapLockedBySummoningSickness,
+    canAffordManaAbilityCost,
     getLandManaColor,
     getActivatedManaColor,
     getManaChoices,
@@ -450,6 +451,24 @@ export function useBattlefieldVisualState(player: Player) {
         }
         // CR 605.3b: mana abilities require priority (outside payment).
         if (!hasPriority) return false;
+        // CR 601.2f / 601.2g — a mana ability with its own MANA cost leg (Mana
+        // Cylix "{1}, {T}: Add one mana of any color", Chromatic Star, Fire
+        // Sprites) needs that mana paid before it adds any. The server
+        // auto-taps other sources to fund it, so this only hides the hopeless
+        // case: empty pool AND no other untapped mana source. Gate the TAP
+        // only — an untap toggle reverses an earlier activation (and refunds
+        // that cost), so it stays available.
+        if (
+            !card.isTapped &&
+            !canAffordManaAbilityCost(
+                card,
+                player.manaPool,
+                player.battlefield,
+                manaGateView
+            )
+        ) {
+            return false;
+        }
         return card.isTapped ? !card.manaCommitted : true;
     }
 

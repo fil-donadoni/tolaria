@@ -1,3 +1,7 @@
+import { getEffectiveColors } from "@convex/cards/effectiveColors";
+import type { PermanentView } from "@convex/cards/types";
+import type { CardInstance } from "~/types/game";
+
 export type ColorOverrideDisplay = {
     name: string;
     solid: string;
@@ -27,4 +31,27 @@ export function getColorOverrideDisplay(
         ...MULTICOLOR,
         name: codes.map((c) => SINGLE_COLOR[c]?.name ?? c).join(" / "),
     };
+}
+
+/** CR 613.1d layer 5 — the colour swatch to paint over a permanent whose
+ *  CURRENT colour differs from the one its printed art conveys, or `null` when
+ *  the permanent still reads as printed (the overwhelmingly common case).
+ *
+ *  Two layer-5 shapes drive it, and the overlay must honour BOTH: a colour SET
+ *  (`colorOverride`, the lace instants) and a colour GRANT (`grantedColors` —
+ *  Dralnu's Crusade "All Goblins are black", Sinister Strength). Only the SET
+ *  used to paint, so a granted colour was invisible on the board even though
+ *  the engine, targeting and the rules all treated the permanent as that
+ *  colour. The swatch shows the EFFECTIVE colour set, so a red Goblin turned
+ *  black renders as the Red / Black pair, not as black alone. */
+export function getEffectiveColorDisplay(
+    card: CardInstance
+): ColorOverrideDisplay | null {
+    const hasLayerFive =
+        (card.colorOverride?.length ?? 0) > 0 ||
+        (card.grantedColors?.length ?? 0) > 0;
+    if (!hasLayerFive) return null;
+    return getColorOverrideDisplay(
+        getEffectiveColors(card as unknown as PermanentView)
+    );
 }

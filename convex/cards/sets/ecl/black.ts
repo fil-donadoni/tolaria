@@ -59,10 +59,19 @@ function moonshadowRemoveCounter(): TriggeredAbility {
         id: "moonshadow-remove-counter",
         oracleText:
             "Whenever one or more permanent cards are put into your graveyard from anywhere while this creature has a -1/-1 counter on it, remove a -1/-1 counter from this creature.",
-        // "From anywhere" across the two zone-change sources the engine's event
-        // vocabulary covers: PERMANENT_LEFT (battlefield → graveyard) and
-        // CARD_DISCARDED (hand → graveyard). CR 603.2.
-        event: ["PERMANENT_LEFT", "CARD_DISCARDED"],
+        // "From anywhere" across the FOUR events that partition graveyard entry
+        // (CR 603.2): PERMANENT_LEFT (battlefield → graveyard), CARD_DISCARDED
+        // (CR 701.8), CARD_MILLED (CR 701.17) and CARD_PUT_INTO_GRAVEYARD (the
+        // residual — any other general zone move into a graveyard, e.g. a "put
+        // the rest into your graveyard" dig, which is NOT a mill per CR
+        // 701.17a). The last two were missing: this card predates both events,
+        // so milling or binning a permanent card removed no counter.
+        event: [
+            "PERMANENT_LEFT",
+            "CARD_DISCARDED",
+            "CARD_MILLED",
+            "CARD_PUT_INTO_GRAVEYARD",
+        ],
         matches: (event, self, state) => {
             if (event.type === "PERMANENT_LEFT") {
                 return (
@@ -70,16 +79,23 @@ function moonshadowRemoveCounter(): TriggeredAbility {
                     event.ownerId === self.controllerId
                 );
             }
-            if (event.type === "CARD_DISCARDED") {
-                if (event.playerId !== self.controllerId) return false;
-                // The discarded card is only a "permanent card" if its types
-                // (snapshotted in the discarder's graveyard) include a
-                // permanent type (CR 205, CR 110.1). Look it up in the
-                // graveyard state view — CARD_DISCARDED fires after the card
-                // lands there.
-                const player = state?.players.find(
-                    (p) => p.id === event.playerId
-                );
+            if (
+                event.type === "CARD_DISCARDED" ||
+                event.type === "CARD_MILLED" ||
+                event.type === "CARD_PUT_INTO_GRAVEYARD"
+            ) {
+                // All three name the card's owner differently (`playerId` vs
+                // `ownerId`) but mean the same player — the graveyard the card
+                // landed in (CR 404.3).
+                const landedIn =
+                    event.type === "CARD_DISCARDED"
+                        ? event.playerId
+                        : event.ownerId;
+                if (landedIn !== self.controllerId) return false;
+                // Only a "permanent card" counts (CR 205, CR 110.1). All three
+                // events fire AFTER the card lands, so its types are readable
+                // off the graveyard state view.
+                const player = state?.players.find((p) => p.id === landedIn);
                 const gyCard = player?.graveyard?.find(
                     (c) => c.id === event.cardInstanceId
                 );

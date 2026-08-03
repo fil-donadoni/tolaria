@@ -284,6 +284,18 @@ export type CardInstanceState = {
      *  the mana ability with no stack, so the tap stays reversible. Cleared at
      *  untap step / on refund, like `chosenMana`. */
     lifePaidThisTap?: number;
+    /** CR 601.2h / 605.1a — mana the controller actually spent from their pool
+     *  to pay this tap-for-mana's own MANA cost leg (a filter/upgrader rock:
+     *  Chromatic Star / Chromatic Sphere / Barbed Sextant / Implements of
+     *  Sacrifice "{1}, {T}, Sacrifice this: Add …", Celestial Prism / Mana
+     *  Cylix "{N}, {T}: Add one mana of any color", Standing Stones, Fire
+     *  Sprites "{G}, {T}: Add {R}"). Snapshotted as the real per-colour pool
+     *  delta — the cost may be paid with any combination of colours, and
+     *  `getManaSubstitutions` can change which — so an untap-toggle that
+     *  reverses the whole activation before the produced mana is spent refunds
+     *  exactly what was taken. The cost-side sibling of `lifePaidThisTap`.
+     *  Cleared at untap step / on refund, like `chosenMana`. */
+    manaPaidThisTap?: CardManaCost;
     /** CR 605.4 — extra mana a Wild-Growth-style triggered MANA ability (Wild
      *  Growth, Fertile Ground, a Gauntlet-of-Might rider) added to the pool when
      *  THIS source was tapped for mana. Snapshotted as the pool delta the bonus
@@ -8573,6 +8585,39 @@ export function emitCardMilled(
     ];
 }
 
+/** Emits a CARD_PUT_INTO_GRAVEYARD event for a card that a GENERAL zone move
+ *  just put into its owner's graveyard (CR 603.6) — the residual "put into a
+ *  graveyard from anywhere" entry that CREATURE_DIED / CARD_DISCARDED /
+ *  CARD_MILLED don't cover: a "put the rest into your graveyard" dig
+ *  (Malevolent Rumble), a CR 614 reveal-bin, an exile-to-graveyard move.
+ *
+ *  The single choke point is `moveCardWithGraveyardReplacement`, called only by
+ *  `SpellContext.moveZone` / `moveCardById` / `binRevealedTopCard`; the
+ *  non-overlap census lives on `CardPutIntoGraveyardEvent` (`cards/types.ts`).
+ *  Emitted AFTER the card has landed in the graveyard, so a self-trigger
+ *  (Worldspine Wurm's shuffle-back) can locate it there — the same discipline as
+ *  `emitCardDiscarded` / `emitCardMilled`. */
+export function emitCardPutIntoGraveyard(
+    state: GameState,
+    ownerId: string,
+    cardInstanceId: string,
+    cardId: string | undefined,
+    fromZone: MovableZone,
+    types?: ReadonlyArray<CardType>
+): void {
+    state.pendingEvents = [
+        ...(state.pendingEvents ?? []),
+        {
+            type: "CARD_PUT_INTO_GRAVEYARD",
+            ownerId,
+            cardInstanceId,
+            fromZone,
+            ...(cardId ? { cardId } : {}),
+            ...(types && types.length > 0 ? { types } : {}),
+        },
+    ];
+}
+
 /** Emits ONE CARDS_EXILED event for cards that just moved into exile
  *  (issue #1558, CR 400.1 / 603.3b / 608.2i). The single choke point for
  *  "whenever one or more cards are put into exile"-style triggers (Laelia,
@@ -9107,8 +9152,15 @@ export function revertAnimation(card: CardInstanceState): void {
  *  chokepoint every reanimation-style ENTRY funnels through
  *  (`putReanimatedOnBattlefield`), so a card coming back from the graveyard /
  *  exile — where the historical state is deliberately preserved — is cleaned
- *  here instead. */
-function resetBattlefieldTransientState(card: CardInstanceState): void {
+ *  here instead.
+ *
+ *  Exported for the PLAY-a-land entry seam (`settleEnteredLand`,
+ *  `gre/playLand.ts`): playing a land from the graveyard (Icetill Explorer,
+ *  Crucible of Worlds, Ramunap Excavator) or from exile (Wrenn and Six-style
+ *  grants) is a battlefield entry from exactly those two preserve-state zones,
+ *  so it owes the same CR 400.7 clean — a land that DIED tapped otherwise
+ *  re-entered tapped, carrying its damage/attack history with it. */
+export function resetBattlefieldTransientState(card: CardInstanceState): void {
     card.isTapped = false;
     delete card.damageMarked;
     delete card.dealtDeathtouchDamage;
@@ -9157,6 +9209,7 @@ function resetBattlefieldTransientState(card: CardInstanceState): void {
     delete card.chosenMana;
     delete card.manaCounterRemoval;
     delete card.lifePaidThisTap;
+    delete card.manaPaidThisTap;
     delete card.manaCommitted;
     delete card.tapTriggerCommitted;
     // CR 400.7 / 602.5 / 603.2 — the per-turn activation and trigger tallies
@@ -16067,10 +16120,30 @@ function moveCardWithGraveyardReplacement(
         ownerId,
         from as Exclude<Zone, "graveyard">
     );
+    // CR 603.10 — snapshot the types BEFORE the move; a "permanent card was put
+    // into a graveyard" filter reads last-known information.
+    const movedTypes = sourceCard ? [...sourceCard.types] : undefined;
     const moved = moveCard(player, cardInstanceId, from, destination);
     if (destination !== "graveyard") {
         applyGraveyardRedirectCounters(moved, tagCounters);
+        // A CR 614 graveyard-bound replacement redirected the card to exile: it
+        // was never put into a graveyard, so no event.
+        return moved;
     }
+    // CR 603.6 — the residual "put into a graveyard from anywhere" entry. This
+    // is the single choke point for the three general movers (`moveZone`,
+    // `moveCardById`, `binRevealedTopCard`) and, by construction, never overlaps
+    // CREATURE_DIED / CARD_DISCARDED / CARD_MILLED — see
+    // `CardPutIntoGraveyardEvent` in `cards/types.ts` for the census that
+    // guarantees the partition. Emitted AFTER the card has landed.
+    emitCardPutIntoGraveyard(
+        state,
+        ownerId,
+        moved.id,
+        (moved.card as { id?: string }).id,
+        from as MovableZone,
+        movedTypes
+    );
     return moved;
 }
 

@@ -8,11 +8,10 @@
 
 import { tryGetDefinition } from "../cards";
 import { tryGetEmblemDefinition } from "../cards/emblems";
-import { getColorsFromCost } from "../cards/colors";
+import { getEffectiveColors } from "../cards/effectiveColors";
 import { hasSupertypeLive } from "./snow";
 import type {
     CardType,
-    Color,
     EmblemInstance,
     ManaCost,
     PermanentView,
@@ -78,23 +77,9 @@ function getStaticEffects(card: PermanentView): StaticEffect[] {
 
 /** Context passed to every static-effect predicate. Pure, state-free. */
 export const STATIC_EFFECT_CTX: StaticEffectContext = {
-    getColors(card: PermanentView): Color[] {
-        // CR 613.1d layer 5: colorOverride replaces all other color derivation
-        const override = (card as { colorOverride?: Color[] }).colorOverride;
-        if (override) return override;
-        const embedded = (card.card as { manaCost?: ManaCost }).manaCost;
-        const cardId = (card.card as { id?: string }).id;
-        const cost =
-            embedded ??
-            (cardId ? tryGetDefinition(cardId)?.manaCost : undefined);
-        const base = getColorsFromCost(cost);
-        const granted = (card as { grantedColors?: { color: string }[] })
-            .grantedColors;
-        if (!granted?.length) return base;
-        const all = new Set(base);
-        for (const g of granted) all.add(g.color as Color);
-        return [...all];
-    },
+    // CR 613.1d layer 5 — delegated to the single colour authority
+    // (`cards/effectiveColors.ts`): colorOverride SETS, grantedColors UNION.
+    getColors: getEffectiveColors,
     isCreature(card: PermanentView): boolean {
         return card.types.includes("Creature");
     },

@@ -341,6 +341,42 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
             expect(p1.battlefield.map((c) => c.id)).toContain("gy-mountain");
             expect(p1.landsPlayedThisTurn).toBe(1);
         });
+
+        // CR 400.7 — the card in the graveyard is a NEW object on re-entry. The
+        // battlefield→graveyard departure deliberately PRESERVES `isTapped` (and
+        // the rest of the transient block) as last-known information for death
+        // triggers, so a land that died TAPPED carries `isTapped: true` in the
+        // graveyard. Replaying it must not inherit that: every reanimation-style
+        // entry funnels through `resetBattlefieldTransientState`, and the
+        // play-a-land-from-graveyard seam has to do the same.
+        it("re-enters UNTAPPED even when it died tapped (CR 400.7)", () => {
+            const gyMountain = makeInstance(mountain.id, {
+                id: "gy-mountain",
+                zone: "graveyard",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            // Last-known battlefield state preserved by the death move.
+            gyMountain.isTapped = true;
+            gyMountain.damageMarked = 3;
+            gyMountain.hasAttackedThisTurn = true;
+            const p1 = makePlayer("p1", { graveyard: [gyMountain] });
+            const state = makeState({
+                players: [p1, makePlayer("p2")],
+                activePlayerId: "p1",
+                graveyardPlayPermissionThisTurn: [
+                    { playerId: "p1", zones: ["land", "spell"] },
+                ],
+            });
+            const played = applyPlayLandFromGraveyard(
+                state,
+                p1,
+                "gy-mountain"
+            )!;
+            expect(played.isTapped).toBe(false);
+            expect(played.damageMarked).toBeUndefined();
+            expect(played.hasAttackedThisTurn).toBeUndefined();
+        });
     });
 
     describe("CLEANUP expiry (CR 514.2)", () => {

@@ -64,6 +64,7 @@ describe("Blightsteel Colossus (CR 702.19 trample, 702.90 infect, 702.12b indest
             "CREATURE_DIED",
             "CARD_DISCARDED",
             "CARD_MILLED",
+            "CARD_PUT_INTO_GRAVEYARD",
         ]);
     });
 

@@ -30,7 +30,8 @@ import { hasControlledSinceTurnStart } from "@convex/gre/controlContinuity";
 import { getColorsFromCost, getCardColorIdentity } from "@convex/cards/colors";
 import { tryGetDefinition } from "@convex/cards";
 import { isExileCostEligible } from "@convex/cards/exileCostEligibility";
-import type { Color } from "@convex/cards/types";
+import { getEffectiveColors } from "@convex/cards/effectiveColors";
+import type { Color, PermanentView } from "@convex/cards/types";
 import { STATIC_EFFECT_CTX } from "@convex/gre/layers";
 import type {
     BotAction,
@@ -327,22 +328,20 @@ function readChoiceZone(
                 : owner.battlefield;
             // CR-style permanent filter (types / subtypes / excludeInstanceIds /
             // …) — the slim projected card is structurally a MatchablePermanent.
-            // CR 202.2 — the wire projection doesn't carry derived colors, so
-            // populate them (colorOverride else printed cost) for color filters,
-            // mirroring the server's effectivePermanentView.
+            // CR 202.2 / 613.1d — the wire projection doesn't carry DERIVED
+            // colours, so populate them through the single colour authority
+            // (`cards/effectiveColors.ts`: layer-5 override SETS,
+            // `grantedColors` UNION), the same one the server's
+            // `effectivePermanentView` uses.
             if (head.filter) {
                 const filter = head.filter;
                 cards = cards.filter((c) =>
                     matchesPermanentFilter(
                         {
                             ...c,
-                            colors: ((c as { colorOverride?: string[] })
-                                .colorOverride ??
-                                getColorsFromCost(
-                                    tryGetDefinition(
-                                        (c.card as { id: string }).id
-                                    )?.manaCost
-                                )) as Color[],
+                            colors: getEffectiveColors(
+                                c as unknown as PermanentView
+                            ),
                             // CR 400.7 — the two DERIVED turn-scoped flags,
                             // computed off state rather than stored on the
                             // instance. Same fail-CLOSED stall risk as

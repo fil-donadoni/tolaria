@@ -87,6 +87,7 @@ import {
 } from "./gre/sacrificeChoice";
 import {
     buildAutoTapSources,
+    solveAutoTap,
     solveSmartAutoTap,
     solveAutoTapPartial,
     manaFromPlan,
@@ -1036,10 +1037,17 @@ export function applyManaAbilityDiscardCost(
  *  emitting any event — so a rejected activation leaves the state untouched.
  *  No-op for the common mana ability with no mana cost. Shared by both
  *  tap-for-mana paths (`tapUntap` priority tap + `tapSourceIntoPayment`
- *  payment tap). */
+ *  payment tap).
+ *
+ *  Snapshots the REAL per-colour pool delta onto `card.manaPaidThisTap` (the
+ *  cost-side sibling of `lifePaidThisTap`) so an untap-toggle that reverses the
+ *  whole activation before the produced mana is spent refunds exactly what was
+ *  taken — a generic {1} can be paid with any colour, so the snapshot, not a
+ *  re-derivation from the cost, is what makes the refund exact. */
 export function applyManaAbilityManaCost(
     player: PlayerState,
-    ability: ActivatedAbility | undefined | null
+    ability: ActivatedAbility | undefined | null,
+    card?: CardInstanceState
 ): void {
     if (!ability?.cost.mana) return;
     const cost = normalizeManaCost(ability.cost.mana);
@@ -1047,7 +1055,104 @@ export function applyManaAbilityManaCost(
     if (!isManaCostCovered(player.manaPool, cost)) {
         throw new Error("Not enough mana to activate this ability");
     }
+    const before = { ...player.manaPool };
     payManaCost(player.manaPool, cost);
+    if (!card) return;
+    const paid: Record<string, number> = {};
+    for (const color of Object.keys(before) as (keyof typeof before)[]) {
+        const delta = (before[color] ?? 0) - (player.manaPool[color] ?? 0);
+        if (delta > 0) paid[color] = delta;
+    }
+    card.manaPaidThisTap =
+        Object.keys(paid).length > 0
+            ? (paid as CardInstanceState["manaPaidThisTap"])
+            : undefined;
+    // CR 106.4 — the sources whose mana just went into this cost can no longer
+    // be untapped for a refund (their mana is spent), the same commitment
+    // `activateGrantedAbility` records. Without it a land tapped for the {1},
+    // then untapped after the filter consumed it, would silently swallow the
+    // refund (the pool is clamped at zero).
+    commitLandsForCost(player, cost);
+}
+
+/** CR 601.2g / 605.3a — auto-tap OTHER mana sources to cover this mana
+ *  ability's own mana cost, so activating a filter rock (Mana Cylix, Chromatic
+ *  Star, Celestial Prism, Fire Sprites) with an empty pool works the way every
+ *  other costed play does: the client asks to tap it, and the engine produces
+ *  the mana it needs. Without this the tap simply threw "Not enough mana"
+ *  unless the player had manually floated the mana first — technically legal
+ *  (activate a land's mana ability, THEN the filter, CR 605.3a) but a UX cliff
+ *  no other cost in the game has.
+ *
+ *  Sequencing is exactly the legal one: each planned source's own mana ability
+ *  resolves first (through `tapSourceIntoPayment`, so painland pings, depletion
+ *  counters and becomes-tapped triggers all fire), leaving the mana floating for
+ *  {@link applyManaAbilityManaCost} to spend. The activating permanent is
+ *  excluded from the plan — it can't pay for itself.
+ *
+ *  A partial plan is still applied (the `autoTapForPayment` precedent): tap what
+ *  is reachable and let `applyManaAbilityManaCost` reject the remainder, rather
+ *  than no-op into a certain throw. No-op when the ability has no mana cost or
+ *  the pool already covers it.
+ *
+ *  The taps are NOT registered for undo (there is no `pendingActivation` to
+ *  hang them on — a mana ability resolves immediately, CR 605.3c). That matches
+ *  the manual sequence exactly: untapping the filter afterwards refunds its
+ *  {1} to the pool and leaves the auto-tapped land tapped, which is what
+ *  happens if the player taps the land by hand. */
+export function autoTapForManaAbilityCost(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    ability: ActivatedAbility | undefined | null
+): void {
+    if (!ability?.cost.mana) return;
+    const cost = normalizeManaCost(ability.cost.mana);
+    if (Object.keys(cost).length === 0) return;
+    const substitutions = getManaSubstitutions(state, player.id);
+    if (isManaCostCovered(player.manaPool, cost, substitutions)) return;
+    // The activating permanent can't fund its own activation cost.
+    const sources = buildAutoTapSources(player.battlefield).filter(
+        (s) => s.cardId !== card.id
+    );
+    const plan =
+        solveAutoTap(player.manaPool, cost, substitutions, sources) ??
+        solveAutoTapPartial(player.manaPool, cost, substitutions, sources);
+    // No undo ledger for a mana ability (see the doc comment) — the primitive
+    // still wants an array to append to.
+    const untracked: string[] = [];
+    for (const step of plan) {
+        const source = player.battlefield.find((c) => c.id === step.cardId);
+        if (!source) continue;
+        tapSourceIntoPayment(
+            state,
+            player,
+            source,
+            step.manaChoiceIndex,
+            untracked
+        );
+    }
+}
+
+/** CR 106.4 / 605.1a — refund the mana recorded by
+ *  {@link applyManaAbilityManaCost} when a tap-for-mana is reversed before its
+ *  produced mana is spent (the `tapUntap` untap toggle, `untapForPayment`).
+ *  Symmetric with `restoreLifePaidOnUntap` and the `chosenMana` /
+ *  charge-counter refunds: an undone activation must undo its COST too, or the
+ *  toggle is a mana burner. No-op when the ability had no mana cost. */
+export function restoreManaPaidOnUntap(
+    player: PlayerState,
+    card: CardInstanceState
+): void {
+    const paid = card.manaPaidThisTap;
+    if (!paid) return;
+    for (const [color, amount] of Object.entries(paid)) {
+        if (color === "X" || typeof amount !== "number" || amount <= 0)
+            continue;
+        const key = color as keyof typeof player.manaPool;
+        player.manaPool[key] = (player.manaPool[key] ?? 0) + amount;
+    }
+    card.manaPaidThisTap = undefined;
 }
 
 /** CR 605.1a / 122.1 — depletion-dual tap-for-mana rider. When a tap mana
@@ -1553,7 +1658,7 @@ export function tapSourceIntoPayment(
         // CR 605.1a / 601.2f — pay the mana portion of the activation cost
         // (Chromatic Star's {1}) FIRST, before any source mutation, so an
         // unaffordable activation throws with nothing changed.
-        applyManaAbilityManaCost(player, effAbility);
+        applyManaAbilityManaCost(player, effAbility, card);
         // CR 605.2 — emit "tapped for mana" before the sacrifice path moves
         // the card off the battlefield, so the event carries the permanent's
         // pre-sacrifice types/subtypes for trigger predicates.
@@ -1647,7 +1752,7 @@ export function tapSourceIntoPayment(
     // CR 605.1a / 601.2f — pay the mana portion of the activation cost FIRST,
     // before any source mutation, so an unaffordable activation throws with
     // nothing changed.
-    applyManaAbilityManaCost(player, ability);
+    applyManaAbilityManaCost(player, ability, card);
     if (!isSacrifice) card.isTapped = true;
     // CR 106.1 / 605.1a — board-conditional output (Urza trio) is computed from
     // the controller's battlefield now and snapshotted onto `chosenMana` so the
@@ -1775,6 +1880,9 @@ function untapSourceFromPayment(
     // Ancient Tomb, Mana Confluence). Symmetric with the mana / counter refund
     // above.
     restoreLifePaidOnUntap(player, card);
+    // CR 106.4 / 601.2f — and the mana its own activation cost took (Chromatic
+    // Star's {1}). Same reversal, cost side.
+    restoreManaPaidOnUntap(player, card);
     card.isTapped = false;
 }
 
@@ -12678,6 +12786,21 @@ export const tapUntap = mutation({
         // trigger) read this so they fire only for the ability that was used.
         let tapAbility: ActivatedAbility | null = ability;
 
+        // CR 601.2g / 605.3a — a mana ability with its own MANA cost leg (Mana
+        // Cylix "{1}, {T}: Add one mana of any color", Chromatic Star, Fire
+        // Sprites) gets the same auto-tap convenience every other costed play
+        // has: float the mana it needs from the player's other sources instead
+        // of rejecting the tap. Runs BEFORE either branch pays
+        // (`applyManaAbilityManaCost`) and only on a TAP — an untap toggle
+        // refunds the cost instead. Keyed off `ability`, the source's single
+        // activated mana ability, which for every shipped filter IS the ability
+        // that carries the cost; a hypothetical card whose SECOND mana ability
+        // were the costed one would simply not be pre-funded here and fall
+        // through to the payment check as before.
+        if (!wasTapped) {
+            autoTapForManaAbilityCost(state, player, card, ability);
+        }
+
         // Determine mana to add/remove
         if (
             manaTapNeedsChoice(
@@ -12742,6 +12865,14 @@ export const tapUntap = mutation({
                 }
 
                 const optIsSacrifice = effAbility?.cost.sacrifice === true;
+                // CR 605.1a / 601.2f — pay the MANA portion of the activation
+                // cost (Mana Cylix / Celestial Prism / Standing Stones "{N},
+                // {T}: Add one mana of any color") FIRST, before any source
+                // mutation, so an unaffordable activation throws with nothing
+                // changed. The payment tap (`tapSourceIntoPayment`) has always
+                // done this; the PRIORITY tap did not, which made every one of
+                // these filters a free ramp source.
+                applyManaAbilityManaCost(player, effAbility, card);
                 // CR 605.2 — emit before any sacrifice path moves the card off
                 // the battlefield, so the event still carries the source's
                 // pre-sacrifice types/subtypes.
@@ -12862,6 +12993,12 @@ export const tapUntap = mutation({
             // rejected above, so here `wasTapped` is always false. We keep the
             // permanent on the battlefield only long enough to read its mana
             // output, then move it to the graveyard instead of tapping it.
+            //
+            // CR 605.1a / 601.2f — pay the MANA portion of the activation cost
+            // (Fire Sprites "{G}, {T}: Add {R}") FIRST, before any source
+            // mutation, so an unaffordable activation throws with nothing
+            // changed. Tap only — an untap toggle reverses the cost below.
+            if (!wasTapped) applyManaAbilityManaCost(player, ability, card);
             if (!isSacrifice) card.isTapped = !card.isTapped;
             const manaColor =
                 getBasicLandMana(card) ?? getActivatedManaColor(card);
@@ -13008,6 +13145,10 @@ export const tapUntap = mutation({
         // rejected before reaching here.
         if (wasTapped && !producedThisActivation) {
             restoreLifePaidOnUntap(player, card);
+            // CR 106.4 / 601.2f — the cost-side sibling: refund the mana the
+            // activation's own mana cost took (Mana Cylix's {1}), or the untap
+            // toggle burns it. Same window/guards as the life refund above.
+            restoreManaPaidOnUntap(player, card);
         }
 
         // CR 603.7a / ADR 0040 — a tap mana ability may declare a delayed-

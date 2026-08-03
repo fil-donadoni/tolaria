@@ -95,8 +95,11 @@ function isAltered(card: CardInstance, hostIds: ReadonlySet<string>): boolean {
         card.grantedTriggeredAbilities.length > 0
     )
         return true;
-    // Layer 5 color override (CR 305.7, 613.1d).
+    // Layer 5 colour (CR 305.7, 613.1d) — a colour SET (lace instants) and a
+    // colour GRANT (Dralnu's Crusade "All Goblins are black") both repaint the
+    // card's overlay, so either makes the instance visually individual.
     if (card.colorOverride && card.colorOverride.length > 0) return true;
+    if (card.grantedColors && card.grantedColors.length > 0) return true;
     // Copy effect anchor (CR 707.2) — a copy carries a printed identity.
     if (card.copiedFrom) return true;
     // Combat involvement makes the instance individually meaningful (CR 506).

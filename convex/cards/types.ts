@@ -6654,6 +6654,7 @@ export type GameEventType =
     | "CARD_DRAWN"
     | "CARD_DISCARDED"
     | "CARD_MILLED"
+    | "CARD_PUT_INTO_GRAVEYARD"
     | "LIFE_LOST"
     | "LIFE_GAINED"
     | "COUNTER_REMOVED"
@@ -7139,6 +7140,58 @@ export interface CardMilledEvent {
     types?: ReadonlyArray<CardType>;
 }
 
+/** Emitted whenever a card is put into a graveyard by a GENERAL zone move —
+ *  the residual "put into a graveyard from anywhere" (CR 603.6) entries that no
+ *  more specific event covers.
+ *
+ *  Scope, stated as an exclusion so it can never double-fire (the producer
+ *  census that defines it): the only emitters are the two general zone-change
+ *  primitives `SpellContext.moveZone` / `moveCardById` and the CR 614
+ *  reveal-bin (`binRevealedTopCard`), all three funnelled through
+ *  `moveCardWithGraveyardReplacement` in `gre/state.ts`. Those primitives take a
+ *  `MovableZone` (`library | hand | graveyard | exile` — the battlefield is NOT
+ *  a member), so this event can never describe a battlefield death, and neither
+ *  the discard choke point (`discardToGraveyard`) nor the mill choke point
+ *  (`millCards`) routes through it. The three more specific events therefore
+ *  partition cleanly against it:
+ *
+ *  | zone change                                | event                      |
+ *  | ------------------------------------------ | -------------------------- |
+ *  | battlefield → graveyard                    | CREATURE_DIED / PERMANENT_LEFT |
+ *  | hand → graveyard, as a DISCARD (CR 701.8)  | CARD_DISCARDED             |
+ *  | library → graveyard, as a MILL (CR 701.17) | CARD_MILLED                |
+ *  | any other general move into a graveyard    | **this event**             |
+ *
+ *  That last row is exactly the gap it closes: "reveal the top four cards …
+ *  put the rest into your graveyard" (Malevolent Rumble's `digToHand` with
+ *  `destination: "graveyard"`) is NOT a mill (CR 701.17a), so it emitted
+ *  nothing and a "put into a graveyard from anywhere" trigger — Worldspine
+ *  Wurm's shuffle-back, Blightsteel Colossus's — silently failed to fire.
+ *
+ *  Emitted AFTER the card has landed, so a self-trigger can locate it in its
+ *  destination zone (the `CARD_DISCARDED` / `CARD_MILLED` discipline). NOT
+ *  emitted when a CR 614 graveyard-bound replacement (Yawgmoth's Will, Dauthi
+ *  Voidwalker) redirected the move to exile — the card was never put into a
+ *  graveyard. */
+export interface CardPutIntoGraveyardEvent {
+    type: "CARD_PUT_INTO_GRAVEYARD";
+    /** Owner of the card, whose graveyard it now sits in (CR 404.3 — a card
+     *  always goes to its OWNER's graveyard). */
+    ownerId: string;
+    /** Instance id of the card, now in `ownerId`'s graveyard. */
+    cardInstanceId: string;
+    /** Card definition id, so type-based filters can run without re-reading the
+     *  graveyard. */
+    cardId?: string;
+    /** Zone the card came from, for a trigger that cares (never
+     *  `"battlefield"` — see the scope note above). */
+    fromZone: MovableZone;
+    /** Card types snapshotted at the moment of the move (CR 603.10 last-known
+     *  information), for "whenever a permanent card is put into …"-style
+     *  filters. */
+    types?: ReadonlyArray<CardType>;
+}
+
 /** Emitted whenever a player loses life (CR 119.3 — a player's life total
  *  decreasing, whether from a "lose life" effect, a paid life cost, or damage
  *  dealt to that player). One event per life-loss, emitted AFTER the life total
@@ -7400,6 +7453,7 @@ export type GameEvent =
     | CardDrawnEvent
     | CardDiscardedEvent
     | CardMilledEvent
+    | CardPutIntoGraveyardEvent
     | LifeLostEvent
     | LifeGainedEvent
     | CounterRemovedEvent

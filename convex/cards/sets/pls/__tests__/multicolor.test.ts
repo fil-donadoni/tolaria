@@ -74,6 +74,7 @@ import {
     STATIC_EFFECT_CTX,
 } from "../../../../gre/layers";
 import { getLegalTargets } from "../../../../gre/rules";
+import { getEffectiveColors } from "../../../effectiveColors";
 import { castProhibitionReason } from "../../../castRestrictions";
 import { announceCast } from "../../../../game";
 import {
@@ -924,6 +925,34 @@ describe("Dralnu's Crusade ({1}{B}{R} — all Goblins get +1/+1, are black and a
         );
         expect(slim.subtypes).toContain("Zombie");
         expect(slim.subtypes).toContain("Goblin");
+    });
+
+    // The COLOUR half of the wire leg (CR 613.1d layer 5). The engine writes
+    // the grant onto `grantedColors`, but every colour consumer OUTSIDE
+    // `gre/layers.ts` used to re-derive colours as `colorOverride ?? printed
+    // cost` and drop it — the client's target/choice filters, the client-side
+    // Brain's view, and the attack/cast restriction contexts. Asserted through
+    // the real projection AND through the shared authority the client calls, so
+    // a future copy of the derivation can't silently reintroduce the drop.
+    it("the granted black survives the wire projection and reads black client-side", () => {
+        const { state, goblin } = goblinBoard("p1");
+        // Server-side first: the Goblin is BOTH its printed red and black
+        // (additive grant, not a replacement).
+        expect(getEffectiveColors(goblin as never)).toEqual(
+            expect.arrayContaining(["R", "B"])
+        );
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === goblin.id
+        )!;
+        // `slimCard` forwards the field (it only strips `card` / `knownTo`).
+        expect(slim.grantedColors).toEqual([
+            { color: "B", sourceId: "crusade-1" },
+        ]);
+        expect(getEffectiveColors(slim as never)).toEqual(
+            expect.arrayContaining(["R", "B"])
+        );
     });
 
     // DIVERGENCE tripwire (tracked-by #2009): the engine's only layer-5 static

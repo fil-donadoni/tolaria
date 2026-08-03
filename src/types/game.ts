@@ -267,6 +267,15 @@ export interface CardInstance {
     chosenName?: string;
     /** Layer 5 color override (CR 305.7, 613.1d). Set by lace instants. */
     colorOverride?: string[];
+    /** Layer 5 color GRANT (CR 613.1d) — a colour ADDED by another permanent's
+     *  static effect (Dralnu's Crusade "All Goblins are black", Sinister
+     *  Strength), unioned with the printed cost's colours rather than replacing
+     *  them like `colorOverride`. Forwarded by `slimCard` (the projection only
+     *  strips `card`/`knownTo`), and read through the single colour authority
+     *  `getEffectiveColors` (`convex/cards/effectiveColors.ts`) so colour
+     *  filters / target highlighting on the board agree with the server.
+     *  Mirrors `CardInstanceState.grantedColors` in `convex/gre/state.ts`. */
+    grantedColors?: { color: string; sourceId: string }[];
     /** Copy effect anchor (CR 707.2). When set, this permanent is a copy and
      *  `card.id` carries the copied object's def id; `copiedFrom` holds the
      *  printed identity restored when the copy leaves the battlefield. */
