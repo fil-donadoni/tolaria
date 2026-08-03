@@ -49,23 +49,6 @@ export function preloadDefinitions(defs: CardDefinition[]): void {
     for (const def of defs) registry.set(def.id, def);
 }
 
-/** Preload CardPrint mappings (printId → definitionId) and definition→setCode
- *  data so catalogue-augmented lookups (`isPrintedInSet`, `resolveDeckCardMeta`)
- *  work after preload. Only needed on the client when not also loading the
- *  full catalogue. */
-export function preloadPrints(
-    prints: Array<{ printId: string; definitionId: string }>,
-    setCodes: Array<[string, string]>
-): void {
-    for (const p of prints) _printDefinitionMap.set(p.printId, p.definitionId);
-    for (const [defId, code] of setCodes) _definitionSetCode.set(defId, code);
-}
-
-// Internal mutable maps for catalogue-augmented functions. Populated by
-// `preloadPrints` (client) or `./catalogue.ts` (server).
-const _printDefinitionMap = new Map<string, string>();
-const _definitionSetCode = new Map<string, string>();
-
 // ADR 0054 — implicit keyword expansion. `fading N` / `vanishing N` cards
 // declare only the keyword string; the seam injects the enter-with-counters
 // entry and the synthesized upkeep/sacrifice triggers. Memoized by definition
