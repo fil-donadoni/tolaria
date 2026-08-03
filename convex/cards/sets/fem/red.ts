@@ -609,13 +609,16 @@ export const dwarvenLieutenant: CardDefinition = {
     ],
 };
 
-// DIVERGENCE (tracked #974): the "Whenever this creature blocks or becomes
+// DIVERGENCE (tracked-by: #2118): the "Whenever this creature blocks or becomes
 // blocked by one or more Orcs, this creature gets +0/+2 until end of turn"
-// trigger is NOT modelled. The engine's per-pair BLOCKERS_CONFIRMED events
-// (CR 509.1h) would fire the +0/+2 once PER Orc, but the printed "one or more"
-// batch trigger must fire exactly once per combat — no once-per-combat combat-
-// pairing guard exists yet. A vanilla 2/1 ships; the conditional buff is
-// deferred rather than shipped as an incorrect per-Orc stack.
+// trigger is NOT modelled — a vanilla 2/1 ships. NOTHING BLOCKS IT ANY MORE:
+// this is queued card work, not a capability gap. When the deferral was written
+// the engine had no way to fire a "one or more" batch trigger exactly once per
+// combat (CR 603.3b) instead of once per BLOCKERS_CONFIRMED pair; both halves
+// have since shipped — `oncePerEventBatch: true` on `TriggeredAbility` does the
+// batching, and the event itself carries `attackerSubtypes`/`blockerSubtypes`
+// for the "by one or more Orcs" filter. Amphibious Kavu (`pls/green.ts`) is the
+// same Oracle line with a colour filter and is the shape to copy.
 export const dwarvenSoldier: CardDefinition = {
     id: "6fe77608-0b33-43f5-83fb-ae993ca1bf7c", // FEM 53a (canonical art)
     rarity: "common",
@@ -739,7 +742,7 @@ export const dwarvenCatapult: CardDefinition = {
     },
 };
 
-// DIVERGENCE (tracked #974): the first line — "This enchantment can't be the
+// DIVERGENCE (tracked-by: #2120): the first line — "This enchantment can't be the
 // target of white spells or abilities from white sources" — is NOT modelled.
 // It is a protection-from-white variant restricted to WHITE SOURCES (a
 // source-colour-gated targeting ban, CR 702.16b), which the permanent-guard /

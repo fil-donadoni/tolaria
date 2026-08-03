@@ -2912,12 +2912,19 @@ export const songsOfTheDamned: CardDefinition = {
 // The `{X}{2}{B}` cost uses the `generic` field (the `X` slot holds the
 // variable marker, so the fixed {2} lives in `generic`).
 //
-// SIMPLIFICATION (flagged): the oracle's "Spend only black and/or red mana on X"
-// payment restriction is NOT enforced at tap time — the engine has no
-// colour-restricted generic-payment seam, and the merged mana pool carries no
-// provenance of which colour paid the X portion. The observable game effect —
-// the lifegain cap by {B} spent on X — IS modelled faithfully (noted black
-// minus the fixed pip, clamped to [0, X]).
+// DIVERGENCE (tracked-by: #1330): the oracle's "Spend only black and/or red
+// mana on X" payment restriction is NOT enforced at tap time — the engine has
+// no colour-restricted generic-payment seam, and the merged mana pool carries
+// no provenance of which colour paid the X portion. Same capability Drain Life
+// (`lea/black.ts`) and Atalya, Samite Master need. The card's OWN {B}-spent
+// lifegain cap IS modelled faithfully (noted black minus the fixed pip, clamped
+// to [0, X]) — that half is not a divergence.
+//
+// DIVERGENCE (tracked-by: #974): the oracle's three OTHER lifegain sub-caps —
+// "but not more than … the player's life total / the planeswalker's loyalty /
+// the creature's toughness before the damage was dealt" — are dropped; only the
+// {B}-spent cap and X bound the gain. Needs the same damage-DEALT readback
+// Drain Life's identical clause waits on.
 const SOUL_BURN_FIXED_BLACK_PIPS = 1;
 export const soulBurn: CardDefinition = {
     id: "eb8e00d2-2381-4d45-bed8-c9bf738a9419",

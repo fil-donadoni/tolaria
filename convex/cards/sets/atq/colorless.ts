@@ -1204,18 +1204,19 @@ export const rakalite: CardDefinition = {
 // artifact in addition to its other types." (CR 122.1 +1/+1 counter; CR 205
 // type-add.)
 //
-// DIVERGENCE (flagged, no engine change): the "becomes an artifact in addition
-// to its other types" clause has NO resolve-time primitive — the only type-add
-// is the source-bound continuous `StaticTypeAdd` (auras, reverts when the
-// source leaves), which is wrong here since this artifact sacrifices ITSELF as
-// a cost (the type-add must persist after the source is gone). There is no
-// imperative `ctx.addCardType`. The card therefore ships the +1/+1 counter (the
-// board-dominant, fully testable effect) and omits the permanent artifact-type
-// grant. A resolve-time `addCardType` primitive is needed to close this and is
-// flagged for a feature tranche.
-// DIVERGENCE (tracked #974; supersedes the closed #277): needs a resolve-time
-// `addCardType` primitive for the permanent "becomes an artifact in addition to
-// its other types" clause.
+// DIVERGENCE (tracked-by: #2064; supersedes the closed #277): the "becomes an
+// artifact in addition to its other types" clause is not modelled. The only
+// type-add today is the source-bound continuous `StaticTypeAdd` (auras, which
+// reverts when the source leaves), and that is wrong here: this artifact
+// sacrifices ITSELF as a cost, so the layer-4 effect must OUTLIVE its own
+// source. That lifetime is the question the Continuous Effects Registry (ADR
+// 0082 / PRD #2064) decides — an imperative `ctx.addCardType` would be the
+// stored-characteristic mutation that ADR explicitly rejects for a
+// non-copiable value, so this is deliberately NOT a small local primitive.
+// `animate` is not a workaround either: it forces a base P/T set (layer 7a) and
+// this creature's P/T must not change. Cf. #2086 (a layer-4 type add surviving
+// the TARGET leaving the battlefield, CR 400.7) — same layer, adjacent bug.
+// The card ships the +1/+1 counter (the board-dominant, fully testable half).
 export const ashnodsTransmogrant: CardDefinition = {
     id: "2aa5b289-36ba-49b1-a5ac-f23bf71f8241",
     rarity: "uncommon",

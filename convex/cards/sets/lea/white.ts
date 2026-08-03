@@ -568,7 +568,7 @@ export const guardianAngel: CardDefinition = {
     // resolves the raw target (player OR permanent). A missing target is skipped
     // (CR 608.2b); X = 0 stacks a harmless 0-damage shield (the executor no-ops
     // a zero-amount prevention).
-    // DIVERGENCE (tracked #974): the second sentence — "Until end of turn, you
+    // DIVERGENCE (tracked-by: #2122): the second sentence — "Until end of turn, you
     // may pay {1} any time you could cast an instant. If you do, prevent the
     // next 1 damage that would be dealt to that permanent or player this turn" —
     // is NOT modelled. It grants the caster a floating, repeatable special
