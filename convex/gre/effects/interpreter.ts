@@ -4579,6 +4579,21 @@ function runOpList(
  *  `bind`. The static validator pre-declares it for ability sites. */
 export const SOURCE_BINDING = "$source";
 
+/** The implicit binding name an ability-site script gets for the source's
+ *  ATTACHMENT HOST (CR 701.3, issue #1341): the permanent `$source` is
+ *  currently attached to — the equipped creature of an Equipment, the
+ *  enchanted permanent of an Aura. Seeded alongside `$source` whenever the
+ *  source has a live `attachedTo`, so an equip/aura ability can act on its
+ *  host declaratively ("Equipped creature gets +2/+2", "Regenerate enchanted
+ *  creature") instead of reaching for `ctx.getAttachedToId()` in a closure.
+ *
+ *  It is NOT a target (CR 115.10 — the host is named by the ability's own
+ *  text, never chosen), so it needs no `targetRequirement` and is immune to
+ *  shroud/protection. An UNATTACHED source simply seeds no binding: every ref
+ *  to it then resolves to undefined and the reading Op skips (CR 608.2b —
+ *  the ability does as much as it can). */
+export const HOST_BINDING = "$host";
+
 /** The per-iteration binding name a `forEach` body gets for free (ADR 0045,
  *  issue #807): the current member of the iterated set. */
 export const EACH_BINDING = "$each";
@@ -4854,6 +4869,19 @@ export function runEffectScript(
             type: "permanent",
             id: ctx.sourceInstanceId,
         });
+        // `$host` (issue #1341) — the source's attachment host, seeded on the
+        // same FRESH entry as `$source` and under the same CR 603.10 / 608.2h
+        // last-known-information rule: an Equipment that is unattached (or
+        // whose host has left) seeds nothing, and every ref to it skips its Op
+        // (CR 608.2b). Read from the live link at resolution start, which is
+        // the moment CR 608.2 fixes the ability's subject.
+        const hostId = ctx.getAttachedToId();
+        if (hostId !== undefined && ctx.getOwnerId(hostId) !== undefined) {
+            bindSnapshot(ctx, HOST_BINDING, {
+                type: "permanent",
+                id: hostId,
+            });
+        }
     }
     // A fresh run resumes from position 0 (nothing skipped); a resume skips
     // every Op before the checkpointed position across the whole nested tree.

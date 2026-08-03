@@ -2236,6 +2236,7 @@ function isCaptureMap(value: unknown): boolean {
             isBindingName(k) &&
             k !== "$each" &&
             k !== "$source" &&
+            k !== "$host" &&
             (isNonEmptyString(v) ||
                 isTargetRef(v) ||
                 isBareRef(v) ||
@@ -2261,6 +2262,7 @@ function isReflexiveCaptureMap(value: unknown): boolean {
             isBindingName(k) &&
             k !== "$each" &&
             k !== "$source" &&
+            k !== "$host" &&
             (isNonEmptyString(v) ||
                 isTargetRef(v) ||
                 isBareRef(v) ||
@@ -5230,8 +5232,13 @@ export function validateEffectScript(def: EffectScriptHost): string[] {
 /** No implicit bindings — a spell site provides no `$source` (its source is
  *  the resolving stack item, not a battlefield permanent). */
 const EMPTY_BINDINGS: ReadonlySet<string> = new Set();
-/** The bindings an ability site provides for free (issue #803): `$source`. */
-const ABILITY_BINDINGS: ReadonlySet<string> = new Set(["$source"]);
+/** The bindings an ability site provides for free: `$source` (issue #803) and
+ *  `$host` (issue #1341 — the permanent the source is attached to, CR 701.3).
+ *  `$host` is declared STATICALLY at every ability site even though it is only
+ *  seeded at runtime for an actually-attached source: an unattached source
+ *  resolves it to undefined and the reading Op skips (CR 608.2b), exactly as
+ *  `$source` does for a source that has left the battlefield. */
+const ABILITY_BINDINGS: ReadonlySet<string> = new Set(["$source", "$host"]);
 
 /** The narrow ability slice the ability-site validator reads. Both
  *  `ActivatedAbility` and `TriggeredAbility` satisfy it structurally.

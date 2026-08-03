@@ -1524,13 +1524,23 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         cr: "702.91",
         status: "planned",
     },
-    // 702.92 Living Weapon
+    // 702.92 Living Weapon (issue #1340) — a self-ETB triggered ability
+    // (CR 702.92a) built from two ALREADY-CENSUSED Ops, no new engine
+    // capability: `createToken` (the shared 0/0 black Phyrexian Germ spec,
+    // `sharedTokens.ts`) with a `bind`, then the generic `attach` Op
+    // (CR 701.3, ADR 0065's unified attachment model) reading that binding
+    // back — the same createToken→attach chain Cori-Steel Cutter already
+    // exercises. Built by the `livingWeapon()` factory
+    // (`abilities/equipment.ts`). First cards: Batterskull (nph/colorless.ts),
+    // Kaldra Compleat + Nettlecyst (mh2/colorless.ts).
     {
         id: "living-weapon",
         name: "Living Weapon",
         kind: "keyword-ability",
         cr: "702.92",
-        status: "planned",
+        status: "implemented",
+        binding:
+            "livingWeapon() self-ETB enteredTrigger — createToken (PHYREXIAN_GERM_TOKEN, bind) + attach Op (ADR 0065)",
     },
     // 702.93 Undying
     {

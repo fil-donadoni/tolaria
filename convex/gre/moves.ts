@@ -210,6 +210,10 @@ export type Move =
           kind: "activate-ability";
           cardInstanceId: string;
           abilityId: string;
+          /** CR 700.2 / 602.2b (issue #1341) — the mode of a MODAL activated
+           *  ability (Umezawa's Jitte), locked in at announcement. One move
+           *  variant per mode, each carrying that mode's own targets. */
+          chosenModeId?: string;
           chosenX?: number;
           targets: TargetSelection[];
           confirmTargets: boolean;
@@ -1041,25 +1045,37 @@ function enumerateAbilityMoves(
         const tapPlan = planManaPayment(state, player, manaCost);
         if (tapPlan === null) continue;
 
-        const tuples = enumerateTargetTuples(
-            state,
-            player,
-            perm,
-            ability.targetRequirement,
-            undefined
-        );
-        for (const targets of tuples) {
-            moves.push({
-                kind: "activate-ability",
-                cardInstanceId: perm.id,
-                abilityId: ability.id,
-                targets,
-                confirmTargets:
-                    isVariableCount(ability.targetRequirement) &&
-                    targets.length > 0,
-                tapPlan,
-            });
-            if (moves.length >= MAX_COMBINATIONS) return moves;
+        // Modal activated abilities (CR 700.2 / 602.2b, issue #1341): one
+        // variant per mode, each with its OWN target requirement — the same
+        // shape modal spells use above. A non-modal ability keeps its single
+        // ability-level requirement.
+        const abilityModeVariants =
+            ability.modes && ability.modes.length > 0
+                ? ability.modes.map((m) => ({
+                      modeId: m.id as string | undefined,
+                      req: m.targetRequirement,
+                  }))
+                : [{ modeId: undefined, req: ability.targetRequirement }];
+        for (const { modeId, req } of abilityModeVariants) {
+            const tuples = enumerateTargetTuples(
+                state,
+                player,
+                perm,
+                req,
+                undefined
+            );
+            for (const targets of tuples) {
+                moves.push({
+                    kind: "activate-ability",
+                    cardInstanceId: perm.id,
+                    abilityId: ability.id,
+                    ...(modeId ? { chosenModeId: modeId } : {}),
+                    targets,
+                    confirmTargets: isVariableCount(req) && targets.length > 0,
+                    tapPlan,
+                });
+                if (moves.length >= MAX_COMBINATIONS) return moves;
+            }
         }
     }
     return moves;

@@ -116,3 +116,27 @@ export const KNIGHT_TOKEN: EffectTokenSpec = {
     colors: ["W"],
     staticAbilities: ["vigilance"],
 };
+
+/** Phyrexian Germ token (CR 707.2, issue #1340) — the "0/0 black Phyrexian
+ *  Germ creature token" every Living Weapon Equipment creates (CR 702.92a:
+ *  Batterskull, Kaldra Compleat, Nettlecyst, …). Vanilla: no abilities, no
+ *  counters; the Equipment attached to it is the only thing keeping it above
+ *  0 toughness (CR 704.5f — once the Equipment detaches, the unbuffed 0/0
+ *  Germ dies).
+ *
+ *  Deliberately carries NO `imagePrintId`, unlike the Treasure / Eldrazi Spawn
+ *  specs above: every Living Weapon card has its OWN printed Germ token, so
+ *  pinning one id here would stamp (say) Batterskull's NPH Germ onto Kaldra
+ *  Compleat. `SpellContext.createToken` auto-resolves the art per PRODUCING
+ *  card from `generated/token-prints.json` keyed by (card id, "Phyrexian
+ *  Germ") — the token/emblem art-match rule. A new Living Weapon card must
+ *  therefore refresh the lockfile (`node scripts/fetch-token-prints.mjs
+ *  <its set file>`) or `tokenPrintLookup.test.ts` fails CI. */
+export const PHYREXIAN_GERM_TOKEN: EffectTokenSpec = {
+    name: "Phyrexian Germ",
+    types: ["Creature"],
+    subtypes: ["Phyrexian", "Germ"],
+    power: 0,
+    toughness: 0,
+    colors: ["B"],
+};

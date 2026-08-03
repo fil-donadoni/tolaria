@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { CardInstance, Player } from "~/types/game";
 import type { ManaCost } from "~/types/cards";
+import type { AbilityMode } from "@convex/cards/types";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { useAttackSequence } from "~/hooks/useAttackSequence";
@@ -39,6 +40,7 @@ import { isTapOtherChoicePaid } from "@convex/gre/tapOtherCost";
 import type { ActivatableAbility } from "~/components/board/battlefield-card";
 import ManaChoicePicker from "~/components/board/mana-choice-picker";
 import CastCostDialog from "~/components/cards/cast-cost-dialog";
+import ModePicker from "~/components/cards/mode-picker";
 import ErrorToast from "~/components/board/error-toast";
 
 /** Battlefield interaction controller for one player's battlefield (PRD #249,
@@ -172,6 +174,19 @@ export function useBattlefieldInteraction(player: Player) {
         abilityId: string;
         cardName: string;
         oracleText?: string;
+        keepPriority: boolean;
+    } | null>(null);
+
+    // CR 700.2 / 602.2b (issue #1341) — a MODAL activated ability (Umezawa's
+    // Jitte) locks its mode in at announcement, BEFORE targets are chosen, so
+    // the picker has to run client-side before `activateAbility` is called at
+    // all. Mirrors the modal-spell flow in `useHandCardCommit`, reusing the
+    // same `<ModePicker>`.
+    const [abilityModeChoiceState, setAbilityModeChoiceState] = useState<{
+        cardInstanceId: string;
+        abilityId: string;
+        cardName: string;
+        modes: AbilityMode[];
         keepPriority: boolean;
     } | null>(null);
 
@@ -891,6 +906,20 @@ export function useBattlefieldInteraction(player: Player) {
         // activator chooses X before announcement. Open the in-game cost dialog
         // (same one the spell-cast path uses); the confirm handler dispatches
         // `activateAbility` with the chosen X.
+        // CR 700.2 / 601.2b — the mode comes FIRST, before X and before
+        // targets: only the chosen mode's target requirement is declared
+        // (CR 700.2d), and the server rejects an activation of a modal
+        // ability with no `chosenModeId`.
+        if (ability?.modes && ability.modes.length > 0) {
+            setAbilityModeChoiceState({
+                cardInstanceId,
+                abilityId,
+                cardName: def.name,
+                modes: ability.modes,
+                keepPriority,
+            });
+            return;
+        }
         const hasX =
             ability?.cost.mana?.X !== undefined &&
             typeof ability.cost.mana.X === "string";
@@ -983,6 +1012,28 @@ export function useBattlefieldInteraction(player: Player) {
                         setManaChoiceState(null);
                     }}
                     onCancel={() => setManaChoiceState(null)}
+                />
+            )}
+            {abilityModeChoiceState && (
+                <ModePicker
+                    modes={abilityModeChoiceState.modes}
+                    cardName={abilityModeChoiceState.cardName}
+                    onSelect={(modeId) => {
+                        const s = abilityModeChoiceState;
+                        setAbilityModeChoiceState(null);
+                        guardMutation(
+                            activateAbility({
+                                gameId,
+                                playerId,
+                                cardInstanceId: s.cardInstanceId,
+                                abilityId: s.abilityId,
+                                keepPriority: s.keepPriority || undefined,
+                                chosenX: undefined,
+                                chosenModeId: modeId,
+                            })
+                        );
+                    }}
+                    onCancel={() => setAbilityModeChoiceState(null)}
                 />
             )}
             {abilityXChoiceState && (

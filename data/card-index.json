@@ -1136,6 +1136,14 @@
         "firstPrintSet": "atq"
     },
     {
+        "name": "Batterskull",
+        "scryfallId": "cd114ec3-d286-4c70-a122-3043bc53cc88",
+        "oracleId": "d12e5ce0-5705-4c35-9a93-b883db52c80c",
+        "firstSet": "nph",
+        "firstPrintId": "cd114ec3-d286-4c70-a122-3043bc53cc88",
+        "firstPrintSet": "nph"
+    },
+    {
         "name": "Battle Cry",
         "scryfallId": "c558a8c4-035c-464e-9ff8-c188c1bb619e",
         "oracleId": "b92afdba-5aea-42c8-bdd8-6ba5ff6cba4f",
@@ -7104,6 +7112,14 @@
         "firstPrintSet": "arn"
     },
     {
+        "name": "Kaldra Compleat",
+        "scryfallId": "87cc2855-6b14-44dd-a398-7dc2bbae081f",
+        "oracleId": "7359e82b-db79-488d-a1d4-75a00f12a4cf",
+        "firstSet": "mh2",
+        "firstPrintId": "87cc2855-6b14-44dd-a398-7dc2bbae081f",
+        "firstPrintSet": "mh2"
+    },
+    {
         "name": "Kappa Cannoneer",
         "scryfallId": "85a89077-b384-4fca-9d26-7297962c1541",
         "oracleId": "7fffbe7f-ad78-4bb6-a611-c37e495c6ee0",
@@ -9166,6 +9182,14 @@
         "firstSet": "mh3",
         "firstPrintId": "3ee3945e-5089-4751-b7b3-5961c39d2a33",
         "firstPrintSet": "mh3"
+    },
+    {
+        "name": "Nettlecyst",
+        "scryfallId": "4a0bb5dc-75a6-4bd6-81f8-611197fb0fba",
+        "oracleId": "04c7f4fe-2098-4311-866d-6733c08d5178",
+        "firstSet": "mh2",
+        "firstPrintId": "4a0bb5dc-75a6-4bd6-81f8-611197fb0fba",
+        "firstPrintSet": "mh2"
     },
     {
         "name": "Nettling Imp",
@@ -14286,6 +14310,14 @@
         "firstSet": "leg",
         "firstPrintId": "254e0403-67d8-4e73-8d89-c901ebeba49f",
         "firstPrintSet": "leg"
+    },
+    {
+        "name": "Umezawa's Jitte",
+        "scryfallId": "3b6e5956-f795-451b-bb24-56462d1ced27",
+        "oracleId": "1da10d5c-36a8-473f-a5d4-782ad61d8057",
+        "firstSet": "bok",
+        "firstPrintId": "3b6e5956-f795-451b-bb24-56462d1ced27",
+        "firstPrintSet": "bok"
     },
     {
         "name": "Uncle Istvan",

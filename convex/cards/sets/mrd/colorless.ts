@@ -7,6 +7,7 @@ import { AURA_AFFECTS_HOST } from "../../types";
 import { makeTalisman } from "../../abilities";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { affinityForArtifacts } from "../../abilities/affinity";
+import { equipAbility } from "../../abilities/equipment";
 
 const CHROME_MOX_ID = "6a058e68-70af-4a64-859c-c881e5578368";
 const CHROME_MOX_COLORS = ["W", "U", "B", "R", "G"] as const;
@@ -240,21 +241,11 @@ export const lightningGreaves: CardDefinition = {
         },
     ],
     activatedAbilities: [
-        {
-            // CR 702.6e — Equip is sorcery-speed-only and targets a creature
-            // its controller controls. Equip {0} — no mana cost.
+        equipAbility({
             id: "lightning-greaves-equip",
+            cost: {},
             oracleText: "Equip {0}",
-            cost: { mana: {} },
-            sorcerySpeedOnly: true,
-            targetRequirement: {
-                type: "Creature",
-                count: 1,
-                controller: "you",
-            },
-            useStack: true,
-            effects: [{ op: "attach", target: { target: 0 } }],
-        },
+        }),
     ],
 };
 

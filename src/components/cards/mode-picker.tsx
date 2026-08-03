@@ -1,13 +1,21 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { SpellMode } from "@convex/cards/types";
+import type { Color, ModeOption } from "@convex/cards/types";
 import GameDialog from "~/components/ui/game-dialog";
 import { Panel } from "@/components/ui/panel";
 import ManaSymbol from "~/components/cards/mana-symbol";
 import { formatOracleText } from "~/lib/oracle-text";
 
+/** What the picker renders: the shared {@link ModeOption} display surface, plus
+ *  the OPTIONAL colour pip. `color` lives on `SpellMode`, not on the shared
+ *  base — a colour choice (Prismatic Ward, Sleight of Mind) is a modal-SPELL
+ *  concern, and `AbilityMode` (CR 602.2b, issue #1341) has no such half. The
+ *  picker is shared by both, so it reads the field structurally rather than
+ *  forcing it onto the base type. */
+type PickerMode = ModeOption & { color?: Color };
+
 type ModePickerProps = {
-    modes: SpellMode[];
+    modes: ReadonlyArray<PickerMode>;
     cardName: string;
     variant?: "dialog" | "portal";
     position?: { x: number; y: number };
@@ -19,7 +27,7 @@ function ModeRow({
     mode,
     onSelect,
 }: {
-    mode: SpellMode;
+    mode: PickerMode;
     onSelect: (id: string) => void;
 }) {
     return (

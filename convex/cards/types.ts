@@ -715,8 +715,8 @@ export interface ActivatedAbilityContext {
  *  spell's target requirement (if any) and the resolution body. Mode
  *  selection is locked at announce (CR 700.2c) and propagated through
  *  pendingCast / pendingTarget / stack item via `chosenModeId`. */
-export interface SpellMode {
-    /** Stable id within the card definition (e.g. "gain-life", "prevent").
+export interface ModeOption {
+    /** Stable id within the owning definition (e.g. "gain-life", "prevent").
      *  Used by the UI to identify the chosen option and by the engine to
      *  dispatch resolution. Must be unique within `modes`. */
     id: string;
@@ -725,6 +725,9 @@ export interface SpellMode {
     /** Full oracle text for this mode (the bullet line — used by the stack
      *  item display and rule-trace logs). */
     oracleText: string;
+}
+
+export interface SpellMode extends ModeOption {
     /** Per-mode target requirement (CR 601.2c, only the chosen mode's
      *  targets need legal candidates per CR 700.2d). Undefined for modes
      *  with no targets. */
@@ -766,6 +769,36 @@ export interface SpellMode {
      *  the same way `PendingChoice.options[].color` does for the `option-pick`
      *  picker — never set for a non-color mode (Healing Salve's two modes). */
     color?: Color;
+}
+
+/** One mode of a MODAL ACTIVATED ABILITY (CR 700.2 + CR 602.2b — Umezawa's
+ *  Jitte's "Remove a charge counter from ~: Choose one — …"). The activating
+ *  player picks exactly one mode as the ability is announced, BEFORE targets
+ *  are chosen (CR 601.2b applied to activation via CR 602.2b), so only the
+ *  CHOSEN mode's `targetRequirement` is declared and only its targets need
+ *  legal candidates (CR 700.2d).
+ *
+ *  Deliberately the activated-ability twin of {@link SpellMode}, sharing its
+ *  {@link ModeOption} display surface and riding the SAME `chosenModeId`
+ *  plumbing the modal-spell path already uses (pendingTarget →
+ *  pendingActivation → stack item, CR 700.2c). It carries no `staticEffects`:
+ *  a mode of a one-shot activated ability has no continuous half (that is a
+ *  modal PERMANENT's concern, CR 700.2c, which is what `SpellMode` covers).
+ *
+ *  NOT the DSL `optionChoice` Op: that one picks its mode DURING resolution,
+ *  which is right for "choose one" written inside a resolving effect but wrong
+ *  for a printed modal ability — a resolution-time pick has no response window
+ *  and can't lock a target at announcement. */
+export interface AbilityMode extends ModeOption {
+    /** Per-mode target requirement (CR 601.2c / 700.2d). Undefined for a mode
+     *  with no targets — its siblings' requirements do NOT apply to it. */
+    targetRequirement?: TargetRequirement;
+    /** Effect Script for this mode (ADR 0045) — the DSL-first default,
+     *  dispatched through the same `getAbilityEffectFn` interpreter seam as
+     *  `ActivatedAbility.effects`. Mutually exclusive with `resolve`. */
+    effects?: EffectOp[];
+    /** Imperative alternative to `effects`, for a protocol-like mode only. */
+    resolve?: (ctx: SpellContext) => void;
 }
 
 export interface ActivatedAbility {
@@ -1200,11 +1233,20 @@ export interface ActivatedAbility {
      *  issue #1156) — general enough for any future "activate only as a
      *  sorcery" activated ability, not loyalty-specific. */
     sorcerySpeedOnly?: boolean;
+    /** Modes of a MODAL activated ability (CR 700.2 + 602.2b, issue #1341 —
+     *  Umezawa's Jitte). When set, the activator locks exactly one mode in at
+     *  announcement; the chosen mode's `targetRequirement` drives target
+     *  selection (overriding the ability-level `targetRequirement` /
+     *  `getTargetRequirement`) and its `effects`/`resolve` runs on resolution
+     *  (the ability-level ones are ignored). Only "choose one" is supported,
+     *  mirroring the modal-spell shape. */
+    modes?: AbilityMode[];
     /** Dynamic target requirement computed at activation time from the source
      *  permanent's state. If set, overrides `targetRequirement`. Used by
      *  abilities whose target legality depends on the source (Stone Giant:
      *  "target creature you control with toughness less than Stone Giant's
-     *  power"). */
+     *  power"). Ignored for a modal ability — the chosen mode's own
+     *  `targetRequirement` wins (CR 700.2d). */
     getTargetRequirement?: (
         source: PermanentView,
         state: TriggerStateView
@@ -9338,6 +9380,10 @@ export type EffectChoiceKind =
  *  option identifier the choice pipeline stores and the UI submits — supply it
  *  to give a mode a semantic id ("tap" / "untap" / "Swamp"); when omitted the
  *  interpreter derives it from the mode's position (`String(index)`). */
+/** One mode of the RESOLVE-TIME `optionChoice` Op. Deliberately carries NO
+ *  `targetRequirement`: targets of a printed modal spell/ability are declared
+ *  at announcement (CR 601.2c), which is what `SpellMode` / `AbilityMode`
+ *  model — see the `optionChoice` Op's own note and ADR 0089. */
 export interface EffectMode {
     label: string;
     effects: EffectOp[];
@@ -11049,7 +11095,17 @@ export type EffectOp =
      *  the picked mode index back and descends into it. A single-mode
      *  `optionChoice` auto-resolves (no real choice, Arena-style) — it runs the
      *  one mode without prompting (CR 700.2 requires ≥1 mode). Skipped when the
-     *  chooser cannot be resolved (CR 608.2b). */
+     *  chooser cannot be resolved (CR 608.2b).
+     *
+     *  NOT the tool for a PRINTED modal spell or ability (ADR 0089). This Op
+     *  picks its mode DURING resolution, which is right for a "choose one"
+     *  written inside a resolving effect but wrong for a mode the CR chooses at
+     *  announcement (CR 601.2b, before targets in 601.2c): a resolve-time pick
+     *  can neither lock a target at announcement nor give the opponent a
+     *  window on the chosen mode. Those use `CardDefinition.modes`
+     *  ({@link SpellMode}) or `ActivatedAbility.modes` ({@link AbilityMode}),
+     *  which carry a per-mode `targetRequirement` — deliberately absent from
+     *  {@link EffectMode} for exactly this reason. */
     | {
           op: "optionChoice";
           modes: EffectMode[];
