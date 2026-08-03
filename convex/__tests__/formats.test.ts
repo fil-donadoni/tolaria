@@ -127,13 +127,14 @@ const sampleDeck: ValidatableDeck = {
 };
 
 describe("FORMAT_IDS / FORMAT_RULES registry (ADR 0036)", () => {
-    it("exposes exactly the five shipped Formats", () => {
+    it("exposes exactly the six shipped Formats", () => {
         expect([...FORMAT_IDS]).toEqual([
             "freeform",
             "alpha-40",
             "old-school",
             "premodern",
             "limited",
+            "manual",
         ]);
     });
 

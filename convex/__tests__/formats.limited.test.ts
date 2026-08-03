@@ -115,6 +115,7 @@ describe("FORMAT_RULES.limited registration (ADR 0054/0055, issue #1109)", () =>
             "old-school",
             "premodern",
             "limited",
+            "manual",
         ]);
     });
 

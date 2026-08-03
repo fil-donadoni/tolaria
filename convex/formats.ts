@@ -26,7 +26,8 @@ export type FormatId =
     | "alpha-40"
     | "old-school"
     | "premodern"
-    | "limited";
+    | "limited"
+    | "manual";
 
 /** Every valid `FormatId`, in display order. The single source of truth the
  *  schema union, the create-flow select, and the validators all key off. */
@@ -36,6 +37,7 @@ export const FORMAT_IDS: readonly FormatId[] = [
     "old-school",
     "premodern",
     "limited",
+    "manual",
 ] as const;
 
 /** Type guard: is an arbitrary string a known `FormatId`? Used by the schema
@@ -1176,6 +1178,16 @@ export const FORMAT_RULES: Record<FormatId, FormatMeta> = {
         // Maindeck ≥ 40 + Pool-multiset match (both directions) — see
         // limitedValidate.
         validate: limitedValidate,
+    },
+    // Manual Mode (ADR 0080): no constraints. The real rejection happens in
+    // createGame/joinGame/createSoloGame, not in the format validator —
+    // this validator never reads which mode it runs in.
+    manual: {
+        label: "Manual (Tabletop)",
+        allowedSets: null,
+        minMain: 0,
+        maxSide: null,
+        validate: noReasons,
     },
 };
 

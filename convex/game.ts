@@ -3444,6 +3444,13 @@ export const createGame = mutation({
         bestOf: bestOfValidator,
     },
     handler: async (ctx, args) => {
+        // ADR 0080 — a manual-format deck is rejected by the real engine.
+        // This is the whole seam: the format validator has no concept of
+        // "mode", so the rejection lives here, fail-closed.
+        if (args.deck.format === "manual")
+            throw new Error(
+                "Manual decks cannot start a real game. Play a Manual Game instead."
+            );
         const user = await getCurrentUser(ctx);
         // #155 (match-scoped, ADR 0029): at most one active match per user.
         // Guard runs server-side so it holds against double-click / two-tab
@@ -3873,6 +3880,15 @@ export const createSoloGame = mutation({
         bestOf: bestOfValidator,
     },
     handler: async (ctx, args) => {
+        // ADR 0080 — a manual-format deck is rejected by the real engine.
+        if (args.deck.format === "manual")
+            throw new Error(
+                "Manual decks cannot start a real game. Play a Manual Game instead."
+            );
+        if (args.deck2?.format === "manual")
+            throw new Error(
+                "Manual decks cannot start a real game. Play a Manual Game instead."
+            );
         const user = await getCurrentUser(ctx);
         // #155 (match-scoped): one active match per user (see createGame).
         if (await findActiveMatchForUser(ctx, user._id))
@@ -4035,6 +4051,11 @@ export const joinGame = mutation({
         bgColor: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
+        // ADR 0080 — a manual-format deck is rejected by the real engine.
+        if (args.deck.format === "manual")
+            throw new Error(
+                "Manual decks cannot start a real game. Play a Manual Game instead."
+            );
         const user = await getCurrentUser(ctx);
         // #155 (match-scoped): reject joining when the user already occupies
         // another active match (their own waiting room or an in-progress match).
