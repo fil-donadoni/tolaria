@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import CardImage from "~/components/cards/card-image";
 import { defaultEdition, editionOptions } from "~/lib/editions";
 import type { EditionOption } from "~/lib/editions";
@@ -34,10 +34,6 @@ export default function ResultCard({
     const { editions: scryfallEditions, load: loadEditions } =
         useScryfallEditions(isCatalogue ? entry.name : null);
 
-    useEffect(() => {
-        if (isCatalogue) loadEditions();
-    }, [isCatalogue, loadEditions]);
-
     const catalogueSingle: EditionOption = {
         printId: entry.prints[0].printId,
         label: entry.prints[0].setCode.toUpperCase(),
@@ -68,6 +64,7 @@ export default function ResultCard({
                         options={options}
                         value={selected}
                         onChange={setOverride}
+                        onOpen={loadEditions}
                     />
                 )}
             </div>
@@ -98,6 +95,7 @@ export default function ResultCard({
                     options={options}
                     value={selected}
                     onChange={setOverride}
+                    onOpen={loadEditions}
                 />
             )}
         </div>

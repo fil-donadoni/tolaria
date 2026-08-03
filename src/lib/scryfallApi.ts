@@ -156,6 +156,7 @@ export function useScryfallTextSearch(
 
             setLoading(true);
             setError(null);
+            setNames(undefined);
 
             timerRef.current = window.setTimeout(() => {
                 timerRef.current = null;
@@ -190,6 +191,7 @@ export function useScryfallTextSearch(
                             err instanceof Error ? err.message : String(err);
                         if (!controller.signal.aborted) {
                             setError(msg);
+                            setNames(undefined);
                             setLoading(false);
                         }
                     });

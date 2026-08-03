@@ -7,7 +7,6 @@ import {
     matchesCube,
     parseTypeLine,
     makeCatalogueEntry,
-    TOKEN_TYPE,
     type CardIndexEntry,
     type CardSearchFilters,
 } from "../useCardSearch";
@@ -218,9 +217,10 @@ describe("3-char text gate (issue #504)", () => {
             available: true,
         });
 
-        it("parseTypeLine identifies Token as a type", () => {
+        it("parseTypeLine keeps Token out of types (CR 110.5e — marker characteristic)", () => {
             const parsed = parseTypeLine("Token Creature — Zombie");
-            expect(parsed.types).toEqual(["Token", "Creature"]);
+            expect(parsed.types).toEqual(["Creature"]);
+            expect(parsed.isToken).toBe(true);
             expect(parsed.supertypes).toEqual([]);
             expect(parsed.subtypes).toEqual(["Zombie"]);
         });
@@ -228,19 +228,19 @@ describe("3-char text gate (issue #504)", () => {
         it("parseTypeLine identifies non-token creatures correctly", () => {
             const parsed = parseTypeLine("Creature — Zombie");
             expect(parsed.types).toEqual(["Creature"]);
-            expect(parsed.types.includes("Token")).toBe(false);
+            expect(parsed.isToken).toBe(false);
         });
 
-        it("makeCatalogueEntry sets types correctly for tokens", () => {
+        it("makeCatalogueEntry sets isToken for tokens", () => {
             const entry = makeCatalogueEntry(tokenRow("Zombie"));
-            expect(entry.types.includes(TOKEN_TYPE)).toBe(true);
-            expect(entry.types.includes("Creature")).toBe(true);
+            expect(entry.isToken).toBe(true);
+            expect(entry.types).toEqual(["Creature"]);
         });
 
         it("makeCatalogueEntry does not mark non-tokens as tokens", () => {
             const entry = makeCatalogueEntry(creatureRow("Fleshbag Marauder"));
-            expect(entry.types.includes(TOKEN_TYPE)).toBe(false);
-            expect(entry.types.includes("Creature")).toBe(true);
+            expect(entry.isToken).toBe(false);
+            expect(entry.types).toEqual(["Creature"]);
         });
 
         it("showTokens filter counts as an active filter", () => {
@@ -266,10 +266,8 @@ describe("3-char text gate (issue #504)", () => {
             const creature = makeCatalogueEntry(
                 creatureRow("Fleshbag Marauder")
             );
-            const showTokens = (e: CardIndexEntry) =>
-                e.types.includes(TOKEN_TYPE);
-            const hideTokens = (e: CardIndexEntry) =>
-                !e.types.includes(TOKEN_TYPE);
+            const showTokens = (e: CardIndexEntry) => e.isToken === true;
+            const hideTokens = (e: CardIndexEntry) => !e.isToken;
 
             // showTokens = true: only tokens pass
             expect(showTokens(token)).toBe(true);
@@ -309,19 +307,17 @@ describe("3-char text gate (issue #504)", () => {
             expect(entry.oracleFold).toBe("");
         });
 
-        it("known types enum covers token identification", () => {
-            // Verify that "Token" as a type is detectable.
-            // parseTypeLine's SUPER_TYPES set doesn't include Token,
-            // so "Token" ends up in `types[]`.
+        it("parseTypeLine separates Token marker from types (CR 110.5e)", () => {
             const parsed = parseTypeLine("Token Artifact — Treasure");
-            expect(parsed.types).toEqual(["Token", "Artifact"]);
-            expect(parsed.types.includes(TOKEN_TYPE)).toBe(true);
+            expect(parsed.types).toEqual(["Artifact"]);
+            expect(parsed.isToken).toBe(true);
 
             const parsed2 = parseTypeLine(
                 "Legendary Token Creature — Human Soldier"
             );
             expect(parsed2.supertypes).toEqual(["Legendary"]);
-            expect(parsed2.types).toEqual(["Token", "Creature"]);
+            expect(parsed2.types).toEqual(["Creature"]);
+            expect(parsed2.isToken).toBe(true);
             expect(parsed2.subtypes).toEqual(["Human", "Soldier"]);
         });
     });

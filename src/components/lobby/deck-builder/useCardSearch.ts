@@ -35,6 +35,9 @@ export interface CardIndexEntry {
      *  Absent on index entries — defaults to `true` everywhere outside the
      *  unavailable-card path. */
     available?: boolean;
+    /** `true` for token cards (CR 110.5e — marker characteristic, not a type).
+     *  Absent for index entries, set by `makeCatalogueEntry` from `parseTypeLine`. */
+    isToken?: boolean;
 }
 
 export type ColorMode = "at-most" | "include-all" | "include-any";
@@ -94,10 +97,6 @@ export const DEFAULT_FILTERS: CardSearchFilters = {
     hideUnavailable: true,
     showTokens: false,
 };
-
-/** Token cards are identified by the "Token" type word in their type line.
- *  Separated so the catalogue search can exclude them by default. */
-export const TOKEN_TYPE = "Token";
 
 /** Minimum debounce before a Scryfall oracle-text search fires, per
  *  Scryfall's ≤10 req/s guideline. Separated from the local text debounce
@@ -256,13 +255,18 @@ export function matchesCube(
 
 const SUPER_TYPES = new Set(["Basic", "Legendary", "Snow", "World", "Ongoing"]);
 
+/** Token is a marker characteristic (CR 110.5e), not a card type. */
+const TOKEN_MARKER = "Token";
+
 export function parseTypeLine(typeLine: string): {
     types: string[];
     subtypes: string[];
     supertypes: string[];
+    isToken: boolean;
 } {
     const trimmed = typeLine.trim();
-    if (!trimmed) return { types: [], subtypes: [], supertypes: [] };
+    if (!trimmed)
+        return { types: [], subtypes: [], supertypes: [], isToken: false };
 
     const dashIdx = trimmed.indexOf("\u2014"); // em dash
     const beforeDash =
@@ -270,15 +274,20 @@ export function parseTypeLine(typeLine: string): {
     const afterDash = dashIdx >= 0 ? trimmed.slice(dashIdx + 1).trim() : "";
 
     const parts = beforeDash.split(/\s+/).filter(Boolean);
+    const isToken = parts.includes(TOKEN_MARKER);
     const supertypes = parts.filter((w) => SUPER_TYPES.has(w));
-    const types = parts.filter((w) => !SUPER_TYPES.has(w));
+    const types = parts.filter(
+        (w) => w !== TOKEN_MARKER && !SUPER_TYPES.has(w)
+    );
     const subtypes = afterDash ? afterDash.split(/\s+/).filter(Boolean) : [];
 
-    return { types, subtypes, supertypes };
+    return { types, subtypes, supertypes, isToken };
 }
 
 export function makeCatalogueEntry(row: FullCatalogueRow): CardIndexEntry {
-    const { types, subtypes, supertypes } = parseTypeLine(row.typeLine);
+    const { types, subtypes, supertypes, isToken } = parseTypeLine(
+        row.typeLine
+    );
     const colors = row.colourIdentity.split("").filter((c) => c !== "");
     return {
         cardId: row.printId,
@@ -294,6 +303,7 @@ export function makeCatalogueEntry(row: FullCatalogueRow): CardIndexEntry {
         oracleFold: "",
         prints: [{ printId: row.printId, setCode: row.set }],
         available: row.available,
+        isToken,
     };
 }
 
@@ -375,9 +385,7 @@ export function useCardSearch(
         // When showTokens is active, only token cards pass through.
         // When off, tokens are excluded from the regular card pool.
         const passesTokenGate = (e: CardIndexEntry) =>
-            filters.showTokens
-                ? e.types.includes(TOKEN_TYPE)
-                : !e.types.includes(TOKEN_TYPE);
+            filters.showTokens ? e.isToken === true : !e.isToken;
 
         const filtered = parts.filter(
             (e) =>
