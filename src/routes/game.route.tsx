@@ -5,6 +5,7 @@ import type { FunctionReturnType } from "convex/server";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import Board from "~/components/board/board";
+import ManualBoard from "~/components/board/manual-board";
 import PregameDialog from "~/components/board/pregame-dialog";
 import DebugPanel from "~/components/debug/debug-panel";
 import AiDecisionTraceBox from "~/components/debug/ai-decision-trace-box";
@@ -93,6 +94,21 @@ export default function GameRoute() {
     }
 
     if (game && (game.status === "playing" || game.status === "finished")) {
+        // ADR 0080 — the ONLY consumer of games.mode: route the manual game
+        // to its own board rather than the GRE board.
+        if (game.mode === "manual") {
+            return (
+                <div className="flex h-dvh flex-col">
+                    <ManualBoard
+                        key={gameId}
+                        gameId={gameId}
+                        playerId={playerId}
+                        solo={game.solo === true}
+                    />
+                </div>
+            );
+        }
+
         return (
             <div className="flex h-dvh flex-col">
                 <Board
