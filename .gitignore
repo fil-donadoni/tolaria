@@ -39,4 +39,5 @@ ladder-runs/
 data/worklists/*.out/
 data/worklists/*.resolved.jsonl
 data/full-catalogue.json.gz
+public/data/full-catalogue.json.gz
 .claude/telemetry/

@@ -22,6 +22,7 @@ import {
     type DeckBuilderSinks,
     toUpdatePatch,
 } from "~/lib/deckBuilderDispatch";
+import { useFullCatalogue } from "~/lib/fullCatalogue";
 
 /** The page name for `<title>`. Edit mode names the deck being edited once
  *  its query lands, and falls back to the generic label while it is loading
@@ -107,6 +108,13 @@ export default function DeckBuilderRoute({
             ? { id: slug as Id<"userDecks"> }
             : "skip"
     );
+
+    // Lazy-fetch the full ~27K card catalogue (cached, no-op on repeat calls).
+    // Mounting here means entering any deck builder route triggers the fetch,
+    // so unfiltered searches are pre-warmed when the user opens the search box.
+    // On failure the deck builder degrades gracefully: only the `cardIndex.list`
+    // (available cards) is shown, with no catalogue cross-reference.
+    useFullCatalogue();
 
     // Above the early returns — the hook must run on every render.
     useDocumentTitle(
