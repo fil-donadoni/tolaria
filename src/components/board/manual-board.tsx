@@ -103,10 +103,9 @@ export default function ManualBoard({
                 <div className="flex-1 min-w-0">
                     <ManualBoardInner state={state} playerId={playerId} />
                 </div>
-                <ManualLog
-                    gameId={gameId}
-                    className="w-80 shrink-0 border-l border-white/10"
-                />
+                <div className="w-80 shrink-0 border-l border-white/10">
+                    <ManualLog gameId={gameId} />
+                </div>
             </div>
         </ManualGameIdCtx.Provider>
     );
