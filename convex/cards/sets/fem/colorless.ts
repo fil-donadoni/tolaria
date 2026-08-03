@@ -466,6 +466,32 @@ export const ringOfRenewal: CardDefinition = {
     ],
 };
 
+// Delif's Cone — {0} Artifact. "{T}, Sacrifice this artifact: This turn, when
+// target creature you control attacks and isn't blocked, you may gain life
+// equal to its power. If you do, it assigns no combat damage this turn."
+//
+// The whole ability is the ARMED UNBLOCKED-ATTACK RIDER (CR 603.7a delayed
+// trigger + CR 509.1h "attacks and isn't blocked"): resolving the ability puts
+// nothing on the board — it schedules a `delayedTrigger` with the
+// `attacks-unblocked` timing watching the announced creature. That watch fires
+// on the creature's ATTACKER_UNBLOCKED event (emitted once per unblocked
+// attacker when blockers are confirmed), at most once ("when", not
+// "whenever"), and expires unfired at CLEANUP if the creature never attacked
+// unblocked this turn (the "this turn" bound, CR 514.2).
+//
+// The Cone sacrifices ITSELF as a cost, so nothing of the source survives to
+// fire time — which is exactly why the rider is a delayed trigger keyed to the
+// creature (`watch`) rather than anything hanging off the artifact. `capture`
+// carries the creature into the body; `runDelayedTriggerBody` re-snapshots it
+// live at resolution (it is still on the battlefield, unlike a leave-watch),
+// so `{ ref: "$c.power" }` reads its EFFECTIVE power (CR 613, counters and
+// continuous effects included) at the moment the trigger resolves — no
+// power-valued `EffectValue` member needed.
+//
+// "you may … If you do" is the cost-free `mayPay` decision (CR 117.3a, the
+// Squee/Sylvan Library shape): declining leaves BOTH halves undone, so the
+// life gain and the damage suppression sit together inside the `if` branch —
+// gaining the life is what pays for the creature dealing no combat damage.
 export const delifsCone: CardDefinition = {
     id: "262b8788-c5a0-4c8e-9d58-b769b1b0a2ff", // FEM 84
     rarity: "common",
@@ -481,23 +507,56 @@ export const delifsCone: CardDefinition = {
                 "{T}, Sacrifice this artifact: This turn, when target creature you control attacks and isn't blocked, you may gain life equal to its power. If you do, it assigns no combat damage this turn.",
             cost: { tap: true, sacrifice: true },
             useStack: true,
-            targetRequirement: { type: "Creature", count: 1 },
-            // NOT DSL-migratable (ADR 0045): resolution is an intentional
-            // empty no-op (see the deferral note below) — `validateEffectScript`
-            // rejects `effects: []` and no no-op Op exists (nor should one be
-            // invented for a single card; precedent: Merseine, fem/blue.ts).
-            // Stays resolve() until the armed unblocked-attack rider ships, at
-            // which point the ability gets real Ops.
-            resolve: () => {
-                // DIVERGENCE (tracked #974): the "this turn, when target creature you control
-                // attacks and isn't blocked, …" armed unblocked-attack rider is NOT
-                // modelled — no delayed combat trigger arms off a chosen creature's
-                // unblocked-attack event this turn (CR 603.7a). Deferred, not silent.
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                controller: "you",
             },
+            effects: [
+                {
+                    op: "delayedTrigger",
+                    timing: "attacks-unblocked",
+                    oracleText:
+                        "When that creature attacks and isn't blocked this turn, you may gain life equal to its power. If you do, it assigns no combat damage this turn.",
+                    watch: { target: 0 },
+                    capture: { $c: { target: 0 } },
+                    effects: [
+                        {
+                            op: "mayPay",
+                            player: "controller",
+                            prompt: "Gain life equal to that creature's power (Delif's Cone)? If you do, it assigns no combat damage this turn.",
+                            bind: "$gain",
+                        },
+                        {
+                            op: "if",
+                            predicate: { binding: "$gain" },
+                            then: [
+                                {
+                                    op: "gainLife",
+                                    player: "controller",
+                                    amount: { ref: "$c.power" },
+                                },
+                                {
+                                    op: "markAssignsNoCombatDamage",
+                                    target: { ref: "$c" },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
         },
     ],
 };
 
+// Delif's Cube — {1} Artifact. Delif's Cone's repeatable sibling: the same
+// armed unblocked-attack rider (CR 603.7a delayed trigger + CR 509.1h), but
+// mandatory instead of optional, and it FEEDS the artifact rather than the
+// controller — each firing puts a cube counter on the Cube, which the second
+// ability spends to regenerate. The Cube is NOT sacrificed to arm, so it is
+// still on the battlefield at fire time and rides into the body as a second
+// capture (`$cube`); `$source` is deliberately invisible inside a delayed body
+// (ADR 0048), so the artifact must be captured explicitly like any other datum.
 export const delifsCube: CardDefinition = {
     id: "14749600-9eca-4122-b04f-30ddda091b74", // FEM 85
     rarity: "uncommon",
@@ -513,19 +572,37 @@ export const delifsCube: CardDefinition = {
                 "{2}, {T}: This turn, when target creature you control attacks and isn't blocked, it assigns no combat damage this turn and you put a cube counter on this artifact.",
             cost: { mana: { X: 2 }, tap: true },
             useStack: true,
-            targetRequirement: { type: "Creature", count: 1 },
-            // NOT DSL-migratable (ADR 0045): resolution is an intentional
-            // empty no-op (see the deferral note below) — `validateEffectScript`
-            // rejects `effects: []` and no no-op Op exists (nor should one be
-            // invented for a single card; precedent: Merseine, fem/blue.ts).
-            // Stays resolve() until the armed unblocked-attack rider ships, at
-            // which point the ability gets real Ops.
-            resolve: () => {
-                // DIVERGENCE (tracked #974): the "this turn, when target creature you control
-                // attacks and isn't blocked, …" armed unblocked-attack rider is NOT
-                // modelled — no delayed combat trigger arms off a chosen creature's
-                // unblocked-attack event this turn (CR 603.7a). Deferred, not silent.
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                controller: "you",
             },
+            effects: [
+                {
+                    op: "delayedTrigger",
+                    timing: "attacks-unblocked",
+                    oracleText:
+                        "When that creature attacks and isn't blocked this turn, it assigns no combat damage this turn and you put a cube counter on Delif's Cube.",
+                    watch: { target: 0 },
+                    capture: {
+                        $c: { target: 0 },
+                        $cube: { ref: "$source" },
+                    },
+                    effects: [
+                        {
+                            op: "markAssignsNoCombatDamage",
+                            target: { ref: "$c" },
+                        },
+                        {
+                            op: "counters",
+                            action: "add",
+                            counter: "cube",
+                            target: { ref: "$cube" },
+                            count: 1,
+                        },
+                    ],
+                },
+            ],
         },
         {
             id: "delifs-cube-regen",

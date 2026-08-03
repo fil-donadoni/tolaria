@@ -2472,6 +2472,78 @@ describe("validateEffectScript — delayedTrigger Op (CR 603.7, ADR 0048)", () =
             )
         ).toBe(true);
     });
+
+    // CR 603.7a / 509.1h — the unblocked-attack watch is the THIRD
+    // instance-scoped timing: same required `watch`, different firing event
+    // (ATTACKER_UNBLOCKED instead of PERMANENT_LEFT). The validator must treat
+    // it exactly like the leave-watches, and must still REJECT a `watch` on a
+    // phase-boundary timing (a `startsWith("leaves-battlefield")`-style check
+    // would have silently let one through).
+    it("accepts the unblocked-attack timing with a watch, requires the watch, and still rejects a watch on a phase-boundary timing", () => {
+        const ok = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "delayedTrigger",
+                        timing: "attacks-unblocked",
+                        oracleText:
+                            "When that creature attacks and isn't blocked this turn, you gain life equal to its power.",
+                        watch: { target: 0 },
+                        capture: { $c: { target: 0 } },
+                        effects: [
+                            {
+                                op: "gainLife",
+                                player: "controller",
+                                amount: { ref: "$c.power" },
+                            },
+                        ],
+                    },
+                ],
+            })
+        );
+        expect(ok).toEqual([]);
+        const missing = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "delayedTrigger",
+                        timing: "attacks-unblocked",
+                        oracleText: "x",
+                        effects: [
+                            { op: "gainLife", player: "controller", amount: 1 },
+                        ],
+                    },
+                ],
+            })
+        );
+        expect(
+            missing.some((e) =>
+                /"attacks-unblocked" is instance-scoped/.test(e)
+            )
+        ).toBe(true);
+        const strayWatch = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "delayedTrigger",
+                        timing: "next-end-step",
+                        oracleText: "x",
+                        watch: { target: 0 },
+                        effects: [
+                            { op: "gainLife", player: "controller", amount: 1 },
+                        ],
+                    },
+                ],
+            })
+        );
+        expect(
+            strayWatch.some((e) =>
+                /field "watch" is only valid with the instance-scoped timings/.test(
+                    e
+                )
+            )
+        ).toBe(true);
+    });
 });
 
 // --- delayedTrigger LIST-valued capture (ADR 0049, issue #866) --------------

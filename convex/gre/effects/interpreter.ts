@@ -4277,16 +4277,19 @@ export const OP_EXECUTORS: {
         if (op.targetPlayer !== undefined && targetPlayerId === undefined) {
             return;
         }
-        // Instance leave-watch (CR 603.7a / 603.10, issues #731 / #1470):
-        // resolve the watched permanent to an id NOW (scheduling time — it is
-        // still on the battlefield). A watch that cannot be resolved (the
-        // object already left) would never fire — skip scheduling entirely (CR
-        // 608.2b). Both bounds (this-turn and indefinite) resolve identically;
-        // they diverge only at the CLEANUP purge (phases.ts).
+        // Instance-scoped watch (CR 603.7a / 603.10 / 509.1h, issues #731 /
+        // #1470): resolve the watched permanent to an id NOW (scheduling time
+        // — it is still on the battlefield). A watch that cannot be resolved
+        // (the object already left) would never fire — skip scheduling
+        // entirely (CR 608.2b). Every instance-scoped timing resolves the
+        // watch identically; they diverge only in the firing event
+        // (PERMANENT_LEFT vs ATTACKER_UNBLOCKED, triggers.ts) and the CLEANUP
+        // purge (phases.ts).
         let watchInstanceId: string | undefined;
         if (
             op.timing === "leaves-battlefield" ||
-            op.timing === "leaves-battlefield-indefinite"
+            op.timing === "leaves-battlefield-indefinite" ||
+            op.timing === "attacks-unblocked"
         ) {
             const watched =
                 op.watch !== undefined

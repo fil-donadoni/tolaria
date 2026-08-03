@@ -2456,10 +2456,14 @@ export function finalizeCleanup(state: GameState): void {
     // both are REPEATING (never dequeued by firing, `triggers.ts`), so they
     // are purged here unconditionally regardless of how many times —
     // including zero — they fired this turn.
+    // `attacks-unblocked` (CR 509.1h, Delif's Cone / Cube) is a THIS-TURN
+    // instance watch like `leaves-battlefield` — single-shot, so what expires
+    // here is a watch whose creature never attacked unblocked this turn.
     if (state.delayedTriggers?.length) {
         const kept = state.delayedTriggers.filter(
             (t) =>
                 t.timing !== "leaves-battlefield" &&
+                t.timing !== "attacks-unblocked" &&
                 t.timing !== "this-turn-creature-blocks" &&
                 t.timing !== "this-turn-creature-deals-combat-damage-to-player"
         );

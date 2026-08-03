@@ -36,12 +36,18 @@ import {
     getAllSetCodes,
 } from "../../../index";
 import { resolveTopOfStack } from "../../../../gre/state";
+import type { CardInstanceState, GameState } from "../../../../gre/state";
+import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import {
     getEffectivePower,
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
-import { fireDelayedTriggers } from "../../../../gre/phases";
+import {
+    emitBlockersConfirmedEvents,
+    finalizeCleanup,
+    fireDelayedTriggers,
+} from "../../../../gre/phases";
 import { tapSourceIntoPayment } from "../../../../game";
 import { getEffectiveManaChoices } from "../../../../gre/constants";
 import { collectTriggers } from "../../../../gre/triggers";
@@ -652,6 +658,180 @@ describe("FEM C6 sacrifice / tap-effect artifacts (reuse-only)", () => {
         expect(delifsCone.activatedAbilities?.[0].targetRequirement).toEqual({
             type: "Creature",
             count: 1,
+            controller: "you",
         });
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Delif's Cone / Delif's Cube — the armed unblocked-attack rider: a
+// `delayedTrigger` with the `attacks-unblocked` timing (CR 603.7a delayed
+// trigger, CR 509.1h "attacks and isn't blocked", CR 514.2 "this turn" bound).
+// ---------------------------------------------------------------------------
+describe("Delif's Cone / Cube — armed unblocked-attack rider (CR 603.7a / 509.1h)", () => {
+    /** A p1 board with the given artifact plus a 2/2 Grizzly Bears ("bear"). */
+    function armed(artifact: CardInstanceState) {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20, battlefield: [artifact, bear] }),
+                makePlayer("p2", { life: 20 }),
+            ],
+        });
+        return { state, bear };
+    }
+
+    /** Puts `attackerId` into an unblocked attack and confirms blockers, which
+     *  is what emits ATTACKER_UNBLOCKED (CR 509.1h). */
+    function attackUnblocked(state: GameState, attackerId: string): void {
+        const attacker = state.players[0].battlefield.find(
+            (c) => c.id === attackerId
+        )!;
+        attacker.isAttacking = true;
+        state.activePlayerId = "p1";
+        state.phase = "DECLARE_BLOCKERS";
+        state.combat = {
+            attackerIds: [attackerId],
+            confirmed: true,
+            blockerAssignments: {},
+            blockersConfirmed: true,
+        };
+        emitBlockersConfirmedEvents(state);
+    }
+
+    function shieldFor(state: GameState, id: string) {
+        return (state.sourcePreventionShields ?? []).find(
+            (s) => s.sourceIds?.includes(id) && s.combatOnly
+        );
+    }
+
+    it("arms an instance-scoped attacks-unblocked watch on the targeted creature", () => {
+        const cone = makeInstance(delifsCone.id, {
+            id: "cone",
+            controllerId: "p1",
+        });
+        const { state } = armed(cone);
+        resolveActivated(state, cone, "delifs-cone", [
+            { type: "permanent", id: "bear" },
+        ]);
+        expect(state.delayedTriggers).toHaveLength(1);
+        expect(state.delayedTriggers![0].timing).toBe("attacks-unblocked");
+        expect(state.delayedTriggers![0].watchInstanceId).toBe("bear");
+        // Nothing has happened to the board yet — the whole ability is the rider.
+        expect(state.players[0].life).toBe(20);
+        expect(shieldFor(state, "bear")).toBeUndefined();
+    });
+
+    it("fires when that creature attacks unblocked; paying gains life equal to its EFFECTIVE power and suppresses its combat damage", () => {
+        const cone = makeInstance(delifsCone.id, {
+            id: "cone",
+            controllerId: "p1",
+        });
+        const { state, bear } = armed(cone);
+        resolveActivated(state, cone, "delifs-cone", [
+            { type: "permanent", id: "bear" },
+        ]);
+        // Counter added AFTER arming: the body must read the power LIVE at
+        // resolution (CR 613), not a value frozen at scheduling time.
+        state.players[0].battlefield.find((c) => c.id === "bear")!.counters = {
+            "+1/+1": 1,
+        };
+        expect(getEffectivePower(state, bear)).toBe(3);
+
+        attackUnblocked(state, "bear");
+        expect(state.stack).toHaveLength(1);
+        resolveTopOfStack(state); // suspends at the cost-free may-pay
+        expect(state.pendingChoices?.[0]?.kind).toBe("may-pay");
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+
+        expect(state.players[0].life).toBe(23);
+        expect(shieldFor(state, "bear")).toBeDefined();
+        // "when", not "whenever" — the watch is dequeued by firing.
+        expect(state.delayedTriggers ?? []).toHaveLength(0);
+    });
+
+    it("declining the may-pay leaves BOTH halves undone (no life, no suppression)", () => {
+        const cone = makeInstance(delifsCone.id, {
+            id: "cone",
+            controllerId: "p1",
+        });
+        const { state } = armed(cone);
+        resolveActivated(state, cone, "delifs-cone", [
+            { type: "permanent", id: "bear" },
+        ]);
+        attackUnblocked(state, "bear");
+        resolveTopOfStack(state);
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+
+        expect(state.players[0].life).toBe(20);
+        expect(shieldFor(state, "bear")).toBeUndefined();
+    });
+
+    it("a DIFFERENT creature attacking unblocked does not fire the watch", () => {
+        const cone = makeInstance(delifsCone.id, {
+            id: "cone",
+            controllerId: "p1",
+        });
+        const { state } = armed(cone);
+        const other = makeInstance(grizzlyBears.id, {
+            id: "other",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        state.players[0].battlefield.push(other);
+        resolveActivated(state, cone, "delifs-cone", [
+            { type: "permanent", id: "bear" },
+        ]);
+        attackUnblocked(state, "other");
+
+        expect(state.stack).toHaveLength(0);
+        expect(state.delayedTriggers).toHaveLength(1);
+        expect(state.players[0].life).toBe(20);
+    });
+
+    it("an unfired watch expires at CLEANUP (the 'this turn' bound, CR 514.2)", () => {
+        const cone = makeInstance(delifsCone.id, {
+            id: "cone",
+            controllerId: "p1",
+        });
+        const { state } = armed(cone);
+        resolveActivated(state, cone, "delifs-cone", [
+            { type: "permanent", id: "bear" },
+        ]);
+        expect(state.delayedTriggers).toHaveLength(1);
+        finalizeCleanup(state);
+        expect(state.delayedTriggers ?? []).toHaveLength(0);
+    });
+
+    it("Delif's Cube suppresses the damage and puts a cube counter on the artifact — through the wire projection", () => {
+        const cube = makeInstance(delifsCube.id, {
+            id: "cube",
+            controllerId: "p1",
+        });
+        const { state } = armed(cube);
+        resolveActivated(state, cube, "delifs-cube-arm", [
+            { type: "permanent", id: "bear" },
+        ]);
+        attackUnblocked(state, "bear");
+        expect(state.stack).toHaveLength(1);
+        resolveTopOfStack(state);
+
+        expect(shieldFor(state, "bear")).toBeDefined();
+        const armedCube = state.players[0].battlefield.find(
+            (c) => c.id === "cube"
+        )!;
+        expect(armedCube.counters?.cube).toBe(1);
+
+        // Wire format — the counter the regenerate ability spends must survive
+        // `projectPublicState` or the client can never offer that ability.
+        const projected = projectPublicState(state, 1, "p1");
+        const slimCube = projected.players[0].battlefield.find(
+            (c) => c.id === "cube"
+        )!;
+        expect(slimCube.counters?.cube).toBe(1);
     });
 });

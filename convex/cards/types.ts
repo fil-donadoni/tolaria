@@ -4793,7 +4793,28 @@ export type DelayedTriggerTiming =
      *  damage step (an extra combat) fires it again — becoming monarch is
      *  idempotent (CR 720.2) so a redundant firing is harmless. Rejects
      *  `targetPlayer` / `watch` like `this-turn-creature-blocks`. */
-    | "this-turn-creature-deals-combat-damage-to-player";
+    | "this-turn-creature-deals-combat-damage-to-player"
+    /** CR 603.7a / 509.1h — an INSTANCE-scoped, this-turn-bounded
+     *  UNBLOCKED-ATTACK watch: "This turn, when target creature you control
+     *  attacks and isn't blocked, …" (Delif's Cone, Delif's Cube). Shares the
+     *  leave-watch SHAPE rather than the repeating-combat-watch one: it names
+     *  ONE watched instance (`DelayedTriggerInstance.watchInstanceId`, so
+     *  `watch` is required), fires on that instance's `ATTACKER_UNBLOCKED`
+     *  event — emitted once per unblocked attacker when blockers are confirmed
+     *  (CR 509.1h) — and is DEQUEUED by firing ("when", not "whenever": it
+     *  happens at most once). Any instance still pending expires unfired at
+     *  CLEANUP (the "this turn" bound, CR 514.2).
+     *
+     *  The watched creature need not be attacking when the trigger is
+     *  scheduled: the effect arms a watch for the rest of the turn, so a
+     *  creature that attacks in a LATER combat phase this turn still fires it.
+     *  The body reads the creature back through the normal capture path
+     *  (`{ ref: "$c" }`) — the watched instance is still on the battlefield at
+     *  fire time (unlike a leave-watch), so `runDelayedTriggerBody`'s
+     *  battlefield seed re-snapshots it live and `{ ref: "$c.power" }` reads
+     *  its EFFECTIVE power (CR 613) at resolution. `$event` stays illegal
+     *  here, exactly as for the leave-watch timings. */
+    | "attacks-unblocked";
 
 /** ADR 0048 — the inline body of an Effect-Script-scheduled delayed trigger
  *  (CR 603.7a): a pure-JSON Op list persisted ON the `DelayedTriggerInstance`
@@ -11512,13 +11533,16 @@ export type EffectOp =
           /** REQUIRED for the player-scoped timings (CR 504/505); rejected
            *  for the global-boundary timings. Resolved at scheduling time. */
           targetPlayer?: EffectPlayerRef;
-          /** REQUIRED for BOTH instance leave-watch timings
+          /** REQUIRED for every INSTANCE-SCOPED timing: both leave-watches
            *  (`leaves-battlefield` and its indefinite twin
-           *  `leaves-battlefield-indefinite`, CR 603.7a / 603.10): the specific
-           *  permanent whose departure fires this delayed trigger ("When THAT
-           *  creature leaves the battlefield this turn, …" / earthbend N's
-           *  unbounded "When it dies or is exiled, …"), resolved to an instance
-           *  id at scheduling time. Rejected for every phase-boundary timing.
+           *  `leaves-battlefield-indefinite`, CR 603.7a / 603.10) and the
+           *  unblocked-attack watch (`attacks-unblocked`, CR 509.1h) — the
+           *  specific permanent whose departure ("When THAT creature leaves
+           *  the battlefield this turn, …" / earthbend N's unbounded "When it
+           *  dies or is exiled, …") or unblocked attack ("This turn, when
+           *  target creature you control attacks and isn't blocked, …") fires
+           *  this delayed trigger, resolved to an instance id at scheduling
+           *  time. Rejected for every phase-boundary timing.
            *  Distinct from `capture` (which carries the body's data): `watch`
            *  is the trigger CONDITION's watched instance, not necessarily
            *  anything the body reads. */

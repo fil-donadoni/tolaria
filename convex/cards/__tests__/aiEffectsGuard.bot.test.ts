@@ -1279,18 +1279,10 @@ const ABILITY_AI_EFFECTS_ALLOWLIST: readonly AbilityAllowlistEntry[] = [
         abilityId: "deep-water-replace",
         note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
     },
-    {
-        cardId: "262b8788-c5a0-4c8e-9d58-b769b1b0a2ff",
-        name: "Delif's Cone",
-        abilityId: "delifs-cone",
-        note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
-    },
-    {
-        cardId: "14749600-9eca-4122-b04f-30ddda091b74",
-        name: "Delif's Cube",
-        abilityId: "delifs-cube-arm",
-        note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
-    },
+    // Delif's Cone / Delif's Cube left this allowlist when the
+    // `attacks-unblocked` delayed-trigger timing (CR 603.7a / 509.1h) shipped:
+    // both arm abilities are now pure Effect Scripts, so the bot's value model
+    // walks the real Op list and needs no shadow.
     {
         cardId: "65eb6cda-e512-40a8-9c1f-335b713409ff",
         name: "Dingus Egg",
