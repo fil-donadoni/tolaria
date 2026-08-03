@@ -1176,6 +1176,14 @@
         "firstPrintSet": "leg"
     },
     {
+        "name": "Benalish Emissary",
+        "scryfallId": "6b82d56e-80d7-4be9-ac22-de3257efc458",
+        "oracleId": "99f2e195-5da5-4239-87e0-ed552643e7b5",
+        "firstSet": "inv",
+        "firstPrintId": "6b82d56e-80d7-4be9-ac22-de3257efc458",
+        "firstPrintSet": "inv"
+    },
+    {
         "name": "Benalish Heralds",
         "scryfallId": "13c6e51d-54eb-4e5b-9ec9-54521b16b8d1",
         "oracleId": "09ee1332-741f-4c55-abc3-8bcff9031cd9",
@@ -1190,6 +1198,14 @@
         "firstSet": "lea",
         "firstPrintId": "11600105-56c6-4073-a4a6-8469030b39c9",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Benalish Lancer",
+        "scryfallId": "3a38d40a-e745-4fee-b179-f8c27e9b2fbd",
+        "oracleId": "b5adbd37-8d98-4c65-b42d-cd9db94e7222",
+        "firstSet": "inv",
+        "firstPrintId": "3a38d40a-e745-4fee-b179-f8c27e9b2fbd",
+        "firstPrintSet": "inv"
     },
     {
         "name": "Benalish Trapper",
@@ -10264,6 +10280,14 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Prison Barricade",
+        "scryfallId": "449c4800-8718-4593-a61e-03ad7f348c6d",
+        "oracleId": "8531b38a-8cc9-452b-8373-3febc733a95b",
+        "firstSet": "inv",
+        "firstPrintId": "449c4800-8718-4593-a61e-03ad7f348c6d",
+        "firstPrintSet": "inv"
+    },
+    {
         "name": "Prodigal Pyromancer",
         "scryfallId": "97787109-408e-42d3-acc5-300f5f5bf2ff",
         "oracleId": "29b3cb3e-aeb1-43eb-8095-9f7881aa34bd",
@@ -11846,6 +11870,14 @@
         "firstSet": "lea",
         "firstPrintId": "fefbf149-f988-4f8b-9f53-56f5878116a6",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Shivan Emissary",
+        "scryfallId": "945c596e-492e-4cf5-857c-4ddbbdd78485",
+        "oracleId": "1b885600-def1-4b2c-a6cb-02df34d58a1b",
+        "firstSet": "inv",
+        "firstPrintId": "945c596e-492e-4cf5-857c-4ddbbdd78485",
+        "firstPrintSet": "inv"
     },
     {
         "name": "Shivan Harvest",
@@ -14582,6 +14614,14 @@
         "firstSet": "zen",
         "firstPrintId": "7abd2723-2851-4f1a-b2d0-dfcb526472c3",
         "firstPrintSet": "zen"
+    },
+    {
+        "name": "Verduran Emissary",
+        "scryfallId": "55f3361b-e2e7-4297-85c2-94323f90cc90",
+        "oracleId": "915bd598-c3dd-4982-bdcc-5904a6f17436",
+        "firstSet": "inv",
+        "firstPrintId": "55f3361b-e2e7-4297-85c2-94323f90cc90",
+        "firstPrintSet": "inv"
     },
     {
         "name": "Verduran Enchantress",

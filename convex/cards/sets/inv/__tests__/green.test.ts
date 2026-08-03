@@ -15,6 +15,7 @@ import {
     kavuLair,
     restock,
     tangle,
+    verduranEmissary,
     wanderingStream,
 } from "../green";
 // Quirion Elves — INV reprint (`quirionElvesInv`, a `CardPrint` in
@@ -53,6 +54,7 @@ import { STATIC_EFFECT_CTX } from "../../../../gre/layers";
 import { isGuardedAgainst } from "../../../../gre/permanentGuard";
 import { getLegalTargets } from "../../../../gre/rules";
 import { plains, island, swamp } from "../../lea/colorless";
+import { resolveTrigger } from "./helpers";
 
 const CREATURE_REQ = { type: "Creature", count: 1 } as const;
 
@@ -927,5 +929,130 @@ describe("Quirion Elves (CR 700.2c ETB colour choice + CR 605.1a two mana abilit
             }))
         );
         expect(onWire).toEqual(onFat);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Verduran Emissary — single Kicker, ETB destroy-target-artifact, can't be
+// regenerated (issue #1328, decomposed from #1086). Same auto-generated DSL
+// smoke sweep skip as Benalish Emissary / Shivan Emissary ("construct 'if'
+// branches on a runtime predicate — covered by the card's own tests") — this
+// hand-written suite is the required proof obligation. Same Waterspout
+// Elemental / Thunderscape Battlemage template — see
+// `inv/__tests__/white.test.ts`'s Benalish Emissary describe block for the
+// full precedent chain; not re-derived here.
+//
+// Kicker cost VERIFIED against Scryfall (`cards/named?exact=Verduran+
+// Emissary&set=inv`) as `{1}{R}` — the card splashes red off a green base,
+// NOT `{1}{G}`.
+// ---------------------------------------------------------------------------
+
+const VE_ARTIFACT_ID = "test-verduran-emissary-artifact";
+registerTokenDefinition({
+    id: VE_ARTIFACT_ID,
+    name: VE_ARTIFACT_ID,
+    rarity: "common",
+    manaCost: { X: 1 },
+    types: ["Artifact"],
+});
+
+describe("Verduran Emissary (single Kicker ETB — destroy target artifact, issue #1328)", () => {
+    it("unkicked: the ETB trigger never even reaches the stack (CR 603.4 check-time gate)", () => {
+        const target = makeInstance(VE_ARTIFACT_ID, {
+            id: "ve-target-1",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [target] }),
+            ],
+        });
+        pushSpell(state, verduranEmissary.id, "p1"); // no kickerPayments — unkicked
+        resolveTopOfStack(state);
+        expect(state.stack).toHaveLength(0);
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "ve-target-1")
+        ).toBe(true);
+    });
+
+    it("kicked: the ETB trigger destroys the announced artifact target, can't be regenerated", () => {
+        const emissary = makeInstance(verduranEmissary.id, {
+            id: "ve-kicked",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const target = makeInstance(VE_ARTIFACT_ID, {
+            id: "ve-target-2",
+            controllerId: "p2",
+            ownerId: "p2",
+            regenerationShields: 1,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [emissary] }),
+                makePlayer("p2", { battlefield: [target] }),
+            ],
+        });
+        (
+            emissary as CardInstanceState & {
+                kickerPayments?: Record<string, number>;
+            }
+        ).kickerPayments = { kicker: 1 };
+        resolveTrigger(
+            state,
+            emissary,
+            "verduran-emissary-kicked",
+            {
+                type: "PERMANENT_ENTERED",
+                instanceId: emissary.id,
+                controllerId: emissary.controllerId,
+                types: emissary.types,
+            } as StackItem["triggerEvent"],
+            [{ type: "permanent", id: "ve-target-2" }]
+        );
+        // Destroyed despite the regeneration shield — cantBeRegenerated: true.
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "ve-target-2")
+        ).toBe(false);
+        expect(
+            state.players[1].graveyard.some((c) => c.id === "ve-target-2")
+        ).toBe(true);
+    });
+
+    // Defense in depth (CR 707.10), same shape as Benalish Emissary.
+    it("resolution-time gate: forced onto the stack unkicked, the destroy still does not fire", () => {
+        const emissary = makeInstance(verduranEmissary.id, {
+            id: "ve-unkicked-forced",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const target = makeInstance(VE_ARTIFACT_ID, {
+            id: "ve-target-3",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [emissary] }),
+                makePlayer("p2", { battlefield: [target] }),
+            ],
+        });
+        resolveTrigger(
+            state,
+            emissary,
+            "verduran-emissary-kicked",
+            {
+                type: "PERMANENT_ENTERED",
+                instanceId: emissary.id,
+                controllerId: emissary.controllerId,
+                types: emissary.types,
+            } as StackItem["triggerEvent"],
+            [{ type: "permanent", id: "ve-target-3" }]
+        );
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "ve-target-3")
+        ).toBe(true);
     });
 });

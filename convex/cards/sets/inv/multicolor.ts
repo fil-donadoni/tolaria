@@ -21,9 +21,10 @@ import {
     EFFECT_AFFECTS_SELF,
     PERMANENT_TYPES,
 } from "../../types";
+import { protectionColorModes } from "../../abilities";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
-import { protectionColorModes } from "../../abilities";
+import { kickerPaidCondition } from "../../abilities/triggers/shared";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Domain cluster (parent PRD #1063, issue #1066)
@@ -1505,6 +1506,77 @@ export const viciousKavu: CardDefinition = {
     ],
 };
 
+// Shivan Emissary — {2}{R} Creature — Human Wizard, 1/1. "Kicker {1}{B}.
+// When this creature enters, if it was kicked, destroy target nonblack
+// creature. It can't be regenerated." (CR 702.33 Kicker, CR 603.6a ETB
+// trigger with a CR 603.3d target announcement, CR 701.15c regeneration
+// shield suppression.)
+//
+// Closed by issue #1328 (capability slice, decomposed from #1086): same
+// `CardInstanceState.wasKicked` fix as Benalish Emissary (`inv/white.ts`) —
+// see that card's comment for the full precedent chain. Uses the same
+// Waterspout Elemental (`pls/blue.ts`) template: `conditionOnSelf:
+// kickerPaidCondition("kicker")` at check time, `if { kickerPaid: "kicker" }`
+// inside `effects[]` at resolution time — no `interveningIf`, so this
+// trigger does not carry the Jacked Rabbit blink divergence (tracked-by:
+// #2042).
+//
+// `excludeColors: "B"` on the target requirement expresses "nonblack" (Dark
+// Banishing precedent, `ice/black.ts`; Annihilate, `inv/black.ts` — same
+// file, BR-adjacent). `destroy`'s `cantBeRegenerated: true` is the direct
+// Op passthrough for "It can't be regenerated." (ADR 0053).
+export const shivanEmissary: CardDefinition = {
+    id: "945c596e-492e-4cf5-857c-4ddbbdd78485", // INV 166
+    rarity: "uncommon",
+    name: "Shivan Emissary",
+    oracleText:
+        "Kicker {1}{B} (You may pay an additional {1}{B} as you cast this spell.)\nWhen this creature enters, if it was kicked, destroy target nonblack creature. It can't be regenerated.",
+    manaCost: { X: 2, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Wizard"],
+    power: 1,
+    toughness: 1,
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker {1}{B}",
+            mana: { X: 1, B: 1 },
+        },
+    ],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "shivan-emissary-kicked",
+            oracleText:
+                "When this creature enters, if it was kicked, destroy target nonblack creature. It can't be regenerated.",
+            scope: "self",
+            // CR 603.4 check-time gate — see the card-level comment.
+            conditionOnSelf: kickerPaidCondition("kicker"),
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                excludeColors: "B",
+            },
+            effects: [
+                {
+                    op: "if",
+                    predicate: {
+                        left: { kickerPaid: "kicker" },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [
+                        {
+                            op: "destroy",
+                            target: { target: 0 },
+                            cantBeRegenerated: true,
+                        },
+                    ],
+                },
+            ],
+        }),
+    ],
+};
+
 // ─────────────────────────────────────────────────────────────────────────
 // Deferred (engine capability gaps) — BR (issue #1077, tracked-by #1120
 // unless otherwise noted)
@@ -1548,16 +1620,6 @@ export const viciousKavu: CardDefinition = {
 // abilities; no such triggered-ability graveyard scan variant exists.
 // Shipping only the sac-damage half would silently drop the card's
 // signature recursion clause, so the whole card waits.)
-
-// Shivan Emissary — {2}{R} Creature — Human Wizard, 1/1. "Kicker {1}{B}.
-// When this creature enters, if it was kicked, destroy target nonblack
-// creature. It can't be regenerated." tracked-by: #1086 (same root cause as
-// Benalish Emissary, `inv/white.ts`: `kickerCount` lives only on the
-// resolving `StackItem`, never persisted onto `CardInstanceState`/
-// `PERMANENT_ENTERED` for a LATER-firing ETB `TriggeredAbility` to read —
-// `entersWith.counters`' `count: "kicker"` reads it fine at ETB-resolution
-// time itself, but a separate triggered ability firing off the
-// `PERMANENT_ENTERED` event has no access.)
 
 // Tsabo Tavoc — {5}{B}{R} Legendary Creature — Phyrexian Horror, 7/4.
 // "First strike, protection from legendary creatures. {B}{B}, {T}: Destroy

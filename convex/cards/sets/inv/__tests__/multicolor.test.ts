@@ -82,6 +82,7 @@ import {
     barrinsSpite,
     seersVision,
     aetherRift,
+    shivanEmissary,
 } from "../multicolor";
 import { lobotomy } from "../../tmp/multicolor";
 import { simoon } from "../../vis/multicolor";
@@ -94,6 +95,7 @@ import {
 import {
     resolveTopOfStack,
     applySourceStaticEffects,
+    type CardInstanceState,
     type GameState,
     type StackItem,
 } from "../../../../gre/state";
@@ -3479,6 +3481,118 @@ describe("Aether Rift (CR 701.8a random discard, CR 603.2 upkeep trigger, CR 117
         const projected = projectPublicState(state, 1, "p1");
         expect(
             projected.players[0].battlefield.some((c) => c.id === "ar-bear-6")
+        ).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Shivan Emissary — single Kicker, ETB destroy-target-nonblack-creature,
+// can't be regenerated (issue #1328, decomposed from #1086). Same auto-
+// generated DSL smoke sweep skip as Benalish Emissary ("construct 'if'
+// branches on a runtime predicate — covered by the card's own tests") — this
+// hand-written suite is the required proof obligation. Same Waterspout
+// Elemental / Thunderscape Battlemage template as Benalish Emissary
+// (`inv/__tests__/white.test.ts`) — see that describe block's header
+// comment for the full precedent chain; not re-derived here.
+// ---------------------------------------------------------------------------
+
+describe("Shivan Emissary (single Kicker ETB — destroy target nonblack creature, issue #1328)", () => {
+    it("unkicked: the ETB trigger never even reaches the stack (CR 603.4 check-time gate)", () => {
+        const target = makeInstance(grizzlyBears.id, {
+            id: "se-target-1",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [target] }),
+            ],
+        });
+        pushSpell(state, shivanEmissary.id, "p1"); // no kickerPayments — unkicked
+        resolveTopOfStack(state);
+        expect(state.stack).toHaveLength(0);
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "se-target-1")
+        ).toBe(true);
+    });
+
+    it("kicked: the ETB trigger destroys the announced nonblack creature target, can't be regenerated", () => {
+        const emissary = makeInstance(shivanEmissary.id, {
+            id: "se-kicked",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const target = makeInstance(grizzlyBears.id, {
+            id: "se-target-2",
+            controllerId: "p2",
+            ownerId: "p2",
+            regenerationShields: 1,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [emissary] }),
+                makePlayer("p2", { battlefield: [target] }),
+            ],
+        });
+        (
+            emissary as CardInstanceState & {
+                kickerPayments?: Record<string, number>;
+            }
+        ).kickerPayments = { kicker: 1 };
+        resolveTrigger(
+            state,
+            emissary,
+            "shivan-emissary-kicked",
+            {
+                type: "PERMANENT_ENTERED",
+                instanceId: emissary.id,
+                controllerId: emissary.controllerId,
+                types: emissary.types,
+            } as StackItem["triggerEvent"],
+            [{ type: "permanent", id: "se-target-2" }]
+        );
+        // Destroyed despite the regeneration shield — cantBeRegenerated: true.
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "se-target-2")
+        ).toBe(false);
+        expect(
+            state.players[1].graveyard.some((c) => c.id === "se-target-2")
+        ).toBe(true);
+    });
+
+    // Defense in depth (CR 707.10), same shape as Benalish Emissary.
+    it("resolution-time gate: forced onto the stack unkicked, the destroy still does not fire", () => {
+        const emissary = makeInstance(shivanEmissary.id, {
+            id: "se-unkicked-forced",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const target = makeInstance(grizzlyBears.id, {
+            id: "se-target-3",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [emissary] }),
+                makePlayer("p2", { battlefield: [target] }),
+            ],
+        });
+        resolveTrigger(
+            state,
+            emissary,
+            "shivan-emissary-kicked",
+            {
+                type: "PERMANENT_ENTERED",
+                instanceId: emissary.id,
+                controllerId: emissary.controllerId,
+                types: emissary.types,
+            } as StackItem["triggerEvent"],
+            [{ type: "permanent", id: "se-target-3" }]
+        );
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "se-target-3")
         ).toBe(true);
     });
 });

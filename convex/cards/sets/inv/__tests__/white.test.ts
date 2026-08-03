@@ -18,12 +18,15 @@
 import { describe, it, expect } from "vitest";
 import {
     alabasterLeech,
+    benalishEmissary,
+    benalishLancer,
     crusadingKnight,
     deathOrGlory,
     divinePresence,
     fightOrFlight,
     harshJudgment,
     liberate,
+    prisonBarricade,
     restrain,
     reyaDawnbringer,
     ruhamDjinn,
@@ -47,6 +50,7 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
+import { resolveTrigger } from "./helpers";
 import {
     applyCostModifiers,
     getCostModifiers,
@@ -969,5 +973,250 @@ describe("Fight or Flight (CR 603.6a combat-begin trigger / 508.1a attack restri
             (c) => c.id === "fof-wire-creature"
         );
         expect(slim?.cantAttackThisTurn).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Benalish Emissary — single Kicker, ETB destroy-target-land (issue #1328,
+// decomposed from #1086). The auto-generated DSL smoke sweep explicitly
+// SKIPS this card's ability ("construct 'if' branches on a runtime
+// predicate — covered by the card's own tests"), so per
+// `.claude/rules/gre-development.md` this hand-written suite is the required
+// proof obligation, not optional per-Op coverage. Uses the Waterspout
+// Elemental (`pls/blue.ts`) / Thunderscape Battlemage (`pls/red.ts`)
+// template: `conditionOnSelf: kickerPaidCondition` at CR 603.4 check time
+// (exercised via the REAL cast path below), `if { kickerPaid }` inside
+// `effects[]` at resolution time (exercised via `resolveTrigger`, which
+// bypasses CR 603.3d target ANNOUNCEMENT itself — a separate,
+// already-tested engine concern, same precedent comment as
+// `pls/__tests__/blue.test.ts`).
+// ---------------------------------------------------------------------------
+
+describe("Benalish Emissary (single Kicker ETB — destroy target land, issue #1328)", () => {
+    it("unkicked: the ETB trigger never even reaches the stack (CR 603.4 check-time gate)", () => {
+        const targetLand = makeInstance(plains.id, {
+            id: "be-target-land",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [targetLand] }),
+            ],
+        });
+        pushSpell(state, benalishEmissary.id, "p1"); // no kickerPayments — unkicked
+        resolveTopOfStack(state); // creature resolves, enters, triggers scanned
+        expect(state.stack).toHaveLength(0);
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "be-target-land")
+        ).toBe(true);
+    });
+
+    it("kicked: the ETB trigger destroys the announced target land", () => {
+        const emissary = makeInstance(benalishEmissary.id, {
+            id: "be-kicked",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const targetLand = makeInstance(plains.id, {
+            id: "be-target-land-2",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [emissary] }),
+                makePlayer("p2", { battlefield: [targetLand] }),
+            ],
+        });
+        (
+            emissary as CardInstanceState & {
+                kickerPayments?: Record<string, number>;
+            }
+        ).kickerPayments = { kicker: 1 };
+        resolveTrigger(
+            state,
+            emissary,
+            "benalish-emissary-kicked",
+            {
+                type: "PERMANENT_ENTERED",
+                instanceId: emissary.id,
+                controllerId: emissary.controllerId,
+                types: emissary.types,
+            } as StackItem["triggerEvent"],
+            [{ type: "permanent", id: "be-target-land-2" }]
+        );
+        expect(
+            state.players[1].battlefield.some(
+                (c) => c.id === "be-target-land-2"
+            )
+        ).toBe(false);
+        expect(
+            state.players[1].graveyard.some((c) => c.id === "be-target-land-2")
+        ).toBe(true);
+    });
+
+    // Defense in depth (CR 707.10 — an ability copy could reach the stack
+    // without re-running `matches`): even manually forced onto the stack
+    // without a paid kicker, the resolution-time `if { kickerPaid }` branch
+    // inside `effects[]` still blocks the destroy. Same precedent as
+    // Thunderscape Battlemage's "unkicked: neither trigger does anything
+    // even though both still announce a target" (`pls/__tests__/red.test.ts`).
+    it("resolution-time gate: forced onto the stack unkicked, the destroy still does not fire", () => {
+        const emissary = makeInstance(benalishEmissary.id, {
+            id: "be-unkicked-forced",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const targetLand = makeInstance(plains.id, {
+            id: "be-target-land-3",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [emissary] }),
+                makePlayer("p2", { battlefield: [targetLand] }),
+            ],
+        });
+        resolveTrigger(
+            state,
+            emissary,
+            "benalish-emissary-kicked",
+            {
+                type: "PERMANENT_ENTERED",
+                instanceId: emissary.id,
+                controllerId: emissary.controllerId,
+                types: emissary.types,
+            } as StackItem["triggerEvent"],
+            [{ type: "permanent", id: "be-target-land-3" }]
+        );
+        expect(
+            state.players[1].battlefield.some(
+                (c) => c.id === "be-target-land-3"
+            )
+        ).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Benalish Lancer — single Kicker, entersWith two +1/+1 counters + a
+// `keyword-grant` of first strike gated on `wasKicked` (issue #1328). Exact
+// Pouncing Kavu / Duskwalker template (`inv/red.ts` / `inv/black.ts`) —
+// already-exercised composition, so this is a confirming test of THIS
+// card's specific outcome (per-Op regime), not a re-proof of the underlying
+// `wasKicked` mechanism (which carries its own regression suite on Pouncing
+// Kavu).
+// ---------------------------------------------------------------------------
+
+describe("Benalish Lancer (Kicker -> two +1/+1 counters + first strike, issue #1328)", () => {
+    function enterKicked(kicked: boolean) {
+        const state = makeState();
+        const item = pushSpell(state, benalishLancer.id, "p1");
+        if (kicked) item.kickerPayments = { kicker: 1 };
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    it("kicked: enters with two +1/+1 counters and first strike", () => {
+        const state = enterKicked(true);
+        const lancer = state.players[0].battlefield.find(
+            (c) => c.card.id === benalishLancer.id
+        )!;
+        expect(lancer.counters?.["+1/+1"]).toBe(2);
+        expect(lancer.wasKicked).toBe(true);
+        expect(lancer.staticAbilities).toContain("first strike");
+    });
+
+    it("not kicked: no counters, no first strike, wasKicked unset", () => {
+        const state = enterKicked(false);
+        const lancer = state.players[0].battlefield.find(
+            (c) => c.card.id === benalishLancer.id
+        )!;
+        expect(lancer.counters?.["+1/+1"] ?? 0).toBe(0);
+        expect(lancer.wasKicked).toBeUndefined();
+        expect(lancer.staticAbilities).not.toContain("first strike");
+    });
+
+    // Wire format (mandatory for a `staticEffects[]` card, per the "Card
+    // testing convention" table) — the materialized "first strike" keyword
+    // must survive `projectPublicState`'s slim reshape.
+    it("kicked first strike grant survives projectPublicState (wire format)", () => {
+        const state = enterKicked(true);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.card.id === benalishLancer.id
+        )!;
+        expect(slim.wasKicked).toBe(true);
+        expect(slim.staticAbilities).toContain("first strike");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Prison Barricade — single Kicker, entersWith a +1/+1 counter + a
+// `keyword-remove` of "defender" gated on `wasKicked` (issue #1328). Sibling
+// of the keyword-grant shape above, using `StaticKeywordRemove` instead
+// (`cards/types.ts`) — CR 702.3a's entire effect of defender is "can't
+// attack", so stripping the printed keyword IS "can attack as though it
+// didn't have defender": `evaluateAttackerKeywords`
+// (`gre/combatRegistry.ts`) only ever consults the DEFENDER_RULE when
+// `staticAbilities.includes("defender")`.
+// ---------------------------------------------------------------------------
+
+describe("Prison Barricade (Kicker -> +1/+1 counter + loses defender, issue #1328)", () => {
+    function enterKicked(kicked: boolean) {
+        const state = makeState();
+        const item = pushSpell(state, prisonBarricade.id, "p1");
+        if (kicked) item.kickerPayments = { kicker: 1 };
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    it("unkicked: still has defender, cannot attack", () => {
+        const state = enterKicked(false);
+        const barricade = state.players[0].battlefield.find(
+            (c) => c.card.id === prisonBarricade.id
+        )!;
+        expect(barricade.counters?.["+1/+1"] ?? 0).toBe(0);
+        expect(barricade.wasKicked).toBeUndefined();
+        expect(barricade.staticAbilities).toContain("defender");
+        // Isolate from CR 302.6 summoning sickness (see the kicked case
+        // below) so this assertion is specifically about defender, not a
+        // coincidentally-false result from two independent restrictions.
+        barricade.isSummoningSick = false;
+        const attackCheck = validateAttackerEligibility(barricade);
+        expect(attackCheck.eligible).toBe(false);
+        if (!attackCheck.eligible) {
+            expect(attackCheck.reason).toMatch(/defender/i);
+        }
+    });
+
+    it("kicked: enters with a +1/+1 counter, loses defender, can attack", () => {
+        const state = enterKicked(true);
+        const barricade = state.players[0].battlefield.find(
+            (c) => c.card.id === prisonBarricade.id
+        )!;
+        expect(barricade.counters?.["+1/+1"]).toBe(1);
+        expect(barricade.wasKicked).toBe(true);
+        expect(barricade.staticAbilities).not.toContain("defender");
+        // Isolate the defender-removal check from CR 302.6 summoning
+        // sickness (a separate, unrelated attack restriction every fresh
+        // permanent has regardless of this card's ability).
+        barricade.isSummoningSick = false;
+        const attackCheck = validateAttackerEligibility(barricade);
+        expect(attackCheck.eligible).toBe(true);
+    });
+
+    // Wire format (mandatory for a `staticEffects[]` card) — the removed
+    // "defender" keyword must survive `projectPublicState`'s slim reshape.
+    it("kicked defender removal survives projectPublicState (wire format)", () => {
+        const state = enterKicked(true);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.card.id === prisonBarricade.id
+        )!;
+        expect(slim.wasKicked).toBe(true);
+        expect(slim.staticAbilities).not.toContain("defender");
     });
 });
