@@ -67,7 +67,10 @@ export type ManualGameState = {
 
 // --- Projected types (ADR 0080 S3) — the wire shape after hiding private info ---
 
-export type ProjectedManualCard = ManualCardInstance;
+export type ProjectedManualCard = Omit<
+    ManualCardInstance,
+    "knownTo" | "revealedTo"
+>;
 export type ProjectedManualLibrary = { count: number };
 
 export type ProjectedManualPlayer = Omit<
@@ -92,13 +95,13 @@ function projectManualCard(
     card: ManualCardInstance,
     viewerId: string
 ): ProjectedManualCard {
-    if (!card.faceDown) return card;
-    if (card.knownTo?.includes(viewerId)) return card;
-    // Non-known viewer sees a face-down back — real id and metadata stripped.
-    const projected = { ...card, card: { id: MANUAL_FACE_DOWN_CARD_ID } };
-    delete projected.knownTo;
-    delete projected.revealedTo;
-    return projected;
+    const { knownTo, revealedTo, ...rest } = card;
+    void knownTo;
+    void revealedTo;
+    if (!card.faceDown) return rest;
+    if (card.knownTo?.includes(viewerId)) return rest;
+    if (card.revealedTo?.includes(viewerId)) return rest;
+    return { ...rest, card: { id: MANUAL_FACE_DOWN_CARD_ID } };
 }
 
 /**
@@ -542,10 +545,10 @@ export function manualSetFaceDown(
         };
     if (faceDown) {
         found.card.faceDown = true;
+        const newViewers = [found.card.controllerId, found.card.ownerId];
         found.card.knownTo = [
-            found.card.controllerId,
-            found.card.ownerId,
-        ].filter((v, i, a) => a.indexOf(v) === i);
+            ...new Set([...(found.card.knownTo ?? []), ...newViewers]),
+        ];
     } else {
         delete found.card.faceDown;
         delete found.card.knownTo;
@@ -762,9 +765,13 @@ export function manualExileTop(
         const card = player.library.pop()!;
         card.zone = "exile";
         card.faceDown = true;
-        card.knownTo = [card.controllerId, card.ownerId].filter(
-            (v, i, a) => a.indexOf(v) === i
-        );
+        card.knownTo = [
+            ...new Set([
+                ...(card.knownTo ?? []),
+                card.controllerId,
+                card.ownerId,
+            ]),
+        ];
         player.exile.push(card);
         exiled.push(card.card.id);
     }

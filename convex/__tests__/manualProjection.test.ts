@@ -188,18 +188,40 @@ describe("projectManualState — revealedTo", () => {
         expect(p1Hand[2]).toBeNull();
     });
 
-    it("revealedTo honored after card moves zones", () => {
+    it("revealedTo honored after card moves face-up to battlefield", () => {
         const state = freshState();
         const p1 = state.players.find((p) => p.id === "p1")!;
         const card = p1.hand[0];
         const revealed = manualReveal(state, card.id, ["p2"]);
         const moved = manualMoveCard(revealed.state, card.id, "battlefield");
 
-        // p2 should still see the card on the battlefield
+        // p2 sees the card on the battlefield — visibility comes from !faceDown
         const projected = projectManualState(moved.state, "p2");
         const p1Bf = projected.players.find((p) => p.id === "p1")!.battlefield;
         const movedCard = p1Bf.find((c) => c.id === card.id);
         expect(movedCard).toBeDefined();
         expect(movedCard!.card.id).toBe(card.card.id);
+    });
+
+    it("revealedTo honored after card moves face-down to battlefield", () => {
+        const state = freshState();
+        const p1 = state.players.find((p) => p.id === "p1")!;
+        const card = p1.hand[0];
+        const revealed = manualReveal(state, card.id, ["p2"]);
+        const moved = manualMoveCard(revealed.state, card.id, "battlefield");
+        const fd = manualSetFaceDown(moved.state, card.id, true);
+
+        // p2 sees the face-down card because it was revealed — visibility
+        // comes from revealedTo, not !faceDown.
+        const projected = projectManualState(fd.state, "p2");
+        const p1Bf = projected.players.find((p) => p.id === "p1")!.battlefield;
+        // With revealedTo preserved, p2 still knows this card
+        const fdCard = p1Bf.find((c) => c.id === card.id);
+        expect(fdCard).toBeDefined();
+        expect(fdCard!.card.id).toBe(card.card.id);
+        expect(fdCard!.faceDown).toBe(true);
+        // knownTo / revealedTo are stripped from the projection
+        expect((fdCard as Record<string, unknown>).knownTo).toBeUndefined();
+        expect((fdCard as Record<string, unknown>).revealedTo).toBeUndefined();
     });
 });
