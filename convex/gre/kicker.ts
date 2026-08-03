@@ -22,7 +22,14 @@
 //     the per-id record cannot drift. Every consumer that only wants a total
 //     (`{ kickerCount: true }`, `entersWith.counters` count `"kicker"`, the bot
 //     valuers) reads it through here.
-import type { CardDefinition, CostLegs, KickerCost } from "../cards/types";
+import type {
+    CardDefinition,
+    CardType,
+    Color,
+    CostLegs,
+    KickerCost,
+    SpellKickedEvent,
+} from "../cards/types";
 import type { GameState, PlayerState } from "./state";
 import { normalizeManaCost } from "./state";
 import {
@@ -142,6 +149,81 @@ export function resolveKickerPayments(
         throw new Error("These kickers' costs cannot be paid together");
     }
     return canonical;
+}
+
+/** CR 702.33d + CR 603.2 (issue #1097) — the `SPELL_KICKED` events for ONE
+ *  freshly-CAST spell, backing "whenever a player kicks a spell" triggers
+ *  (Saproling Infestation, `cards/sets/inv/green.ts`).
+ *
+ *  ONE EVENT PER KICK, never one per spell. CR 702.33d: a spell with two
+ *  Kickers, or with Multikicker, "may be kicked multiple times" — so a
+ *  Multikicker paid three times was kicked three times and the trigger fires
+ *  three times, as three separate stack objects. `paidKickers` already reports
+ *  the per-Kicker tally; this flattens it to one event per payment.
+ *
+ *  FAIL-CLOSED on two independent axes, both deliberate. Note carefully what
+ *  each one does and does NOT buy — the first is narrower than it looks:
+ *
+ *  1. **Declaration-gated.** The tally is read through `paidKickers`, which
+ *     iterates the CARD'S OWN declared `kickers` and looks each id up in the
+ *     record — never the record's own keys. So a `kickerPayments` entry naming
+ *     an id the card does not declare contributes NOTHING: a mistyped or
+ *     foreign key cannot invent a kick.
+ *
+ *     This does **not** make the function safe against a STALE record. A
+ *     leftover snapshot from an EARLIER cast of the same card names that
+ *     card's own kicker id, so it passes this gate cleanly. What actually
+ *     rules a stale record out is CR 400.7 zone hygiene, enforced in two
+ *     independent places: `clearCastKickerSnapshot` at every stack exit to a
+ *     recastable zone, and `resetBattlefieldTransientState` (via
+ *     `removeFromZone`) at cast-commit. Either one alone is sufficient —
+ *     verified by mutation: with BOTH removed, `cast Burst Lightning kicked →
+ *     graveyard → Regrowth → recast unkicked` emits a phantom SPELL_KICKED and
+ *     hands out a free Saproling; with either one present, it does not.
+ *  2. **Cast-gated.** Only the single cast choke point calls this
+ *     (`emitSpellCastEvent`, `gre/state.ts`). Two consequences that a
+ *     `kickerPayments !== undefined` test could not give:
+ *       - A COPY of a kicked spell emits nothing (CR 707.10 — "a copy of a
+ *         spell isn't cast"). `cloneSpellOntoStack` deliberately carries
+ *         `kickerPayments` onto the copy (CR 707.10 copies "additional or
+ *         alternative costs", so the copy IS kicked for `wasKicked` /
+ *         `{ kickerPaid }` purposes) but never calls the cast choke point —
+ *         nobody paid a kicker for the copy, so nobody kicked it.
+ *       - A spell that RESOLVES and snapshots its payments onto the entering
+ *         permanent (`CardInstanceState.kickerPayments`, the intervening-if
+ *         twin) does not re-emit: resolution is not a cast.
+ *
+ *  A kicked spell that is COUNTERED later still emitted here — the kick
+ *  happened during casting (CR 601.2b/h) and a countered spell was still cast
+ *  and still kicked. */
+export function buildSpellKickedEvents(
+    cardDef: Pick<CardDefinition, "kickers">,
+    item: {
+        id: string;
+        castById: string;
+        kickerPayments?: KickerPayments;
+        types: ReadonlyArray<CardType>;
+        subtypes: ReadonlyArray<string>;
+    },
+    spellCardId: string,
+    spellColors: ReadonlyArray<Color>
+): SpellKickedEvent[] {
+    const events: SpellKickedEvent[] = [];
+    for (const { kicker, times } of paidKickers(cardDef, item.kickerPayments)) {
+        for (let i = 0; i < times; i++) {
+            events.push({
+                type: "SPELL_KICKED",
+                casterId: item.castById,
+                spellInstanceId: item.id,
+                spellCardId,
+                kickerId: kicker.id,
+                spellTypes: item.types,
+                spellSubtypes: item.subtypes,
+                spellColors,
+            });
+        }
+    }
+    return events;
 }
 
 /** CR 702.33a / 601.2f — fold every paid Kicker's MANA leg into a normalized

@@ -11392,6 +11392,14 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Saproling Infestation",
+        "scryfallId": "8642e530-914c-4149-944a-c4966ee27299",
+        "oracleId": "dd257eb3-4112-41e5-9c7d-00d1f683dbdb",
+        "firstSet": "inv",
+        "firstPrintId": "8642e530-914c-4149-944a-c4966ee27299",
+        "firstPrintSet": "inv"
+    },
+    {
         "name": "Satya, Aetherflux Genius",
         "scryfallId": "3b964bbe-54cc-425c-9cc6-c877f82af7ba",
         "oracleId": "ce8af7dd-49df-4419-9776-4157efc60b0f",

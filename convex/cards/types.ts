@@ -6685,6 +6685,7 @@ export type GameEventType =
     | "PERMANENT_ENTERED"
     | "PERMANENT_LEFT"
     | "SPELL_CAST"
+    | "SPELL_KICKED"
     | "PERMANENT_TAPPED"
     | "PERMANENT_UNTAPPED"
     | "ABILITY_ACTIVATED"
@@ -6942,6 +6943,57 @@ export interface SpellCastEvent {
      *  `priorSpellCount` is — pre-existing hand-built fixtures stay valid;
      *  the real emitter always sets it. */
     casterSpellCountThisTurn?: number;
+}
+
+/** "A player kicks a spell" (CR 702.33d, issue #1097) — emitted as part of
+ *  CASTING a spell for which at least one Kicker cost was paid. Backs
+ *  "whenever a player kicks a spell" triggers (Saproling Infestation,
+ *  `inv/green.ts`); distinct from the `wasKicked` / `{ kickerPaid }` STATE
+ *  reads (`gre/kicker.ts`), which answer "is this spell kicked" at resolution
+ *  rather than "did someone just kick one".
+ *
+ *  ONE EVENT PER KICK, not per spell. CR 702.33d: "If a spell's controller
+ *  declares the intention to pay any of that spell's kicker costs, that spell
+ *  has been 'kicked.' If a spell has two kicker costs or has multikicker, it
+ *  may be kicked multiple times." A Multikicker paid three times is three
+ *  kicks, so a "whenever a player kicks a spell" ability triggers three times
+ *  — three separate stack objects, each independently counterable. The
+ *  emitter (`buildSpellKickedEvents`, `gre/kicker.ts`) therefore pushes
+ *  `paidKickers`-many events, one per payment, all identical but for nothing:
+ *  no card distinguishes the Nth kick from the first.
+ *
+ *  A COPY of a kicked spell emits NOTHING (CR 707.10 — "a copy of a spell
+ *  isn't cast"). The copy still carries the original's `kickerPayments` (so it
+ *  IS kicked for "if this spell was kicked" purposes, CR 707.10's "additional
+ *  or alternative costs" clause), but no player paid a kicker for it, so no
+ *  player kicked it. Enforced structurally, not by a flag: only the CAST choke
+ *  point (`emitSpellCastEvent`) emits, and `cloneSpellOntoStack` never calls
+ *  it. */
+export interface SpellKickedEvent {
+    type: "SPELL_KICKED";
+    /** Player who kicked the spell — its controller as it was cast
+     *  (CR 702.33d: "a spell's CONTROLLER declares the intention to pay").
+     *  Named to mirror {@link SpellCastEvent.casterId}: the same player, from
+     *  the same stack item, emitted in the same step. */
+    casterId: string;
+    /** Stack item id of the kicked spell. */
+    spellInstanceId: string;
+    /** Card definition id of the kicked spell. */
+    spellCardId: string;
+    /** `KickerCost.id` of the Kicker whose payment this event represents
+     *  (ADR 0079 — a card may declare several independently payable Kickers).
+     *  Lets a future "kicked with its [A] kicker" trigger discriminate without
+     *  re-reading the stack item, and keeps the N events of a Multikicker
+     *  attributable to the Kicker that produced them. */
+    kickerId: string;
+    /** Card types of the kicked spell. Mirrors {@link SpellCastEvent} so a
+     *  filtered variant ("whenever a player kicks a creature spell") needs no
+     *  new field and no stack lookup. */
+    spellTypes: ReadonlyArray<CardType>;
+    /** Card subtypes of the kicked spell. */
+    spellSubtypes: ReadonlyArray<string>;
+    /** Colors derived from the kicked spell's mana cost (CR 202.2). */
+    spellColors: ReadonlyArray<Color>;
 }
 
 /** Tap event emitted whenever a permanent transitions from untapped to
@@ -7484,6 +7536,7 @@ export type GameEvent =
     | PermanentEnteredEvent
     | PermanentLeftEvent
     | SpellCastEvent
+    | SpellKickedEvent
     | PermanentTappedEvent
     | PermanentUntappedEvent
     | AbilityActivatedEvent

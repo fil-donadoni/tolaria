@@ -1447,20 +1447,71 @@ export const restock: CardDefinition = {
     ],
 };
 
-// Saproling Infestation — "Whenever a player kicks a spell, you create a 1/1
-// green Saproling creature token." No trigger EVENT exists anywhere in the
-// engine for "a player pays a kicker cost" — kicker payment is captured only
-// as a snapshot (`kickerCount`) on the resulting stack item at cast commit,
-// never emitted as its own `GameEvent`, so no triggered ability can listen
-// for it.
-// tracked-by: #1097
-// export const saprolingInfestation: CardDefinition = {
-//     id: "8642e530-914c-4149-944a-c4966ee27299",
-//     name: "Saproling Infestation",
-//     rarity: "rare",
-//     manaCost: { X: 1, G: 1 },
-//     types: ["Enchantment"],
-// };
+// Saproling Infestation — {1}{G} Enchantment. "Whenever a player kicks a
+// spell, you create a 1/1 green Saproling creature token."
+//
+// The first and so far only consumer of the `SPELL_KICKED` GameEvent
+// (CR 702.33d, issue #1097), emitted per KICK from the single cast choke point
+// `emitSpellCastEvent` (`gre/state.ts`) via `buildSpellKickedEvents`
+// (`gre/kicker.ts`). Three properties of that event decide this card's
+// behaviour, none of them expressible on the ability itself:
+//
+//  - **Once per KICK, not per spell** (CR 702.33d — a spell with two Kickers
+//    or with Multikicker "may be kicked multiple times"). Kicking a
+//    Multikicker spell three times makes THREE Saprolings, as three separate
+//    trigger objects on the stack. The ability is a plain per-event trigger,
+//    so it inherits that for free — deliberately NOT `oncePerEventBatch`.
+//  - **Symmetric** (CR 603.2). "A player" = either player's kick fires it; the
+//    ability's own controller ("you") always gets the token, which is what the
+//    `"controller"` selector already means at a trigger site. `matches` needs
+//    no filter beyond the event type.
+//  - **Casting only** (CR 707.10). A COPY of a kicked spell makes no Saproling:
+//    the copy is kicked, but no player kicked it, and the copy never reaches
+//    the cast choke point that emits.
+//
+// Token art resolves automatically from the committed Scryfall reverse-link
+// (`generated/token-prints.json`) keyed by this card's own id + the token
+// name, so no `imagePrintId` is hand-pinned. Invasion itself printed NO
+// tokens, so the lockfile maps this card to a same-characteristics substitute
+// (a 1/1 green Saproling from a modern printing) — the token/emblem art rule's
+// documented fallback, and the same print the other INV Saproling producers
+// (`inv/multicolor.ts`) already resolve to. Spec matches theirs.
+export const saprolingInfestation: CardDefinition = {
+    id: "8642e530-914c-4149-944a-c4966ee27299",
+    name: "Saproling Infestation",
+    rarity: "rare",
+    oracleText:
+        "Whenever a player kicks a spell, you create a 1/1 green Saproling creature token.",
+    manaCost: { X: 1, G: 1 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        {
+            id: "saproling-infestation-kicked",
+            oracleText:
+                "Whenever a player kicks a spell, you create a 1/1 green Saproling creature token.",
+            event: "SPELL_KICKED",
+            // CR 603.2 — no filter: ANY player kicking ANY spell fires it.
+            // The event only exists for a genuine kick (the emitter is
+            // declaration-gated and cast-gated), so the type check is the
+            // whole condition.
+            matches: (event) => event.type === "SPELL_KICKED",
+            effects: [
+                {
+                    op: "createToken",
+                    token: {
+                        name: "Saproling",
+                        types: ["Creature"],
+                        subtypes: ["Saproling"],
+                        power: 1,
+                        toughness: 1,
+                        colors: ["G"],
+                    },
+                    controller: "controller",
+                },
+            ],
+        },
+    ],
+};
 
 // Scouting Trek — "Search your library for any number of basic land cards,
 // reveal those cards, then shuffle and put them on top." Reveals the

@@ -103,7 +103,11 @@ import {
 } from "./controlContinuity";
 import type { Phase, Zone, PhaseReturnCondition } from "./types";
 import type { KickerPayments } from "./kicker";
-import { kickerPaidCount, totalKickerCount } from "./kicker";
+import {
+    buildSpellKickedEvents,
+    kickerPaidCount,
+    totalKickerCount,
+} from "./kicker";
 import type { SacrificeSelection } from "./sacrificeChoice";
 // ADR 0079 — the may-pay PERMANENT leg's `action: "return"` terminal step runs
 // through the unified permanent-cost layer, the same one Gush / Thwart / Daze
@@ -5263,6 +5267,57 @@ function resetStackTransientState(item: StackItem): void {
     delete item.actingPlayerId;
 }
 
+/** CR 400.7 (review of PR #2115) — strip the cast-time KICKER snapshot from a
+ *  spell leaving the stack. A card that changes zones becomes a NEW object with
+ *  none of the old one's cast-time decisions, so `kickerPayments` — a record of
+ *  what the caster paid on THAT cast — must not ride along.
+ *
+ *  Called at EVERY stack exit that leaves a real card behind, which is:
+ *    - `sendStackItemToGraveyard` — the resolve/fizzle/counter-default path,
+ *      covering the graveyard AND its CR 614 exile redirect;
+ *    - `shuffleIntoLibraryOnResolve` (Green Sun's Zenith);
+ *    - `exileOnResolve` (Recall) and the rebound exile (CR 702.88);
+ *    - `counter()`'s three NON-graveyard destinations — hand (Remand), library
+ *      top (Memory Lapse), exile (No More Lies) — which splice the item off the
+ *      stack and push it directly, the hand branch running no reset at all;
+ *    - `putSpellOnLibrary` (Subtlety);
+ *    - `finalizeSpellResolution`'s CR 614 exile redirect for a resolving
+ *      PERMANENT spell (`enterDestination === "exile"`). Dormant today — the
+ *      only shipped replacement on that event (Containment Priest) excludes
+ *      `wasCast`, so nothing drives a cast spell down it — but structurally
+ *      reachable by any future enters-the-battlefield replacement that does
+ *      not gate on cast-origin, so it is wired rather than left as the one
+ *      unlisted exception. Untestable with shipped cards for the same reason.
+ *
+ *  Two exits deliberately do NOT call it, and neither is a gap:
+ *    - the BATTLEFIELD exit, where `finalizeSpellResolution` snapshots the
+ *      payments onto the entering permanent on purpose (the intervening-if twin
+ *      read by `kickerPaidCondition`), cleared later by
+ *      `resetBattlefieldTransientState` when THAT permanent changes zones;
+ *    - the BUYBACK hand exit, which runs the fuller `resetStackTransientState`
+ *      (a superset — it deletes `kickerPayments` among everything else).
+ *
+ *  Why it matters. Every cast branch builds its stack item as
+ *  `{ ...card, ..., ...(kickerPayments ? { kickerPayments } : {}) }`
+ *  (`convex/game.ts`): that spread is `{}` when the new cast is UNKICKED and
+ *  therefore does not CLEAR an inherited field. A stale record surviving to a
+ *  recast would make the spell read as kicked for free — `getKickerCount()`
+ *  returns 1, `wasKicked` filters match, and (issue #1097) `SPELL_KICKED` is
+ *  emitted, handing out a phantom Saproling Infestation token.
+ *
+ *  This is the FIRST of two independent gates; the second is
+ *  `resetBattlefieldTransientState`, reached via `removeFromZone` at every
+ *  cast-commit. Verified by mutation on the chain `cast Burst Lightning kicked
+ *  → graveyard → Regrowth → recast unkicked`: with BOTH gates removed it emits
+ *  a phantom SPELL_KICKED and creates a free Saproling; with EITHER present it
+ *  does not. Gate 2 alone would suffice to prevent the wrong outcome — this
+ *  gate exists so the invariant holds AT THE SOURCE rather than depending on a
+ *  mop-up inside an unrelated function, and so no zone ever stores (or
+ *  persists to the DB) a record for a cast that is over. */
+function clearCastKickerSnapshot(item: StackItem): void {
+    delete item.kickerPayments;
+}
+
 /** Moves a stack item (a spell that failed to resolve/finished resolving as
  *  a non-permanent/was countered) into its owner's graveyard — CR 614
  *  (issue #1145) consulted first so a graveyard-bound replacement
@@ -5279,6 +5334,7 @@ function sendStackItemToGraveyard(state: GameState, item: StackItem): void {
         "stack"
     );
     item.zone = destination;
+    clearCastKickerSnapshot(item);
     (owner[destination] as CardInstanceState[]).push(item);
     if (destination !== "graveyard") {
         applyGraveyardRedirectCounters(item, tagCounters);
@@ -5342,6 +5398,7 @@ function finalizeSpellResolution(state: GameState, item: StackItem): void {
         );
         if (enterDestination === "exile") {
             item.zone = "exile";
+            clearCastKickerSnapshot(item);
             getPlayer(state, item.ownerId).exile.push(item);
             return;
         }
@@ -5539,6 +5596,7 @@ function finalizeSpellResolution(state: GameState, item: StackItem): void {
         // in practice.
         if (item.shuffleIntoLibraryOnResolve) {
             item.zone = "library";
+            clearCastKickerSnapshot(item);
             owner.library.push(item);
             // ADR 0026 — a shuffle is an unwitnessed reordering; reuse the
             // exact primitive `shuffleLibrary` calls so this redirect behaves
@@ -5566,6 +5624,10 @@ function finalizeSpellResolution(state: GameState, item: StackItem): void {
             delete item.reboundFromHand;
             markReboundExiled(item);
             item.zone = "exile";
+            // CR 702.88b — the rebound recast is "without paying its mana
+            // cost" and pays no kicker, so the original cast's snapshot must
+            // not ride into exile with it.
+            clearCastKickerSnapshot(item);
             owner.exile.push(item);
             state.nextDelayedSeq = (state.nextDelayedSeq ?? 0) + 1;
             state.delayedTriggers = [
@@ -5591,6 +5653,7 @@ function finalizeSpellResolution(state: GameState, item: StackItem): void {
         // flag is set by `SpellContext.exileSelf()` during the resolve.
         if (item.exileOnResolve) {
             item.zone = "exile";
+            clearCastKickerSnapshot(item);
             owner.exile.push(item);
             return;
         }
@@ -8409,7 +8472,20 @@ export function emitSpellCastEvent(state: GameState, item: StackItem): void {
         priorSpellCount,
         casterSpellCountThisTurn,
     };
-    state.pendingEvents = [...(state.pendingEvents ?? []), event];
+    // CR 702.33d (issue #1097) — "a player kicks a spell" rides the SAME cast
+    // choke point, one event per KICK (a Multikicker paid N times is N kicks).
+    // Emitted from here and nowhere else: a spell COPY (`cloneSpellOntoStack`)
+    // carries `kickerPayments` over but never reaches this function, so it
+    // never counts as a kick (CR 707.10 — a copy isn't cast). `def` absent
+    // (unregistered card) yields no events rather than a guess.
+    const kickedEvents = def
+        ? buildSpellKickedEvents(def, item, cardId, colors)
+        : [];
+    state.pendingEvents = [
+        ...(state.pendingEvents ?? []),
+        event,
+        ...kickedEvents,
+    ];
     // CR 603.2b (issue #1265) — a cast spell's chosen targets are locked onto
     // its stack item here, so this doubles as the target-declaration choke for
     // "whenever ~ becomes the target of a spell" triggers (Leovold). A
@@ -11798,10 +11874,12 @@ export function buildSpellContext(
             switch (destination) {
                 case "exile":
                     item.zone = "exile";
+                    clearCastKickerSnapshot(item);
                     owner.exile.push(item);
                     break;
                 case "library-top":
                     item.zone = "library";
+                    clearCastKickerSnapshot(item);
                     owner.library.unshift(item);
                     // CR 400.2 / 405.1 (issue #1696) — the countered spell was
                     // a PUBLIC object on the stack, so every player knows which
@@ -11816,6 +11894,7 @@ export function buildSpellContext(
                     break;
                 case "hand":
                     item.zone = "hand";
+                    clearCastKickerSnapshot(item);
                     owner.hand.push(item);
                     // CR 400.2 / 405.1 (issue #1696) — same public→hidden move
                     // as the library-top branch, into the other hidden zone
@@ -11859,6 +11938,7 @@ export function buildSpellContext(
             }
             const owner = getPlayer(state, item.ownerId);
             item.zone = "library";
+            clearCastKickerSnapshot(item);
             if (position === "top") owner.library.unshift(item);
             else owner.library.push(item);
             // The spell was a public object on the stack (CR 405.1), so its
