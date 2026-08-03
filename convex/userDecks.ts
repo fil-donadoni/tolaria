@@ -26,7 +26,8 @@ const formatValidator = v.union(
     v.literal("alpha-40"),
     v.literal("old-school"),
     v.literal("premodern"),
-    v.literal("limited")
+    v.literal("limited"),
+    v.literal("manual")
 );
 
 type AnyCtx = GenericQueryCtx<DataModel> | GenericMutationCtx<DataModel>;

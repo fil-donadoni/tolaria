@@ -833,6 +833,16 @@ _Avoid_: Auto-pass, auto-skip, phase skip
 The engine-side loop that applies consecutive passes after a **Priority** change without round-trips to the client. Honours both **Pass Turn** and **Phase Stop**, each with its own semantics — the permissive one may resolve the **Stack**, the strict one never may.
 _Avoid_: Auto-pass chain, cascade
 
+### Manual Play
+
+**Manual Game**:
+A game played without the **GRE** — no rule is enforced and no action is automated. Players move cards, tap, adjust life and counters by hand, and agree between themselves on legality. Hidden information is still server-enforced (projected per viewer). Every printed card is playable because no **CardDefinition** is ever hydrated — the card image alone is all the client needs.
+_Avoid_: Tabletop game, free-form game, cockatrice
+
+**Manual Deck**:
+A deck built for **Manual Mode**, carrying `format: "manual"`. It is REJECTED by the real engine (fail-closed in `createGame`/`joinGame`/`createSoloGame`) but a real-format deck IS playable in a **Manual Game** — both address cards by the same Scryfall print UUID.
+_Avoid_: Cockatrice deck, free deck
+
 ## Example Dialogue
 
 > **Dev**: "When a creature dies, we need to move it."

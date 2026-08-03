@@ -24,7 +24,8 @@ const formatValidator = v.union(
     v.literal("alpha-40"),
     v.literal("old-school"),
     v.literal("premodern"),
-    v.literal("limited")
+    v.literal("limited"),
+    v.literal("manual")
 );
 
 export default defineSchema({
@@ -85,6 +86,23 @@ export default defineSchema({
         owedPlayerIds: v.optional(v.array(v.string())),
         gameOver: v.optional(v.boolean()),
         updatedAt: v.number(),
+    }).index("by_gameId", ["gameId"]),
+    // Manual Mode state (ADR 0080) — mirrors gameStates, one row per game,
+    // patched in place. State is opaque JSON (no compile-time shape); the
+    // import-graph boundary guard ensures nothing here imports from convex/gre/.
+    manualStates: defineTable({
+        gameId: v.id("games"),
+        seq: v.number(),
+        state: v.any(),
+        updatedAt: v.number(),
+    }).index("by_gameId", ["gameId", "seq"]),
+    // Manual Mode action log (ADR 0080) — one row per action, retained for
+    // the normal retention window after game end (the only artefact worth
+    // reading afterwards; the state row is deleted like gameStates).
+    manualLog: defineTable({
+        gameId: v.id("games"),
+        action: v.any(),
+        createdAt: v.number(),
     }).index("by_gameId", ["gameId"]),
     decks: defineTable({
         presetId: v.string(),
@@ -318,9 +336,13 @@ export default defineSchema({
          * auto-switches its viewer to the player who currently has priority. */
         solo: v.optional(v.boolean()),
         /** vs-AI game (ADR 0001): structurally a solo game where the SECOND seat
-         * (`${userId}-p2`) is driven by the client-side AI brain rather than by
-         * the human. The viewer stays pinned to the human's seat. */
+         *  (`${userId}-p2`) is driven by the client-side AI brain rather than by
+         *  the human. The viewer stays pinned to the human's seat. */
         vsAi: v.optional(v.boolean()),
+        /** Manual Mode (ADR 0080): when set, this game is a Manual Game — the
+         *  client mounts the manual board instead of the GRE board. Read ONLY by
+         *  the route that chooses which board, never by the engine. */
+        mode: v.optional(v.literal("manual")),
         /** Limited Event this Game is a challenge within (issue #1577) — mirror
          *  of the owning Match's `limitedEventId`. Indexed (`by_limited_event`)
          *  so the event page can surface a seat's pending challenges. */
