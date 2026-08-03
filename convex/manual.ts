@@ -93,9 +93,10 @@ export function setupManualGame(
         name: string;
         bgColor: string;
         deck: ManualDeckCard[];
-    }[]
+    }[],
+    opts?: { seed?: number }
 ): ManualGameState {
-    const seed = manualRngSeed();
+    const seed = opts?.seed ?? manualRngSeed();
     const players: ManualPlayerState[] = inputs.map((input, index) => {
         const library: ManualCardInstance[] = input.deck.map((c) => ({
             id: allocInstanceId(),

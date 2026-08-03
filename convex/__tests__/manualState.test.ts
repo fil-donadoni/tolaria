@@ -57,26 +57,59 @@ describe("setupManualGame", () => {
     });
 
     it("shuffles libraries deterministically by seed + player index", () => {
-        const state1 = setupManualGame([
-            {
-                id: "p1",
-                name: "Alice",
-                bgColor: "#e0f0ff",
-                deck: [
-                    { cardId: "c1", cardName: "Card 1" },
-                    { cardId: "c2", cardName: "Card 2" },
-                    { cardId: "c3", cardName: "Card 3" },
-                    { cardId: "c4", cardName: "Card 4" },
-                ],
-            },
-        ]);
+        const deck = Array.from({ length: 10 }, (_, i) => ({
+            cardId: `c${i + 1}`,
+            cardName: `Card ${i + 1}`,
+        }));
 
-        // Hand + library together should contain all 4 cards
-        const allIds = [
-            ...state1.players[0].hand.map((c) => c.card.id),
+        const state1 = setupManualGame(
+            [{ id: "p1", name: "Alice", bgColor: "#e0f0ff", deck }],
+            { seed: 42 }
+        );
+        const order1 = [
             ...state1.players[0].library.map((c) => c.card.id),
-        ].sort();
-        expect(allIds).toEqual(["c1", "c2", "c3", "c4"]);
+            ...state1.players[0].hand.map((c) => c.card.id),
+        ];
+
+        const state2 = setupManualGame(
+            [{ id: "p1", name: "Alice", bgColor: "#e0f0ff", deck: [...deck] }],
+            { seed: 42 }
+        );
+        const order2 = [
+            ...state2.players[0].library.map((c) => c.card.id),
+            ...state2.players[0].hand.map((c) => c.card.id),
+        ];
+
+        expect(order1).toEqual(order2);
+        expect(order1).toHaveLength(10);
+    });
+
+    it("different seeds produce different library orders", () => {
+        const deck = Array.from({ length: 10 }, (_, i) => ({
+            cardId: `c${i + 1}`,
+            cardName: `Card ${i + 1}`,
+        }));
+
+        const state1 = setupManualGame(
+            [{ id: "p1", name: "Alice", bgColor: "#e0f0ff", deck }],
+            { seed: 42 }
+        );
+        const state2 = setupManualGame(
+            [{ id: "p1", name: "Alice", bgColor: "#e0f0ff", deck: [...deck] }],
+            { seed: 99 }
+        );
+
+        const order1 = [
+            ...state1.players[0].library.map((c) => c.card.id),
+            ...state1.players[0].hand.map((c) => c.card.id),
+        ];
+        const order2 = [
+            ...state2.players[0].library.map((c) => c.card.id),
+            ...state2.players[0].hand.map((c) => c.card.id),
+        ];
+
+        expect([...order1].sort()).toEqual([...order2].sort());
+        expect(order1).not.toEqual(order2);
     });
 
     it("allocates unique instance ids for every card", () => {

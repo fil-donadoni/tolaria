@@ -55,10 +55,30 @@ const IMPORT_RE = /(?:from|import)\s*\(?\s*["']([^"']+)["']/g;
 /** Strip type-only imports — they are ERASED at compile time, never
  *  loading the module at runtime (mirrors bot-suite-boundary.test.ts). */
 function stripTypeOnlyImports(source: string): string {
-    return source.replace(
+    let result = source.replace(
         /\b(?:import|export)\s+type\s+[^;]*?from\s*["'][^"']+["']/g,
         ""
     );
+    result = result.replace(
+        /(import|export)\s*\{([^}]*)\}\s*(from\s*["'][^"']+["'])/g,
+        (
+            _full: string,
+            keyword: string,
+            specifiers: string,
+            fromClause: string
+        ) => {
+            const parts = specifiers.split(",");
+            const hasAnyNonType = parts.some(
+                (p) => !/^\s*type\s+/.test(p) && p.trim() !== ""
+            );
+            if (hasAnyNonType) {
+                const cleaned = specifiers.replace(/\btype\s+/g, "").trim();
+                return `${keyword} { ${cleaned} } ${fromClause}`;
+            }
+            return "";
+        }
+    );
+    return result;
 }
 
 /** Resolves an import specifier to a repo-relative, extensionless path.
