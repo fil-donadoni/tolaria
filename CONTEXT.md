@@ -205,7 +205,7 @@ One of the seven ordered stages a **Characteristic-Changing** **Continuous Effec
 _Avoid_: Pass, stage, priority (that's the **Priority** turn-order term)
 
 **Timestamp**:
-The moment a **Continuous Effect** started, and the tiebreak that orders two effects inside one **Layer** (CR 613.7) — later wins, so a **Keyword** granted after a "loses all abilities" effect comes back. A single monotonic sequence covers grants and removals alike, which is what makes them interleave correctly. Dependency (CR 613.8 — an effect applying out of timestamp order because another changes what it does) is a **Documented Divergence**, not implemented.
+The moment a **Continuous Effect** started, and the tiebreak that orders two effects inside one **Layer** (CR 613.7) — later wins, so a **Keyword** granted after a "loses all abilities" effect comes back. A single monotonic sequence covers grants and removals alike, which is what makes them interleave correctly. Dependency (CR 613.8 — an effect applying out of timestamp order because another changes what it does) is a **Documented Divergence**, not implemented (issue #2068).
 _Avoid_: Sequence number, order, priority
 
 **Continuous Effects Registry**:
