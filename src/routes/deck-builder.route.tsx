@@ -114,7 +114,7 @@ export default function DeckBuilderRoute({
     // so unfiltered searches are pre-warmed when the user opens the search box.
     // On failure the deck builder degrades gracefully: only the `cardIndex.list`
     // (available cards) is shown, with no catalogue cross-reference.
-    useFullCatalogue();
+    const fullCatalogue = useFullCatalogue();
 
     // Above the early returns — the hook must run on every render.
     useDocumentTitle(
@@ -156,6 +156,7 @@ export default function DeckBuilderRoute({
                     initialIdentity={editingPreset.presetId}
                     initialDeckList={[]}
                     sinks={sinks}
+                    fullCatalogue={fullCatalogue}
                     onClose={() => void navigate({ to: "/" })}
                 />
             );
@@ -189,6 +190,7 @@ export default function DeckBuilderRoute({
                 initialIdentity={userDeck.userDeckId}
                 initialDeckList={userDecks}
                 sinks={sinks}
+                fullCatalogue={fullCatalogue}
                 onClose={(savedId) => {
                     if (savedId) {
                         void navigate({
@@ -221,6 +223,7 @@ export default function DeckBuilderRoute({
                 initialIdentity={null}
                 initialDeckList={[]}
                 sinks={sinks}
+                fullCatalogue={fullCatalogue}
                 onClose={() => void navigate({ to: "/" })}
             />
         );
@@ -243,6 +246,7 @@ export default function DeckBuilderRoute({
             initialIdentity={null}
             initialDeckList={userDecks}
             sinks={sinks}
+            fullCatalogue={fullCatalogue}
             onClose={(savedId) => {
                 if (savedId) {
                     void navigate({

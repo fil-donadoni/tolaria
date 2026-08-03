@@ -51,6 +51,7 @@ import { useCardZoom } from "./useCardZoom";
 import { useFilterSearchParams } from "./useFilterSearchParams";
 import { type ColorMode, type MatchMode, useCardSearch } from "./useCardSearch";
 import { useDebouncedValue } from "~/hooks/useDebouncedValue";
+import { type FullCatalogueResult } from "~/lib/fullCatalogue";
 
 // Responsive base card width; per-zone zoom multiplies it.
 const CARD_BASE = "min(8rem, 18vw, 9.5dvh)";
@@ -97,6 +98,9 @@ interface DeckBuilderProps {
     // Mutation sinks for both kinds; the editor never branches on `kind` —
     // `dispatchDeckSave` does.
     sinks: DeckBuilderSinks;
+    // Full Catalogue result for manual/real mode merging. When absent (catalogue
+    // not yet loaded or failed), the builder falls back to index-only search.
+    fullCatalogue?: FullCatalogueResult;
     onClose: (savedDeckId: string | null) => void;
     onDelete?: () => Promise<void>;
 }
@@ -115,6 +119,7 @@ export default function DeckBuilder({
     initialIdentity,
     initialDeckList,
     sinks,
+    fullCatalogue,
     onClose,
     onDelete,
 }: DeckBuilderProps) {
@@ -164,7 +169,11 @@ export default function DeckBuilder({
     // The card search is pre-filtered to the deck's Format allowed sets (issue
     // #514): the builder only surfaces legally-includable prints. Discovery
     // only — the authoritative legality check is `validateDeck`.
-    const { entries, idle } = useCardSearch(filters, deck.format);
+    const { entries, idle } = useCardSearch(
+        filters,
+        deck.format,
+        fullCatalogue
+    );
 
     const clearTimer = () => {
         if (timerRef.current !== null) {
@@ -533,6 +542,13 @@ export default function DeckBuilder({
         [setFilters]
     );
 
+    const toggleHideUnavailable = useCallback(() => {
+        setFilters((f) => ({
+            ...f,
+            hideUnavailable: !f.hideUnavailable,
+        }));
+    }, [setFilters]);
+
     // Typing only touches local state — the box never stutters. The debounced
     // value is the one that reaches the filter/URL (effect below).
     const setText = useCallback((text: string) => {
@@ -719,6 +735,19 @@ export default function DeckBuilder({
                             direction={filters.sortDirection}
                             onDirectionChange={setSortDirection}
                         />
+                        {deck.format !== "manual" && fullCatalogue?.rows && (
+                            <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                                <input
+                                    type="checkbox"
+                                    checked={filters.hideUnavailable}
+                                    onChange={toggleHideUnavailable}
+                                    className="size-4 accent-accent"
+                                />
+                                <span className="text-text-muted">
+                                    Hide unavailable
+                                </span>
+                            </label>
+                        )}
                         <div className="ml-auto flex items-center gap-2 text-xs text-text-muted">
                             <span className="tracking-wide">Results</span>
                             <CardZoomSlider

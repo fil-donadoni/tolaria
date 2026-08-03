@@ -23,6 +23,7 @@ describe("filterSearch encode/decode", () => {
             sets: ["lea", "arn"],
             setMode: "all",
             cube: "vintage-cube",
+            hideUnavailable: false,
             sort: "color",
             sortDirection: "desc",
         };
