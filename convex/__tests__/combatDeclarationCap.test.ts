@@ -235,6 +235,34 @@ describe("declared-attacker cap through the real mutations (CR 508.1a, issue #11
         ]);
     });
 
+    it("a dropped attacker takes its planeswalker target and band membership with it (CR 508.1a / 702.21e)", async () => {
+        // Both Bears were declared as a band attacking the same planeswalker;
+        // the cap of one then forces the required Juggernaut in and BOTH out.
+        // Leaving their `attackTargets` entries or the band behind would point
+        // combat-damage routing and the band record at creatures that are not
+        // attacking at all — the same cleanup the `toggleAttacker` deselect
+        // branch does, which the fold has to repeat because it removes
+        // attackers the player never deselected.
+        const state = declareAttackersState([
+            creature(juggernaut.id, "j1", "p1"),
+            creature(grizzlyBears.id, "bear", "p1"),
+            creature(grizzlyBears.id, "bear2", "p1"),
+        ]);
+        state.combat!.attackerIds = ["bear", "bear2"];
+        state.combat!.attackTargets = { bear: "pw1", bear2: "pw1" };
+        state.combat!.bands = [
+            { bandId: "band-1", memberIds: ["bear", "bear2"] },
+        ];
+
+        const h = makeMutationCtx("p1", [gameStateSeed(state)]);
+        await runConfirmAttackers(h.ctx);
+
+        const combat = h.state().combat!;
+        expect(combat.attackerIds).toEqual(["j1"]);
+        expect(combat.attackTargets).toBeUndefined();
+        expect(combat.bands).toBeUndefined();
+    });
+
     it("the player's choice of WHICH requirement to obey survives the fold", async () => {
         // Two Juggernauts, cap of one: the player picked j2, so j2 is the one
         // that attacks — the engine only picks when the player expressed

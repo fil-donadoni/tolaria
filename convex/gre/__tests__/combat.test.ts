@@ -31,6 +31,7 @@ import { mightstone } from "../../cards/sets/atq/colorless";
 import { duelingGrounds as duelingGroundsDef } from "../../cards/sets/inv/multicolor";
 import { cavernsOfDespair as cavernsOfDespairDef } from "../../cards/sets/leg/red";
 import { lure } from "../../cards/sets/lea/green";
+import { goblinMutant } from "../../cards/sets/ice/red";
 import { drainAutoPasses } from "../phases";
 import { hobble as hobbleAuraDef } from "../../cards/sets/pls/white";
 import { buildSpellContext, resolveTopOfStack } from "../state";
@@ -1227,5 +1228,86 @@ describe("confirm-time validators reject a declaration that obeys fewer requirem
         // Spending the one slot on the Lure requirement instead is legal.
         state.combat!.blockerAssignments = { x: ["a"] };
         expect(validateDeclaredBlockers(state)).toEqual({ ok: true });
+    });
+});
+
+describe("the requirement backstop reads the DEFENDER's battlefield (CR 508.1c/508.1d)", () => {
+    it("a creature whose attack the defender's board forbids is not counted as a requirement", () => {
+        // Goblin Mutant "can't attack if defending player controls an untapped
+        // creature with power 3 or greater" (CR 508.1c), and the defender
+        // controls exactly that. Under a mass "all creatures must attack"
+        // effect the Mutant therefore CANNOT be one of the required attackers —
+        // the Grizzly Bears is — so declaring the Mutant alone leaves the
+        // requirement unobeyed and must be rejected.
+        //
+        // `defenderBattlefieldOf` is what feeds that board to the backstop's
+        // `getRequiredAttackerIds`. Reading an EMPTY board there flips the
+        // Mutant back into the required set, the backstop counts it as obeyed,
+        // and the declaration is waved through — while the fold (which resolves
+        // the defender through `getOpponentId`) still refuses it, leaving a
+        // declare-attackers step nobody can confirm.
+        const mutant = makeInstance(goblinMutant.id, {
+            id: "gm",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const bigBlocker = makeInstance(juggernaut.id, {
+            id: "big",
+            controllerId: "p2",
+            ownerId: "p2",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            allCreaturesMustAttack: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [mutant, bear] }),
+                makePlayer("p2", {
+                    battlefield: [
+                        bigBlocker,
+                        makeInstance(duelingGroundsDef.id, {
+                            id: "dg",
+                            controllerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+            combat: {
+                attackerIds: ["gm"],
+                confirmed: false,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+
+        // Sanity: with the REAL defender board the Mutant can't attack at all,
+        // so the Bears is the sole requirement.
+        expect(
+            validateAttackerEligibility(mutant, [bigBlocker], state).eligible
+        ).toBe(false);
+        expect(
+            getRequiredAttackerIds(
+                state.players[0].battlefield,
+                state,
+                state.players[1].battlefield,
+                "p1"
+            )
+        ).toEqual(["bear"]);
+
+        const result = validateDeclaredAttackers(state);
+        expect(result.ok).toBe(false);
+        expect(result.ok === false && result.reason).toMatch(/must attack/i);
+
+        // Declaring the creature that actually must attack is legal.
+        state.combat!.attackerIds = ["bear"];
+        expect(validateDeclaredAttackers(state)).toEqual({ ok: true });
     });
 });
