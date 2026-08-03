@@ -23,6 +23,7 @@ interface DashboardPlayBoxProps {
     onCreateVsAi: () => void;
     onCreateSolo: () => void;
     onCreateMultiplayer: () => void;
+    onCreateTabletop: () => void;
     onJoin: (gameId: Id<"games">) => void;
     onChangeDeck: () => void;
     /** Bo1/Bo3 for the Solo and Create Multiplayer actions (PRD #387). The
@@ -42,6 +43,7 @@ export default function DashboardPlayBox({
     onCreateVsAi,
     onCreateSolo,
     onCreateMultiplayer,
+    onCreateTabletop,
     onJoin,
     onChangeDeck,
     matchFormat,
@@ -144,7 +146,7 @@ export default function DashboardPlayBox({
                     disabled={busy}
                 />
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
                     <ActionButton
                         onClick={onCreateVsAi}
                         disabled={!canPlay}
@@ -161,6 +163,12 @@ export default function DashboardPlayBox({
                         onClick={onCreateMultiplayer}
                         disabled={!canPlay}
                         label="Create Multiplayer"
+                        tone="secondary"
+                    />
+                    <ActionButton
+                        onClick={onCreateTabletop}
+                        disabled={!canPlay}
+                        label="Tabletop"
                         tone="secondary"
                     />
                 </div>

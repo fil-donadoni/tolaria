@@ -48,6 +48,7 @@ function renderBox(openGames: OpenGame[], onJoin = vi.fn()) {
                 onCreateSolo={vi.fn()}
                 onCreateVsAi={vi.fn()}
                 onCreateMultiplayer={vi.fn()}
+                onCreateTabletop={vi.fn()}
                 onJoin={onJoin}
                 onChangeDeck={vi.fn()}
                 matchFormat={1}
@@ -103,6 +104,7 @@ describe("DashboardPlayBox featured-art hero splash (PRD #589, issue #600)", () 
                 onCreateSolo={vi.fn()}
                 onCreateVsAi={vi.fn()}
                 onCreateMultiplayer={vi.fn()}
+                onCreateTabletop={vi.fn()}
                 onJoin={vi.fn()}
                 onChangeDeck={vi.fn()}
                 matchFormat={1}
@@ -145,6 +147,7 @@ describe("DashboardPlayBox deck legality gate (issue #512)", () => {
             onCreateSolo: vi.fn(),
             onCreateVsAi: vi.fn(),
             onCreateMultiplayer: vi.fn(),
+            onCreateTabletop: vi.fn(),
         };
         return {
             handlers,
@@ -155,6 +158,7 @@ describe("DashboardPlayBox deck legality gate (issue #512)", () => {
                     onCreateSolo={handlers.onCreateSolo}
                     onCreateVsAi={handlers.onCreateVsAi}
                     onCreateMultiplayer={handlers.onCreateMultiplayer}
+                    onCreateTabletop={handlers.onCreateTabletop}
                     onJoin={vi.fn()}
                     onChangeDeck={vi.fn()}
                     matchFormat={1}
@@ -168,7 +172,12 @@ describe("DashboardPlayBox deck legality gate (issue #512)", () => {
         const { getByText, handlers } = renderWith(ILLEGAL);
         expect(getByText(/not legal for its format/i)).toBeTruthy();
         expect(getByText(/minimum is 60/)).toBeTruthy();
-        for (const label of ["Play vs AI", "Solo Game", "Create Multiplayer"]) {
+        for (const label of [
+            "Play vs AI",
+            "Solo Game",
+            "Create Multiplayer",
+            "Tabletop",
+        ]) {
             const btn = getByText(label).closest("button") as HTMLButtonElement;
             expect(btn.disabled).toBe(true);
             fireEvent.click(btn);
@@ -176,6 +185,7 @@ describe("DashboardPlayBox deck legality gate (issue #512)", () => {
         expect(handlers.onCreateVsAi).not.toHaveBeenCalled();
         expect(handlers.onCreateSolo).not.toHaveBeenCalled();
         expect(handlers.onCreateMultiplayer).not.toHaveBeenCalled();
+        expect(handlers.onCreateTabletop).not.toHaveBeenCalled();
     });
 
     it("enables Play for a legal selected deck", () => {
@@ -198,6 +208,7 @@ describe("DashboardPlayBox vs-AI dialog handoff (two-step flow)", () => {
                     onCreateSolo={vi.fn()}
                     onCreateVsAi={onCreateVsAi}
                     onCreateMultiplayer={vi.fn()}
+                    onCreateTabletop={vi.fn()}
                     onJoin={vi.fn()}
                     onChangeDeck={vi.fn()}
                     matchFormat={1}
@@ -239,6 +250,7 @@ describe("DashboardPlayBox match format selector", () => {
                     onCreateSolo={vi.fn()}
                     onCreateVsAi={vi.fn()}
                     onCreateMultiplayer={vi.fn()}
+                    onCreateTabletop={vi.fn()}
                     onJoin={vi.fn()}
                     onChangeDeck={vi.fn()}
                     matchFormat={matchFormat}

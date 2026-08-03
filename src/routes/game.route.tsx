@@ -93,6 +93,20 @@ export default function GameRoute() {
     }
 
     if (game && (game.status === "playing" || game.status === "finished")) {
+        // Manual Mode (ADR 0080): mount the manual board shell (S8) instead of
+        // the GRE board. The shell is a separate slice — display a placeholder
+        // until it lands (the creation + concede mutations are live).
+        if ("mode" in game && game.mode === "manual") {
+            return (
+                <div className="flex h-dvh flex-col items-center justify-center gap-4 text-white">
+                    <p className="text-lg font-beleren">Tabletop Game</p>
+                    <p className="text-sm text-text-muted">
+                        The manual board shell (S8) is landing soon.
+                    </p>
+                </div>
+            );
+        }
+
         return (
             <div className="flex h-dvh flex-col">
                 <Board

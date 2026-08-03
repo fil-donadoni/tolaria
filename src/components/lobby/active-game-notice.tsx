@@ -16,6 +16,7 @@ export type ActiveGame = {
     status: "waiting" | "pregame" | "playing" | "finished";
     solo: boolean;
     vsAi: boolean;
+    mode: "manual" | null;
 };
 
 type Props = {
