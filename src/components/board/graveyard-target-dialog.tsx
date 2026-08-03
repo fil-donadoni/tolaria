@@ -148,6 +148,9 @@ export default function GraveyardTargetDialog({
                 <GraveyardCardPicker
                     cards={activeGraveyard.cards}
                     isPending={isPending}
+                    selectedIds={pendingTarget.selected
+                        .filter((t) => t.type === "graveyard-card")
+                        .map((t) => t.id)}
                     onPick={handlePick}
                 />
             ) : null}

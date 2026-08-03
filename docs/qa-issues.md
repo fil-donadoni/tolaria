@@ -31,6 +31,7 @@ Sentinel of the Nameless City
 Six
 Questing Beast
 Pest Infestation
+Dack Fayden
 Boseiju, Who Endures
 Pentad Prism
 Kaldra Compleat

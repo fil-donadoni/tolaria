@@ -128,6 +128,34 @@ describe("GraveyardTargetDialog routing (#314)", () => {
         expect(btn.className).not.toContain("ring-signal-self");
     });
 
+    // QA (Restock): a 2-target spell's first pick stayed on the yellow
+    // candidate ring forever — `GraveyardCardPicker` never read
+    // `pendingTarget.selected`. It must switch to the green picked ring
+    // (ring-signal-self) once a card is already selected, mirroring the
+    // battlefield/hand target flows.
+    it("already-selected candidates show the green picked ring, not yellow", () => {
+        const me = player("me", "Me", [gyCard("m1", "me"), gyCard("m2", "me")]);
+        renderDialog(
+            pending({
+                controller: "you",
+                count: 2,
+                selected: [{ type: "graveyard-card", id: "m1" } as never],
+            }),
+            [me],
+            me
+        );
+
+        const pickedBtn = screen.getByTestId("card-img-m1").closest("button")!;
+        expect(pickedBtn.className).toContain("ring-signal-self");
+        expect(pickedBtn.className).not.toContain("ring-signal-pending");
+
+        const candidateBtn = screen
+            .getByTestId("card-img-m2")
+            .closest("button")!;
+        expect(candidateBtn.className).toContain("ring-signal-pending");
+        expect(candidateBtn.className).not.toContain("ring-signal-self");
+    });
+
     it("two eligible graveyards (controller: any) → persistent tabs, first shown by default", () => {
         const me = player("me", "Me", [gyCard("m1", "me")]);
         const opp = player("opp", "Opp", [gyCard("o1", "opp")]);

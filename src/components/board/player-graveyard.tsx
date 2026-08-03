@@ -131,7 +131,13 @@ export default function PlayerGraveyard({
                     onMinimize={isGraveyardChoice ? minimize : undefined}
                     layout="grid"
                     selectedIds={
-                        isGraveyardChoice ? bufferCtx.buffer : undefined
+                        isGraveyardChoice
+                            ? bufferCtx.buffer
+                            : isGraveyardTarget
+                              ? pendingTarget!.selected
+                                    .filter((t) => t.type === "graveyard-card")
+                                    .map((t) => t.id)
+                              : undefined
                     }
                     // Filtered graveyard pick (Exhume "only creatures", issue
                     // #933 parity): gate the ring/click affordance to the

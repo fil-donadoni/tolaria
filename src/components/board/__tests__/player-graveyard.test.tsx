@@ -252,6 +252,29 @@ describe("PlayerGraveyard — graveyard-zone target routing (Emry, issue #1650)"
         });
     });
 
+    // QA (Restock, global ring bug): a multi-target graveyard pick's inline
+    // pile never forwarded `selectedIds` for the target-routing branch (only
+    // for the choice-buffer branch), so an already-picked card kept the
+    // yellow candidate ring instead of switching to green.
+    it("forwards pendingTarget.selected as selectedIds so a picked card gets the green ring", () => {
+        cardsPileSpy.mockClear();
+        const player = makePlayer([
+            makeCard("gy-artifact"),
+            makeCard("gy-artifact-2"),
+        ]);
+        renderWithContext(<PlayerGraveyard player={player} />, "me", {
+            pendingTarget: {
+                ...emryPendingTarget,
+                count: 2,
+                selected: [{ type: "graveyard-card", id: "gy-artifact" }],
+            } as unknown as NonNullable<
+                React.ContextType<typeof GameContext>
+            >["pendingTarget"],
+        });
+        const pileProps = cardsPileSpy.mock.calls.at(-1)?.[0];
+        expect(pileProps.selectedIds).toEqual(["gy-artifact"]);
+    });
+
     it("leaves the OPPONENT's graveyard inert under a controller: 'you' requirement", () => {
         cardsPileSpy.mockClear();
         selectTargetSpy.mockClear();

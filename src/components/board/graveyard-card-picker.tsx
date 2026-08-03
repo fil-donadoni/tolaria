@@ -11,10 +11,15 @@ import { pickerRingClass } from "~/lib/picker-ring";
 export default function GraveyardCardPicker({
     cards,
     isPending,
+    selectedIds,
     onPick,
 }: {
     cards: CardInstance[];
     isPending: boolean;
+    /** Ids already in `pendingTarget.selected` for a multi-target pick
+     *  (Restock) — drives the green "picked" ring via `pickerRingClass`
+     *  instead of every candidate staying stuck on the yellow ring (QA). */
+    selectedIds?: string[];
     onPick: (cardId: string) => void;
 }) {
     // Fixed-width, centered cards (parity with the graveyard pile's GridLayout).
@@ -30,7 +35,7 @@ export default function GraveyardCardPicker({
                     disabled={isPending}
                     onClick={() => onPick(card.id)}
                     title={getDefinition(card.card.id).name}
-                    className={`relative ${PILE_GRID_TILE_W} aspect-5/7 shrink-0 rounded-sm overflow-hidden disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer ${pickerRingClass(false)}`}
+                    className={`relative ${PILE_GRID_TILE_W} aspect-5/7 shrink-0 rounded-sm overflow-hidden disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer ${pickerRingClass(!!selectedIds?.includes(card.id))}`}
                 >
                     {/* PILE_GRID_TILE_W renders 68px below the compact
                         breakpoint, 96-112px at/above it (card-layout.ts).
