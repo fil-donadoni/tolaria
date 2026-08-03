@@ -30,6 +30,12 @@ export type ManualCardInstance = {
     note?: string;
     /** Instance ids of permanents this card is targeting via combat or an effect. */
     arrows?: string[];
+    /** Player ids who know this card's identity through a face-down (controller,
+     *  owner). Server-side metadata — never crosses the wire. */
+    knownTo?: string[];
+    /** Player ids this card has been explicitly revealed to (Duress, "look at
+     *  what I'm drawing"). Server-side metadata — never crosses the wire. */
+    revealedTo?: string[];
 };
 
 export type ManualZone =
@@ -58,6 +64,84 @@ export type ManualGameState = {
     phase?: string;
     concededBy?: string;
 };
+
+// --- Projected types (ADR 0080 S3) — the wire shape after hiding private info ---
+
+export type ProjectedManualCard = Omit<
+    ManualCardInstance,
+    "knownTo" | "revealedTo"
+>;
+export type ProjectedManualLibrary = { count: number };
+
+export type ProjectedManualPlayer = Omit<
+    ManualPlayerState,
+    "hand" | "library"
+> & {
+    hand: (ProjectedManualCard | null)[];
+    library: ProjectedManualLibrary;
+};
+
+export type ProjectedManualGameState = Omit<ManualGameState, "players"> & {
+    players: ProjectedManualPlayer[];
+};
+
+/** Sentinel card id for a face-down card whose identity the viewer may not see. */
+export const MANUAL_FACE_DOWN_CARD_ID = "__faceDown";
+
+/** Projects a single card for a given viewer: face-down cards not known to the
+ *  viewer are rendered as a back. Server-side metadata (`knownTo`, `revealedTo`)
+ *  is stripped so it never crosses the wire. */
+function projectManualCard(
+    card: ManualCardInstance,
+    viewerId: string
+): ProjectedManualCard {
+    const { knownTo, revealedTo, ...rest } = card;
+    void knownTo;
+    void revealedTo;
+    if (!card.faceDown) return rest;
+    if (card.knownTo?.includes(viewerId)) return rest;
+    if (card.revealedTo?.includes(viewerId)) return rest;
+    return { ...rest, card: { id: MANUAL_FACE_DOWN_CARD_ID } };
+}
+
+/**
+ * Projects a ManualGameState for a given viewer, hiding private information.
+ *
+ * Rules (ADR 0080 § 2):
+ *   - Opponent's hand → `null[]` (own hand is visible)
+ *   - Library → `{ count }` for everyone (order is private; use peek/search
+ *     verbs to look)
+ *   - faceDown cards → back unless viewer ∈ knownTo
+ *   - revealedTo opens a card's identity to the listed players (even in an
+ *     opponent's hand)
+ */
+export function projectManualState(
+    state: ManualGameState,
+    viewerId: string
+): ProjectedManualGameState {
+    const players = state.players.map((player): ProjectedManualPlayer => {
+        const isOwn = player.id === viewerId;
+        const isRevealedToViewer = (card: ManualCardInstance) =>
+            card.revealedTo?.includes(viewerId) ?? false;
+
+        return {
+            ...player,
+            hand: player.hand.map((card) =>
+                isOwn || isRevealedToViewer(card) ? card : null
+            ),
+            library: { count: player.library.length },
+            battlefield: player.battlefield.map((c) =>
+                projectManualCard(c, viewerId)
+            ),
+            graveyard: player.graveyard.map((c) =>
+                projectManualCard(c, viewerId)
+            ),
+            exile: player.exile.map((c) => projectManualCard(c, viewerId)),
+        };
+    });
+
+    return { ...state, players };
+}
 
 /** Optional ManualGameState keys that survive the DB round-trip. Mirrors
  *  PERSISTED_OPTIONAL_KEYS in convex/gre/serialize.ts — every optional key
@@ -461,8 +545,13 @@ export function manualSetFaceDown(
         };
     if (faceDown) {
         found.card.faceDown = true;
+        const newViewers = [found.card.controllerId, found.card.ownerId];
+        found.card.knownTo = [
+            ...new Set([...(found.card.knownTo ?? []), ...newViewers]),
+        ];
     } else {
         delete found.card.faceDown;
+        delete found.card.knownTo;
     }
     const pn = playerName(state, found.card.ownerId);
     return {
@@ -676,6 +765,13 @@ export function manualExileTop(
         const card = player.library.pop()!;
         card.zone = "exile";
         card.faceDown = true;
+        card.knownTo = [
+            ...new Set([
+                ...(card.knownTo ?? []),
+                card.controllerId,
+                card.ownerId,
+            ]),
+        ];
         player.exile.push(card);
         exiled.push(card.card.id);
     }
@@ -893,7 +989,8 @@ export function manualReveal(
     instanceId: string,
     toPlayerIds: string[]
 ): VerbResult {
-    const found = findCard(state, instanceId);
+    const s = cloneState(state);
+    const found = findCard(s, instanceId);
     if (!found)
         return {
             state,
@@ -902,10 +999,12 @@ export function manualReveal(
                 timestamp: Date.now(),
             },
         };
+    const existing = found.card.revealedTo ?? [];
+    found.card.revealedTo = [...new Set([...existing, ...toPlayerIds])];
     const pn = playerName(state, found.card.ownerId);
     const toNames = toPlayerIds.map((id) => playerName(state, id)).join(", ");
     return {
-        state: cloneState(state),
+        state: s,
         log: {
             text: `${pn} reveals ${instanceId} to ${toNames}`,
             timestamp: Date.now(),
