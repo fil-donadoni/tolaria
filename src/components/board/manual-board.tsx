@@ -23,17 +23,18 @@ import {
     ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { usePageVisible } from "~/hooks/usePageVisible";
+import { useDraggable } from "~/hooks/useDraggable";
 import CardImage from "../cards/card-image";
 import CardBack from "../cards/card-back";
 
 const DRAG_THRESHOLD = 4;
 
-type DragState = {
+type DragMeta = {
     instanceId: string;
     startX: number;
     startY: number;
-    active: boolean;
     shiftKey: boolean;
+    active: boolean;
 };
 
 const ManualGameIdCtx = createContext<Id<"games"> | null>(null);
@@ -79,7 +80,6 @@ export default function ManualBoard({
     gameId: Id<"games">;
     playerId: string;
     // Accepted but unused — kept for API compatibility with the route
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     solo?: boolean;
 }) {
     const pageVisible = usePageVisible();
@@ -118,9 +118,10 @@ function ManualBoardInner({
     const attach = useMutation(api.game.manualAttach);
     const setArrow = useMutation(api.game.manualSetArrow);
 
-    const [drag, setDrag] = useState<DragState | null>(null);
+    const { dragHandlers } = useDraggable();
+    const [drag, setDrag] = useState<DragMeta | null>(null);
     const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
-    const dragRef = useRef<DragState | null>(null);
+    const dragMeta = useRef<DragMeta | null>(null);
 
     // Build a lookup of all visible cards for drag resolution
     const cardMap = useMemo(() => {
@@ -151,43 +152,46 @@ function ManualBoardInner({
     const opponent = state.players.find((p) => p.id !== playerId) ?? null;
 
     const handlePointerDown = useCallback(
-        (e: React.PointerEvent, instanceId: string) => {
+        (e: React.PointerEvent<HTMLElement>, instanceId: string) => {
             if (e.button !== 0) return;
-            const s: DragState = {
+            const m: DragMeta = {
                 instanceId,
                 startX: e.clientX,
                 startY: e.clientY,
                 active: false,
                 shiftKey: e.shiftKey,
             };
-            dragRef.current = s;
-            setDrag(s);
+            dragMeta.current = m;
+            setDrag(m);
             setDragPos({ x: 0, y: 0 });
+            dragHandlers.onPointerDown(e);
         },
-        []
+        [dragHandlers]
     );
 
-    const handlePointerMove = useCallback((e: React.PointerEvent) => {
-        const s = dragRef.current;
-        if (!s) return;
-        const dx = e.clientX - s.startX;
-        const dy = e.clientY - s.startY;
-        if (!s.active) {
-            if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
-            s.active = true;
-            (e.target as HTMLElement)
-                .closest("[data-board-root]")
-                ?.setPointerCapture?.(e.pointerId);
-        }
-        setDragPos({ x: dx, y: dy });
-    }, []);
+    const handlePointerMove = useCallback(
+        (e: React.PointerEvent<HTMLElement>) => {
+            const m = dragMeta.current;
+            if (!m) return;
+            const dx = e.clientX - m.startX;
+            const dy = e.clientY - m.startY;
+            if (!m.active) {
+                if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+                m.active = true;
+                setDrag((prev) => prev && { ...prev, active: true });
+                (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+            }
+            setDragPos({ x: dx, y: dy });
+            dragHandlers.onPointerMove(e);
+        },
+        [dragHandlers]
+    );
 
     const handlePointerUp = useCallback(
-        (e: React.PointerEvent) => {
-            const s = dragRef.current;
-            if (!s) return;
-            if (s.active) {
-                resolveDrop(e, s, cardMap, {
+        (e: React.PointerEvent<HTMLElement>) => {
+            const m = dragMeta.current;
+            if (m?.active) {
+                resolveDrop(e, m, cardMap, {
                     gameId,
                     moveCard,
                     setLane,
@@ -195,16 +199,22 @@ function ManualBoardInner({
                     setArrow,
                 });
             }
-            dragRef.current = null;
+            dragMeta.current = null;
             setDrag(null);
             setDragPos({ x: 0, y: 0 });
+            dragHandlers.onPointerUp(e);
         },
-        [gameId, cardMap, moveCard, setLane, attach, setArrow]
+        [gameId, cardMap, moveCard, setLane, attach, setArrow, dragHandlers]
     );
+
+    const handlePointerCancel = useCallback(() => {
+        dragMeta.current = null;
+        setDrag(null);
+        setDragPos({ x: 0, y: 0 });
+    }, []);
 
     const handleCardClick = useCallback(
         (instanceId: string) => {
-            if (dragRef.current?.active) return;
             const card = cardMap.get(instanceId);
             if (!card) return;
             void setTapped({ gameId, instanceId, tapped: !card.isTapped });
@@ -212,7 +222,7 @@ function ManualBoardInner({
         [gameId, cardMap, setTapped]
     );
 
-    // Drag ghost
+    // Ghost: renders only when drag has passed the threshold (active = true)
     const dragCard = drag ? cardMap.get(drag.instanceId) : null;
 
     return (
@@ -221,11 +231,7 @@ function ManualBoardInner({
             className="flex flex-col h-dvh bg-[#1a1a2e] text-white overflow-hidden select-none"
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
-            onPointerCancel={() => {
-                dragRef.current = null;
-                setDrag(null);
-                setDragPos({ x: 0, y: 0 });
-            }}
+            onPointerCancel={handlePointerCancel}
         >
             {/* Hotkeys legend */}
             <div className="absolute top-2 right-2 z-30">
@@ -239,6 +245,7 @@ function ManualBoardInner({
                         isViewer={false}
                         onCardPointerDown={handlePointerDown}
                         onCardClick={handleCardClick}
+                        onCardClickCapture={dragHandlers.onClickCapture}
                     />
                 </div>
             )}
@@ -252,6 +259,7 @@ function ManualBoardInner({
                         isViewer={true}
                         onCardPointerDown={handlePointerDown}
                         onCardClick={handleCardClick}
+                        onCardClickCapture={dragHandlers.onClickCapture}
                     />
                 </div>
             )}
@@ -286,7 +294,7 @@ function ManualBoardInner({
 
 function resolveDrop(
     e: React.PointerEvent,
-    s: DragState,
+    m: DragMeta,
     cardMap: Map<string, ManualCardInstance>,
     muts: {
         gameId: Id<"games">;
@@ -297,46 +305,45 @@ function resolveDrop(
     }
 ) {
     const { gameId, moveCard, setLane, attach, setArrow } = muts;
-    const dx = e.clientX - s.startX;
-    const dy = e.clientY - s.startY;
-    const card = cardMap.get(s.instanceId);
+    const dx = e.clientX - m.startX;
+    const dy = e.clientY - m.startY;
+    const card = cardMap.get(m.instanceId);
     if (!card) return;
 
     const el = document.elementFromPoint(e.clientX, e.clientY);
     if (!el) return;
 
-    const isVertical = Math.abs(dy) > Math.abs(dx) * 1.5;
-
     // Arrows: Shift+drag from battlefield card to another card
-    if (s.shiftKey) {
+    if (m.shiftKey) {
         const targetCardEl = el.closest("[data-card-id]");
         if (targetCardEl) {
             const targetId = targetCardEl.getAttribute("data-card-id");
-            if (targetId && targetId !== s.instanceId) {
-                void setArrow({ gameId, instanceId: s.instanceId, targetId });
+            if (targetId && targetId !== m.instanceId) {
+                void setArrow({ gameId, instanceId: m.instanceId, targetId });
             }
         }
         return;
     }
 
-    // Lane: vertical drag within battlefield
-    if (isVertical && card.zone === "battlefield") {
-        const newLane: "main" | "combat" = dy < -40 ? "combat" : "main";
-        void setLane({ gameId, instanceId: s.instanceId, lane: newLane });
-        return;
-    }
-
-    // Attach: drop onto another battlefield card
+    // Attach: drop onto another battlefield card (check before lane)
     const targetCardEl = el.closest("[data-card-id]");
     if (targetCardEl) {
         const targetId = targetCardEl.getAttribute("data-card-id");
-        if (targetId && targetId !== s.instanceId) {
+        if (targetId && targetId !== m.instanceId) {
             const target = cardMap.get(targetId);
             if (target?.zone === "battlefield") {
-                void attach({ gameId, instanceId: s.instanceId, targetId });
+                void attach({ gameId, instanceId: m.instanceId, targetId });
                 return;
             }
         }
+    }
+
+    // Lane: vertical drag within battlefield
+    const isVertical = Math.abs(dy) > Math.abs(dx) * 1.5;
+    if (isVertical && card.zone === "battlefield") {
+        const newLane: "main" | "combat" = dy < -40 ? "combat" : "main";
+        void setLane({ gameId, instanceId: m.instanceId, lane: newLane });
+        return;
     }
 
     // Zone move
@@ -349,7 +356,11 @@ function resolveDrop(
             targetOwner === card.ownerId ||
             (zone === "battlefield" && card.ownerId !== targetOwner);
         if (zone && zone !== card.zone && allowed) {
-            void moveCard({ gameId, instanceId: s.instanceId, toZone: zone });
+            void moveCard({
+                gameId,
+                instanceId: m.instanceId,
+                toZone: zone,
+            });
         }
     }
 }
@@ -363,11 +374,16 @@ function PlayerBoard({
     isViewer,
     onCardPointerDown,
     onCardClick,
+    onCardClickCapture,
 }: {
     player: ProjectedManualGameState["players"][0];
     isViewer: boolean;
-    onCardPointerDown: (e: React.PointerEvent, instanceId: string) => void;
+    onCardPointerDown: (
+        e: React.PointerEvent<HTMLElement>,
+        instanceId: string
+    ) => void;
     onCardClick: (instanceId: string) => void;
+    onCardClickCapture: (e: React.MouseEvent<HTMLElement>) => void;
 }) {
     return (
         <div className="flex-1 flex min-h-0">
@@ -385,6 +401,7 @@ function PlayerBoard({
                         )}
                         onPointerDown={onCardPointerDown}
                         onClick={onCardClick}
+                        onClickCapture={onCardClickCapture}
                     />
                     <CardRow
                         cards={player.battlefield.filter(
@@ -392,6 +409,7 @@ function PlayerBoard({
                         )}
                         onPointerDown={onCardPointerDown}
                         onClick={onCardClick}
+                        onClickCapture={onCardClickCapture}
                     />
                 </div>
                 {/* Hand */}
@@ -409,6 +427,7 @@ function PlayerBoard({
                                     onCardPointerDown(e, card.id)
                                 }
                                 onClick={() => onCardClick(card.id)}
+                                onClickCapture={onCardClickCapture}
                                 small
                             />
                         ) : null
@@ -559,10 +578,15 @@ function CardRow({
     cards,
     onPointerDown,
     onClick,
+    onClickCapture,
 }: {
     cards: ManualCardInstance[];
-    onPointerDown: (e: React.PointerEvent, instanceId: string) => void;
+    onPointerDown: (
+        e: React.PointerEvent<HTMLElement>,
+        instanceId: string
+    ) => void;
     onClick: (instanceId: string) => void;
+    onClickCapture: (e: React.MouseEvent<HTMLElement>) => void;
 }) {
     if (cards.length === 0) return null;
     return (
@@ -573,6 +597,7 @@ function CardRow({
                     card={card}
                     onPointerDown={(e) => onPointerDown(e, card.id)}
                     onClick={() => onClick(card.id)}
+                    onClickCapture={onClickCapture}
                 />
             ))}
         </div>
@@ -587,11 +612,13 @@ function ManualCard({
     card,
     onPointerDown,
     onClick,
+    onClickCapture,
     small,
 }: {
     card: ManualCardInstance;
-    onPointerDown?: (e: React.PointerEvent) => void;
+    onPointerDown?: (e: React.PointerEvent<HTMLElement>) => void;
     onClick?: () => void;
+    onClickCapture?: (e: React.MouseEvent<HTMLElement>) => void;
     small?: boolean;
 }) {
     const gameId = useManualGameId();
@@ -611,6 +638,7 @@ function ManualCard({
                     className={`relative ${size} shrink-0 cursor-pointer select-none
                         hover:ring-2 hover:ring-white/30 transition-shadow`}
                     onPointerDown={onPointerDown}
+                    onClickCapture={onClickCapture}
                     onClick={() => {
                         if (card.zone === "battlefield") {
                             onClick?.();
