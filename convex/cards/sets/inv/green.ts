@@ -12,6 +12,7 @@ import type {
 import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
+import { kickerPaidCondition } from "../../abilities/triggers/shared";
 
 // Blurred Mongoose — "This spell can't be countered. Shroud (This creature
 // can't be the target of spells or abilities.)" (CR 701.5c can't-be-countered
@@ -1163,13 +1164,18 @@ export const fertileGroundInv: CardPrint = {
 // Thicket Elemental — "Kicker {1}{G}. When this creature enters, if it was
 // kicked, you may reveal cards from the top of your library until you
 // reveal a creature card. If you do, put that card onto the battlefield and
-// shuffle all other cards revealed this way into your library." A triggered
-// ability fired after a kicked creature resolves cannot read the originating
-// spell's kicker count — `kickerCount` lives only on the resolving
-// `StackItem`, never persisted onto `CardInstanceState`/`PERMANENT_ENTERED`
-// for a later trigger to read. Same root cause as Benalish Emissary
-// (`inv/white.ts` issue #1086).
-// tracked-by: #1086
+// shuffle all other cards revealed this way into your library." The
+// `kickerCount`-persistence gap this comment originally cited (same root
+// cause as Benalish Emissary, `inv/white.ts`) closed with
+// `CardInstanceState.wasKicked` (issue #1753) — see Benalish Emissary /
+// Verduran Emissary above, shipped off issue #1328. Thicket Elemental itself
+// stays a stub: its "reveal until a creature card" clause is not expressible
+// by the fixed-count `reveal` Op (`types.ts`), and no other primitive covers
+// an unbounded reveal-until sweep today — the nearest precedent, Cascade (CR
+// 702.85), is itself registry `status: "planned"`. Genuinely separate,
+// previously-uncaught gap; split out to its own tracked issue rather than
+// blocking the other 5 cards in #1328's slice.
+// tracked-by: #2058
 // export const thicketElemental: CardDefinition = {
 //     id: "f80a56ed-3ebb-4e20-bf6a-e27127f762e8",
 //     name: "Thicket Elemental",
@@ -1178,20 +1184,75 @@ export const fertileGroundInv: CardPrint = {
 //     types: ["Creature"],
 // };
 
-// Verduran Emissary — "Kicker {1}{R}. When this creature enters, if it was
-// kicked, destroy target artifact. It can't be regenerated." Same
-// kickerCount-in-a-later-trigger gap as Benalish Emissary / Thicket Elemental
-// above (issue #1086) — additionally, `destroy`'s Op shape carries no
-// "can't be regenerated" option (Obliterate/#831 precedent, `inv/red.ts`),
-// so the card would be double-blocked even if the trigger gap closed first.
-// tracked-by: #1086
-// export const verduranEmissary: CardDefinition = {
-//     id: "55f3361b-e2e7-4297-85c2-94323f90cc90",
-//     name: "Verduran Emissary",
-//     rarity: "uncommon",
-//     manaCost: { X: 2, G: 1 },
-//     types: ["Creature"],
-// };
+// Verduran Emissary — {2}{G} Creature — Human Wizard, 2/3. "Kicker {1}{R}.
+// When this creature enters, if it was kicked, destroy target artifact. It
+// can't be regenerated." (CR 702.33 Kicker, CR 603.6a ETB trigger with a CR
+// 603.3d target announcement, CR 701.15c regeneration shield suppression.)
+//
+// VERIFIED against Scryfall (`cards/named?exact=Verduran+Emissary&set=inv`,
+// id `55f3361b-e2e7-4297-85c2-94323f90cc90`): kicker cost is `{1}{R}`, NOT
+// `{1}{G}` — this card's kicker splashes red, its casting cost is the only
+// green pip. The stub above already had this right; do not "correct" it to
+// `{1}{G}` (mono-green would be wrong per Scryfall and per MTGJSON's
+// `identifiers.scryfallId`-keyed INV.json entry, both cross-checked here).
+//
+// Closed by issue #1328 (capability slice, decomposed from #1086): same
+// `CardInstanceState.wasKicked` fix as Benalish Emissary (`inv/white.ts`),
+// same Waterspout Elemental (`pls/blue.ts`) template —
+// `conditionOnSelf: kickerPaidCondition("kicker")` at check time, `if {
+// kickerPaid: "kicker" }` inside `effects[]` at resolution time, no
+// `interveningIf`, so no Jacked Rabbit blink divergence (tracked-by: #2042)
+// on this trigger. `destroy`'s `cantBeRegenerated: true` (ADR 0053) is the
+// direct Op passthrough for "It can't be regenerated" — the second half of
+// the original blocker (no Op option existed) closed alongside Obliterate
+// (`inv/red.ts`, issue #831).
+export const verduranEmissary: CardDefinition = {
+    id: "55f3361b-e2e7-4297-85c2-94323f90cc90", // INV 221
+    rarity: "uncommon",
+    name: "Verduran Emissary",
+    oracleText:
+        "Kicker {1}{R} (You may pay an additional {1}{R} as you cast this spell.)\nWhen this creature enters, if it was kicked, destroy target artifact. It can't be regenerated.",
+    manaCost: { X: 2, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Wizard"],
+    power: 2,
+    toughness: 3,
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker {1}{R}",
+            mana: { X: 1, R: 1 },
+        },
+    ],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "verduran-emissary-kicked",
+            oracleText:
+                "When this creature enters, if it was kicked, destroy target artifact. It can't be regenerated.",
+            scope: "self",
+            // CR 603.4 check-time gate — see the card-level comment.
+            conditionOnSelf: kickerPaidCondition("kicker"),
+            targetRequirement: { type: "Artifact", count: 1 },
+            effects: [
+                {
+                    op: "if",
+                    predicate: {
+                        left: { kickerPaid: "kicker" },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [
+                        {
+                            op: "destroy",
+                            target: { target: 0 },
+                            cantBeRegenerated: true,
+                        },
+                    ],
+                },
+            ],
+        }),
+    ],
+};
 
 // Canopy Surge — "Kicker {2}. Canopy Surge deals 1 damage to each creature
 // with flying and each player. If this spell was kicked, it deals 4 damage

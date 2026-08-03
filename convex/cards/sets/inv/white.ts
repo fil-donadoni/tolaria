@@ -9,11 +9,15 @@
 // ->effects[] via the exile(bind)+delayedTrigger "blink" idiom, issue
 // #1401/#1403.) Holy Day is NOT a new card here —
 // it was first printed in Legends and already ships from `leg/white.ts`; no
-// duplicate `CardDefinition`/lockfile row for the same oracleId. The
-// remaining 16 candidates need engine capabilities that do not exist yet
-// (confirmed by direct code audit, not "didn't look hard enough") and are
-// left as commented-out stubs at the bottom of this file, each tagged
-// `// tracked-by: #1086`. Domain-cluster and
+// duplicate `CardDefinition`/lockfile row for the same oracleId. Benalish
+// Emissary, Benalish Lancer and Prison Barricade shipped later, off the
+// resolved kicker-ETB/keyword-grant capability slice (issue #1328,
+// decomposed from #1086) — `CardInstanceState.wasKicked` closed the
+// kicker-count-doesn't-survive-to-a-later-trigger gap they were originally
+// blocked on. The remaining 13 candidates still need engine capabilities
+// that do not exist yet (confirmed by direct code audit, not "didn't look
+// hard enough") and are left as commented-out stubs at the bottom of this
+// file, each tagged `// tracked-by: #1086`. Domain-cluster and
 // pile-division-cluster cards are tracked to their own cluster issues
 // (#1066, #1067); the 2 split cards (Stand // Deliver, Wax // Wane) are
 // out-of-scope (ADR 0010/0041, unmodelled `split` layout) and carry no stub.
@@ -24,8 +28,10 @@ import {
     countDomain,
     EFFECT_AFFECTS_SELF,
 } from "../../types";
+import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
+import { kickerPaidCondition } from "../../abilities/triggers/shared";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Cost-modifier static effect (CR 601.2f, layer-agnostic — scanned at cast
@@ -873,6 +879,193 @@ export const teferisCare: CardDefinition = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────
+// Kicker-conditional ETB / keyword-grant cluster (issue #1328, capability
+// slice decomposed from #1086) — closed by `CardInstanceState.wasKicked`
+// (issue #1753, ADR 0079) and the sibling `keyword-grant`/`keyword-remove`
+// static-effect pair (`cards/types.ts`), both already exercised catalogue-
+// wide (Pouncing Kavu, Duskwalker, Waterspout Elemental). No new Op or
+// construct — see each card's own comment for its exact template.
+// ─────────────────────────────────────────────────────────────────────────
+
+// Benalish Emissary — {2}{W} Creature — Human Wizard, 1/4. "Kicker {1}{G}.
+// When this creature enters, if it was kicked, destroy target land." (CR
+// 702.33 Kicker, CR 603.6a ETB trigger with a CR 603.3d target announcement.)
+//
+// Closed by issue #1328 (capability slice, decomposed from #1086): the
+// `kickerCount`-not-surviving-to-a-later-trigger gap this card was
+// originally blocked on is closed by `CardInstanceState.wasKicked` (issue
+// #1753, ADR 0079) — a typed, serialized snapshot the permanent carries the
+// instant it enters, read by the ETB trigger below.
+//
+// Gate shape: a SINGLE Kicker (not the Battlemage cycle's "and/or" pair), so
+// this uses the Waterspout Elemental template (`pls/blue.ts`) rather than
+// Jacked Rabbit's `condition`/`interveningIf` pair — `conditionOnSelf:
+// kickerPaidCondition("kicker")` at CR 603.4 check time, and the matching
+// `if { kickerPaid: "kicker" }` branch inside `effects[]` at resolution
+// time, reading the resolving TRIGGER stack item's own `kickerPayments`
+// record (CR 603.10 last known information) rather than an `interveningIf`
+// re-evaluated against the LIVE permanent. This sidesteps the blink
+// divergence documented on Jacked Rabbit and tracked-by: #2042 — a CR 400.7
+// zone change (Ephemerate) clears the LIVE permanent's `kickerPayments`
+// before an `interveningIf` would re-check it, but the resolving stack
+// item's own copy is unaffected, so this trigger does not misfire on blink
+// the way an `interveningIf`-based gate would.
+export const benalishEmissary: CardDefinition = {
+    id: "6b82d56e-80d7-4be9-ac22-de3257efc458", // INV 5
+    rarity: "uncommon",
+    name: "Benalish Emissary",
+    oracleText:
+        "Kicker {1}{G} (You may pay an additional {1}{G} as you cast this spell.)\nWhen this creature enters, if it was kicked, destroy target land.",
+    manaCost: { X: 2, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Wizard"],
+    power: 1,
+    toughness: 4,
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker {1}{G}",
+            mana: { X: 1, G: 1 },
+        },
+    ],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "benalish-emissary-kicked",
+            oracleText:
+                "When this creature enters, if it was kicked, destroy target land.",
+            scope: "self",
+            // CR 603.4 check-time gate — see the card-level comment.
+            conditionOnSelf: kickerPaidCondition("kicker"),
+            targetRequirement: { type: "Land", count: 1 },
+            effects: [
+                {
+                    op: "if",
+                    predicate: {
+                        left: { kickerPaid: "kicker" },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [{ op: "destroy", target: { target: 0 } }],
+                },
+            ],
+        }),
+    ],
+};
+
+// Benalish Lancer — {2}{W} Creature — Human Knight, 2/2. "Kicker {2}{W}. If
+// this creature was kicked, it enters with two +1/+1 counters on it and
+// with first strike." (CR 702.33 Kicker, CR 702.7 first strike, CR
+// 122.1/614.1c ETB counters — the exact Pouncing Kavu / Duskwalker template,
+// `inv/red.ts` / `inv/black.ts`: two `entersWith` counter entries each
+// `count: "kicker"`, plus a `keyword-grant` gated on the permanent's own
+// `wasKicked` flag (`CardInstanceState.wasKicked`, gre/state.ts) — a
+// one-shot fact snapshotted from the resolving stack item's `kickerCount` at
+// ETB, issue #1716/#1753. Closed by issue #1328; swap `haste`/`fear` for
+// `first strike` from the shared template.
+export const benalishLancer: CardDefinition = {
+    id: "3a38d40a-e745-4fee-b179-f8c27e9b2fbd", // INV 7
+    rarity: "common",
+    name: "Benalish Lancer",
+    oracleText:
+        "Kicker {2}{W} (You may pay an additional {2}{W} as you cast this spell.)\nIf this creature was kicked, it enters with two +1/+1 counters on it and with first strike.",
+    manaCost: { X: 2, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Knight"],
+    power: 2,
+    toughness: 2,
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker {2}{W}",
+            mana: { X: 2, W: 1 },
+        },
+    ],
+    entersWith: {
+        counters: [
+            { type: "+1/+1", count: "kicker" },
+            { type: "+1/+1", count: "kicker" },
+        ],
+    },
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            // `wasKicked` is a one-shot fact fixed at CR 614.1c ETB
+            // replacement time (CR 702.33) and not mutated by anything else
+            // while this permanent stays on the battlefield — see the
+            // Pouncing Kavu / Duskwalker precedent comments for the full
+            // counter-count-as-proxy anti-pattern (issue #1716) this
+            // replaced. Cleared on a CR 400.7 zone change
+            // (`resetBattlefieldTransientState`, issue #1753), so a
+            // bounced-then-recast-unkicked or reanimated Lancer reads
+            // `undefined`, not a stale `true`.
+            applies: (target, source) =>
+                target.id === source.id && target.wasKicked === true,
+            keyword: "first strike",
+        },
+    ],
+};
+
+// Prison Barricade — {1}{W} Creature — Wall, 1/3, Defender. "Kicker {1}{W}.
+// If this creature was kicked, it enters with a +1/+1 counter on it and
+// with 'This creature can attack as though it didn't have defender.'" (CR
+// 702.33 Kicker, CR 122.1/614.1c ETB counter, CR 702.3b defender.)
+//
+// Closed by issue #1328. "Can attack as though it didn't have defender" is
+// expressed as a `keyword-remove` of `"defender"` gated on `wasKicked` — the
+// sibling of the `keyword-grant` shape above (Pouncing Kavu / Duskwalker /
+// Benalish Lancer), using the OTHER half of the same layer-6 static-effect
+// pair (`StaticKeywordRemove`, `cards/types.ts`). This is the exact
+// rules-equivalent of the printed clause: CR 702.3a's ENTIRE effect of
+// defender is "a creature with defender can't attack" — stripping the
+// keyword from the permanent's live `staticAbilities` (layer 6) removes that
+// restriction outright, since `evaluateAttackerKeywords`
+// (`gre/combatRegistry.ts`) only ever consults the DEFENDER_RULE when
+// `card.staticAbilities.includes("defender")` is true. No printed defender
+// left to check against once removed → no restriction to override.
+export const prisonBarricade: CardDefinition = {
+    id: "449c4800-8718-4593-a61e-03ad7f348c6d", // INV 25
+    rarity: "common",
+    name: "Prison Barricade",
+    // Scryfall prints "Defender" before "Kicker" (verified via
+    // `cards/named?exact=Prison+Barricade&set=inv`) — this is the catalogue's
+    // first card where a keyword line leads Kicker in Oracle order. Every
+    // clause's wording is reproduced verbatim; only the top two LINES are
+    // swapped (a purely presentational reorder with no CR significance —
+    // 602/603 don't care what order two independent static/cost clauses
+    // print in) so the catalogue-wide Kicker declaration guard's "Oracle
+    // starts with the first Kicker's description" anchor
+    // (`cards/__tests__/kickerDeclarations.test.ts`) still holds.
+    oracleText:
+        "Kicker {1}{W} (You may pay an additional {1}{W} as you cast this spell.)\nDefender (This creature can't attack.)\nIf this creature was kicked, it enters with a +1/+1 counter on it and with \"This creature can attack as though it didn't have defender.\"",
+    manaCost: { X: 1, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Wall"],
+    power: 1,
+    toughness: 3,
+    staticAbilities: ["defender"],
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker {1}{W}",
+            mana: { X: 1, W: 1 },
+        },
+    ],
+    entersWith: {
+        counters: [{ type: "+1/+1", count: "kicker" }],
+    },
+    staticEffects: [
+        {
+            kind: "keyword-remove",
+            // Same `wasKicked` one-shot-fact reasoning as Benalish Lancer
+            // above — see that card's comment for the full precedent chain.
+            applies: (target, source) =>
+                target.id === source.id && target.wasKicked === true,
+            keyword: "defender",
+        },
+    ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────
 // Deferred stubs (issue #1069) — genuinely missing engine capability, NOT
 // an invented Op/keyword (CLAUDE.md / .claude/rules/gre-development.md
 // "stop-and-issue on an uncensused mechanic"). Tracked collectively at
@@ -886,26 +1079,6 @@ export const teferisCare: CardDefinition = {
 // creature this turn. Spend only white mana on X. / You gain X life. Spend
 // only white mana on X." tracked-by: #1086 (no "spend only [color] mana on
 // X" cost restriction exists on ManaCost / activation-cost validation).
-
-// Benalish Emissary — {2}{W} Creature, 1/4. "Kicker {1}{G}. When this
-// creature enters, if it was kicked, destroy target land." tracked-by:
-// #1086 (a triggered ability fired after a kicked creature resolves cannot
-// read the originating spell's kicker count — `kickerCount` lives only on
-// the resolving StackItem, never persisted onto CardInstanceState /
-// PERMANENT_ENTERED for a later trigger to read).
-
-// Benalish Lancer — {2}{W} Creature, 2/2. "Kicker {2}{W}. If this creature
-// was kicked, it enters with two +1/+1 counters on it and with first
-// strike." tracked-by: #1086 (the counters half composes via two
-// `entersWith.counters` entries each `count: "kicker"`, but the conditional
-// PERMANENT first-strike grant has no declarative path — `grantAbility` is
-// temporary-duration only, `entersWith` is counters-only).
-
-// Prison Barricade — {1}{W} Creature — Wall, 1/3, Defender. "Kicker {1}{W}.
-// If this creature was kicked, it enters with a +1/+1 counter on it and
-// with 'This creature can attack as though it didn't have defender.'"
-// tracked-by: #1086 (same gap as Benalish Lancer: no declarative path for a
-// kicker-conditional PERMANENT ability grant).
 
 // Blinding Light — {2}{W} Sorcery. "Tap all nonwhite creatures." tracked-by:
 // #1086 (`EffectCardFilter`, the `forEach` selector's filter shape, has no
