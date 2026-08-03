@@ -5268,27 +5268,52 @@ function resetStackTransientState(item: StackItem): void {
 }
 
 /** CR 400.7 (review of PR #2115) — strip the cast-time KICKER snapshot from a
- *  spell leaving the stack for a zone it can be cast from AGAIN (graveyard,
- *  exile, library). A card that changes zones becomes a NEW object with none
- *  of the old one's cast-time decisions, so `kickerPayments` — a record of
+ *  spell leaving the stack. A card that changes zones becomes a NEW object with
+ *  none of the old one's cast-time decisions, so `kickerPayments` — a record of
  *  what the caster paid on THAT cast — must not ride along.
  *
- *  This is the exact bug shape `resetStackTransientState`'s docstring already
- *  describes for Buyback's hand exit, on the sibling field and the sibling
- *  exits. Every cast branch builds its stack item as
+ *  Called at EVERY stack exit that leaves a real card behind, which is:
+ *    - `sendStackItemToGraveyard` — the resolve/fizzle/counter-default path,
+ *      covering the graveyard AND its CR 614 exile redirect;
+ *    - `shuffleIntoLibraryOnResolve` (Green Sun's Zenith);
+ *    - `exileOnResolve` (Recall) and the rebound exile (CR 702.88);
+ *    - `counter()`'s three NON-graveyard destinations — hand (Remand), library
+ *      top (Memory Lapse), exile (No More Lies) — which splice the item off the
+ *      stack and push it directly, the hand branch running no reset at all;
+ *    - `putSpellOnLibrary` (Subtlety);
+ *    - `finalizeSpellResolution`'s CR 614 exile redirect for a resolving
+ *      PERMANENT spell (`enterDestination === "exile"`). Dormant today — the
+ *      only shipped replacement on that event (Containment Priest) excludes
+ *      `wasCast`, so nothing drives a cast spell down it — but structurally
+ *      reachable by any future enters-the-battlefield replacement that does
+ *      not gate on cast-origin, so it is wired rather than left as the one
+ *      unlisted exception. Untestable with shipped cards for the same reason.
+ *
+ *  Two exits deliberately do NOT call it, and neither is a gap:
+ *    - the BATTLEFIELD exit, where `finalizeSpellResolution` snapshots the
+ *      payments onto the entering permanent on purpose (the intervening-if twin
+ *      read by `kickerPaidCondition`), cleared later by
+ *      `resetBattlefieldTransientState` when THAT permanent changes zones;
+ *    - the BUYBACK hand exit, which runs the fuller `resetStackTransientState`
+ *      (a superset — it deletes `kickerPayments` among everything else).
+ *
+ *  Why it matters. Every cast branch builds its stack item as
  *  `{ ...card, ..., ...(kickerPayments ? { kickerPayments } : {}) }`
  *  (`convex/game.ts`): that spread is `{}` when the new cast is UNKICKED and
- *  therefore does not CLEAR an inherited field. So a stale record survives the
- *  recast and makes the spell read as kicked for free — `getKickerCount()`
+ *  therefore does not CLEAR an inherited field. A stale record surviving to a
+ *  recast would make the spell read as kicked for free — `getKickerCount()`
  *  returns 1, `wasKicked` filters match, and (issue #1097) `SPELL_KICKED` is
- *  emitted, handing out a phantom Saproling Infestation token. Proven chain:
- *  cast Burst Lightning kicked → graveyard → Regrowth → recast unkicked.
+ *  emitted, handing out a phantom Saproling Infestation token.
  *
- *  NOT applied to the BATTLEFIELD exit: `finalizeSpellResolution` deliberately
- *  snapshots the payments onto the entering permanent (the intervening-if twin
- *  read by `kickerPaidCondition`), and `resetBattlefieldTransientState` clears
- *  it when that permanent later changes zones. Nor to the hand exit, which
- *  runs the fuller `resetStackTransientState`. */
+ *  This is the FIRST of two independent gates; the second is
+ *  `resetBattlefieldTransientState`, reached via `removeFromZone` at every
+ *  cast-commit. Verified by mutation on the chain `cast Burst Lightning kicked
+ *  → graveyard → Regrowth → recast unkicked`: with BOTH gates removed it emits
+ *  a phantom SPELL_KICKED and creates a free Saproling; with EITHER present it
+ *  does not. Gate 2 alone would suffice to prevent the wrong outcome — this
+ *  gate exists so the invariant holds AT THE SOURCE rather than depending on a
+ *  mop-up inside an unrelated function, and so no zone ever stores (or
+ *  persists to the DB) a record for a cast that is over. */
 function clearCastKickerSnapshot(item: StackItem): void {
     delete item.kickerPayments;
 }
@@ -5373,6 +5398,7 @@ function finalizeSpellResolution(state: GameState, item: StackItem): void {
         );
         if (enterDestination === "exile") {
             item.zone = "exile";
+            clearCastKickerSnapshot(item);
             getPlayer(state, item.ownerId).exile.push(item);
             return;
         }
@@ -11848,10 +11874,12 @@ export function buildSpellContext(
             switch (destination) {
                 case "exile":
                     item.zone = "exile";
+                    clearCastKickerSnapshot(item);
                     owner.exile.push(item);
                     break;
                 case "library-top":
                     item.zone = "library";
+                    clearCastKickerSnapshot(item);
                     owner.library.unshift(item);
                     // CR 400.2 / 405.1 (issue #1696) — the countered spell was
                     // a PUBLIC object on the stack, so every player knows which
@@ -11866,6 +11894,7 @@ export function buildSpellContext(
                     break;
                 case "hand":
                     item.zone = "hand";
+                    clearCastKickerSnapshot(item);
                     owner.hand.push(item);
                     // CR 400.2 / 405.1 (issue #1696) — same public→hidden move
                     // as the library-top branch, into the other hidden zone
@@ -11909,6 +11938,7 @@ export function buildSpellContext(
             }
             const owner = getPlayer(state, item.ownerId);
             item.zone = "library";
+            clearCastKickerSnapshot(item);
             if (position === "top") owner.library.unshift(item);
             else owner.library.push(item);
             // The spell was a public object on the stack (CR 405.1), so its

@@ -61,6 +61,8 @@ import { everflowingChalice } from "../../cards/sets/wwk/colorless";
 import { thornscapeBattlemage } from "../../cards/sets/pls/green";
 import { fork } from "../../cards/sets/lea/red";
 import { regrowth } from "../../cards/sets/lea/green";
+import { remand } from "../../cards/sets/rav/blue";
+import { memoryLapse } from "../../cards/sets/hml/blue";
 import { grizzlyBears } from "../../cards/sets/lea";
 import { saprolingInfestation } from "../../cards/sets/inv/green";
 
@@ -522,6 +524,83 @@ describe("SPELL_KICKED — a stale kickerPayments record is not a kick (CR 400.7
                 (c: CardInstanceState) => c.isToken
             ).length
         ).toBe(tokensBefore);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// The COUNTER exits (review round 2). `counter()`'s non-graveyard branches and
+// `putSpellOnLibrary` splice the item off the stack and push it straight into
+// hand / library / exile — the `graveyard` default is the only one that routes
+// through `sendStackItemToGraveyard`. Remand is the sharpest case: it runs NO
+// reset at all, so the countered spell lands in hand with its cast-time record
+// intact. Same CR 400.7 hygiene, same "enforce at the source" argument.
+// ---------------------------------------------------------------------------
+describe("SPELL_KICKED — a COUNTERED kicked spell drops its snapshot too (CR 400.7)", () => {
+    function counterAKickedBolt(counterCard: CardDefinition) {
+        const state = observerBoard();
+        const victim = makeInstance(grizzlyBears.id, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "bears-ctr",
+            power: 2,
+            toughness: 2,
+        });
+        getPlayer(state, "p2").battlefield.push(victim);
+        const bolt = makeInstance(burstLightning.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+            id: "bolt-ctr",
+        });
+        getPlayer(state, "p1").hand.push(bolt);
+        getPlayer(state, "p1").manaPool = {
+            W: 0,
+            U: 0,
+            B: 0,
+            R: 5,
+            G: 0,
+            C: 0,
+        };
+        finalizeTargetSelection(
+            state,
+            {
+                playerId: "p1",
+                cardInstanceId: "bolt-ctr",
+                targetType: ["Creature", "Planeswalker", "player"],
+                count: 1,
+                selected: [{ type: "permanent", id: "bears-ctr" }],
+                kickerPayments: { kicker: 1 },
+            } as never,
+            "p1"
+        );
+        // The kicked spell is on the stack, snapshot and all. Counter it.
+        pushSpell(state, counterCard.id, "p2", [
+            { type: "spell", id: "bolt-ctr" },
+        ]);
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    it("Remand — the countered spell reaches HAND with no kicker snapshot", () => {
+        // Remand's branch runs no reset whatsoever: `item.zone = "hand";
+        // owner.hand.push(item)`. Without the strip, the hand card keeps
+        // `{ kicker: 1 }` — a CR 400.7 violation and a field persisted to the
+        // DB for a cast that is over.
+        const state = counterAKickedBolt(remand);
+        const inHand = getPlayer(state, "p1").hand.find(
+            (c: CardInstanceState) => c.id === "bolt-ctr"
+        );
+        expect(inHand).toBeDefined();
+        expect(inHand!.kickerPayments).toBeUndefined();
+    });
+
+    it("Memory Lapse — the countered spell reaches the LIBRARY with no kicker snapshot", () => {
+        const state = counterAKickedBolt(memoryLapse);
+        const inLibrary = getPlayer(state, "p1").library.find(
+            (c: CardInstanceState) => c.id === "bolt-ctr"
+        );
+        expect(inLibrary).toBeDefined();
+        expect(inLibrary!.kickerPayments).toBeUndefined();
     });
 });
 
