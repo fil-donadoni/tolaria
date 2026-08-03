@@ -65,9 +65,14 @@ vi.mock("@convex/cards", () => ({
     tryGetDefinition: (id: string) => ({ id, name: `Card ${id}` }),
 }));
 
-vi.mock("@convex/cards/emblems", () => ({
-    tryGetEmblemDefinition: () => undefined,
-}));
+vi.mock("@convex/cards/emblems", async (importOriginal) => {
+    const actual = (await importOriginal()) as Record<string, unknown>;
+    return {
+        ...actual,
+        // shallow overrides: by-name accessor, no emblem hydrates during this suite
+        tryGetEmblemDefinition: () => undefined,
+    };
+});
 
 const { default: TargetSelectionBanner } =
     await import("../target-selection-banner");

@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
-import type { CardPrinting } from "@convex/cards";
+import type { CardPrinting } from "@convex/cards/catalogue";
 import { foldAccents } from "@convex/cards/textNormalize";
 import { FORMAT_RULES, type FormatId } from "@convex/formats";
 import {

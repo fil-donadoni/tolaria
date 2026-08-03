@@ -1,4 +1,5 @@
-import { tryGetCardByName, tryGetDefinition } from "@convex/cards";
+import { tryGetCardByName } from "@convex/cards/catalogue";
+import { tryGetDefinition } from "@convex/cards";
 import type { LimitedPoolCard } from "@convex/limited/eventTypes";
 import { BASIC_LAND_SUBTYPES, type BasicLandSubtype } from "~/lib/basicLands";
 

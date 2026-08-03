@@ -1,4 +1,4 @@
-import { getPrintingsForCard, tryGetCardByName } from "@convex/cards";
+import { getPrintingsForCard, tryGetCardByName } from "@convex/cards/catalogue";
 import { FORMAT_RULES, type FormatId } from "@convex/formats";
 import type { DeckCard } from "~/types/game";
 

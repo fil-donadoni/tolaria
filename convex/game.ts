@@ -246,6 +246,35 @@ import {
 } from "./gre/kicker";
 import { liveSupertypesOf, countSnowLands } from "./gre/snow";
 import { computeSoloViewerId } from "./soloViewer";
+import type { ManualGameState, ManualLogEntry } from "./manual";
+import {
+    appendManualLog,
+    getLatestManualState,
+    saveManualState,
+    manualMoveCard as manualMoveCardFn,
+    manualSetTapped as manualSetTappedFn,
+    manualUntapAll as manualUntapAllFn,
+    manualAdjustLife as manualAdjustLifeFn,
+    manualAdjustCounter as manualAdjustCounterFn,
+    manualSetFaceDown as manualSetFaceDownFn,
+    manualSetLane as manualSetLaneFn,
+    manualAttach as manualAttachFn,
+    manualSetArrow as manualSetArrowFn,
+    manualClearArrows as manualClearArrowsFn,
+    manualDraw as manualDrawFn,
+    manualMill as manualMillFn,
+    manualExileTop as manualExileTopFn,
+    manualPeek as manualPeekFn,
+    manualShuffle as manualShuffleFn,
+    manualCreateToken as manualCreateTokenFn,
+    manualRoll as manualRollFn,
+    manualSetNote as manualSetNoteFn,
+    manualSetPhase as manualSetPhaseFn,
+    manualSetActivePlayer as manualSetActivePlayerFn,
+    manualEndTurn as manualEndTurnFn,
+    manualConcede as manualConcedeFn,
+    manualReveal as manualRevealFn,
+} from "./manual";
 import { compactState, expandState } from "./gre/serialize";
 import {
     assertExpectedInput,
@@ -13898,6 +13927,388 @@ export const debugLoadBladeScenario = mutation({
             gameState.seq + 1,
             state,
             gameState
+        );
+        return null;
+    },
+});
+
+// --- Manual Mode mutations (ADR 0080 S2) ------------------------------------
+
+type VerbResult = { state: ManualGameState; log: ManualLogEntry };
+
+async function manualVerbHandler(
+    ctx: MutationCtx,
+    gameId: GenericId<"games">,
+    apply: (state: ManualGameState) => VerbResult
+): Promise<void> {
+    const game = await ctx.db.get(gameId);
+    if (!game) throw new ConvexError("Game not found");
+    if (game.mode !== "manual") throw new ConvexError("Not a manual game");
+    const user = await getCurrentUser(ctx);
+    if (!gameBelongsToUser(game, user._id))
+        throw new ConvexError("Not a player in this game");
+
+    const existing = await getLatestManualState(ctx, gameId);
+    if (!existing) throw new Error("Manual state not found");
+
+    const result = apply(existing.state as ManualGameState);
+
+    await saveManualState(
+        ctx,
+        gameId,
+        existing.seq + 1,
+        result.state,
+        existing
+    );
+    await appendManualLog(ctx, gameId, result.log);
+}
+
+export const manualMoveCard = mutation({
+    args: {
+        gameId: v.id("games"),
+        instanceId: v.string(),
+        toZone: v.union(
+            v.literal("library"),
+            v.literal("hand"),
+            v.literal("battlefield"),
+            v.literal("graveyard"),
+            v.literal("exile")
+        ),
+        index: v.optional(v.number()),
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        await manualVerbHandler(ctx, args.gameId, (state) =>
+            manualMoveCardFn(state, args.instanceId, args.toZone, args.index)
+        );
+        return null;
+    },
+});
+
+export const manualSetTapped = mutation({
+    args: {
+        gameId: v.id("games"),
+        instanceId: v.string(),
+        tapped: v.boolean(),
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        await manualVerbHandler(ctx, args.gameId, (state) =>
+            manualSetTappedFn(state, args.instanceId, args.tapped)
+        );
+        return null;
+    },
+});
+
+export const manualUntapAll = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        await manualVerbHandler(ctx, args.gameId, (state) =>
+            manualUntapAllFn(state, args.playerId)
+        );
+        return null;
+    },
+});
+
+export const manualAdjustLife = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        delta: v.number(),
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        await manualVerbHandler(ctx, args.gameId, (state) =>
+            manualAdjustLifeFn(state, args.playerId, args.delta)
+        );
+        return null;
+    },
+});
+
+export const manualAdjustCounter = mutation({
+    args: {
+        gameId: v.id("games"),
+        instanceId: v.string(),
+        type: v.string(),
+        delta: v.number(),
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        await manualVerbHandler(ctx, args.gameId, (state) =>
+            manualAdjustCounterFn(state, args.instanceId, args.type, args.delta)
+        );
+        return null;
+    },
+});
+
+export const manualSetFaceDown = mutation({
+    args: {
+        gameId: v.id("games"),
+        instanceId: v.string(),
+        faceDown: v.boolean(),
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        await manualVerbHandler(ctx, args.gameId, (state) =>
+            manualSetFaceDownFn(state, args.instanceId, args.faceDown)
+        );
+        return null;
+    },
+});
+
+export const manualSetLane = mutation({
+    args: {
+        gameId: v.id("games"),
+        instanceId: v.string(),
+        lane: v.union(v.literal("main"), v.literal("combat")),
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        await manualVerbHandler(ctx, args.gameId, (state) =>
+            manualSetLaneFn(state, args.instanceId, args.lane)
+        );
+        return null;
+    },
+});
+
+export const manualAttach = mutation({
+    args: {
+        gameId: v.id("games"),
+        instanceId: v.string(),
+        targetId: v.string(),
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        await manualVerbHandler(ctx, args.gameId, (state) =>
+            manualAttachFn(state, args.instanceId, args.targetId)
+        );
+        return null;
+    },
+});
+
+export const manualSetArrow = mutation({
+    args: {
+        gameId: v.id("games"),
+        instanceId: v.string(),
+        targetId: v.string(),
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        await manualVerbHandler(ctx, args.gameId, (state) =>
+            manualSetArrowFn(state, args.instanceId, args.targetId)
+        );
+        return null;
+    },
+});
+
+export const manualClearArrows = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        await manualVerbHandler(ctx, args.gameId, (state) =>
+            manualClearArrowsFn(state, args.playerId)
+        );
+        return null;
+    },
+});
+
+export const manualDraw = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        n: v.number(),
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        await manualVerbHandler(ctx, args.gameId, (state) =>
+            manualDrawFn(state, args.playerId, args.n)
+        );
+        return null;
+    },
+});
+
+export const manualMill = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        n: v.number(),
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        await manualVerbHandler(ctx, args.gameId, (state) =>
+            manualMillFn(state, args.playerId, args.n)
+        );
+        return null;
+    },
+});
+
+export const manualExileTop = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        n: v.number(),
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        await manualVerbHandler(ctx, args.gameId, (state) =>
+            manualExileTopFn(state, args.playerId, args.n)
+        );
+        return null;
+    },
+});
+
+export const manualPeek = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        n: v.number(),
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        await manualVerbHandler(ctx, args.gameId, (state) =>
+            manualPeekFn(state, args.playerId, args.n)
+        );
+        return null;
+    },
+});
+
+export const manualShuffle = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        await manualVerbHandler(ctx, args.gameId, (state) =>
+            manualShuffleFn(state, args.playerId)
+        );
+        return null;
+    },
+});
+
+export const manualCreateToken = mutation({
+    args: {
+        gameId: v.id("games"),
+        cardId: v.string(),
+        controllerId: v.string(),
+        playerId: v.string(),
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        await manualVerbHandler(ctx, args.gameId, (state) =>
+            manualCreateTokenFn(
+                state,
+                args.cardId,
+                args.controllerId,
+                args.playerId
+            )
+        );
+        return null;
+    },
+});
+
+export const manualRoll = mutation({
+    args: {
+        gameId: v.id("games"),
+        sides: v.number(),
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        await manualVerbHandler(ctx, args.gameId, (state) =>
+            manualRollFn(state, args.sides)
+        );
+        return null;
+    },
+});
+
+export const manualSetNote = mutation({
+    args: {
+        gameId: v.id("games"),
+        instanceId: v.string(),
+        text: v.string(),
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        await manualVerbHandler(ctx, args.gameId, (state) =>
+            manualSetNoteFn(state, args.instanceId, args.text)
+        );
+        return null;
+    },
+});
+
+export const manualSetPhase = mutation({
+    args: {
+        gameId: v.id("games"),
+        phase: v.string(),
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        await manualVerbHandler(ctx, args.gameId, (state) =>
+            manualSetPhaseFn(state, args.phase)
+        );
+        return null;
+    },
+});
+
+export const manualSetActivePlayer = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        await manualVerbHandler(ctx, args.gameId, (state) =>
+            manualSetActivePlayerFn(state, args.playerId)
+        );
+        return null;
+    },
+});
+
+export const manualEndTurn = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        await manualVerbHandler(ctx, args.gameId, (state) =>
+            manualEndTurnFn(state, args.playerId)
+        );
+        return null;
+    },
+});
+
+export const manualConcede = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        await manualVerbHandler(ctx, args.gameId, (state) =>
+            manualConcedeFn(state, args.playerId)
+        );
+        return null;
+    },
+});
+
+export const manualReveal = mutation({
+    args: {
+        gameId: v.id("games"),
+        instanceId: v.string(),
+        toPlayerIds: v.array(v.string()),
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        await manualVerbHandler(ctx, args.gameId, (state) =>
+            manualRevealFn(state, args.instanceId, args.toPlayerIds)
         );
         return null;
     },

@@ -20,10 +20,38 @@ export default defineConfig({
         },
     },
     resolve: {
-        alias: {
-            "~": path.resolve(__dirname, "src"),
-            "@": path.resolve(__dirname, "src"),
-            "@convex": path.resolve(__dirname, "convex"),
+        alias: [
+            { find: "~", replacement: path.resolve(__dirname, "src") },
+            { find: "@", replacement: path.resolve(__dirname, "src") },
+            // Client-safe entry: drops the catalogue (~1.63 MB raw) from the
+            // main bundle. The full catalogue is in `convex/cards/catalogue.ts`,
+            // imported only by pages that need it (deck builder, game board).
+            // The exact-regex anchor keeps `@convex/cards/catalogue` and
+            // `@convex/cards/types` routing through the normal `@convex` fallback.
+            {
+                find: /^@convex\/cards$/,
+                replacement: path.resolve(__dirname, "convex/cards/client.ts"),
+            },
+            {
+                find: "@convex",
+                replacement: path.resolve(__dirname, "convex"),
+            },
+        ],
+    },
+    build: {
+        rollupOptions: {
+            output: {
+                // Extract the card-catalogue set modules (~1872 definitions,
+                // ~1.63 MB raw / 431 KB gzip) into a dedicated chunk so the
+                // main bundle drops them. The chunk is cached independently
+                // from the app code and is referenced by the catalogue glue
+                // module (`convex/cards/catalogue.ts`).
+                manualChunks(id) {
+                    if (id.includes("convex/cards/sets/")) {
+                        return "card-catalogue";
+                    }
+                },
+            },
         },
     },
     plugins: [
