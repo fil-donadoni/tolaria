@@ -28,6 +28,8 @@ export type ManualCardInstance = {
     attachedTo?: string;
     /** Free-text note a player can pin to a card (e.g. "Copied from GY"). */
     note?: string;
+    /** Instance ids of permanents this card is targeting via combat or an effect. */
+    arrows?: string[];
 };
 
 export type ManualZone =
@@ -53,12 +55,17 @@ export type ManualGameState = {
     players: ManualPlayerState[];
     turn: number;
     activePlayerId: string;
+    phase?: string;
+    concededBy?: string;
 };
 
 /** Optional ManualGameState keys that survive the DB round-trip. Mirrors
  *  PERSISTED_OPTIONAL_KEYS in convex/gre/serialize.ts — every optional key
  *  on ManualGameState must appear here, or the drift guard test fails. */
-export const MANUAL_STATE_OPTIONAL_KEYS: readonly string[] = [];
+export const MANUAL_STATE_OPTIONAL_KEYS: readonly string[] = [
+    "phase",
+    "concededBy",
+];
 
 type ManualDeckCard = { cardId: string; cardName: string };
 
@@ -196,4 +203,713 @@ export async function appendManualLog(
         action,
         createdAt: Date.now(),
     });
+}
+
+// --- Manual verbs (ADR 0080 S2) — pure reducers, zero validation ----------
+
+export type ManualLogEntry = {
+    text: string;
+    timestamp: number;
+    playerId?: string;
+};
+
+type VerbResult = { state: ManualGameState; log: ManualLogEntry };
+
+function playerName(state: ManualGameState, playerId: string): string {
+    return state.players.find((p) => p.id === playerId)?.name ?? playerId;
+}
+
+function findCard(
+    state: ManualGameState,
+    instanceId: string
+): { card: ManualCardInstance; player: ManualPlayerState } | null {
+    for (const player of state.players) {
+        for (const arr of [
+            player.hand,
+            player.library,
+            player.battlefield,
+            player.graveyard,
+            player.exile,
+        ]) {
+            const card = arr.find((c) => c.id === instanceId);
+            if (card) return { card, player };
+        }
+    }
+    return null;
+}
+
+function removeCardFromZones(
+    state: ManualGameState,
+    instanceId: string
+): ManualCardInstance | null {
+    for (const player of state.players) {
+        for (const [, arr] of [
+            ["hand", player.hand],
+            ["library", player.library],
+            ["battlefield", player.battlefield],
+            ["graveyard", player.graveyard],
+            ["exile", player.exile],
+        ] as const) {
+            const idx = arr.findIndex((c) => c.id === instanceId);
+            if (idx !== -1) {
+                const [card] = arr.splice(idx, 1);
+                return card;
+            }
+        }
+    }
+    return null;
+}
+
+function zoneArray(
+    player: ManualPlayerState,
+    zone: ManualZone
+): ManualCardInstance[] {
+    switch (zone) {
+        case "hand":
+            return player.hand;
+        case "library":
+            return player.library;
+        case "battlefield":
+            return player.battlefield;
+        case "graveyard":
+            return player.graveyard;
+        case "exile":
+            return player.exile;
+    }
+}
+
+function cloneState(state: ManualGameState): ManualGameState {
+    return JSON.parse(JSON.stringify(state));
+}
+
+// --- Verb reducers ---
+
+export function manualMoveCard(
+    state: ManualGameState,
+    instanceId: string,
+    toZone: ManualZone,
+    index?: number
+): VerbResult {
+    const s = cloneState(state);
+    const card = removeCardFromZones(s, instanceId);
+    if (!card)
+        return {
+            state,
+            log: {
+                text: `moveCard(${instanceId}, ${toZone}): card not found`,
+                timestamp: Date.now(),
+            },
+        };
+    card.zone = toZone;
+    if (toZone === "battlefield") {
+        card.isTapped = false;
+    }
+    const targetZone = zoneArray(
+        s.players.find((p) => p.id === card.ownerId) ?? s.players[0],
+        toZone
+    );
+    if (index !== undefined && index >= 0 && index <= targetZone.length) {
+        targetZone.splice(index, 0, card);
+    } else {
+        targetZone.push(card);
+    }
+    const pn = playerName(state, card.ownerId);
+    return {
+        state: s,
+        log: {
+            text: `${pn} moves ${instanceId} → ${toZone}`,
+            timestamp: Date.now(),
+            playerId: card.ownerId,
+        },
+    };
+}
+
+export function manualSetTapped(
+    state: ManualGameState,
+    instanceId: string,
+    tapped: boolean
+): VerbResult {
+    const s = cloneState(state);
+    const found = findCard(s, instanceId);
+    if (!found)
+        return {
+            state,
+            log: {
+                text: `setTapped(${instanceId}, ${tapped}): card not found`,
+                timestamp: Date.now(),
+            },
+        };
+    found.card.isTapped = tapped;
+    const pn = playerName(state, found.card.ownerId);
+    return {
+        state: s,
+        log: {
+            text: `${pn} ${tapped ? "taps" : "untaps"} ${instanceId}`,
+            timestamp: Date.now(),
+            playerId: found.card.ownerId,
+        },
+    };
+}
+
+export function manualUntapAll(
+    state: ManualGameState,
+    playerId: string
+): VerbResult {
+    const s = cloneState(state);
+    const player = s.players.find((p) => p.id === playerId);
+    if (!player)
+        return {
+            state,
+            log: {
+                text: `untapAll(${playerId}): player not found`,
+                timestamp: Date.now(),
+            },
+        };
+    for (const zone of [
+        player.battlefield,
+        player.hand,
+        player.library,
+        player.graveyard,
+        player.exile,
+    ]) {
+        for (const card of zone) {
+            card.isTapped = false;
+        }
+    }
+    const pn = playerName(state, playerId);
+    return {
+        state: s,
+        log: { text: `${pn} untaps all`, timestamp: Date.now(), playerId },
+    };
+}
+
+export function manualAdjustLife(
+    state: ManualGameState,
+    playerId: string,
+    delta: number
+): VerbResult {
+    const s = cloneState(state);
+    const player = s.players.find((p) => p.id === playerId);
+    if (!player)
+        return {
+            state,
+            log: {
+                text: `adjustLife(${playerId}, ${delta}): player not found`,
+                timestamp: Date.now(),
+            },
+        };
+    const before = player.life;
+    player.life += delta;
+    const pn = playerName(state, playerId);
+    return {
+        state: s,
+        log: {
+            text: `${pn} sets life ${before} → ${player.life}`,
+            timestamp: Date.now(),
+            playerId,
+        },
+    };
+}
+
+export function manualAdjustCounter(
+    state: ManualGameState,
+    instanceId: string,
+    type: string,
+    delta: number
+): VerbResult {
+    const s = cloneState(state);
+    const found = findCard(s, instanceId);
+    if (!found)
+        return {
+            state,
+            log: {
+                text: `adjustCounter(${instanceId}, ${type}, ${delta}): card not found`,
+                timestamp: Date.now(),
+            },
+        };
+    const counters = found.card.counters ?? {};
+    const before = counters[type] ?? 0;
+    counters[type] = (counters[type] ?? 0) + delta;
+    if (counters[type] <= 0) delete counters[type];
+    found.card.counters =
+        Object.keys(counters).length > 0 ? counters : undefined;
+    const pn = playerName(state, found.card.ownerId);
+    return {
+        state: s,
+        log: {
+            text: `${pn} adjusts ${type} counter on ${instanceId}: ${before} → ${before + delta}`,
+            timestamp: Date.now(),
+            playerId: found.card.ownerId,
+        },
+    };
+}
+
+export function manualSetFaceDown(
+    state: ManualGameState,
+    instanceId: string,
+    faceDown: boolean
+): VerbResult {
+    const s = cloneState(state);
+    const found = findCard(s, instanceId);
+    if (!found)
+        return {
+            state,
+            log: {
+                text: `setFaceDown(${instanceId}, ${faceDown}): card not found`,
+                timestamp: Date.now(),
+            },
+        };
+    if (faceDown) {
+        found.card.faceDown = true;
+    } else {
+        delete found.card.faceDown;
+    }
+    const pn = playerName(state, found.card.ownerId);
+    return {
+        state: s,
+        log: {
+            text: `${pn} sets ${instanceId} face ${faceDown ? "down" : "up"}`,
+            timestamp: Date.now(),
+            playerId: found.card.ownerId,
+        },
+    };
+}
+
+export function manualSetLane(
+    state: ManualGameState,
+    instanceId: string,
+    lane: "main" | "combat"
+): VerbResult {
+    const s = cloneState(state);
+    const found = findCard(s, instanceId);
+    if (!found)
+        return {
+            state,
+            log: {
+                text: `setLane(${instanceId}, ${lane}): card not found`,
+                timestamp: Date.now(),
+            },
+        };
+    found.card.lane = lane;
+    const pn = playerName(state, found.card.ownerId);
+    return {
+        state: s,
+        log: {
+            text: `${pn} puts ${instanceId} on ${lane} lane`,
+            timestamp: Date.now(),
+            playerId: found.card.ownerId,
+        },
+    };
+}
+
+export function manualAttach(
+    state: ManualGameState,
+    instanceId: string,
+    targetId: string
+): VerbResult {
+    const s = cloneState(state);
+    const found = findCard(s, instanceId);
+    if (!found)
+        return {
+            state,
+            log: {
+                text: `attach(${instanceId}, ${targetId}): card not found`,
+                timestamp: Date.now(),
+            },
+        };
+    found.card.attachedTo = targetId;
+    const pn = playerName(state, found.card.ownerId);
+    return {
+        state: s,
+        log: {
+            text: `${pn} attaches ${instanceId} to ${targetId}`,
+            timestamp: Date.now(),
+            playerId: found.card.ownerId,
+        },
+    };
+}
+
+export function manualSetArrow(
+    state: ManualGameState,
+    instanceId: string,
+    targetId: string
+): VerbResult {
+    const s = cloneState(state);
+    const found = findCard(s, instanceId);
+    if (!found)
+        return {
+            state,
+            log: {
+                text: `setArrow(${instanceId}, ${targetId}): card not found`,
+                timestamp: Date.now(),
+            },
+        };
+    found.card.arrows = [...(found.card.arrows ?? []), targetId];
+    const pn = playerName(state, found.card.ownerId);
+    return {
+        state: s,
+        log: {
+            text: `${pn} points arrow from ${instanceId} → ${targetId}`,
+            timestamp: Date.now(),
+            playerId: found.card.ownerId,
+        },
+    };
+}
+
+export function manualClearArrows(
+    state: ManualGameState,
+    playerId: string
+): VerbResult {
+    const s = cloneState(state);
+    let cleared = 0;
+    for (const player of s.players) {
+        const arrs = [
+            player.battlefield,
+            player.hand,
+            player.library,
+            player.graveyard,
+            player.exile,
+        ];
+        for (const zone of arrs) {
+            for (const card of zone) {
+                if (card.arrows && card.arrows.length > 0) {
+                    delete card.arrows;
+                    cleared++;
+                }
+            }
+        }
+    }
+    const pn = playerName(state, playerId);
+    return {
+        state: s,
+        log: {
+            text: `${pn} clears ${cleared} arrows`,
+            timestamp: Date.now(),
+            playerId,
+        },
+    };
+}
+
+export function manualDraw(
+    state: ManualGameState,
+    playerId: string,
+    n: number
+): VerbResult {
+    const s = cloneState(state);
+    const player = s.players.find((p) => p.id === playerId);
+    if (!player)
+        return {
+            state,
+            log: {
+                text: `draw(${playerId}, ${n}): player not found`,
+                timestamp: Date.now(),
+            },
+        };
+    const drawn: string[] = [];
+    for (let i = 0; i < n && player.library.length > 0; i++) {
+        const card = player.library.pop()!;
+        card.zone = "hand";
+        player.hand.push(card);
+        drawn.push(card.card.id);
+    }
+    const pn = playerName(state, playerId);
+    return {
+        state: s,
+        log: {
+            text: `${pn} draws ${drawn.length} card(s)`,
+            timestamp: Date.now(),
+            playerId,
+        },
+    };
+}
+
+export function manualMill(
+    state: ManualGameState,
+    playerId: string,
+    n: number
+): VerbResult {
+    const s = cloneState(state);
+    const player = s.players.find((p) => p.id === playerId);
+    if (!player)
+        return {
+            state,
+            log: {
+                text: `mill(${playerId}, ${n}): player not found`,
+                timestamp: Date.now(),
+            },
+        };
+    const milled: string[] = [];
+    for (let i = 0; i < n && player.library.length > 0; i++) {
+        const card = player.library.pop()!;
+        card.zone = "graveyard";
+        player.graveyard.push(card);
+        milled.push(card.card.id);
+    }
+    const pn = playerName(state, playerId);
+    return {
+        state: s,
+        log: {
+            text: `${pn} mills ${milled.length} card(s)`,
+            timestamp: Date.now(),
+            playerId,
+        },
+    };
+}
+
+export function manualExileTop(
+    state: ManualGameState,
+    playerId: string,
+    n: number
+): VerbResult {
+    const s = cloneState(state);
+    const player = s.players.find((p) => p.id === playerId);
+    if (!player)
+        return {
+            state,
+            log: {
+                text: `exileTop(${playerId}, ${n}): player not found`,
+                timestamp: Date.now(),
+            },
+        };
+    const exiled: string[] = [];
+    for (let i = 0; i < n && player.library.length > 0; i++) {
+        const card = player.library.pop()!;
+        card.zone = "exile";
+        card.faceDown = true;
+        player.exile.push(card);
+        exiled.push(card.card.id);
+    }
+    const pn = playerName(state, playerId);
+    return {
+        state: s,
+        log: {
+            text: `${pn} exiles ${exiled.length} card(s) from top`,
+            timestamp: Date.now(),
+            playerId,
+        },
+    };
+}
+
+export function manualPeek(
+    state: ManualGameState,
+    playerId: string,
+    n: number
+): VerbResult {
+    const player = state.players.find((p) => p.id === playerId);
+    if (!player)
+        return {
+            state,
+            log: {
+                text: `peek(${playerId}, ${n}): player not found`,
+                timestamp: Date.now(),
+            },
+        };
+    const topN = player.library
+        .slice(Math.max(0, player.library.length - n))
+        .reverse();
+    const pn = playerName(state, playerId);
+    return {
+        state: cloneState(state),
+        log: {
+            text: `${pn} looks at top ${n} of library: ${topN.map((c) => c.card.id).join(", ")}`,
+            timestamp: Date.now(),
+            playerId,
+        },
+    };
+}
+
+export function manualShuffle(
+    state: ManualGameState,
+    playerId: string
+): VerbResult {
+    const s = cloneState(state);
+    const player = s.players.find((p) => p.id === playerId);
+    if (!player)
+        return {
+            state,
+            log: {
+                text: `shuffle(${playerId}): player not found`,
+                timestamp: Date.now(),
+            },
+        };
+    const seed = manualRngSeed();
+    shuffle(player.library, seed);
+    const pn = playerName(state, playerId);
+    return {
+        state: s,
+        log: {
+            text: `${pn} shuffles their library`,
+            timestamp: Date.now(),
+            playerId,
+        },
+    };
+}
+
+export function manualCreateToken(
+    state: ManualGameState,
+    cardId: string,
+    controllerId: string,
+    playerId: string
+): VerbResult {
+    const s = cloneState(state);
+    const player = s.players.find((p) => p.id === playerId);
+    if (!player)
+        return {
+            state,
+            log: {
+                text: `createToken(${cardId}): player not found`,
+                timestamp: Date.now(),
+            },
+        };
+    const instanceId = allocInstanceId();
+    const token: ManualCardInstance = {
+        id: instanceId,
+        card: { id: cardId },
+        zone: "battlefield",
+        controllerId,
+        ownerId: playerId,
+        isTapped: false,
+    };
+    player.battlefield.push(token);
+    const pn = playerName(state, playerId);
+    return {
+        state: s,
+        log: {
+            text: `${pn} creates token ${cardId} (id: ${instanceId})`,
+            timestamp: Date.now(),
+            playerId,
+        },
+    };
+}
+
+export function manualRoll(state: ManualGameState, sides: number): VerbResult {
+    const result = Math.floor(Math.random() * sides) + 1;
+    return {
+        state: cloneState(state),
+        log: { text: `rolled d${sides}: ${result}`, timestamp: Date.now() },
+    };
+}
+
+export function manualSetNote(
+    state: ManualGameState,
+    instanceId: string,
+    text: string
+): VerbResult {
+    const s = cloneState(state);
+    const found = findCard(s, instanceId);
+    if (!found)
+        return {
+            state,
+            log: {
+                text: `setNote(${instanceId}): card not found`,
+                timestamp: Date.now(),
+            },
+        };
+    if (text.length > 0) {
+        found.card.note = text;
+    } else {
+        delete found.card.note;
+    }
+    const pn = playerName(state, found.card.ownerId);
+    return {
+        state: s,
+        log: {
+            text: `${pn} sets note on ${instanceId}`,
+            timestamp: Date.now(),
+            playerId: found.card.ownerId,
+        },
+    };
+}
+
+export function manualSetPhase(
+    state: ManualGameState,
+    phase: string
+): VerbResult {
+    const s = cloneState(state);
+    s.phase = phase;
+    return {
+        state: s,
+        log: { text: `Phase: ${phase}`, timestamp: Date.now() },
+    };
+}
+
+export function manualSetActivePlayer(
+    state: ManualGameState,
+    playerId: string
+): VerbResult {
+    const s = cloneState(state);
+    s.activePlayerId = playerId;
+    const pn = playerName(state, playerId);
+    return {
+        state: s,
+        log: { text: `Active player: ${pn}`, timestamp: Date.now(), playerId },
+    };
+}
+
+export function manualEndTurn(
+    state: ManualGameState,
+    playerId: string
+): VerbResult {
+    const s = cloneState(state);
+    for (const player of s.players) {
+        for (const card of player.battlefield) {
+            if (
+                card.counters?.damage !== undefined &&
+                card.counters.damage !== 0
+            ) {
+                const counters = { ...card.counters };
+                delete counters.damage;
+                card.counters =
+                    Object.keys(counters).length > 0 ? counters : undefined;
+            }
+        }
+    }
+    const pn = playerName(state, playerId);
+    return {
+        state: s,
+        log: {
+            text: `${pn} ends the turn (damage cleared)`,
+            timestamp: Date.now(),
+            playerId,
+        },
+    };
+}
+
+export function manualConcede(
+    state: ManualGameState,
+    playerId: string
+): VerbResult {
+    const s = cloneState(state);
+    s.concededBy = playerId;
+    const pn = playerName(state, playerId);
+    return {
+        state: s,
+        log: { text: `${pn} concedes`, timestamp: Date.now(), playerId },
+    };
+}
+
+export function manualReveal(
+    state: ManualGameState,
+    instanceId: string,
+    toPlayerIds: string[]
+): VerbResult {
+    const found = findCard(state, instanceId);
+    if (!found)
+        return {
+            state,
+            log: {
+                text: `reveal(${instanceId}): card not found`,
+                timestamp: Date.now(),
+            },
+        };
+    const pn = playerName(state, found.card.ownerId);
+    const toNames = toPlayerIds.map((id) => playerName(state, id)).join(", ");
+    return {
+        state: cloneState(state),
+        log: {
+            text: `${pn} reveals ${instanceId} to ${toNames}`,
+            timestamp: Date.now(),
+            playerId: found.card.ownerId,
+        },
+    };
 }
