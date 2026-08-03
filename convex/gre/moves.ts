@@ -57,6 +57,7 @@ import {
     validateBlockerEligibility,
     getAttackerCap,
     getBlockerCap,
+    maxObeyableAttackRequirements,
     getMinimumBlockers,
 } from "./combat";
 import { isSorceryTiming } from "./phases";
@@ -1115,29 +1116,34 @@ export function enumerateAttackerMoves(
     // Despair at two, Dueling Grounds at one).
     const cap = getAttackerCap(state);
 
-    // CR 508.1d — requirements are obeyed to the maximum number possible
-    // WITHOUT violating a restriction, and the cap is a restriction. When more
-    // creatures are required to attack than the cap admits, the legal
-    // declarations are exactly the cap-sized subsets of the required set (the
-    // bot picks which); otherwise every declaration includes all of them.
-    // Without this branch every candidate would be filtered out below and the
-    // bot would have NO attacker move to make (a stall), which a cap of one
-    // makes routine.
+    // CR 508.1d — requirements are obeyed to the MAXIMUM number possible
+    // without violating a restriction, and the cap is a restriction. The legal
+    // declarations are therefore exactly: a `quota`-sized subset of the
+    // required creatures (the declarer picks WHICH when the cap admits fewer
+    // than all), plus any subset of the voluntary creatures that fits in the
+    // leftover slack. This is precisely the reachable output set of
+    // `foldAttackRequirements` — the same authority `confirmAttackers` and the
+    // auto-pass confirm normalize through — so the bot can never propose a
+    // declaration the mutation would rewrite, and never miss one it would
+    // accept. (`gre/combat.ts` carries the rule; the shared `quota` is the
+    // seam.)
+    const quota = maxObeyableAttackRequirements(requiredIds.length, cap);
+    // `combinations` (not `powerSet(...).filter`) — the purpose-built helper
+    // enumerates size-`quota` subsets directly, so `MAX_COMBINATIONS` bounds
+    // the ANSWER rather than a power set that would be truncated to 64 members
+    // before the size filter ever ran (with 8 required creatures under a cap of
+    // 2 that filter would have seen a fraction of the 28 real choices).
     const requiredBases: string[][] =
-        cap !== undefined && requiredIds.length > cap
-            ? powerSet(requiredIds).filter((s) => s.length === cap)
-            : [requiredIds];
+        quota === requiredIds.length
+            ? [requiredIds]
+            : combinations(requiredIds, quota);
+    const slack = cap === undefined ? Number.POSITIVE_INFINITY : cap - quota;
 
-    // Each optional subset, always unioned with the forced attackers. Drop any
-    // subset whose total declared attackers would exceed the global cap.
-    const subsets = requiredBases
-        .flatMap((base) =>
-            powerSet(optional).map((subset) => [
-                ...base,
-                ...subset.map((c) => c.id),
-            ])
-        )
-        .filter((ids) => cap === undefined || ids.length <= cap);
+    const subsets = requiredBases.flatMap((base) =>
+        powerSet(optional)
+            .filter((subset) => subset.length <= slack)
+            .map((subset) => [...base, ...subset.map((c) => c.id)])
+    );
 
     const baseMoves: Move[] = subsets.map((attackerIds) => ({
         kind: "declare-attackers" as const,

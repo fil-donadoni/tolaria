@@ -389,6 +389,71 @@ function collectDeclaredAttackRestrictions(
     return restrictions;
 }
 
+/** CR 508.1d — the maximum number of must-attack REQUIREMENTS any legal
+ *  declaration can obey. The rule is not "obey every requirement" and not
+ *  "stop when the cap is reached": it is *obey the maximum number possible
+ *  without violating any restriction*. The battlefield-wide declared-attacker
+ *  cap (CR 508.1a) is a restriction, so it wins on the count — but the
+ *  declaration must still spend every slot the cap allows on a requirement
+ *  before any voluntary attacker gets one. Two Juggernauts under a Dueling
+ *  Grounds means exactly ONE Juggernaut attacks and nothing else may. */
+export function maxObeyableAttackRequirements(
+    requiredCount: number,
+    cap: number | undefined
+): number {
+    return cap === undefined ? requiredCount : Math.min(requiredCount, cap);
+}
+
+/** CR 508.1c/508.1d — normalizes a player's raw attacker SELECTION into the
+ *  declaration the rules actually produce, and is the single authority on
+ *  which declarations are legal.
+ *
+ *  Every producer of `combat.attackerIds` routes through this: the
+ *  `confirmAttackers` mutation, the auto-pass confirm in `drainAutoPasses`
+ *  (`gre/phases.ts`), and the bot's `enumerateAttackerMoves` (`gre/moves.ts`),
+ *  which enumerates exactly this function's reachable outputs. Before it
+ *  existed the mutation and the enumerator disagreed: the enumerator refused a
+ *  declaration that crowded a must-attack creature out of the only slot, while
+ *  the mutation accepted it.
+ *
+ *  Ordering encodes the rule: the player's own picks among the REQUIRED
+ *  creatures come first (their choice of which requirement to obey is honoured
+ *  before the engine picks for them), the quota is then topped up from the rest
+ *  of the required set, and only the leftover cap slack goes to voluntary
+ *  picks. A voluntary pick that would leave a requirement unobeyed is dropped —
+ *  it was never part of a legal declaration. */
+export function foldAttackRequirements(
+    selected: readonly string[],
+    requiredIds: readonly string[],
+    cap: number | undefined
+): string[] {
+    const requiredSet = new Set(requiredIds);
+    const quota = maxObeyableAttackRequirements(requiredIds.length, cap);
+    const limit = cap ?? Number.POSITIVE_INFINITY;
+    const out: string[] = [];
+    for (const id of selected) {
+        if (out.length >= quota) break;
+        if (requiredSet.has(id) && !out.includes(id)) out.push(id);
+    }
+    for (const id of requiredIds) {
+        if (out.length >= quota) break;
+        if (!out.includes(id)) out.push(id);
+    }
+    for (const id of selected) {
+        if (out.length >= limit) break;
+        if (!requiredSet.has(id) && !out.includes(id)) out.push(id);
+    }
+    return out;
+}
+
+/** The defending player's battlefield (2-player engine), or `[]`. */
+function defenderBattlefieldOf(state: GameState): CardInstanceState[] {
+    return (
+        state.players.find((p) => p.id !== state.activePlayerId)?.battlefield ??
+        []
+    );
+}
+
 /** Validates the COMPLETE set of declared attackers against every attacker's
  *  count-aware attack restrictions (CR 508.1c). The attack-side twin of
  *  `validateMinimumBlockers`: a restriction such as "can only attack alone"
@@ -425,6 +490,41 @@ export function validateDeclaredAttackers(
     const cap = getAttackerCapEffect(state);
     if (cap !== undefined && declared.length > cap.max) {
         return { ok: false, reason: cap.oracleText };
+    }
+
+    // CR 508.1d — the declaration must obey the MAXIMUM number of must-attack
+    // requirements the restrictions leave room for. Declaring a voluntary
+    // attacker in a slot a required creature could have used obeys fewer
+    // requirements than possible, so it is illegal even though the cap check
+    // above passes. The same rule the fold (`foldAttackRequirements`) and the
+    // bot's enumeration apply constructively — this is the backstop for any
+    // producer that writes `combat.attackerIds` directly.
+    const requiredIds = getRequiredAttackerIds(
+        activePlayer.battlefield,
+        state,
+        defenderBattlefieldOf(state),
+        state.allCreaturesMustAttack
+    );
+    const quota = maxObeyableAttackRequirements(requiredIds.length, cap?.max);
+    const obeyed = requiredIds.filter((id) =>
+        combat.attackerIds.includes(id)
+    ).length;
+    if (obeyed < quota) {
+        const missing = requiredIds.find(
+            (id) => !combat.attackerIds.includes(id)
+        );
+        const name = missing
+            ? (tryGetDefinition(
+                  (
+                      activePlayer.battlefield.find((c) => c.id === missing)
+                          ?.card as { id?: string }
+                  )?.id ?? ""
+              )?.name ?? "A creature")
+            : "A creature";
+        return {
+            ok: false,
+            reason: `${name} must attack this combat if able`,
+        };
     }
 
     for (const attacker of declared) {
@@ -671,6 +771,122 @@ function declaredBlockerInstances(state: GameState): CardInstanceState[] {
     return out;
 }
 
+/** The creatures currently declared as blockers (at least one assignment). */
+function distinctBlockerIds(state: GameState): string[] {
+    const assignments = state.combat?.blockerAssignments ?? {};
+    return Object.keys(assignments).filter(
+        (id) => (assignments[id] ?? []).length > 0
+    );
+}
+
+/** True when `blockerId`'s declared assignment obeys none of the must-block
+ *  requirements that name it (CR 509.1c) — i.e. it is occupying a
+ *  declared-blocker slot voluntarily. `baseline` is the requirement map
+ *  computed against an EMPTY declaration ("who must block what, unconstrained
+ *  by what has already been declared"). */
+function blocksVoluntarily(
+    state: GameState,
+    blockerId: string,
+    baseline: Record<string, string[]>
+): boolean {
+    const required = baseline[blockerId];
+    if (!required || required.length === 0) return true;
+    const declared = state.combat?.blockerAssignments[blockerId] ?? [];
+    return !required.some((attackerId) => declared.includes(attackerId));
+}
+
+/** The two requirement maps `foldBlockRequirements` and its backstop both need:
+ *  `baseline` = who must block what if nothing were declared yet;
+ *  `missing` = what the CURRENT declaration still owes. */
+function blockRequirementMaps(state: GameState): {
+    baseline: Record<string, string[]>;
+    missing: Record<string, string[]>;
+} {
+    const combat = state.combat;
+    const attacker = state.players.find((p) => p.id === state.activePlayerId);
+    const defender = state.players.find((p) => p.id !== state.activePlayerId);
+    if (!combat || !attacker || !defender) {
+        return { baseline: {}, missing: {} };
+    }
+    const args = [
+        attacker.battlefield,
+        defender.battlefield,
+        combat.attackerIds,
+    ] as const;
+    return {
+        baseline: getRequiredBlockerAssignments(...args, {}, state),
+        missing: getRequiredBlockerAssignments(
+            ...args,
+            combat.blockerAssignments,
+            state
+        ),
+    };
+}
+
+/** CR 509.1a/509.1c — the reason string when the declaration obeys fewer
+ *  must-block requirements than the declared-blocker cap leaves room for
+ *  (a voluntary block is holding a slot a required blocker needed), else
+ *  `undefined`. */
+function unobeyedBlockRequirement(state: GameState): string | undefined {
+    const { baseline, missing } = blockRequirementMaps(state);
+    const missingIds = Object.keys(missing);
+    if (missingIds.length === 0) return undefined;
+    const wasted = distinctBlockerIds(state).some((id) =>
+        blocksVoluntarily(state, id, baseline)
+    );
+    if (!wasted) return undefined;
+    const defender = state.players.find((p) => p.id !== state.activePlayerId);
+    const inst = defender?.battlefield.find((c) => c.id === missingIds[0]);
+    const name =
+        (inst
+            ? tryGetDefinition((inst.card as { id?: string }).id ?? "")?.name
+            : undefined) ?? "A creature";
+    return `${name} must block this combat if able`;
+}
+
+/** CR 509.1a/509.1c — folds must-block requirements (Lure, Blaze of Glory)
+ *  into the declaration, obeying the MAXIMUM number the declared-blocker cap
+ *  leaves room for. The block-side twin of `foldAttackRequirements`, and the
+ *  single writer of requirement-driven block assignments.
+ *
+ *  Two rules the naive "add every requirement" loop got wrong:
+ *  - Giving an ALREADY-blocking creature another attacker costs no slot (the
+ *    cap counts creatures, not assignments — Two-Headed Giant), so it always
+ *    goes through.
+ *  - When the cap is full, a REQUIREMENT outranks a VOLUNTARY block: the
+ *    voluntary blocker is dropped to free the slot rather than the requirement
+ *    being silently skipped. Skipping it obeyed zero requirements where one was
+ *    possible, which is illegal (and, once the backstop check exists, would
+ *    leave the defender unable to confirm at all). */
+export function foldBlockRequirements(state: GameState): void {
+    const combat = state.combat;
+    if (!combat) return;
+    const cap = getBlockerCapEffect(state)?.max;
+    const { baseline, missing } = blockRequirementMaps(state);
+    const assignments = combat.blockerAssignments;
+
+    for (const [blockerId, attackerIds] of Object.entries(missing)) {
+        const existing = assignments[blockerId] ?? [];
+        if (
+            existing.length === 0 &&
+            cap !== undefined &&
+            distinctBlockerIds(state).length >= cap
+        ) {
+            const victim = distinctBlockerIds(state).find((id) =>
+                blocksVoluntarily(state, id, baseline)
+            );
+            // Every slot is already obeying a requirement — the cap, not the
+            // declaration, is what leaves this one unobeyed. That is legal.
+            if (victim === undefined) continue;
+            delete assignments[victim];
+        }
+        assignments[blockerId] = [
+            ...(assignments[blockerId] ?? []),
+            ...attackerIds,
+        ];
+    }
+}
+
 /** Validates the COMPLETE set of declared blockers against every blocker's
  *  count-aware block restrictions (CR 509.1b). Block-side twin of
  *  `validateDeclaredAttackers`: "can't block unless at least two other
@@ -689,6 +905,14 @@ export function validateDeclaredBlockers(
     const cap = getBlockerCapEffect(state);
     if (cap !== undefined && declared.length > cap.max) {
         return { ok: false, reason: cap.oracleText };
+    }
+    // CR 509.1a/509.1c — the block-side twin of the attacker requirement check:
+    // when the cap binds, every slot must go to a creature that is obeying a
+    // must-block requirement before any voluntary block gets one. Backstop for
+    // `foldBlockRequirements`, which enforces the same rule constructively.
+    if (cap !== undefined) {
+        const unobeyed = unobeyedBlockRequirement(state);
+        if (unobeyed) return { ok: false, reason: unobeyed };
     }
     if (declared.length === 0) return { ok: true };
     const declaredViews = declared as unknown as PermanentView[];

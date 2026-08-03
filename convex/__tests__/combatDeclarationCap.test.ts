@@ -185,10 +185,12 @@ describe("declared-attacker cap through the real mutations (CR 508.1a, issue #11
         expect(combat.attackerIds[0]).toBe("j1");
     });
 
-    it("confirmAttackers keeps the attacker the PLAYER chose when a must-attack creature would fill the same slot", async () => {
-        // The player manually declared the Grizzly Bears; the Juggernaut is
-        // required to attack but the cap is already spent, so the player's own
-        // choice survives and the requirement yields to the restriction.
+    it("a voluntary attacker never crowds a must-attack creature out of the last slot (CR 508.1d)", async () => {
+        // CR 508.1d — the declaration must obey the MAXIMUM number of
+        // requirements the restrictions leave room for. With one slot and one
+        // Juggernaut ("attacks each combat if able"), the ONLY legal
+        // declaration is the Juggernaut: a voluntary Grizzly Bears in that slot
+        // obeys zero requirements where one was possible. The fold drops it.
         const h = makeMutationCtx("p1", [
             gameStateSeed(
                 declareAttackersState([
@@ -199,9 +201,56 @@ describe("declared-attacker cap through the real mutations (CR 508.1a, issue #11
         ]);
 
         await runToggleAttacker(h.ctx, "bear");
-        await runConfirmAttackers(h.ctx);
-
         expect(h.state().combat!.attackerIds).toEqual(["bear"]);
+
+        await runConfirmAttackers(h.ctx);
+        expect(h.state().combat!.attackerIds).toEqual(["j1"]);
+        const bear = h
+            .state()
+            .players[0].battlefield.find((c) => c.id === "bear")!;
+        expect(bear.isAttacking).toBeFalsy();
+    });
+
+    it("with cap room for both, the voluntary pick is KEPT alongside the requirement (the fold drops only what the cap forces)", async () => {
+        // Same board with no cap in play: nothing is crowded out, so the
+        // dropping above is provably the cap's doing and not a blanket
+        // "requirements replace selections" rule.
+        const h = makeMutationCtx("p1", [
+            gameStateSeed(
+                declareAttackersState(
+                    [
+                        creature(juggernaut.id, "j1", "p1"),
+                        creature(grizzlyBears.id, "bear", "p1"),
+                    ],
+                    false
+                )
+            ),
+        ]);
+
+        await runToggleAttacker(h.ctx, "bear");
+        await runConfirmAttackers(h.ctx);
+        expect([...h.state().combat!.attackerIds].sort()).toEqual([
+            "bear",
+            "j1",
+        ]);
+    });
+
+    it("the player's choice of WHICH requirement to obey survives the fold", async () => {
+        // Two Juggernauts, cap of one: the player picked j2, so j2 is the one
+        // that attacks — the engine only picks when the player expressed
+        // nothing (the previous test's j1-by-battlefield-order case).
+        const h = makeMutationCtx("p1", [
+            gameStateSeed(
+                declareAttackersState([
+                    creature(juggernaut.id, "j1", "p1"),
+                    creature(juggernaut.id, "j2", "p1"),
+                ])
+            ),
+        ]);
+
+        await runToggleAttacker(h.ctx, "j2");
+        await runConfirmAttackers(h.ctx);
+        expect(h.state().combat!.attackerIds).toEqual(["j2"]);
     });
 });
 
@@ -333,5 +382,108 @@ describe("must-block requirements under the declared-blocker cap (CR 509.1a/509.
             ([, ids]) => (ids?.length ?? 0) > 0
         );
         expect(blocking).toHaveLength(2);
+    });
+});
+
+describe("must-block requirements never yield to a VOLUNTARY block (CR 509.1a/509.1c, issue #1127)", () => {
+    /** p1 attacks with a Lure-enchanted `a` plus a plain `a2`; the defender's
+     *  creatures are `x` (of type `defenderDefId`) and `y`. A Dueling Grounds
+     *  caps distinct blockers at one unless `withCap` is false. */
+    function lureBoard(
+        assignments: Record<string, string[]>,
+        withCap: boolean,
+        defenderDefId: string = grizzlyBears.id
+    ): GameState {
+        const aura = makeInstance(lure.id, {
+            id: "lure",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        aura.attachedTo = "a";
+        const p1Battlefield: CardInstanceState[] = [
+            creature(grizzlyBears.id, "a", "p1"),
+            creature(grizzlyBears.id, "a2", "p1"),
+            aura,
+        ];
+        if (withCap) {
+            p1Battlefield.push(
+                makeInstance(duelingGrounds.id, {
+                    id: "dg",
+                    controllerId: "p1",
+                })
+            );
+        }
+        return makeState({
+            phase: "DECLARE_BLOCKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p2",
+            players: [
+                makePlayer("p1", { battlefield: p1Battlefield }),
+                makePlayer("p2", {
+                    battlefield: [
+                        creature(defenderDefId, "x", "p2"),
+                        creature(grizzlyBears.id, "y", "p2"),
+                    ],
+                }),
+            ],
+            combat: {
+                attackerIds: ["a", "a2"],
+                confirmed: true,
+                blockerAssignments: assignments,
+                blockersConfirmed: false,
+            },
+        });
+    }
+
+    const confirm = (ctx: Parameters<typeof runMutation>[1]) =>
+        runMutation<{ gameId: Id<"games">; playerId: string }, void>(
+            confirmBlockers as unknown as Handler<
+                { gameId: Id<"games">; playerId: string },
+                void
+            >,
+            ctx,
+            { gameId: GAME_ID, playerId: "p2" }
+        );
+
+    const blocking = (state: GameState) =>
+        Object.entries(state.combat!.blockerAssignments)
+            .filter(([, ids]) => (ids?.length ?? 0) > 0)
+            .map(([id, ids]) => [id, ids] as const);
+
+    it("drops a voluntary block to make room for a required one when the cap is full (CR 509.1c)", async () => {
+        // `y` blocks the NON-Lure attacker a2 — a voluntary block occupying the
+        // only slot. `x` is required to block the Lure'd `a`. Obeying zero
+        // requirements when one was possible is illegal, so the voluntary block
+        // yields.
+        const h = makeMutationCtx("p2", [
+            gameStateSeed(lureBoard({ y: ["a2"] }, true)),
+        ]);
+        await confirm(h.ctx);
+        expect(blocking(h.state())).toEqual([["x", ["a"]]]);
+    });
+
+    it("without the cap the voluntary block SURVIVES alongside the required ones (the cap is what forces the trade)", async () => {
+        const h = makeMutationCtx("p2", [
+            gameStateSeed(lureBoard({ y: ["a2"] }, false)),
+        ]);
+        await confirm(h.ctx);
+        const ids = blocking(h.state()).map(([id]) => id);
+        expect(new Set(ids)).toEqual(new Set(["x", "y"]));
+    });
+
+    it("an ALREADY-blocking creature still takes its required attacker with the cap full (the cap counts creatures, not assignments)", async () => {
+        // `x` is a Two-Headed Giant of Foriys (can block an additional
+        // creature) already blocking a2 — the single allowed blocker. It is
+        // also required to block the Lure'd `a`, and doing so costs no new
+        // slot, so the requirement must go through. Dropping the
+        // "already blocking" exemption leaves `x` on a2 alone (0 requirements
+        // obeyed) and the declaration unconfirmable.
+        const h = makeMutationCtx("p2", [
+            gameStateSeed(
+                lureBoard({ x: ["a2"] }, true, twoHeadedGiantOfForiys.id)
+            ),
+        ]);
+        await confirm(h.ctx);
+        expect(blocking(h.state())).toEqual([["x", ["a2", "a"]]]);
     });
 });

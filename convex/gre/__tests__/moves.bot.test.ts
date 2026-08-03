@@ -17,6 +17,11 @@ import type { CardInstanceState, GameState, PlayerState } from "../state";
 import * as stateModule from "../state";
 import { enumerateMoves, planManaPayment, type Move } from "../moves";
 import { getLegalActions, maxAffordableX } from "../rules";
+import {
+    getAttackerCap,
+    getRequiredAttackerIds,
+    foldAttackRequirements,
+} from "../combat";
 
 const FOREST = getCardByName("Forest").id;
 const MOUNTAIN = getCardByName("Mountain").id;
@@ -1608,5 +1613,88 @@ describe("combat declaration cap in move enumeration (CR 508.1a / 509.1a)", () =
         // Both choices of WHICH required creature attacks are offered — the bot
         // picks, rather than the engine silently taking the first.
         expect(new Set(declared.flat())).toEqual(new Set(["c0", "c1"]));
+    });
+});
+
+describe("bot enumeration and the confirm mutation agree on legality (CR 508.1d, issue #1127)", () => {
+    const DUELING_GROUNDS_2 = getCardByName("Dueling Grounds").id;
+    const JUGGERNAUT_2 = getCardByName("Juggernaut").id;
+
+    /** Dueling Grounds (cap 1) + a must-attack Juggernaut + a voluntary
+     *  Grizzly Bears — the board where the mutation and the enumerator used to
+     *  disagree: the enumerator refused `["bear"]`, the mutation accepted it. */
+    function crowdOutBoard(): GameState {
+        return makeState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(JUGGERNAUT_2, {
+                            id: "j1",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            isSummoningSick: false,
+                        }),
+                        makeInstance(BEARS, {
+                            id: "bear",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            isSummoningSick: false,
+                        }),
+                    ],
+                }),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(DUELING_GROUNDS_2, {
+                            id: "dg",
+                            controllerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+            combat: {
+                attackerIds: [],
+                confirmed: false,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+    }
+
+    function declarations(state: GameState): string[][] {
+        return enumerateMoves(state, "p1")
+            .filter((m) => m.kind === "declare-attackers")
+            .map((m) => (m.kind === "declare-attackers" ? m.attackerIds : []));
+    }
+
+    it("every declaration the mutation would produce from ANY player selection is an enumerated move", () => {
+        const state = crowdOutBoard();
+        const defenderBattlefield = state.players[1].battlefield;
+        const required = getRequiredAttackerIds(
+            state.players[0].battlefield,
+            state,
+            defenderBattlefield,
+            undefined
+        );
+        const cap = getAttackerCap(state);
+        const enumerated = new Set(
+            declarations(state).map((ids) => [...ids].sort().join(","))
+        );
+
+        // Every subset of the board is a selection the player can toggle into;
+        // `foldAttackRequirements` is what `confirmAttackers` turns it into.
+        const ids = ["j1", "bear"];
+        const selections = [[], ["j1"], ["bear"], ["j1", "bear"]];
+        for (const selection of selections) {
+            const folded = foldAttackRequirements(selection, required, cap);
+            expect(ids).toEqual(expect.arrayContaining(folded));
+            expect(enumerated).toContain([...folded].sort().join(","));
+        }
+    });
+
+    it("the voluntary-only declaration the mutation refuses is never enumerated either", () => {
+        expect(declarations(crowdOutBoard())).toEqual([["j1"]]);
     });
 });

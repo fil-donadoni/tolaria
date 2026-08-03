@@ -328,10 +328,11 @@ import {
     validateBlockerEligibility,
     getRequiredAttackerIds,
     mustAttack,
-    getRequiredBlockerAssignments,
     getMaxBlockTargets,
     getAttackerCapEffect,
     getBlockerCapEffect,
+    foldAttackRequirements,
+    foldBlockRequirements,
     validateMinimumBlockers,
     validateDeclaredAttackers,
     validateDeclaredBlockers,
@@ -10412,33 +10413,65 @@ export const confirmAttackers = mutation({
 
         const player = getPlayer(state, args.playerId);
 
-        // CR 508.1d: auto-include any eligible creature required to attack
-        // that the player didn't manually select — but only up to the global
-        // declared-attacker cap (CR 508.1a). Requirements are obeyed to the
-        // MAXIMUM number possible WITHOUT violating a restriction, and the cap
-        // is a restriction, so it wins: under a Dueling Grounds, two Juggernauts
-        // do not both attack. The player's own selections are seeded first and
-        // therefore always survive, so whenever they express which required
-        // creature attacks, that choice is the one honoured.
+        // CR 508.1c/508.1d: normalize the player's selection into the legal
+        // declaration — fold in every eligible creature required to attack,
+        // capped by the battlefield-wide declared-attacker cap (CR 508.1a),
+        // which as a RESTRICTION outranks the requirements. `foldAttackRequirements`
+        // (`gre/combat.ts`) is the one authority the bot's move enumeration
+        // shares, so the mutation can never accept a declaration the enumerator
+        // considers illegal. A voluntary attacker that would crowd a must-attack
+        // creature out of the last slot is dropped here — it was never part of a
+        // legal declaration.
         const defenderBattlefield = getPlayer(
             state,
             getOpponentId(state, args.playerId)
         ).battlefield;
-        const confirmAttackerCap = getAttackerCapEffect(state);
-        for (const requiredId of getRequiredAttackerIds(
-            player.battlefield,
-            state,
-            defenderBattlefield,
-            state.allCreaturesMustAttack
-        )) {
-            if (
-                confirmAttackerCap !== undefined &&
-                state.combat.attackerIds.length >= confirmAttackerCap.max
-            ) {
-                break;
+        const foldedAttackers = foldAttackRequirements(
+            state.combat.attackerIds,
+            getRequiredAttackerIds(
+                player.battlefield,
+                state,
+                defenderBattlefield,
+                state.allCreaturesMustAttack
+            ),
+            getAttackerCapEffect(state)?.max
+        );
+        const droppedAttackers = state.combat.attackerIds.filter(
+            (id) => !foldedAttackers.includes(id)
+        );
+        state.combat.attackerIds = foldedAttackers;
+        if (droppedAttackers.length > 0) {
+            // A dropped attacker takes its planeswalker attack target (CR
+            // 508.1a) and its band membership (CR 702.21e) with it — the same
+            // cleanup the deselect branch of `toggleAttacker` performs.
+            if (state.combat.attackTargets) {
+                for (const id of droppedAttackers) {
+                    delete state.combat.attackTargets[id];
+                }
+                if (Object.keys(state.combat.attackTargets).length === 0) {
+                    state.combat.attackTargets = undefined;
+                }
             }
-            if (!state.combat.attackerIds.includes(requiredId)) {
-                state.combat.attackerIds.push(requiredId);
+            if (state.combat.bands) {
+                state.combat.bands = state.combat.bands
+                    .map((b) => ({
+                        ...b,
+                        memberIds: b.memberIds.filter(
+                            (id) => !droppedAttackers.includes(id)
+                        ),
+                    }))
+                    .filter((b) => {
+                        if (b.memberIds.length < 2) return false;
+                        const members = b.memberIds
+                            .map((id) =>
+                                player.battlefield.find((c) => c.id === id)
+                            )
+                            .filter((c): c is NonNullable<typeof c> => !!c);
+                        return isLegalBandComposition(members);
+                    });
+                if (state.combat.bands.length === 0) {
+                    state.combat.bands = undefined;
+                }
             }
         }
 
@@ -10941,40 +10974,13 @@ export const confirmBlockers = mutation({
         );
 
         // CR 509.1c: auto-assign must-block requirements (Lure, Blaze of Glory)
-        const activePlayer = getPlayer(state, state.activePlayerId);
-        const required = getRequiredBlockerAssignments(
-            activePlayer.battlefield,
-            player.battlefield,
-            state.combat.attackerIds,
-            state.combat.blockerAssignments,
-            state
-        );
-        // CR 509.1a/509.1c — a must-block REQUIREMENT never overrides the
-        // battlefield-wide declared-blocker cap (a RESTRICTION), so the
-        // auto-assignment may not introduce a new blocking creature once the
-        // cap is reached. Giving an ALREADY-blocking creature another attacker
-        // costs no slot (the cap counts creatures, not assignments), so those
-        // still go through — without this the confirm-time cap check would
-        // reject a declaration the defender has no way to fix.
-        const autoBlockerCap = getBlockerCapEffect(state);
-        const distinctBlockerCount = () =>
-            Object.keys(state.combat!.blockerAssignments).filter(
-                (id) => (state.combat!.blockerAssignments[id] ?? []).length > 0
-            ).length;
-        for (const [blockerId, attackerIds] of Object.entries(required)) {
-            const existing = state.combat.blockerAssignments[blockerId] ?? [];
-            if (
-                existing.length === 0 &&
-                autoBlockerCap !== undefined &&
-                distinctBlockerCount() >= autoBlockerCap.max
-            ) {
-                continue;
-            }
-            state.combat.blockerAssignments[blockerId] = [
-                ...existing,
-                ...attackerIds,
-            ];
-        }
+        // CR 509.1a/509.1c — `foldBlockRequirements` (`gre/combat.ts`) is the
+        // one authority: it adds every must-block assignment the declared-
+        // blocker cap leaves room for, gives an already-blocking creature a
+        // further attacker for free (the cap counts creatures, not
+        // assignments), and — when the cap is full — drops a VOLUNTARY blocker
+        // to make room rather than silently skipping the requirement.
+        foldBlockRequirements(state);
 
         // CR 509.1b / 702.111 — minimum-blocker thresholds (menace). A
         // declaration where a menace attacker is blocked by exactly one creature

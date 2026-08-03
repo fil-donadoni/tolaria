@@ -29,6 +29,8 @@ import {
 import { projectPublicState } from "../../../convex/gameProjections";
 import { grizzlyBears } from "../../../convex/cards/sets/lea/green";
 import { duelingGrounds } from "../../../convex/cards/sets/inv/multicolor";
+import { cavernsOfDespair } from "../../../convex/cards/sets/leg/red";
+import { twoHeadedGiantOfForiys } from "../../../convex/cards/sets/lea/red";
 
 vi.mock("~/hooks/usePendingChoiceBuffer", () => ({
     usePendingChoiceBuffer: () => ({
@@ -52,7 +54,11 @@ interface Projected {
 /** Builds a real GameState — `me` with two ready creatures, `opp` with two of
  *  their own plus (optionally) a Dueling Grounds — and returns both boards as
  *  the client actually receives them, through `projectPublicState`. */
-function projectBoards(withCap: boolean): Projected {
+function projectBoards(
+    withCap: boolean,
+    capDefId: string = duelingGrounds.id,
+    firstDefenderDefId: string = grizzlyBears.id
+): Projected {
     const mine = [
         makeInstance(grizzlyBears.id, {
             id: "a",
@@ -68,7 +74,7 @@ function projectBoards(withCap: boolean): Projected {
         }),
     ];
     const theirs = [
-        makeInstance(grizzlyBears.id, {
+        makeInstance(firstDefenderDefId, {
             id: "x",
             controllerId: "opp",
             ownerId: "opp",
@@ -82,9 +88,7 @@ function projectBoards(withCap: boolean): Projected {
         }),
     ];
     if (withCap) {
-        theirs.push(
-            makeInstance(duelingGrounds.id, { id: "dg", controllerId: "opp" })
-        );
+        theirs.push(makeInstance(capDefId, { id: "dg", controllerId: "opp" }));
     }
     const state = makeState({
         activePlayerId: "me",
@@ -201,5 +205,61 @@ describe("declared-blocker cap on the board (CR 509.1a, issue #1127)", () => {
         const y = boards.opp.battlefield[1] as CardInstance;
 
         expect(result.current.canInteract(y)).toBe(true);
+    });
+});
+
+describe("the declared-blocker cap counts CREATURES, not assignments (CR 509.1a, issue #1127)", () => {
+    it("under a cap of two, a creature blocking TWO attackers leaves the second slot open", () => {
+        // The discriminating case for the client's cap arithmetic. Caverns of
+        // Despair caps distinct blockers at two; `x` (Two-Headed Giant of
+        // Foriys) is blocking BOTH attackers, which is one creature and one
+        // slot. Counting ASSIGNMENTS instead of creatures reads 2 >= 2 and
+        // grays out `y` — a creature the server would happily accept, which is
+        // exactly the client/server drift the shared scanner exists to prevent.
+        const boards = projectBoards(
+            true,
+            cavernsOfDespair.id,
+            twoHeadedGiantOfForiys.id
+        );
+        const { result } = renderBoard(
+            boards,
+            blockerCtx({ x: ["a", "b"] }),
+            "opp"
+        );
+        const y = boards.opp.battlefield[1] as CardInstance;
+
+        expect(result.current.canInteract(y)).toBe(true);
+        expect(result.current.getVisualState(y).dimmed).toBe(false);
+    });
+
+    it("two DISTINCT creatures blocking under the same cap of two do close it", () => {
+        const boards = projectBoards(
+            true,
+            cavernsOfDespair.id,
+            twoHeadedGiantOfForiys.id
+        );
+        const three = {
+            ...boards,
+            opp: {
+                ...boards.opp,
+                battlefield: [
+                    ...boards.opp.battlefield,
+                    {
+                        ...(boards.opp.battlefield[1] as CardInstance),
+                        id: "z",
+                    } as CardInstance,
+                ],
+            },
+        };
+        const { result } = renderBoard(
+            three,
+            blockerCtx({ x: ["a"], y: ["b"] }),
+            "opp"
+        );
+        const z = three.opp.battlefield.find(
+            (c) => c.id === "z"
+        ) as CardInstance;
+
+        expect(result.current.canInteract(z)).toBe(false);
     });
 });
