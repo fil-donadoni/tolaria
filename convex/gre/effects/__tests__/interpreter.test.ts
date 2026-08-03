@@ -24837,3 +24837,285 @@ describe("Effect Script count: library size (CR 122 / 401, issue #783)", () => {
         expect(state.players[0].hand).toHaveLength(0);
     });
 });
+
+// ---------------------------------------------------------------------------
+// Reserved `$target<N>.name` ref (CR 201.2, issue #2065) — runtime half.
+//
+// The ref reads the LIVE name of an announced target slot with no preceding
+// bind, and is the only way to phrase "another permanent with the same name"
+// (Winnow). Every case below is a row of the PR's producer census; the
+// must-NOT rows matter most, because the failure mode they guard is
+// fail-OPEN: a dropped name constraint widens "permanents named X" to "ALL
+// permanents", which reads as a working card until the wrong permanent dies.
+// ---------------------------------------------------------------------------
+
+/** Two same-named permanents on the battlefield ⇒ destroy the target. Winnow's
+ *  script verbatim, minus the draw. */
+const sameNameDestroy = (ref: string): EffectOp[] => [
+    {
+        op: "if",
+        predicate: {
+            left: {
+                count: {
+                    zone: "battlefield",
+                    acrossAllPlayers: true,
+                    filter: { name: { ref } },
+                },
+            },
+            op: "ge",
+            right: 2,
+        },
+        then: [{ op: "destroy", target: { target: 0 } }],
+    },
+];
+
+const NAMED_A_ID = "test-target-name-a";
+registerTokenDefinition({
+    id: NAMED_A_ID,
+    name: "Test Named A",
+    rarity: "common",
+    manaCost: { X: 1, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Soldier"],
+    power: 2,
+    toughness: 2,
+});
+
+const NAMED_B_ID = "test-target-name-b";
+registerTokenDefinition({
+    id: NAMED_B_ID,
+    name: "Test Named B",
+    rarity: "common",
+    manaCost: { X: 1, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Soldier"],
+    power: 1,
+    toughness: 3,
+});
+
+const onBattlefield = (state: GameState, id: string): boolean =>
+    state.players.some((p) => p.battlefield.some((c) => c.id === id));
+
+describe("Effect Script reserved ref: $target<N>.name (CR 201.2, issue #2065)", () => {
+    it("destroys the target when another permanent shares its name (both battlefields)", () => {
+        const id = registerScript(
+            "test-target-name-hit",
+            sameNameDestroy("$target0.name")
+        );
+        const mine = makeInstance(NAMED_A_ID, {
+            id: "a-mine",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const theirs = makeInstance(NAMED_A_ID, {
+            id: "a-theirs",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [theirs] }),
+                makePlayer("p2", { battlefield: [mine] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "a-mine" }]);
+        resolveTopOfStack(state);
+        expect(onBattlefield(state, "a-mine")).toBe(false);
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain("a-mine");
+        // Only the TARGET dies — the same-named permanent that satisfied the
+        // condition is untouched.
+        expect(onBattlefield(state, "a-theirs")).toBe(true);
+    });
+
+    it("does NOT destroy a uniquely-named target, though the board is full (fail-closed, not fail-open)", () => {
+        const id = registerScript(
+            "test-target-name-unique",
+            sameNameDestroy("$target0.name")
+        );
+        // Three permanents, all differently named: a DROPPED name constraint
+        // would count 3 (>= 2) and destroy. The count must be exactly 1.
+        const target = makeInstance(NAMED_A_ID, {
+            id: "uniq-a",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const other = makeInstance(NAMED_B_ID, {
+            id: "uniq-b",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const bear = makeInstance(BEAR_ID, {
+            id: "uniq-c",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2", { battlefield: [target, other] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "uniq-a" }]);
+        resolveTopOfStack(state);
+        expect(onBattlefield(state, "uniq-a")).toBe(true);
+        expect(state.players[1].graveyard).toHaveLength(0);
+    });
+
+    it("reads the LIVE name, so a copy counts as the name it has become (CR 706.2)", () => {
+        const id = registerScript(
+            "test-target-name-copy",
+            sameNameDestroy("$target0.name")
+        );
+        const real = makeInstance(NAMED_A_ID, {
+            id: "copy-real",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        // A permanent printed as Named B that a copy effect turned into
+        // Named A (`applyCopy` overwrites `card.id` and anchors the printed id
+        // in `copiedFrom`, gre/copy.ts). Its PRINTED name no longer matches;
+        // its LIVE name does.
+        const clone = makeInstance(NAMED_B_ID, {
+            id: "copy-clone",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        clone.card = { ...(clone.card as object), id: NAMED_A_ID };
+        clone.copiedFrom = NAMED_B_ID;
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [clone] }),
+                makePlayer("p2", { battlefield: [real] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "copy-real" }]);
+        resolveTopOfStack(state);
+        expect(onBattlefield(state, "copy-real")).toBe(false);
+    });
+
+    it("counts ZERO for a slot that was never announced (CR 608.2b, fail-closed)", () => {
+        // `$target5` on a one-target spell: the slot is missing, so the name
+        // is unresolvable and the filter matches NOTHING. Three same-named
+        // permanents are on the board precisely so that a fail-open filter
+        // (name dropped ⇒ no constraint) would count 3 and destroy.
+        const id = registerScript("test-target-name-missing-slot", [
+            {
+                op: "if",
+                predicate: {
+                    left: {
+                        count: {
+                            zone: "battlefield",
+                            acrossAllPlayers: true,
+                            filter: { name: { ref: "$target5.name" } },
+                        },
+                    },
+                    op: "ge",
+                    right: 2,
+                },
+                then: [{ op: "destroy", target: { target: 0 } }],
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(NAMED_A_ID, {
+                            id: "slot-1",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(NAMED_A_ID, {
+                            id: "slot-2",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                        makeInstance(NAMED_A_ID, {
+                            id: "slot-3",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "slot-2" }]);
+        resolveTopOfStack(state);
+        expect(onBattlefield(state, "slot-2")).toBe(true);
+        expect(state.players[1].graveyard).toHaveLength(0);
+    });
+
+    it("counts ZERO when the slot holds a PLAYER (CR 201.2 names objects)", () => {
+        const id = registerScript(
+            "test-target-name-player-slot",
+            sameNameDestroy("$target0.name")
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(NAMED_A_ID, {
+                            id: "pl-1",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                        makeInstance(NAMED_A_ID, {
+                            id: "pl-2",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.players[1].battlefield).toHaveLength(2);
+    });
+
+    it("the same-name destroy survives projection (wire format)", () => {
+        // The name read goes through `card.card.id` on BOTH sides (the
+        // announced target via `getCardName`, the counted permanents via
+        // `getBattlefieldIds`) — and `card.card` is exactly what
+        // `projectPublicState` strips down to `{ id }`. Re-assert the outcome
+        // on the projected state, and pin the field the read depends on.
+        const id = registerScript(
+            "test-target-name-wire",
+            sameNameDestroy("$target0.name")
+        );
+        const mine = makeInstance(NAMED_A_ID, {
+            id: "wire-mine",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const theirs = makeInstance(NAMED_A_ID, {
+            id: "wire-theirs",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [theirs] }),
+                makePlayer("p2", { battlefield: [mine] }),
+            ],
+        });
+        const projectedBefore = projectPublicState(state, 1, "p1");
+        const slimSurvivor = projectedBefore.players[0].battlefield.find(
+            (c) => c.id === "wire-theirs"
+        )!;
+        expect((slimSurvivor.card as { id?: string }).id).toBe(NAMED_A_ID);
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "wire-mine" }]);
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(
+            projected.players[1].battlefield.some((c) => c.id === "wire-mine")
+        ).toBe(false);
+        expect(
+            projected.players[1].graveyard.some((c) => c.id === "wire-mine")
+        ).toBe(true);
+    });
+});

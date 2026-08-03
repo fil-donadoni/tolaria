@@ -29,6 +29,7 @@ import {
     getEventFieldRow,
     isRegisteredEffectOp,
 } from "../../cards/mechanicsRegistry";
+import { isReservedTargetBinding, parseTargetNameRef } from "./targetRef";
 
 /** The slice of CardDefinition the validator reads — kept narrow so tests
  *  can validate synthetic shapes without building a full definition.
@@ -142,9 +143,34 @@ function isListCaptureSource(value: unknown): boolean {
 }
 
 /** A `bind` name (ADR 0045) — a `$`-prefixed identifier. Property-path
- *  validity of the refs that read it is checked in the ordered ref pass. */
+ *  validity of the refs that read it is checked in the ordered ref pass.
+ *
+ *  A RESERVED target-slot name (`$target0`, issue #2065) is rejected: the
+ *  interpreter resolves those from the announced `targets` array and never
+ *  consults the binding store, so a bind under that name would be written and
+ *  then silently ignored by every reader — a shadowing bug with no symptom.
+ *  Rejecting it statically is the fail-closed half of reserving the name. */
 function isBindingName(value: unknown): boolean {
-    return typeof value === "string" && /^\$[A-Za-z][A-Za-z0-9]*$/.test(value);
+    return (
+        typeof value === "string" &&
+        /^\$[A-Za-z][A-Za-z0-9]*$/.test(value) &&
+        !isReservedTargetBinding(value)
+    );
+}
+
+/** `{ ref: "$target<N>.name" }` — SHAPE only (issue #2065). The reserved
+ *  announced-target ref, the one property-path ref legal in a `name` filter
+ *  position. `$target<N>` with any OTHER property, and a bare `$target<N>`,
+ *  both fail here (see `parseTargetNameRef`). */
+function isTargetNameRef(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    return (
+        keys.length === 1 &&
+        keys[0] === "ref" &&
+        typeof (value as { ref: unknown }).ref === "string" &&
+        parseTargetNameRef((value as { ref: string }).ref) !== null
+    );
 }
 
 /** `{ ref: "$binding.property" }` — SHAPE only (single `ref` key holding a
@@ -291,8 +317,17 @@ function isCardFilter(
         // "put all of them with THAT name into your hand"). The ref's
         // binding existence / family is checked by the ordered ref pass, not
         // here (shape-only, mirrors every other field in this function).
+        // issue #2065 — OR the reserved `{ ref: "$target<N>.name" }`, the
+        // announced target's own live name (Winnow). Shape-only here too: it
+        // is the ONLY property-path ref a `name` position accepts, and the
+        // ordered ref pass re-checks that (a `$target0.power` in this position
+        // is a static error, not a runtime `undefined`).
         if (k === "name") {
-            return (typeof v === "string" && v.length > 0) || isBareRef(v);
+            return (
+                (typeof v === "string" && v.length > 0) ||
+                isBareRef(v) ||
+                isTargetNameRef(v)
+            );
         }
         // CR 122.6 (issue #1156) — "with a <type> counter on it". `type` is a
         // non-empty counter type string; optional `min` is a positive integer
@@ -3786,7 +3821,16 @@ function findImpurity(value: unknown, path: string): string | null {
  *  shape, its legal property paths, and the binding family it may name). */
 interface RefUse {
     ref: string;
-    kind: "number" | "player" | "picks" | "boolean" | "object";
+    /** `name` (issue #2065) is the `EffectCardFilter.name` position, split OUT
+     *  of `picks` where it used to sit. It is the only position that accepts
+     *  the reserved `$target<N>.name` ref, and an EXPLICIT kind is what keeps
+     *  that acceptance from leaking: were it still `picks`, `$target0.name`
+     *  would have to be accepted for `moveZone.cards` and `choice.candidates`
+     *  too, where the interpreter has no reader for it and would silently
+     *  resolve nothing. The `picks` branch's other rules (bare name, picks or
+     *  list family) still apply to a `name` ref that is NOT the reserved
+     *  shape — a `nameCard` / `choice` binding, issues #1085 / #1104. */
+    kind: "number" | "player" | "picks" | "boolean" | "object" | "name";
 }
 
 /** Walks an Op's parameters collecting every `{ ref }` use, tagged by
@@ -3829,44 +3873,46 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
                         // `grantCastFromExile`'s `card` field (issue #1156)
                         // — a bare picks ref naming a `choice` Op's bind
                         // (singular: the choice's `count: 1` pick).
-                        keyHint === "card" ||
-                        // `EffectCardFilter.name` (issue #1085) — a bare ref
-                        // naming a `nameCard` Op's chosen-name binding, the
-                        // identical single-element-string-array runtime
-                        // shape a picks binding uses (Desperate Research).
-                        keyHint === "name"
+                        keyHint === "card"
                       ? "picks"
-                      : keyHint === "target" ||
-                          keyHint === "to" ||
-                          keyHint === "of" ||
-                          // `choice`'s `candidates[]` (Barrin's Spite) — the
-                          // already-known battlefield objects the pick is
-                          // narrowed to, each an `EffectObjectSelector`
-                          // exactly like `target`.
-                          keyHint === "candidates" ||
-                          // `createTokenCopy`'s `source` (issue #1459) — the
-                          // runtime permanent being copied, an
-                          // `EffectObjectSelector` exactly like `target`
-                          // (Ocelot Pride's `{ ref: "$each" }`, issue #1461).
-                          // The only other `source` field in the vocabulary
-                          // (`moveZone`'s zone discriminator) is a string
-                          // literal, never a `{ ref }` object, so it never
-                          // reaches this branch.
-                          keyHint === "source" ||
-                          // `objectMatchesFilter` (issue #1747) — the live
-                          // object under test, an `EffectObjectSelector`
-                          // exactly like `target` (`{ ref: "$source" }` on
-                          // Figure of Destiny's stage gates).
-                          keyHint === "objectMatchesFilter" ||
-                          // `sharesColor` / `with` (issue #1955) — the two
-                          // objects whose live colours the Guard Dogs gate
-                          // intersects, each an `EffectObjectSelector` exactly
-                          // like `target`. No other field in the vocabulary is
-                          // named `with`.
-                          keyHint === "sharesColor" ||
-                          keyHint === "with"
-                        ? "object"
-                        : "number",
+                      : // `EffectCardFilter.name` (issues #1085 / #2065) — its
+                        // own kind, because it accepts BOTH a bare ref naming a
+                        // `nameCard`/`choice` binding (the picks-shaped case)
+                        // and the reserved `$target<N>.name`, which no other
+                        // position may accept. See `RefUse.kind`.
+                        keyHint === "name"
+                        ? "name"
+                        : keyHint === "target" ||
+                            keyHint === "to" ||
+                            keyHint === "of" ||
+                            // `choice`'s `candidates[]` (Barrin's Spite) — the
+                            // already-known battlefield objects the pick is
+                            // narrowed to, each an `EffectObjectSelector`
+                            // exactly like `target`.
+                            keyHint === "candidates" ||
+                            // `createTokenCopy`'s `source` (issue #1459) — the
+                            // runtime permanent being copied, an
+                            // `EffectObjectSelector` exactly like `target`
+                            // (Ocelot Pride's `{ ref: "$each" }`, issue #1461).
+                            // The only other `source` field in the vocabulary
+                            // (`moveZone`'s zone discriminator) is a string
+                            // literal, never a `{ ref }` object, so it never
+                            // reaches this branch.
+                            keyHint === "source" ||
+                            // `objectMatchesFilter` (issue #1747) — the live
+                            // object under test, an `EffectObjectSelector`
+                            // exactly like `target` (`{ ref: "$source" }` on
+                            // Figure of Destiny's stage gates).
+                            keyHint === "objectMatchesFilter" ||
+                            // `sharesColor` / `with` (issue #1955) — the two
+                            // objects whose live colours the Guard Dogs gate
+                            // intersects, each an `EffectObjectSelector` exactly
+                            // like `target`. No other field in the vocabulary is
+                            // named `with`.
+                            keyHint === "sharesColor" ||
+                            keyHint === "with"
+                          ? "object"
+                          : "number",
         });
         return;
     }
@@ -4122,9 +4168,29 @@ function checkRefUse(
         checkEventRef(use, eventScope, at, errors);
         return;
     }
-    // Bare-binding positions (no property path): picks (#805) and boolean
-    // (#806, an `if` predicate).
-    if (use.kind === "picks" || use.kind === "boolean") {
+    // `EffectCardFilter.name` (issue #2065) — the ONE position that accepts
+    // the reserved `$target<N>.name` ref: the announced target's own live
+    // name, readable with no preceding bind (Winnow). Accepted here WITHOUT
+    // consulting `declared`, exactly like `$event.<field>` above and for the
+    // same reason — no Op binds it; the interpreter reads it from
+    // `ctx.targets`. A slot that was never announced resolves to undefined at
+    // resolution and the filter matches nothing (CR 608.2b), so there is
+    // nothing to check statically: the announced-target count is a property of
+    // the CARD's `targetRequirement`, not of the script.
+    //
+    // Everything else in a `name` position falls through to the bare-binding
+    // rules below: `$target0` with no property, or `$target0.power`, are
+    // NEITHER the reserved ref (parse fails) NOR a declared binding, so they
+    // are rejected there — fail-closed by construction rather than by an
+    // extra check here.
+    if (use.kind === "name" && parseTargetNameRef(use.ref) !== null) {
+        return;
+    }
+    // Bare-binding positions (no property path): picks (#805), boolean
+    // (#806, an `if` predicate), and the non-reserved half of a `name`
+    // position (a `nameCard` / `choice` binding, issues #1085 / #1104 —
+    // stored as picks).
+    if (use.kind === "picks" || use.kind === "boolean" || use.kind === "name") {
         if (use.ref.includes(".")) {
             errors.push(
                 `${at}: ${use.kind} ref "${use.ref}" must be a bare binding name (no property path)`
@@ -4149,9 +4215,13 @@ function checkRefUse(
                 ? family === "boolean"
                 : family === "picks" || family === "list";
         if (!ok) {
-            const wanted = use.kind === "picks" ? "picks" : "boolean";
+            // A `name` position reads the same picks-shaped storage a `picks`
+            // position does (issue #1085) — its wanted family and hint are
+            // the picks ones, not the boolean ones.
+            const wantsPicks = use.kind !== "boolean";
+            const wanted = wantsPicks ? "picks" : "boolean";
             errors.push(
-                `${at}: ref "${use.ref}" names a ${family} binding in a ${use.kind} position — a ${use.kind} position reads a ${wanted} binding (${use.kind === "picks" ? "a choice Op's bind or a list binding" : "a mayPay Op's bind"})`
+                `${at}: ref "${use.ref}" names a ${family} binding in a ${use.kind} position — a ${use.kind} position reads a ${wanted} binding (${wantsPicks ? "a choice Op's bind or a list binding" : "a mayPay Op's bind"})`
             );
         }
         return;

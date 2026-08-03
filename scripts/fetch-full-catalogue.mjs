@@ -20,7 +20,7 @@
  */
 
 import { createWriteStream } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, copyFile, readFile, writeFile } from "node:fs/promises";
 import { resolve, dirname } from "node:path";
 import { createGzip } from "node:zlib";
 import { fileURLToPath } from "node:url";
@@ -28,6 +28,7 @@ import { fileURLToPath } from "node:url";
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..");
 const outPath = resolve(repoRoot, "data/full-catalogue.json.gz");
+const publicOutPath = resolve(repoRoot, "public/data/full-catalogue.json.gz");
 
 const SCRYFALL_BULK = "https://api.scryfall.com/bulk-data/oracle-cards";
 
@@ -166,6 +167,11 @@ async function main() {
             `${(gzSize / 1024).toFixed(1)} KB gz ` +
             `(${(gzSize / paper.length).toFixed(1)} B/card).`
     );
+
+    // Copy to public/ so Vite serves it (both dev and production).
+    await mkdir(dirname(publicOutPath), { recursive: true });
+    await copyFile(outPath, publicOutPath);
+    console.log(`Copied to ${publicOutPath}`);
 
     if (gzSize > 1_500_000) {
         console.warn(

@@ -96,6 +96,7 @@ import type {
 } from "../../cards/types";
 import type { LibraryDestination } from "../types";
 import { getEventFieldRow } from "../../cards/mechanicsRegistry";
+import { parseTargetNameRef } from "./targetRef";
 import {
     categorizedEligibleIds,
     maxCategorizedPicks,
@@ -247,6 +248,29 @@ function readBinding(ctx: SpellContext, name: string): string[] | undefined {
  *  lookup and falls through unresolved, so the raw string is used as-is. One
  *  runtime path serves both binding shapes with no static discriminant. */
 function resolveNameRef(ctx: SpellContext, ref: string): string | undefined {
+    // CR 201.2 (issue #2065) — the reserved `$target<N>.name` ref: the LIVE
+    // name of an announced target slot, readable with NO preceding bind
+    // (Winnow's "another permanent with the same name"). `getCardName` reads
+    // the instance's CURRENT definition id, which a copy effect overwrites
+    // (`applyCopy`, gre/copy.ts) — so a Clone that has become a Grizzly Bears
+    // is named Grizzly Bears here, exactly as it is on the other side of the
+    // comparison (`getBattlefieldIds` resolves a `PermanentFilter.name`
+    // through the same current-definition read). Fail-closed at every step:
+    // a missing slot (the spell was cast with fewer targets), a PLAYER target
+    // (CR 201.2 names objects, not players) and an unresolvable instance all
+    // yield undefined, which the calling filter treats as "matches nothing"
+    // (CR 608.2b) rather than "no name constraint".
+    const slot = parseTargetNameRef(ref);
+    if (slot !== null) {
+        const target = ctx.targets[slot];
+        if (!target || target.type === "player") return undefined;
+        return ctx.getCardName(target.id);
+    }
+    // Any OTHER property-path ref is not a name source. The static validator
+    // rejects one before it can ship; this is its runtime twin, fail-closed so
+    // a dotted ref can never fall through to `readBinding` (which would miss
+    // and return undefined anyway, but by accident rather than by rule).
+    if (ref.includes(".")) return undefined;
     const picked = readBinding(ctx, ref)?.[0];
     if (picked === undefined) return undefined;
     return ctx.getCardName(picked) ?? picked;
@@ -433,8 +457,13 @@ function evalPredicate(ctx: SpellContext, pred: EffectPredicate): boolean {
     if ("objectMatchesFilter" in pred) {
         const target = resolveObjectRef(ctx, pred.objectMatchesFilter);
         if (!target || target.type !== "permanent") return false;
+        const base = toPermanentFilter(ctx, pred.filter);
+        // CR 608.2b — an unresolvable dynamic constraint matches nothing, so
+        // the predicate reads false (never "no constraint", which would make
+        // the gate trivially true).
+        if (base === UNMATCHABLE_FILTER) return false;
         const filter = {
-            ...(toPermanentFilter(pred.filter) ?? {}),
+            ...(base ?? {}),
             instanceIds: [target.id],
         };
         return ctx.allPlayerIds.some(
@@ -658,13 +687,61 @@ function resolveDifferenceOperand(
     return typeof operand === "number" ? operand : countSet(ctx, operand.count);
 }
 
+/** The explicit third outcome of mapping an `EffectCardFilter` onto a
+ *  `PermanentFilter` (issue #2065): the filter carries a DYNAMIC constraint
+ *  that resolved to nothing, so it matches NO permanent — as distinct from
+ *  `undefined`, which means "no constraint, every permanent matches".
+ *
+ *  It exists because those two outcomes are otherwise indistinguishable in
+ *  the `PermanentFilter` shape, and collapsing them is fail-OPEN: an
+ *  unresolved name ref would widen "permanents named X" to "all permanents",
+ *  the exact bug class the `any` mapping note below records. A sentinel in
+ *  the return type makes every caller handle it or fail to compile. */
+const UNMATCHABLE_FILTER = "unmatchable-filter" as const;
+
 /** Maps the JSON-pure `EffectCardFilter` onto the engine's `PermanentFilter`
  *  shape (shared by the `count` construct and the `choice` Op's battlefield
- *  candidates). */
+ *  candidates), resolving any dynamic (`{ ref }`) field against `ctx`.
+ *  Returns UNMATCHABLE_FILTER when a dynamic field cannot resolve — see that
+ *  constant. */
 function toPermanentFilter(
+    ctx: SpellContext,
     filter: EffectCardFilter | undefined
-): PermanentFilter | undefined {
+): PermanentFilter | undefined | typeof UNMATCHABLE_FILTER {
     if (!filter) return undefined;
+    // CR 201.2 (issue #1085 / #2065) — a `name` that is a `{ ref }` is
+    // resolved HERE, at the battlefield boundary, through the same
+    // `resolveNameRef` the hidden-zone matcher uses. It used to be dropped
+    // (`typeof filter.name === "string" ? … : undefined`), which is
+    // fail-OPEN: a `PermanentFilter` with no `name` imposes no name
+    // constraint, so "permanents named X" silently became "ALL permanents" at
+    // every battlefield `count` / `choice` / `forEach` site. An unresolvable
+    // ref (the naming Op was skipped, the target slot is gone — CR 608.2b)
+    // now yields the explicit UNMATCHABLE_FILTER sentinel instead, which
+    // every caller must handle as "nothing matches".
+    let name: string | undefined;
+    if (filter.name !== undefined) {
+        name =
+            typeof filter.name === "string"
+                ? filter.name
+                : resolveNameRef(ctx, filter.name.ref);
+        if (name === undefined) return UNMATCHABLE_FILTER;
+    }
+    // issue #897 — the OR-across-fields clause list. A clause whose own name
+    // ref is unresolvable matches nothing, so it drops OUT of the OR; an OR
+    // left with no clauses matches nothing at all, i.e. the whole filter is
+    // unmatchable.
+    let any: PermanentFilter[] | undefined;
+    if (filter.any !== undefined) {
+        const clauses = filter.any
+            .map((clause) => toPermanentFilter(ctx, clause))
+            .filter(
+                (clause): clause is PermanentFilter =>
+                    clause !== UNMATCHABLE_FILTER && clause !== undefined
+            );
+        if (clauses.length === 0) return UNMATCHABLE_FILTER;
+        any = clauses;
+    }
     return {
         types: filter.type,
         excludeTypes: filter.excludeType,
@@ -700,21 +777,33 @@ function toPermanentFilter(
         // every `getBattlefieldIds` candidate, so no new engine read, only
         // this DSL filter surface.
         isAttacking: filter.isAttacking,
-        // issue #1085 — `PermanentFilter.name` has no dynamic-ref form (no
-        // shipped card needs a battlefield-scoped bound-name filter yet, the
-        // same asymmetry `excludeColor` notes above); only a FIXED literal
-        // name passes through, mirroring every other string-only field here.
-        name: typeof filter.name === "string" ? filter.name : undefined,
+        // CR 201.2 — a FIXED literal name, or the resolved value of a dynamic
+        // `{ ref }` name (see the resolution block at the top of this
+        // function; an unresolvable one never reaches here).
+        name,
         // issue #897 — propagate the OR-across-fields clause list onto
         // `PermanentFilter.any` (`convex/cards/filters.ts`), recursing through
         // this same mapping for each clause. Without this, a filter carrying
         // ONLY `any` (no other field set) mapped to an all-undefined
         // `PermanentFilter` that `matchesPermanentFilter` treats as "no
         // constraint" — matching EVERY permanent (fail OPEN) at every
-        // battlefield `choice`/`count`/`forEach` site. Each clause is always a
-        // full `EffectCardFilter`, so the recursive call is never undefined.
-        any: filter.any?.map((clause) => toPermanentFilter(clause)!),
+        // battlefield `choice`/`count`/`forEach` site.
+        any,
     };
+}
+
+/** Scans one player's battlefield through an `EffectCardFilter`, resolving its
+ *  dynamic fields first. The shared shape for every call site that only needs
+ *  the matching ids and treats an unmatchable filter as an empty set
+ *  (CR 608.2b) — the fail-closed default, spelled once. */
+function battlefieldIdsFor(
+    ctx: SpellContext,
+    playerId: string,
+    filter: EffectCardFilter | undefined
+): string[] {
+    const resolved = toPermanentFilter(ctx, filter);
+    if (resolved === UNMATCHABLE_FILTER) return [];
+    return ctx.getBattlefieldIds(playerId, resolved);
 }
 
 /** Normalizes a possibly-array filter field to an array (an absent field
@@ -910,7 +999,9 @@ function resolvePileObjectSet(
     if (select.set === "permanents") {
         const zoneOwnerId = resolvePlayerRef(ctx, select.controller);
         if (zoneOwnerId === undefined) return undefined;
-        const filter = toPermanentFilter(select.filter);
+        const filter = toPermanentFilter(ctx, select.filter);
+        // CR 608.2b — nothing can match, so the selector selects nothing.
+        if (filter === UNMATCHABLE_FILTER) return undefined;
         return {
             ids: ctx.getBattlefieldIds(zoneOwnerId, filter),
             zone: "battlefield",
@@ -983,8 +1074,12 @@ function countZoneForPlayer(
     spec: EffectCountSpec
 ): number {
     if (spec.zone === "battlefield") {
-        return ctx.getBattlefieldIds(playerId, toPermanentFilter(spec.filter))
-            .length;
+        const filter = toPermanentFilter(ctx, spec.filter);
+        // CR 608.2b / CR 122 — a filter that can match nothing counts 0. This
+        // is the load-bearing branch for Winnow (issue #2065): an unresolvable
+        // `$target0.name` must count ZERO permanents, not every permanent.
+        if (filter === UNMATCHABLE_FILTER) return 0;
+        return ctx.getBattlefieldIds(playerId, filter).length;
     }
     // library (CR 401, issue #783) — a pure CARDINALITY read. The library is a
     // hidden zone (CR 401.2) but its SIZE is public information every player may
@@ -1382,23 +1477,25 @@ function choiceCandidates(
                 if (ids.includes(resolved.id)) continue;
                 ids.push(resolved.id);
             }
+            const narrowed = toPermanentFilter(ctx, op.filter);
+            // CR 608.2b — an unresolvable dynamic filter narrows the
+            // candidate set to nothing (never to "unfiltered").
+            if (narrowed === UNMATCHABLE_FILTER) {
+                return { available: 0, candidateIds: [] };
+            }
             const filtered = op.filter
                 ? ids.filter((id) =>
-                      ctx
-                          .getBattlefieldIds(
-                              zoneOwnerId,
-                              toPermanentFilter(op.filter)
-                          )
-                          .includes(id)
+                      ctx.getBattlefieldIds(zoneOwnerId, narrowed).includes(id)
                   )
                 : ids;
             return { available: filtered.length, candidateIds: filtered };
         }
+        const filter = toPermanentFilter(ctx, op.filter);
+        if (filter === UNMATCHABLE_FILTER) {
+            return { available: 0, candidateIds: [] };
+        }
         return {
-            available: ctx.getBattlefieldIds(
-                zoneOwnerId,
-                toPermanentFilter(op.filter)
-            ).length,
+            available: ctx.getBattlefieldIds(zoneOwnerId, filter).length,
         };
     }
     if (op.zone === "hand") {
@@ -3225,10 +3322,7 @@ export const OP_EXECUTORS: {
                               matchesCardFilter(ctx, c, category.filter)
                           )
                           .map((c) => c.id)
-                    : ctx.getBattlefieldIds(
-                          playerId,
-                          toPermanentFilter(category.filter)
-                      ),
+                    : battlefieldIdsFor(ctx, playerId, category.filter),
         }));
         const eligible = categorizedEligibleIds(categories);
         const keep = maxCategorizedPicks(categories);
@@ -3813,6 +3907,15 @@ export const OP_EXECUTORS: {
                 ? playerId
                 : resolvePlayerRef(ctx, op.zoneOwnerId);
         if (zoneOwnerId === undefined) return;
+        // CR 608.2b (issue #2065) — a dynamic filter field (a `{ ref }` name)
+        // that resolved to nothing can match no card, so there is nothing to
+        // choose from and the Op is skipped. Resolved BEFORE the candidate
+        // scan so the sentinel never reaches `requestChoice`, whose
+        // `filter` is also the SERVER-side check on the submitted pick:
+        // handing it an undefined filter there would fail open (any pick
+        // accepted), which is precisely what the sentinel exists to prevent.
+        const pickFilter = toPermanentFilter(ctx, op.filter);
+        if (pickFilter === UNMATCHABLE_FILTER) return;
         const { available, candidateIds } = choiceCandidates(
             ctx,
             op,
@@ -3856,7 +3959,7 @@ export const OP_EXECUTORS: {
             choiceId,
             kind: op.kind,
             zone: op.zone,
-            filter: toPermanentFilter(op.filter),
+            filter: pickFilter,
             count,
             prompt: op.prompt,
             // A no-hit library search carries an EMPTY allow-list, so the
@@ -4595,7 +4698,7 @@ function selectForEachMembers(
         });
     }
     const ids = owners.flatMap((pid) =>
-        ctx.getBattlefieldIds(pid, toPermanentFilter(select.filter))
+        battlefieldIdsFor(ctx, pid, select.filter)
     );
     // Reflexive self-exclude (issue #1957, Waterspout Elemental — "return all
     // OTHER creatures"): drop the resolving ability/spell's own source from
