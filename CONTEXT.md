@@ -155,6 +155,10 @@ _Avoid_: Artifact (broader), Aura (different detach outcome)
 The sorcery-speed **Activated Ability** of an **Equipment** — "Equip {cost}: attach to target creature you control" (CR 702.6). Uses the **Stack**; its target must be a **Creature** the **Controller** controls at activation and at resolution.
 _Avoid_: Attach (Attach is the underlying keyword action; Equip is the ability that performs it), cast
 
+**Enchanted**:
+Said of a **Permanent** that is the **Host** of at least one **Aura**, whoever controls that Aura. Strictly narrower than "has an **Attachment**": an **Equipment** makes its Host _equipped_, never enchanted, and a Fortification makes a **Land** _fortified_. The distinction is load-bearing wherever a card selects by it ("target permanent that isn't enchanted"), because counting attachments instead of Auras silently changes which permanents are legal.
+_Avoid_: Attached (broader — covers Equipment and Fortification), equipped (a different attachment relation)
+
 **Snow**:
 A supertype (CR 205.4a) marking a **Permanent** as snow. In the Ice Age block snow is referenced only _by type_ ("a snow-covered land", "sacrifice a snow Mountain"); the `{S}` snow-mana symbol is a later (Coldsnap) addition and is **not** used by these sets, so snow needs no mana-system support here — only the supertype on the five snow-covered basics and the few cards that filter on it.
 _Avoid_: Snow-covered (the printed basic-land name, not the supertype)
@@ -414,6 +418,18 @@ A group of attacking **Creatures** (1+ with banding, at most 1 without) declared
 
 **Damage Assignment Authority**:
 Who chooses how a combat-damage **Source** splits its damage among its targets. Normally the source's controller; **Band**ing flips it to the controller of the banding creature(s) opposite (CR 702.21j-k). Tracked per source in `combat.damageAssignerIds`, with a multi-party confirm handshake (`damageAssignmentConfirmedBy`).
+
+**Attack Tax**:
+A cost the attacking player must pay to make an already-declared attack legal, charged once per taxed **Attacker** as attackers are confirmed (CR 508.1c/1g) — not a restriction that hides the attack, but a price for it. Paid in mana (Propaganda) or by sacrificing **Permanents** (Flooded Woodlands, Leviathan). Two directions, and a card means exactly one: **directed** — "creatures can't attack _you_ unless…", where only the player being attacked imposes it; **undirected** — "this creature can't attack unless…", which applies whoever is being attacked. If the whole tax cannot be paid, the entire attack declaration is illegal and is re-declared.
+_Avoid_: Attack restriction (a restriction forbids the attack outright; a tax prices it), upkeep cost, ward
+
+**Combat Damage Prevention**:
+A continuous effect that stops combat damage before it is dealt (CR 615), scoped by two independent axes: _whose_ damage (the **Source** side — "damage dealt **by** this creature") and _who_ would take it (the recipient side — "damage dealt **to** this creature"). A card may declare either or both (Gaseous Form declares both). The recipient side covers damage to a **Player**, not only to a **Permanent** — a prevention on the "by" axis mutes the enchanted creature's hit to the defending player too.
+_Avoid_: Damage immunity (an unconditional property of one object), protection (a broader shield covering targeting, blocking, enchanting and damage), shield counter
+
+**Activation Cap**:
+An upper bound on how many times an **Activated Ability** may be activated in a single turn (CR 602.5 — "Activate only once each turn", "Activate no more than twice each turn"). A property of the ability, tallied per source per turn and reset at the turn boundary. The triggered-ability twin is a cap on how many times an ability may trigger per turn.
+_Avoid_: Cooldown, sorcery-speed restriction (a timing restriction, not a count)
 
 **Pile (Left/Right)**:
 A combat-scoped grouping created by Raging River (CR 509 variant): the defender divides their non-flying **Creatures** into a "left" and a "right" pile, and each **Attacker** is labelled left or right. A labelled attacker can be blocked only by **Blockers** with flying or in the matching pile. Modelled as a `partition` **Pending Choice** plus a transient block-restriction on **GameState**, not as a card-level rule.
