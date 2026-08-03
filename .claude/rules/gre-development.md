@@ -92,6 +92,34 @@ implemented` / `// TODO` comment inside `convex/cards/sets/**` documents
   `tracked-by: #NNN` ref on/next to the marker (same paragraph), or open a new
   issue and reference it, before landing the card.
 
+**Guard B polices markers; it does not licence them.** Read the guard as "if a
+marker exists it MUST be tracked", never as "you may leave a hole as long as you
+track it". A `tracked-by: #NNN` ref does not make a divergence acceptable — it
+makes an already-accepted divergence findable. The default is no marker: implement
+the clause.
+
+**A MECHANIC is implemented WHOLE — a divergence marker is never the way to ship
+one partially.** When work on a keyword ability / keyword action / CR 701–702
+rule begins, every subrule of its CR section ships, on every surface (GRE,
+mutation, wire projection, UI affordance, bot Move + valuation, serialization,
+debug scenario). A mechanic is not a set: there is no free-tranche/cluster split
+for one keyword, and no landing a subset of its clauses behind a tracking issue.
+If a clause needs a capability that does not exist yet — a chokepoint, a cost
+field, a primitive — that capability is part of the work, not a follow-up; scope
+it up front (in the design pass), not down mid-implementation. The cost of a
+missing clause is not the work to add it later, it is that nobody knows it is
+missing: a partial mechanic passes its own tests, reads as done in the
+catalogue, and its tracking issue rots (the inert deathtouch/hexproof shape,
+#957/#958). What legitimately stays outside a mechanic's scope is a DIFFERENT
+card's effect that merely REFERENCES it (a granting effect on another card) —
+and even then, build the engine-side primitive/cost field the mechanic's own
+rule text implies, so shipping that card later is vocabulary work and no rules
+work (Foretell / CR 702.143d, PRD #2091). Where a mechanic is genuinely too
+large for one PR, slice it so the intermediate states are engine capabilities
+with no card exposing them and the Mechanics Registry row stays
+`status: "planned"` until the last slice lands — never a shipped-but-incomplete
+keyword.
+
 **Per-Op test regime replaces per-card mandates for DSL cards.** The `Card
 testing convention` table below still governs `resolve()` cards in full, and
 governs a DSL card that introduces a genuinely new Op or construct usage. For
