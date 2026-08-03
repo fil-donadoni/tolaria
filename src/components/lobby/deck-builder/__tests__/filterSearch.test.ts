@@ -24,6 +24,7 @@ describe("filterSearch encode/decode", () => {
             setMode: "all",
             cube: "vintage-cube",
             hideUnavailable: false,
+            showTokens: true,
             sort: "color",
             sortDirection: "desc",
         };

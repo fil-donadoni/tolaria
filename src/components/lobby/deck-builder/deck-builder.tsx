@@ -549,6 +549,13 @@ export default function DeckBuilder({
         }));
     }, [setFilters]);
 
+    const toggleShowTokens = useCallback(() => {
+        setFilters((f) => ({
+            ...f,
+            showTokens: !f.showTokens,
+        }));
+    }, [setFilters]);
+
     // Typing only touches local state — the box never stutters. The debounced
     // value is the one that reaches the filter/URL (effect below).
     const setText = useCallback((text: string) => {
@@ -746,6 +753,17 @@ export default function DeckBuilder({
                                 <span className="text-text-muted">
                                     Hide unavailable
                                 </span>
+                            </label>
+                        )}
+                        {deck.format === "manual" && fullCatalogue?.rows && (
+                            <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                                <input
+                                    type="checkbox"
+                                    checked={filters.showTokens}
+                                    onChange={toggleShowTokens}
+                                    className="size-4 accent-accent"
+                                />
+                                <span className="text-text-muted">Tokens</span>
                             </label>
                         )}
                         <div className="ml-auto flex items-center gap-2 text-xs text-text-muted">
