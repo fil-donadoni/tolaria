@@ -26,6 +26,28 @@ export default function ResultCard({
 
     const [override, setOverride] = useState<string | null>(null);
     const selected = override ?? defaultPrintId;
+    const unavailable = entry.available === false;
+
+    if (unavailable) {
+        return (
+            <div className="flex w-(--card-w) shrink-0 flex-col gap-1 opacity-40 pointer-events-none">
+                <div className="aspect-5/7 w-full">
+                    <CardImage card={{ id: selected }} lazy />
+                </div>
+                <div className="pointer-events-none absolute inset-0 rounded-sm ring-2 ring-transparent" />
+                <span className="text-center text-[10px] text-text-disabled leading-tight">
+                    Not yet available
+                </span>
+                {options.length > 1 && (
+                    <EditionDropdown
+                        options={options}
+                        value={selected}
+                        onChange={setOverride}
+                    />
+                )}
+            </div>
+        );
+    }
 
     // Drag → drop into Maindeck or Sideboard; plain click → quick-add to
     // Maindeck (the fast path). The edition dropdown stays a separate, non-drag

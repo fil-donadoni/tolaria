@@ -454,23 +454,40 @@ describe("manual verbs - table driven", () => {
         expect(result.log.text).toContain("Bob concedes");
     });
 
-    it("reveal: logs the reveal without changing state", () => {
+    it("reveal: sets revealedTo on the card", () => {
         const state = freshState();
         const card = getPlayer(state, "p1").hand[0];
         const result = manualReveal(state, card.id, ["p2"]);
 
-        expect(result.state).toEqual(state);
+        const revealed = findCardInState(result.state, card.id)!;
+        expect(revealed.card.revealedTo).toEqual(["p2"]);
         expect(result.log.text).toContain("Alice reveals");
         expect(result.log.text).toContain("Bob");
     });
 
-    it("reveal: to multiple players", () => {
+    it("reveal: to multiple players accumulates revealedTo", () => {
         const state = freshState();
         const card = getPlayer(state, "p1").hand[0];
         const result = manualReveal(state, card.id, ["p2", "p1"]);
 
+        const revealed = findCardInState(result.state, card.id)!;
+        expect(revealed.card.revealedTo).toEqual(
+            expect.arrayContaining(["p1", "p2"])
+        );
         expect(result.log.text).toContain("Alice reveals");
         expect(result.log.text).toContain("Bob");
         expect(result.log.text).toContain("Alice");
+    });
+
+    it("reveal: accumulates with previous reveals", () => {
+        const state = freshState();
+        const card = getPlayer(state, "p1").hand[0];
+        const r1 = manualReveal(state, card.id, ["p2"]);
+        const r2 = manualReveal(r1.state, card.id, ["p1"]);
+
+        const revealed = findCardInState(r2.state, card.id)!;
+        expect(revealed.card.revealedTo).toEqual(
+            expect.arrayContaining(["p1", "p2"])
+        );
     });
 });

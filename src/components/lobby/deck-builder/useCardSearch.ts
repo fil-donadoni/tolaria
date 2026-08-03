@@ -10,6 +10,10 @@ import {
     type SortKey,
     type SortDirection,
 } from "./cardSort";
+import {
+    type FullCatalogueResult,
+    type FullCatalogueRow,
+} from "~/lib/fullCatalogue";
 
 export interface CardIndexEntry {
     cardId: string;
@@ -26,6 +30,10 @@ export interface CardIndexEntry {
     /** `oracleText` with diacritics stripped. */
     oracleFold: string;
     prints: CardPrinting[];
+    /** `true` when the card is implemented in Tolaria (available for real decks).
+     *  Absent on index entries — defaults to `true` everywhere outside the
+     *  unavailable-card path. */
+    available?: boolean;
 }
 
 export type ColorMode = "at-most" | "include-all" | "include-any";
@@ -59,6 +67,11 @@ export interface CardSearchFilters {
     sort: SortKey;
     /** Result ordering direction. Orthogonal to matching, same as `sort`. */
     sortDirection: SortDirection;
+    /** Hide unavailable (not-yet-implemented) cards from results. Default `true`
+     *  so the real builder never regresses — with this on, results are exactly
+     *  today's. Toggling it off surfaces the census of unimplemented cards,
+     *  dimmed and unselectable in real mode. */
+    hideUnavailable: boolean;
 }
 
 export const DEFAULT_FILTERS: CardSearchFilters = {
@@ -74,6 +87,7 @@ export const DEFAULT_FILTERS: CardSearchFilters = {
     cube: "",
     sort: "manaValue",
     sortDirection: "asc",
+    hideUnavailable: true,
 };
 
 function matchesColors(
@@ -205,7 +219,8 @@ export function hasAnyFilter(filters: CardSearchFilters): boolean {
         filters.types.length > 0 ||
         filters.manaValues.length > 0 ||
         filters.sets.length > 0 ||
-        filters.cube.length > 0
+        filters.cube.length > 0 ||
+        !filters.hideUnavailable
     );
 }
 
@@ -217,17 +232,64 @@ export function hasAnyFilter(filters: CardSearchFilters): boolean {
  */
 export function matchesCube(
     cardId: string,
+    cardName: string,
     cubeIds: ReadonlySet<string> | null
 ): boolean {
     if (cubeIds === null) return true;
-    return cubeIds.has(cardId);
+    return cubeIds.has(cardId) || cubeIds.has(cardName);
+}
+
+const SUPER_TYPES = new Set(["Basic", "Legendary", "Snow", "World", "Ongoing"]);
+
+function parseTypeLine(typeLine: string): {
+    types: string[];
+    subtypes: string[];
+    supertypes: string[];
+} {
+    const trimmed = typeLine.trim();
+    if (!trimmed) return { types: [], subtypes: [], supertypes: [] };
+
+    const dashIdx = trimmed.indexOf("\u2014"); // em dash
+    const beforeDash =
+        dashIdx >= 0 ? trimmed.slice(0, dashIdx).trim() : trimmed;
+    const afterDash = dashIdx >= 0 ? trimmed.slice(dashIdx + 1).trim() : "";
+
+    const parts = beforeDash.split(/\s+/).filter(Boolean);
+    const supertypes = parts.filter((w) => SUPER_TYPES.has(w));
+    const types = parts.filter((w) => !SUPER_TYPES.has(w));
+    const subtypes = afterDash ? afterDash.split(/\s+/).filter(Boolean) : [];
+
+    return { types, subtypes, supertypes };
+}
+
+export function makeCatalogueEntry(row: FullCatalogueRow): CardIndexEntry {
+    const { types, subtypes, supertypes } = parseTypeLine(row.typeLine);
+    const colors = row.colourIdentity.split("").filter((c) => c !== "");
+    return {
+        cardId: row.printId,
+        name: row.name,
+        nameLower: row.name.toLowerCase(),
+        nameFold: row.nameFold,
+        types,
+        subtypes,
+        supertypes,
+        colors,
+        manaValue: row.cmc,
+        oracleText: "",
+        oracleFold: "",
+        prints: [{ printId: row.printId, setCode: row.set }],
+        available: row.available,
+    };
 }
 
 export function useCardSearch(
     filters: CardSearchFilters,
     // The deck's Format (issue #514). Its `allowedSets` pre-constrain the search
     // to legally-includable prints; omitted (or Freeform) imposes no set gate.
-    format?: FormatId
+    format?: FormatId,
+    // Full Catalogue result for manual/real mode merging. When absent (catalogue
+    // not yet loaded), the hook falls back to index-only search (today's behavior).
+    fullCatalogue?: FullCatalogueResult
 ): {
     entries: CardIndexEntry[] | undefined;
     total: number;
@@ -236,6 +298,9 @@ export function useCardSearch(
     idle: boolean;
 } {
     const all = useQuery(api.cardIndex.list, {});
+    const catalogueRows = fullCatalogue?.rows;
+    const isManual = format === "manual";
+
     const idle = !hasAnyFilter(filters);
     // The format's allowed-set list (null = any set). Resolved here so the gate
     // never hardcodes set codes — it reads them from the Format registry.
@@ -258,15 +323,41 @@ export function useCardSearch(
     const entries = useMemo(() => {
         if (!all) return undefined;
         if (idle) return [];
-        const filtered = all.filter(
+
+        const parts: CardIndexEntry[] = [];
+
+        if (isManual && catalogueRows) {
+            // Manual mode: the Full Catalogue is the search pool. Every row is
+            // selectable regardless of `.available`.
+            for (const row of catalogueRows) {
+                parts.push(makeCatalogueEntry(row));
+            }
+        } else {
+            // Real mode: index entries (available cards) first.
+            parts.push(...all);
+
+            // Append catalogue-only rows (unavailable cards) so they show up
+            // dimmed and unselectable in real mode.
+            if (catalogueRows) {
+                const known = new Set(all.map((e) => e.nameFold));
+                for (const row of catalogueRows) {
+                    if (!row.available && !known.has(row.nameFold)) {
+                        parts.push(makeCatalogueEntry(row));
+                    }
+                }
+            }
+        }
+
+        const filtered = parts.filter(
             (e) =>
                 matchesFormatSets(e.prints, e.supertypes, allowedSets) &&
-                matchesCube(e.cardId, cubeIds) &&
+                matchesCube(e.cardId, e.name, cubeIds) &&
                 matchesText(e, filters.text) &&
                 matchesColors(e.colors, filters) &&
                 matchesTypes(e, filters.types, filters.typeMode) &&
                 matchesManaValue(e.manaValue, filters.manaValues) &&
-                matchesSets(e.prints, filters.sets, filters.setMode)
+                matchesSets(e.prints, filters.sets, filters.setMode) &&
+                (filters.hideUnavailable ? e.available !== false : true)
         );
         return filtered.sort(
             compareEntries(
@@ -275,7 +366,7 @@ export function useCardSearch(
                 filters.sortDirection
             )
         );
-    }, [all, filters, idle, allowedSets, cubeIds]);
+    }, [all, catalogueRows, filters, idle, isManual, allowedSets, cubeIds]);
 
     return { entries, total: all?.length ?? 0, idle };
 }
