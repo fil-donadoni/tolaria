@@ -169,10 +169,8 @@ function ManualBoardCard({
                         sizes="120px"
                         includeThumb={false}
                     />
-                ) : cardRef && isFaceDown ? (
-                    <CardBack />
                 ) : (
-                    <div className="w-full h-full bg-[#1a3a5c] rounded-[7%]" />
+                    <CardBack />
                 )}
             </div>
         </div>
@@ -494,7 +492,10 @@ export default function ManualBoard({ gameId, playerId }: ManualBoardProps) {
                                           width: landscapeCards.cardWidth,
                                           height: landscapeCards.cardHeight,
                                       }
-                                    : undefined
+                                    : {
+                                          width: OPP_HAND_CARD_WIDTH,
+                                          height: OPP_HAND_CARD_HEIGHT,
+                                      }
                             }
                             className={
                                 landscapeCompact
