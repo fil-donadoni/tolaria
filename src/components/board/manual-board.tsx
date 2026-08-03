@@ -15,6 +15,7 @@ import type {
     ManualZone,
     ProjectedManualGameState,
 } from "@convex/manual";
+import ManualLog from "./manual-log";
 import {
     ContextMenu,
     ContextMenuContent,
@@ -98,7 +99,15 @@ export default function ManualBoard({
 
     return (
         <ManualGameIdCtx.Provider value={gameId}>
-            <ManualBoardInner state={state} playerId={playerId} />
+            <div className="flex h-dvh">
+                <div className="flex-1 min-w-0">
+                    <ManualBoardInner state={state} playerId={playerId} />
+                </div>
+                <ManualLog
+                    gameId={gameId}
+                    className="w-80 shrink-0 border-l border-white/10"
+                />
+            </div>
         </ManualGameIdCtx.Provider>
     );
 }
