@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { getAllCardNames } from "@convex/cards";
+import { getAllCardNames } from "@convex/cards/catalogue";
 import { getAllTokenKeys } from "@convex/cards/tokenCatalogue";
 
 /** Controlled card-name autocomplete for the debug scenario builder. Unlike

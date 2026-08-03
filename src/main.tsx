@@ -6,6 +6,11 @@ import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { TooltipProvider } from "~/components/ui/tooltip";
 import { AppRouter } from "./router";
 import * as Sentry from "@sentry/react";
+// Side-effect: hydrates the card-definition registry with the full catalogue
+// (~1872 cards). Extracted into a separate chunk by the Vite `manualChunks`
+// config — the main bundle drops the set-module tree (~1.63 MB raw / 431 KB
+// gzip), and this chunk is cached independently from the app code.
+import "@convex/cards/catalogue";
 
 Sentry.init({
     dsn: "https://82a4e88a462f5637f13141dc3b7a37d9@o4505113193218048.ingest.us.sentry.io/4511609765691393",
