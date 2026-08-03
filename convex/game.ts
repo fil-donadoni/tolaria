@@ -205,7 +205,9 @@ import {
     getPendingTargetSourceColors,
     getPendingTargetSourceTypes,
     getPendingTargetSourceSubtypes,
-    isProtectedFromColors,
+    getPendingTargetSourceSupertypes,
+    isProtectedFrom,
+    protectionSourceView,
     pendingTargetFiltersFromRequirement,
     raiseTriggerTargetSelection,
     solvePhyrexianSplit,
@@ -6804,6 +6806,11 @@ export const announceCast = mutation({
             // card's mana cost, so getLegalTargets can exclude permanents
             // with protection from any of those colors.
             const sourceColors = STATIC_EFFECT_CTX.getColors(cardInHand);
+            // CR 205.4a / 702.16a (issue #1120) — the spell's live supertypes,
+            // for a CHARACTERISTIC protection quality ("protection from
+            // legendary creatures").
+            const sourceSupertypes =
+                protectionSourceView(cardInHand).supertypes;
             const legalTargets = getLegalTargets(
                 state,
                 activeTargetRequirement,
@@ -6813,7 +6820,12 @@ export const announceCast = mutation({
                 cardInHand.types,
                 cardInHand.subtypes,
                 // Casting from hand — the source is a spell (CR 113.3).
-                true
+                true,
+                [],
+                undefined,
+                // CR 702.16a (issue #1120) — the spell's live supertypes, for
+                // a CHARACTERISTIC protection quality on a candidate target.
+                sourceSupertypes
             );
             if (legalTargets.length === 0) {
                 throw new Error("No legal targets available");
@@ -6848,7 +6860,10 @@ export const announceCast = mutation({
                     chosenX,
                     cardInHand.types,
                     cardInHand.subtypes,
-                    true
+                    true,
+                    [],
+                    undefined,
+                    sourceSupertypes
                 );
                 if (
                     extraLegal.length <
@@ -9385,30 +9400,44 @@ export function applyOneTargetSelection(
             }
         );
         if (filterViolation) throw new Error(filterViolation);
-        // CR 702.16b: a permanent with protection from [color] can't be
-        // targeted by a spell/ability whose source has that color.
+        // CR 702.16b: a permanent with protection from [quality] can't be
+        // targeted by a spell/ability whose source has that quality.
+        const guardSourceKind = pt.kind ?? "cast";
         const sourceColors = getPendingTargetSourceColors(
             state,
             pt.cardInstanceId,
-            pt.kind ?? "cast"
+            guardSourceKind
+        );
+        const sourceTypes = getPendingTargetSourceTypes(
+            state,
+            pt.cardInstanceId,
+            guardSourceKind
         );
         // The ACCEPTED set must apply the same quality checks as the
-        // offered set above (CR 702.16b) — including the CR 702.16j player
-        // quality (issue #1748), for which the targeting player IS the
-        // source's controller.
-        if (isProtectedFromColors(matchedCard, sourceColors, pt.playerId)) {
+        // offered set above (CR 702.16b) — the colour form, the CR 702.16k
+        // player quality (issue #1748) for which the targeting player IS the
+        // source's controller, and the CR 702.16a CHARACTERISTIC quality
+        // (issue #1120) read off the source's live types/supertypes. Both
+        // sides build the bundle from the SAME `getPendingTargetSource*`
+        // helpers, so the offered set and the accepted set cannot diverge.
+        if (
+            isProtectedFrom(matchedCard, {
+                colors: sourceColors,
+                types: sourceTypes,
+                supertypes: getPendingTargetSourceSupertypes(
+                    state,
+                    pt.cardInstanceId,
+                    guardSourceKind
+                ),
+                controllerId: pt.playerId,
+            })
+        ) {
             throw new Error("Target has protection from this source");
         }
         // CR 611 — a continuous `permanent-guard` (Guardian Beast / shroud)
         // may bar targeting entirely. Mirror of the getLegalTargets gate.
         // The source's card types (CR 109.5), subtypes ("Aura spells"), and
         // spell-vs-ability (CR 113.3 "spells only") narrow filtered guards.
-        const guardSourceKind = pt.kind ?? "cast";
-        const sourceTypes = getPendingTargetSourceTypes(
-            state,
-            pt.cardInstanceId,
-            guardSourceKind
-        );
         const sourceSubtypes = getPendingTargetSourceSubtypes(
             state,
             pt.cardInstanceId,
@@ -12359,7 +12388,12 @@ export function activateAbilityOnState(
             // Source is an activated ability, not a spell (CR 113.3).
             false,
             [],
-            abilitySourcePower
+            abilitySourcePower,
+            // CR 702.16a (issue #1120) — the activating permanent's live
+            // supertypes, for a CHARACTERISTIC protection quality (Tsabo
+            // Tavoc's own "protection from legendary creatures" is what makes
+            // this observable on the ability path).
+            protectionSourceView(card).supertypes
         );
         if (legal.length === 0) {
             throw new Error("No legal targets available");

@@ -34,6 +34,7 @@ import {
     maxAffordableX,
     solvePhyrexianSplit,
     genericManaShortfall,
+    protectionSourceView,
 } from "./rules";
 import {
     applyGenericOffset,
@@ -480,7 +481,13 @@ function enumerateTargetTuples(
         card.subtypes,
         // moves.ts enumerates legal targets for casting a spell from hand, so
         // the source is always a spell (vs an activated ability).
-        true
+        true,
+        [],
+        undefined,
+        // CR 702.16a (issue #1120) — the spell's live supertypes, for a
+        // CHARACTERISTIC protection quality on a candidate target. The bot
+        // enumerator reads the SAME gate the human path does.
+        protectionSourceView(card).supertypes
     );
     const { min, max } = targetCount(effReq, chosenX);
     if (max === 0) return [[]];

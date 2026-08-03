@@ -308,3 +308,83 @@ describe("isPlayerUntargetableByPending — protection from everything (CR 702.1
         expect(isPlayerUntargetableByPending(board(), "p1", [])).toBe(false);
     });
 });
+
+// CR 702.16b (issue #1120) — protection from a NON-COLOUR quality on the
+// CLIENT click gate. A protection the server enforces but the client still
+// offers as a clickable target is a bug: the player clicks, the mutation
+// throws, and nothing on the board explains why. These run through the REAL
+// `isUntargetableByPending` (which is what `useBattlefieldInteraction` and
+// `useBattlefieldVisualState` both call), never a hand-built view.
+const TSABO_TAVOC = "ccbe2539-7a7c-468b-a270-7ca1bdcccb1e"; // protection from legendary creatures
+const BARKTOOTH_WARBEARD = "0ea52228-f8ad-4623-9e05-f162473bfc03"; // Legendary Creature
+const GRIZZLY_BEARS_ID = "ce2d603a-3231-4a8c-bf39-1617586ea870"; // plain Creature
+
+describe("isUntargetableByPending — protection from a quality (CR 702.16b, #1120)", () => {
+    function board(sourceCardId: string): Player[] {
+        const tsabo = inst({
+            id: "tsabo",
+            card: { id: TSABO_TAVOC },
+            controllerId: "p1",
+            ownerId: "p1",
+            staticAbilities: [
+                "first strike",
+                "protection from legendary creatures",
+            ],
+        });
+        const bystander = inst({
+            id: "bystander",
+            card: { id: GRIZZLY_BEARS_ID },
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const source = inst({
+            id: "source",
+            card: { id: sourceCardId },
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        return [
+            player({ id: "p1", battlefield: [tsabo, bystander] }),
+            player({ id: "p2", battlefield: [source] }),
+        ];
+    }
+
+    it("greys Tsabo Tavoc out for a legendary creature's ability", () => {
+        const players = board(BARKTOOTH_WARBEARD);
+        const tsabo = players[0].battlefield[0];
+        expect(
+            isUntargetableByPending(players, tsabo, "source", "ability", "p2")
+        ).toBe(true);
+    });
+
+    it("must-NOT — leaves it clickable for a NON-legendary source", () => {
+        const players = board(GRIZZLY_BEARS_ID);
+        const tsabo = players[0].battlefield[0];
+        expect(
+            isUntargetableByPending(players, tsabo, "source", "ability", "p2")
+        ).toBe(false);
+    });
+
+    it("must-NOT — leaves an unprotected permanent clickable for the legend", () => {
+        const players = board(BARKTOOTH_WARBEARD);
+        const bystander = players[0].battlefield[1];
+        expect(
+            isUntargetableByPending(
+                players,
+                bystander,
+                "source",
+                "ability",
+                "p2"
+            )
+        ).toBe(false);
+    });
+
+    it("greys it out for its OWN controller's legend too (no controller exception)", () => {
+        const players = board(BARKTOOTH_WARBEARD);
+        players[1].battlefield[0].controllerId = "p1";
+        const tsabo = players[0].battlefield[0];
+        expect(
+            isUntargetableByPending(players, tsabo, "source", "ability", "p1")
+        ).toBe(true);
+    });
+});

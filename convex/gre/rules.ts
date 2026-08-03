@@ -1,4 +1,5 @@
 import type {
+    CardSupertype,
     CardType,
     Color,
     TargetRequirement,
@@ -31,8 +32,10 @@ import {
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 import { STATIC_EFFECT_CTX, getEffectivePower } from "./layers";
 import {
-    isProtectedFromColors,
+    isProtectedFrom,
     playerHasProtectionFromEverything,
+    protectionSourceView,
+    type ProtectionSourceView,
 } from "./protection";
 import { isGuardedAgainst, playerHasShroud } from "./permanentGuard";
 import {
@@ -96,10 +99,15 @@ import {
 
 export {
     getProtectedColors,
-    isProtectedFromColors,
+    getProtectionQualities,
+    isProtectedFrom,
     isProtectedFromSource,
+    isProtectionAbility,
     parseProtectionFromColor,
+    parseProtectionQuality,
     playerHasProtectionFromEverything,
+    protectionSourceView,
+    type ProtectionSourceView,
 } from "./protection";
 
 // ADR 0068 (PRD #1407, issues #1408 / #1409 / #1410) — the low-level color/
@@ -966,7 +974,11 @@ function hasEnoughLegalTargets(
                 card.subtypes,
                 // hasEnoughLegalTargets gates the Cast UI — the source is a
                 // spell.
-                true
+                true,
+                [],
+                undefined,
+                // CR 702.16a (issue #1120) — the spell's live supertypes.
+                protectionSourceView(card).supertypes
             );
             return legalTargets.length >= required;
         });
@@ -1954,9 +1966,27 @@ export function getLegalTargets(
      *  (`cards/types.ts`) for the CR 603.3d snapshot-timing rationale.
      *  Undefined for every caller that doesn't need it — `resolveMvFilter`
      *  falls back to 0, matching every other left-play convention. */
-    sourcePower?: number
+    sourcePower?: number,
+    /** CR 205.4a / 702.16a (issue #1120) — the source's LIVE supertypes, for a
+     *  CHARACTERISTIC protection quality that names one ("protection from
+     *  legendary creatures", Tsabo Tavoc). Derived by
+     *  `getPendingTargetSourceSupertypes`, the sibling of the
+     *  colors/types/subtypes helpers the caller already uses. Defaults to
+     *  empty like its siblings; the `selectTarget` mutation is the
+     *  authoritative accepted-set check and derives it from the same
+     *  helper, so an offered set built without it can only ever be WIDER
+     *  than the accepted set (the server still rejects), never narrower. */
+    sourceSupertypes: readonly CardSupertype[] = []
 ): TargetSelection[] {
     const targets: TargetSelection[] = [];
+    // CR 702.16 — the source's characteristics, bundled ONCE for the single
+    // protection predicate every consult site shares (`isProtectedFrom`).
+    const protectionSource: ProtectionSourceView = {
+        colors: sourceColors,
+        types: sourceTypes,
+        supertypes: sourceSupertypes,
+        controllerId: casterId,
+    };
 
     // CR 601.2c same-controller cross-slot constraint (issue #1104) — the
     // sibling's live controllerId, if one applies (see `siblingControllerIdFor`
@@ -2169,11 +2199,12 @@ export function getLegalTargets(
                 }
                 // CR 702.16b: protected permanents can't be targeted by
                 // spells/abilities of the stated quality — a colour
-                // (CR 702.16a) or, since issue #1748, the PLAYER quality
-                // ("protection from each of your opponents"), for which
-                // `casterId` is the source's controller.
-                if (isProtectedFromColors(card, sourceColors, casterId))
-                    continue;
+                // (CR 702.16a), the PLAYER quality (issue #1748, "protection
+                // from each of your opponents") for which `casterId` is the
+                // source's controller, or a CHARACTERISTIC quality (issue
+                // #1120, "protection from legendary creatures") read off the
+                // source's live types/supertypes.
+                if (isProtectedFrom(card, protectionSource)) continue;
                 // CR 611 — a continuous `permanent-guard` may bar targeting
                 // entirely (Guardian Beast / shroud: "can't be the target of
                 // spells or abilities"), or narrowed by source quality ("Aura
@@ -2369,6 +2400,28 @@ export function getPendingTargetSourceSubtypes(
         }
     }
     return [];
+}
+
+/** LIVE supertypes (CR 205.4a) of the source whose target-selection is in
+ *  progress. Used to enforce CR 702.16b for a CHARACTERISTIC protection
+ *  quality that names a supertype ("protection from legendary creatures",
+ *  Tsabo Tavoc — issue #1120). Fourth sibling of
+ *  `getPendingTargetSourceColors` / `…Types` / `…Subtypes`, with the same
+ *  source-location logic: copy-retarget/retarget/trigger → the stack item;
+ *  ability → the battlefield permanent; cast → the hand card. Returns an empty
+ *  array if the source can't be located. */
+export function getPendingTargetSourceSupertypes(
+    state: GameState,
+    cardInstanceId: string,
+    kind: "cast" | "ability" | "copy-retarget" | "retarget" | "trigger"
+): CardSupertype[] {
+    const source: CardInstanceState | undefined =
+        kind === "copy-retarget" || kind === "retarget" || kind === "trigger"
+            ? state.stack.find((x) => x.id === cardInstanceId)
+            : state.players
+                  .flatMap((p) => (kind === "ability" ? p.battlefield : p.hand))
+                  .find((x) => x.id === cardInstanceId);
+    return source ? [...protectionSourceView(source).supertypes] : [];
 }
 
 /** Effective POWER (CR 613 layer 7c) of a TRIGGERED ability's source

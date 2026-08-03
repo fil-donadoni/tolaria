@@ -143,6 +143,7 @@ import { markReboundExiled, openReboundCastWindow } from "./rebound";
 import {
     isProtectedFromSource,
     playerHasProtectionFromEverything,
+    protectionSourceView,
 } from "./protection";
 import { isGuardedAgainst } from "./permanentGuard";
 import { getEffectiveBlockGraph } from "./banding";
@@ -10043,7 +10044,12 @@ function requestStormCopyRetarget(state: GameState, copy: StackItem): void {
         copy.chosenX,
         copy.types,
         copy.subtypes,
-        true // sourceIsSpell — a spell copy, still on the stack (CR 109.5)
+        true, // sourceIsSpell — a spell copy, still on the stack (CR 109.5)
+        [],
+        undefined,
+        // CR 702.16a (issue #1120) — the copy's live supertypes, for a
+        // CHARACTERISTIC protection quality on a candidate target.
+        protectionSourceView(copy).supertypes
     );
     const currentKeys = new Set(
         (copy.targets ?? []).map((t) => `${t.type}:${t.id}`)
@@ -15400,7 +15406,12 @@ export function buildSpellContext(
                 def?.subtypes ?? [],
                 // The chosen card is being cast as a spell (CR 601), not an
                 // activated ability — mirror moves.ts.
-                true
+                true,
+                [],
+                undefined,
+                // CR 702.16a (issue #1120) — printed supertypes of the card
+                // being cast, for a CHARACTERISTIC protection quality.
+                def?.supertypes ?? []
             );
         },
         castChosenSpell(

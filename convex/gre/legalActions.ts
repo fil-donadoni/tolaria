@@ -48,6 +48,7 @@ import {
     getLegalTargets,
     getPendingTargetSourceColors,
     getPendingTargetSourceSubtypes,
+    getPendingTargetSourceSupertypes,
     getPendingTargetSourceTypes,
 } from "./rules";
 import {
@@ -538,7 +539,12 @@ function targetActions(
             // authority the human path (`selectTarget`, `game.ts`) also
             // calls, so this enumerator no longer needs its own copy of the
             // check.
-            pt.selected
+            pt.selected,
+            undefined,
+            // CR 702.16a (issue #1120) — the source's live supertypes, for a
+            // CHARACTERISTIC protection quality. Same helper `selectTarget`
+            // uses, so this enumerator's offered set matches the accepted set.
+            getPendingTargetSourceSupertypes(state, pt.cardInstanceId, kind)
         );
         for (const target of legal) {
             actions.push(

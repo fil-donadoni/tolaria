@@ -6,6 +6,7 @@ import {
     playerHasShroud,
     type GuardActionSource,
 } from "@convex/gre/permanentGuard";
+import { isProtectedFrom, protectionSourceView } from "@convex/gre/protection";
 
 // Client-side mirror of the server's `cantBeTargeted` gate (CR 702.18 shroud /
 // "can't be the target of spells or abilities", CR 611 continuous guard). The
@@ -106,13 +107,47 @@ function pendingGuardSource(
     };
 }
 
+/** Locates the pending spell/ability's source card in the zone it lives in
+ *  (battlefield for an ability, hand for a cast) so its own characteristics
+ *  can be read. Returns `undefined` when it isn't visible in the wire view —
+ *  a `trigger` source (a stack-item id never in hand/battlefield), or an
+ *  opponent's hidden hand card. */
+function findPendingSourceCard(
+    players: Player[],
+    sourceCardInstanceId: string,
+    kind: string | undefined
+): CardInstance | undefined {
+    const isAbility = kind === "ability";
+    for (const p of players) {
+        const zone = isAbility ? p.battlefield : p.hand;
+        const found = zone?.find(
+            (c): c is CardInstance => !!c && c.id === sourceCardInstanceId
+        );
+        if (found) return found;
+    }
+    return undefined;
+}
+
 /** True if `candidate` is barred from being targeted by the pending
  *  spell/ability under any active `cantBeTargeted` guard (CR 702.18 shroud /
- *  611, CR 702.11b hexproof). Used by the battlefield click gate to make
- *  untargetable permanents un-clickable. `sourceControllerId` is the chooser
- *  (the spell/ability's controller); hexproof greys the candidate only for an
- *  opponent's source, never its own controller's. When there is no source info
- *  the check stays conservative. */
+ *  611, CR 702.11b hexproof) OR by CR 702.16b protection. Used by the
+ *  battlefield click gate to make untargetable permanents un-clickable.
+ *  `sourceControllerId` is the chooser (the spell/ability's controller);
+ *  hexproof greys the candidate only for an opponent's source, never its own
+ *  controller's. When there is no source info the check stays conservative.
+ *
+ *  CR 702.16b (issue #1120): protection is read through the SAME pure
+ *  `isProtectedFrom` predicate `getLegalTargets` (the offered set) and
+ *  `selectTarget` (the accepted set) read, so every quality family — colour,
+ *  the CR 702.16k player quality, and the CHARACTERISTIC form ("protection
+ *  from legendary creatures") — greys out identically on the board. The
+ *  source's live characteristics come from the wire view of its own card:
+ *  a cast source is the chooser's own hand card and an ability source is a
+ *  battlefield permanent, so both are visible to whoever is choosing. When
+ *  the source can't be located (a trigger's synthetic stack-item id) the
+ *  protection check is SKIPPED, not guessed — the server's own gate is
+ *  authoritative and rejects the pick, and this UI hint's standing rule is
+ *  never to hide a target it can't judge. */
 export function isUntargetableByPending(
     players: Player[],
     candidate: CardInstance,
@@ -133,11 +168,25 @@ export function isUntargetableByPending(
         kind,
         sourceControllerId
     );
-    return isGuardedAgainst(
-        state,
+    if (
+        isGuardedAgainst(
+            state,
+            toGuardTarget(candidate),
+            "cantBeTargeted",
+            source
+        )
+    ) {
+        return true;
+    }
+    const sourceCard = findPendingSourceCard(
+        players,
+        sourceCardInstanceId,
+        kind
+    );
+    if (!sourceCard) return false;
+    return isProtectedFrom(
         toGuardTarget(candidate),
-        "cantBeTargeted",
-        source
+        protectionSourceView(toGuardTarget(sourceCard))
     );
 }
 
