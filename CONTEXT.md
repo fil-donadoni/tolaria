@@ -328,8 +328,12 @@ A **Stack Item** created by copying another spell on the **Stack** (CR 707.10, e
 _Avoid_: Token spell, duplicate
 
 **Spells Cast This Turn**:
-A running count of how many **Spells** have been **Cast** by any **Player** this **Turn**, reset at each turn change (`GameState.spellsCastThisTurn`). A **Spell Copy** is put onto the **Stack**, not cast, so it never increments the count. The count read at cast time (the tally of spells cast _before_ this one) rides on the cast event as `priorSpellCount` — the value **Storm** uses for its copy count.
+A running count of how many **Spells** have been **Cast** by any **Player** this **Turn**, reset at each turn change (`GameState.spellsCastThisTurn`). A **Spell Copy** is put onto the **Stack**, not cast, so it never increments the count. The count read at cast time (the tally of spells cast _before_ this one) rides on the cast event as `priorSpellCount` — the value **Storm** uses for its copy count. Each **Player** also carries their OWN mirror of this count (`PlayerState.spellsCastThisTurn`), reset the same way — what a **Nth-spell-this-turn** trigger condition reads when it means "the CASTER's own spells", as opposed to the global count Storm reads.
 _Avoid_: Storm count, spell counter
+
+**Spells Cast This Game**:
+A running count of how many **Spells** a **Player** has **Cast**, NEVER reset (`PlayerState.spellsCastThisGame`) — the lifetime sibling of **Spells Cast This Turn**, incremented at the same choke point, never cleared at a turn change. Exists to answer "is this the first spell I've cast in the whole game" — an **Alternative Cost** condition (Once Upon a Time, issue #790), a question the per-turn count cannot answer.
+_Avoid_: Lifetime spell count, total spells cast
 
 **Permanent Copy**:
 A **Permanent** that has become a copy of another (CR 707.2, e.g. Clone, Copy Artifact, Vesuvan Doppelganger). The engine overwrites the copy's `card.id` with the copied object's definition id so every characteristic reader (abilities, colors, P/T, types) observes the copy; the printed identity is kept in `copiedFrom` and restored when the copy leaves the battlefield (`revertCopy`). Copy effects copy printed/copiable values only — never counters, damage, tap state, auras, or control. Exceptions (CR 707.9d) are expressed as options: a kept color via `colorOverride`, added types via `additionalTypes`, and a retained ability via a `retainedThroughCopy`-flagged trigger.

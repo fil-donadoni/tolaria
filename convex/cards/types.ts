@@ -11984,7 +11984,14 @@ export type AlternativeCostCondition =
     | { kind: "not-your-turn" }
     /** Only while the caster controls a permanent matching `filter`
      *  (Snuff Out "If you control a Swamp"). */
-    | { kind: "control"; filter: PermanentFilter };
+    | { kind: "control"; filter: PermanentFilter }
+    /** Only as the caster's OWN first spell of the GAME (Once Upon a Time,
+     *  issue #790: "If this spell is the first spell you've cast this game,
+     *  you may cast it without paying its mana cost") — reads
+     *  `PlayerState.spellsCastThisGame`, the lifetime sibling of
+     *  `spellsCastThisTurn`. Checked pre-increment, like every other
+     *  `AlternativeCostCondition`. */
+    | { kind: "first-spell-this-game" };
 
 /** Full card definition used by the GRE. */
 export interface CardDefinition {

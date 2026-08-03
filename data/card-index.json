@@ -9384,6 +9384,14 @@
         "firstPrintSet": "znr"
     },
     {
+        "name": "Once Upon a Time",
+        "scryfallId": "4034e5ba-9974-43e3-bde7-8d9b4586c3a4",
+        "oracleId": "d00ade82-caab-43c6-9756-6e9e6edfc519",
+        "firstSet": "eld",
+        "firstPrintId": "4034e5ba-9974-43e3-bde7-8d9b4586c3a4",
+        "firstPrintSet": "eld"
+    },
+    {
         "name": "Onulet",
         "scryfallId": "d77fe8e2-8438-473e-ace5-01baddd2c4ed",
         "oracleId": "598f948b-bdd3-490f-b3e9-f0f9dc470522",

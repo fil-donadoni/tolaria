@@ -1417,6 +1417,14 @@ describe("optional field round-trip smoke tests", () => {
         expect(roundTrip(state).pendingCast).toEqual(state.pendingCast);
     });
 
+    it("spellsCastThisGame (issue #790 — lifetime per-player spell tally, never reset)", () => {
+        const state = freshState();
+        state.players[0].spellsCastThisGame = 3;
+        expect(roundTrip(state).players[0].spellsCastThisGame).toBe(3);
+        const empty = roundTrip(freshState());
+        expect(empty.players[0].spellsCastThisGame).toBeUndefined();
+    });
+
     it("drawLookReplacements (Aladdin's Lamp)", () => {
         const state = freshState();
         state.drawLookReplacements = [{ playerId: "p1", x: 3 }];

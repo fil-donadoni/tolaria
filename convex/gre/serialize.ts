@@ -913,6 +913,7 @@ type CompactPlayer = {
     hasDrawnFromEmpty?: boolean;
     landsPlayedThisTurn?: number;
     spellsCastThisTurn?: number;
+    spellsCastThisGame?: number;
     lastDrawnCardId?: string;
     drawnThisTurn?: string[];
     turnsTaken?: number;
@@ -967,6 +968,9 @@ function compactPlayer(player: PlayerState, ctx: CompactCtx): CompactPlayer {
     }
     if (player.spellsCastThisTurn) {
         out.spellsCastThisTurn = player.spellsCastThisTurn;
+    }
+    if (player.spellsCastThisGame) {
+        out.spellsCastThisGame = player.spellsCastThisGame;
     }
     if (player.lastDrawnCardId) {
         out.lastDrawnCardId = player.lastDrawnCardId;
@@ -1042,6 +1046,9 @@ function expandPlayer(player: CompactPlayer, ctx?: ExpandCtx): PlayerState {
     }
     if (player.spellsCastThisTurn !== undefined) {
         result.spellsCastThisTurn = player.spellsCastThisTurn;
+    }
+    if (player.spellsCastThisGame !== undefined) {
+        result.spellsCastThisGame = player.spellsCastThisGame;
     }
     if (player.lastDrawnCardId !== undefined) {
         result.lastDrawnCardId = player.lastDrawnCardId;
