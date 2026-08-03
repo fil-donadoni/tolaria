@@ -11,26 +11,30 @@
 // included, because a must-NOT row is exactly where a `type ===` check silently
 // fails open.
 //
-//  | # | Site                                                    | Emits |
-//  |---|---------------------------------------------------------|-------|
-//  | 1 | `resolveKickerPayments` (announce validation, game.ts)   | no    |
-//  | 2 | `PendingTarget.kickerPayments` (target-selection state)  | no    |
-//  | 3 | `PendingCast.kickerPayments` (deferred-mana state)       | no    |
-//  | 4 | StackItem build → `emitSpellCastEvent` (4 cast branches) | YES   |
-//  | 5 | `tryAutoCommitPendingCast` → `emitSpellCastEvent`        | YES   |
-//  | 6 | Acting-Player cast (Word of Command, state.ts)           | YES*  |
-//  | 7 | `cloneSpellOntoStack` (spell COPY, CR 707.10)            | no    |
-//  | 8 | `finalizeSpellResolution` ETB snapshot onto a permanent  | no    |
-//  | 9 | bot `moves.ts` cast enumerator                           | n/a   |
+//  | #  | Site                                                    | Emits |
+//  |----|---------------------------------------------------------|-------|
+//  | 1  | `resolveKickerPayments` (announce validation, game.ts)   | no    |
+//  | 2  | `PendingTarget.kickerPayments` (target-selection state)  | no    |
+//  | 3  | `PendingCast.kickerPayments` (deferred-mana state)       | no    |
+//  | 4  | StackItem build → `emitSpellCastEvent` (3 cast branches) | YES   |
+//  | 5  | `tryAutoCommitPendingCast` → `emitSpellCastEvent`        | YES   |
+//  | 6  | Acting-Player cast, Word of Command (state.ts)           | YES*  |
+//  | 7  | AI probe cast (`gre/ai/dominance.ts`)                    | YES*  |
+//  | 8  | `castFaceDown` (state.ts) — pushes a spell, never emits  | no    |
+//  | 9  | `cloneSpellOntoStack` (spell COPY, CR 707.10)            | no    |
+//  | 10 | `finalizeSpellResolution` ETB snapshot onto a permanent  | no    |
+//  | 11 | bot `moves.ts` cast enumerator                           | n/a   |
 //
 //  Rows 1–3 are ANNOUNCEMENT state, not a cast: a cast abandoned before commit
-//  never kicked anything. Rows 4–6 are the same single choke point
-//  (`emitSpellCastEvent`) reached by every real cast — row 6 emits in
-//  principle but no Acting-Player cast can pay a kicker today, so it
-//  structurally emits nothing. Row 7 is the load-bearing must-NOT: a copy
+//  never kicked anything. Rows 4–7 are the SIX call sites of the one choke
+//  point `emitSpellCastEvent` — rows 6 and 7 emit in principle, but neither an
+//  Acting-Player cast (Word of Command) nor an AI probe cast can pay a kicker,
+//  so both structurally emit nothing. Row 8 pushes a spell onto the stack
+//  WITHOUT going through the choke point (it emits no SPELL_CAST either) and a
+//  face-down cast pays no kicker. Row 9 is the load-bearing must-NOT: a copy
 //  CARRIES the original's `kickerPayments` (CR 707.10 copies "additional or
 //  alternative costs", so the copy IS kicked for `wasKicked` purposes) yet no
-//  player kicked it. Row 8 would double-count the original kick. Row 9 never
+//  player kicked it. Row 10 would double-count the original kick. Row 11 never
 //  builds a `kickerPayments` record at all.
 
 import { describe, it, expect } from "vitest";
@@ -56,6 +60,7 @@ import { burstLightning } from "../../cards/sets/zen/red";
 import { everflowingChalice } from "../../cards/sets/wwk/colorless";
 import { thornscapeBattlemage } from "../../cards/sets/pls/green";
 import { fork } from "../../cards/sets/lea/red";
+import { regrowth } from "../../cards/sets/lea/green";
 import { grizzlyBears } from "../../cards/sets/lea";
 import { saprolingInfestation } from "../../cards/sets/inv/green";
 
@@ -396,6 +401,127 @@ describe("SPELL_KICKED — resolution is not a cast (row 8 must-NOT)", () => {
         expect(entered?.kickerPayments).toEqual({ kicker: 1 });
         // … but resolving is not casting: no second kick.
         expect(kickTriggers(state)).toEqual([]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// REGRESSION (review of PR #2115) — a STALE cast-time snapshot must not
+// manufacture a phantom kick. The declaration gate cannot catch this one: the
+// stale id is the card's OWN kicker id, so it passes cleanly.
+//
+// TWO INDEPENDENT GATES enforce CR 400.7 here, and this test covers both:
+//   G1 `clearCastKickerSnapshot` — strips the snapshot as the spell LEAVES the
+//      stack for a recastable zone (added by this PR).
+//   G2 `resetBattlefieldTransientState`, reached via `removeFromZone` — strips
+//      it again at cast-commit, on every cast branch (pre-existing).
+// Measured by mutation, both directions: with BOTH removed the chain below
+// emits a phantom SPELL_KICKED and creates a free Saproling
+// (`phantomTriggers: 1, tokensMade: 1`); with EITHER present it does not. So
+// the zone-hygiene assertion below is guarded by G1 alone, and the
+// no-phantom-trigger assertion is guarded by the pair.
+// ---------------------------------------------------------------------------
+describe("SPELL_KICKED — a stale kickerPayments record is not a kick (CR 400.7)", () => {
+    it("kicked cast → graveyard → Regrowth → UNKICKED recast triggers nothing", () => {
+        // The full chain, shipped cards only:
+        //   1. p1 casts Burst Lightning KICKED — one real kick, one Saproling.
+        //   2. It resolves to the graveyard. The graveyard object must not keep
+        //      the cast-time `kickerPayments` snapshot (CR 400.7 — a card that
+        //      changes zones is a NEW object with none of the old one's
+        //      cast-time decisions).
+        //   3. Regrowth returns it to hand, record and all.
+        //   4. p1 recasts it WITHOUT paying the kicker. Every cast branch
+        //      builds the new stack item as `{ ...card, ...(kickerPayments ? …
+        //      : {}) }` — that spread is `{}` when unkicked and therefore does
+        //      NOT clear an inherited field, so a stale record would ride onto
+        //      the new stack item and emit a phantom SPELL_KICKED: a free
+        //      Saproling for a spell nobody kicked.
+        const state = observerBoard();
+        const victim = makeInstance(grizzlyBears.id, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "bears-stale",
+            power: 2,
+            toughness: 2,
+        });
+        getPlayer(state, "p2").battlefield.push(victim);
+        const bolt = makeInstance(burstLightning.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+            id: "bolt-stale",
+        });
+        const p1 = getPlayer(state, "p1");
+        p1.hand.push(bolt);
+        p1.manaPool = { W: 0, U: 0, B: 0, R: 5, G: 0, C: 0 };
+
+        // 1–2. The genuine kicked cast, then let it resolve to the graveyard.
+        finalizeTargetSelection(
+            state,
+            {
+                playerId: "p1",
+                cardInstanceId: "bolt-stale",
+                targetType: ["Creature", "Planeswalker", "player"],
+                count: 1,
+                selected: [{ type: "permanent", id: "bears-stale" }],
+                kickerPayments: { kicker: 1 },
+            },
+            "p1"
+        );
+        expect(kickTriggers(state)).toHaveLength(1);
+        while (state.stack.length > 0) resolveTopOfStack(state);
+        const inGraveyard = getPlayer(state, "p1").graveyard.find(
+            (c: CardInstanceState) => c.id === "bolt-stale"
+        );
+        expect(inGraveyard).toBeDefined();
+        // CR 400.7 — the graveyard object carries no cast-time kicker snapshot.
+        expect(inGraveyard!.kickerPayments).toBeUndefined();
+
+        // 3. Regrowth returns it to hand.
+        pushSpell(state, regrowth.id, "p1", [
+            { type: "graveyard-card", id: "bolt-stale", playerId: "p1" },
+        ]);
+        resolveTopOfStack(state);
+        const inHand = getPlayer(state, "p1").hand.find(
+            (c: CardInstanceState) => c.id === "bolt-stale"
+        );
+        expect(inHand).toBeDefined();
+        expect(inHand!.kickerPayments).toBeUndefined();
+
+        // 4. Recast, UNKICKED. Only {R} is available, so the kicker could not
+        //    have been paid even by accident.
+        const tokensBefore = getPlayer(state, "p1").battlefield.filter(
+            (c: CardInstanceState) => c.isToken
+        ).length;
+        getPlayer(state, "p1").manaPool = {
+            W: 0,
+            U: 0,
+            B: 0,
+            R: 1,
+            G: 0,
+            C: 0,
+        };
+        finalizeTargetSelection(
+            state,
+            {
+                playerId: "p1",
+                cardInstanceId: "bolt-stale",
+                targetType: ["Creature", "Planeswalker", "player"],
+                count: 1,
+                selected: [{ type: "player", id: "p2" }],
+            },
+            "p1"
+        );
+        const recast = state.stack.find((s) => s.id === "bolt-stale");
+        expect(recast).toBeDefined();
+        expect(recast!.kickerPayments).toBeUndefined();
+        // No phantom kick, and therefore no free Saproling.
+        expect(kickTriggers(state)).toEqual([]);
+        while (state.stack.length > 0) resolveTopOfStack(state);
+        expect(
+            getPlayer(state, "p1").battlefield.filter(
+                (c: CardInstanceState) => c.isToken
+            ).length
+        ).toBe(tokensBefore);
     });
 });
 

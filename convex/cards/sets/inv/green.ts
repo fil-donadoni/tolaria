@@ -1470,9 +1470,12 @@ export const restock: CardDefinition = {
 //    the cast choke point that emits.
 //
 // Token art resolves automatically from the committed Scryfall reverse-link
-// (`generated/token-prints.json` → the Invasion Saproling print) keyed by this
-// card's own id + the token name, so no `imagePrintId` is hand-pinned. Spec
-// matches the other INV Saproling producers (`inv/multicolor.ts`).
+// (`generated/token-prints.json`) keyed by this card's own id + the token
+// name, so no `imagePrintId` is hand-pinned. Invasion itself printed NO
+// tokens, so the lockfile maps this card to a same-characteristics substitute
+// (a 1/1 green Saproling from a modern printing) — the token/emblem art rule's
+// documented fallback, and the same print the other INV Saproling producers
+// (`inv/multicolor.ts`) already resolve to. Spec matches theirs.
 export const saprolingInfestation: CardDefinition = {
     id: "8642e530-914c-4149-944a-c4966ee27299",
     name: "Saproling Infestation",

@@ -161,15 +161,25 @@ export function resolveKickerPayments(
  *  three times, as three separate stack objects. `paidKickers` already reports
  *  the per-Kicker tally; this flattens it to one event per payment.
  *
- *  FAIL-CLOSED on two independent axes, both deliberate:
+ *  FAIL-CLOSED on two independent axes, both deliberate. Note carefully what
+ *  each one does and does NOT buy — the first is narrower than it looks:
  *
  *  1. **Declaration-gated.** The tally is read through `paidKickers`, which
  *     iterates the CARD'S OWN declared `kickers` and looks each id up in the
- *     record — never the record's own keys. A `kickerPayments` entry naming an
- *     id the card does not declare (a desynced snapshot, a hand-built fixture,
- *     a future producer that writes the record without validating it through
- *     `resolveKickerPayments`) therefore contributes NOTHING. A stray record
- *     can never manufacture a kick.
+ *     record — never the record's own keys. So a `kickerPayments` entry naming
+ *     an id the card does not declare contributes NOTHING: a mistyped or
+ *     foreign key cannot invent a kick.
+ *
+ *     This does **not** make the function safe against a STALE record. A
+ *     leftover snapshot from an EARLIER cast of the same card names that
+ *     card's own kicker id, so it passes this gate cleanly. What actually
+ *     rules a stale record out is CR 400.7 zone hygiene, enforced in two
+ *     independent places: `clearCastKickerSnapshot` at every stack exit to a
+ *     recastable zone, and `resetBattlefieldTransientState` (via
+ *     `removeFromZone`) at cast-commit. Either one alone is sufficient —
+ *     verified by mutation: with BOTH removed, `cast Burst Lightning kicked →
+ *     graveyard → Regrowth → recast unkicked` emits a phantom SPELL_KICKED and
+ *     hands out a free Saproling; with either one present, it does not.
  *  2. **Cast-gated.** Only the single cast choke point calls this
  *     (`emitSpellCastEvent`, `gre/state.ts`). Two consequences that a
  *     `kickerPayments !== undefined` test could not give:

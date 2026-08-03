@@ -5267,6 +5267,32 @@ function resetStackTransientState(item: StackItem): void {
     delete item.actingPlayerId;
 }
 
+/** CR 400.7 (review of PR #2115) — strip the cast-time KICKER snapshot from a
+ *  spell leaving the stack for a zone it can be cast from AGAIN (graveyard,
+ *  exile, library). A card that changes zones becomes a NEW object with none
+ *  of the old one's cast-time decisions, so `kickerPayments` — a record of
+ *  what the caster paid on THAT cast — must not ride along.
+ *
+ *  This is the exact bug shape `resetStackTransientState`'s docstring already
+ *  describes for Buyback's hand exit, on the sibling field and the sibling
+ *  exits. Every cast branch builds its stack item as
+ *  `{ ...card, ..., ...(kickerPayments ? { kickerPayments } : {}) }`
+ *  (`convex/game.ts`): that spread is `{}` when the new cast is UNKICKED and
+ *  therefore does not CLEAR an inherited field. So a stale record survives the
+ *  recast and makes the spell read as kicked for free — `getKickerCount()`
+ *  returns 1, `wasKicked` filters match, and (issue #1097) `SPELL_KICKED` is
+ *  emitted, handing out a phantom Saproling Infestation token. Proven chain:
+ *  cast Burst Lightning kicked → graveyard → Regrowth → recast unkicked.
+ *
+ *  NOT applied to the BATTLEFIELD exit: `finalizeSpellResolution` deliberately
+ *  snapshots the payments onto the entering permanent (the intervening-if twin
+ *  read by `kickerPaidCondition`), and `resetBattlefieldTransientState` clears
+ *  it when that permanent later changes zones. Nor to the hand exit, which
+ *  runs the fuller `resetStackTransientState`. */
+function clearCastKickerSnapshot(item: StackItem): void {
+    delete item.kickerPayments;
+}
+
 /** Moves a stack item (a spell that failed to resolve/finished resolving as
  *  a non-permanent/was countered) into its owner's graveyard — CR 614
  *  (issue #1145) consulted first so a graveyard-bound replacement
@@ -5283,6 +5309,7 @@ function sendStackItemToGraveyard(state: GameState, item: StackItem): void {
         "stack"
     );
     item.zone = destination;
+    clearCastKickerSnapshot(item);
     (owner[destination] as CardInstanceState[]).push(item);
     if (destination !== "graveyard") {
         applyGraveyardRedirectCounters(item, tagCounters);
@@ -5543,6 +5570,7 @@ function finalizeSpellResolution(state: GameState, item: StackItem): void {
         // in practice.
         if (item.shuffleIntoLibraryOnResolve) {
             item.zone = "library";
+            clearCastKickerSnapshot(item);
             owner.library.push(item);
             // ADR 0026 — a shuffle is an unwitnessed reordering; reuse the
             // exact primitive `shuffleLibrary` calls so this redirect behaves
@@ -5570,6 +5598,10 @@ function finalizeSpellResolution(state: GameState, item: StackItem): void {
             delete item.reboundFromHand;
             markReboundExiled(item);
             item.zone = "exile";
+            // CR 702.88b — the rebound recast is "without paying its mana
+            // cost" and pays no kicker, so the original cast's snapshot must
+            // not ride into exile with it.
+            clearCastKickerSnapshot(item);
             owner.exile.push(item);
             state.nextDelayedSeq = (state.nextDelayedSeq ?? 0) + 1;
             state.delayedTriggers = [
@@ -5595,6 +5627,7 @@ function finalizeSpellResolution(state: GameState, item: StackItem): void {
         // flag is set by `SpellContext.exileSelf()` during the resolve.
         if (item.exileOnResolve) {
             item.zone = "exile";
+            clearCastKickerSnapshot(item);
             owner.exile.push(item);
             return;
         }
