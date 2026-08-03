@@ -1827,6 +1827,7 @@ export const prismaticWard: CardDefinition = {
     modes: WARD_COLORS.map((color) => ({
         id: color,
         label: COLOR_NAMES[color],
+        color,
         oracleText: `Prevent all damage dealt to enchanted creature by ${COLOR_NAMES[color]} sources.`,
     })),
     replacementEffects: [

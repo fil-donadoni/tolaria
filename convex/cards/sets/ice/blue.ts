@@ -23,16 +23,17 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 import { untapRestriction } from "../../abilities/static/untapRestriction";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
+import { colorChoiceModes } from "../../abilities/chooseColor";
 
 // Color-word options for Balduvian Shaman's text change (CR 612 — the five
 // color words). The chosen value is the lowercase color word `addTextChange`
 // expects (matching Sleight of Mind's `COLOR_WORD_LIST`).
-const COLOR_WORD_OPTIONS = [
-    { id: "white", label: "White" },
-    { id: "blue", label: "Blue" },
-    { id: "black", label: "Black" },
-    { id: "red", label: "Red" },
-    { id: "green", label: "Green" },
+const COLOR_WORD_OPTIONS: { id: string; label: string; color: Color }[] = [
+    { id: "white", label: "White", color: "W" },
+    { id: "blue", label: "Blue", color: "U" },
+    { id: "black", label: "Black", color: "B" },
+    { id: "red", label: "Red", color: "R" },
+    { id: "green", label: "Green", color: "G" },
 ];
 
 // "At the beginning of your upkeep, sacrifice this permanent unless you pay
@@ -1903,13 +1904,6 @@ export const seaSpirit: CardDefinition = {
 // mono-colour pick covers the tactical use (becoming a colour to dodge a
 // "protection from" / colour-hate effect). Full power-set picking lands when a
 // multi-colour choice primitive exists.
-const SHYFT_COLOR_OPTIONS: { id: Color; label: string }[] = [
-    { id: "W", label: "White" },
-    { id: "U", label: "Blue" },
-    { id: "B", label: "Black" },
-    { id: "R", label: "Red" },
-    { id: "G", label: "Green" },
-];
 export const shyft: CardDefinition = {
     id: "99a60c33-b641-42c4-870d-95d07bc975dc",
     name: "Shyft",
@@ -1949,17 +1943,13 @@ export const shyft: CardDefinition = {
                             op: "optionChoice",
                             player: "controller",
                             prompt: "Choose Shyft's new color.",
-                            modes: SHYFT_COLOR_OPTIONS.map((option) => ({
-                                id: option.id,
-                                label: option.label,
-                                effects: [
-                                    {
-                                        op: "setColor",
-                                        target: { ref: "$source" },
-                                        colors: [option.id],
-                                    },
-                                ],
-                            })),
+                            modes: colorChoiceModes((color) => [
+                                {
+                                    op: "setColor",
+                                    target: { ref: "$source" },
+                                    colors: [color],
+                                },
+                            ]),
                         },
                     ],
                 },

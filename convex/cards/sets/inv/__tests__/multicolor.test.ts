@@ -2257,7 +2257,7 @@ describe("Dromar, the Banisher (CR 702.9b flying + 510.4/603.2 combat-damage tri
             target: { type: "player", id: "p2" },
         } as never);
         applyMayPaySubmit(state, { playerId: "p1", accept: true });
-        submitChoice(state, ["1"]); // modes: [W,U,B,R,G] — index 1 = blue
+        submitChoice(state, ["U"]); // colorChoiceModes ids are the color codes
         expect(
             state.players[1].battlefield.some((c) => c.id === "blue-guy")
         ).toBe(false);
@@ -2494,7 +2494,7 @@ describe("Stormscape Master (CR 613.1f keyword grant + 700.2 modal + 119.3 life 
         resolveActivated(state, master, "stormscape-master-protection", [
             { type: "permanent", id: "target" },
         ]);
-        submitChoice(state, ["2"]); // protection modes: [W,U,B,R,G] — index 2 = black
+        submitChoice(state, ["protection-black"]); // protectionColorModes ids
         const live = state.players[0].battlefield.find(
             (c) => c.id === "target"
         )!;

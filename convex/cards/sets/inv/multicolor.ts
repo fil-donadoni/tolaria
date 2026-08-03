@@ -22,6 +22,7 @@ import {
     PERMANENT_TYPES,
 } from "../../types";
 import { protectionColorModes } from "../../abilities";
+import { colorChoiceModes } from "../../abilities/chooseColor";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { kickerPaidCondition } from "../../abilities/triggers/shared";
@@ -2718,90 +2719,28 @@ const STERLING_GROVE_AFFECTS_OTHER_ENCHANTMENTS: StaticKeywordGrant["applies"] =
 // `forEach` by `type`) and every player's battlefield (omitted `controller`
 // — the same "all permanents" sweep default Upheaval itself uses) — no new
 // construct combination, so no new interpreter test is owed here.
-const DROMAR_BOUNCE_COLOR_MODES: NonNullable<
-    Extract<EffectOp, { op: "optionChoice" }>["modes"]
-> = [
+const DROMAR_COLOR_WORDS: Record<Color, string> = {
+    W: "white",
+    U: "blue",
+    B: "black",
+    R: "red",
+    G: "green",
+    C: "colorless",
+};
+const DROMAR_BOUNCE_COLOR_MODES = colorChoiceModes((color) => [
     {
-        label: "Return all white creatures to their owners' hands",
-        effects: [
-            {
-                op: "forEach",
-                select: {
-                    set: "permanents",
-                    zone: "battlefield",
-                    filter: { type: "Creature", color: "W" },
-                },
-                effects: [
-                    { op: "moveZone", target: { ref: "$each" }, to: "hand" },
-                ],
-            },
-        ],
+        op: "forEach",
+        select: {
+            set: "permanents",
+            zone: "battlefield",
+            filter: { type: "Creature", color },
+        },
+        effects: [{ op: "moveZone", target: { ref: "$each" }, to: "hand" }],
     },
-    {
-        label: "Return all blue creatures to their owners' hands",
-        effects: [
-            {
-                op: "forEach",
-                select: {
-                    set: "permanents",
-                    zone: "battlefield",
-                    filter: { type: "Creature", color: "U" },
-                },
-                effects: [
-                    { op: "moveZone", target: { ref: "$each" }, to: "hand" },
-                ],
-            },
-        ],
-    },
-    {
-        label: "Return all black creatures to their owners' hands",
-        effects: [
-            {
-                op: "forEach",
-                select: {
-                    set: "permanents",
-                    zone: "battlefield",
-                    filter: { type: "Creature", color: "B" },
-                },
-                effects: [
-                    { op: "moveZone", target: { ref: "$each" }, to: "hand" },
-                ],
-            },
-        ],
-    },
-    {
-        label: "Return all red creatures to their owners' hands",
-        effects: [
-            {
-                op: "forEach",
-                select: {
-                    set: "permanents",
-                    zone: "battlefield",
-                    filter: { type: "Creature", color: "R" },
-                },
-                effects: [
-                    { op: "moveZone", target: { ref: "$each" }, to: "hand" },
-                ],
-            },
-        ],
-    },
-    {
-        label: "Return all green creatures to their owners' hands",
-        effects: [
-            {
-                op: "forEach",
-                select: {
-                    set: "permanents",
-                    zone: "battlefield",
-                    filter: { type: "Creature", color: "G" },
-                },
-                effects: [
-                    { op: "moveZone", target: { ref: "$each" }, to: "hand" },
-                ],
-            },
-        ],
-    },
-];
+]).map((mode) => ({
+    ...mode,
+    label: `Return all ${DROMAR_COLOR_WORDS[mode.color!]} creatures to their owners' hands`,
+}));
 
 // Dromar, the Banisher — {3}{W}{U}{B} Legendary Creature — Dragon, 6/6.
 // "Flying. Whenever Dromar deals combat damage to a player, you may pay
@@ -2883,6 +2822,7 @@ const RITH_SAPROLING_COLOR_MODES: NonNullable<
     ] as const
 ).map(([color, label]) => ({
     label: `Create a 1/1 green Saproling for each ${label} permanent`,
+    color,
     effects: [
         {
             op: "createToken",
@@ -2979,6 +2919,7 @@ const TREVA_LIFEGAIN_COLOR_MODES: NonNullable<
     ] as const
 ).map(([color, label]) => ({
     label: `Gain 1 life for each ${label} permanent`,
+    color,
     effects: [
         {
             op: "gainLife",
@@ -3364,70 +3305,17 @@ export const stormscapeApprentice: CardDefinition = {
 };
 
 // The five WUBRG "protection from the color of your choice" modes Stormscape
-// Master's second ability offers — the exact Thornscape Master shape
-// (`green.ts`, this same five-pair cycle) reproduced module-locally: each
-// per-colour module authors its own mode array rather than importing across
-// files (Urborg Volcano/Shivan Oasis, this file, likewise each hand-write
-// their own `manaChoices` instead of sharing one).
-const STORMSCAPE_MASTER_PROTECTION_MODES: NonNullable<
-    Extract<EffectOp, { op: "optionChoice" }>["modes"]
-> = [
-    {
-        label: "Protection from white",
-        effects: [
-            {
-                op: "grantAbility",
-                ability: "protection from white",
-                target: { target: 0 },
-                duration: { phase: "end-of-turn" },
-            },
-        ],
-    },
-    {
-        label: "Protection from blue",
-        effects: [
-            {
-                op: "grantAbility",
-                ability: "protection from blue",
-                target: { target: 0 },
-                duration: { phase: "end-of-turn" },
-            },
-        ],
-    },
-    {
-        label: "Protection from black",
-        effects: [
-            {
-                op: "grantAbility",
-                ability: "protection from black",
-                target: { target: 0 },
-                duration: { phase: "end-of-turn" },
-            },
-        ],
-    },
-    {
-        label: "Protection from red",
-        effects: [
-            {
-                op: "grantAbility",
-                ability: "protection from red",
-                target: { target: 0 },
-                duration: { phase: "end-of-turn" },
-            },
-        ],
-    },
-    {
-        label: "Protection from green",
-        effects: [
-            {
-                op: "grantAbility",
-                ability: "protection from green",
-                target: { target: 0 },
-                duration: { phase: "end-of-turn" },
-            },
-        ],
-    },
-];
+// Master's second ability offers — now routed through the shared
+// `protectionColorModes` helper (`abilities/index.ts`, issue #684/#928 dedup)
+// instead of a module-local hand-rolled copy, so it carries the `color` tag
+// `PendingChoiceOptions` needs for the `ManaSymbol` icon for free.
+const STORMSCAPE_MASTER_PROTECTION_MODES = protectionColorModes([
+    "W",
+    "U",
+    "B",
+    "R",
+    "G",
+]);
 
 // Stormscape Master — {2}{U}{U} Creature — Human Wizard, 2/2. "{W}{W}, {T}:
 // Target creature gains protection from the color of your choice until end

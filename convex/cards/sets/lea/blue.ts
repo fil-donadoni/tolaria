@@ -1093,15 +1093,25 @@ export const sirensCall: CardDefinition = {
 // instance, lasting indefinitely and ending on a zone change (CR 612.6/612.7).
 // It changes color *words in the text*, never the object's own color (CR 612.1).
 const COLOR_WORD_LIST = ["white", "blue", "black", "red", "green"] as const;
+const COLOR_WORD_TO_CODE: Record<(typeof COLOR_WORD_LIST)[number], Color> = {
+    white: "W",
+    blue: "U",
+    black: "B",
+    red: "R",
+    green: "G",
+};
 
 function capitalize(word: string): string {
     return word.charAt(0).toUpperCase() + word.slice(1);
 }
 
-function sleightOfMindMode(toWord: string): SpellMode {
+function sleightOfMindMode(
+    toWord: (typeof COLOR_WORD_LIST)[number]
+): SpellMode {
     return {
         id: toWord,
         label: capitalize(toWord),
+        color: COLOR_WORD_TO_CODE[toWord],
         oracleText: `Replace a color word with ${toWord}.`,
         resolve: (ctx: SpellContext) => {
             const target = ctx.targets[0];

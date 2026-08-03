@@ -736,6 +736,7 @@ export const scarredPuma: CardDefinition = {
 function searingRaysMode(color: "W" | "U" | "B" | "R" | "G", label: string) {
     return {
         label,
+        color,
         effects: [
             {
                 op: "forEach" as const,

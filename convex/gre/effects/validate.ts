@@ -1946,11 +1946,24 @@ function isModeList(value: unknown): boolean {
         if (typeof mode !== "object" || mode === null || Array.isArray(mode)) {
             return false;
         }
-        const m = mode as { label?: unknown; effects?: unknown; id?: unknown };
-        // Only `label`, `effects` and the optional `id` are permitted (grammar
-        // frozen, ADR 0045).
+        const m = mode as {
+            label?: unknown;
+            effects?: unknown;
+            id?: unknown;
+            color?: unknown;
+        };
+        // Only `label`, `effects`, the optional `id` and the optional `color`
+        // are permitted (grammar frozen, ADR 0045). `color` (issue: QA color-
+        // picker redesign) tags a mode that IS a choice of color (CR 105.1) so
+        // `PendingChoiceOptions` / `ModeRow` can draw the matching `ManaSymbol`
+        // — never itself a new structural construct, just picker metadata.
         for (const key of Object.keys(mode)) {
-            if (key !== "label" && key !== "effects" && key !== "id") {
+            if (
+                key !== "label" &&
+                key !== "effects" &&
+                key !== "id" &&
+                key !== "color"
+            ) {
                 return false;
             }
         }
@@ -1958,7 +1971,9 @@ function isModeList(value: unknown): boolean {
             isNonEmptyString(m.label) &&
             Array.isArray(m.effects) &&
             m.effects.length > 0 &&
-            (m.id === undefined || isNonEmptyString(m.id))
+            (m.id === undefined || isNonEmptyString(m.id)) &&
+            (m.color === undefined ||
+                (typeof m.color === "string" && TOKEN_COLORS.has(m.color)))
         );
     });
 }

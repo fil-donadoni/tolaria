@@ -28,6 +28,17 @@ const COLOR_LABELS: ReadonlyArray<[Color, string]> = [
     ["G", "Green"],
 ];
 
+/** Shared "choose a color" option list (CR 105.1, the five colors — no
+ *  colorless) for the imperative `ctx.requestOptionChoice` callers that
+ *  build their own `optionChoice`-adjacent modes by hand instead of going
+ *  through `colorChoiceModes` (Kavu Chameleon, Alloy Golem, Fertile Ground,
+ *  Shyft — QA: four near-identical hand-rolled `{id: Color; label}[]`
+ *  literals, each missing the `color` tag `PendingChoiceOptions` needs to
+ *  draw the matching `ManaSymbol`). Import this instead of a new local
+ *  const (primitive-reuse mandate — extract, don't re-duplicate). */
+export const COLOR_OPTIONS: { id: Color; label: string; color: Color }[] =
+    COLOR_LABELS.map(([color, label]) => ({ id: color, label, color }));
+
 /** Builds the five-mode "choose one of the five colors" `EffectMode[]` for
  *  an `optionChoice` Op, one mode per color (CR 105.1). Each mode's body is
  *  produced by `bodyForColor(color)` — the caller decides what the chosen
@@ -44,6 +55,7 @@ export function colorChoiceModes(
     return COLOR_LABELS.map(([color, label]) => ({
         id: color,
         label,
+        color,
         effects: bodyForColor(color),
     }));
 }

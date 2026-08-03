@@ -14,6 +14,7 @@ import type {
     Color,
 } from "../../types";
 import { payOrSacrificeUpkeepTrigger } from "./multicolor";
+import { colorChoiceModes } from "../../abilities/chooseColor";
 
 // --- Vanilla / keyword creatures (CR 110.1 — pure data) -------------------
 
@@ -231,63 +232,13 @@ export const alchorsTomb: CardDefinition = {
                     op: "optionChoice",
                     player: "controller",
                     prompt: "Choose a color.",
-                    modes: [
+                    modes: colorChoiceModes((color) => [
                         {
-                            id: "W",
-                            label: "White",
-                            effects: [
-                                {
-                                    op: "setColor",
-                                    target: { target: 0 },
-                                    colors: ["W"],
-                                },
-                            ],
+                            op: "setColor",
+                            target: { target: 0 },
+                            colors: [color],
                         },
-                        {
-                            id: "U",
-                            label: "Blue",
-                            effects: [
-                                {
-                                    op: "setColor",
-                                    target: { target: 0 },
-                                    colors: ["U"],
-                                },
-                            ],
-                        },
-                        {
-                            id: "B",
-                            label: "Black",
-                            effects: [
-                                {
-                                    op: "setColor",
-                                    target: { target: 0 },
-                                    colors: ["B"],
-                                },
-                            ],
-                        },
-                        {
-                            id: "R",
-                            label: "Red",
-                            effects: [
-                                {
-                                    op: "setColor",
-                                    target: { target: 0 },
-                                    colors: ["R"],
-                                },
-                            ],
-                        },
-                        {
-                            id: "G",
-                            label: "Green",
-                            effects: [
-                                {
-                                    op: "setColor",
-                                    target: { target: 0 },
-                                    colors: ["G"],
-                                },
-                            ],
-                        },
-                    ],
+                    ]),
                 },
             ],
         },

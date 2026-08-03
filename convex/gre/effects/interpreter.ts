@@ -4020,6 +4020,7 @@ export const OP_EXECUTORS: {
                       options: op.modes.map((mode, i) => ({
                           id: optionId(mode, i),
                           label: mode.label,
+                          color: mode.color,
                       })),
                       prompt: op.prompt,
                   });

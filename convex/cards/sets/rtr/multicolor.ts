@@ -3,7 +3,8 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import type { CardDefinition, ManaCost } from "../../types";
+import { colorChoiceModes } from "../../abilities/chooseColor";
 
 // Deathrite Shaman — {B/G} Creature — Elf Shaman, 1/2 (issue #1926, PRD
 // #1736 hybrid mana wave). Printed cost is a single GUILD-HYBRID pip,
@@ -71,28 +72,12 @@ export const deathriteShaman: CardDefinition = {
                     op: "optionChoice",
                     player: "controller",
                     prompt: "Choose a color.",
-                    modes: [
+                    modes: colorChoiceModes((color) => [
                         {
-                            label: "White",
-                            effects: [{ op: "addMana", mana: { W: 1 } }],
+                            op: "addMana",
+                            mana: { [color]: 1 } as ManaCost,
                         },
-                        {
-                            label: "Blue",
-                            effects: [{ op: "addMana", mana: { U: 1 } }],
-                        },
-                        {
-                            label: "Black",
-                            effects: [{ op: "addMana", mana: { B: 1 } }],
-                        },
-                        {
-                            label: "Red",
-                            effects: [{ op: "addMana", mana: { R: 1 } }],
-                        },
-                        {
-                            label: "Green",
-                            effects: [{ op: "addMana", mana: { G: 1 } }],
-                        },
-                    ],
+                    ]),
                 },
             ],
         },

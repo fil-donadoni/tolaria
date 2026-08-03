@@ -251,6 +251,7 @@ export const chromaticArmor: CardDefinition = {
     modes: CHROMATIC_ARMOR_COLORS.map((color) => ({
         id: color,
         label: CHROMATIC_ARMOR_COLOR_NAMES[color],
+        color,
         oracleText: `Prevent all damage dealt to enchanted creature by ${CHROMATIC_ARMOR_COLOR_NAMES[color]} sources.`,
     })),
     // CR 122.1 — "This Aura enters with a sleight counter on it." Seeds the
@@ -308,6 +309,7 @@ export const chromaticArmor: CardDefinition = {
                     options: CHROMATIC_ARMOR_COLORS.map((c) => ({
                         id: c,
                         label: CHROMATIC_ARMOR_COLOR_NAMES[c],
+                        color: c,
                     })),
                     prompt: "Choose a color (Chromatic Armor)",
                 });

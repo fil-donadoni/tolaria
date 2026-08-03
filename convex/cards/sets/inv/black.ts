@@ -102,6 +102,7 @@ function mostCommonColorsFromSpellContext(ctx: SpellContext): Color[] {
 function addleMode(color: Color, label: string) {
     return {
         label,
+        color,
         effects: [
             {
                 op: "choice" as const,

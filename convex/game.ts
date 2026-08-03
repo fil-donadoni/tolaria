@@ -6745,6 +6745,12 @@ export const announceCast = mutation({
                     ? { phyrexianLifePips: args.phyrexianLifePips }
                     : {}),
                 ...(divideTotal !== undefined ? { divideTotal } : {}),
+                ...(activeTargetRequirement.divideAsChosen?.kind
+                    ? {
+                          divideKind:
+                              activeTargetRequirement.divideAsChosen.kind,
+                      }
+                    : {}),
                 ...(args.chosenModeId
                     ? { chosenModeId: args.chosenModeId }
                     : {}),
@@ -12194,6 +12200,9 @@ export function activateAbilityOnState(
             abilityId: args.abilityId,
             ...(abilityDivideTotal !== undefined
                 ? { divideTotal: abilityDivideTotal }
+                : {}),
+            ...(effectiveTargetReq.divideAsChosen?.kind
+                ? { divideKind: effectiveTargetReq.divideAsChosen.kind }
                 : {}),
             ...(targetChosenX !== undefined ? { chosenX: targetChosenX } : {}),
             ...(grantedSourceCardId ? { grantedSourceCardId } : {}),

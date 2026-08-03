@@ -2497,8 +2497,12 @@ export type PendingChoice = {
      *  exactly one of (CR 614.12 "as it enters, choose …"). Not zone members;
      *  the submission carries the chosen option `id` verbatim and the backend
      *  validates it against this list. The frontend renders one button per
-     *  option. Used by Primal Clay / Shapeshifter (choose-body-on-entry). */
-    options?: { id: string; label: string }[];
+     *  option, with a `ManaSymbol` icon when `color` is set (a choice among
+     *  the five colors — CR 105.1 — "choose a color" / protection-granting
+     *  abilities). Used by Primal Clay / Shapeshifter (choose-body-on-entry,
+     *  no `color`) and the color-choice family (Mother/Giver of Runes,
+     *  Blind Seer, `chooseColorEffects`). */
+    options?: { id: string; label: string; color?: Color }[];
     /** For `kind: "order-top"` only — the second zone the un-kept looked-at
      *  cards are sent to (`library-bottom` scry / `graveyard` surveil / `none`
      *  order-only Ponder). Set when the choice is raised; read by the resolve
@@ -2792,6 +2796,12 @@ export type PendingTarget = {
      *  Spoils of War = derived X). Drives the cap on target count (a player
      *  can't choose more targets than the total) and the per-target amount UI. */
     divideTotal?: number;
+    /** What the divided budget DOES (default `"deal"` damage when omitted) —
+     *  propagated from `TargetRequirement.divideAsChosen.kind`. `"prevent"`
+     *  for Pollen Remedy's divided damage prevention; the frontend's divide
+     *  banner reads this to label the finalize button correctly instead of
+     *  always saying "Deal damage". */
+    divideKind?: "deal" | "prevent";
     /** Per-target amounts assigned during divide-as-you-choose selection,
      *  keyed by `${type}:${id}` (parallels `selected`). Each entry is ≥ 1.
      *  Written to the stack item as `targetAmounts` at finalization. Undefined

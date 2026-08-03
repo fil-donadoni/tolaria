@@ -5,7 +5,6 @@
 import type {
     CardDefinition,
     CardPrint,
-    Color,
     EffectOp,
     StaticKeywordGrant,
 } from "../../types";
@@ -13,6 +12,8 @@ import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { kickerPaidCondition } from "../../abilities/triggers/shared";
+import { colorChoiceModes } from "../../abilities/chooseColor";
+import { protectionColorModes } from "../../abilities";
 
 // Blurred Mongoose — "This spell can't be countered. Shroud (This creature
 // can't be the target of spells or abilities.)" (CR 701.5c can't-be-countered
@@ -59,19 +60,6 @@ export const blurredMongoose: CardDefinition = {
     ],
 };
 
-// The five basic colours a "becomes the color of your choice" effect may
-// pick, mirroring Shyft's mono-colour reading of "color or colors of your
-// choice"-style effects (`ice/blue.ts` SHYFT_COLOR_OPTIONS) — Kavu
-// Chameleon's oracle text is already single-colour ("the color", not "color
-// or colors"), so no simplification is needed here.
-const KAVU_CHAMELEON_COLOR_OPTIONS: { id: Color; label: string }[] = [
-    { id: "W", label: "White" },
-    { id: "U", label: "Blue" },
-    { id: "B", label: "Black" },
-    { id: "R", label: "Red" },
-    { id: "G", label: "Green" },
-];
-
 // Kavu Chameleon — "This spell can't be countered. {G}: This creature
 // becomes the color of your choice until end of turn." (CR 701.5c can't-be-
 // countered flag, issue #1065; CR 305.7 / 613.1d layer-5 colour change.)
@@ -107,18 +95,14 @@ export const kavuChameleon: CardDefinition = {
                     op: "optionChoice",
                     player: "controller",
                     prompt: "Choose a color for Kavu Chameleon.",
-                    modes: KAVU_CHAMELEON_COLOR_OPTIONS.map((option) => ({
-                        id: option.id,
-                        label: option.label,
-                        effects: [
-                            {
-                                op: "setColor",
-                                target: { ref: "$source" },
-                                colors: [option.id],
-                                duration: { phase: "end-of-turn" },
-                            },
-                        ],
-                    })),
+                    modes: colorChoiceModes((color) => [
+                        {
+                            op: "setColor",
+                            target: { ref: "$source" },
+                            colors: [color],
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ]),
                 },
             ],
         },
@@ -857,69 +841,16 @@ export const thornscapeApprentice: CardDefinition = {
 };
 
 // The five "protection from <color>" modes a runtime colour choice offers —
-// composed via `optionChoice` (5 modes) + `grantAbility`, both already-
-// exercised Ops; `grantAbility`'s free-form `ability` string already accepts
-// a parametrized "protection from X" keyword (precedent: Goblin Wizard,
-// `drk/red.ts`, a FIXED colour; here the colour itself is the runtime choice).
-const THORNSCAPE_MASTER_PROTECTION_MODES: NonNullable<
-    Extract<EffectOp, { op: "optionChoice" }>["modes"]
-> = [
-    {
-        label: "Protection from white",
-        effects: [
-            {
-                op: "grantAbility",
-                ability: "protection from white",
-                target: { target: 0 },
-                duration: { phase: "end-of-turn" },
-            },
-        ],
-    },
-    {
-        label: "Protection from blue",
-        effects: [
-            {
-                op: "grantAbility",
-                ability: "protection from blue",
-                target: { target: 0 },
-                duration: { phase: "end-of-turn" },
-            },
-        ],
-    },
-    {
-        label: "Protection from black",
-        effects: [
-            {
-                op: "grantAbility",
-                ability: "protection from black",
-                target: { target: 0 },
-                duration: { phase: "end-of-turn" },
-            },
-        ],
-    },
-    {
-        label: "Protection from red",
-        effects: [
-            {
-                op: "grantAbility",
-                ability: "protection from red",
-                target: { target: 0 },
-                duration: { phase: "end-of-turn" },
-            },
-        ],
-    },
-    {
-        label: "Protection from green",
-        effects: [
-            {
-                op: "grantAbility",
-                ability: "protection from green",
-                target: { target: 0 },
-                duration: { phase: "end-of-turn" },
-            },
-        ],
-    },
-];
+// routed through the shared `protectionColorModes` helper (`abilities/index.ts`,
+// issue #684/#928 dedup) instead of a module-local hand-rolled copy, so it
+// carries the `color` tag `PendingChoiceOptions` needs for the `ManaSymbol` icon.
+const THORNSCAPE_MASTER_PROTECTION_MODES = protectionColorModes([
+    "W",
+    "U",
+    "B",
+    "R",
+    "G",
+]);
 
 // Thornscape Master — {2}{G}{G} Creature — Human Wizard, 2/2. "{R}{R}, {T}:
 // This creature deals 2 damage to target creature. {W}{W}, {T}: Target

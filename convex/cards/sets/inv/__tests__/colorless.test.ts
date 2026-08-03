@@ -505,7 +505,7 @@ describe("Phyrexian Altar (sacrifice a creature: add one mana of any color; CR 6
             stackItemId: head.stackItemId,
             step: head.step,
             choiceId: head.choiceId,
-            cardInstanceIds: ["2"], // modes are [White, Blue, Black, Red, Green]
+            cardInstanceIds: ["B"], // colorChoiceModes ids are the color codes
         });
         expect(state.players[0].manaPool.B).toBe(1);
     });

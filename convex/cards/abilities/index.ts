@@ -171,12 +171,13 @@ export const PROTECTION_QUALITY_NAMES: Record<Color, string> = {
  *  mh1/white.ts) — issue #684/#928 dedup. */
 export function protectionColorModes(
     codes: ReadonlyArray<Color>
-): { id: string; label: string; effects: EffectOp[] }[] {
+): { id: string; label: string; color: Color; effects: EffectOp[] }[] {
     return codes.map((code) => {
         const quality = PROTECTION_QUALITY_NAMES[code];
         return {
             id: `protection-${quality}`,
             label: `Protection from ${quality}`,
+            color: code,
             effects: [
                 {
                     op: "grantAbility",

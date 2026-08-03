@@ -526,8 +526,13 @@ export interface TargetRequirement {
      *  more targets than there are points to assign, since each needs ≥ 1) and
      *  drives the per-target amount UI. The resolved total flows to
      *  `PendingTarget.divideTotal` and the assigned split to the stack item's
-     *  `targetAmounts`. `count` should be `{ min: 1 }` (open-ended). */
-    divideAsChosen?: { total: number | "X" | "X+1" };
+     *  `targetAmounts`. `count` should be `{ min: 1 }` (open-ended).
+     *  `kind` (default `"deal"`) tags what the divided budget DOES — every
+     *  divide-as-chosen card deals damage except Pollen Remedy, which
+     *  PREVENTS it (CR 615.1); the frontend's divide banner/buttons read this
+     *  to say "Prevent damage" instead of the default "Deal damage" (QA — the
+     *  banner hard-coded "Deal damage" for every divide spell regardless). */
+    divideAsChosen?: { total: number | "X" | "X+1"; kind?: "deal" | "prevent" };
     /** Restricts legal SPELL targets (`type: "spell"`) to spells that WOULD
      *  destroy a land the activating player controls (CR 114.1 + 701.7). A
      *  spell qualifies when either:
@@ -755,6 +760,12 @@ export interface SpellMode {
      *  reads the chosen mode's static effects instead of the card-level ones.
      *  Supports subtype-set, keyword-grant, etc. */
     staticEffects?: StaticEffect[];
+    /** Set when this mode IS a choice of color (CR 105.1) — Prismatic Ward /
+     *  Chromatic Armor's warded-colour pick, Sleight of Mind's color-word
+     *  replacement. Drives the `ManaSymbol` icon in `ModeRow` (`mode-picker.tsx`)
+     *  the same way `PendingChoice.options[].color` does for the `option-pick`
+     *  picker — never set for a non-color mode (Healing Salve's two modes). */
+    color?: Color;
 }
 
 export interface ActivatedAbility {
@@ -3888,7 +3899,7 @@ export interface SpellContext {
     requestOptionChoice: (req: {
         playerId: string;
         choiceId: string;
-        options: { id: string; label: string }[];
+        options: { id: string; label: string; color?: Color }[];
         prompt: string;
         /** Acting Player (ADR 0037): set when the prompted `playerId` is acting
          *  on another player's behalf (Word of Command — the controller picks X
@@ -9277,6 +9288,13 @@ export interface EffectMode {
     label: string;
     effects: EffectOp[];
     id?: string;
+    /** Set when this mode IS a choice of color (CR 105.1) — e.g. one mode per
+     *  color in `colorChoiceModes` / `protectionColorModes` (ADR 0045's
+     *  `optionChoice` composing "choose a color of five/six"). Threaded
+     *  verbatim onto the resulting `PendingChoice.options[].color` so the
+     *  frontend renders a `ManaSymbol` icon instead of a plain text button —
+     *  never set for a non-color modal choice (Primal Clay's body modes). */
+    color?: Color;
 }
 
 /** One step of an Effect Script. Ops are small, orthogonal and composable

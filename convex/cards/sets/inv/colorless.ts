@@ -5,8 +5,8 @@
 import type {
     ActivatedAbilityContext,
     CardDefinition,
-    Color,
     GameEvent,
+    ManaCost,
     SpellContext,
     StaticEffectContext,
 } from "../../types";
@@ -17,6 +17,7 @@ import {
     hasNonManaActivatedAbility,
     untapRestriction,
 } from "../../abilities/static/untapRestriction";
+import { colorChoiceModes } from "../../abilities/chooseColor";
 
 // Tsabo's Web — {2} Artifact. "When this artifact enters, draw a card. Each
 // land with an activated ability that isn't a mana ability doesn't untap during
@@ -133,14 +134,6 @@ export const powerArmor: CardDefinition = {
 // `duration` (indefinite, mirrors the removed `setColorOverride` call this
 // closure made directly). Scope is `self`, so the entering permanent IS the
 // source — `$source` needs no `entered` payload.
-const ALLOY_GOLEM_COLOR_OPTIONS: { id: Color; label: string }[] = [
-    { id: "W", label: "White" },
-    { id: "U", label: "Blue" },
-    { id: "B", label: "Black" },
-    { id: "R", label: "Red" },
-    { id: "G", label: "Green" },
-];
-
 export const alloyGolem: CardDefinition = {
     id: "1fb6d6a1-9d71-405b-9c93-1a7f06c67abd",
     rarity: "uncommon",
@@ -163,17 +156,13 @@ export const alloyGolem: CardDefinition = {
                     op: "optionChoice",
                     player: "controller",
                     prompt: "Choose a color.",
-                    modes: ALLOY_GOLEM_COLOR_OPTIONS.map((option) => ({
-                        id: option.id,
-                        label: option.label,
-                        effects: [
-                            {
-                                op: "setColor",
-                                target: { ref: "$source" },
-                                colors: [option.id],
-                            },
-                        ],
-                    })),
+                    modes: colorChoiceModes((color) => [
+                        {
+                            op: "setColor",
+                            target: { ref: "$source" },
+                            colors: [color],
+                        },
+                    ]),
                 },
             ],
         }),
@@ -307,28 +296,12 @@ export const phyrexianAltar: CardDefinition = {
                     op: "optionChoice",
                     player: "controller",
                     prompt: "Choose a color.",
-                    modes: [
+                    modes: colorChoiceModes((color) => [
                         {
-                            label: "White",
-                            effects: [{ op: "addMana", mana: { W: 1 } }],
+                            op: "addMana",
+                            mana: { [color]: 1 } as ManaCost,
                         },
-                        {
-                            label: "Blue",
-                            effects: [{ op: "addMana", mana: { U: 1 } }],
-                        },
-                        {
-                            label: "Black",
-                            effects: [{ op: "addMana", mana: { B: 1 } }],
-                        },
-                        {
-                            label: "Red",
-                            effects: [{ op: "addMana", mana: { R: 1 } }],
-                        },
-                        {
-                            label: "Green",
-                            effects: [{ op: "addMana", mana: { G: 1 } }],
-                        },
-                    ],
+                    ]),
                 },
             ],
         },

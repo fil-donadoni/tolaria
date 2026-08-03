@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import type { SpellMode } from "@convex/cards/types";
 import GameDialog from "~/components/ui/game-dialog";
 import { Panel } from "@/components/ui/panel";
+import ManaSymbol from "~/components/cards/mana-symbol";
+import { formatOracleText } from "~/lib/oracle-text";
 
 type ModePickerProps = {
     modes: SpellMode[];
@@ -27,11 +29,14 @@ function ModeRow({
             onClick={() => onSelect(mode.id)}
             className="flex flex-col items-start gap-0.5 rounded-sm px-3 py-2.5 text-left hover:bg-surface-elevated border border-transparent hover:border-border-subtle transition-colors cursor-pointer"
         >
-            <span className="font-beleren text-sm tracking-wide text-text">
-                {mode.label}
+            <span className="flex items-center gap-1.5 font-beleren text-sm tracking-wide text-text">
+                {mode.color && (
+                    <ManaSymbol symbol={mode.color} className="size-4" />
+                )}
+                {formatOracleText(mode.label)}
             </span>
             <span className="text-xs text-text-disabled">
-                {mode.oracleText}
+                {formatOracleText(mode.oracleText)}
             </span>
         </button>
     );

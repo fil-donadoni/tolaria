@@ -4,6 +4,7 @@ import type { CardDefinition } from "../../types";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 import type { Color } from "../../types";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
+import { COLOR_OPTIONS } from "../../abilities/chooseColor";
 
 // Argothian Enchantress — "Shroud. Whenever you cast an enchantment spell,
 // draw a card." (CR 702.18 shroud; CR 603.2 + 601.2i spell-cast trigger; CR
@@ -74,14 +75,7 @@ export const exploration: CardDefinition = {
 // `resolve` callback's `tapped.controllerId`.
 // Blocked on: an event-field player ref reachable from a `tappedTrigger`
 // script (same gap Wild Growth's own comment documents). The runtime colour
-// choice reuses the `requestOptionChoice` picker Kavu Chameleon uses above.
-const FERTILE_GROUND_COLOR_OPTIONS: { id: Color; label: string }[] = [
-    { id: "W", label: "White" },
-    { id: "U", label: "Blue" },
-    { id: "B", label: "Black" },
-    { id: "R", label: "Red" },
-    { id: "G", label: "Green" },
-];
+// choice reuses the shared `COLOR_OPTIONS` list (`abilities/chooseColor.ts`).
 
 //
 // Home set = earliest paper printing (ADR 0041) = Urza's Saga; it was first
@@ -120,7 +114,7 @@ export const fertileGround: CardDefinition = {
                 const chosen = ctx.requestOptionChoice({
                     playerId: tapped.controllerId,
                     choiceId: `fertile-ground-${ctx.sourceInstanceId}`,
-                    options: FERTILE_GROUND_COLOR_OPTIONS,
+                    options: COLOR_OPTIONS,
                     prompt: "Fertile Ground: add one mana of which color?",
                 });
                 if (chosen === undefined) return; // suspended

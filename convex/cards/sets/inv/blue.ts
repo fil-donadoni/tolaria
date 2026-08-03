@@ -463,6 +463,7 @@ export const washOut: CardDefinition = {
             modes: WASH_OUT_COLORS.map((color) => ({
                 id: color,
                 label: WASH_OUT_COLOR_NAMES[color],
+                color,
                 effects: [
                     {
                         op: "forEach",
