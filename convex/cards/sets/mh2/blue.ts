@@ -94,13 +94,18 @@ export const subtlety: CardDefinition = {
 // copy it for each time you paid its replicate cost. You may choose new
 // targets for the copies.) Counter target spell unless its controller pays
 // {2}." Blocked: Replicate (CR 702.56) is `status: "planned"` in
-// mechanicsRegistry.ts — no alternate-cast-with-copies primitive exists yet
-// (distinct from CR 706 copy-a-spell: replicate copies are paid for and
-// created AT CAST TIME, not via a resolution-time copy effect). The
-// counter-unless-pay half is otherwise free (same shape as Force Spike,
-// leg/blue.ts) — only the keyword blocks it. Stop-and-issue per
+// mechanicsRegistry.ts. Both HALVES of the keyword already exist under other
+// names — the repeatable optional additional cost is Multikicker
+// (`KickerCost.multi` + the derived `totalKickerCount`, gre/kicker.ts), and
+// the cast trigger that copies the spell N times with a per-copy retarget is
+// Storm (`collectCastTriggers` / `resolveStormTrigger`, gre/state.ts; the
+// detached snapshot is why copies survive the original being countered).
+// What's missing is the wiring: a keyword-agnostic cast-copy count sourced
+// from times-paid instead of `priorSpellCount`, plus a discriminator so a
+// replicate payment isn't reported as a kick. The counter-unless-pay half is
+// free (same shape as Force Spike, leg/blue.ts). Stop-and-issue per
 // gre-development.md; tracked stub.
-// tracked-by: #930
+// tracked-by: #2100
 // export const loseFocus: CardDefinition = {
 //     id: "985bdb0c-ce6c-4506-8163-76f3b2fdf5fb",
 //     name: "Lose Focus",

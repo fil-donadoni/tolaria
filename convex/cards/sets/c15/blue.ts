@@ -9,11 +9,12 @@
 // (CR 700.2 modal.) Blocked: the only modal constructs the engine has —
 // Effect Script `optionChoice` and the legacy `CardDefinition.modes`
 // mechanism — both pick EXACTLY ONE mode (CR 700.2b "choose one"). This
-// card needs "choose three, repeats allowed" — a strictly more general shape
-// than the "choose two DISTINCT modes" gap already tracked by #1566
-// (Kolaghan's Command). No choose-N-with-repeat construct exists yet.
+// card needs "choose three, repeats allowed" — the same cardinality shape as
+// Fiery Confluence (c15/red.ts), and a strictly more general one than the
+// "choose two DISTINCT modes" gap of Kolaghan's Command. All three, plus
+// Flame of Anor's board-conditional count, are one construct, owned by #1566.
 // Stop-and-issue per gre-development.md; tracked stub.
-// tracked-by: #930
+// tracked-by: #1566
 // export const mysticConfluence: CardDefinition = {
 //     id: "62e5d409-c0b6-4123-802d-eb32f223bd1a",
 //     name: "Mystic Confluence",
