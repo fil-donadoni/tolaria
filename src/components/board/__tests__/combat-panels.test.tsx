@@ -64,6 +64,7 @@ function renderCombatPanels(combat: Combat) {
         turn: 1,
         engineTurn: 1,
         stackCount: 0,
+        stackItems: [],
         combat,
         allPlayers: [me, player({ id: "opp", name: "Opp" })],
         showAllCards: false,

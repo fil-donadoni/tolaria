@@ -205,6 +205,7 @@ function renderInteraction(me: Player) {
         turn: 1,
         engineTurn: 1,
         stackCount: 0,
+        stackItems: [],
         allPlayers: [me],
         showAllCards: false,
         debugAllActions: false,

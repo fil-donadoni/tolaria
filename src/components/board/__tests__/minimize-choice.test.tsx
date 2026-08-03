@@ -132,6 +132,7 @@ function makeContext(): React.ContextType<typeof GameContext> {
         turn: 1,
         engineTurn: 1,
         stackCount: 0,
+        stackItems: [],
         allPlayers: [makePlayer("me"), makePlayer("opp")],
         showAllCards: false,
         debugAllActions: false,

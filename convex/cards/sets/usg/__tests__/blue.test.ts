@@ -18,7 +18,7 @@ import {
     lightningBolt,
     mountain,
 } from "../../lea";
-import { getLegalTargets } from "../../../../gre/rules";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import {
@@ -38,7 +38,11 @@ describe("Annul ({U}: counter target artifact or enchantment spell, CR 701.5a / 
         pushSpell(state, grizzlyBears.id, "p2"); // Creature — not legal
         pushSpell(state, lightningBolt.id, "p2"); // Instant — not legal
 
-        const legal = getLegalTargets(state, annul.targetRequirement!);
+        const legal = getLegalTargets(
+            state,
+            annul.targetRequirement!,
+            NO_TARGETING_SOURCE
+        );
         expect(legal.map((t) => t.id).sort()).toEqual(
             [artifactSpell.id, enchantmentSpell.id].sort()
         );
@@ -49,9 +53,13 @@ describe("Annul ({U}: counter target artifact or enchantment spell, CR 701.5a / 
             players: [makePlayer("p1"), makePlayer("p2")],
         });
         pushSpell(state, grizzlyBears.id, "p2");
-        expect(getLegalTargets(state, annul.targetRequirement!)).toHaveLength(
-            0
-        );
+        expect(
+            getLegalTargets(
+                state,
+                annul.targetRequirement!,
+                NO_TARGETING_SOURCE
+            )
+        ).toHaveLength(0);
     });
 
     it("an instant spell is not a legal target", () => {
@@ -59,9 +67,13 @@ describe("Annul ({U}: counter target artifact or enchantment spell, CR 701.5a / 
             players: [makePlayer("p1"), makePlayer("p2")],
         });
         pushSpell(state, lightningBolt.id, "p2");
-        expect(getLegalTargets(state, annul.targetRequirement!)).toHaveLength(
-            0
-        );
+        expect(
+            getLegalTargets(
+                state,
+                annul.targetRequirement!,
+                NO_TARGETING_SOURCE
+            )
+        ).toHaveLength(0);
     });
 
     it("resolving Annul counters the targeted artifact spell (CR 701.5a)", () => {

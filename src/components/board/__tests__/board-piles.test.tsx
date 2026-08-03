@@ -92,6 +92,7 @@ function renderPiles(opponent: Player, me: Player) {
         turn: 1,
         engineTurn: 1,
         stackCount: 0,
+        stackItems: [],
         allPlayers: [opponent, me],
         showAllCards: false,
         debugAllActions: false,

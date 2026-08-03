@@ -36,6 +36,7 @@ function renderTile(player: Player, cityBlessingIds?: string[]) {
         turn: 1,
         engineTurn: 1,
         stackCount: 0,
+        stackItems: [],
         allPlayers: [player],
         cityBlessingIds,
         showAllCards: false,

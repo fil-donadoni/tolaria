@@ -98,6 +98,7 @@ import {
     getLegalActions,
     getLegalTargets,
     spellWouldDestroyLandControlledBy,
+    NO_TARGETING_SOURCE,
 } from "../../../../gre/rules";
 import {
     applySourceStaticEffects,
@@ -1690,9 +1691,12 @@ describe("D'Avenant Archer ({T}: ping attacking-or-blocking, CR 508.1/509.1)", (
                 makePlayer("p2", { battlefield: [attacker, idle] }),
             ],
         });
-        const legal = getLegalTargets(state, ARCHER_REQ, [], "p1").map(
-            (t) => t.id
-        );
+        const legal = getLegalTargets(
+            state,
+            ARCHER_REQ,
+            NO_TARGETING_SOURCE,
+            "p1"
+        ).map((t) => t.id);
         expect(legal).toContain("atk");
         expect(legal).toContain("blk");
         expect(legal).not.toContain("idle");
@@ -2659,7 +2663,11 @@ describe("Greater Realm of Preservation (CR 615.1, 615.6 / 202.2)", () => {
         state.stack.push({ ...redSrc, castById: "p2" });
 
         const ability = greaterRealmOfPreservation.activatedAbilities![0];
-        const legal = getLegalTargets(state, ability.targetRequirement!);
+        const legal = getLegalTargets(
+            state,
+            ability.targetRequirement!,
+            NO_TARGETING_SOURCE
+        );
         const ids = legal.map((t) => t.id);
         expect(ids).toContain("black-src");
         expect(ids).toContain("red-src");
@@ -3079,7 +3087,7 @@ describe("Equinox (enchant land grants conditional counter, CR 303.4/611.2/701.5
         const legal = getLegalTargets(
             state,
             { type: "spell", count: 1, spellWouldDestroyLandYouControl: true },
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         );
         expect(legal.map((t) => t.id)).toContain(spell.id);
@@ -3096,7 +3104,7 @@ describe("Equinox (enchant land grants conditional counter, CR 303.4/611.2/701.5
         const legal = getLegalTargets(
             state,
             { type: "spell", count: 1, spellWouldDestroyLandYouControl: true },
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         );
         expect(legal.map((t) => t.id)).not.toContain(spell.id);
@@ -3119,7 +3127,7 @@ describe("Equinox (enchant land grants conditional counter, CR 303.4/611.2/701.5
         const legal = getLegalTargets(
             state,
             { type: "spell", count: 1, spellWouldDestroyLandYouControl: true },
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         );
         expect(legal.map((t) => t.id)).not.toContain(spell.id);

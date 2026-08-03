@@ -13,6 +13,7 @@ import {
 import {
     getLegalTargets,
     raiseTriggerTargetSelection,
+    NO_TARGETING_SOURCE,
 } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
 import { PERMANENT_TYPES } from "../../../types";
@@ -138,7 +139,12 @@ describe("Karmic Justice (destroyed-by-opponent LTB trigger, CR 603.10 / 603.3d,
         // p1 (Karmic Justice's controller) is the chooser; controller:"opponent"
         // must yield only p2's permanents (CR 603.3d target legality).
         const req = karmicJustice.triggeredAbilities![0].targetRequirement!;
-        const legalIds = getLegalTargets(state, req, [], "p1").map((t) => t.id);
+        const legalIds = getLegalTargets(
+            state,
+            req,
+            NO_TARGETING_SOURCE,
+            "p1"
+        ).map((t) => t.id);
         expect(legalIds).toContain("p2perm");
         expect(legalIds).not.toContain("p1extra");
         expect(legalIds).not.toContain("kj");

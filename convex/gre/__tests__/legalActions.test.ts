@@ -23,7 +23,11 @@ import {
     makeState,
     pushSpell,
 } from "../../cards/__tests__/setup";
-import { getLegalTargets, pendingTargetFiltersFromRequirement } from "../rules";
+import {
+    getLegalTargets,
+    pendingTargetFiltersFromRequirement,
+    NO_TARGETING_SOURCE,
+} from "../rules";
 import type { GameState, PendingChoice } from "../state";
 import {
     assertExpectedInput,
@@ -550,7 +554,12 @@ describe("legalActions — mid-cast targeting (CR 601.2c)", () => {
         const selects = legalActions(state)
             .filter((a) => a.action.kind === "select-target")
             .map((a) => (a.action as { target: { id: string } }).target.id);
-        const offered = getLegalTargets(state, req, [], "p1").map((t) => t.id);
+        const offered = getLegalTargets(
+            state,
+            req,
+            NO_TARGETING_SOURCE,
+            "p1"
+        ).map((t) => t.id);
 
         expect(selects.sort()).toEqual(offered.sort());
         // …and not vacuous in either direction.

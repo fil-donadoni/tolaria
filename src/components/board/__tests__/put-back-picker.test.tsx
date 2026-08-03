@@ -62,6 +62,7 @@ function renderWith(opts: { allPlayers: Player[]; pendingChoices?: Choices }) {
         turn: 1,
         engineTurn: 1,
         stackCount: 0,
+        stackItems: [],
         allPlayers: opts.allPlayers,
         showAllCards: false,
         debugAllActions: false,

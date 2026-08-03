@@ -95,6 +95,7 @@ export function useBattlefieldInteraction(player: Player) {
         cannotActivateAbilitiesThisTurn,
         lifeGainedThisTurn,
         emblems,
+        stackItems,
     } = useGameContext();
     const isMe = player.id === playerId;
     // The VIEWER's own player row. Usually identical to `player` (this board is
@@ -453,6 +454,8 @@ export function useBattlefieldInteraction(player: Player) {
                 card,
                 pendingTarget.cardInstanceId,
                 pendingTarget.kind,
+                // CR 405 — a triggered ability's source is an on-stack item.
+                stackItems,
                 // CR 702.11b — the chooser controls the source; hexproof bars
                 // only an opponent's source, never the controller's own.
                 pendingTarget.playerId

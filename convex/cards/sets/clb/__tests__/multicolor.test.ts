@@ -21,7 +21,7 @@ import {
 } from "../../../../gre/triggers";
 import { projectPublicState } from "../../../../gameProjections";
 import { checkStateBasedActions } from "../../../../gre/sba";
-import { getLegalTargets } from "../../../../gre/rules";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { minscAndBooTimelessHeroes } from "../multicolor";
 import { grizzlyBears } from "../../lea/green";
 import { tryGetDefinition } from "../../../index";
@@ -200,7 +200,7 @@ describe("Minsc & Boo, Timeless Heroes — +1 (CR 702 'trample or haste')", () =
         const req = minscAndBooTimelessHeroes.activatedAbilities!.find(
             (a) => a.id === "minsc-and-boo-plus1"
         )!.targetRequirement!;
-        const legal = getLegalTargets(state, req, [], "p1");
+        const legal = getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1");
         expect(legal.map((t) => t.id).sort()).toEqual(["hasty", "trampler"]);
     });
 

@@ -45,6 +45,7 @@ function renderStack(stack: StackItem[], recentArrivals?: ReadonlySet<string>) {
         turn: 1,
         engineTurn: 1,
         stackCount: stack.length,
+        stackItems: [],
         allPlayers: [],
         recentArrivals,
         showAllCards: false,

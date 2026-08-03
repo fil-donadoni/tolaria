@@ -100,7 +100,7 @@ import {
     getEffectivePower,
     getEffectiveToughness,
 } from "../../../../gre/layers";
-import { getLegalTargets } from "../../../../gre/rules";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { isGuardedAgainst } from "../../../../gre/permanentGuard";
 import {
     validateBlockerEligibility,
@@ -434,7 +434,7 @@ describe("Grapeshot Catapult ({T}: 1 dmg to flyer, CR 120.3 / 702.9)", () => {
         const req = grapeshotCatapult.activatedAbilities!.find(
             (a) => a.id === "grapeshot-catapult-bolt"
         )!.targetRequirement!;
-        const legal = getLegalTargets(state, req, [], "p1");
+        const legal = getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1");
         const ids = legal.map((t) => t.id);
         expect(ids).toContain("flyer");
         expect(ids).not.toContain("ground");
@@ -602,7 +602,9 @@ describe("Obelisk of Undoing ({6},{T}: return your permanent, CR 701.10)", () =>
         const req = obeliskOfUndoing.activatedAbilities!.find(
             (a) => a.id === "obelisk-of-undoing-return"
         )!.targetRequirement!;
-        const ids = getLegalTargets(state, req, [], "p1").map((t) => t.id);
+        const ids = getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1").map(
+            (t) => t.id
+        );
         expect(ids).toContain("mine");
         expect(ids).toContain("obelisk"); // can target itself
         expect(ids).not.toContain("theirs");
@@ -626,7 +628,9 @@ describe("Obelisk of Undoing ({6},{T}: return your permanent, CR 701.10)", () =>
         const req = obeliskOfUndoing.activatedAbilities!.find(
             (a) => a.id === "obelisk-of-undoing-return"
         )!.targetRequirement!;
-        const ids = getLegalTargets(state, req, [], "p1").map((t) => t.id);
+        const ids = getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1").map(
+            (t) => t.id
+        );
         expect(ids).toContain("land");
     });
 
@@ -904,7 +908,7 @@ describe("Candelabra of Tawnos ({X},{T}: untap X target lands, CR 107.3 / 601.2c
         const ids = getLegalTargets(
             state,
             candelabraOfTawnos.activatedAbilities![0].targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1",
             1
         ).map((t) => t.id);
@@ -1608,7 +1612,7 @@ describe("Mishra's Factory (animate + Assembly-Worker pump, CR 611.1)", () => {
             const legal = getLegalTargets(
                 state,
                 shatter.targetRequirement!,
-                [],
+                NO_TARGETING_SOURCE,
                 "p2"
             ).map((t) => t.id);
             expect(legal).toContain("factory");
@@ -1650,7 +1654,7 @@ describe("Mishra's Factory (animate + Assembly-Worker pump, CR 611.1)", () => {
             const fatLegal = getLegalTargets(
                 state,
                 shatter.targetRequirement!,
-                [],
+                NO_TARGETING_SOURCE,
                 "p2"
             ).map((t) => t.id);
             expect(fatLegal).toContain("factory");
@@ -1711,7 +1715,7 @@ describe("Mishra's Factory (animate + Assembly-Worker pump, CR 611.1)", () => {
         const legal = getLegalTargets(
             state,
             ability.targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         ).map((t) => t.id);
         expect(legal).toContain("worker");
@@ -2202,7 +2206,7 @@ describe("Ashnod's Transmogrant ({T}, sac: +1/+1 on nonartifact creature)", () =
         const legal = getLegalTargets(
             state,
             ability.targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         ).map((t) => t.id);
         expect(legal).toContain("bear");

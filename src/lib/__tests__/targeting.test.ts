@@ -3,7 +3,7 @@ import {
     isUntargetableByPending,
     isPlayerUntargetableByPending,
 } from "../targeting";
-import type { CardInstance, Player } from "~/types/game";
+import type { CardInstance, Player, StackItem } from "~/types/game";
 import { registerTokenDefinition } from "@convex/cards";
 import type { CardDefinition } from "@convex/cards/types";
 
@@ -79,17 +79,17 @@ describe("isUntargetableByPending — Spectral Cloak (CR 702.18)", () => {
     it("marks the untapped cloaked creature as not clickable", () => {
         const players = board(false);
         const bear = players[0].battlefield[0];
-        expect(isUntargetableByPending(players, bear, "spell", "cast")).toBe(
-            true
-        );
+        expect(
+            isUntargetableByPending(players, bear, "spell", "cast", [])
+        ).toBe(true);
     });
 
     it("becomes clickable again once the host taps", () => {
         const players = board(true);
         const bear = players[0].battlefield[0];
-        expect(isUntargetableByPending(players, bear, "spell", "cast")).toBe(
-            false
-        );
+        expect(
+            isUntargetableByPending(players, bear, "spell", "cast", [])
+        ).toBe(false);
     });
 });
 
@@ -122,18 +122,18 @@ describe("isUntargetableByPending — Anti-Magic Aura (CR 113.3)", () => {
     it("not clickable for a spell source", () => {
         const players = board();
         const bear = players[0].battlefield[0];
-        expect(isUntargetableByPending(players, bear, "spell", "cast")).toBe(
-            true
-        );
+        expect(
+            isUntargetableByPending(players, bear, "spell", "cast", [])
+        ).toBe(true);
     });
 
     it("clickable for an ability source (CR 113.3 — spells only)", () => {
         const players = board();
         const bear = players[0].battlefield[0];
         // Ability source = a battlefield permanent ("tim").
-        expect(isUntargetableByPending(players, bear, "tim", "ability")).toBe(
-            false
-        );
+        expect(
+            isUntargetableByPending(players, bear, "tim", "ability", [])
+        ).toBe(false);
     });
 });
 
@@ -169,16 +169,16 @@ describe("isUntargetableByPending — Bartel Runeaxe (CR 109.5)", () => {
         const players = board();
         const bartel = players[0].battlefield[0];
         expect(
-            isUntargetableByPending(players, bartel, "aura-spell", "cast")
+            isUntargetableByPending(players, bartel, "aura-spell", "cast", [])
         ).toBe(true);
     });
 
     it("clickable for a non-Aura spell", () => {
         const players = board();
         const bartel = players[0].battlefield[0];
-        expect(isUntargetableByPending(players, bartel, "bolt", "cast")).toBe(
-            false
-        );
+        expect(
+            isUntargetableByPending(players, bartel, "bolt", "cast", [])
+        ).toBe(false);
     });
 });
 
@@ -218,7 +218,14 @@ describe("isUntargetableByPending — Sylvan Caryatid hexproof (CR 702.11b)", ()
         const players = board();
         const caryatid = players[0].battlefield[0];
         expect(
-            isUntargetableByPending(players, caryatid, "opp-bolt", "cast", "p2")
+            isUntargetableByPending(
+                players,
+                caryatid,
+                "opp-bolt",
+                "cast",
+                [],
+                "p2"
+            )
         ).toBe(true);
     });
 
@@ -226,7 +233,14 @@ describe("isUntargetableByPending — Sylvan Caryatid hexproof (CR 702.11b)", ()
         const players = board();
         const caryatid = players[0].battlefield[0];
         expect(
-            isUntargetableByPending(players, caryatid, "own-bolt", "cast", "p1")
+            isUntargetableByPending(
+                players,
+                caryatid,
+                "own-bolt",
+                "cast",
+                [],
+                "p1"
+            )
         ).toBe(false);
     });
 });
@@ -353,7 +367,14 @@ describe("isUntargetableByPending — protection from a quality (CR 702.16b, #11
         const players = board(BARKTOOTH_WARBEARD);
         const tsabo = players[0].battlefield[0];
         expect(
-            isUntargetableByPending(players, tsabo, "source", "ability", "p2")
+            isUntargetableByPending(
+                players,
+                tsabo,
+                "source",
+                "ability",
+                [],
+                "p2"
+            )
         ).toBe(true);
     });
 
@@ -361,7 +382,14 @@ describe("isUntargetableByPending — protection from a quality (CR 702.16b, #11
         const players = board(GRIZZLY_BEARS_ID);
         const tsabo = players[0].battlefield[0];
         expect(
-            isUntargetableByPending(players, tsabo, "source", "ability", "p2")
+            isUntargetableByPending(
+                players,
+                tsabo,
+                "source",
+                "ability",
+                [],
+                "p2"
+            )
         ).toBe(false);
     });
 
@@ -374,6 +402,7 @@ describe("isUntargetableByPending — protection from a quality (CR 702.16b, #11
                 bystander,
                 "source",
                 "ability",
+                [],
                 "p2"
             )
         ).toBe(false);
@@ -384,7 +413,109 @@ describe("isUntargetableByPending — protection from a quality (CR 702.16b, #11
         players[1].battlefield[0].controllerId = "p1";
         const tsabo = players[0].battlefield[0];
         expect(
-            isUntargetableByPending(players, tsabo, "source", "ability", "p1")
+            isUntargetableByPending(
+                players,
+                tsabo,
+                "source",
+                "ability",
+                [],
+                "p1"
+            )
         ).toBe(true);
+    });
+});
+
+// CR 702.16b on a TRIGGER-sourced pending target (issue #1120 review). A
+// triggered ability's `PendingTarget.cardInstanceId` is a synthetic STACK-ITEM
+// id — present in neither hand nor battlefield — so before the stack was
+// threaded in, the client could not resolve the source at all and fell open:
+// the protected permanent glowed, was clickable, and the click hard-errored
+// with "Target has protection from this source". These drive the real gate.
+describe("isUntargetableByPending — trigger source on the stack (CR 405 / 702.16b)", () => {
+    function triggerBoard(sourceCardId: string): {
+        players: Player[];
+        stack: StackItem[];
+    } {
+        const tsabo = inst({
+            id: "tsabo",
+            card: { id: TSABO_TAVOC },
+            controllerId: "p1",
+            ownerId: "p1",
+            staticAbilities: [
+                "first strike",
+                "protection from legendary creatures",
+            ],
+        });
+        const bystander = inst({
+            id: "bystander",
+            card: { id: GRIZZLY_BEARS_ID },
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        // The on-stack trigger item — a `...self` snapshot of the source
+        // permanent, exactly as `buildTriggerItem` produces it.
+        const triggerItem = {
+            ...inst({
+                id: "trigger-1",
+                card: { id: sourceCardId },
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "stack",
+            }),
+            castById: "p2",
+            triggeredAbilityId: "some-trigger",
+        } as unknown as StackItem;
+        return {
+            players: [
+                player({ id: "p1", battlefield: [tsabo, bystander] }),
+                player({ id: "p2", battlefield: [] }),
+            ],
+            stack: [triggerItem],
+        };
+    }
+
+    it("greys Tsabo Tavoc out for a LEGENDARY creature's trigger", () => {
+        const { players, stack } = triggerBoard(BARKTOOTH_WARBEARD);
+        const tsabo = players[0].battlefield[0];
+        expect(
+            isUntargetableByPending(
+                players,
+                tsabo,
+                "trigger-1",
+                "trigger",
+                stack,
+                "p2"
+            )
+        ).toBe(true);
+    });
+
+    it("must-NOT — leaves it clickable for a NON-legendary creature's trigger", () => {
+        const { players, stack } = triggerBoard(GRIZZLY_BEARS_ID);
+        const tsabo = players[0].battlefield[0];
+        expect(
+            isUntargetableByPending(
+                players,
+                tsabo,
+                "trigger-1",
+                "trigger",
+                stack,
+                "p2"
+            )
+        ).toBe(false);
+    });
+
+    it("must-NOT — leaves an unprotected permanent clickable for the legendary trigger", () => {
+        const { players, stack } = triggerBoard(BARKTOOTH_WARBEARD);
+        const bystander = players[0].battlefield[1];
+        expect(
+            isUntargetableByPending(
+                players,
+                bystander,
+                "trigger-1",
+                "trigger",
+                stack,
+                "p2"
+            )
+        ).toBe(false);
     });
 });

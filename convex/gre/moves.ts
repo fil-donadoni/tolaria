@@ -34,7 +34,7 @@ import {
     maxAffordableX,
     solvePhyrexianSplit,
     genericManaShortfall,
-    protectionSourceView,
+    targetingSourceFromCard,
 } from "./rules";
 import {
     applyGenericOffset,
@@ -43,7 +43,7 @@ import {
     spellHasDelve,
 } from "./payWith";
 import { PHYREXIAN_LIFE_PER_PIP, phyrexianPipCount } from "./phyrexian";
-import { STATIC_EFFECT_CTX, getEffectivePower } from "./layers";
+import { getEffectivePower } from "./layers";
 import { canPayTapOtherCost, crewPowerContribution } from "./tapOtherCost";
 import {
     MANA_COLORS,
@@ -470,24 +470,15 @@ function enumerateTargetTuples(
                   colorFilter: substituteColorFilter(card, req.colorFilter),
               }
             : req;
-    const sourceColors = STATIC_EFFECT_CTX.getColors(card);
     const legal = getLegalTargets(
         state,
         effReq,
-        sourceColors,
-        player.id,
-        chosenX,
-        card.types,
-        card.subtypes,
         // moves.ts enumerates legal targets for casting a spell from hand, so
-        // the source is always a spell (vs an activated ability).
-        true,
-        [],
-        undefined,
-        // CR 702.16a (issue #1120) — the spell's live supertypes, for a
-        // CHARACTERISTIC protection quality on a candidate target. The bot
+        // the source is always a spell (vs an activated ability). The bot
         // enumerator reads the SAME gate the human path does.
-        protectionSourceView(card).supertypes
+        targetingSourceFromCard(card, true),
+        player.id,
+        chosenX
     );
     const { min, max } = targetCount(effReq, chosenX);
     if (max === 0) return [[]];

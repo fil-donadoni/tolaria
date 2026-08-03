@@ -17,6 +17,8 @@
 // still get through), driven through the REAL predicate/SBA/enumerator rather
 // than a hand-built view.
 
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
     makeInstance,
@@ -31,7 +33,14 @@ import {
     parseProtectionQuality,
     protectionSourceView,
 } from "../protection";
-import { getLegalTargets, getPendingTargetSourceSupertypes } from "../rules";
+import {
+    getLegalTargets,
+    getPendingTargetSourceSupertypes,
+    NO_TARGETING_SOURCE,
+    pendingTargetingSource,
+    raiseTriggerTargetSelection,
+} from "../rules";
+import { collectTriggers } from "../triggers";
 import { validateBlockerEligibility } from "../combat";
 import { checkAttachmentSBA, checkAuraAttachmentSBA } from "../sba";
 import { applyAllCombatDamage } from "../phases";
@@ -308,15 +317,16 @@ function offeredIds(
     return getLegalTargets(
         state,
         CREATURE_REQ,
-        [],
+        {
+            ...NO_TARGETING_SOURCE,
+            types: sourceTypes as never,
+            supertypes: sourceSupertypes as never,
+            isSpell: true,
+        },
         "p2",
         undefined,
-        sourceTypes as never,
         [],
-        true,
-        [],
-        undefined,
-        sourceSupertypes as never
+        undefined
     ).map((t) => t.id);
 }
 
@@ -366,15 +376,20 @@ describe("CR 702.16b — can't be targeted by a source with the quality", () => 
         const offered = getLegalTargets(
             state,
             { type: "Creature", count: 1, supertypeFilter: "Legendary" },
-            [],
+            {
+                ...NO_TARGETING_SOURCE,
+                types: ["Creature"],
+                supertypes: getPendingTargetSourceSupertypes(
+                    state,
+                    "tsabo",
+                    "ability"
+                ),
+                isSpell: false,
+            },
             "p1",
             undefined,
-            ["Creature"],
             [],
-            false,
-            [],
-            undefined,
-            getPendingTargetSourceSupertypes(state, "tsabo", "ability")
+            undefined
         );
         expect(offered.map((t) => t.id)).not.toContain("tsabo");
     });
@@ -603,5 +618,180 @@ describe("CR 702.16f — creatures with the quality can't block it", () => {
             validateBlockerEligibility(attacker, blocker, [blocker], state)
                 .eligible
         ).toBe(true);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// CR 702.16b on the TRIGGERED-ABILITY path (issue #1120 review)
+// ─────────────────────────────────────────────────────────────────────────
+//
+// `raiseTriggerTargetSelection` is a SECOND, independent offered-set site with
+// a property the cast/ability paths don't have: when a mandatory single target
+// has exactly one legal candidate it AUTO-SELECTS it (CR 603.3d) and emits
+// BECAME_TARGET, with no later `selectTarget` mutation to re-check legality.
+// So a protection quality invisible here is not merely "offered too widely" —
+// it is an illegal target silently committed, and CR 603.3c (remove the
+// trigger from the stack when no legal target exists) never fires.
+//
+// Halfdane is the fixture the review used: a shipped Legendary Creature whose
+// upkeep trigger is `count: 1`, mandatory, "target creature other than
+// Halfdane".
+
+describe("CR 702.16b/603.3c — a trigger from a legendary creature and a protected permanent", () => {
+    const HALFDANE = "2e939761-3542-4044-9038-d1d30c6a38fc";
+
+    /** Halfdane (p1) with its upkeep trigger on the stack, targets un-set, and
+     *  `others` as the only other creatures on the battlefield. */
+    function halfdaneUpkeepState(others: CardInstanceState[]): GameState {
+        const halfdane = makeInstance(HALFDANE, {
+            id: "halfdane",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            phase: "UPKEEP",
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [halfdane] }),
+                makePlayer("p2", { battlefield: others }),
+            ],
+        });
+        state.stack.push(
+            ...collectTriggers(state, [
+                {
+                    type: "PHASE_BEGIN",
+                    phase: "UPKEEP",
+                    activePlayerId: "p1",
+                },
+            ]).filter((t) => t.triggeredAbilityId === "halfdane-copy-pt")
+        );
+        return state;
+    }
+
+    it("CR 603.3c — with ONLY a protected creature available, the trigger is removed from the stack, never auto-locked onto it", () => {
+        // The reported failure: `getLegalTargets` returned [tsabo], so the
+        // `min===1 && max===1 && length===1` branch locked Tsabo Tavoc as the
+        // target and emitted BECAME_TARGET. Nothing downstream re-checks — the
+        // trigger then resolves onto a permanent with protection from
+        // legendary creatures.
+        const state = halfdaneUpkeepState([tsabo("p2")]);
+        expect(state.stack).toHaveLength(1);
+
+        raiseTriggerTargetSelection(state);
+
+        // No legal target at all → CR 603.3c removes the trigger.
+        expect(state.stack).toHaveLength(0);
+        // …and specifically it must NOT have auto-locked the protected one.
+        expect(state.pendingTarget).toBeUndefined();
+    });
+
+    it("must-NOT — with an UNPROTECTED creature the sole-target auto-select still happens (CR 603.3d)", () => {
+        const bear = makeInstance(GRIZZLY_BEARS, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = halfdaneUpkeepState([bear]);
+
+        raiseTriggerTargetSelection(state);
+
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].targets).toEqual([
+            { type: "permanent", id: "bear" },
+        ]);
+    });
+
+    it("with BOTH, the offered set excludes the protected one and the unprotected one auto-locks", () => {
+        const bear = makeInstance(GRIZZLY_BEARS, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = halfdaneUpkeepState([tsabo("p2"), bear]);
+
+        raiseTriggerTargetSelection(state);
+
+        // Two candidates by type, one legal by CR 702.16b → still a sole
+        // mandatory target, so it auto-selects the LEGAL one.
+        expect(state.stack[0].targets).toEqual([
+            { type: "permanent", id: "bear" },
+        ]);
+    });
+
+    it("the kind:'trigger' offered set and pendingTargetingSource agree", () => {
+        // Two unprotected creatures + Tsabo → a real choice is owed, so a
+        // `kind: "trigger"` PendingTarget is raised. The offered set built from
+        // `pendingTargetingSource` (what `legalActions` and the client both
+        // use) must exclude Tsabo.
+        const bear = makeInstance(GRIZZLY_BEARS, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const bear2 = makeInstance(GRIZZLY_BEARS, {
+            id: "bear2",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = halfdaneUpkeepState([tsabo("p2"), bear, bear2]);
+
+        raiseTriggerTargetSelection(state);
+        const pt = state.pendingTarget!;
+        expect(pt.kind).toBe("trigger");
+
+        const source = pendingTargetingSource(
+            state,
+            pt.cardInstanceId,
+            "trigger"
+        );
+        expect(source.supertypes).toContain("Legendary");
+        const offeredForTrigger = getLegalTargets(
+            state,
+            { type: "Creature", count: 1 },
+            source,
+            pt.playerId
+        ).map((t) => t.id);
+        expect(offeredForTrigger).not.toContain("tsabo");
+        expect(offeredForTrigger).toContain("bear");
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// Structural guard — no hand-assembled TargetingSource in production code
+// ─────────────────────────────────────────────────────────────────────────
+
+describe("single-authority guard — TargetingSource is never hand-assembled", () => {
+    it("no production file spreads NO_TARGETING_SOURCE to build a partial bundle", () => {
+        // `{ ...NO_TARGETING_SOURCE, colors: … }` compiles even when it omits a
+        // dimension, which is exactly the hole the required-field interface
+        // exists to close. Tests may use it (a test bundle is inspectable in
+        // review); engine code must go through `targetingSourceFromCard` /
+        // `pendingTargetingSource` so all five dimensions are derived together.
+        const offenders: string[] = [];
+        const walk = (dir: string): void => {
+            for (const entry of readdirSync(dir, { withFileTypes: true })) {
+                const full = join(dir, entry.name);
+                if (entry.isDirectory()) {
+                    if (
+                        entry.name === "node_modules" ||
+                        entry.name === "_generated" ||
+                        entry.name === "__tests__"
+                    ) {
+                        continue;
+                    }
+                    walk(full);
+                    continue;
+                }
+                if (!/\.tsx?$/.test(entry.name)) continue;
+                if (/\.test\.tsx?$/.test(entry.name)) continue;
+                const text = readFileSync(full, "utf8");
+                if (text.includes("...NO_TARGETING_SOURCE")) {
+                    offenders.push(full);
+                }
+            }
+        };
+        walk("convex");
+        walk("src");
+        expect(offenders).toEqual([]);
     });
 });

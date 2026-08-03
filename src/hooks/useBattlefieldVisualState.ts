@@ -57,6 +57,7 @@ export function useBattlefieldVisualState(player: Player) {
         combat,
         allPlayers,
         emblems,
+        stackItems,
         engineTurn,
         controlChangedThisTurn,
     } = useGameContext();
@@ -397,6 +398,9 @@ export function useBattlefieldVisualState(player: Player) {
                     card,
                     pendingTarget.cardInstanceId,
                     pendingTarget.kind,
+                    // CR 405 — a triggered ability's source is an on-stack
+                    // item, resolvable only from here.
+                    stackItems,
                     // CR 702.11b — the chooser controls the source; hexproof
                     // bars only an opponent's source, never the own controller.
                     pendingTarget.playerId
@@ -538,6 +542,7 @@ export function useBattlefieldVisualState(player: Player) {
                 card,
                 pendingTarget.cardInstanceId,
                 pendingTarget.kind,
+                stackItems,
                 pendingTarget.playerId
             );
 

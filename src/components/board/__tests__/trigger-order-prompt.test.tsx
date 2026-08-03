@@ -73,6 +73,7 @@ function renderPrompt(candidateIds: string[], batch: StackItem[]) {
         turn: 1,
         engineTurn: 1,
         stackCount: batch.length,
+        stackItems: [],
         pendingTriggerBatch: batch,
     } as unknown as React.ContextType<typeof GameContext>;
     return render(

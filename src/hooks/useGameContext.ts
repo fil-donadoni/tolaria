@@ -40,6 +40,14 @@ type GameContext = {
      *  handed. Distinct from {@link turn} on purpose — see that field. */
     engineTurn: number;
     stackCount: number;
+    /** The stack itself (CR 405), projected. Needed wherever a pending
+     *  target's SOURCE is an on-stack object rather than a hand card or a
+     *  battlefield permanent — a triggered ability's `PendingTarget
+     *  .cardInstanceId` is a synthetic STACK-ITEM id, so the CR 702.16b
+     *  protection / CR 611 `cantBeTargeted` client gates cannot resolve the
+     *  source's characteristics without it and would silently offer targets
+     *  the server rejects (issue #1120 review). */
+    stackItems: StackItem[];
     pendingCast?: PendingCast;
     pendingActivation?: PendingActivation;
     pendingTarget?: PendingTarget;

@@ -29,6 +29,7 @@ function ctxFor(allPlayers: unknown) {
         turn: 1,
         engineTurn: 1,
         stackCount: 0,
+        stackItems: [],
         allPlayers: allPlayers as never,
         showAllCards: false,
         debugAllActions: false,

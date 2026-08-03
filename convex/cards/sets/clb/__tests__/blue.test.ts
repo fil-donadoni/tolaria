@@ -24,6 +24,7 @@ import {
 import {
     getLegalTargets,
     raiseTriggerTargetSelection,
+    NO_TARGETING_SOURCE,
 } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
@@ -244,7 +245,7 @@ describe("Displacer Kitten — same-resolution blink (CR 400.7, issue #1401)", (
         const legal = getLegalTargets(
             state,
             displacerKitten.triggeredAbilities![0]!.targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         ).map((t) => t.id);
         expect(legal).not.toContain("forest1");

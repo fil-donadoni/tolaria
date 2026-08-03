@@ -90,6 +90,7 @@ function renderButton(card: ReturnType<typeof projectedExiledLand>) {
         turn: 1,
         engineTurn: 1,
         stackCount: 0,
+        stackItems: [],
         allPlayers: [] as Player[],
         showAllCards: false,
         debugAllActions: false,

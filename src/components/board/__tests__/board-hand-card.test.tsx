@@ -151,6 +151,7 @@ function tree(card: CardInstance, ctxOverrides: Record<string, unknown> = {}) {
         turn: 1,
         engineTurn: 1,
         stackCount: 0,
+        stackItems: [],
         allPlayers: [],
         showAllCards: false,
         debugAllActions: false,

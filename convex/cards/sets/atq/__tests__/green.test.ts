@@ -47,7 +47,7 @@ import {
     getEffectivePower,
     getEffectiveToughness,
 } from "../../../../gre/layers";
-import { getLegalTargets } from "../../../../gre/rules";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { validateBlockerEligibility } from "../../../../gre/combat";
 import { applyAllCombatDamage } from "../../../../gre/phases";
 import type { CardType } from "../../../types";
@@ -155,7 +155,7 @@ describe("Crumble (destroy artifact, no regen, controller gains life = mv, CR 70
         const ids = getLegalTargets(
             state,
             crumble.targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         ).map((t) => t.id);
         expect(ids).toContain("statue");

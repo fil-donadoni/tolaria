@@ -37,7 +37,7 @@ import { hobble as hobbleAuraDef } from "../../cards/sets/pls/white";
 import { buildSpellContext, resolveTopOfStack } from "../state";
 import { pushSpell } from "../../cards/__tests__/setup";
 import { getEffectivePower } from "../layers";
-import { getLegalTargets } from "../rules";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../rules";
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -972,7 +972,7 @@ describe("CR 508.4 — TokenSpec.entersTapped / entersAttacking (issue #1195)", 
         const legalAttackers = getLegalTargets(
             state,
             { type: "Creature", count: 1, combatRoleFilter: "attacking" },
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         ).map((t) => t.id);
         expect(legalAttackers).toContain(id);

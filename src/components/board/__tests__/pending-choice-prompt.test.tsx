@@ -42,6 +42,7 @@ function promptTree(choice: PendingChoice, playerId = "me") {
         turn: 1,
         engineTurn: 1,
         stackCount: 0,
+        stackItems: [],
         allPlayers: [{ id: "me", name: "Me" }],
         showAllCards: false,
         debugAllActions: false,

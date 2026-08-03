@@ -70,6 +70,7 @@ import { advancePhase } from "../../../../gre/phases";
 import {
     getLegalTargets,
     raiseTriggerTargetSelection,
+    NO_TARGETING_SOURCE,
 } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
 import { checkStateBasedActions } from "../../../../gre/sba";
@@ -999,23 +1000,26 @@ describe("Bartel Runeaxe (can't be targeted by Aura spells, CR 109.5)", () => {
         const auraSpell = getLegalTargets(
             state,
             CREATURE_REQ,
-            [],
+            {
+                ...NO_TARGETING_SOURCE,
+                types: ["Enchantment"],
+                subtypes: ["Aura"],
+                isSpell: true,
+            },
             "p1",
-            undefined,
-            ["Enchantment"],
-            ["Aura"],
-            true
+            undefined
         ).map((t) => t.id);
         expect(auraSpell).not.toContain("bartel");
         const boltSpell = getLegalTargets(
             state,
             CREATURE_REQ,
-            [],
+            {
+                ...NO_TARGETING_SOURCE,
+                types: ["Instant"],
+                isSpell: true,
+            },
             "p1",
-            undefined,
-            ["Instant"],
-            [],
-            true
+            undefined
         ).map((t) => t.id);
         expect(boltSpell).toContain("bartel");
     });

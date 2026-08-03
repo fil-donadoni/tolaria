@@ -207,7 +207,7 @@ import {
     getPendingTargetSourceSubtypes,
     getPendingTargetSourceSupertypes,
     isProtectedFrom,
-    protectionSourceView,
+    targetingSourceFromCard,
     pendingTargetFiltersFromRequirement,
     raiseTriggerTargetSelection,
     solvePhyrexianSplit,
@@ -6804,28 +6804,17 @@ export const announceCast = mutation({
         if (activeTargetRequirement && requiresTargets) {
             // CR 202.2 / 702.16b: source colors derived from the casting
             // card's mana cost, so getLegalTargets can exclude permanents
-            // with protection from any of those colors.
-            const sourceColors = STATIC_EFFECT_CTX.getColors(cardInHand);
-            // CR 205.4a / 702.16a (issue #1120) — the spell's live supertypes,
-            // for a CHARACTERISTIC protection quality ("protection from
-            // legendary creatures").
-            const sourceSupertypes =
-                protectionSourceView(cardInHand).supertypes;
+            // with protection from any of those qualities. Casting from hand
+            // — the source is a spell (CR 113.3). All five characteristics
+            // come from the ONE factory (CR 202.2 colours, 205.2 types, 205.3
+            // subtypes, 205.4a supertypes), so none can be dropped.
+            const castSource = targetingSourceFromCard(cardInHand, true);
             const legalTargets = getLegalTargets(
                 state,
                 activeTargetRequirement,
-                sourceColors,
+                castSource,
                 args.playerId,
-                chosenX,
-                cardInHand.types,
-                cardInHand.subtypes,
-                // Casting from hand — the source is a spell (CR 113.3).
-                true,
-                [],
-                undefined,
-                // CR 702.16a (issue #1120) — the spell's live supertypes, for
-                // a CHARACTERISTIC protection quality on a candidate target.
-                sourceSupertypes
+                chosenX
             );
             if (legalTargets.length === 0) {
                 throw new Error("No legal targets available");
@@ -6855,15 +6844,9 @@ export const announceCast = mutation({
                 const extraLegal = getLegalTargets(
                     state,
                     extra,
-                    sourceColors,
+                    castSource,
                     args.playerId,
-                    chosenX,
-                    cardInHand.types,
-                    cardInHand.subtypes,
-                    true,
-                    [],
-                    undefined,
-                    sourceSupertypes
+                    chosenX
                 );
                 if (
                     extraLegal.length <
@@ -12369,7 +12352,6 @@ export function activateAbilityOnState(
             targetHasXInCost && !xIsDerived ? args.chosenX : undefined;
         // CR 202.2 / 702.16b: the source's colors come from the
         // permanent owning the activated ability.
-        const abilitySourceColors = STATIC_EFFECT_CTX.getColors(card);
         // Issue #1378 — the activating permanent's LIVE effective power (CR
         // 613 layer 7c), for a `mvFilter` bound of `"sourcePower"`. Read the
         // same way the ability's own `dealDamage`-style effects would
@@ -12380,20 +12362,15 @@ export function activateAbilityOnState(
         const legal = getLegalTargets(
             state,
             effectiveTargetReq,
-            abilitySourceColors,
+            // CR 113.3 — the source is an activated ability, not a spell. All
+            // five characteristics come from the ONE factory, so no dimension
+            // (notably CR 205.4a supertypes, for a protection quality) can be
+            // dropped here.
+            targetingSourceFromCard(card, false),
             args.playerId,
             targetChosenX,
-            card.types,
-            card.subtypes,
-            // Source is an activated ability, not a spell (CR 113.3).
-            false,
             [],
-            abilitySourcePower,
-            // CR 702.16a (issue #1120) — the activating permanent's live
-            // supertypes, for a CHARACTERISTIC protection quality (Tsabo
-            // Tavoc's own "protection from legendary creatures" is what makes
-            // this observable on the ability path).
-            protectionSourceView(card).supertypes
+            abilitySourcePower
         );
         if (legal.length === 0) {
             throw new Error("No legal targets available");

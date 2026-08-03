@@ -11,7 +11,7 @@ import { describe, it, expect } from "vitest";
 import { solitaryConfinement } from "../white";
 import { lightningBolt } from "../../lea/red";
 import { grizzlyBears } from "../../lea/green";
-import { getLegalTargets } from "../../../../gre/rules";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { playerHasShroud } from "../../../../gre/permanentGuard";
 import { advancePhase } from "../../../../gre/phases";
 import {
@@ -119,7 +119,7 @@ describe("Solitary Confinement ({2}{W} Enchantment, CR 504/614/615/702.18, #1130
                 ],
             });
             const req: TargetRequirement = { type: "player", count: 1 };
-            expect(getLegalTargets(state, req)).toEqual([
+            expect(getLegalTargets(state, req, NO_TARGETING_SOURCE)).toEqual([
                 { type: "player", id: "p2" },
             ]);
         });
@@ -140,7 +140,11 @@ describe("Solitary Confinement ({2}{W} Enchantment, CR 504/614/615/702.18, #1130
             expect(playerHasShroud(projected, "p2")).toBe(false);
             const req: TargetRequirement = { type: "player", count: 1 };
             expect(
-                getLegalTargets(projected as unknown as GameState, req)
+                getLegalTargets(
+                    projected as unknown as GameState,
+                    req,
+                    NO_TARGETING_SOURCE
+                )
             ).toEqual([{ type: "player", id: "p2" }]);
         });
     });

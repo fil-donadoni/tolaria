@@ -12,7 +12,7 @@ import {
     isProtectedFromSource,
 } from "../protection";
 import { validateBlockerEligibility } from "../combat";
-import { getLegalTargets } from "../rules";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../rules";
 
 // CR 702.16k — protection from a PLAYER ("protection from each of your
 // opponents", Figure of Fable's final stage, issue #1748). The quality is
@@ -103,9 +103,25 @@ describe("protection from each of your opponents (CR 702.16k)", () => {
             ],
         });
         const requirement = { type: "Creature" as const, count: 1 };
-        const forOpponent = getLegalTargets(state, requirement, ["R"], "p2");
+        const forOpponent = getLegalTargets(
+            state,
+            requirement,
+            {
+                ...NO_TARGETING_SOURCE,
+                colors: ["R"],
+            },
+            "p2"
+        );
         expect(forOpponent.some((t) => t.id === "protected")).toBe(false);
-        const forController = getLegalTargets(state, requirement, ["R"], "p1");
+        const forController = getLegalTargets(
+            state,
+            requirement,
+            {
+                ...NO_TARGETING_SOURCE,
+                colors: ["R"],
+            },
+            "p1"
+        );
         expect(forController.some((t) => t.id === "protected")).toBe(true);
     });
 

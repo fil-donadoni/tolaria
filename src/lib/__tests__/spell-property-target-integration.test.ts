@@ -27,6 +27,7 @@ import { describe, it, expect } from "vitest";
 import {
     getLegalTargets,
     pendingTargetFiltersFromRequirement,
+    NO_TARGETING_SOURCE,
 } from "@convex/gre/rules";
 import { SPELL_FILTER_KEYS } from "@convex/gre/targetFilters";
 import { projectPublicState } from "@convex/gameProjections";
@@ -133,7 +134,10 @@ function clientClickable(
 const serverOffered = (
     state: GameState,
     requirement: NonNullable<typeof confound.targetRequirement>
-) => getLegalTargets(state, requirement, [], "p1").map((t) => t.id);
+) =>
+    getLegalTargets(state, requirement, NO_TARGETING_SOURCE, "p1").map(
+        (t) => t.id
+    );
 
 /** Synthetic — no shipped card declares `spellWasKicked` (see the header note,
  *  tracked-by: #2044). Keeps the filter's client mirror proven. */

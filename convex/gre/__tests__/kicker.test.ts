@@ -23,7 +23,11 @@ import {
     resolveKickerPayments,
     totalKickerCount,
 } from "../kicker";
-import { getLegalTargets, getLegalActions } from "../rules";
+import {
+    getLegalTargets,
+    getLegalActions,
+    NO_TARGETING_SOURCE,
+} from "../rules";
 import {
     getPlayer,
     resolveTopOfStack,
@@ -314,14 +318,14 @@ describe("Kicker — kickedTargetRequirement widens legal targets (CR 702.33)", 
         const unkicked = getLegalTargets(
             state,
             bloodchiefsThirst.targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         );
         expect(unkicked.some((t) => t.id === "angel1")).toBe(false);
         const kicked = getLegalTargets(
             state,
             bloodchiefsThirst.kickedTargetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         );
         expect(kicked.some((t) => t.id === "angel1")).toBe(true);

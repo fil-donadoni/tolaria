@@ -97,7 +97,7 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
-import { getLegalTargets } from "../../../../gre/rules";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import {
     advancePhase,
     applyAllCombatDamage,
@@ -1972,7 +1972,7 @@ describe("Arenson's Aura — destroy/counter enchantment (CR 701.7 / 701.5a)", (
         const legal = getLegalTargets(
             state,
             counterAbility.targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         ).map((t) => t.id);
         expect(legal).toContain(ench.id);
@@ -2185,17 +2185,23 @@ describe("General Jarkeld — reassign blockers between attackers (CR 509.1)", (
         // p2 is the attacking player and controls atk1/atk2. When p2 ALSO
         // controls Jarkeld (activates it on their own attackers), their own
         // blocked attackers MUST be legal targets — the case that was broken.
-        const legalForAttacker = getLegalTargets(state, req, [], "p2").map(
-            (t) => t.id
-        );
+        const legalForAttacker = getLegalTargets(
+            state,
+            req,
+            NO_TARGETING_SOURCE,
+            "p2"
+        ).map((t) => t.id);
         expect(legalForAttacker).toContain("atk1");
         expect(legalForAttacker).toContain("atk2");
 
         // And symmetrically legal for the defender (p1) controlling Jarkeld —
         // the opponent's attackers are still valid targets.
-        const legalForDefender = getLegalTargets(state, req, [], "p1").map(
-            (t) => t.id
-        );
+        const legalForDefender = getLegalTargets(
+            state,
+            req,
+            NO_TARGETING_SOURCE,
+            "p1"
+        ).map((t) => t.id);
         expect(legalForDefender).toContain("atk1");
         expect(legalForDefender).toContain("atk2");
     });

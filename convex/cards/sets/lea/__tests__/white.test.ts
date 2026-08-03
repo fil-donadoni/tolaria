@@ -95,6 +95,7 @@ import {
     getProtectedColors,
     isProtectedFromSource,
     parseProtectionFromColor,
+    NO_TARGETING_SOURCE,
 } from "../../../../gre/rules";
 import { projectPublicState } from "../../../../gameProjections";
 import { checkStateBasedActions } from "../../../../gre/sba";
@@ -630,9 +631,10 @@ describe("White Knight (first strike + protection from black, CR 702.7 + 702.16)
                 makePlayer("p2", { battlefield: [wk] }),
             ],
         });
-        const legal = getLegalTargets(state, lightningBolt.targetRequirement!, [
-            "B",
-        ]);
+        const legal = getLegalTargets(state, lightningBolt.targetRequirement!, {
+            ...NO_TARGETING_SOURCE,
+            colors: ["B"],
+        });
         const ids = legal.map((t) => t.id);
         expect(ids).not.toContain("wk");
         // Players are still legal (players have no color; protection from
@@ -653,9 +655,10 @@ describe("White Knight (first strike + protection from black, CR 702.7 + 702.16)
                 makePlayer("p2", { battlefield: [wk] }),
             ],
         });
-        const legal = getLegalTargets(state, lightningBolt.targetRequirement!, [
-            "R",
-        ]);
+        const legal = getLegalTargets(state, lightningBolt.targetRequirement!, {
+            ...NO_TARGETING_SOURCE,
+            colors: ["R"],
+        });
         expect(legal.map((t) => t.id)).toContain("wk");
     });
 
@@ -895,9 +898,10 @@ describe("Red Ward (Aura keyword-grant → protection from red, CR 611 + 702.16)
         expect(bearAfter.staticAbilities).toContain("protection from red");
 
         // Red Lightning Bolt now can't target the bear (CR 702.16b).
-        const legal = getLegalTargets(state, lightningBolt.targetRequirement!, [
-            "R",
-        ]);
+        const legal = getLegalTargets(state, lightningBolt.targetRequirement!, {
+            ...NO_TARGETING_SOURCE,
+            colors: ["R"],
+        });
         expect(legal.map((t) => t.id)).not.toContain("bear");
 
         // Bear dies (say, exiled by Swords to Plowshares). Aura should
@@ -1353,7 +1357,11 @@ describe("Circle of Protection: color filter on target selection", () => {
         state.stack.push({ ...redBolt, castById: "p2" });
         state.stack.push({ ...blueSpell, castById: "p2" });
         const ability = circleOfProtectionRed.activatedAbilities![0];
-        const legal = getLegalTargets(state, ability.targetRequirement!);
+        const legal = getLegalTargets(
+            state,
+            ability.targetRequirement!,
+            NO_TARGETING_SOURCE
+        );
         expect(legal.map((t) => t.id)).toEqual(["bolt"]);
     });
 
@@ -1374,14 +1382,22 @@ describe("Circle of Protection: color filter on target selection", () => {
         state.stack.push({ ...redBolt, castById: "p2" });
         state.stack.push({ ...blueSpell, castById: "p2" });
         const ability = circleOfProtectionBlue.activatedAbilities![0];
-        const legal = getLegalTargets(state, ability.targetRequirement!);
+        const legal = getLegalTargets(
+            state,
+            ability.targetRequirement!,
+            NO_TARGETING_SOURCE
+        );
         expect(legal.map((t) => t.id)).toEqual(["recall"]);
     });
 
     it("color filter excludes players (players have no color)", () => {
         const state = makeState();
         const ability = circleOfProtectionWhite.activatedAbilities![0];
-        const legal = getLegalTargets(state, ability.targetRequirement!);
+        const legal = getLegalTargets(
+            state,
+            ability.targetRequirement!,
+            NO_TARGETING_SOURCE
+        );
         expect(legal.filter((t) => t.type === "player")).toEqual([]);
     });
 
@@ -2290,7 +2306,9 @@ describe("Northern Paladin ({W}{W}, {T}: destroy target black creature)", () => 
         state.players[1].battlefield.push(whiteLion);
         const req = northernPaladin.activatedAbilities?.[0]?.targetRequirement;
         if (!req) throw new Error("requirement missing");
-        const ids = getLegalTargets(state, req).map((t) => t.id);
+        const ids = getLegalTargets(state, req, NO_TARGETING_SOURCE).map(
+            (t) => t.id
+        );
         expect(ids).toContain("victim");
         expect(ids).not.toContain("lion");
     });
@@ -2473,7 +2491,7 @@ describe("Resurrection (return target Creature card from your graveyard to the b
         });
         const req = resurrection.targetRequirement;
         if (!req) throw new Error("requirement missing");
-        const legal = getLegalTargets(state, req, [], "p1");
+        const legal = getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1");
         const ids = legal.map((t) => t.id);
         expect(ids).not.toContain("opp-dead");
     });
@@ -2943,7 +2961,7 @@ describe("Righteousness (target blocking creature gets +7/+7, CR 509.1)", () => 
         const targets = getLegalTargets(
             state,
             righteousness.targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         );
         expect(targets).toHaveLength(0);
@@ -2960,7 +2978,7 @@ describe("Righteousness (target blocking creature gets +7/+7, CR 509.1)", () => 
         const targets = getLegalTargets(
             state,
             righteousness.targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         );
         expect(targets).toHaveLength(1);
@@ -3212,7 +3230,7 @@ describe("Lace cycle (CR 305.7 — target spell or permanent becomes [color])", 
         const targets = getLegalTargets(
             state,
             { type: "spell-or-permanent", count: 1 },
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         );
 

@@ -121,7 +121,7 @@ import {
     getFixedManaAmount,
     hasManaAbility,
 } from "../../../../gre/constants";
-import { getLegalTargets } from "../../../../gre/rules";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { projectPublicState } from "../../../../gameProjections";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import {
@@ -1004,7 +1004,8 @@ describe("Icy Manipulator ({1}, {T}: tap target artifact/creature/land, CR 701.2
         });
         const legal = getLegalTargets(
             state,
-            icyManipulator.activatedAbilities![0].targetRequirement!
+            icyManipulator.activatedAbilities![0].targetRequirement!,
+            NO_TARGETING_SOURCE
         );
         const ids = legal.map((t) => t.id).sort();
         expect(ids).toEqual(["icy", "island", "lion", "tome"].sort());

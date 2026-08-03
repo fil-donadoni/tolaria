@@ -77,7 +77,7 @@ import {
     getEffectiveToughness,
     STATIC_EFFECT_CTX,
 } from "../../../../gre/layers";
-import { getLegalTargets } from "../../../../gre/rules";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     validateBlockerEligibility,
@@ -166,7 +166,11 @@ describe("Lightning Bolt (3 damage to any target, CR 608.3)", () => {
                 makePlayer("p2", { battlefield: [lion, forest] }),
             ],
         });
-        const legal = getLegalTargets(state, lightningBolt.targetRequirement!);
+        const legal = getLegalTargets(
+            state,
+            lightningBolt.targetRequirement!,
+            NO_TARGETING_SOURCE
+        );
         const ids = legal.map((t) => t.id);
         expect(ids).toContain("lion");
         expect(ids).toContain("p1");
@@ -1425,7 +1429,9 @@ describe("Dwarven Warriors ({T}: target creature with power 2 or less can't be b
         state.players[0].battlefield.push(big);
         const req = dwarvenWarriors.activatedAbilities?.[0]?.targetRequirement;
         if (!req) throw new Error("requirement missing");
-        const ids = getLegalTargets(state, req).map((t) => t.id);
+        const ids = getLegalTargets(state, req, NO_TARGETING_SOURCE).map(
+            (t) => t.id
+        );
         expect(ids).toContain("tgt");
         expect(ids).not.toContain("big");
     });
@@ -2428,7 +2434,7 @@ describe("Stone Giant (CR 113.1, 611.1b, 603.7a — dynamic toughness target + f
         // Use dynamic requirement to get the effective target req
         const ability = stoneGiant.activatedAbilities![0];
         const req = ability.getTargetRequirement!(giant, state);
-        const legal = getLegalTargets(state, req, [], "p1");
+        const legal = getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1");
         const ids = legal.map((t) => t.id);
         // bear (toughness 2) is legal, giant itself (toughness 4) is not
         expect(ids).toContain("bear");
@@ -2446,7 +2452,7 @@ describe("Stone Giant (CR 113.1, 611.1b, 603.7a — dynamic toughness target + f
         state.players[0].battlefield.push(bigCreature);
         const ability = stoneGiant.activatedAbilities![0];
         const req = ability.getTargetRequirement!(giant, state);
-        const legal = getLegalTargets(state, req, [], "p1");
+        const legal = getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1");
         const ids = legal.map((t) => t.id);
         expect(ids).not.toContain("big");
     });
@@ -2832,7 +2838,11 @@ describe("Fork (copy target instant or sorcery spell, CR 707.10)", () => {
         const bear = pushSpell(state, grizzlyBears.id, "p2", []);
 
         // A creature spell is not a legal Fork target.
-        const legal = getLegalTargets(state, fork.targetRequirement!);
+        const legal = getLegalTargets(
+            state,
+            fork.targetRequirement!,
+            NO_TARGETING_SOURCE
+        );
         expect(legal.some((t) => t.type === "spell" && t.id === bear.id)).toBe(
             false
         );

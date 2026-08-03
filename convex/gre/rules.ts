@@ -935,7 +935,6 @@ function hasEnoughLegalTargets(
     const def = tryGetDefinition(cardId);
     const requirement = def?.targetRequirement;
     if (!requirement) return true;
-    const sourceColors = STATIC_EFFECT_CTX.getColors(card);
     // Does a single target requirement have enough legal targets on the board?
     // Preserves every prior early-return semantic: an "X" count (X = 0 path,
     // CR 107.3) or a required count ≤ 0 leaves the cast legal regardless of
@@ -967,18 +966,11 @@ function hasEnoughLegalTargets(
             const legalTargets = getLegalTargets(
                 state,
                 req,
-                sourceColors,
-                player.id,
-                chosenX,
-                card.types,
-                card.subtypes,
                 // hasEnoughLegalTargets gates the Cast UI — the source is a
-                // spell.
-                true,
-                [],
-                undefined,
-                // CR 702.16a (issue #1120) — the spell's live supertypes.
-                protectionSourceView(card).supertypes
+                // spell (CR 113.3).
+                targetingSourceFromCard(card, true),
+                player.id,
+                chosenX
             );
             return legalTargets.length >= required;
         });
@@ -1939,17 +1931,108 @@ export function intrinsicPermanentTargetViolation(
     return checkPermanentTargetFilters(ctx, card, values);
 }
 
+/** Every characteristic of the SOURCE whose targets are being enumerated —
+ *  the one bundle `getLegalTargets` takes, replacing what used to be four
+ *  independent positional parameters (`sourceColors`, `sourceTypes`,
+ *  `sourceSubtypes`, `sourceIsSpell`, plus a trailing `sourceSupertypes`).
+ *
+ *  **Every field is REQUIRED, and that is the point.** Source-quality gates
+ *  (CR 702.16 protection, CR 611 `cantBeTargeted` guards) read several
+ *  independent dimensions, and the offered set (`getLegalTargets`) and the
+ *  accepted set (`selectTarget`) must agree on all of them. While they were
+ *  separate defaulted positionals, a call site could supply three and silently
+ *  omit the fourth — which is exactly what happened to
+ *  `raiseTriggerTargetSelection`: it passed colours/types/subtypes and took
+ *  the `[]` default for supertypes, so a supertype-bearing protection quality
+ *  was invisible on the entire triggered-ability path (issue #1120 review). As
+ *  ONE object with no optional members, omitting a dimension is a compile
+ *  error, and adding a future dimension makes the compiler enumerate every
+ *  construction site.
+ *
+ *  Do NOT hand-assemble one in engine code — use `targetingSourceFromCard`,
+ *  `pendingTargetingSource`, or the explicit `NO_TARGETING_SOURCE`. A guard
+ *  test (`gre/__tests__/protectionQuality.test.ts`) fails if production code
+ *  spreads over `NO_TARGETING_SOURCE` to build a partial bundle. */
+export interface TargetingSource {
+    /** CR 202.2 — the source's live colours (empty = colourless, CR 105.2c). */
+    colors: readonly Color[];
+    /** CR 109.5 / 205.2 — the source's live card types. */
+    types: readonly CardType[];
+    /** CR 109.5 / 205.3 — the source's live subtypes ("Aura spells"). */
+    subtypes: readonly string[];
+    /** CR 205.4a / 702.16a — the source's live supertypes. */
+    supertypes: readonly CardSupertype[];
+    /** CR 113.3 — a spell, vs an activated/triggered ability. `undefined` when
+     *  the caller genuinely doesn't know (kept distinct from `false`, which
+     *  asserts "not a spell", because `spells only` guards read the three-way
+     *  distinction). */
+    isSpell: boolean | undefined;
+}
+
+/** The explicit "no source characteristics are known or relevant" bundle.
+ *  Every source-quality gate is inert against it — no protection quality
+ *  matches, no source-narrowed guard fires. Named (rather than an implicit
+ *  `[]` default) so a call site that genuinely has no source SAYS so, and is
+ *  greppable. */
+export const NO_TARGETING_SOURCE: TargetingSource = Object.freeze({
+    colors: Object.freeze([]) as readonly Color[],
+    types: Object.freeze([]) as readonly CardType[],
+    subtypes: Object.freeze([]) as readonly string[],
+    supertypes: Object.freeze([]) as readonly CardSupertype[],
+    isSpell: undefined,
+});
+
+/** The TOTAL projection of a card object (hand card being cast, battlefield
+ *  permanent whose ability is activating, stack item retargeting) into its
+ *  targeting characteristics. Reads colours through the layer-aware authority
+ *  and types/supertypes LIVE (CR 205.2 / 205.4a), so an animated artifact or a
+ *  supertype-stripped legend is judged by what it currently is. */
+export function targetingSourceFromCard(
+    card: CardInstanceState,
+    isSpell: boolean | undefined
+): TargetingSource {
+    const protectionView = protectionSourceView(card);
+    return {
+        colors: protectionView.colors,
+        types: protectionView.types,
+        subtypes: card.subtypes,
+        supertypes: protectionView.supertypes,
+        isSpell,
+    };
+}
+
+/** The targeting characteristics of the source whose target-selection is in
+ *  progress. Locates it the way every `getPendingTargetSource*` helper does —
+ *  copy-retarget / retarget / trigger → the stack item; ability → the
+ *  battlefield permanent; cast → the hand card — then delegates to
+ *  `targetingSourceFromCard`, so all five dimensions are derived together and
+ *  none can be forgotten. `NO_TARGETING_SOURCE` when the source can't be
+ *  located. */
+export function pendingTargetingSource(
+    state: GameState,
+    cardInstanceId: string,
+    kind: "cast" | "ability" | "copy-retarget" | "retarget" | "trigger"
+): TargetingSource {
+    // CR 113.3 — only a cast / (copy-)retargeted spell is a spell; an
+    // activated or triggered ability is not.
+    const isSpell = kind !== "ability" && kind !== "trigger";
+    const source: CardInstanceState | undefined =
+        kind === "copy-retarget" || kind === "retarget" || kind === "trigger"
+            ? state.stack.find((x) => x.id === cardInstanceId)
+            : state.players
+                  .flatMap((p) => (kind === "ability" ? p.battlefield : p.hand))
+                  .find((x) => x.id === cardInstanceId);
+    return source
+        ? targetingSourceFromCard(source, isSpell)
+        : NO_TARGETING_SOURCE;
+}
+
 export function getLegalTargets(
     state: GameState,
     requirement: TargetRequirement,
-    sourceColors: readonly Color[] = [],
+    source: TargetingSource,
     casterId?: string,
     chosenX?: number,
-    sourceTypes: readonly CardType[] = [],
-    /** Source subtypes + spell-vs-ability, for `cantBeTargeted` guards that
-     *  narrow by them ("Aura spells", "spells only" — CR 109.5 / 113.3). */
-    sourceSubtypes: readonly string[] = [],
-    sourceIsSpell?: boolean,
     /** CR 601.2c (issue #1104) — targets already chosen under THIS SAME
      *  requirement, for a `sameController`-constrained multi-count pick
      *  (Barrin's Spite). Every existing call site scans for the WHOLE legal
@@ -1966,25 +2049,21 @@ export function getLegalTargets(
      *  (`cards/types.ts`) for the CR 603.3d snapshot-timing rationale.
      *  Undefined for every caller that doesn't need it — `resolveMvFilter`
      *  falls back to 0, matching every other left-play convention. */
-    sourcePower?: number,
-    /** CR 205.4a / 702.16a (issue #1120) — the source's LIVE supertypes, for a
-     *  CHARACTERISTIC protection quality that names one ("protection from
-     *  legendary creatures", Tsabo Tavoc). Derived by
-     *  `getPendingTargetSourceSupertypes`, the sibling of the
-     *  colors/types/subtypes helpers the caller already uses. Defaults to
-     *  empty like its siblings; the `selectTarget` mutation is the
-     *  authoritative accepted-set check and derives it from the same
-     *  helper, so an offered set built without it can only ever be WIDER
-     *  than the accepted set (the server still rejects), never narrower. */
-    sourceSupertypes: readonly CardSupertype[] = []
+    sourcePower?: number
 ): TargetSelection[] {
     const targets: TargetSelection[] = [];
+    const {
+        colors: sourceColors,
+        types: sourceTypes,
+        subtypes: sourceSubtypes,
+        isSpell: sourceIsSpell,
+    } = source;
     // CR 702.16 — the source's characteristics, bundled ONCE for the single
     // protection predicate every consult site shares (`isProtectedFrom`).
     const protectionSource: ProtectionSourceView = {
-        colors: sourceColors,
-        types: sourceTypes,
-        supertypes: sourceSupertypes,
+        colors: source.colors,
+        types: source.types,
+        supertypes: source.supertypes,
         controllerId: casterId,
     };
 
@@ -2630,39 +2709,29 @@ export function raiseTriggerTargetSelection(state: GameState): boolean {
 
         // A triggered ability's source characteristics come from the on-stack
         // trigger item (a `...self` snapshot of the source), read the same way
-        // a retargeted spell reads its stack item (CR 109.5).
-        const sourceColors = getPendingTargetSourceColors(
-            state,
-            item.id,
-            "retarget"
-        );
-        const sourceTypes = getPendingTargetSourceTypes(
-            state,
-            item.id,
-            "retarget"
-        );
-        const sourceSubtypes = getPendingTargetSourceSubtypes(
-            state,
-            item.id,
-            "retarget"
-        );
+        // a retargeted spell reads its stack item (CR 109.5). ALL FIVE
+        // dimensions come from the one factory — CR 113.3 (a triggered ability
+        // is not a spell) included. This site is why `TargetingSource` is one
+        // required-field object: it used to assemble colours/types/subtypes by
+        // hand and take the `[]` default for CR 205.4a supertypes, which made a
+        // supertype-bearing protection quality invisible on the ENTIRE
+        // triggered-ability path — including the CR 603.3c/603.3d auto-select
+        // below, which locks a target with no later mutation-side re-check
+        // (issue #1120 review).
+        const triggerSource = pendingTargetingSource(state, item.id, "trigger");
         // Issue #1378 — CR 603.3d: the source's live effective power, read
         // NOW (as this trigger's target is chosen) for a `mvFilter` bound of
         // `"sourcePower"` (Guardian Scalelord). `item.triggerSourceId` is the
         // BATTLEFIELD permanent carrying the ability (`buildTriggerItem`) —
-        // distinct from `item.id`, the synthetic stack-item id `sourceColors`
-        // / `sourceTypes` / `sourceSubtypes` above read from.
+        // distinct from `item.id`, the synthetic stack-item id
+        // `triggerSource` above reads from.
         const sourcePower = getTriggerSourcePower(state, item.triggerSourceId);
-        // CR 113.3 — a triggered ability is not a spell.
         const legal = getLegalTargets(
             state,
             effectiveReq,
-            sourceColors,
+            triggerSource,
             item.controllerId,
             undefined,
-            sourceTypes,
-            sourceSubtypes,
-            false,
             [],
             sourcePower
         );

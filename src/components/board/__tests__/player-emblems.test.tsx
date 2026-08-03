@@ -38,6 +38,7 @@ function renderEmblems(player: Player, emblems: EmblemInstance[]) {
         turn: 1,
         engineTurn: 1,
         stackCount: 0,
+        stackItems: [],
         allPlayers: [player],
         emblems,
         showAllCards: false,

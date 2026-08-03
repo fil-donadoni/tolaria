@@ -42,7 +42,7 @@ import {
 } from "../../../../gre/layers";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import { advancePhase } from "../../../../gre/phases";
-import { getLegalTargets } from "../../../../gre/rules";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import {
     type CardInstanceState,
@@ -223,7 +223,7 @@ describe("Exorcist — destroy target black creature (CR 605 / 701.7)", () => {
         const legal = getLegalTargets(
             state,
             exorcist.activatedAbilities![0].targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         );
         const ids = legal.map((t) => t.id);
@@ -596,7 +596,7 @@ describe("Fire and Brimstone — 4 to a player who attacked + 4 to you (CR 506.2
         const legal = getLegalTargets(
             state,
             fireAndBrimstone.targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         );
         const ids = legal.map((t) => t.id);

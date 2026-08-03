@@ -10,7 +10,11 @@ import { grizzlyBears, serraAngel } from "../../lea";
 import { ornithopter } from "../../atq/colorless";
 import { island } from "../../lea/colorless";
 import { resolveTopOfStack } from "../../../../gre/state";
-import { getLegalActions, getLegalTargets } from "../../../../gre/rules";
+import {
+    getLegalActions,
+    getLegalTargets,
+    NO_TARGETING_SOURCE,
+} from "../../../../gre/rules";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     makeInstance,
@@ -100,7 +104,7 @@ describe("Dominate ({X}{1}{U}{U}: gain control of target creature with MV <= X)"
         const legal = getLegalTargets(
             state,
             dominate.targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1",
             3
         ).map((t) => t.id);
@@ -111,7 +115,7 @@ describe("Dominate ({X}{1}{U}{U}: gain control of target creature with MV <= X)"
         const legalWide = getLegalTargets(
             state,
             dominate.targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1",
             5
         ).map((t) => t.id);

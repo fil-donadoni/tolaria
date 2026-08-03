@@ -19,6 +19,7 @@ import {
     getLegalTargets,
     getPendingTargetSourceSupertypes,
     getPendingTargetSourceTypes,
+    NO_TARGETING_SOURCE,
 } from "../gre/rules";
 import type { GameState } from "../gre/state";
 import type { Id } from "../_generated/dataModel";
@@ -100,15 +101,20 @@ function offered(state: GameState): string[] {
     return getLegalTargets(
         state,
         { type: "Creature", count: 1 },
-        [],
+        {
+            ...NO_TARGETING_SOURCE,
+            types: getPendingTargetSourceTypes(state, "source", "ability"),
+            supertypes: getPendingTargetSourceSupertypes(
+                state,
+                "source",
+                "ability"
+            ),
+            isSpell: false,
+        },
         "p2",
         undefined,
-        getPendingTargetSourceTypes(state, "source", "ability"),
         [],
-        false,
-        [],
-        undefined,
-        getPendingTargetSourceSupertypes(state, "source", "ability")
+        undefined
     ).map((t) => t.id);
 }
 

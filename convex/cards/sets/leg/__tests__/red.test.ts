@@ -63,7 +63,7 @@ import {
     finalizeCleanup,
     fireDelayedTriggers,
 } from "../../../../gre/phases";
-import { getLegalTargets } from "../../../../gre/rules";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import {
     applySourceStaticEffects,
     removePermanentTo,
@@ -537,7 +537,7 @@ describe("Glyph of Life (delayed lifegain on attacker damage to a Wall, CR 603.7
         const legal = getLegalTargets(
             state,
             glyphOfLife.targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         )
             .filter((t) => t.type === "permanent")

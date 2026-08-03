@@ -44,13 +44,7 @@ import {
     nextUnmetRequirement,
     isSacrificeCandidateLegal,
 } from "./sacrificeChoice";
-import {
-    getLegalTargets,
-    getPendingTargetSourceColors,
-    getPendingTargetSourceSubtypes,
-    getPendingTargetSourceSupertypes,
-    getPendingTargetSourceTypes,
-} from "./rules";
+import { getLegalTargets, pendingTargetingSource } from "./rules";
 import {
     combinations,
     enumerateMoves,
@@ -522,29 +516,18 @@ function targetActions(
         const legal = getLegalTargets(
             state,
             requirementFromPendingTarget(pt),
-            // CR 702.16b / 611 — protection and cantBeTargeted guards read the
-            // source's live colors / types / subtypes, same helpers
-            // `selectTarget` uses.
-            getPendingTargetSourceColors(state, pt.cardInstanceId, kind),
+            // CR 702.16b / 611 — protection and `cantBeTargeted` guards read
+            // the source's live colours / types / subtypes / supertypes, all
+            // five derived together by the SAME helper `selectTarget` uses, so
+            // this enumerator's offered set matches the accepted set.
+            pendingTargetingSource(state, pt.cardInstanceId, kind),
             playerId,
             pt.chosenX,
-            getPendingTargetSourceTypes(state, pt.cardInstanceId, kind),
-            getPendingTargetSourceSubtypes(state, pt.cardInstanceId, kind),
-            // CR 113.3 — an activated ability is not a spell; casts and
-            // copy/retargets are.
-            kind !== "ability",
             // CR 601.2c — `getLegalTargets` itself now excludes objects
             // already chosen under this same requirement
             // (`isAlreadySelectedTarget`, `targetFilters.ts`) — the single
-            // authority the human path (`selectTarget`, `game.ts`) also
-            // calls, so this enumerator no longer needs its own copy of the
-            // check.
-            pt.selected,
-            undefined,
-            // CR 702.16a (issue #1120) — the source's live supertypes, for a
-            // CHARACTERISTIC protection quality. Same helper `selectTarget`
-            // uses, so this enumerator's offered set matches the accepted set.
-            getPendingTargetSourceSupertypes(state, pt.cardInstanceId, kind)
+            // authority the human path (`selectTarget`, `game.ts`) also calls.
+            pt.selected
         );
         for (const target of legal) {
             actions.push(

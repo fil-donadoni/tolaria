@@ -35,6 +35,7 @@ import {
 import {
     getLegalTargets,
     getPendingTargetSourceTypes,
+    NO_TARGETING_SOURCE,
 } from "../../../../gre/rules";
 import { isGuardedAgainst } from "../../../../gre/permanentGuard";
 import { validateBlockerEligibility } from "../../../../gre/combat";
@@ -159,7 +160,7 @@ describe("Circle of Protection: Artifacts (CR 615.1)", () => {
         const legal = getLegalTargets(
             state,
             ability.targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         ).map((t) => t.id);
         expect(legal).toContain("robot");
@@ -304,14 +305,24 @@ describe("Artifact Ward (Aura: block restriction + prevention + targeting guard,
         });
         const req = { type: "any" as CardType, count: 1 as const };
         // Artifact source: warded host excluded.
-        const artifactLegal = getLegalTargets(state, req, [], "p2", undefined, [
-            "Artifact",
-        ]).map((t) => t.id);
+        const artifactLegal = getLegalTargets(
+            state,
+            req,
+            {
+                ...NO_TARGETING_SOURCE,
+                types: ["Artifact"],
+            },
+            "p2",
+            undefined
+        ).map((t) => t.id);
         expect(artifactLegal).not.toContain("host");
         // No source-type info (non-artifact / default): host IS targetable.
-        const fleshLegal = getLegalTargets(state, req, [], "p2").map(
-            (t) => t.id
-        );
+        const fleshLegal = getLegalTargets(
+            state,
+            req,
+            NO_TARGETING_SOURCE,
+            "p2"
+        ).map((t) => t.id);
         expect(fleshLegal).toContain("host");
     });
 

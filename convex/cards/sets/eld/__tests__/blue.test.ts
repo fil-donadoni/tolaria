@@ -10,7 +10,11 @@ import { solRing } from "../../lea";
 import { getCardByName } from "../../../index";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { projectPublicState } from "../../../../gameProjections";
-import { getLegalActions, getLegalTargets } from "../../../../gre/rules";
+import {
+    getLegalActions,
+    getLegalTargets,
+    NO_TARGETING_SOURCE,
+} from "../../../../gre/rules";
 import {
     applyCostModifiers,
     getCostModifiers,
@@ -339,7 +343,7 @@ describe("Emry, Lurker of the Loch — {T}: graveyard artifact cast permission (
         const legal = getLegalTargets(
             state,
             ability.targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         );
         expect(legal).toEqual([

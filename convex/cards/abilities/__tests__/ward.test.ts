@@ -13,7 +13,7 @@
 import { describe, it, expect } from "vitest";
 import { wardAbility } from "../ward";
 import { registerTokenDefinition } from "../..";
-import { getLegalTargets } from "../../../gre/rules";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../gre/rules";
 import {
     resolveTopOfStack,
     emitBecameTargetEvents,
@@ -210,7 +210,7 @@ describe("getLegalTargets: spellStackKind 'any' (CR 702.21a — spell OR ability
             count: 1,
             spellStackKind: "any",
         };
-        const ids = getLegalTargets(state, req)
+        const ids = getLegalTargets(state, req, NO_TARGETING_SOURCE)
             .map((t) => t.id)
             .sort();
         expect(ids).toEqual(["ability1", "spell1", "trigger1"]);

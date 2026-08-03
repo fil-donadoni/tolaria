@@ -77,7 +77,11 @@ import {
     getActivatedManaColor,
     hasManaAbility,
 } from "../../../../gre/constants";
-import { getLegalActions, getLegalTargets } from "../../../../gre/rules";
+import {
+    getLegalActions,
+    getLegalTargets,
+    NO_TARGETING_SOURCE,
+} from "../../../../gre/rules";
 import { projectPublicState } from "../../../../gameProjections";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import {
@@ -1142,7 +1146,7 @@ describe("Regrowth (return target card from your graveyard to hand, CR 400.7 / 6
         const legal = getLegalTargets(
             state,
             regrowth.targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         );
         expect(legal).toHaveLength(1);

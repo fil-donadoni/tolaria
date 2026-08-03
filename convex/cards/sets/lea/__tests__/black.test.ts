@@ -89,7 +89,11 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { getBasicLandMana } from "../../../../gre/constants";
-import { getLegalTargets, isProtectedFromSource } from "../../../../gre/rules";
+import {
+    getLegalTargets,
+    isProtectedFromSource,
+    NO_TARGETING_SOURCE,
+} from "../../../../gre/rules";
 import { projectPublicState } from "../../../../gameProjections";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import { validateBlockerEligibility, mustAttack } from "../../../../gre/combat";
@@ -458,7 +462,7 @@ describe("Royal Assassin ({T}: destroy target tapped creature, CR 701.20 + 701.7
         expect(victim.isTapped).toBe(false);
         const req = royalAssassin.activatedAbilities?.[0]?.targetRequirement;
         if (!req) throw new Error("requirement missing");
-        const legal = getLegalTargets(state, req);
+        const legal = getLegalTargets(state, req, NO_TARGETING_SOURCE);
         const ids = legal.map((t) => t.id);
         expect(ids).toContain("tapped-bear");
         expect(ids).not.toContain("victim");
@@ -836,7 +840,10 @@ describe("Black Knight (first strike + protection from white, CR 702.7 + 702.16)
         const legal = getLegalTargets(
             state,
             swordsToPlowshares.targetRequirement!,
-            ["W"]
+            {
+                ...NO_TARGETING_SOURCE,
+                colors: ["W"],
+            }
         );
         expect(legal.map((t) => t.id)).not.toContain("bk");
     });
@@ -1284,7 +1291,7 @@ describe("Raise Dead (return target Creature card from your graveyard, CR 400.7)
         });
         const req = raiseDead.targetRequirement;
         if (!req) throw new Error("requirement missing");
-        const legal = getLegalTargets(state, req, [], "p1");
+        const legal = getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1");
         const ids = legal.map((t) => t.id);
         expect(ids).not.toContain("opp-dead");
     });
@@ -2822,7 +2829,11 @@ describe("Terror (destroy target nonartifact, nonblack creature, CR 701.7)", () 
                 makePlayer("p2", { battlefield: [jugger] }),
             ],
         });
-        const targets = getLegalTargets(state, terror.targetRequirement!, []);
+        const targets = getLegalTargets(
+            state,
+            terror.targetRequirement!,
+            NO_TARGETING_SOURCE
+        );
         expect(targets.find((t) => t.id === "jugger")).toBeUndefined();
     });
 
@@ -2838,7 +2849,11 @@ describe("Terror (destroy target nonartifact, nonblack creature, CR 701.7)", () 
                 makePlayer("p2", { battlefield: [knight] }),
             ],
         });
-        const targets = getLegalTargets(state, terror.targetRequirement!, []);
+        const targets = getLegalTargets(
+            state,
+            terror.targetRequirement!,
+            NO_TARGETING_SOURCE
+        );
         expect(targets.find((t) => t.id === "bk")).toBeUndefined();
     });
 
@@ -2854,7 +2869,11 @@ describe("Terror (destroy target nonartifact, nonblack creature, CR 701.7)", () 
                 makePlayer("p2", { battlefield: [lion] }),
             ],
         });
-        const targets = getLegalTargets(state, terror.targetRequirement!, []);
+        const targets = getLegalTargets(
+            state,
+            terror.targetRequirement!,
+            NO_TARGETING_SOURCE
+        );
         expect(targets.find((t) => t.id === "lion")).toBeDefined();
     });
 
@@ -2993,7 +3012,7 @@ describe("Nettling Imp (CR 508.1d, 603.7a — forced attack + delayed destroy)",
         });
         state.players[1].battlefield.push(wall);
         const req = nettlingImp.activatedAbilities![0].targetRequirement!;
-        const legal = getLegalTargets(state, req, [], "p1");
+        const legal = getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1");
         const ids = legal.map((t) => t.id);
         expect(ids).toContain("victim");
         expect(ids).not.toContain("wall");
@@ -3365,7 +3384,7 @@ describe("Word of Command (controlled cast — land branch, CR 305.2 / 608.2, AD
         const legal = getLegalTargets(
             state,
             wordOfCommand.targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         );
         const playerIds = legal
