@@ -761,79 +761,116 @@ describe("CR 702.16b/603.3c — a trigger from a legendary creature and a protec
 // Structural guard — no hand-assembled TargetingSource in production code
 // ─────────────────────────────────────────────────────────────────────────
 
+/** Strips `//` line comments and block comments so the scan below sees CODE
+ *  only. Load-bearing: prose in an engine comment that merely NAMES the two
+ *  fields (there is one, in `game.ts`, explaining this very invariant) would
+ *  otherwise register as a violation. */
+function stripComments(text: string): string {
+    return text
+        .replace(/\/\*[\s\S]*?\*\//g, " ")
+        .replace(/(^|[^:])\/\/[^\n]*/g, "$1");
+}
+
+/** Every production (non-test) `.ts`/`.tsx` file, excluding `gre/rules.ts` —
+ *  the one module that DEFINES `TargetingSource` and its three constructors,
+ *  and therefore the one place the shape may legitimately be written. */
+function productionFiles(): string[] {
+    const out: string[] = [];
+    const walk = (dir: string): void => {
+        for (const entry of readdirSync(dir, { withFileTypes: true })) {
+            const full = join(dir, entry.name);
+            if (entry.isDirectory()) {
+                if (
+                    entry.name === "node_modules" ||
+                    entry.name === "_generated" ||
+                    entry.name === "__tests__"
+                ) {
+                    continue;
+                }
+                walk(full);
+                continue;
+            }
+            if (!/\.tsx?$/.test(entry.name)) continue;
+            if (/\.test\.tsx?$/.test(entry.name)) continue;
+            if (full.endsWith(join("gre", "rules.ts"))) continue;
+            out.push(full);
+        }
+    };
+    walk("convex");
+    walk("src");
+    return out;
+}
+
+/** A `TargetingSource` being written out by hand. This is a LEXICAL scan, not
+ *  an AST shape check: it flags the co-occurrence of the `supertypes` and
+ *  `isSpell` IDENTIFIERS within 400 characters of each other in
+ *  comment-stripped code. Matching on identifiers rather than `key:` colon
+ *  pairs is what makes it catch ES6 shorthand (`{ colors, types, subtypes,
+ *  supertypes, isSpell }` — the most idiomatic way to write the forbidden
+ *  helper) and property assignment, both of which an earlier `supertypes:` …
+ *  `isSpell:` version walked straight past.
+ *
+ *  Why the pair discriminates: no other type in the codebase carries both
+ *  fields — `GuardActionSource` has `isSpell` and no `supertypes`; the various
+ *  supertype views have `supertypes` and no `isSpell`.
+ *
+ *  What it does NOT catch, stated plainly rather than overclaimed: a hand-built
+ *  bundle whose two fields are more than 400 characters apart, or one assembled
+ *  field-by-field across separate statements with other code between. The
+ *  residual risk is small because all five fields are compiler-enforced — only
+ *  a WRONG VALUE can slip through, never a missing dimension. */
+const HAND_ASSEMBLED =
+    /\bsupertypes\b[\s\S]{0,400}?\bisSpell\b|\bisSpell\b[\s\S]{0,400}?\bsupertypes\b/;
+
 describe("single-authority guard — TargetingSource is never hand-assembled", () => {
     it("production code builds a TargetingSource ONLY through the three constructors", () => {
         // `TargetingSource` has five required fields, so omitting one is a
-        // compile error — but a hand-written FIVE-key literal type-checks fine
-        // and silently reintroduces the divergence class (a site free-hands
+        // compile error — but a hand-written bundle type-checks fine and
+        // silently reintroduces the divergence class (a site free-hands
         // `isSpell: kind !== "ability"`, calling a triggered ability a spell —
         // issue #1120 review round 3). The only safe constructors are
         // `targetingSourceFromCard`, `pendingTargetingSource` and
         // `NO_TARGETING_SOURCE`, all in `gre/rules.ts`.
-        //
-        // Detection is by SHAPE, not by the spread syntax an earlier version
-        // of this guard scanned for: any object literal carrying BOTH a
-        // `supertypes:` and an `isSpell:` key is a `TargetingSource` literal
-        // (no other type in the codebase pairs those two — `GuardActionSource`
-        // has `isSpell` but no `supertypes`). A previous text-scan for
-        // `...NO_TARGETING_SOURCE` passed a five-key literal straight through
-        // and reported green while `gre/state.ts` held exactly such a literal.
-        const LITERAL =
-            /supertypes:[\s\S]{0,400}?isSpell:|isSpell:[\s\S]{0,400}?supertypes:/;
         const offenders: string[] = [];
-        const walk = (dir: string): void => {
-            for (const entry of readdirSync(dir, { withFileTypes: true })) {
-                const full = join(dir, entry.name);
-                if (entry.isDirectory()) {
-                    if (
-                        entry.name === "node_modules" ||
-                        entry.name === "_generated" ||
-                        entry.name === "__tests__"
-                    ) {
-                        continue;
-                    }
-                    walk(full);
-                    continue;
-                }
-                if (!/\.tsx?$/.test(entry.name)) continue;
-                if (/\.test\.tsx?$/.test(entry.name)) continue;
-                // `gre/rules.ts` DEFINES the interface and the three
-                // constructors — it is the one place the shape may be written.
-                if (full.endsWith(join("gre", "rules.ts"))) continue;
-                const text = readFileSync(full, "utf8");
-                if (text.includes("...NO_TARGETING_SOURCE")) {
-                    offenders.push(`${full} (spread)`);
-                }
-                if (LITERAL.test(text)) {
-                    offenders.push(`${full} (hand-assembled literal)`);
-                }
+        for (const file of productionFiles()) {
+            const code = stripComments(readFileSync(file, "utf8"));
+            if (code.includes("...NO_TARGETING_SOURCE")) {
+                offenders.push(`${file} (spread)`);
             }
-        };
-        walk("convex");
-        walk("src");
+            if (HAND_ASSEMBLED.test(code)) {
+                offenders.push(`${file} (hand-assembled bundle)`);
+            }
+        }
         expect(offenders).toEqual([]);
     });
 
-    it("the guard actually detects a hand-assembled literal (self-check)", () => {
-        // Proof the regex above is load-bearing: the exact five-key shape a
-        // production file could write must match. Without this, a guard whose
-        // pattern silently stopped matching would report green forever.
-        const sample = `getLegalTargets(state, req, {
-            colors: [],
-            types: [],
-            subtypes: [],
-            supertypes: [],
-            isSpell: true,
+    it("the guard detects every hand-assembly form it claims to (self-check)", () => {
+        // Proof the pattern is load-bearing. A guard whose regex silently
+        // stopped matching would report green forever — the failure mode this
+        // whole file exists to make impossible.
+        const colonLiteral = `getLegalTargets(state, req, {
+            colors: [], types: [], subtypes: [], supertypes: [], isSpell: true,
         }, "p1");`;
-        const LITERAL =
-            /supertypes:[\s\S]{0,400}?isSpell:|isSpell:[\s\S]{0,400}?supertypes:/;
-        expect(LITERAL.test(sample)).toBe(true);
-        // …and does NOT match a `GuardActionSource` literal (no `supertypes`).
+        const shorthand = `return { colors, types, subtypes, supertypes, isSpell };`;
+        const assignment = `src.supertypes = []; src.isSpell = true;`;
+        expect(HAND_ASSEMBLED.test(colonLiteral)).toBe(true);
+        expect(HAND_ASSEMBLED.test(shorthand)).toBe(true);
+        expect(HAND_ASSEMBLED.test(assignment)).toBe(true);
+        // …and does NOT match a `GuardActionSource` (no `supertypes`).
         expect(
-            LITERAL.test(
+            HAND_ASSEMBLED.test(
                 `{ types: [], subtypes: [], isSpell: true, controllerId: "p1" }`
             )
         ).toBe(false);
+    });
+
+    it("the comment stripper is what keeps prose from registering (self-check)", () => {
+        // `game.ts` carries a comment naming both fields while explaining this
+        // invariant. Without stripping, the guard would flag the very file it
+        // was written to protect.
+        const prose = `// the offered side dropped supertypes; the accepted side kept isSpell`;
+        expect(HAND_ASSEMBLED.test(prose)).toBe(true);
+        expect(HAND_ASSEMBLED.test(stripComments(prose))).toBe(false);
     });
 });
 

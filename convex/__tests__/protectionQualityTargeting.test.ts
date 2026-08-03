@@ -285,3 +285,124 @@ describe("offered/accepted parity for a kind:'trigger' source", () => {
         ]);
     });
 });
+
+// ─────────────────────────────────────────────────────────────────────────
+// CR 109.5 — the `subtypes` dimension (issue #1120 review round 4)
+// ─────────────────────────────────────────────────────────────────────────
+//
+// The one bundle dimension the rest of this suite does not pin. It is invisible
+// to a PARITY assertion by construction: both sides read the same
+// `targetingSourceFromCard`, so zeroing `subtypes` breaks them together and
+// they still agree — 556 tests stay green while Blessing (an Aura spell) flips
+// from cannot-target to CAN-target Bartel Runeaxe ("can't be the target of Aura
+// spells", `leg/multicolor.ts`, `targetSourceSubtypeFilter: ["Aura"]`).
+//
+// So these assert the VALUE, not just the agreement — and still drive both
+// sides, because a value that is right on one side and wrong on the other is
+// the failure mode the rest of the suite exists for.
+
+const BARTEL_RUNEAXE = "f1a42691-98bb-4234-9b56-085e6677f3e4"; // "can't be the target of Aura spells"
+const BLESSING = "f131fd27-18da-47ca-b59f-135bcac83abd"; // Aura — enchant creature
+const LIGHTNING_BOLT = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a"; // Instant, no Aura subtype
+
+/** p2 is mid-cast of `spellCardId` (in p2's hand) needing a creature target;
+ *  p1 controls Bartel Runeaxe and a plain bear. */
+function castingAtBartel(spellCardId: string): GameState {
+    const spell = makeInstance(spellCardId, {
+        id: "spell",
+        controllerId: "p2",
+        ownerId: "p2",
+        zone: "hand",
+    });
+    const bartel = makeInstance(BARTEL_RUNEAXE, {
+        id: "bartel",
+        controllerId: "p1",
+        ownerId: "p1",
+    });
+    const bear = makeInstance(GRIZZLY_BEARS, {
+        id: "bear",
+        controllerId: "p1",
+        ownerId: "p1",
+    });
+    return makeState({
+        players: [
+            makePlayer("p1", { battlefield: [bartel, bear] }),
+            makePlayer("p2", { battlefield: [], hand: [spell] }),
+        ],
+        pendingTarget: {
+            playerId: "p2",
+            cardInstanceId: "spell",
+            targetType: "Creature",
+            // Open-ended max so a successful pick doesn't auto-finalize into
+            // the cast-commit path this harness doesn't seed.
+            count: { min: 1, max: 3 },
+            kind: "cast",
+            selected: [],
+        },
+    });
+}
+
+function castOffered(state: GameState): string[] {
+    return getLegalTargets(
+        state,
+        { type: "Creature", count: 1 },
+        pendingTargetingSource(state, "spell", "cast"),
+        "p2"
+    ).map((t) => t.id);
+}
+
+describe("CR 109.5 — the source's SUBTYPES reach both sides (Aura-spell guard)", () => {
+    it("an AURA spell can target neither side of the gate", async () => {
+        const state = castingAtBartel(BLESSING);
+        // Sanity: the dimension under test is actually populated.
+        expect(pendingTargetingSource(state, "spell", "cast").subtypes).toEqual(
+            ["Aura"]
+        );
+
+        // OFFERED
+        expect(castOffered(state)).not.toContain("bartel");
+        expect(castOffered(state)).toContain("bear");
+
+        // ACCEPTED
+        const harness = makeMutationCtx("p2", [gameStateSeed(state)]);
+        await expect(
+            runMutation<SelectTargetArgs, void>(
+                selectTarget as unknown as Handler<SelectTargetArgs, void>,
+                harness.ctx,
+                {
+                    gameId: GAME_ID,
+                    playerId: "p2",
+                    targetType: "permanent",
+                    targetId: "bartel",
+                }
+            )
+        ).rejects.toThrow(/can't be the target/i);
+        expect(harness.state().pendingTarget?.selected ?? []).toHaveLength(0);
+    });
+
+    it("must-NOT — a NON-Aura spell targets Bartel Runeaxe fine, on both sides", async () => {
+        // Proves the gate is genuinely subtype-narrowed (CR 109.5), not a
+        // blanket untargetability that any spell would trip.
+        const state = castingAtBartel(LIGHTNING_BOLT);
+        expect(pendingTargetingSource(state, "spell", "cast").subtypes).toEqual(
+            []
+        );
+
+        expect(castOffered(state)).toContain("bartel");
+
+        const harness = makeMutationCtx("p2", [gameStateSeed(state)]);
+        await runMutation<SelectTargetArgs, void>(
+            selectTarget as unknown as Handler<SelectTargetArgs, void>,
+            harness.ctx,
+            {
+                gameId: GAME_ID,
+                playerId: "p2",
+                targetType: "permanent",
+                targetId: "bartel",
+            }
+        );
+        expect(
+            (harness.state().pendingTarget?.selected ?? []).map((s) => s.id)
+        ).toEqual(["bartel"]);
+    });
+});
