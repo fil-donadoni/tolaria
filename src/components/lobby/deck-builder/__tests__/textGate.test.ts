@@ -5,9 +5,12 @@ import {
     hasAnyFilter,
     isTextActive,
     matchesCube,
+    parseTypeLine,
+    makeCatalogueEntry,
     type CardIndexEntry,
     type CardSearchFilters,
 } from "../useCardSearch";
+import type { FullCatalogueRow } from "~/lib/fullCatalogue";
 
 // The text predicate (`matchesText`) is module-private; we exercise it through
 // the same surfaces production code uses — `isTextActive` (the shared gate),
@@ -185,6 +188,137 @@ describe("3-char text gate (issue #504)", () => {
             expect(pass).toEqual([red]);
             // And the grid is not idle because color is an active filter.
             expect(hasAnyFilter(filters)).toBe(true);
+        });
+    });
+
+    describe("token filtering", () => {
+        const tokenRow = (name: string): FullCatalogueRow => ({
+            name,
+            printId: "aa",
+            typeLine: "Token Creature — Zombie",
+            manaCost: "",
+            cmc: 0,
+            colourIdentity: "B",
+            set: "tsb",
+            rarity: "common",
+            nameFold: name.toLowerCase(),
+            available: true,
+        });
+        const creatureRow = (name: string): FullCatalogueRow => ({
+            name,
+            printId: "bb",
+            typeLine: "Creature — Zombie",
+            manaCost: "{2}{B}",
+            cmc: 3,
+            colourIdentity: "B",
+            set: "tsb",
+            rarity: "common",
+            nameFold: name.toLowerCase(),
+            available: true,
+        });
+
+        it("parseTypeLine keeps Token out of types (CR 110.5e — marker characteristic)", () => {
+            const parsed = parseTypeLine("Token Creature — Zombie");
+            expect(parsed.types).toEqual(["Creature"]);
+            expect(parsed.isToken).toBe(true);
+            expect(parsed.supertypes).toEqual([]);
+            expect(parsed.subtypes).toEqual(["Zombie"]);
+        });
+
+        it("parseTypeLine identifies non-token creatures correctly", () => {
+            const parsed = parseTypeLine("Creature — Zombie");
+            expect(parsed.types).toEqual(["Creature"]);
+            expect(parsed.isToken).toBe(false);
+        });
+
+        it("makeCatalogueEntry sets isToken for tokens", () => {
+            const entry = makeCatalogueEntry(tokenRow("Zombie"));
+            expect(entry.isToken).toBe(true);
+            expect(entry.types).toEqual(["Creature"]);
+        });
+
+        it("makeCatalogueEntry does not mark non-tokens as tokens", () => {
+            const entry = makeCatalogueEntry(creatureRow("Fleshbag Marauder"));
+            expect(entry.isToken).toBe(false);
+            expect(entry.types).toEqual(["Creature"]);
+        });
+
+        it("showTokens filter counts as an active filter", () => {
+            expect(
+                hasAnyFilter({
+                    ...DEFAULT_FILTERS,
+                    showTokens: true,
+                })
+            ).toBe(true);
+        });
+
+        it("showTokens filter is not active by default", () => {
+            expect(
+                hasAnyFilter({
+                    ...DEFAULT_FILTERS,
+                    showTokens: false,
+                })
+            ).toBe(false);
+        });
+
+        it("token filtering excludes tokens from the regular card pool", () => {
+            const token = makeCatalogueEntry(tokenRow("Zombie Token"));
+            const creature = makeCatalogueEntry(
+                creatureRow("Fleshbag Marauder")
+            );
+            const showTokens = (e: CardIndexEntry) => e.isToken === true;
+            const hideTokens = (e: CardIndexEntry) => !e.isToken;
+
+            // showTokens = true: only tokens pass
+            expect(showTokens(token)).toBe(true);
+            expect(showTokens(creature)).toBe(false);
+
+            // showTokens = false (default): tokens are hidden
+            expect(hideTokens(token)).toBe(false);
+            expect(hideTokens(creature)).toBe(true);
+        });
+    });
+
+    describe("Scryfall text search integration", () => {
+        const row = (name: string): FullCatalogueRow => ({
+            name,
+            printId: "aa",
+            typeLine: "Instant",
+            manaCost: "{R}",
+            cmc: 1,
+            colourIdentity: "R",
+            set: "lea",
+            rarity: "common",
+            nameFold: name.toLowerCase(),
+            available: true,
+        });
+
+        it("index entries retain their oracle text for local matching", () => {
+            const e = entry({
+                name: "Lightning Bolt",
+                oracleText: "Lightning Bolt deals 3 damage",
+            });
+            expect(e.oracleText).toBe("Lightning Bolt deals 3 damage");
+        });
+
+        it("catalogue entries have empty oracle text", () => {
+            const entry = makeCatalogueEntry(row("Lightning Bolt"));
+            expect(entry.oracleText).toBe("");
+            expect(entry.oracleFold).toBe("");
+        });
+
+        it("parseTypeLine separates Token marker from types (CR 110.5e)", () => {
+            const parsed = parseTypeLine("Token Artifact — Treasure");
+            expect(parsed.types).toEqual(["Artifact"]);
+            expect(parsed.isToken).toBe(true);
+
+            const parsed2 = parseTypeLine(
+                "Legendary Token Creature — Human Soldier"
+            );
+            expect(parsed2.supertypes).toEqual(["Legendary"]);
+            expect(parsed2.types).toEqual(["Creature"]);
+            expect(parsed2.isToken).toBe(true);
+            expect(parsed2.subtypes).toEqual(["Human", "Soldier"]);
         });
     });
 });
