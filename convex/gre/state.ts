@@ -103,7 +103,11 @@ import {
 } from "./controlContinuity";
 import type { Phase, Zone, PhaseReturnCondition } from "./types";
 import type { KickerPayments } from "./kicker";
-import { kickerPaidCount, totalKickerCount } from "./kicker";
+import {
+    buildSpellKickedEvents,
+    kickerPaidCount,
+    totalKickerCount,
+} from "./kicker";
 import type { SacrificeSelection } from "./sacrificeChoice";
 // ADR 0079 — the may-pay PERMANENT leg's `action: "return"` terminal step runs
 // through the unified permanent-cost layer, the same one Gush / Thwart / Daze
@@ -8409,7 +8413,20 @@ export function emitSpellCastEvent(state: GameState, item: StackItem): void {
         priorSpellCount,
         casterSpellCountThisTurn,
     };
-    state.pendingEvents = [...(state.pendingEvents ?? []), event];
+    // CR 702.33d (issue #1097) — "a player kicks a spell" rides the SAME cast
+    // choke point, one event per KICK (a Multikicker paid N times is N kicks).
+    // Emitted from here and nowhere else: a spell COPY (`cloneSpellOntoStack`)
+    // carries `kickerPayments` over but never reaches this function, so it
+    // never counts as a kick (CR 707.10 — a copy isn't cast). `def` absent
+    // (unregistered card) yields no events rather than a guess.
+    const kickedEvents = def
+        ? buildSpellKickedEvents(def, item, cardId, colors)
+        : [];
+    state.pendingEvents = [
+        ...(state.pendingEvents ?? []),
+        event,
+        ...kickedEvents,
+    ];
     // CR 603.2b (issue #1265) — a cast spell's chosen targets are locked onto
     // its stack item here, so this doubles as the target-declaration choke for
     // "whenever ~ becomes the target of a spell" triggers (Leovold). A

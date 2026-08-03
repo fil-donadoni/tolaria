@@ -29,8 +29,9 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
-import { registerTokenDefinition } from "../../..";
+import { getDefinition, registerTokenDefinition } from "../../..";
 import {
+    emitSpellCastEvent,
     processPendingActionTriggers,
     resolveTopOfStack,
     type CardInstanceState,
@@ -55,6 +56,10 @@ import { isGuardedAgainst } from "../../../../gre/permanentGuard";
 import { getLegalTargets } from "../../../../gre/rules";
 import { plains, island, swamp } from "../../lea/colorless";
 import { resolveTrigger } from "./helpers";
+// Saproling Infestation (issue #1097) — the SPELL_KICKED consumer.
+import { saprolingInfestation } from "../green";
+import { burstLightning } from "../../zen/red";
+import { everflowingChalice } from "../../wwk/colorless";
 
 const CREATURE_REQ = { type: "Creature", count: 1 } as const;
 
@@ -1054,5 +1059,170 @@ describe("Verduran Emissary (single Kicker ETB — destroy target artifact, issu
         expect(
             state.players[1].battlefield.some((c) => c.id === "ve-target-3")
         ).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Saproling Infestation — "Whenever a player kicks a spell, you create a 1/1
+// green Saproling creature token." (CR 702.33d kicker + CR 603.2 triggered
+// abilities, issue #1097.) The `SPELL_KICKED` event's own producer census
+// lives in `convex/gre/__tests__/spellKickedEvent.test.ts`; these tests are
+// the CARD's side — that the trigger fires symmetrically, once per kick, and
+// reaches the UI through the real client reducer.
+// ---------------------------------------------------------------------------
+describe("Saproling Infestation (CR 702.33d / 603.2)", () => {
+    function boardWithInfestation(controllerId: string) {
+        const infest = makeInstance(saprolingInfestation.id, {
+            controllerId,
+            ownerId: controllerId,
+            id: "infest-1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: controllerId === "p1" ? [infest] : [],
+                }),
+                makePlayer("p2", {
+                    battlefield: controllerId === "p2" ? [infest] : [],
+                }),
+            ],
+        });
+        return { state, infest };
+    }
+
+    function kickEvent(casterId: string): StackItem["triggerEvent"] {
+        return {
+            type: "SPELL_KICKED",
+            casterId,
+            spellInstanceId: "some-spell",
+            spellCardId: burstLightning.id,
+            kickerId: "kicker",
+            spellTypes: ["Instant"],
+            spellSubtypes: [],
+            spellColors: ["R"],
+        } as StackItem["triggerEvent"];
+    }
+
+    it("declares the SPELL_KICKED trigger with the Oracle text", () => {
+        expect(saprolingInfestation.manaCost).toEqual({ X: 1, G: 1 });
+        expect(saprolingInfestation.types).toEqual(["Enchantment"]);
+        const ability = saprolingInfestation.triggeredAbilities![0];
+        expect(ability.event).toBe("SPELL_KICKED");
+        expect(ability.oracleText).toBe(saprolingInfestation.oracleText);
+        // NOT batched: CR 702.33d makes each kick its own trigger.
+        expect(ability.oncePerEventBatch).toBeUndefined();
+    });
+
+    it("creates one 1/1 green Saproling for its CONTROLLER when a player kicks", () => {
+        const { state, infest } = boardWithInfestation("p1");
+        resolveTrigger(
+            state,
+            infest,
+            "saproling-infestation-kicked",
+            kickEvent("p1")
+        );
+        const tokens = state.players[0].battlefield.filter(
+            (c) => c.id !== "infest-1"
+        );
+        expect(tokens).toHaveLength(1);
+        expect(tokens[0].isToken).toBe(true);
+        expect(tokens[0].power).toBe(1);
+        expect(tokens[0].toughness).toBe(1);
+        expect(tokens[0].subtypes).toContain("Saproling");
+        // The instance stores only `card: { id }` — name/colour/art live on
+        // the synthesized token definition the registry hands the client.
+        const tokenDef = getDefinition((tokens[0].card as { id: string }).id);
+        expect(tokenDef.name).toBe("Saproling");
+        expect(tokenDef.manaCost).toEqual({ G: 1 });
+        // CR 707.2 token art — auto-resolved from this card's own Scryfall
+        // reverse-link (`token-prints.json` → the Invasion Saproling print),
+        // not hand-pinned. Undefined here would render a bare placeholder.
+        expect(tokenDef.imagePrintId).toBe(
+            "248ade83-ac57-42d6-985c-1e4cc3639f36"
+        );
+    });
+
+    it("is SYMMETRIC — the OPPONENT's kick still gives the controller the token (CR 603.2)", () => {
+        // Drives the REAL trigger scan (emit → collectTriggers → `matches`),
+        // not a hand-pushed stack item: a hand-push bypasses `matches`
+        // entirely, so it could not tell a symmetric ability from one gated on
+        // the controller's own kick.
+        const infest = makeInstance(saprolingInfestation.id, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "infest-sym",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [infest] }),
+            ],
+        });
+        // p1 kicks; the enchantment belongs to p2, and "you" is p2.
+        const chalice: StackItem = {
+            ...makeInstance(everflowingChalice.id, {
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "stack",
+                id: "chalice-sym",
+            }),
+            castById: "p1",
+            kickerPayments: { kicker: 1 },
+        };
+        state.stack.push(chalice);
+        emitSpellCastEvent(state, chalice);
+        processPendingActionTriggers(state);
+
+        const triggers = state.stack.filter(
+            (s) => s.triggeredAbilityId === "saproling-infestation-kicked"
+        );
+        expect(triggers).toHaveLength(1);
+        // The trigger belongs to the ENCHANTMENT's controller, not the kicker.
+        expect(triggers[0].controllerId).toBe("p2");
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.filter((c) => c.id !== "infest-sym")
+        ).toHaveLength(1);
+        expect(state.players[0].battlefield).toHaveLength(0);
+    });
+
+    it("N kicks make N Saprolings — Multikicker end to end (CR 702.33c/d)", () => {
+        // The real path: a kicked cast emits one event per kick, the trigger
+        // scan turns each into its own stack object, and each resolves to a
+        // token. Everflowing Chalice is "Multikicker {2}", non-targeted, so a
+        // Multikicker-3 cast is three kicks.
+        const infest = makeInstance(saprolingInfestation.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "infest-multi",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [infest] }),
+                makePlayer("p2"),
+            ],
+        });
+        const chalice: StackItem = {
+            ...makeInstance(everflowingChalice.id, {
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "stack",
+                id: "chalice-1",
+            }),
+            castById: "p1",
+            kickerPayments: { kicker: 3 },
+        };
+        state.stack.push(chalice);
+        emitSpellCastEvent(state, chalice);
+        processPendingActionTriggers(state);
+
+        const triggers = state.stack.filter(
+            (s) => s.triggeredAbilityId === "saproling-infestation-kicked"
+        );
+        expect(triggers).toHaveLength(3);
+        for (let i = 0; i < 3; i++) resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.filter((c) => c.id !== "infest-multi")
+        ).toHaveLength(3);
     });
 });
