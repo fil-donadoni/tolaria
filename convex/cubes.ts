@@ -43,10 +43,18 @@ export function resolveCubeMembership(
     const seen = new Set<string>();
     for (const name of cardNames) {
         const card = resolve(name);
-        if (!card) continue; // unbuilt name — not in the filterable pool
-        if (seen.has(card.id)) continue;
-        seen.add(card.id);
-        ids.push(card.id);
+        if (card) {
+            if (seen.has(card.id)) continue;
+            seen.add(card.id);
+            ids.push(card.id);
+        } else {
+            // Unbuilt name — fall back to the name itself so catalogue
+            // entries (whose cardId is a per-print UUID) can still pass
+            // the cube gate when `hideUnavailable: false`.
+            if (seen.has(name)) continue;
+            seen.add(name);
+            ids.push(name);
+        }
     }
     return ids;
 }

@@ -232,10 +232,11 @@ export function hasAnyFilter(filters: CardSearchFilters): boolean {
  */
 export function matchesCube(
     cardId: string,
+    cardName: string,
     cubeIds: ReadonlySet<string> | null
 ): boolean {
     if (cubeIds === null) return true;
-    return cubeIds.has(cardId);
+    return cubeIds.has(cardId) || cubeIds.has(cardName);
 }
 
 const SUPER_TYPES = new Set(["Basic", "Legendary", "Snow", "World", "Ongoing"]);
@@ -350,7 +351,7 @@ export function useCardSearch(
         const filtered = parts.filter(
             (e) =>
                 matchesFormatSets(e.prints, e.supertypes, allowedSets) &&
-                matchesCube(e.cardId, cubeIds) &&
+                matchesCube(e.cardId, e.name, cubeIds) &&
                 matchesText(e, filters.text) &&
                 matchesColors(e.colors, filters) &&
                 matchesTypes(e, filters.types, filters.typeMode) &&
