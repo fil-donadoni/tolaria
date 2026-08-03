@@ -330,8 +330,8 @@ import {
     mustAttack,
     getRequiredBlockerAssignments,
     getMaxBlockTargets,
-    getAttackerCap,
-    getBlockerCap,
+    getAttackerCapEffect,
+    getBlockerCapEffect,
     validateMinimumBlockers,
     validateDeclaredAttackers,
     validateDeclaredBlockers,
@@ -10006,17 +10006,18 @@ export const toggleAttacker = mutation({
             if (!validation.eligible) {
                 throw new Error(validation.reason);
             }
-            // Caverns of Despair (CR 508.1a) — no more than two creatures can
-            // be declared as attackers each combat. The cap is global; reject
-            // the declaration that would push the count past it.
-            const attackerCap = getAttackerCap(state);
+            // CR 508.1a — a battlefield-wide cap on how many creatures may be
+            // declared as attackers each combat (Caverns of Despair at two,
+            // Dueling Grounds at one). The cap is global regardless of who
+            // controls the source; reject the selection that would push the
+            // count past it. The whole-set twin of this check runs at confirm
+            // (`validateDeclaredAttackers`).
+            const attackerCap = getAttackerCapEffect(state);
             if (
                 attackerCap !== undefined &&
-                state.combat.attackerIds.length >= attackerCap
+                state.combat.attackerIds.length >= attackerCap.max
             ) {
-                throw new Error(
-                    `No more than ${attackerCap} creatures can attack each combat (Caverns of Despair)`
-                );
+                throw new Error(attackerCap.oracleText);
             }
             state.combat.attackerIds.push(args.cardInstanceId);
             // CR 508.1a (issue #1220) — record the planeswalker this attacker is
@@ -10412,17 +10413,30 @@ export const confirmAttackers = mutation({
         const player = getPlayer(state, args.playerId);
 
         // CR 508.1d: auto-include any eligible creature required to attack
-        // that the player didn't manually select.
+        // that the player didn't manually select — but only up to the global
+        // declared-attacker cap (CR 508.1a). Requirements are obeyed to the
+        // MAXIMUM number possible WITHOUT violating a restriction, and the cap
+        // is a restriction, so it wins: under a Dueling Grounds, two Juggernauts
+        // do not both attack. The player's own selections are seeded first and
+        // therefore always survive, so whenever they express which required
+        // creature attacks, that choice is the one honoured.
         const defenderBattlefield = getPlayer(
             state,
             getOpponentId(state, args.playerId)
         ).battlefield;
+        const confirmAttackerCap = getAttackerCapEffect(state);
         for (const requiredId of getRequiredAttackerIds(
             player.battlefield,
             state,
             defenderBattlefield,
             state.allCreaturesMustAttack
         )) {
+            if (
+                confirmAttackerCap !== undefined &&
+                state.combat.attackerIds.length >= confirmAttackerCap.max
+            ) {
+                break;
+            }
             if (!state.combat.attackerIds.includes(requiredId)) {
                 state.combat.attackerIds.push(requiredId);
             }
@@ -10850,23 +10864,21 @@ export const assignBlockerTarget = mutation({
 
         const blockerId = state.combat.pendingBlockerId;
         const existing = state.combat.blockerAssignments[blockerId] ?? [];
-        // Caverns of Despair (CR 509.1a) — no more than two creatures can be
-        // declared as blockers each combat. The cap counts distinct blocking
-        // creatures, not blocking assignments; a creature already blocking may
-        // still take a second attacker (Two-Headed Giant) without consuming a
-        // new slot. Reject only a NEW blocker that would push the count past
-        // the cap.
-        const blockerCap = getBlockerCap(state);
+        // CR 509.1a — a battlefield-wide cap on how many creatures may be
+        // declared as blockers each combat (Caverns of Despair at two, Dueling
+        // Grounds at one). The cap counts distinct blocking creatures, not
+        // blocking assignments; a creature already blocking may still take a
+        // second attacker (Two-Headed Giant) without consuming a new slot.
+        // Reject only a NEW blocker that would push the count past the cap.
+        const blockerCap = getBlockerCapEffect(state);
         if (
             blockerCap !== undefined &&
             existing.length === 0 &&
             Object.keys(state.combat.blockerAssignments).filter(
                 (id) => (state.combat!.blockerAssignments[id] ?? []).length > 0
-            ).length >= blockerCap
+            ).length >= blockerCap.max
         ) {
-            throw new Error(
-                `No more than ${blockerCap} creatures can block each combat (Caverns of Despair)`
-            );
+            throw new Error(blockerCap.oracleText);
         }
         const maxAttackers = blocker ? getMaxBlockTargets(blocker) : 1;
         if (existing.length >= maxAttackers) {
@@ -10937,8 +10949,27 @@ export const confirmBlockers = mutation({
             state.combat.blockerAssignments,
             state
         );
+        // CR 509.1a/509.1c — a must-block REQUIREMENT never overrides the
+        // battlefield-wide declared-blocker cap (a RESTRICTION), so the
+        // auto-assignment may not introduce a new blocking creature once the
+        // cap is reached. Giving an ALREADY-blocking creature another attacker
+        // costs no slot (the cap counts creatures, not assignments), so those
+        // still go through — without this the confirm-time cap check would
+        // reject a declaration the defender has no way to fix.
+        const autoBlockerCap = getBlockerCapEffect(state);
+        const distinctBlockerCount = () =>
+            Object.keys(state.combat!.blockerAssignments).filter(
+                (id) => (state.combat!.blockerAssignments[id] ?? []).length > 0
+            ).length;
         for (const [blockerId, attackerIds] of Object.entries(required)) {
             const existing = state.combat.blockerAssignments[blockerId] ?? [];
+            if (
+                existing.length === 0 &&
+                autoBlockerCap !== undefined &&
+                distinctBlockerCount() >= autoBlockerCap.max
+            ) {
+                continue;
+            }
             state.combat.blockerAssignments[blockerId] = [
                 ...existing,
                 ...attackerIds,

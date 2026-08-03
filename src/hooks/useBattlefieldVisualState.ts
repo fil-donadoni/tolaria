@@ -3,6 +3,7 @@ import type { CardInstance, Player } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { isEligibleAttacker } from "~/lib/attacker-eligibility";
+import { combatDeclarationCap } from "@convex/cards/attackRestrictions";
 import { useAttackSequence } from "~/hooks/useAttackSequence";
 import {
     isCreature,
@@ -242,6 +243,36 @@ export function useBattlefieldVisualState(player: Player) {
     const selectedAttackerIds = combat?.attackerIds ?? [];
     const blockerAssignments = combat?.blockerAssignments ?? {};
     const pendingBlockerId = combat?.pendingBlockerId;
+
+    // CR 508.1a / 509.1a (issue #1127) — a battlefield-wide cap on how many
+    // creatures may be DECLARED this combat (Caverns of Despair at two, Dueling
+    // Grounds at one). Read from the SAME scanner the server gates on
+    // (`convex/cards/attackRestrictions.ts`), so the board can never offer a
+    // declaration the mutation would refuse. Computed once per render rather
+    // than per card — it is a board-wide scan, not a per-permanent predicate.
+    //
+    // Both flags mean "a NEW participant would exceed the cap": an
+    // already-declared attacker stays clickable (deselecting is what frees the
+    // slot) and an already-blocking creature may still take another attacker,
+    // because the block cap counts distinct CREATURES, not assignments.
+    const attackCapReached = (() => {
+        const cap = combatDeclarationCap(
+            { players: allPlayers as never },
+            "attack"
+        );
+        return cap !== undefined && selectedAttackerIds.length >= cap.max;
+    })();
+    const blockCapReached = (() => {
+        const cap = combatDeclarationCap(
+            { players: allPlayers as never },
+            "block"
+        );
+        if (cap === undefined) return false;
+        const distinct = Object.values(blockerAssignments).filter(
+            (ids) => (ids?.length ?? 0) > 0
+        ).length;
+        return distinct >= cap.max;
+    })();
     const attackTargets = combat?.attackTargets ?? {};
 
     // CR 508.1a (issue #1220) — true iff at least one declared attacker is
@@ -379,6 +410,10 @@ export function useBattlefieldVisualState(player: Player) {
         if (isSelectingAttackers && isCreature(card)) {
             // An already-declared attacker stays clickable (to deselect).
             if (selectedAttackerIds.includes(card.id)) return true;
+            // CR 508.1a — the battlefield-wide declared-attacker cap is full,
+            // so every further creature would be refused by the server and none
+            // of them may read as clickable.
+            if (attackCapReached) return false;
             // Otherwise defer to the shared eligibility predicate — the single
             // authority the "Attack with all" button also uses, so what the
             // board grays out and what the button declares can't drift.
@@ -393,6 +428,9 @@ export function useBattlefieldVisualState(player: Player) {
         if (isSelectingBlockers && isCreature(card)) {
             if ((blockerAssignments[card.id]?.length ?? 0) > 0) return true;
             if (pendingBlockerId === card.id) return true;
+            // CR 509.1a — the declared-blocker cap is full, so this creature
+            // (not already blocking, per the two checks above) can't join.
+            if (blockCapReached) return false;
             return !card.isTapped && canBlockAnyAttacker(card);
         }
 
@@ -544,7 +582,12 @@ export function useBattlefieldVisualState(player: Player) {
                 isSelectingAttackers &&
                 creature &&
                 !selectedAttackerIds.includes(card.id) &&
-                (card.isTapped ||
+                // CR 508.1a (#1127) — a spent declared-attacker cap dims the
+                // creatures it locks out, the same way an unusable (tapped /
+                // sick / defender) creature is dimmed: the board must SHOW why
+                // nothing happens on click, not merely swallow the click.
+                (attackCapReached ||
+                    card.isTapped ||
                     (card.isSummoningSick && !hasHaste) ||
                     card.staticAbilities?.includes("defender"))
             ) ||
@@ -553,7 +596,8 @@ export function useBattlefieldVisualState(player: Player) {
                 creature &&
                 !blockerAssignments[card.id]?.length &&
                 pendingBlockerId !== card.id &&
-                (card.isTapped || !canBlockAnyAttacker(card))
+                // CR 509.1a (#1127) — same for the declared-blocker cap.
+                (blockCapReached || card.isTapped || !canBlockAnyAttacker(card))
             );
 
         // Combat offset (translate toward center)

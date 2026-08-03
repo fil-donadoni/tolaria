@@ -83,6 +83,7 @@ import {
     seersVision,
     aetherRift,
     shivanEmissary,
+    duelingGrounds,
 } from "../multicolor";
 import { lobotomy } from "../../tmp/multicolor";
 import { simoon } from "../../vis/multicolor";
@@ -127,7 +128,12 @@ import { isGuardedAgainst } from "../../../../gre/permanentGuard";
 import {
     validateAttackerEligibility,
     mustAttack,
+    getAttackerCapEffect,
+    getBlockerCapEffect,
+    validateDeclaredAttackers,
+    validateDeclaredBlockers,
 } from "../../../../gre/combat";
+import { cavernsOfDespair } from "../../leg/red";
 import { effectiveTriggeredAbilities } from "../../../../gre/copy";
 import { collectTriggers } from "../../../../gre/triggers";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
@@ -3594,5 +3600,152 @@ describe("Shivan Emissary (single Kicker ETB — destroy target nonblack creatur
         expect(
             state.players[1].battlefield.some((c) => c.id === "se-target-3")
         ).toBe(true);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Dueling Grounds (#1127) — battlefield-wide declared-attacker / declared-
+// blocker count cap (CR 508.1a / 509.1a)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** A creature that can attack right now, on `controllerId`'s battlefield. */
+function capCreature(id: string, controllerId: string): CardInstanceState {
+    return makeInstance(grizzlyBears.id, {
+        id,
+        controllerId,
+        ownerId: controllerId,
+        isSummoningSick: false,
+    });
+}
+
+/** p1 is the active player and has declared `attackerIds`; `p2Battlefield`
+ *  holds the defender's permanents (where the enchantment usually sits, to
+ *  prove the cap is symmetric — it binds whoever it is not controlled by). */
+function combatState(
+    p1Battlefield: CardInstanceState[],
+    p2Battlefield: CardInstanceState[],
+    combat: Partial<GameState["combat"]> = {}
+): GameState {
+    return makeState({
+        phase: "DECLARE_ATTACKERS",
+        activePlayerId: "p1",
+        players: [
+            makePlayer("p1", { battlefield: p1Battlefield }),
+            makePlayer("p2", { battlefield: p2Battlefield }),
+        ],
+        combat: {
+            attackerIds: [],
+            confirmed: false,
+            blockerAssignments: {},
+            blockersConfirmed: false,
+            ...combat,
+        },
+    });
+}
+
+describe("Dueling Grounds (CR 508.1a / 509.1a — declared-set count caps)", () => {
+    it("has the printed definition shape and one cap per Oracle line", () => {
+        expect(duelingGrounds.manaCost).toEqual({ X: 1, G: 1, W: 1 });
+        expect(duelingGrounds.types).toEqual(["Enchantment"]);
+        expect(duelingGrounds.oracleText).toBe(
+            "No more than one creature can attack each combat.\nNo more than one creature can block each combat."
+        );
+        const caps = (duelingGrounds.staticEffects ?? []).filter(
+            (e) => e.kind === "combat-declaration-cap"
+        );
+        expect(caps.map((c) => [c.side, c.max])).toEqual([
+            ["attack", 1],
+            ["block", 1],
+        ]);
+    });
+
+    it("caps both declarations at one, scanned from the OPPONENT's battlefield (CR 109.2 — symmetric)", () => {
+        const grounds = makeInstance(duelingGrounds.id, { controllerId: "p2" });
+        const state = combatState([capCreature("a", "p1")], [grounds]);
+        expect(getAttackerCapEffect(state)?.max).toBe(1);
+        expect(getBlockerCapEffect(state)?.max).toBe(1);
+        expect(getAttackerCapEffect(state)?.oracleText).toBe(
+            "No more than one creature can attack each combat."
+        );
+    });
+
+    it("imposes no cap when it is not on the battlefield", () => {
+        const state = combatState([capCreature("a", "p1")], []);
+        expect(getAttackerCapEffect(state)).toBeUndefined();
+        expect(getBlockerCapEffect(state)).toBeUndefined();
+    });
+
+    it("validateDeclaredAttackers accepts one attacker and rejects two (CR 508.1a, whole declared set)", () => {
+        const grounds = makeInstance(duelingGrounds.id, { controllerId: "p2" });
+        const [a, b] = [capCreature("a", "p1"), capCreature("b", "p1")];
+
+        const one = combatState([a, b], [grounds], { attackerIds: ["a"] });
+        expect(validateDeclaredAttackers(one)).toEqual({ ok: true });
+
+        const two = combatState([a, b], [grounds], { attackerIds: ["a", "b"] });
+        expect(validateDeclaredAttackers(two)).toEqual({
+            ok: false,
+            reason: "No more than one creature can attack each combat.",
+        });
+    });
+
+    it("validateDeclaredBlockers counts distinct CREATURES, not assignments (CR 509.1a)", () => {
+        const grounds = makeInstance(duelingGrounds.id, { controllerId: "p1" });
+        const [x, y] = [capCreature("x", "p2"), capCreature("y", "p2")];
+        const attackers = [capCreature("a", "p1"), capCreature("b", "p1")];
+
+        // ONE blocker blocking TWO attackers consumes ONE slot — legal.
+        const single = combatState([...attackers, grounds], [x, y], {
+            attackerIds: ["a", "b"],
+            blockerAssignments: { x: ["a", "b"] },
+        });
+        expect(validateDeclaredBlockers(single)).toEqual({ ok: true });
+
+        // TWO blockers is over the cap, however few attackers they block.
+        const double = combatState([...attackers, grounds], [x, y], {
+            attackerIds: ["a", "b"],
+            blockerAssignments: { x: ["a"], y: ["b"] },
+        });
+        expect(validateDeclaredBlockers(double)).toEqual({
+            ok: false,
+            reason: "No more than one creature can block each combat.",
+        });
+    });
+
+    it("stacks with Caverns of Despair at the MOST RESTRICTIVE cap (CR 508.1c — every restriction is obeyed)", () => {
+        const grounds = makeInstance(duelingGrounds.id, { controllerId: "p1" });
+        const caverns = makeInstance(cavernsOfDespair.id, {
+            controllerId: "p2",
+        });
+        const state = combatState([grounds], [caverns]);
+        expect(getAttackerCapEffect(state)?.max).toBe(1);
+        expect(getBlockerCapEffect(state)?.max).toBe(1);
+
+        // Caverns alone still binds at two — the minimum is genuinely computed,
+        // not the last source scanned.
+        const cavernsOnly = combatState([], [caverns]);
+        expect(getAttackerCapEffect(cavernsOnly)?.max).toBe(2);
+    });
+
+    it("wire format: the cap survives projectPublicState (card.card stripped to { id })", () => {
+        const grounds = makeInstance(duelingGrounds.id, { controllerId: "p2" });
+        const [a, b] = [capCreature("a", "p1"), capCreature("b", "p1")];
+        const state = combatState([a, b], [grounds], {
+            attackerIds: ["a", "b"],
+        });
+
+        expect(validateDeclaredAttackers(state).ok).toBe(false);
+
+        const projected = projectPublicState(
+            state,
+            1,
+            "p1"
+        ) as unknown as GameState;
+        expect(getAttackerCapEffect(projected)?.max).toBe(1);
+        expect(getBlockerCapEffect(projected)?.max).toBe(1);
+        expect(validateDeclaredAttackers(projected)).toEqual({
+            ok: false,
+            reason: "No more than one creature can attack each combat.",
+        });
     });
 });

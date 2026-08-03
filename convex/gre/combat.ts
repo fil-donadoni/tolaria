@@ -13,18 +13,21 @@ import { getEffectivePower } from "./layers";
 import { tryGetDefinition } from "../cards";
 import {
     globalAttackProhibitionReason,
+    combatDeclarationCap,
     ATTACK_RESTRICTION_CTX,
 } from "../cards/attackRestrictions";
+import type { CombatDeclarationCap } from "../cards/attackRestrictions";
 import {
     evaluateBlockerKeywords,
     evaluateAttackerKeywords,
 } from "./combatRegistry";
 
-/** Card definition ids of the Legends World enchantments that impose global
- *  combat caps / conditional attack restrictions (cluster C9, #386). Kept here
- *  so the engine recognises them without a string-parsing pass — they carry no
- *  per-card predicate, the rule is global. */
-export const CAVERNS_OF_DESPAIR_ID = "209f7479-b3a0-4c27-9602-78babb8d2e99";
+/** Card definition id of the Legends World enchantment whose defender-history
+ *  attack restriction carries no per-card predicate (cluster C9, #386) — the
+ *  rule is global, so the engine recognises the card without a string-parsing
+ *  pass. (Its cluster sibling Caverns of Despair no longer needs an id here:
+ *  its combat caps are now DATA on the card, a `combat-declaration-cap` static
+ *  effect the whole engine reads through `combatDeclarationCap` — #1127.) */
 export const ARBORIA_ID = "095078b0-0f26-442f-9d3b-45e30cdb33c4";
 
 /** CR 508.1 / 508.4 — marks a permanent as attacking, keeping the engine's TWO
@@ -103,18 +106,33 @@ function isCardOnBattlefield(state: GameState, cardId: string): boolean {
     );
 }
 
-/** Caverns of Despair (CR 508.1a / 509.1a) — the global cap on how many
- *  creatures may be declared as attackers each combat. Returns the cap (2)
- *  when a Caverns of Despair is in play, else `undefined` (no cap). */
-export function getAttackerCap(state: GameState): number | undefined {
-    return isCardOnBattlefield(state, CAVERNS_OF_DESPAIR_ID) ? 2 : undefined;
+/** CR 508.1a — the battlefield-wide cap on how many creatures may be declared
+ *  as attackers this combat, with the Oracle sentence that imposes it. Scans
+ *  every permanent for a `combat-declaration-cap` static effect (Caverns of
+ *  Despair at two, Dueling Grounds at one) and returns the most restrictive,
+ *  else `undefined` (no cap). */
+export function getAttackerCapEffect(
+    state: GameState
+): CombatDeclarationCap | undefined {
+    return combatDeclarationCap(state as never, "attack");
 }
 
-/** Caverns of Despair (CR 509.1a) — the global cap on how many creatures may
- *  be declared as blockers each combat. Returns the cap (2) when a Caverns of
- *  Despair is in play, else `undefined` (no cap). */
+/** CR 509.1a — the declare-blockers twin of `getAttackerCapEffect`. */
+export function getBlockerCapEffect(
+    state: GameState
+): CombatDeclarationCap | undefined {
+    return combatDeclarationCap(state as never, "block");
+}
+
+/** CR 508.1a — the declared-attacker cap as a bare number, for callers that
+ *  only need to bound a count (the bot's move enumeration). */
+export function getAttackerCap(state: GameState): number | undefined {
+    return getAttackerCapEffect(state)?.max;
+}
+
+/** CR 509.1a — the declared-blocker cap as a bare number. */
 export function getBlockerCap(state: GameState): number | undefined {
-    return isCardOnBattlefield(state, CAVERNS_OF_DESPAIR_ID) ? 2 : undefined;
+    return getBlockerCapEffect(state)?.max;
 }
 
 /** Generic minimum-blocker threshold (CR 509.1b, 702.111 menace).
@@ -378,6 +396,14 @@ function collectDeclaredAttackRestrictions(
  *  (Orcish Conscripts) can only be judged once the whole declared-attacker set
  *  is known, so it runs at confirm time rather than per-attacker at selection.
  *
+ *  Also enforces the battlefield-wide declared-attacker CAP (CR 508.1a —
+ *  Caverns of Despair, Dueling Grounds). The toggle path in `declareAttacker`
+ *  already refuses the surplus selection, but that is not the only way an
+ *  attacker joins the set: `confirmAttackers` auto-includes creatures that must
+ *  attack (CR 508.1d) and a scripted/bot setup writes `attackerIds` directly, so
+ *  the cap must ALSO be judged here, over the complete declared set — the one
+ *  place every path passes through.
+ *
  *  Returns `{ ok: true }` when the declaration is legal, otherwise the oracle
  *  text of the first violated restriction. */
 export function validateDeclaredAttackers(
@@ -394,6 +420,12 @@ export function validateDeclaredAttackers(
         .map((id) => activePlayer.battlefield.find((c) => c.id === id))
         .filter((c): c is CardInstanceState => c !== undefined);
     const declaredViews = declared as unknown as PermanentView[];
+
+    // CR 508.1a — battlefield-wide cap on the number of declared attackers.
+    const cap = getAttackerCapEffect(state);
+    if (cap !== undefined && declared.length > cap.max) {
+        return { ok: false, reason: cap.oracleText };
+    }
 
     for (const attacker of declared) {
         for (const r of collectDeclaredAttackRestrictions(attacker, state)) {
@@ -643,11 +675,21 @@ function declaredBlockerInstances(state: GameState): CardInstanceState[] {
  *  count-aware block restrictions (CR 509.1b). Block-side twin of
  *  `validateDeclaredAttackers`: "can't block unless at least two other
  *  creatures block" (Orcish Conscripts) is judged once the whole declared set
- *  is known, so it runs at block confirmation. */
+ *  is known, so it runs at block confirmation. Also enforces the
+ *  battlefield-wide declared-blocker CAP (CR 509.1a — Caverns of Despair,
+ *  Dueling Grounds) over the complete set, the twin of the attacker-cap check
+ *  in `validateDeclaredAttackers`. */
 export function validateDeclaredBlockers(
     state: GameState
 ): { ok: true } | { ok: false; reason: string } {
     const declared = declaredBlockerInstances(state);
+    // CR 509.1a — the cap counts distinct BLOCKING CREATURES, which is exactly
+    // what `declaredBlockerInstances` returns (a creature blocking two
+    // attackers consumes one slot).
+    const cap = getBlockerCapEffect(state);
+    if (cap !== undefined && declared.length > cap.max) {
+        return { ok: false, reason: cap.oracleText };
+    }
     if (declared.length === 0) return { ok: true };
     const declaredViews = declared as unknown as PermanentView[];
 

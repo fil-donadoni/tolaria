@@ -73,6 +73,7 @@ import {
 import {
     hasAnyLegalBlock,
     getRequiredAttackerIds,
+    getAttackerCapEffect,
     markAttacking,
     recordAttackerDeclared,
 } from "./combat";
@@ -3345,12 +3346,25 @@ export function drainAutoPasses(state: GameState): void {
                 state,
                 getOpponentId(state, state.activePlayerId)
             ).battlefield;
+            // CR 508.1a/508.1d — a requirement never overrides a restriction,
+            // and the battlefield-wide declared-attacker cap (Caverns of
+            // Despair, Dueling Grounds) is a restriction, so the auto-include
+            // stops at the cap. Same rule as the interactive `confirmAttackers`
+            // path in `convex/game.ts`; this auto-pass path confirms without
+            // going through it, so it must apply the cap itself.
+            const autoAttackerCap = getAttackerCapEffect(state);
             for (const requiredId of getRequiredAttackerIds(
                 activePlayer.battlefield,
                 state,
                 defenderBattlefield,
                 state.allCreaturesMustAttack
             )) {
+                if (
+                    autoAttackerCap !== undefined &&
+                    state.combat.attackerIds.length >= autoAttackerCap.max
+                ) {
+                    break;
+                }
                 if (!state.combat.attackerIds.includes(requiredId)) {
                     state.combat.attackerIds.push(requiredId);
                 }

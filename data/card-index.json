@@ -3520,6 +3520,14 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Dueling Grounds",
+        "scryfallId": "52760183-bee0-4ce0-96c0-074b88f78980",
+        "oracleId": "eb2df4a1-6b63-4f6a-a830-e9487afe59f8",
+        "firstSet": "inv",
+        "firstPrintId": "52760183-bee0-4ce0-96c0-074b88f78980",
+        "firstPrintSet": "inv"
+    },
+    {
         "name": "Duress",
         "scryfallId": "ca367f49-0f4a-4b7f-8104-851893fbcd8a",
         "oracleId": "33d405ea-7a9a-4970-b70f-9c05d90dd6f0",

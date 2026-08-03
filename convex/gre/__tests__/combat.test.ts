@@ -26,6 +26,8 @@ import {
     wallOfSwords,
 } from "../../cards/sets/lea";
 import { mightstone } from "../../cards/sets/atq/colorless";
+import { duelingGrounds as duelingGroundsDef } from "../../cards/sets/inv/multicolor";
+import { drainAutoPasses } from "../phases";
 import { hobble as hobbleAuraDef } from "../../cards/sets/pls/white";
 import { buildSpellContext, resolveTopOfStack } from "../state";
 import { pushSpell } from "../../cards/__tests__/setup";
@@ -969,5 +971,70 @@ describe("CR 508.4 — TokenSpec.entersTapped / entersAttacking (issue #1195)", 
             "p1"
         ).map((t) => t.id);
         expect(legalAttackers).toContain(id);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Declared-attacker cap vs. must-attack requirements on the AUTO-PASS confirm
+// path (CR 508.1a / 508.1d, issue #1127)
+// ---------------------------------------------------------------------------
+
+describe("auto-pass attacker confirm honours the declared-attacker cap (CR 508.1a/508.1d)", () => {
+    /** p1 auto-passing in DECLARE_ATTACKERS with two Juggernauts (each "attacks
+     *  each combat if able") and a Dueling Grounds on p2's board capping the
+     *  declaration at one. */
+    function autoPassBoard(withCap: boolean) {
+        const juggernauts = [0, 1].map((i) =>
+            makeInstance(juggernaut.id, {
+                id: `j${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+                isSummoningSick: false,
+            })
+        );
+        const p2Battlefield = withCap
+            ? [
+                  makeInstance(duelingGroundsDef.id, {
+                      id: "dg",
+                      controllerId: "p2",
+                  }),
+              ]
+            : [];
+        return makeState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            autoPassPlayers: ["p1"],
+            players: [
+                makePlayer("p1", { battlefield: juggernauts }),
+                makePlayer("p2", { battlefield: p2Battlefield }),
+            ],
+            combat: {
+                attackerIds: [],
+                confirmed: false,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+    }
+
+    it("auto-includes must-attack creatures only up to the cap", () => {
+        const state = autoPassBoard(true);
+        drainAutoPasses(state);
+        // `drainAutoPasses` walks past DECLARE_ATTACKERS, so read the record it
+        // left behind rather than the (possibly advanced) combat object.
+        const attacking = state.players[0].battlefield.filter(
+            (c) => c.isAttacking
+        );
+        expect(attacking).toHaveLength(1);
+    });
+
+    it("without the cap BOTH required attackers are auto-included (the cap is what stops the second)", () => {
+        const state = autoPassBoard(false);
+        drainAutoPasses(state);
+        const attacking = state.players[0].battlefield.filter(
+            (c) => c.isAttacking
+        );
+        expect(attacking).toHaveLength(2);
     });
 });

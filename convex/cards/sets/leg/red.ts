@@ -870,30 +870,36 @@ export const primordialOoze: CardDefinition = {
 // Two World enchantments (CR 205.4 World supertype; the world-rule SBA shipped
 // in C2, #379) that reshape combat declarations GLOBALLY rather than per-card.
 // Their rules can't ride a per-attacker `staticEffects[]` predicate (ADR 0006)
-// because the predicate sees only one creature at a time — a count cap and a
-// defender-history restriction are decisions the engine makes with full combat
-// context. So the engine recognises these two cards by id (`combat.ts`:
-// CAVERNS_OF_DESPAIR_ID / ARBORIA_ID) and applies the rule at declaration time:
+// because such a predicate sees only one creature at a time, while a count cap
+// and a defender-history restriction are judged with full combat context:
 //
 //   • Caverns of Despair (CR 508.1a / 509.1a) — caps DECLARED attackers and
-//     blockers at two each per combat. Enforced server-side in the
-//     declareAttacker / assignBlocker mutations and in the bot's move
-//     enumeration (`moves.ts`).
+//     blockers at two each per combat. Expressed as DATA: two
+//     `combat-declaration-cap` static effects, one per side (#1127). Every
+//     consumer reads them through the one battlefield scanner
+//     `combatDeclarationCap` (`cards/attackRestrictions.ts`) — the
+//     declareAttacker / assignBlocker mutations, the confirm-time whole-set
+//     checks in `gre/combat.ts`, the bot's move enumeration (`moves.ts`) and
+//     the client's board affordance. Until Dueling Grounds arrived as the
+//     second card of this shape the cap was an engine constant keyed off this
+//     card's id (`CAVERNS_OF_DESPAIR_ID`); the second card is what earned it a
+//     generic, card-agnostic shape.
 //   • Arboria (CR 508.1c) — a defender-history attack restriction. A player can
 //     be attacked only if they cast a spell or put a NONTOKEN permanent onto
 //     the battlefield during their last turn. The per-player history rides two
 //     PlayerState flags (`qualifyingActionThisTurn` set by emitSpellCastEvent /
 //     emitPermanentEntered, frozen into `qualifyingActionLastTurn` at
-//     advanceTurn) and is read in `validateAttackerEligibility`.
+//     advanceTurn) and is read in `validateAttackerEligibility`. Still keyed by
+//     id (`ARBORIA_ID` in `convex/gre/combat.ts`) — it remains the only card of
+//     its shape.
 //
-// ZERO new SpellContext primitive: the rule is engine logic keyed off the card
-// id, not a card-shaped effect. The ids below MUST match the constants in
-// `convex/gre/combat.ts`.
+// ZERO new SpellContext primitive in either case.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Caverns of Despair — {2}{R}{R} World Enchantment. "No more than two creatures
 // can attack each combat. No more than two creatures can block each combat."
-// (CR 508.1a / 509.1a — global declaration caps; engine-enforced by id.)
+// (CR 508.1a / 509.1a — global declaration caps, one `combat-declaration-cap`
+// static effect per side.)
 export const cavernsOfDespair: CardDefinition = {
     id: "209f7479-b3a0-4c27-9602-78babb8d2e99",
     rarity: "rare",
@@ -903,4 +909,20 @@ export const cavernsOfDespair: CardDefinition = {
     manaCost: { X: 2, R: 2 },
     types: ["Enchantment"],
     supertypes: ["World"],
+    staticEffects: [
+        {
+            kind: "combat-declaration-cap",
+            id: "caverns-of-despair-attack-cap",
+            side: "attack",
+            max: 2,
+            oracleText: "No more than two creatures can attack each combat.",
+        },
+        {
+            kind: "combat-declaration-cap",
+            id: "caverns-of-despair-block-cap",
+            side: "block",
+            max: 2,
+            oracleText: "No more than two creatures can block each combat.",
+        },
+    ],
 };

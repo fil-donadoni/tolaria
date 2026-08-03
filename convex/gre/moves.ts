@@ -1111,13 +1111,32 @@ export function enumerateAttackerMoves(
     const optional = eligible.filter((c) => !required.has(c.id));
     const requiredIds = [...required];
 
-    // Caverns of Despair (CR 508.1a) — cap the number of declared attackers.
+    // CR 508.1a — the battlefield-wide cap on declared attackers (Caverns of
+    // Despair at two, Dueling Grounds at one).
     const cap = getAttackerCap(state);
+
+    // CR 508.1d — requirements are obeyed to the maximum number possible
+    // WITHOUT violating a restriction, and the cap is a restriction. When more
+    // creatures are required to attack than the cap admits, the legal
+    // declarations are exactly the cap-sized subsets of the required set (the
+    // bot picks which); otherwise every declaration includes all of them.
+    // Without this branch every candidate would be filtered out below and the
+    // bot would have NO attacker move to make (a stall), which a cap of one
+    // makes routine.
+    const requiredBases: string[][] =
+        cap !== undefined && requiredIds.length > cap
+            ? powerSet(requiredIds).filter((s) => s.length === cap)
+            : [requiredIds];
 
     // Each optional subset, always unioned with the forced attackers. Drop any
     // subset whose total declared attackers would exceed the global cap.
-    const subsets = powerSet(optional)
-        .map((subset) => [...requiredIds, ...subset.map((c) => c.id)])
+    const subsets = requiredBases
+        .flatMap((base) =>
+            powerSet(optional).map((subset) => [
+                ...base,
+                ...subset.map((c) => c.id),
+            ])
+        )
         .filter((ids) => cap === undefined || ids.length <= cap);
 
     const baseMoves: Move[] = subsets.map((attackerIds) => ({
@@ -1218,8 +1237,10 @@ export function enumerateBlockerMoves(
         if (combos.length >= MAX_COMBINATIONS) break;
     }
 
-    // Caverns of Despair (CR 509.1a) — drop combos that declare more than the
-    // cap distinct blocking creatures.
+    // CR 509.1a — drop combos that declare more than the battlefield-wide cap
+    // of distinct blocking creatures (Caverns of Despair, Dueling Grounds).
+    // The empty assignment always survives, so the bot can never be left
+    // without a legal declare-blockers move.
     const blockerCap = getBlockerCap(state);
     const capped =
         blockerCap === undefined
