@@ -14,9 +14,10 @@
 // `gre/state.ts`, ADR 0028 — Banishing Light / Portable Hole precedent) is
 // battlefield-permanent-only: it exiles FROM and returns TO the battlefield.
 // Nothing tracks a hidden-zone (hand) card linked to a permanent's
-// leaves-the-battlefield trigger and returns it to a HAND. See issue #931
-// (split from #682).
-// tracked-by: #931
+// leaves-the-battlefield trigger and returns it to a HAND. #931 (the
+// card-list residue this was split from) is CLOSED; this card is folded
+// into #1362, the same primitive Deep-Cavern Bat needs.
+// tracked-by: #1362
 // export const tidehollowSculler: CardDefinition = {
 //     id: "1abecc77-07f2-43e4-8585-0a8199cdcf01",
 //     name: "Tidehollow Sculler",

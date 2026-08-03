@@ -13,8 +13,11 @@
 // cost-replacement mechanism ("pay life equal to mana value INSTEAD OF the
 // mana cost") that exists for no card yet. The {T}, Sacrifice ten: drain 10
 // clause is free in isolation, but shipping only that would misrepresent the
-// card (never ship partial). See issue #931 (split from #682).
-// tracked-by: #931
+// card (never ship partial). #931 (the card-list residue this was split
+// from) is CLOSED; with a fan-out of ONE card these three gaps are
+// catalogued, not scheduled, in the cube classification tracker #1525 —
+// they get a dedicated issue when this card is actually wanted.
+// tracked-by: #1525
 // export const bolassCitadel: CardDefinition = {
 //     id: "d2124603-d20e-40eb-97f0-a66323397ac2",
 //     name: "Bolas's Citadel",
