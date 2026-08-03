@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { usePaginatedQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -6,16 +6,26 @@ import type { ManualLogEntry } from "@convex/manual";
 
 export default function ManualLog({ gameId }: { gameId: Id<"games"> }) {
     const containerRef = useRef<HTMLDivElement>(null);
+    const shouldScrollRef = useRef(true);
     const { results, status, loadMore } = usePaginatedQuery(
         api.manualLog.getManualLog,
         { gameId },
         { initialNumItems: 50 }
     );
 
+    const handleLoadMore = useCallback(
+        (num: number) => {
+            shouldScrollRef.current = false;
+            loadMore(num);
+        },
+        [loadMore]
+    );
+
     useEffect(() => {
-        if (containerRef.current) {
+        if (shouldScrollRef.current && containerRef.current) {
             containerRef.current.scrollTop = containerRef.current.scrollHeight;
         }
+        shouldScrollRef.current = true;
     }, [results.length]);
 
     const reversed = [...results]
@@ -36,7 +46,7 @@ export default function ManualLog({ gameId }: { gameId: Id<"games"> }) {
                 )}
                 {status === "CanLoadMore" && (
                     <button
-                        onClick={() => loadMore(20)}
+                        onClick={() => handleLoadMore(20)}
                         className="text-xs text-white/40 hover:text-white/70 mb-1 underline"
                     >
                         Load earlier
