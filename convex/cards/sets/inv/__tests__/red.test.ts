@@ -29,6 +29,7 @@ import {
     standOrFall,
     pouncingKavu,
     kavuRunner,
+    goblinSpy,
 } from "../red";
 import { stun } from "../../tmp/red";
 import { registerTokenDefinition } from "../../..";
@@ -54,6 +55,8 @@ import {
     validateAttackerEligibility,
 } from "../../../../gre/combat";
 import { projectPublicState } from "../../../../gameProjections";
+import { drawCard } from "../../../../gre/state";
+import { makeRng, shuffleWithRng } from "../../../../gre/rng";
 import { mountain, forest, plains, island, swamp } from "../../lea/colorless";
 import { savannahLions } from "../../lea";
 import {
@@ -968,5 +971,195 @@ describe("Kavu Runner (board-state-conditional haste; CR 611.2c, issue #1095)", 
             eligible: false,
             reason: "Creature has summoning sickness",
         });
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Goblin Spy — continuous library-top reveal (CR 401.5 / 401.6 / 701.20d),
+// issue #1095 gap 7.
+//
+// The whole point of the card is a hole punched in the hidden-information
+// boundary: `projectPublicState` normally hides a library behind `{ count }`,
+// and this exposes the TOP card — and only the top card — to BOTH seats, for
+// exactly as long as the Spy is on the battlefield. Every assertion below runs
+// THROUGH the real projection (a hand-built `PublicLibrary` would prove
+// nothing), and each one names a way this can go wrong:
+//   * revealing more than the top card,
+//   * revealing to one viewer only,
+//   * the reveal going stale after a draw / shuffle / put-on-top,
+//   * the reveal outliving the source,
+//   * an empty library crashing or fabricating a reveal,
+//   * revealing the wrong player's library ("YOUR library").
+describe("Goblin Spy — play with the top card of your library revealed (CR 401.5)", () => {
+    const libFor = (owner: string, ids: string[]) =>
+        ids.map((cardId, i) =>
+            makeInstance(cardId, {
+                controllerId: owner,
+                ownerId: owner,
+                id: `${owner}-lib-${i}`,
+                zone: "library",
+            })
+        );
+
+    /** p1 controls the Spy; both players hold a stocked library. */
+    const spyState = (opts: { withSpy?: boolean; p1Library?: string[] } = {}) =>
+        makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield:
+                        opts.withSpy === false
+                            ? []
+                            : [
+                                  makeInstance(goblinSpy.id, {
+                                      controllerId: "p1",
+                                      ownerId: "p1",
+                                      id: "spy",
+                                  }),
+                              ],
+                    library: libFor(
+                        "p1",
+                        opts.p1Library ?? [
+                            mountain.id,
+                            forest.id,
+                            island.id,
+                            swamp.id,
+                        ]
+                    ),
+                }),
+                makePlayer("p2", {
+                    library: libFor("p2", [plains.id, savannahLions.id]),
+                }),
+            ],
+        });
+
+    /** The projected `known[]` for a player, as `[index, definition id]` pairs
+     *  — read out of the REAL projection for `viewerId`. */
+    const knownFor = (state: GameState, viewerId: string, playerId: string) => {
+        const projected = projectPublicState(state, 1, viewerId);
+        const player = projected.players.find((p) => p.id === playerId)!;
+        return player.library.known.map(
+            (k) => [k.index, k.card.card.id] as const
+        );
+    };
+
+    it("has the printed characteristics and declares the reveal scope", () => {
+        expect(goblinSpy.manaCost).toEqual({ R: 1 });
+        expect(goblinSpy.types).toEqual(["Creature"]);
+        expect(goblinSpy.subtypes).toEqual(["Goblin", "Rogue"]);
+        expect(goblinSpy.power).toBe(1);
+        expect(goblinSpy.toughness).toBe(1);
+        expect(goblinSpy.revealsLibraryTop).toBe("controller");
+    });
+
+    it("reveals the top card — and ONLY the top card — to BOTH players (wire format)", () => {
+        const state = spyState();
+
+        // Controller's own view.
+        expect(knownFor(state, "p1", "p1")).toEqual([[0, mountain.id]]);
+        // Opponent's view — the same one card, no more, no less. This is the
+        // assertion the whole feature exists for: the reveal is symmetric.
+        expect(knownFor(state, "p2", "p1")).toEqual([[0, mountain.id]]);
+
+        // The library is still a HIDDEN zone (CR 400.2) — `count` is unchanged
+        // and positions 1..3 stay face-down for both viewers.
+        for (const viewer of ["p1", "p2"]) {
+            const projected = projectPublicState(state, 1, viewer);
+            const lib = projected.players[0].library;
+            expect(lib.count).toBe(4);
+            expect(lib.known).toHaveLength(1);
+            expect(lib.known.some((k) => k.card.card.id === forest.id)).toBe(
+                false
+            );
+        }
+    });
+
+    it("reveals nothing when no Goblin Spy is on the battlefield (baseline)", () => {
+        const state = spyState({ withSpy: false });
+        expect(knownFor(state, "p1", "p1")).toEqual([]);
+        expect(knownFor(state, "p2", "p1")).toEqual([]);
+    });
+
+    it("reveals only the controller's OWN library, never the opponent's (\"your library\")", () => {
+        const state = spyState();
+        expect(knownFor(state, "p1", "p2")).toEqual([]);
+        expect(knownFor(state, "p2", "p2")).toEqual([]);
+    });
+
+    it("follows the top card through a draw — no stale reveal (CR 401.6)", () => {
+        const state = spyState();
+        expect(knownFor(state, "p2", "p1")).toEqual([[0, mountain.id]]);
+
+        const drawn = drawCard(state.players[0]);
+        expect(drawn?.card.id).toBe(mountain.id);
+
+        // The NEW top card is now the revealed one; the drawn card is gone
+        // from the library entirely.
+        expect(knownFor(state, "p2", "p1")).toEqual([[0, forest.id]]);
+        expect(knownFor(state, "p1", "p1")).toEqual([[0, forest.id]]);
+    });
+
+    it("follows the top card through a shuffle (CR 701.20d) and a put-on-top", () => {
+        const state = spyState();
+        const player = state.players[0];
+
+        // CR 701.20d — a reordered library's revealed card stops being revealed
+        // and the new top card is revealed instead. Deterministic seed so the
+        // assertion is on the ACTUAL post-shuffle top, not on a guess.
+        player.library = shuffleWithRng(player.library, makeRng(1234));
+        const topAfterShuffle = player.library[0].card.id;
+        expect(knownFor(state, "p2", "p1")).toEqual([[0, topAfterShuffle]]);
+
+        // Put a card on top (the eleventh way a library is written): the new
+        // top is revealed immediately, with nothing to re-stamp.
+        const put = makeInstance(savannahLions.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "p1-put",
+            zone: "library",
+        });
+        player.library.unshift(put);
+        expect(knownFor(state, "p2", "p1")).toEqual([[0, savannahLions.id]]);
+    });
+
+    it("stops revealing the instant Goblin Spy leaves the battlefield (CR 604.2)", () => {
+        const state = spyState();
+        expect(knownFor(state, "p2", "p1")).toEqual([[0, mountain.id]]);
+
+        state.players[0].battlefield = [];
+
+        expect(knownFor(state, "p2", "p1")).toEqual([]);
+        expect(knownFor(state, "p1", "p1")).toEqual([]);
+    });
+
+    it("reveals nothing — and does not crash — on an empty library", () => {
+        const state = spyState({ p1Library: [] });
+        expect(() => projectPublicState(state, 1, "p2")).not.toThrow();
+        expect(knownFor(state, "p2", "p1")).toEqual([]);
+        const projected = projectPublicState(state, 1, "p2");
+        expect(projected.players[0].library.count).toBe(0);
+    });
+
+    it("never leaks the raw per-viewer `knownTo` set across the wire (ADR 0026)", () => {
+        const state = spyState();
+        const projected = projectPublicState(state, 1, "p2");
+        for (const k of projected.players[0].library.known) {
+            expect(
+                (k.card as unknown as { knownTo?: string[] }).knownTo
+            ).toBeUndefined();
+        }
+    });
+
+    it("composes with a per-viewer `knownTo` run below the revealed top", () => {
+        // A scry left p1 knowing index 1 as well. The continuous reveal covers
+        // index 0 for everyone; index 1 stays gated to p1 alone — so the two
+        // knowledge sources are additive, not one overriding the other.
+        const state = spyState();
+        state.players[0].library[1].knownTo = ["p1"];
+
+        expect(knownFor(state, "p1", "p1")).toEqual([
+            [0, mountain.id],
+            [1, forest.id],
+        ]);
+        expect(knownFor(state, "p2", "p1")).toEqual([[0, mountain.id]]);
     });
 });

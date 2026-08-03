@@ -5496,6 +5496,14 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Goblin Spy",
+        "scryfallId": "2a89a099-8805-4b26-babd-5d9f48ee406a",
+        "oracleId": "5f1e8aa2-6b85-4e2e-92e4-876470447d6f",
+        "firstSet": "inv",
+        "firstPrintId": "2a89a099-8805-4b26-babd-5d9f48ee406a",
+        "firstPrintSet": "inv"
+    },
+    {
         "name": "Goblin War Drums",
         "scryfallId": "2a2c4e4b-e9a7-4180-927b-589514c21876",
         "oracleId": "29c21edd-781b-448e-824a-17bc8b8f4077",

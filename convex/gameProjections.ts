@@ -17,6 +17,7 @@ import {
     phyrexianLifePipOptions,
 } from "./gre/rules";
 import { canSummonCompanion } from "./gre/companion";
+import { computeLibraryTopRevealedPlayers } from "./gre/libraryReveal";
 import { flashbackExileEligibleCount, hasFlashback } from "./gre/flashback";
 import { hasEscape } from "./gre/escape";
 import {
@@ -280,24 +281,41 @@ function hasNonOwnerKnower(card: CardInstanceState): boolean {
  *  top and merely reordered (Diabolic Vision) stay in the top run and stay
  *  known; cards ordered onto the bottom (CR 701.22 "in any order") stay in the
  *  bottom run and stay known. The two runs never overlap: the bottom scan stops
- *  at the top run's boundary, so an all-known library is emitted exactly once. */
+ *  at the top run's boundary, so an all-known library is emitted exactly once.
+ *
+ *  CR 401.5 (issue #1095) — `topRevealed` is the continuous
+ *  "play with the top card of your library revealed" static (Goblin Spy,
+ *  `CardDefinition.revealsLibraryTop`, derived live by
+ *  `computeLibraryTopRevealedPlayers`). It makes index 0 — and ONLY index 0 —
+ *  known to EVERY viewer, independently of `knownTo`: a symmetric, both-seats
+ *  reveal riding the SAME sparse `known[]` channel a scry-to-top already uses,
+ *  so no new wire field and no new client rendering path is needed. It is a
+ *  second SOURCE of knowledge, not a second shape. Because it is recomputed on
+ *  every projection it cannot go stale: after a draw / shuffle / mill / put-on-
+ *  top the new index 0 is the revealed card (CR 401.6, CR 701.20d), and when
+ *  the source leaves the battlefield the flag is simply false again. An EMPTY
+ *  library reveals nothing (the loop never runs) — `known` stays `[]`. */
 function projectLibrary(
     library: CardInstanceState[],
-    viewerId: string
+    viewerId: string,
+    topRevealed: boolean = false
 ): PublicLibrary {
-    const knows = (card: CardInstanceState) =>
-        card.knownTo?.includes(viewerId) ?? false;
+    // CR 401.5 — the continuous reveal is viewer-INDEPENDENT and covers exactly
+    // index 0; every other position stays gated by per-viewer `knownTo`.
+    const knows = (card: CardInstanceState, index: number) =>
+        (topRevealed && index === 0) ||
+        (card.knownTo?.includes(viewerId) ?? false);
     const known: KnownLibraryCard[] = [];
     // Top run: [0, topEnd).
     let topEnd = 0;
-    while (topEnd < library.length && knows(library[topEnd])) {
+    while (topEnd < library.length && knows(library[topEnd], topEnd)) {
         known.push({ index: topEnd, card: slimCard(library[topEnd]) });
         topEnd++;
     }
     // Bottom run: (bottomStart, length), scanning up but never crossing topEnd
     // so an all-known library is not double-counted.
     for (let index = library.length - 1; index >= topEnd; index--) {
-        if (!knows(library[index])) break;
+        if (!knows(library[index], index)) break;
         known.push({ index, card: slimCard(library[index]) });
     }
     return { count: library.length, known };
@@ -833,6 +851,11 @@ export function projectPublicState(
     // revealed; their hand identities cross the wire to opponents (below).
     const handRevealedPlayers = computeHandRevealedPlayers(state);
 
+    // CR 401.5 (issue #1095) — players playing with the top card of their
+    // library revealed (Goblin Spy). Derived live off the battlefield, once per
+    // projection; the top card then crosses the wire to BOTH seats (below).
+    const libraryTopRevealedPlayers = computeLibraryTopRevealedPlayers(state);
+
     const players = state.players.map((player): PublicPlayer => {
         const librarySearch =
             player.id === searchZoneOwner
@@ -900,8 +923,14 @@ export function projectPublicState(
             // ADR 0026 — sparse library: only cards the viewer knows
             // (`viewer ∈ knownTo`) cross the wire, each at its top-relative
             // index. Raw `knownTo` is never emitted. The owner does NOT
-            // auto-know their own order — gating is purely by `knownTo`.
-            library: projectLibrary(player.library, viewerId),
+            // auto-know their own order — gating is purely by `knownTo`,
+            // PLUS the CR 401.5 continuous top reveal (issue #1095), which is
+            // symmetric: every viewer sees the top card, nobody sees more.
+            library: projectLibrary(
+                player.library,
+                viewerId,
+                libraryTopRevealedPlayers.has(player.id)
+            ),
             librarySearch,
             libraryPeek,
             revealedHand,

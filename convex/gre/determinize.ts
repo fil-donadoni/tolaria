@@ -39,6 +39,7 @@
 
 import type { CardInstanceState, GameState, PlayerState } from "./state";
 import { cloneGameState } from "./clone";
+import { computeLibraryTopRevealedPlayers } from "./libraryReveal";
 import { shuffleWithRng } from "./rng";
 
 /** Re-tag an instance's zone so the world stays internally consistent after a
@@ -61,13 +62,22 @@ export function determinize(
 ): GameState {
     const next = cloneGameState(state);
 
+    // CR 401.5 (issue #1095) — a library whose top card is continuously
+    // revealed (Goblin Spy) is PUBLIC at index 0 to every player, the observer
+    // included. That card must survive determinization pinned where it is:
+    // re-sampling it would have the search reason about a top card the bot can
+    // plainly see is something else. Derived from the (public) battlefield, so
+    // the observer is entitled to it whichever side the source is on.
+    const topRevealed = computeLibraryTopRevealedPlayers(next);
+
     for (const player of next.players) {
+        const pinTop = topRevealed.has(player.id) && player.library.length > 0;
         if (player.id === observerId) {
             // Own hand is known; only the library ORDER is hidden.
-            determinizeObserver(player, rng);
+            determinizeObserver(player, rng, pinTop);
         } else {
             // Opponent hand + library are both hidden and interchangeable.
-            determinizeOpponent(player, rng);
+            determinizeOpponent(player, rng, pinTop);
         }
     }
 
@@ -75,17 +85,37 @@ export function determinize(
 }
 
 /** The observer keeps its hand; its library keeps its size but is reshuffled
- *  (draw order is unknown to the observer). */
-function determinizeObserver(player: PlayerState, rng: () => number): void {
-    player.library = shuffleWithRng(player.library, rng);
+ *  (draw order is unknown to the observer). `pinTop` holds index 0 in place —
+ *  the CR 401.5 continuously-revealed top card is not hidden information, so it
+ *  is not re-sampled. */
+function determinizeObserver(
+    player: PlayerState,
+    rng: () => number,
+    pinTop: boolean
+): void {
+    if (!pinTop) {
+        player.library = shuffleWithRng(player.library, rng);
+        return;
+    }
+    const [top, ...rest] = player.library;
+    player.library = [top, ...shuffleWithRng(rest, rng)];
 }
 
 /** Pool the opponent's hand + library — indistinguishable to the observer —
  *  shuffle, then re-deal the first `handSize` cards back to the hand and the
- *  remainder to the library, preserving both counts. */
-function determinizeOpponent(player: PlayerState, rng: () => number): void {
+ *  remainder to the library, preserving both counts. `pinTop` withholds index 0
+ *  from the pool entirely and puts it straight back on top: a CR 401.5 revealed
+ *  top card is public, so it can neither move nor turn up in the hand. */
+function determinizeOpponent(
+    player: PlayerState,
+    rng: () => number,
+    pinTop: boolean
+): void {
     const handSize = player.hand.length;
-    const pool = shuffleWithRng([...player.hand, ...player.library], rng);
+    const top = pinTop ? player.library[0] : undefined;
+    const hidden = pinTop ? player.library.slice(1) : player.library;
+    const pool = shuffleWithRng([...player.hand, ...hidden], rng);
     player.hand = pool.slice(0, handSize).map((c) => inZone(c, "hand"));
-    player.library = pool.slice(handSize).map((c) => inZone(c, "library"));
+    const rest = pool.slice(handSize).map((c) => inZone(c, "library"));
+    player.library = top !== undefined ? [top, ...rest] : rest;
 }
