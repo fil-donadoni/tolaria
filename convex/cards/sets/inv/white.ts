@@ -921,15 +921,41 @@ export const teferisCare: CardDefinition = {
 // resolve() logic beyond a straight reuse of Balance's helper).
 
 // Glimmering Angel — {3}{W} Creature — Angel, 2/2. "Flying. {U}: This
-// creature gains shroud until end of turn." tracked-by: #1086 — UNBLOCKED
-// (PR #2040, issue #959): `shroud` is now `status: "implemented"` in the
-// Mechanics Registry (`mechanicsRegistry.ts`) and `gre/permanentGuard.ts`'s
-// `isGuardedAgainst` bridges a dynamically-granted "shroud" string the same
-// way it already bridges `hexproof` (issue #958) — `grantAbility` appending
-// the literal string to `staticAbilities` is enforced live, no longer inert.
-// The engine-level gap that blocked this card is closed; it is still a
-// STUB in this pass (out of scope for the shroud-bridge slice) — a future
-// pass can uncomment/ship it as a straightforward `grantAbility` DSL card.
+// creature gains shroud until end of turn." Unblocked by PR #2040 (issue
+// #959): `shroud` is `status: "implemented"` in the Mechanics Registry and
+// `gre/permanentGuard.ts`'s `isGuardedAgainst` bridges a dynamically-granted
+// "shroud" string the same way it bridges `hexproof` — `grantAbility`
+// appending the literal string to `staticAbilities` is enforced live.
+// Straight `grantAbility` DSL body over `$source`, precedent Homarid Warrior
+// (fem/blue.ts) minus its tap/skipNextUntap legs.
+export const glimmeringAngel: CardDefinition = {
+    id: "f14f55e4-eded-4a86-87f4-b8fa6f30bc0f",
+    name: "Glimmering Angel",
+    rarity: "common",
+    oracleText: "Flying\n{U}: This creature gains shroud until end of turn.",
+    manaCost: { X: 3, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Angel"],
+    power: 2,
+    toughness: 2,
+    staticAbilities: ["flying"],
+    activatedAbilities: [
+        {
+            id: "glimmering-angel-shroud",
+            oracleText: "{U}: This creature gains shroud until end of turn.",
+            cost: { mana: { U: 1 } },
+            useStack: true,
+            effects: [
+                {
+                    op: "grantAbility",
+                    ability: "shroud",
+                    target: { ref: "$source" },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
+};
 
 // Pledge of Loyalty — {1}{W} Enchantment — Aura. "Enchant creature.
 // Enchanted creature has protection from the colors of permanents you

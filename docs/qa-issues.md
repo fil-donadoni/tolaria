@@ -49,10 +49,13 @@ Fable of the mirror-breaker
 
 ## Carte rotte
 
+- Le terre giocate dal cimitero con Icetill Explorer entrano tappate
 - Berserk: la creatura non muore a fine turno dopo aver attaccato
+- Worldspine Wurm è stato messo nel cimitero con Malevolent Rumble e non ha triggerato lo shuffle
 
 ## UX da migliorare
 
+- quando premo space sull'ordinamento dei trigger deve valere come click su Done
 - quando ho il dialog di auto-tap e premo esc deve annullare il cast, come avessi premuto U, invece di aprire il menu
 - quando faccio mouseover su una carta che viene coperta da card-preview si crea un loop tipo flash con card-preview che appare e scompare
 - il dialog Pay kicker cost è brutto e incoerente col resto della UI.

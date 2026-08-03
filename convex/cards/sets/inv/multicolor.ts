@@ -23,6 +23,7 @@ import {
 } from "../../types";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+import { protectionColorModes } from "../../abilities";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Domain cluster (parent PRD #1063, issue #1066)
@@ -482,18 +483,61 @@ export const wingsOfHope: CardDefinition = {
 // Armored Guardian — {3}{W}{U} Creature — Cat Soldier, 2/5. "{1}{W}{W}:
 // Target creature you control gains protection from the color of your
 // choice until end of turn. {1}{U}{U}: This creature gains shroud until end
-// of turn." tracked-by: #1086 — UNBLOCKED (PR #2040, issue #959): same root
-// cause as Glimmering Angel (`inv/white.ts`) — `shroud` is now `status:
-// "implemented"` in the Mechanics Registry, and `gre/permanentGuard.ts`'s
-// `isGuardedAgainst` bridges a dynamically-granted "shroud" string (the
-// `hasShroud` helper, mirroring the existing `hexproof` bridge) so
-// `grantAbility` appending the literal string to `staticAbilities` is
-// enforced live, no longer inert. The engine-level gap that blocked BOTH
-// abilities is closed; the card is still a STUB in this pass (out of scope
-// for the shroud-bridge slice) — a future pass can ship the FIRST ability
-// (a straight `protectionColorModes` reuse, precedent Mother of Runes /
-// Giver of Runes) and the second (a `grantAbility` DSL body over
-// "shroud") together, per "never ship silent partials" (PRD #1063).
+// of turn." Unblocked by PR #2040 (issue #959): same root cause as
+// Glimmering Angel (`inv/white.ts`) — `shroud` is `status: "implemented"` in
+// the Mechanics Registry and `gre/permanentGuard.ts`'s `isGuardedAgainst`
+// bridges a dynamically-granted "shroud" string live. First ability is a
+// straight `protectionColorModes` reuse (precedent Mother of Runes,
+// ulg/white.ts); second is a `grantAbility` DSL body over `$source`
+// (precedent Homarid Warrior, fem/blue.ts).
+export const armoredGuardian: CardDefinition = {
+    id: "6de5e1bd-1d31-4f9f-b18d-d6f49bc7ef10",
+    name: "Armored Guardian",
+    rarity: "rare",
+    oracleText:
+        "{1}{W}{W}: Target creature you control gains protection from the color of your choice until end of turn.\n{1}{U}{U}: This creature gains shroud until end of turn.",
+    manaCost: { X: 3, W: 1, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Cat", "Soldier"],
+    power: 2,
+    toughness: 5,
+    activatedAbilities: [
+        {
+            id: "armored-guardian-protection",
+            oracleText:
+                "{1}{W}{W}: Target creature you control gains protection from the color of your choice until end of turn.",
+            cost: { mana: { X: 1, W: 2 } },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                controller: "you",
+            },
+            effects: [
+                {
+                    op: "optionChoice",
+                    prompt: "Choose a color",
+                    modes: protectionColorModes(["W", "U", "B", "R", "G"]),
+                },
+            ],
+        },
+        {
+            id: "armored-guardian-shroud",
+            oracleText:
+                "{1}{U}{U}: This creature gains shroud until end of turn.",
+            cost: { mana: { X: 1, U: 2 } },
+            useStack: true,
+            effects: [
+                {
+                    op: "grantAbility",
+                    ability: "shroud",
+                    target: { ref: "$source" },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
+};
 
 // Kangee, Aerie Keeper — {2}{W}{U} Legendary Creature — Bird Wizard, 2/2.
 // "Kicker {X}{2}. Flying. When Kangee enters, if it was kicked, put X

@@ -688,6 +688,14 @@
         "firstPrintSet": "fem"
     },
     {
+        "name": "Armored Guardian",
+        "scryfallId": "6de5e1bd-1d31-4f9f-b18d-d6f49bc7ef10",
+        "oracleId": "46752289-01e8-4839-8889-49db1efd2e1a",
+        "firstSet": "inv",
+        "firstPrintId": "6de5e1bd-1d31-4f9f-b18d-d6f49bc7ef10",
+        "firstPrintSet": "inv"
+    },
+    {
         "name": "Army of Allah",
         "scryfallId": "3d170015-b125-49a6-a15e-8fd116bbcb14",
         "oracleId": "3483946d-8645-4c22-b0ba-a65a44456324",
@@ -5270,6 +5278,14 @@
         "firstSet": "lea",
         "firstPrintId": "cafc2350-5d64-4379-9198-79a114654d45",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Glimmering Angel",
+        "scryfallId": "f14f55e4-eded-4a86-87f4-b8fa6f30bc0f",
+        "oracleId": "9629ab26-f231-481d-8392-e2450ca02b67",
+        "firstSet": "inv",
+        "firstPrintId": "f14f55e4-eded-4a86-87f4-b8fa6f30bc0f",
+        "firstPrintSet": "inv"
     },
     {
         "name": "Gloom",
