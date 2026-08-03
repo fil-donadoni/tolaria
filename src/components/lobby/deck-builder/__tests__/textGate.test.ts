@@ -91,19 +91,29 @@ describe("3-char text gate (issue #504)", () => {
     });
 
     describe("matchesCube — cube membership gate", () => {
-        const members = new Set(["a", "b"]);
+        const members = new Set(["a", "b", "Lightning Bolt"]);
 
         it("passes every card when no cube is selected (null)", () => {
-            expect(matchesCube("anything", null)).toBe(true);
+            expect(matchesCube("anything", "anything", null)).toBe(true);
         });
 
-        it("passes only cards in the cube's member set", () => {
-            expect(matchesCube("a", members)).toBe(true);
-            expect(matchesCube("z", members)).toBe(false);
+        it("passes cards whose cardId is in the cube's member set", () => {
+            expect(matchesCube("a", "irrelevant", members)).toBe(true);
+            expect(matchesCube("z", "irrelevant", members)).toBe(false);
+        });
+
+        it("passes cards whose name is in the cube's member set (catalogue entries)", () => {
+            // cardId is a per-print UUID (won't match), but the card name does.
+            expect(
+                matchesCube("per-print-uuid", "Lightning Bolt", members)
+            ).toBe(true);
+            expect(
+                matchesCube("per-print-uuid", "Dark Confidant", members)
+            ).toBe(false);
         });
 
         it("matches nothing for an empty set (unresolved / loading cube)", () => {
-            expect(matchesCube("a", new Set())).toBe(false);
+            expect(matchesCube("a", "a", new Set())).toBe(false);
         });
     });
 

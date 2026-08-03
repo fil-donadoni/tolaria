@@ -47,6 +47,7 @@ export function encodeFilters(filters: CardSearchFilters): FilterSearch {
     if (filters.sets.length) out.s = filters.sets.join(",");
     if (filters.setMode !== DEFAULT_FILTERS.setMode) out.sm = filters.setMode;
     if (filters.cube) out.cube = filters.cube;
+    if (filters.hideUnavailable === false) out.hu = "0";
     if (filters.sort !== DEFAULT_FILTERS.sort) out.sort = filters.sort;
     if (filters.sortDirection !== DEFAULT_FILTERS.sortDirection)
         out.sd = filters.sortDirection;
@@ -82,6 +83,10 @@ export function decodeFilters(search: FilterSearch): CardSearchFilters {
         sets: splitList(search.s),
         setMode,
         cube: asString(search.cube),
+        hideUnavailable:
+            asString(search.hu) === "0"
+                ? false
+                : DEFAULT_FILTERS.hideUnavailable,
         sort: isSortKey(sortRaw) ? sortRaw : DEFAULT_FILTERS.sort,
         sortDirection: isSortDirection(sortDirectionRaw)
             ? sortDirectionRaw

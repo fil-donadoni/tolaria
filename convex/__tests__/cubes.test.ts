@@ -24,13 +24,13 @@ describe("resolveCubeMembership — names → built cardIds", () => {
         ).toEqual(["lotus-id", "solring-id"]);
     });
 
-    it("drops unbuilt names rather than throwing", () => {
+    it("falls back to the name for unbuilt names (catalogue cube gate)", () => {
         expect(
             resolveCubeMembership(
                 ["Black Lotus", "Ancestral Recall", "Sol Ring"],
                 stubResolve
             )
-        ).toEqual(["lotus-id", "solring-id"]);
+        ).toEqual(["lotus-id", "Ancestral Recall", "solring-id"]);
     });
 
     it("dedups repeated names / names collapsing to one card", () => {
@@ -49,9 +49,9 @@ describe("resolveCubeMembership — names → built cardIds", () => {
         expect(resolveCubeMembership([], stubResolve)).toEqual([]);
     });
 
-    it("returns [] when no name is built", () => {
+    it("returns unresolved names when no name is built (cube-gate fallback)", () => {
         expect(
             resolveCubeMembership(["Nonexistent", "Also Missing"], stubResolve)
-        ).toEqual([]);
+        ).toEqual(["Nonexistent", "Also Missing"]);
     });
 });
