@@ -13,7 +13,8 @@ import LoadingScreen from "~/components/ui/loading-screen";
 import WaitingForOpponent from "~/components/board/waiting-for-opponent";
 import { useDocumentTitle } from "~/hooks/useDocumentTitle";
 import { usePageVisible } from "~/hooks/usePageVisible";
-import { clearSession, getStoredSession } from "~/lib/session";
+import { clearSession, getStoredSession, storeSession } from "~/lib/session";
+import { Button } from "~/components/ui/button";
 
 type GameStatus = NonNullable<
     FunctionReturnType<typeof api.game.getGame>
@@ -97,12 +98,31 @@ export default function GameRoute() {
         // the GRE board. The shell is a separate slice — display a placeholder
         // until it lands (the creation + concede mutations are live).
         if ("mode" in game && game.mode === "manual") {
+            // Manual games are solo: one user owns both `${userId}-p1` and
+            // `${userId}-p2`. The session's playerId picks which seat's
+            // viewpoint the board renders.  Toggling in-place swaps the stored
+            // id so the re-render picks up the other side.
+            const isP1 = playerId.endsWith("-p1");
+            const baseId = playerId.replace(/-p[12]$/, "");
+            const otherSeat = isP1 ? `${baseId}-p2` : `${baseId}-p1`;
+            const switchLabel = isP1 ? "Switch to P2" : "Switch to P1";
+
             return (
                 <div className="flex h-dvh flex-col items-center justify-center gap-4 text-white">
                     <p className="text-lg font-beleren">Tabletop Game</p>
                     <p className="text-sm text-text-muted">
-                        The manual board shell (S8) is landing soon.
+                        Viewing as {isP1 ? "Player 1" : "Player 2"}
                     </p>
+                    <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => {
+                            storeSession(gameId, otherSeat);
+                            setSession({ gameId, playerId: otherSeat });
+                        }}
+                    >
+                        {switchLabel}
+                    </Button>
                 </div>
             );
         }
