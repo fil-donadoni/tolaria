@@ -22,6 +22,7 @@ interface DashboardPlayBoxProps {
      *  opponent deck). The match only starts once the dialog is confirmed. */
     onCreateVsAi: () => void;
     onCreateSolo: () => void;
+    onCreateManual: () => void;
     onCreateMultiplayer: () => void;
     onJoin: (gameId: Id<"games">) => void;
     onChangeDeck: () => void;
@@ -41,6 +42,7 @@ export default function DashboardPlayBox({
     openGames,
     onCreateVsAi,
     onCreateSolo,
+    onCreateManual,
     onCreateMultiplayer,
     onJoin,
     onChangeDeck,
@@ -144,7 +146,7 @@ export default function DashboardPlayBox({
                     disabled={busy}
                 />
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                     <ActionButton
                         onClick={onCreateVsAi}
                         disabled={!canPlay}
@@ -155,6 +157,12 @@ export default function DashboardPlayBox({
                         onClick={onCreateSolo}
                         disabled={!canPlay}
                         label="Solo Game"
+                        tone="secondary"
+                    />
+                    <ActionButton
+                        onClick={onCreateManual}
+                        disabled={!canPlay}
+                        label="Manual Game"
                         tone="secondary"
                     />
                     <ActionButton

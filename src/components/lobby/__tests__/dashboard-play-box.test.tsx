@@ -46,6 +46,7 @@ function renderBox(openGames: OpenGame[], onJoin = vi.fn()) {
                 selectedDeck={DECK}
                 openGames={openGames}
                 onCreateSolo={vi.fn()}
+                onCreateManual={vi.fn()}
                 onCreateVsAi={vi.fn()}
                 onCreateMultiplayer={vi.fn()}
                 onJoin={onJoin}
@@ -101,6 +102,7 @@ describe("DashboardPlayBox featured-art hero splash (PRD #589, issue #600)", () 
                 selectedDeck={selectedDeck}
                 openGames={[]}
                 onCreateSolo={vi.fn()}
+                onCreateManual={vi.fn()}
                 onCreateVsAi={vi.fn()}
                 onCreateMultiplayer={vi.fn()}
                 onJoin={vi.fn()}
@@ -143,6 +145,7 @@ describe("DashboardPlayBox deck legality gate (issue #512)", () => {
     function renderWith(selectedDeck: LobbyDeck | null) {
         const handlers = {
             onCreateSolo: vi.fn(),
+            onCreateManual: vi.fn(),
             onCreateVsAi: vi.fn(),
             onCreateMultiplayer: vi.fn(),
         };
@@ -153,6 +156,7 @@ describe("DashboardPlayBox deck legality gate (issue #512)", () => {
                     selectedDeck={selectedDeck}
                     openGames={[]}
                     onCreateSolo={handlers.onCreateSolo}
+                    onCreateManual={handlers.onCreateManual}
                     onCreateVsAi={handlers.onCreateVsAi}
                     onCreateMultiplayer={handlers.onCreateMultiplayer}
                     onJoin={vi.fn()}
@@ -196,6 +200,7 @@ describe("DashboardPlayBox vs-AI dialog handoff (two-step flow)", () => {
                     selectedDeck={DECK}
                     openGames={[]}
                     onCreateSolo={vi.fn()}
+                    onCreateManual={vi.fn()}
                     onCreateVsAi={onCreateVsAi}
                     onCreateMultiplayer={vi.fn()}
                     onJoin={vi.fn()}
@@ -237,6 +242,7 @@ describe("DashboardPlayBox match format selector", () => {
                     selectedDeck={DECK}
                     openGames={[]}
                     onCreateSolo={vi.fn()}
+                    onCreateManual={vi.fn()}
                     onCreateVsAi={vi.fn()}
                     onCreateMultiplayer={vi.fn()}
                     onJoin={vi.fn()}

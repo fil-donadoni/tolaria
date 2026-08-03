@@ -82,6 +82,7 @@ function Lobby() {
     const presetDecks = useQuery(api.decks.list, pageVisible ? {} : "skip");
     const createGame = useMutation(api.game.createGame);
     const createSoloGame = useMutation(api.game.createSoloGame);
+    const createManualSoloGame = useMutation(api.game.createManualSoloGame);
     const joinGame = useMutation(api.game.joinGame);
     const openGames = useQuery(
         api.game.listOpenGames,
@@ -192,6 +193,15 @@ function Lobby() {
                 name: `${user.nickname}'s solo game`,
                 deck: deckPayload(deck),
                 bestOf: matchFormat,
+            });
+            return { gameId: id, playerId: `${user._id}-p1` };
+        });
+
+    const handleCreateManual = () =>
+        enterGame(async ({ user, deck }) => {
+            const id = await createManualSoloGame({
+                name: `${user.nickname}'s manual game`,
+                deck: deckPayload(deck),
             });
             return { gameId: id, playerId: `${user._id}-p1` };
         });
@@ -422,6 +432,7 @@ function Lobby() {
                         openGames={openGames}
                         onCreateVsAi={() => setVsAiOpen(true)}
                         onCreateSolo={handleCreateSolo}
+                        onCreateManual={handleCreateManual}
                         onCreateMultiplayer={handleCreate}
                         onJoin={handleJoin}
                         onChangeDeck={handleChangeDeck}
