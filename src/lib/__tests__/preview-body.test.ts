@@ -229,6 +229,75 @@ describe("buildPreviewBody — chosen mode in the live oracle text", () => {
     });
 });
 
+// Same CR 700.2c idiom as Chromatic Armor, on a creature instead of an Aura:
+// Quirion Elves' "As this creature enters, choose a color." + "{T}: Add one
+// mana of the chosen color." (mir/green.ts).
+describe("buildPreviewBody — Quirion Elves chosen colour", () => {
+    const QUIRION_ELVES_ID = "be9a64fb-1e8d-4ed8-b4c5-3d44db9c1d3b";
+
+    function elves(chosenModeId?: string): CardInstance {
+        return {
+            id: "elves-1",
+            card: { id: QUIRION_ELVES_ID },
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            isTapped: false,
+            types: ["Creature"],
+            subtypes: ["Elf", "Druid"],
+            ...(chosenModeId ? { chosenModeId } : {}),
+        } as CardInstance;
+    }
+
+    it("names the chosen colour next to the printed phrase", () => {
+        const body = buildPreviewBody(QUIRION_ELVES_ID, elves("R"));
+        const line = body.oracleParagraphs?.find((p) =>
+            /chosen color/i.test(p)
+        );
+        expect(line).toBeDefined();
+        expect(line).toContain("(red)");
+    });
+
+    it("leaves the printed text alone before a colour is chosen", () => {
+        const body = buildPreviewBody(QUIRION_ELVES_ID, elves());
+        expect(body.oracleParagraphs?.some((p) => p.includes("("))).toBe(false);
+    });
+});
+
+// CR 302.6 / 502.1 — a one-shot "doesn't untap during its controller's next
+// untap step" flag (Tangle, Barl's Cage) works in the GRE but was invisible in
+// the card preview: nothing about it appeared in the oracle text, so the
+// player had no way to see the pending restriction was armed. Shown as its
+// own always-on status line (not folded into `oracleParagraphs`, which is
+// null for a vanilla creature with no other reason to print its full text).
+describe("buildPreviewBody — skipNextUntap status", () => {
+    const GRIZZLY_BEARS = getCardByName("Grizzly Bears");
+
+    function bear(skipNextUntap?: boolean): CardInstance {
+        return {
+            id: "bear-1",
+            card: { id: GRIZZLY_BEARS.id },
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            isTapped: false,
+            types: ["Creature"],
+            subtypes: ["Bear"],
+            ...(skipNextUntap ? { skipNextUntap: true } : {}),
+        } as CardInstance;
+    }
+
+    it("shows the status when the flag is armed", () => {
+        const body = buildPreviewBody(GRIZZLY_BEARS.id, bear(true));
+        expect(body.skipNextUntap).toBe(true);
+    });
+
+    it("stays false when the flag is absent", () => {
+        const body = buildPreviewBody(GRIZZLY_BEARS.id, bear());
+        expect(body.skipNextUntap).toBe(false);
+    });
+});
+
 // CR 614.12 / 201.3 — a permanent that named a card as it entered (Meddling
 // Mage) must SAY which one in its live rules box. The printed text only says
 // "the chosen name", and the pick is per-instance: two Mages on the same board

@@ -8,15 +8,12 @@ Jace, Vryn's Prodigy
 Mystic Confluence
 Stoneforge Mystic
 Adeline, Resplendent Cathar
-Phantasmal Image
-Shelldock Isle
 Elite Spellbinder
 Skyclave Apparition
 Tamiyo, Inquisitive Student
 Urza, Lord High Artificer
 Emrakul
 Craterhoof
-Jacked Rabbit
 Gut
 Hexdrinker
 Troll of Kazad-dum
@@ -24,7 +21,6 @@ Bitter Triumph
 Broadside Bombardiers
 Springheart Nantuko
 Mox Diamond
-Teferone
 Fallen Shinobi
 Grist
 Necromancy
@@ -39,7 +35,6 @@ Boseiju, Who Endures
 Pentad Prism
 Kaldra Compleat
 Wrenn and Six
-Vindicate
 Otharri, Suns' Glory
 Celestial Colonnade
 Bolas's Citadel
@@ -55,25 +50,18 @@ Fable of the mirror-breaker
 
 ## UX da migliorare
 
-- quando premo space sull'ordinamento dei trigger deve valere come click su Done
-- quando ho il dialog di auto-tap e premo esc deve annullare il cast, come avessi premuto U, invece di aprire il menu
-- quando faccio mouseover su una carta che viene coperta da card-preview si crea un loop tipo flash con card-preview che appare e scompare
 - il dialog Pay kicker cost è brutto e incoerente col resto della UI.
-- tangle e altre carte che danno "non stappa nel prossimo untap" funzionano, ma non c'è il dato di questa abilità ritardata nell'oracle text della card-preview. bisogna che il giocatore lo veda sempre
 - restock: il testo della choiche dialog dice una carta, ma selezionandone 2 ne recupero 2, correttamente. correggere la ux
 - quando ho messo il companion in mano, la zona companion puo' anche scomparire per il resto del game
-- quirion elves: la scelta deve essere scritta nell'oracle text della card-preview, come per chromatic armor
 - filtri deckbuilder: aggiungi anche la direzione del sorting oltre a campo di sorting
 - Titania's Song toglie le abilità, ma posso ancora vedere un'abilità attivata e cliccarci sopra, per poi ricevere un errore server. il client deve essere sempr sincronizzato su questi casi e non mostarare le abilità che la carta ha perso per stato di gioco
 - I bersagli possibili di una Lair devono avere il ring di candidati. questo deve valere ogni volta che si devono scegliere bersagli, ma non lo stai facendo sempre. stessa cosa ad esempio sul sacrifice di Keldon Twilight, deve evidenziare solo le tue creature non entrate in questo turno. regola generale da applicare ovunque
 - quando in solo game tappo una terra che ha anche l'avversario, c'e' una strana animazione sui due fan: il mio e il suo, che però non dovrebbero interagire. forse c'è un conflitto nei conteggi per tenere insieme le terre con lo stesso state?
-- in Skyship Weatherlight le due parti di oracle text sono scambiate nella card-preview rispetto a quello che è stampato sulla carta originale. verifica la causa root e sistema globalmente.
-- chromatic armor non mostra il colore di cui sta prevenendo il danno, in card-preview
 
 # Bug gameplay
 
 - quando dalla pagina scenarios clicco su test, se c'è già una partita in corso non deve comparire l'errore ma un dialog che mi chiede se voglio concedere quella partita, indicando tipologia e giocatore/bot avversario
-- gli scenari che specificano carte nella library non funzionano, mi ritrovo sempre e solo terre base nella libraryi invece delle carte indicate.
+- gli scenari che specificano carte nella library non funzionano, mi ritrovo sempre e solo terre base nella library invece delle carte indicate.
 
 # Bug bot
 
@@ -91,3 +79,6 @@ Causa strutturale sotto i 4 cluster: mappa wayfinder #1892 (soffitto di forza de
 ## Bug
 
 ## UI/UX
+
+Su landscape deckbuilder inutilizzabile
+Card preview difficile da usare e scomoda

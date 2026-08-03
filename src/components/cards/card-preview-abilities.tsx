@@ -51,11 +51,47 @@ function AbilityRow({
     );
 }
 
+type Row = {
+    key: string;
+    text: string;
+    state: AbilityDisplayState;
+    order: number;
+};
+
+/** Merges activated + triggered rows into printed-line order (`order`, the
+ *  ability's paragraph index in the card's own `oracleText` — see
+ *  `DisplayActivated.order`). A row with no match (a runtime grant, or a
+ *  legacy fixture with no `order` at all) falls into the same "sorts last"
+ *  bucket, and `Array#sort` is stable, so ties keep the activated-then-
+ *  triggered order this component always rendered before this ordering
+ *  existed. Fixes the fixed-block order always printing activated ABOVE
+ *  triggered even when a card's own oracle text lists the trigger first
+ *  (Skyship Weatherlight: the ETB search trigger prints before the {4},{T}
+ *  activated ability). */
+function orderedAbilityRows(abilities: DisplayAbilities): Row[] {
+    const rows: Row[] = [
+        ...abilities.activated.map((a, i) => ({
+            key: `act-${i}-${a.id}`,
+            text: a.oracleText,
+            state: a.state,
+            order: a.order ?? Number.MAX_SAFE_INTEGER,
+        })),
+        ...abilities.triggered.map((t, i) => ({
+            key: `tr-${i}-${t.id}`,
+            text: t.oracleText,
+            state: t.state,
+            order: t.order ?? Number.MAX_SAFE_INTEGER,
+        })),
+    ];
+    return rows.sort((a, b) => a.order - b.order);
+}
+
 /**
  * The structured-abilities block of the card preview: keyword rows
- * (native / granted / lost), then activated and triggered ability text.
- * Granted entries (runtime grants from auras/effects, CR 113.1) render in
- * green with a `[+]` prefix; lost keywords render struck-through.
+ * (native / granted / lost), then activated and triggered ability text in
+ * the card's own printed line order. Granted entries (runtime grants from
+ * auras/effects, CR 113.1) render in green with a `[+]` prefix; lost
+ * keywords render struck-through.
  *
  * The caller decides WHICH abilities to pass: the full set when no printed
  * oracle text is shown, or only the runtime deltas (granted/lost) when oracle
@@ -80,19 +116,8 @@ export default function CardPreviewAbilities({
                     ))}
                 </div>
             )}
-            {abilities.activated.map((a, i) => (
-                <AbilityRow
-                    key={`act-${i}-${a.id}`}
-                    text={a.oracleText}
-                    state={a.state}
-                />
-            ))}
-            {abilities.triggered.map((t, i) => (
-                <AbilityRow
-                    key={`tr-${i}-${t.id}`}
-                    text={t.oracleText}
-                    state={t.state}
-                />
+            {orderedAbilityRows(abilities).map((row) => (
+                <AbilityRow key={row.key} text={row.text} state={row.state} />
             ))}
         </div>
     );

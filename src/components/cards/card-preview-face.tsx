@@ -43,6 +43,7 @@ export default function CardPreviewFace({
     colorName,
     ownerName,
     attachedToName,
+    skipNextUntap,
     milestones,
     size,
     onImageLoaded,
@@ -189,6 +190,13 @@ export default function CardPreviewFace({
                         className={`border-t border-border-subtle pt-2 ${sectionSize} font-semibold text-accent-strong`}
                     >
                         Attached to: {attachedToName}
+                    </div>
+                )}
+                {skipNextUntap && (
+                    <div
+                        className={`border-t border-border-subtle pt-2 ${sectionSize} font-semibold text-danger-strong`}
+                    >
+                        Doesn't untap during its controller's next untap step.
                     </div>
                 )}
                 {ownerName && (

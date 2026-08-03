@@ -84,6 +84,7 @@ import {
     swamp as swampCard,
 } from "@convex/cards/sets/lea/colorless";
 import { crawWurm } from "@convex/cards/sets/lea/green";
+import { skyshipWeatherlight } from "@convex/cards/sets/pls/colorless";
 import {
     CHANDRA_TORCH_OF_DEFIANCE_EMBLEM_ID,
     SORIN_LORD_OF_INNISTRAD_EMBLEM_ID,
@@ -2386,6 +2387,22 @@ describe("getDisplayAbilities (#156 granted keywords)", () => {
             instance
         );
         expect(keywords).toContainEqual({ name: "flying", state: "lost" });
+    });
+
+    // Skyship Weatherlight (PLS, issue #1947) prints its ETB search trigger
+    // BEFORE its {4},{T} activated ability — `order` must reflect that
+    // printed-line position so the preview (CardPreviewAbilities) doesn't
+    // fall back to its fixed activated-then-triggered block order and swap
+    // them.
+    it("assigns Skyship Weatherlight's triggered row an earlier order than its activated row", () => {
+        const { activated, triggered } = getDisplayAbilities(
+            skyshipWeatherlight.id
+        );
+        expect(triggered).toHaveLength(1);
+        expect(activated).toHaveLength(1);
+        expect(triggered[0].order).toBeDefined();
+        expect(activated[0].order).toBeDefined();
+        expect(triggered[0].order!).toBeLessThan(activated[0].order!);
     });
 
     it("shows native and granted keywords together", () => {

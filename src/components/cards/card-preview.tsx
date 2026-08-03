@@ -231,9 +231,28 @@ export default function CardPreview({
                 setShowHoverDock(true);
             }, HOVER_DWELL_MS);
         };
-        const onLeave = () => {
+        const onLeave = (e: PointerEvent) => {
             window.clearTimeout(dwellRef.current);
             if (!hoverOpenRef.current) return;
+            // The dock can render directly on top of the card that opened it
+            // (a right-column pile sits inside the dock's own reserved
+            // footprint) — the hit-test target then changes to the dock
+            // without the pointer ever really leaving, which still fires a
+            // native pointerleave. `relatedTarget` names the element the
+            // pointer is entering; when it's part of this card's OWN preview
+            // surface, scheduling a close here would expose the card again
+            // (or fight the dock's own onPointerEnter), re-trigger the dwell,
+            // and reopen right back — an open/close flash loop. A real leave
+            // enters something outside the preview surface.
+            const related = e.relatedTarget;
+            if (
+                related instanceof Element &&
+                related.closest(
+                    "[data-card-preview-dock], [data-card-preview-anchored]"
+                )
+            ) {
+                return;
+            }
             scheduleHoverClose();
         };
         cardEl.addEventListener("pointerenter", onEnter);

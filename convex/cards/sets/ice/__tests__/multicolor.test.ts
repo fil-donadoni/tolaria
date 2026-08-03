@@ -1748,6 +1748,50 @@ describe("Chromatic Armor (re-choosable colour shield, CR 615 / 700.2c / 601.2f)
         ).toBe(3);
     });
 
+    // Every test above hand-builds the Aura ALREADY on the battlefield with
+    // `chosenModeId` pre-set — none of them exercise the real cast commit
+    // (`finalizeTargetSelection` → `resolveTopOfStack`), which is the ONLY
+    // path a real cast actually takes: `announceCast` stores the ETB colour
+    // pick on `state.pendingTarget.chosenModeId` (CR 700.2c), and it is this
+    // function that must carry it onto the stack item / permanent.
+    it("carries the ETB colour choice onto the permanent through the real cast commit (finalizeTargetSelection → resolveTopOfStack)", () => {
+        const host = vanilla("host", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [host],
+                    manaPool: { W: 1, U: 1, B: 0, R: 0, G: 0, C: 1 },
+                }),
+                makePlayer("p2", { battlefield: [] }),
+            ],
+        });
+        state.players[0].hand.push(
+            makeInstance(chromaticArmor.id, {
+                id: "armor-cast",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+            })
+        );
+        const pt: PendingTarget = {
+            playerId: "p1",
+            cardInstanceId: "armor-cast",
+            targetType: "Creature",
+            count: 1,
+            selected: [{ type: "permanent", id: "host" }],
+            chosenModeId: "W",
+        };
+        finalizeTargetSelection(state, pt, "p1");
+        resolveTopOfStack(state);
+        const onBattlefield = state.players[0].battlefield.find(
+            (c) => c.id === "armor-cast"
+        );
+        expect(onBattlefield?.chosenModeId).toBe("W");
+    });
+
     it("the {X} cost equals the source's sleight-counter count (CR 601.2f)", () => {
         const ability = chromaticArmor.activatedAbilities![0];
         // 1 sleight counter → {1} (generic total stored under the `X` key).

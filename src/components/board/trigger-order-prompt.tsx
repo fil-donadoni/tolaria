@@ -1,10 +1,11 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "convex/react";
 import { Minus } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { PendingChoice, StackItem } from "~/types/game";
 import { getStackAbilityOracleText } from "~/lib/card-utils";
+import { isEditableTarget } from "~/lib/editable-target";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
 import { useViewportWidth } from "~/hooks/useViewportWidth";
@@ -245,7 +246,7 @@ export default function TriggerOrderPrompt({
         [commit]
     );
 
-    const handleConfirm = async () => {
+    const handleConfirm = useCallback(async () => {
         if (submitting) return;
         setSubmitting(true);
         try {
@@ -261,7 +262,36 @@ export default function TriggerOrderPrompt({
         } finally {
             setSubmitting(false);
         }
-    };
+    }, [
+        submitting,
+        submitResolutionChoice,
+        gameId,
+        choice.playerId,
+        choice.stackItemId,
+        choice.step,
+        choice.choiceId,
+        order,
+    ]);
+
+    // Space confirms — mirrors the Done button. The global Pass-priority
+    // hotkey (`useControllerActions`) also binds Space at window/bubble phase,
+    // but this choice's `order` is local drag state it has no access to, so
+    // its generic pendingChoice fallback would misfire here (this kind isn't
+    // a may-pay/zone-pick shape). Listening on the CAPTURE phase and calling
+    // stopPropagation puts this ahead of that bubble listener, exactly like
+    // `reveal-notification-overlay.tsx` does for the same reason.
+    useEffect(() => {
+        if (isMinimized) return;
+        function onKeyDown(e: KeyboardEvent) {
+            if (e.code !== "Space" || e.repeat) return;
+            if (isEditableTarget(e.target)) return;
+            e.preventDefault();
+            e.stopPropagation();
+            void handleConfirm();
+        }
+        window.addEventListener("keydown", onKeyDown, true);
+        return () => window.removeEventListener("keydown", onKeyDown, true);
+    }, [isMinimized, handleConfirm]);
 
     return (
         <div

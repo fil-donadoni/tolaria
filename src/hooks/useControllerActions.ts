@@ -444,6 +444,46 @@ export function useControllerActions(): ControllerState {
         playerId,
     ]);
 
+    // Escape cancels a pending cast/activation/attack-tax — same mutation as
+    // the U hotkey above. `board.tsx` also binds Escape (bubble phase) to open
+    // the pause menu, and its own `POPUP_SELECTORS` guard doesn't recognize
+    // the payment banner (a plain draggable panel, not a radix dialog/popover),
+    // so without this Escape fell through to the pause menu instead of
+    // cancelling the payment. Listening on the CAPTURE phase and calling
+    // stopPropagation puts this ahead of that bubble listener — same technique
+    // as `reveal-notification-overlay.tsx`. Attached only while a cost is
+    // actually pending, so Escape is otherwise untouched (pause menu, card
+    // preview, etc. keep working normally).
+    useEffect(() => {
+        if (!isPayingCast && !isPayingActivation && !isPayingAttackTax) return;
+        function onKeyDown(e: KeyboardEvent) {
+            if (e.key !== "Escape") return;
+            if (isEditableTarget(e.target)) return;
+            if (isBusy) return;
+            e.preventDefault();
+            e.stopPropagation();
+            if (isPayingCast) {
+                cancelCast({ gameId, playerId });
+            } else if (isPayingActivation) {
+                cancelActivation({ gameId, playerId });
+            } else if (isPayingAttackTax) {
+                cancelAttackTax({ gameId, playerId });
+            }
+        }
+        window.addEventListener("keydown", onKeyDown, true);
+        return () => window.removeEventListener("keydown", onKeyDown, true);
+    }, [
+        isPayingCast,
+        isPayingActivation,
+        isPayingAttackTax,
+        isBusy,
+        cancelCast,
+        cancelActivation,
+        cancelAttackTax,
+        gameId,
+        playerId,
+    ]);
+
     const actions: ControllerAction[] = [];
 
     const runBusy = (fn: () => Promise<unknown>) => async () => {

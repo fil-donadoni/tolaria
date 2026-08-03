@@ -2470,12 +2470,24 @@ export type DisplayActivated = {
     id: string;
     oracleText: string;
     state: AbilityDisplayState;
+    /** This ability's paragraph index within the card's printed `oracleText`
+     *  (CR 100.6 — the printed line order), when it matches one exactly.
+     *  Undefined for a runtime grant (its text comes from another card's
+     *  `oracleText`, so no position on THIS card's printed text applies) —
+     *  the renderer sorts those after every native row. Lets the preview
+     *  interleave activated/triggered rows in printed order instead of a
+     *  fixed activated-then-triggered block order (issue: Skyship
+     *  Weatherlight's ETB trigger prints BEFORE its activated ability, but a
+     *  fixed block order always renders activated first). */
+    order?: number;
 };
 
 export type DisplayTriggered = {
     id: string;
     oracleText: string;
     state: AbilityDisplayState;
+    /** See {@link DisplayActivated.order}. */
+    order?: number;
 };
 
 export type DisplayAbilities = {
@@ -2591,12 +2603,24 @@ export function getDisplayAbilities(
     const nativeState: AbilityDisplayState =
         strippedAt === null ? "native" : "lost";
 
+    // Printed-order lookup (CR 100.6): the position of an ability's own
+    // `oracleText` within the card's full printed text, when it matches one
+    // paragraph exactly. `-1` (not found) maps to `undefined` — same
+    // "sorts last" bucket a runtime grant's cross-card text already falls
+    // into, since neither has a position on THIS card's printed text.
+    const paragraphs = (def.oracleText ?? "").split("\n").map((p) => p.trim());
+    const paragraphOrder = (text: string): number | undefined => {
+        const i = paragraphs.indexOf(text.trim());
+        return i === -1 ? undefined : i;
+    };
+
     const activated: DisplayActivated[] = (def.activatedAbilities ?? [])
         .filter((a) => a.oracleText)
         .map((a) => ({
             id: a.id,
             oracleText: a.oracleText,
             state: nativeState,
+            order: paragraphOrder(a.oracleText),
         }));
     for (const grant of instance?.grantedActivatedAbilities ?? []) {
         const sourceDef = tryGetDefinition(grant.sourceCardId);
@@ -2617,6 +2641,7 @@ export function getDisplayAbilities(
             id: a.id,
             oracleText: a.oracleText,
             state: nativeState,
+            order: paragraphOrder(a.oracleText),
         }));
     // CR 113.1 — anthem-granted triggers (Energy Flux) live on the granting
     // card's `triggeredGrantTemplates`, not on this card's def.

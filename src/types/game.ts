@@ -248,6 +248,16 @@ export interface CardInstance {
      *  so the live oracle text names the colour actually chosen. Mirrors
      *  `CardInstanceState.chosenModeId` in `convex/gre/state.ts`. */
     chosenModeId?: string;
+    /** CR 302.6 / 502.1 — a one-shot flag: this permanent doesn't untap during
+     *  its controller's NEXT untap step (Tangle, Barl's Cage, Goblin Rock
+     *  Sled). Cleared by the engine the instant that untap step consumes it,
+     *  so it is only ever true for the window between the effect being
+     *  applied and the next untap step. Forwarded by `slimCard` like
+     *  `chosenModeId`; read by the card preview so the player always sees the
+     *  pending restriction, since the printed oracle text alone doesn't say
+     *  whether it's CURRENTLY armed. Mirrors
+     *  `CardInstanceState.skipNextUntap` in `convex/gre/state.ts`. */
+    skipNextUntap?: boolean;
     /** CR 614.12 as-enters NAME choice (Meddling Mage: "As this creature
      *  enters, choose a nonland card name"). Forwarded by `slimCard` like
      *  `chosenModeId`; read by `resolveChosenName` in `src/lib/preview-body.ts`

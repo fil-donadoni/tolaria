@@ -71,6 +71,14 @@ export type PreviewBodyContent = {
      *  enchanting an Aura). Absent for a face with no live instance (the
      *  ORIGINAL face of a copy, emblems, designations). */
     attachedToName?: string | null;
+    /** CR 302.6 / 502.1 — true while this permanent's one-shot "doesn't untap
+     *  during its controller's next untap step" flag is armed (Tangle, Barl's
+     *  Cage, Goblin Rock Sled). Shown unconditionally (not folded into
+     *  `oracleParagraphs`, which is null for a card with no reason to print
+     *  its full oracle text) so the player always sees the pending
+     *  restriction regardless of whether the permanent's own printed text
+     *  happens to be visible. */
+    skipNextUntap?: boolean;
     /** Live graveyard-progress lookup for the controller of this card, keyed by
      *  ability word (delirium / threshold — see graveyard-milestones.ts). Non-
      *  null only in-game for a card whose oracle text carries such a word; the
@@ -243,6 +251,7 @@ export function buildPreviewBody(
             cardInstance && gameCtx
                 ? attachmentHostName(cardInstance, gameCtx.allPlayers)
                 : null,
+        skipNextUntap: !!cardInstance?.skipNextUntap,
         milestones,
     };
 }
