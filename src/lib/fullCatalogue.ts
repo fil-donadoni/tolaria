@@ -93,6 +93,10 @@ export interface FullCatalogueResult {
     /** All catalogue rows with `.available` patched from `cardIndex.list`.
      *  `undefined` while the catalogue + index are loading. */
     rows: FullCatalogueRow[] | undefined;
+    /** Non-null when `loadFullCatalogue` failed (network error, HTTP 4xx/5xx).
+     *  Callers should show a degraded state — branded grey, no catalogue
+     *  filtering — and NOT retry. */
+    error: string | null;
 }
 
 /**
@@ -104,15 +108,28 @@ export function useFullCatalogue(): FullCatalogueResult {
     const [catalogue, setCatalogue] = useState<FullCatalogueRow[] | undefined>(
         undefined
     );
+    const [error, setError] = useState<string | null>(null);
     const startedRef = useRef(false);
 
     useEffect(() => {
         if (startedRef.current) return;
         startedRef.current = true;
         let cancelled = false;
-        loadFullCatalogue().then((rows) => {
-            if (!cancelled) setCatalogue(rows);
-        });
+        loadFullCatalogue()
+            .then((rows) => {
+                if (!cancelled) setCatalogue(rows);
+            })
+            .catch((err: unknown) => {
+                if (!cancelled) {
+                    const message =
+                        err instanceof Error ? err.message : String(err);
+                    console.warn(
+                        "Full Catalogue load failed — deck builder will show available cards only:",
+                        message
+                    );
+                    setError(message);
+                }
+            });
         return () => {
             cancelled = true;
         };
@@ -130,7 +147,7 @@ export function useFullCatalogue(): FullCatalogueResult {
         return patchAvailability(catalogue, availableFolds);
     }, [catalogue, availableFolds]);
 
-    return { rows };
+    return { rows, error };
 }
 
 /** Patches `.available` on every row by checking `nameFold` membership in
