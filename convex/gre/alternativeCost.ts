@@ -28,8 +28,9 @@
 // routing a may-pay through the alt-cost selector would make paying it mutually
 // exclusive with paying the card's real cost — precisely backwards.
 //   * CONDITION (`condition`) — a cast-availability gate ("if it's not your
-//     turn", "if you control a Swamp"): the variant is only affordable when it
-//     holds. NOT a leg; it lives on `AlternativeCost`, not `CostLegs`.
+//     turn", "if you control a Swamp", "if this is the first spell you've
+//     cast this game"): the variant is only affordable when it holds. NOT a
+//     leg; it lives on `AlternativeCost`, not `CostLegs`.
 //
 // Alternative pitch cost is a CR 118.9 RULES concept with no keyword name, so it
 // carries no Mechanics Registry row and is NOT an Effect Script Op — it is
@@ -274,6 +275,14 @@ export function alternativeCostConditionMet(
                     supertypesOf: liveSupertypesOf,
                 });
             });
+        }
+        // Issue #790 (Once Upon a Time) — "If this spell is the first spell
+        // you've cast this game, you may cast it without paying its mana
+        // cost." Reads the lifetime per-player tally (never reset, unlike
+        // `spellsCastThisTurn`), pre-increment like every other variant here.
+        case "first-spell-this-game": {
+            const player = getPlayer(state, playerId);
+            return (player.spellsCastThisGame ?? 0) === 0;
         }
     }
 }

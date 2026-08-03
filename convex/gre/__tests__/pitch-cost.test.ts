@@ -100,6 +100,38 @@ describe("alternativeCostConditionMet (CR 118.9)", () => {
     it("an absent condition is always met", () => {
         expect(alternativeCostConditionMet(base(), "p1", undefined)).toBe(true);
     });
+
+    // Issue #790 (Once Upon a Time) — "If this spell is the first spell
+    // you've cast this game, you may cast it without paying its mana cost."
+    describe("first-spell-this-game (issue #790)", () => {
+        const cond = { kind: "first-spell-this-game" as const };
+
+        it("holds when the caster has cast no spells this game", () => {
+            const state = base();
+            expect(alternativeCostConditionMet(state, "p1", cond)).toBe(true);
+        });
+
+        it("fails once the caster has cast a spell, this turn or a prior one", () => {
+            const state = base();
+            state.players[0].spellsCastThisGame = 1;
+            expect(alternativeCostConditionMet(state, "p1", cond)).toBe(false);
+        });
+
+        it("is scoped to the CASTER, not the table — the opponent's casts don't consume it", () => {
+            const state = base();
+            state.players[1].spellsCastThisGame = 5;
+            expect(alternativeCostConditionMet(state, "p1", cond)).toBe(true);
+        });
+
+        it("is NOT reset by a turn change, unlike spellsCastThisTurn", () => {
+            const state = base();
+            // A spell cast on a prior turn: spellsCastThisTurn resets every
+            // turn, but the lifetime tally does not.
+            state.players[0].spellsCastThisTurn = 0;
+            state.players[0].spellsCastThisGame = 1;
+            expect(alternativeCostConditionMet(state, "p1", cond)).toBe(false);
+        });
+    });
 });
 
 describe("canPayAlternativeCost — life & hand legs (CR 118.4 / 118.9)", () => {

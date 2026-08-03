@@ -1446,6 +1446,13 @@ export type PlayerState = {
      *  turn" (CR 701.50, Ledger Shredder) needs the per-caster tally, not the
      *  table-wide one. */
     spellsCastThisTurn?: number;
+    /** Number of spells THIS PLAYER has cast during the WHOLE GAME (CR 601.2i),
+     *  NEVER reset — the lifetime sibling of `spellsCastThisTurn` (issue #790).
+     *  Incremented at the same choke point (`emitSpellCastEvent`), pre-
+     *  incremented reads only. Exists to answer "is this the caster's first
+     *  spell of the GAME" (Once Upon a Time's free-cast condition), a question
+     *  the per-turn counter can't answer since it resets every turn. */
+    spellsCastThisGame?: number;
     /** Instance id of the last card this player drew during the current turn
      *  (the card most recently moved from library to hand by a draw). Set by
      *  `drawCard`, cleared at the start of each turn (`advanceTurn`). Used as
@@ -8339,7 +8346,9 @@ export function exileUntilMonarchChanges(
  *  caster's own `PlayerState.spellsCastThisTurn` BEFORE incrementing,
  *  carries it as `casterSpellCountThisTurn`, then increments it too — same
  *  "read then increment" shape as Storm's global tally, just scoped to the
- *  caster instead of the table. A spell COPY (`cloneSpellOntoStack`)
+ *  caster instead of the table. Also increments the caster's LIFETIME tally
+ *  (`spellsCastThisGame`, issue #790, never reset) at the same point, powering
+ *  "the caster's first spell of the GAME" conditions. A spell COPY (`cloneSpellOntoStack`)
  *  is put onto the stack directly and never calls this function, so copies
  *  never inflate either count (CR 707.10 — a copy isn't cast). Also runs the
  *  cast-trigger collection pass (`collectCastTriggers`) so a keyword-
@@ -8364,6 +8373,11 @@ export function emitSpellCastEvent(state: GameState, item: StackItem): void {
     // (cards/abilities/triggers/spellCastTrigger.ts).
     const casterSpellCountThisTurn = caster?.spellsCastThisTurn ?? 0;
     if (caster) caster.spellsCastThisTurn = casterSpellCountThisTurn + 1;
+    // Lifetime per-player tally (issue #790) — same choke point, never reset.
+    // Powers "the caster's first spell of the GAME" (Once Upon a Time), which
+    // the per-turn counter above can't answer since it resets every turn.
+    if (caster)
+        caster.spellsCastThisGame = (caster.spellsCastThisGame ?? 0) + 1;
     const event: SpellCastEvent = {
         type: "SPELL_CAST",
         casterId: item.castById,
