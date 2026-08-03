@@ -190,12 +190,24 @@ A one-shot **Triggered Ability** created during the resolution of a spell or abi
 _Avoid_: Scheduled effect, deferred callback, timer
 
 **Cast Trigger**:
-A **Triggered Ability** whose condition is "when you **Cast** this spell" — it fires from the **Stack** as the spell is announced, not from the **Battlefield**. Because ordinary trigger collection scans only battlefield (and just-left) sources, cast triggers are gathered by a dedicated pass at cast time and placed on the **Stack** _above_ the spell, so they resolve before it. **Storm** is the first cast trigger.
+A **Triggered Ability** whose condition is "when you **Cast** this spell" — it fires from the **Stack** as the spell is announced, not from the **Battlefield**. Because ordinary trigger collection scans only battlefield (and just-left) sources, cast triggers are gathered by a dedicated pass at cast time and placed on the **Stack** _above_ the spell, so they resolve before it. **Storm** was the first cast trigger.
 _Avoid_: On-cast hook, cast listener
 
+**Cast-Copy**:
+The shared mechanism behind every **Keyword** that copies its own spell as that spell is announced — **Storm** (CR 702.40) and **Replicate** (CR 702.56), with conspire and other cardinality variants to follow. The mechanism is one thing and the keywords differ only in the **Cast-Copy Count**: the **Cast Trigger** carries a detached **snapshot** of the spell plus a remaining-copies number, and pays out one **Spell Copy** at a time, each offered an optional **Copy-Retarget**. Because the snapshot is detached, the copies are still created when the original spell has already left the **Stack** (countered in response). Naming follows the mechanic, never the keyword that happened to arrive first.
+_Avoid_: Storm machinery, spell duplication (a **Spell Copy** made at **Resolution** by a copy effect, CR 706, is a different thing — cast-copies are decided and paid for at cast time)
+
+**Cast-Copy Count**:
+The number of **Spell Copy** items a **Cast-Copy** keyword produces, fixed as the spell is **Announced** and stored on the **Cast Trigger**. Each keyword supplies it differently — **Storm** from **Spells Cast This Turn**, **Replicate** from the number of times its **Additional Cost Keyword** cost was paid — and that difference is the _whole_ of what distinguishes them.
+_Avoid_: Storm count (that names one keyword's source, and the counter itself is **Spells Cast This Turn**)
+
 **Storm**:
-A **Keyword** ability (CR 702.40) that is a **Cast Trigger**: "when you cast this spell, copy it for each other spell cast before it this turn; you may choose new targets for the copies." The copy count is the value of **Spells Cast This Turn** captured at the moment the spell is cast (a later spell cast before the trigger resolves does not count), and the copies are created even if the original spell has since left the **Stack** — so the trigger carries a **snapshot** of the spell rather than reading the live stack item. Each copy is a **Spell Copy** offered an optional **Copy-Retarget**.
+A **Keyword** ability (CR 702.40) that is a **Cast Trigger**: "when you cast this spell, copy it for each other spell cast before it this turn; you may choose new targets for the copies." Its **Cast-Copy Count** is the value of **Spells Cast This Turn** captured at the moment the spell is cast — a later spell cast before the trigger resolves does not count.
 _Avoid_: Storm count (for the counter — that is **Spells Cast This Turn**)
+
+**Replicate**:
+A **Keyword** ability (CR 702.56) that pairs an **Additional Cost Keyword** cost payable any number of times with a **Cast Trigger**: its **Cast-Copy Count** is the number of times that cost was paid. It is a member of the additional-cost family that is repeatable but never **Kicked** — the payment count buys copies rather than a bigger effect, so a merely-replicated spell must not answer to "counter target spell if it was kicked".
+_Avoid_: Multikicker (that names the repeatable cost alone, not the copies it buys)
 
 **Static Ability**:
 An ability that applies continuously while the **Permanent** is in the appropriate **Zone**. Does not use the **Stack**.
