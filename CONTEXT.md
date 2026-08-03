@@ -921,9 +921,13 @@ _Avoid_: Waiting state, pending state, game mode
 The first step of **Casting**: the client declares intent to cast a card. Reserves the card, puts it on the **Stack**, and waits for target selection and mana payment.
 _Avoid_: Start casting, begin cast
 
+**Payment Park**:
+A cost-payment decision suspended inside the announcement window of a **Cast** or an **Activated Ability** (CR 601.2 / 602.2), while the object is announced but not yet on the **Stack**: which permanent to sacrifice, which card to discard or exile, which creatures to tap. The announcement stays parked and cannot commit until the payer submits the pick — mana coverage alone is never enough. Distinct from a **Pending Choice**, which happens mid-resolution, after the object is already on the **Stack**. The engine's commit gate is the single authority on which payments a given announcement still owes.
+_Avoid_: Pending Choice (that one is mid-resolution), picker, prompt, parked choice
+
 **Pending Choice**:
 A mid-resolution decision point where a **Spell** or **Ability** requires a **Player** to make a selection (choose targets, divide damage, search library). **Priority** is frozen until the choice is submitted.
-_Avoid_: Prompt, dialog, selection
+_Avoid_: Prompt, dialog, selection, **Payment Park** (that one is announcement-time)
 
 **Random Reveal**:
 A special **Pending Choice** where the engine — not a **Player** — produces the value: it draws a random outcome from the seeded PRNG, persists it, and suspends the resolving step **before the consequence is applied**, so both clients can animate the outcome first. The chooser's client auto-acknowledges when the animation ends; the engine then resumes and applies the effect. Generalizes over **Coin Flips** and future die rolls.
