@@ -247,7 +247,11 @@ import {
 } from "./gre/kicker";
 import { liveSupertypesOf, countSnowLands } from "./gre/snow";
 import { computeSoloViewerId } from "./soloViewer";
-import type { ManualGameState, ManualLogEntry } from "./manual";
+import {
+    projectManualState,
+    type ManualGameState,
+    type ManualLogEntry,
+} from "./manual";
 import {
     appendManualLog,
     getLatestManualState,
@@ -3421,6 +3425,23 @@ export const getGame = query({
     },
     handler: async (ctx, args) => {
         return await ctx.db.get(args.gameId);
+    },
+});
+
+/** Returns the projected ManualGameState for a viewer. Reads the latest
+ *  manualStates row and strips private information (opponent hand / library /
+ *  faceDown identity) via projectManualState. Returns null when no state row
+ *  exists yet (the game is still in pregame). */
+export const getManualState = query({
+    args: {
+        gameId: v.id("games"),
+        viewerId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const latest = await getLatestManualState(ctx, args.gameId);
+        if (!latest) return null;
+        const state = latest.state as ManualGameState;
+        return projectManualState(state, args.viewerId);
     },
 });
 
