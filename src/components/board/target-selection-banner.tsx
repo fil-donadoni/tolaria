@@ -107,15 +107,17 @@ export default function TargetSelectionBanner({
                             <br />
                             <span className="text-text-muted ml-2">
                                 {divide.active
-                                    ? `Divide damage — ${divide.remaining} left`
+                                    ? `Divide ${divide.kind === "prevent" ? "prevented damage" : "damage"} — ${divide.remaining} left`
                                     : hint}
                             </span>
                         </div>
                         {divide.active ? (
                             // CR 601.2d — divide-as-you-choose: each target below
                             // carries its own [−] N [+] stepper (dialed independently);
-                            // this "Deal damage" finalizes once the whole budget is
-                            // assigned.
+                            // this finalizes once the whole budget is assigned. Label
+                            // follows `divide.kind` — Pollen Remedy's budget is
+                            // PREVENTED damage (CR 615.1), not dealt (QA — this used
+                            // to hard-code "Deal damage" for every divide spell).
                             <Button
                                 type="button"
                                 variant="primary"
@@ -127,7 +129,9 @@ export default function TargetSelectionBanner({
                                 }
                                 onClick={() => void divide.submit()}
                             >
-                                Deal damage
+                                {divide.kind === "prevent"
+                                    ? "Prevent damage"
+                                    : "Deal damage"}
                             </Button>
                         ) : (
                             showDone && (

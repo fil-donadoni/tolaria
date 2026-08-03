@@ -1018,12 +1018,12 @@ export const pollenRemedy: CardDefinition = {
     targetRequirement: {
         type: "any",
         count: { min: 1 },
-        divideAsChosen: { total: 3 },
+        divideAsChosen: { total: 3, kind: "prevent" },
     },
     kickedTargetRequirement: {
         type: "any",
         count: { min: 1 },
-        divideAsChosen: { total: 6 },
+        divideAsChosen: { total: 6, kind: "prevent" },
     },
     effects: [
         {

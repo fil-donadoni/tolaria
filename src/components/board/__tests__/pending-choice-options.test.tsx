@@ -55,6 +55,47 @@ describe("PendingChoiceOptions (option-pick UI, #289)", () => {
         fireEvent.click(getByText("3/3"));
         expect(onPick).not.toHaveBeenCalled();
     });
+
+    // QA: "Choose a color" pickers (Protection, Kavu Chameleon-style "becomes
+    // the color of your choice") used to render as plain text buttons
+    // ("Protection from white"), indistinguishable from a non-color modal
+    // choice. `color` (colorChoiceModes / protectionColorModes) draws the
+    // matching mana symbol; an option with no `color` (Primal Clay's body
+    // modes) renders no symbol at all.
+    it("draws the matching mana symbol for a color-tagged option", () => {
+        const { getByAltText, queryByAltText } = render(
+            <PendingChoiceOptions
+                options={[
+                    {
+                        id: "protection-white",
+                        label: "Protection from white",
+                        color: "W",
+                    },
+                    {
+                        id: "protection-blue",
+                        label: "Protection from blue",
+                        color: "U",
+                    },
+                ]}
+                disabled={false}
+                onPick={() => {}}
+            />
+        );
+        expect(getByAltText("{W}")).toBeTruthy();
+        expect(getByAltText("{U}")).toBeTruthy();
+        expect(queryByAltText("{B}")).toBeNull();
+    });
+
+    it("draws no mana symbol for a non-color option", () => {
+        const { container } = render(
+            <PendingChoiceOptions
+                options={PRIMAL_CLAY_OPTIONS}
+                disabled={false}
+                onPick={() => {}}
+            />
+        );
+        expect(container.querySelector("img")).toBeNull();
+    });
 });
 
 describe("pendingChoiceLabel for option-pick (#289)", () => {

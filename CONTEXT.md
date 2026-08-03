@@ -140,8 +140,12 @@ The **Permanent** an **Attachment** is currently attached to (the enchanted or e
 _Avoid_: Target (the Host is chosen by targeting, but "host" is the ongoing relationship), parent
 
 **Aura**:
-An **Enchantment** **Attachment**. If its **Host** becomes illegal or it ends up unattached, it is put into its owner's **Graveyard** (CR 704.5m/704.5n).
+An **Enchantment** **Attachment**. If its **Host** becomes illegal or it ends up unattached, it is put into its owner's **Graveyard** (CR 704.5m/704.5n) — with one exception, a **Bestowed Permanent**, which stays on the **Battlefield** and becomes a **Creature** instead.
 _Avoid_: Enchantment (broader — not every enchantment is an Aura)
+
+**Bestowed Permanent**:
+An enchantment creature card cast for its **Bestow** cost, which is an **Aura** for as long as it stays attached (CR 702.103). While attached it is **not a Creature**; the moment it becomes unattached it stops being an Aura and reverts to being a creature on the **Battlefield**, rather than going to the **Graveyard**. The type change is a **Continuous Effect**, recomputed at every read (ADR 0084) — never a stored rewrite of the card's types, which is reserved for copiable-value changes like **Turn Face Up** and transform.
+_Avoid_: Aura (a Bestowed Permanent is one only conditionally), Enchantment Creature (that is the card; "bestowed" is how it was cast)
 
 **Equipment**:
 An **Artifact** **Attachment** (subtype Equipment) attached to a **Creature** via **Equip**. Unlike an **Aura**, when its **Host** becomes illegal it **detaches and stays on the Battlefield** unattached (CR 704.5q). **Control-independent**: it stays attached to its **Host** even if its **Controller** no longer controls that Host (CR 301.5c) — the "you control" restriction binds only at **Equip** time.
@@ -160,8 +164,16 @@ A **Permanent** on the **Battlefield** whose identity is hidden from players oth
 _Avoid_: Morph, hidden card, masked creature
 
 **Turn Face Up**:
-The event that reveals a **Face-Down Permanent**'s true identity, after which it is a normal **Permanent** with its real characteristics. For Illusionary Mask this happens automatically (as a replacement) the moment the creature would deal or be dealt damage or become tapped — never by paying a cost.
+The event that reveals a **Face-Down Permanent**'s true identity, after which it is a normal **Permanent** with its real characteristics. How it may happen depends on **why** the permanent is face down: for Illusionary Mask it happens automatically (as a replacement) the moment the creature would deal or be dealt damage or become tapped, and can never be paid for; for a **Manifested** permanent its **Controller** may choose to turn it face up by paying the real card's **Mana Cost**, as a **Special Action** (ADR 0083).
 _Avoid_: Flip, unmorph, reveal
+
+**Manifest Dread**:
+Look at the top two cards of your **Library**, put one onto the **Battlefield** as a **Face-Down Permanent** and the other into your **Graveyard** (CR 701.62). A permanent that arrived this way is **Manifested**: unlike a Masked one, its **Controller** may **Turn It Face Up** for its **Mana Cost** if the card underneath is a creature card.
+_Avoid_: Manifest (the plain CR 701.40 keyword action — same face-down result, no look and no graveyard half; not implemented), morph
+
+**Special Action**:
+Something a **Player** may do without using the **Stack** and without passing **Priority** (CR 116.2) — it cannot be responded to. Taken while they have priority. Playing a **Land** is one; so are summoning a companion and turning a **Manifested** permanent face up.
+_Avoid_: Activated Ability (uses the Stack), free action
 
 ### Abilities
 
@@ -326,6 +338,10 @@ _Avoid_: clone-as-token, transform
 **Copy Choice (allControllers)**:
 A mid-resolution `choose-permanents` **Pending Choice** whose candidates span **every** player's battlefield (CR 707 "a copy of any creature/artifact on the battlefield"), flagged `allControllers`. Applied as the copy enters via `SpellContext.becomeCopyOf` in a resolve step.
 
+**Vote**:
+A choice each **Player** makes in turn order, starting with the **Controller** of the **Spell** or **Ability** that instructs them to (CR 701.38). Votes are **public** as they are cast, so a later voter knows the earlier ones. What is voted _for_ is a shared candidate set — in this engine, a **Permanent**; the effect then acts on whatever tied for most votes. With two players a split vote ties, so a "most votes or tied for most" effect hits **both** choices.
+_Avoid_: Choice (a Vote is one specific, ordered, public kind of choice), Will of the council (the italic ability word introducing it, with no rules meaning of its own)
+
 ### Combat
 
 **Attacker**:
@@ -371,6 +387,10 @@ _Avoid_: CMC, converted mana cost
 
 **Color**:
 One of the five mana colors: White (W), Blue (U), Black (B), Red (R), Green (G). Colorless (C) is not a color.
+
+**Devotion**:
+A **Player**'s count of mana symbols of a given **Color** among the **Mana Costs** of the **Permanents** they control (CR 700.6). A hybrid symbol counts for both of its colors and a Phyrexian symbol counts for its color; generic and {X} count for nothing, and a permanent with no mana cost (a token, a **Land**) contributes nothing. Distinct from **Mana Value** — devotion counts _symbols on the battlefield_, mana value counts _one card's cost_.
+_Avoid_: Color identity (a deck-building property), pip count
 
 ## Tolaria Engine
 

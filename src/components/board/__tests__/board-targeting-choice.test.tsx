@@ -270,6 +270,7 @@ describe("board targeting — divide-as-you-choose steppers (CR 601.2d)", () => 
     function makeDivide(overrides: Partial<DivideBuffer> = {}): DivideBuffer {
         return {
             active: true,
+            kind: "deal",
             total: 4,
             sum: 0,
             remaining: 4,

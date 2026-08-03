@@ -29,6 +29,11 @@ export type DivideBuffer = {
      *  which knows the viewer; the raw state hook reports the spell-level
      *  flag and the board narrows it to the chooser). */
     active: boolean;
+    /** What the divided budget DOES (`pendingTarget.divideKind`, default
+     *  `"deal"` damage — Pollen Remedy is the one shipped `"prevent"` case).
+     *  Drives the banner/finalize-button label instead of a hard-coded
+     *  "Deal damage" for every divide spell (QA). */
+    kind: "deal" | "prevent";
     /** The budget to divide (`divideTotal`). */
     total: number;
     /** Points assigned so far across all targets. */
@@ -76,6 +81,7 @@ function divideKey(pt: PendingTarget | undefined): string | null {
  *  through to their plain non-divide behaviour — purely additive. */
 const INERT_DIVIDE: DivideBuffer = {
     active: false,
+    kind: "deal",
     total: 0,
     sum: 0,
     remaining: 0,
@@ -117,6 +123,8 @@ export function useDivideBufferState(args: {
     }
 
     const active = key !== null;
+    const kind =
+        active && pendingTarget?.divideKind === "prevent" ? "prevent" : "deal";
     const total =
         active && pendingTarget ? (pendingTarget.divideTotal ?? 0) : 0;
     const sum = bufferSum(buffer);
@@ -187,6 +195,7 @@ export function useDivideBufferState(args: {
 
     return {
         active,
+        kind,
         total,
         sum,
         remaining,

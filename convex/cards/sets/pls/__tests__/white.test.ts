@@ -1767,12 +1767,12 @@ describe("Pollen Remedy ({W} Instant — divided prevention shields, CR 615.1)",
         expect(pollenRemedy.targetRequirement).toEqual({
             type: "any",
             count: { min: 1 },
-            divideAsChosen: { total: 3 },
+            divideAsChosen: { total: 3, kind: "prevent" },
         });
         expect(pollenRemedy.kickedTargetRequirement).toEqual({
             type: "any",
             count: { min: 1 },
-            divideAsChosen: { total: 6 },
+            divideAsChosen: { total: 6, kind: "prevent" },
         });
         // The resolution-time totals MUST mirror the announcement-time ones,
         // or the caster allocates 6 and only 3 is honoured.

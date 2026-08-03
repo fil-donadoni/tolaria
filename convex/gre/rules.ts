@@ -2704,6 +2704,9 @@ export function raiseTriggerTargetSelection(state: GameState): boolean {
                 sourcePower
             ),
             ...(divideTotal !== undefined ? { divideTotal } : {}),
+            ...(req.divideAsChosen?.kind
+                ? { divideKind: req.divideAsChosen.kind }
+                : {}),
         };
         state.priorityPlayerId = item.controllerId;
         state.passCount = 0;

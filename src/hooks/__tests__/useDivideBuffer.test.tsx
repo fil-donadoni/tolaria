@@ -42,6 +42,24 @@ describe("useDivideBuffer — local distribution (CR 601.2d)", () => {
         expect(result.current.total).toBe(0);
     });
 
+    // QA (Pollen Remedy): the banner used to hard-code "Deal damage" for
+    // every divide-as-you-choose spell, including Pollen Remedy's divided
+    // damage PREVENTION (CR 615.1). `kind` mirrors `pendingTarget.divideKind`
+    // — "deal" when absent (every other divide card: Pyrokinesis, Arc
+    // Lightning, ...), "prevent" only when the server sets it.
+    it('defaults kind to "deal" when divideKind is absent', () => {
+        const { result } = render(dividePt(4));
+        expect(result.current.kind).toBe("deal");
+    });
+
+    it('reads kind "prevent" from pendingTarget.divideKind', () => {
+        const { result } = render({
+            ...dividePt(3),
+            divideKind: "prevent",
+        } as unknown as PendingTarget);
+        expect(result.current.kind).toBe("prevent");
+    });
+
     it("inc/dec dial a target and track remaining, capped at the budget", () => {
         const { result } = render(dividePt(4));
         expect(result.current.remaining).toBe(4);

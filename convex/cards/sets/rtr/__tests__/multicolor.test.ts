@@ -104,7 +104,7 @@ describe("Deathrite Shaman (CR 605.1a — targeted activated abilities, not mana
             expect(state.pendingChoices?.[0]).toBeDefined();
             expect(state.players[0].manaPool.G).toBe(0);
 
-            submitOptionPick(state, "4"); // modes are [W, U, B, R, G] — index 4 = Green
+            submitOptionPick(state, "G"); // colorChoiceModes ids are the color codes
             expect(state.players[0].manaPool.G).toBe(1);
         });
     });

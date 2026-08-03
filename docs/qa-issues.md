@@ -44,11 +44,6 @@ Fable of the mirror-breaker
 
 ## Carte rotte
 
-- Dralnu's Crusade non aggiunge il colore nero ai goblin in gioco
-- Le terre giocate dal cimitero con Icetill Explorer entrano tappate
-- Berserk: la creatura non muore a fine turno dopo aver attaccato
-- Worldspine Wurm è stato messo nel cimitero con Malevolent Rumble e non ha triggerato lo shuffle
-
 ## UX da migliorare
 
 - il dialog Pay kicker cost è brutto e incoerente col resto della UI.
