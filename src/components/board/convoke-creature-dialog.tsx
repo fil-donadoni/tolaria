@@ -8,8 +8,10 @@ import { getDefinition } from "@convex/cards";
 import { STATIC_EFFECT_CTX } from "@convex/gre/layers";
 import { coverColoredAndHybridPips } from "@convex/gre/payWith";
 import GameDialog from "~/components/ui/game-dialog";
+import { Button } from "~/components/ui/button";
 import CardImage from "~/components/cards/card-image";
 import { PILE_GRID_TILE_W } from "~/lib/card-layout";
+import { pickerRingClass } from "~/lib/picker-ring";
 
 /** CR 702.51 (`payWith`, ADR 0063 — issue #1338) — the Convoke creature picker.
  *  Active when this player's `pendingCast` is waiting for them to tap creatures
@@ -189,11 +191,7 @@ export default function ConvokeCreatureDialog({
                             disabled={isPending}
                             onClick={() => toggle(card.id)}
                             title={getDefinition(card.card.id).name}
-                            className={`relative ${PILE_GRID_TILE_W} aspect-5/7 rounded-sm overflow-hidden ring-1 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
-                                isSel
-                                    ? "ring-2 ring-accent"
-                                    : "ring-transparent hover:ring-2 hover:ring-accent"
-                            }`}
+                            className={`relative ${PILE_GRID_TILE_W} aspect-5/7 rounded-sm overflow-hidden transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${pickerRingClass(isSel)}`}
                         >
                             <CardImage card={card} />
                         </button>
@@ -201,14 +199,15 @@ export default function ConvokeCreatureDialog({
                 })}
             </div>
             <div className="mt-3 flex justify-end">
-                <button
+                <Button
                     type="button"
+                    variant="primary"
+                    size="sm"
                     disabled={isPending || !requirementMet}
                     onClick={() => void handleConfirm()}
-                    className="rounded-sm px-4 py-2 bg-accent hover:bg-accent-strong text-black font-medium disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >
                     {`Tap ${selected.length}/${choice.max}`}
-                </button>
+                </Button>
             </div>
         </GameDialog>
     );

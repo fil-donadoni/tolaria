@@ -21,6 +21,7 @@ import {
     buildCategorySections,
     type PileCategory,
 } from "~/lib/categorized-pile";
+import { pickerRingClass } from "~/lib/picker-ring";
 
 /** Small counter chips overlaid on a revealed pile card (fan/grid dialog) —
  *  the exile/graveyard pickers need them (Dauthi Voidwalker's void counter is
@@ -144,14 +145,6 @@ function isCardFaceDown(
  *  fan's width is derived from it so the flex container hugs the cards with no
  *  empty trailing space. */
 const FAN_OVERLAP = 0.8;
-
-/** Ring class for a selectable card: signal-self once picked, signal-pending
- *  otherwise. */
-function selectionRing(isSelected: boolean): string {
-    return isSelected
-        ? "ring-2 ring-signal-self hover:ring-signal-self-strong"
-        : "ring-2 ring-signal-pending hover:ring-signal-pending-strong";
-}
 
 /** Whether a revealed card is a legal pick under an (optional) filtered
  *  search allow-list (issue #933). No `eligibleIds` means an unfiltered
@@ -293,7 +286,7 @@ function FanLayout({
                                         onCardClick(cardInstance);
                                         onClose();
                                     }}
-                                    className={`w-full h-full bg-transparent border-0 p-0 cursor-pointer rounded ${selectionRing(isSelected)}`}
+                                    className={`w-full h-full bg-transparent border-0 p-0 cursor-pointer rounded ${pickerRingClass(isSelected)}`}
                                 >
                                     {inner}
                                 </button>
@@ -410,7 +403,7 @@ function GridCard({
                             onCardClick(cardInstance);
                             onClose();
                         }}
-                        className={`w-full h-full bg-transparent border-0 p-0 cursor-pointer rounded ${selectionRing(isSelected)}`}
+                        className={`w-full h-full bg-transparent border-0 p-0 cursor-pointer rounded ${pickerRingClass(isSelected)}`}
                     >
                         {inner}
                     </button>

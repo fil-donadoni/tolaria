@@ -115,6 +115,19 @@ describe("GraveyardTargetDialog routing (#314)", () => {
         expect(screen.getByTestId("card-img-m1")).toBeTruthy();
     });
 
+    // QA: every candidate card must show a PERSISTENT yellow ring (not
+    // hover-only) so the legal picks are visible without moving the mouse —
+    // the same signal-pending/signal-self convention `cards-pile.tsx` uses,
+    // now shared via `pickerRingClass` (~/lib/picker-ring).
+    it("candidate cards show the persistent yellow candidate ring", () => {
+        const me = player("me", "Me", [gyCard("m1", "me"), gyCard("m2", "me")]);
+        renderDialog(pending({ controller: "you" }), [me], me);
+
+        const btn = screen.getByTestId("card-img-m1").closest("button")!;
+        expect(btn.className).toContain("ring-signal-pending");
+        expect(btn.className).not.toContain("ring-signal-self");
+    });
+
     it("two eligible graveyards (controller: any) → persistent tabs, first shown by default", () => {
         const me = player("me", "Me", [gyCard("m1", "me")]);
         const opp = player("opp", "Opp", [gyCard("o1", "opp")]);

@@ -194,7 +194,27 @@ An **Activated Ability** that produces **Mana** and has no target. Resolves imme
 _Avoid_: Tap for mana
 
 **Keyword**:
-A shorthand for a defined ability (flying, haste, first strike, etc.). Stored as `staticAbilities[]` on a **Card Instance**.
+A shorthand for a defined ability (flying, haste, first strike, etc.). Read off a **Card Instance** as an **Effective Characteristic**, never as printed text alone — a keyword may be granted or removed by a **Continuous Effect**.
+
+**Continuous Effect**:
+An effect that applies over a span of time rather than at a single moment (CR 611) — from a **Static Ability**, or generated for a duration by a resolved **Spell** or ability ("until end of turn"), or carried by a **Counter**. The CR splits them in two, and the engine follows that split: a **Characteristic-Changing** effect (CR 613 — power/toughness, color, types, subtypes, abilities, control) is ordered by the **Layer** system; a **Rules-Modifying** effect (CR 611.3 — attack and block restrictions, cost modifiers, cast timing locks, hand size, untap restrictions) changes no characteristic, never enters the layer system, and is ordered by **Timestamp** alone.
+_Avoid_: Static effect (that names only the _source shape_, not the duration-based or counter-borne cases), passive effect, buff
+
+**Layer**:
+One of the seven ordered stages a **Characteristic-Changing** **Continuous Effect** is applied in (CR 613.1): 1 copy, 2 control, 3 text, 4 type, 5 color, 6 ability, 7 power/toughness. Every effect is applied in its layer regardless of when it started, so a later effect in an earlier layer still applies first. A characteristic is not stored and mutated — it is recomputed from the base object plus every applicable effect each time it is read.
+_Avoid_: Pass, stage, priority (that's the **Priority** turn-order term)
+
+**Timestamp**:
+The moment a **Continuous Effect** started, and the tiebreak that orders two effects inside one **Layer** (CR 613.7) — later wins, so a **Keyword** granted after a "loses all abilities" effect comes back. A single monotonic sequence covers grants and removals alike, which is what makes them interleave correctly. Dependency (CR 613.8 — an effect applying out of timestamp order because another changes what it does) is a **Documented Divergence**, not implemented.
+_Avoid_: Sequence number, order, priority
+
+**Continuous Effects Registry**:
+The single list of every active **Characteristic-Changing** **Continuous Effect** in a game, each entry carrying its **Layer**, **Timestamp**, and expiry. It is the sole source of truth for **Effective Characteristics**: the engine reads no materialised per-**Card Instance** copy of a granted keyword or buff. One list because the CR draws no distinction between an effect from a **Permanent** on the battlefield and one left behind by a resolved **Spell** — both are simply continuous effects with a timestamp (ADR 0082).
+_Avoid_: Static effect table, buff list, modifier stack
+
+**Effective Characteristic**:
+A characteristic's value _after_ every applicable **Continuous Effect** has been applied in **Layer** and **Timestamp** order — as opposed to its printed or base value. Always derived at read time. What crosses to the client is a snapshot of the derived value, computed when the state is projected; the client never re-derives it and never holds authority over it.
+_Avoid_: Current value, actual value, computed stat
 
 **Cumulative Upkeep**:
 A **Keyword** ability (CR 702.24) on a **Permanent**: at the beginning of its **Controller**'s upkeep an **Age Counter** is put on it, then the controller _may_ pay the cumulative upkeep cost once for each age counter on it; declining — or being unable to pay — sacrifices it. The cost therefore grows by one increment each turn the **Permanent** survives. In the Ice Age era the cost is mana, life, or a sacrifice.

@@ -7,6 +7,7 @@ import { getDefinition } from "@convex/cards";
 import GameDialog from "~/components/ui/game-dialog";
 import { Button } from "~/components/ui/button";
 import CardImage from "~/components/cards/card-image";
+import { pickerRingClass } from "~/lib/picker-ring";
 
 /** Exile-from-graveyard activation-cost picker (FEM Night Soil, CR 602.1 /
  *  118.5 / 406). Active when this player's `pendingActivation` is waiting for
@@ -139,11 +140,7 @@ export default function ExileCostDialog({
                                     disabled={isPending}
                                     onClick={() => toggle(card.id)}
                                     title={getDefinition(card.card.id).name}
-                                    className={`relative rounded-sm overflow-hidden ring-1 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
-                                        isSel
-                                            ? "ring-2 ring-accent"
-                                            : "ring-transparent hover:ring-2 hover:ring-accent"
-                                    }`}
+                                    className={`relative rounded-sm overflow-hidden transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${pickerRingClass(isSel)}`}
                                 >
                                     <CardImage card={card} />
                                 </button>

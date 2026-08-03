@@ -7,8 +7,10 @@ import type { EffectCardFilter } from "@convex/cards/types";
 import { getDefinition } from "@convex/cards";
 import { matchesHandCardFilter as handCardMatches } from "~/lib/card-utils";
 import GameDialog from "~/components/ui/game-dialog";
+import { Button } from "~/components/ui/button";
 import CardImage from "~/components/cards/card-image";
 import { PILE_GRID_TILE_W } from "~/lib/card-layout";
+import { pickerRingClass } from "~/lib/picker-ring";
 
 type HandChoice = {
     action: "exile" | "discard";
@@ -112,11 +114,7 @@ export default function CastAlternativeHandCostDialog({
                             disabled={isPending}
                             onClick={() => toggle(card.id)}
                             title={getDefinition(card.card.id).name}
-                            className={`relative ${PILE_GRID_TILE_W} aspect-5/7 rounded-sm overflow-hidden ring-1 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
-                                isSel
-                                    ? "ring-2 ring-accent"
-                                    : "ring-transparent hover:ring-2 hover:ring-accent"
-                            }`}
+                            className={`relative ${PILE_GRID_TILE_W} aspect-5/7 rounded-sm overflow-hidden transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${pickerRingClass(isSel)}`}
                         >
                             <CardImage card={card} />
                         </button>
@@ -124,14 +122,15 @@ export default function CastAlternativeHandCostDialog({
                 })}
             </div>
             <div className="mt-3 flex justify-end">
-                <button
+                <Button
                     type="button"
+                    variant="primary"
+                    size="sm"
                     disabled={isPending || selected.length !== total}
                     onClick={() => void handleConfirm()}
-                    className="rounded-sm px-4 py-2 bg-accent hover:bg-accent-strong text-black font-medium disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >
                     {verb} {selected.length}/{total}
-                </button>
+                </Button>
             </div>
         </GameDialog>
     );
