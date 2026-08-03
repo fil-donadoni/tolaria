@@ -8,7 +8,7 @@ import { describe, it, expect } from "vitest";
 import { unearth } from "../black";
 import { grizzlyBears, crawWurm } from "../../lea";
 import { resolveTopOfStack } from "../../../../gre/state";
-import { getLegalTargets } from "../../../../gre/rules";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     makeInstance,
@@ -76,7 +76,7 @@ describe("Unearth (CR 400.7 reanimation, CR 601.2c mvFilter, CR 702.29 Cycling)"
         const legal = getLegalTargets(
             state,
             unearth.targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         );
         const legalIds = legal.map((t) =>

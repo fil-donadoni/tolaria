@@ -53,7 +53,7 @@ import {
 } from "../../../../gre/constants";
 import { STATIC_EFFECT_CTX } from "../../../../gre/layers";
 import { isGuardedAgainst } from "../../../../gre/permanentGuard";
-import { getLegalTargets } from "../../../../gre/rules";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { plains, island, swamp } from "../../lea/colorless";
 import { resolveTrigger } from "./helpers";
 // Saproling Infestation (issue #1097) — the SPELL_KICKED consumer.
@@ -108,12 +108,13 @@ describe("Blurred Mongoose (CR 701.5c can't-be-countered, 702.18 Shroud)", () =>
         const legal = getLegalTargets(
             state,
             CREATURE_REQ,
-            [],
+            {
+                ...NO_TARGETING_SOURCE,
+                types: ["Instant"],
+                isSpell: true,
+            },
             "p2",
-            undefined,
-            ["Instant"],
-            [],
-            true
+            undefined
         ).map((t) => t.id);
         expect(legal).not.toContain("mongoose");
     });

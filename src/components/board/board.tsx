@@ -455,6 +455,7 @@ export default function Board({
                 turn,
                 engineTurn,
                 stackCount: stackItems.length,
+                stackItems,
                 pendingCast,
                 pendingActivation,
                 pendingTarget,

@@ -42,6 +42,7 @@ function renderPool(player: Player) {
         turn: 1,
         engineTurn: 1,
         stackCount: 0,
+        stackItems: [],
         allPlayers: [player],
         showAllCards: false,
         debugAllActions: false,

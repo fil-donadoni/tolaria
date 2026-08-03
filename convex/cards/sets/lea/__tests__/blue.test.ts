@@ -94,6 +94,7 @@ import {
     getLegalTargets,
     getProtectedColors,
     raiseTriggerTargetSelection,
+    NO_TARGETING_SOURCE,
 } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
@@ -254,7 +255,8 @@ describe("Volcanic Eruption ({X}{U}{U}{U} — destroy X target Mountains, deal t
         });
         const legal = getLegalTargets(
             state,
-            volcanicEruption.targetRequirement!
+            volcanicEruption.targetRequirement!,
+            NO_TARGETING_SOURCE
         );
         expect(legal.map((t) => t.id)).toContain("plateau");
     });
@@ -274,7 +276,8 @@ describe("Volcanic Eruption ({X}{U}{U}{U} — destroy X target Mountains, deal t
         });
         const legal = getLegalTargets(
             state,
-            volcanicEruption.targetRequirement!
+            volcanicEruption.targetRequirement!,
+            NO_TARGETING_SOURCE
         );
         expect(legal).toHaveLength(0);
     });
@@ -1522,7 +1525,7 @@ describe("Twiddle (modal tap/untap target artifact/creature/land, CR 701.26)", (
         const legal = getLegalTargets(
             state,
             twiddle.targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         );
         const ids = legal.map((t) => t.id).sort();
@@ -3954,7 +3957,7 @@ describe("Sleight of Mind (color-word text change — CR 612, layer 3)", () => {
         const legalBefore = getLegalTargets(
             state,
             { ...baseReq, colorFilter: "W" },
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         );
         expect(legalBefore.some((t) => t.id === "w")).toBe(true);
@@ -3974,7 +3977,7 @@ describe("Sleight of Mind (color-word text change — CR 612, layer 3)", () => {
         const legalAfter = getLegalTargets(
             state,
             { ...baseReq, colorFilter: effColor },
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         );
         expect(legalAfter.some((t) => t.id === "r")).toBe(true);

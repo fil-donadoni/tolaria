@@ -19,6 +19,7 @@ import { resolveTopOfStack } from "../../../../gre/state";
 import {
     getLegalTargets,
     pendingTargetFiltersFromRequirement,
+    NO_TARGETING_SOURCE,
 } from "../../../../gre/rules";
 import { checkPermanentTargetFilters } from "../../../../gre/targetFilters";
 import { projectPublicState } from "../../../../gameProjections";
@@ -94,12 +95,14 @@ describe("Sorin, Lord of Innistrad — −6 self-exclusion (CR 601.2c, issue #14
         const legal = getLegalTargets(
             state,
             req,
-            [],
+            {
+                ...NO_TARGETING_SOURCE,
+                types: sorinLordOfInnistrad.types,
+                subtypes: sorinLordOfInnistrad.subtypes ?? [],
+                isSpell: false,
+            },
             "p1",
-            undefined,
-            sorinLordOfInnistrad.types,
-            sorinLordOfInnistrad.subtypes,
-            false
+            undefined
         );
         const ids = legal.map((t) => ("id" in t ? t.id : ""));
         expect(ids).toContain("pw2");

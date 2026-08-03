@@ -51,6 +51,7 @@ function renderStack(
         turn: 1,
         engineTurn: 1,
         stackCount: stack.length,
+        stackItems: [],
         allPlayers,
         showAllCards: false,
         debugAllActions: false,

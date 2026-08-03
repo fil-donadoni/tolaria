@@ -96,6 +96,7 @@ function renderOverlay(viewerId: string, choice = WIN_CHOICE) {
         turn: 1,
         engineTurn: 1,
         stackCount: 0,
+        stackItems: [],
         allPlayers: players,
         showAllCards: false,
         debugAllActions: false,

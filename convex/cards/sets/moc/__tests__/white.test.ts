@@ -19,7 +19,7 @@ import { guardianScalelord } from "../white";
 import { getCardByName } from "../../../index";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
-import { getLegalTargets } from "../../../../gre/rules";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import type { CardInstanceState, StackItem } from "../../../../gre/state";
 
 const ATTACK_TRIGGER = guardianScalelord.triggeredAbilities!.find(
@@ -158,14 +158,14 @@ describe("Guardian Scalelord (Backup 1 + Flying + dynamic power-capped reanimati
         const legal = getLegalTargets(
             state,
             ATTACK_TRIGGER.targetRequirement!,
-            [],
+            {
+                ...NO_TARGETING_SOURCE,
+                isSpell: false,
+            },
             "p1",
             undefined,
             [],
-            [],
-            false,
-            [],
-            3 // sourcePower — Guardian Scalelord's own power
+            /* sourcePower — Guardian Scalelord's own power */ 3
         );
         expect(legal).toEqual([
             { type: "graveyard-card", id: "gy-bear", playerId: "p1" },
@@ -177,14 +177,14 @@ describe("Guardian Scalelord (Backup 1 + Flying + dynamic power-capped reanimati
         const legal = getLegalTargets(
             state,
             ATTACK_TRIGGER.targetRequirement!,
-            [],
+            {
+                ...NO_TARGETING_SOURCE,
+                isSpell: false,
+            },
             "p1",
             undefined,
             [],
-            [],
-            false,
-            [],
-            6 // buffed sourcePower
+            /* buffed sourcePower */ 6
         );
         expect(legal).toHaveLength(2);
         expect(legal).toEqual(

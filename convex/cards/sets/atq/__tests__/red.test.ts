@@ -32,7 +32,7 @@ import {
     getEffectivePower,
     getEffectiveToughness,
 } from "../../../../gre/layers";
-import { getLegalTargets } from "../../../../gre/rules";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { resolveActivated, vanilla } from "./helpers";
 
 describe("Detonate ({X}{R} — destroy artifact of mv X, X damage to controller, CR 107.3 / 701.7)", () => {
@@ -83,7 +83,7 @@ describe("Detonate ({X}{R} — destroy artifact of mv X, X damage to controller,
         const ids = getLegalTargets(
             state,
             detonate.targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1",
             3
         ).map((t) => t.id);
@@ -220,7 +220,7 @@ describe("Artifact Blast (counter target artifact spell, CR 701.5a / 114.1)", ()
         const ids = getLegalTargets(
             state,
             artifactBlast.targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         ).map((t) => t.id);
         expect(ids).toContain(artifactSpell.id);

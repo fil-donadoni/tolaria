@@ -10,7 +10,7 @@ import {
     getEffectivePower,
     getEffectiveToughness,
 } from "../../../../gre/layers";
-import { getLegalTargets } from "../../../../gre/rules";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { figureOfFable } from "../multicolor";
 
 // Figure of Fable (ECL, issue #684 — shipped by #1749). Same staged-respec
@@ -119,9 +119,25 @@ describe("Figure of Fable — protection from each opponent (CR 702.16j)", () =>
         const { state, fable } = setup();
         toAvatar(state, fable);
         const requirement = { type: "Creature" as const, count: 1 };
-        const forOpponent = getLegalTargets(state, requirement, ["R"], "p2");
+        const forOpponent = getLegalTargets(
+            state,
+            requirement,
+            {
+                ...NO_TARGETING_SOURCE,
+                colors: ["R"],
+            },
+            "p2"
+        );
         expect(forOpponent.some((t) => t.id === "fable")).toBe(false);
-        const forController = getLegalTargets(state, requirement, ["R"], "p1");
+        const forController = getLegalTargets(
+            state,
+            requirement,
+            {
+                ...NO_TARGETING_SOURCE,
+                colors: ["R"],
+            },
+            "p1"
+        );
         expect(forController.some((t) => t.id === "fable")).toBe(true);
     });
 
@@ -129,7 +145,15 @@ describe("Figure of Fable — protection from each opponent (CR 702.16j)", () =>
         const { state, fable } = setup();
         fire(state, fable, "figure-of-fable-scout");
         const requirement = { type: "Creature" as const, count: 1 };
-        const forOpponent = getLegalTargets(state, requirement, ["R"], "p2");
+        const forOpponent = getLegalTargets(
+            state,
+            requirement,
+            {
+                ...NO_TARGETING_SOURCE,
+                colors: ["R"],
+            },
+            "p2"
+        );
         expect(forOpponent.some((t) => t.id === "fable")).toBe(true);
     });
 });

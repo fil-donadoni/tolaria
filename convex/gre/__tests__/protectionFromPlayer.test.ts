@@ -7,14 +7,14 @@ import {
 import {
     PROTECTION_FROM_EACH_OPPONENT,
     hasProtectionFromEachOpponent,
-    isProtectedFromColors,
+    isProtectedFrom,
     isProtectedFromController,
     isProtectedFromSource,
 } from "../protection";
 import { validateBlockerEligibility } from "../combat";
-import { getLegalTargets } from "../rules";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../rules";
 
-// CR 702.16j — protection from a PLAYER ("protection from each of your
+// CR 702.16k — protection from a PLAYER ("protection from each of your
 // opponents", Figure of Fable's final stage, issue #1748). The quality is
 // re-derived live from the protected permanent's OWN controller, so a
 // control-change effect moves the protection with the permanent.
@@ -46,7 +46,7 @@ function plainCreature(id: string, controllerId: string) {
     });
 }
 
-describe("protection from each of your opponents (CR 702.16j)", () => {
+describe("protection from each of your opponents (CR 702.16k)", () => {
     it("parses the player-quality ability off staticAbilities", () => {
         expect(hasProtectionFromEachOpponent(protectedCreature("p1"))).toBe(
             true
@@ -65,9 +65,14 @@ describe("protection from each of your opponents (CR 702.16j)", () => {
     it("fails closed when the source controller is unknown", () => {
         // A colour-only call site passes no controller — it must not silently
         // start barring every source.
-        expect(isProtectedFromColors(protectedCreature("p1"), ["R"])).toBe(
-            false
-        );
+        expect(
+            isProtectedFrom(protectedCreature("p1"), {
+                colors: ["R"],
+                types: ["Instant"],
+                supertypes: [],
+                controllerId: undefined,
+            })
+        ).toBe(false);
         expect(
             isProtectedFromController(protectedCreature("p1"), undefined)
         ).toBe(false);
@@ -98,9 +103,25 @@ describe("protection from each of your opponents (CR 702.16j)", () => {
             ],
         });
         const requirement = { type: "Creature" as const, count: 1 };
-        const forOpponent = getLegalTargets(state, requirement, ["R"], "p2");
+        const forOpponent = getLegalTargets(
+            state,
+            requirement,
+            {
+                ...NO_TARGETING_SOURCE,
+                colors: ["R"],
+            },
+            "p2"
+        );
         expect(forOpponent.some((t) => t.id === "protected")).toBe(false);
-        const forController = getLegalTargets(state, requirement, ["R"], "p1");
+        const forController = getLegalTargets(
+            state,
+            requirement,
+            {
+                ...NO_TARGETING_SOURCE,
+                colors: ["R"],
+            },
+            "p1"
+        );
         expect(forController.some((t) => t.id === "protected")).toBe(true);
     });
 

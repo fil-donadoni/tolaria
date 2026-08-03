@@ -24,7 +24,7 @@ import {
     getEffectivePower,
     getEffectiveToughness,
 } from "../../../../gre/layers";
-import { getLegalTargets } from "../../../../gre/rules";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { registerTokenDefinition } from "../../..";
 
 const CREATURE_ID = "6914c5a8-2114-41c5-a471-ca97524d622f"; // Sabretooth Tiger
@@ -715,7 +715,7 @@ describe("Lorehold Charm (CR 700.2 modal — edict sacrifice, graveyard reanimat
             state,
             loreholdCharm.modes!.find((m) => m.id === "reanimate")!
                 .targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         );
         const ids = legal.map((t) => t.id);

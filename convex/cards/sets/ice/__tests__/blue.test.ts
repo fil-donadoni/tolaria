@@ -94,6 +94,7 @@ import { projectPublicState } from "../../../../gameProjections";
 import {
     getLegalTargets,
     pendingTargetFiltersFromRequirement,
+    NO_TARGETING_SOURCE,
 } from "../../../../gre/rules";
 import { enumerateMoves } from "../../../../gre/moves";
 import {
@@ -1195,7 +1196,7 @@ describe("Dreams of the Dead (reanimate + granted CU {2} + exile-on-leave)", () 
         const req = dreamsOfTheDead.activatedAbilities![0].targetRequirement!;
 
         // Offered set (`getLegalTargets`): the green creature is never in it.
-        const legal = getLegalTargets(state, req, [], "p1");
+        const legal = getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1");
         const legalIds = legal
             .filter((t) => t.type === "graveyard-card")
             .map((t) => t.id);
@@ -2742,7 +2743,12 @@ describe("Mistfolk — counter spell that targets it (CR 701.5a / 114.1)", () =>
             state as never
         );
         expect(req.spellTargetsInstanceIds).toEqual(["mist"]);
-        const legal = getLegalTargets(state, req, [], "p1").map((t) => t.id);
+        const legal = getLegalTargets(
+            state,
+            req,
+            NO_TARGETING_SOURCE,
+            "p1"
+        ).map((t) => t.id);
         expect(legal).toContain(atMist.id);
         expect(legal).not.toContain(atOther.id);
     });

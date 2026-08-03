@@ -73,7 +73,7 @@ import {
     getEffectiveToughness,
     STATIC_EFFECT_CTX,
 } from "../../../../gre/layers";
-import { getLegalTargets } from "../../../../gre/rules";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { getEffectiveColors } from "../../../effectiveColors";
 import { castProhibitionReason } from "../../../castRestrictions";
 import { announceCast } from "../../../../game";
@@ -1313,14 +1313,21 @@ describe("Hull Breach ({R}{G} — modal, third mode takes TWO independent target
         const ids = (ts: ReturnType<typeof getLegalTargets>) =>
             ts.filter((t) => "id" in t).map((t) => (t as { id: string }).id);
         expect(
-            ids(getLegalTargets(state, bothMode.targetRequirement!, [], "p1"))
+            ids(
+                getLegalTargets(
+                    state,
+                    bothMode.targetRequirement!,
+                    NO_TARGETING_SOURCE,
+                    "p1"
+                )
+            )
         ).toEqual(["art-1"]);
         expect(
             ids(
                 getLegalTargets(
                     state,
                     bothMode.additionalTargetRequirements![0],
-                    [],
+                    NO_TARGETING_SOURCE,
                     "p1"
                 )
             )
@@ -1937,9 +1944,12 @@ describe("Treva's Charm ({G}{W}{U} modal instant, CR 601.2b, issue #1954)", () =
         });
         const mode = trevasCharm.modes!.find((m) => m.id === "exile-attacker")!;
         expect(
-            getLegalTargets(state, mode.targetRequirement!, [], "p1").some(
-                (t) => "id" in t && t.id === "attacker"
-            )
+            getLegalTargets(
+                state,
+                mode.targetRequirement!,
+                NO_TARGETING_SOURCE,
+                "p1"
+            ).some((t) => "id" in t && t.id === "attacker")
         ).toBe(true);
         const item = pushSpell(state, trevasCharm.id, "p1", [
             { type: "permanent", id: "attacker" },

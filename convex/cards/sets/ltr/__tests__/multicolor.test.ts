@@ -8,7 +8,7 @@ import {
     resolveTopOfStack,
     payRemoveCounterCost,
 } from "../../../../gre/state";
-import { getLegalTargets } from "../../../../gre/rules";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     makeInstance,
@@ -171,7 +171,12 @@ describe("Arwen, Mortal Queen — activated ability (CR 122.6 cost, CR 611.1b la
             { ...arwen } as never,
             state as never
         );
-        const legal = getLegalTargets(state, req, [], "p1").map((t) => t.id);
+        const legal = getLegalTargets(
+            state,
+            req,
+            NO_TARGETING_SOURCE,
+            "p1"
+        ).map((t) => t.id);
         expect(legal).toContain("other");
         expect(legal).not.toContain("arwen2");
     });

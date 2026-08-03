@@ -126,6 +126,7 @@ function renderForDefender(
         turn: 1,
         engineTurn: 1,
         stackCount: 0,
+        stackItems: [],
         allPlayers: [me, opp],
         showAllCards: false,
         debugAllActions: false,

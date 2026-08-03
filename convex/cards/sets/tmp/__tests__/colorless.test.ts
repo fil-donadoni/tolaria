@@ -10,7 +10,7 @@ import {
     tapSourceIntoPayment,
 } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
-import { getLegalTargets } from "../../../../gre/rules";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import {
     resolveTopOfStack,
     type CardInstanceState,
@@ -244,11 +244,15 @@ describe("Wasteland (CR 701.26 mana ability / CR 701.7 destroy nonbasic land)", 
                 makePlayer("p2", { battlefield: [nonbasic] }),
             ],
         });
-        const legal = getLegalTargets(state, {
-            type: "Land",
-            count: 1,
-            excludeSupertypes: "Basic",
-        });
+        const legal = getLegalTargets(
+            state,
+            {
+                type: "Land",
+                count: 1,
+                excludeSupertypes: "Basic",
+            },
+            NO_TARGETING_SOURCE
+        );
         const legalIds = legal.map((t) => ("id" in t ? t.id : undefined));
         expect(legalIds).toContain("nonbasic");
         expect(legalIds).not.toContain("basic");

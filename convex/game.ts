@@ -202,10 +202,9 @@ import {
     checkCardTargetFilters,
     pickCardFilterValues,
     type TargetFilterCtx,
-    getPendingTargetSourceColors,
-    getPendingTargetSourceTypes,
-    getPendingTargetSourceSubtypes,
-    isProtectedFromColors,
+    pendingTargetingSource,
+    isProtectedFrom,
+    targetingSourceFromCard,
     pendingTargetFiltersFromRequirement,
     raiseTriggerTargetSelection,
     solvePhyrexianSplit,
@@ -6802,18 +6801,17 @@ export const announceCast = mutation({
         if (activeTargetRequirement && requiresTargets) {
             // CR 202.2 / 702.16b: source colors derived from the casting
             // card's mana cost, so getLegalTargets can exclude permanents
-            // with protection from any of those colors.
-            const sourceColors = STATIC_EFFECT_CTX.getColors(cardInHand);
+            // with protection from any of those qualities. Casting from hand
+            // — the source is a spell (CR 113.3). All five characteristics
+            // come from the ONE factory (CR 202.2 colours, 205.2 types, 205.3
+            // subtypes, 205.4a supertypes), so none can be dropped.
+            const castSource = targetingSourceFromCard(cardInHand, true);
             const legalTargets = getLegalTargets(
                 state,
                 activeTargetRequirement,
-                sourceColors,
+                castSource,
                 args.playerId,
-                chosenX,
-                cardInHand.types,
-                cardInHand.subtypes,
-                // Casting from hand — the source is a spell (CR 113.3).
-                true
+                chosenX
             );
             if (legalTargets.length === 0) {
                 throw new Error("No legal targets available");
@@ -6843,12 +6841,9 @@ export const announceCast = mutation({
                 const extraLegal = getLegalTargets(
                     state,
                     extra,
-                    sourceColors,
+                    castSource,
                     args.playerId,
-                    chosenX,
-                    cardInHand.types,
-                    cardInHand.subtypes,
-                    true
+                    chosenX
                 );
                 if (
                     extraLegal.length <
@@ -9385,42 +9380,49 @@ export function applyOneTargetSelection(
             }
         );
         if (filterViolation) throw new Error(filterViolation);
-        // CR 702.16b: a permanent with protection from [color] can't be
-        // targeted by a spell/ability whose source has that color.
-        const sourceColors = getPendingTargetSourceColors(
+        // CR 702.16b / 611 — the source whose target-selection is in progress.
+        const guardSourceKind = pt.kind ?? "cast";
+        // The ACCEPTED set applies the same quality gates as the offered set
+        // (CR 702.16b protection, CR 611 `cantBeTargeted` guards) — and it
+        // derives them from the SAME `pendingTargetingSource` the offered set
+        // uses (`legalActions.ts`'s enumerator, `raiseTriggerTargetSelection`'s
+        // engine path). ONE call, not five parallel `getPendingTargetSource*`
+        // reads: while each dimension was fetched separately, the two sides
+        // could — and did — disagree on one of them per `kind` (the offered
+        // side dropped CR 205.4a supertypes for triggers; the accepted side
+        // then kept CR 113.3 `isSpell` as `kind !== "ability"`, which calls a
+        // TRIGGERED ability a spell). Issue #1120 review rounds 1 and 2.
+        const targetingSource = pendingTargetingSource(
             state,
             pt.cardInstanceId,
-            pt.kind ?? "cast"
+            guardSourceKind
         );
-        // The ACCEPTED set must apply the same quality checks as the
-        // offered set above (CR 702.16b) — including the CR 702.16j player
-        // quality (issue #1748), for which the targeting player IS the
-        // source's controller.
-        if (isProtectedFromColors(matchedCard, sourceColors, pt.playerId)) {
+        // CR 702.16b — the colour form, the CR 702.16k player quality (issue
+        // #1748) for which the targeting player IS the source's controller,
+        // and the CR 702.16a CHARACTERISTIC quality (issue #1120) read off the
+        // source's live types/supertypes.
+        if (
+            isProtectedFrom(matchedCard, {
+                colors: targetingSource.colors,
+                types: targetingSource.types,
+                supertypes: targetingSource.supertypes,
+                controllerId: pt.playerId,
+            })
+        ) {
             throw new Error("Target has protection from this source");
         }
         // CR 611 — a continuous `permanent-guard` (Guardian Beast / shroud)
         // may bar targeting entirely. Mirror of the getLegalTargets gate.
         // The source's card types (CR 109.5), subtypes ("Aura spells"), and
-        // spell-vs-ability (CR 113.3 "spells only") narrow filtered guards.
-        const guardSourceKind = pt.kind ?? "cast";
-        const sourceTypes = getPendingTargetSourceTypes(
-            state,
-            pt.cardInstanceId,
-            guardSourceKind
-        );
-        const sourceSubtypes = getPendingTargetSourceSubtypes(
-            state,
-            pt.cardInstanceId,
-            guardSourceKind
-        );
+        // spell-vs-ability (CR 113.3 "spells only" — Lurker) narrow filtered
+        // guards.
         if (
             isGuardedAgainst(state, matchedCard, "cantBeTargeted", {
-                types: sourceTypes,
-                subtypes: sourceSubtypes,
-                // copy-retarget is a spell copy; cast is a spell; ability
-                // is not (CR 113.3).
-                isSpell: guardSourceKind !== "ability",
+                types: targetingSource.types,
+                subtypes: targetingSource.subtypes,
+                // CR 113.3 — cast and (copy-)retarget are spells; an
+                // activated OR triggered ability is not.
+                isSpell: targetingSource.isSpell,
                 // CR 702.11b — the source's controller (the selecting
                 // player). Hexproof bars only an opponent-controlled source;
                 // the permanent's own controller can still target it.
@@ -12340,7 +12342,6 @@ export function activateAbilityOnState(
             targetHasXInCost && !xIsDerived ? args.chosenX : undefined;
         // CR 202.2 / 702.16b: the source's colors come from the
         // permanent owning the activated ability.
-        const abilitySourceColors = STATIC_EFFECT_CTX.getColors(card);
         // Issue #1378 — the activating permanent's LIVE effective power (CR
         // 613 layer 7c), for a `mvFilter` bound of `"sourcePower"`. Read the
         // same way the ability's own `dealDamage`-style effects would
@@ -12351,13 +12352,13 @@ export function activateAbilityOnState(
         const legal = getLegalTargets(
             state,
             effectiveTargetReq,
-            abilitySourceColors,
+            // CR 113.3 — the source is an activated ability, not a spell. All
+            // five characteristics come from the ONE factory, so no dimension
+            // (notably CR 205.4a supertypes, for a protection quality) can be
+            // dropped here.
+            targetingSourceFromCard(card, false),
             args.playerId,
             targetChosenX,
-            card.types,
-            card.subtypes,
-            // Source is an activated ability, not a spell (CR 113.3).
-            false,
             [],
             abilitySourcePower
         );

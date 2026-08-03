@@ -57,6 +57,7 @@ export function useBattlefieldVisualState(player: Player) {
         combat,
         allPlayers,
         emblems,
+        stackItems,
         engineTurn,
         controlChangedThisTurn,
     } = useGameContext();
@@ -397,6 +398,9 @@ export function useBattlefieldVisualState(player: Player) {
                     card,
                     pendingTarget.cardInstanceId,
                     pendingTarget.kind,
+                    // CR 405 — a triggered ability's source is an on-stack
+                    // item, resolvable only from here.
+                    stackItems,
                     // CR 702.11b — the chooser controls the source; hexproof
                     // bars only an opponent's source, never the own controller.
                     pendingTarget.playerId
@@ -524,6 +528,22 @@ export function useBattlefieldVisualState(player: Player) {
                 allPlayers,
                 activePlayerId,
                 emblems
+            ) &&
+            // CR 702.16b / 702.18 / 611 (issue #1120) — a permanent the server
+            // would reject must not GLOW as a target either. This is the same
+            // gate the click handler (`useBattlefieldInteraction`) and
+            // `canInteract` above already apply; folding it in here keeps the
+            // faded-gold "valid target" ring and the click in agreement, so a
+            // creature with protection from the source's quality (Tsabo
+            // Tavoc's "protection from legendary creatures") reads as the
+            // non-target it is instead of glowing and doing nothing.
+            !isUntargetableByPending(
+                allPlayers,
+                card,
+                pendingTarget.cardInstanceId,
+                pendingTarget.kind,
+                stackItems,
+                pendingTarget.playerId
             );
 
         const isTargetSelected =

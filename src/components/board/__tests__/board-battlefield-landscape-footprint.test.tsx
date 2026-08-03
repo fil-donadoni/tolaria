@@ -126,6 +126,7 @@ function renderBattlefield(compact?: ReturnType<typeof landscapeCardMetrics>) {
                     turn: 1,
                     engineTurn: 1,
                     stackCount: 0,
+                    stackItems: [],
                     allPlayers: [player],
                     showAllCards: false,
                     debugAllActions: false,

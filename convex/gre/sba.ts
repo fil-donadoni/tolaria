@@ -190,10 +190,21 @@ export function checkAuraAttachmentSBA(state: GameState): boolean {
  * illegal permanent, it becomes unattached and REMAINS on the battlefield —
  * unlike an Aura, which is put into its owner's graveyard (CR 704.5m,
  * `checkAuraAttachmentSBA` above). Illegal means: the host has left the
- * battlefield, or the host has stopped being a creature. Equipment legality
- * is CONTROL-INDEPENDENT (CR 301.5c) — an Equipment can legally sit on a
+ * battlefield, the host has stopped being a creature, or — CR 702.16d, issue
+ * #1120 — the host has PROTECTION from a quality the Equipment has ("A
+ * permanent with protection can't be equipped by Equipment that have the
+ * stated quality … Such Equipment become unattached from that permanent as a
+ * state-based action, but remain on the battlefield"). The protection clause
+ * covers every quality family the parser names (colour, player, and the
+ * CHARACTERISTIC form Tsabo Tavoc introduced) because it reads the SAME
+ * `isProtectedFromSource` predicate the Aura clause (702.16c) and the
+ * targeting / damage / blocking clauses read. Equipment legality is otherwise
+ * CONTROL-INDEPENDENT (CR 301.5c) — an Equipment can legally sit on a
  * creature its controller doesn't control, so losing control of the host is
- * NOT an illegal-attachment condition here.
+ * NOT an illegal-attachment condition here. Note CR 702.16n/p's
+ * `exemptFromProtectionDetach` carve-out is Aura-only (it is written for Auras
+ * that grant the protection they'd otherwise be removed by), so it
+ * deliberately does not apply on this branch.
  *
  * Scope: `attachedTo` is currently set by exactly two attachment kinds — an
  * Aura (handled above) and an Equipment-subtype permanent (Reconfigure
@@ -210,7 +221,12 @@ export function checkAttachmentSBA(state: GameState): boolean {
             if (!card.attachedTo) continue;
             if (!card.subtypes.includes("Equipment")) continue;
             const host = findOnBattlefield(state, card.attachedTo);
-            if (!host || !isCreature(host)) {
+            if (
+                !host ||
+                !isCreature(host) ||
+                // CR 702.16d — protection unattaches the Equipment.
+                isProtectedFromSource(host, card)
+            ) {
                 toDetach.push(card.id);
             }
         }

@@ -184,6 +184,7 @@ function renderController(
         turn: 1,
         engineTurn: 1,
         stackCount: 0,
+        stackItems: [],
         allPlayers: [makePlayer()],
         showAllCards: false,
         debugAllActions: false,

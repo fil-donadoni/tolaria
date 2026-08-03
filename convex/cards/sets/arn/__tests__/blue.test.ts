@@ -22,7 +22,7 @@ import {
     getEffectivePower,
     getEffectiveToughness,
 } from "../../../../gre/layers";
-import { getLegalTargets } from "../../../../gre/rules";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import type { StackItem } from "../../../../gre/state";
 import {
@@ -287,7 +287,12 @@ describe("Old Man of the Sea ({T}: steal a creature with power <= its own while 
             { ...old } as never,
             state as never
         );
-        const legal = getLegalTargets(state, req, [], "p1").map((t) => t.id);
+        const legal = getLegalTargets(
+            state,
+            req,
+            NO_TARGETING_SOURCE,
+            "p1"
+        ).map((t) => t.id);
         expect(legal).toContain("small");
         expect(legal).not.toContain("big");
     });

@@ -23,7 +23,7 @@ import {
     pushSpell,
 } from "@convex/cards/__tests__/setup";
 import { resolveTopOfStack } from "@convex/gre/state";
-import { getLegalTargets } from "@convex/gre/rules";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "@convex/gre/rules";
 import { resurrection, animateDead } from "@convex/cards/sets/lea";
 import { grizzlyBears } from "@convex/cards/sets/lea";
 import type { GameState } from "@convex/gre/state";
@@ -96,7 +96,7 @@ describe("graveyard target dialog full path (#314)", () => {
         const legal = getLegalTargets(
             state,
             resurrection.targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         );
         expect(legal.map((t) => `${t.playerId}:${t.id}`)).toEqual(["p1:dead"]);
@@ -156,7 +156,7 @@ describe("graveyard target dialog full path (#314)", () => {
         const legal = getLegalTargets(
             state,
             animateDead.targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         );
         expect(legal.map((t) => `${t.playerId}:${t.id}`).sort()).toEqual([

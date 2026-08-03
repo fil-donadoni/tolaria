@@ -49,6 +49,7 @@ import { finalizeCleanup } from "../../../../gre/phases";
 import {
     getLegalTargets,
     raiseTriggerTargetSelection,
+    NO_TARGETING_SOURCE,
 } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
 import {
@@ -184,7 +185,7 @@ describe("Flood — {U}{U}: tap target creature without flying (CR 701.20a / 702
         const legal = getLegalTargets(
             state,
             flood.activatedAbilities![0].targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         ).map((t) => t.id);
         expect(legal).toContain("ground");
@@ -427,7 +428,7 @@ describe("Merfolk Assassin — destroy target creature with islandwalk (CR 605 /
         const legal = getLegalTargets(
             state,
             merfolkAssassin.activatedAbilities![0].targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         ).map((t) => t.id);
         expect(legal).toContain("walker");
@@ -913,7 +914,7 @@ describe("Dance of Many — definition (modern Scryfall oracle, ADR 0004)", () =
         const legal = getLegalTargets(
             state,
             etb.targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         ).map((t) => t.id);
         expect(legal).not.toContain("a-token");

@@ -47,6 +47,7 @@ import {
     assertLegalAction,
     getLegalActions,
     getLegalTargets,
+    NO_TARGETING_SOURCE,
 } from "../../../../gre/rules";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import {
@@ -114,7 +115,7 @@ describe("Ashes to Ashes — exile two nonartifact creatures, 5 to you (CR 701.1
         const legal = getLegalTargets(
             state,
             ashesToAshes.targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         );
         const ids = legal.map((t) => t.id);

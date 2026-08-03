@@ -44,7 +44,7 @@ import {
     applyAllCombatDamage,
     emitBlockersConfirmedEvents,
 } from "../../../../gre/phases";
-import { getLegalTargets } from "../../../../gre/rules";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import {
     type CardInstanceState,
@@ -367,7 +367,7 @@ describe("Tracker — Fight primitive (CR 701.12 mutual damage)", () => {
         const legal = getLegalTargets(
             state,
             tracker.activatedAbilities![0].targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         );
         expect(legal.map((t) => t.id)).toContain("foe");
@@ -558,12 +558,12 @@ describe("Lurker — can't be the target of spells unless it fought (CR 115 / 11
         const targets = getLegalTargets(
             state,
             lightningBolt.targetRequirement!,
-            [], // sourceColors
-            "p1", // casterId
-            undefined, // chosenX
-            [], // sourceTypes
-            [], // sourceSubtypes
-            true // sourceIsSpell
+            {
+                ...NO_TARGETING_SOURCE,
+                isSpell: true, // sourceIsSpell,
+            },
+            "p1",
+            undefined
         );
         expect(targets.some((t) => t.id === "lurk")).toBe(false);
     });
@@ -573,12 +573,12 @@ describe("Lurker — can't be the target of spells unless it fought (CR 115 / 11
         const targets = getLegalTargets(
             state,
             lightningBolt.targetRequirement!,
-            [],
+            {
+                ...NO_TARGETING_SOURCE,
+                isSpell: true,
+            },
             "p1",
-            undefined,
-            [],
-            [],
-            true
+            undefined
         );
         expect(targets.some((t) => t.id === "lurk")).toBe(true);
     });

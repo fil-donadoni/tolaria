@@ -82,7 +82,7 @@ import {
 } from "../../../../gre/phases";
 import { recordBlockedAttackers } from "../../../../gre/banding";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
-import { getLegalTargets } from "../../../../gre/rules";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { tryAutoCommitPendingActivation } from "../../../../game";
 import {
     makeInstance,
@@ -1649,7 +1649,7 @@ describe("Hymn of Rebirth — cross-graveyard reanimation under your control (CR
         const legal = getLegalTargets(
             state,
             hymnOfRebirth.targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         );
         const ids = legal.map((t) => t.id);
@@ -2241,7 +2241,7 @@ describe("Brown Ouphe — filtered ability counter (CR 701.5a / 113.7a)", () => 
     it("targets an activated ability whose source is an artifact", () => {
         const state = makeState();
         state.stack.push(abilityOnStack(aegisOfTheMeek.id, "aegis-ability"));
-        const legal = getLegalTargets(state, req, [], "p1");
+        const legal = getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1");
         expect(legal).toEqual([{ type: "spell", id: "aegis-ability" }]);
     });
 
@@ -2249,14 +2249,18 @@ describe("Brown Ouphe — filtered ability counter (CR 701.5a / 113.7a)", () => 
         const state = makeState();
         // A creature's activated ability on the stack — wrong source type.
         state.stack.push(abilityOnStack(balduvianBears.id, "bear-ability"));
-        expect(getLegalTargets(state, req, [], "p1")).toEqual([]);
+        expect(getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1")).toEqual(
+            []
+        );
     });
 
     it("does NOT target an artifact SPELL (only activated abilities)", () => {
         const state = makeState();
         // An artifact on the stack as a spell (no abilityId) — not an ability.
         pushSpell(state, aegisOfTheMeek.id, "p2");
-        expect(getLegalTargets(state, req, [], "p1")).toEqual([]);
+        expect(getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1")).toEqual(
+            []
+        );
     });
 
     it("counters the targeted artifact ability — it vanishes, not to graveyard (CR 113.7a)", () => {

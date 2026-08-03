@@ -140,6 +140,7 @@ function renderCtrl(
         turn: 1,
         engineTurn: 1,
         stackCount: 0,
+        stackItems: [],
         allPlayers: [me, opp],
         combat: {
             attackerIds: [],

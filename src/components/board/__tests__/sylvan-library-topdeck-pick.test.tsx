@@ -64,6 +64,7 @@ function renderWithProjection(
         turn: 1,
         engineTurn: 1,
         stackCount: projected.stack.length,
+        stackItems: [],
         allPlayers: projected.players as unknown as Player[],
         showAllCards: false,
         debugAllActions: false,

@@ -13,7 +13,7 @@ import {
     getPlayer,
     type StackItem,
 } from "../../../../gre/state";
-import { getLegalTargets } from "../../../../gre/rules";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { grizzlyBears } from "../../lea";
 import { serraAngel } from "../../lea";
 
@@ -46,7 +46,7 @@ describe("Sevinne's Reclamation (reanimate MV ≤ 3 + copy-if-flashed-back, CR 4
         const legal = getLegalTargets(
             state,
             sevinnesReclamation.targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         );
         const ids = legal.map((t) => t.id);

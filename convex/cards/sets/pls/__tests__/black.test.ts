@@ -67,6 +67,7 @@ import { applySacrificeSelection } from "../../../../gre/sacrificeChoice";
 import {
     getLegalTargets,
     pendingTargetFiltersFromRequirement,
+    NO_TARGETING_SOURCE,
 } from "../../../../gre/rules";
 import { projectPublicState } from "../../../../gameProjections";
 import { registerTokenDefinition } from "../../..";
@@ -654,7 +655,7 @@ describe("Lord of the Undead (CR 611 layer 7c anthem + CR 400.7 graveyard-return
         const req = lordOfTheUndead.activatedAbilities![0].targetRequirement!;
 
         // Offered set (`getLegalTargets`): the Bear is never in it.
-        const legal = getLegalTargets(state, req, [], "p1");
+        const legal = getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1");
         const legalIds = legal
             .filter((t) => t.type === "graveyard-card")
             .map((t) => t.id);

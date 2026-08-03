@@ -14256,6 +14256,14 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Tsabo Tavoc",
+        "scryfallId": "ccbe2539-7a7c-468b-a270-7ca1bdcccb1e",
+        "oracleId": "f98f1f71-99ec-4ffb-9d8e-acbab173f972",
+        "firstSet": "inv",
+        "firstPrintId": "ccbe2539-7a7c-468b-a270-7ca1bdcccb1e",
+        "firstPrintSet": "inv"
+    },
+    {
         "name": "Tsabo's Assassin",
         "scryfallId": "0047302d-4e3d-4327-9bb2-ecd5b00b00e3",
         "oracleId": "4d00c44b-8953-4b18-af73-2944321b6cd1",

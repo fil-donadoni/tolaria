@@ -32,6 +32,7 @@ import { stoneRain } from "../../lea/red";
 import {
     getLegalTargets,
     pendingTargetFiltersFromRequirement,
+    NO_TARGETING_SOURCE,
 } from "../../../../gre/rules";
 import {
     lowerSpellOnlyFilters,
@@ -1571,7 +1572,7 @@ describe("Confound — spell-property target filters (issue #1956)", () => {
     }
 
     const offered = (state: GameState, req = CONFOUND_REQ) =>
-        getLegalTargets(state, req, [], "p1").map((t) => t.id);
+        getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1").map((t) => t.id);
 
     /** The REAL accepted-set path: builds the `PendingTarget` with the same
      *  shared carry `announceCast` uses, then drives the exported
@@ -1768,7 +1769,7 @@ describe("Confound — spell-property target filters (issue #1956)", () => {
                 spellTargetsTypeFilter: "Creature",
                 spellWasKicked: true,
             },
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         ).map((t) => t.id);
         expect(ids).toEqual(["bear"]);

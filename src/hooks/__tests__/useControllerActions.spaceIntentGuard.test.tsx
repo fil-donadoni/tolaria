@@ -105,6 +105,7 @@ function renderCtrl() {
         turn: 1,
         engineTurn: 1,
         stackCount: 0,
+        stackItems: [],
         allPlayers: [player("me"), player("opp")],
         showAllCards: false,
         debugAllActions: false,

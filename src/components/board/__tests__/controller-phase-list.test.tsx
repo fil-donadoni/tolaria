@@ -63,6 +63,7 @@ function renderWith(
         turn: 1,
         engineTurn: 1,
         stackCount: 0,
+        stackItems: [],
         allPlayers: [],
         showAllCards: false,
         debugAllActions: false,

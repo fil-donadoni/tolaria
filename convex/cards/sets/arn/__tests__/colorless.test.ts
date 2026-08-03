@@ -51,7 +51,7 @@ import {
     applyRandomRevealAck,
 } from "../../../../gre/pendingChoiceSubmit";
 import { advancePhase, applyAllCombatDamage } from "../../../../gre/phases";
-import { getLegalTargets } from "../../../../gre/rules";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import {
     canPayDiscardLastDrawn,
     type CardInstanceState,
@@ -567,7 +567,12 @@ describe("Island of Wak-Wak ({T}: target flyer base power 0)", () => {
             ],
         });
         const req = islandOfWakWak.activatedAbilities![0].targetRequirement!;
-        const legal = getLegalTargets(state, req, [], "p1").map((t) => t.id);
+        const legal = getLegalTargets(
+            state,
+            req,
+            NO_TARGETING_SOURCE,
+            "p1"
+        ).map((t) => t.id);
         expect(legal).toContain("flyer");
         expect(legal).not.toContain("ground");
     });
@@ -649,7 +654,7 @@ describe("Desert (mana + end-of-combat ping)", () => {
         const legal = getLegalTargets(
             state,
             pingAbility.targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         );
         expect(

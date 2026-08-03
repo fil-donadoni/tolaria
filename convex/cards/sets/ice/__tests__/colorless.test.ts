@@ -146,6 +146,7 @@ import {
     getLegalTargets,
     getLegalActions,
     raiseTriggerTargetSelection,
+    NO_TARGETING_SOURCE,
 } from "../../../../gre/rules";
 import {
     tapSourceIntoPayment,
@@ -871,7 +872,7 @@ describe("Ice Floe ({T}: tap-lock a non-flying attacker, CR 611.2 / 508.1)", () 
         const legal = getLegalTargets(
             state,
             iceFloe.activatedAbilities![0].targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         ).map((t) => t.id);
         expect(legal).toContain("ground");
@@ -1939,7 +1940,7 @@ describe("Arcum's Weathervane (CR 205.4a indefinite supertype mutation)", () => 
         const legal = getLegalTargets(
             state,
             arcumsWeathervane.activatedAbilities![0].targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         ).map((t) => t.id);
         expect(legal).toContain("sf");
@@ -2043,7 +2044,7 @@ describe("Avalanche (CR 205.4a snow-land targets)", () => {
         const legal = getLegalTargets(
             state,
             { ...avalanche.targetRequirement!, count: 1 },
-            [],
+            NO_TARGETING_SOURCE,
             "p1",
             1
         ).map((t) => t.id);
@@ -2091,7 +2092,7 @@ describe("Balduvian Conjurer (CR 208.2 animate snow land)", () => {
         const legal = getLegalTargets(
             state,
             balduvianConjurer.activatedAbilities![0].targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         ).map((t) => t.id);
         expect(legal).toContain("sf");
@@ -4011,7 +4012,12 @@ describe("Arcum's Whistle (forced attack with pay-{X} gate + delayed destroy)", 
             makeInstance(grizzlyBears.id, { id: "mine", controllerId: "p1" })
         );
         const req = arcumsWhistle.activatedAbilities![0].targetRequirement!;
-        const legal = getLegalTargets(state, req, [], "p1").map((t) => t.id);
+        const legal = getLegalTargets(
+            state,
+            req,
+            NO_TARGETING_SOURCE,
+            "p1"
+        ).map((t) => t.id);
         expect(legal).toContain("victim"); // active player's creature
         expect(legal).not.toContain("mine"); // non-active player's creature
     });
@@ -4080,7 +4086,12 @@ describe("Arcum's Whistle (forced attack with pay-{X} gate + delayed destroy)", 
             })
         );
         const req = arcumsWhistle.activatedAbilities![0].targetRequirement!;
-        const legal = getLegalTargets(state, req, [], "p1").map((t) => t.id);
+        const legal = getLegalTargets(
+            state,
+            req,
+            NO_TARGETING_SOURCE,
+            "p1"
+        ).map((t) => t.id);
         expect(legal).toContain("victim");
         expect(legal).not.toContain("wall");
     });

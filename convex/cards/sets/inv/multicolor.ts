@@ -1624,18 +1624,61 @@ export const shivanEmissary: CardDefinition = {
 
 // Tsabo Tavoc — {5}{B}{R} Legendary Creature — Phyrexian Horror, 7/4.
 // "First strike, protection from legendary creatures. {B}{B}, {T}: Destroy
-// target legendary creature. It can't be regenerated." tracked-by: #1120
-// (first strike and the activated ability are both free — the destroy
-// clause's `excludeSupertypes`/`bindingPattern` machinery composes fine for
-// "target legendary creature" via `TargetRequirement.requireSupertype`-style
-// filtering. The static keyword clause is the blocker: `protection.ts` only
-// parses "protection from <color/colorless>" (CR 702.16a-g) — a non-color
-// quality like "protection from legendary creatures" (CR 702.16h-k) has no
-// engine support anywhere protection is consulted [targeting/damage/
-// blocking], so granting the literal string would silently no-op — the
-// "shipped but dead" anti-pattern the Mechanics Registry census exists to
-// catch. Shipping without it would misrepresent a core printed keyword, so
-// the whole card waits.)
+// target legendary creature. It can't be regenerated."
+//
+// CR 702.7 first strike + CR 702.16a protection from a NON-COLOUR quality —
+// the catalogue's first CHARACTERISTIC protection ("legendary creatures" =
+// the Legendary supertype AND the Creature card type, CR 205.4a / 205.2).
+// `gre/protection.ts` parses it into a `ProtectionQuality` the single
+// `isProtectedFrom` predicate matches at EVERY CR 702.16 consult site, so all
+// of the DEBT clauses hold with no per-card wiring: a legendary creature
+// can't target it (702.16b), enchant it (702.16c), equip it (702.16d), damage
+// it (702.16e) or block it (702.16f).
+//
+// Two consequences worth naming, both falling out of the shared predicate
+// rather than being special-cased: protection has NO controller exception for
+// this quality family, so its controller's OWN legendary creatures are barred
+// too; and Tsabo Tavoc is itself a legendary creature, so its activated
+// ability can never target itself (the ability's source IS the protected-from
+// quality). The destroy clause is the ordinary `destroy` +
+// `cantBeRegenerated` shape (CR 701.8 / 701.15c, Annihilate in `inv/black.ts`),
+// with `supertypeFilter: "Legendary"` narrowing "target legendary creature"
+// (CR 205.4a, read LIVE so a supertype-stripping effect is honoured).
+export const tsaboTavoc: CardDefinition = {
+    id: "ccbe2539-7a7c-468b-a270-7ca1bdcccb1e", // INV 288
+    rarity: "rare",
+    name: "Tsabo Tavoc",
+    oracleText:
+        "First strike, protection from legendary creatures\n{B}{B}, {T}: Destroy target legendary creature. It can't be regenerated.",
+    manaCost: { X: 5, B: 1, R: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Phyrexian", "Horror"],
+    power: 7,
+    toughness: 4,
+    staticAbilities: ["first strike", "protection from legendary creatures"],
+    activatedAbilities: [
+        {
+            id: "tsabo-tavoc-destroy-legend",
+            oracleText:
+                "{B}{B}, {T}: Destroy target legendary creature. It can't be regenerated.",
+            cost: { mana: { B: 2 }, tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                supertypeFilter: "Legendary",
+            },
+            effects: [
+                {
+                    op: "destroy",
+                    target: { target: 0 },
+                    cantBeRegenerated: true,
+                },
+            ],
+        },
+    ],
+};
 
 // Void — {3}{B}{R} Sorcery. "Choose a number. Destroy all artifacts and
 // creatures with mana value equal to that number. Then target player

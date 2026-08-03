@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getLegalTargets } from "../../../../gre/rules";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { resolveTopOfStack } from "../../../../gre/state";
 import type { StackItem } from "../../../../gre/state";
 import { counterspell } from "../../lea/blue";
@@ -69,7 +69,7 @@ describe("Stifle — counter target activated or triggered ability (CR 701.5a / 
     it("targets a TRIGGERED ability on the stack", () => {
         const state = makeState();
         state.stack.push(triggeredOnStack(balduvianBears.id, "bear-trigger"));
-        expect(getLegalTargets(state, req, [], "p1")).toEqual([
+        expect(getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1")).toEqual([
             { type: "spell", id: "bear-trigger" },
         ]);
     });
@@ -77,7 +77,7 @@ describe("Stifle — counter target activated or triggered ability (CR 701.5a / 
     it("targets an ACTIVATED ability on the stack", () => {
         const state = makeState();
         state.stack.push(activatedOnStack(balduvianBears.id, "bear-ability"));
-        expect(getLegalTargets(state, req, [], "p1")).toEqual([
+        expect(getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1")).toEqual([
             { type: "spell", id: "bear-ability" },
         ]);
     });
@@ -87,7 +87,9 @@ describe("Stifle — counter target activated or triggered ability (CR 701.5a / 
         pushSpell(state, lightningBolt.id, "p2", [
             { type: "player", id: "p1" },
         ]);
-        expect(getLegalTargets(state, req, [], "p1")).toEqual([]);
+        expect(getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1")).toEqual(
+            []
+        );
     });
 
     it("counters a triggered ability — it vanishes, NOT to a graveyard (CR 113.7a)", () => {
@@ -121,6 +123,8 @@ describe("Stifle — counter target activated or triggered ability (CR 701.5a / 
         state.stack.push(triggeredOnStack(balduvianBears.id, "bear-trigger"));
         // Counterspell's requirement omits spellStackKind → spells only.
         const csReq = counterspell.targetRequirement!;
-        expect(getLegalTargets(state, csReq, [], "p1")).toEqual([]);
+        expect(
+            getLegalTargets(state, csReq, NO_TARGETING_SOURCE, "p1")
+        ).toEqual([]);
     });
 });

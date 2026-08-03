@@ -63,7 +63,7 @@ import {
 } from "../../../../gre/layers";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import { applyAllCombatDamage, untapStep } from "../../../../gre/phases";
-import { getLegalTargets } from "../../../../gre/rules";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import {
     type CardInstanceState,
@@ -931,7 +931,7 @@ describe("Reflecting Mirror (retarget existing spell, CR 114.6)", () => {
         const legalForP1 = getLegalTargets(
             state,
             ability.targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         );
         expect(legalForP1.map((t) => t.type)).toEqual(["spell"]);
@@ -940,7 +940,7 @@ describe("Reflecting Mirror (retarget existing spell, CR 114.6)", () => {
         const legalForP2 = getLegalTargets(
             state,
             ability.targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p2"
         );
         expect(legalForP2).toHaveLength(0);
@@ -957,7 +957,7 @@ describe("Reflecting Mirror (retarget existing spell, CR 114.6)", () => {
         const legal = getLegalTargets(
             state,
             ability.targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         );
         expect(legal).toHaveLength(0);
@@ -970,7 +970,7 @@ describe("Reflecting Mirror (retarget existing spell, CR 114.6)", () => {
         const legal = getLegalTargets(
             state,
             ability.targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         );
         expect(legal).toHaveLength(0);
@@ -1301,7 +1301,7 @@ describe("Sorrow's Path — swap blockers (CR 509.1 / 506.4)", () => {
         const legal = getLegalTargets(
             state,
             sorrowsPath.activatedAbilities![0].targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         );
         const ids = legal.map((t) => t.id).sort();

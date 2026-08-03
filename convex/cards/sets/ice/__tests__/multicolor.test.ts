@@ -60,7 +60,7 @@ import {
     applyPendingChoiceSubmit,
     applyMayPaySubmit,
 } from "../../../../gre/pendingChoiceSubmit";
-import { getLegalTargets } from "../../../../gre/rules";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import {
     finalizeTargetSelection,
     advanceTargetGroupOrFinalize,
@@ -335,7 +335,7 @@ describe("Centaur Archer ({T}: 1 damage to a flyer, CR 605 / 120.1)", () => {
         const legal = getLegalTargets(
             state,
             centaurArcher.activatedAbilities![0].targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         ).map((t) => t.id);
         expect(legal).toContain("flyer");
@@ -482,7 +482,7 @@ describe("Giant Trap Door Spider ({1}{R}{G},{T}: exile self + attacker, CR 605 /
         const legal = getLegalTargets(
             state,
             giantTrapDoorSpider.activatedAbilities![0].targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         ).map((t) => t.id);
         expect(legal).toContain("ground");
@@ -1222,13 +1222,13 @@ describe("Fumarole ({3}{B}{R} — destroy target creature AND target land, pay 3
         const creatures = getLegalTargets(
             state,
             fumarole.targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         );
         const lands = getLegalTargets(
             state,
             fumarole.additionalTargetRequirements![0],
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         );
         const ids = (ts: typeof creatures) =>

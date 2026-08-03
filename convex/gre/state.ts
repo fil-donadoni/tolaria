@@ -71,7 +71,12 @@ import {
     hasCityBlessing,
 } from "./cityBlessing";
 import { checkStateBasedActions } from "./sba";
-import { getExtraLandDrops, getLegalTargets } from "./rules";
+import {
+    getExtraLandDrops,
+    getLegalTargets,
+    NO_TARGETING_SOURCE,
+    targetingSourceFromCard,
+} from "./rules";
 import {
     checkSpellTargetFilters,
     lowerSpellOnlyFilters,
@@ -10038,12 +10043,10 @@ function requestStormCopyRetarget(state: GameState, copy: StackItem): void {
     const legal = getLegalTargets(
         state,
         req,
-        STATIC_EFFECT_CTX.getColors(copy),
+        // A spell copy, still on the stack (CR 109.5) — a spell (CR 113.3).
+        targetingSourceFromCard(copy, true),
         copy.controllerId,
-        copy.chosenX,
-        copy.types,
-        copy.subtypes,
-        true // sourceIsSpell — a spell copy, still on the stack (CR 109.5)
+        copy.chosenX
     );
     const currentKeys = new Set(
         (copy.targets ?? []).map((t) => `${t.type}:${t.id}`)
@@ -15385,22 +15388,21 @@ export function buildSpellContext(
             // Zone-broad (issue #1477) — enumerate targets for a card cast from
             // hand (Word of Command) or graveyard/exile (cast-during-resolution).
             const found = findOwnedCastSource(owner, cardInstanceId);
-            const cardId = found
-                ? (found.card.card as { id?: string }).id
-                : undefined;
-            const def = cardId ? tryGetDefinition(cardId) : undefined;
-            const sourceColors = getColorsFromCost(def?.manaCost);
             return getLegalTargets(
                 state,
                 requirement,
-                sourceColors,
-                casterId,
-                undefined,
-                def?.types ?? [],
-                def?.subtypes ?? [],
                 // The chosen card is being cast as a spell (CR 601), not an
-                // activated ability — mirror moves.ts.
-                true
+                // activated ability — mirror moves.ts, which reads the same
+                // characteristics off the INSTANCE through the one factory.
+                // (`getEffectiveColors` falls back to the printed cost when no
+                // colour override / grant applies, so this is value-identical
+                // to the old cost-derived read for a plain card and strictly
+                // more correct for a recoloured one.)
+                found
+                    ? targetingSourceFromCard(found.card, true)
+                    : NO_TARGETING_SOURCE,
+                casterId,
+                undefined
             );
         },
         castChosenSpell(

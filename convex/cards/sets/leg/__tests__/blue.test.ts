@@ -64,7 +64,7 @@ import {
     fireDelayedTriggers,
     untapStep,
 } from "../../../../gre/phases";
-import { getLegalTargets } from "../../../../gre/rules";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import {
     applySourceStaticEffects,
     normalizeManaCost,
@@ -315,7 +315,7 @@ describe("Boomerang (return target permanent to hand, CR 701.10)", () => {
         const legal = getLegalTargets(
             state,
             boomerang.targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         );
         expect(
@@ -674,12 +674,13 @@ describe("Spectral Cloak (shroud while untapped, CR 702.18 / 611)", () => {
         const legal = getLegalTargets(
             state,
             CREATURE_REQ,
-            [],
+            {
+                ...NO_TARGETING_SOURCE,
+                types: ["Instant"],
+                isSpell: true,
+            },
             "p1",
-            undefined,
-            ["Instant"],
-            [],
-            true
+            undefined
         ).map((t) => t.id);
         expect(legal).not.toContain("bear");
     });
@@ -707,12 +708,13 @@ describe("Spectral Cloak (shroud while untapped, CR 702.18 / 611)", () => {
         const legal = getLegalTargets(
             state,
             CREATURE_REQ,
-            [],
+            {
+                ...NO_TARGETING_SOURCE,
+                types: ["Instant"],
+                isSpell: true,
+            },
             "p1",
-            undefined,
-            ["Instant"],
-            [],
-            true
+            undefined
         ).map((t) => t.id);
         expect(legal).toContain("bear");
     });
@@ -798,24 +800,26 @@ describe("Anti-Magic Aura (can't be targeted by spells, CR 113.3)", () => {
         const spellLegal = getLegalTargets(
             state,
             CREATURE_REQ,
-            [],
+            {
+                ...NO_TARGETING_SOURCE,
+                types: ["Sorcery"],
+                isSpell: true,
+            },
             "p1",
-            undefined,
-            ["Sorcery"],
-            [],
-            true
+            undefined
         ).map((t) => t.id);
         expect(spellLegal).not.toContain("bear");
         // An ability (sourceIsSpell = false) can still target it.
         const abilityLegal = getLegalTargets(
             state,
             CREATURE_REQ,
-            [],
+            {
+                ...NO_TARGETING_SOURCE,
+                types: ["Artifact"],
+                isSpell: false,
+            },
             "p1",
-            undefined,
-            ["Artifact"],
-            [],
-            false
+            undefined
         ).map((t) => t.id);
         expect(abilityLegal).toContain("bear");
     });

@@ -17,6 +17,7 @@ import {
     spellMatchesCreaturePtFilter,
     spellMatchesExcludeTypeFilter,
     siblingControllerIdFor,
+    NO_TARGETING_SOURCE,
 } from "../rules";
 import { isGuardedAgainst, playerHasShroud } from "../permanentGuard";
 import {
@@ -165,7 +166,7 @@ describe("getLegalTargets", () => {
         });
 
         const req: TargetRequirement = { type: "Creature", count: 1 };
-        const targets = getLegalTargets(state, req);
+        const targets = getLegalTargets(state, req, NO_TARGETING_SOURCE);
 
         expect(targets).toHaveLength(1);
         expect(targets[0]).toEqual({ type: "permanent", id: "bear" });
@@ -191,7 +192,7 @@ describe("getLegalTargets", () => {
             type: ["Artifact", "Enchantment"],
             count: 1,
         };
-        const targets = getLegalTargets(state, req);
+        const targets = getLegalTargets(state, req, NO_TARGETING_SOURCE);
 
         expect(targets).toHaveLength(2);
         const ids = targets.map((t) => t.id);
@@ -228,7 +229,7 @@ describe("getLegalTargets", () => {
         });
 
         const req: TargetRequirement = { type: "any", count: 1 };
-        const targets = getLegalTargets(state, req);
+        const targets = getLegalTargets(state, req, NO_TARGETING_SOURCE);
 
         // Only the creature + 2 players — artifact, enchantment and land are excluded.
         expect(targets).toHaveLength(3);
@@ -244,7 +245,7 @@ describe("getLegalTargets", () => {
     it("includes players for 'player' requirement", () => {
         const state = makeGameState();
         const req: TargetRequirement = { type: "player", count: 1 };
-        const targets = getLegalTargets(state, req);
+        const targets = getLegalTargets(state, req, NO_TARGETING_SOURCE);
 
         expect(targets).toHaveLength(2);
         expect(targets.every((t) => t.type === "player")).toBe(true);
@@ -258,7 +259,7 @@ describe("getLegalTargets", () => {
             controller: "opponent",
         };
         // From p1's perspective the only legal player target is p2.
-        const targets = getLegalTargets(state, req, [], "p1");
+        const targets = getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1");
         expect(targets).toEqual([{ type: "player", id: "p2" }]);
     });
 
@@ -269,7 +270,7 @@ describe("getLegalTargets", () => {
             count: 1,
             controller: "you",
         };
-        const targets = getLegalTargets(state, req, [], "p1");
+        const targets = getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1");
         expect(targets).toEqual([{ type: "player", id: "p1" }]);
     });
 
@@ -293,7 +294,7 @@ describe("getLegalTargets", () => {
             count: 1,
             playerAttackedThisTurn: true,
         };
-        const targets = getLegalTargets(state, req);
+        const targets = getLegalTargets(state, req, NO_TARGETING_SOURCE);
         expect(targets).toEqual([{ type: "player", id: "p2" }]);
     });
 
@@ -313,9 +314,15 @@ describe("getLegalTargets", () => {
             count: 1,
         };
 
-        expect(getLegalTargets(state, creatureReq)).toHaveLength(1);
-        expect(getLegalTargets(state, artifactReq)).toHaveLength(1);
-        expect(getLegalTargets(state, disenchantReq)).toHaveLength(1);
+        expect(
+            getLegalTargets(state, creatureReq, NO_TARGETING_SOURCE)
+        ).toHaveLength(1);
+        expect(
+            getLegalTargets(state, artifactReq, NO_TARGETING_SOURCE)
+        ).toHaveLength(1);
+        expect(
+            getLegalTargets(state, disenchantReq, NO_TARGETING_SOURCE)
+        ).toHaveLength(1);
     });
 
     it("returns empty when no matching permanents exist", () => {
@@ -331,7 +338,9 @@ describe("getLegalTargets", () => {
             type: ["Artifact", "Enchantment"],
             count: 1,
         };
-        expect(getLegalTargets(state, req)).toHaveLength(0);
+        expect(getLegalTargets(state, req, NO_TARGETING_SOURCE)).toHaveLength(
+            0
+        );
     });
 });
 
@@ -435,7 +444,12 @@ describe("permanent-controller filter — selectTarget authority (CR 109.3 / 102
                 count: 1,
                 controller: "you",
             };
-            const ids = getLegalTargets(state, req, [], "p1").map((t) => t.id);
+            const ids = getLegalTargets(
+                state,
+                req,
+                NO_TARGETING_SOURCE,
+                "p1"
+            ).map((t) => t.id);
             expect(ids).toEqual(["own"]);
         });
         it("'opponent' offers only the opponent's creature", () => {
@@ -444,7 +458,12 @@ describe("permanent-controller filter — selectTarget authority (CR 109.3 / 102
                 count: 1,
                 controller: "opponent",
             };
-            const ids = getLegalTargets(state, req, [], "p1").map((t) => t.id);
+            const ids = getLegalTargets(
+                state,
+                req,
+                NO_TARGETING_SOURCE,
+                "p1"
+            ).map((t) => t.id);
             expect(ids).toEqual(["theirs"]);
         });
         it("'active' offers only the active player's creature (chooser p2)", () => {
@@ -453,7 +472,12 @@ describe("permanent-controller filter — selectTarget authority (CR 109.3 / 102
                 count: 1,
                 controller: "active",
             };
-            const ids = getLegalTargets(state, req, [], "p2").map((t) => t.id);
+            const ids = getLegalTargets(
+                state,
+                req,
+                NO_TARGETING_SOURCE,
+                "p2"
+            ).map((t) => t.id);
             expect(ids).toEqual(["own"]); // p1 is active
         });
     });
@@ -499,7 +523,9 @@ describe("target exclusion filters (CR 109.1 / 601.2c, Phelia)", () => {
             count: { min: 0, max: 1 },
             excludeTypes: "Land",
         };
-        const ids = getLegalTargets(state, req, [], "p1").map((t) => t.id);
+        const ids = getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1").map(
+            (t) => t.id
+        );
         expect(ids).not.toContain("land");
         expect(ids).toEqual(expect.arrayContaining(["phelia", "other"]));
     });
@@ -510,7 +536,9 @@ describe("target exclusion filters (CR 109.1 / 601.2c, Phelia)", () => {
             count: { min: 0, max: 1 },
             excludeInstanceIds: ["phelia"],
         };
-        const ids = getLegalTargets(state, req, [], "p1").map((t) => t.id);
+        const ids = getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1").map(
+            (t) => t.id
+        );
         expect(ids).not.toContain("phelia");
     });
 
@@ -521,7 +549,9 @@ describe("target exclusion filters (CR 109.1 / 601.2c, Phelia)", () => {
             excludeTypes: "Land",
             excludeInstanceIds: ["phelia"],
         };
-        const ids = getLegalTargets(state, req, [], "p1").map((t) => t.id);
+        const ids = getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1").map(
+            (t) => t.id
+        );
         expect(ids).toEqual(["other"]);
     });
 });
@@ -559,7 +589,9 @@ describe("isToken target filter (CR 111.5, issue #1195)", () => {
             count: 1,
             isToken: false,
         };
-        const ids = getLegalTargets(state, req, [], "p1").map((t) => t.id);
+        const ids = getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1").map(
+            (t) => t.id
+        );
         expect(ids).toEqual(["nontoken-creature"]);
     });
 
@@ -569,13 +601,17 @@ describe("isToken target filter (CR 111.5, issue #1195)", () => {
             count: 1,
             isToken: true,
         };
-        const ids = getLegalTargets(state, req, [], "p1").map((t) => t.id);
+        const ids = getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1").map(
+            (t) => t.id
+        );
         expect(ids).toEqual(["token-creature"]);
     });
 
     it("omitted — both are legal (no filter applied)", () => {
         const req: TargetRequirement = { type: "Creature", count: 2 };
-        const ids = getLegalTargets(state, req, [], "p1").map((t) => t.id);
+        const ids = getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1").map(
+            (t) => t.id
+        );
         expect(ids).toEqual(
             expect.arrayContaining(["nontoken-creature", "token-creature"])
         );
@@ -814,7 +850,9 @@ describe("intrinsicPermanentTargetViolation — shared offered/accepted gate", (
             count: 1,
             tappedFilter: "tapped",
         };
-        const ids = getLegalTargets(state, req, [], "p1").map((t) => t.id);
+        const ids = getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1").map(
+            (t) => t.id
+        );
         expect(ids).toEqual(["tap"]);
     });
 });
@@ -1510,7 +1548,7 @@ describe("getLegalTargets: spell targeting (CR 114.1)", () => {
         const state = makeGameState({ stack: [bear, bolt] });
 
         const req: TargetRequirement = { type: "spell", count: 1 };
-        const targets = getLegalTargets(state, req);
+        const targets = getLegalTargets(state, req, NO_TARGETING_SOURCE);
 
         expect(targets).toHaveLength(2);
         expect(targets.every((t) => t.type === "spell")).toBe(true);
@@ -1521,7 +1559,9 @@ describe("getLegalTargets: spell targeting (CR 114.1)", () => {
     it("returns empty when stack is empty", () => {
         const state = makeGameState({ stack: [] });
         const req: TargetRequirement = { type: "spell", count: 1 };
-        expect(getLegalTargets(state, req)).toHaveLength(0);
+        expect(getLegalTargets(state, req, NO_TARGETING_SOURCE)).toHaveLength(
+            0
+        );
     });
 
     it("does NOT include permanents or players when only 'spell' is requested", () => {
@@ -1538,7 +1578,9 @@ describe("getLegalTargets: spell targeting (CR 114.1)", () => {
             stack: [],
         });
         const req: TargetRequirement = { type: "spell", count: 1 };
-        expect(getLegalTargets(state, req)).toHaveLength(0);
+        expect(getLegalTargets(state, req, NO_TARGETING_SOURCE)).toHaveLength(
+            0
+        );
     });
 });
 
@@ -1564,7 +1606,7 @@ describe("getLegalTargets: spellExcludeTypeFilter (CR 114.1, Spell Pierce)", () 
             count: 1,
             spellExcludeTypeFilter: "Creature",
         };
-        const targets = getLegalTargets(state, req);
+        const targets = getLegalTargets(state, req, NO_TARGETING_SOURCE);
         expect(targets.map((t) => t.id)).toEqual(["bolt1"]);
     });
 
@@ -1580,7 +1622,9 @@ describe("getLegalTargets: spellExcludeTypeFilter (CR 114.1, Spell Pierce)", () 
             count: 1,
             spellExcludeTypeFilter: "Creature",
         };
-        expect(getLegalTargets(state, req)).toHaveLength(0);
+        expect(getLegalTargets(state, req, NO_TARGETING_SOURCE)).toHaveLength(
+            0
+        );
     });
 });
 
@@ -1611,7 +1655,7 @@ describe("getLegalTargets: spellCreaturePtFilter (CR 114.1 + 208.2, Stern Scoldi
             spellTypeFilter: "Creature",
             spellCreaturePtFilter: { maxPowerOrToughness: 2 },
         };
-        const targets = getLegalTargets(state, req);
+        const targets = getLegalTargets(state, req, NO_TARGETING_SOURCE);
         expect(targets.map((t) => t.id)).toEqual(["weak1"]);
     });
 
@@ -1631,9 +1675,9 @@ describe("getLegalTargets: spellCreaturePtFilter (CR 114.1 + 208.2, Stern Scoldi
             count: 1,
             spellCreaturePtFilter: { maxPowerOrToughness: 2 },
         };
-        expect(getLegalTargets(state, req).map((t) => t.id)).toEqual([
-            "lanky1",
-        ]);
+        expect(
+            getLegalTargets(state, req, NO_TARGETING_SOURCE).map((t) => t.id)
+        ).toEqual(["lanky1"]);
     });
 
     it("excludes a noncreature spell regardless of power/toughness", () => {
@@ -1647,7 +1691,9 @@ describe("getLegalTargets: spellCreaturePtFilter (CR 114.1 + 208.2, Stern Scoldi
             count: 1,
             spellCreaturePtFilter: { maxPowerOrToughness: 2 },
         };
-        expect(getLegalTargets(state, req)).toHaveLength(0);
+        expect(getLegalTargets(state, req, NO_TARGETING_SOURCE)).toHaveLength(
+            0
+        );
     });
 });
 
@@ -2360,7 +2406,7 @@ describe("getLegalTargets: sameController (CR 601.2c, issue #1104)", () => {
             sameController: true,
         };
         // No `alreadySelected` — nothing to compare against yet.
-        const targets = getLegalTargets(state, req);
+        const targets = getLegalTargets(state, req, NO_TARGETING_SOURCE);
         expect(targets.map((t) => t.id).sort()).toEqual(["bear1", "bear2"]);
     });
 
@@ -2392,11 +2438,8 @@ describe("getLegalTargets: sameController (CR 601.2c, issue #1104)", () => {
         const targets = getLegalTargets(
             state,
             req,
-            [],
+            NO_TARGETING_SOURCE,
             undefined,
-            undefined,
-            [],
-            [],
             undefined,
             [{ type: "permanent", id: "bear1" }]
         );
@@ -2461,11 +2504,8 @@ describe("getLegalTargets: distinct targets within one requirement (CR 601.2c)",
         const targets = getLegalTargets(
             state,
             req,
-            [],
+            NO_TARGETING_SOURCE,
             undefined,
-            undefined,
-            [],
-            [],
             undefined,
             [{ type: "permanent", id: "bear1" }]
         );
@@ -2480,11 +2520,8 @@ describe("getLegalTargets: distinct targets within one requirement (CR 601.2c)",
         const targets = getLegalTargets(
             state,
             req,
-            [],
+            NO_TARGETING_SOURCE,
             undefined,
-            undefined,
-            [],
-            [],
             undefined,
             [{ type: "player", id: "p2" }]
         );
@@ -2505,7 +2542,7 @@ describe("getLegalTargets: distinct targets within one requirement (CR 601.2c)",
             ],
         });
         const req: TargetRequirement = { type: "Creature", count: 2 };
-        const targets = getLegalTargets(state, req);
+        const targets = getLegalTargets(state, req, NO_TARGETING_SOURCE);
         expect(targets.map((t) => t.id)).toEqual(["bear1"]);
     });
 });
@@ -2589,7 +2626,7 @@ describe("getLegalTargets: player controller 'active' (CR 102.1, T3 parity)", ()
             controller: "active",
         };
         // Chooser p2, active player p1 (default makeGameState activePlayerId).
-        const targets = getLegalTargets(state, req, [], "p2");
+        const targets = getLegalTargets(state, req, NO_TARGETING_SOURCE, "p2");
         expect(targets).toEqual([{ type: "player", id: "p1" }]);
     });
 });
@@ -2626,7 +2663,7 @@ describe("getLegalTargets: graveyard-card zone targeting (CR 400.7 / 109.2, T3 p
             zone: "graveyard",
             controller: "you",
         };
-        const targets = getLegalTargets(state, req, [], "p1");
+        const targets = getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1");
         expect(targets).toEqual([
             { type: "graveyard-card", id: "gy-mine", playerId: "p1" },
         ]);
@@ -2640,7 +2677,7 @@ describe("getLegalTargets: graveyard-card zone targeting (CR 400.7 / 109.2, T3 p
             zone: "graveyard",
             controller: "opponent",
         };
-        const targets = getLegalTargets(state, req, [], "p1");
+        const targets = getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1");
         expect(targets).toEqual([
             { type: "graveyard-card", id: "gy-theirs", playerId: "p2" },
         ]);
@@ -2654,7 +2691,7 @@ describe("getLegalTargets: graveyard-card zone targeting (CR 400.7 / 109.2, T3 p
             zone: "graveyard",
             controller: "active",
         };
-        const targets = getLegalTargets(state, req, [], "p2");
+        const targets = getLegalTargets(state, req, NO_TARGETING_SOURCE, "p2");
         expect(targets).toEqual([
             { type: "graveyard-card", id: "gy-mine", playerId: "p1" },
         ]);
@@ -2687,7 +2724,7 @@ describe("getLegalTargets: graveyard-card zone targeting (CR 400.7 / 109.2, T3 p
             zone: "graveyard",
             mvFilter: { max: 3 },
         };
-        const targets = getLegalTargets(state, req);
+        const targets = getLegalTargets(state, req, NO_TARGETING_SOURCE);
         expect(targets).toEqual([
             { type: "graveyard-card", id: "gy-cheap", playerId: "p1" },
         ]);
@@ -2738,7 +2775,7 @@ describe("getLegalTargets: graveyard-card zone targeting (CR 400.7 / 109.2, T3 p
             zone: "graveyard",
             excludeTypes: "Land",
         };
-        const targets = getLegalTargets(state, req, [], "p1");
+        const targets = getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1");
         expect(targets).toEqual([
             { type: "graveyard-card", id: "gy-plain-creature", playerId: "p1" },
         ]);
@@ -2798,12 +2835,12 @@ describe("mvFilter 'sourcePower' — dynamic power-based cap (issue #1378, CR 60
         const targets = getLegalTargets(
             state,
             literalReq,
-            [],
+            {
+                ...NO_TARGETING_SOURCE,
+                isSpell: false,
+            },
             "p1",
             undefined,
-            [],
-            [],
-            false,
             [],
             999
         );
@@ -2817,12 +2854,12 @@ describe("mvFilter 'sourcePower' — dynamic power-based cap (issue #1378, CR 60
         const atTwo = getLegalTargets(
             state,
             dynamicReq,
-            [],
+            {
+                ...NO_TARGETING_SOURCE,
+                isSpell: false,
+            },
             "p1",
             undefined,
-            [],
-            [],
-            false,
             [],
             2
         );
@@ -2831,7 +2868,12 @@ describe("mvFilter 'sourcePower' — dynamic power-based cap (issue #1378, CR 60
         ]);
         // An unthreaded call (no sourcePower argument) falls back to 0
         // (CR 608.2b convention) — neither graveyard card qualifies.
-        const unthreaded = getLegalTargets(state, dynamicReq, [], "p1");
+        const unthreaded = getLegalTargets(
+            state,
+            dynamicReq,
+            NO_TARGETING_SOURCE,
+            "p1"
+        );
         expect(unthreaded).toEqual([]);
     });
 
@@ -2840,12 +2882,12 @@ describe("mvFilter 'sourcePower' — dynamic power-based cap (issue #1378, CR 60
         const before = getLegalTargets(
             state,
             dynamicReq,
-            [],
+            {
+                ...NO_TARGETING_SOURCE,
+                isSpell: false,
+            },
             "p1",
             undefined,
-            [],
-            [],
-            false,
             [],
             2
         );
@@ -2858,12 +2900,12 @@ describe("mvFilter 'sourcePower' — dynamic power-based cap (issue #1378, CR 60
         const after = getLegalTargets(
             state,
             dynamicReq,
-            [],
+            {
+                ...NO_TARGETING_SOURCE,
+                isSpell: false,
+            },
             "p1",
             undefined,
-            [],
-            [],
-            false,
             [],
             4
         );
@@ -3633,7 +3675,7 @@ describe("player-scoped shroud (CR 702.18 / 115.4, #1128)", () => {
             ],
         });
         const req: TargetRequirement = { type: "player", count: 1 };
-        const targets = getLegalTargets(state, req);
+        const targets = getLegalTargets(state, req, NO_TARGETING_SOURCE);
         expect(targets).toEqual([{ type: "player", id: "p2" }]);
     });
 
@@ -3670,7 +3712,8 @@ describe("player-scoped shroud (CR 702.18 / 115.4, #1128)", () => {
         const req: TargetRequirement = { type: "player", count: 1 };
         const projectedTargets = getLegalTargets(
             projected as unknown as GameState,
-            req
+            req,
+            NO_TARGETING_SOURCE
         );
         expect(projectedTargets).toEqual([{ type: "player", id: "p2" }]);
     });

@@ -39,6 +39,7 @@ import {
 import {
     getLegalTargets,
     raiseTriggerTargetSelection,
+    NO_TARGETING_SOURCE,
 } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
 import {
@@ -292,7 +293,12 @@ describe("Sorceress Queen ({T}: target other creature base 0/2)", () => {
             { ...queen } as never,
             state as never
         );
-        const legal = getLegalTargets(state, req, [], "p1").map((t) => t.id);
+        const legal = getLegalTargets(
+            state,
+            req,
+            NO_TARGETING_SOURCE,
+            "p1"
+        ).map((t) => t.id);
         expect(legal).toContain("other");
         expect(legal).not.toContain("queen");
     });
@@ -700,18 +706,20 @@ describe("Guardian Beast (permanent-guard while untapped, CR 611)", () => {
     describe("can't be targeted (CR 702.16b-style)", () => {
         it("getLegalTargets excludes the guarded artifact while untapped", () => {
             const { state } = setup();
-            const targets = getLegalTargets(state, shatter.targetRequirement!, [
-                "R",
-            ]);
+            const targets = getLegalTargets(state, shatter.targetRequirement!, {
+                ...NO_TARGETING_SOURCE,
+                colors: ["R"],
+            });
             expect(targets.some((t) => t.id === "lotus")).toBe(false);
         });
 
         it("getLegalTargets includes the artifact once the Beast is tapped", () => {
             const { state, beast } = setup();
             beast.isTapped = true;
-            const targets = getLegalTargets(state, shatter.targetRequirement!, [
-                "R",
-            ]);
+            const targets = getLegalTargets(state, shatter.targetRequirement!, {
+                ...NO_TARGETING_SOURCE,
+                colors: ["R"],
+            });
             expect(targets.some((t) => t.id === "lotus")).toBe(true);
         });
 
@@ -721,7 +729,10 @@ describe("Guardian Beast (permanent-guard while untapped, CR 611)", () => {
             const targets = getLegalTargets(
                 projected as unknown as GameState,
                 shatter.targetRequirement!,
-                ["R"]
+                {
+                    ...NO_TARGETING_SOURCE,
+                    colors: ["R"],
+                }
             );
             expect(targets.some((t) => t.id === "lotus")).toBe(false);
         });

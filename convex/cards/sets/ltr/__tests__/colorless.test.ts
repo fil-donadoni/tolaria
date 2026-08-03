@@ -22,6 +22,7 @@ import {
 import {
     getLegalTargets,
     playerHasProtectionFromEverything,
+    NO_TARGETING_SOURCE,
 } from "../../../../gre/rules";
 import { advancePhase } from "../../../../gre/phases";
 import { projectPublicState } from "../../../../gameProjections";
@@ -159,7 +160,7 @@ describe("The One Ring — protection bars targeting (CR 702.16b applied to a pl
         });
         const req: TargetRequirement = { type: "player", count: 1 };
         // p1 is barred, p2 (unprotected) still offered — no regression.
-        expect(getLegalTargets(state, req)).toEqual([
+        expect(getLegalTargets(state, req, NO_TARGETING_SOURCE)).toEqual([
             { type: "player", id: "p2" },
         ]);
     });
@@ -173,7 +174,7 @@ describe("The One Ring — protection bars targeting (CR 702.16b applied to a pl
         // `casterId` is p1 themselves — a hexproof-style controller exception
         // would keep p1 in the list; protection from everything does not have
         // one (CR 702.16i).
-        const targets = getLegalTargets(state, req, [], "p1");
+        const targets = getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1");
         expect(targets).not.toContainEqual({ type: "player", id: "p1" });
         expect(targets).toContainEqual({ type: "player", id: "p2" });
     });

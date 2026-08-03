@@ -8,7 +8,7 @@ import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { isProtectedFromSource } from "../../../../gre/protection";
-import { getLegalTargets } from "../../../../gre/rules";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { projectPublicState } from "../../../../gameProjections";
 import type {
     CardInstanceState,
@@ -119,14 +119,17 @@ describe("Giver of Runes (CR 702.16 protection incl. colorless; CR 109.2 'anothe
         const legalAgainstColorless = getLegalTargets(
             state,
             lightningBolt.targetRequirement!,
-            []
+            NO_TARGETING_SOURCE
         );
         expect(legalAgainstColorless.map((x) => x.id)).not.toContain("t");
         // ...but a colored (green) source is unaffected.
         const legalAgainstGreen = getLegalTargets(
             state,
             lightningBolt.targetRequirement!,
-            ["G"]
+            {
+                ...NO_TARGETING_SOURCE,
+                colors: ["G"],
+            }
         );
         expect(legalAgainstGreen.map((x) => x.id)).toContain("t");
 

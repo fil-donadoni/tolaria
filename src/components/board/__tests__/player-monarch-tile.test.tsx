@@ -35,6 +35,7 @@ function renderTile(player: Player, monarchId?: string) {
         turn: 1,
         engineTurn: 1,
         stackCount: 0,
+        stackItems: [],
         allPlayers: [player],
         monarchId,
         showAllCards: false,

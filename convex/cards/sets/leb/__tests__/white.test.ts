@@ -6,7 +6,7 @@
 import { describe, it, expect } from "vitest";
 import { circleOfProtectionBlack } from "..";
 import { lightningBolt, terror } from "../../lea";
-import { getLegalTargets } from "../../../../gre/rules";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 
@@ -39,7 +39,11 @@ describe("Circle of Protection: Black", () => {
         state.stack.push({ ...blackSpell, castById: "p2" });
         state.stack.push({ ...redSpell, castById: "p2" });
         const ability = circleOfProtectionBlack.activatedAbilities![0];
-        const legal = getLegalTargets(state, ability.targetRequirement!);
+        const legal = getLegalTargets(
+            state,
+            ability.targetRequirement!,
+            NO_TARGETING_SOURCE
+        );
         expect(legal.map((t) => t.id)).toEqual(["terror"]);
     });
 

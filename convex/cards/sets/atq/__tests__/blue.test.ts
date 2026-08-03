@@ -44,7 +44,7 @@ import {
     type CardInstanceState,
     type GameState,
 } from "../../../../gre/state";
-import { getLegalTargets } from "../../../../gre/rules";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import {
     UPKEEP_P1,
@@ -201,7 +201,7 @@ describe("Reconstruction (return artifact card from your graveyard to hand, CR 4
         const ids = getLegalTargets(
             state,
             reconstruction.targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         ).map((t) => t.id);
         expect(ids).toContain("art");
@@ -317,7 +317,7 @@ describe("Drafna's Restoration (artifact cards from graveyard to top of library,
         const ids = getLegalTargets(
             state,
             drafnasRestoration.targetRequirement!,
-            [],
+            NO_TARGETING_SOURCE,
             "p1"
         ).map((t) => t.id);
         expect(ids).toContain("g1");

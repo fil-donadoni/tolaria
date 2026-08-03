@@ -20,6 +20,7 @@ import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import {
     raiseTriggerTargetSelection,
     getLegalTargets,
+    NO_TARGETING_SOURCE,
 } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
 import { fireDelayedTriggers } from "../../../../gre/phases";
@@ -156,7 +157,12 @@ describe("Satya — attack trigger targeting (CR 601.2c / 603.3d)", () => {
             ...satyaAetherfluxGenius.triggeredAbilities![0].targetRequirement!,
             excludeInstanceIds: ["satya1"],
         };
-        const legal = getLegalTargets(state, req, [], "p1").map((t) => t.id);
+        const legal = getLegalTargets(
+            state,
+            req,
+            NO_TARGETING_SOURCE,
+            "p1"
+        ).map((t) => t.id);
         expect(legal).toEqual(["own1"]);
     });
 });
