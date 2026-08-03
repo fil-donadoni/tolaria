@@ -38,4 +38,5 @@ ladder-runs/
 # list-to-cards staging output (regenerated; lockfile data/card-index.json IS committed)
 data/worklists/*.out/
 data/worklists/*.resolved.jsonl
+data/full-catalogue.json.gz
 .claude/telemetry/
