@@ -4,7 +4,13 @@
 // everything else is preserved.
 import { describe, expect, it } from "vitest";
 import type { PublicGameState } from "@convex/gameProjections";
-import { tryGetDefinition } from "@convex/cards";
+import { getCardByName, tryGetDefinition } from "@convex/cards";
+import { projectPublicState } from "@convex/gameProjections";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "@convex/cards/__tests__/setup";
 import { enumerateMoves, PLACEHOLDER_CARD_ID } from "@convex/gre";
 import { projectedToGameState } from "../state-adapter";
 
@@ -155,5 +161,80 @@ describe("projectedToGameState (issue #110)", () => {
         expect(gs.phase).toBe("PRECOMBAT_MAIN");
         expect(gs.priorityPlayerId).toBe("bot");
         expect(gs.activePlayerId).toBe("bot");
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CR 401.5 (issue #1095) — the wire's `library.known[]` carries identities the
+// projection decided this viewer legitimately sees: a scry-kept top card, or a
+// continuously-revealed library top (Goblin Spy). The adapter used to drop the
+// channel entirely and rebuild every library from placeholders, so the bot
+// searched a top card it can plainly see is something else.
+//
+// These build the wire view through the REAL `projectPublicState` — a
+// hand-written `{ count, known }` fixture would prove the adapter reads a
+// fixture, not that the server and the adapter agree.
+describe("projectedToGameState — revealed library top (CR 401.5, issue #1095)", () => {
+    const SPY = getCardByName("Goblin Spy").id;
+    const MOUNTAIN = getCardByName("Mountain").id;
+    const FOREST = getCardByName("Forest").id;
+
+    /** `human` controls a Goblin Spy over a stocked library; the wire view is
+     *  taken from the BOT's seat, i.e. the opponent's. */
+    function botViewOfSpy(withSpy = true): PublicGameState {
+        const state = makeState({
+            players: [
+                makePlayer("bot", {}),
+                makePlayer("human", {
+                    battlefield: withSpy
+                        ? [
+                              makeInstance(SPY, {
+                                  controllerId: "human",
+                                  ownerId: "human",
+                                  id: "spy",
+                              }),
+                          ]
+                        : [],
+                    library: [MOUNTAIN, FOREST, FOREST].map((cardId, i) =>
+                        makeInstance(cardId, {
+                            controllerId: "human",
+                            ownerId: "human",
+                            id: `human-lib-${i}`,
+                            zone: "library",
+                        })
+                    ),
+                }),
+            ],
+        });
+        return projectPublicState(state, 1, "bot");
+    }
+
+    it("rehydrates the revealed top card as a real instance, not a placeholder", () => {
+        const gs = projectedToGameState(botViewOfSpy());
+        const humanLib = gs.players.find((p) => p.id === "human")!.library;
+        expect(humanLib).toHaveLength(3);
+        expect(humanLib[0].card.id).toBe(MOUNTAIN);
+        // Characteristics are hydrated so a simulated draw → play reads a
+        // fully-formed card, exactly like `makeRealInstance`.
+        expect(humanLib[0].types).toContain("Land");
+        // Everything BELOW the reveal stays opaque — the reveal is one card.
+        expect(humanLib[1].card.id).toBe(PLACEHOLDER_CARD_ID);
+        expect(humanLib[2].card.id).toBe(PLACEHOLDER_CARD_ID);
+    });
+
+    it("leaves the library fully opaque when nothing is revealed", () => {
+        const gs = projectedToGameState(botViewOfSpy(false));
+        const humanLib = gs.players.find((p) => p.id === "human")!.library;
+        expect(humanLib).toHaveLength(3);
+        for (const c of humanLib) {
+            expect(c.card.id).toBe(PLACEHOLDER_CARD_ID);
+        }
+    });
+
+    it("preserves the library COUNT so the deck-out SBA stays exact (CR 704.5b)", () => {
+        const gs = projectedToGameState(botViewOfSpy());
+        expect(gs.players.find((p) => p.id === "human")!.library).toHaveLength(
+            3
+        );
     });
 });
