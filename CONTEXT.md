@@ -228,6 +228,14 @@ _Avoid_: Static effect table, buff list, modifier stack
 A characteristic's value _after_ every applicable **Continuous Effect** has been applied in **Layer** and **Timestamp** order — as opposed to its printed or base value. Always derived at read time. What crosses to the client is a snapshot of the derived value, computed when the state is projected; the client never re-derives it and never holds authority over it.
 _Avoid_: Current value, actual value, computed stat
 
+**Card Type Set**:
+A **Layer** 4 **Continuous Effect** that _replaces_ an object's card types rather than adding to them (CR 205.1a) — "it's an enchantment". Distinguished from a type _add_, which an effect signals by saying the object becomes the new type "in addition to its other types" (CR 205.1b); only the add leaves the prior types standing. An object with the instant or sorcery card type keeps it either way. Setting a type also drops every **Correlated Subtype** the object no longer has a type for.
+_Avoid_: Type change, type override, becomes-a
+
+**Correlated Subtype**:
+A subtype belonging to one card type's subtype set — creature, land, artifact, enchantment, planeswalker, spell or battle types (CR 205.3). A subtype is only meaningful while the object has its type: when a **Card Type Set** removes that type, the subtype goes too, unless a type the object still has also claims it (CR 205.1a). The engine classifies a subtype by listing the closed non-creature sets the CR enumerates and treating everything else as a creature type, since only the creature set grows.
+_Avoid_: Subtype class, tribe, type line tail
+
 **Cumulative Upkeep**:
 A **Keyword** ability (CR 702.24) on a **Permanent**: at the beginning of its **Controller**'s upkeep an **Age Counter** is put on it, then the controller _may_ pay the cumulative upkeep cost once for each age counter on it; declining — or being unable to pay — sacrifices it. The cost therefore grows by one increment each turn the **Permanent** survives. In the Ice Age era the cost is mana, life, or a sacrifice.
 _Avoid_: Maintenance cost (the obsolete pre-keyword wording)
