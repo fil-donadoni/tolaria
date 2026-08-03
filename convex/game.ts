@@ -202,10 +202,7 @@ import {
     checkCardTargetFilters,
     pickCardFilterValues,
     type TargetFilterCtx,
-    getPendingTargetSourceColors,
-    getPendingTargetSourceTypes,
-    getPendingTargetSourceSubtypes,
-    getPendingTargetSourceSupertypes,
+    pendingTargetingSource,
     isProtectedFrom,
     targetingSourceFromCard,
     pendingTargetFiltersFromRequirement,
@@ -9383,35 +9380,32 @@ export function applyOneTargetSelection(
             }
         );
         if (filterViolation) throw new Error(filterViolation);
-        // CR 702.16b: a permanent with protection from [quality] can't be
-        // targeted by a spell/ability whose source has that quality.
+        // CR 702.16b / 611 — the source whose target-selection is in progress.
         const guardSourceKind = pt.kind ?? "cast";
-        const sourceColors = getPendingTargetSourceColors(
+        // The ACCEPTED set applies the same quality gates as the offered set
+        // (CR 702.16b protection, CR 611 `cantBeTargeted` guards) — and it
+        // derives them from the SAME `pendingTargetingSource` the offered set
+        // uses (`legalActions.ts`'s enumerator, `raiseTriggerTargetSelection`'s
+        // engine path). ONE call, not five parallel `getPendingTargetSource*`
+        // reads: while each dimension was fetched separately, the two sides
+        // could — and did — disagree on one of them per `kind` (the offered
+        // side dropped CR 205.4a supertypes for triggers; the accepted side
+        // then kept CR 113.3 `isSpell` as `kind !== "ability"`, which calls a
+        // TRIGGERED ability a spell). Issue #1120 review rounds 1 and 2.
+        const targetingSource = pendingTargetingSource(
             state,
             pt.cardInstanceId,
             guardSourceKind
         );
-        const sourceTypes = getPendingTargetSourceTypes(
-            state,
-            pt.cardInstanceId,
-            guardSourceKind
-        );
-        // The ACCEPTED set must apply the same quality checks as the
-        // offered set above (CR 702.16b) — the colour form, the CR 702.16k
-        // player quality (issue #1748) for which the targeting player IS the
-        // source's controller, and the CR 702.16a CHARACTERISTIC quality
-        // (issue #1120) read off the source's live types/supertypes. Both
-        // sides build the bundle from the SAME `getPendingTargetSource*`
-        // helpers, so the offered set and the accepted set cannot diverge.
+        // CR 702.16b — the colour form, the CR 702.16k player quality (issue
+        // #1748) for which the targeting player IS the source's controller,
+        // and the CR 702.16a CHARACTERISTIC quality (issue #1120) read off the
+        // source's live types/supertypes.
         if (
             isProtectedFrom(matchedCard, {
-                colors: sourceColors,
-                types: sourceTypes,
-                supertypes: getPendingTargetSourceSupertypes(
-                    state,
-                    pt.cardInstanceId,
-                    guardSourceKind
-                ),
+                colors: targetingSource.colors,
+                types: targetingSource.types,
+                supertypes: targetingSource.supertypes,
                 controllerId: pt.playerId,
             })
         ) {
@@ -9420,19 +9414,15 @@ export function applyOneTargetSelection(
         // CR 611 — a continuous `permanent-guard` (Guardian Beast / shroud)
         // may bar targeting entirely. Mirror of the getLegalTargets gate.
         // The source's card types (CR 109.5), subtypes ("Aura spells"), and
-        // spell-vs-ability (CR 113.3 "spells only") narrow filtered guards.
-        const sourceSubtypes = getPendingTargetSourceSubtypes(
-            state,
-            pt.cardInstanceId,
-            guardSourceKind
-        );
+        // spell-vs-ability (CR 113.3 "spells only" — Lurker) narrow filtered
+        // guards.
         if (
             isGuardedAgainst(state, matchedCard, "cantBeTargeted", {
-                types: sourceTypes,
-                subtypes: sourceSubtypes,
-                // copy-retarget is a spell copy; cast is a spell; ability
-                // is not (CR 113.3).
-                isSpell: guardSourceKind !== "ability",
+                types: targetingSource.types,
+                subtypes: targetingSource.subtypes,
+                // CR 113.3 — cast and (copy-)retarget are spells; an
+                // activated OR triggered ability is not.
+                isSpell: targetingSource.isSpell,
                 // CR 702.11b — the source's controller (the selecting
                 // player). Hexproof bars only an opponent-controlled source;
                 // the permanent's own controller can still target it.

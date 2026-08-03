@@ -41,6 +41,7 @@ import {
     raiseTriggerTargetSelection,
 } from "../rules";
 import { collectTriggers } from "../triggers";
+import { legalActions } from "../legalActions";
 import { validateBlockerEligibility } from "../combat";
 import { checkAttachmentSBA, checkAuraAttachmentSBA } from "../sba";
 import { applyAllCombatDamage } from "../phases";
@@ -761,12 +762,24 @@ describe("CR 702.16b/603.3c — a trigger from a legendary creature and a protec
 // ─────────────────────────────────────────────────────────────────────────
 
 describe("single-authority guard — TargetingSource is never hand-assembled", () => {
-    it("no production file spreads NO_TARGETING_SOURCE to build a partial bundle", () => {
-        // `{ ...NO_TARGETING_SOURCE, colors: … }` compiles even when it omits a
-        // dimension, which is exactly the hole the required-field interface
-        // exists to close. Tests may use it (a test bundle is inspectable in
-        // review); engine code must go through `targetingSourceFromCard` /
-        // `pendingTargetingSource` so all five dimensions are derived together.
+    it("production code builds a TargetingSource ONLY through the three constructors", () => {
+        // `TargetingSource` has five required fields, so omitting one is a
+        // compile error — but a hand-written FIVE-key literal type-checks fine
+        // and silently reintroduces the divergence class (a site free-hands
+        // `isSpell: kind !== "ability"`, calling a triggered ability a spell —
+        // issue #1120 review round 3). The only safe constructors are
+        // `targetingSourceFromCard`, `pendingTargetingSource` and
+        // `NO_TARGETING_SOURCE`, all in `gre/rules.ts`.
+        //
+        // Detection is by SHAPE, not by the spread syntax an earlier version
+        // of this guard scanned for: any object literal carrying BOTH a
+        // `supertypes:` and an `isSpell:` key is a `TargetingSource` literal
+        // (no other type in the codebase pairs those two — `GuardActionSource`
+        // has `isSpell` but no `supertypes`). A previous text-scan for
+        // `...NO_TARGETING_SOURCE` passed a five-key literal straight through
+        // and reported green while `gre/state.ts` held exactly such a literal.
+        const LITERAL =
+            /supertypes:[\s\S]{0,400}?isSpell:|isSpell:[\s\S]{0,400}?supertypes:/;
         const offenders: string[] = [];
         const walk = (dir: string): void => {
             for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -784,14 +797,157 @@ describe("single-authority guard — TargetingSource is never hand-assembled", (
                 }
                 if (!/\.tsx?$/.test(entry.name)) continue;
                 if (/\.test\.tsx?$/.test(entry.name)) continue;
+                // `gre/rules.ts` DEFINES the interface and the three
+                // constructors — it is the one place the shape may be written.
+                if (full.endsWith(join("gre", "rules.ts"))) continue;
                 const text = readFileSync(full, "utf8");
                 if (text.includes("...NO_TARGETING_SOURCE")) {
-                    offenders.push(full);
+                    offenders.push(`${full} (spread)`);
+                }
+                if (LITERAL.test(text)) {
+                    offenders.push(`${full} (hand-assembled literal)`);
                 }
             }
         };
         walk("convex");
         walk("src");
         expect(offenders).toEqual([]);
+    });
+
+    it("the guard actually detects a hand-assembled literal (self-check)", () => {
+        // Proof the regex above is load-bearing: the exact five-key shape a
+        // production file could write must match. Without this, a guard whose
+        // pattern silently stopped matching would report green forever.
+        const sample = `getLegalTargets(state, req, {
+            colors: [],
+            types: [],
+            subtypes: [],
+            supertypes: [],
+            isSpell: true,
+        }, "p1");`;
+        const LITERAL =
+            /supertypes:[\s\S]{0,400}?isSpell:|isSpell:[\s\S]{0,400}?supertypes:/;
+        expect(LITERAL.test(sample)).toBe(true);
+        // …and does NOT match a `GuardActionSource` literal (no `supertypes`).
+        expect(
+            LITERAL.test(
+                `{ types: [], subtypes: [], isSpell: true, controllerId: "p1" }`
+            )
+        ).toBe(false);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// CR 113.3 — a TRIGGERED ability is not a spell, on every offered/accepted
+// site (issue #1120 review round 3)
+// ─────────────────────────────────────────────────────────────────────────
+//
+// This is the sibling axis to protection: `TargetingSource.isSpell` narrows
+// `targetSourceMustBeSpell` guards. Lurker ("This creature can't be the target
+// of SPELLS unless it attacked or blocked this turn", `drk/green.ts`) is the
+// shipped fixture — a triggered ability MUST be able to target it.
+//
+// Before the `TargetingSource` bundle, the three sites disagreed:
+//   - `raiseTriggerTargetSelection` (engine)   → isSpell false  (CR-correct)
+//   - `legalActions.ts` (bot/UI enumerator)    → `kind !== "ability"` = TRUE
+//   - `selectTarget` guard (accepted set)      → `kind !== "ability"` = TRUE
+// so a trigger targeting Lurker was offered by the engine, hidden from the bot
+// enumerator, and REJECTED by the mutation. All three now read the one bundle.
+
+describe("CR 113.3 — a triggered ability is not a spell (Lurker, spell-only guard)", () => {
+    const LURKER = "b39eb671-e17e-4c5a-8913-1e3be7faedfb";
+
+    /** Lurker (p2, has not attacked/blocked → guard ACTIVE) and a plain bear,
+     *  with `sourceId` on p1's stack as a triggered-ability item and a
+     *  `kind: "trigger"` PendingTarget owed to p1. */
+    function lurkerTriggerState(): GameState {
+        const lurker = makeInstance(LURKER, {
+            id: "lurker",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const bear = makeInstance(GRIZZLY_BEARS, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const halfdane = makeInstance("2e939761-3542-4044-9038-d1d30c6a38fc", {
+            id: "halfdane",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            phase: "UPKEEP",
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [halfdane] }),
+                makePlayer("p2", { battlefield: [lurker, bear] }),
+            ],
+        });
+        state.stack.push(
+            ...collectTriggers(state, [
+                {
+                    type: "PHASE_BEGIN",
+                    phase: "UPKEEP",
+                    activePlayerId: "p1",
+                },
+            ]).filter((t) => t.triggeredAbilityId === "halfdane-copy-pt")
+        );
+        raiseTriggerTargetSelection(state);
+        return state;
+    }
+
+    it("pendingTargetingSource reports isSpell:false for a trigger, true for a cast", () => {
+        const state = lurkerTriggerState();
+        const pt = state.pendingTarget!;
+        expect(pt.kind).toBe("trigger");
+        expect(
+            pendingTargetingSource(state, pt.cardInstanceId, "trigger").isSpell
+        ).toBe(false);
+        expect(
+            pendingTargetingSource(state, pt.cardInstanceId, "retarget").isSpell
+        ).toBe(true);
+    });
+
+    it("the BOT/UI enumerator offers Lurker to a triggered ability (finding 1)", () => {
+        // `legalActions` drives `targetActions`, which used to pass
+        // `isSpell: kind !== "ability"` — TRUE for a trigger — so Lurker's
+        // spell-only guard wrongly hid it from the enumerator.
+        const state = lurkerTriggerState();
+        const offered = legalActions(state)
+            .map((a) => a.action)
+            .filter((a) => a.kind === "select-target")
+            .map((a) => (a as { target: { id: string } }).target.id);
+        expect(offered).toContain("lurker");
+        expect(offered).toContain("bear");
+    });
+
+    it("the ENGINE offered set agrees (getLegalTargets through the same bundle)", () => {
+        const state = lurkerTriggerState();
+        const pt = state.pendingTarget!;
+        const offered = getLegalTargets(
+            state,
+            { type: "Creature", count: 1 },
+            pendingTargetingSource(state, pt.cardInstanceId, "trigger"),
+            pt.playerId
+        ).map((t) => t.id);
+        expect(offered).toContain("lurker");
+    });
+
+    it("must-NOT — a CAST source is still barred by Lurker's spell-only guard", () => {
+        // Proves the gate is genuinely spell-narrowed, not disabled outright.
+        const state = lurkerTriggerState();
+        const offered = getLegalTargets(
+            state,
+            { type: "Creature", count: 1 },
+            {
+                ...NO_TARGETING_SOURCE,
+                types: ["Instant"],
+                isSpell: true,
+            },
+            "p1"
+        ).map((t) => t.id);
+        expect(offered).not.toContain("lurker");
+        expect(offered).toContain("bear");
     });
 });

@@ -74,6 +74,7 @@ import { checkStateBasedActions } from "./sba";
 import {
     getExtraLandDrops,
     getLegalTargets,
+    NO_TARGETING_SOURCE,
     targetingSourceFromCard,
 } from "./rules";
 import {
@@ -15387,24 +15388,19 @@ export function buildSpellContext(
             // Zone-broad (issue #1477) — enumerate targets for a card cast from
             // hand (Word of Command) or graveyard/exile (cast-during-resolution).
             const found = findOwnedCastSource(owner, cardInstanceId);
-            const cardId = found
-                ? (found.card.card as { id?: string }).id
-                : undefined;
-            const def = cardId ? tryGetDefinition(cardId) : undefined;
-            const sourceColors = getColorsFromCost(def?.manaCost);
             return getLegalTargets(
                 state,
                 requirement,
                 // The chosen card is being cast as a spell (CR 601), not an
-                // activated ability — mirror moves.ts. It is still in hand, so
-                // its characteristics come off the definition.
-                {
-                    colors: sourceColors,
-                    types: def?.types ?? [],
-                    subtypes: def?.subtypes ?? [],
-                    supertypes: def?.supertypes ?? [],
-                    isSpell: true,
-                },
+                // activated ability — mirror moves.ts, which reads the same
+                // characteristics off the INSTANCE through the one factory.
+                // (`getEffectiveColors` falls back to the printed cost when no
+                // colour override / grant applies, so this is value-identical
+                // to the old cost-derived read for a plain card and strictly
+                // more correct for a recoloured one.)
+                found
+                    ? targetingSourceFromCard(found.card, true)
+                    : NO_TARGETING_SOURCE,
                 casterId,
                 undefined
             );
