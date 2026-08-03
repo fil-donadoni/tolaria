@@ -73,6 +73,8 @@ import {
 import {
     hasAnyLegalBlock,
     getRequiredAttackerIds,
+    getAttackerCapEffect,
+    foldAttackRequirements,
     markAttacking,
     recordAttackerDeclared,
 } from "./combat";
@@ -3345,16 +3347,22 @@ export function drainAutoPasses(state: GameState): void {
                 state,
                 getOpponentId(state, state.activePlayerId)
             ).battlefield;
-            for (const requiredId of getRequiredAttackerIds(
-                activePlayer.battlefield,
-                state,
-                defenderBattlefield,
-                state.allCreaturesMustAttack
-            )) {
-                if (!state.combat.attackerIds.includes(requiredId)) {
-                    state.combat.attackerIds.push(requiredId);
-                }
-            }
+            // CR 508.1c/508.1d — normalize through the SAME authority the
+            // `confirmAttackers` mutation uses (`foldAttackRequirements`,
+            // `gre/combat.ts`): requirements obeyed to the maximum the
+            // battlefield-wide declared-attacker cap leaves room for, voluntary
+            // picks only in the leftover slack. This auto-pass path confirms
+            // without going through the mutation, so it must fold itself.
+            state.combat.attackerIds = foldAttackRequirements(
+                state.combat.attackerIds,
+                getRequiredAttackerIds(
+                    activePlayer.battlefield,
+                    state,
+                    defenderBattlefield,
+                    state.allCreaturesMustAttack
+                ),
+                getAttackerCapEffect(state)?.max
+            );
             for (const attackerId of state.combat.attackerIds) {
                 const card = activePlayer.battlefield.find(
                     (c) => c.id === attackerId

@@ -2308,9 +2308,10 @@ export const aetherRift: CardDefinition = {
 // The GW colour-identity cluster (MTGJSON `colors` field, exact {G,W} pips)
 // is 12 cards. All 12 are TRUE gold — no cross-colour mono-cost outliers
 // this pair (unlike BR/RG's Hooded Kavu/Bloodstone Cameo shape) — `colors`
-// omitted below, derived from the pips (CR 202.2). 11 ship free (Sterling
+// omitted below, derived from the pips (CR 202.2). 11 shipped free (Sterling
 // Grove shipped with issue #1125's tutor-to-top Op — see the end of this
-// file); Dueling Grounds is deferred — see the section below.
+// file); Dueling Grounds followed with the battlefield-wide declared-attacker
+// / declared-blocker count cap (#1127), completing the cluster at 12/12.
 
 // Armadillo Cloak — {1}{G}{W} Enchantment — Aura. "Enchant creature.
 // Enchanted creature gets +2/+2 and has trample. Whenever enchanted
@@ -2531,22 +2532,42 @@ export const chargingTroll: CardDefinition = {
 
 // Dueling Grounds — {1}{G}{W} Enchantment. "No more than one creature can
 // attack each combat.\nNo more than one creature can block each combat."
-// tracked-by: #1127 (a battlefield-wide DECLARED-SET count cap, distinct
-// from every existing attack/block-restriction kind: `declared-attack-
-// restriction` / `declared-block-restriction` (CR 508.1c/509.1b, Orcish
-// Conscripts' "can't attack/block unless...") are only ever collected from
-// the ATTACKING/BLOCKING creature's OWN definition and from Auras attached
-// to it (`collectDeclaredAttackRestrictions` / `collectDeclaredBlockRestrictions`,
-// `gre/combat.ts`) — never scanned battlefield-wide from an unrelated,
-// unattached Enchantment like Dueling Grounds. `global-attack-restriction`
-// (Moat) IS battlefield-scanned but is a per-creature forbid/allow
-// predicate, not a COUNT CAP over the whole declared set — it can't express
-// "no more than one" either. No existing static-effect kind combines
-// "scanned from any battlefield source" with "judged over the complete
-// declared-attacker/-blocker set", so this needs a new kind (a
-// `global-declared-attack-restriction` / `-block-restriction` pair, or an
-// extension of the existing collectors to also scan non-aura battlefield
-// sources) before Dueling Grounds can ship.)
+// (CR 508.1a / 509.1a — battlefield-wide declared-attacker / declared-blocker
+// count caps, #1127.) Symmetric: the cap binds both players regardless of who
+// controls this enchantment.
+//
+// One `combat-declaration-cap` static effect per Oracle line — the same kind
+// Caverns of Despair (`leg/red.ts`) declares at two. It is scanned from ANY
+// battlefield source (this is a free-standing enchantment, not an Aura, so the
+// `declared-attack-restriction` collectors — which only read the attacking
+// creature's own definition and its attached Auras, CR 303.4 — could never see
+// it), and judged over the COMPLETE declared set (which the per-creature
+// `global-attack-restriction` forbid/allow predicate, Moat, cannot express).
+export const duelingGrounds: CardDefinition = {
+    id: "52760183-bee0-4ce0-96c0-074b88f78980",
+    rarity: "rare",
+    name: "Dueling Grounds",
+    oracleText:
+        "No more than one creature can attack each combat.\nNo more than one creature can block each combat.",
+    manaCost: { X: 1, G: 1, W: 1 },
+    types: ["Enchantment"],
+    staticEffects: [
+        {
+            kind: "combat-declaration-cap",
+            id: "dueling-grounds-attack-cap",
+            side: "attack",
+            max: 1,
+            oracleText: "No more than one creature can attack each combat.",
+        },
+        {
+            kind: "combat-declaration-cap",
+            id: "dueling-grounds-block-cap",
+            side: "block",
+            max: 1,
+            oracleText: "No more than one creature can block each combat.",
+        },
+    ],
+};
 
 // Heroes' Reunion — {G}{W} Instant. "Target player gains 7 life." (CR
 // 119.3a life gain.) A plain single-Op spell — exact shape precedent

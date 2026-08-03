@@ -328,10 +328,11 @@ import {
     validateBlockerEligibility,
     getRequiredAttackerIds,
     mustAttack,
-    getRequiredBlockerAssignments,
     getMaxBlockTargets,
-    getAttackerCap,
-    getBlockerCap,
+    getAttackerCapEffect,
+    getBlockerCapEffect,
+    foldAttackRequirements,
+    foldBlockRequirements,
     validateMinimumBlockers,
     validateDeclaredAttackers,
     validateDeclaredBlockers,
@@ -10006,17 +10007,18 @@ export const toggleAttacker = mutation({
             if (!validation.eligible) {
                 throw new Error(validation.reason);
             }
-            // Caverns of Despair (CR 508.1a) — no more than two creatures can
-            // be declared as attackers each combat. The cap is global; reject
-            // the declaration that would push the count past it.
-            const attackerCap = getAttackerCap(state);
+            // CR 508.1a — a battlefield-wide cap on how many creatures may be
+            // declared as attackers each combat (Caverns of Despair at two,
+            // Dueling Grounds at one). The cap is global regardless of who
+            // controls the source; reject the selection that would push the
+            // count past it. The whole-set twin of this check runs at confirm
+            // (`validateDeclaredAttackers`).
+            const attackerCap = getAttackerCapEffect(state);
             if (
                 attackerCap !== undefined &&
-                state.combat.attackerIds.length >= attackerCap
+                state.combat.attackerIds.length >= attackerCap.max
             ) {
-                throw new Error(
-                    `No more than ${attackerCap} creatures can attack each combat (Caverns of Despair)`
-                );
+                throw new Error(attackerCap.oracleText);
             }
             state.combat.attackerIds.push(args.cardInstanceId);
             // CR 508.1a (issue #1220) — record the planeswalker this attacker is
@@ -10411,20 +10413,65 @@ export const confirmAttackers = mutation({
 
         const player = getPlayer(state, args.playerId);
 
-        // CR 508.1d: auto-include any eligible creature required to attack
-        // that the player didn't manually select.
+        // CR 508.1c/508.1d: normalize the player's selection into the legal
+        // declaration — fold in every eligible creature required to attack,
+        // capped by the battlefield-wide declared-attacker cap (CR 508.1a),
+        // which as a RESTRICTION outranks the requirements. `foldAttackRequirements`
+        // (`gre/combat.ts`) is the one authority the bot's move enumeration
+        // shares, so the mutation can never accept a declaration the enumerator
+        // considers illegal. A voluntary attacker that would crowd a must-attack
+        // creature out of the last slot is dropped here — it was never part of a
+        // legal declaration.
         const defenderBattlefield = getPlayer(
             state,
             getOpponentId(state, args.playerId)
         ).battlefield;
-        for (const requiredId of getRequiredAttackerIds(
-            player.battlefield,
-            state,
-            defenderBattlefield,
-            state.allCreaturesMustAttack
-        )) {
-            if (!state.combat.attackerIds.includes(requiredId)) {
-                state.combat.attackerIds.push(requiredId);
+        const foldedAttackers = foldAttackRequirements(
+            state.combat.attackerIds,
+            getRequiredAttackerIds(
+                player.battlefield,
+                state,
+                defenderBattlefield,
+                state.allCreaturesMustAttack
+            ),
+            getAttackerCapEffect(state)?.max
+        );
+        const droppedAttackers = state.combat.attackerIds.filter(
+            (id) => !foldedAttackers.includes(id)
+        );
+        state.combat.attackerIds = foldedAttackers;
+        if (droppedAttackers.length > 0) {
+            // A dropped attacker takes its planeswalker attack target (CR
+            // 508.1a) and its band membership (CR 702.21e) with it — the same
+            // cleanup the deselect branch of `toggleAttacker` performs.
+            if (state.combat.attackTargets) {
+                for (const id of droppedAttackers) {
+                    delete state.combat.attackTargets[id];
+                }
+                if (Object.keys(state.combat.attackTargets).length === 0) {
+                    state.combat.attackTargets = undefined;
+                }
+            }
+            if (state.combat.bands) {
+                state.combat.bands = state.combat.bands
+                    .map((b) => ({
+                        ...b,
+                        memberIds: b.memberIds.filter(
+                            (id) => !droppedAttackers.includes(id)
+                        ),
+                    }))
+                    .filter((b) => {
+                        if (b.memberIds.length < 2) return false;
+                        const members = b.memberIds
+                            .map((id) =>
+                                player.battlefield.find((c) => c.id === id)
+                            )
+                            .filter((c): c is NonNullable<typeof c> => !!c);
+                        return isLegalBandComposition(members);
+                    });
+                if (state.combat.bands.length === 0) {
+                    state.combat.bands = undefined;
+                }
             }
         }
 
@@ -10850,23 +10897,21 @@ export const assignBlockerTarget = mutation({
 
         const blockerId = state.combat.pendingBlockerId;
         const existing = state.combat.blockerAssignments[blockerId] ?? [];
-        // Caverns of Despair (CR 509.1a) — no more than two creatures can be
-        // declared as blockers each combat. The cap counts distinct blocking
-        // creatures, not blocking assignments; a creature already blocking may
-        // still take a second attacker (Two-Headed Giant) without consuming a
-        // new slot. Reject only a NEW blocker that would push the count past
-        // the cap.
-        const blockerCap = getBlockerCap(state);
+        // CR 509.1a — a battlefield-wide cap on how many creatures may be
+        // declared as blockers each combat (Caverns of Despair at two, Dueling
+        // Grounds at one). The cap counts distinct blocking creatures, not
+        // blocking assignments; a creature already blocking may still take a
+        // second attacker (Two-Headed Giant) without consuming a new slot.
+        // Reject only a NEW blocker that would push the count past the cap.
+        const blockerCap = getBlockerCapEffect(state);
         if (
             blockerCap !== undefined &&
             existing.length === 0 &&
             Object.keys(state.combat.blockerAssignments).filter(
                 (id) => (state.combat!.blockerAssignments[id] ?? []).length > 0
-            ).length >= blockerCap
+            ).length >= blockerCap.max
         ) {
-            throw new Error(
-                `No more than ${blockerCap} creatures can block each combat (Caverns of Despair)`
-            );
+            throw new Error(blockerCap.oracleText);
         }
         const maxAttackers = blocker ? getMaxBlockTargets(blocker) : 1;
         if (existing.length >= maxAttackers) {
@@ -10929,21 +10974,13 @@ export const confirmBlockers = mutation({
         );
 
         // CR 509.1c: auto-assign must-block requirements (Lure, Blaze of Glory)
-        const activePlayer = getPlayer(state, state.activePlayerId);
-        const required = getRequiredBlockerAssignments(
-            activePlayer.battlefield,
-            player.battlefield,
-            state.combat.attackerIds,
-            state.combat.blockerAssignments,
-            state
-        );
-        for (const [blockerId, attackerIds] of Object.entries(required)) {
-            const existing = state.combat.blockerAssignments[blockerId] ?? [];
-            state.combat.blockerAssignments[blockerId] = [
-                ...existing,
-                ...attackerIds,
-            ];
-        }
+        // CR 509.1a/509.1c — `foldBlockRequirements` (`gre/combat.ts`) is the
+        // one authority: it adds every must-block assignment the declared-
+        // blocker cap leaves room for, gives an already-blocking creature a
+        // further attacker for free (the cap counts creatures, not
+        // assignments), and — when the cap is full — drops a VOLUNTARY blocker
+        // to make room rather than silently skipping the requirement.
+        foldBlockRequirements(state);
 
         // CR 509.1b / 702.111 — minimum-blocker thresholds (menace). A
         // declaration where a menace attacker is blocked by exactly one creature

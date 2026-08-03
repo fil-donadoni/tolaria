@@ -57,6 +57,7 @@ import {
     validateBlockerEligibility,
     getAttackerCap,
     getBlockerCap,
+    maxObeyableAttackRequirements,
     getMinimumBlockers,
 } from "./combat";
 import { isSorceryTiming } from "./phases";
@@ -1111,14 +1112,38 @@ export function enumerateAttackerMoves(
     const optional = eligible.filter((c) => !required.has(c.id));
     const requiredIds = [...required];
 
-    // Caverns of Despair (CR 508.1a) — cap the number of declared attackers.
+    // CR 508.1a — the battlefield-wide cap on declared attackers (Caverns of
+    // Despair at two, Dueling Grounds at one).
     const cap = getAttackerCap(state);
 
-    // Each optional subset, always unioned with the forced attackers. Drop any
-    // subset whose total declared attackers would exceed the global cap.
-    const subsets = powerSet(optional)
-        .map((subset) => [...requiredIds, ...subset.map((c) => c.id)])
-        .filter((ids) => cap === undefined || ids.length <= cap);
+    // CR 508.1d — requirements are obeyed to the MAXIMUM number possible
+    // without violating a restriction, and the cap is a restriction. The legal
+    // declarations are therefore exactly: a `quota`-sized subset of the
+    // required creatures (the declarer picks WHICH when the cap admits fewer
+    // than all), plus any subset of the voluntary creatures that fits in the
+    // leftover slack. This is precisely the reachable output set of
+    // `foldAttackRequirements` — the same authority `confirmAttackers` and the
+    // auto-pass confirm normalize through — so the bot can never propose a
+    // declaration the mutation would rewrite, and never miss one it would
+    // accept. (`gre/combat.ts` carries the rule; the shared `quota` is the
+    // seam.)
+    const quota = maxObeyableAttackRequirements(requiredIds.length, cap);
+    // `combinations` (not `powerSet(...).filter`) — the purpose-built helper
+    // enumerates size-`quota` subsets directly, so `MAX_COMBINATIONS` bounds
+    // the ANSWER rather than a power set that would be truncated to 64 members
+    // before the size filter ever ran (with 8 required creatures under a cap of
+    // 2 that filter would have seen a fraction of the 28 real choices).
+    const requiredBases: string[][] =
+        quota === requiredIds.length
+            ? [requiredIds]
+            : combinations(requiredIds, quota);
+    const slack = cap === undefined ? Number.POSITIVE_INFINITY : cap - quota;
+
+    const subsets = requiredBases.flatMap((base) =>
+        powerSet(optional)
+            .filter((subset) => subset.length <= slack)
+            .map((subset) => [...base, ...subset.map((c) => c.id)])
+    );
 
     const baseMoves: Move[] = subsets.map((attackerIds) => ({
         kind: "declare-attackers" as const,
@@ -1218,8 +1243,10 @@ export function enumerateBlockerMoves(
         if (combos.length >= MAX_COMBINATIONS) break;
     }
 
-    // Caverns of Despair (CR 509.1a) — drop combos that declare more than the
-    // cap distinct blocking creatures.
+    // CR 509.1a — drop combos that declare more than the battlefield-wide cap
+    // of distinct blocking creatures (Caverns of Despair, Dueling Grounds).
+    // The empty assignment always survives, so the bot can never be left
+    // without a legal declare-blockers move.
     const blockerCap = getBlockerCap(state);
     const capped =
         blockerCap === undefined

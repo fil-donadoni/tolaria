@@ -164,6 +164,7 @@ import {
 } from "./replacements";
 import { collectTriggers, placeTriggersOnStack } from "./triggers";
 import { getColorsFromCost } from "../cards/colors";
+import { combatDeclarationCap } from "../cards/attackRestrictions";
 import {
     applyCopy,
     findTriggeredAbility,
@@ -13724,6 +13725,19 @@ export function buildSpellContext(
                 ...combat.attackerIds,
             ]);
 
+            // CR 509.1a — the battlefield-wide declared-blocker cap is a
+            // RESTRICTION on the declaration itself (Caverns of Despair,
+            // Dueling Grounds), so it binds the Camouflage piles too: creatures
+            // past the cap simply are not declared as blockers. Enforced HERE,
+            // at the writer, because this runs during spell resolution — a pure
+            // state function with no way to reject and re-prompt — and the
+            // auto-confirm in `drainAutoPasses` marks whatever this leaves.
+            const blockerCap = combatDeclarationCap(state as never, "block");
+            const distinctBlockers = () =>
+                Object.keys(combat.blockerAssignments).filter(
+                    (id) => (combat.blockerAssignments[id] ?? []).length > 0
+                ).length;
+
             for (let i = 0; i < piles.length; i++) {
                 const attackerId = shuffledAttackers[i];
                 if (attackerId === undefined) break;
@@ -13732,6 +13746,12 @@ export function buildSpellContext(
                 );
                 if (!attacker) continue;
                 for (const blockerId of piles[i]) {
+                    if (
+                        blockerCap !== undefined &&
+                        distinctBlockers() >= blockerCap.max
+                    ) {
+                        break;
+                    }
                     const blocker = defender.battlefield.find(
                         (c) => c.id === blockerId
                     );

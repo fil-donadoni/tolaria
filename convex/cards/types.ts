@@ -5645,6 +5645,51 @@ export interface StaticDeclaredBlockRestriction {
     oracleText: string;
 }
 
+/** Battlefield-scanned CAP on how many creatures may be DECLARED as attackers
+ *  (`side: "attack"`, CR 508.1a) or as blockers (`side: "block"`, CR 509.1a) in
+ *  a single combat. Caverns of Despair ("No more than two creatures can attack
+ *  each combat. No more than two creatures can block each combat.") and Dueling
+ *  Grounds (the same shape at one) are expressed with it.
+ *
+ *  It is the count-cap analogue of `global-attack-restriction`: scanned across
+ *  EVERY permanent on the battlefield (the cap's source is a free-standing
+ *  enchantment, not the attacker), so a source can constrain creatures other
+ *  than itself — but where `global-attack-restriction` is a per-creature
+ *  forbid/allow predicate, this kind is judged over the COMPLETE declared set,
+ *  which no per-creature predicate can see. It is DATA rather than a closure so
+ *  the one declaration drives every consumer that needs the NUMBER and not just
+ *  a yes/no: the incremental toggle gates (`convex/game.ts`), the
+ *  confirmation-time set check (`validateDeclaredAttackers` /
+ *  `validateDeclaredBlockers`), the bot's declaration enumeration
+ *  (`convex/gre/moves.ts`), and the client's board affordance
+ *  (`useBattlefieldVisualState`), all through the single scanner
+ *  `combatDeclarationCap` (`convex/cards/attackRestrictions.ts`).
+ *
+ *  Several sources stack by taking the MOST RESTRICTIVE (smallest) `max` — each
+ *  is an independent restriction and a declaration must obey them all
+ *  (CR 508.1c / 509.1b).
+ *
+ *  A cap is a RESTRICTION, so it outranks a must-attack REQUIREMENT: CR 508.1d
+ *  obeys the maximum number of requirements possible without violating any
+ *  restriction, which is why the confirm-time auto-include of required
+ *  attackers stops at the cap rather than pushing past it. */
+export interface StaticCombatDeclarationCap {
+    kind: "combat-declaration-cap";
+    id: string;
+    /** Which declaration the cap constrains: the declare-attackers step
+     *  (CR 508.1a) or the declare-blockers step (CR 509.1a). A card capping
+     *  both (Caverns of Despair, Dueling Grounds) declares two entries. */
+    side: "attack" | "block";
+    /** Inclusive upper bound on the number of DISTINCT creatures that may be
+     *  declared. On the block side it counts blocking creatures, not blocking
+     *  assignments — one creature blocking two attackers (Two-Headed Giant)
+     *  consumes one slot. */
+    max: number;
+    /** The single Oracle sentence for this side, surfaced as the rejection
+     *  reason when the cap binds. */
+    oracleText: string;
+}
+
 /** Battlefield-scanned, player-scoped enters-tapped replacement (CR 614.1c +
  *  110.5b). Unlike the self-only `entersTapped` card flag (which taps only the
  *  card that carries it as it enters), this kind is scanned across EVERY
@@ -6426,6 +6471,7 @@ export type StaticEffect = (
     | StaticAttackRestriction
     | StaticDeclaredAttackRestriction
     | StaticDeclaredBlockRestriction
+    | StaticCombatDeclarationCap
     | StaticGlobalAttackRestriction
     | StaticAttackSacrificeTax
     | StaticAttackManaTax

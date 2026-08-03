@@ -72,6 +72,7 @@ const KIND_MATERIALIZATION: Record<
     "declared-attack-restriction": "recomputed",
     "declared-block-restriction": "recomputed",
     "global-attack-restriction": "recomputed",
+    "combat-declaration-cap": "recomputed",
     "attack-sacrifice-tax": "recomputed",
     "attack-mana-tax": "recomputed",
     "landwalk-negation": "recomputed",

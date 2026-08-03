@@ -17,6 +17,11 @@ import type { CardInstanceState, GameState, PlayerState } from "../state";
 import * as stateModule from "../state";
 import { enumerateMoves, planManaPayment, type Move } from "../moves";
 import { getLegalActions, maxAffordableX } from "../rules";
+import {
+    getAttackerCap,
+    getRequiredAttackerIds,
+    foldAttackRequirements,
+} from "../combat";
 
 const FOREST = getCardByName("Forest").id;
 const MOUNTAIN = getCardByName("Mountain").id;
@@ -1526,5 +1531,170 @@ describe("enumerateAbilityMoves — sorcerySpeedOnly timing (CR 602.5d)", () => 
         pushSpell(state, BOLT, "p2");
         state.priorityPlayerId = "p1";
         expect(equipMoves(state)).toHaveLength(0);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Declared-attacker / declared-blocker count cap in the bot's enumeration
+// (CR 508.1a / 509.1a, issue #1127)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("combat declaration cap in move enumeration (CR 508.1a / 509.1a)", () => {
+    const DUELING_GROUNDS = getCardByName("Dueling Grounds").id;
+    const JUGGERNAUT = getCardByName("Juggernaut").id; // attacks each combat if able
+
+    function attackerMoves(state: GameState): Move[] {
+        return enumerateMoves(state, "p1").filter(
+            (m) => m.kind === "declare-attackers"
+        );
+    }
+
+    /** p1 declaring attackers with `creatureIds` worth of `defId`; the cap sits
+     *  on p2's battlefield (symmetric — it binds the attacker regardless). */
+    function board(defId: string, count: number, withCap: boolean): GameState {
+        const creatures = Array.from({ length: count }, (_, i) =>
+            makeInstance(defId, {
+                id: `c${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+                isSummoningSick: false,
+            })
+        );
+        const p2Battlefield = withCap
+            ? [makeInstance(DUELING_GROUNDS, { id: "dg", controllerId: "p2" })]
+            : [];
+        return makeState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: creatures }),
+                makePlayer("p2", { battlefield: p2Battlefield }),
+            ],
+            combat: {
+                attackerIds: [],
+                confirmed: false,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+    }
+
+    it("never enumerates a declaration over the cap", () => {
+        const moves = attackerMoves(board(BEARS, 3, true));
+        expect(moves.length).toBeGreaterThan(0);
+        for (const m of moves) {
+            if (m.kind !== "declare-attackers") continue;
+            expect(m.attackerIds.length).toBeLessThanOrEqual(1);
+        }
+        // Without the cap the 3-attacker declaration IS offered — proving the
+        // filter above is the cap and not an unrelated limit.
+        const uncapped = attackerMoves(board(BEARS, 3, false));
+        expect(
+            uncapped.some(
+                (m) =>
+                    m.kind === "declare-attackers" && m.attackerIds.length === 3
+            )
+        ).toBe(true);
+    });
+
+    it("still offers a legal declaration when MORE creatures must attack than the cap allows (CR 508.1d)", () => {
+        // Two Juggernauts, cap of one. The required set alone exceeds the cap,
+        // so every "required ∪ subset" candidate is over the cap — before the
+        // fix that left the bot with NO declare-attackers move at all.
+        const moves = attackerMoves(board(JUGGERNAUT, 2, true));
+        expect(moves.length).toBeGreaterThan(0);
+        const declared = moves
+            .filter((m) => m.kind === "declare-attackers")
+            .map((m) => (m.kind === "declare-attackers" ? m.attackerIds : []));
+        for (const ids of declared) {
+            expect(ids).toHaveLength(1);
+        }
+        // Both choices of WHICH required creature attacks are offered — the bot
+        // picks, rather than the engine silently taking the first.
+        expect(new Set(declared.flat())).toEqual(new Set(["c0", "c1"]));
+    });
+});
+
+describe("bot enumeration and the confirm mutation agree on legality (CR 508.1d, issue #1127)", () => {
+    const DUELING_GROUNDS_2 = getCardByName("Dueling Grounds").id;
+    const JUGGERNAUT_2 = getCardByName("Juggernaut").id;
+
+    /** Dueling Grounds (cap 1) + a must-attack Juggernaut + a voluntary
+     *  Grizzly Bears — the board where the mutation and the enumerator used to
+     *  disagree: the enumerator refused `["bear"]`, the mutation accepted it. */
+    function crowdOutBoard(): GameState {
+        return makeState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(JUGGERNAUT_2, {
+                            id: "j1",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            isSummoningSick: false,
+                        }),
+                        makeInstance(BEARS, {
+                            id: "bear",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            isSummoningSick: false,
+                        }),
+                    ],
+                }),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(DUELING_GROUNDS_2, {
+                            id: "dg",
+                            controllerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+            combat: {
+                attackerIds: [],
+                confirmed: false,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+    }
+
+    function declarations(state: GameState): string[][] {
+        return enumerateMoves(state, "p1")
+            .filter((m) => m.kind === "declare-attackers")
+            .map((m) => (m.kind === "declare-attackers" ? m.attackerIds : []));
+    }
+
+    it("every declaration the mutation would produce from ANY player selection is an enumerated move", () => {
+        const state = crowdOutBoard();
+        const defenderBattlefield = state.players[1].battlefield;
+        const required = getRequiredAttackerIds(
+            state.players[0].battlefield,
+            state,
+            defenderBattlefield,
+            undefined
+        );
+        const cap = getAttackerCap(state);
+        const enumerated = new Set(
+            declarations(state).map((ids) => [...ids].sort().join(","))
+        );
+
+        // Every subset of the board is a selection the player can toggle into;
+        // `foldAttackRequirements` is what `confirmAttackers` turns it into.
+        const ids = ["j1", "bear"];
+        const selections = [[], ["j1"], ["bear"], ["j1", "bear"]];
+        for (const selection of selections) {
+            const folded = foldAttackRequirements(selection, required, cap);
+            expect(ids).toEqual(expect.arrayContaining(folded));
+            expect(enumerated).toContain([...folded].sort().join(","));
+        }
+    });
+
+    it("the voluntary-only declaration the mutation refuses is never enumerated either", () => {
+        expect(declarations(crowdOutBoard())).toEqual([["j1"]]);
     });
 });

@@ -1,5 +1,7 @@
-// Shared, frontend-safe evaluation of battlefield-scanned global attack
-// restrictions (CR 508.1c) — Moat, Akron Legionnaire (#481).
+// Shared, frontend-safe evaluation of battlefield-scanned global combat
+// declaration restrictions — the per-creature attack prohibitions of CR 508.1c
+// (Moat, Akron Legionnaire, #481) and the declared-set count caps of
+// CR 508.1a / 509.1a (Caverns of Despair, Dueling Grounds, #1127).
 //
 // Lives under `convex/cards/` (NOT `convex/gre/`) so the React client can call
 // it directly to gray out non-eligible attackers, while the GRE
@@ -111,4 +113,54 @@ export function globalAttackProhibitionReason(
         }
     }
     return undefined;
+}
+
+/** The binding declared-attacker / declared-blocker count cap and the Oracle
+ *  sentence that imposes it. */
+export interface CombatDeclarationCap {
+    /** Inclusive upper bound on the number of distinct creatures declarable. */
+    max: number;
+    /** Rejection reason shown when the cap binds. */
+    oracleText: string;
+}
+
+/** Scans EVERY permanent on the battlefield for `combat-declaration-cap` static
+ *  effects on `side` (CR 508.1a attackers / 509.1a blockers) and returns the
+ *  MOST RESTRICTIVE one, or `undefined` when nothing caps the declaration.
+ *
+ *  Each cap is an independent restriction and a declaration must obey them all,
+ *  so two sources in play bind at the smaller `max` (a Dueling Grounds under a
+ *  Caverns of Despair allows one attacker, not two).
+ *
+ *  The ONE authority every consumer reads: the incremental toggle gates in
+ *  `convex/game.ts`, the confirmation-time whole-set checks
+ *  (`validateDeclaredAttackers` / `validateDeclaredBlockers`, `gre/combat.ts`),
+ *  the bot's declaration enumeration (`gre/moves.ts`) and the client's board
+ *  affordance (`useBattlefieldVisualState`) — so the board can never gray a
+ *  creature the server would accept, or offer one it would reject. Lives here
+ *  rather than in `gre/` precisely so the React client can call it. */
+export function combatDeclarationCap(
+    state: AttackRestrictionStateView,
+    side: "attack" | "block"
+): CombatDeclarationCap | undefined {
+    let binding: CombatDeclarationCap | undefined;
+    for (const player of state.players) {
+        for (const source of player.battlefield) {
+            const cardId = (source.card as { id?: string }).id;
+            if (!cardId) continue;
+            const def = tryGetDefinition(cardId);
+            if (!def?.staticEffects) continue;
+            for (const effect of def.staticEffects) {
+                if (effect.kind !== "combat-declaration-cap") continue;
+                if (effect.side !== side) continue;
+                if (binding === undefined || effect.max < binding.max) {
+                    binding = {
+                        max: effect.max,
+                        oracleText: effect.oracleText,
+                    };
+                }
+            }
+        }
+    }
+    return binding;
 }

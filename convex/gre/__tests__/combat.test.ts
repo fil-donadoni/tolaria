@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
     validateAttackerEligibility,
     validateBlockerEligibility,
+    validateDeclaredAttackers,
+    validateDeclaredBlockers,
     mustAttack,
     getRequiredAttackerIds,
     getMinimumBlockers,
@@ -26,6 +28,11 @@ import {
     wallOfSwords,
 } from "../../cards/sets/lea";
 import { mightstone } from "../../cards/sets/atq/colorless";
+import { duelingGrounds as duelingGroundsDef } from "../../cards/sets/inv/multicolor";
+import { cavernsOfDespair as cavernsOfDespairDef } from "../../cards/sets/leg/red";
+import { lure } from "../../cards/sets/lea/green";
+import { goblinMutant } from "../../cards/sets/ice/red";
+import { drainAutoPasses } from "../phases";
 import { hobble as hobbleAuraDef } from "../../cards/sets/pls/white";
 import { buildSpellContext, resolveTopOfStack } from "../state";
 import { pushSpell } from "../../cards/__tests__/setup";
@@ -969,5 +976,338 @@ describe("CR 508.4 — TokenSpec.entersTapped / entersAttacking (issue #1195)", 
             "p1"
         ).map((t) => t.id);
         expect(legalAttackers).toContain(id);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Declared-attacker cap vs. must-attack requirements on the AUTO-PASS confirm
+// path (CR 508.1a / 508.1d, issue #1127)
+// ---------------------------------------------------------------------------
+
+describe("auto-pass attacker confirm honours the declared-attacker cap (CR 508.1a/508.1d)", () => {
+    /** p1 auto-passing in DECLARE_ATTACKERS with two Juggernauts (each "attacks
+     *  each combat if able") and a Dueling Grounds on p2's board capping the
+     *  declaration at one. */
+    function autoPassBoard(withCap: boolean) {
+        const juggernauts = [0, 1].map((i) =>
+            makeInstance(juggernaut.id, {
+                id: `j${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+                isSummoningSick: false,
+            })
+        );
+        const p2Battlefield = withCap
+            ? [
+                  makeInstance(duelingGroundsDef.id, {
+                      id: "dg",
+                      controllerId: "p2",
+                  }),
+              ]
+            : [];
+        return makeState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            autoPassPlayers: ["p1"],
+            players: [
+                makePlayer("p1", { battlefield: juggernauts }),
+                makePlayer("p2", { battlefield: p2Battlefield }),
+            ],
+            combat: {
+                attackerIds: [],
+                confirmed: false,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+    }
+
+    it("auto-includes must-attack creatures only up to the cap", () => {
+        const state = autoPassBoard(true);
+        drainAutoPasses(state);
+        // `drainAutoPasses` walks past DECLARE_ATTACKERS, so read the record it
+        // left behind rather than the (possibly advanced) combat object.
+        const attacking = state.players[0].battlefield.filter(
+            (c) => c.isAttacking
+        );
+        expect(attacking).toHaveLength(1);
+    });
+
+    it("without the cap BOTH required attackers are auto-included (the cap is what stops the second)", () => {
+        const state = autoPassBoard(false);
+        drainAutoPasses(state);
+        const attacking = state.players[0].battlefield.filter(
+            (c) => c.isAttacking
+        );
+        expect(attacking).toHaveLength(2);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Camouflage pile blocks under the declared-blocker cap (CR 509.1a, #1127)
+// ---------------------------------------------------------------------------
+
+describe("Camouflage pile blocks honour the declared-blocker cap (CR 509.1a)", () => {
+    /** p1 attacking with three creatures; p2 holding three untapped blockers.
+     *  A Caverns of Despair (cap two) sits on p1's board when `withCap`. */
+    function camouflageBoard(withCap: boolean) {
+        const attackers = [0, 1, 2].map((i) =>
+            makeInstance(grizzlyBears.id, {
+                id: `a${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+                isSummoningSick: false,
+            })
+        );
+        const blockers = [0, 1, 2].map((i) =>
+            makeInstance(grizzlyBears.id, {
+                id: `b${i}`,
+                controllerId: "p2",
+                ownerId: "p2",
+                isSummoningSick: false,
+            })
+        );
+        const p1Battlefield = withCap
+            ? [
+                  ...attackers,
+                  makeInstance(cavernsOfDespairDef.id, {
+                      id: "caverns",
+                      controllerId: "p1",
+                  }),
+              ]
+            : attackers;
+        return makeState({
+            phase: "DECLARE_BLOCKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p2",
+            players: [
+                makePlayer("p1", { battlefield: p1Battlefield }),
+                makePlayer("p2", { battlefield: blockers }),
+            ],
+            combat: {
+                attackerIds: ["a0", "a1", "a2"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+    }
+
+    function declarePiles(withCap: boolean) {
+        const state = camouflageBoard(withCap);
+        // Camouflage writes `blockerAssignments` DIRECTLY during resolution —
+        // it never passes through `assignBlockerTarget` or the confirm-time
+        // validators, so the cap has to hold at this writer or not at all.
+        const item = pushSpell(state, grizzlyBears.id, "p1");
+        const ctx = buildSpellContext(state, item);
+        ctx.applyCamouflagePileBlocks("p2", [["b0"], ["b1"], ["b2"]]);
+        return state;
+    }
+
+    const distinctBlockers = (state: ReturnType<typeof camouflageBoard>) =>
+        Object.keys(state.combat!.blockerAssignments).filter(
+            (id) => (state.combat!.blockerAssignments[id] ?? []).length > 0
+        );
+
+    it("declares no more blockers than the cap allows", () => {
+        expect(distinctBlockers(declarePiles(true))).toHaveLength(2);
+    });
+
+    it("without the cap all three piles block (the cap is what stops the third)", () => {
+        expect(distinctBlockers(declarePiles(false))).toHaveLength(3);
+    });
+
+    it("the auto-confirm that skips the block window inherits the capped set", () => {
+        const state = declarePiles(true);
+        state.autoPassPlayers = ["p1", "p2"];
+        drainAutoPasses(state);
+        const stillBlocking = state.players[1].battlefield.filter(
+            (c) => c.isBlocking
+        );
+        expect(stillBlocking).toHaveLength(2);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Requirement-maximality backstop in the confirm-time validators
+// (CR 508.1d / 509.1c, issue #1127)
+// ---------------------------------------------------------------------------
+
+describe("confirm-time validators reject a declaration that obeys fewer requirements than possible", () => {
+    it("validateDeclaredAttackers rejects a voluntary attacker holding the only slot (CR 508.1d)", () => {
+        const jug = makeInstance(juggernaut.id, {
+            id: "j1",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [jug, bear] }),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(duelingGroundsDef.id, {
+                            id: "dg",
+                            controllerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+            combat: {
+                attackerIds: ["bear"],
+                confirmed: false,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+        // The cap check passes (one attacker, cap one) — this is purely the
+        // CR 508.1d maximality rule, and the backstop for any producer that
+        // writes `attackerIds` without going through `foldAttackRequirements`.
+        const result = validateDeclaredAttackers(state);
+        expect(result.ok).toBe(false);
+        expect(result.ok === false && result.reason).toMatch(/must attack/i);
+
+        // The Juggernaut in that slot instead is legal.
+        state.combat!.attackerIds = ["j1"];
+        expect(validateDeclaredAttackers(state)).toEqual({ ok: true });
+    });
+
+    it("validateDeclaredBlockers rejects a voluntary block holding the only slot (CR 509.1c)", () => {
+        const aura = makeInstance(lure.id, {
+            id: "lure",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        aura.attachedTo = "a";
+        const mk = (id: string, owner: string) =>
+            makeInstance(grizzlyBears.id, {
+                id,
+                controllerId: owner,
+                ownerId: owner,
+                isSummoningSick: false,
+            });
+        const state = makeState({
+            phase: "DECLARE_BLOCKERS",
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        mk("a", "p1"),
+                        mk("a2", "p1"),
+                        aura,
+                        makeInstance(duelingGroundsDef.id, {
+                            id: "dg",
+                            controllerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2", {
+                    battlefield: [mk("x", "p2"), mk("y", "p2")],
+                }),
+            ],
+            combat: {
+                attackerIds: ["a", "a2"],
+                confirmed: true,
+                blockerAssignments: { y: ["a2"] },
+                blockersConfirmed: false,
+            },
+        });
+        const result = validateDeclaredBlockers(state);
+        expect(result.ok).toBe(false);
+        expect(result.ok === false && result.reason).toMatch(/must block/i);
+
+        // Spending the one slot on the Lure requirement instead is legal.
+        state.combat!.blockerAssignments = { x: ["a"] };
+        expect(validateDeclaredBlockers(state)).toEqual({ ok: true });
+    });
+});
+
+describe("the requirement backstop reads the DEFENDER's battlefield (CR 508.1c/508.1d)", () => {
+    it("a creature whose attack the defender's board forbids is not counted as a requirement", () => {
+        // Goblin Mutant "can't attack if defending player controls an untapped
+        // creature with power 3 or greater" (CR 508.1c), and the defender
+        // controls exactly that. Under a mass "all creatures must attack"
+        // effect the Mutant therefore CANNOT be one of the required attackers —
+        // the Grizzly Bears is — so declaring the Mutant alone leaves the
+        // requirement unobeyed and must be rejected.
+        //
+        // `defenderBattlefieldOf` is what feeds that board to the backstop's
+        // `getRequiredAttackerIds`. Reading an EMPTY board there flips the
+        // Mutant back into the required set, the backstop counts it as obeyed,
+        // and the declaration is waved through — while the fold (which resolves
+        // the defender through `getOpponentId`) still refuses it, leaving a
+        // declare-attackers step nobody can confirm.
+        const mutant = makeInstance(goblinMutant.id, {
+            id: "gm",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const bigBlocker = makeInstance(juggernaut.id, {
+            id: "big",
+            controllerId: "p2",
+            ownerId: "p2",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            allCreaturesMustAttack: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [mutant, bear] }),
+                makePlayer("p2", {
+                    battlefield: [
+                        bigBlocker,
+                        makeInstance(duelingGroundsDef.id, {
+                            id: "dg",
+                            controllerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+            combat: {
+                attackerIds: ["gm"],
+                confirmed: false,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+
+        // Sanity: with the REAL defender board the Mutant can't attack at all,
+        // so the Bears is the sole requirement.
+        expect(
+            validateAttackerEligibility(mutant, [bigBlocker], state).eligible
+        ).toBe(false);
+        expect(
+            getRequiredAttackerIds(
+                state.players[0].battlefield,
+                state,
+                state.players[1].battlefield,
+                "p1"
+            )
+        ).toEqual(["bear"]);
+
+        const result = validateDeclaredAttackers(state);
+        expect(result.ok).toBe(false);
+        expect(result.ok === false && result.reason).toMatch(/must attack/i);
+
+        // Declaring the creature that actually must attack is legal.
+        state.combat!.attackerIds = ["bear"];
+        expect(validateDeclaredAttackers(state)).toEqual({ ok: true });
     });
 });
