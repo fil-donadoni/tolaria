@@ -1028,15 +1028,13 @@ export const prisonBarricade: CardDefinition = {
     name: "Prison Barricade",
     // Scryfall prints "Defender" before "Kicker" (verified via
     // `cards/named?exact=Prison+Barricade&set=inv`) — this is the catalogue's
-    // first card where a keyword line leads Kicker in Oracle order. Every
-    // clause's wording is reproduced verbatim; only the top two LINES are
-    // swapped (a purely presentational reorder with no CR significance —
-    // 602/603 don't care what order two independent static/cost clauses
-    // print in) so the catalogue-wide Kicker declaration guard's "Oracle
-    // starts with the first Kicker's description" anchor
-    // (`cards/__tests__/kickerDeclarations.test.ts`) still holds.
+    // first card where a keyword line leads Kicker in Oracle order. Reproduced
+    // verbatim in Scryfall's own line order; the catalogue-wide Kicker
+    // declaration guard's Oracle anchor (`cards/__tests__/kickerDeclarations.test.ts`)
+    // accepts a kicker description matching any line of the Oracle text, not
+    // only the first, so this real print order does not need to be bent.
     oracleText:
-        "Kicker {1}{W} (You may pay an additional {1}{W} as you cast this spell.)\nDefender (This creature can't attack.)\nIf this creature was kicked, it enters with a +1/+1 counter on it and with \"This creature can attack as though it didn't have defender.\"",
+        "Defender (This creature can't attack.)\nKicker {1}{W} (You may pay an additional {1}{W} as you cast this spell.)\nIf this creature was kicked, it enters with a +1/+1 counter on it and with \"This creature can attack as though it didn't have defender.\"",
     manaCost: { X: 1, W: 1 },
     types: ["Creature"],
     subtypes: ["Wall"],

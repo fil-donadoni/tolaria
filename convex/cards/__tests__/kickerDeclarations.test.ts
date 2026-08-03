@@ -115,18 +115,27 @@ describe("Kicker declarations (CR 702.33 / 702.33e, ADR 0079)", () => {
             const kickers = card.kickers ?? [];
             if (kickers.length === 0) return;
 
-            // 2. Oracle PREFIX anchor on the FIRST declared Kicker. Runs
-            // regardless of leg shape (mana or not) — Magma Burst's
-            // "Kicker—Sacrifice two lands" needs this exactly as much as a
-            // mana-only leg. This is what catches a FORGOTTEN leg: a card
-            // whose real Oracle is "Kicker {1}{B} and/or {G} (…)" but that
-            // declares only ONE Kicker (`{ description: "Kicker {G}", mana:
-            // { G: 1 } }`, the {1}{B} leg dropped) passes an exact
-            // cost<->description check (its lone entry is internally
-            // consistent) — the Oracle does NOT start with "Kicker {G}", so
-            // this anchor is what actually fails.
+            // 2. Oracle anchor on the FIRST declared Kicker. Runs regardless
+            // of leg shape (mana or not) — Magma Burst's "Kicker—Sacrifice
+            // two lands" needs this exactly as much as a mana-only leg. This
+            // is what catches a FORGOTTEN leg: a card whose real Oracle is
+            // "Kicker {1}{B} and/or {G} (…)" but that declares only ONE
+            // Kicker (`{ description: "Kicker {G}", mana: { G: 1 } }`, the
+            // {1}{B} leg dropped) passes an exact cost<->description check
+            // (its lone entry is internally consistent) — the Oracle
+            // contains no line matching "Kicker {G}" at all, so this anchor
+            // is what actually fails. The description must match either the
+            // START of the Oracle text or the start of some LATER line
+            // (`"\n" + description`) — some printings lead with a different
+            // keyword line (e.g. Prison Barricade prints "Defender" before
+            // "Kicker"), which is a legitimate Oracle line order the guard
+            // must not reject; what it must catch is the description
+            // matching NO line anywhere in the Oracle text.
             if (oracle.length > 0) {
-                expect(oracle.startsWith(kickers[0].description)).toBe(true);
+                expect(
+                    oracle.startsWith(kickers[0].description) ||
+                        oracle.includes("\n" + kickers[0].description)
+                ).toBe(true);
             }
 
             kickers.forEach((k) => {
