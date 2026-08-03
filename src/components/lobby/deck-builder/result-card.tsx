@@ -1,6 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import CardImage from "~/components/cards/card-image";
 import { defaultEdition, editionOptions } from "~/lib/editions";
+import type { EditionOption } from "~/lib/editions";
+import { useScryfallEditions } from "~/lib/scryfallApi";
 import type { CardIndexEntry } from "./useCardSearch";
 import DraggableCard from "./draggable-card";
 import EditionDropdown from "./edition-dropdown";
@@ -18,11 +20,34 @@ export default function ResultCard({
     activeSets,
     onAdd,
 }: ResultCardProps) {
-    const options = useMemo(() => editionOptions(entry.prints), [entry.prints]);
-    const defaultPrintId = useMemo(
+    const isCatalogue = entry.oracleText === "";
+
+    const indexOptions = useMemo(
+        () => editionOptions(entry.prints),
+        [entry.prints]
+    );
+    const indexDefault = useMemo(
         () => defaultEdition(entry.prints, activeSets),
         [entry.prints, activeSets]
     );
+
+    const { editions: scryfallEditions, load: loadEditions } =
+        useScryfallEditions(isCatalogue ? entry.name : null);
+
+    useEffect(() => {
+        if (isCatalogue) loadEditions();
+    }, [isCatalogue, loadEditions]);
+
+    const catalogueSingle: EditionOption = {
+        printId: entry.prints[0].printId,
+        label: entry.prints[0].setCode.toUpperCase(),
+    };
+
+    const options: EditionOption[] = isCatalogue
+        ? (scryfallEditions ?? [catalogueSingle])
+        : indexOptions;
+
+    const defaultPrintId = isCatalogue ? entry.prints[0].printId : indexDefault;
 
     const [override, setOverride] = useState<string | null>(null);
     const selected = override ?? defaultPrintId;
@@ -49,9 +74,6 @@ export default function ResultCard({
         );
     }
 
-    // Drag → drop into Maindeck or Sideboard; plain click → quick-add to
-    // Maindeck (the fast path). The edition dropdown stays a separate, non-drag
-    // control below the art.
     return (
         <div className="flex w-(--card-w) shrink-0 flex-col gap-1">
             <DraggableCard
@@ -70,7 +92,8 @@ export default function ResultCard({
                 </div>
                 <div className="pointer-events-none absolute inset-0 rounded-sm ring-2 ring-transparent group-hover:ring-accent/60" />
             </DraggableCard>
-            {options.length > 1 && (
+            {(options.length > 1 ||
+                (isCatalogue && scryfallEditions === undefined)) && (
                 <EditionDropdown
                     options={options}
                     value={selected}

@@ -14,6 +14,7 @@ import {
     type FullCatalogueResult,
     type FullCatalogueRow,
 } from "~/lib/fullCatalogue";
+import { useScryfallTextSearch } from "~/lib/scryfallApi";
 
 export interface CardIndexEntry {
     cardId: string;
@@ -72,6 +73,9 @@ export interface CardSearchFilters {
      *  today's. Toggling it off surfaces the census of unimplemented cards,
      *  dimmed and unselectable in real mode. */
     hideUnavailable: boolean;
+    /** Show only token cards (for the `createToken` manual-mode verb).
+     *  Default `false` — tokens are hidden from the regular card pool. */
+    showTokens: boolean;
 }
 
 export const DEFAULT_FILTERS: CardSearchFilters = {
@@ -88,7 +92,17 @@ export const DEFAULT_FILTERS: CardSearchFilters = {
     sort: "manaValue",
     sortDirection: "asc",
     hideUnavailable: true,
+    showTokens: false,
 };
+
+/** Token cards are identified by the "Token" type word in their type line.
+ *  Separated so the catalogue search can exclude them by default. */
+export const TOKEN_TYPE = "Token";
+
+/** Minimum debounce before a Scryfall oracle-text search fires, per
+ *  Scryfall's ≤10 req/s guideline. Separated from the local text debounce
+ *  (180ms) so the local search is always faster. */
+export const SCRYFALL_DEBOUNCE_MS = 300;
 
 function matchesColors(
     cardColors: string[],
@@ -112,7 +126,7 @@ function matchesColors(
 }
 
 function tokenizeQuery(text: string): string[] {
-    const normalized = text.replace(/[“”„‟″‶]/g, '"').replace(/[‘’‚‛′‵]/g, "'");
+    const normalized = text.replace(/[""''""]/g, '"').replace(/['',"']/g, "'");
     const tokens: string[] = [];
     const re = /"([^"]+)"|'([^']+)'|(\S+)/g;
     let m: RegExpExecArray | null;
@@ -139,7 +153,7 @@ function matchesText(entry: CardIndexEntry, text: string): boolean {
     // Below the 3-char gate the text query is inert — other filters still
     // apply, but the text never constrains results.
     if (!isTextActive(text)) return true;
-    // Fold accents so "ifh-bi" matches "Ifh-Bíff Efreet". The index carries
+    // Fold accents so "ifh-bi" matches "Ifh-B/ff Efreet". The index carries
     // pre-folded fields; the query is folded here.
     const tokens = tokenizeQuery(foldAccents(text.toLowerCase()));
     if (tokens.length === 0) return true;
@@ -197,7 +211,7 @@ const BASIC_SUPERTYPE = "Basic";
  * offered only when one of its printings belongs to a set the deck's Format
  * allows. `allowedSets === null` (Freeform) imposes no filter. Basic lands
  * (`Basic` supertype) are always available regardless of format. This narrows
- * discovery only — the authoritative legality check still lives in
+ * discovery only - the authoritative legality check still lives in
  * `validateDeck` (ADR 0036).
  */
 export function matchesFormatSets(
@@ -220,14 +234,15 @@ export function hasAnyFilter(filters: CardSearchFilters): boolean {
         filters.manaValues.length > 0 ||
         filters.sets.length > 0 ||
         filters.cube.length > 0 ||
-        !filters.hideUnavailable
+        !filters.hideUnavailable ||
+        filters.showTokens
     );
 }
 
 /**
  * Cube membership gate: a card is offered only when it belongs to the selected
  * cube. `cubeIds === null` means "no cube selected" (no gate). An empty set
- * means the cube resolved to no built members (or is still loading) — nothing
+ * means the cube resolved to no built members (or is still loading) - nothing
  * matches, rather than falling through to the unfiltered pool.
  */
 export function matchesCube(
@@ -241,7 +256,7 @@ export function matchesCube(
 
 const SUPER_TYPES = new Set(["Basic", "Legendary", "Snow", "World", "Ongoing"]);
 
-function parseTypeLine(typeLine: string): {
+export function parseTypeLine(typeLine: string): {
     types: string[];
     subtypes: string[];
     supertypes: string[];
@@ -293,7 +308,7 @@ export function useCardSearch(
 ): {
     entries: CardIndexEntry[] | undefined;
     total: number;
-    /** True when no filter is set — caller should suppress result rendering
+    /** True when no filter is set - caller should suppress result rendering
      *  (and the associated image fetches) until the user narrows the set. */
     idle: boolean;
 } {
@@ -303,7 +318,7 @@ export function useCardSearch(
 
     const idle = !hasAnyFilter(filters);
     // The format's allowed-set list (null = any set). Resolved here so the gate
-    // never hardcodes set codes — it reads them from the Format registry.
+    // never hardcodes set codes - it reads them from the Format registry.
     const allowedSets =
         format === undefined ? null : FORMAT_RULES[format].allowedSets;
 
@@ -318,6 +333,15 @@ export function useCardSearch(
     const cubeIds = useMemo<ReadonlySet<string> | null>(
         () => (filters.cube ? new Set(cubeMembership ?? []) : null),
         [filters.cube, cubeMembership]
+    );
+
+    // Oracle-text search delegated to Scryfall in manual mode (the catalogue
+    // carries no oracle text). Debounced separately from the local text so the
+    // local name search is always faster, and it degrades silently on failure.
+    const scryfallText = useScryfallTextSearch(
+        filters.text,
+        SCRYFALL_DEBOUNCE_MS,
+        isManual && isTextActive(filters.text)
     );
 
     const entries = useMemo(() => {
@@ -348,8 +372,16 @@ export function useCardSearch(
             }
         }
 
+        // When showTokens is active, only token cards pass through.
+        // When off, tokens are excluded from the regular card pool.
+        const passesTokenGate = (e: CardIndexEntry) =>
+            filters.showTokens
+                ? e.types.includes(TOKEN_TYPE)
+                : !e.types.includes(TOKEN_TYPE);
+
         const filtered = parts.filter(
             (e) =>
+                passesTokenGate(e) &&
                 matchesFormatSets(e.prints, e.supertypes, allowedSets) &&
                 matchesCube(e.cardId, e.name, cubeIds) &&
                 matchesText(e, filters.text) &&
@@ -359,6 +391,52 @@ export function useCardSearch(
                 matchesSets(e.prints, filters.sets, filters.setMode) &&
                 (filters.hideUnavailable ? e.available !== false : true)
         );
+
+        // In manual mode, supplement local name-search results with Scryfall
+        // oracle-text matches. Scryfall results are cross-referenced against
+        // the catalogue by name (the catalogue has no oracleId).
+        if (
+            isManual &&
+            catalogueRows &&
+            scryfallText.names &&
+            scryfallText.names.size > 0
+        ) {
+            const localNameFolds = new Set(filtered.map((e) => e.nameFold));
+            const scryfallNameFolds = new Set(
+                [...scryfallText.names].map((n) => foldAccents(n.toLowerCase()))
+            );
+            for (const row of catalogueRows) {
+                if (
+                    scryfallNameFolds.has(row.nameFold) &&
+                    !localNameFolds.has(row.nameFold)
+                ) {
+                    const entry = makeCatalogueEntry(row);
+                    if (
+                        passesTokenGate(entry) &&
+                        matchesFormatSets(
+                            entry.prints,
+                            entry.supertypes,
+                            allowedSets
+                        ) &&
+                        matchesCube(entry.cardId, entry.name, cubeIds) &&
+                        matchesColors(entry.colors, filters) &&
+                        matchesTypes(entry, filters.types, filters.typeMode) &&
+                        matchesManaValue(entry.manaValue, filters.manaValues) &&
+                        matchesSets(
+                            entry.prints,
+                            filters.sets,
+                            filters.setMode
+                        ) &&
+                        (filters.hideUnavailable
+                            ? entry.available !== false
+                            : true)
+                    ) {
+                        filtered.push(entry);
+                    }
+                }
+            }
+        }
+
         return filtered.sort(
             compareEntries(
                 filters.sort,
@@ -366,7 +444,16 @@ export function useCardSearch(
                 filters.sortDirection
             )
         );
-    }, [all, catalogueRows, filters, idle, isManual, allowedSets, cubeIds]);
+    }, [
+        all,
+        catalogueRows,
+        filters,
+        idle,
+        isManual,
+        allowedSets,
+        cubeIds,
+        scryfallText.names,
+    ]);
 
     return { entries, total: all?.length ?? 0, idle };
 }
