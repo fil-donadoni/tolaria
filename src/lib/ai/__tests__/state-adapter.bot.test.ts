@@ -238,3 +238,86 @@ describe("projectedToGameState — revealed library top (CR 401.5, issue #1095)"
         );
     });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Review finding (PR #2111): overlaying a known identity must SWAP, not stamp.
+//
+// The bot's OWN library is reconstructed from its real decklist
+// (`makeRealLibrary`, issue #1509) — a genuine multiset of the cards still in
+// the deck, emitted in `Map` insertion order, which has nothing to do with the
+// real draw order. Overwriting the slot at a known index therefore DUPLICATES
+// whatever the wire revealed and DELETES whatever the reconstruction had put
+// there: deck `[Mountain, Forest, Island]` with Island known on top rebuilds as
+// `[Island, Forest, Island]` — a phantom Island the bot may "draw", and a
+// Mountain it never can. Length is unchanged, so the deck-out SBA count (CR
+// 704.5b) still looks right and nothing goes red.
+//
+// This is NOT Goblin-Spy-specific: it fires for a plain `knownTo` scry with no
+// Spy anywhere, i.e. every vs-AI ponder/brainstorm/scry line. The invariant the
+// assertions below pin is the one the length check misses — the reconstructed
+// library must remain a PERMUTATION of the deck multiset.
+describe("projectedToGameState — known-card overlay preserves the deck multiset", () => {
+    const MOUNTAIN = getCardByName("Mountain").id;
+    const FOREST = getCardByName("Forest").id;
+    const ISLAND = getCardByName("Island").id;
+
+    /** Bot deck = one each of Mountain/Forest/Island; the REAL library order is
+     *  `[Island, Mountain, Forest]`, deliberately different from the multiset's
+     *  insertion order so a stamping overlay corrupts it. `knownIndices` are
+     *  stamped `knownTo: ["bot"]` — an ordinary scry, no Goblin Spy involved. */
+    function botView(knownIndices: number[]): PublicGameState {
+        const order = [ISLAND, MOUNTAIN, FOREST];
+        const state = makeState({
+            players: [
+                makePlayer("bot", {
+                    library: order.map((cardId, i) =>
+                        makeInstance(cardId, {
+                            controllerId: "bot",
+                            ownerId: "bot",
+                            id: `bot-lib-${i}`,
+                            zone: "library",
+                            ...(knownIndices.includes(i)
+                                ? { knownTo: ["bot"] }
+                                : {}),
+                        })
+                    ),
+                }),
+                makePlayer("human", {}),
+            ],
+        });
+        return projectPublicState(state, 1, "bot");
+    }
+
+    const OWN_DECK = { playerId: "bot", cardIds: [MOUNTAIN, FOREST, ISLAND] };
+
+    const libIds = (state: PublicGameState) =>
+        projectedToGameState(state, OWN_DECK)
+            .players.find((p) => p.id === "bot")!
+            .library.map((c) => c.card.id);
+
+    it("stays a permutation of the deck multiset with the top card known", () => {
+        const ids = libIds(botView([0]));
+        // The revealed card is where the wire said it is …
+        expect(ids[0]).toBe(ISLAND);
+        // … and NOTHING was duplicated or lost doing it.
+        expect([...ids].sort()).toEqual([...OWN_DECK.cardIds].sort());
+    });
+
+    it("stays a permutation with a contiguous run of known cards", () => {
+        const ids = libIds(botView([0, 1]));
+        expect(ids[0]).toBe(ISLAND);
+        expect(ids[1]).toBe(MOUNTAIN);
+        expect([...ids].sort()).toEqual([...OWN_DECK.cardIds].sort());
+    });
+
+    it("stays a permutation when every position is known", () => {
+        const ids = libIds(botView([0, 1, 2]));
+        expect(ids).toEqual([ISLAND, MOUNTAIN, FOREST]);
+        expect([...ids].sort()).toEqual([...OWN_DECK.cardIds].sort());
+    });
+
+    it("is untouched when nothing is known (the pre-existing exact path)", () => {
+        const ids = libIds(botView([]));
+        expect([...ids].sort()).toEqual([...OWN_DECK.cardIds].sort());
+    });
+});

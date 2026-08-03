@@ -15,13 +15,18 @@
 //   2. game.ts — the REGISTERED `getPublicState` query's own `_handler`,
 //      driven against a stub ctx (this repo's established seam for `game.ts`
 //      integration coverage — see `gameMutationHarness.ts`), once per SEAT;
-//   3. UI — the real `libraryPreviewTopCard` reducer (`src/lib/
-//      library-knowledge.ts`), the function the library pile actually calls to
-//      decide whether to render a face-up card or a card back.
+//   3. UI — `buildLibraryPileModel` (`src/lib/library-knowledge.ts`), which is
+//      the reducer the pile ACTUALLY calls: `player-library.tsx:127` is its
+//      one and only non-test caller, and its `faceUp` flag is what decides
+//      between a rendered card face and a card back.
 //
 // A hand-built `PublicLibrary` at step 3 would prove nothing (the reducer would
 // be reading a fixture, not the server), which is exactly the shape the
-// proof-of-failure rule calls "the test never reaches the code".
+// proof-of-failure rule calls "the test never reaches the code". Note this file
+// originally drove `libraryPreviewTopCard` instead — which has ZERO non-test
+// callers, so gutting the pile's real `known[]` read left it green. Picking the
+// plausible-looking helper over the one the component imports is the same bug
+// class in a subtler dress; the rule is to follow the component's own import.
 
 import { describe, it, expect } from "vitest";
 import type { Id } from "@convex/_generated/dataModel";
@@ -41,7 +46,7 @@ import {
     makeMutationCtx,
     gameStateSeed,
 } from "@convex/__tests__/gameMutationHarness";
-import { libraryPreviewTopCard } from "~/lib/library-knowledge";
+import { buildLibraryPileModel } from "~/lib/library-knowledge";
 import type { PublicLibrary } from "~/types/game";
 
 const GAME_ID = "game-1" as Id<"games">;
@@ -69,13 +74,16 @@ const gameSeed = () => ({
     vsAi: false,
 });
 
-/** Drive the registered `getPublicState` query end-to-end for one seat and
- *  return what the UI reducer would render for `libraryOwnerId`'s pile. */
-async function previewTopCardFor(
+/** Drive the registered `getPublicState` query end-to-end for one seat, then run
+ *  the pile reducer the component itself calls. Returns the rendered pile as
+ *  `[definition id | null, faceUp]` per slot, top → bottom — `null` marks the
+ *  synthetic face-down placeholder `buildLibraryPileModel` substitutes for an
+ *  unknown position, i.e. a card BACK on screen. */
+async function renderedPileFor(
     state: GameState,
     viewerId: string,
     libraryOwnerId: string
-): Promise<string | null> {
+): Promise<[string | null, boolean][]> {
     const { ctx } = makeMutationCtx("user-1", [
         gameSeed(),
         // `compactState` is what `saveGameState` writes; seeding the compacted
@@ -89,8 +97,20 @@ async function previewTopCardFor(
         getPublicState as unknown as QueryHandler
     )._handler(ctx, { gameId: GAME_ID, playerId: viewerId });
     const owner = projected!.players.find((p) => p.id === libraryOwnerId)!;
-    const top = libraryPreviewTopCard(owner.library as never);
-    return top ? top.card.id : null;
+    return buildLibraryPileModel(owner.library as never, libraryOwnerId).map(
+        (slot) => [slot.faceUp ? slot.card.card.id : null, slot.faceUp]
+    );
+}
+
+/** The card the pile renders FACE-UP at the top of the library, or `null` when
+ *  that slot renders as a back. */
+async function renderedTopFor(
+    state: GameState,
+    viewerId: string,
+    libraryOwnerId: string
+): Promise<string | null> {
+    const pile = await renderedPileFor(state, viewerId, libraryOwnerId);
+    return pile.length > 0 ? pile[0][0] : null;
 }
 
 function spyBoard(libraryIds: string[], withSpy = true): GameState {
@@ -121,32 +141,41 @@ function spyBoard(libraryIds: string[], withSpy = true): GameState {
 }
 
 describe("continuous library-top reveal end-to-end (CR 401.5, issue #1095)", () => {
-    it("renders the revealed top card face-up on BOTH seats' library pile", async () => {
+    it("renders the revealed top card face-up — and every other slot as a BACK — on BOTH seats' pile", async () => {
         const state = spyBoard([mountain.id, forest.id, island.id]);
 
+        // The whole rendered pile, for each seat: exactly one face-up slot at
+        // the top, two backs below it. Asserting the FULL pile (not just index
+        // 0) is what proves the reveal does not leak the rest of the library
+        // into the UI.
+        const expected: [string | null, boolean][] = [
+            [mountain.id, true],
+            [null, false],
+            [null, false],
+        ];
         // The controller's own pile.
-        await expect(previewTopCardFor(state, "p1", "p1")).resolves.toBe(
-            mountain.id
+        await expect(renderedPileFor(state, "p1", "p1")).resolves.toEqual(
+            expected
         );
         // The OPPONENT's view of that same pile — the point of the card.
-        await expect(previewTopCardFor(state, "p2", "p1")).resolves.toBe(
-            mountain.id
+        await expect(renderedPileFor(state, "p2", "p1")).resolves.toEqual(
+            expected
         );
     });
 
     it("renders a card BACK when no Goblin Spy is on the battlefield", async () => {
         const state = spyBoard([mountain.id, forest.id], false);
-        await expect(previewTopCardFor(state, "p1", "p1")).resolves.toBeNull();
-        await expect(previewTopCardFor(state, "p2", "p1")).resolves.toBeNull();
+        await expect(renderedTopFor(state, "p1", "p1")).resolves.toBeNull();
+        await expect(renderedTopFor(state, "p2", "p1")).resolves.toBeNull();
     });
 
     it("renders the NEW top card after a draw, on both seats (CR 401.6)", async () => {
         const state = spyBoard([mountain.id, forest.id, island.id]);
         drawCard(state.players[0]);
-        await expect(previewTopCardFor(state, "p1", "p1")).resolves.toBe(
+        await expect(renderedTopFor(state, "p1", "p1")).resolves.toBe(
             forest.id
         );
-        await expect(previewTopCardFor(state, "p2", "p1")).resolves.toBe(
+        await expect(renderedTopFor(state, "p2", "p1")).resolves.toBe(
             forest.id
         );
     });
@@ -154,7 +183,7 @@ describe("continuous library-top reveal end-to-end (CR 401.5, issue #1095)", () 
     it("renders a card back again once the Spy leaves the battlefield (CR 604.2)", async () => {
         const state = spyBoard([mountain.id, forest.id]);
         state.players[0].battlefield = [];
-        await expect(previewTopCardFor(state, "p2", "p1")).resolves.toBeNull();
+        await expect(renderedTopFor(state, "p2", "p1")).resolves.toBeNull();
     });
 
     it('never renders the opponent\'s library top — the reveal is scoped to "your library"', async () => {
@@ -167,12 +196,12 @@ describe("continuous library-top reveal end-to-end (CR 401.5, issue #1095)", () 
                 zone: "library",
             }),
         ];
-        await expect(previewTopCardFor(state, "p1", "p2")).resolves.toBeNull();
-        await expect(previewTopCardFor(state, "p2", "p2")).resolves.toBeNull();
+        await expect(renderedTopFor(state, "p1", "p2")).resolves.toBeNull();
+        await expect(renderedTopFor(state, "p2", "p2")).resolves.toBeNull();
     });
 
     it("renders a card back — and does not throw — on an empty library", async () => {
         const state = spyBoard([]);
-        await expect(previewTopCardFor(state, "p2", "p1")).resolves.toBeNull();
+        await expect(renderedTopFor(state, "p2", "p1")).resolves.toBeNull();
     });
 });

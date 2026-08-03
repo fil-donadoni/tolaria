@@ -203,10 +203,26 @@ function makeRealLibrary(
  *  scry/Brainstorm-kept top card and the CR 401.5 continuous top reveal (Goblin
  *  Spy, issue #1095) alike — the adapter does not need to know which.
  *
- *  Length is never changed (out-of-range indices are ignored), so the deck-out
- *  SBA count (CR 704.5b) stays exact. Identities are hydrated from the
- *  definition exactly like `makeRealInstance`, and the wire instance's own id is
- *  kept so a move naming that card round-trips to a server the ids match. */
+ *  SWAP, never STAMP — the invariant a length check does not catch. For the
+ *  bot's OWN library, `makeRealLibrary` has already emitted a faithful multiset
+ *  of the cards still in the deck; its ORDER is meaningless (`Map` insertion
+ *  order, reshuffled by `determinize` anyway) but its CONTENTS are not.
+ *  Overwriting the slot at a known index would duplicate the revealed card and
+ *  delete whatever the reconstruction had there — deck `[Mountain, Forest,
+ *  Island]` with Island revealed on top becomes `[Island, Forest, Island]`: a
+ *  phantom the bot can draw, and a real card it never can. So when the known
+ *  card is found elsewhere in the rebuilt library, the two slots EXCHANGE
+ *  occupants and the multiset is preserved exactly.
+ *
+ *  When no donor slot holds that card id, the library is the OPAQUE kind
+ *  (placeholders padded to the wire `count` — an opponent's library, or a
+ *  deck-accounting remainder): its occupants carry no multiset meaning, so the
+ *  placeholder is simply replaced. Either way length is unchanged (out-of-range
+ *  indices are ignored), so the deck-out SBA count (CR 704.5b) stays exact.
+ *
+ *  Identities are hydrated from the definition exactly like `makeRealInstance`,
+ *  and the wire instance's own id is kept so a move naming that card round-trips
+ *  to a server whose ids match. */
 function overlayKnownLibraryCards(
     library: CardInstanceState[],
     player: PublicPlayer
@@ -216,11 +232,24 @@ function overlayKnownLibraryCards(
         : player.library.known;
     if (!known || known.length === 0) return library;
     const out = [...library];
+    // Slots already resolved to a known card — never raided for a donor, or an
+    // earlier entry's placement would be undone by a later one.
+    const pinned = new Set<number>();
     for (const entry of known) {
-        if (entry.index < 0 || entry.index >= out.length) continue;
+        const index = entry.index;
+        if (index < 0 || index >= out.length) continue;
         const cardId = entry.card.card.id;
+        if (out[index].card.id !== cardId) {
+            // Find this card elsewhere in the rebuilt library and exchange the
+            // two slots, so nothing is duplicated and nothing is lost.
+            const donor = out.findIndex(
+                (c, j) => j !== index && !pinned.has(j) && c.card.id === cardId
+            );
+            // No donor → opaque/placeholder library, nothing to preserve.
+            if (donor >= 0) out[donor] = out[index];
+        }
         const def = tryGetDefinition(cardId);
-        out[entry.index] = {
+        out[index] = {
             ...entry.card,
             types: def?.types ?? entry.card.types ?? [],
             subtypes: def?.subtypes ?? entry.card.subtypes ?? [],
@@ -230,6 +259,7 @@ function overlayKnownLibraryCards(
                 def?.staticAbilities ?? entry.card.staticAbilities ?? [],
             zone: "library",
         } as CardInstanceState;
+        pinned.add(index);
     }
     return out;
 }
