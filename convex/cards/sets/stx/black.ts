@@ -18,12 +18,12 @@
 // half of Magecraft has no trigger source of its own: `SPELL_CAST` fires
 // only on an original cast; `cloneSpellOntoStack` (backing
 // `copyStackItem`/`copyResolvingSpell`) emits NO event at all for a spell
-// copy. That gap is already tracked at #931 (Witherbloom Apprentice, same
+// copy. That gap is already tracked at #2087 (Witherbloom Apprentice, same
 // set) — issue #1304 explicitly authorizes shipping the cast-only half with
 // a documented divergence once (1) is unblocked, but (1) alone already
 // blocks the whole card today (the token the ability creates doesn't
 // exist), so there is nothing partial to ship yet. tracked-by: #1357,
-// tracked-by: #931
+// tracked-by: #2087
 // export const sedgemoorWitch: CardDefinition = {
 //     id: "e900c1eb-968b-4046-b824-c167a7a5b682",
 //     name: "Sedgemoor Witch",

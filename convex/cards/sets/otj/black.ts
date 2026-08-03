@@ -11,8 +11,9 @@
 // Blocked: keyword **Saddle** (CR 702.171) is `status: "planned"` in
 // mechanicsRegistry.ts. The card's whole payoff (self-damage vs.
 // opponent-damage) is gated on saddled status, so there is no meaningful
-// partial shape to ship. See issue #931 (split from #682).
-// tracked-by: #931
+// partial shape to ship. #931 (the card-list residue this was split from)
+// is CLOSED and decomposed; the keyword promotion lives at #2088.
+// tracked-by: #2088
 // export const causticBronco: CardDefinition = {
 //     id: "e9a268ba-c442-4fe4-90b4-2810c8474f4e",
 //     name: "Caustic Bronco",

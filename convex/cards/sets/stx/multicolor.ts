@@ -91,8 +91,9 @@ export const expressiveIteration: CardDefinition = {
 // all for the copy — a "cast or copy" trigger can only ever see the cast
 // half, silently dropping the copy half (never ship partial). Needs a
 // `SPELL_COPIED` event (or `SPELL_CAST` emitted for copies too) before any
-// Magecraft-class card can ship. See issue #931 (split from #682).
-// tracked-by: #931
+// Magecraft-class card can ship. #931 (the card-list residue this was
+// split from) is CLOSED and decomposed; the capability lives at #2087.
+// tracked-by: #2087
 // export const witherbloomApprentice: CardDefinition = {
 //     id: "7f80a11b-188b-464c-b00d-c9d1cfb8ddee",
 //     name: "Witherbloom Apprentice",

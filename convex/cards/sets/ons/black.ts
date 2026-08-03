@@ -14,8 +14,10 @@
 // paper over an unregistered Op is explicitly forbidden
 // (`.claude/rules/gre-development.md`); (b) the decision-maker here is the
 // DISCARDING (target) player, not the caster — no existing card composes a
-// non-caster-driven self-copy decision. See issue #931 (split from #682).
-// tracked-by: #931
+// non-caster-driven self-copy decision. #931 (the card-list residue this
+// was split from) is CLOSED and decomposed; the capability lives at #2087
+// (`copySpell` Op + non-caster chooser + `SPELL_COPIED` event).
+// tracked-by: #2087
 // export const chainOfSmog: CardDefinition = {
 //     id: "6bfe64f9-8b03-41f6-a47b-fade397ad9d1",
 //     name: "Chain of Smog",
