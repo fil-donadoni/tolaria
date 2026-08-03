@@ -668,6 +668,23 @@ describe("getStackAbilities", () => {
         ).toContain("Remove a paralyzation counter");
     });
 
+    // CR 611.1b / 613.1f (layer 6) — Titania's Song-style "loses all
+    // abilities" effects must strip a NATIVE activated ability from the
+    // client's offering, not just server-side: before this fix,
+    // `getStackAbilities` read `getDefinition(...).activatedAbilities`
+    // directly and never consulted `abilitiesSuppressedBy`, so the menu kept
+    // offering an ability the server would reject.
+    it("hides a native activated ability while abilitiesSuppressedBy is active (Titania's Song)", () => {
+        const card = makeCardInstance({
+            card: { id: "12926dc8-8e6f-4a47-a12b-4d674189615a" },
+            types: ["Artifact"],
+            isTapped: false,
+            abilitiesSuppressedBy: [{ sourceId: "titanias-song", seq: 1 }],
+        });
+
+        expect(getStackAbilities(card)).toHaveLength(0);
+    });
+
     it("returns empty when Disk is tapped (tap cost unpayable)", () => {
         const card = makeCardInstance({
             card: { id: "12926dc8-8e6f-4a47-a12b-4d674189615a" },

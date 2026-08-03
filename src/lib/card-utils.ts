@@ -1696,7 +1696,6 @@ export function getStackAbilities(
      *  players. Omit for the ordinary controller-activates listing. */
     activatorId?: string
 ): { id: string; oracleText: string }[] {
-    const cardDef = getDefinition(card.card.id);
     const tapLocked = isTapLockedBySummoningSickness(card);
     const filterAbility = (a: {
         id: string;
@@ -2000,23 +1999,17 @@ export function getStackAbilities(
         }
         return true;
     };
-    const native = (cardDef.activatedAbilities ?? [])
+    // CR 611.1b / 613.1f (layer 6) — read the POST-LAYER effective set, not
+    // the card definition's raw list: a "loses all abilities" effect
+    // (Titania's Song) strips native abilities here too, so a client that
+    // read `cardDef.activatedAbilities` directly kept offering a stripped
+    // ability as clickable — the server then rejected the activation.
+    // `getEffectiveActivatedAbilities` already merges native (when not
+    // suppressed) and granted (CR 113.1) abilities in one post-layer pass.
+    return getEffectiveActivatedAbilities(card as unknown as CardInstanceState)
+        .map(({ ability }) => ability)
         .filter(filterAbility)
         .map((a) => ({ id: a.id, oracleText: a.oracleText }));
-    // CR 113.1 — abilities granted to this permanent by another card (e.g.
-    // Zombie Master's "{B}: Regenerate ~"). Resolve template via the
-    // granting card's def.
-    const granted: { id: string; oracleText: string }[] = [];
-    for (const grant of card.grantedActivatedAbilities ?? []) {
-        const sourceDef = getDefinition(grant.sourceCardId);
-        const tmpl = sourceDef.grantTemplates?.find(
-            (a) => a.id === grant.abilityId
-        );
-        if (!tmpl) continue;
-        if (!filterAbility(tmpl)) continue;
-        granted.push({ id: tmpl.id, oracleText: tmpl.oracleText });
-    }
-    return [...native, ...granted];
 }
 
 /** CR 113.6 / 602.5b — activated abilities the viewer may announce on a card in

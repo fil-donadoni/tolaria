@@ -5,6 +5,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import type { CardInstance, Player } from "~/types/game";
 import { getDefinition } from "@convex/cards";
 import GameDialog from "~/components/ui/game-dialog";
+import { Button } from "~/components/ui/button";
 import CardImage from "~/components/cards/card-image";
 
 /** Exile-from-graveyard activation-cost picker (FEM Night Soil, CR 602.1 /
@@ -150,16 +151,17 @@ export default function ExileCostDialog({
                         })}
                     </div>
                     <div className="mt-3 flex justify-end">
-                        <button
+                        <Button
                             type="button"
+                            variant="primary"
+                            size="sm"
                             disabled={
                                 isPending || selected.length !== choice.count
                             }
                             onClick={() => void handleConfirm()}
-                            className="rounded-sm px-4 py-2 bg-accent hover:bg-accent-strong text-black font-medium disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                         >
                             Exile {selected.length}/{choice.count}
-                        </button>
+                        </Button>
                     </div>
                 </>
             ) : null}

@@ -143,7 +143,29 @@ describe("PlayerCompanion slot (CR 702.139c)", () => {
         expect(screen.getByRole("button", { name: /Companion/i })).toBeTruthy();
     });
 
-    it("hides the summon button when canSummon is false (used, or not the owner's viewer)", () => {
+    it("hides the summon button when canSummon is false (not the owner's viewer)", () => {
+        const player = makePlayer({
+            companion: {
+                instance: {
+                    id: "lutri-inst",
+                    card: { id: "lutri-def" },
+                    controllerId: "me",
+                    ownerId: "me",
+                    zone: "library" as const,
+                    types: [],
+                    subtypes: [],
+                    staticAbilities: [],
+                    isTapped: false,
+                },
+                used: false,
+                canSummon: false,
+            },
+        });
+        renderCompanion(player, "me");
+        expect(screen.queryByRole("button", { name: /Companion/i })).toBeNull();
+    });
+
+    it("disappears entirely once the companion has been summoned to hand", () => {
         const player = makePlayer({
             companion: {
                 instance: {
@@ -161,8 +183,10 @@ describe("PlayerCompanion slot (CR 702.139c)", () => {
                 canSummon: false,
             },
         });
-        renderCompanion(player, "me");
-        expect(screen.queryByRole("button", { name: /Companion/i })).toBeNull();
+        const { container } = renderCompanion(player, "me");
+        expect(
+            container.querySelector('[data-testid="companion-me"]')
+        ).toBeNull();
     });
 
     it("clicking Companion {3} dispatches the dedicated summonCompanion mutation with no cardInstanceId", () => {

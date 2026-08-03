@@ -1,4 +1,6 @@
 import NumberStepper from "~/components/ui/number-stepper";
+import { Checkbox } from "~/components/ui/checkbox";
+import { formatOracleText } from "~/lib/oracle-text";
 
 type CastCostKickerFieldProps = {
     /** `KickerCost.id` — keys this Kicker's entry in the payment record. */
@@ -37,7 +39,7 @@ export default function CastCostKickerField({
                     htmlFor={fieldId}
                     className="text-sm font-medium text-text"
                 >
-                    Times to pay {description}
+                    Times to pay {formatOracleText(description)}
                 </label>
                 <NumberStepper
                     id={fieldId}
@@ -51,14 +53,12 @@ export default function CastCostKickerField({
     }
     return (
         <label className="flex items-center gap-2.5">
-            <input
-                type="checkbox"
-                className="size-4 accent-accent"
+            <Checkbox
                 checked={value !== "0"}
-                onChange={(e) => onChange(e.target.checked ? "1" : "0")}
+                onCheckedChange={(checked) => onChange(checked ? "1" : "0")}
             />
             <span className="text-sm font-medium text-text">
-                Pay {description}
+                Pay {formatOracleText(description)}
             </span>
         </label>
     );

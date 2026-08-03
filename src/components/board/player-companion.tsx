@@ -7,13 +7,16 @@ import CompanionSummonButton from "./companion-summon-button";
  *  those, there is nothing to expand — the slot holds exactly one card,
  *  always face-up to both players (CR 702.139c). Renders nothing when the
  *  player declared no companion (`player.companion` absent — either their
- *  deck carries none, or its condition failed). The "Companion {3}" summon
- *  affordance (CR 116.2 / 702.139f) is gated purely by the wire-projected
- *  `companion.canSummon` (present only on the slot's own controller's view,
- *  `gameProjections.ts`) — the server re-validates on click regardless. */
+ *  deck carries none, or its condition failed) OR once it has been summoned
+ *  to hand (`companion.used`) — the slot's job is over the moment the card
+ *  moves to hand, and it never comes back for the rest of the game. The
+ *  "Companion {3}" summon affordance (CR 116.2 / 702.139f) is gated purely by
+ *  the wire-projected `companion.canSummon` (present only on the slot's own
+ *  controller's view, `gameProjections.ts`) — the server re-validates on
+ *  click regardless. */
 export default function PlayerCompanion({ player }: { player: Player }) {
     const companion = player.companion;
-    if (!companion) return null;
+    if (!companion || companion.used) return null;
 
     return (
         <div
@@ -25,16 +28,8 @@ export default function PlayerCompanion({ player }: { player: Player }) {
             className="relative w-(--card-w-sm) shrink-0 aspect-5/7"
         >
             <div
-                className={
-                    companion.used
-                        ? "w-full h-full rounded-sm overflow-hidden ring-1 ring-black/40 opacity-50 grayscale"
-                        : "w-full h-full rounded-sm overflow-hidden ring-1 ring-border-accent/60"
-                }
-                title={
-                    companion.used
-                        ? "Companion (already summoned this game)"
-                        : "Companion"
-                }
+                className="w-full h-full rounded-sm overflow-hidden ring-1 ring-border-accent/60"
+                title="Companion"
             >
                 <CardImage card={companion.instance} />
             </div>

@@ -41,11 +41,25 @@ export interface PermanentGroup {
  *  state (QA: 6 untapped Forests read as one pile; tapping some splits them
  *  into an untapped pile and a tapped pile — the mana-committed flag stays
  *  EXCLUDED per PRD #621, tapping for mana only moves the card between the
- *  two piles, with the rotation + flight animation riding along). */
+ *  two piles, with the rotation + flight animation riding along).
+ *
+ *  Also includes `controllerId`: this key becomes the group's `stackKey`,
+ *  which the board uses as both the layout slot's React `key` and its
+ *  Framer Motion `layoutId` (`SpatialSlot`, board-battlefield.tsx). A
+ *  `layoutId` is global across the whole tree, not scoped per component
+ *  instance — so without the controller in the key, two players who each
+ *  control an untapped, non-sick copy of the same card (e.g. both have a
+ *  Forest) produced the IDENTICAL key from two independently-computed
+ *  `groupBattlefield` calls, one per player's battlefield. Framer Motion then
+ *  treated the two players' slots as "the same" shared-layout element:
+ *  tapping the viewer's Forest re-triggered FLIP bookkeeping across every
+ *  slot registered under that `layoutId`, including the opponent's untapped
+ *  one — a solo-mode-visible cross-player animation glitch with no gameplay
+ *  effect. */
 function identityKey(card: CardInstance): string {
     const sick = card.isSummoningSick === true ? "1" : "0";
     const tapped = card.isTapped === true ? "1" : "0";
-    return `${card.card.id}|${sick}|${tapped}`;
+    return `${card.controllerId}|${card.card.id}|${sick}|${tapped}`;
 }
 
 /** A permanent is "altered" — and therefore always renders as its own

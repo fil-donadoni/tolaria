@@ -283,6 +283,40 @@ describe("groupBattlefield — altered predicate ejects to singleton", () => {
     });
 });
 
+describe("groupBattlefield — cross-player stackKey isolation", () => {
+    // Solo mode (one user, two seats) renders each player's battlefield via
+    // its own `groupBattlefield` call, but the resulting `stackKey` becomes a
+    // Framer Motion `layoutId` — global across the WHOLE tree, not scoped per
+    // component instance. Two identical, untapped, non-sick permanents
+    // (e.g. both players' Forest) previously produced the IDENTICAL stackKey
+    // from two independent calls, coupling their animations together even
+    // though tapping one player's land must never visually affect the
+    // other's. `controllerId` in the identity key is what prevents this.
+    it("gives two players' identical untapped lands distinct stackKeys", () => {
+        const mine = makeCard({
+            id: "mine-forest",
+            card: { id: "def-forest" },
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Land"],
+        });
+        const theirs = makeCard({
+            id: "their-forest",
+            card: { id: "def-forest" },
+            controllerId: "p2",
+            ownerId: "p2",
+            types: ["Land"],
+        });
+
+        const mineGroups = groupBattlefield([mine], noHosts);
+        const theirGroups = groupBattlefield([theirs], noHosts);
+
+        expect(mineGroups[0].stackKey).toBeTruthy();
+        expect(theirGroups[0].stackKey).toBeTruthy();
+        expect(mineGroups[0].stackKey).not.toBe(theirGroups[0].stackKey);
+    });
+});
+
 describe("groupBattlefield — ordering", () => {
     it("tap-split groups are stable by first-member position (QA: tapped/untapped no longer interleave in one pile)", () => {
         const u1 = makeCard({ id: "u1", isTapped: false });

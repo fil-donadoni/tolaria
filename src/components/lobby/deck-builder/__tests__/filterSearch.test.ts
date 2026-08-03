@@ -24,6 +24,7 @@ describe("filterSearch encode/decode", () => {
             setMode: "all",
             cube: "vintage-cube",
             sort: "color",
+            sortDirection: "desc",
         };
         expect(decodeFilters(encodeFilters(filters))).toEqual(filters);
     });
@@ -43,6 +44,27 @@ describe("filterSearch encode/decode", () => {
     it("falls back to the default sort on an unknown value", () => {
         expect(decodeFilters({ sort: "bogus" }).sort).toBe(
             DEFAULT_FILTERS.sort
+        );
+    });
+
+    it("round-trips a non-default sort direction via the `sd` key", () => {
+        const search = encodeFilters({
+            ...DEFAULT_FILTERS,
+            sortDirection: "desc",
+        });
+        expect(search).toEqual({ sd: "desc" });
+        expect(decodeFilters(search).sortDirection).toBe("desc");
+    });
+
+    it("omits the default sort direction from the search object", () => {
+        expect(
+            encodeFilters({ ...DEFAULT_FILTERS, sortDirection: "asc" })
+        ).toEqual({});
+    });
+
+    it("falls back to the default sort direction on an unknown value", () => {
+        expect(decodeFilters({ sd: "bogus" }).sortDirection).toBe(
+            DEFAULT_FILTERS.sortDirection
         );
     });
 

@@ -3,6 +3,7 @@ import GameDialog from "~/components/ui/game-dialog";
 import NumberStepper from "~/components/ui/number-stepper";
 import CastCostKickerField from "~/components/cards/cast-cost-kicker-field";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "~/components/ui/checkbox";
 
 type CastCostDialogProps = {
     open: boolean;
@@ -175,11 +176,9 @@ export default function CastCostDialog({
 
                 {buyback && (
                     <label className="flex items-center gap-2.5">
-                        <input
-                            type="checkbox"
-                            className="size-4 accent-accent"
+                        <Checkbox
                             checked={buybackPay}
-                            onChange={(e) => setBuybackPay(e.target.checked)}
+                            onCheckedChange={setBuybackPay}
                         />
                         <span className="text-sm font-medium text-text">
                             Pay buyback cost

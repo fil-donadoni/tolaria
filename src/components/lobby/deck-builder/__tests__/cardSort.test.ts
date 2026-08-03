@@ -33,9 +33,12 @@ function mk(
 function sortedNames(
     entries: CardIndexEntry[],
     key: Parameters<typeof compareEntries>[0],
-    tiebreak?: Parameters<typeof compareEntries>[1]
+    tiebreak?: Parameters<typeof compareEntries>[1],
+    direction?: Parameters<typeof compareEntries>[2]
 ): string[] {
-    return [...entries].sort(compareEntries(key, tiebreak)).map((e) => e.name);
+    return [...entries]
+        .sort(compareEntries(key, tiebreak, direction))
+        .map((e) => e.name);
 }
 
 describe("cardSort — color ordering (WUBRG combinatorial)", () => {
@@ -198,6 +201,42 @@ describe("cardSort — type ordering", () => {
         const sorcery = typeRank(mk({ name: "Wrath", types: ["Sorcery"] }));
         expect(sorcery).toBeLessThan(land);
         expect(typeRank(mk({ name: "Weird", types: ["Kindred"] }))).toBe(land);
+    });
+});
+
+describe("cardSort — direction", () => {
+    it("defaults to ascending when direction is omitted", () => {
+        const entries = [
+            mk({ name: "Bear", manaValue: 2 }),
+            mk({ name: "Bolt", manaValue: 1 }),
+        ];
+        expect(sortedNames(entries, "manaValue")).toEqual(["Bolt", "Bear"]);
+    });
+
+    it("reverses the full order when direction is desc", () => {
+        const entries = [
+            mk({ name: "Bear", manaValue: 2 }),
+            mk({ name: "Bolt", manaValue: 1 }),
+            mk({ name: "Ancestral", manaValue: 1 }),
+        ];
+        expect(sortedNames(entries, "manaValue", "manaValue", "desc")).toEqual([
+            "Bear",
+            "Bolt",
+            "Ancestral",
+        ]);
+    });
+
+    it("reverses name sort under desc", () => {
+        const entries = [
+            mk({ name: "Ancestral Recall" }),
+            mk({ name: "Black Lotus" }),
+            mk({ name: "Counterspell" }),
+        ];
+        expect(sortedNames(entries, "name", "manaValue", "desc")).toEqual([
+            "Counterspell",
+            "Black Lotus",
+            "Ancestral Recall",
+        ]);
     });
 });
 

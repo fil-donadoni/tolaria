@@ -172,6 +172,37 @@ describe("GraveyardTargetDialog routing (#314)", () => {
         expect(selectTarget).not.toHaveBeenCalled();
     });
 
+    it("subtitle reflects the real remaining count for a 2-target spell (Restock)", () => {
+        const me = player("me", "Me", [gyCard("m1", "me"), gyCard("m2", "me")]);
+        renderDialog(
+            pending({ controller: "you", count: 2, selected: [] }),
+            [me],
+            me
+        );
+
+        expect(screen.getAllByText("Select 2 targets").length).toBeGreaterThan(
+            0
+        );
+        expect(screen.queryByText(/Choose a card/i)).toBeNull();
+    });
+
+    it("subtitle falls back to the singular label once only one target remains", () => {
+        const me = player("me", "Me", [gyCard("m1", "me"), gyCard("m2", "me")]);
+        renderDialog(
+            pending({
+                controller: "you",
+                count: 2,
+                selected: [{ type: "graveyard-card", id: "m1" } as never],
+            }),
+            [me],
+            me
+        );
+
+        expect(
+            screen.getAllByText(/Select a creature from your graveyard/i).length
+        ).toBeGreaterThan(0);
+    });
+
     it("buttons disable while the selectTarget mutation is in flight", () => {
         const me = player("me", "Me", [gyCard("m1", "me"), gyCard("m2", "me")]);
         renderDialog(pending({ controller: "you" }), [me], me);

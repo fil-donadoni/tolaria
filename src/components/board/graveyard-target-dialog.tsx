@@ -8,6 +8,10 @@ import { getEligibleGraveyards } from "~/lib/graveyard-targets";
 import GameDialog from "~/components/ui/game-dialog";
 import GraveyardTabs from "./graveyard-tabs";
 import GraveyardCardPicker from "./graveyard-card-picker";
+import {
+    describeTargetProgress,
+    formatTargetLabel,
+} from "~/lib/target-progress";
 
 /** Graveyard target dialog (issue #314). When a pending target lives in the
  *  graveyard zone (CR 109.2 / 400.7), this dialog opens automatically and lets
@@ -69,6 +73,22 @@ export default function GraveyardTargetDialog({
         ? getDefinition(cardInHand.card.id).name
         : "spell";
 
+    // Issue: dialog subtitle previously hardcoded singular "a card" even for
+    // a 2-target spell like Restock, though the underlying selection count
+    // was always correct. Mirror the banner's live remaining-count hint.
+    const targetLabel = formatTargetLabel(
+        pendingTarget.targetType,
+        pendingTarget.zone,
+        pendingTarget.controller,
+        pendingTarget.spellStackKind
+    );
+    const { hint } = describeTargetProgress(
+        pendingTarget.count,
+        pendingTarget.selected.length,
+        targetLabel
+    );
+    const subtitle = hint.charAt(0).toUpperCase() + hint.slice(1);
+
     // The active graveyard defaults to the first eligible one so its cards show
     // immediately; the tab strip (shown only when ≥2 are eligible) lets the
     // chooser switch at will without cancelling.
@@ -110,7 +130,7 @@ export default function GraveyardTargetDialog({
                 if (!open) void handleCancel();
             }}
             title={cardName}
-            subtitle="Choose a card from the graveyard"
+            subtitle={subtitle}
             size="wide"
             dismissable={!isPending}
         >

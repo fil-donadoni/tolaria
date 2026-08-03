@@ -66,6 +66,18 @@ describe("CastCostDialog (CR 601.2b {X} + CR 702.33 Kicker)", () => {
         });
     });
 
+    it("renders the Kicker's mana cost as symbol art, not raw {U}/{2} text", () => {
+        renderDialog({
+            askX: false,
+            kickers: [
+                { id: "kicker", description: "Kicker {2}{U}", multi: false },
+            ],
+        });
+        expect(screen.getByAltText("{2}")).toBeTruthy();
+        expect(screen.getByAltText("{U}")).toBeTruthy();
+        expect(screen.queryByText(/\{2\}\{U\}/)).toBeNull();
+    });
+
     it("renders a yes/no checkbox for a single kicker and returns 1 when checked", () => {
         const { onConfirm } = renderDialog({
             askX: false,
@@ -191,12 +203,16 @@ describe("CastCostDialog (CR 601.2b {X} + CR 702.33 Kicker)", () => {
 describe("CastCostDialog (CR 702.27 Buyback)", () => {
     it("omits the buyback checkbox when buyback is unset", () => {
         renderDialog({ askX: false });
-        expect(screen.queryByLabelText("Pay buyback cost")).toBeNull();
+        expect(
+            screen.queryByRole("checkbox", { name: "Pay buyback cost" })
+        ).toBeNull();
     });
 
     it("renders a yes/no checkbox for buyback and returns true when checked", () => {
         const { onConfirm } = renderDialog({ askX: false, buyback: true });
-        fireEvent.click(screen.getByLabelText("Pay buyback cost"));
+        fireEvent.click(
+            screen.getByRole("checkbox", { name: "Pay buyback cost" })
+        );
         fireEvent.click(castButton());
         expect(onConfirm).toHaveBeenCalledWith({
             chosenX: undefined,
@@ -226,8 +242,12 @@ describe("CastCostDialog (CR 702.27 Buyback)", () => {
         fireEvent.change(screen.getByLabelText("Choose X"), {
             target: { value: "2" },
         });
-        fireEvent.click(screen.getByLabelText("Pay Kicker {2}"));
-        fireEvent.click(screen.getByLabelText("Pay buyback cost"));
+        fireEvent.click(
+            screen.getByRole("checkbox", { name: "Pay Kicker {2}" })
+        );
+        fireEvent.click(
+            screen.getByRole("checkbox", { name: "Pay buyback cost" })
+        );
         fireEvent.click(castButton());
         expect(onConfirm).toHaveBeenCalledWith({
             chosenX: 2,
@@ -252,8 +272,12 @@ describe("CastCostDialog — plural kickers (CR 702.33, ADR 0079)", () => {
 
     it("renders one control per kicker with its own cost text", () => {
         renderDialog({ askX: false, kickers: twoKickers });
-        expect(screen.getByLabelText("Pay Kicker {2}{U}")).toBeTruthy();
-        expect(screen.getByLabelText("Pay Kicker {2}{R}")).toBeTruthy();
+        expect(
+            screen.getByRole("checkbox", { name: "Pay Kicker {2}{U}" })
+        ).toBeTruthy();
+        expect(
+            screen.getByRole("checkbox", { name: "Pay Kicker {2}{R}" })
+        ).toBeTruthy();
         expect(screen.getAllByRole("checkbox")).toHaveLength(2);
     });
 
@@ -262,7 +286,9 @@ describe("CastCostDialog — plural kickers (CR 702.33, ADR 0079)", () => {
             askX: false,
             kickers: twoKickers,
         });
-        fireEvent.click(screen.getByLabelText("Pay Kicker {2}{R}"));
+        fireEvent.click(
+            screen.getByRole("checkbox", { name: "Pay Kicker {2}{R}" })
+        );
         fireEvent.click(castButton());
         expect(onConfirm).toHaveBeenCalledWith({
             chosenX: undefined,
@@ -275,8 +301,12 @@ describe("CastCostDialog — plural kickers (CR 702.33, ADR 0079)", () => {
             askX: false,
             kickers: twoKickers,
         });
-        fireEvent.click(screen.getByLabelText("Pay Kicker {2}{U}"));
-        fireEvent.click(screen.getByLabelText("Pay Kicker {2}{R}"));
+        fireEvent.click(
+            screen.getByRole("checkbox", { name: "Pay Kicker {2}{U}" })
+        );
+        fireEvent.click(
+            screen.getByRole("checkbox", { name: "Pay Kicker {2}{R}" })
+        );
         fireEvent.click(castButton());
         expect(onConfirm).toHaveBeenCalledWith({
             chosenX: undefined,
@@ -308,7 +338,9 @@ describe("CastCostDialog — plural kickers (CR 702.33, ADR 0079)", () => {
             ],
         });
         expect(
-            screen.getByLabelText("Pay Kicker — Sacrifice two lands")
+            screen.getByRole("checkbox", {
+                name: "Pay Kicker — Sacrifice two lands",
+            })
         ).toBeTruthy();
     });
 
@@ -323,7 +355,9 @@ describe("CastCostDialog — plural kickers (CR 702.33, ADR 0079)", () => {
         fireEvent.change(screen.getByLabelText("Times to pay Kicker {2}"), {
             target: { value: "3" },
         });
-        fireEvent.click(screen.getByLabelText("Pay Kicker {B}"));
+        fireEvent.click(
+            screen.getByRole("checkbox", { name: "Pay Kicker {B}" })
+        );
         fireEvent.click(castButton());
         expect(onConfirm).toHaveBeenCalledWith({
             chosenX: undefined,

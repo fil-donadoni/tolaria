@@ -30,6 +30,14 @@ export function isSortKey(v: string): v is SortKey {
     return (SORT_KEYS as readonly string[]).includes(v);
 }
 
+/** Result ordering direction. `asc` is the default and preserves the
+ *  historical ordering. */
+export type SortDirection = "asc" | "desc";
+
+export function isSortDirection(v: string): v is SortDirection {
+    return v === "asc" || v === "desc";
+}
+
 // WUBRG canonical colour order (CR 105.1). The colour sort groups cards by
 // colour COUNT (mono → 5-colour) and, within a count, by combinatorial WUBRG
 // order — the same sequence Scryfall uses:
@@ -152,10 +160,13 @@ export function tiebreakForSets(sets: readonly string[]): Tiebreak {
  *  it repeats a level already applied above it). */
 export function compareEntries(
     key: SortKey,
-    tiebreak: Tiebreak = "manaValue"
+    tiebreak: Tiebreak = "manaValue",
+    direction: SortDirection = "asc"
 ): Comparator {
     const primary = PRIMARY[key];
     const secondary = tiebreak === "name" ? byName : byManaValue;
+    const dirSign = direction === "desc" ? -1 : 1;
     return (a, b) =>
-        primary(a, b) || secondary(a, b) || byType(a, b) || byName(a, b);
+        dirSign *
+        (primary(a, b) || secondary(a, b) || byType(a, b) || byName(a, b));
 }

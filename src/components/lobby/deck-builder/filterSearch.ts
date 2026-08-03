@@ -10,7 +10,7 @@ import {
     type ColorMode,
     type MatchMode,
 } from "./useCardSearch";
-import { isSortKey } from "./cardSort";
+import { isSortKey, isSortDirection } from "./cardSort";
 
 /** Raw, loosely-typed search object as read from / written to the router. */
 export type FilterSearch = Record<string, unknown>;
@@ -48,6 +48,8 @@ export function encodeFilters(filters: CardSearchFilters): FilterSearch {
     if (filters.setMode !== DEFAULT_FILTERS.setMode) out.sm = filters.setMode;
     if (filters.cube) out.cube = filters.cube;
     if (filters.sort !== DEFAULT_FILTERS.sort) out.sort = filters.sort;
+    if (filters.sortDirection !== DEFAULT_FILTERS.sortDirection)
+        out.sd = filters.sortDirection;
     return out;
 }
 
@@ -62,6 +64,7 @@ export function decodeFilters(search: FilterSearch): CardSearchFilters {
         ? (asString(search.sm) as MatchMode)
         : DEFAULT_FILTERS.setMode;
     const sortRaw = asString(search.sort);
+    const sortDirectionRaw = asString(search.sd);
 
     return {
         text: asString(search.q),
@@ -80,5 +83,8 @@ export function decodeFilters(search: FilterSearch): CardSearchFilters {
         setMode,
         cube: asString(search.cube),
         sort: isSortKey(sortRaw) ? sortRaw : DEFAULT_FILTERS.sort,
+        sortDirection: isSortDirection(sortDirectionRaw)
+            ? sortDirectionRaw
+            : DEFAULT_FILTERS.sortDirection,
     };
 }
