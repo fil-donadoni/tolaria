@@ -12693,6 +12693,38 @@ export interface CardDefinition {
      *    exactly the one opponent's hand, functionally identical to CR's
      *    "opponents" (plural) scope. */
     revealsHand?: "controller" | "all-players" | "opponents";
+    /** Continuous "plays with the top card of their library revealed" static
+     *  (CR 401.5 — Goblin Spy, "Play with the top card of your library
+     *  revealed"). While ANY permanent with this flag is on the battlefield,
+     *  the affected player's TOP library card (index 0) — and only that card —
+     *  is projected face-up to EVERY viewer, both seats alike.
+     *
+     *  The sibling of {@link revealsHand} for the other hidden zone (CR 400.2:
+     *  a library stays a HIDDEN zone even when a card in it happens to be
+     *  revealed — the reveal exposes one card's identity, it does not open the
+     *  zone). Like `revealsHand` it is read LIVE off the battlefield on every
+     *  projection, never stored: the reveal follows the top card through every
+     *  draw / shuffle / put-on-top / mill with no re-stamping, and ends the
+     *  instant the source leaves play. That is what CR 401.6 and CR 701.20d
+     *  describe — a card that stops being revealed (shuffled away, drawn,
+     *  buried) becomes a new object and the NEW top card is the revealed one —
+     *  and it is why this is NOT modelled as a persistent
+     *  `CardInstanceState.knownTo` stamp, which `clearKnowledge` wipes on
+     *  every shuffle and which would have to be re-applied at each of the
+     *  eleven library write sites.
+     *
+     *  CR 613.11: this is a continuous effect that modifies the RULES of the
+     *  game (what players may see), not any object's characteristics, so it is
+     *  deliberately not a `StaticEffect` / layer entry — layers 1–7 model
+     *  characteristics only.
+     *
+     *  Scope enum mirrors `revealsHand`'s, but ships only the scope a printed
+     *  card needs today; widen additively (`| "all-players" | "opponents"`)
+     *  when a card requires it, exactly as `revealsHand` grew across #735 /
+     *  #1104.
+     *  - `"controller"` — reveal the controller's own library top (Goblin Spy,
+     *    "Play with the top card of YOUR library revealed"). */
+    revealsLibraryTop?: "controller";
     /** Continuous draw-event replacement (CR 614, ADR 0061) that intercepts
      *  EVERY card draw an affected player would take, one card at a time, at
      *  the single suspend-capable draw seam (`planDrawStep` in `gre/state.ts`).

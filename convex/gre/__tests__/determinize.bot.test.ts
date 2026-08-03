@@ -161,3 +161,133 @@ describe("determinize — purity & determinism (issue #112)", () => {
         expect(JSON.stringify(out)).toBe(JSON.stringify(state));
     });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CR 401.5 (issue #1095) — a continuously-revealed library top is PUBLIC
+// information, so determinization must not re-sample it. Without the pin the
+// search reasons about a top card the bot can plainly see is a different card:
+// the observer's own library gets reshuffled, and the opponent's top card is
+// pooled with their hand and can even come back IN HAND.
+describe("determinize — a CR 401.5 revealed library top is pinned (issue #1095)", () => {
+    const SPY = getCardByName("Goblin Spy").id;
+
+    const lib = (owner: string, ids: string[]) =>
+        ids.map((cardId, i) =>
+            makeInstance(cardId, {
+                controllerId: owner,
+                ownerId: owner,
+                id: `${owner}-lib-${i}`,
+                zone: "library",
+            })
+        );
+    const hand = (owner: string, ids: string[]) =>
+        ids.map((cardId, i) =>
+            makeInstance(cardId, {
+                controllerId: owner,
+                ownerId: owner,
+                id: `${owner}-hand-${i}`,
+                zone: "hand",
+            })
+        );
+
+    /** `spyOwner` controls a Goblin Spy; both players have hidden zones big
+     *  enough that an unpinned shuffle would move the top card with
+     *  overwhelming probability across the seeds tried. */
+    const stateWithSpy = (spyOwner: "p1" | "p2") =>
+        makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: hand("p1", [BOLT, BEARS, GIANT]),
+                    library: lib("p1", [
+                        MOUNTAIN,
+                        BEARS,
+                        GIANT,
+                        BOLT,
+                        BEARS,
+                        GIANT,
+                        BOLT,
+                    ]),
+                    battlefield:
+                        spyOwner === "p1"
+                            ? [
+                                  makeInstance(SPY, {
+                                      controllerId: "p1",
+                                      id: "spy",
+                                  }),
+                              ]
+                            : [],
+                }),
+                makePlayer("p2", {
+                    hand: hand("p2", [BOLT, BEARS, GIANT]),
+                    library: lib("p2", [
+                        MOUNTAIN,
+                        BEARS,
+                        GIANT,
+                        BOLT,
+                        BEARS,
+                        GIANT,
+                        BOLT,
+                    ]),
+                    battlefield:
+                        spyOwner === "p2"
+                            ? [
+                                  makeInstance(SPY, {
+                                      controllerId: "p2",
+                                      id: "spy",
+                                  }),
+                              ]
+                            : [],
+                }),
+            ],
+        });
+
+    it("keeps the OBSERVER's revealed top card at index 0 across every seed", () => {
+        const state = stateWithSpy("p1");
+        const topId = state.players[0].library[0].id;
+        for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+            const out = determinize(state, "p1", makeRng(seed));
+            expect(out.players[0].library[0].id).toBe(topId);
+            expect(out.players[0].library).toHaveLength(7);
+        }
+    });
+
+    it("keeps the OPPONENT's revealed top card at index 0 and out of their hand", () => {
+        const state = stateWithSpy("p2");
+        const topId = state.players[1].library[0].id;
+        for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+            const out = determinize(state, "p1", makeRng(seed));
+            expect(out.players[1].library[0].id).toBe(topId);
+            expect(out.players[1].hand.map((c) => c.id)).not.toContain(topId);
+            // Counts are still exact (CR 704.5b depends on them).
+            expect(out.players[1].library).toHaveLength(7);
+            expect(out.players[1].hand).toHaveLength(3);
+        }
+    });
+
+    it("still re-deals everything BELOW the pinned top card", () => {
+        const state = stateWithSpy("p1");
+        const belows = [1, 2, 3, 4, 5].map((s) =>
+            determinize(state, "p1", makeRng(s))
+                .players[0].library.slice(1)
+                .map((c) => c.id)
+                .join(",")
+        );
+        expect(new Set(belows).size).toBeGreaterThan(1);
+    });
+
+    it("does NOT pin anything when no Goblin Spy is on the battlefield", () => {
+        const state = stateWithSpy("p1");
+        state.players[0].battlefield = [];
+        const tops = [1, 2, 3, 4, 5, 6, 7, 8].map(
+            (s) => determinize(state, "p1", makeRng(s)).players[0].library[0].id
+        );
+        expect(new Set(tops).size).toBeGreaterThan(1);
+    });
+
+    it("does not crash on an empty library under an active reveal", () => {
+        const state = stateWithSpy("p1");
+        state.players[0].library = [];
+        const out = determinize(state, "p1", makeRng(3));
+        expect(out.players[0].library).toEqual([]);
+    });
+});

@@ -192,6 +192,78 @@ function makeRealLibrary(
     return cards;
 }
 
+/** ADR 0026 — overlay the library identities the WIRE already told this viewer
+ *  about (`PublicLibrary.known[]`: each entry is a card the projection decided
+ *  the viewer legitimately sees, at its top-relative `index`) onto a rebuilt
+ *  library, replacing the placeholder / deck-reconstruction guess at that slot.
+ *
+ *  Without this, every rebuild path above throws the reveal away and the bot
+ *  searches a library whose known positions hold cards it can plainly see are
+ *  something else. The channel is mechanism-agnostic on purpose: it carries a
+ *  scry/Brainstorm-kept top card and the CR 401.5 continuous top reveal (Goblin
+ *  Spy, issue #1095) alike — the adapter does not need to know which.
+ *
+ *  SWAP, never STAMP — the invariant a length check does not catch. For the
+ *  bot's OWN library, `makeRealLibrary` has already emitted a faithful multiset
+ *  of the cards still in the deck; its ORDER is meaningless (`Map` insertion
+ *  order, reshuffled by `determinize` anyway) but its CONTENTS are not.
+ *  Overwriting the slot at a known index would duplicate the revealed card and
+ *  delete whatever the reconstruction had there — deck `[Mountain, Forest,
+ *  Island]` with Island revealed on top becomes `[Island, Forest, Island]`: a
+ *  phantom the bot can draw, and a real card it never can. So when the known
+ *  card is found elsewhere in the rebuilt library, the two slots EXCHANGE
+ *  occupants and the multiset is preserved exactly.
+ *
+ *  When no donor slot holds that card id, the library is the OPAQUE kind
+ *  (placeholders padded to the wire `count` — an opponent's library, or a
+ *  deck-accounting remainder): its occupants carry no multiset meaning, so the
+ *  placeholder is simply replaced. Either way length is unchanged (out-of-range
+ *  indices are ignored), so the deck-out SBA count (CR 704.5b) stays exact.
+ *
+ *  Identities are hydrated from the definition exactly like `makeRealInstance`,
+ *  and the wire instance's own id is kept so a move naming that card round-trips
+ *  to a server whose ids match. */
+function overlayKnownLibraryCards(
+    library: CardInstanceState[],
+    player: PublicPlayer
+): CardInstanceState[] {
+    const known = Array.isArray(player.library)
+        ? undefined
+        : player.library.known;
+    if (!known || known.length === 0) return library;
+    const out = [...library];
+    // Slots already resolved to a known card — never raided for a donor, or an
+    // earlier entry's placement would be undone by a later one.
+    const pinned = new Set<number>();
+    for (const entry of known) {
+        const index = entry.index;
+        if (index < 0 || index >= out.length) continue;
+        const cardId = entry.card.card.id;
+        if (out[index].card.id !== cardId) {
+            // Find this card elsewhere in the rebuilt library and exchange the
+            // two slots, so nothing is duplicated and nothing is lost.
+            const donor = out.findIndex(
+                (c, j) => j !== index && !pinned.has(j) && c.card.id === cardId
+            );
+            // No donor → opaque/placeholder library, nothing to preserve.
+            if (donor >= 0) out[donor] = out[index];
+        }
+        const def = tryGetDefinition(cardId);
+        out[index] = {
+            ...entry.card,
+            types: def?.types ?? entry.card.types ?? [],
+            subtypes: def?.subtypes ?? entry.card.subtypes ?? [],
+            power: def?.power ?? entry.card.power,
+            toughness: def?.toughness ?? entry.card.toughness,
+            staticAbilities:
+                def?.staticAbilities ?? entry.card.staticAbilities ?? [],
+            zone: "library",
+        } as CardInstanceState;
+        pinned.add(index);
+    }
+    return out;
+}
+
 /** Rehydrate a bot-viewpoint `PublicGameState` into a `GameState` for
  *  enumeration and ISMCTS search. When `ownDeck` is supplied, that player's
  *  library is rebuilt with real card identities (issue #1509); every other
@@ -228,11 +300,20 @@ export function projectedToGameState(
             // own decklist for real identities where we have them, opaque
             // placeholders for every other library, so simulated draws/fetches
             // valuate real cards instead of blanks.
+            //
+            // Either way, the identities the wire ALREADY revealed to this
+            // viewer (`library.known[]` — a scry-kept top card, or the CR 401.5
+            // continuous top reveal, issue #1095) are overlaid onto the result
+            // at their exact indices, so the bot never searches a top card it
+            // can plainly see is a different card.
             library:
                 p.librarySearch ??
-                (ownDeck && ownDeck.playerId === p.id
-                    ? makeRealLibrary(state, p, ownDeck.cardIds)
-                    : makeLibraryPlaceholders(p.id, p.library.count)),
+                overlayKnownLibraryCards(
+                    ownDeck && ownDeck.playerId === p.id
+                        ? makeRealLibrary(state, p, ownDeck.cardIds)
+                        : makeLibraryPlaceholders(p.id, p.library.count),
+                    p
+                ),
         })),
         stack: state.stack,
     } as unknown as GameState;
