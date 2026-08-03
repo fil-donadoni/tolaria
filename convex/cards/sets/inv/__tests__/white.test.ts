@@ -32,8 +32,10 @@ import {
     ruhamDjinn,
     strengthOfUnity,
     wayfaringGiant,
+    winnow,
 } from "../white";
 import { shackles } from "../../exo/white";
+import { blackVise } from "../../lea/colorless";
 import { balduvianBears } from "../../ice/green";
 import { psionicBlast } from "../../lea/blue";
 import {
@@ -1218,5 +1220,168 @@ describe("Prison Barricade (Kicker -> +1/+1 counter + loses defender, issue #132
         )!;
         expect(slim.wasKicked).toBe(true);
         expect(slim.staticAbilities).not.toContain("defender");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Winnow — "Destroy target nonland permanent if another permanent with the
+// same name is on the battlefield. Draw a card." (issue #2065)
+//
+// The same-name condition is a CR 608.2 RESOLUTION check, not a targeting
+// restriction: Winnow legally targets any nonland permanent and simply fails
+// its condition (and still draws) when the name is unique on resolution.
+// ---------------------------------------------------------------------------
+
+describe("Winnow (CR 608.2 resolution condition + CR 201.2 same name, issue #2065)", () => {
+    /** Two seats, `p2` holding the intended target; `p1` has a library so the
+     *  unconditional draw is observable. */
+    const winnowState = (
+        p1Battlefield: CardInstanceState[],
+        p2Battlefield: CardInstanceState[]
+    ): GameState =>
+        makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: p1Battlefield,
+                    library: [
+                        makeInstance(plains.id, {
+                            id: "draw-me",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "library",
+                        }),
+                    ],
+                }),
+                makePlayer("p2", { battlefield: p2Battlefield }),
+            ],
+        });
+
+    it("destroys the target when another permanent shares its name", () => {
+        const target = makeInstance(balduvianBears.id, {
+            id: "bears-target",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const twin = makeInstance(balduvianBears.id, {
+            id: "bears-twin",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = winnowState([twin], [target]);
+        pushSpell(state, winnow.id, "p1", [
+            { type: "permanent", id: "bears-target" },
+        ]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "bears-target")
+        ).toBe(false);
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain(
+            "bears-target"
+        );
+        // The permanent that SATISFIED the condition is not itself destroyed.
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "bears-twin")
+        ).toBe(true);
+        // Second Oracle sentence — unconditional.
+        expect(state.players[0].hand.map((c) => c.id)).toContain("draw-me");
+    });
+
+    it("destroys nothing when the target's name is unique, and still draws (CR 608.2)", () => {
+        // Three permanents, three distinct names: were the name constraint
+        // dropped, the board count would be 3 (>= 2) and the target would die.
+        const target = makeInstance(balduvianBears.id, {
+            id: "solo-bears",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const lions = makeInstance(savannahLions.id, {
+            id: "solo-lions",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const knight = makeInstance(blackKnight.id, {
+            id: "solo-knight",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = winnowState([knight], [target, lions]);
+        pushSpell(state, winnow.id, "p1", [
+            { type: "permanent", id: "solo-bears" },
+        ]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "solo-bears")
+        ).toBe(true);
+        expect(state.players[1].graveyard).toHaveLength(0);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("draw-me");
+    });
+
+    it("counts NONCREATURE permanents too — the count is not type-scoped", () => {
+        // The Oracle says "another permanent", not "another creature": a
+        // same-named ARTIFACT pair satisfies the condition exactly as a
+        // creature pair does (and the `nonland` word lives on the targeting
+        // requirement only).
+        const target = makeInstance(blackVise.id, {
+            id: "vise-target",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const twin = makeInstance(blackVise.id, {
+            id: "vise-twin",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = winnowState([twin], [target]);
+        pushSpell(state, winnow.id, "p1", [
+            { type: "permanent", id: "vise-target" },
+        ]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "vise-target")
+        ).toBe(false);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("draw-me");
+    });
+
+    it("targets any nonland permanent — the condition is NOT a targeting restriction", () => {
+        expect(winnow.targetRequirement?.excludeTypes).toBe("Land");
+        expect(winnow.targetRequirement?.count).toBe(1);
+        // No name/condition field on the requirement: legality at announcement
+        // (CR 601.2c) is name-blind, so Winnow can be cast on a lone permanent
+        // and simply do nothing on resolution.
+        expect(JSON.stringify(winnow.targetRequirement)).not.toMatch(/name/);
+    });
+
+    it("the destroy survives projection (wire format)", () => {
+        const target = makeInstance(balduvianBears.id, {
+            id: "wire-target",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const twin = makeInstance(balduvianBears.id, {
+            id: "wire-twin",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = winnowState([twin], [target]);
+        // The name read is `card.card.id` on both sides — the field the
+        // projection slims to `{ id }`.
+        const before = projectPublicState(state, 1, "p1");
+        expect(
+            (
+                before.players[0].battlefield.find((c) => c.id === "wire-twin")!
+                    .card as { id?: string }
+            ).id
+        ).toBe(balduvianBears.id);
+        pushSpell(state, winnow.id, "p1", [
+            { type: "permanent", id: "wire-target" },
+        ]);
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(
+            projected.players[1].battlefield.some((c) => c.id === "wire-target")
+        ).toBe(false);
+        expect(
+            projected.players[1].graveyard.some((c) => c.id === "wire-target")
+        ).toBe(true);
     });
 });

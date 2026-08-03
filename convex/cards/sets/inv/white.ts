@@ -27,6 +27,7 @@ import {
     AURA_AFFECTS_HOST,
     countDomain,
     EFFECT_AFFECTS_SELF,
+    PERMANENT_TYPES,
 } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
@@ -1186,11 +1187,59 @@ export const glimmeringAngel: CardDefinition = {
 // other destination including `library` from a live permanent is
 // unhandled, confirmed in the interpreter's `moveZone` executor).
 
-// Winnow — {1}{W} Instant. "Destroy target nonland permanent if another
-// permanent with the same name is on the battlefield. Draw a card."
-// tracked-by: #1086 (no dynamic same-name board predicate exists —
-// `EffectCardFilter.name` is a fixed literal string, not "the target's own
-// name").
+// Winnow — "Destroy target nonland permanent if another permanent with the
+// same name is on the battlefield. Draw a card." (issue #2065, unblocking the
+// stub this card used to be.)
+//
+// CR 608.2 — the same-name condition is checked as the spell RESOLVES, never
+// at announcement. So the `targetRequirement` stays a plain nonland permanent
+// (CR 115.1c): Winnow may target anything legal, and if the same-named
+// permanent leaves in response it resolves, destroys nothing, and still draws.
+// Folding the condition into targeting would be a rules bug (it would also
+// make the spell fizzle instead of drawing).
+//
+// CR 201.2 — "another permanent with the same name" is exactly "at least TWO
+// permanents share that name": the target itself is always one of them, so a
+// `>= 2` count needs no exclusion mechanism. The count spans BOTH battlefields
+// (`acrossAllPlayers`) and is unrestricted by type — the Oracle says "another
+// permanent", not "another nonland permanent"; `nonland` is a targeting
+// restriction only. `{ ref: "$target0.name" }` is the reserved
+// announced-target ref (issue #2065, `gre/effects/targetRef.ts`), read as the
+// target's LIVE name, so a Clone that has become the target counts.
+export const winnow: CardDefinition = {
+    id: "d61748dd-4010-47da-8717-ca0147877057",
+    name: "Winnow",
+    rarity: "rare",
+    oracleText:
+        "Destroy target nonland permanent if another permanent with the same name is on the battlefield.\nDraw a card.",
+    manaCost: { X: 1, W: 1 },
+    types: ["Instant"],
+    targetRequirement: {
+        type: [...PERMANENT_TYPES],
+        excludeTypes: "Land",
+        count: 1,
+    },
+    effects: [
+        {
+            op: "if",
+            predicate: {
+                left: {
+                    count: {
+                        zone: "battlefield",
+                        acrossAllPlayers: true,
+                        filter: { name: { ref: "$target0.name" } },
+                    },
+                },
+                op: "ge",
+                right: 2,
+            },
+            then: [{ op: "destroy", target: { target: 0 } }],
+        },
+        // Unconditional — a separate Oracle sentence, so it happens whether or
+        // not the destroy leg fired.
+        { op: "draw", player: "controller", count: 1 },
+    ],
+};
 
 // ─────────────────────────────────────────────────────────────────────────
 // Domain cluster (parent PRD #1063, issue #1066)

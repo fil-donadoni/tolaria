@@ -3645,3 +3645,152 @@ describe('validateEffectScript — count zone:"hand" + difference (issue #2006)'
         }
     });
 });
+
+// ---------------------------------------------------------------------------
+// Reserved `$target<N>.name` ref (issue #2065) — static half.
+//
+// The ref namespace has more than one consumer and they do not share code:
+// the interpreter RESOLVES a ref, the validator REF-CHECKS it against the
+// declared-binding map. A reserved name only the interpreter learns about
+// passes its unit test and is then rejected catalogue-wide here; one only the
+// validator learns about ships and silently resolves to nothing. These cases
+// pin the validator half — one per row of the PR's producer census, including
+// every must-NOT row.
+// ---------------------------------------------------------------------------
+
+/** Winnow's shape: a board count filtered by the announced target's own name. */
+const sameNameCount = (ref: string): EffectOp[] => [
+    {
+        op: "if",
+        predicate: {
+            left: {
+                count: {
+                    zone: "battlefield",
+                    acrossAllPlayers: true,
+                    filter: { name: { ref } },
+                },
+            },
+            op: "ge",
+            right: 2,
+        },
+        then: [{ op: "destroy", target: { target: 0 } }],
+    },
+];
+
+describe("validateEffectScript — reserved $target<N>.name ref (issue #2065)", () => {
+    it("accepts $target0.name in a filter name position with no preceding bind", () => {
+        expect(
+            validateEffectScript(
+                host({ effects: sameNameCount("$target0.name") })
+            )
+        ).toEqual([]);
+    });
+
+    it("accepts a higher slot index ($target1.name — a multi-target script)", () => {
+        expect(
+            validateEffectScript(
+                host({ effects: sameNameCount("$target1.name") })
+            )
+        ).toEqual([]);
+    });
+
+    it("rejects an unsupported property path on the reserved ref", () => {
+        // `.power` is a legal SNAPSHOT property, but `$target0` is not a
+        // snapshot binding and the string path has no reader for it — so it
+        // must fail statically rather than resolve to undefined at runtime.
+        const errors = validateEffectScript(
+            host({ effects: sameNameCount("$target0.power") })
+        );
+        expect(errors.length).toBeGreaterThan(0);
+        expect(errors.join("\n")).toMatch(/\$target0/);
+    });
+
+    it("rejects a bare $target0 (no property) in a name position", () => {
+        expect(
+            validateEffectScript(host({ effects: sameNameCount("$target0") }))
+                .length
+        ).toBeGreaterThan(0);
+    });
+
+    it("rejects a near-miss that is not the reserved shape ($targetX, $target)", () => {
+        for (const ref of ["$targetX.name", "$target.name", "$targets0.name"]) {
+            expect(
+                validateEffectScript(host({ effects: sameNameCount(ref) }))
+                    .length
+            ).toBeGreaterThan(0);
+        }
+    });
+
+    it("rejects the reserved ref in a NUMBER position (no numeric reader)", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        {
+                            op: "dealDamage",
+                            amount: { ref: "$target0.name" },
+                            to: { target: 0 },
+                        },
+                    ],
+                })
+            ).length
+        ).toBeGreaterThan(0);
+    });
+
+    it("rejects the reserved ref in a PICKS position (moveZone cards)", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        {
+                            op: "moveZone",
+                            cards: { ref: "$target0.name" },
+                            to: "hand",
+                        } as never,
+                    ],
+                })
+            ).length
+        ).toBeGreaterThan(0);
+    });
+
+    it("rejects the reserved ref in an OBJECT position (destroy target)", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        { op: "destroy", target: { ref: "$target0.name" } },
+                    ],
+                })
+            ).length
+        ).toBeGreaterThan(0);
+    });
+
+    it("rejects a bind that SHADOWS a reserved target name", () => {
+        // The interpreter reads `$target0` from `ctx.targets` and never
+        // consults the binding store, so a bind under that name would be
+        // written and silently ignored by every reader.
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        {
+                            op: "destroy",
+                            target: { target: 0 },
+                            bind: "$target0",
+                        },
+                    ],
+                })
+            ).length
+        ).toBeGreaterThan(0);
+    });
+
+    it("still rejects an undeclared ordinary binding in a name position", () => {
+        // The non-reserved half of the `name` position is unchanged by the
+        // split out of `picks` (issues #1085 / #1104).
+        const errors = validateEffectScript(
+            host({ effects: sameNameCount("$neverBound") })
+        );
+        expect(errors.length).toBeGreaterThan(0);
+        expect(errors.join("\n")).toMatch(/undefined binding/);
+    });
+});
