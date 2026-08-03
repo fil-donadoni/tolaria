@@ -1,4 +1,4 @@
-import { tryGetCardByName } from "@convex/cards";
+import { tryGetCardByName } from "@convex/cards/catalogue";
 import CardImage from "~/components/cards/card-image";
 import { getImageUrl, getImageSrcSet } from "~/lib/images";
 

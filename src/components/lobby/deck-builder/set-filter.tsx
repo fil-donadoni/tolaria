@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { getAllSetCodes } from "@convex/cards";
+import { getAllSetCodes } from "@convex/cards/catalogue";
 import { setName, setSymbolClass } from "@convex/cards/setMeta";
 import MatchModePills from "./match-mode-pills";
 import type { ComboboxOption } from "./multi-combobox";

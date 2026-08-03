@@ -1,4 +1,4 @@
-import type { CardPrinting } from "@convex/cards";
+import type { CardPrinting } from "@convex/cards/catalogue";
 
 export interface EditionOption {
     printId: string;

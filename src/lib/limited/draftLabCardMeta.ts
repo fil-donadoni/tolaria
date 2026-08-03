@@ -15,7 +15,8 @@
 // generation, passing, or scoring, which stay entirely inside the shared
 // `draftEngine.ts`/`botDrafter.ts` modules this file's exports are injected
 // into.
-import { tryGetDefinition, resolveDeckCardMeta } from "@convex/cards";
+import { tryGetDefinition } from "@convex/cards";
+import { resolveDeckCardMeta } from "@convex/cards/catalogue";
 import {
     getCardColorIdentity,
     getPipCountsFromCost,

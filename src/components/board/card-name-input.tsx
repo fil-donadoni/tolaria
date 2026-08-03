@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { getAllCardNames } from "@convex/cards";
+import { getAllCardNames } from "@convex/cards/catalogue";
 import { Button } from "~/components/ui/button";
 
 /** Autocomplete name input for a `name-card` pending choice (CR 202.3 — "chooses
