@@ -172,7 +172,7 @@ Look at the top two cards of your **Library**, put one onto the **Battlefield** 
 _Avoid_: Manifest (the plain CR 701.40 keyword action — same face-down result, no look and no graveyard half; not implemented), morph
 
 **Special Action**:
-Something a **Player** may do without using the **Stack** and without passing **Priority** (CR 116.2) — it cannot be responded to. Taken while they have priority. Playing a **Land** is one; so are summoning a companion and turning a **Manifested** permanent face up.
+Something a **Player** may do without using the **Stack** and without passing **Priority** (CR 116.2) — it cannot be responded to. Taken while they have priority. Playing a **Land** is one; so are summoning a companion, turning a **Manifested** permanent face up, and **Foretell**. Each carries its own timing window, and they differ: companion needs a main phase with an empty stack, foretell only needs priority during its player's own turn.
 _Avoid_: Activated Ability (uses the Stack), free action
 
 ### Abilities
@@ -265,6 +265,22 @@ The named counter **Vanishing** places on a **Permanent**; its removal to zero i
 **Rebound**:
 A **Keyword** ability (CR 702.88) on an instant or sorcery: if the spell was **Cast** from its owner's hand it is exiled as it **Resolves** (instead of going to the graveyard), creating a **Delayed Triggered Ability** — "at the beginning of your next upkeep, you may cast this card from exile without paying its mana cost." The recast is optional; declining leaves the card in exile permanently (never the graveyard, CR 702.88c). Only the hand-cast rebounds — the exile recast is not from hand, so it resolves to the graveyard with no second rebound (CR 702.88d). The upkeep cast window reuses the **Madness** reflexive Cast/Decline shape.
 _Avoid_: Flashback (that recasts from the graveyard, rebound from exile), buyback, recur
+
+**Foretell**:
+A **Keyword** ability (CR 702.143) that functions while the card is in its owner's hand: at any priority **during their own turn** — not only at sorcery timing — that player may pay {2} and exile the card face down, as a **Special Action** (CR 116.2h, so it uses no **Stack** and cannot be responded to). The card becomes a **Foretold Card**. Unlike **Madness** and **Rebound**, whose exile cast windows are opened by a triggered ability and are single-shot, foretell's permission is open-ended: it lasts as long as the card remains exiled.
+_Avoid_: Suspend (that exiles with time counters and casts itself), morph, "flashback from exile"
+
+**Foretold Card**:
+A card in exile as a result of the **Foretell** special action: face down (a **Hidden Zone** exception inside the otherwise public **Exile**), lookable by its owner alone, castable by them for its **Foretell Cost** — but only once the turn it was foretold has _ended_. Any later turn qualifies, including an opponent's, so a foretold instant is a live response held outside the hand; the card's own type then governs timing as usual. A foretold card that is never cast simply stays exiled. All foretold cards are revealed to everyone when the game ends (CR 702.143f).
+_Avoid_: Impulse-exiled card (also face down in exile, but playable only for a limited window and never revealed at game end), suspended card
+
+**Foretell Cost**:
+The alternative cost (CR 601.2b) a **Foretold Card** may be cast for instead of its **Mana Cost**. Distinct from the {2} paid to foretell, which is a cost of the **Special Action**, not of the spell. A foretold card may also be cast for its normal cost by any other means — it stays "foretold" either way (CR 702.143c).
+_Avoid_: Foretell tax, alternate cost (the CR term is _alternative_)
+
+**Cast Provenance**:
+The **Zone** a **Spell** was **Cast** from, remembered on the spell itself so its own effect can read it at **Resolution** ("if this spell was cast from exile"). A single fact with one authority, not a family of per-mechanism flags. Distinct from having been **Foretold**: a foretold card cast for its normal cost is still foretold, and a card cast from exile under an unrelated permission was never foretold.
+_Avoid_: Cast source, origin zone
 
 **Blink** (a.k.a. **Flicker**):
 An effect that exiles a **Permanent** and returns it to the **Battlefield** as a brand-new object — summoning sickness reset, counters and attachments lost, enters-the-battlefield triggers refired. **Blink** returns it _immediately_, in the same **Resolve** (Ephemerate, Cloudshift); **Flicker** returns it _later_, via a **Delayed Triggered Ability** at a set timing (next end step — Liberate, Flickerwisp). Same exile-then-return shape over different return timing; contrast **Bounce** (return to hand) and reanimation (graveyard→battlefield).
