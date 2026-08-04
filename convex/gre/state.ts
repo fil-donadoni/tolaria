@@ -5908,9 +5908,100 @@ function applyKeywordCounterGrant(
     ];
 }
 
-/** Reverse of `applyKeywordCounterGrant`: splices the keyword grant sourced
- *  from `counterType` back out of `card.staticAbilities` (one occurrence, so
- *  a natively-declared duplicate survives, CR 113.1) and drops its
+/** CR 611.2c (issue #1706) — true for an INDEFINITE keyword grant: one keyed
+ *  by none of `duration` / `auraId` / `counterType`, so it lives until the
+ *  permanent leaves the battlefield (Cocoon's "gains flying", earthbend N's
+ *  haste). The idempotence key for `grantStaticAbilityPermanent` / `animate`:
+ *  a second indefinite grant of the same keyword is a no-op, while a
+ *  duration-, aura- or counter-keyed grant of it is a DIFFERENT owner and
+ *  still gets its own occurrence. */
+function isIndefiniteKeywordGrant(grant: {
+    duration?: Duration;
+    auraId?: string;
+    counterType?: string;
+}): boolean {
+    return !grant.duration && !grant.auraId && !grant.counterType;
+}
+
+/** CR 113.1 / 613.1f (issue #1706) — the single release primitive behind
+ *  EVERY `grantedStaticAbilities` teardown (counter grant, duration purge,
+ *  aura/source unapply, leave-the-battlefield clear).
+ *
+ *  **Occurrence-ownership model.** `staticAbilities` is a MULTISET of keyword
+ *  strings and the entries are indistinguishable, so "which index gets
+ *  spliced" is never the question — the question is whether the *count* stays
+ *  right. It does exactly when every record that ever added a keyword owns
+ *  precisely ONE occurrence and gives back precisely that one:
+ *
+ *    - a GRANT pushes its own occurrence on apply — it never piggybacks on an
+ *      occurrence some other source (or the printed card) already put there,
+ *      so its idempotence guard keys on its OWN `grantedStaticAbilities`
+ *      record, never on `staticAbilities.includes(...)`;
+ *    - a `suppressed` grant (CR 613.1f — outranked by a strictly later
+ *      stripper at apply time) owns ZERO occurrences and releases nothing;
+ *    - a STRIPPER (`removedKeywords` from a `keyword-remove`/`ability-loss`
+ *      static effect, `temporaryRemovedKeywords` from the duration-scoped
+ *      `removeStaticAbilities`) TAKES one occurrence and holds it until it
+ *      restores it.
+ *
+ *  Hence this function: release the one occurrence the grant owns, *wherever
+ *  it currently is*. If it is live on `staticAbilities`, splice one. If it is
+ *  not, a stripper is holding it — cancel exactly one matching hold, so the
+ *  stripper's later restore does not resurrect an occurrence whose owner is
+ *  gone (a flying counter removed while a "loses flying" effect is live must
+ *  NOT leave the creature flying once that effect ends). Continuous
+ *  (`removedKeywords`) holds are cancelled before duration
+ *  (`temporaryRemovedKeywords`) ones, oldest first — an arbitrary but
+ *  deterministic order, and observationally irrelevant since the entries a
+ *  given keyword produces are interchangeable.
+ *
+ *  Fail-closed by construction: a future grant producer that forgets the
+ *  model still cannot over-splice through here, because the "no live
+ *  occurrence" branch consumes a stripper hold instead of a stranger's
+ *  keyword. */
+export function releaseGrantedKeywordOccurrence(
+    card: CardInstanceState,
+    grant: { ability: string; suppressed?: boolean },
+    options: { transient?: boolean } = {}
+): void {
+    if (grant.suppressed) return;
+    const keyword = grant.ability;
+    const idx = card.staticAbilities.indexOf(keyword);
+    if (idx !== -1) {
+        card.staticAbilities = [
+            ...card.staticAbilities.slice(0, idx),
+            ...card.staticAbilities.slice(idx + 1),
+        ];
+        return;
+    }
+    // A TRANSIENT release (see `unapplySourceStaticEffects`) is one half of a
+    // refresh round trip: the re-apply immediately re-takes the occupancy, and
+    // it needs the stripper's hold still on record to see that it is outranked
+    // (CR 613.1f). Only a FINAL release cancels a hold.
+    if (options.transient) return;
+    const removed = card.removedKeywords;
+    if (removed?.length) {
+        const i = removed.findIndex((r) => r.keyword === keyword);
+        if (i !== -1) {
+            const kept = [...removed.slice(0, i), ...removed.slice(i + 1)];
+            card.removedKeywords = kept.length > 0 ? kept : undefined;
+            return;
+        }
+    }
+    const temporary = card.temporaryRemovedKeywords;
+    if (temporary?.length) {
+        const i = temporary.findIndex((r) => r.keyword === keyword);
+        if (i !== -1) {
+            const kept = [...temporary.slice(0, i), ...temporary.slice(i + 1)];
+            card.temporaryRemovedKeywords = kept.length > 0 ? kept : undefined;
+        }
+    }
+}
+
+/** Reverse of `applyKeywordCounterGrant`: releases the one `staticAbilities`
+ *  occurrence the counter grant owns (a natively-declared duplicate survives,
+ *  CR 113.1; a stripper currently holding the occurrence has its hold
+ *  cancelled — see `releaseGrantedKeywordOccurrence`) and drops its
  *  `grantedStaticAbilities` entry. Called by `removeCounter` once the
  *  counter type's count reaches zero. No-op when `counterType` grants no
  *  keyword or no live grant is on record (nothing to undo). */
@@ -5924,17 +6015,12 @@ function unapplyKeywordCounterGrant(
     if (!grants?.length) return;
     const idx = grants.findIndex((g) => g.counterType === counterType);
     if (idx === -1) return;
+    const grant = grants[idx];
     card.grantedStaticAbilities = [
         ...grants.slice(0, idx),
         ...grants.slice(idx + 1),
     ];
-    const abilityIdx = card.staticAbilities.indexOf(keyword);
-    if (abilityIdx !== -1) {
-        card.staticAbilities = [
-            ...card.staticAbilities.slice(0, abilityIdx),
-            ...card.staticAbilities.slice(abilityIdx + 1),
-        ];
-    }
+    releaseGrantedKeywordOccurrence(card, grant);
 }
 
 /** CR 613.7 (issue #1715) — mints the next layer timestamp. Monotonic over
@@ -6341,11 +6427,28 @@ function composeMaterializedSubtypes(target: CardInstanceState): string[] {
 /** Reverse of `applySourceStaticEffects`: walks the whole battlefield and
  *  splices out every grant whose `auraId` matches `source.id`. Call before
  *  the source transitions off the battlefield (destroy, exile, SBA detach,
- *  return to hand). Splices exactly one occurrence per granted keyword so
- *  native duplicates on a target are preserved (CR 113.1). */
+ *  return to hand). Releases exactly one occurrence per granted keyword so
+ *  native duplicates on a target are preserved (CR 113.1).
+ *
+ *  `transient` (issue #1706) marks a teardown that is immediately followed by
+ *  a re-apply of the SAME source onto the SAME targets — the counter-gated
+ *  refresh (`refreshCounterGatedStatics`) and nothing else. It matters only
+ *  for a grant whose occurrence a stripper is currently HOLDING: a FINAL
+ *  release cancels that hold (the occurrence has no owner left, so the
+ *  stripper must not resurrect it later), whereas a transient one leaves the
+ *  hold in place because the immediately-following re-apply reads it to decide
+ *  the grant is outranked (CR 613.1f) and re-records itself `suppressed`.
+ *  Cancelling on a refresh would let the grant come back live under a
+ *  still-applying "loses all abilities".
+ *
+ *  Default (omitted) is the FINAL release: a re-attach to a DIFFERENT host, a
+ *  detach and a leaves-the-battlefield are all final for the targets being
+ *  unapplied here, and a future caller that forgets the flag gets the
+ *  conservative behaviour rather than a silent resurrection. */
 export function unapplySourceStaticEffects(
     state: GameState,
-    source: CardInstanceState
+    source: CardInstanceState,
+    options: { transient?: boolean } = {}
 ): void {
     for (const player of state.players) {
         for (const target of player.battlefield) {
@@ -6357,19 +6460,15 @@ export function unapplySourceStaticEffects(
                         kept.push(g);
                         continue;
                     }
-                    // CR 613.1f (issue #1715) — a grant a strictly-later
-                    // stripper outranked never reached `staticAbilities`, so
-                    // splicing here would eat an occurrence belonging to the
-                    // printed card or to another source. Apply and unapply
-                    // must stay exact inverses.
-                    if (g.suppressed) continue;
-                    const idx = target.staticAbilities.indexOf(g.ability);
-                    if (idx !== -1) {
-                        target.staticAbilities = [
-                            ...target.staticAbilities.slice(0, idx),
-                            ...target.staticAbilities.slice(idx + 1),
-                        ];
-                    }
+                    // CR 613.1f (issue #1715) / CR 113.1 (issue #1706) —
+                    // release the ONE occurrence this grant owns: a
+                    // `suppressed` grant never reached `staticAbilities` and
+                    // releases nothing; an occurrence a stripper is currently
+                    // holding is released by cancelling that hold. Apply and
+                    // unapply must stay exact inverses.
+                    releaseGrantedKeywordOccurrence(target, g, {
+                        transient: options.transient,
+                    });
                 }
                 target.grantedStaticAbilities =
                     kept.length > 0 ? kept : undefined;
@@ -6629,7 +6728,12 @@ export function refreshCounterGatedStatics(state: GameState): void {
             // passes have run. `preserveTimestamp` keeps `source.staticSeq`,
             // which is what every record it rewrites is stamped with, so the
             // refresh is idempotent by construction.
-            unapplySourceStaticEffects(state, source);
+            // `transient` (issue #1706) — the re-apply below re-takes every
+            // occupancy this teardown gives up, so a stripper currently
+            // HOLDING one of them keeps its hold: the re-apply reads it to
+            // decide the grant is outranked (CR 613.1f) and re-records itself
+            // `suppressed`. Only a final release cancels a hold.
+            unapplySourceStaticEffects(state, source, { transient: true });
             applySourceStaticEffects(state, source, {
                 preserveTimestamp: true,
             });
@@ -9371,17 +9475,13 @@ export function resetBattlefieldTransientState(card: CardInstanceState): void {
     // run BEFORE the matching deletes below, while the provenance is readable.
     revertAnimation(card);
     for (const grant of card.grantedStaticAbilities ?? []) {
-        // A grant a strictly-later stripper outranked never reached
-        // `staticAbilities` (CR 613.1f, issue #1715) — splicing here would eat
-        // an occurrence that belongs to the printed card.
-        if (grant.suppressed) continue;
-        const idx = card.staticAbilities.indexOf(grant.ability);
-        if (idx !== -1) {
-            card.staticAbilities = [
-                ...card.staticAbilities.slice(0, idx),
-                ...card.staticAbilities.slice(idx + 1),
-            ];
-        }
+        // Release the ONE occurrence each grant owns (CR 113.1 / 613.1f,
+        // issues #1715 / #1706): a grant a strictly-later stripper outranked
+        // never reached `staticAbilities` and releases nothing, and an
+        // occurrence a stripper is holding is released by cancelling the hold
+        // rather than by eating an occurrence that belongs to the printed
+        // card.
+        releaseGrantedKeywordOccurrence(card, grant);
     }
     delete card.grantedStaticAbilities;
     // CR 613.7 (issue #1715) — a permanent that leaves and re-enters is a NEW
@@ -12807,7 +12907,17 @@ export function buildSpellContext(
             if (target.type !== "permanent") return;
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
-            if (found.card.staticAbilities.includes(ability)) return;
+            // CR 113.1 (issue #1706) — idempotence keys on THIS grant's own
+            // record, never on `staticAbilities.includes(...)`. Gating on the
+            // string made the grant piggyback on an occurrence another source
+            // had pushed (an until-EOT flying grant, a flying counter) and
+            // record nothing at all, so that other source's teardown took the
+            // shared occurrence away and this indefinite grant vanished with
+            // it. Every grant owns exactly one occurrence.
+            const already = (found.card.grantedStaticAbilities ?? []).some(
+                (g) => g.ability === ability && isIndefiniteKeywordGrant(g)
+            );
+            if (already) return;
             found.card.staticAbilities = [
                 ...found.card.staticAbilities,
                 ability,
@@ -13058,16 +13168,20 @@ export function buildSpellContext(
             // earthbend-style application still (re)grants the keyword.
             if (spec.grantedAbilities) {
                 for (const ability of spec.grantedAbilities) {
-                    if (!card.staticAbilities.includes(ability)) {
-                        card.staticAbilities = [
-                            ...card.staticAbilities,
-                            ability,
-                        ];
-                        card.grantedStaticAbilities = [
-                            ...(card.grantedStaticAbilities ?? []),
-                            { ability },
-                        ];
-                    }
+                    // CR 113.1 (issue #1706) — same own-record idempotence
+                    // gate as `grantStaticAbilityPermanent`: an `includes`
+                    // gate would silently share another source's occurrence
+                    // and own none of its own.
+                    const already = (card.grantedStaticAbilities ?? []).some(
+                        (g) =>
+                            g.ability === ability && isIndefiniteKeywordGrant(g)
+                    );
+                    if (already) continue;
+                    card.staticAbilities = [...card.staticAbilities, ability];
+                    card.grantedStaticAbilities = [
+                        ...(card.grantedStaticAbilities ?? []),
+                        { ability },
+                    ];
                 }
             }
         },
