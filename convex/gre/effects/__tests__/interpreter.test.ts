@@ -20309,8 +20309,10 @@ describe("Effect Script Op: castDuringResolution (CR 608.2f, issue #1477)", () =
 
     // --- Cast RESTRICTIONS bind a cast during resolution too (CR 601.3a) -----
     //
-    // CR 608.2g waives the TIMING rules for a cast during resolution, nothing
-    // else. This Op never produces a legal ACTION, so it never passes through
+    // CR 608.2g waives the timing restrictions based on the card's TYPE for a
+    // cast during resolution, nothing else (a card-specific phase restriction
+    // would still bind). This Op never produces a legal ACTION, so it never
+    // passes through
     // `getLegalActions` — the announce-path chokepoint every other cast
     // consumer shares. Its own two seams therefore call the shared gate
     // `castProhibitionReason` directly: the eligibility predicate

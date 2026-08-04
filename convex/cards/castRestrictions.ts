@@ -311,8 +311,9 @@ export function castConditionUnmetReason(
  *      all, so they never pass through `getLegalActions`; before issue #2102's
  *      review they bypassed this gate entirely.
  *
- *  The client also calls it directly to gray out an uncastable hand card. Every
- *  caller CALLS this function — none re-implements a restriction — so there is
+ *  The client never calls this itself: it consumes the result indirectly, via
+ *  the server-computed `legalActions` carried on the wire. Every caller listed
+ *  above CALLS this function — none re-implements a restriction — so there is
  *  still exactly one place a rule is evaluated. */
 export function castProhibitionReason(
     casterId: string,

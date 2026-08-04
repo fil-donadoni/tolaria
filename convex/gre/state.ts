@@ -15244,10 +15244,13 @@ export function buildSpellContext(
             const inHand = player.hand.find((c) => c.id === cardInstanceId);
             if (!inHand) return;
             // CR 601.3a — this is still a CAST, so every cast RESTRICTION
-            // applies (only the timing rules are waived by the granting
-            // effect). Routed through the ONE shared gate
-            // `castProhibitionReason` that `getLegalActions` and the client
-            // call, so there is no second implementation to drift: it covers
+            // applies (the granting effect waives only the timing
+            // restrictions based on the card's TYPE — a card-specific phase
+            // restriction would still bind). Routed through the ONE shared
+            // gate `castProhibitionReason` that `getLegalActions` also calls
+            // (the client only ever sees its result through the wire's
+            // `legalActions`), so there is no second implementation to drift:
+            // it covers
             // the card-level `castCondition` (issue #2102), the
             // permanent-sourced `cast-restriction` statics and the per-player
             // "can't cast spells this turn" lock at once.
@@ -15559,8 +15562,10 @@ export function buildSpellContext(
             if (!def) return false;
 
             // CR 601.3a — a controlled cast (Word of Command) and a cast during
-            // resolution (CR 608.2g) waive only the TIMING rules; every cast
-            // RESTRICTION still applies, and applies to the spell's CASTER
+            // resolution (CR 608.2g) waive only the timing restrictions based
+            // on the card's TYPE (a card-specific phase restriction would
+            // still bind); every cast RESTRICTION still applies, and applies
+            // to the spell's CASTER
             // (`controllerId` — the controlled opponent for Word of Command),
             // not to whoever is making its decisions (`actingPlayerId`). This
             // is the AUTHORITATIVE enforcement point for every cast that never
