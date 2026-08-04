@@ -1,7 +1,9 @@
 import type { Player } from "~/types/game";
-import { wantsPlayerTarget } from "~/lib/card-utils";
+import {
+    matchesPlayerTargetFilters,
+    wantsPlayerTarget,
+} from "~/lib/card-utils";
 import { isPlayerUntargetableByPending } from "~/lib/targeting";
-import { isAlreadySelectedTarget } from "@convex/gre/targetFilters";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { useDivideBuffer } from "~/hooks/useDivideBuffer";
@@ -66,6 +68,7 @@ export function usePlayerInteraction(player: Player): PlayerInteraction {
         gameId,
         playerId,
         priorityPlayerId,
+        activePlayerId,
         pendingTarget,
         pendingChoices,
         allPlayers,
@@ -84,23 +87,16 @@ export function usePlayerInteraction(player: Player): PlayerInteraction {
         // Accepts scalar "player"/"any" AND the array form (Lava Spike's
         // ["player", "Planeswalker"]) — a raw === "player" missed arrays.
         wantsPlayerTarget(pendingTarget.targetType) &&
-        // CR 601.2c — a player already chosen under THIS SAME requirement is
-        // never a legal second pick (Magma Burst's kicked "another target" —
-        // clicking the same opponent's avatar twice must not read as
-        // clickable a second time). Mirrors the server's own exclusion
-        // (`isAlreadySelectedTarget`, `getLegalTargets`/`selectTarget`) and
-        // `matchesPermanentTargetFilters`' identical guard for a permanent
-        // candidate.
-        !isAlreadySelectedTarget(
-            { type: "player", id: player.id },
-            pendingTarget.selected
-        ) &&
-        // CR 506.2 — "target player who attacked this turn" (Fire and
-        // Brimstone): a player is only clickable when they control a creature
-        // flagged as having attacked. The server enforces this too, but gating
-        // clickability keeps the Arena-style UX honest.
-        (!pendingTarget.playerAttackedThisTurn ||
-            player.battlefield.some((c) => c.hasAttackedThisTurn)) &&
+        // CR 109.3 / 115 / 506.2 / 601.2c — EVERY player-kind filter
+        // dimension, routed through the SAME target-filter registry
+        // (`checkPlayerTargetFilters`, ADR 0068) the server's offered set
+        // (`getLegalTargets`) and accepted set (`selectTarget`) already share.
+        // The per-dimension clauses that used to live inline here covered
+        // `playerAttackedThisTurn` and the CR 601.2c already-picked exclusion
+        // but simply did not have `controller` (Word of Command's "target
+        // opponent"), so both nameplates lit up and the server rejected the
+        // click — the #1697 symptom, player-kind (issue #1734).
+        matchesPlayerTargetFilters(player, pendingTarget, activePlayerId) &&
         // CR 702.18 (applied to a player via CR 115.4) — don't offer a
         // shrouded player as a click-to-target candidate; the server would
         // reject it anyway (issue #1128, mirrors the battlefield's

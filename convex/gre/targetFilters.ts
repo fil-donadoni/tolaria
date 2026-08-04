@@ -1616,6 +1616,36 @@ export function checkPlayerTargetFilters(
     return null;
 }
 
+/** Reads the PLAYER-filter values back off a carrier that already holds the
+ *  LOWERED values — i.e. a `PendingTarget`, whose filter fields ARE
+ *  `lowerPlayerFilters`' output by construction. The player-kind twin of
+ *  {@link permanentFilterValuesFromCarrier} / {@link spellFilterValuesFromCarrier},
+ *  and for the same reason: `PlayerFilterValues` is a `Partial<>`, so a
+ *  hand-written `{ controller, playerAttackedThisTurn }` map literal at a
+ *  forwarding site is complete today and fail-OPEN for the NEXT key — the
+ *  filter is carried onto the `PendingTarget`, `checkPlayerTargetFilters`
+ *  knows how to run it, and the one line that hands it over is simply absent,
+ *  so the accepted set silently widens past the offered set (the Phelia bug
+ *  class, ADR 0068). Iterating `PLAYER_FILTER_KEYS` — the very list
+ *  `checkPlayerTargetFilters` loops — makes the forwarded set and the checked
+ *  set the SAME set by construction.
+ *
+ *  Typed as tightly as its permanent twin: `Pick<PendingTarget,
+ *  PlayerFilterKey>` is the second half of the forcing function — a
+ *  player-kind filter key that is not also a `PendingTarget` field fails
+ *  `tsc` right here, since it could never survive the async gap between
+ *  "targets requested" and "target submitted". */
+export function playerFilterValuesFromCarrier(
+    carrier: Pick<PendingTarget, PlayerFilterKey>
+): PlayerFilterValues {
+    const out: Record<string, unknown> = {};
+    for (const key of PLAYER_FILTER_KEYS) {
+        const value = carrier[key];
+        if (value !== undefined) out[key] = value;
+    }
+    return out as PlayerFilterValues;
+}
+
 /** Runs every player filter's `lower()` against `req`/`chosenX` and returns
  *  the subset with a defined value — the carry step
  *  (`pendingTargetFiltersFromRequirement`'s player-filter half). Each key's
