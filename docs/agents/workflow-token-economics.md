@@ -56,10 +56,39 @@ Token estimate uses **3.5 chars/token** throughout.
 
 ### Queue health at measurement time
 
-60 open `ready-for-agent` issues: **37 (62%) declare no `Target files` section**,
-**30 (50%) have no parent edge**. Three PRDs (#2180, #2162, #2091) carried a
+**176** open `ready-for-agent` issues. Over the first 100: **66% declare no
+`Target files` section**, **15% name a parent in prose with no sub-issue edge**,
+44% have no acceptance criteria. Three PRDs (#2180, #2162, #2091) carried a
 stray `ready-for-agent` label, found by the planner's first real run and
 stripped.
+
+> **Correction.** The first version of this document said "60 open issues". That
+> was `--limit 60` reported as a total — the same silent truncation the loop
+> itself was suffering from (below). The 62%/50% figures quoted alongside it were
+> computed over that truncated window; the corrected figures above are over the
+> first 100.
+
+### The queue the loop could actually see
+
+`gh issue list` returns **newest first**, and the loop's query used `--limit 60`.
+With 176 open issues it therefore saw **#2077 – #2190 and nothing else**: 126
+issues, back to #1215, were invisible to every pass.
+
+```
+--limit 60   → n=60    #2077 … #2190
+--limit 300  → n=176   #1215 … #2190     ← 126 issues never considered
+```
+
+The lineage sort was ordering a window that had already excluded everything old
+— precisely the starvation the lineage sort exists to prevent, defeated one
+layer above it. Fixed in #2188 by raising the planner's depth to 300, which is
+free _now_ and was not before: post-planner the list is consumed inside the
+process and only the plan crosses into context, so depth costs nothing. At the
+old shape the same change would have cost ~27k tokens of context per pass.
+
+This is the second instance of the same class in this repo (the CLI's default
+`--limit` is 30). **Any `gh` query whose result is treated as a total needs its
+count sanity-checked against an unbounded one.**
 
 ## The finding that reorders everything
 
@@ -176,12 +205,16 @@ Specifically:
    in order: the prunable mass in #2189, the requests-per-tool-call ratio, and
    the 105k subagent median (n=24). Any large miss probably lands on one of
    them — check those before inventing a new explanation.
-4. **Look for what this pass could not see.** The measurement had no per-request
+4. **Re-check the denominators before trusting any ratio.** This pass reported a
+   queue size that was really a `--limit`, and the corrected number was three
+   times larger. Every rate in this document divides by something; confirm each
+   denominator is a total and not a window.
+5. **Look for what this pass could not see.** The measurement had no per-request
    usage data for the main loop, no `cwd` on Bash events, and no receipt data at
    all. #2182 (durable receipts) and #2187 (scorecard) exist precisely to close
    those gaps — once they have landed, the next pass should be able to compute
    per-issue cost directly instead of inferring it, which is itself a result
    worth recording.
-5. **Then, and only then, look for new optimizations.** A ranking built on
+6. **Then, and only then, look for new optimizations.** A ranking built on
    unvalidated projections would repeat this document's own methodological risk
    one level deeper.
