@@ -31,9 +31,41 @@ deny() {
     exit 2
 }
 
-# Does the command contain this token as a whole word?
-has() {
-    printf '%s' "$cmd" | grep -Eq "$1"
+# ─────────────────────────────────────────────────────────────────────────────
+# Everything below matches against SEGMENTS, never the whole command string.
+#
+# A `tool_input.command` is not one command. It is a script: several commands
+# joined by `&&`, `;` and newlines, and it routinely carries PROSE — commit
+# message heredocs, PR bodies, echoed explanations. Matching the whole string
+# produced three false denials in the first hour these rules were live:
+#
+#   * a `git commit` whose MESSAGE discussed force-pushing, chained with a
+#     perfectly legal push of a feature branch;
+#   * a gate REDIRECTED to a file, followed by a separate `grep … | tail` of
+#     that file — the gate and the pager were in different commands;
+#   * and the same shape again with a different message.
+#
+# Each denial was correct about the characters present and wrong about what the
+# command does. A guard that blocks legitimate work at random is a guard that
+# gets switched off, which costs more than the rule was ever worth. So: split on
+# the separators that end a pipeline (`&&`, `||`, `;`, newline — NOT a bare `|`,
+# which is the pipe these rules need to see), and require a rule's patterns to
+# co-occur in ONE segment.
+# ─────────────────────────────────────────────────────────────────────────────
+
+segments=$(printf '%s' "$cmd" | sed -e 's/&&/\
+/g' -e 's/||/\
+/g' -e 's/;/\
+/g')
+
+# True when some single segment matches every pattern given.
+seg_has() {
+    matching=$(printf '%s\n' "$segments")
+    for pattern in "$@"; do
+        matching=$(printf '%s\n' "$matching" | grep -E "$pattern" || true)
+        [ -n "$matching" ] || return 1
+    done
+    return 0
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -47,7 +79,7 @@ has() {
 # ─────────────────────────────────────────────────────────────────────────────
 case "$cwd" in
 *-issue-[0-9]*)
-    if has '(^|[;&|[:space:]])gh[[:space:]]+pr[[:space:]]+merge([[:space:]]|$)'; then
+    if seg_has '(^|[;&|[:space:]])gh[[:space:]]+pr[[:space:]]+merge([[:space:]]|$)'; then
         deny "BLOCKED: \`gh pr merge\` from an issue worktree ($cwd).
 Merging belongs to the orchestrator's merge-train, which rebases onto the
 current main tip and re-gates the tree that actually lands. Merging here skips
@@ -68,10 +100,17 @@ esac
 # Force is expressed two ways and BOTH have to count: the flag, and a leading
 # `+` on the refspec (`git push origin +main`), which is a force push with no
 # flag anywhere in the command.
-if has '(^|[;&|[:space:]])git[[:space:]]+push([[:space:]]|$)' &&
-    { has '(--force([[:space:]=]|$)|--force-with-lease|[[:space:]]-f([[:space:]]|$))' ||
-        has '[[:space:]]\+[^[:space:]]*(main|master)([[:space:]]|$)'; } &&
-    has '([[:space:]:+]|^)(main|master)([[:space:]]|$)'; then
+#
+# **Scoped to the `git push` invocation's own arguments, not the whole command
+# string.** Testing the entire string produced a false denial the first time it
+# met a real command: a `git commit -F -` heredoc whose MESSAGE discussed
+# force-pushing main, followed by `git push` of a feature branch. Prose travels
+# inside commands — commit bodies, PR bodies, `echo`ed explanations — and a
+# guard that reads it is a guard that blocks legitimate work at random, which is
+# how guards get switched off.
+if seg_has '(^|[;&|[:space:]])git[[:space:]]+push([[:space:]]|$)' \
+    '(--force([[:space:]=]|$)|--force-with-lease|[[:space:]]-f([[:space:]]|$)|[[:space:]]\+[^[:space:]]*(main|master)([[:space:]]|$))' \
+    '([[:space:]:+])(main|master)([[:space:]]|$)'; then
     deny "BLOCKED: force-push targeting the default branch.
 No step in this workflow needs it, and it can destroy another session's merged
 work with no recovery. If a branch has diverged, rebase it and force-push the
@@ -95,8 +134,8 @@ fi
 # it is caught by the gate afterwards), so only the commands whose exit code
 # IS the done/not-done signal are denied.
 # ─────────────────────────────────────────────────────────────────────────────
-if has '(bun[[:space:]]+run[[:space:]]+(test|test:app|test:bot|check:all|check:pr|check:guards)([[:space:]]|$)|scripts/gate\.ts)' &&
-    has '\|[[:space:]]*(tail|head|less|more)([[:space:]]|$)'; then
+if seg_has '(bun[[:space:]]+run[[:space:]]+(test|test:app|test:bot|check:all|check:pr|check:guards)([[:space:]]|$)|scripts/gate\.ts)' \
+    '\|[[:space:]]*(tail|head|less|more)([[:space:]]|$)'; then
     deny "BLOCKED: gate command piped into a pager.
 The pipeline's exit code becomes the pager's, which is always 0 — a red suite
 would report success. Redirect to a file and read that instead:
@@ -120,12 +159,12 @@ if [ -n "$cwd" ] && [ -d "$cwd" ]; then
     git_dir=$(git -C "$cwd" rev-parse --absolute-git-dir 2>/dev/null || true)
     common_dir=$(git -C "$cwd" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)
     if [ -n "$git_dir" ] && [ "$git_dir" = "$common_dir" ]; then
-        if has '(^|[;&|[:space:]])git[[:space:]]+checkout[[:space:]]+--([[:space:]]|$)' ||
-            has '(^|[;&|[:space:]])git[[:space:]]+restore([[:space:]]|$)' ||
-            has '(^|[;&|[:space:]])git[[:space:]]+stash([[:space:]]+(push|save))?([[:space:]]*$|[[:space:]]+-)' ||
-            has '(^|[;&|[:space:]])git[[:space:]]+reset[[:space:]]+--hard' ||
-            has '(^|[;&|[:space:]])git[[:space:]]+clean[[:space:]]+-[a-z]*f' ||
-            has '(^|[;&|[:space:]])git[[:space:]]+commit[[:space:]]+(-[a-zA-Z]*a|--all)'; then
+        if seg_has '(^|[;&|[:space:]])git[[:space:]]+checkout[[:space:]]+--([[:space:]]|$)' ||
+            seg_has '(^|[;&|[:space:]])git[[:space:]]+restore([[:space:]]|$)' ||
+            seg_has '(^|[;&|[:space:]])git[[:space:]]+stash([[:space:]]+(push|save))?([[:space:]]*$|[[:space:]]+-)' ||
+            seg_has '(^|[;&|[:space:]])git[[:space:]]+reset[[:space:]]+--hard' ||
+            seg_has '(^|[;&|[:space:]])git[[:space:]]+clean[[:space:]]+-[a-z]*f' ||
+            seg_has '(^|[;&|[:space:]])git[[:space:]]+commit[[:space:]]+(-[a-zA-Z]*a|--all)'; then
             deny "BLOCKED: discarding git operation in the shared main checkout ($cwd).
 Other sessions are editing this tree right now — modified files here are normal,
 not a mess to clean up, and discarding them is unrecoverable. Do the work in

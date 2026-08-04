@@ -136,6 +136,37 @@ describe("deny-guard — nothing force-pushes the default branch", () => {
         }
     });
 
+    it("reads the push command's own arguments, not prose that happens to travel with it", () => {
+        // Observed the first time the rule met a real command: a `git commit`
+        // whose MESSAGE discussed force-pushing main, chained with a `git push`
+        // of a feature branch. Scanning the whole command string denied it.
+        // Prose rides inside commands all the time — commit bodies, PR bodies,
+        // echoed explanations — and a guard that reads it blocks legitimate
+        // work at random, which is how guards end up switched off.
+        const forceWord = "--force";
+        const branch = "ma" + "in";
+        for (const cmd of [
+            // The trailing space after the branch name is deliberate: it is
+            // what makes the prose match the ref pattern, so this case really
+            // does discriminate same-line from any-line matching.
+            `git commit -m 'docs: nothing may ${forceWord} push to ${branch} , ever'\n&& git push -u origin fix/issue-2203`,
+            `git commit -m 'never ${forceWord} push to ${branch} again' && git push -u origin fix/issue-2203`,
+        ]) {
+            const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
+            expect(r.code, `expected ALLOW for: ${cmd}\n${r.stderr}`).toBe(0);
+        }
+    });
+
+    it("still denies when the force and the ref are in the push command itself, even alongside prose", () => {
+        const cmd = [
+            "git commit -m 'a message mentioning nothing in particular'",
+            "&& git push --force origin main",
+        ].join("\n");
+        expect(denied(runHook(DENY_GUARD, bash(cmd, issueWorktree)))).toBe(
+            true
+        );
+    });
+
     it("allows force-pushing a FEATURE branch — the merge-train does exactly this after a rebase", () => {
         for (const cmd of [
             "git push --force-with-lease",
@@ -181,6 +212,36 @@ describe("deny-guard — a gate may not be piped into a pager", () => {
             const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
             expect(r.code, `expected ALLOW for: ${cmd}`).toBe(0);
         }
+    });
+
+    it("allows a gate redirected to a file followed by a SEPARATE piped grep of that file", () => {
+        // Observed live: the gate and the pager were in different commands, and
+        // the whole-string match denied it anyway. This is the correct way to
+        // read a gate's output, so denying it left no legal way to do the thing
+        // the rule is telling you to do.
+        // Both spellings: separated by a newline, and — the case a line-based
+        // match cannot see — chained with `;` or `&&` on ONE line.
+        for (const cmd of [
+            "bun run check:pr >/tmp/gate.log 2>&1\ngrep -E 'Tests|FAIL' /tmp/gate.log | tail -4",
+            "bun run check:pr >/tmp/gate.log 2>&1; grep -E 'Tests' /tmp/gate.log | tail -4",
+            "bun run test >/tmp/g.log 2>&1 && grep Tests /tmp/g.log | head -3",
+        ]) {
+            expect(
+                runHook(DENY_GUARD, bash(cmd, issueWorktree)).code,
+                `expected ALLOW for: ${cmd}`
+            ).toBe(0);
+        }
+    });
+
+    it("still denies when the gate and the pager are in the SAME pipeline, alongside other commands", () => {
+        const cmd = [
+            "echo starting",
+            "bun run test | tail -20",
+            "echo done",
+        ].join("\n");
+        expect(denied(runHook(DENY_GUARD, bash(cmd, issueWorktree)))).toBe(
+            true
+        );
     });
 
     it("allows a gate redirected to a file, and allows piping NON-gate commands", () => {
