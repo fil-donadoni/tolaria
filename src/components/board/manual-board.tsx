@@ -25,6 +25,9 @@ import {
 } from "@/components/ui/context-menu";
 import { usePageVisible } from "~/hooks/usePageVisible";
 import { useDraggable } from "~/hooks/useDraggable";
+import { useIsPortrait } from "~/hooks/useIsPortrait";
+import { useLongPress } from "~/hooks/useLongPress";
+import { portraitBandVars } from "~/lib/portrait-board-bands";
 import CardImage from "../cards/card-image";
 import CardBack from "../cards/card-back";
 
@@ -84,6 +87,8 @@ export default function ManualBoard({
     solo?: boolean;
 }) {
     const pageVisible = usePageVisible();
+    const isPortrait = useIsPortrait();
+    const [logOpen, setLogOpen] = useState(false);
     const state = useQuery(
         api.game.getManualState,
         pageVisible ? { gameId, viewerId: playerId } : "skip"
@@ -99,13 +104,36 @@ export default function ManualBoard({
 
     return (
         <ManualGameIdCtx.Provider value={gameId}>
-            <div className="flex h-dvh">
+            <div className="flex h-dvh relative">
                 <div className="flex-1 min-w-0">
-                    <ManualBoardInner state={state} playerId={playerId} />
+                    <ManualBoardInner
+                        state={state}
+                        playerId={playerId}
+                        isPortrait={isPortrait}
+                        onToggleLog={
+                            isPortrait ? () => setLogOpen((v) => !v) : undefined
+                        }
+                    />
                 </div>
-                <div className="w-80 shrink-0 border-l border-white/10">
-                    <ManualLog gameId={gameId} />
-                </div>
+                {isPortrait ? (
+                    logOpen && (
+                        <div className="absolute inset-0 z-40 bg-[#1a1a2e] flex flex-col">
+                            <button
+                                className="self-end m-2 text-white/60 hover:text-white p-2"
+                                onClick={() => setLogOpen(false)}
+                            >
+                                Close
+                            </button>
+                            <div className="flex-1 min-h-0">
+                                <ManualLog gameId={gameId} />
+                            </div>
+                        </div>
+                    )
+                ) : (
+                    <div className="w-80 shrink-0 border-l border-white/10">
+                        <ManualLog gameId={gameId} />
+                    </div>
+                )}
             </div>
         </ManualGameIdCtx.Provider>
     );
@@ -114,9 +142,13 @@ export default function ManualBoard({
 function ManualBoardInner({
     state,
     playerId,
+    isPortrait,
+    onToggleLog,
 }: {
     state: ProjectedManualGameState;
     playerId: string;
+    isPortrait: boolean;
+    onToggleLog?: () => void;
 }) {
     const gameId = useManualGameId();
     const moveCard = useMutation(api.game.manualMoveCard);
@@ -237,20 +269,34 @@ function ManualBoardInner({
         <div
             data-board-root
             className="flex flex-col h-dvh bg-[#1a1a2e] text-white overflow-hidden select-none"
+            style={isPortrait ? { ...portraitBandVars() } : undefined}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
             onPointerCancel={handlePointerCancel}
         >
             {/* Hotkeys legend */}
-            <div className="absolute top-2 right-2 z-30">
+            <div className="absolute top-2 right-2 z-30 flex gap-2">
+                {onToggleLog && (
+                    <button
+                        className="bg-black/60 hover:bg-black/80 text-white/80 p-2 rounded-lg text-xs transition-colors shadow-lg"
+                        onClick={onToggleLog}
+                    >
+                        Log
+                    </button>
+                )}
                 <HotkeysLegend />
             </div>
 
             {opponent && (
-                <div className="flex-1 flex flex-col min-h-0">
+                <div
+                    className={
+                        isPortrait ? "shrink-0" : "flex-1 flex flex-col min-h-0"
+                    }
+                >
                     <PlayerBoard
                         player={opponent}
                         isViewer={false}
+                        compact={isPortrait}
                         onCardPointerDown={handlePointerDown}
                         onCardClick={handleCardClick}
                         onCardClickCapture={dragHandlers.onClickCapture}
@@ -258,13 +304,20 @@ function ManualBoardInner({
                 </div>
             )}
 
-            <div className="border-t border-white/10" />
+            <div className="border-t border-white/10 shrink-0" />
 
             {viewer && (
-                <div className="flex-1 flex flex-col min-h-0">
+                <div
+                    className={
+                        isPortrait
+                            ? "flex-1 flex flex-col min-h-0"
+                            : "flex-1 flex flex-col min-h-0"
+                    }
+                >
                     <PlayerBoard
                         player={viewer}
                         isViewer={true}
+                        compact={false}
                         onCardPointerDown={handlePointerDown}
                         onCardClick={handleCardClick}
                         onCardClickCapture={dragHandlers.onClickCapture}
@@ -380,12 +433,14 @@ function resolveDrop(
 function PlayerBoard({
     player,
     isViewer,
+    compact,
     onCardPointerDown,
     onCardClick,
     onCardClickCapture,
 }: {
     player: ProjectedManualGameState["players"][0];
     isViewer: boolean;
+    compact: boolean;
     onCardPointerDown: (
         e: React.PointerEvent<HTMLElement>,
         instanceId: string
@@ -393,6 +448,58 @@ function PlayerBoard({
     onCardClick: (instanceId: string) => void;
     onCardClickCapture: (e: React.MouseEvent<HTMLElement>) => void;
 }) {
+    if (compact) {
+        return (
+            <div className="flex items-center gap-1 px-1 py-1 border-b border-white/[0.06] bg-white/[0.02]">
+                <div className="text-[10px] text-white/60 font-bold w-12 truncate text-center shrink-0">
+                    {player.name}
+                </div>
+                <div className="text-sm font-bold tabular-nums w-8 text-center shrink-0">
+                    {player.life}
+                </div>
+                <div
+                    data-manual-zone="hand"
+                    data-manual-player={player.id}
+                    className="flex-1 flex items-center gap-0.5 overflow-x-auto min-w-0"
+                >
+                    {player.hand.map((card) =>
+                        card ? (
+                            <ManualCard
+                                key={card.id}
+                                card={card}
+                                onPointerDown={(e) =>
+                                    onCardPointerDown(e, card.id)
+                                }
+                                onClick={() => onCardClick(card.id)}
+                                onClickCapture={onCardClickCapture}
+                                small
+                            />
+                        ) : null
+                    )}
+                </div>
+                <div className="flex items-center gap-0.5 shrink-0">
+                    <LibraryPile
+                        playerId={player.id}
+                        count={player.library.count}
+                        isViewer={isViewer}
+                    />
+                    <ZonePile
+                        zone="graveyard"
+                        playerId={player.id}
+                        cards={player.graveyard}
+                        label="Graveyard"
+                    />
+                    <ZonePile
+                        zone="exile"
+                        playerId={player.id}
+                        cards={player.exile}
+                        label="Exile"
+                    />
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="flex-1 flex min-h-0">
             <LifeBar player={player} isViewer={isViewer} />
@@ -634,6 +741,22 @@ function ManualCard({
     const adjustCounter = useMutation(api.game.manualAdjustCounter);
     const setFaceDown = useMutation(api.game.manualSetFaceDown);
     const setNote = useMutation(api.game.manualSetNote);
+    const cardRef = useRef<HTMLDivElement>(null);
+
+    const longPress = useLongPress({
+        onLongPress: () => {
+            const el = cardRef.current;
+            if (el) {
+                const evt = new MouseEvent("contextmenu", {
+                    bubbles: true,
+                    cancelable: true,
+                    clientX: el.getBoundingClientRect().left,
+                    clientY: el.getBoundingClientRect().top,
+                });
+                el.dispatchEvent(evt);
+            }
+        },
+    });
 
     const size = small ? "w-12 h-16" : "w-[68px] h-[95px]";
     const displays = counterDisplays(card.counters);
@@ -642,6 +765,7 @@ function ManualCard({
         <ContextMenu>
             <ContextMenuTrigger>
                 <div
+                    ref={cardRef}
                     data-card-id={card.id}
                     className={`relative ${size} shrink-0 cursor-pointer select-none
                         hover:ring-2 hover:ring-white/30 transition-shadow`}
@@ -652,6 +776,7 @@ function ManualCard({
                             onClick?.();
                         }
                     }}
+                    {...longPress.handlers}
                 >
                     <div className="w-full h-full rounded-sm overflow-hidden ring-1 ring-black/40 shadow-md">
                         {card.faceDown ? (
