@@ -284,6 +284,48 @@ export function parseTypeLine(typeLine: string): {
     return { types, subtypes, supertypes, isToken };
 }
 
+/**
+ * The filters that can be decided from a raw catalogue ROW, before it is
+ * turned into a `CardIndexEntry`.
+ *
+ * Building an entry is not free — `parseTypeLine` splits and re-joins several
+ * strings — and the catalogue is ~34,000 rows, so materialising all of them
+ * and filtering afterwards means paying that cost 34,000 times to keep (for a
+ * cube) 541. These predicates read fields the row already carries, so the
+ * expensive step runs only for rows that survive.
+ *
+ * Deliberately a SUBSET: the type and token gates need the parsed type line,
+ * and `matchesFormatSets` needs the print list, so they stay in the main pass.
+ * Everything here must agree exactly with its counterpart there — a row this
+ * rejects is never seen again.
+ */
+function rowPassesCheapFilters(
+    row: FullCatalogueRow,
+    filters: CardSearchFilters,
+    cubeIds: ReadonlySet<string> | null,
+    textTokens: string[]
+): boolean {
+    if (!matchesCube(row.printId, row.name, cubeIds)) return false;
+    if (!matchesManaValue(row.cmc, filters.manaValues)) return false;
+    if (filters.sets.length > 0 && !filters.sets.includes(row.set))
+        return false;
+    if (textTokens.length > 0) {
+        // A catalogue row carries no oracle text, so the name is the only
+        // field `matchesText` can match on — mirror exactly that branch.
+        for (const token of textTokens) {
+            if (!row.nameFold.includes(token)) return false;
+        }
+    }
+    const colors = row.colourIdentity.split("").filter((c) => c !== "");
+    return matchesColors(colors, filters);
+}
+
+/** The folded, tokenised text query, or `[]` when the query is inert. */
+function textQueryTokens(text: string): string[] {
+    if (!isTextActive(text)) return [];
+    return tokenizeQuery(foldAccents(text.toLowerCase()));
+}
+
 export function makeCatalogueEntry(row: FullCatalogueRow): CardIndexEntry {
     const { types, subtypes, supertypes, isToken } = parseTypeLine(
         row.typeLine
@@ -362,12 +404,16 @@ export function useCardSearch(
         if (idle) return [];
 
         const parts: CardIndexEntry[] = [];
+        // Pre-computed once per pass, not once per row.
+        const textTokens = textQueryTokens(filters.text);
 
         if (isManual && catalogueRows) {
             // Manual mode: the Full Catalogue is the search pool. Every row is
             // selectable regardless of `.available`.
             for (const row of catalogueRows) {
-                parts.push(makeCatalogueEntry(row));
+                if (rowPassesCheapFilters(row, filters, cubeIds, textTokens)) {
+                    parts.push(makeCatalogueEntry(row));
+                }
             }
         } else {
             // Real mode: index entries (available cards) first.
@@ -378,7 +424,10 @@ export function useCardSearch(
             if (catalogueRows) {
                 const known = new Set(all.map((e) => e.nameFold));
                 for (const row of catalogueRows) {
-                    if (!row.available && !known.has(row.nameFold)) {
+                    if (row.available || known.has(row.nameFold)) continue;
+                    if (
+                        rowPassesCheapFilters(row, filters, cubeIds, textTokens)
+                    ) {
                         parts.push(makeCatalogueEntry(row));
                     }
                 }

@@ -62,7 +62,7 @@ describe("ResultCard availability gating", () => {
                 onAdd={onAdd}
             />
         );
-        expect(getByText("Not yet available")).toBeDefined();
+        expect(getByText("Unavailable")).toBeDefined();
         expect(queryByTestId("draggable")).toBeNull();
     });
 

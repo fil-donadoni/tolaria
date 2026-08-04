@@ -1,7 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import type { CardIndexEntry } from "./useCardSearch";
 import ResultCard from "./result-card";
-import { usePagedEntries } from "./usePagedEntries";
+import { useGridWindow } from "./useGridWindow";
 
 interface ResultsGridProps {
     entries: CardIndexEntry[] | undefined;
@@ -22,27 +22,23 @@ export default function ResultsGrid({
     enforceAvailability,
     onAdd,
 }: ResultsGridProps) {
-    // Issue #505 / PRD #501: render a bounded batch and grow it as the user
-    // scrolls, so the grid never has to render (and image-fetch) a thousand
-    // matches at once. The header below still reports the true filtered total.
-    const { visible, hasMore, loadMore } = usePagedEntries(entries);
-
-    // IntersectionObserver sentinel: when the element near the grid bottom
-    // enters the viewport, append the next batch. Thin glue — not unit-tested;
-    // the slice logic lives in `usePagedEntries`.
-    const sentinelRef = useRef<HTMLDivElement | null>(null);
-    useEffect(() => {
-        const node = sentinelRef.current;
-        if (!node || !hasMore) return;
-        const observer = new IntersectionObserver(
-            (observed) => {
-                if (observed.some((e) => e.isIntersecting)) loadMore();
-            },
-            { rootMargin: "200px" }
-        );
-        observer.observe(node);
-        return () => observer.disconnect();
-    }, [hasMore, loadMore, visible.length]);
+    // Windowed rendering (issue #505 / PRD #501 originally grew a batch per
+    // scroll; that made the mounted count grow without bound and a 540-card
+    // cube stopped painting). Only the rows near the viewport are mounted —
+    // see `gridWindow.ts` for why the ceiling had to become a bound.
+    const outerRef = useRef<HTMLDivElement | null>(null);
+    const innerRef = useRef<HTMLDivElement | null>(null);
+    const { start, end, offsetTop, totalHeight } = useGridWindow(
+        entries?.length ?? 0,
+        outerRef,
+        innerRef,
+        entries
+    );
+    const visible = entries ? entries.slice(start, end) : [];
+    // Before the first cell exists there is nothing to measure, so the seed
+    // slice renders in normal flow; the spacer and the absolute positioning
+    // only switch on once the geometry is known.
+    const measured = totalHeight > 0;
 
     if (entries === undefined) {
         return (
@@ -76,24 +72,34 @@ export default function ResultsGrid({
             <div className="sticky top-0 z-10 border-b border-border-subtle/30 bg-surface/80 px-2 py-1.5 text-xs text-text-muted backdrop-blur">
                 {entries.length} {entries.length === 1 ? "card" : "cards"} found
             </div>
-            <div className="flex flex-wrap gap-2 p-2 md:gap-3">
-                {visible.map((entry) => (
-                    <ResultCard
-                        key={entry.cardId}
-                        entry={entry}
-                        activeSets={activeSets}
-                        enforceAvailability={enforceAvailability}
-                        onAdd={onAdd}
-                    />
-                ))}
-            </div>
-            {hasMore && (
+            {/* The spacer carries the FULL grid's height so the scrollbar
+                reflects the whole match set; the mounted rows are positioned
+                inside it at their real offset. */}
+            <div
+                ref={outerRef}
+                className="relative p-2"
+                style={measured ? { height: totalHeight } : undefined}
+            >
                 <div
-                    ref={sentinelRef}
-                    aria-hidden
-                    className="h-px w-full shrink-0"
-                />
-            )}
+                    ref={innerRef}
+                    className={
+                        measured
+                            ? "absolute inset-x-2 flex flex-wrap gap-2 md:gap-3"
+                            : "flex flex-wrap gap-2 md:gap-3"
+                    }
+                    style={measured ? { top: offsetTop } : undefined}
+                >
+                    {visible.map((entry) => (
+                        <ResultCard
+                            key={entry.cardId}
+                            entry={entry}
+                            activeSets={activeSets}
+                            enforceAvailability={enforceAvailability}
+                            onAdd={onAdd}
+                        />
+                    ))}
+                </div>
+            </div>
         </div>
     );
 }

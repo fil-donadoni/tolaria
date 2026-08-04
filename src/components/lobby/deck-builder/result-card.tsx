@@ -56,6 +56,24 @@ export default function ResultCard({
     const selected = override ?? defaultPrintId;
     const unavailable = enforceAvailability && entry.available === false;
 
+    // The footer is a FIXED-height slot, occupied or not. Every cell is then
+    // the same height, which is what lets the grid be windowed by row
+    // arithmetic (`gridWindow.ts`) instead of measuring each row — and it
+    // also squares up a grid that used to sit ragged, cards at different
+    // vertical offsets depending on whether they had an edition dropdown.
+    const renderFooter = (content: React.ReactNode) => (
+        <div className="flex h-6 items-center justify-center">{content}</div>
+    );
+
+    const dropdown = (
+        <EditionDropdown
+            options={options}
+            value={selected}
+            onChange={setOverride}
+            onOpen={loadEditions}
+        />
+    );
+
     if (unavailable) {
         return (
             <div className="flex w-(--card-w) shrink-0 flex-col gap-1 opacity-40 pointer-events-none">
@@ -66,17 +84,17 @@ export default function ResultCard({
                         promoteLayer={false}
                     />
                 </div>
-                <div className="pointer-events-none absolute inset-0 rounded-sm ring-2 ring-transparent" />
-                <span className="text-center text-[10px] text-text-disabled leading-tight">
-                    Not yet available
-                </span>
-                {options.length > 1 && (
-                    <EditionDropdown
-                        options={options}
-                        value={selected}
-                        onChange={setOverride}
-                        onOpen={loadEditions}
-                    />
+                {renderFooter(
+                    options.length > 1 ? (
+                        dropdown
+                    ) : (
+                        // One line, so it fits the shared footer height. The
+                        // cell is already dimmed and click-through — this
+                        // names the reason, it does not carry it alone.
+                        <span className="text-[10px] text-text-disabled leading-none">
+                            Unavailable
+                        </span>
+                    )
                 )}
             </div>
         );
@@ -104,14 +122,11 @@ export default function ResultCard({
                 </div>
                 <div className="pointer-events-none absolute inset-0 rounded-sm ring-2 ring-transparent group-hover:ring-accent/60" />
             </DraggableCard>
-            {(options.length > 1 ||
-                (isCatalogue && scryfallEditions === undefined)) && (
-                <EditionDropdown
-                    options={options}
-                    value={selected}
-                    onChange={setOverride}
-                    onOpen={loadEditions}
-                />
+            {renderFooter(
+                options.length > 1 ||
+                    (isCatalogue && scryfallEditions === undefined)
+                    ? dropdown
+                    : null
             )}
         </div>
     );
