@@ -17397,6 +17397,40 @@ export function reverseRestrictedManaFromPool(
     player.restrictedMana = remaining.length > 0 ? remaining : undefined;
 }
 
+/** Balance of the ONE pool bucket a mana deposit carrying `restriction` lands
+ *  in (CR 106.4 / 106.6): the fungible `manaPool` when the producing ability
+ *  is unrestricted, otherwise the matching `restrictedMana` unit — keyed
+ *  exactly as `addRestrictedManaToPool` deposits it and
+ *  `reverseRestrictedManaFromPool` reverses it, so "how much is here" and
+ *  "how much can be given back" can never disagree.
+ *
+ *  This answers *"is the mana this particular ability produced still
+ *  unspent"*, which is a DIFFERENT question from `spendablePoolForAbility`'s
+ *  *"may this mana pay to activate an ability of a source with these types"*
+ *  (issue #1713). Gating a refund on the latter excludes every restricted
+ *  source from its OWN bucket — Soldevi Machinist is a Creature whose mana is
+ *  `artifact-ability`-restricted, Mishra's Workshop a Land whose mana is
+ *  `artifact-spell`-restricted; neither passes an eligibility check keyed on
+ *  its own card types, and a spell restriction never permits an ability at
+ *  all. Restriction eligibility is deliberately NOT consulted here: the mana
+ *  is being un-made, not spent. */
+export function manaBalanceForRestriction(
+    player: Pick<PlayerState, "manaPool" | "restrictedMana">,
+    color: string,
+    restriction: ManaRestriction | undefined,
+    cantBeCounteredRider?: boolean
+): number {
+    if (restriction === undefined) return player.manaPool[color] ?? 0;
+    return (
+        (player.restrictedMana ?? []).find(
+            (r) =>
+                r.color === color &&
+                r.restriction === restriction &&
+                !!r.cantBeCounteredRider === !!cantBeCounteredRider
+        )?.amount ?? 0
+    );
+}
+
 /** Builds the spendable pool for casting a spell: the base `manaPool` plus any
  *  restricted mana whose restriction permits this spell (CR 106.6). Used for
  *  the affordability check at spell-cast sites — callers pass whether the

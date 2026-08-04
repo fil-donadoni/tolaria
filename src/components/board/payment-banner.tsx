@@ -138,24 +138,39 @@ export default function PaymentBanner(props: Props) {
         // banner names the card (e.g. "Raugrin Triome") instead of a bare
         // "ability".
         const pa = props.pendingActivation;
+        const onBattlefield = props.me?.battlefield.find(
+            (c) => c.id === pa.cardInstanceId
+        );
+        const inGraveyard = props.me?.graveyard?.find(
+            (c) => c.id === pa.cardInstanceId
+        );
         const source =
-            props.me?.battlefield.find((c) => c.id === pa.cardInstanceId) ??
+            onBattlefield ??
             props.me?.hand.find(
                 (c) => c !== null && c.id === pa.cardInstanceId
             ) ??
-            props.me?.graveyard?.find((c) => c.id === pa.cardInstanceId);
+            inGraveyard;
         cardName = source ? getDefinition(source.card.id).name : "ability";
         // CR 106.6 (issue #1713) — restricted mana eligible for an ability of
         // THIS source (Soldevi Machinist's artifact-ability mana) counts
         // toward coverage here too, mirroring the server's
         // `spendablePoolForAbility` check at the activation-commit sites
         // (`convex/game.ts`) instead of reading the raw `manaPool`.
+        //
+        // The eligibility key must mirror the server's `activationSourceTypes`
+        // EXACTLY, and that helper searches battlefields + graveyards only —
+        // a HAND source (Cycling / any `fromHand` ability) yields `[]`, which
+        // makes every restriction ineligible. Reusing `source` here (which
+        // also looks in hand, purely so the banner can NAME the card) would
+        // let the client conclude "covered" and hide Auto-tap while the server
+        // refuses to auto-commit — a dead banner.
+        const sourceTypes = onBattlefield?.types ?? inGraveyard?.types ?? [];
         manaOwed =
             Object.keys(props.pendingActivation.manaCost).length > 0 &&
             !(
                 props.me !== undefined &&
                 isManaCostCovered(
-                    spendablePoolForAbility(props.me, source?.types ?? []),
+                    spendablePoolForAbility(props.me, sourceTypes),
                     props.pendingActivation.manaCost
                 )
             );

@@ -31,9 +31,22 @@ vi.mock("@convex/_generated/api", () => {
     return { api: { game } };
 });
 
-vi.mock("@convex/cards", () => ({
-    getDefinition: (id: string) => ({ id, name: `Card ${id}` }),
-}));
+// The cast branch reads `types` / `supertypes` off the DEFINITION to key CR
+// 106.6 restricted-mana eligibility (#1713), so the stub can't stop at a name.
+vi.mock("@convex/cards", () => {
+    const TYPES: Record<string, string[]> = {
+        "artifact-spell": ["Artifact"],
+        "some-spell": ["Instant"],
+    };
+    return {
+        getDefinition: (id: string) => ({
+            id,
+            name: `Card ${id}`,
+            types: TYPES[id] ?? [],
+            supertypes: [],
+        }),
+    };
+});
 
 import PaymentBanner from "../payment-banner";
 
@@ -287,5 +300,232 @@ describe("PaymentBanner activation routing (#939)", () => {
 
         expect(screen.getByText("Auto-tap")).toBeTruthy();
         expect(screen.getByText("pay the casting costs")).toBeTruthy();
+    });
+});
+
+// Issue #1713 — the banner gates its "Auto-tap" affordance on whether the
+// pending cost is already covered, and used to answer that from the raw
+// `props.me.manaPool`. Mana carrying a CR 106.6 spend restriction lives in the
+// parallel `restrictedMana` pool, so a cost the SERVER considers covered (it
+// merges the eligible bucket in via `spendablePoolForSpell` /
+// `spendablePoolForAbility`) read as unpaid client-side: the banner offered
+// Auto-tap for a payment already made, and never surfaced the outstanding
+// non-mana pick.
+//
+// These assertions run THROUGH the rendered component, not through the pool
+// helpers directly — a test that calls `spendablePoolForAbility` itself is a
+// re-implementation of the banner's logic that stays green while both banner
+// reads are reverted to `props.me.manaPool` (proven: 24/24 passing with the
+// bug fully re-introduced). Per `.claude/rules/gre-development.md` § Frontend
+// wiring analysis item 4, the surface assertion must traverse the real path.
+describe("PaymentBanner restricted-mana coverage (#1713, CR 106.6)", () => {
+    const artifactSource = {
+        id: "art1",
+        card: { id: "artifact-source" },
+        controllerId: "me",
+        ownerId: "me",
+        zone: "battlefield",
+        isTapped: false,
+        types: ["Artifact"],
+    } as never;
+
+    it("activation: the source's own artifact-ability bucket covers the cost → no Auto-tap", () => {
+        // Soldevi Machinist's {C}{C} paying an artifact's activated ability —
+        // the server auto-commits this, so the banner must not beg for mana.
+        const pa = activation({
+            cardInstanceId: "art1",
+            manaCost: { C: 2 },
+        });
+        const me = player({
+            battlefield: [artifactSource],
+            restrictedMana: [
+                { color: "C", amount: 2, restriction: "artifact-ability" },
+            ],
+        });
+        render(
+            <PaymentBanner
+                kind="activation"
+                pendingActivation={pa}
+                me={me}
+                gameId={"g1" as never}
+                playerId="me"
+            />
+        );
+
+        expect(screen.queryByText("Auto-tap")).toBeNull();
+    });
+
+    it("activation: an artifact-ability bucket does NOT cover a non-artifact source's ability → Auto-tap still shown", () => {
+        const pa = activation({ manaCost: { C: 2 } });
+        const me = player({
+            // default battlefield source is an Enchantment
+            restrictedMana: [
+                { color: "C", amount: 2, restriction: "artifact-ability" },
+            ],
+        });
+        render(
+            <PaymentBanner
+                kind="activation"
+                pendingActivation={pa}
+                me={me}
+                gameId={"g1" as never}
+                playerId="me"
+            />
+        );
+
+        expect(screen.getByText("Auto-tap")).toBeTruthy();
+    });
+
+    it("activation: a GRAVEYARD source is keyed on its own types (CR 113.6, mirrors activationSourceTypes) → no Auto-tap", () => {
+        const pa = activation({ cardInstanceId: "gy1", manaCost: { C: 2 } });
+        const me = player({
+            graveyard: [
+                {
+                    id: "gy1",
+                    card: { id: "artifact-source" },
+                    controllerId: "me",
+                    ownerId: "me",
+                    zone: "graveyard",
+                    isTapped: false,
+                    types: ["Artifact"],
+                } as never,
+            ],
+            restrictedMana: [
+                { color: "C", amount: 2, restriction: "artifact-ability" },
+            ],
+        });
+        render(
+            <PaymentBanner
+                kind="activation"
+                pendingActivation={pa}
+                me={me}
+                gameId={"g1" as never}
+                playerId="me"
+            />
+        );
+
+        expect(screen.queryByText("Auto-tap")).toBeNull();
+    });
+
+    it("activation: a HAND source yields NO eligible types server-side (activationSourceTypes searches battlefield+graveyard only) → Auto-tap stays shown", () => {
+        // Cycling / any `fromHand` ability. The card is still NAMED from the
+        // hand, but keying eligibility on its types would let the banner
+        // conclude "covered" and hide Auto-tap while the server refuses to
+        // auto-commit — a dead banner with no way to pay.
+        const pa = activation({ cardInstanceId: "hand1", manaCost: { C: 2 } });
+        const me = player({
+            hand: [
+                {
+                    id: "hand1",
+                    card: { id: "artifact-spell" },
+                    controllerId: "me",
+                    ownerId: "me",
+                    zone: "hand",
+                    isTapped: false,
+                    types: ["Artifact"],
+                } as never,
+            ],
+            restrictedMana: [
+                { color: "C", amount: 2, restriction: "artifact-ability" },
+            ],
+        });
+        render(
+            <PaymentBanner
+                kind="activation"
+                pendingActivation={pa}
+                me={me}
+                gameId={"g1" as never}
+                playerId="me"
+            />
+        );
+
+        expect(screen.getByText("Auto-tap")).toBeTruthy();
+        // Still named from the hand — the fix narrows the TYPES key only.
+        expect(screen.getByText("Card artifact-spell")).toBeTruthy();
+    });
+
+    it("cast: Mishra's Workshop mana covers an artifact spell → no Auto-tap, the sacrifice pick is named instead", () => {
+        const pc = {
+            playerId: "me",
+            cardInstanceId: "hand1",
+            manaCost: { C: 3 },
+            tappedLandIds: [],
+            sacrificeSelection: {
+                playerId: "me",
+                reason: "Cast",
+                requirements: [{ filter: { types: "Creature" }, count: 1 }],
+                picked: [],
+            },
+        } as unknown as PendingCast;
+        const me = player({
+            hand: [
+                {
+                    id: "hand1",
+                    card: { id: "artifact-spell" },
+                    controllerId: "me",
+                    ownerId: "me",
+                    zone: "hand",
+                    isTapped: false,
+                    types: ["Artifact"],
+                } as never,
+            ],
+            restrictedMana: [
+                { color: "C", amount: 3, restriction: "artifact-spell" },
+            ],
+        });
+        render(
+            <PaymentBanner
+                kind="cast"
+                pendingCast={pc}
+                me={me}
+                gameId={"g1" as never}
+                playerId="me"
+            />
+        );
+
+        expect(screen.queryByText("Auto-tap")).toBeNull();
+        expect(screen.getByText("sacrifice a creature")).toBeTruthy();
+    });
+
+    it("cast: artifact-spell mana does NOT cover a non-artifact spell → Auto-tap shown", () => {
+        const pc = {
+            playerId: "me",
+            cardInstanceId: "hand1",
+            manaCost: { C: 3 },
+            tappedLandIds: [],
+            sacrificeSelection: {
+                playerId: "me",
+                reason: "Cast",
+                requirements: [{ filter: { types: "Creature" }, count: 1 }],
+                picked: [],
+            },
+        } as unknown as PendingCast;
+        const me = player({
+            hand: [
+                {
+                    id: "hand1",
+                    card: { id: "some-spell" },
+                    controllerId: "me",
+                    ownerId: "me",
+                    zone: "hand",
+                    isTapped: false,
+                    types: ["Instant"],
+                } as never,
+            ],
+            restrictedMana: [
+                { color: "C", amount: 3, restriction: "artifact-spell" },
+            ],
+        });
+        render(
+            <PaymentBanner
+                kind="cast"
+                pendingCast={pc}
+                me={me}
+                gameId={"g1" as never}
+                playerId="me"
+            />
+        );
+
+        expect(screen.getByText("Auto-tap")).toBeTruthy();
     });
 });
