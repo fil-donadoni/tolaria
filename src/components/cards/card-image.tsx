@@ -27,6 +27,21 @@ const STABLE_LAYER: React.CSSProperties = {
     backfaceVisibility: "hidden",
 };
 
+// The same containment WITHOUT the forced compositor layer, for surfaces that
+// render an unbounded number of cards and never animate their ancestors.
+//
+// `will-change: transform` + `translateZ(0)` promote every card to its own GPU
+// layer. That is a good trade on the board (a few dozen cards, ancestors
+// genuinely rotating) and a bad one in a scrolling result grid: at ~240 cards
+// Chrome exhausts its tile memory and starts EVICTING layers, which paints as
+// blank regions, cards that flicker in and out on hover, and images decoded at
+// the `sizes` hint (140px) instead of their 488px intrinsic width. A sticky
+// `backdrop-filter` above the grid compounds it — the blur must read back the
+// composited result underneath on every frame.
+//
+// `contain: paint` survives because it is a hint, not a promotion.
+const CONTAINED_LAYER: React.CSSProperties = { contain: "paint" };
+
 type CardImageProps = {
     card: CardInstance | { id: string };
     /**
@@ -58,6 +73,13 @@ type CardImageProps = {
      * strategy on `getImageSrcSet` (src/lib/images.ts).
      */
     includeThumb?: boolean;
+    /**
+     * Promote the card to its own compositor layer (default `true` — the
+     * board's behaviour, unchanged). Pass `false` on any surface that renders
+     * an unbounded number of cards at once and does not animate their
+     * ancestors — see {@link CONTAINED_LAYER} for what over-promotion costs.
+     */
+    promoteLayer?: boolean;
 };
 
 function isCardInstance(
@@ -76,6 +98,7 @@ function CardImageImpl({
     showCopyBadge = false,
     sizes = DEFAULT_CARD_IMAGE_SIZES,
     includeThumb = true,
+    promoteLayer = true,
 }: CardImageProps) {
     const cardInstance = isCardInstance(card) ? card : undefined;
     const defId = getDefId(card);
@@ -109,7 +132,7 @@ function CardImageImpl({
         >
             <div
                 className="relative w-full h-full rounded-[7%] overflow-hidden"
-                style={STABLE_LAYER}
+                style={promoteLayer ? STABLE_LAYER : CONTAINED_LAYER}
             >
                 {imageId ? (
                     <img
@@ -171,6 +194,7 @@ const CardImage = memo(
         prev.showCopyBadge === next.showCopyBadge &&
         prev.sizes === next.sizes &&
         prev.includeThumb === next.includeThumb &&
+        prev.promoteLayer === next.promoteLayer &&
         cardImageSignature(prev.card) === cardImageSignature(next.card)
 );
 export default CardImage;

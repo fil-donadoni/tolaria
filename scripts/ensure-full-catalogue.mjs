@@ -3,12 +3,17 @@
  * Makes sure the Full Catalogue asset the client fetches actually exists
  * (`public/data/full-catalogue.json.gz`, ADR 0080 § 3).
  *
- * The asset is GENERATED (`scripts/fetch-full-catalogue.mjs`) and gitignored,
- * so a fresh clone, a new worktree, and every deploy start without it — the
- * fetch 404s, `useFullCatalogue` errors, and manual mode silently degrades to
- * an empty card pool while the real builder loses its Unavailable Cards. That
- * is invisible unless you already know to look for it, which is why the dev
- * and build scripts run this first.
+ * The asset is GENERATED (`scripts/fetch-full-catalogue.mjs`) but COMMITTED at
+ * `public/data/`, deliberately: the alternative is re-downloading the Scryfall
+ * bulk on every production build, which makes each deploy depend on a third
+ * party being up and fast. Committed, the build is offline and deterministic
+ * and this script is a no-op there.
+ *
+ * It still earns its place in `dev`/`build` for the cases where the asset is
+ * genuinely absent — a worktree created before it was tracked, a checkout of an
+ * older ref, a `--force` refresh. Absence is INVISIBLE at runtime: the fetch
+ * 404s, `useFullCatalogue` errors, and manual mode silently degrades to an
+ * empty card pool while the real builder loses its Unavailable Cards.
  *
  * Order of preference, cheapest first:
  *   1. already in `public/data/` and plausibly sized → nothing to do

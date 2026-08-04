@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
+import { toDashedUuid } from "./scryfallId";
 
 export interface ScryfallEdition {
     printId: string;
@@ -30,7 +31,10 @@ export async function fetchEditions(
         data: ScryfallPrint[];
     };
     return body.data.map((p) => ({
-        printId: p.id.replace(/-/g, ""),
+        // Canonical dashed form — Scryfall already returns it that way; this
+        // used to strip the dashes, which broke every image URL built from an
+        // edition-dropdown pick (see `toDashedUuid`).
+        printId: toDashedUuid(p.id),
         setCode: p.set,
         label: p.set.toUpperCase(),
     }));

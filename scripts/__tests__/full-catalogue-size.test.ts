@@ -6,19 +6,21 @@ import { resolve } from "node:path";
 /**
  * Guards for the Full Catalogue (manual mode, ADR 0080 § 3).
  *
- * The catalogue is a GENERATED, gitignored asset
- * (`scripts/fetch-full-catalogue.mjs` → `data/` + `public/data/`), which
- * splits these guards in two:
+ * The catalogue is GENERATED (`scripts/fetch-full-catalogue.mjs`) and the
+ * `public/data/` copy the client fetches is COMMITTED — a production build must
+ * not depend on a Scryfall bulk download. Two kinds of guard follow:
  *
- *  - **Wiring** (always runs, never skips). The asset's absence is silent at
- *    runtime — the fetch 404s, `useFullCatalogue` errors, manual mode shows an
- *    empty pool and the real builder loses its Unavailable Cards. So the
- *    generation step must stay wired into `dev` and `build`. This is the guard
- *    that matters on a machine that has never generated the file, i.e. CI.
- *  - **Budget + shape** (runs when the artifact is present). Measures the REAL
- *    file. An earlier version of this test gzipped a synthetic 3-card object it
- *    had just built and asserted THAT was under 1.5 MB — it could never fail on
- *    the real catalogue's growth, which is the only thing the budget is about.
+ *  - **Wiring.** The asset's absence is silent at runtime — the fetch 404s,
+ *    `useFullCatalogue` errors, manual mode shows an empty pool and the real
+ *    builder loses its Unavailable Cards. So the artifact must be present and
+ *    `catalogue:ensure` must stay wired into `dev` and `build` for the
+ *    checkouts that predate tracking it.
+ *  - **Budget + shape.** Measures the REAL file. An earlier version of this
+ *    test gzipped a synthetic 3-card object it had just built and asserted THAT
+ *    was under 1.5 MB — it could never fail on the real catalogue's growth,
+ *    which is the only thing the budget is about. These assertions used to skip
+ *    when the artifact was missing; now that it is committed, missing IS the
+ *    failure.
  */
 
 const REPO_ROOT = resolve(__dirname, "..", "..");
@@ -46,9 +48,6 @@ function readArtifact(): FullCatalogue {
     ) as FullCatalogue;
 }
 
-const MISSING_REASON =
-    "public/data/full-catalogue.json.gz not generated here — run `bun run catalogue:ensure`";
-
 describe("Full Catalogue generation wiring", () => {
     const pkg = JSON.parse(
         readFileSync(resolve(REPO_ROOT, "package.json"), "utf8")
@@ -63,6 +62,10 @@ describe("Full Catalogue generation wiring", () => {
         ).toBe(true);
     });
 
+    it("ships the artifact itself (committed, not generated per deploy)", () => {
+        expect(existsSync(ARTIFACT)).toBe(true);
+    });
+
     it("runs the ensure step before dev and before build", () => {
         // Without this, a fresh clone / worktree / deploy serves no catalogue
         // and manual mode is silently dead.
@@ -72,8 +75,7 @@ describe("Full Catalogue generation wiring", () => {
 });
 
 describe("Full Catalogue size budget", () => {
-    it("is at most 1.5 MB gzipped", (ctx) => {
-        if (!existsSync(ARTIFACT)) return ctx.skip(MISSING_REASON);
+    it("is at most 1.5 MB gzipped", () => {
         const size = statSync(ARTIFACT).size;
         console.log(
             `full-catalogue.json.gz: ${(size / 1024).toFixed(1)} KB (budget: ${(
@@ -85,23 +87,23 @@ describe("Full Catalogue size budget", () => {
 });
 
 describe("Full Catalogue data integrity", () => {
-    it("has no oracleId or oracle_text top-level fields", (ctx) => {
-        if (!existsSync(ARTIFACT)) return ctx.skip(MISSING_REASON);
+    it("has no oracleId or oracle_text top-level fields", () => {
         const keys = Object.keys(readArtifact());
         expect(keys).not.toContain("oracleId");
         expect(keys).not.toContain("oracle_text");
     });
 
-    it("all printIds are dashless UUIDs", (ctx) => {
-        if (!existsSync(ARTIFACT)) return ctx.skip(MISSING_REASON);
+    // The ASSET stays dashless (the size reduction). The client restores the
+    // dashes in `rehydrate` — see `src/lib/scryfallId.ts` — because every other
+    // id in the project, and every Scryfall image path, is the dashed form.
+    it("all printIds are dashless UUIDs", () => {
         for (const id of readArtifact().printIds) {
             expect(id).not.toMatch(/-/);
             expect(id).toHaveLength(32);
         }
     });
 
-    it("all arrays have consistent length", (ctx) => {
-        if (!existsSync(ARTIFACT)) return ctx.skip(MISSING_REASON);
+    it("all arrays have consistent length", () => {
         const catalogue = readArtifact();
         const len = catalogue.names.length;
         expect(catalogue.printIds).toHaveLength(len);

@@ -6,6 +6,8 @@ import {
     patchAvailability,
     type FullCatalogueRow,
 } from "../fullCatalogue";
+import { toDashedUuid } from "../scryfallId";
+import { getImageUrl } from "../images";
 
 // FullCatalogueWire is not exported — define a local minimal shape.
 interface Wire {
@@ -154,5 +156,61 @@ describe("patchAvailability", () => {
         const patched = patchAvailability(rows, new Set(["lightning bolt"]));
         expect(patched).not.toBe(rows);
         expect(rows[0].available).toBe(false);
+    });
+});
+
+/**
+ * The id-space guard.
+ *
+ * The catalogue asset stores print UUIDs DASHLESS (the ADR 0080 size
+ * reduction), but every other id in the project — `CardDefinition.id`,
+ * `card-index.json`, a saved deck row — is the canonical dashed Scryfall print
+ * UUID, and `cards.scryfall.io` puts that dashed form in its image path.
+ * `rehydrate` handed the dashless id straight through, so every card the
+ * catalogue contributed (the whole manual-mode pool, and real mode's
+ * Unavailable Cards) rendered with a 404 image.
+ *
+ * The assertion runs THROUGH `getImageUrl`, not against the id: a shape check
+ * on `printId` alone would still pass if the URL builder changed its path
+ * layout underneath it.
+ */
+describe("rehydrate — canonical print ids (image path)", () => {
+    const DASHLESS = "a7f2073b1c2d4e5f8091a2b3c4d5e6f7";
+    const DASHED = "a7f2073b-1c2d-4e5f-8091-a2b3c4d5e6f7";
+
+    function oneRow(printId: string): FullCatalogueRow {
+        return rehydrate(
+            wire({
+                names: ["Sliver Queen"],
+                printIds: [printId],
+                typeLines: ["Legendary Creature — Sliver"],
+                manaCosts: ["{2}{W}{U}{B}{R}{G}"],
+                cmcs: [7],
+                colourIdentities: ["WUBRG"],
+                sets: ["stf"],
+                rarities: ["rare"],
+            })
+        )[0];
+    }
+
+    it("restores the dashes a catalogue row was stored without", () => {
+        expect(oneRow(DASHLESS).printId).toBe(DASHED);
+    });
+
+    it("builds the real Scryfall image path from a rehydrated row", () => {
+        expect(getImageUrl(oneRow(DASHLESS).printId)).toBe(
+            `https://cards.scryfall.io/grid/front/a/7/${DASHED}.webp`
+        );
+    });
+
+    it("passes an already-dashed id through unchanged (idempotent)", () => {
+        expect(oneRow(DASHED).printId).toBe(DASHED);
+        expect(toDashedUuid(DASHED)).toBe(DASHED);
+    });
+
+    it("leaves a non-UUID id alone (synthetic token ids)", () => {
+        expect(toDashedUuid("token:Wasp|1/1|artifact")).toBe(
+            "token:Wasp|1/1|artifact"
+        );
     });
 });

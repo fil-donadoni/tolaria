@@ -31,13 +31,15 @@ describe("fetchEditions", () => {
         );
 
         expect(editions).toHaveLength(2);
+        // Dashed — the canonical print-id form. This used to assert the
+        // dashless variant, which is what `cards.scryfall.io` 404s on.
         expect(editions[0]).toEqual({
-            printId: "f29ec16d7fe847ab8a1022aabd3c6dd1",
+            printId: "f29ec16d-7fe8-47ab-8a10-22aabd3c6dd1",
             setCode: "lea",
             label: "LEA",
         });
         expect(editions[1]).toEqual({
-            printId: "3fbdd46cc36c4e6bae001e14097645b4",
+            printId: "3fbdd46c-c36c-4e6b-ae00-1e14097645b4",
             setCode: "leb",
             label: "LEB",
         });

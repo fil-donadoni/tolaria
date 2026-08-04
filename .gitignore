@@ -38,6 +38,9 @@ ladder-runs/
 # list-to-cards staging output (regenerated; lockfile data/card-index.json IS committed)
 data/worklists/*.out/
 data/worklists/*.resolved.jsonl
+# Full Catalogue (ADR 0080). `data/` holds the generator's primary output and
+# stays ignored; `public/data/` is the asset the CLIENT fetches and IS COMMITTED
+# — the production build must not depend on a Scryfall bulk download. Refresh it
+# with `bun run catalogue:build` when a set ships.
 data/full-catalogue.json.gz
-public/data/full-catalogue.json.gz
 .claude/telemetry/

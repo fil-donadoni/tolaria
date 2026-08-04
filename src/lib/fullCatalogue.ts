@@ -1,12 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { foldAccents } from "@convex/cards/textNormalize";
+import { toDashedUuid } from "./scryfallId";
 
 /** A single rehydrated row from the Full Catalogue columnar arrays. */
 export interface FullCatalogueRow {
     name: string;
-    /** Dashless Scryfall UUID. */
+    /** Canonical (dashed) Scryfall print UUID. The ASSET stores it dashless
+     *  for size; `rehydrate` restores the dashes so a row's id is the same
+     *  shape as every `CardDefinition.id` — see {@link toDashedUuid}. */
     printId: string;
     typeLine: string;
     manaCost: string;
@@ -41,7 +44,7 @@ export function rehydrate(wire: FullCatalogueWire): FullCatalogueRow[] {
         const nameFold = foldAccents(wire.names[i].toLowerCase());
         rows.push({
             name: wire.names[i],
-            printId: wire.printIds[i],
+            printId: toDashedUuid(wire.printIds[i]),
             typeLine: wire.typeLines[i],
             manaCost: wire.manaCosts[i],
             cmc: wire.cmcs[i],
@@ -137,11 +140,16 @@ export function useFullCatalogue(): FullCatalogueResult {
         undefined
     );
     const [error, setError] = useState<string | null>(null);
-    const startedRef = useRef(false);
 
+    // No "already started" ref here — deduplication is the module-level
+    // `cataloguePromise`'s job, and a ref would BREAK this effect under
+    // StrictMode: mount #1 starts the load, the simulated unmount flips its
+    // `cancelled`, and mount #2 early-returns on the ref, so the resolving
+    // promise finds every live closure cancelled and `setCatalogue` is never
+    // called. `rows` then stays `undefined` forever with no error logged —
+    // manual mode silently shows an empty pool. Re-subscribing on every mount
+    // is free: `loadFullCatalogue` returns the same cached promise.
     useEffect(() => {
-        if (startedRef.current) return;
-        startedRef.current = true;
         let cancelled = false;
         loadFullCatalogue()
             .then((rows) => {
