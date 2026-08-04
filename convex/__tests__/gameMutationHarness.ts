@@ -23,16 +23,20 @@ export interface MutationStub {
     state: () => GameState;
 }
 
-/** A stub `MutationCtx`, authenticated as `userId`, over an in-memory
- *  document store seeded with `seeds`. Mirrors `seatOwnership.test.ts`'s
- *  `makeCtx`. */
-export function makeMutationCtx(userId: string, seeds: Row[]): MutationStub {
+/** A stub `MutationCtx`, authenticated as `userId` (or unauthenticated when
+ *  `userId` is `null`), over an in-memory document store seeded with
+ *  `seeds`. Mirrors `seatOwnership.test.ts`'s `makeCtx`. */
+export function makeMutationCtx(
+    userId: string | null,
+    seeds: Row[]
+): MutationStub {
     const docs = new Map<string, Row>();
     for (const seed of seeds) docs.set(seed._id as string, { ...seed });
 
     const ctx = {
         auth: {
-            getUserIdentity: async () => ({ subject: `${userId}|session1` }),
+            getUserIdentity: async () =>
+                userId === null ? null : { subject: `${userId}|session1` },
         },
         db: {
             get: async (id: string) => docs.get(id) ?? null,
