@@ -87,12 +87,32 @@ function issue(
     };
 }
 
+/**
+ * A realistic issue body.
+ *
+ * It carries acceptance criteria and a full prose paragraph because the planner
+ * now runs `lintIssue` before admitting (issue #2188), and a stub body is
+ * itself a blocking finding — as it should be: an issue with no spec wastes a
+ * full implement + review cycle. A fixture that would be rejected in production
+ * is not a fixture, it is a different scenario.
+ */
 function body(opts: {
     targetFiles?: string[] | null;
     blockedBy?: number[];
     prose?: string;
 }): string {
-    const parts = ["## What to build", "", opts.prose ?? "Some behaviour.", ""];
+    const parts = [
+        "## What to build",
+        "",
+        opts.prose ??
+            "Some behaviour the loop needs, described at enough length that the body is a spec rather than a title repeated twice.",
+        "",
+        "## Acceptance criteria",
+        "",
+        "- [ ] the behaviour above works end to end",
+        "- [ ] a test covers it and has been proven to fail",
+        "",
+    ];
     if (opts.blockedBy?.length) {
         parts.push("## Blocked by", "");
         for (const n of opts.blockedBy) parts.push(`- #${n}`);
@@ -152,7 +172,8 @@ describe("queue planner — fixture shape (issue #2181)", () => {
 
     it("plans the real captured queue without throwing, and resolves a model for every admitted issue", () => {
         const details: Record<number, { body: string }> = {};
-        for (const i of LIVE_QUEUE) details[i.number] = { body: "" };
+        for (const i of LIVE_QUEUE)
+            details[i.number] = { body: body({ targetFiles: null }) };
         const plan = planBatch(LIVE_QUEUE, CONFIG, makePort(details));
 
         expect(plan.batch.length).toBeGreaterThan(0);
@@ -626,7 +647,8 @@ describe("queue planner — model routing (issue #2181)", () => {
 describe("queue planner — determinism and cost (issue #2181)", () => {
     it("returns the same plan for the same snapshot", () => {
         const details: Record<number, { body: string }> = {};
-        for (const i of LIVE_QUEUE) details[i.number] = { body: "" };
+        for (const i of LIVE_QUEUE)
+            details[i.number] = { body: body({ targetFiles: null }) };
         const a = planBatch(LIVE_QUEUE, CONFIG, makePort(details));
         const b = planBatch(LIVE_QUEUE, CONFIG, makePort(details));
         expect(a).toEqual(b);
