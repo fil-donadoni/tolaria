@@ -199,6 +199,19 @@ The **work-intake** skills all converge on the same tail — grill → `/to-prd`
 | `/new-op`            | A card needs a DSL verb that doesn't exist  | Walks all seven Op registration sites across six files (three of which no guard covers) and the Op's permanent test                                                                |
 | `/bot-slice`         | Any change to the play Bot or the draft Bot | Maps the AI subsystem, walks the seams a change must touch, enforces the verification doctrine (blade scenario first, self-play only for strength claims)                          |
 
+**Workflow skills are versioned in this repo.** `/process-gh-issues` lives in
+`.claude/skills/process-gh-issues/` and is tracked by git like any other source
+file: a change to it goes through a branch, a PR, a review and the gate, and
+`scripts/__tests__/project-skills.test.ts` fails if it drifts back to the
+user-level directory (where it would be invisible to every PR and would shadow
+the repo copy). When the workflow stabilises it can be extracted into a
+shareable package; until then it belongs to Tolaria.
+
+A rule that CAN be enforced mechanically belongs in a script the gate runs
+(`scripts/queue-plan.ts` computes the batch, `scripts/gate.ts` blocks the full
+suite in an issue worktree), not in the skill's prose. Prose is the fallback for
+judgment, not the default home for an invariant.
+
 ### Path-specific rules (auto-loaded)
 
 - `convex/gre/**` and `convex/cards/**` → CR compliance, testing requirements, code patterns
