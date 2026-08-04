@@ -32,7 +32,7 @@ When the workflow stabilises it can be extracted into a shareable package; until
 - `MAX_PASSES = 1` — batches per process. **One batch, then exit** (see § Running unattended): the loop's durable state lives in GitHub labels and `.claude/telemetry/green-sha`, not in the conversation, so a fresh process per batch costs nothing and caps context growth. Raise only for an interactive run you are watching.
 - `SUBAGENT_STALL_MINUTES = 20` — no receipt and no worktree activity for this long ⇒ probe for liveness (see § Stalled subagents).
 - `BATCH_CAP = 4` — max issues per fan-out batch. Tune here only. **The cap is a CPU budget, not just a context budget**: every concurrent subagent runs targeted tests, a type-check and a lint. If the project enforces a per-process worker cap (Tolaria: 2 vitest workers per light job, see its CLAUDE.md § Quality gates), `BATCH_CAP × workers` should stay at or below the machine's core count. Raising the cap without raising that budget buys queueing, not throughput.
-- `STALE_CLAIM_HOURS = 24` — claim-orphan threshold for the sweep in §1.
+- `STALE_CLAIM_HOURS = 24` — claim-orphan threshold; the planner applies it and reports orphans as `staleClaims` (§1).
 - `DEFAULT_IMPL_MODEL = sonnet` — implement/fixup subagent model when the issue carries no `model:*` label. **Never omit the `model` parameter**: omitting it inherits the orchestrator's session model, which silently routes every unlabeled issue to whatever tier the session runs on (a Fable/Opus session = most expensive tier on routine work).
 - Reviewer model: **`opus`, fixed** — independent of the issue's `model:*` label (review reads a diff, costs a fraction of implementation; a strong reviewer over a cheap implementer is the asymmetry to exploit).
 
@@ -41,41 +41,15 @@ When the workflow stabilises it can be extracted into a shareable package; until
 1. `bug` label first
 2. Within same category: **oldest LINEAGE first** — sort by **`parent.number ?? number`**, ascending
 
+**The planner computes this — you do not.** `scripts/lib/queue-plan.ts` owns the sort, the two-stage fetch, the dependency scan, and the disjointness walk; `bun run queue:plan` prints the result (§1). What follows is the _rationale_, so a future reader does not "simplify" a key that looks arbitrary. It is not instructions to re-derive the query by hand.
+
 **Why the lineage and not the issue.** A child inherits its parent's queue position, not its own creation date. Without this, every spec umbrella starves: a PRD opened in July gets its slice tickets cut in August, those sort behind the entire queue, and the PRD never converges — while each fresh audit makes it worse by adding more children at the bottom. Sorting on the parent drains lineages in the order the _work_ was commissioned: all of the oldest PRD's children, then the next PRD's, and so on.
 
 **Sort on the parent's NUMBER, not its `createdAt`.** Issue numbers are monotonic in creation time, so the number is an exact proxy — and it is the only one available: `gh issue list --json parent` returns `{id, number, state, title, url}` and **no `createdAt`**, so a `parent.createdAt` key silently falls back to the child's own date and the whole ordering quietly reverts to the broken behaviour. (Verified 2026-08-04; check the payload before changing this key.) For issues with no parent the two keys agree, so mixing `number` and `createdAt` across the queue is not an option — use `number` for both sides.
 
-The edge is the **native GitHub sub-issue relationship** (`gh issue edit <child> --parent <prd>`), read from Stage 1's `parent` field — free, no body fetch. A prose `Split out of #N` line in the body is documentation for humans; it is **not** the sort key, because parsing it would force a body fetch for the whole queue and destroy two-stage selection (§1b). When an intake skill cuts children from an umbrella it MUST set `--parent`; a child with no parent edge simply sorts on its own number, which is the pre-existing behaviour, so the change degrades gracefully.
+The edge is the **native GitHub sub-issue relationship** (`gh issue edit <child> --parent <prd>`), read from the planner's single list call — free, no body fetch. A prose `Split out of #N` line in the body is documentation for humans; it is **not** the sort key, because parsing it would force a body fetch for the whole queue and destroy two-stage selection. When an intake skill cuts children from an umbrella it MUST set `--parent`; a child with no parent edge simply sorts on its own number, so the change degrades gracefully.
 
-`gh issue edit --parent` is **unreliable under rapid fire** — observed exiting non-zero on success, no-opping silently, and once applying the wrong parent when called in a tight loop. Read every edge back (`gh issue view <child> --json parent`) and retry on mismatch; never trust the exit code.
-
-### The sort command (use this verbatim — do not re-derive it)
-
-Both keys in one call. This is the canonical Stage-1 query (§1b); run it as written and read the batch off the top:
-
-```bash
-gh issue list --label ready-for-agent --state open \
-  --json number,title,labels,parent --limit 60 \
-| jq -r '
-  [ .[]
-    | { n: .number,
-        t: .title,
-        p: (.parent.number // .number),
-        bug:    (if any(.labels[].name; . == "bug")         then 0 else 1 end),
-        inprog: (if any(.labels[].name; . == "in-progress") then "CLAIMED" else "-" end),
-        prd:    (if any(.labels[].name; . == "prd")         then "PRD" else "-" end) }
-  ]
-  | sort_by(.bug, .p)
-  | to_entries[]
-  | "\(.key+1)\t#\(.value.n)\tlineage=\(.value.p)\t\(if .value.bug==0 then "BUG" else "enh" end)\t\(.value.inprog)\t\(.value.prd)\t\(.value.t[0:70])"'
-```
-
-**Two jq traps, both of which produce a plausible-looking but WRONG order — and neither errors:**
-
-- **`index("x")` returns a POSITION, and position `0` is falsy in jq.** `if ([.labels[].name] | index("bug")) then 0 else 1 end` therefore classifies _"`bug` is the first label"_ identically to _"there is no `bug` label"_. Observed 2026-08-04: it inverted the bug key on roughly half the queue, silently skipped five older bugs (#1992, #1994, #1996, #2012, #2048), and a batch was claimed out of order. Membership is `any(.labels[].name; . == "bug")`, never a bare `index()` in a boolean position.
-- **`sort_by(a, b)` applies both filters to the same input object.** `sort_by(.bug | not, .p)` pipes the boolean into `.p` and dies with `Cannot index boolean with string "p"`. Map to a flat record first (as above), then `sort_by(.bug, .p)`.
-
-**Sanity-check the output before claiming anything:** the `BUG` rows must all precede the `enh` rows, and `lineage=` must ascend within each group. If either is violated the query is wrong — fix it, do not eyeball a "close enough" order into a claim, because a claim is a write.
+`gh issue edit --parent` is **unreliable under rapid fire** — observed exiting non-zero on success, no-opping silently, and once applying the wrong parent when called in a tight loop. Read every edge back (`gh issue view <child> --json parent`) and retry on mismatch; never trust the exit code. (This applies to the intake skills that WRITE edges; the planner only reads them.)
 
 ## Main loop
 
@@ -122,43 +96,63 @@ Each **subagent** repeats this check inside its worktree before implementing —
 
 Each pass of the loop selects a **batch** of issues, fans them out to parallel subagents, then integrates the results serially.
 
-### 1. Select a fan-out batch
+### 1. Get the batch from the planner
 
-**1a. Stale-claim sweep (first).** Orphaned claims hide ready work forever — hunt them actively, don't wait to stumble on one:
+**Do not derive the batch. Run the planner and execute its output.**
 
 ```bash
-gh issue list --label in-progress --state open --json number,updatedAt,assignees
+bun run queue:plan --cap 4 --pretty
 ```
 
-For each: if it has a linked **open PR** or was updated within `STALE_CLAIM_HOURS` → alive, leave it. No open PR **and** no activity past the threshold → orphaned by a crashed/interrupted process: release it (`gh issue edit N --remove-label in-progress --remove-assignee <assignee>`) so it re-enters the pool.
+It prints one JSON object (`version: 1`) and makes the `gh` calls itself — one list call, then one body fetch per candidate it actually considers. Only the plan crosses into this context, never the queue.
 
-**1b. Two-stage selection (token-lean).** Never pull issue bodies for the whole queue — the orchestrator only needs bodies for the few candidates that may enter the batch. Stage 1, the light list:
+```jsonc
+{
+    "version": 1,
+    "batch": [
+        {
+            "number": 2187,
+            "title": "…",
+            "type": "feat",
+            "model": "sonnet",
+            "hitl": false,
+            "targetFiles": ["scripts/**"],
+            "blastRadius": "declared",
+            "reason": "…",
+        },
+    ],
+    "deferred": [
+        { "number": 2190, "reason": "overlaps #2187", "conflictsWith": 2187 },
+    ],
+    "skipped": [{ "number": 2091, "reason": "PRD…", "action": "strip-ready" }],
+    "staleClaims": [1998],
+}
+```
 
-**Run § Priority order → The sort command verbatim.** It is the whole of Stage 1: it lists, filters and sorts in one call, and its two documented jq traps are exactly the ones that silently mis-order the queue. Do not hand-roll a variant.
+**Act on each field. None of them is advisory:**
 
-Drop any issue that carries the `in-progress` label (claimed by another running process) **or** is assigned to someone — those are being worked on. The sort is: bugs before enhancements, then by **`parent.number ?? number`** ascending (see § Priority order — oldest _lineage_ first, so an old umbrella's children don't sort behind the whole queue; and note `parent` carries no `createdAt`, which is why the key is the number). `parent` comes free in this same list call; never fetch bodies to establish parentage.
+| Field         | What you do                                                                                                                                                                                                                                                                                  |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `staleClaims` | Release each **first**, before claiming anything: `gh issue edit N --remove-label in-progress --remove-assignee <assignee>`. The planner already checked open-PR liveness and `STALE_CLAIM_HOURS`; these are orphans from a crashed process, and an unreleased one hides ready work forever. |
+| `skipped`     | Carry out the declared `action` on each (below), then move on. A skip is **never** claimed.                                                                                                                                                                                                  |
+| `batch`       | Claim (§1b) and fan out (§3). Each entry's `model` is the implement tier — pass it verbatim, never re-decide it. `type` is the branch prefix (`fix/issue-N` / `feat/issue-N`). `hitl: true` means the PR is left for human review instead of auto-merged (§ HITL flag).                      |
+| `deferred`    | Nothing — they stay unclaimed in the pool for a later pass. Report them with their `conflictsWith` so the pass report explains why the batch is the size it is.                                                                                                                              |
 
-Stage 2: walk the sorted list top-down and fetch bodies **one candidate at a time** (`gh issue view N --json body`) only while the batch still has room — dependency scan (§2), target-file derivation, and HITL detection all happen on this per-candidate fetch. Typically 4–6 fetches instead of 50 bodies; selection cost scales with the batch, not the queue.
+**Skip actions**, one `gh` call each plus a one-line comment saying why:
 
-**Never select an issue the agent cannot land.** Some work is unmergeable by an automated session no matter how well implemented, and claiming it burns a full implement + review cycle before failing at `git push`. Detect these on the per-candidate body fetch and skip **without claiming**: relabel `ready-for-agent` → `ready-for-human`, comment one line saying why, and move on.
+- `relabel-human` — the work cannot be landed by an automated session however well implemented: `gh issue edit N --remove-label ready-for-agent --add-label ready-for-human`. (CI-config changes under `.github/workflows/**` need the `workflow` OAuth scope, which only an interactive `gh auth refresh` grants — never work around it with an alternate token. Same for anything whose _definition of done_ is a human at a browser.)
+- `strip-ready` — a spec umbrella wrongly labelled: `gh issue edit N --remove-label ready-for-agent`. **This is a fix, not a skip.** Left in place the label buys nothing (the planner skips the umbrella on _every_ pass, forever) and actively breaks the outer loop: a PRD is never `in-progress`, so it permanently falsifies the stop condition ("no more **unclaimed** `ready-for-agent` issues"). Priority for an umbrella's work comes from the lineage sort, never from a label on the parent.
+- `needs-info` — malformed beyond use: `gh issue edit N --remove-label ready-for-agent --add-label needs-info`.
 
-- **CI-config changes (`.github/workflows/**`)** — pushing them needs the `workflow`OAuth scope, which only an interactive`gh auth refresh` can grant. Never work around it with an alternate token.
-- **Anything whose acceptance criteria require a human at a browser** — a visual QA verdict, a manual Chrome walkthrough, an external account/credential. (An issue merely _mentioning_ the UI is fine; one whose _definition of done_ is "looks right" is not.)
+**When `blastRadius` is `unknown`, the plan is a solo batch and that is a signal, not a verdict.** The planner refuses to guess a file set from prose, because a wrong guess parallelizes two issues that collide. But most of the pre-`Target files:` queue declares nothing, so a plan with several `unknown` candidates degenerates to one issue per pass and the fan-out stops paying for itself. The judgment is yours, the arithmetic stays in the planner: infer the file sets, then re-run with them.
 
-**Never select a PRD.** PRDs are spec umbrellas, not work items: they carry the `prd` label and **not** `ready-for-agent`, so the query above already excludes them. As a safety net, skip any selected issue that carries the `prd` label or whose title starts with `PRD:` — report "Skipping #N — PRD (spec, not a work item)" and move on. PRDs are read for context (see Implement), never implemented directly.
+```bash
+bun run queue:plan --inferred '{"2104":["convex/cards/sets/ice/**"],"2109":["src/components/debug/**"]}'
+```
 
-**A PRD carrying `ready-for-agent` is a bug in the data, and this loop fixes it in passing.** The label does not make an umbrella get worked — the safety net above skips it on _every_ pass, forever, buying nothing. Worse, it is never `in-progress`, so it permanently falsifies the outer loop's stop condition ("no more **unclaimed** `ready-for-agent` issues"), and it sits at the very top of the sort because it is the oldest thing in the queue. When you skip a `prd`-labelled issue, **remove `ready-for-agent` from it** and say so in the pass report. Prioritising an umbrella's work is the job of § Priority order's lineage sort, not of a label on the umbrella.
+A declaration in the issue body always wins over an override, so this can never quietly contradict a ticket. Two cautions when inferring: an issue body names the module it is _about_, not every file it will touch — grep the candidate's key symbols for shared consumers first (two issues once both rewrote the same vs-AI driver hook, invisible until the receipts came back). And **re-check disjointness against the receipts** (§3 step 8 reports the paths actually touched): a late-discovered overlap is not fatal, but it fixes the train's merge ORDER — land the PR that restructures the shared file first and rebase the other onto it.
 
-**Build the batch by file-overlap (disjoint-only).** Walk the sorted candidates top-down, adding each to the batch only if its target file set is **disjoint** from every issue already in the batch:
-
-- **Read each issue's declared target files.** The issue-creation skills (`/to-tickets`, `/new-qa-issue`, `/new-set`) emit an explicit `Target files:` section (module/glob granularity — scheduling metadata, not spec). That declaration is authoritative for batching. **Fallback only** (older issues without the section): infer the file set from the issue scope (the set/cluster it names, the module it modifies). When the target set can't be derived with confidence, treat the issue as overlapping **everything** — it goes in its own solo batch rather than risk a hidden collision.
-- **An inferred file set is a guess, and prose hides shared files.** An issue body names the module it is _about_, not every file it will touch — two issues about different subsystems routinely meet in a shared hook or client driver that neither body mentions (observed: two issues in one batch both rewrote the same vs-AI driver hook, invisible until the receipts came back). When target files are inferred rather than declared, **grep the candidate's key symbols for shared consumers before batching it**, and treat any shared non-registration file as overlap. Then **re-check disjointness against the receipts** (§3 step 8 reports the paths actually touched): a late-discovered overlap is not fatal, but it fixes the train's merge ORDER — land the PR that restructures the shared file first, and rebase the other onto it.
-- **Append-only registration points don't count as overlap.** Shared files where every issue merely _adds an entry_ (set `index.ts` re-exports, key lists in `serialize.ts`) are excluded from the disjointness check by convention — they are omitted from `Target files:` declarations, and the merge-train absorbs their trivial append-conflicts on rebase (that is what the serial integrate stage is _for_, per the June 2026 merge-train decision). Only files with **semantic** overlap (same logic edited by two issues) serialize a batch.
-- **Disjoint → parallelize.** Issues whose file sets don't intersect go in the same batch and run concurrently.
-- **Partial or full overlap → serialize.** An issue that shares any target file with one already in the batch is **deferred to a later pass** (it stays in the pool, unclaimed), not added to the current batch. It'll be picked up once the conflicting issue has integrated.
-- **Concurrency cap.** At most `BATCH_CAP` (= 4, see Parameters) issues per batch. Dependencies (§2) are resolved before batch assembly — never put an issue and something it depends on in the same batch.
-
-A batch may legitimately be a single issue (everything else overlapped it, or only one candidate was ready). That's fine — it just degenerates to the old serial behavior for that pass.
+**If the project has no planner** (`bun run queue:plan` is absent — this skill is meant to be portable), fall back to **serial single-issue mode**: take the highest-priority unclaimed `ready-for-agent` issue by § Priority order, claim it, and run the rest of this loop with a batch of one. Do **not** hand-roll a batch query. Fan-out without a tested planner is what this section replaced: deriving the sort, the dependency scan and the disjointness walk from prose produced silent mis-orderings that looked plausible and claimed work out of order. One issue per pass is slower and always correct; the fan-out is the reward for adopting the planner.
 
 ### 1b. Claim the batch (concurrency lock)
 
@@ -202,20 +196,11 @@ The atomic tiebreak is the branch: even if both sessions pass the probe and both
 
 Track **every claimed issue in the batch** — each one, on every exit path (merge, failure, interrupt, dependency-skip), must be released (see Release). A claim you dropped because another session owns it is **not** yours to release — leave its label/branch/PR untouched.
 
-### 2. Check dependencies (before batch assembly)
+### 2. Dependencies — already resolved in the plan
 
-Dependencies are resolved **before** the batch is finalized — an issue and anything it depends on must never share a batch. Scan each candidate's body for dependency patterns (case-insensitive):
+The planner scans each candidate's body for `blocked by #N` / `depends on #N` / `requires #N` / `after #N`, resolves each reference, and applies the outcome before the batch is finalised: a **closed** blocker leaves the candidate eligible; an **open** one puts the candidate in `deferred` with `conflictsWith: N`. An issue and something it depends on can therefore never share a batch.
 
-- `blocked by #N`
-- `depends on #N`
-- `requires #N`
-- `after #N`
-
-For each referenced `#N`:
-
-- If `#N` is **closed** → dependency satisfied, the candidate stays eligible
-- If `#N` is **open + ready-for-agent** → process `#N` first (it gets priority in an earlier batch/pass); **defer the dependent** to a later pass
-- If `#N` is **open + other state** → drop the candidate from this batch and **release any claim** on it (see Release). Report: "Skipping #current — blocked by #N (not ready-for-agent)"
+Nothing to do here — the rule is `scripts/lib/queue-plan.ts`, and the plan you already have is its output. In the no-planner fallback (§1), a batch of one cannot contain its own blocker, so the only check is: if the single candidate's body names an **open** blocker, skip it, release any claim (see Release), report "Skipping #N — blocked by #M", and take the next one.
 
 ### 3. Fan out — spawn one subagent per batch issue, concurrently
 
@@ -227,7 +212,11 @@ Spawn a **fresh** subagent via the `Agent` tool for **each** issue in the batch,
 - The instructions below, which the subagent follows end-to-end.
 - **One sentence naming the hard part of THIS issue** — lead with it, before any compliance material. Not "follow the rules": what is the specific thing that is easy to get wrong here? ("the hard part is deciding which of the existing raise sites count as a search", "the hard part is that two shipped cards reuse this choice kind for something else".) A prompt that is all guard checklist and silent on the semantics produces a subagent that satisfies every guard and gets the semantics wrong — the checklist cannot check what nobody stated. If you cannot name the hard part from the issue body, that is a signal the issue needs a producer census (step 4) or is under-specified, not that it has none.
 
-**Model routing (per-issue label).** **Route by the SHAPE of the work, not just the label.** The default (`sonnet`) suits a well-bounded slice that reuses existing seams — a card built from existing Ops, a mechanical refactor, a localized bugfix. An issue whose difficulty is **classification or taxonomy** — a new event type, a new seam other code feeds, a new union member, anything requiring the producer census in step 4 — should go to `opus` even with no `model:*` label, because the failure mode there is not a typo but a wrong mental model, which no gate catches and only review does (expensively, serially). Say in the batch summary when you upgrade a tier and why; if an issue keeps arriving unlabelled and un-triaged, suggest the label at triage rather than re-deciding every run. If the issue carries a `model:<name>` label (`model:sonnet`, `model:opus`, `model:fable`, `model:haiku`), pass that name as the `model` parameter of the `Agent` tool call for that issue's subagent. No `model:*` label → pass `DEFAULT_IMPL_MODEL` (`sonnet`, see Parameters); never omit the parameter (omitting inherits the session model — see Parameters for why that's a cost trap). The label governs the **implement-subagent and every follow-up subagent for that issue** — fixup and rebase-conflict-resolution handbacks (§4) inherit the same label (fixup difficulty correlates with issue difficulty, not with the session). The orchestrator itself and the reviewer (fixed `opus`, see Parameters) are unaffected. Multiple `model:*` labels on one issue → use the most capable named tier and report the ambiguity in the batch summary.
+**Model routing — take the tier from the plan, verbatim.** Every `batch` entry carries a `model` (§1). Pass it as the `model` parameter of that issue's `Agent` call. It is always present precisely so the parameter can never be omitted — omitting it inherits the orchestrator's session model, which silently routes routine work at whatever tier the session runs on (see Parameters). The planner resolves it from the issue's `model:<name>` label (`model:sonnet` / `model:opus` / `model:fable` / `model:haiku`), falling back to `DEFAULT_IMPL_MODEL`; several labels resolve to the most capable and arrive as `modelAmbiguity`, which you report in the batch summary.
+
+The tier governs the **implement-subagent and every follow-up subagent for that issue** — fixup and rebase-conflict-resolution handbacks (§4) inherit it (fixup difficulty correlates with issue difficulty, not with the session). The orchestrator itself and the reviewer (fixed `opus`, see Parameters) are unaffected.
+
+**If a plan entry looks under-tiered, say so — do not silently upgrade it.** Some work is harder than its label suggests: an issue whose difficulty is **classification or taxonomy** (a new event type, a new seam other code feeds, a new union member, anything requiring the producer census in step 4) wants `opus`, because the failure mode there is a wrong mental model rather than a typo — no gate catches that, only review does, expensively and serially. But re-deciding the tier per run is exactly the model-derived decision this loop moved into the planner: it makes the same issue route differently on two passes for reasons nobody can reconstruct afterwards. Report the suspicion in the pass report and **suggest the `model:opus` label**; applied at triage it persists, takes effect on the next pass, and every later run agrees. Run what the plan says in the meantime.
 
 Collect all receipts before moving to the integrate stage (§4). Because the batch is file-disjoint (§1), the parallel worktrees cannot collide.
 
@@ -383,7 +372,7 @@ Back in the orchestrator (do NOT re-read the diff or re-run tests):
     gh issue view <parent> --json number,title,state,subIssuesSummary
     ```
 
-    Close it only when **all three** hold: the parent carries the **`prd` label**, `subIssuesSummary.total > 0`, and `completed == total`. Then comment the list of children that discharged it and `gh issue close <parent> --reason completed`. An umbrella whose every slice has landed is **done** — leaving it open is how a PRD from three months ago still reads as live work, and how the same spec gets re-audited and re-ticketed by a later intake pass. This is the only place in the loop that closes a `prd`-labelled issue; it never _implements_ one (see §1b).
+    Close it only when **all three** hold: the parent carries the **`prd` label**, `subIssuesSummary.total > 0`, and `completed == total`. Then comment the list of children that discharged it and `gh issue close <parent> --reason completed`. An umbrella whose every slice has landed is **done** — leaving it open is how a PRD from three months ago still reads as live work, and how the same spec gets re-audited and re-ticketed by a later intake pass. This is the only place in the loop that closes a `prd`-labelled issue; it never _implements_ one (see §1, `strip-ready`).
 
     **The `prd` guard is load-bearing, not a formality.** A sub-issue edge can legitimately hang off an ordinary work item (a slice split out of a normal issue during an audit), and auto-closing on child completion would then close a ticket whose own implementation has not been written. Only an umbrella is fully discharged by its children; everything else has work of its own.
 

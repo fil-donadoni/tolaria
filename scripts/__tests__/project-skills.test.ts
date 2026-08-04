@@ -80,3 +80,66 @@ describe("project skills live in the repo (PRD #2180)", () => {
         });
     }
 });
+
+describe("process-gh-issues consumes the planner (issue #2184)", () => {
+    const rel = path.join(".claude", "skills", "process-gh-issues", "SKILL.md");
+    const body = (): string =>
+        fs.readFileSync(path.join(REPO_ROOT, rel), "utf8");
+
+    it("tells the loop to run the planner, and the script it names exists", () => {
+        expect(body()).toMatch(/bun run queue:plan/);
+
+        // A prose reference to a script that was renamed away is worse than no
+        // reference: the loop tries it, the capability probe reports "no
+        // planner", and it silently drops to the reduced serial fallback
+        // FOREVER — with no error, because a missing planner is a supported
+        // state. Tie the prose to the actual package.json entry.
+        const pkg = JSON.parse(
+            fs.readFileSync(path.join(REPO_ROOT, "package.json"), "utf8")
+        ) as { scripts: Record<string, string> };
+        expect(pkg.scripts["queue:plan"]).toBeTruthy();
+    });
+
+    it("acts on every field the plan carries", () => {
+        // A field the plan emits but the prose never mentions is silently
+        // dropped — the planner would compute a stale-claim sweep or a skip
+        // action that nothing ever performs.
+        for (const field of ["staleClaims", "skipped", "deferred", "batch"]) {
+            expect(
+                body(),
+                `plan field \`${field}\` is never acted on`
+            ).toContain(field);
+        }
+        for (const action of ["relabel-human", "strip-ready", "needs-info"]) {
+            expect(
+                body(),
+                `skip action \`${action}\` is emitted by the planner but never carried out`
+            ).toContain(action);
+        }
+    });
+
+    it("does not carry a second, hand-rolled copy of the selection logic", () => {
+        // The reason to delete rather than keep-as-documentation: two copies of
+        // an invariant drift, and the stale copy reads as authoritative while
+        // describing behaviour that no longer exists. These are the exact
+        // fragments the planner replaced.
+        const forbidden: [RegExp, string][] = [
+            [/sort_by\(\.bug/, "the hand-rolled jq sort — the planner owns it"],
+            [
+                /gh issue list --label ready-for-agent/,
+                "the verbatim Stage-1 query — the planner makes this call",
+            ],
+            [
+                /index\("bug"\)/,
+                "the jq index() trap note — it belongs with the code it warns about",
+            ],
+        ];
+        const found = forbidden
+            .filter(([re]) => re.test(body()))
+            .map(([, why]) => why);
+        expect(
+            found,
+            `superseded prose is back in ${rel}:\n${found.join("\n")}`
+        ).toEqual([]);
+    });
+});
