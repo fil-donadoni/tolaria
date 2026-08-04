@@ -1,5 +1,9 @@
 import { useMemo } from "react";
 import type { DeckCard } from "~/types/game";
+import {
+    registryDeckCardShape,
+    type DeckCardShapeResolver,
+} from "~/lib/deckCardShape";
 import { groupDeckIntoPiles } from "../deckGrouping";
 import BuilderPile from "./builder-pile";
 import DeckDropZone from "./deck-drop-zone";
@@ -29,6 +33,10 @@ interface DeckPileAreaProps {
     /** Pick a card as the deck's Featured Card. Presence enables the
      *  "Set as featured" affordance on each card. Maindeck only. */
     onSetFeatured?: (cardId: string) => void;
+    /** Deck-card shape seam (`~/lib/deckCardShape`). A Tabletop deck holds
+     *  catalogue-only cards the registry can't resolve (ADR 0080), so the
+     *  manual builder passes the catalogue-backed resolver. */
+    resolveShape?: DeckCardShapeResolver;
 }
 
 export default function DeckPileArea({
@@ -43,13 +51,14 @@ export default function DeckPileArea({
     headerRight,
     featuredCardId,
     onSetFeatured,
+    resolveShape = registryDeckCardShape,
 }: DeckPileAreaProps) {
     const piles = useMemo(
         () =>
             grouped
-                ? groupDeckIntoPiles(cards)
+                ? groupDeckIntoPiles(cards, resolveShape)
                 : [{ key: zone, label: "", cards }],
-        [grouped, cards, zone]
+        [grouped, cards, zone, resolveShape]
     );
 
     return (

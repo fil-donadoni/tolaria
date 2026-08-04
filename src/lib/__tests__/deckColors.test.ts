@@ -5,6 +5,7 @@
 // (mirrors `src/lib/__tests__/deckTypes.test.ts`'s pattern).
 import { describe, it, expect } from "vitest";
 import { computeDeckColors } from "../deckColors";
+import { makeDeckCardShapeResolver } from "../deckCardShape";
 
 const BOLT_LEA = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a"; // red
 const MOUNTAIN = "eace2c85-976c-425e-9800-5a6ccbd91b56"; // basic land, colorless
@@ -26,6 +27,35 @@ describe("computeDeckColors", () => {
 
     it("an empty deck has no colors", () => {
         expect(computeDeckColors([])).toEqual([]);
+    });
+
+    it("colours a Tabletop deck off the catalogue when the registry can't (ADR 0080)", () => {
+        const resolve = makeDeckCardShapeResolver([
+            {
+                name: "Unimplemented Card",
+                printId: "0d16e8e0-31b2-4389-afd6-783c501f6fa0",
+                typeLine: "Creature — Zombie",
+                manaCost: "{2}{B}",
+                cmc: 3,
+                colourIdentity: "B",
+                set: "leg",
+                rarity: "rare",
+                nameFold: "unimplemented card",
+                available: false,
+            },
+        ]);
+        expect(
+            computeDeckColors(
+                [
+                    { cardId: BOLT_LEA, cardName: "Lightning Bolt" },
+                    {
+                        cardId: "0d16e8e0-31b2-4389-afd6-783c501f6fa0",
+                        cardName: "Unimplemented Card",
+                    },
+                ],
+                resolve
+            )
+        ).toEqual(["B", "R"]);
     });
 
     it("silently ignores an unresolvable card id rather than throwing", () => {

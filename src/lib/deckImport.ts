@@ -1,6 +1,7 @@
 import { getPrintingsForCard, tryGetCardByName } from "@convex/cards/catalogue";
 import { FORMAT_RULES, type FormatId } from "@convex/formats";
 import type { DeckCard } from "~/types/game";
+import type { CatalogueNameResolver } from "./fullCatalogue";
 
 /** Result of parsing a pasted decklist. `cards`/`sideboard` are flat lists with
  *  one entry per physical copy (a `4 Counterspell` line expands to four
@@ -78,17 +79,26 @@ function pickPrintingForFormat(defId: string, format: FormatId): string {
  * - Lines are read top-to-bottom; the current section starts as Maindeck.
  * - A line of just "Deck"/"Maindeck" or "Sideboard" switches the section.
  * - A `<count> <name>` line adds `count` copies to the current section.
- * - Card names resolve case-insensitively against the card registry; names not
- *   in the registry (unknown or not-yet-implemented) and any non-blank line
- *   that is neither a header nor a card line go to `unresolved`.
+ * - Card names resolve case-insensitively against the card registry, then —
+ *   when a `resolveCatalogueName` is supplied — against the Full Catalogue.
+ *   Names neither knows, and any non-blank line that is neither a header nor a
+ *   card line, go to `unresolved`.
  * - Blank lines are ignored.
  * - `format` picks the printing per resolved name: the earliest one legal in the
  *   format (see `pickPrintingForFormat`), so the import is legal by construction
  *   instead of always seeding the original (often out-of-pool) printing.
+ *
+ * `resolveCatalogueName` (`makeCatalogueNameResolver`, `~/lib/fullCatalogue`) is
+ * the Tabletop path (ADR 0080): that format's pool is every printed card, so a
+ * name the GRE doesn't implement is a legitimate import, not a skipped line.
+ * The registry is still tried FIRST, so an implemented card keeps its
+ * format-legal printing selection. Omitted, resolution is registry-only —
+ * unchanged behaviour for every other format.
  */
 export function parseDecklist(
     text: string,
-    format: FormatId = "freeform"
+    format: FormatId = "freeform",
+    resolveCatalogueName?: CatalogueNameResolver
 ): ParsedDecklist {
     const cards: DeckCard[] = [];
     const sideboard: DeckCard[] = [];
@@ -114,15 +124,20 @@ export function parseDecklist(
         const count = Number(match[1]);
         const name = match[2].trim();
         const def = tryGetCardByName(name);
-        if (!def) {
+        const resolved: DeckCard | null = def
+            ? {
+                  cardId: pickPrintingForFormat(def.id, format),
+                  cardName: def.name,
+              }
+            : (resolveCatalogueName?.(name) ?? null);
+        if (!resolved) {
             unresolved.push(line);
             continue;
         }
 
-        const cardId = pickPrintingForFormat(def.id, format);
         const target = section === "side" ? sideboard : cards;
         for (let i = 0; i < count; i++) {
-            target.push({ cardId, cardName: def.name });
+            target.push({ ...resolved });
         }
     }
 

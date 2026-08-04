@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { groupDeckIntoFixedColumns, groupDeckIntoPiles } from "../deckGrouping";
+import { makeDeckCardShapeResolver } from "~/lib/deckCardShape";
 
 const LIGHTNING_BOLT = {
     cardId: "d573ef03-4730-45aa-93dd-e45ac1dbaf4a",
@@ -67,6 +68,85 @@ describe("groupDeckIntoPiles", () => {
         const piles = groupDeckIntoPiles([PLAINS, PLAINS, PLAINS]);
         expect(piles).toHaveLength(1);
         expect(piles[0].key).toBe("lands");
+    });
+});
+
+// A Tabletop (`manual`) deck's pool is the whole Full Catalogue (ADR 0080), so
+// its cards are NOT guaranteed to be in the card registry — grouping them must
+// not throw `Card not found`, and must still bucket them correctly off the
+// catalogue row.
+describe("groupDeckIntoPiles — catalogue-only cards (Tabletop, ADR 0080)", () => {
+    const UNIMPLEMENTED_CREATURE = {
+        cardId: "0d16e8e0-31b2-4389-afd6-783c501f6fa0",
+        cardName: "Unimplemented Creature",
+    };
+    const UNIMPLEMENTED_LAND = {
+        cardId: "11111111-2222-3333-4444-555555555555",
+        cardName: "Unimplemented Land",
+    };
+
+    const catalogueResolver = makeDeckCardShapeResolver([
+        {
+            name: UNIMPLEMENTED_CREATURE.cardName,
+            printId: UNIMPLEMENTED_CREATURE.cardId,
+            typeLine: "Legendary Creature — Elder Dragon",
+            manaCost: "{3}{U}{B}{R}",
+            cmc: 6,
+            colourIdentity: "UBR",
+            set: "leg",
+            rarity: "rare",
+            nameFold: "unimplemented creature",
+            available: false,
+        },
+        {
+            name: UNIMPLEMENTED_LAND.cardName,
+            printId: UNIMPLEMENTED_LAND.cardId,
+            typeLine: "Land — Desert",
+            manaCost: "",
+            cmc: 0,
+            colourIdentity: "",
+            set: "arn",
+            rarity: "uncommon",
+            nameFold: "unimplemented land",
+            available: false,
+        },
+    ]);
+
+    it("does not throw on a card the registry has never heard of", () => {
+        expect(() =>
+            groupDeckIntoPiles([UNIMPLEMENTED_CREATURE])
+        ).not.toThrow();
+    });
+
+    it("buckets a catalogue-only card by its printed mana value", () => {
+        const piles = groupDeckIntoPiles(
+            [LIGHTNING_BOLT, UNIMPLEMENTED_CREATURE],
+            catalogueResolver
+        );
+        expect(piles.map((p) => p.key)).toEqual(["mv-1", "mv-6"]);
+        expect(piles[1].cards.map((c) => c.cardName)).toEqual([
+            "Unimplemented Creature",
+        ]);
+    });
+
+    it("puts a catalogue-only land in the Lands pile", () => {
+        const piles = groupDeckIntoPiles(
+            [UNIMPLEMENTED_LAND, LIGHTNING_BOLT],
+            catalogueResolver
+        );
+        expect(piles[0].key).toBe("lands");
+        expect(piles[0].cards.map((c) => c.cardName)).toEqual([
+            "Unimplemented Land",
+        ]);
+    });
+
+    it("collects cards nothing can describe into a trailing Unknown pile", () => {
+        // No catalogue loaded yet: the registry can't resolve it either.
+        const piles = groupDeckIntoPiles([LIGHTNING_BOLT, UNIMPLEMENTED_LAND]);
+        expect(piles.map((p) => p.key)).toEqual(["mv-1", "unknown"]);
+        expect(piles[1].cards.map((c) => c.cardName)).toEqual([
+            "Unimplemented Land",
+        ]);
     });
 });
 

@@ -1,14 +1,27 @@
 import { useMemo } from "react";
 import type { DeckCard } from "~/types/game";
+import { useDeckCardShapeResolver } from "~/lib/deckCardShape";
 import { groupDeckIntoPiles } from "./deckGrouping";
 import ManaPile from "./mana-pile";
 
 interface ManaPileViewProps {
     cards: DeckCard[];
+    /** True for a Tabletop (`manual`) deck, whose cards may be catalogue-only
+     *  and unknown to the card registry (ADR 0080). Drives the catalogue-backed
+     *  shape resolver — and, with it, whether the ~34k-row catalogue is fetched
+     *  at all. */
+    catalogueBacked?: boolean;
 }
 
-export default function ManaPileView({ cards }: ManaPileViewProps) {
-    const piles = useMemo(() => groupDeckIntoPiles(cards), [cards]);
+export default function ManaPileView({
+    cards,
+    catalogueBacked = false,
+}: ManaPileViewProps) {
+    const resolveShape = useDeckCardShapeResolver(catalogueBacked);
+    const piles = useMemo(
+        () => groupDeckIntoPiles(cards, resolveShape),
+        [cards, resolveShape]
+    );
 
     if (piles.length === 0) {
         return (

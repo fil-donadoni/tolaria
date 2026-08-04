@@ -1,7 +1,9 @@
-import { getDefinition } from "@convex/cards";
-import { manaValue } from "@convex/gre/constants";
 import type { DeckCard } from "~/types/game";
 import { groupIntoFixedColumns } from "~/components/limited/limitedPoolColumns";
+import {
+    registryDeckCardShape,
+    type DeckCardShapeResolver,
+} from "~/lib/deckCardShape";
 
 export interface DeckPileGroup {
     key: string;
@@ -13,18 +15,33 @@ export interface DeckPileGroup {
  * Groups deck cards into vertical piles for the "mana pile" view.
  * Lands go in a dedicated first pile; remaining cards are bucketed by mana value.
  * Buckets are dynamic — only MV values present in the deck appear.
+ *
+ * `resolve` is the deck-card shape seam (`~/lib/deckCardShape`), defaulting to
+ * registry-only resolution. A Tabletop (`manual`) deck holds catalogue-only
+ * cards the registry has never heard of (ADR 0080), so its callers pass the
+ * catalogue-backed resolver; anything NO resolver can describe (catalogue still
+ * loading) lands in a trailing `Unknown` pile rather than throwing
+ * `Card not found` and taking the whole deck view down.
  */
-export function groupDeckIntoPiles(cards: DeckCard[]): DeckPileGroup[] {
+export function groupDeckIntoPiles(
+    cards: DeckCard[],
+    resolve: DeckCardShapeResolver = registryDeckCardShape
+): DeckPileGroup[] {
     const lands: DeckCard[] = [];
+    const unknown: DeckCard[] = [];
     const byMv = new Map<number, DeckCard[]>();
 
     for (const card of cards) {
-        const def = getDefinition(card.cardId);
-        if (def.types.includes("Land")) {
+        const shape = resolve(card.cardId);
+        if (!shape) {
+            unknown.push(card);
+            continue;
+        }
+        if (shape.isLand) {
             lands.push(card);
             continue;
         }
-        const mv = manaValue(def.manaCost);
+        const mv = shape.manaValue;
         const bucket = byMv.get(mv);
         if (bucket) bucket.push(card);
         else byMv.set(mv, [card]);
@@ -47,6 +64,13 @@ export function groupDeckIntoPiles(cards: DeckCard[]): DeckPileGroup[] {
             key: `mv-${mv}`,
             label: `MV ${mv}`,
             cards: sortInPlace(byMv.get(mv)!),
+        });
+    }
+    if (unknown.length > 0) {
+        piles.push({
+            key: "unknown",
+            label: "Unknown",
+            cards: sortInPlace(unknown),
         });
     }
     return piles;

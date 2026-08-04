@@ -8,6 +8,7 @@ import {
 import { PointerActivationConstraints } from "@dnd-kit/dom";
 import { effectiveFeatured, toggleFeatured } from "~/lib/featuredPicker";
 import { computeDeckColors } from "~/lib/deckColors";
+import { makeDeckCardShapeResolver } from "~/lib/deckCardShape";
 import { useBanlistOverride } from "~/hooks/useBanlistOverride";
 import { FORMAT_RULES, type FormatId, validateDeck } from "@convex/formats";
 import { type LobbyDeck } from "~/lib/deckTypes";
@@ -51,7 +52,10 @@ import { useCardZoom } from "./useCardZoom";
 import { useFilterSearchParams } from "./useFilterSearchParams";
 import { type ColorMode, type MatchMode, useCardSearch } from "./useCardSearch";
 import { useDebouncedValue } from "~/hooks/useDebouncedValue";
-import { type FullCatalogueResult } from "~/lib/fullCatalogue";
+import {
+    makeCatalogueNameResolver,
+    type FullCatalogueResult,
+} from "~/lib/fullCatalogue";
 
 // Responsive base card width; per-zone zoom multiplies it.
 const CARD_BASE = "min(8rem, 18vw, 9.5dvh)";
@@ -176,6 +180,29 @@ export default function DeckBuilder({
         fullCatalogue
     );
 
+    // Deck-side card resolution (ADR 0080). A Tabletop deck's pool is the whole
+    // Full Catalogue, so its cards may be absent from the card registry — the
+    // pile grouping and the colour derivation must resolve them off the
+    // catalogue row instead of throwing `Card not found`. Every other format
+    // only ever holds implemented cards, so it stays registry-only.
+    const resolveShape = useMemo(
+        () =>
+            makeDeckCardShapeResolver(
+                deck.format === "manual" ? fullCatalogue?.rows : undefined
+            ),
+        [deck.format, fullCatalogue?.rows]
+    );
+
+    // Same split for a pasted decklist: in Tabletop a name the GRE doesn't
+    // implement is a legitimate import, not a skipped line.
+    const resolveCatalogueName = useMemo(
+        () =>
+            makeCatalogueNameResolver(
+                deck.format === "manual" ? fullCatalogue?.rows : undefined
+            ),
+        [deck.format, fullCatalogue?.rows]
+    );
+
     const clearTimer = () => {
         if (timerRef.current !== null) {
             window.clearTimeout(timerRef.current);
@@ -248,13 +275,13 @@ export default function DeckBuilder({
                 const updated = updater(current);
                 const next: WorkingDeck = {
                     ...updated,
-                    colors: computeDeckColors(updated.cards),
+                    colors: computeDeckColors(updated.cards, resolveShape),
                 };
                 schedule(next);
                 return next;
             });
         },
-        [schedule]
+        [schedule, resolveShape]
     );
 
     const handleSetName = useCallback(
@@ -813,6 +840,7 @@ export default function DeckBuilder({
                                 grouped
                                 cards={deck.cards}
                                 onRemove={handleRemove}
+                                resolveShape={resolveShape}
                                 featuredCardId={effectiveFeaturedCardId}
                                 onSetFeatured={handleSetFeatured}
                                 emptyMessage="Click or drag cards here to add them."
@@ -893,6 +921,7 @@ export default function DeckBuilder({
                 open={importOpen}
                 onOpenChange={setImportOpen}
                 format={deck.format}
+                resolveCatalogueName={resolveCatalogueName}
                 onImport={handleImport}
             />
 

@@ -1,6 +1,8 @@
-import { getDefinition } from "@convex/cards";
-import { getCardColorIdentity } from "@convex/cards/colors";
 import type { DeckCard } from "~/types/game";
+import {
+    registryDeckCardShape,
+    type DeckCardShapeResolver,
+} from "./deckCardShape";
 
 const COLOR_ORDER = ["W", "U", "B", "R", "G"] as const;
 
@@ -11,16 +13,19 @@ const COLOR_ORDER = ["W", "U", "B", "R", "G"] as const;
  * Limited pool-scoped builder (`src/components/deckbuilder/pool-deck-builder.tsx`,
  * issue #1111) — extracted here on its second use (project convention: a
  * closure earns its own module the second time it's needed).
+ *
+ * `resolve` is the deck-card shape seam (`deckCardShape.ts`), registry-only by
+ * default. A Tabletop deck (ADR 0080) passes the catalogue-backed resolver so
+ * its unimplemented cards still colour the deck; a card no resolver can
+ * describe contributes nothing rather than throwing.
  */
-export function computeDeckColors(cards: DeckCard[]): string[] {
+export function computeDeckColors(
+    cards: DeckCard[],
+    resolve: DeckCardShapeResolver = registryDeckCardShape
+): string[] {
     const set = new Set<string>();
     for (const card of cards) {
-        try {
-            const def = getDefinition(card.cardId);
-            for (const color of getCardColorIdentity(def)) set.add(color);
-        } catch {
-            // ignore — card may have been removed from the registry
-        }
+        for (const color of resolve(card.cardId)?.colors ?? []) set.add(color);
     }
     return COLOR_ORDER.filter((c) => set.has(c));
 }

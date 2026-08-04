@@ -4,6 +4,7 @@ import { Banner } from "~/components/ui/banner";
 import { Button } from "~/components/ui/button";
 import GameDialog from "~/components/ui/game-dialog";
 import { type ParsedDecklist, parseDecklist } from "~/lib/deckImport";
+import type { CatalogueNameResolver } from "~/lib/fullCatalogue";
 
 interface DeckImportDialogProps {
     open: boolean;
@@ -13,6 +14,10 @@ interface DeckImportDialogProps {
     // construction (e.g. a Premodern import picks Counterspell's 4ed/Ice-Age
     // print, never LEA).
     format: FormatId;
+    // Full-Catalogue name resolution (ADR 0080). Supplied in Tabletop mode, where
+    // the pool is every printed card, so a pasted name the GRE doesn't implement
+    // still imports. Absent, resolution is registry-only.
+    resolveCatalogueName?: CatalogueNameResolver;
     // Append the parsed piles to the working deck. Called with the resolved
     // cards only; the dialog has already surfaced any unresolved lines.
     onImport: (parsed: ParsedDecklist) => void;
@@ -27,12 +32,13 @@ Sideboard
 
 /** Paste-a-decklist importer. Accepts the MTGA / Scryfall text format and
  *  appends the resolved cards to the current Maindeck and Sideboard. Card names
- *  not in the registry (unknown or not-yet-implemented) are listed back to the
- *  user; the import stays partial and never blocks. */
+ *  resolved by neither the registry nor (in Tabletop mode) the Full Catalogue
+ *  are listed back to the user; the import stays partial and never blocks. */
 export default function DeckImportDialog({
     open,
     onOpenChange,
     format,
+    resolveCatalogueName,
     onImport,
 }: DeckImportDialogProps) {
     const [text, setText] = useState("");
@@ -60,8 +66,8 @@ export default function DeckImportDialog({
     const total = parsed ? parsed.cards.length + parsed.sideboard.length : 0;
 
     const handleParse = useCallback(() => {
-        setParsed(parseDecklist(text, format));
-    }, [text, format]);
+        setParsed(parseDecklist(text, format, resolveCatalogueName));
+    }, [text, format, resolveCatalogueName]);
 
     const handleConfirm = useCallback(() => {
         if (parsed) onImport(parsed);

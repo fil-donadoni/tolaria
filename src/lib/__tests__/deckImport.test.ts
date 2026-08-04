@@ -5,8 +5,10 @@ import {
     resolveDeckCardMeta,
 } from "@convex/cards";
 import { PREMODERN_LEGAL_SETS } from "@convex/formats";
+import { foldAccents } from "@convex/cards/textNormalize";
 import type { DeckCard } from "~/types/game";
 import { deckToText, parseDecklist } from "../deckImport";
+import { makeCatalogueNameResolver } from "../fullCatalogue";
 
 // Two real registry names to build fixtures from, so the test stays valid as
 // the catalogue grows.
@@ -122,6 +124,103 @@ function pile(...entries: [name: string, count: number][]): DeckCard[] {
     }
     return cards;
 }
+
+// Tabletop (`manual`) imports resolve against the Full Catalogue too (ADR
+// 0080): its pool is every printed card, so a pasted list of not-yet-
+// implemented cards must import instead of landing in `unresolved`.
+describe("parseDecklist — catalogue-backed names (Tabletop, ADR 0080)", () => {
+    const UNIMPLEMENTED_ID = "0d16e8e0-31b2-4389-afd6-783c501f6fa0";
+    const DFC_ID = "22222222-3333-4444-5555-666666666666";
+
+    const resolveCatalogueName = makeCatalogueNameResolver([
+        {
+            name: "Ünimplemented Card",
+            printId: UNIMPLEMENTED_ID,
+            typeLine: "Creature — Zombie",
+            manaCost: "{2}{B}",
+            cmc: 3,
+            colourIdentity: "B",
+            set: "leg",
+            rarity: "rare",
+            nameFold: foldAccents("ünimplemented card"),
+            available: false,
+        },
+        {
+            name: "Front Face // Back Face",
+            printId: DFC_ID,
+            typeLine: "Creature — Werewolf",
+            manaCost: "{1}{R}",
+            cmc: 2,
+            colourIdentity: "R",
+            set: "isd",
+            rarity: "rare",
+            nameFold: "front face // back face",
+            available: false,
+        },
+    ]);
+
+    it("imports a catalogue-only card instead of skipping the line", () => {
+        const result = parseDecklist(
+            "2 Ünimplemented Card",
+            "manual",
+            resolveCatalogueName
+        );
+        expect(result.unresolved).toEqual([]);
+        expect(result.cards).toHaveLength(2);
+        expect(result.cards[0]).toEqual({
+            cardId: UNIMPLEMENTED_ID,
+            cardName: "Ünimplemented Card",
+        });
+    });
+
+    it("matches accent-insensitively, like the builder search", () => {
+        const result = parseDecklist(
+            "1 unimplemented card",
+            "manual",
+            resolveCatalogueName
+        );
+        expect(result.unresolved).toEqual([]);
+        expect(result.cards[0].cardId).toBe(UNIMPLEMENTED_ID);
+    });
+
+    it("matches a double-faced card by its front face alone (MTGA exports)", () => {
+        const result = parseDecklist(
+            "1 Front Face",
+            "manual",
+            resolveCatalogueName
+        );
+        expect(result.unresolved).toEqual([]);
+        expect(result.cards[0]).toEqual({
+            cardId: DFC_ID,
+            cardName: "Front Face // Back Face",
+        });
+    });
+
+    it("the registry still wins for an implemented card", () => {
+        const result = parseDecklist(
+            `1 ${NAME_A}`,
+            "manual",
+            resolveCatalogueName
+        );
+        expect(result.cards[0].cardId).toBe(getCardByName(NAME_A).id);
+    });
+
+    it("a name in neither the registry nor the catalogue stays unresolved", () => {
+        const result = parseDecklist(
+            "1 Not A Real Card At All",
+            "manual",
+            resolveCatalogueName
+        );
+        expect(result.cards).toEqual([]);
+        expect(result.unresolved).toEqual(["1 Not A Real Card At All"]);
+    });
+
+    it("without a catalogue resolver the line is skipped, as before", () => {
+        const result = parseDecklist("1 Ünimplemented Card", "manual");
+        expect(result.cards).toEqual([]);
+        expect(result.unresolved).toEqual(["1 Ünimplemented Card"]);
+    });
+});
 
 describe("deckToText", () => {
     it("emits Deck and Sideboard headers with grouped counts", () => {

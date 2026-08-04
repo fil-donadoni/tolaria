@@ -15,6 +15,12 @@ import {
     type FullCatalogueRow,
 } from "~/lib/fullCatalogue";
 import { useScryfallTextSearch } from "~/lib/scryfallApi";
+import { parseTypeLine } from "~/lib/typeLine";
+
+// Re-exported so the existing search-side importers keep one import site; the
+// parser itself lives in `~/lib/typeLine` because the deck-card shape resolver
+// (outside this component tree) needs it too.
+export { parseTypeLine };
 
 export interface CardIndexEntry {
     cardId: string;
@@ -251,37 +257,6 @@ export function matchesCube(
 ): boolean {
     if (cubeIds === null) return true;
     return cubeIds.has(cardId) || cubeIds.has(cardName);
-}
-
-const SUPER_TYPES = new Set(["Basic", "Legendary", "Snow", "World", "Ongoing"]);
-
-/** Token is a marker characteristic (CR 110.5e), not a card type. */
-const TOKEN_MARKER = "Token";
-
-export function parseTypeLine(typeLine: string): {
-    types: string[];
-    subtypes: string[];
-    supertypes: string[];
-    isToken: boolean;
-} {
-    const trimmed = typeLine.trim();
-    if (!trimmed)
-        return { types: [], subtypes: [], supertypes: [], isToken: false };
-
-    const dashIdx = trimmed.indexOf("\u2014"); // em dash
-    const beforeDash =
-        dashIdx >= 0 ? trimmed.slice(0, dashIdx).trim() : trimmed;
-    const afterDash = dashIdx >= 0 ? trimmed.slice(dashIdx + 1).trim() : "";
-
-    const parts = beforeDash.split(/\s+/).filter(Boolean);
-    const isToken = parts.includes(TOKEN_MARKER);
-    const supertypes = parts.filter((w) => SUPER_TYPES.has(w));
-    const types = parts.filter(
-        (w) => w !== TOKEN_MARKER && !SUPER_TYPES.has(w)
-    );
-    const subtypes = afterDash ? afterDash.split(/\s+/).filter(Boolean) : [];
-
-    return { types, subtypes, supertypes, isToken };
 }
 
 /**

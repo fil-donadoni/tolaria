@@ -79,7 +79,10 @@ export default function DeckDetail({
                     } as React.CSSProperties
                 }
             >
-                <ManaPileView cards={deck.cards} />
+                <ManaPileView
+                    cards={deck.cards}
+                    catalogueBacked={deck.format === "manual"}
+                />
             </div>
 
             <GameDialog
