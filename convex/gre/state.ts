@@ -17232,9 +17232,15 @@ export function restrictedUnitAllowsAbility(
 /** Builds the spendable pool for ACTIVATING an ability: the base `manaPool`
  *  plus any restricted mana whose restriction permits an ability of a source
  *  with `sourceTypes` (CR 106.6, issue #728). The activation twin of
- *  `spendablePoolForSpell` — used at every activation affordability check. */
+ *  `spendablePoolForSpell` — used at every activation affordability check.
+ *  Only reads `manaPool`/`restrictedMana`, so the param is narrowed to a
+ *  `Pick` rather than the full `PlayerState` (issue #1713) — this lets the
+ *  frontend's own `Player` wire type (a structural, not nominal, match) call
+ *  it directly for client-side affordances (refund tap, payment banner)
+ *  without an adapter, keeping both sides of the restricted-mana coverage
+ *  check on the exact same logic. */
 export function spendablePoolForAbility(
-    player: PlayerState,
+    player: Pick<PlayerState, "manaPool" | "restrictedMana">,
     sourceTypes: readonly string[]
 ): Record<string, number> {
     const pool = { ...player.manaPool };
@@ -17394,9 +17400,11 @@ export function reverseRestrictedManaFromPool(
 /** Builds the spendable pool for casting a spell: the base `manaPool` plus any
  *  restricted mana whose restriction permits this spell (CR 106.6). Used for
  *  the affordability check at spell-cast sites — callers pass whether the
- *  spell being cast is a creature spell. */
+ *  spell being cast is a creature spell. Narrowed to a `Pick` for the same
+ *  reason as `spendablePoolForAbility` above (issue #1713) — the client's
+ *  `Player` wire type satisfies it structurally. */
 export function spendablePoolForSpell(
-    player: PlayerState,
+    player: Pick<PlayerState, "manaPool" | "restrictedMana">,
     spellTypes: readonly string[],
     spellCardId?: string,
     spellSupertypes: readonly string[] = []

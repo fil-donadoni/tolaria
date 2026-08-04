@@ -13,6 +13,10 @@ import {
     tapOtherRemaining,
 } from "@convex/gre/tapOtherCost";
 import {
+    spendablePoolForAbility,
+    spendablePoolForSpell,
+} from "@convex/gre/state";
+import {
     describeSacrificeChoice,
     formatFilterLabel,
     isSacrificeComplete,
@@ -96,18 +100,30 @@ export default function PaymentBanner(props: Props) {
         const cardInHand = props.me?.hand.find(
             (c) => c !== null && c.id === props.pendingCast.cardInstanceId
         );
-        cardName = cardInHand
-            ? getDefinition(cardInHand.card.id).name
-            : "spell";
+        const castCardDef = cardInHand
+            ? getDefinition(cardInHand.card.id)
+            : undefined;
+        cardName = castCardDef ? castCardDef.name : "spell";
         // CR 701.21a — when the cast is parked on a sacrifice choice, hide the
         // Auto-tap affordance once the mana leg is covered and name the pick.
         const castSac = props.pendingCast.sacrificeSelection;
+        // CR 106.6 (issue #1713) — restricted mana already eligible for this
+        // spell (Mishra's Workshop / Soldevi Machinist-style buckets) counts
+        // toward coverage here too, mirroring the server's
+        // `spendablePoolForSpell` check at the cast-commit sites
+        // (`convex/game.ts`) instead of reading the raw `manaPool`.
         const castManaCovered =
             Object.keys(props.pendingCast.manaCost).length === 0 ||
-            isManaCostCovered(
-                props.me?.manaPool ?? {},
-                props.pendingCast.manaCost
-            );
+            (props.me !== undefined &&
+                isManaCostCovered(
+                    spendablePoolForSpell(
+                        props.me,
+                        castCardDef?.types ?? [],
+                        props.pendingCast.cardInstanceId,
+                        castCardDef?.supertypes ?? []
+                    ),
+                    props.pendingCast.manaCost
+                ));
         if (castSac && !isSacrificeComplete(castSac) && castManaCovered) {
             manaOwed = false;
             subtitle = describeSacrificeChoice(castSac);
@@ -129,11 +145,19 @@ export default function PaymentBanner(props: Props) {
             ) ??
             props.me?.graveyard?.find((c) => c.id === pa.cardInstanceId);
         cardName = source ? getDefinition(source.card.id).name : "ability";
+        // CR 106.6 (issue #1713) — restricted mana eligible for an ability of
+        // THIS source (Soldevi Machinist's artifact-ability mana) counts
+        // toward coverage here too, mirroring the server's
+        // `spendablePoolForAbility` check at the activation-commit sites
+        // (`convex/game.ts`) instead of reading the raw `manaPool`.
         manaOwed =
             Object.keys(props.pendingActivation.manaCost).length > 0 &&
-            !isManaCostCovered(
-                props.me?.manaPool ?? {},
-                props.pendingActivation.manaCost
+            !(
+                props.me !== undefined &&
+                isManaCostCovered(
+                    spendablePoolForAbility(props.me, source?.types ?? []),
+                    props.pendingActivation.manaCost
+                )
             );
         const actSac = props.pendingActivation.sacrificeSelection;
         subtitle = manaOwed

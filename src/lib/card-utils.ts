@@ -58,7 +58,10 @@ import type {
     MayPayHandCard,
     PlayerState,
 } from "@convex/gre/state";
-import { assignMayPayHandCards } from "@convex/gre/state";
+import {
+    assignMayPayHandCards,
+    spendablePoolForAbility,
+} from "@convex/gre/state";
 import {
     affordableAlternativeCosts,
     handCardMatchesFilter,
@@ -374,10 +377,21 @@ export function getActivatedManaMenuEntry(
  *  tapped while the pool is empty. In that case the refund would silently
  *  un-tap for free with no mana to give back — hide the option. Only supports
  *  fixed `manaProduced` sources (Basalt Monolith / Mana Vault style). Choice
- *  sources need `chosenMana` projected to the client to be precise here. */
+ *  sources need `chosenMana` projected to the client to be precise here.
+ *
+ *  CR 106.6 (issue #1713) — mana this source produced can be sitting in a
+ *  RESTRICTED bucket (Mishra's Workshop / Soldevi Machinist-style
+ *  `artifact-ability` mana) rather than the fungible `manaPool`. Reading
+ *  `manaPool` alone hid the refund affordance for exactly those sources even
+ *  though the mana is still there, unspent, and `tapUntap`'s server-side
+ *  reversal (`reverseRestrictedManaFromPool`) would happily give it back.
+ *  Route through the same restricted-aware helper the payment sites use
+ *  (`spendablePoolForAbility`), asking eligibility for an ability sourced
+ *  from THIS card's own types — mirrors `abilitySourceTypes = card.types` at
+ *  the server activation-payment sites (`convex/game.ts`). */
 export function canRefundManaTap(
     card: CardInstance,
-    manaPool: ManaPool
+    player: Pick<PlayerState, "manaPool" | "restrictedMana">
 ): boolean {
     if (!card.isTapped || card.manaCommitted) return false;
     // POST-LAYER set (CR 113.1 / 611.1b, issue #1880) — a source tapped for
@@ -386,10 +400,11 @@ export function canRefundManaTap(
         card as unknown as CardInstanceState
     ).find(({ ability: a }) => !a.useStack && a.manaProduced)?.ability;
     if (!ability?.manaProduced) return false;
+    const spendable = spendablePoolForAbility(player, card.types ?? []);
     for (const [color, amount] of Object.entries(ability.manaProduced)) {
         if (color === "X" || typeof amount !== "number" || amount <= 0)
             continue;
-        if ((manaPool[color] ?? 0) < amount) return false;
+        if ((spendable[color] ?? 0) < amount) return false;
     }
     return true;
 }

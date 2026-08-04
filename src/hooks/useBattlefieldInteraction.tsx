@@ -840,7 +840,7 @@ export function useBattlefieldInteraction(player: Player) {
         if (stack.length === 0) return manaCostEntry;
         if (!manaToggle) return [...manaCostEntry, ...stack];
         if (card.isTapped) {
-            if (!canRefundManaTap(card, viewer.manaPool))
+            if (!canRefundManaTap(card, viewer))
                 return [...manaCostEntry, ...stack];
             return [
                 { id: manaToggle.id, oracleText: "Untap and refund mana" },
