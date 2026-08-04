@@ -12336,11 +12336,22 @@ export type AlternativeCostCondition =
  *
  *  Data, not a closure, and evaluated by the frontend-safe
  *  `castConditionUnmetReason` (`convex/cards/castRestrictions.ts`) from INSIDE
- *  `castProhibitionReason` — so the single declaration is honoured by every
- *  cast-legality consumer at once, all of which funnel through
- *  `getLegalActions`: the GRE, the `announceCast` mutation (via
- *  `assertLegalAction`), the wire `legalActions` array the client's Cast
- *  affordance reads, and the Bot's `enumerateCastMoves`.
+ *  `castProhibitionReason` — the one shared gate. Consumers reach that gate
+ *  through TWO chokepoints, not one, and a change here must keep both wired:
+ *
+ *   1. `getLegalActions` (`convex/gre/rules.ts`) — the ANNOUNCE path, covering
+ *      the GRE, the `announceCast` mutation (via `assertLegalAction`), the wire
+ *      `legalActions` array the client's Cast affordance reads, and the Bot's
+ *      `enumerateCastMoves`.
+ *   2. `castChosenSpell` / `castFaceDown` (`convex/gre/state.ts`) — the
+ *      RESOLUTION-TIME cast primitives, for casts that never pass through
+ *      `getLegalActions` at all: the `castDuringResolution` Op (Chandra, Torch
+ *      of Defiance; Hideaway), Word of Command's controlled cast, and
+ *      Illusionary Mask's face-down cast (CR 708.2 — evaluated there against
+ *      the face-down characteristics).
+ *
+ *  Both chokepoints CALL `castProhibitionReason`; neither re-implements the
+ *  condition, so there is still exactly one declaration and one evaluator.
  *
  *  `kind` is an EXPLICIT discriminator, never an implicit "whichever field is
  *  present" invariant: the evaluator switches on it and an unrecognised kind
@@ -12355,9 +12366,15 @@ export type CastCondition = {
      *  against every permanent whose `controllerId` is the caster's, with LIVE
      *  supertypes injected (`liveSupertypesOf`, so Melting / Arcum's
      *  Weathervane mutations count) — `{ types: "Land", supertypes: "Snow" }`
-     *  is "a snow land" (CR 205.4a). Every filter field whose backing datum
-     *  the board view can't supply fails CLOSED (matches nothing), which for a
-     *  cast CONDITION means the spell stays uncastable — the safe direction. */
+     *  is "a snow land" (CR 205.4a).
+     *
+     *  Not every filter field is safe here: `toMatchablePermanent`
+     *  (`./castRestrictions.ts`) cannot supply `enteredThisTurn` /
+     *  `controlledSinceTurnStart`, and `matchesPermanentFilter`'s
+     *  `filter.X !== (card.X === true)` comparison makes an absent datum fail
+     *  CLOSED against `true` but fail OPEN against `false` (every permanent
+     *  matches → the spell becomes freely castable). See the `toMatchablePermanent`
+     *  docstring before reaching for either. */
     filter: PermanentFilter;
     /** Minimum number of matching permanents the caster must control. Default
      *  1 ("a snow land"). */

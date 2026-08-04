@@ -15,6 +15,7 @@ import {
     getDefinition,
     registerTokenDefinition,
 } from "../../../cards";
+import { blizzard, snowCoveredForest } from "../../../cards/sets/ice";
 import {
     makeInstance,
     makePlayer,
@@ -20305,6 +20306,95 @@ describe("Effect Script Op: castDuringResolution (CR 608.2f, issue #1477)", () =
         expect(state.pendingChoices).toBeUndefined();
         expect(state.stack).toHaveLength(0);
     });
+
+    // --- Cast RESTRICTIONS bind a cast during resolution too (CR 601.3a) -----
+    //
+    // CR 608.2g waives the TIMING rules for a cast during resolution, nothing
+    // else. This Op never produces a legal ACTION, so it never passes through
+    // `getLegalActions` — the announce-path chokepoint every other cast
+    // consumer shares. Its own two seams therefore call the shared gate
+    // `castProhibitionReason` directly: the eligibility predicate
+    // (`getChosenCardCastable`, which decides whether a Cast/Decline is offered
+    // at all) and the authoritative commit primitive (`castChosenSpell`).
+    //
+    // Subject: Blizzard's card-level `castCondition` (issue #2102) — "Cast this
+    // spell only if you control a snow land." Before the gate was wired here,
+    // discarding Blizzard and casting it from the graveyard put it on the stack
+    // with zero snow lands in play.
+    function blizzardCdrState(battlefield: CardInstanceState[]): GameState {
+        const bliz = makeInstance(blizzard.id, {
+            id: "cdrBlizzard",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        return makeState({
+            players: [
+                makePlayer("p1", { hand: [bliz], battlefield }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    function snowLand(id: string): CardInstanceState {
+        return makeInstance(snowCoveredForest.id, {
+            id,
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Land"],
+        });
+    }
+
+    /** Answers the head choice with the given ids (the discard pick, then the
+     *  Cast/Decline option). */
+    function answer(state: GameState, ids: string[]): void {
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ids,
+        });
+    }
+
+    it("passes silently over a card whose own cast condition is UNMET — no Cast/Decline is offered (CR 601.3a, issue #2102)", () => {
+        const id = cdrScript("test-op-cdr-cast-condition-unmet");
+        const state = blizzardCdrState([]); // no snow land
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        answer(state, ["cdrBlizzard"]); // discard Blizzard
+
+        // No second suspension: the Op does not offer a cast the rules forbid,
+        // and nothing reaches the stack.
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.stack).toHaveLength(0);
+        expect(
+            state.players[0].graveyard.some((c) => c.id === "cdrBlizzard")
+        ).toBe(true);
+    });
+
+    it("offers and casts the same card once the condition is MET (a snow land is controlled)", () => {
+        const id = cdrScript("test-op-cdr-cast-condition-met");
+        const state = blizzardCdrState([snowLand("cdrSnow")]);
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        answer(state, ["cdrBlizzard"]);
+
+        expect(state.pendingChoices![0].kind).toBe("option-pick");
+        answer(state, ["cast"]);
+        expect(state.stack.some((s) => s.id === "cdrBlizzard")).toBe(true);
+        expect(
+            state.players[0].graveyard.some((c) => c.id === "cdrBlizzard")
+        ).toBe(false);
+    });
+
+    // (The commit primitive `castChosenSpell` carries the same gate
+    // AUTHORITATIVELY, but a cdr resume re-runs the Op body from the top and so
+    // re-evaluates the eligibility predicate first — no cdr scenario can reach
+    // the commit gate with the eligibility gate intact. Word of Command calls
+    // `castChosenSpell` directly with no eligibility predicate at all, so its
+    // row in `sets/lea/__tests__/black.test.ts` is the proof for that seam.)
 });
 
 describe("Effect Script Op: castDuringResolution — exile-top source + paid cast + outcome binding (CR 608.2f, issue #1478)", () => {

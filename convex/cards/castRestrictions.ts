@@ -180,10 +180,18 @@ export function hasCastTimingFlashGrant(
  *
  *  `enteredThisTurn` / `controlledSinceTurnStart` are deliberately NOT
  *  populated: both need data outside this board view (`GameState.turn`, the
- *  `controlChangedThisTurn` ledger). `matchesPermanentFilter` treats an absent
- *  value as fail-CLOSED, so a cast condition using either simply never
- *  matches — the spell stays uncastable rather than becoming freely castable,
- *  which is the safe direction for a restriction. */
+ *  `controlChangedThisTurn` ledger).
+ *
+ *  DO NOT use either field in a `CastCondition.filter` until they are.
+ *  `matchesPermanentFilter` (`./filters.ts`) compares
+ *  `filter.X !== (card.X === true)`, so an ABSENT datum reads `false` and the
+ *  direction depends on what the filter asserts: `X: true` matches nothing
+ *  (fail CLOSED — the spell stays uncastable, harmless), but `X: false`
+ *  matches EVERY permanent (fail OPEN — the condition is satisfied by
+ *  anything and the spell becomes freely castable). No live card hits this
+ *  today; the note is here so the next author doesn't write the fail-open
+ *  half. Populating the two fields here — which needs `CastRestrictionStateView`
+ *  widened with `turn` and the control ledger — is the real fix. */
 function toMatchablePermanent(perm: PermanentView): MatchablePermanent {
     const granted = (perm as { staticAbilities?: readonly string[] })
         .staticAbilities;
@@ -230,17 +238,18 @@ function castConditionMet(
             for (const player of state.players) {
                 for (const perm of player.battlefield) {
                     if (perm.controllerId !== casterId) continue;
+                    // No `supertypesOf` fallback is injected:
+                    // `toMatchablePermanent` ALWAYS sets `supertypes` (live,
+                    // snow-aware), and `matchesPermanentFilter` reads
+                    // `card.supertypes ?? ctx?.supertypesOf?.(card)` — so the
+                    // callback could never fire, and a `MatchablePermanent`
+                    // carries no `card`/`grantedSupertypes` for
+                    // `liveSupertypesOf` to read anyway.
                     if (
                         !matchesPermanentFilter(
                             toMatchablePermanent(perm),
                             condition.filter,
-                            {
-                                selfControllerId: casterId,
-                                supertypesOf: (card) =>
-                                    liveSupertypesOf(
-                                        card as unknown as SupertypeView
-                                    ),
-                            }
+                            { selfControllerId: casterId }
                         )
                     ) {
                         continue;
@@ -266,8 +275,8 @@ function castConditionMet(
  *  Read from the `CardDefinition` of the would-be-cast `spell`, so it survives
  *  the wire projection (which strips `card.card` to `{ id }`) — the definition
  *  is re-resolved through `tryGetDefinition` exactly as every other read in
- *  this module does. Called by `castProhibitionReason`, which is the single
- *  gate every cast-legality consumer funnels through. */
+ *  this module does. Called by `castProhibitionReason` — the single shared
+ *  gate; see its docstring for the two chokepoints that reach it. */
 export function castConditionUnmetReason(
     casterId: string,
     spell: PermanentView,
@@ -282,11 +291,29 @@ export function castConditionUnmetReason(
         : condition.reason;
 }
 
-/** Scans EVERY permanent on the battlefield for `cast-restriction` static
- *  effects (CR 601.3a) and returns the matching source's oracle text when one
- *  forbids `casterId` from casting `spell`, else `undefined`. Used by the GRE
- *  (`getLegalActions`), the cast mutation, and the client so all three agree on
- *  cast legality. */
+/** The single shared cast gate (CR 601.3a). Returns a player-facing reason when
+ *  `casterId` may not cast `spell` right now, else `undefined` — folding the
+ *  card's OWN `castCondition`, the per-player turn lock, and a battlefield scan
+ *  for `cast-restriction` statics into one answer.
+ *
+ *  It is the single EVALUATOR, but it is NOT reached through a single call
+ *  site. Two chokepoints call it, and a cast-legality change must keep both
+ *  wired:
+ *
+ *   1. `getLegalActions` (`convex/gre/rules.ts`) — the ANNOUNCE path, shared by
+ *      the GRE, the cast mutation (via `assertLegalAction`), the wire
+ *      `legalActions` the client's Cast affordance reads, and the Bot's
+ *      `enumerateCastMoves`.
+ *   2. `castChosenSpell` / `castFaceDown` (`convex/gre/state.ts`) — the
+ *      RESOLUTION-TIME cast primitives. Casting during a resolution
+ *      (`castDuringResolution`, CR 608.2g), Word of Command's controlled cast
+ *      and Illusionary Mask's face-down cast never produce a legal ACTION at
+ *      all, so they never pass through `getLegalActions`; before issue #2102's
+ *      review they bypassed this gate entirely.
+ *
+ *  The client also calls it directly to gray out an uncastable hand card. Every
+ *  caller CALLS this function — none re-implements a restriction — so there is
+ *  still exactly one place a rule is evaluated. */
 export function castProhibitionReason(
     casterId: string,
     spell: PermanentView,
@@ -294,11 +321,9 @@ export function castProhibitionReason(
 ): string | undefined {
     // CR 601.3a (issue #2102) — the card's OWN "Cast this spell only if
     // <board predicate>" clause (Blizzard). Checked FIRST and inside this
-    // shared gate on purpose: every cast-legality consumer — `getLegalActions`
-    // (and through it the `announceCast` mutation, the wire `legalActions` the
-    // client's Cast affordance reads, and the Bot's `enumerateCastMoves`) —
-    // funnels through here, so one declaration covers server, client and bot
-    // with no second implementation to drift.
+    // shared gate on purpose: one declaration on the card then covers server,
+    // client and bot through both chokepoints above, with no second
+    // implementation to drift.
     const conditionUnmet = castConditionUnmetReason(casterId, spell, state);
     if (conditionUnmet !== undefined) return conditionUnmet;
     // CR 601.3a (issue #1057) — a turn-scoped per-player cast lock (Xantid

@@ -68,6 +68,9 @@ import {
     wordOfCommand,
     zombieMaster,
 } from "..";
+// Cross-set: Blizzard is the shipped card carrying a card-level `castCondition`
+// (CR 601.3a, issue #2102) and Snow-Covered Forest satisfies it.
+import { blizzard, snowCoveredForest } from "../../ice";
 import {
     regenerateOrDestroy,
     removePermanentTo,
@@ -4127,6 +4130,77 @@ describe("Word of Command (controlled cast, ADR 0037, CR 601 / 305.2)", () => {
         expect(
             state.players[1].hand.find((c) => c.id === "opp-fireball")
         ).toBeDefined();
+    });
+
+    // --- Cast RESTRICTIONS bind the controlled cast too (CR 601.3a) ---------
+    //
+    // Word of Command calls `ctx.castChosenSpell` directly: the controlled cast
+    // never produces a legal ACTION, so it never passes through
+    // `getLegalActions` — the announce-path chokepoint every other cast
+    // consumer shares. `castChosenSpell` therefore calls the shared gate
+    // `castProhibitionReason` itself. The restriction binds the spell's CASTER
+    // (the controlled opponent, p2), not the Word of Command controller (p1).
+    // Subject: Blizzard's card-level `castCondition` (issue #2102) — "Cast this
+    // spell only if you control a snow land."
+    function wocBlizzardState(oppLands: CardInstanceState[]): GameState {
+        const oppBlizzard = makeInstance(blizzard.id, {
+            id: "opp-blizzard",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        return makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    hand: [oppBlizzard],
+                    battlefield: oppLands,
+                }),
+            ],
+        });
+    }
+
+    function oppLand(cardId: string, id: string): CardInstanceState {
+        return makeInstance(cardId, {
+            id,
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+    }
+
+    it("cast condition unmet on the CONTROLLED player's board → not played (CR 601.3a, issue #2102)", () => {
+        // Two plain Forests: {G}{G} is affordable, so the refusal can only come
+        // from the cast condition, never from an unpayable cost.
+        const state = wocBlizzardState([
+            oppLand(forest.id, "opp-f1"),
+            oppLand(forest.id, "opp-f2"),
+        ]);
+        castWordOfCommand(state);
+        submitPick(state, "opp-blizzard");
+
+        expect(state.stack.some((s) => s.id === "opp-blizzard")).toBe(false);
+        // Not played → the card stays in the opponent's hand and their lands
+        // are never tapped.
+        expect(state.players[1].hand.some((c) => c.id === "opp-blizzard")).toBe(
+            true
+        );
+        expect(state.players[1].battlefield.every((c) => !c.isTapped)).toBe(
+            true
+        );
+    });
+
+    it("cast condition met on the CONTROLLED player's board → played (the gate is scoped to the caster)", () => {
+        const state = wocBlizzardState([
+            oppLand(snowCoveredForest.id, "opp-s1"),
+            oppLand(snowCoveredForest.id, "opp-s2"),
+        ]);
+        castWordOfCommand(state);
+        submitPick(state, "opp-blizzard");
+
+        const onStack = state.stack.find((s) => s.id === "opp-blizzard");
+        expect(onStack).toBeDefined();
+        expect(onStack!.castById).toBe("p2"); // the opponent's spell (CR 601)
     });
 
     it("modal spell: controller chooses the mode; the chosen mode's target/resolution apply (CR 700.2c/d)", () => {
