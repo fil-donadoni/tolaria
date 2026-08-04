@@ -150,7 +150,8 @@ export default function DeckBuilder({
                   featuredCardId: undefined,
               }
     );
-    const [filters, setFilters] = useFilterSearchParams();
+    const { filters, setFilters, setUrlFormat, updateSearch } =
+        useFilterSearchParams();
 
     // The search box is a responsive local value; only its debounced form feeds
     // the filter pass + URL encoding, so neither runs per keystroke (issue #503).
@@ -297,8 +298,12 @@ export default function DeckBuilder({
     const handleSetFormat = useCallback(
         (format: FormatId) => {
             updateDeck((d) => ({ ...d, format }));
+            // Mirror it into the URL so a reload / shared link reopens on the
+            // same Format — the working deck is component state, the URL is the
+            // only thing that survives a remount.
+            setUrlFormat(format);
         },
-        [updateDeck]
+        [updateDeck, setUrlFormat]
     );
 
     // Read-only once the deck exists — editing an existing user deck or preset
@@ -518,14 +523,19 @@ export default function DeckBuilder({
     // selector is disabled there — but the guard makes it safe by construction).
     const handleSetCube = useCallback(
         (cube: string) => {
-            setFilters((f) => ({ ...f, cube }));
+            // One write: the cube and the forced Format land in the same
+            // navigation, so neither clobbers the other.
+            updateSearch({
+                filters: (f) => ({ ...f, cube }),
+                format: cube ? "freeform" : undefined,
+            });
             if (cube) {
                 updateDeck((d) =>
                     d.format === "freeform" ? d : { ...d, format: "freeform" }
                 );
             }
         },
-        [setFilters, updateDeck]
+        [updateSearch, updateDeck]
     );
 
     const setSort = useCallback(
@@ -788,6 +798,7 @@ export default function DeckBuilder({
                             entries={entries}
                             idle={idle}
                             activeSets={filters.sets}
+                            enforceAvailability={deck.format !== "manual"}
                             onAdd={handleAdd}
                         />
                     </div>

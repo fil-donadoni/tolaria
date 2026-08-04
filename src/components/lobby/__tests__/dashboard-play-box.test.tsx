@@ -176,7 +176,7 @@ describe("DashboardPlayBox deck legality gate (issue #512)", () => {
             "Play vs AI",
             "Solo Game",
             "Create Multiplayer",
-            "Manual Game",
+            "Tabletop",
         ]) {
             const btn = getByText(label).closest("button") as HTMLButtonElement;
             expect(btn.disabled).toBe(true);
@@ -274,5 +274,79 @@ describe("DashboardPlayBox match format selector", () => {
         const { getByRole, onMatchFormatChange } = renderWith(1);
         fireEvent.click(getByRole("radio", { name: "Bo3" }));
         expect(onMatchFormatChange).toHaveBeenCalledWith(3);
+    });
+});
+
+/**
+ * Tabletop (manual) decks and the real engine are mutually exclusive by
+ * construction (ADR 0080, PRD #2023): `createGame` / `joinGame` /
+ * `createSoloGame` reject a manual-format deck and `createManualSoloGame`
+ * rejects a real one. Before this split every mode button was enabled for
+ * every deck, so half of them could only ever produce a server error.
+ */
+describe("DashboardPlayBox mode gating by deck format (ADR 0080)", () => {
+    const MANUAL: LobbyDeck = {
+        ...DECK,
+        presetId: "tabletop-deck",
+        name: "Tabletop Deck",
+        format: "manual",
+        cards: [{ cardId: "print-1", cardName: "Sliver Queen" }],
+    };
+
+    function renderWith(selectedDeck: LobbyDeck) {
+        const handlers = {
+            onCreateSolo: vi.fn(),
+            onCreateManual: vi.fn(),
+            onCreateVsAi: vi.fn(),
+            onCreateMultiplayer: vi.fn(),
+        };
+        return {
+            handlers,
+            ...render(
+                <DashboardPlayBox
+                    selectedDeck={selectedDeck}
+                    openGames={[]}
+                    onCreateSolo={handlers.onCreateSolo}
+                    onCreateManual={handlers.onCreateManual}
+                    onCreateVsAi={handlers.onCreateVsAi}
+                    onCreateMultiplayer={handlers.onCreateMultiplayer}
+                    onJoin={vi.fn()}
+                    onChangeDeck={vi.fn()}
+                    matchFormat={1}
+                    onMatchFormatChange={vi.fn()}
+                />
+            ),
+        };
+    }
+
+    const button = (getByText: (t: string) => HTMLElement, label: string) =>
+        getByText(label).closest("button") as HTMLButtonElement;
+
+    it("offers Tabletop + Create Multiplayer, but no engine mode, for a Tabletop deck", () => {
+        const { getByText } = renderWith(MANUAL);
+        // "Create Multiplayer" is mode-agnostic — it opens a table of whatever
+        // kind the deck implies (the lobby dispatches createGame vs
+        // createManualGame).
+        expect(button(getByText, "Tabletop").disabled).toBe(false);
+        expect(button(getByText, "Create Multiplayer").disabled).toBe(false);
+        for (const label of ["Play vs AI", "Solo Game"]) {
+            expect(button(getByText, label).disabled).toBe(true);
+        }
+    });
+
+    it("offers only the real modes for a real deck", () => {
+        const { getByText } = renderWith({ ...DECK, cards: [] });
+        expect(button(getByText, "Tabletop").disabled).toBe(true);
+        for (const label of ["Play vs AI", "Solo Game", "Create Multiplayer"]) {
+            expect(button(getByText, label).disabled).toBe(false);
+        }
+    });
+
+    it("blocks Tabletop for an empty Tabletop deck", () => {
+        // The manual Format validates nothing (ADR 0080), so an empty deck is
+        // "legal" — the emptiness gate has to live here and in the mutation.
+        const { getByText } = renderWith({ ...MANUAL, cards: [] });
+        expect(button(getByText, "Tabletop").disabled).toBe(true);
+        expect(getByText(/empty/i)).toBeTruthy();
     });
 });

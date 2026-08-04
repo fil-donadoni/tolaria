@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { decodeFilters, encodeFilters } from "../filterSearch";
+import {
+    buildSearch,
+    decodeFilters,
+    decodeFormat,
+    encodeFilters,
+} from "../filterSearch";
 import { DEFAULT_FILTERS, type CardSearchFilters } from "../useCardSearch";
 
 describe("filterSearch encode/decode", () => {
@@ -104,5 +109,52 @@ describe("filterSearch encode/decode", () => {
         expect(decoded.colorMode).toBe(DEFAULT_FILTERS.colorMode);
         expect(decoded.typeMode).toBe(DEFAULT_FILTERS.typeMode);
         expect(decoded.setMode).toBe(DEFAULT_FILTERS.setMode);
+    });
+});
+
+/**
+ * The Format seed is the only non-filter key on `/decks/create`, and a search
+ * write REPLACES the whole object — so `buildSearch` is the one place that can
+ * lose it. It did: `?format=manual` survived the navigation from the lobby but
+ * was dropped by the first keystroke in the search box, leaving the builder on
+ * Freeform after a reload with manual mode unreachable by link.
+ */
+describe("buildSearch — Format seed survives a filter write", () => {
+    it("carries an existing format through a filters-only write", () => {
+        const next = buildSearch(
+            { format: "manual" },
+            { filters: { ...DEFAULT_FILTERS, text: "sliver" } }
+        );
+        expect(next).toEqual({ format: "manual", q: "sliver" });
+    });
+
+    it("carries existing filters through a format-only write", () => {
+        const next = buildSearch({ q: "sliver" }, { format: "manual" });
+        expect(next).toEqual({ format: "manual", q: "sliver" });
+    });
+
+    it("applies both in a single write (no clobber)", () => {
+        const next = buildSearch(
+            { format: "manual" },
+            {
+                filters: { ...DEFAULT_FILTERS, cube: "vintage-cube" },
+                format: "freeform",
+            }
+        );
+        expect(next).toEqual({ format: "freeform", cube: "vintage-cube" });
+    });
+
+    it("emits no format key when there is none to carry", () => {
+        const next = buildSearch(
+            {},
+            { filters: { ...DEFAULT_FILTERS, text: "bolt" } }
+        );
+        expect(next).toEqual({ q: "bolt" });
+    });
+
+    it("drops an unknown format value rather than propagating it", () => {
+        expect(buildSearch({ format: "not-a-format" }, {})).toEqual({});
+        expect(decodeFormat({ format: "not-a-format" })).toBeUndefined();
+        expect(decodeFormat({ format: "manual" })).toBe("manual");
     });
 });

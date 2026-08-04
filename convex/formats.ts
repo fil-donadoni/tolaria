@@ -1183,7 +1183,7 @@ export const FORMAT_RULES: Record<FormatId, FormatMeta> = {
     // createGame/joinGame/createSoloGame, not in the format validator —
     // this validator never reads which mode it runs in.
     manual: {
-        label: "Manual (Tabletop)",
+        label: "Tabletop",
         allowedSets: null,
         minMain: 0,
         maxSide: null,

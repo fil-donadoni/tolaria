@@ -9,6 +9,9 @@ interface ResultsGridProps {
     idle: boolean;
     /** Active set filter — forwarded to each card to pick its default edition. */
     activeSets: string[];
+    /** False in manual mode, where a card the GRE does not implement is still
+     *  fully playable (ADR 0080) and must stay selectable. */
+    enforceAvailability: boolean;
     onAdd: (printId: string, cardName: string) => void;
 }
 
@@ -16,6 +19,7 @@ export default function ResultsGrid({
     entries,
     idle,
     activeSets,
+    enforceAvailability,
     onAdd,
 }: ResultsGridProps) {
     // Issue #505 / PRD #501: render a bounded batch and grow it as the user
@@ -78,6 +82,7 @@ export default function ResultsGrid({
                         key={entry.cardId}
                         entry={entry}
                         activeSets={activeSets}
+                        enforceAvailability={enforceAvailability}
                         onAdd={onAdd}
                     />
                 ))}

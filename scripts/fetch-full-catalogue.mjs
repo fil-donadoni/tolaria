@@ -35,10 +35,27 @@ const publicOutPath = resolve(repoRoot, "public/data/full-catalogue.json.gz");
 
 const SCRYFALL_BULK = "https://api.scryfall.com/bulk-data/oracle-cards";
 
+// Scryfall rejects requests carrying an HTTP library's default User-Agent
+// (`400 bad_request / generic_user_agent`), which surfaced here as the
+// misleading "No download URI in bulk data definition". Every other Scryfall
+// script in scripts/ already identifies itself; this one did not.
+const SCRYFALL_HEADERS = {
+    "User-Agent": "tolaria-fetch-full-catalogue/1.0",
+    Accept: "*/*",
+};
+
 async function main() {
     // 1. Fetch the bulk data definition to get the download URL.
     console.log("Fetching bulk data index...");
-    const bulkDef = await fetch(SCRYFALL_BULK).then((r) => r.json());
+    const bulkDefRes = await fetch(SCRYFALL_BULK, {
+        headers: SCRYFALL_HEADERS,
+    });
+    if (!bulkDefRes.ok) {
+        throw new Error(
+            `Bulk data index failed: ${bulkDefRes.status} ${bulkDefRes.statusText}`
+        );
+    }
+    const bulkDef = await bulkDefRes.json();
     // Scryfall now serves JSONL (jsonl_download_uri). Prefer that; fall back
     // to the old JSON-array download_uri.
     const downloadUri = bulkDef.jsonl_download_uri ?? bulkDef.download_uri;
@@ -52,7 +69,7 @@ async function main() {
 
     // 2. Download the full oracle-cards.
     console.log("Downloading oracle_cards bulk...");
-    const bulkRes = await fetch(downloadUri);
+    const bulkRes = await fetch(downloadUri, { headers: SCRYFALL_HEADERS });
     if (!bulkRes.ok) {
         throw new Error(`Bulk download failed: ${bulkRes.status}`);
     }

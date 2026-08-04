@@ -57,6 +57,22 @@ export default function DashboardPlayBox({
     const deckLegal = !selectedDeck || selectedDeck.isLegal;
     const canPlay = !!selectedDeck && deckLegal && !busy && !hasActiveGame;
 
+    // Manual (Tabletop) decks and the real engine are mutually exclusive by
+    // construction (ADR 0080): `createGame` / `joinGame` / `createSoloGame`
+    // reject a manual-format deck, and `createManualSoloGame` rejects a real
+    // one. Without this split every button was enabled for every deck, so half
+    // the choices could only ever produce a server error.
+    const isManualDeck = selectedDeck?.format === "manual";
+    // The manual Format deliberately validates nothing (ADR 0080), so an empty
+    // deck is "legal" — but a Tabletop game with no cards is not a game.
+    const manualDeckHasCards = (selectedDeck?.cards.length ?? 0) > 0;
+    const canPlayReal = canPlay && !isManualDeck;
+    const canPlayManual = canPlay && isManualDeck && manualDeckHasCards;
+    // "Create Multiplayer" is mode-agnostic: it opens a table of whatever kind
+    // the selected deck implies (the lobby dispatches createGame vs
+    // createManualGame). A Tabletop table is still a two-human table.
+    const canCreateMultiplayer = canPlayReal || canPlayManual;
+
     return (
         <Panel tone="accent">
             <PanelHeader title="Play" />
@@ -149,29 +165,39 @@ export default function DashboardPlayBox({
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                     <ActionButton
                         onClick={onCreateVsAi}
-                        disabled={!canPlay}
+                        disabled={!canPlayReal}
                         label="Play vs AI"
-                        tone="primary"
+                        tone={isManualDeck ? "secondary" : "primary"}
                     />
                     <ActionButton
                         onClick={onCreateSolo}
-                        disabled={!canPlay}
+                        disabled={!canPlayReal}
                         label="Solo Game"
                         tone="secondary"
                     />
                     <ActionButton
                         onClick={onCreateManual}
-                        disabled={!canPlay}
-                        label="Manual Game"
-                        tone="secondary"
+                        disabled={!canPlayManual}
+                        label="Tabletop"
+                        tone={isManualDeck ? "primary" : "secondary"}
                     />
                     <ActionButton
                         onClick={onCreateMultiplayer}
-                        disabled={!canPlay}
+                        disabled={!canCreateMultiplayer}
                         label="Create Multiplayer"
                         tone="secondary"
                     />
                 </div>
+
+                {selectedDeck && (
+                    <p className="text-xs text-text-muted" role="note">
+                        {isManualDeck
+                            ? manualDeckHasCards
+                                ? "Tabletop: no rules enforced, every printed card available. Play solo, or open a table for another player with Create Multiplayer."
+                                : "This Tabletop deck is empty — add cards before starting a game."
+                            : "Tabletop needs a Tabletop-format deck. Create one from the deck builder."}
+                    </p>
+                )}
 
                 {openGames && openGames.length > 0 && (
                     <div className="flex flex-col gap-2">
@@ -179,29 +205,54 @@ export default function DashboardPlayBox({
                             Open games to join
                         </p>
                         <div className="flex flex-col gap-2">
-                            {openGames.map((g) => (
-                                <button
-                                    key={g._id}
-                                    onClick={() => onJoin(g._id)}
-                                    disabled={!canPlay}
-                                    className={cn(
-                                        "flex items-center justify-between rounded-sm border px-4 py-2 text-sm transition",
-                                        "border-border-subtle bg-surface-elevated text-text hover:border-border-accent/60",
-                                        "disabled:cursor-not-allowed disabled:opacity-40"
-                                    )}
-                                >
-                                    <span className="flex items-center gap-2 font-medium">
-                                        {g.name}
-                                        <span className="rounded-sm border border-accent/40 bg-accent/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
-                                            {g.bestOf === 3 ? "Bo3" : "Bo1"}{" "}
-                                            Match
+                            {openGames.map((g) => {
+                                // A table's mode is fixed at creation and the
+                                // join mutations are mode-exclusive (ADR 0080),
+                                // so a deck of the wrong kind can only produce a
+                                // server rejection — disable the row instead.
+                                const tableIsManual = g.mode === "manual";
+                                const deckFitsTable =
+                                    tableIsManual === !!isManualDeck;
+                                const canJoin =
+                                    canPlay &&
+                                    deckFitsTable &&
+                                    (!tableIsManual || manualDeckHasCards);
+                                return (
+                                    <button
+                                        key={g._id}
+                                        onClick={() => onJoin(g._id)}
+                                        disabled={!canJoin}
+                                        title={
+                                            deckFitsTable
+                                                ? undefined
+                                                : tableIsManual
+                                                  ? "This is a Tabletop table — join it with a Tabletop deck."
+                                                  : "This is a real game — join it with a real deck."
+                                        }
+                                        className={cn(
+                                            "flex items-center justify-between rounded-sm border px-4 py-2 text-sm transition",
+                                            "border-border-subtle bg-surface-elevated text-text hover:border-border-accent/60",
+                                            "disabled:cursor-not-allowed disabled:opacity-40"
+                                        )}
+                                    >
+                                        <span className="flex items-center gap-2 font-medium">
+                                            {g.name}
+                                            <span className="rounded-sm border border-accent/40 bg-accent/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
+                                                {g.bestOf === 3 ? "Bo3" : "Bo1"}{" "}
+                                                Match
+                                            </span>
+                                            {tableIsManual && (
+                                                <span className="rounded-sm border border-border-subtle px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-text-muted">
+                                                    Tabletop
+                                                </span>
+                                            )}
                                         </span>
-                                    </span>
-                                    <span className="text-xs text-text-muted">
-                                        {g.players.length}/2 · Join →
-                                    </span>
-                                </button>
-                            ))}
+                                        <span className="text-xs text-text-muted">
+                                            {g.players.length}/2 · Join →
+                                        </span>
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
                 )}

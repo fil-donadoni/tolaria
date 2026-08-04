@@ -83,7 +83,9 @@ function Lobby() {
     const createGame = useMutation(api.game.createGame);
     const createSoloGame = useMutation(api.game.createSoloGame);
     const createManualSoloGame = useMutation(api.game.createManualSoloGame);
+    const createManualGame = useMutation(api.game.createManualGame);
     const joinGame = useMutation(api.game.joinGame);
+    const joinManualGame = useMutation(api.game.joinManualGame);
     const openGames = useQuery(
         api.game.listOpenGames,
         pageVisible ? {} : "skip"
@@ -177,13 +179,25 @@ function Lobby() {
         }
     };
 
+    // One "Create Multiplayer" action, two backends: a Tabletop-format deck
+    // opens a Tabletop table, anything else a real game. The mode is a property
+    // of the DECK, never a separate button — the two are mutually exclusive
+    // server-side anyway (ADR 0080), so a second button could only ever be the
+    // wrong one half the time.
     const handleCreate = () =>
         enterGame(async ({ user, deck }) => {
-            const id = await createGame({
-                name: `${user.nickname}'s game`,
-                deck: deckPayload(deck),
-                bestOf: matchFormat,
-            });
+            const id =
+                deck.format === "manual"
+                    ? await createManualGame({
+                          name: `${user.nickname}'s Tabletop`,
+                          deck: deckPayload(deck),
+                          bestOf: matchFormat,
+                      })
+                    : await createGame({
+                          name: `${user.nickname}'s game`,
+                          deck: deckPayload(deck),
+                          bestOf: matchFormat,
+                      });
             return { gameId: id, playerId: user._id };
         });
 
@@ -224,10 +238,21 @@ function Lobby() {
 
     const handleJoin = (targetGameId: Id<"games">) =>
         enterGame(async ({ user, deck }) => {
-            await joinGame({
-                gameId: targetGameId,
-                deck: deckPayload(deck),
-            });
+            // Same dispatch as creation: the open row's mode decides which
+            // join mutation runs. The row itself is already disabled when the
+            // selected deck's format can't sit at that table.
+            const target = openGames?.find((g) => g._id === targetGameId);
+            if (target?.mode === "manual") {
+                await joinManualGame({
+                    gameId: targetGameId,
+                    deck: deckPayload(deck),
+                });
+            } else {
+                await joinGame({
+                    gameId: targetGameId,
+                    deck: deckPayload(deck),
+                });
+            }
             return { gameId: targetGameId, playerId: user._id };
         });
 
