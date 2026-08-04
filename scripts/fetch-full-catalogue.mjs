@@ -20,10 +20,13 @@
  */
 
 import { createWriteStream } from "node:fs";
-import { mkdir, copyFile, readFile, writeFile } from "node:fs/promises";
+import { mkdir, copyFile } from "node:fs/promises";
 import { resolve, dirname } from "node:path";
-import { createGzip } from "node:zlib";
+import { createGzip, createGunzip } from "node:zlib";
 import { fileURLToPath } from "node:url";
+import { createInterface } from "node:readline";
+import { finished } from "node:stream/promises";
+import { Readable } from "node:stream";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..");
@@ -36,27 +39,25 @@ async function main() {
     // 1. Fetch the bulk data definition to get the download URL.
     console.log("Fetching bulk data index...");
     const bulkDef = await fetch(SCRYFALL_BULK).then((r) => r.json());
-    const downloadUri = bulkDef.download_uri;
+    // Scryfall now serves JSONL (jsonl_download_uri). Prefer that; fall back
+    // to the old JSON-array download_uri.
+    const downloadUri = bulkDef.jsonl_download_uri ?? bulkDef.download_uri;
     if (!downloadUri) {
-        throw new Error("No download_uri in bulk data definition");
+        throw new Error("No download URI in bulk data definition");
     }
-    console.log(`Download URL: ${downloadUri}`);
+    const isJsonl = Boolean(bulkDef.jsonl_download_uri);
+    console.log(
+        `Download URL: ${downloadUri} (${isJsonl ? "jsonl.gz" : "json"})`
+    );
 
-    // 2. Download the full oracle-cards JSON (one JSON array).
+    // 2. Download the full oracle-cards.
     console.log("Downloading oracle_cards bulk...");
     const bulkRes = await fetch(downloadUri);
     if (!bulkRes.ok) {
         throw new Error(`Bulk download failed: ${bulkRes.status}`);
     }
-    // Scryfall bulk is ~35 MB raw; stream it through JSON.parse.
-    const bulkText = await bulkRes.text();
-    const allCards = JSON.parse(bulkText);
-    console.log(`Downloaded ${allCards.length} oracle rows.`);
 
     // 3. Filter and reduce.
-    //   - Exclude non-paper (game "paper" only)
-    //   - Exclude certain layouts
-    //   - Include tokens
     const EXCLUDED_LAYOUTS = new Set([
         "art_series",
         "vanguard",
@@ -67,20 +68,42 @@ async function main() {
 
     const paper = [];
     let excluded = 0;
-    for (const card of allCards) {
-        // All cards in oracle_cards are oracle rows (game=paper mostly,
-        // but some like arena/mtgo sneak in).
-        if (card.games && !card.games.includes("paper")) {
-            continue;
+
+    if (isJsonl) {
+        // JSONL .gz — decompress stream + readline.
+        console.log("Decompressing + parsing JSONL...");
+        const gunzip = createGunzip();
+        const source = Readable.fromWeb(bulkRes.body);
+        source.pipe(gunzip);
+        const rl = createInterface({ input: gunzip });
+        for await (const line of rl) {
+            if (!line.trim()) continue;
+            const card = JSON.parse(line);
+            if (card.games && !card.games.includes("paper")) continue;
+            if (!card.layout) card.layout = "";
+            const layout = card.layout.toLowerCase();
+            if (layout !== "token" && EXCLUDED_LAYOUTS.has(layout)) {
+                excluded++;
+                continue;
+            }
+            paper.push(card);
         }
-        // Exclude these layouts, but NOT tokens (token layout stays).
-        if (!card.layout) card.layout = "";
-        const layout = card.layout.toLowerCase();
-        if (layout !== "token" && EXCLUDED_LAYOUTS.has(layout)) {
-            excluded++;
-            continue;
+        await finished(gunzip);
+    } else {
+        // Legacy JSON array.
+        const bulkText = await bulkRes.text();
+        const allCards = JSON.parse(bulkText);
+        console.log(`Downloaded ${allCards.length} oracle rows.`);
+        for (const card of allCards) {
+            if (card.games && !card.games.includes("paper")) continue;
+            if (!card.layout) card.layout = "";
+            const layout = card.layout.toLowerCase();
+            if (layout !== "token" && EXCLUDED_LAYOUTS.has(layout)) {
+                excluded++;
+                continue;
+            }
+            paper.push(card);
         }
-        paper.push(card);
     }
 
     console.log(

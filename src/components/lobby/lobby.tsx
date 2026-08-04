@@ -197,15 +197,6 @@ function Lobby() {
             return { gameId: id, playerId: `${user._id}-p1` };
         });
 
-    const handleCreateManual = () =>
-        enterGame(async ({ user, deck }) => {
-            const id = await createManualSoloGame({
-                name: `${user.nickname}'s manual game`,
-                deck: deckPayload(deck),
-            });
-            return { gameId: id, playerId: `${user._id}-p1` };
-        });
-
     // Confirm step of the vs-AI dialog. `enterGame` navigates away on success;
     // on failure the dialog stays open so the user can retry or cancel after
     // reading the surfaced error.
@@ -442,9 +433,8 @@ function Lobby() {
                         openGames={openGames}
                         onCreateVsAi={() => setVsAiOpen(true)}
                         onCreateSolo={handleCreateSolo}
-                        onCreateManual={handleCreateManual}
+                        onCreateManual={handleCreateTabletop}
                         onCreateMultiplayer={handleCreate}
-                        onCreateTabletop={handleCreateTabletop}
                         onJoin={handleJoin}
                         onChangeDeck={handleChangeDeck}
                         matchFormat={matchFormat}

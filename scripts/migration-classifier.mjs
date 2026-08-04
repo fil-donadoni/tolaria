@@ -322,7 +322,9 @@ if (mode === "--free") {
     const readyTotal = pickable.filter((i) => i.hasTest).length;
     console.log(
         `FREE-tranche: ${pickable.length} pickable closures (${readyTotal} AFK-ready) across ${Object.keys(byMod).length} modules` +
-            (hidden ? `  [${hidden} assessed non-migratable hidden — --all to show]` : "") +
+            (hidden
+                ? `  [${hidden} assessed non-migratable hidden — --all to show]`
+                : "") +
             "\n"
     );
     for (const mod of Object.keys(byMod).sort()) {

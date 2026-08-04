@@ -34,16 +34,19 @@
  * one pass.
  */
 
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync } from "node:fs";
+import {
+    readFileSync,
+    writeFileSync,
+    mkdirSync,
+    readdirSync,
+    statSync,
+} from "node:fs";
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..");
-const outPath = resolve(
-    repoRoot,
-    "convex/cards/generated/token-prints.json"
-);
+const outPath = resolve(repoRoot, "convex/cards/generated/token-prints.json");
 
 /** Recursively collect every `.ts` file under a directory. */
 function walkTs(dir) {
@@ -82,8 +85,7 @@ if (args.length === 0 || args.includes("--all")) {
 // version to 4 excludes the deterministic v5 UUIDs used elsewhere as synthetic
 // ids (scenario/designation keys), which Scryfall's /cards/collection rejects
 // with a 400 that would otherwise kill the whole 75-id batch.
-const UUID =
-    "[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}";
+const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}";
 const ID_FIELD_RE = new RegExp(`id:\\s*"(${UUID})"`, "g");
 const ID_CONST_RE = new RegExp(`\\b[A-Z0-9_]+_ID\\s*=\\s*"(${UUID})"`, "g");
 
@@ -169,9 +171,7 @@ for (let i = 0; i < ids.length; i += BATCH) {
     await sleep(120);
 }
 
-console.log(
-    `Token prints found for ${withTokens}/${uuids.size} cards.`
-);
+console.log(`Token prints found for ${withTokens}/${uuids.size} cards.`);
 
 // ---------------------------------------------------------------------------
 // Merge over the existing lockfile (NON-destructive, issue #1305): freshly

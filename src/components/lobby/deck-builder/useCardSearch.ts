@@ -326,7 +326,10 @@ export function useCardSearch(
     const catalogueRows = fullCatalogue?.rows;
     const isManual = format === "manual";
 
-    const idle = !hasAnyFilter(filters);
+    // In manual mode the pool is the entire catalogue (~27K rows) — never
+    // gate on idle. The user sees every card immediately; the search box
+    // narrows results without a minimum-length threshold.
+    const idle = isManual ? false : !hasAnyFilter(filters);
     // The format's allowed-set list (null = any set). Resolved here so the gate
     // never hardcodes set codes - it reads them from the Format registry.
     const allowedSets =
@@ -397,7 +400,10 @@ export function useCardSearch(
                 matchesTypes(e, filters.types, filters.typeMode) &&
                 matchesManaValue(e.manaValue, filters.manaValues) &&
                 matchesSets(e.prints, filters.sets, filters.setMode) &&
-                (filters.hideUnavailable ? e.available !== false : true)
+                // Manual mode shows every card regardless of implementation status.
+                (!isManual && filters.hideUnavailable
+                    ? e.available !== false
+                    : true)
         );
 
         // In manual mode, supplement local name-search results with Scryfall

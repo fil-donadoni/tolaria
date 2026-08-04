@@ -1,38 +1,38 @@
 name: linter
 
 on:
-  push:
-    branches:
-      - staging
-      - main
-  pull_request:
-    branches:
-      - staging
-      - main
+    push:
+        branches:
+            - staging
+            - main
+    pull_request:
+        branches:
+            - staging
+            - main
 
 jobs:
-  quality:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+    quality:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
 
-      - name: Install Dependencies
-        run: bun install --frozen-lockfile
+            - name: Install Dependencies
+              run: bun install --frozen-lockfile
 
-      - name: Format
-        run: bun run format:check
+            - name: Format
+              run: bun run format:check
 
-      - name: Lint
-        run: bun run lint
+            - name: Lint
+              run: bun run lint
 
-      - name: Generate Convex types
-        run: bunx convex codegen --typecheck disable
-        env:
-          CONVEX_DEPLOYMENT: ${{ secrets.CONVEX_DEPLOYMENT }}
-          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+            - name: Generate Convex types
+              run: bunx convex codegen --typecheck disable
+              env:
+                  CONVEX_DEPLOYMENT: ${{ secrets.CONVEX_DEPLOYMENT }}
+                  CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
 
-      - name: Type Check
-        run: bun run check:ts
+            - name: Type Check
+              run: bun run check:ts

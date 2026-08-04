@@ -185,11 +185,17 @@ A subagent spawned with no explicit `model` inherits the session tier (often Opu
 
 ### Skills (invoke explicitly or auto-triggered)
 
-| Skill              | Trigger                               | What it does                                                                                                                                     |
-| ------------------ | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `/mtg-rules-check` | Before implementing any game mechanic | Fetches CR text, finds implementation, reports gaps                                                                                              |
-| `/new-card`        | When adding a new card                | Fetches Scryfall data, generates a CardDefinition as an Effect Script by default (DSL-first, ADR 0045), validates against the Mechanics Registry |
-| `/gre-test`        | When adding/modifying GRE logic       | Generates vitest tests following project patterns                                                                                                |
+The **work-intake** skills all converge on the same tail — grill → `/to-prd` → `/to-tickets` → issues labelled `ready-for-agent` — and `/process-gh-issues` is the single implementer that drains that queue. Pick the intake skill by where the work comes FROM:
+
+| Skill                | Trigger                                     | What it does                                                                                                                                                                       |
+| -------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/new-card`          | One new card (rare — most cards ride a set) | Checks it isn't already shipped, fetches Scryfall oracle, maps it to Ops / flags capability gaps, grills only if a gap needs a decision, then PRD + tickets                        |
+| `/new-set`           | A whole set rollout                         | Profiles the set from MTGJSON, triages every card into done/staged/free/capability/out-of-scope, grills the capability clusters, emits an umbrella PRD + dependency-ordered issues |
+| `/new-qa-issue`      | A bug / enhancement you observed            | Explores the codebase, drafts one agent-readable issue with acceptance criteria, posts after confirmation                                                                          |
+| `/audit-tracker <N>` | A roll-up issue listing gaps has gone stale | Re-verifies every listed gap against HEAD, corrects wrong premises, cuts one slice ticket per survivor, re-points `tracked-by:` markers, retires the tracker                       |
+| `/process-gh-issues` | Draining the `ready-for-agent` queue        | Selects a file-disjoint batch, fans out one implement-subagent + worktree per issue, reviews each PR, integrates through a serial rebase + re-gate merge-train, closes on success  |
+| `/mtg-rules-check`   | Before implementing any game mechanic       | Fetches CR text, finds the implementation, reports gaps                                                                                                                            |
+| `/gre-test`          | When adding/modifying GRE logic             | Generates vitest tests following project patterns                                                                                                                                  |
 
 ### Path-specific rules (auto-loaded)
 

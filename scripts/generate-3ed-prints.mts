@@ -159,7 +159,10 @@ function main(): void {
         "\n// Basic lands (art variants — one print per collector number).\n\n" +
         basicRows.map(emit).join("\n");
 
-    writeFileSync(resolve(OUT_PATH), header + "\n" + body + "\n" + basicsSection);
+    writeFileSync(
+        resolve(OUT_PATH),
+        header + "\n" + body + "\n" + basicsSection
+    );
 
     console.log(
         `✓ wrote ${OUT_PATH}: ${rows.length} non-basic + ${basicRows.length} basic-land prints`

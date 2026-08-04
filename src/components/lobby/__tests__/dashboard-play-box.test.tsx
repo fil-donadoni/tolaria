@@ -49,7 +49,6 @@ function renderBox(openGames: OpenGame[], onJoin = vi.fn()) {
                 onCreateManual={vi.fn()}
                 onCreateVsAi={vi.fn()}
                 onCreateMultiplayer={vi.fn()}
-                onCreateTabletop={vi.fn()}
                 onJoin={onJoin}
                 onChangeDeck={vi.fn()}
                 matchFormat={1}
@@ -106,7 +105,6 @@ describe("DashboardPlayBox featured-art hero splash (PRD #589, issue #600)", () 
                 onCreateManual={vi.fn()}
                 onCreateVsAi={vi.fn()}
                 onCreateMultiplayer={vi.fn()}
-                onCreateTabletop={vi.fn()}
                 onJoin={vi.fn()}
                 onChangeDeck={vi.fn()}
                 matchFormat={1}
@@ -150,7 +148,6 @@ describe("DashboardPlayBox deck legality gate (issue #512)", () => {
             onCreateManual: vi.fn(),
             onCreateVsAi: vi.fn(),
             onCreateMultiplayer: vi.fn(),
-            onCreateTabletop: vi.fn(),
         };
         return {
             handlers,
@@ -162,7 +159,6 @@ describe("DashboardPlayBox deck legality gate (issue #512)", () => {
                     onCreateManual={handlers.onCreateManual}
                     onCreateVsAi={handlers.onCreateVsAi}
                     onCreateMultiplayer={handlers.onCreateMultiplayer}
-                    onCreateTabletop={handlers.onCreateTabletop}
                     onJoin={vi.fn()}
                     onChangeDeck={vi.fn()}
                     matchFormat={1}
@@ -189,7 +185,7 @@ describe("DashboardPlayBox deck legality gate (issue #512)", () => {
         expect(handlers.onCreateVsAi).not.toHaveBeenCalled();
         expect(handlers.onCreateSolo).not.toHaveBeenCalled();
         expect(handlers.onCreateMultiplayer).not.toHaveBeenCalled();
-        expect(handlers.onCreateTabletop).not.toHaveBeenCalled();
+        expect(handlers.onCreateManual).not.toHaveBeenCalled();
     });
 
     it("enables Play for a legal selected deck", () => {
@@ -213,7 +209,6 @@ describe("DashboardPlayBox vs-AI dialog handoff (two-step flow)", () => {
                     onCreateManual={vi.fn()}
                     onCreateVsAi={onCreateVsAi}
                     onCreateMultiplayer={vi.fn()}
-                    onCreateTabletop={vi.fn()}
                     onJoin={vi.fn()}
                     onChangeDeck={vi.fn()}
                     matchFormat={1}
@@ -256,7 +251,6 @@ describe("DashboardPlayBox match format selector", () => {
                     onCreateManual={vi.fn()}
                     onCreateVsAi={vi.fn()}
                     onCreateMultiplayer={vi.fn()}
-                    onCreateTabletop={vi.fn()}
                     onJoin={vi.fn()}
                     onChangeDeck={vi.fn()}
                     matchFormat={matchFormat}
