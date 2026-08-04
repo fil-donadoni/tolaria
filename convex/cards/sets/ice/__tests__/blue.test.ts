@@ -142,6 +142,7 @@ import {
     activateAbilityOnState,
     applyOneTargetSelection,
 } from "../../../../game";
+import { checkStateBasedActions } from "../../../../gre/sba";
 
 // ===========================================================================
 // Blue free tranche (#631)
@@ -405,12 +406,206 @@ describe("Zuran Spellcaster ({T}: 1 damage any target, CR 120.1)", () => {
     });
 });
 
-describe("Snow Devil (Aura grants flying, CR 611)", () => {
+describe("Snow Devil (Aura grants flying + conditional first strike, CR 611/611.2c, issue #1826)", () => {
     it("grants flying to the enchanted creature", () => {
         expect(snowDevil.staticEffects?.[0]).toMatchObject({
             kind: "keyword-grant",
             keyword: "flying",
         });
+    });
+
+    it("declares the conditional first-strike grant with a condition gate", () => {
+        const effect = snowDevil.staticEffects?.[1];
+        expect(effect).toMatchObject({
+            kind: "keyword-grant",
+            keyword: "first strike",
+        });
+        if (effect?.kind === "keyword-grant") {
+            expect(effect.condition).toBeTypeOf("function");
+        }
+    });
+
+    function setup(overrides: {
+        hostIsBlocking?: boolean;
+        withSnowLand?: boolean;
+    }) {
+        const host = vanilla("host", 2, 2, {
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: overrides.hostIsBlocking ?? false,
+        });
+        const aura = makeInstance(snowDevil.id, {
+            id: "devil",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "host",
+        });
+        const p1Battlefield: CardInstanceState[] = [aura];
+        if (overrides.withSnowLand ?? false) {
+            p1Battlefield.push(
+                snowLand(snowCoveredIsland.id, "snow-isle", "p1")
+            );
+        }
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: p1Battlefield }),
+                makePlayer("p2", { battlefield: [host] }),
+            ],
+        });
+        applySourceStaticEffects(state, aura);
+        return { state, host };
+    }
+
+    it("grants first strike while the host is blocking and the aura's controller controls a snow land", () => {
+        const { host } = setup({ hostIsBlocking: true, withSnowLand: true });
+        expect(host.staticAbilities).toContain("first strike");
+        expect(host.staticAbilities).toContain("flying");
+    });
+
+    it("does NOT grant first strike when the host is not blocking, even with a snow land", () => {
+        const { host } = setup({ hostIsBlocking: false, withSnowLand: true });
+        expect(host.staticAbilities).not.toContain("first strike");
+    });
+
+    it("does NOT grant first strike when blocking but the aura's controller controls no snow land", () => {
+        const { host } = setup({ hostIsBlocking: true, withSnowLand: false });
+        expect(host.staticAbilities).not.toContain("first strike");
+    });
+
+    // "you" (CR 109.5 / 611.2) is the AURA'S controller, not the host's — the host's
+    // OWN controller (p2) has no snow land here; only the Aura's controller
+    // (p1) does. Guards against the class of bug this issue names: reading
+    // the enchanted creature's controller instead of the Aura's.
+    it("reads the AURA's controller's snow lands, not the host's controller's", () => {
+        const host = vanilla("host", 2, 2, {
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+        });
+        const aura = makeInstance(snowDevil.id, {
+            id: "devil",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "host",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        aura,
+                        snowLand(snowCoveredIsland.id, "snow-isle", "p1"),
+                    ],
+                }),
+                makePlayer("p2", { battlefield: [host] }), // no snow land here
+            ],
+        });
+        applySourceStaticEffects(state, aura);
+        expect(host.staticAbilities).toContain("first strike");
+    });
+
+    // `keyword-grant` is MATERIALIZED at apply time (not recomputed at every
+    // read like `pt-buff`), so the "as long as" gate only stays live because
+    // the real production SBA path (`checkStateBasedActions` →
+    // `refreshCounterGatedStatics`) re-runs `condition` every SBA pass —
+    // mirrors Kavu Runner's own coverage (inv/red.ts /
+    // __tests__/red.test.ts). Exercised via `checkStateBasedActions` (not a
+    // direct `refreshCounterGatedStatics` call) so this test would go red if
+    // that wiring were ever dropped.
+    it("first strike appears when blockers are declared and disappears when combat ends (checkStateBasedActions)", () => {
+        const { state, host } = setup({
+            hostIsBlocking: false,
+            withSnowLand: true,
+        });
+        expect(host.staticAbilities).not.toContain("first strike");
+
+        host.isBlocking = true; // simulate DECLARE_BLOCKERS assigning this creature
+        checkStateBasedActions(state);
+        expect(host.staticAbilities).toContain("first strike");
+
+        host.isBlocking = undefined; // simulate END_OF_COMBAT teardown
+        checkStateBasedActions(state);
+        expect(host.staticAbilities).not.toContain("first strike");
+    });
+
+    // Proves the grant is actually READ by the real combat-damage-step
+    // machinery, not just present on the instance. `dealsDamageIn` /
+    // `anyCombatantHasFirstOrDoubleStrike` (`gre/phases.ts`) read
+    // `CardInstanceState.staticAbilities` directly — never the printed card
+    // definition — so a materialized grant is not the inert
+    // deathtouch/hexproof shape (#957/#958). A blocker with no PRINTED first
+    // strike, enchanted by Snow Devil while blocking with a snow land in
+    // play, routes combat through FIRST_STRIKE_DAMAGE exactly like a
+    // printed-first-strike blocker does
+    // (`gre/__tests__/phases.test.ts`'s "a blocker has first strike" case).
+    it("a Snow-Devil-granted first strike blocker routes combat through FIRST_STRIKE_DAMAGE", () => {
+        const attacker = vanilla("bear", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const host = vanilla("wall", 3, 5, {
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+        });
+        const aura = makeInstance(snowDevil.id, {
+            id: "devil",
+            controllerId: "p2",
+            ownerId: "p2",
+            attachedTo: "wall",
+        });
+        const state = makeState({
+            phase: "DECLARE_BLOCKERS",
+            combat: {
+                attackerIds: ["bear"],
+                confirmed: true,
+                blockerAssignments: { wall: ["bear"] },
+                blockersConfirmed: true,
+            },
+            players: [
+                makePlayer("p1", { battlefield: [attacker] }),
+                makePlayer("p2", {
+                    battlefield: [
+                        host,
+                        aura,
+                        snowLand(snowCoveredIsland.id, "snow-isle", "p2"),
+                    ],
+                }),
+            ],
+        });
+        applySourceStaticEffects(state, aura);
+        // Simulates the priority-window SBA pass CR 704.3 requires before
+        // DECLARE_BLOCKERS can advance — the real path re-evaluates the
+        // condition here, not just at aura-attach time.
+        checkStateBasedActions(state);
+        expect(host.staticAbilities).toContain("first strike");
+
+        advancePhase(state);
+        expect(state.phase).toBe("FIRST_STRIKE_DAMAGE");
+    });
+
+    // Wire format (mandatory, `.claude/rules/gre-development.md` § Frontend
+    // wiring analysis): the materialized "first strike" keyword must survive
+    // `projectPublicState`'s slim reshape, both while present and once the
+    // board-state gate has removed it.
+    it("first strike presence/absence survives projectPublicState (wire format)", () => {
+        const { state, host } = setup({
+            hostIsBlocking: true,
+            withSnowLand: true,
+        });
+        const projectedWith = projectPublicState(state, 1, "p1");
+        const slimWith = projectedWith.players[1].battlefield.find(
+            (c) => c.id === host.id
+        )!;
+        expect(slimWith.staticAbilities).toContain("first strike");
+
+        host.isBlocking = undefined;
+        checkStateBasedActions(state);
+        const projectedWithout = projectPublicState(state, 1, "p1");
+        const slimWithout = projectedWithout.players[1].battlefield.find(
+            (c) => c.id === host.id
+        )!;
+        expect(slimWithout.staticAbilities).not.toContain("first strike");
     });
 });
 

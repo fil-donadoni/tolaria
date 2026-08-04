@@ -13,6 +13,7 @@ import type {
     ManaCost,
     PermanentView,
     SpellContext,
+    StaticEffectStateView,
     TriggeredAbility,
 } from "../../types";
 import { AURA_AFFECTS_HOST, BASIC_LAND_SUBTYPES } from "../../types";
@@ -24,6 +25,7 @@ import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 import { untapRestriction } from "../../abilities/static/untapRestriction";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 import { colorChoiceModes } from "../../abilities/chooseColor";
+import { countSnowLands } from "../../snowReads";
 
 // Color-word options for Balduvian Shaman's text change (CR 612 — the five
 // color words). The chosen value is the lowercase color word `addTextChange`
@@ -2023,15 +2025,45 @@ export const sleightOfMindIce: CardPrint = {
     setCode: "ice",
     rarity: "common",
 };
-// Snow Devil — Aura granting flying to the host (CR 611 keyword-grant). Same
-// shape as LEA's Flight.
-//
-// SIMPLIFICATION (flagged, no engine change): the conditional "first strike as
-// long as it's blocking and you control a snow land" clause is a no-op in the
-// current pool — snow lands belong to a later snow cluster, so the snow-land
-// condition is never met. Only the unconditional flying grant is modelled; the
-// first-strike clause ships dead until snow lands exist (same treatment as
-// Hallowed Ground's nonsnow restriction).
+// "It's blocking and you control a snow land" gate for Snow Devil's
+// conditional first-strike grant (CR 611.2c board-state-conditional
+// keyword-grant, the Kavu Runner `condition` shape — `inv/red.ts`). `source`
+// is the Aura permanent itself, never the host: "you" in an Aura's ability
+// (CR 109.5 — "you" means the ability's controller; CR 611.2, the controller
+// of a continuous effect from a static ability is the controller of the
+// SOURCE) is the AURA'S controller — read via `source.controllerId` — which
+// can differ from the enchanted creature's controller after a control-change
+// effect on either permanent, so the host's `controllerId` must never be
+// substituted here. The enchanted creature is resolved via
+// `source.attachedTo`; its live
+// `isBlocking` flag (`PermanentView.isBlocking`, set at DECLARE_BLOCKERS,
+// cleared at END_OF_COMBAT — the same continuous read Righteousness's
+// "target blocking creature" targeting uses) is "it's blocking" (CR 509.1).
+// `countSnowLands` (`cards/snowReads.ts`, the read `arcticFoxes` already uses
+// for the identical "controls a snow land" clause) reads the aura
+// controller's OWN battlefield for "you control a snow land" (CR 205.4a).
+// `refreshCounterGatedStatics` re-runs this every SBA pass (`gre/sba.ts`,
+// `gre/state.ts`), so first strike is materialized into the host's
+// `staticAbilities` the moment blockers are declared and stripped back out
+// once combat ends — combat damage ordering (`dealsDamageIn`,
+// `gre/phases.ts`) reads that live array directly, not the printed
+// definition, so the grant is not the inert deathtouch/hexproof shape.
+function snowDevilFirstStrikeCondition(
+    source: PermanentView,
+    state: StaticEffectStateView
+): boolean {
+    const host = state.players
+        .flatMap((p) => p.battlefield)
+        .find((c) => c.id === source.attachedTo);
+    if (!host?.isBlocking) return false;
+    const controller = state.players.find((p) => p.id === source.controllerId);
+    return countSnowLands(controller?.battlefield ?? []) > 0;
+}
+
+// Snow Devil — Aura granting flying to the host (CR 611 keyword-grant), plus
+// a conditional first-strike grant while the host is blocking and the Aura's
+// controller controls a snow land (see `snowDevilFirstStrikeCondition`
+// above). Flying is unconditional, same shape as LEA's Flight.
 export const snowDevil: CardDefinition = {
     id: "2be3a9a5-2ac5-4ea4-915d-8cff35c0e72f",
     name: "Snow Devil",
@@ -2047,6 +2079,12 @@ export const snowDevil: CardDefinition = {
             kind: "keyword-grant",
             applies: AURA_AFFECTS_HOST,
             keyword: "flying",
+        },
+        {
+            kind: "keyword-grant",
+            applies: AURA_AFFECTS_HOST,
+            condition: snowDevilFirstStrikeCondition,
+            keyword: "first strike",
         },
     ],
 };

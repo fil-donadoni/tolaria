@@ -1,4 +1,5 @@
 import type { CardInstanceState, GameState } from "./state";
+import { refreshCounterGatedStatics } from "./state";
 import type {
     ManaCost,
     PermanentView,
@@ -95,6 +96,63 @@ export function recordAttackerDeclared(
 ): void {
     permanent.hasAttackedThisTurn = true;
     state.creatureAttackedThisTurn = true;
+}
+
+/** CR 509.1a / CR 613.1f — the blocker-side counterpart of
+ *  {@link markAttacking}: locks in every creature listed in
+ *  `combat.blockerAssignments` as a declared blocker, then IMMEDIATELY
+ *  re-materializes the continuous effects whose condition reads that fact.
+ *
+ *  Marking a blocker is THREE writes that must never drift apart:
+ *  - `isBlocking` — "is a blocking creature right now" (CR 509.1a). Read by
+ *    combat damage, `combatRoleFilter: "blocking"` targeting, the layer
+ *    system's `applies` predicates and the wire/UI.
+ *  - `hasBlockedThisTurn` — "blocked this combat" (CR 506.4 keeps it true
+ *    after the creature leaves combat). Read by Clockwork Beast / Clockwork
+ *    Avian's end-of-combat intervening-if and Fungal Bloom-style shroud.
+ *  - `refreshCounterGatedStatics` — a `keyword-grant` static effect carrying a
+ *    `condition` is MATERIALIZED into the affected permanent's
+ *    `staticAbilities` array, not recomputed at read time (`gre/state.ts`).
+ *    A condition that reads `isBlocking` (Snow Devil's "has first strike as
+ *    long as it's blocking and you control a snow land", CR 611.2c) is
+ *    therefore STALE for every read between the flag write and the next SBA
+ *    pass — and the CR 510.5 "skip the first-strike damage step" decision
+ *    (`anyCombatantHasFirstOrDoubleStrike`, `phases.ts`) is taken inside that
+ *    window whenever `drainAutoPasses` runs straight off a blocker
+ *    confirmation. The window is real and was shipped: with both seats
+ *    holding a standing Pass Turn intent, the drain reached `advancePhase`
+ *    before any SBA pass and FIRST_STRIKE_DAMAGE was skipped outright
+ *    (issue #1826 review).
+ *
+ *  Every "becomes a declared blocker" transition MUST route through this ONE
+ *  function — the `confirmBlockers` mutation (`game.ts`), the two auto-confirm
+ *  paths in `advancePhase` (camouflage + the no-legal-block fall-through,
+ *  `phases.ts`), the ISMCTS search sim (`search.ts`), the 1-ply greedy sim
+ *  (`applyMove.ts`), and the two `SpellContext` block writers (`swapBlockers`,
+ *  `applyCamouflagePileBlocks`, `state.ts`). Before it existed, all seven
+ *  hand-wrote the flags: three forgot `hasBlockedThisTurn` and SIX had no
+ *  refresh at all. Like {@link markAttacking}, the routing is CONVENTIONAL —
+ *  nothing enforces it mechanically, so a new site can still hand-write
+ *  `isBlocking`. A `scripts/__tests__` grep guard (no `isBlocking = true`
+ *  outside this function) would make it structural.
+ *
+ *  Idempotent, and keyed off `combat.blockerAssignments` rather than an id
+ *  list so a caller cannot mark a set that differs from the declaration
+ *  record. Callers own everything else about confirmation (setting
+ *  `blockersConfirmed`, `recordBlockedAttackers`, event emission) — those
+ *  differ per site, the flags do not. */
+export function markDeclaredBlockers(state: GameState): void {
+    if (!state.combat) return;
+    for (const blockerId of Object.keys(state.combat.blockerAssignments)) {
+        for (const player of state.players) {
+            const card = player.battlefield.find((c) => c.id === blockerId);
+            if (!card) continue;
+            card.isBlocking = true;
+            card.hasBlockedThisTurn = true;
+            break;
+        }
+    }
+    refreshCounterGatedStatics(state);
 }
 
 /** True when any permanent with the given card id is on any player's

@@ -64,7 +64,11 @@ import {
 import { cloneGameState } from "./clone";
 import { predictCombatOutcome } from "./dangerClock";
 import { recordBlockedAttackers } from "./banding";
-import { markAttacking, recordAttackerDeclared } from "./combat";
+import {
+    markAttacking,
+    markDeclaredBlockers,
+    recordAttackerDeclared,
+} from "./combat";
 import { enumerateMoves, type Move } from "./moves";
 import { manaValue } from "./constants";
 import { getInstanceManaCost } from "../cards";
@@ -688,10 +692,15 @@ export function applyMoveInSearch(
                 const byBlocker: Record<string, string[]> = {};
                 for (const { blockerId, attackerId } of move.assignments) {
                     (byBlocker[blockerId] ??= []).push(attackerId);
-                    const blocker = findCreature(state, blockerId);
-                    if (blocker) blocker.isBlocking = true;
                 }
                 state.combat.blockerAssignments = byBlocker;
+                // CR 509.1a — the ONE blocker-marking chokepoint, which also
+                // re-materializes the statics whose condition reads
+                // `isBlocking` (Snow Devil). Must run BEFORE `drainAutoPasses`
+                // below, exactly as in the `confirmBlockers` mutation: the
+                // drain can reach `advancePhase`'s CR 510.5 first-strike-step
+                // skip decision with no intervening SBA pass (issue #1826).
+                markDeclaredBlockers(state);
                 state.combat.pendingBlockerId = undefined;
                 state.combat.blockersConfirmed = true;
                 recordBlockedAttackers(state);
