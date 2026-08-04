@@ -45,7 +45,7 @@
 //       - Defiling Tears, Tsabo's Decree, Twilight's Call → tracked-by #1405
 //         (residual gaps surfaced while closing #1085: a temporary granted
 //         costed activated ability, a "choose a creature type" capability
-//         stacked with #1120's hand-sweep gap, and a pay-more-for-flash
+//         stacked with #2150's hand-sweep gap, and a pay-more-for-flash
 //         cast-timing rider, respectively — setColor itself, #1085's own
 //         Op, shipped and is no longer these cards' blocker).
 //       - Yawgmoth's Agenda → tracked-by #1238 (graveyard-cast permission +
@@ -1258,8 +1258,9 @@ export const tsabosAssassin: CardDefinition = {
 // distinct from `nameCard` (which names a printed CARD, not an abstract
 // creature type); (2) the mandatory hand-side bulk discard ("discards ALL
 // creature cards of that type", no player choice) is the SAME root cause
-// already tracked by #1120 (no hand-zone bulk discard-by-filter capability) —
-// shipping (1) alone would not unblock this card. Not invented; left a stub.
+// tracked by #2150 (no hand-zone bulk discard-by-filter capability; it was
+// #1120 gap 6b until that tracker was retired on 2026-08-04) — shipping (1)
+// alone would not unblock this card. Not invented; left a stub.
 // export const tsabosDecree: CardDefinition = {
 //     id: "0c1a0ebd-1add-49e6-b5e6-5b26abb1de88", // INV 129
 //     name: "Tsabo's Decree",

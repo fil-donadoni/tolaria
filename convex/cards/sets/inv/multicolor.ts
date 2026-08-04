@@ -1579,8 +1579,19 @@ export const shivanEmissary: CardDefinition = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────
-// Deferred (engine capability gaps) — BR (issue #1077, tracked-by #1120
-// unless otherwise noted)
+// BR tranche — deferred cards (issue #1077). Roll-up re-verified against
+// `main` @ 5ef6930c by the #1120 tracker audit (2026-08-04); #1120 itself is
+// retired and each card below now names its own live owner.
+//
+// Shipped since: Backlash (#1416 gave `tapUntap` a `bind`, so a LIVE target's
+// power can be snapshotted without moving it) and Tsabo Tavoc (#2113 gave
+// `gre/protection.ts` the CHARACTERISTIC quality form) — both are live
+// `CardDefinition`s in this file, Tsabo Tavoc just below.
+//
+// Still deferred: Cauldron Dance (#1418) and Pyre Zombie (#1419), whose
+// engine blockers turned out to be already closed — both are now plain card
+// work; Cinder Shade (#1417), the one genuine surviving engine gap; and Void
+// (#1421 + #2150), which needs two capabilities that do not exist yet.
 // ─────────────────────────────────────────────────────────────────────────
 
 // Cauldron Dance — {4}{B}{R} Instant. "Cast this spell only during combat.
@@ -1588,39 +1599,50 @@ export const shivanEmissary: CardDefinition = {
 // creature gains haste. Return it to your hand at the beginning of the next
 // end step. You may put a creature card from your hand onto the
 // battlefield. That creature gains haste. Its controller sacrifices it at
-// the beginning of the next end step." tracked-by: #1120 (the graveyard→
-// battlefield half is free — the announced-target `moveZone` shape's
-// `bind` captures the reanimated permanent for the haste grant + delayed
-// return, same idiom Spinal Embrace uses in this file. The HAND→battlefield
-// half is blocked: the choice-driven `moveZone(cards, from: "hand", to:
-// "battlefield")` shape has no `bind` field, so there is no way to capture
-// the newly-entered permanent's instance id for its own haste grant +
-// delayed sacrifice. Shipping only the graveyard half would silently drop
-// half the printed card, so the whole card waits.)
+// the beginning of the next end step." tracked-by: #1418 — NOT an engine gap
+// any more, just unwritten. The original note claimed the choice-driven
+// `moveZone(cards, from: "hand", to: "battlefield")` shape had no `bind`, so
+// the just-entered permanent could not be captured for its haste grant +
+// delayed sacrifice. #1151 added exactly that (`gre/effects/validate.ts`
+// gates `bind` on `to: "battlefield"` only — `from` is unconstrained), and
+// **Surprise Deployment** (`pls/white.ts`) ships the identical hand-side
+// clause line for line: `choice(kind: "choose-hand-card", bind)` →
+// `moveZone(cards, from: "hand", to: "battlefield", bind)` →
+// `delayedTrigger(capture)`. Sneak Attack (`usg/red.ts`) is the same shape
+// with the sacrifice flavour of the delayed trigger. The graveyard half was
+// always free (Spinal Embrace, this file). Assembly, not design.
 
 // Cinder Shade — {1}{B}{R} Creature — Shade, 1/1. "{B}: This creature gets
 // +1/+1 until end of turn. {R}, Sacrifice this creature: It deals damage
-// equal to its power to target creature." tracked-by: #1120 (the first
-// ability alone is a free self-pump, but the second needs the SACRIFICED
-// creature's own power as last-known information — no DSL Op has the
-// `$source`-after-cost-sacrifice LKI fallback the `counters` value member
-// carries (Powder Keg, issue #997); the identical shape already ships as
-// `resolve()`-only precedent, Freyalise Supplicant `ice/green.ts`, via
-// `ctx.getAdditionalSacrificePower()`. "Never ship silent partials" means
-// the whole card waits rather than shipping only the pump half.)
+// equal to its power to target creature." tracked-by: #1417 — the one gap of
+// the #1077 tranche still genuinely open, re-verified @ 5ef6930c. The first
+// ability alone is a free self-pump; the second needs the SACRIFICED
+// creature's own power as last-known information (CR 608.2h). `resolveValue`
+// reads `power`/`toughness` purely off a live binding with no LKI fallback,
+// and `$source` is not even bound when the source paid itself as a cost
+// (`runEffectScript` gates the snapshot on the source still having an owner)
+// — so `{ ref: "$source.power" }` is a silent CR 608.2b no-op. The `counters`
+// value member has exactly this fallback (Powder Keg, issue #997) and is the
+// shape to copy. The snapshot itself already exists
+// (`ctx.getAdditionalSacrificePower()`), with one consumer: Freyalise
+// Supplicant `ice/green.ts`, `resolve()`-only for want of a DSL skin.
+// "Never ship silent partials" means the whole card waits.
 
 // Pyre Zombie — {1}{B}{R} Creature — Zombie, 2/1. "At the beginning of your
 // upkeep, if this card is in your graveyard, you may pay {1}{B}{B}. If you
 // do, return it to your hand. {1}{R}{R}, Sacrifice this creature: It deals
-// 2 damage to any target." tracked-by: #1120 (the battlefield sac-for-
-// damage half is a free fixed-amount `dealDamage` — no power reference
-// needed, so it doesn't hit the Cinder Shade gap above. The upkeep
-// graveyard-recursion half needs a TRIGGERED ability that functions from
-// the graveyard (CR 603.6e) reading "while this card is in your graveyard"
-// — distinct from `activateFromGraveyard`, which only covers ACTIVATED
-// abilities; no such triggered-ability graveyard scan variant exists.
-// Shipping only the sac-damage half would silently drop the card's
-// signature recursion clause, so the whole card waits.)
+// 2 damage to any target." tracked-by: #1419 — the original premise was
+// simply WRONG, not merely stale: it claimed "no triggered-ability graveyard
+// scan variant exists". `collectTriggers` (`gre/triggers.ts`) scans graveyard
+// cards for `zone: "graveyard"` abilities against the ENTIRE event batch with
+// no event-type restriction, so a CR 603.6e upkeep trigger from the graveyard
+// fires. **Master of Death** (`mh2/multicolor.ts`) ships the identical Oracle
+// sentence in pure DSL — `zone: "graveyard"` + `event: "PHASE_BEGIN"` with an
+// UPKEEP/active-player `matches`, then `mayPay(bind)` → `if` →
+// `moveZone({ ref: "$source" }, to: "hand")` — differing from Pyre Zombie only
+// in the cost (1 life vs {1}{B}{B}, both shapes `mayPay` accepts). The
+// battlefield sac-for-damage half is a free fixed-amount `dealDamage`: no
+// power reference, so it never touched the Cinder Shade gap above.
 
 // Tsabo Tavoc — {5}{B}{R} Legendary Creature — Phyrexian Horror, 7/4.
 // "First strike, protection from legendary creatures. {B}{B}, {T}: Destroy
@@ -1683,14 +1705,19 @@ export const tsaboTavoc: CardDefinition = {
 // Void — {3}{B}{R} Sorcery. "Choose a number. Destroy all artifacts and
 // creatures with mana value equal to that number. Then target player
 // reveals their hand and discards all nonland cards with mana value equal
-// to the number." tracked-by: #1120 (the battlefield sweep half alone would
-// be buildable per fixed number via Powder Keg's `forEach` + `manaValue`
-// `if`-check idiom, but there is no general "choose a number" DSL primitive
-// to drive it, AND the hand-discard half needs a filtered, UNCHOSEN bulk
-// discard from a zone `forEach` has no "hand" set member for — `discard`
-// only ever consumes a `choice` Op's player-picked cards, never an
-// automatic mana-value sweep. Both halves are blocked on capabilities that
-// don't exist.)
+// to the number." tracked-by: #1421 (the `chooseNumber` primitive) AND #2150
+// (the hand-zone sweep) — the only card in the tranche still blocked on
+// capabilities that genuinely do not exist, re-verified @ 5ef6930c. The
+// battlefield sweep half alone would be buildable per FIXED number via Powder
+// Keg's `forEach` + `manaValue` `if`-check idiom, but there is no general
+// numeric player choice to drive it (the one precedent, Shapeshifter's
+// `resolveSteps` picker in `atq/colorless.ts`, is a bespoke fixed-range
+// `requestOptionChoice`, unreachable from a declarative script). The
+// hand-discard half needs a filtered, UNCHOSEN bulk discard: `forEach`'s
+// selector union has no "hand" member and `discard` only ever consumes a
+// `choice` Op's player-picked cards. Note the moveZone hand→graveyard sweep
+// is NOT a workaround — it bypasses `discardToGraveyard`, so CR 614
+// replacements, `CARD_DISCARDED` and madness would all silently not fire.
 
 // ─────────────────────────────────────────────────────────────────────────
 // Free tranche — RG (issue #1078, parent PRD #1063)
@@ -3577,26 +3604,31 @@ export const thunderscapeMaster: CardDefinition = {
 // Crosis, the Purger — {3}{U}{B}{R} Legendary Creature — Dragon, 6/6.
 // "Flying. Whenever Crosis deals combat damage to a player, you may pay
 // {2}{B}. If you do, choose a color, then that player reveals their hand
-// and discards all cards of that color." tracked-by: #1120 (the identical
-// root cause already catalogued as gap 6 for Void, `red.ts` this same set:
-// "`forEach`'s `select` union has no 'hand' set member, and `discard` only
-// consumes a `choice` Op's picks — there is no way to sweep a player's hand
-// for an UNCHOSEN, filter-matched bulk discard." `EffectCountSpec.zone` is
-// likewise restricted to `"battlefield" | "graveyard"` — no hand-zone count
-// either, so even a "reveal, then count matching cards" workaround is
-// unavailable. The flying body + trigger gate + `mayPay` + colour-choice
-// modal are all free; only the mandatory hand-side bulk discard blocks the
-// whole card.)
+// and discards all cards of that color." tracked-by: #2150 — the hand-zone
+// filter-matched access gap (`forEach`'s selector union has no "hand" member,
+// and `discard` only consumes a `choice` Op's picks, so an UNCHOSEN
+// filter-matched bulk discard has no shape). #2150 ships this card as its
+// discard-half consumer. The flying body, the trigger gate, `mayPay` and the
+// colour-choice modal are all free; only the mandatory hand-side bulk discard
+// blocks it. Correction to the note this replaced: `EffectCountSpec.zone`
+// DOES admit `"hand"` (issue #2006, Dark Suspicions) — what it rejects is a
+// `filter` on a hand count, which is Darigaaz's blocker just below, not this
+// card's.
 
 // Darigaaz, the Igniter — {3}{B}{R}{G} Legendary Creature — Dragon, 6/6.
 // "Flying. Whenever Darigaaz deals combat damage to a player, you may pay
 // {2}{R}. If you do, choose a color, then that player reveals their hand
 // and Darigaaz deals damage to the player equal to the number of cards of
-// that color revealed this way." tracked-by: #1120 (the SAME root cause as
-// Crosis above — "the number of cards of that color revealed this way"
-// needs a hand-zone, filter-matched `count`, which `EffectCountSpec` does
-// not support for `zone: "hand"`. `reveal`'s player/zone shape carries no
-// `bind`, so there is no snapshot to count off of either.)
+// that color revealed this way." tracked-by: #2150 — the same hand-zone
+// access gap as Crosis above, seen from the COUNT side rather than the
+// discard side. "The number of cards of that color revealed this way" needs a
+// filter-matched hand count: `EffectCountSpec.zone` does admit `"hand"`
+// (issue #2006), but the validator rejects `filter`/`countTypes` there, so a
+// hand count is cardinality-only. `reveal`'s player/zone shape carries no
+// `bind` either, so there is no snapshot to count off of. Note this card
+// chooses a COLOUR, not a number — it never touches #1421's `chooseNumber`;
+// the number is derived by counting. #2150 ships it as its count-half
+// consumer.
 
 // Nightscape Apprentice — {B} Creature — Zombie Wizard, 1/1. "{U}, {T}: Put
 // target creature you control on top of its owner's library. {R}, {T}:

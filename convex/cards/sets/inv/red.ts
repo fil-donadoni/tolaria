@@ -1097,7 +1097,7 @@ export const kavuRunner: CardDefinition = {
 // cost, CR 601.3c; five INV cards share this one gap), Turf Wound (#2145 —
 // per-PLAYER land-play restriction; the only lock today is global), Mages'
 // Contest (#1332 — bidding, a single-consumer line on the INV one-off bucket,
-// gated behind #2071's voting sequencer and #1120's choose-a-number).
+// gated behind #2071's voting sequencer and #1421's `chooseNumber`).
 // ─────────────────────────────────────────────────────────────────────────
 
 // Ancient Kavu — {3}{R} Creature — Kavu, 3/3. "{2}: This creature becomes
@@ -1304,10 +1304,11 @@ export const loafingGiant: CardDefinition = {
 // exists. The 2026-08-04 audit corrected #1095's "needs its own ADR from
 // scratch" premise — #2071 (will-of-the-council voting, CR 701.38) builds the
 // per-player sequential-suspend PendingChoice family, its client prompt and
-// its bot dispatch arm, and #1120 gap 6(a) owns "choose a number"; bidding is
+// its bot dispatch arm, and #1421 owns the `chooseNumber` primitive (it was
+// #1120 gap 6(a); #1120 was retired by its 2026-08-04 audit); bidding is
 // those two plus an unbounded loop terminated by a pass. Multi-suspend inside
 // one Op is NOT the blocker — `castDuringResolution` (effects/interpreter.ts)
-// and `divideIntoPiles` already do it. Do this after #2071 and #1120.
+// and `divideIntoPiles` already do it. Do this after #2071 and #1421.
 // Single-consumer (the only card in the catalogue that bids), so it is a line
 // on the INV one-off bucket rather than its own issue. tracked-by: #1332
 // export const magesContest: CardDefinition = {
