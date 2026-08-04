@@ -1565,9 +1565,20 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // AFK-ready too, not "need test first"). Net: total unchanged at 478,
         // FREE 310->311, AFK-ready 301->302, Op-blocked 154->153; X-only
         // unchanged at 14. Partition: 311+14+153=478.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(478);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(311);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(302);
+        //
+        // The `attacks-unblocked` delayed-trigger timing (CR 603.7a / 509.1h)
+        // REMOVES two closures instead of adding any: Delif's Cone and Delif's
+        // Cube each shipped an intentionally EMPTY `resolve() {}` standing in
+        // for the armed unblocked-attack rider the engine could not express.
+        // Both abilities are now pure Effect Scripts (`delayedTrigger` with
+        // the new timing), so the two closures are gone from the catalogue
+        // entirely. They were classified FREE/AFK-ready (empty bodies with a
+        // per-card test), which is where the deltas land. Net: total 478->476,
+        // FREE 311->309, AFK-ready 302->300; X-only unchanged at 14,
+        // Op-blocked unchanged at 153. Partition: 309+14+153=476.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(476);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(309);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(300);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(153);
     });

@@ -2215,6 +2215,13 @@ const DELAYED_TIMINGS = new Set([
     // turn (Forth Eorlingas!). Rejects both `targetPlayer` and `watch`, same
     // shape as "this-turn-creature-blocks".
     "this-turn-creature-deals-combat-damage-to-player",
+    // Instance unblocked-attack watch (CR 603.7a / 509.1h) — fires on the
+    // WATCHED permanent's ATTACKER_UNBLOCKED event ("This turn, when target
+    // creature you control attacks and isn't blocked, …", Delif's Cone /
+    // Cube). Instance-scoped like the leave-watches: requires `watch`, rejects
+    // `targetPlayer`, dequeued by firing, purged at CLEANUP (the "this turn"
+    // bound, CR 514.2).
+    "attacks-unblocked",
 ]);
 
 function isDelayedTiming(value: unknown): boolean {
@@ -3620,22 +3627,25 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                     `field "targetPlayer" is only valid with the player-scoped timings "next-draw-step" / "next-main-phase"`
                 );
             }
-            // CR 603.7a / 603.10 (issues #731 / #1470) — BOTH instance
-            // leave-watch timings fire on a specific watched permanent, so
-            // both demand `watch`; the phase-boundary timings fire at a step
-            // and reject it. The two differ only in their turn bound (the
-            // CLEANUP purge, phases.ts), never in their required fields.
-            const leaveWatch =
+            // CR 603.7a / 603.10 (issues #731 / #1470) / 509.1h — every
+            // INSTANCE-SCOPED timing fires on one specific watched permanent,
+            // so each demands `watch`; the phase-boundary and repeating
+            // combat-watch timings fire at a step / on any creature and reject
+            // it. The instance-scoped timings differ only in their firing
+            // EVENT (PERMANENT_LEFT vs ATTACKER_UNBLOCKED) and their turn
+            // bound (the CLEANUP purge, phases.ts), never in required fields.
+            const instanceScoped =
                 entry.timing === "leaves-battlefield" ||
-                entry.timing === "leaves-battlefield-indefinite";
-            if (leaveWatch && !("watch" in entry)) {
+                entry.timing === "leaves-battlefield-indefinite" ||
+                entry.timing === "attacks-unblocked";
+            if (instanceScoped && !("watch" in entry)) {
                 errors.push(
                     `timing "${String(entry.timing)}" is instance-scoped (CR 603.7a) — field "watch" is required`
                 );
             }
-            if (!leaveWatch && "watch" in entry) {
+            if (!instanceScoped && "watch" in entry) {
                 errors.push(
-                    `field "watch" is only valid with the instance leave-watch timings "leaves-battlefield" / "leaves-battlefield-indefinite"`
+                    `field "watch" is only valid with the instance-scoped timings "leaves-battlefield" / "leaves-battlefield-indefinite" / "attacks-unblocked"`
                 );
             }
             return errors;

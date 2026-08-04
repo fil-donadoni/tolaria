@@ -497,6 +497,36 @@ export function collectTriggers(
         state.delayedTriggers = remaining.length > 0 ? remaining : undefined;
     }
 
+    // CR 603.7a / 509.1h — instance UNBLOCKED-ATTACK watch delayed triggers.
+    // An `timing: "attacks-unblocked"` instance ("This turn, when target
+    // creature you control attacks and isn't blocked, …" — Delif's Cone /
+    // Cube) fires when its watched instance is among the attackers that went
+    // unblocked, i.e. on that instance's ATTACKER_UNBLOCKED event, emitted
+    // once per unblocked attacker when blockers are confirmed. Same shape as
+    // the leave-watch above — matched against the ids in THIS event batch,
+    // dequeued by firing ("when", not "whenever") so it can't fire twice, and
+    // purged at CLEANUP if it never fired (the "this turn" bound, CR 514.2).
+    const unblockedAttackerIds = new Set<string>();
+    for (const ev of events) {
+        if (ev.type === "ATTACKER_UNBLOCKED")
+            unblockedAttackerIds.add(ev.attackerId);
+    }
+    if (state.delayedTriggers?.length && unblockedAttackerIds.size > 0) {
+        const remaining: DelayedTriggerInstance[] = [];
+        for (const t of state.delayedTriggers) {
+            const fires =
+                t.timing === "attacks-unblocked" &&
+                t.watchInstanceId !== undefined &&
+                unblockedAttackerIds.has(t.watchInstanceId);
+            if (fires) {
+                out.push(buildDelayedTriggerStackItem(state, t));
+            } else {
+                remaining.push(t);
+            }
+        }
+        state.delayedTriggers = remaining.length > 0 ? remaining : undefined;
+    }
+
     // CR 603.7d / 603.10 (issue #884) — repeating combat-event delayed
     // triggers: a `timing: "this-turn-creature-blocks"` instance (Battle Cry)
     // fires once per BLOCKERS_CONFIRMED event in THIS batch, for the rest of
