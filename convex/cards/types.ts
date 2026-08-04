@@ -4987,6 +4987,25 @@ export interface PermanentView {
      *  The trigger system passes the raw `CardInstanceState` as `self`, so this
      *  flag is populated for trigger predicates. */
     isSummoningSick?: boolean;
+    /** CR 400.7 — the turn number on which this object ENTERED the battlefield
+     *  (`CardInstanceState.enteredOnTurn`, stamped by `markEnteredThisTurn`).
+     *  Deliberately NOT interchangeable with {@link isSummoningSick}: gaining
+     *  control of a permanent re-sets summoning sickness but is not entering
+     *  the battlefield, and summoning sickness survives the whole of the
+     *  opponent's turn. Compare against `StaticEffectStateView.turn` for an
+     *  "entered this turn" gate (Chaos Lord's "can attack as though it had
+     *  haste UNLESS it entered this turn"). Undefined on a permanent that
+     *  carries no entry stamp (anything staged without going through
+     *  `markEnteredThisTurn`) — that is "unknown", NOT "entered on an earlier
+     *  turn". A gate reading this field MUST require it to be defined before
+     *  concluding anything, and resolve the undefined case the conservative
+     *  way: for a permission GRANT that means withholding the permission.
+     *  `enteredOnTurn !== state.turn` alone is a fail-OPEN bug — `undefined`
+     *  compares unequal to every turn number.
+     *  Survives the wire projection: `SlimCardInstance` is
+     *  `Omit<CardInstanceState, "card">`, so the stamp reads identically
+     *  server-side and after `projectPublicState`. */
+    enteredOnTurn?: number;
     /** CR 702.30a — Echo: true while this permanent still owes its echo cost
      *  (it came under its controller's control and has not yet had its first
      *  upkeep under that control). Read by the echo trigger's CR 603.4d
@@ -5202,6 +5221,24 @@ export interface StaticEffectStateView {
      *  anthem emblem reads identically server-side and after
      *  `projectPublicState`. */
     emblems?: ReadonlyArray<EmblemInstance>;
+    /** `GameState.turn` — the global per-player-turn counter (turn 1 = player
+     *  one's first turn, turn 2 = player two's first turn, …), exposed so a
+     *  CR 611.2c "as long as ..." gate can compare it against a permanent's
+     *  {@link PermanentView.enteredOnTurn} entry stamp (CR 400.7) — Chaos
+     *  Lord's "can attack as though it had haste UNLESS it entered this turn".
+     *  Survives the wire projection unchanged (a top-level `GameState` field
+     *  `projectPublicState` copies verbatim), so the gate reads identically
+     *  server-side and client-side.
+     *
+     *  OPTIONAL — the same "read best-effort" shape as `activePlayerId` /
+     *  `hand` above, because not every literal constructor of this view has a
+     *  turn number on hand (`gre/constants.ts`'s `manaLayerView` builds a
+     *  battlefields-only view for a mana ability's P/T read). Every
+     *  `condition` closure reading this field MUST treat `undefined` as
+     *  "unknown" and resolve the gate the CONSERVATIVE way — for a keyword
+     *  GRANT that means withholding the keyword, never handing out a
+     *  permission the real board might not allow. */
+    turn?: number;
 }
 
 /** Read-only board snapshot for a `CardDefinition.entersTappedUnless`
