@@ -670,12 +670,15 @@ export const icatianScoutFemD: CardPrint = {
     rarity: "common",
 };
 
-// DIVERGENCE (tracked #974): the "Whenever this creature attacks, all creatures
-// banded with it gain first strike until end of turn" trigger is NOT modelled.
-// It requires enumerating the attacking band's members at trigger time (CR
-// 702.22 banding), a capability the engine doesn't yet expose to a trigger. The
-// printed first strike + banding keywords ship; the band-wide first-strike grant
-// is deferred rather than silently dropped.
+// DIVERGENCE (tracked-by: #2119): the "Whenever this creature attacks, all
+// creatures banded with it gain first strike until end of turn" trigger is NOT
+// modelled; the printed first strike + banding keywords ship. The band members
+// themselves ARE in game state — `combat.bands[].memberIds` (CR 702.21e),
+// populated when attackers are declared — so what is missing is narrower than
+// the original note claimed: a `bandMembers` member of the `EffectListSelector`
+// vocabulary (`cards/types.ts`), whose own doc says it is meant to grow one set
+// at a time. Body would then be a `forEach` over the members with the shipped
+// `grantAbility` Op.
 export const icatianSkirmishers: CardDefinition = {
     id: "15f6d115-c02d-45a3-aa6d-402964df47dd", // FEM 14
     rarity: "uncommon",

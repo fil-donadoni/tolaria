@@ -342,9 +342,11 @@ const IS_NONCREATURE_ARTIFACT: (
 // reverts the type/ability changes immediately (the standard
 // `unapplySourceStaticEffects` path). This is observable only in the window
 // between the Song leaving and the cleanup step; the common play pattern keeps
-// the Song in play, so the simplification is acceptable for ATQ scope. A
-// general "linger this continuous effect until EOT on source-leave" duration is
-// deferred to a later tranche (tracked #974).
+// the Song in play, so the simplification is acceptable for ATQ scope. The
+// missing piece is a "this continuous effect survives its own source until end
+// of turn" DURATION — a lifetime that can only exist once continuous effects
+// are materialised with their own timestamp and duration rather than recomputed
+// from the live battlefield sources (tracked-by: #2064, ADR 0082).
 export const titaniasSong: CardDefinition = {
     id: "583a53af-2e2a-4f3f-8eab-bd874c6ed80a",
     rarity: "uncommon",

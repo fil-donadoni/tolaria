@@ -367,10 +367,20 @@ export const demonicTutor: CardDefinition = {
 
 // Drain Life — "Drain Life deals X damage to any target. You gain life equal
 // to the damage dealt." (CR 107.3 for X, CR 120.1 for damage, CR 118.3 for
-// life gain). DIVERGENCE (tracked #974): the "Spend only black mana on X"
-// payment restriction AND the life-gain sub-cap ("not more than the target's
-// toughness / life total …") are both unmodelled — X is treated as generic
-// (matching Fireball) and life gained is exactly X. Deferred, not silent.
+// life gain). Two SEPARATE unmodelled clauses, tracked apart because they are
+// different capabilities:
+//
+// DIVERGENCE (tracked-by: #1330): "Spend only black mana on X" — X is treated
+// as generic (matching Fireball). Same colour-restricted-X-payment capability
+// Atalya, Samite Master needs.
+//
+// DIVERGENCE (tracked-by: #974): the life-gain sub-cap — "you gain life equal
+// to the damage dealt, BUT NOT MORE THAN the player's life total / the
+// planeswalker's loyalty / the creature's toughness before the damage" — needs
+// a damage-DEALT readback no Op surfaces; life gained is exactly X today.
+// Shared with Soul Burn (`ice/black.ts`), which models its own {B}-spent cap
+// but drops these same three.
+//
 // Mana cost is {X}{1}{B} (MTGJSON LEA.json, mana value 2) — the fixed {1}
 // generic pip alongside the variable {X} uses `generic` (Soul Burn's
 // `{X}{2}{B}` shape, ice/black.ts), found missing by the widened
