@@ -217,12 +217,22 @@ describe("canRefundManaTap keys on the producing ability's own bucket (issue #17
     });
 
     it("Mishra's Workshop — its bucket is empty but the FUNGIBLE pool happens to hold {C}{C}{C} → NO refund (that mana is not its to give back)", () => {
-        // Reachable: tap the Workshop in precombat main, let the step end
-        // (CR 500.4 empties both pools) leaving it tapped and uncommitted,
-        // then tap Basalt Monolith in combat for three fungible {C}.
+        // Reachable: the Workshop is tapped BY AN EFFECT, not tapped for mana
+        // — an opponent's Icy Manipulator ("{1}, {T}: Tap target artifact,
+        // creature, or land", `lea/colorless.ts`) — so it produced nothing and
+        // `manaCommitted` stays unset. Meanwhile its controller taps Basalt
+        // Monolith for three fungible {C}.
+        //
+        // NOT reachable by letting the step end: `emptyManaPools`
+        // (`gre/phases.ts`) sets `manaCommitted = true` on EVERY tapped
+        // battlefield card and clears `restrictedMana` outright, so down that
+        // path `canRefundManaTap` returns false at its first guard and never
+        // reaches the pool check this test is about.
+        //
         // A spend-eligibility check gets this WRONG: `spendablePoolForAbility`
         // merges the fungible pool in and reports coverage, offering a free
-        // untap — the exact hazard this predicate exists to prevent.
+        // untap of a source that never produced that mana — the exact hazard
+        // this predicate exists to prevent.
         const { me, card } = projectedTappedSource(MISHRAS_WORKSHOP, {
             manaPool: { C: 3 },
         });
@@ -237,9 +247,14 @@ describe("canRefundManaTap keys on the producing ability's own bucket (issue #17
     });
 
     it("Basalt Monolith (unrestricted) — fungible pool empty, only somebody else's artifact-ability bucket floating → NO refund", () => {
-        // Reachable: tap the Monolith in precombat main, let the step end
-        // (CR 500.4) leaving it tapped and uncommitted, then tap two Soldevi
-        // Machinists in combat for four restricted {C}.
+        // Reachable by the same route as the Workshop case above: the Monolith
+        // is tapped BY AN EFFECT (an opponent's Icy Manipulator targets an
+        // artifact just as happily as a land), so it produced nothing and
+        // `manaCommitted` stays unset, while its controller taps two Soldevi
+        // Machinists for four restricted {C}. Again NOT reachable via a step
+        // boundary — `emptyManaPools` would both commit the Monolith and wipe
+        // the bucket this test needs floating.
+        //
         // A spend-eligibility check gets this WRONG too, in the opposite
         // direction: the Monolith IS an Artifact, so `artifact-ability` mana
         // reads as eligible and the refund is offered for mana the Monolith
