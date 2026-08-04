@@ -25,6 +25,7 @@
         "test:blade:stretch": "BLADE_TIER=stretch vitest run --config vitest.blade.config.ts",
         "selfplay": "SELFPLAY=1 vitest run src/lib/ai/selfplay/harness.bot.test.ts",
         "ladder": "bun scripts/ladder.ts",
+        "queue:plan": "bun scripts/queue-plan.ts",
         "check:all": "bun scripts/gate.ts heavy 'bun run check:all:inner'",
         "check:pr": "bun scripts/gate.ts light 'bun run check:all:inner && bun run check:guards'",
         "worktree:init": "bun scripts/bootstrap-worktree.ts",

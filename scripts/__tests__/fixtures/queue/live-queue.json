@@ -1,0 +1,1443 @@
+[
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACbI7kPg",
+                "name": "enhancement",
+                "description": "New feature or request",
+                "color": "a2eeef"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            }
+        ],
+        "number": 2188,
+        "parent": {
+            "id": "I_kwDORlUxjc8AAAABLbjIig",
+            "number": 2180,
+            "state": "OPEN",
+            "title": "PRD: Agent workflow modernization — deterministic graph, durable receipts, runtime policy",
+            "url": "https://github.com/fil-donadoni/tolaria/issues/2180"
+        },
+        "title": "feat: queue lint — reject malformed issues before they are claimed",
+        "updatedAt": "2026-08-04T15:19:07Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACbI7kPg",
+                "name": "enhancement",
+                "description": "New feature or request",
+                "color": "a2eeef"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            }
+        ],
+        "number": 2187,
+        "parent": {
+            "id": "I_kwDORlUxjc8AAAABLbjIig",
+            "number": 2180,
+            "state": "OPEN",
+            "title": "PRD: Agent workflow modernization — deterministic graph, durable receipts, runtime policy",
+            "url": "https://github.com/fil-donadoni/tolaria/issues/2180"
+        },
+        "title": "feat: loop scorecard — turn telemetry + receipts into pinned metrics",
+        "updatedAt": "2026-08-04T15:19:06Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACbI7kPg",
+                "name": "enhancement",
+                "description": "New feature or request",
+                "color": "a2eeef"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            }
+        ],
+        "number": 2185,
+        "parent": {
+            "id": "I_kwDORlUxjc8AAAABLbjIig",
+            "number": 2180,
+            "state": "OPEN",
+            "title": "PRD: Agent workflow modernization — deterministic graph, durable receipts, runtime policy",
+            "url": "https://github.com/fil-donadoni/tolaria/issues/2180"
+        },
+        "title": "feat: merge-train order computed from receipt conflict graph",
+        "updatedAt": "2026-08-04T15:19:03Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACbI7kPg",
+                "name": "enhancement",
+                "description": "New feature or request",
+                "color": "a2eeef"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            }
+        ],
+        "number": 2183,
+        "parent": {
+            "id": "I_kwDORlUxjc8AAAABLbjIig",
+            "number": 2180,
+            "state": "OPEN",
+            "title": "PRD: Agent workflow modernization — deterministic graph, durable receipts, runtime policy",
+            "url": "https://github.com/fil-donadoni/tolaria/issues/2180"
+        },
+        "title": "feat: loop invariants as runtime policy hooks (deny merge/force-push/pager-masked gate, claim sweep)",
+        "updatedAt": "2026-08-04T15:17:35Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACbI7kPg",
+                "name": "enhancement",
+                "description": "New feature or request",
+                "color": "a2eeef"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACp2Gu2g",
+                "name": "model:opus",
+                "description": "Implement-subagent runs on Opus",
+                "color": "1d76db"
+            }
+        ],
+        "number": 2182,
+        "parent": {
+            "id": "I_kwDORlUxjc8AAAABLbjIig",
+            "number": 2180,
+            "state": "OPEN",
+            "title": "PRD: Agent workflow modernization — deterministic graph, durable receipts, runtime policy",
+            "url": "https://github.com/fil-donadoni/tolaria/issues/2180"
+        },
+        "title": "feat: subagent receipts as durable artifacts (typed contract + SubagentStop persistence)",
+        "updatedAt": "2026-08-04T15:19:28Z"
+    },
+    {
+        "assignees": [
+            {
+                "id": "U_kgDOBwBK6A",
+                "login": "fil-donadoni",
+                "name": "Filippo Donadoni",
+                "databaseId": 117459688
+            }
+        ],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACbI7kPg",
+                "name": "enhancement",
+                "description": "New feature or request",
+                "color": "a2eeef"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACnqRstA",
+                "name": "in-progress",
+                "description": "Claimed by an agent currently working it",
+                "color": "FBCA04"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACp2Gu2g",
+                "name": "model:opus",
+                "description": "Implement-subagent runs on Opus",
+                "color": "1d76db"
+            }
+        ],
+        "number": 2181,
+        "parent": {
+            "id": "I_kwDORlUxjc8AAAABLbjIig",
+            "number": 2180,
+            "state": "OPEN",
+            "title": "PRD: Agent workflow modernization — deterministic graph, durable receipts, runtime policy",
+            "url": "https://github.com/fil-donadoni/tolaria/issues/2180"
+        },
+        "title": "feat: deterministic queue planner — compute the batch instead of deriving it",
+        "updatedAt": "2026-08-04T15:21:15Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACbI7kCQ",
+                "name": "bug",
+                "description": "Something isn't working",
+                "color": "d73a4a"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            }
+        ],
+        "number": 2179,
+        "parent": null,
+        "title": "[engine] grantedSubtypes / grantedColors / grantedSupertypes survive the TARGET leaving the battlefield (CR 400.7) — sibling of #2086",
+        "updatedAt": "2026-08-04T14:58:48Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACbI7kCQ",
+                "name": "bug",
+                "description": "Something isn't working",
+                "color": "d73a4a"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            }
+        ],
+        "number": 2178,
+        "parent": null,
+        "title": "[engine] Face-down exile mask is a deny-list — fails open on a new field or a graveyard-origin exile",
+        "updatedAt": "2026-08-04T14:58:21Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACbI7kCQ",
+                "name": "bug",
+                "description": "Something isn't working",
+                "color": "d73a4a"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            }
+        ],
+        "number": 2177,
+        "parent": null,
+        "title": "[engine] castPhaseRestriction unenforced on resolution-time casts (castChosenSpell / castFaceDown)",
+        "updatedAt": "2026-08-04T14:57:54Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            }
+        ],
+        "number": 2173,
+        "parent": {
+            "id": "I_kwDORlUxjc8AAAABLaVq5g",
+            "number": 2162,
+            "state": "OPEN",
+            "title": "PRD: The Manual Board runs on the real board's shell, not its own",
+            "url": "https://github.com/fil-donadoni/tolaria/issues/2162"
+        },
+        "title": "Switch seat in a solo Manual Game",
+        "updatedAt": "2026-08-04T13:15:01Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            }
+        ],
+        "number": 2172,
+        "parent": {
+            "id": "I_kwDORlUxjc8AAAABLaVq5g",
+            "number": 2162,
+            "state": "OPEN",
+            "title": "PRD: The Manual Board runs on the real board's shell, not its own",
+            "url": "https://github.com/fil-donadoni/tolaria/issues/2162"
+        },
+        "title": "The manual log becomes a collapsed surface, not a docked rail",
+        "updatedAt": "2026-08-04T13:15:00Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            }
+        ],
+        "number": 2171,
+        "parent": {
+            "id": "I_kwDORlUxjc8AAAABLaVq5g",
+            "number": 2162,
+            "state": "OPEN",
+            "title": "PRD: The Manual Board runs on the real board's shell, not its own",
+            "url": "https://github.com/fil-donadoni/tolaria/issues/2162"
+        },
+        "title": "Render manual arrows and attachment clusters",
+        "updatedAt": "2026-08-04T13:14:40Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            }
+        ],
+        "number": 2170,
+        "parent": {
+            "id": "I_kwDORlUxjc8AAAABLaVq5g",
+            "number": 2162,
+            "state": "OPEN",
+            "title": "PRD: The Manual Board runs on the real board's shell, not its own",
+            "url": "https://github.com/fil-donadoni/tolaria/issues/2162"
+        },
+        "title": "Anchored popovers replace the manual verbs' native prompts",
+        "updatedAt": "2026-08-04T13:14:38Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACp2Gu2g",
+                "name": "model:opus",
+                "description": "Implement-subagent runs on Opus",
+                "color": "1d76db"
+            }
+        ],
+        "number": 2169,
+        "parent": {
+            "id": "I_kwDORlUxjc8AAAABLaVq5g",
+            "number": 2162,
+            "state": "OPEN",
+            "title": "PRD: The Manual Board runs on the real board's shell, not its own",
+            "url": "https://github.com/fil-donadoni/tolaria/issues/2162"
+        },
+        "title": "The swap: the Manual Board renders on the shared board shell",
+        "updatedAt": "2026-08-04T13:14:17Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            }
+        ],
+        "number": 2168,
+        "parent": {
+            "id": "I_kwDORlUxjc8AAAABLaVq5g",
+            "number": 2162,
+            "state": "OPEN",
+            "title": "PRD: The Manual Board runs on the real board's shell, not its own",
+            "url": "https://github.com/fil-donadoni/tolaria/issues/2162"
+        },
+        "title": "Manual state adapter and Full Catalogue row classifier (pure)",
+        "updatedAt": "2026-08-04T13:13:52Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            }
+        ],
+        "number": 2167,
+        "parent": {
+            "id": "I_kwDORlUxjc8AAAABLaVq5g",
+            "number": 2162,
+            "state": "OPEN",
+            "title": "PRD: The Manual Board runs on the real board's shell, not its own",
+            "url": "https://github.com/fil-donadoni/tolaria/issues/2162"
+        },
+        "title": "Make the controller's action descriptors injectable",
+        "updatedAt": "2026-08-04T13:13:39Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACp2Gu2g",
+                "name": "model:opus",
+                "description": "Implement-subagent runs on Opus",
+                "color": "1d76db"
+            }
+        ],
+        "number": 2166,
+        "parent": {
+            "id": "I_kwDORlUxjc8AAAABLaVq5g",
+            "number": 2162,
+            "state": "OPEN",
+            "title": "PRD: The Manual Board runs on the real board's shell, not its own",
+            "url": "https://github.com/fil-donadoni/tolaria/issues/2162"
+        },
+        "title": "Make the battlefield's interaction hook and row classifier injectable",
+        "updatedAt": "2026-08-04T13:13:23Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACp2Gu2g",
+                "name": "model:opus",
+                "description": "Implement-subagent runs on Opus",
+                "color": "1d76db"
+            }
+        ],
+        "number": 2165,
+        "parent": {
+            "id": "I_kwDORlUxjc8AAAABLaVq5g",
+            "number": 2162,
+            "state": "OPEN",
+            "title": "PRD: The Manual Board runs on the real board's shell, not its own",
+            "url": "https://github.com/fil-donadoni/tolaria/issues/2162"
+        },
+        "title": "Extract the spatial board skeleton into a presentational BoardSurface",
+        "updatedAt": "2026-08-04T13:13:06Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACbI7kCQ",
+                "name": "bug",
+                "description": "Something isn't working",
+                "color": "d73a4a"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACnfl8dQ",
+                "name": "needs-triage",
+                "description": "Maintainer needs to evaluate",
+                "color": "FBCA04"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACp2Gu2g",
+                "name": "model:opus",
+                "description": "Implement-subagent runs on Opus",
+                "color": "1d76db"
+            }
+        ],
+        "number": 2161,
+        "parent": null,
+        "title": "fix: Guard B ignores SIMPLIFICATION markers, hiding 30 dropped clauses",
+        "updatedAt": "2026-08-04T12:43:35Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACbI7kCQ",
+                "name": "bug",
+                "description": "Something isn't working",
+                "color": "d73a4a"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACnfl8dQ",
+                "name": "needs-triage",
+                "description": "Maintainer needs to evaluate",
+                "color": "FBCA04"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACp2GueA",
+                "name": "model:sonnet",
+                "description": "Implement-subagent runs on Sonnet",
+                "color": "c2e0c6"
+            }
+        ],
+        "number": 2160,
+        "parent": null,
+        "title": "fix: Dire Wolves grants banding unconditionally, ignoring the Plains gate",
+        "updatedAt": "2026-08-04T12:34:44Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            }
+        ],
+        "number": 2152,
+        "parent": null,
+        "title": "[card] Overabundance — plain card ship, both #1123 capability gaps were wrong premises (Mana Flare + Manabarbs already shipped)",
+        "updatedAt": "2026-08-04T09:17:56Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACp2Gu2g",
+                "name": "model:opus",
+                "description": "Implement-subagent runs on Opus",
+                "color": "1d76db"
+            }
+        ],
+        "number": 2150,
+        "parent": null,
+        "title": "[engine] Hand-zone filter-matched access: unchosen bulk discard + filtered hand count — Crosis, the Purger / Darigaaz, the Igniter (#1120 gap 6b)",
+        "updatedAt": "2026-08-04T08:36:55Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            }
+        ],
+        "number": 2148,
+        "parent": null,
+        "title": "[bot] specFromState: lower a live position into a ScenarioSpec (\"Copy as scenario\")",
+        "updatedAt": "2026-08-04T08:08:57Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACbI7kCQ",
+                "name": "bug",
+                "description": "Something isn't working",
+                "color": "d73a4a"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            }
+        ],
+        "number": 2147,
+        "parent": null,
+        "title": "[bot] ScenarioSpec cannot express life totals — blocks every life-dependent blade entry",
+        "updatedAt": "2026-08-04T08:08:55Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACp2Gu2g",
+                "name": "model:opus",
+                "description": "Implement-subagent runs on Opus",
+                "color": "1d76db"
+            }
+        ],
+        "number": 2146,
+        "parent": null,
+        "title": "[engine] Conditional flash for an additional cost (CR 601.3c) — 'cast as though it had flash if you pay {2} more'; 5 INV cards, 5 fragmented trackers",
+        "updatedAt": "2026-08-04T08:00:30Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            }
+        ],
+        "number": 2145,
+        "parent": null,
+        "title": "[engine] Per-player land-play restriction (CR 305.1 / 101.2) — the only lock today is global; surfaced by Turf Wound",
+        "updatedAt": "2026-08-04T07:56:10Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            }
+        ],
+        "number": 2142,
+        "parent": null,
+        "title": "[engine] Instance-scoped repeating combat-damage delayed trigger + damage amount (CR 603.7d) — Vigorous Charge",
+        "updatedAt": "2026-08-04T06:45:11Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            }
+        ],
+        "number": 2141,
+        "parent": null,
+        "title": "[engine] Kicker {X}: an additional cost with a variable X (CR 107.3a / 702.33a) — Verdeloth the Ancient",
+        "updatedAt": "2026-08-04T06:45:10Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            }
+        ],
+        "number": 2140,
+        "parent": null,
+        "title": "[card] Ship Scouting Trek — search for any number of basics, shuffle, put on top (CR 701.24b / 401.4)",
+        "updatedAt": "2026-08-04T06:45:09Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACbI7kCQ",
+                "name": "bug",
+                "description": "Something isn't working",
+                "color": "d73a4a"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            }
+        ],
+        "number": 2137,
+        "parent": null,
+        "title": "buybackPaid survives a countered spell into the graveyard — buyback cost defeated on every recast",
+        "updatedAt": "2026-08-03T20:45:08Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACbI7kPg",
+                "name": "enhancement",
+                "description": "New feature or request",
+                "color": "a2eeef"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            }
+        ],
+        "number": 2133,
+        "parent": {
+            "id": "I_kwDORlUxjc8AAAABIHvH-A",
+            "number": 1009,
+            "state": "OPEN",
+            "title": "4ED completion — umbrella: 17 cards, re-verified into authoring / primitive / capability buckets",
+            "url": "https://github.com/fil-donadoni/tolaria/issues/1009"
+        },
+        "title": "[engine] ADR 0090 — battlefield-scanned combat-damage prevention with a direction axis (CR 615)",
+        "updatedAt": "2026-08-03T20:15:42Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACbI7kPg",
+                "name": "enhancement",
+                "description": "New feature or request",
+                "color": "a2eeef"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            }
+        ],
+        "number": 2132,
+        "parent": {
+            "id": "I_kwDORlUxjc8AAAABIHvH-A",
+            "number": 1009,
+            "state": "OPEN",
+            "title": "4ED completion — umbrella: 17 cards, re-verified into authoring / primitive / capability buckets",
+            "url": "https://github.com/fil-donadoni/tolaria/issues/1009"
+        },
+        "title": "[engine] attachmentStatus target filter — enchanted vs unenchanted (CR 702 attachment)",
+        "updatedAt": "2026-08-03T20:15:39Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACbI7kPg",
+                "name": "enhancement",
+                "description": "New feature or request",
+                "color": "a2eeef"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            }
+        ],
+        "number": 2131,
+        "parent": {
+            "id": "I_kwDORlUxjc8AAAABIHvH-A",
+            "number": 1009,
+            "state": "OPEN",
+            "title": "4ED completion — umbrella: 17 cards, re-verified into authoring / primitive / capability buckets",
+            "url": "https://github.com/fil-donadoni/tolaria/issues/1009"
+        },
+        "title": "[engine] Duration-scoped combat restrictions (DurationSpec on can't-attack/block, CR 611.2b)",
+        "updatedAt": "2026-08-03T20:15:37Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACbI7kPg",
+                "name": "enhancement",
+                "description": "New feature or request",
+                "color": "a2eeef"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            }
+        ],
+        "number": 2130,
+        "parent": {
+            "id": "I_kwDORlUxjc8AAAABIHvH-A",
+            "number": 1009,
+            "state": "OPEN",
+            "title": "4ED completion — umbrella: 17 cards, re-verified into authoring / primitive / capability buckets",
+            "url": "https://github.com/fil-donadoni/tolaria/issues/1009"
+        },
+        "title": "[engine] bind on the draw Op — name the card that was actually drawn",
+        "updatedAt": "2026-08-03T20:15:35Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACbI7kPg",
+                "name": "enhancement",
+                "description": "New feature or request",
+                "color": "a2eeef"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            }
+        ],
+        "number": 2129,
+        "parent": {
+            "id": "I_kwDORlUxjc8AAAABIHvH-A",
+            "number": 1009,
+            "state": "OPEN",
+            "title": "4ED completion — umbrella: 17 cards, re-verified into authoring / primitive / capability buckets",
+            "url": "https://github.com/fil-donadoni/tolaria/issues/1009"
+        },
+        "title": "[engine] Parametric attack sacrifice tax — filter + countPerAttacker, un-hardcode landFilter",
+        "updatedAt": "2026-08-03T20:15:33Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACbI7kPg",
+                "name": "enhancement",
+                "description": "New feature or request",
+                "color": "a2eeef"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            }
+        ],
+        "number": 2128,
+        "parent": {
+            "id": "I_kwDORlUxjc8AAAABIHvH-A",
+            "number": 1009,
+            "state": "OPEN",
+            "title": "4ED completion — umbrella: 17 cards, re-verified into authoring / primitive / capability buckets",
+            "url": "https://github.com/fil-donadoni/tolaria/issues/1009"
+        },
+        "title": "[engine] Undirected attack mana tax (appliesTo axis on attack-mana-tax, CR 508.1c)",
+        "updatedAt": "2026-08-03T20:15:31Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACbI7kPg",
+                "name": "enhancement",
+                "description": "New feature or request",
+                "color": "a2eeef"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            }
+        ],
+        "number": 2127,
+        "parent": {
+            "id": "I_kwDORlUxjc8AAAABIHvH-A",
+            "number": 1009,
+            "state": "OPEN",
+            "title": "4ED completion — umbrella: 17 cards, re-verified into authoring / primitive / capability buckets",
+            "url": "https://github.com/fil-donadoni/tolaria/issues/1009"
+        },
+        "title": "[engine] Numeric per-turn activation cap (maxActivationsPerTurn + single activationCap reader, CR 602.5)",
+        "updatedAt": "2026-08-03T20:15:17Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACbI7kPg",
+                "name": "enhancement",
+                "description": "New feature or request",
+                "color": "a2eeef"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            }
+        ],
+        "number": 2126,
+        "parent": {
+            "id": "I_kwDORlUxjc8AAAABIHvH-A",
+            "number": 1009,
+            "state": "OPEN",
+            "title": "4ED completion — umbrella: 17 cards, re-verified into authoring / primitive / capability buckets",
+            "url": "https://github.com/fil-donadoni/tolaria/issues/1009"
+        },
+        "title": "[engine] getPoison Op — player poison counters as an Effect Script verb (CR 122.1)",
+        "updatedAt": "2026-08-03T20:15:15Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACbI7kPg",
+                "name": "enhancement",
+                "description": "New feature or request",
+                "color": "a2eeef"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            }
+        ],
+        "number": 2125,
+        "parent": {
+            "id": "I_kwDORlUxjc8AAAABIHvH-A",
+            "number": 1009,
+            "state": "OPEN",
+            "title": "4ED completion — umbrella: 17 cards, re-verified into authoring / primitive / capability buckets",
+            "url": "https://github.com/fil-donadoni/tolaria/issues/1009"
+        },
+        "title": "[engine] loseAbility Op — timed and indefinite keyword removal (CR 613.1f, layer 6)",
+        "updatedAt": "2026-08-03T20:15:12Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACbI7kPg",
+                "name": "enhancement",
+                "description": "New feature or request",
+                "color": "a2eeef"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACp2GueA",
+                "name": "model:sonnet",
+                "description": "Implement-subagent runs on Sonnet",
+                "color": "c2e0c6"
+            }
+        ],
+        "number": 2124,
+        "parent": {
+            "id": "I_kwDORlUxjc8AAAABIHvH-A",
+            "number": 1009,
+            "state": "OPEN",
+            "title": "4ED completion — umbrella: 17 cards, re-verified into authoring / primitive / capability buckets",
+            "url": "https://github.com/fil-donadoni/tolaria/issues/1009"
+        },
+        "title": "[4ED] Seven unblocked cards — authoring only (Abomination, Infernal Medusa, Crimson Manticore, Pyrotechnics, Hurr Jackal, Untamed Wilds, Land Tax)",
+        "updatedAt": "2026-08-03T20:15:10Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACbI7kPg",
+                "name": "enhancement",
+                "description": "New feature or request",
+                "color": "a2eeef"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            }
+        ],
+        "number": 2123,
+        "parent": null,
+        "title": "Announcement-window freeze for revealed / lookable library tops (CR 401.5 s2-s3, 601.2i)",
+        "updatedAt": "2026-08-03T20:11:54Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACp2GueA",
+                "name": "model:sonnet",
+                "description": "Implement-subagent runs on Sonnet",
+                "color": "c2e0c6"
+            }
+        ],
+        "number": 2118,
+        "parent": {
+            "id": "I_kwDORlUxjc8AAAABICnWJw",
+            "number": 974,
+            "state": "OPEN",
+            "title": "Residual dropped-clause tail of #961: 5 single-consumer engine gaps",
+            "url": "https://github.com/fil-donadoni/tolaria/issues/974"
+        },
+        "title": "[fem] Dwarven Soldier: the once-per-combat Orc trigger is unblocked — its blocker shipped, the marker is stale",
+        "updatedAt": "2026-08-03T20:06:01Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACbI7kCQ",
+                "name": "bug",
+                "description": "Something isn't working",
+                "color": "d73a4a"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            }
+        ],
+        "number": 2116,
+        "parent": null,
+        "title": "Instance-granted protection ignored on the damage paths (definition passed instead of instance)",
+        "updatedAt": "2026-08-03T19:51:39Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            }
+        ],
+        "number": 2108,
+        "parent": null,
+        "title": "[ice/leg/ons] Audit pass 5 MED/LOW batch: 6 dropped Oracle clauses (issue #963)",
+        "updatedAt": "2026-08-03T17:52:22Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACbI7kCQ",
+                "name": "bug",
+                "description": "Something isn't working",
+                "color": "d73a4a"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            }
+        ],
+        "number": 2107,
+        "parent": null,
+        "title": "[lci] Inti, Seneschal of the Sun: discard trigger fires per card, not per discard event",
+        "updatedAt": "2026-08-03T17:51:40Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACbI7kCQ",
+                "name": "bug",
+                "description": "Something isn't working",
+                "color": "d73a4a"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            }
+        ],
+        "number": 2106,
+        "parent": null,
+        "title": "[CLASS] \"put into a graveyard … instead\" replacement shipped as a graveyard trigger — Blightsteel Colossus, Worldspine Wurm",
+        "updatedAt": "2026-08-03T17:51:19Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACbI7kCQ",
+                "name": "bug",
+                "description": "Something isn't working",
+                "color": "d73a4a"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            }
+        ],
+        "number": 2105,
+        "parent": null,
+        "title": "[drk] \"target player or planeswalker\" dropped on stale comments — Witch Hunter, The Fallen",
+        "updatedAt": "2026-08-03T17:50:59Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACbI7kCQ",
+                "name": "bug",
+                "description": "Something isn't working",
+                "color": "d73a4a"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            }
+        ],
+        "number": 2104,
+        "parent": null,
+        "title": "[ice] Mandatory library search modelled as optional (count min:0) — Jester's Mask, Jester's Cap",
+        "updatedAt": "2026-08-03T17:50:38Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACbI7kPg",
+                "name": "enhancement",
+                "description": "New feature or request",
+                "color": "a2eeef"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACp2Gu2g",
+                "name": "model:opus",
+                "description": "Implement-subagent runs on Opus",
+                "color": "1d76db"
+            }
+        ],
+        "number": 2095,
+        "parent": {
+            "id": "I_kwDORlUxjc8AAAABLSapJg",
+            "number": 2091,
+            "state": "OPEN",
+            "title": "PRD: Foretell (CR 702.143) — whole mechanic + four prerequisites",
+            "url": "https://github.com/fil-donadoni/tolaria/issues/2091"
+        },
+        "title": "[engine] dealDamageToEach: controller scoping + DSL Op (simultaneous mass damage)",
+        "updatedAt": "2026-08-03T17:28:13Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACbI7kPg",
+                "name": "enhancement",
+                "description": "New feature or request",
+                "color": "a2eeef"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACp2GueA",
+                "name": "model:sonnet",
+                "description": "Implement-subagent runs on Sonnet",
+                "color": "c2e0c6"
+            }
+        ],
+        "number": 2094,
+        "parent": {
+            "id": "I_kwDORlUxjc8AAAABLSapJg",
+            "number": 2091,
+            "state": "OPEN",
+            "title": "PRD: Foretell (CR 702.143) — whole mechanic + four prerequisites",
+            "url": "https://github.com/fil-donadoni/tolaria/issues/2091"
+        },
+        "title": "[engine] endGame() chokepoint — one writer for state.gameOver (8 sites)",
+        "updatedAt": "2026-08-03T17:28:08Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACbI7kPg",
+                "name": "enhancement",
+                "description": "New feature or request",
+                "color": "a2eeef"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACp2Gu2g",
+                "name": "model:opus",
+                "description": "Implement-subagent runs on Opus",
+                "color": "1d76db"
+            }
+        ],
+        "number": 2093,
+        "parent": {
+            "id": "I_kwDORlUxjc8AAAABLSapJg",
+            "number": 2091,
+            "state": "OPEN",
+            "title": "PRD: Foretell (CR 702.143) — whole mechanic + four prerequisites",
+            "url": "https://github.com/fil-donadoni/tolaria/issues/2091"
+        },
+        "title": "[engine] One cast-provenance fact: StackItem.castFromZone replaces castFromGraveyard",
+        "updatedAt": "2026-08-03T17:28:04Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACbI7kPg",
+                "name": "enhancement",
+                "description": "New feature or request",
+                "color": "a2eeef"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACp2Gu2g",
+                "name": "model:opus",
+                "description": "Implement-subagent runs on Opus",
+                "color": "1d76db"
+            }
+        ],
+        "number": 2084,
+        "parent": {
+            "id": "I_kwDORlUxjc8AAAABLP7LfQ",
+            "number": 2064,
+            "state": "OPEN",
+            "title": "PRD: one Continuous Effects Registry as the source of truth for CR 613 characteristic-changing effects",
+            "url": "https://github.com/fil-donadoni/tolaria/issues/2064"
+        },
+        "title": "[engine] One-shot layer-4 card-type SET (setCardType) + Enduring Innocence (replaces #792)",
+        "updatedAt": "2026-08-03T17:09:32Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            }
+        ],
+        "number": 2080,
+        "parent": null,
+        "title": "[BLB] Thundertrap Trainer — Offspring {4} + look-four dig",
+        "updatedAt": "2026-08-03T16:08:15Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACp2Gu2g",
+                "name": "model:opus",
+                "description": "Implement-subagent runs on Opus",
+                "color": "1d76db"
+            }
+        ],
+        "number": 2079,
+        "parent": null,
+        "title": "[engine] Offspring keyword (CR 702.175) — cost half + 1/1 token copy trigger",
+        "updatedAt": "2026-08-03T16:07:50Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACp2Gu2g",
+                "name": "model:opus",
+                "description": "Implement-subagent runs on Opus",
+                "color": "1d76db"
+            }
+        ],
+        "number": 2078,
+        "parent": null,
+        "title": "[engine] Additional-cost keyword identity: discriminator + split the payment record at the write (ADR 0085)",
+        "updatedAt": "2026-08-03T16:07:14Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACp9AfIQ",
+                "name": "migration",
+                "description": "Pure-refactor migration (light lane: targeted gate, skip opus review)",
+                "color": "fbca04"
+            }
+        ],
+        "number": 2077,
+        "parent": null,
+        "title": "[refactor] Rename the per-cost DSL value: kickerPaid → additionalCostPaid",
+        "updatedAt": "2026-08-03T16:06:40Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACp2Gu2g",
+                "name": "model:opus",
+                "description": "Implement-subagent runs on Opus",
+                "color": "1d76db"
+            }
+        ],
+        "number": 2076,
+        "parent": null,
+        "title": "[engine] CR 707.2 \"except\" clause: P/T override on a copy effect",
+        "updatedAt": "2026-08-03T16:06:13Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACp2Gu2g",
+                "name": "model:opus",
+                "description": "Implement-subagent runs on Opus",
+                "color": "1d76db"
+            }
+        ],
+        "number": 2075,
+        "parent": null,
+        "title": "[engine] Last-Known-Information store for copiable values (ADR 0086)",
+        "updatedAt": "2026-08-03T16:05:36Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACp2Gu2g",
+                "name": "model:opus",
+                "description": "Implement-subagent runs on Opus",
+                "color": "1d76db"
+            }
+        ],
+        "number": 2074,
+        "parent": null,
+        "title": "Collect evidence (CR 701.59) + bestow-only graveyard cast + Detective's Phoenix",
+        "updatedAt": "2026-08-03T14:57:38Z"
+    },
+    {
+        "assignees": [],
+        "labels": [
+            {
+                "id": "LA_kwDORlUxjc8AAAACkTyUnQ",
+                "name": "ready-for-agent",
+                "description": "Ready for an AFK agent to pick up",
+                "color": "0E8A16"
+            },
+            {
+                "id": "LA_kwDORlUxjc8AAAACp2GvYQ",
+                "name": "model:fable",
+                "description": "Implement-subagent runs on Fable",
+                "color": "5319e7"
+            }
+        ],
+        "number": 2073,
+        "parent": {
+            "id": "I_kwDORlUxjc8AAAABLP7LfQ",
+            "number": 2064,
+            "state": "OPEN",
+            "title": "PRD: one Continuous Effects Registry as the source of truth for CR 613 characteristic-changing effects",
+            "url": "https://github.com/fil-donadoni/tolaria/issues/2064"
+        },
+        "title": "Bestow (CR 702.103) as a layer-4 continuous effect + layers over stack objects + Springheart Nantuko",
+        "updatedAt": "2026-08-03T14:57:02Z"
+    }
+]
