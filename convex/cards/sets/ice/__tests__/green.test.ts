@@ -59,6 +59,7 @@ import {
     ritualOfSubdual,
     brownOuphe,
     aegisOfTheMeek,
+    snowCoveredForest,
 } from "../../ice";
 import { applyLandManaReplacement } from "../../../../gre/constants";
 import { mountain } from "../../lea";
@@ -68,6 +69,7 @@ import {
     resolveTopOfStack,
     tapPermanent,
     emitPermanentTapped,
+    applySourceStaticEffects,
 } from "../../../../gre/state";
 import {
     getEffectivePower,
@@ -79,7 +81,10 @@ import {
     emitAttackersDeclaredEvents,
     fireDelayedTriggers,
     advancePhase,
+    buildAutoDamageAssignments,
+    applyAllCombatDamage,
 } from "../../../../gre/phases";
+import { checkStateBasedActions } from "../../../../gre/sba";
 import { recordBlockedAttackers } from "../../../../gre/banding";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
@@ -110,6 +115,7 @@ import {
     answerHeadMayPay,
     fireCU,
     makeLand,
+    snowLand,
 } from "./helpers";
 
 // ---------------------------------------------------------------------------
@@ -1808,8 +1814,90 @@ describe("Touch of Vitae (until-EOT haste + granted {0} untap, once; CR 611.1b)"
 });
 
 describe("Woolly Mammoths / Whiteout (snow-flavored green)", () => {
-    it("Woolly Mammoths has trample (unconditional, flagged)", () => {
-        expect(woollyMammoths.staticAbilities).toContain("trample");
+    // Woolly Mammoths — "This creature has trample as long as you control a
+    // snow land." (CR 205.4a snow; CR 611.2c "as long as" conditional keyword
+    // grant; CR 702.19 trample; issue #1827.) `applySourceStaticEffects`
+    // materializes the `keyword-grant` at ETB and `checkStateBasedActions` →
+    // `refreshCounterGatedStatics` re-evaluates its `condition` every stable
+    // transition — mirrors the Kavu Runner test shape (`inv/__tests__/red.test.ts`).
+    describe("conditional trample (issue #1827)", () => {
+        /** Build Woolly Mammoths + a 1-toughness blocker, ready to attack, with
+         *  or without a snow land on the controller's battlefield. */
+        function makeMammothCombatState(snowLandPresent: boolean) {
+            const mammoth = makeInstance(woollyMammoths.id, {
+                id: "mammoth",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const blocker = vanilla("blk", 1, 1, {
+                controllerId: "p2",
+                ownerId: "p2",
+            });
+            const p1Battlefield = snowLandPresent
+                ? [mammoth, snowLand(snowCoveredForest.id, "snow-forest", "p1")]
+                : [mammoth];
+            const state = makeState({
+                phase: "COMBAT_DAMAGE",
+                players: [
+                    makePlayer("p1", { battlefield: p1Battlefield }),
+                    makePlayer("p2", { battlefield: [blocker] }),
+                ],
+                combat: {
+                    attackerIds: [mammoth.id],
+                    confirmed: true,
+                    blockerAssignments: { blk: [mammoth.id] },
+                    blockersConfirmed: true,
+                },
+            });
+            applySourceStaticEffects(state, mammoth);
+            return { state, mammoth, blocker };
+        }
+
+        it("has trample while controlling a snow land", () => {
+            const { mammoth } = makeMammothCombatState(true);
+            expect(mammoth.staticAbilities).toContain("trample");
+        });
+
+        it("does NOT have trample with zero snow lands (the #1827 bug)", () => {
+            const { mammoth } = makeMammothCombatState(false);
+            expect(mammoth.staticAbilities).not.toContain("trample");
+        });
+
+        it("loses trample once its only snow land leaves, re-evaluated via checkStateBasedActions", () => {
+            const { state, mammoth } = makeMammothCombatState(true);
+            expect(mammoth.staticAbilities).toContain("trample");
+            state.players[0].battlefield = state.players[0].battlefield.filter(
+                (c) => c.id !== "snow-forest"
+            );
+            checkStateBasedActions(state);
+            expect(mammoth.staticAbilities).not.toContain("trample");
+        });
+
+        // Real combat-damage-assignment path (not just the predicate): proves
+        // the trample CONSUMER (`buildAutoDamageAssignments`, `gre/phases.ts`)
+        // reads the live materialized `staticAbilities`, so the conditional
+        // grant is not silently inert the way #957/#958 were.
+        it("assigns trample excess damage to the defender only with a snow land in play", () => {
+            const { state, mammoth } = makeMammothCombatState(true);
+            const assignments = buildAutoDamageAssignments(state, "regular");
+            // 3-power Mammoth vs 1-toughness blocker: 1 lethal to the blocker,
+            // 2 excess to the defending player (CR 702.19e).
+            expect(assignments[mammoth.id]).toEqual({ blk: 1, p2: 2 });
+            applyAllCombatDamage(state, assignments);
+            const p2 = state.players.find((p) => p.id === "p2")!;
+            expect(p2.life).toBe(18);
+            expect(p2.battlefield).toHaveLength(0);
+        });
+
+        it("assigns ALL damage to the blocker, none to the defender, with zero snow lands", () => {
+            const { state, mammoth } = makeMammothCombatState(false);
+            const assignments = buildAutoDamageAssignments(state, "regular");
+            expect(assignments[mammoth.id]).toEqual({ blk: 3 });
+            applyAllCombatDamage(state, assignments);
+            const p2 = state.players.find((p) => p.id === "p2")!;
+            expect(p2.life).toBe(20);
+            expect(p2.battlefield).toHaveLength(0);
+        });
     });
 
     it("Whiteout removes flying from all creatures until end of turn", () => {
