@@ -43,6 +43,7 @@ import {
     resolveTopOfStack,
     revertAnimation,
     revertControlChange,
+    releaseGrantedKeywordOccurrence,
     runDamageReplacement,
     tapPermanent,
     untapPermanent,
@@ -2537,12 +2538,17 @@ function tickAllDurations(state: GameState): void {
         p.grantedAbilities = kept.length > 0 ? kept : undefined;
     }
 
-    // Granted static keywords (e.g. Berserk's trample). On expiry, splice
-    // one occurrence out of `staticAbilities` so natively-declared
-    // duplicates are left untouched (CR 113.1). Aura-sourced grants have
-    // no duration — they're managed by the aura's lifetime (see
-    // applyAuraStaticEffects / unapplyAuraStaticEffects in state.ts) and
-    // pass through this purge unchanged.
+    // Granted static keywords (e.g. Berserk's trample). On expiry, release
+    // the ONE `staticAbilities` occurrence the grant owns — natively-declared
+    // duplicates and other sources' grants are left untouched (CR 113.1), a
+    // `suppressed` grant owns nothing, and an occurrence a stripper is
+    // currently holding is released by cancelling that hold (CR 613.1f). The
+    // shared `releaseGrantedKeywordOccurrence` primitive is what keeps this
+    // purge obeying the same occurrence-ownership model as the counter-grant
+    // and aura teardowns (issue #1706) instead of being correct by accident.
+    // Aura-sourced grants have no duration — they're managed by the aura's
+    // lifetime (see applyAuraStaticEffects / unapplyAuraStaticEffects in
+    // state.ts) and pass through this purge unchanged.
     for (const p of state.players) {
         for (const card of p.battlefield) {
             if (!card.grantedStaticAbilities?.length) continue;
@@ -2554,13 +2560,7 @@ function tickAllDurations(state: GameState): void {
                 }
                 const next = tickDuration(grant.duration, view);
                 if (next === null) {
-                    const idx = card.staticAbilities.indexOf(grant.ability);
-                    if (idx !== -1) {
-                        card.staticAbilities = [
-                            ...card.staticAbilities.slice(0, idx),
-                            ...card.staticAbilities.slice(idx + 1),
-                        ];
-                    }
+                    releaseGrantedKeywordOccurrence(card, grant);
                 } else {
                     kept.push({ ...grant, duration: next });
                 }
