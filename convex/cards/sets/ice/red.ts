@@ -528,8 +528,13 @@ export const brandOfIllOmen: CardDefinition = {
 //     change only (`enteredOnTurn`, CR 400.7), untouched by a control change.
 // The reachable gap between them is a MID-TURN control change: an external
 // steal that lands during the new controller's OWN turn, after their untap
-// step (Aladdin `ice/black.ts`, Old Man of the Sea, any Ray-of-Command-shaped
-// "gain control until end of turn"). `applyControlChange` re-sets
+// step, from an effect that does NOT itself grant haste and CAN legally take a
+// 7-mana 7/7. Shipped exemplars, all activatable/castable in the thief's own
+// precombat main: Infernal Denizen (`ice/black.ts:1343`, `{T}: Gain control of
+// target creature`, `targetRequirement: { type: "Creature", count: 1 }` — no
+// filter, no haste grant), Merieke Ri Berit (`ice/multicolor.ts:870`, same
+// unfiltered `{T}:` steal), and Dominate (`nem/blue.ts:102`, `mvFilter: { max:
+// "X" }` — X ≥ 7 reaches a Chaos Lord). `applyControlChange` re-sets
 // `isSummoningSick`, no untap step intervenes before that turn's combat, but
 // `enteredOnTurn` still points at an earlier turn — so the clause is what lets
 // the stolen 7/7 swing the turn it is taken. Conversely a FRESHLY CAST Chaos

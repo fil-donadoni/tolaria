@@ -1117,9 +1117,11 @@ describe("Chaos Lord — conditional haste at declare-attackers (CR 508.1a / 400
 
     /** p1 in DECLARE_ATTACKERS on turn 5 holding a SUMMONING-SICK Chaos Lord
      *  that entered on `enteredOnTurn`. Sick in both scenarios (CR 302.6):
-     *  freshly cast in one, freshly regained via the card's own parity control
-     *  hand-off in the other — which is exactly the pair the Oracle clause
-     *  discriminates and plain summoning sickness cannot.
+     *  freshly cast in one, stolen mid-turn by an EXTERNAL effect (Infernal
+     *  Denizen / Merieke Ri Berit / Dominate — see the card comment) in the
+     *  other. That is the pair the Oracle clause discriminates and plain
+     *  summoning sickness cannot: both are sick, only the earlier-entered one
+     *  gets the permission.
      *
      *  `refreshCounterGatedStatics` is the production sweep `saveGameState`
      *  runs before every persisted write, so the instance reaches the mutation
