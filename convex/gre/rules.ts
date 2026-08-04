@@ -2272,6 +2272,15 @@ export function getLegalTargets(
                         mvFilter,
                         sameController: requirement.sameController,
                         isToken: requirement.isToken,
+                        // CR 302.6 / 400.7 (issue #1824) — Norritt / Arcum's
+                        // Whistle. `PermanentFilterValues` is a `Partial`, so
+                        // omitting a key here is not a compile error: this
+                        // hand-written map is the OFFERED-set half of the
+                        // Phelia pair and silently drifts open when a new
+                        // filter is added and forgotten (which is exactly what
+                        // this filter's own tests caught).
+                        controlledSinceTurnStart:
+                            requirement.controlledSinceTurnStart,
                     })
                 ) {
                     continue;

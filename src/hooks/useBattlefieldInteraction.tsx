@@ -96,7 +96,20 @@ export function useBattlefieldInteraction(player: Player) {
         lifeGainedThisTurn,
         emblems,
         stackItems,
+        engineTurn,
+        controlChangedThisTurn,
     } = useGameContext();
+    // CR 302.6 / 400.7 (issue #1824) — the continuity facts a
+    // `controlledSinceTurnStart` target filter is evaluated against. Must be
+    // `engineTurn` (the wire `GameState.turn`), never the context's display
+    // `turn`, since `enteredOnTurn` is stamped from the global turn number.
+    // Undefined when the engine turn is unknown → the filter fails CLOSED, so
+    // the click handler never fires `selectTarget` for a target the server
+    // would reject.
+    const controlContinuity =
+        typeof engineTurn === "number"
+            ? { turn: engineTurn, controlChangedThisTurn }
+            : undefined;
     const isMe = player.id === playerId;
     // The VIEWER's own player row. Usually identical to `player` (this board is
     // the viewer's), but an attached permanent renders on its HOST's board
@@ -444,6 +457,7 @@ export function useBattlefieldInteraction(player: Player) {
                 pendingTarget,
                 allPlayers,
                 activePlayerId,
+                controlContinuity,
                 emblems
             ) &&
             // CR 702.18 / 611 — don't fire selectTarget for a shrouded /

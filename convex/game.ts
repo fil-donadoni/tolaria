@@ -9617,6 +9617,7 @@ export function applyOneTargetSelection(
                 mvFilter: pt.mvFilter,
                 sameController: pt.sameController,
                 isToken: pt.isToken,
+                controlledSinceTurnStart: pt.controlledSinceTurnStart,
             }
         );
         if (filterViolation) throw new Error(filterViolation);

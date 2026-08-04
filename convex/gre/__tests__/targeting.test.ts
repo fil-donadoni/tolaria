@@ -642,6 +642,169 @@ describe("isToken target filter (CR 111.5, issue #1195)", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Control-continuity filter (CR 302.6 / 400.7, issue #1824) — Norritt /
+// Arcum's Whistle: "target non-Wall creature THE ACTIVE PLAYER HAS CONTROLLED
+// CONTINUOUSLY SINCE THE BEGINNING OF THE TURN". Two independent breaks:
+// entering the battlefield this turn (`enteredOnTurn`) and changing controller
+// this turn (`GameState.controlChangedThisTurn`). Both must exclude the
+// candidate from the OFFERED set (getLegalTargets) and the ACCEPTED set
+// (checkPermanentTargetFilters, the authority `selectTarget` calls).
+// ---------------------------------------------------------------------------
+
+describe("controlledSinceTurnStart target filter (CR 302.6 / 400.7, issue #1824)", () => {
+    // Turn 5. `HELD` has no entry stamp at all (on the battlefield since
+    // before the turn); `ENTERED` entered this very turn; `STOLEN` entered
+    // long ago but changed controller during the turn.
+    const HELD = makeCard({
+        id: "held",
+        types: ["Creature"],
+        controllerId: "p1",
+    });
+    const ENTERED = {
+        ...makeCard({ id: "entered", types: ["Creature"], controllerId: "p1" }),
+        enteredOnTurn: 5,
+    };
+    const STOLEN = {
+        ...makeCard({ id: "stolen", types: ["Creature"], controllerId: "p1" }),
+        enteredOnTurn: 2,
+    };
+    const state = makeGameState({
+        turn: 5,
+        activePlayerId: "p1",
+        players: [
+            makePlayer({ id: "p1", battlefield: [HELD, ENTERED, STOLEN] }),
+            makePlayer({ id: "p2" }),
+        ],
+        controlChangedThisTurn: ["stolen"],
+    });
+
+    const REQ: TargetRequirement = {
+        type: "Creature",
+        count: 1,
+        controlledSinceTurnStart: true,
+    };
+
+    const ctxFor = (s: GameState): TargetFilterCtx => ({
+        state: s,
+        sourceColors: [],
+        sourceTypes: [],
+        sourceSubtypes: [],
+        chooserId: "p1",
+        activePlayerId: s.activePlayerId,
+    });
+
+    it("offered set keeps ONLY the creature held since the turn began", () => {
+        const ids = getLegalTargets(state, REQ, NO_TARGETING_SOURCE, "p1").map(
+            (t) => t.id
+        );
+        expect(ids).toEqual(["held"]);
+    });
+
+    it("accepted set (the authority selectTarget calls) agrees candidate-by-candidate — offered == accepted", () => {
+        const ctx = ctxFor(state);
+        const values = { controlledSinceTurnStart: true };
+        expect(checkPermanentTargetFilters(ctx, HELD, values)).toBeNull();
+        // A creature that entered this turn: rejected for the ENTRY reason.
+        expect(
+            checkPermanentTargetFilters(ctx, ENTERED, values)
+        ).not.toBeNull();
+        // A creature that changed controller this turn: rejected for the
+        // LEDGER reason, even though its entry stamp is three turns old. A
+        // start-of-turn snapshot could not tell these two apart.
+        expect(checkPermanentTargetFilters(ctx, STOLEN, values)).not.toBeNull();
+    });
+
+    it("controlledSinceTurnStart: false — the inverse keeps only the interrupted permanents", () => {
+        const req: TargetRequirement = {
+            type: "Creature",
+            count: 3,
+            controlledSinceTurnStart: false,
+        };
+        const ids = getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1").map(
+            (t) => t.id
+        );
+        expect(ids).toEqual(expect.arrayContaining(["entered", "stolen"]));
+        expect(ids).not.toContain("held");
+    });
+
+    it("omitted — no filter applied, all three are legal", () => {
+        const req: TargetRequirement = { type: "Creature", count: 3 };
+        const ids = getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1").map(
+            (t) => t.id
+        );
+        expect(ids).toEqual(
+            expect.arrayContaining(["held", "entered", "stolen"])
+        );
+    });
+
+    it("FAILS CLOSED on a state view carrying no turn — an unverifiable candidate is never offered", () => {
+        // The shape a CLIENT synthetic filter-state has when the caller
+        // forgets the continuity fields. `enteredOnTurn >= undefined` is
+        // `false`, so a naive implementation would fail OPEN and admit even
+        // the entered-this-turn creature — the exact offered/accepted
+        // divergence the registry exists to prevent.
+        const turnless = { ...state, turn: undefined } as unknown as GameState;
+        const ctx = ctxFor(turnless);
+        const values = { controlledSinceTurnStart: true };
+        expect(checkPermanentTargetFilters(ctx, HELD, values)).not.toBeNull();
+        expect(
+            checkPermanentTargetFilters(ctx, ENTERED, values)
+        ).not.toBeNull();
+    });
+
+    it("the raised PendingTarget carries controlledSinceTurnStart (offered/accepted parity, ADR 0068)", () => {
+        const pt = pendingTargetFiltersFromRequirement(REQ, undefined);
+        expect(pt.controlledSinceTurnStart).toBe(true);
+    });
+
+    it("Norritt's full requirement (CR 102.1 + 302.6): the ACTIVE player's continuously-held non-Wall creature only", () => {
+        const OPPONENT_HELD = makeCard({
+            id: "opponent-held",
+            types: ["Creature"],
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const WALL = {
+            ...makeCard({
+                id: "wall",
+                types: ["Creature"],
+                subtypes: ["Wall"],
+                controllerId: "p1",
+            }),
+        };
+        const board = makeGameState({
+            turn: 5,
+            activePlayerId: "p1",
+            players: [
+                makePlayer({
+                    id: "p1",
+                    battlefield: [HELD, ENTERED, STOLEN, WALL],
+                }),
+                makePlayer({ id: "p2", battlefield: [OPPONENT_HELD] }),
+            ],
+            controlChangedThisTurn: ["stolen"],
+        });
+        const norrittReq: TargetRequirement = {
+            type: "Creature",
+            count: 1,
+            excludeSubtypes: "Wall",
+            controller: "active",
+            controlledSinceTurnStart: true,
+        };
+        // Chooser is the NON-active player (p2) — Norritt's controller need
+        // not be the active player, which is exactly why `controller:
+        // "active"` is not interchangeable with `controller: "you"`.
+        const ids = getLegalTargets(
+            board,
+            norrittReq,
+            NO_TARGETING_SOURCE,
+            "p2"
+        ).map((t) => t.id);
+        expect(ids).toEqual(["held"]);
+    });
+});
+
+// ---------------------------------------------------------------------------
 // Single-authority intrinsic filter gate (Phelia bug class, CR 109.1 / 115 /
 // 202 / 205 / 613 / 701.20). `intrinsicPermanentTargetViolation` is the ONE
 // function both getLegalTargets (offered set) and selectTarget (accepted set)
@@ -2326,7 +2489,7 @@ describe("checkCardTargetFilters — shared offered/accepted gate (ADR 0068, iss
 describe("target-filter registry — FilterKey exhaustiveness keystone (ADR 0068, issue #1411)", () => {
     it("REGISTRY is non-empty and covers every filter migrated by T1-T3", () => {
         const keys = Object.keys(REGISTRY);
-        // 20 permanent + 10 spell-only + 1 player-only (T1 + T2 + T3) — see
+        // 21 permanent + 10 spell-only + 1 player-only (T1 + T2 + T3) — see
         // PERMANENT_FILTER_KEYS / SPELL_ONLY_FILTER_KEYS / PLAYER_ONLY_FILTER_KEYS
         // in targetFilters.ts. Card-kind reuses `controller`/`mvFilter`, both
         // already counted under the permanent set — no additional keys.
@@ -2334,8 +2497,10 @@ describe("target-filter registry — FilterKey exhaustiveness keystone (ADR 0068
         // `sameController` joined it with Barrin's Spite, issue #1104;
         // `isToken` joined it with Satya, Aetherflux Genius / Dance of Many,
         // issue #1195; `spellTargetsTypeFilter` + `spellWasKicked` joined the
-        // spell-only set with Confound / Ertai's Trickery, issue #1956.)
-        expect(keys.length).toBe(31);
+        // spell-only set with Confound / Ertai's Trickery, issue #1956;
+        // `controlledSinceTurnStart` joined the permanent set with Norritt /
+        // Arcum's Whistle, issue #1824.)
+        expect(keys.length).toBe(32);
     });
 
     it("every registered filter has a `lower` function and at least one `checks` predicate", () => {

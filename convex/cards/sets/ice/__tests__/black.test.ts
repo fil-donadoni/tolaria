@@ -88,6 +88,7 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { collectTriggers } from "../../../../gre/triggers";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     fireDelayedTriggers,
@@ -1203,6 +1204,68 @@ describe("Norritt (untap blue / force-attack, CR 701.20b / 508.1d)", () => {
         ]);
         const live = state.players[0].battlefield.find((c) => c.id === "t")!;
         expect(live.mustAttackThisTurn).toBe(true);
+    });
+
+    // Issue #1824 — the Oracle clause "target non-Wall creature THE ACTIVE
+    // PLAYER HAS CONTROLLED CONTINUOUSLY SINCE THE BEGINNING OF THE TURN" was
+    // dropped in full: with neither half, Norritt force-attacked and destroyed
+    // ANY creature on the board, on anyone's turn.
+    const forceAttack = norritt.activatedAbilities!.find(
+        (a) => a.id === "norritt-force-attack"
+    )!;
+
+    it("declares BOTH halves of the active-player-continuous-control clause (issue #1824)", () => {
+        expect(forceAttack.targetRequirement).toMatchObject({
+            type: "Creature",
+            excludeSubtypes: "Wall",
+            controller: "active",
+            controlledSinceTurnStart: true,
+        });
+    });
+
+    it("offers only the active player's continuously-held non-Wall creature (CR 102.1 / 302.6 / 400.7)", () => {
+        const norr = makeInstance(norritt.id, {
+            id: "norr",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        // p1 is the active player. `held` has been around since before the
+        // turn; `fresh` entered this turn; `stolen` changed hands this turn;
+        // `oppHeld` belongs to the non-active player.
+        const held = vanilla("held", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const fresh = vanilla("fresh", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        fresh.enteredOnTurn = 3;
+        const stolen = vanilla("stolen", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p2",
+        });
+        const oppHeld = vanilla("oppHeld", 2, 2, {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            turn: 3,
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [held, fresh, stolen] }),
+                makePlayer("p2", { battlefield: [norr, oppHeld] }),
+            ],
+        });
+        state.controlChangedThisTurn = ["stolen"];
+
+        const ids = getLegalTargets(
+            state,
+            forceAttack.targetRequirement!,
+            NO_TARGETING_SOURCE,
+            "p2"
+        ).map((t) => t.id);
+        expect(ids).toEqual(["held"]);
     });
 });
 

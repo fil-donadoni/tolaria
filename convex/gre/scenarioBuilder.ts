@@ -81,6 +81,16 @@ function placeScenarioTokens(
         // board, so the default flips to "has been here since your last turn"
         // unless the spec explicitly asks for a just-created token.
         token.isSummoningSick = entry.summoningSick ?? false;
+        // CR 400.7 (issue #1824) — `createTokenPermanents` also stamps
+        // `enteredOnTurn = state.turn`, and that stamp (not `isSummoningSick`)
+        // is what `hasControlledSinceTurnStart` reads. Clearing it in lockstep
+        // with the flag above keeps the two facts consistent: a token staged
+        // as pre-existing must not still read as having entered this turn.
+        if (token.isSummoningSick) {
+            token.enteredOnTurn = state.turn;
+        } else {
+            delete token.enteredOnTurn;
+        }
         if (entry.damageMarked && entry.damageMarked > 0) {
             token.damageMarked = entry.damageMarked;
         }
@@ -345,10 +355,19 @@ export function buildStateFromScenario(
                     (instance as CardInstanceState).attackedDuringLastTurn =
                         true;
                 }
-                // CR 302.6 — entered this turn: starts the control-continuity
-                // clock so a manland animated the same turn reads sick (#545).
+                // CR 302.6 / 400.7 — entered this turn: starts the
+                // control-continuity clock so a manland animated the same turn
+                // reads sick (#545). The `enteredOnTurn` stamp is the OTHER
+                // half of that clock (issue #1824): `hasControlledSinceTurnStart`
+                // reads it, NOT `isSummoningSick`, so staging a creature as
+                // summoning-sick while leaving the stamp unwritten made it
+                // read "controlled since the beginning of the turn" — the two
+                // facts disagreeing on the same board. A scenario stages an
+                // ALREADY-SET-UP board, so the non-sick default correctly
+                // leaves `enteredOnTurn` unset (present since before the turn).
                 if (entry.summoningSick) {
                     (instance as CardInstanceState).isSummoningSick = true;
+                    (instance as CardInstanceState).enteredOnTurn = state.turn;
                 }
                 // CR 707.2 — make this permanent a copy of another card, so
                 // the debug board can exercise the two-face copy preview

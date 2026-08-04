@@ -61,6 +61,7 @@ import { hasSupertypeLive } from "./snow";
 import { totalKickerCount } from "./kicker";
 import { isLand, manaValue } from "./constants";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
+import { hasControlledSinceTurnStart } from "./controlContinuity";
 
 // ─── Shared low-level predicates (moved from rules.ts) ──────────────────────
 
@@ -601,6 +602,42 @@ const isTokenDescriptor = defineFilter<boolean>({
             (card.isToken === true) === value
                 ? null
                 : `Target must ${value ? "" : "not "}be a token`,
+    },
+});
+
+/** CR 302.6 / 400.7 (issue #1824) — "…the active player has controlled
+ *  continuously since the beginning of the turn" (Norritt, Arcum's Whistle).
+ *  Supplies only the CONTINUITY half; the "who controls it" half is
+ *  `controllerFilter`'s job (pair with `controller: "active"`).
+ *
+ *  Delegates to `hasControlledSinceTurnStart` — the ONE engine authority for
+ *  this window, already backing `PermanentFilter.controlledSinceTurnStart` —
+ *  so a target filter and a choice filter can never answer the same question
+ *  differently.
+ *
+ *  **Fails CLOSED on a state view with no `turn`.** The two facts the
+ *  predicate reads (`GameState.turn`, `GameState.controlChangedThisTurn`)
+ *  both cross the wire verbatim, but the CLIENT-side filter callers build a
+ *  synthetic `GameState`-shaped view by hand and a caller that omits them
+ *  would otherwise fail OPEN: `enteredOnTurn >= undefined` is `false`, so
+ *  every permanent — including one that entered this very turn — would read
+ *  as continuously controlled and the board would offer targets `selectTarget`
+ *  rejects. That is precisely the offered-set/accepted-set divergence this
+ *  registry exists to make impossible, so the missing-fact case is an explicit
+ *  discriminator here rather than an implicit invariant on callers. */
+const controlledSinceTurnStartDescriptor = defineFilter<boolean>({
+    lower: (req) => req.controlledSinceTurnStart,
+    checks: {
+        permanent: (card, value, ctx) => {
+            if (typeof ctx.state.turn !== "number") {
+                return "Target's control continuity cannot be verified";
+            }
+            return hasControlledSinceTurnStart(ctx.state, card) === value
+                ? null
+                : value
+                  ? "Must target a permanent controlled continuously since the beginning of the turn"
+                  : "Must target a permanent not controlled continuously since the beginning of the turn";
+        },
     },
 });
 
@@ -1151,6 +1188,7 @@ export const PERMANENT_FILTER_KEYS = [
     "mvFilter",
     "sameController",
     "isToken",
+    "controlledSinceTurnStart",
 ] as const;
 
 export type PermanentFilterKey = (typeof PERMANENT_FILTER_KEYS)[number];
@@ -1239,6 +1277,8 @@ export const REGISTRY = {
         playerAttackedThisTurnDescriptor as FilterDescriptor<unknown>,
     sameController: sameControllerDescriptor as FilterDescriptor<unknown>,
     isToken: isTokenDescriptor as FilterDescriptor<unknown>,
+    controlledSinceTurnStart:
+        controlledSinceTurnStartDescriptor as FilterDescriptor<unknown>,
 } satisfies Record<FilterKey, FilterDescriptor<unknown>>;
 
 /** The requirement-derived filter VALUES for the permanent kind — the
@@ -1267,6 +1307,7 @@ export type PermanentFilterValues = Partial<{
     mvFilter: { min?: number; max?: number; equals?: number };
     sameController: boolean;
     isToken: boolean;
+    controlledSinceTurnStart: boolean;
 }>;
 
 /** Runs every SET filter in `values` against `candidate` through the

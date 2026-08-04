@@ -864,6 +864,21 @@ export function matchesPermanentTargetFilters(
     pendingTarget: PendingTarget,
     allPlayers: ReadonlyArray<Player>,
     activePlayerId: string,
+    /** Projected `{ turn, controlChangedThisTurn }` (CR 302.6 / 400.7, issue
+     *  #1824) — the two wire fields `PendingTarget.controlledSinceTurnStart`
+     *  is evaluated against (Norritt, Arcum's Whistle). REQUIRED, unlike
+     *  `toMatchablePermanent`/`buildTriggerStateView`'s optional twin: those
+     *  build a VIEW whose unpopulated dimension fails closed by itself,
+     *  whereas this function's synthetic `GameState` reaches the registry
+     *  directly, so a caller omitting the fields must be a COMPILE error
+     *  rather than a silently-narrowed board. Pass `undefined` only when the
+     *  engine turn is genuinely unknown (a hand-built test context) — the
+     *  filter then fails CLOSED, never open.
+     *
+     *  `turn` must be the ENGINE turn (`useGameContext().engineTurn` /
+     *  `GameState.turn`), never the board's display counter: `enteredOnTurn`
+     *  is stamped from the global turn number. */
+    turnState: ControlContinuityView | undefined,
     emblems?: ReadonlyArray<EmblemInstance>
 ): boolean {
     // CR 601.2c — a permanent already chosen under THIS SAME requirement is
@@ -906,6 +921,14 @@ export function matchesPermanentTargetFilters(
         // `powerFilter`/`toughnessFilter` check over-filters relative to the
         // server.
         emblems,
+        // CR 302.6 / 400.7 (issue #1824) — the two facts
+        // `controlledSinceTurnStart` is evaluated against (Norritt, Arcum's
+        // Whistle). Spread rather than assigned so an absent `turnState`
+        // leaves `state.turn` UNDEFINED, which the descriptor detects and
+        // fails CLOSED on — assigning `turn: undefined` explicitly would read
+        // identically, but the spread keeps the "these fields simply aren't
+        // here" intent legible.
+        ...(turnState ?? {}),
     } as unknown as GameState;
     const ctx: TargetFilterCtx = {
         state,
@@ -939,6 +962,7 @@ export function matchesPermanentTargetFilters(
         mvFilter: pendingTarget.mvFilter,
         sameController: pendingTarget.sameController,
         isToken: pendingTarget.isToken,
+        controlledSinceTurnStart: pendingTarget.controlledSinceTurnStart,
     };
     // Sound: the wire-projected `CardInstance` is a structural superset of the
     // fields `checkPermanentTargetFilters`/the layer system read off

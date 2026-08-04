@@ -2463,10 +2463,12 @@ export const necropotence: CardDefinition = {
 // of the next end step if it didn't attack this turn. Activate only before
 // attackers are declared." (CR 701.20b untap; CR 508.1d force-attack +
 // CR 603.7a delayed end-step destroy — the Nettling Imp shape.) The
-// "controlled continuously since the beginning of the turn" clause is modelled
-// as `!isSummoningSick` (a creature that came under its controller's control
-// this turn reads sick); `activationPhaseRestriction` enforces "before attackers
-// are declared".
+// "the active player has controlled continuously since the beginning of the
+// turn" clause is BOTH halves of a target filter (issue #1824): `controller:
+// "active"` (CR 102.1 — whose permanent it is) AND `controlledSinceTurnStart:
+// true` (CR 302.6 / 400.7 — the continuity window, via
+// `hasControlledSinceTurnStart`). `activationPhaseRestriction` enforces
+// "before attackers are declared".
 const NORRITT_ID = "35abefe6-c39b-4fe5-b2e3-d213f0c4f447";
 export const norritt: CardDefinition = {
     id: NORRITT_ID,
@@ -2502,6 +2504,13 @@ export const norritt: CardDefinition = {
                 type: "Creature",
                 count: 1,
                 excludeSubtypes: "Wall",
+                // "…the ACTIVE PLAYER has controlled CONTINUOUSLY SINCE THE
+                // BEGINNING OF THE TURN" (issue #1824). Both halves are
+                // load-bearing: without them Norritt force-attacks and
+                // destroys ANY creature on the board on any turn — a narrow
+                // tempo tool acting as unconditional removal.
+                controller: "active",
+                controlledSinceTurnStart: true,
             },
             activationPhaseRestriction: [
                 "UPKEEP",
