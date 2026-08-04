@@ -1037,6 +1037,72 @@ describe("projectPublicState — face-down exile (ADR 0026 slice 6, CR 406.3)", 
         expect((p2Card as { faceDownOf?: string }).faceDownOf).toBeUndefined();
     });
 
+    // issue #2092 — a face-down exile card's CHARACTERISTICS live on the
+    // instance, not the definition (`convex/gre/state.ts`), so masking only
+    // `card.id` leaves `types`/`subtypes`/`power`/`toughness`/`staticAbilities`
+    // crossing the wire to a non-knower. CR 406.3: a face-down card in exile is
+    // "a card" with no characteristics to show — the opponent should not learn
+    // it's e.g. a 4/4 flying Dragon just because it's sitting face down.
+    it("masks types/subtypes/power/toughness/staticAbilities from a non-knower (issue #2092)", () => {
+        const state = makeState();
+        const p1 = state.players.find((p) => p.id === "p1")!;
+        p1.library = [
+            makeCard("p1-l1", {
+                zone: "library",
+                types: ["Creature"],
+                subtypes: ["Dragon"],
+                power: 4,
+                toughness: 4,
+                staticAbilities: ["flying"],
+            }),
+        ];
+        exileFaceDownCard(p1, p1.library[0].id, "library", "p1");
+
+        const forP2 = projectPublicState(state, 1, "p2");
+        const p2Card = forP2.players.find((p) => p.id === "p1")!.exile[0] as {
+            types: string[];
+            subtypes: string[];
+            power?: number;
+            toughness?: number;
+            staticAbilities: string[];
+        };
+        expect(p2Card.types).toEqual([]);
+        expect(p2Card.subtypes).toEqual([]);
+        expect(p2Card.staticAbilities).toEqual([]);
+        expect(p2Card.power).toBeUndefined();
+        expect(p2Card.toughness).toBeUndefined();
+    });
+
+    it("does NOT mask characteristics from the knower/controller (issue #2092)", () => {
+        const state = makeState();
+        const p1 = state.players.find((p) => p.id === "p1")!;
+        p1.library = [
+            makeCard("p1-l1", {
+                zone: "library",
+                types: ["Creature"],
+                subtypes: ["Dragon"],
+                power: 4,
+                toughness: 4,
+                staticAbilities: ["flying"],
+            }),
+        ];
+        exileFaceDownCard(p1, p1.library[0].id, "library", "p1");
+
+        const forP1 = projectPublicState(state, 1, "p1");
+        const p1Card = forP1.players.find((p) => p.id === "p1")!.exile[0] as {
+            types: string[];
+            subtypes: string[];
+            power?: number;
+            toughness?: number;
+            staticAbilities: string[];
+        };
+        expect(p1Card.types).toEqual(["Creature"]);
+        expect(p1Card.subtypes).toEqual(["Dragon"]);
+        expect(p1Card.staticAbilities).toEqual(["flying"]);
+        expect(p1Card.power).toBe(4);
+        expect(p1Card.toughness).toBe(4);
+    });
+
     it("keeps an ordinary face-up exiled card public to all viewers", () => {
         // A card sent to exile via the normal path has no knownTo, so it stays
         // public — the face-down gate only triggers on non-empty knownTo.
