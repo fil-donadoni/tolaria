@@ -14000,7 +14000,21 @@ export const activatePlayerAbility = mutation({
     },
 });
 
-/** Debug: patch any value in the game state by dot-separated path. */
+/**
+ * Debug: patch any value in the game state by dot-separated path.
+ *
+ * Admin-only debug mutation (issue #1679, same CLAUDE.md privileged-mutation
+ * convention as `debugSetupScenario` #768 / `debugBo3Sideboard` #1679): it
+ * writes to an ARBITRARY path of ANY game's state selected purely from a
+ * client-supplied `gameId`, with no seat argument to hang
+ * `assertSeatOwnership` on. Without the gate, a non-admin, non-seat caller
+ * can drive it directly (e.g. `{ path: "players.0.life", value: 0 }`) against
+ * another user's live game — and because the SBA sweep on the next legitimate
+ * action is the delivery mechanism for game-over consequences (CR-driven,
+ * see `assertCallerOwnsSeat`'s docstring in `gameLifecycle.ts`, issue #1645),
+ * that single write can force a real Match/standings outcome. `assertIsAdmin`
+ * runs FIRST, before any state is read or touched.
+ */
 export const debugPatchState = mutation({
     args: {
         gameId: v.id("games"),
@@ -14008,6 +14022,8 @@ export const debugPatchState = mutation({
         value: v.any(),
     },
     handler: async (ctx, args) => {
+        await assertIsAdmin(ctx);
+
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -14035,12 +14051,23 @@ export const debugPatchState = mutation({
     },
 });
 
-/** Debug: reset game — rebuild initial state from the game record. */
+/**
+ * Debug: reset game — rebuild initial state from the game record.
+ *
+ * Admin-only debug mutation (issue #1679, same convention as
+ * `debugPatchState` / `debugSetupScenario` #768 / `debugBo3Sideboard`): it
+ * rebuilds an ARBITRARY game's state and its owning Match/standings from a
+ * client-supplied `gameId` alone, with no seat argument to hang
+ * `assertSeatOwnership` on. `assertIsAdmin` runs FIRST, before any state is
+ * read or touched.
+ */
 export const debugResetGame = mutation({
     args: {
         gameId: v.id("games"),
     },
     handler: async (ctx, args) => {
+        await assertIsAdmin(ctx);
+
         const game = await ctx.db.get(args.gameId);
         if (!game) throw new Error("Game not found");
 
