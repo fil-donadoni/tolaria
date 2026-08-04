@@ -131,7 +131,10 @@ export function recordAttackerDeclared(
  *  (`applyMove.ts`), and the two `SpellContext` block writers (`swapBlockers`,
  *  `applyCamouflagePileBlocks`, `state.ts`). Before it existed, all seven
  *  hand-wrote the flags: three forgot `hasBlockedThisTurn` and SIX had no
- *  refresh at all.
+ *  refresh at all. Like {@link markAttacking}, the routing is CONVENTIONAL —
+ *  nothing enforces it mechanically, so a new site can still hand-write
+ *  `isBlocking`. A `scripts/__tests__` grep guard (no `isBlocking = true`
+ *  outside this function) would make it structural.
  *
  *  Idempotent, and keyed off `combat.blockerAssignments` rather than an id
  *  list so a caller cannot mark a set that differs from the declaration

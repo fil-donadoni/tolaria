@@ -40,6 +40,7 @@ import { advancePhase } from "../phases";
 import { applySourceStaticEffects } from "../state";
 import type { CardInstanceState, GameState } from "../state";
 import { expandState } from "../serialize";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../rules";
 import {
     makeInstance,
     makePlayer,
@@ -47,7 +48,8 @@ import {
 } from "../../cards/__tests__/setup";
 import { vanilla, snowLand } from "../../cards/sets/ice/__tests__/helpers";
 import { snowDevil, snowCoveredIsland } from "../../cards/sets/ice";
-import { island } from "../../cards/sets/lea";
+import { island, lightningBolt } from "../../cards/sets/lea";
+import { lurker } from "../../cards/sets/drk";
 
 // ── Fixture ────────────────────────────────────────────────────────────────
 //
@@ -269,6 +271,111 @@ describe("confirmBlockers refreshes isBlocking-conditioned statics before draini
         ]);
         expect(p1.battlefield.map((c) => c.id)).toEqual([]);
         expect(p1.graveyard.map((c) => c.id)).toContain("bear");
+    });
+});
+
+// ── `hasBlockedThisTurn` at the same chokepoint (CR 506.4) ──────────────────
+//
+// The SECOND flag `markDeclaredBlockers` owns. Before the chokepoint only
+// THREE of the seven declaration sites set it — the real `confirmBlockers`
+// mutation was NOT one of them, so a human-declared block never recorded
+// "this creature blocked this combat" at all. Three shipped cards read it:
+// Lurker (`drk/green.ts` — its spell shroud lifts once it attacked or
+// blocked), Clockwork Beast (`lea/colorless.ts`) and Clockwork Avian
+// (`atq/colorless.ts`), whose end-of-combat intervening-if sheds a +1/+0
+// counter only if the creature attacked or blocked.
+//
+// The assertion is the OBSERVABLE, not the boolean: Lurker's `permanent-guard`
+// (`cantBeTargeted` + `targetSourceMustBeSpell`, CR 113.3) must stop barring
+// Lightning Bolt the moment the block is confirmed. Chosen over the Clockwork
+// intervening-if because it reads through the real targeting authority
+// (`getLegalTargets`) with no extra phase advancement, and over reading
+// `hasBlockedThisTurn` directly because a raw-flag assertion would still pass
+// if the flag stopped being consumed anywhere.
+describe("confirmBlockers records hasBlockedThisTurn (CR 506.4, issue #1826)", () => {
+    // p1 attacks with a 2/2 vanilla; p2 blocks with Lurker.
+    function makeLurkerBlockState(): {
+        state: GameState;
+        lurk: CardInstanceState;
+    } {
+        const attacker = vanilla("bear", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const lurk = makeInstance(lurker.id, {
+            id: "lurk",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            phase: "DECLARE_BLOCKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p2",
+            combat: {
+                attackerIds: ["bear"],
+                confirmed: true,
+                blockerAssignments: { lurk: ["bear"] },
+                blockersConfirmed: false,
+                damageConfirmed: false,
+            },
+            players: [
+                makePlayer("p1", { battlefield: [attacker] }),
+                makePlayer("p2", { battlefield: [lurk] }),
+            ],
+        });
+        return { state, lurk };
+    }
+
+    // p1 casting Lightning Bolt: is Lurker offered as a target?
+    const boltCanTarget = (state: GameState) =>
+        getLegalTargets(
+            state,
+            lightningBolt.targetRequirement!,
+            { ...NO_TARGETING_SOURCE, isSpell: true },
+            "p1",
+            undefined
+        ).some((t) => t.id === "lurk");
+
+    it("Lurker's spell shroud lifts once the mutation confirms it as a blocker", async () => {
+        const { state } = makeLurkerBlockState();
+        // Precondition — the shroud is up while Lurker has neither attacked
+        // nor blocked, so the assertion below cannot be vacuously true.
+        expect(boltCanTarget(state)).toBe(false);
+
+        const stub = makeCtx("p2", [
+            {
+                _id: "game-1",
+                __table: "games",
+                name: "Game",
+                status: "playing",
+                players: [{ id: "p1" }, { id: "p2" }],
+                createdAt: 0,
+                updatedAt: 0,
+            },
+            {
+                _id: "gs-1",
+                __table: "gameStates",
+                gameId: "game-1",
+                seq: 1,
+                state,
+                updatedAt: 0,
+            },
+        ]);
+
+        await runConfirmBlockers(stub.ctx, {
+            gameId: "game-1" as unknown as Id<"games">,
+            playerId: "p2",
+        });
+
+        // Read the PERSISTED doc back through `expandState`, so the flag is
+        // also proven to survive the serialize round-trip (`serialize.ts`
+        // drops any card field it does not explicitly carry).
+        const persisted = expandState(
+            stub.doc("gs-1").state as Record<string, unknown>
+        );
+        expect(persisted.combat?.blockersConfirmed).toBe(true);
+        expect(boltCanTarget(persisted)).toBe(true);
     });
 });
 
