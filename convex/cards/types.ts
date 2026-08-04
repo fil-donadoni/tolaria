@@ -4995,7 +4995,13 @@ export interface PermanentView {
      *  opponent's turn. Compare against `StaticEffectStateView.turn` for an
      *  "entered this turn" gate (Chaos Lord's "can attack as though it had
      *  haste UNLESS it entered this turn"). Undefined on a permanent that
-     *  carries no entry stamp — treat as "unknown", never as "entered now".
+     *  carries no entry stamp (anything staged without going through
+     *  `markEnteredThisTurn`) — that is "unknown", NOT "entered on an earlier
+     *  turn". A gate reading this field MUST require it to be defined before
+     *  concluding anything, and resolve the undefined case the conservative
+     *  way: for a permission GRANT that means withholding the permission.
+     *  `enteredOnTurn !== state.turn` alone is a fail-OPEN bug — `undefined`
+     *  compares unequal to every turn number.
      *  Survives the wire projection: `SlimCardInstance` is
      *  `Omit<CardInstanceState, "card">`, so the stamp reads identically
      *  server-side and after `projectPublicState`. */

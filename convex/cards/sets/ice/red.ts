@@ -526,13 +526,24 @@ export const brandOfIllOmen: CardDefinition = {
 //     — re-set by a CONTROL CHANGE (`isSummoningSick`).
 //   - This clause asks "did it ENTER the battlefield this turn?" — a zone
 //     change only (`enteredOnTurn`, CR 400.7), untouched by a control change.
-// The gap between them is the whole point of the card: its own upkeep trigger
-// hands it back and forth between players, and after each hand-off the new
-// controller has a summoning-sick 7/7 that did NOT enter this turn — so the
-// clause lets it attack. Without it the Lord could essentially never attack.
-// Conversely a FRESHLY CAST Chaos Lord entered this turn, gets no permission,
-// and is held back by ordinary summoning sickness — the restriction that
-// offsets a 7/7 first-striker for {4}{R}{R}{R}.
+// The reachable gap between them is a MID-TURN control change: an external
+// steal that lands during the new controller's OWN turn, after their untap
+// step (Aladdin `ice/black.ts`, Old Man of the Sea, any Ray-of-Command-shaped
+// "gain control until end of turn"). `applyControlChange` re-sets
+// `isSummoningSick`, no untap step intervenes before that turn's combat, but
+// `enteredOnTurn` still points at an earlier turn — so the clause is what lets
+// the stolen 7/7 swing the turn it is taken. Conversely a FRESHLY CAST Chaos
+// Lord entered this turn, gets no permission, and is held back by ordinary
+// summoning sickness — the restriction that offsets a 7/7 first-striker for
+// {4}{R}{R}{R}.
+//
+// NOTE — the card's OWN upkeep trigger below is NOT the case this covers, and
+// reasoning from it gets the card backwards. That trigger is `scope: "your"`,
+// so it fires on the controller's upkeep and hands the Lord to the NON-active
+// player; `untapStep` (`gre/phases.ts`) then clears `isSummoningSick` for the
+// active player's whole battlefield unconditionally, so the recipient always
+// gets a full untap step of their own before their combat. Via the parity
+// hand-off alone the grant is never load-bearing.
 //
 // Modelled as a CR 611.2c "as long as ..." conditional layer-6 keyword grant
 // of `haste` (`keyword-grant` + `condition`, the Kavu Runner shape, issue
@@ -562,12 +573,21 @@ export const chaosLord: CardDefinition = {
         {
             kind: "keyword-grant",
             applies: EFFECT_AFFECTS_SELF,
-            // CR 400.7 / 611.2c — "unless it entered this turn". `undefined`
-            // on either side means "unknown", and the conservative answer for
-            // a permission is to WITHHOLD it (the doc contract on
-            // `StaticEffectStateView.turn`): no turn number, no grant.
+            // CR 400.7 / 611.2c — "unless it entered this turn". FAILS
+            // CLOSED on either side being `undefined`: an absent entry stamp
+            // means "unknown", NOT "entered earlier", so a bare
+            // `enteredOnTurn !== state.turn` would read `undefined !== 5` as
+            // true and hand a stamp-less summoning-sick Lord the permission —
+            // exactly the bug this card's grant exists to prevent. The
+            // `source.enteredOnTurn !== undefined` guard is the REACHABLE one
+            // (any permanent staged without going through
+            // `markEnteredThisTurn`); the `state.turn` guard covers the
+            // optional-by-contract view field (`StaticEffectStateView.turn`).
+            // A permission is only ever granted on positive evidence.
             condition: (source, state) =>
-                state.turn !== undefined && source.enteredOnTurn !== state.turn,
+                state.turn !== undefined &&
+                source.enteredOnTurn !== undefined &&
+                source.enteredOnTurn !== state.turn,
             keyword: "haste",
         },
     ],

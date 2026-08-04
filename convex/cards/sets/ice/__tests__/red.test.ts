@@ -1124,13 +1124,18 @@ describe("Chaos Lord — conditional haste at declare-attackers (CR 508.1a / 400
      *  `refreshCounterGatedStatics` is the production sweep `saveGameState`
      *  runs before every persisted write, so the instance reaches the mutation
      *  with its conditional statics materialized exactly as in a real game. */
-    function chaosLordCombatState(enteredOnTurn: number): GameState {
+    function chaosLordCombatState(
+        enteredOnTurn: number | undefined
+    ): GameState {
         const lord = makeInstance(chaosLord.id, {
             id: "lord",
             controllerId: "p1",
             ownerId: "p1",
             isSummoningSick: true,
-            enteredOnTurn,
+            // `undefined` stages the NO-ENTRY-STAMP shape on purpose (see the
+            // fail-closed case below) — spread so the key is genuinely absent
+            // rather than present-and-undefined.
+            ...(enteredOnTurn !== undefined ? { enteredOnTurn } : {}),
         });
         const state = makeState({
             turn: 5,
@@ -1207,6 +1212,28 @@ describe("Chaos Lord — conditional haste at declare-attackers (CR 508.1a / 400
         );
         await declareLordAsAttacker(h.ctx);
         expect(h.state().combat!.attackerIds).toEqual(["lord"]);
+    });
+
+    // FAIL-CLOSED on a missing entry stamp. `enteredOnTurn` is optional, and
+    // plenty of instances reach the battlefield without going through
+    // `markEnteredThisTurn` (a debug-staged board, a bench fixture, any future
+    // placement path). A bare `source.enteredOnTurn !== state.turn` reads
+    // `undefined !== 5` as TRUE and hands the permission out on NO evidence —
+    // the same "unknown treated as favourable" shape as the inert-keyword trap
+    // (#957/#958), except here it grants rather than withholds. The absent
+    // stamp must mean "unknown", and a permission is granted only on positive
+    // evidence that the Lord entered on an earlier turn.
+    it("withholds the grant from a summoning-sick Lord carrying NO entry stamp", async () => {
+        const h = makeMutationCtx("p1", [
+            gameStateSeed(chaosLordCombatState(undefined)),
+        ]);
+        const staged = h.state().players[0].battlefield[0];
+        expect(staged.enteredOnTurn).toBeUndefined();
+        expect(staged.staticAbilities).not.toContain("haste");
+        await expect(declareLordAsAttacker(h.ctx)).rejects.toThrow(
+            "Creature has summoning sickness"
+        );
+        expect(h.state().combat!.attackerIds).toEqual([]);
     });
 });
 
