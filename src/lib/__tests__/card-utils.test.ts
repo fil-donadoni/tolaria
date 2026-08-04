@@ -98,6 +98,7 @@ import { disruptingScepter, forest } from "@convex/cards/sets/lea";
 import { powerArmor } from "@convex/cards/sets/inv";
 import { thopterFoundry } from "@convex/cards/sets/arb/multicolor";
 import { caribouRange } from "@convex/cards/sets/ice/white";
+import { norritt } from "@convex/cards/sets/ice/black";
 import { sorrowsPath } from "@convex/cards/sets/drk/colorless";
 import { dauthiVoidwalker } from "@convex/cards/sets/mh2/black";
 import { viviOrnitier } from "@convex/cards/sets/fin";
@@ -5275,5 +5276,117 @@ describe("PLS C4 prevention slice — client affordances (#1955)", () => {
         expect(wantsPermanentTarget(pollenRemedy.targetRequirement!.type)).toBe(
             true
         );
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Norritt — the CR 602.2b "no legal target" tap-menu gate must judge
+// `controlledSinceTurnStart` (issue #1824 review, finding 3).
+//
+// `hasBattlefieldTargetCandidate` judged only `type` + `controller` +
+// `subtypeFilter` and failed OPEN on everything else. That was harmless until
+// a filter shipped that can exclude EVERY candidate on an otherwise-populated
+// board: Norritt's "the active player has controlled continuously since the
+// beginning of the turn". On a board whose only active-player creature entered
+// this turn, the gate offered the ability with zero legal targets and
+// `activateAbilityOnState` (`convex/game.ts`) then threw "Not enough legal
+// targets" — the dead menu entry this gate exists to prevent.
+//
+// Every assertion drives the REAL reducer (`buildTriggerStateView`), which is
+// what pre-derives each permanent's `controlledSinceTurnStart` through the
+// engine's own `hasControlledSinceTurnStart`. A hand-built view would supply
+// the field directly and mask exactly the drop being guarded against.
+// ---------------------------------------------------------------------------
+
+describe("Norritt — force-attack ability's no-legal-target gate honours control continuity (CR 602.2b / 400.7, issue #1824)", () => {
+    const FORCE_ATTACK = "norritt-force-attack";
+    const TURN = 5;
+
+    function norrittOnBoard(): CardInstance {
+        return makeCardInstance({
+            id: "norr",
+            card: { id: norritt.id },
+            controllerId: "p2",
+            ownerId: "p2",
+            types: ["Creature"],
+            isTapped: false,
+            isSummoningSick: false,
+        });
+    }
+    function activeCreature(id: string, enteredOnTurn: number): CardInstance {
+        return makeCardInstance({
+            id,
+            card: { id: crawWurm.id },
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Creature"],
+            enteredOnTurn,
+        });
+    }
+    /** The reducer-built view — `turnState` is what populates the per-permanent
+     *  `controlledSinceTurnStart` the gate reads. */
+    function view(
+        candidates: CardInstance[],
+        controlChangedThisTurn?: string[]
+    ) {
+        return buildTriggerStateView(
+            [
+                { id: "p1", life: 20, hand: [], battlefield: candidates },
+                {
+                    id: "p2",
+                    life: 20,
+                    hand: [],
+                    battlefield: [norrittOnBoard()],
+                },
+            ],
+            "p1",
+            undefined,
+            undefined,
+            { turn: TURN, controlChangedThisTurn }
+        );
+    }
+    const menu = (v: ReturnType<typeof view>) =>
+        getStackAbilities(norrittOnBoard(), "PRECOMBAT_MAIN", true, v).map(
+            (a) => a.id
+        );
+
+    it("is HIDDEN when the active player's only creature entered THIS turn (CR 400.7)", () => {
+        expect(menu(view([activeCreature("fresh", TURN)]))).not.toContain(
+            FORCE_ATTACK
+        );
+    });
+
+    it("is HIDDEN when the active player's only creature changed hands this turn", () => {
+        expect(
+            menu(view([activeCreature("stolen", 1)], ["stolen"]))
+        ).not.toContain(FORCE_ATTACK);
+    });
+
+    it("is OFFERED when the active player has held a creature since before the turn", () => {
+        expect(menu(view([activeCreature("held", 1)]))).toContain(FORCE_ATTACK);
+    });
+
+    it("still FAILS OPEN when the reducer was given no turn state (never hides a legal ability)", () => {
+        // No `turnState` → the reducer leaves `controlledSinceTurnStart`
+        // undefined, and this conservative UI hint declines to judge rather
+        // than hiding an ability the server would allow.
+        const blindView = buildTriggerStateView(
+            [
+                {
+                    id: "p1",
+                    life: 20,
+                    hand: [],
+                    battlefield: [activeCreature("fresh", TURN)],
+                },
+                {
+                    id: "p2",
+                    life: 20,
+                    hand: [],
+                    battlefield: [norrittOnBoard()],
+                },
+            ],
+            "p1"
+        );
+        expect(menu(blindView)).toContain(FORCE_ATTACK);
     });
 });

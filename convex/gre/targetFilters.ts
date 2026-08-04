@@ -49,6 +49,7 @@ import type { CardType, Color, TargetRequirement } from "../cards/types";
 import type {
     CardInstanceState,
     GameState,
+    PendingTarget,
     PlayerState,
     StackItem,
 } from "./state";
@@ -1352,6 +1353,47 @@ export function lowerPermanentFilters(
         const value = REGISTRY[key].lower(req, chosenX, sourcePower);
         if (value !== undefined) out[key] = value;
     }
+    return out as PermanentFilterValues;
+}
+
+/** Reads the PERMANENT-filter values back off a carrier that already holds the
+ *  LOWERED values — i.e. a `PendingTarget`, whose filter fields ARE
+ *  `lowerPermanentFilters`' output by construction. The permanent-kind twin of
+ *  {@link spellFilterValuesFromCarrier} below, and for the same reason.
+ *
+ *  Exists so the two sites that USED to hand-write the forward list — the
+ *  ACCEPTED set (`applyOneTargetSelection`, `game.ts`) and the client highlight
+ *  (`matchesPermanentTargetFilters`, `src/lib/card-utils.ts`) — stop doing so.
+ *  `PermanentFilterValues` is a `Partial<>`, so a missing line in a
+ *  hand-written map is not a type error: the filter is carried onto the
+ *  `PendingTarget`, the registry knows how to check it, and the one line that
+ *  hands it over is simply absent — `selectTarget` then silently accepts a
+ *  target `getLegalTargets` never offered, which is the offered≠accepted
+ *  Phelia divergence (`78c0279c`) reopened one field at a time. Proven live,
+ *  not hypothetical: deleting `controlledSinceTurnStart` from the `game.ts`
+ *  map left `tsc` at exit 0 and 1000+ targeted tests green (issue #1824
+ *  review). Iterating `PERMANENT_FILTER_KEYS` — the very list
+ *  `checkPermanentTargetFilters` loops — makes the forwarded set and the
+ *  checked set the SAME set by construction.
+ *
+ *  Typed tighter than its spell twin: `Pick<PendingTarget,
+ *  PermanentFilterKey>` is the second half of the forcing function — a
+ *  permanent-kind filter key that is not also a `PendingTarget` field fails
+ *  `tsc` right here, since it could never survive the async gap between
+ *  "targets requested" and "target submitted" (see
+ *  `PENDING_TARGET_FILTER_KEYS`, `gre/state.ts`, the `satisfies`-shaped guard
+ *  on the carry step itself). */
+export function permanentFilterValuesFromCarrier(
+    carrier: Pick<PendingTarget, PermanentFilterKey>
+): PermanentFilterValues {
+    const out: Record<string, unknown> = {};
+    for (const key of PERMANENT_FILTER_KEYS) {
+        const value = carrier[key];
+        if (value !== undefined) out[key] = value;
+    }
+    // Re-asserted once rather than cast per field: `PendingTarget` widens a
+    // couple of its persisted values (`colorFilter` is `string` there, `Color`
+    // here) because the wire/DB shape can't carry the union.
     return out as PermanentFilterValues;
 }
 

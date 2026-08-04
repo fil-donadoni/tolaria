@@ -188,7 +188,10 @@ import type {
     TargetRequirement,
     TargetSelection,
 } from "./cards/types";
-import { spellFilterValuesFromCarrier } from "./gre/targetFilters";
+import {
+    permanentFilterValuesFromCarrier,
+    spellFilterValuesFromCarrier,
+} from "./gre/targetFilters";
 import {
     assertLegalAction,
     canCastFromGraveyardByPermission,
@@ -9569,8 +9572,15 @@ export function applyOneTargetSelection(
         // the offered set and the accepted set can't diverge (subtype/
         // supertype/type-exclude/color/tapped/combat-role/keyword/
         // exclude-instance/power/toughness/mv/controller) — the Phelia
-        // bug class. A new filter added to the registry is enforced at
-        // both sites at once — no field-by-field drift possible here.
+        // bug class. The VALUES fed to that authority are derived from
+        // the `PendingTarget` by iterating `PERMANENT_FILTER_KEYS`
+        // (`permanentFilterValuesFromPendingTarget`), not spelled out
+        // field by field: `PermanentFilterValues` is a `Partial<>`, so a
+        // hand-written map could — and did — drop a key with `tsc` at
+        // exit 0 and the whole targeting suite green, re-opening the very
+        // divergence the shared authority closes (issue #1824 review).
+        // A filter added to the registry now reaches this site with no
+        // edit here at all.
         // CR 601.2c same-controller cross-slot constraint (issue #1104,
         // Barrin's Spite) — the sibling's live controllerId from what's
         // already in `pt.selected`, resolved through the SAME
@@ -9594,31 +9604,7 @@ export function applyOneTargetSelection(
         const filterViolation = checkPermanentTargetFilters(
             filterCtx,
             matchedCard,
-            {
-                controller: pt.controller,
-                subtypeFilter: pt.subtypeFilter,
-                supertypeFilter: pt.supertypeFilter,
-                excludeSubtypes: pt.excludeSubtypes,
-                excludeSupertypes: pt.excludeSupertypes,
-                excludeTypes: pt.excludeTypes,
-                excludeColors: pt.excludeColors,
-                colorFilter: pt.colorFilter as Color | undefined,
-                colorFilterAny: pt.colorFilterAny as
-                    | readonly Color[]
-                    | undefined,
-                tappedFilter: pt.tappedFilter,
-                combatRoleFilter: pt.combatRoleFilter,
-                requireAbility: pt.requireAbility,
-                requireAbilityAny: pt.requireAbilityAny,
-                excludeAbility: pt.excludeAbility,
-                excludeInstanceIds: pt.excludeInstanceIds,
-                powerFilter: pt.powerFilter,
-                toughnessFilter: pt.toughnessFilter,
-                mvFilter: pt.mvFilter,
-                sameController: pt.sameController,
-                isToken: pt.isToken,
-                controlledSinceTurnStart: pt.controlledSinceTurnStart,
-            }
+            permanentFilterValuesFromCarrier(pt)
         );
         if (filterViolation) throw new Error(filterViolation);
         // CR 702.16b / 611 — the source whose target-selection is in progress.

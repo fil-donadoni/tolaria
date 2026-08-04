@@ -71,6 +71,7 @@ import { canPayKickerLegs } from "@convex/gre/kicker";
 import {
     checkPermanentTargetFilters,
     isAlreadySelectedTarget,
+    permanentFilterValuesFromCarrier,
     type PermanentFilterValues,
     type TargetFilterCtx,
 } from "@convex/gre/targetFilters";
@@ -711,10 +712,10 @@ const NON_PERMANENT_TARGET_TYPES = new Set([
  * gate never hides a legal ability:
  *  - a requirement in a non-battlefield zone (graveyard), or whose type names a
  *    player / spell / any card, is not judged;
- *  - only `type`, `subtypeFilter`, `controller` and the self-exclusion are
- *    applied — the finer filters (power/toughness, colour, protection, shroud,
- *    intrinsic per-card filters) are the server's, whose `getLegalTargets` /
- *    `selectTarget` remain the single authority.
+ *  - only `type`, `subtypeFilter`, `controller`, `controlledSinceTurnStart` and
+ *    the self-exclusion are applied — the finer filters (power/toughness,
+ *    colour, protection, shroud, intrinsic per-card filters) are the server's,
+ *    whose `getLegalTargets` / `selectTarget` remain the single authority.
  * So a "no candidates" answer is reliable; a "has candidates" answer only means
  * the ability is worth offering.
  */
@@ -809,6 +810,31 @@ export function hasBattlefieldTargetCandidate(
                     permanent as unknown as CardInstanceState,
                     values
                 ) !== null
+            ) {
+                continue;
+            }
+            // CR 302.6 / 400.7 (issue #1824) — "target ... the active player
+            // has controlled continuously since the beginning of the turn"
+            // (Norritt, Arcum's Whistle). Judged HERE rather than through the
+            // registry above, unlike every other dimension: the registry's
+            // descriptor derives continuity from `enteredOnTurn` +
+            // `GameState.turn` + the `controlChangedThisTurn` ledger, and this
+            // gate's synthetic state is built from a `TriggerStateView`, which
+            // carries none of the three — feeding it one would read EVERY
+            // permanent as continuously controlled and fail OPEN, offering the
+            // ability on a board whose only candidate entered this turn and
+            // letting `activateAbilityOnState` throw "Not enough legal
+            // targets" (the dead menu entry this gate exists to prevent).
+            // `buildTriggerStateView` already pre-derives the answer per
+            // permanent through the SAME authority
+            // (`hasControlledSinceTurnStart`, `gre/controlContinuity.ts`), so
+            // the boolean read here IS the registry's verdict, computed one
+            // layer up. Left undefined when that reducer was called without
+            // `turnState`, in which case this gate declines to judge —
+            // fail-open, like every other dimension it cannot see.
+            if (
+                requirement.controlledSinceTurnStart === true &&
+                permanent.controlledSinceTurnStart === false
             ) {
                 continue;
             }
@@ -939,31 +965,13 @@ export function matchesPermanentTargetFilters(
         activePlayerId,
         siblingControllerId,
     };
-    const values: PermanentFilterValues = {
-        controller: pendingTarget.controller,
-        subtypeFilter: pendingTarget.subtypeFilter,
-        supertypeFilter: pendingTarget.supertypeFilter,
-        excludeSubtypes: pendingTarget.excludeSubtypes,
-        excludeSupertypes: pendingTarget.excludeSupertypes,
-        excludeTypes: pendingTarget.excludeTypes,
-        excludeColors: pendingTarget.excludeColors,
-        colorFilter: pendingTarget.colorFilter as Color | undefined,
-        colorFilterAny: pendingTarget.colorFilterAny as
-            | readonly Color[]
-            | undefined,
-        tappedFilter: pendingTarget.tappedFilter,
-        combatRoleFilter: pendingTarget.combatRoleFilter,
-        requireAbility: pendingTarget.requireAbility,
-        requireAbilityAny: pendingTarget.requireAbilityAny,
-        excludeAbility: pendingTarget.excludeAbility,
-        excludeInstanceIds: pendingTarget.excludeInstanceIds,
-        powerFilter: pendingTarget.powerFilter,
-        toughnessFilter: pendingTarget.toughnessFilter,
-        mvFilter: pendingTarget.mvFilter,
-        sameController: pendingTarget.sameController,
-        isToken: pendingTarget.isToken,
-        controlledSinceTurnStart: pendingTarget.controlledSinceTurnStart,
-    };
+    // Derived by iterating `PERMANENT_FILTER_KEYS`, never spelled out field by
+    // field: `PermanentFilterValues` is a `Partial<>`, so a hand-written map
+    // can drop a carried filter with `tsc` green — the client then highlights a
+    // permanent the server rejects, the #1697 symptom re-opened one dimension
+    // at a time (issue #1824 review). Same single derivation the server's own
+    // accepted-set site uses.
+    const values = permanentFilterValuesFromCarrier(pendingTarget);
     // Sound: the wire-projected `CardInstance` is a structural superset of the
     // fields `checkPermanentTargetFilters`/the layer system read off
     // `CardInstanceState` (the same cast pattern `effective-stats.ts`'s

@@ -88,7 +88,11 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { collectTriggers } from "../../../../gre/triggers";
-import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
+import {
+    getLegalTargets,
+    NO_TARGETING_SOURCE,
+    pendingTargetFiltersFromRequirement,
+} from "../../../../gre/rules";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     fireDelayedTriggers,
@@ -105,6 +109,7 @@ import {
     tryAutoCommitPendingActivation,
     buildPendingActivation,
     getEffectiveActivatedAbilities,
+    applyOneTargetSelection,
 } from "../../../../game";
 import {
     makeInstance,
@@ -1266,6 +1271,93 @@ describe("Norritt (untap blue / force-attack, CR 701.20b / 508.1d)", () => {
             "p2"
         ).map((t) => t.id);
         expect(ids).toEqual(["held"]);
+    });
+
+    // Issue #1824 review, BLOCKING 1 — the ACCEPTED set, not the offered one.
+    // `getLegalTargets` narrowing the OFFER is only half of CR 601.2c: a
+    // client (or a spoofed request) submits an id, and `selectTarget` —
+    // `applyOneTargetSelection` — has to reject anything the offer excluded,
+    // or the filter is decorative. The two sides share
+    // `checkPermanentTargetFilters`, but the VALUES each hands it used to be a
+    // hand-written map into a `Partial<>` type, so the accept side could drop
+    // `controlledSinceTurnStart` with `tsc` at exit 0 and every offered-set
+    // test above still green — the offered≠accepted Phelia divergence this
+    // whole issue is about, re-opened at the one site nothing covered. This
+    // test drives the real accept path with the same
+    // `pendingTargetFiltersFromRequirement` carry the live activation uses.
+    it("REJECTS a just-entered creature submitted to the accept path (CR 601.2c, issue #1824)", () => {
+        const norr = makeInstance(norritt.id, {
+            id: "norr",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const held = vanilla("held", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const fresh = vanilla("fresh", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        fresh.enteredOnTurn = 3;
+        const stolen = vanilla("stolen", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            turn: 3,
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [held, fresh, stolen] }),
+                makePlayer("p2", { battlefield: [norr] }),
+            ],
+        });
+        state.controlChangedThisTurn = ["stolen"];
+        const req = forceAttack.targetRequirement!;
+        // Fresh `selected` array per attempt — a shared one would let an
+        // earlier push leak into the next assertion.
+        const newPending = (): NonNullable<GameState["pendingTarget"]> => ({
+            playerId: "p2",
+            cardInstanceId: "norr",
+            targetType: req.type,
+            count: 1,
+            selected: [],
+            kind: "ability" as const,
+            abilityId: forceAttack.id,
+            ...pendingTargetFiltersFromRequirement(req, undefined),
+        });
+
+        // Entered the battlefield THIS turn (CR 400.7 — a new object, so the
+        // active player has not controlled it since the turn began).
+        state.pendingTarget = newPending();
+        expect(() =>
+            applyOneTargetSelection(state, "p2", {
+                targetType: "permanent",
+                targetId: "fresh",
+            })
+        ).toThrow();
+
+        // Changed hands this turn — on the battlefield since before the turn,
+        // but the continuity ledger records the break.
+        state.pendingTarget = newPending();
+        expect(() =>
+            applyOneTargetSelection(state, "p2", {
+                targetType: "permanent",
+                targetId: "stolen",
+            })
+        ).toThrow();
+
+        // The one genuinely legal target IS accepted — proving the two
+        // rejections above are the filter talking, not a broken fixture. Held
+        // by reference because reaching `count` finalizes the selection and
+        // clears `state.pendingTarget`.
+        const accepted = newPending();
+        state.pendingTarget = accepted;
+        applyOneTargetSelection(state, "p2", {
+            targetType: "permanent",
+            targetId: "held",
+        });
+        expect(accepted.selected).toEqual([{ type: "permanent", id: "held" }]);
     });
 });
 
