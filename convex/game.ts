@@ -190,6 +190,7 @@ import type {
 } from "./cards/types";
 import {
     permanentFilterValuesFromCarrier,
+    playerFilterValuesFromCarrier,
     spellFilterValuesFromCarrier,
 } from "./gre/targetFilters";
 import {
@@ -9692,13 +9693,16 @@ export function applyOneTargetSelection(
             chooserId: playerId,
             activePlayerId: state.activePlayerId,
         };
+        //
+        // The forward set comes from `playerFilterValuesFromCarrier`, which
+        // iterates `PLAYER_FILTER_KEYS` — the very list
+        // `checkPlayerTargetFilters` loops. It used to be a hand-written map
+        // literal (complete at 2/2, but fail-OPEN for the NEXT key, exactly as
+        // the spell branch's was before issue #1956).
         const playerFilterViolation = checkPlayerTargetFilters(
             playerFilterCtx,
             found,
-            {
-                controller: pt.controller,
-                playerAttackedThisTurn: pt.playerAttackedThisTurn,
-            }
+            playerFilterValuesFromCarrier(pt)
         );
         if (playerFilterViolation) throw new Error(playerFilterViolation);
         // CR 702.18 (applied to a player via CR 115.4) — a shrouded

@@ -19,8 +19,6 @@ import {
     canPayTapOtherCost,
     crewPowerContribution,
 } from "@convex/gre/tapOtherCost";
-import { totalKickerCount } from "@convex/gre/kicker";
-import type { SpellFilterKey } from "@convex/gre/targetFilters";
 import {
     hasControlledSinceTurnStart,
     type ControlContinuityView,
@@ -70,11 +68,16 @@ import {
 import { canPayKickerLegs } from "@convex/gre/kicker";
 import {
     checkPermanentTargetFilters,
+    checkPlayerTargetFilters,
+    checkSpellTargetFilters,
     isAlreadySelectedTarget,
     permanentFilterValuesFromCarrier,
+    playerFilterValuesFromCarrier,
+    spellFilterValuesFromCarrier,
     type PermanentFilterValues,
     type TargetFilterCtx,
 } from "@convex/gre/targetFilters";
+import type { StackItem } from "@convex/gre/state";
 import { getDefinition, tryGetDefinition } from "@convex/cards";
 import { tryGetEmblemDefinition } from "@convex/cards/emblems";
 import { getEffectiveColors } from "@convex/cards/effectiveColors";
@@ -1006,326 +1009,60 @@ export function wantsSpellTarget(
     return types.includes("spell") || types.includes("spell-or-permanent");
 }
 
-/** True if a stack item is a legal spell target under an optional
- *  `spellTypeFilter` (CR 114.1, Fork's "instant or sorcery spell"): an
- *  activated/triggered ability isn't a spell, and a spell must match one of
- *  the requested card types. With no filter, any stack item qualifies. */
-export function matchesSpellTypeFilter(
-    item: {
-        types?: string[];
-        abilityId?: string;
-        triggeredAbilityId?: string;
-    },
-    spellTypeFilter: string[] | undefined
-): boolean {
-    if (!spellTypeFilter || spellTypeFilter.length === 0) return true;
-    if (item.abilityId || item.triggeredAbilityId) return false;
-    const types = item.types ?? [];
-    return spellTypeFilter.some((t) => types.includes(t));
-}
-
-/** True if a stack item is a legal spell target under an optional
- *  `spellExcludeTypeFilter` (CR 114.1, Spell Pierce's "target noncreature
- *  spell"): an activated/triggered ability isn't a spell, and a spell must
- *  match NONE of the excluded card types. With no filter, any stack item
- *  qualifies. */
-export function matchesSpellExcludeTypeFilter(
-    item: {
-        types?: string[];
-        abilityId?: string;
-        triggeredAbilityId?: string;
-    },
-    spellExcludeTypeFilter: string[] | undefined
-): boolean {
-    if (!spellExcludeTypeFilter || spellExcludeTypeFilter.length === 0) {
-        return true;
-    }
-    if (item.abilityId || item.triggeredAbilityId) return false;
-    const types = item.types ?? [];
-    return !spellExcludeTypeFilter.some((t) => types.includes(t));
-}
-
-/** True if a stack item is a legal spell target under an optional
- *  `spellCreaturePtFilter` (CR 114.1 + 208.2, Stern Scolding's "target
- *  creature spell with power or toughness 2 or less"): an
- *  activated/triggered ability isn't a spell, the item must be a creature
- *  spell, and its power OR toughness must be at most the given number. With
- *  no filter, any stack item qualifies. */
-export function matchesSpellCreaturePtFilter(
-    item: {
-        types?: string[];
-        abilityId?: string;
-        triggeredAbilityId?: string;
-        power?: number;
-        toughness?: number;
-    },
-    spellCreaturePtFilter: { maxPowerOrToughness: number } | undefined
-): boolean {
-    if (!spellCreaturePtFilter) return true;
-    if (item.abilityId || item.triggeredAbilityId) return false;
-    const types = item.types ?? [];
-    if (!types.includes("Creature")) return false;
-    const max = spellCreaturePtFilter.maxPowerOrToughness;
-    const powerOk = item.power !== undefined && item.power <= max;
-    const toughnessOk = item.toughness !== undefined && item.toughness <= max;
-    return powerOk || toughnessOk;
-}
-
-/** True if a stack item is a legal target for Reflecting Mirror's
- *  `spellSingleTargetingController` requirement (CR 114.6 / 115.10): an
- *  actual spell (not an ability) that has EXACTLY ONE target whose single
- *  target is the activating player. When the flag is off, any spell qualifies. */
-export function matchesSpellSingleTargetingController(
-    item: {
-        abilityId?: string;
-        triggeredAbilityId?: string;
-        targets?: { type: string; id: string }[];
-    },
-    spellSingleTargetingController: boolean | undefined,
-    activatingPlayerId: string
-): boolean {
-    if (!spellSingleTargetingController) return true;
-    if (item.abilityId || item.triggeredAbilityId) return false;
-    const targets = item.targets ?? [];
-    if (targets.length !== 1) return false;
-    return targets[0].type === "player" && targets[0].id === activatingPlayerId;
-}
-
-/** True if a stack item is a legal target under the `controller` filter
- *  extended to spell/ability stack objects (CR 109.3 / 114.1 — Lutri, the
- *  Spellchaser's "target instant or sorcery spell YOU CONTROL"). A stack
- *  item's "controller" is its caster (`castById`). Mirrors the server's
- *  `matchesBattlefieldController` (`gre/rules.ts`), reimplemented here
- *  because the frontend never imports GRE engine modules. With no filter (or
- *  `"any"`), any stack item qualifies. */
-export function matchesSpellController(
-    item: { castById?: string },
-    controller: "you" | "opponent" | "any" | "active" | undefined,
-    activatingPlayerId: string,
-    activePlayerId: string
-): boolean {
-    switch (controller ?? "any") {
-        case "you":
-            return item.castById === activatingPlayerId;
-        case "opponent":
-            return (
-                item.castById !== undefined &&
-                item.castById !== activatingPlayerId
-            );
-        case "active":
-            return item.castById === activePlayerId;
-        case "any":
-            return true;
-    }
-}
-
-/** True if a stack item is a legal target for Equinox's
- *  `spellWouldDestroyLandYouControl` requirement (CR 114.1 + 701.7): a spell
- *  (not an ability) that would destroy a land `playerId` controls — either a
- *  single-target `effect: "destroy-target"` whose chosen permanent is a land
- *  they control, or a `destroysAllLands` spell while they control any land.
- *  Mirrors `spellWouldDestroyLandControlledBy` in `gre/rules.ts`. When the flag
- *  is off, any spell qualifies. */
-export function matchesSpellWouldDestroyLand(
-    item: {
-        card: { id: string };
-        targets?: { type: string; id: string }[];
-        abilityId?: string;
-        triggeredAbilityId?: string;
-    },
-    spellWouldDestroyLandYouControl: boolean | undefined,
-    players: { id: string; battlefield: CardInstance[] }[],
-    playerId: string
-): boolean {
-    if (!spellWouldDestroyLandYouControl) return true;
-    if (item.abilityId || item.triggeredAbilityId) return false;
-    const def = tryGetDefinition(item.card.id);
-    if (!def) return false;
-    const controlsALand = players
-        .find((p) => p.id === playerId)
-        ?.battlefield.some((c) => isLand(c) && c.controllerId === playerId);
-    if (def.destroysAllLands) return !!controlsALand;
-    if (def.effect === "destroy-target") {
-        for (const t of item.targets ?? []) {
-            if (t.type !== "permanent") continue;
-            for (const p of players) {
-                const perm = p.battlefield.find((c) => c.id === t.id);
-                if (perm && isLand(perm) && perm.controllerId === playerId) {
-                    return true;
-                }
-            }
-        }
-    }
-    return false;
-}
-
-/** True if a stack item is a legal target under the stack-object filters
- *  introduced for filtered counter abilities (CR 113 / 114.1):
- *   - `spellStackKind`: omitted (or `"spell"`) drops abilities — a "target
- *     spell" targets a spell, never an ability (CR 701.5a); `"activated-ability"`
- *     keeps only activated abilities (Brown Ouphe — mana abilities never reach
- *     the stack, CR 605.3a); `"ability"` keeps any ability, activated or
- *     triggered (Stifle); `"any"` keeps BOTH spells and abilities (Ward,
- *     CR 702.21a — "counter that spell or ability" needs no kind narrowing);
- *   - `stackSourceTypeFilter`: the object's source card `types` must include at
- *     least one listed type (Brown Ouphe: "from an artifact source");
- *   - `spellTargetsInstanceIds`: the object must target one of these permanent
- *     instance ids (Mistfolk: "spell that targets this creature"; also reached
- *     by an ability when `spellStackKind` admits abilities — Ward's reflexive
- *     "counter that [spell or ability]").
- *  With every filter absent, any stack item qualifies. */
-export function matchesStackObjectFilter(
-    item: {
-        types?: string[];
-        abilityId?: string;
-        triggeredAbilityId?: string;
-        delayedTriggerId?: string;
-        targets?: { type: string; id: string }[];
-    },
-    spellStackKind:
-        | "spell"
-        | "activated-ability"
-        | "ability"
-        | "any"
-        | undefined,
-    stackSourceTypeFilter: string[] | undefined,
-    spellTargetsInstanceIds: string[] | undefined
-): boolean {
-    const isAbility =
-        !!item.abilityId ||
-        !!item.triggeredAbilityId ||
-        !!item.delayedTriggerId;
-    // A "target spell" targets a SPELL, never an ability (CR 701.5a). Abilities
-    // on the stack are legal only when the requirement explicitly opts into an
-    // ability kind: the default (omitted) AND "spell" both drop abilities;
-    // "activated-ability" keeps only activated abilities; "ability" keeps any
-    // ability — activated OR triggered (Stifle); "any" keeps both (Ward).
-    const acceptsSpell =
-        spellStackKind === undefined ||
-        spellStackKind === "spell" ||
-        spellStackKind === "any";
-    const acceptsAbility =
-        spellStackKind === "activated-ability" ||
-        spellStackKind === "ability" ||
-        spellStackKind === "any";
-    if (isAbility) {
-        if (!acceptsAbility) return false;
-        // "activated-ability" narrows further to activated abilities.
-        if (spellStackKind === "activated-ability" && !item.abilityId) {
-            return false;
-        }
-    } else if (!acceptsSpell) {
-        return false; // an ability-only kind never accepts a spell
-    }
-    if (stackSourceTypeFilter && stackSourceTypeFilter.length > 0) {
-        const types = item.types ?? [];
-        if (!stackSourceTypeFilter.some((t) => types.includes(t))) return false;
-    }
-    if (spellTargetsInstanceIds && spellTargetsInstanceIds.length > 0) {
-        const targets = item.targets ?? [];
-        if (
-            !targets.some(
-                (t) =>
-                    t.type === "permanent" &&
-                    spellTargetsInstanceIds.includes(t.id)
-            )
-        ) {
-            return false;
-        }
-    }
-    return true;
-}
-
-/** True if a stack item is a legal target under the `spellTargetsTypeFilter`
- *  requirement (CR 114.1 / 109.2 — Confound's "counter target spell that
- *  targets a creature"): the candidate must ITSELF target at least one
- *  permanent of a listed type. "A creature" is a creature PERMANENT, so only
- *  `"permanent"` selections resolved against the live battlefield count — a
- *  player/spell/graveyard-card target never does, and neither does a permanent
- *  target that has already left the battlefield. Fail-CLOSED: an untargeted
- *  spell never qualifies. Mirrors `spellTargetsTypeFilterDescriptor` in
- *  `gre/targetFilters.ts`. With no filter, any stack item qualifies. */
-export function matchesSpellTargetsTypeFilter(
-    item: { targets?: { type: string; id: string }[] },
-    spellTargetsTypeFilter: string[] | undefined,
-    players: ReadonlyArray<{ battlefield: ReadonlyArray<CardInstance> }>
-): boolean {
-    if (!spellTargetsTypeFilter || spellTargetsTypeFilter.length === 0) {
-        return true;
-    }
-    for (const t of item.targets ?? []) {
-        if (t.type !== "permanent") continue;
-        for (const p of players) {
-            const perm = p.battlefield.find((c) => c.id === t.id);
-            if (
-                perm &&
-                spellTargetsTypeFilter.some((ty) =>
-                    (perm.types ?? []).includes(ty as CardType)
-                )
-            ) {
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
-/** True if a stack item is a legal target under the `spellWasKicked`
- *  requirement (CR 702.33a — Ertai's Trickery): the candidate's own Kicker
- *  state must equal the requested one. Read through `totalKickerCount`, the
- *  same single authority the server's descriptor uses (ADR 0079), so a spell
- *  with two independently payable Kickers counts as kicked when EITHER was
- *  paid. With the filter unset, any stack item qualifies. */
-export function matchesSpellWasKicked(
-    item: { kickerPayments?: Record<string, number> },
-    spellWasKicked: boolean | undefined
-): boolean {
-    if (spellWasKicked === undefined) return true;
-    return totalKickerCount(item.kickerPayments) > 0 === spellWasKicked;
-}
-
-/** Which SPELL-kind filters the CLIENT re-checks before marking a stack item
- *  clickable, and which it deliberately leaves to the server.
- *
- *  **This map is the fail-closed discriminator for the frontend half of the
- *  target-filter registry (issue #1956).** The server side can't drift —
- *  `getLegalTargets` and `selectTarget` share one descriptor (ADR 0068) — but
- *  the client never calls that registry (it works on the wire projection, not
- *  a `GameState`), so a spell filter added server-side used to reach the UI as
- *  a SILENT fail-open: `<GameStack>` kept offering the target and the server
- *  rejected the click. `satisfies Record<SpellFilterKey, …>` turns that into a
- *  compile error — a new spell filter cannot land without an author
- *  classifying it here.
- *
- *  `"server-only"` is a real, deliberate answer, not a TODO bucket: the click
- *  is still safe because `selectTarget` re-validates through the registry;
- *  the only cost is an offered target the server refuses. The three entries
- *  below are the cross-kind numeric/colour filters, unchecked client-side
- *  since before this map existed. */
-export const CLIENT_SPELL_FILTER_COVERAGE = {
-    spellStackKind: "checked",
-    controller: "checked",
-    stackSourceTypeFilter: "checked",
-    spellTargetsInstanceIds: "checked",
-    colorFilter: "server-only",
-    colorFilterAny: "server-only",
-    mvFilter: "server-only",
-    spellTypeFilter: "checked",
-    spellExcludeTypeFilter: "checked",
-    spellCreaturePtFilter: "checked",
-    spellSingleTargetingController: "checked",
-    spellWouldDestroyLandYouControl: "checked",
-    spellTargetsTypeFilter: "checked",
-    spellWasKicked: "checked",
-} satisfies Record<SpellFilterKey, "checked" | "server-only">;
-
 /** The ONE client-side predicate for "is this stack item clickable as a spell
- *  target", composing every `"checked"` filter in
- *  `CLIENT_SPELL_FILTER_COVERAGE`. `<GameStack>` calls this instead of
- *  chaining the per-filter helpers by hand — a chain is where a newly added
- *  filter goes missing without anything failing. */
+ *  target" (CR 114.1) — the spell-kind twin of
+ *  {@link matchesPermanentTargetFilters}, and built the same way (issue #1734,
+ *  the sibling of #1697/#1732).
+ *
+ *  Every filter dimension delegates to `checkSpellTargetFilters` — the SAME
+ *  registry (`convex/gre/targetFilters.ts`, ADR 0068) that `getLegalTargets`
+ *  (the offered set) and the `selectTarget` mutation (the accepted set,
+ *  `convex/game.ts`) already share — with the forward set produced by
+ *  `spellFilterValuesFromCarrier`, which iterates `SPELL_FILTER_KEYS`, the very
+ *  list the check loops. A spell filter added to the registry is therefore
+ *  honored here automatically: there is no per-dimension client mirror left to
+ *  keep in sync, and no `"server-only"` bucket.
+ *
+ *  This REPLACES nine hand-written mirrors (`matchesSpellTypeFilter`,
+ *  `matchesSpellExcludeTypeFilter`, `matchesSpellCreaturePtFilter`,
+ *  `matchesSpellSingleTargetingController`, `matchesSpellController`,
+ *  `matchesSpellWouldDestroyLand`, `matchesStackObjectFilter`,
+ *  `matchesSpellTargetsTypeFilter`, `matchesSpellWasKicked`) plus the
+ *  `CLIENT_SPELL_FILTER_COVERAGE` classification map that existed only to make
+ *  their incompleteness a compile error. Four divergences the mirrors had
+ *  actually accumulated, all closed by construction here:
+ *
+ *  1. `colorFilter` / `colorFilterAny` / `mvFilter` were classified
+ *     `"server-only"` — never checked client-side at all, so Spell Blast's
+ *     "counter target spell with mana value X" offered every spell on the
+ *     stack and the server refused the click (the #1697 symptom, spell-kind).
+ *  2. Four mirrors tested `abilityId || triggeredAbilityId` but NOT
+ *     `delayedTriggerId` (CR 603.7a), so a delayed trigger on the stack read as
+ *     a legal "spell" target — fail-OPEN.
+ *  3. `matchesSpellController`'s `"opponent"` branch required `castById !==
+ *     undefined`, where `matchesBattlefieldController` (the shared authority)
+ *     only requires a defined CHOOSER — fail-CLOSED for a caster-less item.
+ *  4. `matchesSpellWouldDestroyLand` recognised only `def.effect ===
+ *     "destroy-target"` and missed the Effect Script branch
+ *     (`def.effects?.some((op) => op.op === "destroy")`, ADR 0045) the registry
+ *     has, so a DSL land-destruction spell was silently unclickable under
+ *     Equinox — fail-CLOSED.
+ *
+ *  **Wire safety (issue #1732's lesson).** The client sees a PROJECTED state,
+ *  so routing a kind through the shared checker over-filters if the checker
+ *  reads a field the projection drops. Audited dimension by dimension: the ONLY
+ *  thing `slimCard` (`convex/gameProjections.ts`) strips from a stack item is
+ *  the fat `card` definition (→ `{ id }`), plus `knownTo`/`stormSnapshot` which
+ *  no filter reads. Every other field the fourteen spell dimensions touch
+ *  (`types`, `power`, `toughness`, `castById`, `targets`, `chosenX`,
+ *  `kickerPayments`, `abilityId`, `triggeredAbilityId`, `delayedTriggerId`,
+ *  `colorOverride`, `grantedColors`) passes through untouched, and the two
+ *  dimensions that need definition data (`mvFilter` via `mvOfStackItem`,
+ *  `colorFilter`/`colorFilterAny` via `getEffectiveColors`) read `card.id` and
+ *  fall back to the bundled card registry — the same registry the server uses. */
 export function matchesSpellPendingTarget(
     item: {
+        id: string;
         card: { id: string };
         types?: string[];
         abilityId?: string;
@@ -1334,6 +1071,7 @@ export function matchesSpellPendingTarget(
         power?: number;
         toughness?: number;
         castById?: string;
+        chosenX?: number;
         targets?: { type: string; id: string }[];
         kickerPayments?: Record<string, number>;
     },
@@ -1344,45 +1082,120 @@ export function matchesSpellPendingTarget(
         players: { id: string; battlefield: CardInstance[] }[];
     }
 ): boolean {
-    return (
-        matchesSpellTypeFilter(item, pendingTarget?.spellTypeFilter) &&
-        matchesSpellExcludeTypeFilter(
-            item,
-            pendingTarget?.spellExcludeTypeFilter
-        ) &&
-        matchesSpellCreaturePtFilter(
-            item,
-            pendingTarget?.spellCreaturePtFilter
-        ) &&
-        matchesSpellSingleTargetingController(
-            item,
-            pendingTarget?.spellSingleTargetingController,
-            ctx.playerId
-        ) &&
-        matchesSpellController(
-            item,
-            pendingTarget?.controller,
-            ctx.playerId,
-            ctx.activePlayerId
-        ) &&
-        matchesSpellWouldDestroyLand(
-            item,
-            pendingTarget?.spellWouldDestroyLandYouControl,
-            ctx.players,
-            ctx.playerId
-        ) &&
-        matchesSpellTargetsTypeFilter(
-            item,
-            pendingTarget?.spellTargetsTypeFilter,
-            ctx.players
-        ) &&
-        matchesSpellWasKicked(item, pendingTarget?.spellWasKicked) &&
-        matchesStackObjectFilter(
-            item,
-            pendingTarget?.spellStackKind,
-            pendingTarget?.stackSourceTypeFilter,
-            pendingTarget?.spellTargetsInstanceIds
+    if (!pendingTarget) return true;
+    // CR 601.2c — a stack object already chosen under THIS SAME requirement is
+    // never a legal SECOND pick. Mirrors the server's own exclusion
+    // (`isAlreadySelectedTarget`, applied by `getLegalTargets` to every kind)
+    // and `matchesPermanentTargetFilters`' identical guard.
+    if (
+        isAlreadySelectedTarget(
+            { type: "spell", id: item.id },
+            pendingTarget.selected
         )
+    ) {
+        return false;
+    }
+    // Two spell dimensions scan the board (`spellWouldDestroyLandYouControl`
+    // resolves the candidate's chosen land targets, `spellTargetsTypeFilter`
+    // resolves its chosen permanent targets), so the synthetic `GameState`
+    // carries the projected players — an empty board would fail both CLOSED.
+    const state = {
+        activePlayerId: ctx.activePlayerId,
+        players: ctx.players,
+    } as unknown as GameState;
+    const filterCtx: TargetFilterCtx = {
+        state,
+        sourceColors: [],
+        sourceTypes: [],
+        sourceSubtypes: [],
+        chooserId: ctx.playerId,
+        activePlayerId: ctx.activePlayerId,
+    };
+    // `types`/`targets` are non-optional on the engine's `StackItem` (the
+    // checks index them directly) but optional on the wire shape callers hand
+    // us, so they are normalized rather than cast away.
+    const candidate = {
+        ...item,
+        types: item.types ?? [],
+        targets: item.targets ?? [],
+    } as unknown as StackItem;
+    return (
+        checkSpellTargetFilters(
+            filterCtx,
+            candidate,
+            spellFilterValuesFromCarrier(pendingTarget)
+        ) === null
+    );
+}
+
+/** The ONE client-side predicate for "is this player clickable as a target"
+ *  (CR 115.4) — the player-kind twin of {@link matchesPermanentTargetFilters}
+ *  and {@link matchesSpellPendingTarget} (issue #1734).
+ *
+ *  Every filter dimension delegates to `checkPlayerTargetFilters` — the SAME
+ *  registry (ADR 0068) `getLegalTargets` and `selectTarget` share — with the
+ *  forward set produced by `playerFilterValuesFromCarrier`, which iterates
+ *  `PLAYER_FILTER_KEYS`, the very list the check loops. It replaces an inline
+ *  `playerAttackedThisTurn` clause in `usePlayerInteraction` that reproduced
+ *  ONE of the kind's dimensions and simply did not have the other:
+ *
+ *  - `controller` (CR 109.3 / 115 — Word of Command's "target opponent") was
+ *    NEVER checked client-side, so a `controller: "you"` / `"opponent"` /
+ *    `"active"` player requirement lit up BOTH nameplates and the server
+ *    rejected whichever one the player clicked — the #1697 symptom, player-kind.
+ *
+ *  The colour gate is not a registry filter but a kind-level exclusion the
+ *  server applies at both sites (`getLegalTargets` skips the whole player loop
+ *  when a colour filter is set; `selectTarget` throws "Players have no color"),
+ *  so it is reproduced here rather than routed — CR 105.2: a player has no
+ *  colour, so a colour-filtered requirement can never admit one.
+ *
+ *  **Wire safety.** Both dimensions read only fields the projection preserves
+ *  verbatim: `controller` reads `player.id` (untouched by the `PublicPlayer` /
+ *  `FullPlayer` reshape) and `playerAttackedThisTurn` reads
+ *  `player.battlefield[].hasAttackedThisTurn`, which `slimCard` passes through
+ *  (it only rewrites `card` → `{ id }`). Neither reads `ctx.state`. */
+export function matchesPlayerTargetFilters(
+    player: { id: string; battlefield: ReadonlyArray<CardInstance> },
+    pendingTarget: PendingTarget,
+    activePlayerId: string
+): boolean {
+    // CR 601.2c — a player already chosen under THIS SAME requirement is never
+    // a legal second pick (Magma Burst's kicked "another target").
+    if (
+        isAlreadySelectedTarget(
+            { type: "player", id: player.id },
+            pendingTarget.selected
+        )
+    ) {
+        return false;
+    }
+    // CR 105.2 — players have no colour. Mirrors `getLegalTargets`' own gate
+    // (`!colorFilter && !colorFilterAny` around the whole player loop) and
+    // `selectTarget`'s "Players have no color" throw.
+    if (
+        pendingTarget.colorFilter !== undefined ||
+        pendingTarget.colorFilterAny !== undefined
+    ) {
+        return false;
+    }
+    const filterCtx: TargetFilterCtx = {
+        // No player-kind check reads `ctx.state`; the two dimensions read the
+        // CANDIDATE (`player.id`, `player.battlefield`) and the chooser/active
+        // ids threaded below.
+        state: { activePlayerId } as unknown as GameState,
+        sourceColors: [],
+        sourceTypes: [],
+        sourceSubtypes: [],
+        chooserId: pendingTarget.playerId,
+        activePlayerId,
+    };
+    return (
+        checkPlayerTargetFilters(
+            filterCtx,
+            player as unknown as PlayerState,
+            playerFilterValuesFromCarrier(pendingTarget)
+        ) === null
     );
 }
 

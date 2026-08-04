@@ -29,7 +29,6 @@ import {
     pendingTargetFiltersFromRequirement,
     NO_TARGETING_SOURCE,
 } from "@convex/gre/rules";
-import { SPELL_FILTER_KEYS } from "@convex/gre/targetFilters";
 import { projectPublicState } from "@convex/gameProjections";
 import {
     makeInstance,
@@ -44,13 +43,23 @@ import { urzasRage } from "@convex/cards/sets/inv/red";
 import type { TargetRequirement } from "@convex/cards/types";
 import type { GameState } from "@convex/gre/state";
 import type { CardInstance, PendingTarget } from "~/types/game";
-import {
-    CLIENT_SPELL_FILTER_COVERAGE,
-    matchesSpellPendingTarget,
-    matchesSpellTargetsTypeFilter,
-    matchesSpellWasKicked,
-    wantsSpellTarget,
-} from "~/lib/card-utils";
+import { matchesSpellPendingTarget, wantsSpellTarget } from "~/lib/card-utils";
+
+/** Minimal `PendingTarget` carrying only the SPELL filter dimensions under
+ *  test (issue #1734) — `matchesSpellPendingTarget`'s single-filter twin of
+ *  the deleted `matchesSpellTargetsTypeFilter` / `matchesSpellWasKicked`
+ *  mirrors. */
+function pt(filters: Record<string, unknown>): PendingTarget {
+    return {
+        playerId: "p1",
+        cardInstanceId: "src",
+        targetType: "spell",
+        count: 1,
+        selected: [],
+        spellStackKind: "any",
+        ...filters,
+    } as unknown as PendingTarget;
+}
 
 function scenario(): {
     state: GameState;
@@ -187,41 +196,60 @@ describe("spell-property target filters — server offered set == client clickab
         }
     });
 
-    it("every registry spell filter is CLASSIFIED for the client (fail-closed coverage map)", () => {
-        // The compile-time `satisfies Record<SpellFilterKey, …>` is the real
-        // guard; this is its runtime echo, and it also pins that the two
-        // filters this slice adds are actually CHECKED rather than deferred.
-        for (const key of SPELL_FILTER_KEYS) {
-            expect(CLIENT_SPELL_FILTER_COVERAGE).toHaveProperty(key);
-        }
-        expect(CLIENT_SPELL_FILTER_COVERAGE.spellTargetsTypeFilter).toBe(
-            "checked"
-        );
-        expect(CLIENT_SPELL_FILTER_COVERAGE.spellWasKicked).toBe("checked");
-    });
-
-    it("the client mirrors fail CLOSED on the projected shape (no targets / no kicker record)", () => {
+    it("the client predicate fails CLOSED on the projected shape (no targets / no kicker record)", () => {
         const { state } = scenario();
         const projected = projectPublicState(state, 1, "p1");
         const players = projected.players.map((p) => ({
+            id: p.id,
             battlefield: p.battlefield as unknown as CardInstance[],
         }));
-        expect(matchesSpellTargetsTypeFilter({}, ["Creature"], players)).toBe(
-            false
-        );
+        const ctx = { playerId: "p1", activePlayerId: "p1", players };
         expect(
-            matchesSpellTargetsTypeFilter(
-                { targets: [{ type: "player", id: "p1" }] },
-                ["Creature"],
-                players
+            matchesSpellPendingTarget(
+                { id: "s1", card: { id: "x" } },
+                pt({ spellTargetsTypeFilter: ["Creature"] }),
+                ctx
             )
         ).toBe(false);
-        expect(matchesSpellWasKicked({}, true)).toBe(false);
-        expect(matchesSpellWasKicked({ kickerPayments: {} }, true)).toBe(false);
+        expect(
+            matchesSpellPendingTarget(
+                {
+                    id: "s2",
+                    card: { id: "x" },
+                    targets: [{ type: "player", id: "p1" }],
+                },
+                pt({ spellTargetsTypeFilter: ["Creature"] }),
+                ctx
+            )
+        ).toBe(false);
+        expect(
+            matchesSpellPendingTarget(
+                { id: "s3", card: { id: "x" } },
+                pt({ spellWasKicked: true }),
+                ctx
+            )
+        ).toBe(false);
+        expect(
+            matchesSpellPendingTarget(
+                { id: "s4", card: { id: "x" }, kickerPayments: {} },
+                pt({ spellWasKicked: true }),
+                ctx
+            )
+        ).toBe(false);
         // …and stay inert when the requirement doesn't declare them.
-        expect(matchesSpellTargetsTypeFilter({}, undefined, players)).toBe(
-            true
-        );
-        expect(matchesSpellWasKicked({}, undefined)).toBe(true);
+        expect(
+            matchesSpellPendingTarget(
+                { id: "s5", card: { id: "x" } },
+                pt({}),
+                ctx
+            )
+        ).toBe(true);
+        expect(
+            matchesSpellPendingTarget(
+                { id: "s6", card: { id: "x" } },
+                pt({}),
+                ctx
+            )
+        ).toBe(true);
     });
 });

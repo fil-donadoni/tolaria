@@ -5,13 +5,7 @@ import {
     matchesPermanentFilter,
     matchesTargetRequirement,
     matchesPermanentTargetFilters,
-    matchesSpellTypeFilter,
-    matchesSpellExcludeTypeFilter,
-    matchesSpellCreaturePtFilter,
-    matchesSpellSingleTargetingController,
-    matchesSpellController,
-    matchesSpellWouldDestroyLand,
-    matchesStackObjectFilter,
+    matchesSpellPendingTarget,
     wantsSpellTarget,
     getStackAbilities,
     getGraveyardStackAbilities,
@@ -148,6 +142,24 @@ function makeCardInstance(overrides: Partial<CardInstance> = {}): CardInstance {
         subtypes: [],
         ...overrides,
     };
+}
+
+/** Minimal `PendingTarget` carrying only the SPELL filter dimensions under
+ *  test (issue #1734) — `matchesSpellPendingTarget`'s single-filter twin of
+ *  the deleted per-dimension mirrors. `spellStackKind` always defaults to
+ *  `"any"` so the stack-object kind gate never interferes with a test whose
+ *  subject is a DIFFERENT dimension; callers exercising the kind gate itself
+ *  override it explicitly. */
+function pt(filters: Record<string, unknown>): PendingTarget {
+    return {
+        playerId: "p1",
+        cardInstanceId: "src",
+        targetType: "spell",
+        count: 1,
+        selected: [],
+        spellStackKind: "any",
+        ...filters,
+    } as unknown as PendingTarget;
 }
 
 // ---------------------------------------------------------------------------
@@ -1944,75 +1956,115 @@ describe("wantsSpellTarget", () => {
     });
 });
 
-describe("matchesStackObjectFilter (Brown Ouphe / Mistfolk — CR 113/114.1)", () => {
-    const artifactAbility = { types: ["Artifact"], abilityId: "icy-tap" };
-    const creatureAbility = { types: ["Creature"], abilityId: "tim-zap" };
-    const artifactSpell = { types: ["Artifact"] };
+describe("matchesSpellPendingTarget (spellStackKind dimension — Brown Ouphe / Mistfolk, CR 113/114.1)", () => {
+    const stackCtx = { playerId: "p1", activePlayerId: "p1", players: [] };
+    const artifactAbility = {
+        id: "artifact-ability",
+        card: { id: "x" },
+        types: ["Artifact"],
+        abilityId: "icy-tap",
+    };
+    const creatureAbility = {
+        id: "creature-ability",
+        card: { id: "x" },
+        types: ["Creature"],
+        abilityId: "tim-zap",
+    };
+    const artifactSpell = {
+        id: "artifact-spell",
+        card: { id: "x" },
+        types: ["Artifact"],
+    };
 
     it("keeps an activated ability from an artifact source (Brown Ouphe)", () => {
         expect(
-            matchesStackObjectFilter(
+            matchesSpellPendingTarget(
                 artifactAbility,
-                "activated-ability",
-                ["Artifact"],
-                undefined
+                pt({
+                    spellStackKind: "activated-ability",
+                    stackSourceTypeFilter: ["Artifact"],
+                }),
+                stackCtx
             )
         ).toBe(true);
     });
 
     it("rejects a non-artifact ability and an artifact SPELL under the Brown Ouphe filter", () => {
         expect(
-            matchesStackObjectFilter(
+            matchesSpellPendingTarget(
                 creatureAbility,
-                "activated-ability",
-                ["Artifact"],
-                undefined
+                pt({
+                    spellStackKind: "activated-ability",
+                    stackSourceTypeFilter: ["Artifact"],
+                }),
+                stackCtx
             )
         ).toBe(false);
         // An artifact spell is not an activated ability.
         expect(
-            matchesStackObjectFilter(
+            matchesSpellPendingTarget(
                 artifactSpell,
-                "activated-ability",
-                ["Artifact"],
-                undefined
+                pt({
+                    spellStackKind: "activated-ability",
+                    stackSourceTypeFilter: ["Artifact"],
+                }),
+                stackCtx
             )
         ).toBe(false);
     });
 
     it("keeps only spells targeting the given permanent (Mistfolk)", () => {
         const atMist = {
+            id: "at-mist",
+            card: { id: "x" },
             types: ["Instant"],
             targets: [{ type: "permanent", id: "mist" }],
         };
         const atOther = {
+            id: "at-other",
+            card: { id: "x" },
             types: ["Instant"],
             targets: [{ type: "permanent", id: "other" }],
         };
         expect(
-            matchesStackObjectFilter(atMist, undefined, undefined, ["mist"])
+            matchesSpellPendingTarget(
+                atMist,
+                pt({
+                    spellStackKind: "spell",
+                    spellTargetsInstanceIds: ["mist"],
+                }),
+                stackCtx
+            )
         ).toBe(true);
         expect(
-            matchesStackObjectFilter(atOther, undefined, undefined, ["mist"])
+            matchesSpellPendingTarget(
+                atOther,
+                pt({
+                    spellStackKind: "spell",
+                    spellTargetsInstanceIds: ["mist"],
+                }),
+                stackCtx
+            )
         ).toBe(false);
         // An ability never satisfies a "spell that targets ~" filter.
         expect(
-            matchesStackObjectFilter(
-                { ...atMist, abilityId: "x" },
-                undefined,
-                undefined,
-                ["mist"]
+            matchesSpellPendingTarget(
+                { ...atMist, id: "at-mist-ability", abilityId: "x" },
+                pt({
+                    spellStackKind: "spell",
+                    spellTargetsInstanceIds: ["mist"],
+                }),
+                stackCtx
             )
         ).toBe(false);
     });
 
     it("matches a SPELL when no stack-kind filter is set", () => {
         expect(
-            matchesStackObjectFilter(
+            matchesSpellPendingTarget(
                 artifactSpell,
-                undefined,
-                undefined,
-                undefined
+                pt({ spellStackKind: "spell" }),
+                stackCtx
             )
         ).toBe(true);
     });
@@ -2021,162 +2073,226 @@ describe("matchesStackObjectFilter (Brown Ouphe / Mistfolk — CR 113/114.1)", (
         // Regression: Counterspell ("target spell", omitted spellStackKind)
         // must NOT be clickable on a triggered/activated ability.
         const triggeredAbility = {
+            id: "triggered-ability",
+            card: { id: "x" },
             types: ["Creature"],
             triggeredAbilityId: "etb-trigger",
         };
         expect(
-            matchesStackObjectFilter(
+            matchesSpellPendingTarget(
                 creatureAbility,
-                undefined,
-                undefined,
-                undefined
+                pt({ spellStackKind: "spell" }),
+                stackCtx
             )
         ).toBe(false);
         expect(
-            matchesStackObjectFilter(
+            matchesSpellPendingTarget(
                 triggeredAbility,
-                undefined,
-                undefined,
-                undefined
+                pt({ spellStackKind: "spell" }),
+                stackCtx
             )
         ).toBe(false);
         expect(
-            matchesStackObjectFilter(
+            matchesSpellPendingTarget(
                 creatureAbility,
-                "spell",
-                undefined,
-                undefined
+                pt({ spellStackKind: "spell" }),
+                stackCtx
             )
         ).toBe(false);
     });
 
     it("keeps any ability — activated OR triggered — under 'ability' (Stifle), rejects a spell", () => {
         const triggeredAbility = {
+            id: "triggered-ability",
+            card: { id: "x" },
             types: ["Creature"],
             triggeredAbilityId: "etb-trigger",
         };
         expect(
-            matchesStackObjectFilter(
+            matchesSpellPendingTarget(
                 creatureAbility,
-                "ability",
-                undefined,
-                undefined
+                pt({ spellStackKind: "ability" }),
+                stackCtx
             )
         ).toBe(true);
         expect(
-            matchesStackObjectFilter(
+            matchesSpellPendingTarget(
                 triggeredAbility,
-                "ability",
-                undefined,
-                undefined
+                pt({ spellStackKind: "ability" }),
+                stackCtx
             )
         ).toBe(true);
         // An ability-kind target never accepts a spell.
         expect(
-            matchesStackObjectFilter(
+            matchesSpellPendingTarget(
                 artifactSpell,
-                "ability",
-                undefined,
-                undefined
+                pt({ spellStackKind: "ability" }),
+                stackCtx
             )
         ).toBe(false);
     });
 
     it("keeps BOTH a spell and an ability under 'any' (Ward, CR 702.21a)", () => {
         const triggeredAbility = {
+            id: "triggered-ability",
+            card: { id: "x" },
             types: ["Creature"],
             triggeredAbilityId: "etb-trigger",
         };
         expect(
-            matchesStackObjectFilter(artifactSpell, "any", undefined, undefined)
-        ).toBe(true);
-        expect(
-            matchesStackObjectFilter(
-                creatureAbility,
-                "any",
-                undefined,
-                undefined
+            matchesSpellPendingTarget(
+                artifactSpell,
+                pt({ spellStackKind: "any" }),
+                stackCtx
             )
         ).toBe(true);
         expect(
-            matchesStackObjectFilter(
+            matchesSpellPendingTarget(
+                creatureAbility,
+                pt({ spellStackKind: "any" }),
+                stackCtx
+            )
+        ).toBe(true);
+        expect(
+            matchesSpellPendingTarget(
                 triggeredAbility,
-                "any",
-                undefined,
-                undefined
+                pt({ spellStackKind: "any" }),
+                stackCtx
             )
         ).toBe(true);
     });
 
     it("'any' + spellTargetsInstanceIds also admits a matching ABILITY (Ward's reflexive self-target), unlike the spell-only Mistfolk default", () => {
         const abilityAtWarded = {
+            id: "ability-at-warded",
+            card: { id: "x" },
             types: ["Creature"],
             triggeredAbilityId: "ward-trigger",
             targets: [{ type: "permanent", id: "warded" }],
         };
         const abilityAtOther = {
             ...abilityAtWarded,
+            id: "ability-at-other",
             targets: [{ type: "permanent", id: "other" }],
         };
         expect(
-            matchesStackObjectFilter(abilityAtWarded, "any", undefined, [
-                "warded",
-            ])
+            matchesSpellPendingTarget(
+                abilityAtWarded,
+                pt({
+                    spellStackKind: "any",
+                    spellTargetsInstanceIds: ["warded"],
+                }),
+                stackCtx
+            )
         ).toBe(true);
         expect(
-            matchesStackObjectFilter(abilityAtOther, "any", undefined, [
-                "warded",
-            ])
+            matchesSpellPendingTarget(
+                abilityAtOther,
+                pt({
+                    spellStackKind: "any",
+                    spellTargetsInstanceIds: ["warded"],
+                }),
+                stackCtx
+            )
         ).toBe(false);
         // Spell-only default (no spellStackKind) keeps excluding abilities,
         // even one that targets the pinned id — Mistfolk's existing contract
         // is unchanged.
         expect(
-            matchesStackObjectFilter(abilityAtWarded, undefined, undefined, [
-                "warded",
-            ])
+            matchesSpellPendingTarget(
+                abilityAtWarded,
+                pt({
+                    spellStackKind: "spell",
+                    spellTargetsInstanceIds: ["warded"],
+                }),
+                stackCtx
+            )
         ).toBe(false);
     });
 });
 
-describe("matchesSpellTypeFilter", () => {
+describe("matchesSpellPendingTarget (spellTypeFilter dimension)", () => {
     const filter = ["Instant", "Sorcery"];
+    const ctx = { playerId: "p1", activePlayerId: "p1", players: [] };
 
     it("matches an instant/sorcery spell when the filter is set", () => {
-        expect(matchesSpellTypeFilter({ types: ["Instant"] }, filter)).toBe(
-            true
-        );
-        expect(matchesSpellTypeFilter({ types: ["Sorcery"] }, filter)).toBe(
-            true
-        );
+        expect(
+            matchesSpellPendingTarget(
+                { id: "s1", card: { id: "x" }, types: ["Instant"] },
+                pt({ spellTypeFilter: filter }),
+                ctx
+            )
+        ).toBe(true);
+        expect(
+            matchesSpellPendingTarget(
+                { id: "s2", card: { id: "x" }, types: ["Sorcery"] },
+                pt({ spellTypeFilter: filter }),
+                ctx
+            )
+        ).toBe(true);
     });
 
     it("rejects a permanent (e.g. creature) spell under the filter", () => {
-        expect(matchesSpellTypeFilter({ types: ["Creature"] }, filter)).toBe(
-            false
-        );
+        expect(
+            matchesSpellPendingTarget(
+                { id: "s3", card: { id: "x" }, types: ["Creature"] },
+                pt({ spellTypeFilter: filter }),
+                ctx
+            )
+        ).toBe(false);
     });
 
     it("rejects stack abilities (not spells)", () => {
         expect(
-            matchesSpellTypeFilter(
-                { types: ["Creature"], abilityId: "tim-zap" },
-                filter
+            matchesSpellPendingTarget(
+                {
+                    id: "a1",
+                    card: { id: "x" },
+                    types: ["Creature"],
+                    abilityId: "tim-zap",
+                },
+                pt({ spellTypeFilter: filter }),
+                ctx
             )
         ).toBe(false);
         expect(
-            matchesSpellTypeFilter(
-                { types: ["Enchantment"], triggeredAbilityId: "upkeep" },
-                filter
+            matchesSpellPendingTarget(
+                {
+                    id: "a2",
+                    card: { id: "x" },
+                    types: ["Enchantment"],
+                    triggeredAbilityId: "upkeep",
+                },
+                pt({ spellTypeFilter: filter }),
+                ctx
             )
         ).toBe(false);
     });
 
     it("matches anything when no filter is set", () => {
-        expect(matchesSpellTypeFilter({ types: ["Creature"] }, undefined)).toBe(
-            true
-        );
-        expect(matchesSpellTypeFilter({ types: ["Instant"] }, [])).toBe(true);
+        expect(
+            matchesSpellPendingTarget(
+                { id: "s4", card: { id: "x" }, types: ["Creature"] },
+                pt({}),
+                ctx
+            )
+        ).toBe(true);
+        // The absent case again, for a second stack item shape. NOT an empty
+        // ARRAY: `spellTypeFilterDescriptor.lower` is a bare `arr(...)` with no
+        // length guard (unlike its sibling `stackSourceTypeFilterDescriptor`,
+        // which does `v.length > 0 ? v : undefined`), so a
+        // `spellTypeFilter: []` WOULD be carried and would reject everything —
+        // `value.some(...)` over an empty array is `false`. That is unreachable
+        // (no requirement authors `[]`) and both sides of the wire read it
+        // identically, so it is not a client/server divergence — but "the
+        // registry normalizes it away" is not why.
+        expect(
+            matchesSpellPendingTarget(
+                { id: "s5", card: { id: "x" }, types: ["Instant"] },
+                pt({}),
+                ctx
+            )
+        ).toBe(true);
     });
 
     // Artifact Blast (#274): "counter target artifact spell". game.ts
@@ -2185,112 +2301,192 @@ describe("matchesSpellTypeFilter", () => {
     it("matches an Artifact spell but not other spell types (Artifact Blast)", () => {
         const artifactFilter = ["Artifact"];
         expect(
-            matchesSpellTypeFilter({ types: ["Artifact"] }, artifactFilter)
-        ).toBe(true);
-        expect(
-            matchesSpellTypeFilter(
-                { types: ["Artifact", "Creature"] },
-                artifactFilter
+            matchesSpellPendingTarget(
+                { id: "s6", card: { id: "x" }, types: ["Artifact"] },
+                pt({ spellTypeFilter: artifactFilter }),
+                ctx
             )
         ).toBe(true);
         expect(
-            matchesSpellTypeFilter({ types: ["Instant"] }, artifactFilter)
+            matchesSpellPendingTarget(
+                {
+                    id: "s7",
+                    card: { id: "x" },
+                    types: ["Artifact", "Creature"],
+                },
+                pt({ spellTypeFilter: artifactFilter }),
+                ctx
+            )
+        ).toBe(true);
+        expect(
+            matchesSpellPendingTarget(
+                { id: "s8", card: { id: "x" }, types: ["Instant"] },
+                pt({ spellTypeFilter: artifactFilter }),
+                ctx
+            )
         ).toBe(false);
         expect(
-            matchesSpellTypeFilter({ types: ["Sorcery"] }, artifactFilter)
+            matchesSpellPendingTarget(
+                { id: "s9", card: { id: "x" }, types: ["Sorcery"] },
+                pt({ spellTypeFilter: artifactFilter }),
+                ctx
+            )
         ).toBe(false);
     });
 });
 
 // Spell Pierce (issue #683): "target noncreature spell" — frontend
 // clickability gate (CR 114.1, the negative of spellTypeFilter).
-describe("matchesSpellExcludeTypeFilter", () => {
+describe("matchesSpellPendingTarget (spellExcludeTypeFilter dimension)", () => {
+    const ctx = { playerId: "p1", activePlayerId: "p1", players: [] };
+
     it("rejects a creature spell, accepts a noncreature spell", () => {
         const filter = ["Creature"];
         expect(
-            matchesSpellExcludeTypeFilter({ types: ["Creature"] }, filter)
+            matchesSpellPendingTarget(
+                { id: "s1", card: { id: "x" }, types: ["Creature"] },
+                pt({ spellExcludeTypeFilter: filter }),
+                ctx
+            )
         ).toBe(false);
         expect(
-            matchesSpellExcludeTypeFilter({ types: ["Instant"] }, filter)
+            matchesSpellPendingTarget(
+                { id: "s2", card: { id: "x" }, types: ["Instant"] },
+                pt({ spellExcludeTypeFilter: filter }),
+                ctx
+            )
         ).toBe(true);
     });
 
     it("rejects stack abilities (not spells)", () => {
         expect(
-            matchesSpellExcludeTypeFilter(
-                { types: ["Instant"], abilityId: "tim-zap" },
-                ["Creature"]
+            matchesSpellPendingTarget(
+                {
+                    id: "a1",
+                    card: { id: "x" },
+                    types: ["Instant"],
+                    abilityId: "tim-zap",
+                },
+                pt({ spellExcludeTypeFilter: ["Creature"] }),
+                ctx
             )
         ).toBe(false);
     });
 
     it("matches anything when no filter is set", () => {
         expect(
-            matchesSpellExcludeTypeFilter({ types: ["Creature"] }, undefined)
+            matchesSpellPendingTarget(
+                { id: "s3", card: { id: "x" }, types: ["Creature"] },
+                pt({}),
+                ctx
+            )
         ).toBe(true);
-        expect(matchesSpellExcludeTypeFilter({ types: ["Creature"] }, [])).toBe(
-            true
-        );
+        expect(
+            matchesSpellPendingTarget(
+                { id: "s4", card: { id: "x" }, types: ["Creature"] },
+                pt({ spellExcludeTypeFilter: [] }),
+                ctx
+            )
+        ).toBe(true);
     });
 });
 
 // Stern Scolding (issue #683): "target creature spell with power or
 // toughness 2 or less" — frontend clickability gate (CR 114.1 + 208.2).
-describe("matchesSpellCreaturePtFilter", () => {
+describe("matchesSpellPendingTarget (spellCreaturePtFilter dimension)", () => {
     const filter = { maxPowerOrToughness: 2 };
+    const ctx = { playerId: "p1", activePlayerId: "p1", players: [] };
 
     it("matches a creature spell at or under the threshold on either stat", () => {
         expect(
-            matchesSpellCreaturePtFilter(
-                { types: ["Creature"], power: 2, toughness: 5 },
-                filter
+            matchesSpellPendingTarget(
+                {
+                    id: "s1",
+                    card: { id: "x" },
+                    types: ["Creature"],
+                    power: 2,
+                    toughness: 5,
+                },
+                pt({ spellCreaturePtFilter: filter }),
+                ctx
             )
         ).toBe(true);
         expect(
-            matchesSpellCreaturePtFilter(
-                { types: ["Creature"], power: 5, toughness: 1 },
-                filter
+            matchesSpellPendingTarget(
+                {
+                    id: "s2",
+                    card: { id: "x" },
+                    types: ["Creature"],
+                    power: 5,
+                    toughness: 1,
+                },
+                pt({ spellCreaturePtFilter: filter }),
+                ctx
             )
         ).toBe(true);
     });
 
     it("rejects a creature spell over the threshold on both stats", () => {
         expect(
-            matchesSpellCreaturePtFilter(
-                { types: ["Creature"], power: 4, toughness: 4 },
-                filter
+            matchesSpellPendingTarget(
+                {
+                    id: "s3",
+                    card: { id: "x" },
+                    types: ["Creature"],
+                    power: 4,
+                    toughness: 4,
+                },
+                pt({ spellCreaturePtFilter: filter }),
+                ctx
             )
         ).toBe(false);
     });
 
     it("rejects a noncreature spell regardless of power/toughness", () => {
         expect(
-            matchesSpellCreaturePtFilter(
-                { types: ["Instant"], power: 1, toughness: 1 },
-                filter
+            matchesSpellPendingTarget(
+                {
+                    id: "s4",
+                    card: { id: "x" },
+                    types: ["Instant"],
+                    power: 1,
+                    toughness: 1,
+                },
+                pt({ spellCreaturePtFilter: filter }),
+                ctx
             )
         ).toBe(false);
     });
 
     it("rejects stack abilities (not spells)", () => {
         expect(
-            matchesSpellCreaturePtFilter(
+            matchesSpellPendingTarget(
                 {
+                    id: "a1",
+                    card: { id: "x" },
                     types: ["Creature"],
                     power: 1,
                     toughness: 1,
                     abilityId: "some-ability",
                 },
-                filter
+                pt({ spellCreaturePtFilter: filter }),
+                ctx
             )
         ).toBe(false);
     });
 
     it("matches anything when no filter is set", () => {
         expect(
-            matchesSpellCreaturePtFilter(
-                { types: ["Instant"], power: 9, toughness: 9 },
-                undefined
+            matchesSpellPendingTarget(
+                {
+                    id: "s5",
+                    card: { id: "x" },
+                    types: ["Instant"],
+                    power: 9,
+                    toughness: 9,
+                },
+                pt({}),
+                ctx
             )
         ).toBe(true);
     });
@@ -2298,71 +2494,93 @@ describe("matchesSpellCreaturePtFilter", () => {
 
 // Reflecting Mirror (#425): "target spell with a single target if that target
 // is you" — frontend clickability gate (CR 114.6 / 115.10).
-describe("matchesSpellSingleTargetingController", () => {
+describe("matchesSpellPendingTarget (spellSingleTargetingController dimension)", () => {
+    const ctx = { playerId: "p1", activePlayerId: "p1", players: [] };
+
     it("matches a single-target spell whose only target is the activator", () => {
         expect(
-            matchesSpellSingleTargetingController(
-                { targets: [{ type: "player", id: "p1" }] },
-                true,
-                "p1"
+            matchesSpellPendingTarget(
+                {
+                    id: "s1",
+                    card: { id: "x" },
+                    targets: [{ type: "player", id: "p1" }],
+                },
+                pt({ spellSingleTargetingController: true }),
+                ctx
             )
         ).toBe(true);
     });
 
     it("rejects a spell targeting a different player", () => {
         expect(
-            matchesSpellSingleTargetingController(
-                { targets: [{ type: "player", id: "p2" }] },
-                true,
-                "p1"
+            matchesSpellPendingTarget(
+                {
+                    id: "s2",
+                    card: { id: "x" },
+                    targets: [{ type: "player", id: "p2" }],
+                },
+                pt({ spellSingleTargetingController: true }),
+                ctx
             )
         ).toBe(false);
     });
 
     it("rejects a multi-target spell", () => {
         expect(
-            matchesSpellSingleTargetingController(
+            matchesSpellPendingTarget(
                 {
+                    id: "s3",
+                    card: { id: "x" },
                     targets: [
                         { type: "player", id: "p1" },
                         { type: "player", id: "p2" },
                     ],
                 },
-                true,
-                "p1"
+                pt({ spellSingleTargetingController: true }),
+                ctx
             )
         ).toBe(false);
     });
 
     it("rejects a spell whose single target is a permanent", () => {
         expect(
-            matchesSpellSingleTargetingController(
-                { targets: [{ type: "permanent", id: "c1" }] },
-                true,
-                "p1"
+            matchesSpellPendingTarget(
+                {
+                    id: "s4",
+                    card: { id: "x" },
+                    targets: [{ type: "permanent", id: "c1" }],
+                },
+                pt({ spellSingleTargetingController: true }),
+                ctx
             )
         ).toBe(false);
     });
 
     it("rejects stack abilities (not spells)", () => {
         expect(
-            matchesSpellSingleTargetingController(
+            matchesSpellPendingTarget(
                 {
+                    id: "a1",
+                    card: { id: "x" },
                     abilityId: "tim-zap",
                     targets: [{ type: "player", id: "p1" }],
                 },
-                true,
-                "p1"
+                pt({ spellSingleTargetingController: true }),
+                ctx
             )
         ).toBe(false);
     });
 
     it("matches anything when the flag is off", () => {
         expect(
-            matchesSpellSingleTargetingController(
-                { targets: [{ type: "player", id: "p2" }] },
-                undefined,
-                "p1"
+            matchesSpellPendingTarget(
+                {
+                    id: "s5",
+                    card: { id: "x" },
+                    targets: [{ type: "player", id: "p2" }],
+                },
+                pt({}),
+                ctx
             )
         ).toBe(true);
     });
@@ -2372,56 +2590,89 @@ describe("matchesSpellSingleTargetingController", () => {
 // CONTROL" — frontend clickability gate extending `controller` (CR 109.3 /
 // 114.1) onto spell/ability stack targets, mirroring the server's
 // `matchesBattlefieldController` predicate.
-describe("matchesSpellController", () => {
+describe("matchesSpellPendingTarget (controller dimension — Lutri, the Spellchaser)", () => {
     it("matches a spell the activating player cast, under 'you'", () => {
         expect(
-            matchesSpellController({ castById: "p1" }, "you", "p1", "p1")
+            matchesSpellPendingTarget(
+                { id: "s1", card: { id: "x" }, castById: "p1" },
+                pt({ controller: "you" }),
+                { playerId: "p1", activePlayerId: "p1", players: [] }
+            )
         ).toBe(true);
     });
 
     it("rejects an opponent's spell under 'you'", () => {
         expect(
-            matchesSpellController({ castById: "p2" }, "you", "p1", "p1")
+            matchesSpellPendingTarget(
+                { id: "s2", card: { id: "x" }, castById: "p2" },
+                pt({ controller: "you" }),
+                { playerId: "p1", activePlayerId: "p1", players: [] }
+            )
         ).toBe(false);
     });
 
     it("matches an opponent's spell under 'opponent'", () => {
         expect(
-            matchesSpellController({ castById: "p2" }, "opponent", "p1", "p1")
+            matchesSpellPendingTarget(
+                { id: "s3", card: { id: "x" }, castById: "p2" },
+                pt({ controller: "opponent" }),
+                { playerId: "p1", activePlayerId: "p1", players: [] }
+            )
         ).toBe(true);
     });
 
     it("rejects the activator's own spell under 'opponent'", () => {
         expect(
-            matchesSpellController({ castById: "p1" }, "opponent", "p1", "p1")
+            matchesSpellPendingTarget(
+                { id: "s4", card: { id: "x" }, castById: "p1" },
+                pt({ controller: "opponent" }),
+                { playerId: "p1", activePlayerId: "p1", players: [] }
+            )
         ).toBe(false);
     });
 
     it("matches only the active player's spell under 'active'", () => {
         expect(
-            matchesSpellController({ castById: "p2" }, "active", "p1", "p2")
+            matchesSpellPendingTarget(
+                { id: "s5", card: { id: "x" }, castById: "p2" },
+                pt({ controller: "active" }),
+                { playerId: "p1", activePlayerId: "p2", players: [] }
+            )
         ).toBe(true);
         expect(
-            matchesSpellController({ castById: "p1" }, "active", "p1", "p2")
+            matchesSpellPendingTarget(
+                { id: "s6", card: { id: "x" }, castById: "p1" },
+                pt({ controller: "active" }),
+                { playerId: "p1", activePlayerId: "p2", players: [] }
+            )
         ).toBe(false);
     });
 
     it("matches anything under 'any' or no filter", () => {
         expect(
-            matchesSpellController({ castById: "p2" }, "any", "p1", "p1")
+            matchesSpellPendingTarget(
+                { id: "s7", card: { id: "x" }, castById: "p2" },
+                pt({ controller: "any" }),
+                { playerId: "p1", activePlayerId: "p1", players: [] }
+            )
         ).toBe(true);
         expect(
-            matchesSpellController({ castById: "p2" }, undefined, "p1", "p1")
+            matchesSpellPendingTarget(
+                { id: "s8", card: { id: "x" }, castById: "p2" },
+                pt({}),
+                { playerId: "p1", activePlayerId: "p1", players: [] }
+            )
         ).toBe(true);
     });
 });
 
 // ---------------------------------------------------------------------------
-// matchesSpellWouldDestroyLand (Equinox — CR 114.1 + 701.7). The UI marks a
-// stack spell clickable only if it would destroy a land the activator controls.
+// matchesSpellPendingTarget (spellWouldDestroyLandYouControl dimension —
+// Equinox, CR 114.1 + 701.7). The UI marks a stack spell clickable only if
+// it would destroy a land the activator controls.
 // ---------------------------------------------------------------------------
 
-describe("matchesSpellWouldDestroyLand (Equinox clickability)", () => {
+describe("matchesSpellPendingTarget (spellWouldDestroyLandYouControl dimension — Equinox clickability)", () => {
     const STONE_RAIN_ID = "57ff74cb-a2ed-4123-ac42-f72f9820049e";
     const ARMAGEDDON_ID = "5b6ddce7-b9c5-431d-a0b0-46d4aa93cbcb";
     const COUNTERSPELL_ID = "0df55e3f-14de-46ef-b6b1-616618724d9e";
@@ -2444,57 +2695,91 @@ describe("matchesSpellWouldDestroyLand (Equinox clickability)", () => {
         { id: "p1", battlefield: [myLand] },
         { id: "p2", battlefield: [oppLand] },
     ];
+    const ctx = { playerId: "p1", activePlayerId: "p1", players };
 
     it("matches Stone Rain aimed at a land you control", () => {
         const item = {
+            id: "stone-rain",
             card: { id: STONE_RAIN_ID },
             targets: [{ type: "permanent", id: "myLand" }],
         };
-        expect(matchesSpellWouldDestroyLand(item, true, players, "p1")).toBe(
-            true
-        );
+        expect(
+            matchesSpellPendingTarget(
+                item,
+                pt({ spellWouldDestroyLandYouControl: true }),
+                ctx
+            )
+        ).toBe(true);
     });
 
     it("rejects Stone Rain aimed at the opponent's land", () => {
         const item = {
+            id: "stone-rain",
             card: { id: STONE_RAIN_ID },
             targets: [{ type: "permanent", id: "oppLand" }],
         };
-        expect(matchesSpellWouldDestroyLand(item, true, players, "p1")).toBe(
-            false
-        );
+        expect(
+            matchesSpellPendingTarget(
+                item,
+                pt({ spellWouldDestroyLandYouControl: true }),
+                ctx
+            )
+        ).toBe(false);
     });
 
     it("matches Armageddon while you control a land", () => {
-        const item = { card: { id: ARMAGEDDON_ID }, targets: [] };
-        expect(matchesSpellWouldDestroyLand(item, true, players, "p1")).toBe(
-            true
-        );
+        const item = {
+            id: "armageddon",
+            card: { id: ARMAGEDDON_ID },
+            targets: [],
+        };
+        expect(
+            matchesSpellPendingTarget(
+                item,
+                pt({ spellWouldDestroyLandYouControl: true }),
+                ctx
+            )
+        ).toBe(true);
     });
 
     it("rejects a Counterspell (no land destruction)", () => {
-        const item = { card: { id: COUNTERSPELL_ID }, targets: [] };
-        expect(matchesSpellWouldDestroyLand(item, true, players, "p1")).toBe(
-            false
-        );
+        const item = {
+            id: "counterspell",
+            card: { id: COUNTERSPELL_ID },
+            targets: [],
+        };
+        expect(
+            matchesSpellPendingTarget(
+                item,
+                pt({ spellWouldDestroyLandYouControl: true }),
+                ctx
+            )
+        ).toBe(false);
     });
 
     it("rejects an ability on the stack (not a spell)", () => {
         const item = {
+            id: "stone-rain-ability",
             card: { id: STONE_RAIN_ID },
             targets: [{ type: "permanent", id: "myLand" }],
             abilityId: "some-ability",
         };
-        expect(matchesSpellWouldDestroyLand(item, true, players, "p1")).toBe(
-            false
-        );
+        expect(
+            matchesSpellPendingTarget(
+                item,
+                pt({ spellWouldDestroyLandYouControl: true }),
+                ctx
+            )
+        ).toBe(false);
     });
 
     it("matches anything when the flag is off", () => {
-        const item = { card: { id: COUNTERSPELL_ID }, targets: [] };
-        expect(
-            matchesSpellWouldDestroyLand(item, undefined, players, "p1")
-        ).toBe(true);
+        const item = {
+            id: "counterspell",
+            card: { id: COUNTERSPELL_ID },
+            targets: [],
+        };
+        expect(matchesSpellPendingTarget(item, pt({}), ctx)).toBe(true);
     });
 });
 
