@@ -175,7 +175,9 @@ Claude operates **autonomously**: implements, tests, and validates code end-to-e
 
 ### Subagent model routing (cost)
 
-A subagent spawned with no explicit `model` inherits the session tier (often Opus/Fable — the most expensive). Read-only or mechanical delegation does not need that tier. **Pass `model: sonnet` when spawning `Explore` or `general-purpose` for read-only work** (locate/map/survey/research); reserve the inherited session tier for subagents doing genuinely hard implementation or reasoning. `cavecrew-*` agents already pin their own model in frontmatter — never override them. `fork` always inherits the parent by design (not controllable). Telemetry `resolved_model` (see `docs/agents/skill-timing-optimization.md`) is the ground truth for auditing leaks.
+A subagent spawned with no explicit `model` inherits the session tier (often Opus/Fable — the most expensive). Read-only or mechanical delegation does not need that tier. **Pass `model: sonnet` when spawning `Explore`, `general-purpose`, or any `caveman:cavecrew-*` agent for read-only work** (locate/map/survey/research); reserve the inherited session tier for subagents doing genuinely hard implementation or reasoning. `fork` always inherits the parent by design (not controllable). Telemetry `resolved_model` (see `docs/agents/skill-timing-optimization.md`) is the ground truth for auditing leaks.
+
+**The cavecrew agents are the caveman PLUGIN's — spawn them as `caveman:cavecrew-investigator` / `caveman:cavecrew-builder` / `caveman:cavecrew-reviewer`, and pass `model: sonnet` explicitly.** A duplicate hand-installed copy used to sit in `~/.claude/agents/`, so both a bare and a plugin-qualified name were offered and both were paid for in the resident prompt on every request (issue #2189). Only the plugin's copy survives, and it carries **no** `model:` frontmatter — the old "cavecrew-\* pin their own model, never override them" advice is obsolete and would now silently route them at the session tier.
 
 ## Chrome Browser Debug (via claude-in-chrome MCP)
 
