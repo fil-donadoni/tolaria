@@ -1395,7 +1395,7 @@ export const elfhameSanctuary: CardDefinition = {
 // the same resolver) exercising a picker for BASIC lands, which it has never
 // needed to do before. That is real, cross-cutting engine surface for one
 // uncommon enchantment — out of scope for this pass.
-// tracked-by: #1097
+// tracked-by: #2139
 // export const pulseOfLlanowar: CardDefinition = {
 //     id: "db09afe5-5f01-4f77-a239-12d7a6e59024",
 //     name: "Pulse of Llanowar",
@@ -1514,17 +1514,18 @@ export const saprolingInfestation: CardDefinition = {
 };
 
 // Scouting Trek — "Search your library for any number of basic land cards,
-// reveal those cards, then shuffle and put them on top." Reveals the
-// same-shape gap Drafna's Restoration (`atq/blue.ts`) hit for "put on top in
-// any order" (a `reorder-library` choice kind, `resolve()`-only, no Op) —
-// but Drafna's composition never needed to shuffle (the moved cards simply
-// appended to the bottom via a fresh graveyard→library move, then were
-// reordered on top ahead of the untouched remainder). Scouting Trek's cards
-// are ALREADY somewhere in the library when found, so "shuffle [the rest]
-// and put them on top" needs a SUBSET shuffle (randomize everything except
-// the found cards, which then go on top in chosen order) — no primitive
-// shuffles anything narrower than the whole library (`shuffleLibrary`).
-// tracked-by: #1097
+// reveal those cards, then shuffle and put them on top." The capability gap
+// this stub was originally filed for (a SUBSET shuffle, CR 701.24b) no
+// longer exists: `moveZone { to: "library-top" }` (issue #1125) relocates
+// the picked ids from anywhere in the library onto the top AFTER a preceding
+// `libraryLook { action: "shuffle" }`, which the Op's own doc comment records
+// as equivalent to CR 701.24b's "all the cards except those are shuffled",
+// and it preserves PICK order (CR 401.4). Mystical Tutor (`mir/blue.ts`) is
+// the reference composition; "any number" is the shipped
+// `count: { min: 0, max: Number.MAX_SAFE_INTEGER }` convention (Skyship
+// Weatherlight, `pls/colorless.ts`). What is left is a pure card ship whose
+// only untested edge is a PLURAL pick on the `library-top` path.
+// tracked-by: #2140
 // export const scoutingTrek: CardDefinition = {
 //     id: "1b882e68-5c03-4ec6-9982-8c3b09847969",
 //     name: "Scouting Trek",
@@ -1582,15 +1583,15 @@ export const tangle: CardDefinition = {
 // Treefolk creatures get +1/+1. When Verdeloth enters, if it was kicked,
 // create X 1/1 green Saproling creature tokens." The anthem is buildable
 // (`pt-buff` OR-filtered by subtype), but "Kicker {X}" is a VARIABLE-cost
-// kicker (the paid amount is chosen, like the card's own {X}, but scoped to
-// the KICKER leg specifically) — no existing card models a variable-cost
-// kicker, and it's unclear whether `getX()` would read the kicker's chosen
-// amount or collide with a card's own {X} cost (Verdeloth has none, but the
-// primitive's semantics for this combination are undocumented/untested).
-// Distinct from the ordinary `entersWith.counters[count: "kicker"]` shape
-// used elsewhere in this file, which reads a FIXED per-kick count, not a
-// caster-chosen X.
-// tracked-by: #1097
+// kicker: per CR 107.3a a spell announces ONE X that its mana cost AND every
+// additional cost share, so the engine's existing per-cast `chosenX` is the
+// right model — but the Kicker path never sees it. `foldKickerCosts`
+// (`gre/kicker.ts`) calls `normalizeManaCost(kicker.mana)` with no options,
+// and the cast dialog's X stepper is gated on the PRINTED cost, which
+// Verdeloth's is not. Distinct from the ordinary
+// `entersWith.counters[count: "kicker"]` shape used elsewhere in this file,
+// which reads a FIXED per-kick count, not a caster-chosen X.
+// tracked-by: #2141
 // export const verdelothTheAncient: CardDefinition = {
 //     id: "72d5fab1-fa20-4006-b19d-179d36238c9b",
 //     name: "Verdeloth the Ancient",
@@ -1604,10 +1605,14 @@ export const tangle: CardDefinition = {
 // was kicked, you gain life equal to that damage." The trample grant is
 // free, but "whenever THAT CREATURE deals combat damage THIS TURN" needs a
 // `delayedTrigger` timing keyed to a repeating damage-dealt-by-a-specific-
-// permanent event; `DelayedTriggerTiming` has no such member (only phase
-// boundaries, an instance leave-watch, and a repeating "creature blocks"
-// watch — no repeating "creature deals combat damage" watch).
-// tracked-by: #1097
+// permanent event, and `DelayedTriggerTiming` has no such member: the two
+// nearest members each hold half of it —
+// `this-turn-creature-deals-combat-damage-to-player` (#1199) repeats but is
+// scoped by scheduling CONTROLLER, matches player targets only and collapses
+// a whole damage batch into one firing; `attacks-unblocked` (#2117) is
+// instance-scoped via `watch` but one-shot and forbids `$event` in its body
+// (which "life equal to that damage" must read).
+// tracked-by: #2142
 // export const vigorousCharge: CardDefinition = {
 //     id: "af6f57ad-d370-4c81-8da0-c15d87725ab1",
 //     name: "Vigorous Charge",
