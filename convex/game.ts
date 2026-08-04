@@ -14117,10 +14117,20 @@ export const debugResetGame = mutation({
  * Solo-only: it drives both seats from one client, matching the Debug panel's
  * solo-mode workflow. The pure transition reuses `recordGameResult` so the debug
  * path can't drift from production.
+ *
+ * Admin-only debug mutation (issue #1679, same CLAUDE.md privileged-mutation
+ * convention as `debugSetupScenario` #768): it force-finishes a Game/Match
+ * selected purely from a client-supplied `gameId`, with no seat argument to
+ * hang `assertSeatOwnership` on, and it is reachable ONLY from the Debug
+ * panel (`src/components/debug/debug-panel.tsx`) via `useMutation`, so it
+ * cannot become an `internalMutation` (unreachable from a browser client).
+ * `assertIsAdmin` runs FIRST, before any Match/Game state is touched.
  */
 export const debugBo3Sideboard = mutation({
     args: { gameId: v.id("games") },
     handler: async (ctx, args) => {
+        await assertIsAdmin(ctx);
+
         const game = await ctx.db.get(args.gameId);
         if (!game) throw new Error("Game not found");
         if (!game.matchId) throw new Error("Game has no owning Match");
