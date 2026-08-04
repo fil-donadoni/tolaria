@@ -983,6 +983,20 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             }
             recordSlot(req, op.target.target, "permanent");
             return;
+        case "exileOnDeath":
+            // `exileOnDeath` (CR 614.1a, issue #1095) sets an IMMEDIATE
+            // `exileOnDeath` flag on the target creature — like
+            // `preventRegeneration` right above (and unlike the dormant
+            // `regenerate` shield), the outcome is observable in the same
+            // resolution, so the generator asserts it on an announced permanent
+            // slot. A `$source` / `$each` target is not modelled — skip and let
+            // the card's own per-card test cover it.
+            if (!("target" in op.target)) {
+                req.skip ??= `Op "exileOnDeath" targets $source/$each — covered by the card's own per-card test`;
+                return;
+            }
+            recordSlot(req, op.target.target, "permanent");
+            return;
         case "markAssignsNoCombatDamage":
             // `markAssignsNoCombatDamage` (CR 510.1c, issue #1283) pushes a
             // combat-only, id-scoped entry onto the IMMEDIATE
@@ -2137,6 +2151,32 @@ const OP_ASSERTORS: Record<string, Assertor> = {
                 return {
                     ok: perm.cantBeRegeneratedThisTurn === true,
                     detail: `cantBeRegeneratedThisTurn ${perm.cantBeRegeneratedThisTurn}, expected true`,
+                };
+            },
+        };
+    },
+    // `exileOnDeath` (CR 614.1a, issue #1095) — a death replacement armed on an
+    // announced permanent slot is observable as the `exileOnDeath` flag
+    // flipping undefined→true on the seeded filler creature (the generator
+    // seeds CREATURES, which is what `setExileOnDeath` requires).
+    // `$source`/`$each` targets are skipped upstream in `analyseOp` (returns
+    // null defensively here).
+    exileOnDeath(rawOp, scenario) {
+        const op = rawOp as Extract<EffectOp, { op: "exileOnDeath" }>;
+        if (!("target" in op.target)) return null;
+        const permId = scenario.targetPermanentIds[op.target.target];
+        return {
+            label: `exile-on-death permanent ${permId} (exileOnDeath undefined→true)`,
+            check: (post) => {
+                const perm = post.players
+                    .flatMap((p) => p.battlefield)
+                    .find((c) => c.id === permId);
+                if (!perm) {
+                    return { ok: false, detail: "target permanent gone" };
+                }
+                return {
+                    ok: perm.exileOnDeath === true,
+                    detail: `exileOnDeath ${perm.exileOnDeath}, expected true`,
                 };
             },
         };

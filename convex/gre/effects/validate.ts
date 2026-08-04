@@ -2886,6 +2886,16 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             target: isObjectSelector,
         },
     },
+    // CR 614.1a (issue #1095) — arm a one-shot "if it would die this turn,
+    // exile it instead" replacement. `target` is an object selector (announced
+    // slot, `$source`, or a forEach `$each`). No duration — the one-shot,
+    // turn-scoped lifetime is intrinsic to the flag (cleared at CLEANUP,
+    // CR 514.2), mirroring `preventRegeneration` right above.
+    exileOnDeath: {
+        required: {
+            target: isObjectSelector,
+        },
+    },
     // CR 510.1c (issue #1283) — mark a permanent to assign no combat damage
     // this turn. `target` is an object selector (announced slot, `$source`, or
     // a forEach `$each`). No other fields.
@@ -3131,11 +3141,15 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // CR 701.17 (issue #885) — mill: move the top `count` cards of a player's
     // library into their graveyard (deterministic; no choice). `player` names
     // whose library is milled; `count` is how many cards.
+    // issue #1095 — optional `bind` snapshots the FIRST card that genuinely
+    // reached the graveyard (Loafing Giant's "if a land card was milled this
+    // way"), mirroring `discardAtRandom`'s bind shape exactly.
     mill: {
         required: {
             player: isPlayerRef,
             count: isEffectValue,
         },
+        optional: { bind: isBindingName },
     },
     // CR 701.20a + CR 400.7 — reveal the top `count` card(s) of a library and
     // route each by what it IS (deterministic; no choice, never suspends).

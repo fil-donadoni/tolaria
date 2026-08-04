@@ -11618,9 +11618,14 @@ export function buildSpellContext(
         // into your graveyard from your library" self-trigger). No-op for
         // `amount ≤ 0`. The post-resolution scan in `resolveTopOfStack` drains
         // the events from `pendingEvents`.
-        millCards(playerId: string, amount: number): void {
-            if (amount <= 0) return;
+        millCards(playerId: string, amount: number): string[] {
+            if (amount <= 0) return [];
             const player = getPlayer(state, playerId);
+            // issue #1095 — the ids that GENUINELY reached the graveyard, in
+            // mill order (the `mill` Op's `bind` reads the first). A card the
+            // CR 614 redirect below sent to exile is deliberately absent: it
+            // was exiled, not milled, the same line `emitCardMilled` draws.
+            const milledIds: string[] = [];
             // issue #1558 — a SINGLE `millCards` call is one exile occurrence
             // (CR 603.3b / 608.2i) even though it redirects cards to exile one
             // at a time inside this loop; accumulate and emit ONE batched
@@ -11659,6 +11664,7 @@ export function buildSpellContext(
                 // not milled, so Gaea's Blessing-style "put into your graveyard
                 // from your library" triggers correctly don't see it.
                 if (destination === "graveyard") {
+                    milledIds.push(top.id);
                     emitCardMilled(state, playerId, top.id, cardId, types);
                 } else {
                     exiledEntries.push({
@@ -11670,6 +11676,7 @@ export function buildSpellContext(
                 }
             }
             emitCardsExiled(state, exiledEntries);
+            return milledIds;
         },
         // CR 614 — arm a one-shot replacement for the next draw `playerId`
         // takes this turn (Aladdin's Lamp). Consumed by the draw step.

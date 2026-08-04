@@ -832,6 +832,21 @@ const preventRegeneration: Valuer<"preventRegeneration"> = (op) => ({
         : ["boardRemoval"],
 });
 
+// CR 614.1a — "if it would die this turn, exile it instead" (issue #1095).
+// A graveyard-denial rider, not removal in itself: it only pays off when the
+// creature actually dies this turn, and what it buys is the recursion the
+// opponent would otherwise get. Valued alongside `preventRegeneration` — the
+// other half of the same "make this removal stick" sentence — rather than as
+// a removal spell in its own right.
+const EXILE_ON_DEATH_VALUE = 25;
+
+const exileOnDeath: Valuer<"exileOnDeath"> = (op) => ({
+    points: EXILE_ON_DEATH_VALUE,
+    tags: isAnnouncedTarget(op.target)
+        ? ["boardRemoval", "targeted"]
+        : ["boardRemoval"],
+});
+
 // Source-side combat-damage neutralization (Warning / Restrain): the marked
 // creature deals 0 combat damage this turn — a single-creature defensive shield
 // worth a fraction of a full Fog (which stops the whole combat).
@@ -1039,6 +1054,7 @@ export const OP_VALUERS: {
     rangedTopdeck,
     regenerate,
     preventRegeneration,
+    exileOnDeath,
     restrictActivation,
     restrictCasting,
     grantCastTiming,
@@ -1212,6 +1228,7 @@ const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // player who currently controls it.
     gainControl: "harmful",
     preventRegeneration: "harmful",
+    exileOnDeath: "harmful",
     restrictActivation: "harmful",
     restrictCasting: "harmful",
     restrictCombat: "harmful",
