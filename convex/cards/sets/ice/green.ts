@@ -8,8 +8,10 @@ import type {
     CardPrint,
     PermanentView,
     SpellContext,
+    StaticEffectStateView,
 } from "../../types";
 import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../../types";
+import { countSnowLands } from "../../snowReads";
 import { makeTapForMana } from "../../abilities";
 import { cumulativeUpkeepTrigger } from "../../abilities/cumulativeUpkeep";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
@@ -1865,15 +1867,17 @@ export const wildGrowthIce: CardPrint = {
     rarity: "common",
 };
 // Woolly Mammoths — "This creature has trample as long as you control a snow
-// land." (CR 205.4a.)
-//
-// SIMPLIFICATION (flagged, same treatment as Dire Wolves' conditional banding):
-// the "as long as you control a snow land" clause is a CONTINUOUS keyword gate
-// on board state, but `keyword-grant` is applied imperatively at ETB with no
-// board-aware re-evaluation. Trample is therefore granted UNCONDITIONALLY — a
-// strict superset of the printed behaviour (Woolly Mammoths is played in snow
-// decks in practice). A board-aware keyword-grant predicate would track snow
-// lands exactly; flagged for a follow-up.
+// land." (CR 205.4a snow supertype; CR 702.19 trample; CR 611/613 layer 6
+// conditional keyword grant — issue #1827, fixes an unconditional
+// `staticAbilities: ["trample"]` that was a strict superset of the printed
+// behaviour.) A `keyword-grant` static effect with a `condition` (CR 611.2c
+// "as long as ...") re-evaluates every stable transition via
+// `refreshCounterGatedStatics`, so gaining/losing snow lands mid-game keeps
+// the grant current — mirrors Kavu Runner (`inv/red.ts`) and Magnigoth
+// Treefolk (`pls/green.ts`). "You" is this creature's CONTROLLER at read
+// time (`source.controllerId`), read live via `countSnowLands` so a
+// Melting/Arcum's-Weathervane-style supertype change is honoured, matching
+// Arctic Foxes' snow read (`ice/white.ts`).
 export const woollyMammoths: CardDefinition = {
     id: "eaca1216-99c8-4ad5-a51a-3c4ff3b82097",
     name: "Woolly Mammoths",
@@ -1884,7 +1888,18 @@ export const woollyMammoths: CardDefinition = {
     subtypes: ["Elephant"],
     power: 3,
     toughness: 2,
-    staticAbilities: ["trample"],
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            applies: EFFECT_AFFECTS_SELF,
+            condition: (source: PermanentView, state: StaticEffectStateView) =>
+                countSnowLands(
+                    state.players.find((p) => p.id === source.controllerId)
+                        ?.battlefield ?? []
+                ) > 0,
+            keyword: "trample",
+        },
+    ],
 };
 // Woolly Spider — 2/3 with Reach and "Whenever this creature blocks a creature
 // with flying, this creature gets +0/+2 until end of turn." (CR 702.17 reach;
