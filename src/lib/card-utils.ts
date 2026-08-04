@@ -820,18 +820,29 @@ export function hasBattlefieldTargetCandidate(
             // descriptor derives continuity from `enteredOnTurn` +
             // `GameState.turn` + the `controlChangedThisTurn` ledger, and this
             // gate's synthetic state is built from a `TriggerStateView`, which
-            // carries none of the three — feeding it one would read EVERY
-            // permanent as continuously controlled and fail OPEN, offering the
-            // ability on a board whose only candidate entered this turn and
-            // letting `activateAbilityOnState` throw "Not enough legal
-            // targets" (the dead menu entry this gate exists to prevent).
+            // carries none of the three. Routing through the descriptor
+            // therefore fails CLOSED, not open: with no `state.turn` the
+            // descriptor's `typeof ctx.state.turn !== "number"` branch returns
+            // a violation for EVERY permanent, so the ability would never be
+            // offered at all (verified empirically in review — the "is
+            // OFFERED" test goes red while both "is HIDDEN" tests stay green).
             // `buildTriggerStateView` already pre-derives the answer per
             // permanent through the SAME authority
             // (`hasControlledSinceTurnStart`, `gre/controlContinuity.ts`), so
             // the boolean read here IS the registry's verdict, computed one
             // layer up. Left undefined when that reducer was called without
             // `turnState`, in which case this gate declines to judge —
-            // fail-open, like every other dimension it cannot see.
+            // fail-open, like every other dimension it cannot see, so a
+            // legal-but-unjudgeable ability stays offered and the server
+            // re-validates.
+            // Third option, considered and NOT taken: thread `turn` /
+            // `controlChangedThisTurn` onto the synthetic state so the
+            // descriptor itself could judge, keeping ONE authority at this
+            // site too. It is the structurally cleaner shape, but it widens
+            // `TriggerStateView` (a wire-adjacent reducer shared by every
+            // affordance) for a single filter; the pre-derived boolean already
+            // comes from the same authority, so the two agree by construction.
+            // Revisit if a second turn-scoped filter needs the same fields.
             if (
                 requirement.controlledSinceTurnStart === true &&
                 permanent.controlledSinceTurnStart === false

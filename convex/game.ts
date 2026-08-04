@@ -9574,13 +9574,17 @@ export function applyOneTargetSelection(
         // exclude-instance/power/toughness/mv/controller) — the Phelia
         // bug class. The VALUES fed to that authority are derived from
         // the `PendingTarget` by iterating `PERMANENT_FILTER_KEYS`
-        // (`permanentFilterValuesFromPendingTarget`), not spelled out
-        // field by field: `PermanentFilterValues` is a `Partial<>`, so a
+        // (`permanentFilterValuesFromCarrier`), not spelled out field by
+        // field: `PermanentFilterValues` is a `Partial<>`, so a
         // hand-written map could — and did — drop a key with `tsc` at
         // exit 0 and the whole targeting suite green, re-opening the very
         // divergence the shared authority closes (issue #1824 review).
         // A filter added to the registry now reaches this site with no
-        // edit here at all.
+        // edit here at all. The OFFERED half is derived from the same key
+        // list by `lowerPermanentFilters` (`getLegalTargets`, `gre/rules.ts`)
+        // and CARRIED through `pendingTargetFiltersFromRequirement`'s call to
+        // the same lowerer — so neither half of the pair is hand-written and
+        // a new filter key cannot reach one side but not the other.
         // CR 601.2c same-controller cross-slot constraint (issue #1104,
         // Barrin's Spite) — the sibling's live controllerId from what's
         // already in `pt.selected`, resolved through the SAME

@@ -25,13 +25,17 @@ import {
     checkSpellTargetFilters,
     checkPlayerTargetFilters,
     checkCardTargetFilters,
+    lowerPermanentFilters,
+    PERMANENT_FILTER_KEYS,
     REGISTRY,
+    type PermanentFilterKey,
     type TargetFilterCtx,
 } from "../targetFilters";
 import type {
     CardDefinition,
     CardType,
     TargetRequirement,
+    TargetSelection,
 } from "../../cards/types";
 import {
     getDefinition,
@@ -2540,6 +2544,176 @@ describe("target-filter registry — FilterKey exhaustiveness keystone (ADR 0068
             ).toBe(false);
         }
     });
+});
+
+// ---------------------------------------------------------------------------
+// OFFERED-set derivation guard (ADR 0068, issue #1824 review).
+//
+// `getLegalTargets`'s permanent branch used to hand-write a
+// `PermanentFilterValues` literal — one line per filter — feeding
+// `checkPermanentTargetFilters`. `PermanentFilterValues` is a `Partial<>`, so
+// a forgotten line was NOT a type error: the filter reached the ACCEPTED set
+// (carried onto the `PendingTarget`, checked by `selectTarget`) while the
+// OFFERED set silently ignored it. That is the Phelia divergence reopened one
+// field at a time, and it happened live with `controlledSinceTurnStart`.
+// The literal is now `lowerPermanentFilters(requirement, chosenX,
+// sourcePower)` — the same registry lowerer the carry step and the card /
+// spell branches use — so the offered set is derived from
+// `PERMANENT_FILTER_KEYS` by construction.
+//
+// This test is the runtime guard against a future revert to a hand-written
+// map. For EVERY key in `PERMANENT_FILTER_KEYS` it (a) proves the registry
+// itself rejects the subject under that filter — so the fixture is honest,
+// not vacuous — and (b) asserts `getLegalTargets` does not offer it. Drop a
+// key from the offered set and (b) goes red for exactly that key.
+//
+// The `satisfies Record<PermanentFilterKey, Case>` is the compile half: a new
+// permanent filter with no case here fails `tsc`.
+// ---------------------------------------------------------------------------
+
+describe("getLegalTargets: the OFFERED set honours EVERY PERMANENT_FILTER_KEYS entry (ADR 0068, issue #1824)", () => {
+    const TURN = 5;
+
+    /** The one candidate every case tries to exclude: a Legendary green Bear
+     *  creature with trample, 2/2, untapped, nontoken, controlled by the
+     *  chooser, and (deliberately) entered THIS turn so the continuity filter
+     *  has something to bite on. Every other filter ignores `enteredOnTurn`. */
+    const SUBJECT = {
+        ...makeCard({
+            id: "subject",
+            types: ["Creature"],
+            subtypes: ["Bear"],
+            power: 2,
+            toughness: 2,
+            staticAbilities: ["trample"],
+            controllerId: "p1",
+            ownerId: "p1",
+        }),
+        // Embedded so `hasSupertypeLive` / `hasColor` read them off the
+        // instance rather than a registry definition this synthetic id has no
+        // entry for.
+        card: {
+            id: "synthetic-subject",
+            manaCost: { G: 1 },
+            supertypes: ["Legendary"],
+        },
+        enteredOnTurn: TURN,
+    } as unknown as CardInstanceState;
+
+    /** A second permanent, controlled by the OTHER player — the sibling the
+     *  `sameController` case points `alreadySelected` at. */
+    const SIBLING = makeCard({
+        id: "sibling",
+        types: ["Creature"],
+        controllerId: "p2",
+        ownerId: "p2",
+    });
+
+    const state = makeGameState({
+        turn: TURN,
+        activePlayerId: "p1",
+        players: [
+            makePlayer({ id: "p1", battlefield: [SUBJECT] }),
+            makePlayer({ id: "p2", battlefield: [SIBLING] }),
+        ],
+        controlChangedThisTurn: [],
+    });
+
+    type Case = {
+        /** The filter fields that must make SUBJECT illegal. */
+        req: Partial<TargetRequirement>;
+        /** CR 601.2c cross-slot cases only. */
+        alreadySelected?: TargetSelection[];
+        siblingControllerId?: string;
+    };
+
+    const CASES = {
+        // Also enforced by the per-player `matchesBattlefieldController` gate
+        // above the registry call, so this row is belt-and-braces rather than
+        // the sole cover for `controller`.
+        controller: { req: { controller: "opponent" } },
+        subtypeFilter: { req: { subtypeFilter: "Wall" } },
+        supertypeFilter: { req: { supertypeFilter: "Basic" } },
+        excludeSubtypes: { req: { excludeSubtypes: "Bear" } },
+        excludeSupertypes: { req: { excludeSupertypes: "Legendary" } },
+        excludeTypes: { req: { excludeTypes: "Creature" } },
+        excludeColors: { req: { excludeColors: "G" } },
+        colorFilter: { req: { colorFilter: "U" } },
+        colorFilterAny: { req: { colorFilterAny: ["U", "W"] } },
+        tappedFilter: { req: { tappedFilter: "tapped" } },
+        combatRoleFilter: { req: { combatRoleFilter: "attacking" } },
+        requireAbility: { req: { requireAbility: "flying" } },
+        requireAbilityAny: { req: { requireAbilityAny: ["flying", "haste"] } },
+        excludeAbility: { req: { excludeAbility: "trample" } },
+        excludeInstanceIds: { req: { excludeInstanceIds: ["subject"] } },
+        powerFilter: { req: { powerFilter: { min: 99 } } },
+        toughnessFilter: { req: { toughnessFilter: { min: 99 } } },
+        mvFilter: { req: { mvFilter: { equals: 99 } } },
+        sameController: {
+            req: { sameController: true },
+            alreadySelected: [{ type: "permanent", id: "sibling" }],
+            siblingControllerId: "p2",
+        },
+        isToken: { req: { isToken: true } },
+        controlledSinceTurnStart: { req: { controlledSinceTurnStart: true } },
+    } satisfies Record<PermanentFilterKey, Case>;
+
+    it("no filter at all — the subject IS offered (the positive control this whole sweep rests on)", () => {
+        const ids = getLegalTargets(
+            state,
+            { type: "Creature", count: 1 },
+            NO_TARGETING_SOURCE,
+            "p1"
+        ).map((t) => t.id);
+        expect(ids).toContain("subject");
+    });
+
+    for (const key of PERMANENT_FILTER_KEYS) {
+        const testCase: Case = CASES[key];
+        it(`${key}: rejected by the registry AND absent from the offered set`, () => {
+            const req: TargetRequirement = {
+                type: "Creature",
+                count: 1,
+                ...testCase.req,
+            };
+            const ctx: TargetFilterCtx = {
+                state,
+                sourceColors: [],
+                sourceTypes: [],
+                sourceSubtypes: [],
+                chooserId: "p1",
+                activePlayerId: state.activePlayerId,
+                ...(testCase.siblingControllerId
+                    ? { siblingControllerId: testCase.siblingControllerId }
+                    : {}),
+            };
+            // (a) The fixture is honest: the shared authority really does
+            // reject SUBJECT under this filter. Without this half, a case
+            // whose requirement excluded nothing would make (b) vacuous.
+            expect(
+                checkPermanentTargetFilters(
+                    ctx,
+                    SUBJECT,
+                    lowerPermanentFilters(req, undefined)
+                ),
+                `registry should reject SUBJECT under ${key}`
+            ).not.toBeNull();
+            // (b) …and the OFFERED set agrees. Red the moment `getLegalTargets`
+            // stops forwarding this key.
+            const ids = getLegalTargets(
+                state,
+                req,
+                NO_TARGETING_SOURCE,
+                "p1",
+                undefined,
+                testCase.alreadySelected ?? []
+            ).map((t) => t.id);
+            expect(
+                ids,
+                `getLegalTargets should not offer SUBJECT under ${key}`
+            ).not.toContain("subject");
+        });
+    }
 });
 
 // ---------------------------------------------------------------------------

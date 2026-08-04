@@ -1327,6 +1327,14 @@ describe("Norritt (untap blue / force-attack, CR 701.20b / 508.1d)", () => {
             ...pendingTargetFiltersFromRequirement(req, undefined),
         });
 
+        // The `controlledSinceTurnStart` descriptor's own violation message —
+        // asserted rather than a bare `.toThrow()`, so these two cases are
+        // pinned to rejecting for the RIGHT reason. A bare throw-assertion
+        // passes just as happily on "Invalid target" / "Not your target
+        // selection", which is what a broken fixture produces.
+        const CONTINUITY_VIOLATION =
+            "Must target a permanent controlled continuously since the beginning of the turn";
+
         // Entered the battlefield THIS turn (CR 400.7 — a new object, so the
         // active player has not controlled it since the turn began).
         state.pendingTarget = newPending();
@@ -1335,7 +1343,7 @@ describe("Norritt (untap blue / force-attack, CR 701.20b / 508.1d)", () => {
                 targetType: "permanent",
                 targetId: "fresh",
             })
-        ).toThrow();
+        ).toThrow(CONTINUITY_VIOLATION);
 
         // Changed hands this turn — on the battlefield since before the turn,
         // but the continuity ledger records the break.
@@ -1345,7 +1353,7 @@ describe("Norritt (untap blue / force-attack, CR 701.20b / 508.1d)", () => {
                 targetType: "permanent",
                 targetId: "stolen",
             })
-        ).toThrow();
+        ).toThrow(CONTINUITY_VIOLATION);
 
         // The one genuinely legal target IS accepted — proving the two
         // rejections above are the filter talking, not a broken fixture. Held

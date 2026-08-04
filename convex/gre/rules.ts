@@ -80,7 +80,6 @@ import {
     emitBecameTargetEvents,
 } from "./state";
 import {
-    resolveMvFilter,
     matchesBattlefieldController,
     checkPermanentTargetFilters,
     lowerPermanentFilters,
@@ -2154,45 +2153,24 @@ export function getLegalTargets(
     // legal iff it is at least one of these colors. Players (colorless) are
     // excluded when set, same as the single-color `colorFilter`.
     const colorFilterAny = requirement.colorFilterAny;
-    const tappedFilter = requirement.tappedFilter;
-    const combatRoleFilter = requirement.combatRoleFilter;
-    const powerFilter = requirement.powerFilter;
-    const mvFilter = resolveMvFilter(
-        requirement.mvFilter,
+    // ADR 0068 (issue #1408 T1, tightened by issue #1824) — the PERMANENT-kind
+    // filter values, lowered ONCE through the registry's own `lower()` loop.
+    // This used to be a hand-written literal at the `checkPermanentTargetFilters`
+    // call below, spelling out one line per filter; `PermanentFilterValues` is a
+    // `Partial<>`, so a forgotten line was not a type error and the OFFERED set
+    // silently drifted open one filter at a time (proven live: adding
+    // `controlledSinceTurnStart` to `TargetRequirement` left this map's omission
+    // at `tsc` exit 0). `lowerPermanentFilters` iterates `PERMANENT_FILTER_KEYS`
+    // — the very list `checkPermanentTargetFilters` loops — so the offered set
+    // is derived from the same key list the check runs, by construction. Same
+    // shape as the card branch (`lowerCardFilters`) and the spell branch
+    // (`lowerSpellFilters`) below, and the same call the carry step
+    // (`pendingTargetFiltersFromRequirement`) makes.
+    const permanentValues = lowerPermanentFilters(
+        requirement,
         chosenX,
         sourcePower
     );
-    const subtypeFilter = requirement.subtypeFilter
-        ? Array.isArray(requirement.subtypeFilter)
-            ? requirement.subtypeFilter
-            : [requirement.subtypeFilter]
-        : undefined;
-    const supertypeFilter = requirement.supertypeFilter
-        ? Array.isArray(requirement.supertypeFilter)
-            ? requirement.supertypeFilter
-            : [requirement.supertypeFilter]
-        : undefined;
-    const excludeTypes = requirement.excludeTypes
-        ? Array.isArray(requirement.excludeTypes)
-            ? requirement.excludeTypes
-            : [requirement.excludeTypes]
-        : undefined;
-    const excludeColors = requirement.excludeColors
-        ? Array.isArray(requirement.excludeColors)
-            ? requirement.excludeColors
-            : [requirement.excludeColors]
-        : undefined;
-    const excludeSubtypes = requirement.excludeSubtypes
-        ? Array.isArray(requirement.excludeSubtypes)
-            ? requirement.excludeSubtypes
-            : [requirement.excludeSubtypes]
-        : undefined;
-    const excludeSupertypes = requirement.excludeSupertypes
-        ? Array.isArray(requirement.excludeSupertypes)
-            ? requirement.excludeSupertypes
-            : [requirement.excludeSupertypes]
-        : undefined;
-    const toughnessFilter = requirement.toughnessFilter;
 
     // CR 115.4: "any target" means any creature, planeswalker, player, or
     // battle — the four object types that can be damaged (CR 120.3).
@@ -2227,13 +2205,19 @@ export function getLegalTargets(
                 );
                 if (!matchesAny && !wantsSpellOrPermanent && !matchesExplicit)
                     continue;
-                // CR 109.1 / 115 / 202 / 205 / 613 / 701.20 / 109.3 / 102.1 —
-                // every permanent-kind filter (including `controller`),
-                // routed through the SINGLE shared authority — the
-                // target-filter registry (ADR 0068 / issue #1408). The
-                // selectTarget mutation runs the SAME `checkPermanentTargetFilters`
-                // against the submitted target, so the offered set and the
-                // accepted set can't diverge (the Phelia bug class).
+                // CR 109.1 / 115 / 202 / 205 / 613 / 701.20 / 109.3 / 102.1 /
+                // 302.6 / 400.7 — every permanent-kind filter (including
+                // `controller` and `controlledSinceTurnStart`), routed through
+                // the SINGLE shared authority — the target-filter registry
+                // (ADR 0068 / issue #1408). The values come from
+                // `lowerPermanentFilters` (see `permanentValues` above), and
+                // the selectTarget mutation runs the SAME
+                // `checkPermanentTargetFilters` over the SAME lowered values
+                // (read back off the `PendingTarget` by
+                // `permanentFilterValuesFromCarrier`), so the offered set and
+                // the accepted set can't diverge (the Phelia bug class) — both
+                // halves derived from `PERMANENT_FILTER_KEYS`, neither
+                // hand-written.
                 // `controller` is ALSO re-checked here per-candidate (redundant
                 // with the per-player `matchesBattlefieldController` gate
                 // above, kept for its early-continue efficiency) — both run
@@ -2251,37 +2235,11 @@ export function getLegalTargets(
                     siblingControllerId,
                 };
                 if (
-                    checkPermanentTargetFilters(filterCtx, card, {
-                        controller: requirement.controller,
-                        subtypeFilter,
-                        supertypeFilter,
-                        excludeSupertypes,
-                        excludeTypes,
-                        excludeColors,
-                        excludeSubtypes,
-                        colorFilter,
-                        colorFilterAny,
-                        tappedFilter,
-                        combatRoleFilter,
-                        requireAbility: requirement.requireAbility,
-                        requireAbilityAny: requirement.requireAbilityAny,
-                        excludeAbility: requirement.excludeAbility,
-                        excludeInstanceIds: requirement.excludeInstanceIds,
-                        powerFilter,
-                        toughnessFilter,
-                        mvFilter,
-                        sameController: requirement.sameController,
-                        isToken: requirement.isToken,
-                        // CR 302.6 / 400.7 (issue #1824) — Norritt / Arcum's
-                        // Whistle. `PermanentFilterValues` is a `Partial`, so
-                        // omitting a key here is not a compile error: this
-                        // hand-written map is the OFFERED-set half of the
-                        // Phelia pair and silently drifts open when a new
-                        // filter is added and forgotten (which is exactly what
-                        // this filter's own tests caught).
-                        controlledSinceTurnStart:
-                            requirement.controlledSinceTurnStart,
-                    })
+                    checkPermanentTargetFilters(
+                        filterCtx,
+                        card,
+                        permanentValues
+                    )
                 ) {
                     continue;
                 }
