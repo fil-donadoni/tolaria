@@ -74,8 +74,9 @@ export const exploration: CardDefinition = {
 // controller-filter on the target), so this still needs the imperative
 // `resolve` callback's `tapped.controllerId`.
 // Blocked on: an event-field player ref reachable from a `tappedTrigger`
-// script (same gap Wild Growth's own comment documents). The runtime colour
-// choice reuses the shared `COLOR_OPTIONS` list (`abilities/chooseColor.ts`).
+// script (same gap Wild Growth's own comment documents). tracked-by: #2153
+// The runtime colour choice reuses the shared `COLOR_OPTIONS` list
+// (`abilities/chooseColor.ts`).
 
 //
 // Home set = earliest paper printing (ADR 0041) = Urza's Saga; it was first

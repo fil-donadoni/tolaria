@@ -685,6 +685,7 @@ export const manaFlare: CardDefinition = {
         // never reachable from the script (see `tappedTrigger`'s own `effects`
         // doc comment). Blocked on: tapped-permanent payload exposure
         // (recipient player ref + produced-colour value) in the DSL.
+        // tracked-by: #2153
         tappedTrigger({
             id: "mana-flare-extra",
             oracleText:
@@ -739,10 +740,12 @@ export const manabarbs: CardDefinition = {
             scope: "any",
             filter: { types: "Land" },
             forMana: true,
-            // NOT DSL-migratable (ADR 0045, issue #831): the damaged player is
+            // NOT DSL-migratable (ADR 0045): the damaged player is
             // read from the PERMANENT_TAPPED event (the tapping player), not the
             // ability's controller/opponent, so no EffectPlayerRef targets it.
             // Blocked on: event-player ref for tapped-land triggers.
+            // tracked-by: #2153 (was #831, closed — that was the LEA migration
+            // pass this was assessed in, never a ticket for the gap itself)
             resolve: (ctx, _event, tapped) => {
                 ctx.dealDamage({ type: "player", id: tapped.controllerId }, 1);
             },
