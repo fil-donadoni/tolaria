@@ -624,17 +624,24 @@ export const seaKingsBlessing: CardDefinition = {
     // Migrated resolve()→effects[] (ADR 0045, #795): a variable-count
     // "one or more target creatures" announcement iterated via the
     // `{ set: "targets" }` forEach selector (issue #1083) — closes the
-    // X-multi-target gap this card was previously blocked on. No duration is
-    // passed to setColor, mirroring the pre-migration `setColorOverride`
-    // call exactly (indefinite override — a pre-existing simplification vs.
-    // the oracle's "until end of turn", left unchanged by this pure
-    // refactor).
+    // X-multi-target gap this card was previously blocked on.
+    // `duration: { phase: "end-of-turn" }` on setColor matches the oracle's
+    // "until end of turn" (CR 611.1) — issue #2103: the pre-migration
+    // `setColorOverride` call and this port both omitted it, making the
+    // colour change permanent instead of reverting at cleanup (CR 514.2).
+    // Same duration shape as Touch of Darkness (`leg/black.ts`) and Part
+    // Water (above).
     effects: [
         {
             op: "forEach",
             select: { set: "targets" },
             effects: [
-                { op: "setColor", target: { ref: "$each" }, colors: ["U"] },
+                {
+                    op: "setColor",
+                    target: { ref: "$each" },
+                    colors: ["U"],
+                    duration: { phase: "end-of-turn" },
+                },
             ],
         },
     ],

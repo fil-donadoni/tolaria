@@ -429,6 +429,36 @@ describe("Sea Kings' Blessing (creatures become blue EOT, CR 305.7 layer 5)", ()
         )!;
         expect(STATIC_EFFECT_CTX.getColors(slim)).toEqual(["U"]);
     });
+
+    it("reverts to the creature's normal colour at cleanup (CR 514.2 end-of-turn duration, issue #2103)", () => {
+        const lion = makeInstance(keepersOfTheFaith.id, {
+            id: "lion",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            phase: "END_STEP",
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [lion] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, seaKingsBlessing.id, "p1", [
+            { type: "permanent", id: "lion" },
+        ]);
+        resolveTopOfStack(state);
+        const live = state.players[0].battlefield.find((c) => c.id === "lion")!;
+        expect(STATIC_EFFECT_CTX.getColors(live)).toEqual(["U"]);
+
+        // advancePhase from END_STEP traverses CLEANUP (auto) and purges
+        // until-end-of-turn colour overrides (CR 514.2).
+        advancePhase(state);
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "lion"
+        )!;
+        expect(STATIC_EFFECT_CTX.getColors(after)).toEqual(["W"]);
+    });
 });
 
 describe("Teleport (target creature can't be blocked, CR 509.1b)", () => {
