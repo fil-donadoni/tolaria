@@ -4590,6 +4590,31 @@ describe("Illusionary Mask (masked-cast: {X} -> face-down 2/2, CR 708.2, #123)",
         expect(perm.toughness).toBe(2);
     });
 
+    // --- Cast RESTRICTIONS bind the face-down cast too (CR 601.3a) ----------
+    //
+    // `ctx.castFaceDown` is the third cast that never produces a legal ACTION,
+    // so it never passes through `getLegalActions` — the announce-path
+    // chokepoint every other cast consumer shares. It therefore calls the
+    // shared gate `castProhibitionReason` itself.
+    //
+    // CR 708.2 — the gate is evaluated against the FACE-DOWN characteristics (a
+    // nameless 2/2 colourless creature spell with NO rules text), not the
+    // printed card's: a per-player "can't cast spells this turn" lock and a
+    // "can't cast creature spells" static both bind the face-down spell, while
+    // a restriction printed on the card no longer exists once it is face down.
+    it("a per-player cast lock forbids the masked cast — nothing leaves the hand (CR 601.3a / 708.2)", () => {
+        const { state } = setup([bears("bear")]);
+        // Xantid Swarm / Abeyance shape: p1 can't cast spells this turn.
+        state.cannotCastSpellsThisTurn = [{ playerId: "p1" }];
+        activate(state, 2);
+        // The pick is still offered (the ability resolves; it is the CAST that
+        // is forbidden) but nothing is cast.
+        submitPick(state, ["bear"]);
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("bear");
+        expect(state.players[0].hand[0].faceDown).toBeUndefined();
+    });
+
     it("a non-eligible creature cannot be chosen (server rejects)", () => {
         const { state } = setup([bears("bear"), giant("giant")]);
         activate(state, 2);

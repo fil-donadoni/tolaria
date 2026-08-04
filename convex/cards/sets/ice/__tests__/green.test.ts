@@ -87,7 +87,13 @@ import {
 import { checkStateBasedActions } from "../../../../gre/sba";
 import { recordBlockedAttackers } from "../../../../gre/banding";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
-import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
+import {
+    assertLegalAction,
+    getLegalActions,
+    getLegalTargets,
+    NO_TARGETING_SOURCE,
+} from "../../../../gre/rules";
+import { castProhibitionReason } from "../../../castRestrictions";
 import { tryAutoCommitPendingActivation } from "../../../../game";
 import {
     makeInstance,
@@ -2373,5 +2379,220 @@ describe("Brown Ouphe — filtered ability counter (CR 701.5a / 113.7a)", () => 
                 p.graveyard.some((c) => c.id === "aegis-ability")
             )
         ).toBe(false);
+    });
+});
+
+// --- Blizzard — card-level self cast condition (CR 601.3a, issue #2102) -----
+//
+// "Cast this spell only if you control a snow land." The condition is declared
+// ONCE (`CardDefinition.castCondition`) and evaluated by the shared,
+// frontend-safe `castProhibitionReason`, which is the single gate every
+// cast-legality consumer funnels through. One row per consumer from the census
+// in the PR description, including the must-NOT rows.
+describe("Blizzard — cast only if you control a snow land (CR 601.3a)", () => {
+    function setup(opts: {
+        /** Lands on the CASTER's (p1) battlefield. */
+        own?: CardInstanceState[];
+        /** Lands on the OPPONENT's (p2) battlefield. */
+        theirs?: CardInstanceState[];
+    }) {
+        const blizzardInHand = makeInstance(blizzard.id, {
+            id: "blizzard-hand",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        // A control card with NO castCondition: proves the gate is scoped to
+        // the declaring card and does not blanket-forbid casting.
+        const bearsInHand = makeInstance(balduvianBears.id, {
+            id: "bears-hand",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: opts.own ?? [],
+                    hand: [blizzardInHand, bearsInHand],
+                    manaPool: { W: 5, U: 5, B: 5, R: 5, G: 5, C: 5 },
+                }),
+                makePlayer("p2", { battlefield: opts.theirs ?? [] }),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            phase: "PRECOMBAT_MAIN",
+        });
+        return { state, blizzardInHand, bearsInHand };
+    }
+
+    function snowForest(id: string, controllerId: string): CardInstanceState {
+        return makeInstance(snowCoveredForest.id, {
+            id,
+            controllerId,
+            ownerId: controllerId,
+            types: ["Land"],
+        });
+    }
+
+    function plainMountain(
+        id: string,
+        controllerId: string
+    ): CardInstanceState {
+        return makeInstance(mountain.id, {
+            id,
+            controllerId,
+            ownerId: controllerId,
+            types: ["Land"],
+        });
+    }
+
+    it("declares the condition as data on the card (no closure)", () => {
+        expect(blizzard.castCondition).toEqual({
+            kind: "control",
+            filter: { types: "Land", supertypes: "Snow" },
+            reason: "Cast this spell only if you control a snow land.",
+        });
+        // The premise the dropped clause used to rest on is false: ICE DOES
+        // ship snow lands.
+        expect(getDefinition(snowCoveredForest.id).supertypes).toContain(
+            "Snow"
+        );
+    });
+
+    it("GRE: with NO snow land the Cast action is suppressed", () => {
+        const { state, blizzardInHand } = setup({});
+        expect(
+            getLegalActions(state, state.players[0], blizzardInHand)
+        ).not.toContain("cast");
+        expect(castProhibitionReason("p1", blizzardInHand, state)).toBe(
+            "Cast this spell only if you control a snow land."
+        );
+    });
+
+    it("GRE: with a snow land the Cast action is offered", () => {
+        const { state, blizzardInHand } = setup({
+            own: [snowForest("snow-1", "p1")],
+        });
+        expect(
+            getLegalActions(state, state.players[0], blizzardInHand)
+        ).toContain("cast");
+        expect(
+            castProhibitionReason("p1", blizzardInHand, state)
+        ).toBeUndefined();
+    });
+
+    it("must NOT be satisfied by a NON-snow land (CR 205.4a)", () => {
+        const { state, blizzardInHand } = setup({
+            own: [plainMountain("mtn-1", "p1")],
+        });
+        expect(
+            castProhibitionReason("p1", blizzardInHand, state)
+        ).toBeDefined();
+    });
+
+    it("must NOT be satisfied by the OPPONENT's snow land (CR 109.4)", () => {
+        const { state, blizzardInHand } = setup({
+            theirs: [snowForest("their-snow", "p2")],
+        });
+        expect(
+            castProhibitionReason("p1", blizzardInHand, state)
+        ).toBeDefined();
+    });
+
+    it("must NOT gate a card that declares no condition", () => {
+        const { state, bearsInHand } = setup({});
+        expect(castProhibitionReason("p1", bearsInHand, state)).toBeUndefined();
+        expect(getLegalActions(state, state.players[0], bearsInHand)).toContain(
+            "cast"
+        );
+    });
+
+    it("server mutation: assertLegalAction rejects the cast without a snow land", () => {
+        // `announceCast` (convex/game.ts) guards the cast with exactly this
+        // call, so this is the mutation path's rejection.
+        const { state, blizzardInHand } = setup({});
+        expect(() =>
+            assertLegalAction(state, state.players[0], blizzardInHand, "cast")
+        ).toThrow();
+        const allowed = setup({ own: [snowForest("snow-1", "p1")] });
+        expect(() =>
+            assertLegalAction(
+                allowed.state,
+                allowed.state.players[0],
+                allowed.blizzardInHand,
+                "cast"
+            )
+        ).not.toThrow();
+    });
+
+    it("SURFACE (through projectPublicState): the client's Cast affordance is off without a snow land", () => {
+        // `board-hand-card.tsx` reads `legalActions.includes("cast")` off the
+        // wire, so the assertion must traverse the REAL reducer — a hand-built
+        // view would mask a dropped field.
+        const denied = setup({});
+        const deniedProjected = projectPublicState(denied.state, 0, "p1");
+        const deniedCard = deniedProjected.players[0].hand.find(
+            (c) => c?.id === "blizzard-hand"
+        )!;
+        expect(deniedCard.legalActions).not.toContain("cast");
+
+        const allowed = setup({ own: [snowForest("snow-1", "p1")] });
+        const allowedProjected = projectPublicState(allowed.state, 0, "p1");
+        const allowedCard = allowedProjected.players[0].hand.find(
+            (c) => c?.id === "blizzard-hand"
+        )!;
+        expect(allowedCard.legalActions).toContain("cast");
+    });
+
+    it("the gate still holds when re-evaluated on the PROJECTED state", () => {
+        // The projection strips `card.card` to `{ id }`; the supertype read
+        // must survive that (it re-resolves through the registry).
+        const { state, blizzardInHand } = setup({});
+        const projected = projectPublicState(state, 0, "p1");
+        expect(
+            castProhibitionReason("p1", blizzardInHand as never, projected)
+        ).toBeDefined();
+
+        const allowed = setup({ own: [snowForest("snow-1", "p1")] });
+        const allowedProjected = projectPublicState(allowed.state, 0, "p1");
+        expect(
+            castProhibitionReason(
+                "p1",
+                allowed.blizzardInHand as never,
+                allowedProjected
+            )
+        ).toBeUndefined();
+    });
+
+    it("honours a LIVE supertype grant, not just the printed line (CR 205.4a)", () => {
+        // Arcum's Weathervane / Melting shape: a non-snow land granted Snow
+        // satisfies the condition; a printed snow land with Snow removed does
+        // not.
+        const granted = plainMountain("mtn-1", "p1");
+        granted.grantedSupertypes = [
+            { supertype: "Snow", sourceId: "weathervane" },
+        ];
+        const grantedState = setup({ own: [granted] });
+        expect(
+            castProhibitionReason(
+                "p1",
+                grantedState.blizzardInHand,
+                grantedState.state
+            )
+        ).toBeUndefined();
+
+        const stripped = snowForest("snow-1", "p1");
+        stripped.removedSupertypes = [
+            { supertype: "Snow", sourceId: "melting" },
+        ];
+        const strippedState = setup({ own: [stripped] });
+        expect(
+            castProhibitionReason(
+                "p1",
+                strippedState.blizzardInHand,
+                strippedState.state
+            )
+        ).toBeDefined();
     });
 });

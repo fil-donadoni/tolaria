@@ -16,8 +16,13 @@
 
 import { tryGetDefinition } from ".";
 import { getEffectiveColors } from "./effectiveColors";
+import { matchesPermanentFilter } from "./filters";
+import type { MatchablePermanent } from "./filters";
+import { liveSupertypesOf } from "./snowReads";
+import type { SupertypeView } from "./snowReads";
 import type {
     CardType,
+    CastCondition,
     ManaCost,
     PermanentView,
     StaticEffectContext,
@@ -163,16 +168,165 @@ export function hasCastTimingFlashGrant(
     return false;
 }
 
-/** Scans EVERY permanent on the battlefield for `cast-restriction` static
- *  effects (CR 601.3a) and returns the matching source's oracle text when one
- *  forbids `casterId` from casting `spell`, else `undefined`. Used by the GRE
- *  (`getLegalActions`), the cast mutation, and the client so all three agree on
- *  cast legality. */
+/** Adapts a `PermanentView` — the board shape `GameState`, the client's
+ *  `Player[]` and the wire-projected state all satisfy — to the
+ *  `MatchablePermanent` `matchesPermanentFilter` reads.
+ *
+ *  Live-first, printed-fallback: `supertypes` come from `liveSupertypesOf`
+ *  (CR 205.4a — honouring Melting / Arcum's Weathervane supertype mutations,
+ *  not just the printed line), `staticAbilities` from the instance where an
+ *  aura/layer-6 grant wrote them and from the definition otherwise, colours
+ *  from the single layer-5 authority `CAST_RESTRICTION_CTX.getColors`.
+ *
+ *  `enteredThisTurn` / `controlledSinceTurnStart` are deliberately NOT
+ *  populated: both need data outside this board view (`GameState.turn`, the
+ *  `controlChangedThisTurn` ledger).
+ *
+ *  DO NOT use either field in a `CastCondition.filter` until they are.
+ *  `matchesPermanentFilter` (`./filters.ts`) compares
+ *  `filter.X !== (card.X === true)`, so an ABSENT datum reads `false` and the
+ *  direction depends on what the filter asserts: `X: true` matches nothing
+ *  (fail CLOSED — the spell stays uncastable, harmless), but `X: false`
+ *  matches EVERY permanent (fail OPEN — the condition is satisfied by
+ *  anything and the spell becomes freely castable). No live card hits this
+ *  today; the note is here so the next author doesn't write the fail-open
+ *  half. Populating the two fields here — which needs `CastRestrictionStateView`
+ *  widened with `turn` and the control ledger — is the real fix. */
+function toMatchablePermanent(perm: PermanentView): MatchablePermanent {
+    const granted = (perm as { staticAbilities?: readonly string[] })
+        .staticAbilities;
+    const cardId = (perm.card as { id?: string }).id;
+    const def = cardId ? tryGetDefinition(cardId) : undefined;
+    return {
+        id: perm.id,
+        name: CAST_RESTRICTION_CTX.getName(perm),
+        types: perm.types,
+        subtypes: perm.subtypes,
+        supertypes: liveSupertypesOf(perm as unknown as SupertypeView),
+        staticAbilities: granted ?? def?.staticAbilities ?? [],
+        controllerId: perm.controllerId,
+        isToken: perm.isToken,
+        colors: CAST_RESTRICTION_CTX.getColors(perm),
+        power: perm.power,
+        toughness: perm.toughness,
+        isAttacking: perm.isAttacking,
+        isBlocking: perm.isBlocking,
+        isTapped: perm.isTapped,
+    };
+}
+
+/** Whether a single `CastCondition` currently holds for `casterId`.
+ *
+ *  The `switch` on `kind` is the EXPLICIT, fail-CLOSED discriminator (see
+ *  `CastCondition`): a `kind` this evaluator does not recognise returns
+ *  `false`, so the spell is uncastable and the omission is loud, rather than
+ *  returning `true` and silently dropping the card's Oracle clause. */
+function castConditionMet(
+    condition: CastCondition,
+    casterId: string,
+    state: CastRestrictionStateView
+): boolean {
+    switch (condition.kind) {
+        // CR 109.4 / 205.4a — "…only if you control <filter>". Control, not
+        // ownership: scan EVERY battlefield and keep the permanents whose
+        // live `controllerId` is the caster's, so a permanent stolen by
+        // Control Magic counts for its new controller (`applyControlChange`
+        // flips `controllerId` and moves the instance together).
+        case "control": {
+            const need = Math.max(1, condition.minCount ?? 1);
+            let found = 0;
+            for (const player of state.players) {
+                for (const perm of player.battlefield) {
+                    if (perm.controllerId !== casterId) continue;
+                    // No `supertypesOf` fallback is injected:
+                    // `toMatchablePermanent` ALWAYS sets `supertypes` (live,
+                    // snow-aware), and `matchesPermanentFilter` reads
+                    // `card.supertypes ?? ctx?.supertypesOf?.(card)` — so the
+                    // callback could never fire, and a `MatchablePermanent`
+                    // carries no `card`/`grantedSupertypes` for
+                    // `liveSupertypesOf` to read anyway.
+                    if (
+                        !matchesPermanentFilter(
+                            toMatchablePermanent(perm),
+                            condition.filter,
+                            { selfControllerId: casterId }
+                        )
+                    ) {
+                        continue;
+                    }
+                    found += 1;
+                    if (found >= need) return true;
+                }
+            }
+            return false;
+        }
+        default:
+            // Fail CLOSED (CR 601.3a): an unrecognised discriminator means
+            // this build cannot evaluate the card's cast clause, so it must
+            // not let the spell through.
+            return false;
+    }
+}
+
+/** CR 601.3a — the card's OWN cast condition ("Cast this spell only if you
+ *  control a snow land", Blizzard). Returns the condition's player-facing
+ *  `reason` when it is currently UNMET, else `undefined`.
+ *
+ *  Read from the `CardDefinition` of the would-be-cast `spell`, so it survives
+ *  the wire projection (which strips `card.card` to `{ id }`) — the definition
+ *  is re-resolved through `tryGetDefinition` exactly as every other read in
+ *  this module does. Called by `castProhibitionReason` — the single shared
+ *  gate; see its docstring for the two chokepoints that reach it. */
+export function castConditionUnmetReason(
+    casterId: string,
+    spell: PermanentView,
+    state: CastRestrictionStateView
+): string | undefined {
+    const cardId = (spell.card as { id?: string }).id;
+    if (!cardId) return undefined;
+    const condition = tryGetDefinition(cardId)?.castCondition;
+    if (!condition) return undefined;
+    return castConditionMet(condition, casterId, state)
+        ? undefined
+        : condition.reason;
+}
+
+/** The single shared cast gate (CR 601.3a). Returns a player-facing reason when
+ *  `casterId` may not cast `spell` right now, else `undefined` — folding the
+ *  card's OWN `castCondition`, the per-player turn lock, and a battlefield scan
+ *  for `cast-restriction` statics into one answer.
+ *
+ *  It is the single EVALUATOR, but it is NOT reached through a single call
+ *  site. Two chokepoints call it, and a cast-legality change must keep both
+ *  wired:
+ *
+ *   1. `getLegalActions` (`convex/gre/rules.ts`) — the ANNOUNCE path, shared by
+ *      the GRE, the cast mutation (via `assertLegalAction`), the wire
+ *      `legalActions` the client's Cast affordance reads, and the Bot's
+ *      `enumerateCastMoves`.
+ *   2. `castChosenSpell` / `castFaceDown` (`convex/gre/state.ts`) — the
+ *      RESOLUTION-TIME cast primitives. Casting during a resolution
+ *      (`castDuringResolution`, CR 608.2g), Word of Command's controlled cast
+ *      and Illusionary Mask's face-down cast never produce a legal ACTION at
+ *      all, so they never pass through `getLegalActions`; before issue #2102's
+ *      review they bypassed this gate entirely.
+ *
+ *  The client never calls this itself: it consumes the result indirectly, via
+ *  the server-computed `legalActions` carried on the wire. Every caller listed
+ *  above CALLS this function — none re-implements a restriction — so there is
+ *  still exactly one place a rule is evaluated. */
 export function castProhibitionReason(
     casterId: string,
     spell: PermanentView,
     state: CastRestrictionStateView
 ): string | undefined {
+    // CR 601.3a (issue #2102) — the card's OWN "Cast this spell only if
+    // <board predicate>" clause (Blizzard). Checked FIRST and inside this
+    // shared gate on purpose: one declaration on the card then covers server,
+    // client and bot through both chokepoints above, with no second
+    // implementation to drift.
+    const conditionUnmet = castConditionUnmetReason(casterId, spell, state);
+    if (conditionUnmet !== undefined) return conditionUnmet;
     // CR 601.3a (issue #1057) — a turn-scoped per-player cast lock (Xantid
     // Swarm: "defending player can't cast spells this turn"; Abeyance, issue
     // #1124, narrows it to instant/sorcery via `cardTypes`). Unlike the

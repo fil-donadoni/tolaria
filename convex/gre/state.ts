@@ -102,6 +102,7 @@ import {
     runDelayedTriggerBody,
 } from "./effects/interpreter";
 import { matchesPermanentFilter } from "../cards/filters";
+import { castProhibitionReason } from "../cards/castRestrictions";
 import {
     hasControlledSinceTurnStart,
     recordControlChangeThisTurn,
@@ -15240,8 +15241,35 @@ export function buildSpellContext(
         // face-down 2/2 permanent via the normal creature-spell path.
         castFaceDown(cardInstanceId: string): void {
             const player = getPlayer(state, item.castById);
-            const inHand = player.hand.some((c) => c.id === cardInstanceId);
+            const inHand = player.hand.find((c) => c.id === cardInstanceId);
             if (!inHand) return;
+            // CR 601.3a — this is still a CAST, so every cast RESTRICTION
+            // applies (the granting effect waives only the timing
+            // restrictions based on the card's TYPE — a card-specific phase
+            // restriction would still bind). Routed through the ONE shared
+            // gate `castProhibitionReason` that `getLegalActions` also calls
+            // (the client only ever sees its result through the wire's
+            // `legalActions`), so there is no second implementation to drift:
+            // it covers
+            // the card-level `castCondition` (issue #2102), the
+            // permanent-sourced `cast-restriction` statics and the per-player
+            // "can't cast spells this turn" lock at once.
+            //
+            // CR 708.2 — evaluated against the FACE-DOWN characteristics (a
+            // nameless 2/2 colourless creature spell with no rules text), NOT
+            // the printed card's: a "players can't cast creature spells"
+            // static does bind the face-down spell, while a restriction that
+            // is rules text on the printed card no longer exists once it is
+            // cast face down. `turnFaceDown` is run on a throwaway shallow
+            // copy so the real card is untouched when the gate refuses.
+            const faceDownProbe: CardInstanceState = { ...inHand };
+            turnFaceDown(faceDownProbe);
+            if (
+                castProhibitionReason(item.castById, faceDownProbe, state) !==
+                undefined
+            ) {
+                return; // forbidden — not cast (CR 601.3a / 117.3 "if able")
+            }
             const card = removeFromZone(player, cardInstanceId, "hand");
             turnFaceDown(card);
             const stackItem: StackItem = {
@@ -15337,7 +15365,15 @@ export function buildSpellContext(
             const cardId = (found.card as { id?: string }).id;
             const def = cardId ? tryGetDefinition(cardId) : undefined;
             if (!def) return false;
-            return !(def.types ?? []).includes("Land");
+            if ((def.types ?? []).includes("Land")) return false;
+            // CR 601.3a — and the cast must not be FORBIDDEN. The commit path
+            // (`castChosenSpell`) enforces the same shared gate authoritatively;
+            // asking it HERE too is what keeps the Op's contract ("a false here
+            // means no prompt is offered at all") honest, instead of offering a
+            // Cast/Decline for a spell the rules forbid casting. One shared
+            // function, two call sites — the announce/enforce split
+            // `getLegalActions` and the cast mutation already use.
+            return castProhibitionReason(playerId, found, state) === undefined;
         },
         getChosenLandPlayable(playerId, cardInstanceId, sourceZone) {
             // CR 116.2a / 305 (issue #1961) — the LAND twin of
@@ -15524,6 +15560,26 @@ export function buildSpellContext(
             const cardId = (handCard.card as { id?: string }).id;
             const def = cardId ? tryGetDefinition(cardId) : undefined;
             if (!def) return false;
+
+            // CR 601.3a — a controlled cast (Word of Command) and a cast during
+            // resolution (CR 608.2g) waive only the timing restrictions based
+            // on the card's TYPE (a card-specific phase restriction would
+            // still bind); every cast RESTRICTION still applies, and applies
+            // to the spell's CASTER
+            // (`controllerId` — the controlled opponent for Word of Command),
+            // not to whoever is making its decisions (`actingPlayerId`). This
+            // is the AUTHORITATIVE enforcement point for every cast that never
+            // passes through `getLegalActions`; it calls the same shared gate
+            // `castProhibitionReason`, so the card-level `castCondition` (issue
+            // #2102), the permanent-sourced `cast-restriction` statics and the
+            // per-player turn lock are all honoured with no second
+            // implementation to drift.
+            if (
+                castProhibitionReason(controllerId, handCard, state) !==
+                undefined
+            ) {
+                return false; // forbidden — not played (CR 601.3a / 117.3)
+            }
 
             // CR 117.9 — additional sacrifice cost. The picked permanent must
             // be on the CONTROLLED OPPONENT's battlefield and match the card's

@@ -105,12 +105,10 @@ export const aurochs: CardDefinition = {
 // untap steps" lock (CR 502.1 / 611 — the Winter Orb shape via
 // `untapRestriction` filtered to flyers).
 //
-// SIMPLIFICATION (flagged, no engine change): the printed "Cast this spell only
-// if you control a snow land" cast restriction degrades cleanly — the ICE pool
-// ships NO snow-supertype lands (snow mana is deferred; see CONTEXT.md "Snow" /
-// PRD #628), so the condition would never let it be cast at all. It is dropped
-// here (Blizzard is freely castable) until snow lands exist; the restriction is
-// not load-bearing for the enchantment's effect once in play.
+// "Cast this spell only if you control a snow land" (CR 601.3a) is the card's
+// own `castCondition` — the ICE pool DOES ship snow lands (the Snow-Covered
+// basics, `ice/colorless.ts`, `supertypes: ["Basic", "Snow"]`). The filter reads
+// LIVE supertypes, so a Melting / Arcum's Weathervane mutation is honoured.
 export const blizzard: CardDefinition = {
     id: "c369e4f9-0f2b-446c-9e2d-d3eefab0586d",
     name: "Blizzard",
@@ -119,6 +117,12 @@ export const blizzard: CardDefinition = {
         "Cast this spell only if you control a snow land.\nCumulative upkeep {2} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nCreatures with flying don't untap during their controllers' untap steps.",
     manaCost: { G: 2 },
     types: ["Enchantment"],
+    // CR 601.3a / 205.4a — "a snow land" is a Land with the Snow supertype.
+    castCondition: {
+        kind: "control",
+        filter: { types: "Land", supertypes: "Snow" },
+        reason: "Cast this spell only if you control a snow land.",
+    },
     staticEffects: [
         untapRestriction({
             id: "blizzard-flyer-untap-lock",

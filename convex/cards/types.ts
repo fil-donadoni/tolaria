@@ -12327,6 +12327,64 @@ export type AlternativeCostCondition =
      *  `AlternativeCostCondition`. */
     | { kind: "first-spell-this-game" };
 
+/** CR 601.3a — a card-level SELF cast condition: "Cast this spell only if
+ *  <board predicate>" (Blizzard, ICE — "Cast this spell only if you control a
+ *  snow land"). Declared on the CARD ITSELF, unlike the `cast-restriction`
+ *  statics another PERMANENT imposes on a class of spells (Brand of Ill Omen)
+ *  which `castProhibitionReason` battlefield-scans, and unlike the narrow
+ *  `castUniqueByName` flag (CR 601.3e) which hard-codes one predicate.
+ *
+ *  Data, not a closure, and evaluated by the frontend-safe
+ *  `castConditionUnmetReason` (`convex/cards/castRestrictions.ts`) from INSIDE
+ *  `castProhibitionReason` — the one shared gate. Consumers reach that gate
+ *  through TWO chokepoints, not one, and a change here must keep both wired:
+ *
+ *   1. `getLegalActions` (`convex/gre/rules.ts`) — the ANNOUNCE path, covering
+ *      the GRE, the `announceCast` mutation (via `assertLegalAction`), the wire
+ *      `legalActions` array the client's Cast affordance reads, and the Bot's
+ *      `enumerateCastMoves`.
+ *   2. `castChosenSpell` / `castFaceDown` (`convex/gre/state.ts`) — the
+ *      RESOLUTION-TIME cast primitives, for casts that never pass through
+ *      `getLegalActions` at all: the `castDuringResolution` Op (Chandra, Torch
+ *      of Defiance; Hideaway), Word of Command's controlled cast, and
+ *      Illusionary Mask's face-down cast (CR 708.2 — evaluated there against
+ *      the face-down characteristics).
+ *
+ *  Both chokepoints CALL `castProhibitionReason`; neither re-implements the
+ *  condition, so there is still exactly one declaration and one evaluator.
+ *
+ *  `kind` is an EXPLICIT discriminator, never an implicit "whichever field is
+ *  present" invariant: the evaluator switches on it and an unrecognised kind
+ *  fails CLOSED (the spell stays uncastable) rather than silently dropping the
+ *  Oracle clause — the failure mode this type exists to end. */
+export type CastCondition = {
+    /** Currently the only condition shape: "…only if you control <filter>".
+     *  WIDEN the union with a new member as further predicates arise; never
+     *  overload this one. */
+    kind: "control";
+    /** What the caster must control. Matched by `matchesPermanentFilter`
+     *  against every permanent whose `controllerId` is the caster's, with LIVE
+     *  supertypes injected (`liveSupertypesOf`, so Melting / Arcum's
+     *  Weathervane mutations count) — `{ types: "Land", supertypes: "Snow" }`
+     *  is "a snow land" (CR 205.4a).
+     *
+     *  Not every filter field is safe here: `toMatchablePermanent`
+     *  (`./castRestrictions.ts`) cannot supply `enteredThisTurn` /
+     *  `controlledSinceTurnStart`, and `matchesPermanentFilter`'s
+     *  `filter.X !== (card.X === true)` comparison makes an absent datum fail
+     *  CLOSED against `true` but fail OPEN against `false` (every permanent
+     *  matches → the spell becomes freely castable). See the `toMatchablePermanent`
+     *  docstring before reaching for either. */
+    filter: PermanentFilter;
+    /** Minimum number of matching permanents the caster must control. Default
+     *  1 ("a snow land"). */
+    minCount?: number;
+    /** Player-facing reason surfaced when the condition is unmet — the Oracle
+     *  clause verbatim. Returned by `castProhibitionReason`, so it lands in
+     *  the same UI slot as a `cast-restriction`'s `oracleText`. */
+    reason: string;
+};
+
 /** Full card definition used by the GRE. */
 export interface CardDefinition {
     id: CardId;
@@ -12874,6 +12932,15 @@ export interface CardDefinition {
      *  Flashback/Escape (which pay an ALTERNATIVE cost): the card resolves and
      *  lands in the graveyard normally, no exile-on-resolve. Non-land only. */
     castableFromOwnGraveyard?: boolean;
+    /** CR 601.3a — "Cast this spell only if <board predicate>" (Blizzard, ICE).
+     *  The card's OWN cast-legality gate, checked by the shared, frontend-safe
+     *  `castProhibitionReason` (`convex/cards/castRestrictions.ts`) — so the
+     *  Cast action is suppressed in `getLegalActions`, the wire `legalActions`
+     *  the client's affordance reads, and the Bot's cast-move enumeration, AND
+     *  the `announceCast` mutation rejects the cast, from this ONE declaration.
+     *  Distinct from `castUniqueByName` (CR 601.3e, one hard-coded predicate)
+     *  and from the `cast-restriction` statics OTHER permanents impose. */
+    castCondition?: CastCondition;
     /** Restricts cast timing to a specific subset of phases (CR 117.1b).
      *  When set, the spell is castable only while `state.phase` is in this
      *  list. Used by Berserk ("cast only before the combat damage step") —

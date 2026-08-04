@@ -8,7 +8,12 @@
 
 import { describe, it, expect } from "vitest";
 import { castProhibitionReason } from "@convex/cards/castRestrictions";
-import { brandOfIllOmen, balduvianBears } from "@convex/cards/sets/ice";
+import {
+    brandOfIllOmen,
+    balduvianBears,
+    blizzard,
+    snowCoveredForest,
+} from "@convex/cards/sets/ice";
 import type { CardInstance, Player } from "~/types/game";
 
 function inst(
@@ -164,6 +169,80 @@ describe("castProhibitionReason (client-side cast gate, CR 601.3a)", () => {
                 cannotCastSpellsThisTurn: [
                     { playerId: "p2", cardTypes: ["Creature"] },
                 ],
+            })
+        ).toBeDefined();
+    });
+});
+
+// Issue #2102 — the card-level SELF cast condition
+// (`CardDefinition.castCondition`, CR 601.3a) goes through the same shared
+// gate, so it is equally readable from the client's `Player[]`-shaped board.
+// The client's Cast affordance today rides the server-computed `legalActions`
+// on the wire (`board-hand-card.tsx`), which the projection test in
+// `convex/cards/sets/ice/__tests__/green.test.ts` covers; this row proves the
+// helper itself also evaluates correctly against the slim CLIENT shape, where
+// `card` is `{ id }` only and permanents carry no `staticAbilities`.
+describe("castCondition (client-side self cast condition, CR 601.3a)", () => {
+    const blizzardSpell = inst(blizzard.id, {
+        id: "blizzard-hand",
+        controllerId: "p1",
+        types: ["Enchantment"],
+    });
+
+    it("Blizzard: uncastable with no snow land", () => {
+        const board = [player("p1", []), player("p2", [])];
+        expect(
+            castProhibitionReason("p1", blizzardSpell as never, {
+                players: board as never,
+            })
+        ).toBe("Cast this spell only if you control a snow land.");
+    });
+
+    it("Blizzard: a non-snow land does not satisfy it (CR 205.4a)", () => {
+        const board = [
+            player("p1", [
+                inst(balduvianBears.id, { id: "not-a-land", types: ["Land"] }),
+            ]),
+            player("p2", []),
+        ];
+        expect(
+            castProhibitionReason("p1", blizzardSpell as never, {
+                players: board as never,
+            })
+        ).toBeDefined();
+    });
+
+    it("Blizzard: castable once a snow land is controlled", () => {
+        const board = [
+            player("p1", [
+                inst(snowCoveredForest.id, {
+                    id: "snow",
+                    types: ["Land"],
+                }),
+            ]),
+            player("p2", []),
+        ];
+        expect(
+            castProhibitionReason("p1", blizzardSpell as never, {
+                players: board as never,
+            })
+        ).toBeUndefined();
+    });
+
+    it("Blizzard: the OPPONENT's snow land does not satisfy it (CR 109.4)", () => {
+        const board = [
+            player("p1", []),
+            player("p2", [
+                inst(snowCoveredForest.id, {
+                    id: "their-snow",
+                    controllerId: "p2",
+                    types: ["Land"],
+                }),
+            ]),
+        ];
+        expect(
+            castProhibitionReason("p1", blizzardSpell as never, {
+                players: board as never,
             })
         ).toBeDefined();
     });
