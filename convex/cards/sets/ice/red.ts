@@ -11,7 +11,7 @@ import type {
     TargetSelection,
 } from "../../types";
 import { controlsSnowSubtype } from "../../snowReads";
-import { AURA_AFFECTS_HOST } from "../../types";
+import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../../types";
 import { cumulativeUpkeepTrigger } from "../../abilities/cumulativeUpkeep";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
@@ -515,12 +515,37 @@ export const brandOfIllOmen: CardDefinition = {
 // every permanent on the battlefield (sum of unfiltered `getBattlefieldIds` over
 // `allPlayerIds`, CR 122-agnostic) and, on an even count, hands control to the
 // opponent for the rest of the game (`gainControl`, layer-2 control change, no
-// condition → permanent). "Can attack as though it had haste unless it entered
-// this turn": modelled as the `haste` keyword (CR 702.10 / 508.1a). After a
-// control change resets summoning sickness, the keyword lets the new controller
-// attack immediately — matching the clause's intent; the "unless it entered this
-// turn" carve-out is a minor simplification (a freshly-cast Chaos Lord could
-// attack the turn it enters, which the printed card forbids).
+// condition → permanent).
+//
+// "This creature can attack as though it had haste unless it entered this
+// turn" (CR 508.1a / 702.10b) is a CONDITIONAL attack permission, strictly
+// NARROWER than haste, and it is NOT redundant with plain summoning sickness.
+// The two gates read different clocks:
+//   - CR 302.6 summoning sickness asks "has it been under its controller's
+//     control continuously since that controller's most recent turn began?"
+//     — re-set by a CONTROL CHANGE (`isSummoningSick`).
+//   - This clause asks "did it ENTER the battlefield this turn?" — a zone
+//     change only (`enteredOnTurn`, CR 400.7), untouched by a control change.
+// The gap between them is the whole point of the card: its own upkeep trigger
+// hands it back and forth between players, and after each hand-off the new
+// controller has a summoning-sick 7/7 that did NOT enter this turn — so the
+// clause lets it attack. Without it the Lord could essentially never attack.
+// Conversely a FRESHLY CAST Chaos Lord entered this turn, gets no permission,
+// and is held back by ordinary summoning sickness — the restriction that
+// offsets a 7/7 first-striker for {4}{R}{R}{R}.
+//
+// Modelled as a CR 611.2c "as long as ..." conditional layer-6 keyword grant
+// of `haste` (`keyword-grant` + `condition`, the Kavu Runner shape, issue
+// #1095), NOT as an unconditional `staticAbilities` entry. The grant is
+// materialized into the instance's `staticAbilities`, which is exactly what
+// `validateAttackerEligibility` (`gre/combat.ts`, CR 702.10b) reads, and
+// `refreshCounterGatedStatics` re-evaluates the condition on every stable
+// transition — so haste appears the turn AFTER the Lord arrives, with no
+// per-reader layer hop. (Granting the `haste` keyword rather than an
+// attack-only permission is the project's established reading of "can attack
+// as though it had haste": Instill Energy, `lea/green.ts`, does the same. The
+// difference — real haste also lifts the CR 302.6 {T}-ability lock — is
+// unobservable here: Chaos Lord has no activated abilities.)
 export const chaosLord: CardDefinition = {
     id: "ee245922-b380-4b2e-a43f-ab1ba8078943",
     name: "Chaos Lord",
@@ -532,7 +557,20 @@ export const chaosLord: CardDefinition = {
     subtypes: ["Human"],
     power: 7,
     toughness: 7,
-    staticAbilities: ["first strike", "haste"],
+    staticAbilities: ["first strike"],
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            applies: EFFECT_AFFECTS_SELF,
+            // CR 400.7 / 611.2c — "unless it entered this turn". `undefined`
+            // on either side means "unknown", and the conservative answer for
+            // a permission is to WITHHOLD it (the doc contract on
+            // `StaticEffectStateView.turn`): no turn number, no grant.
+            condition: (source, state) =>
+                state.turn !== undefined && source.enteredOnTurn !== state.turn,
+            keyword: "haste",
+        },
+    ],
     triggeredAbilities: [
         phaseTrigger({
             id: "chaos-lord-parity-control",
