@@ -176,7 +176,7 @@ describe("DashboardPlayBox deck legality gate (issue #512)", () => {
             "Play vs AI",
             "Solo Game",
             "Create Multiplayer",
-            "Tabletop",
+            "Manual Game",
         ]) {
             const btn = getByText(label).closest("button") as HTMLButtonElement;
             expect(btn.disabled).toBe(true);
