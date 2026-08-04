@@ -166,48 +166,55 @@ primitive/Op/cross-layer shape later tickets will copy.
 Do these **in this order**. Closing first is how a marker ends up pointing at a
 closed issue (issue #1841 — 10 issues, ~22 stubs).
 
-1. **Re-point every marker**, in a worktree (`git worktree add` +
-   `bun run worktree:init`), one branch: each `// tracked-by: #<tracker>`
-   becomes the new slice issue's number.
-2. **Converge the OTHER markers on the same gap.** A marker does not have to
-   name the audited tracker to be this audit's business. Once a gap has a
-   dedicated issue, every stub blocked on **that same gap** points at it —
-   whatever it pointed at before. Two shapes, both proven in the #1095 audit: - **Sibling stubs under a different tracker.** For each new slice issue,
-   grep the catalogue for the gap's own words, not the tracker number —
-   the Oracle phrase (`"as though it had flash"`), the capability name.
-   #1095's flash-surcharge gap had **five** stubs across five colour files
-   pointing at **four** different issues (#1086, #1095, #1399/#1405,
-   #1841); each earlier pass saw only its own colour and re-deferred, which
-   is how a five-consumer engine capability stayed filed as five one-off
-   card notes. Converging them is what turns the ticket bar's
-   "defensible without the card that surfaced it" from a guess into a count. - **Markers pointing at an already-closed issue.** Resolve the state of
-   every issue a marker cites, not just the audited one:
-   `grep -rhoE "tracked-by:? *#[0-9]+" convex/ src/ | grep -oE "[0-9]+" |
-sort -u` then `gh issue view <n> --json number,state,title` per hit. A
-   marker citing a CLOSED issue is dead on arrival — nobody will ever find
-   it. Re-point it if this audit's tickets cover it; otherwise say so in
-   the closing comment so it is not silently inherited.
+1.  **Re-point every marker**, in a worktree (`git worktree add` +
+    `bun run worktree:init`), one branch: each `// tracked-by: #<tracker>`
+    becomes the new slice issue's number.
+2.  **Converge the OTHER markers on the same gap.** A marker does not have to
+    name the audited tracker to be this audit's business. Once a gap has a
+    dedicated issue, every stub blocked on **that same gap** points at it —
+    whatever it pointed at before. Two shapes, both proven in the #1095 audit:
+    - **Sibling stubs under a different tracker.** For each new slice issue,
+      grep the catalogue for the gap's own words, not the tracker number —
+      the Oracle phrase (`"as though it had flash"`), the capability name.
+      #1095's flash-surcharge gap had **five** stubs across five colour files
+      pointing at **four** different issues (#1086, #1095, #1399/#1405,
+      #1841); each earlier pass saw only its own colour and re-deferred, which
+      is how a five-consumer engine capability stayed filed as five one-off
+      card notes. Converging them is what turns the ticket bar's
+      "defensible without the card that surfaced it" from a guess into a
+      count.
+    - **Markers pointing at an already-closed issue.** Resolve the state of
+      every issue a marker cites, not just the audited one:
+
+        ```bash
+        grep -rhoE "tracked-by:? *#[0-9]+" convex/ src/ | grep -oE "[0-9]+" | sort -u
+        ```
+
+        then `gh issue view <n> --json number,state,title` per hit. A marker
+        citing a CLOSED issue is dead on arrival — nobody will ever find it.
+        Re-point it if this audit's tickets cover it; otherwise say so in the
+        closing comment so it is not silently inherited.
 
     Also correct the ISSUE side: when a gap moves out of another open bundle,
     comment there saying which issue owns it now, so the bundle doesn't keep
     advertising work it no longer holds.
 
-3. **Correct the stub comments you proved wrong.** A `wrong-premise` stub whose
-   comment still asserts the false blocker will re-block the next reader. Fix
-   the prose in the same commit; it is comment-only, so it is cheap. This
-   includes any prose ROLL-UP the tracker left in the file — a "Shipped: … /
-   Still blocked: …" header paragraph goes just as stale as the markers under
-   it, and is read first.
-4. **Run the guard**: `bunx vitest run
+3.  **Correct the stub comments you proved wrong.** A `wrong-premise` stub whose
+    comment still asserts the false blocker will re-block the next reader. Fix
+    the prose in the same commit; it is comment-only, so it is cheap. This
+    includes any prose ROLL-UP the tracker left in the file — a "Shipped: … /
+    Still blocked: …" header paragraph goes just as stale as the markers under
+    it, and is read first.
+4.  **Run the guard**: `bunx vitest run
 convex/cards/__tests__/divergenceMarkers.test.ts` (every marker paragraph must
-   carry a tracking ref) plus `bun run check:pr`. Report any pre-existing red
-   on `main` as pre-existing, with the culprit commit — never absorb it
-   silently, never claim green you didn't see.
-5. **Open the PR**, listing the tracker → slice mapping as a table.
-6. **Close the tracker** with a comment carrying: the audited commit, the
-   shipped list (with what closed each), the mapping table, and every
-   `wrong-premise` correction. Close as `not planned` with a "superseded by
-   #a/#b/#c" reason — the work isn't done, it moved.
+    carry a tracking ref) plus `bun run check:pr`. Report any pre-existing red
+    on `main` as pre-existing, with the culprit commit — never absorb it
+    silently, never claim green you didn't see.
+5.  **Open the PR**, listing the tracker → slice mapping as a table.
+6.  **Close the tracker** with a comment carrying: the audited commit, the
+    shipped list (with what closed each), the mapping table, and every
+    `wrong-premise` correction. Close as `not planned` with a "superseded by
+    #a/#b/#c" reason — the work isn't done, it moved.
 
 ## Failure modes this skill exists to prevent
 

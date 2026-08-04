@@ -51,16 +51,31 @@ game: _"it cast Damnation on an empty board"_, _"it chump-blocked for no
 reason"_, _"it never uses the sac outlet"_. Do NOT jump to a fix. Four steps,
 in order, and the first is the one people skip.
 
-**1. Rebuild the position as a deterministic scenario.** A symptom you cannot
-re-run is an anecdote. Reconstruct the board as a `ScenarioSpec`
-(`convex/debugScenarioSpec.ts` — cards by NAME, zones, phase, `landCount`) from
-whatever you have: the user's description, a screenshot, the DecisionTrace in
-the Debug panel (`src/lib/ai/trace-store.ts` — latest decision only, never
-persisted, so grab it while it's on screen). Ask the user for the missing
-pieces rather than guessing: what was in play on both sides, whose turn, which
-phase, life totals. Getting the phase or the untapped-mana count wrong produces
-a scenario where the bot's choice is genuinely different and you debug a
-position that never happened.
+**1. Capture the position — do not reconstruct it from memory.** A symptom you
+cannot re-run is an anecdote, and a board rebuilt from recollection is a
+_different_ position: get the phase or the untapped-mana count wrong and the
+bot's choice is legitimately different, so you debug something that never
+happened.
+
+**Ask the user for the Debug panel's "Copy State"** (`debug-panel.tsx` —
+puts the whole `GameState` JSON on the clipboard) while the position is still on
+screen, plus the DecisionTrace box if it is open (`src/lib/ai/trace-store.ts`
+keeps only the LATEST decision and never persists it). Then lower that JSON to a
+`ScenarioSpec` yourself (`convex/debugScenarioSpec.ts` — cards by NAME, zones,
+phase, `landCount`): the spec is name-based on purpose, so a blade entry stays
+readable in a diff and immune to instance-id allocation.
+
+Two current limitations to state out loud when they bite, rather than papering
+over them:
+
+- **`ScenarioSpec` has no life totals** (issue #2147) — the built position opens
+  at default life. Any life-dependent symptom (chump-block, race, burn the face
+  vs. the creature) cannot be pinned faithfully until that lands, and an entry
+  written at the wrong life passes for the wrong reason.
+- **The lowering is manual** (issue #2148 adds `specFromState` + a "Copy as
+  scenario" button). Until then, do it by hand and say which parts of the state
+  you dropped — stack contents, mana pool and priority detail have no spec
+  representation.
 
 **2. Confirm it reproduces through the REAL search** — `runBladeScenario`
 (`convex/gre/ai/blade/runner.ts`) with a fixed `iterations` budget and several
