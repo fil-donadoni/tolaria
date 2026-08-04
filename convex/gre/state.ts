@@ -9275,6 +9275,59 @@ export function revertAnimation(card: CardInstanceState): void {
     // is irrelevant but harmless — cleared at CLEANUP regardless.
 }
 
+/** CR 400.7 / 205 (issue #2086) — undoes the layer-4 card-type ADD / REMOVE
+ *  surrogates (`grantedTypes` / `suppressedTypes`) materialised onto THIS
+ *  instance, restoring its printed type line.
+ *
+ *  Both maps live on the TARGET and are keyed by the SOURCE, so the standard
+ *  reversal (`unapplySourceStaticEffects`) only fires when the SOURCE leaves
+ *  the battlefield. Nothing reversed them when the TARGET left: a permanent
+ *  whose type was added or suppressed by ANOTHER permanent's static (Titania's
+ *  Song / Animate Artifact, `sets/atq/green.ts` / `sets/lea/blue.ts`) came
+ *  back from hand still carrying the mutation, even though CR 400.7 makes it a
+ *  NEW object. Every entry on the departing object dies with it, whatever its
+ *  source — this only ever reads/writes `card`, so identical maps on OTHER
+ *  permanents (whose granting source is still on the battlefield) are
+ *  untouched.
+ *
+ *  Mirrors `unapplySourceStaticEffects`' per-`(source, type)` origin
+ *  discipline exactly: a granted type is stripped only when it was NOT
+ *  printed, and a suppressed type is restored only when it WAS printed — so a
+ *  type the card never printed is never "restored".
+ *
+ *  Source-agnostic on purpose: an entry whose source id names no live
+ *  permanent (the one-shot layer-4 type SET arm, issue #2084) is cleared by
+ *  the same block rather than a parallel one. */
+export function revertTypeProvenance(card: CardInstanceState): void {
+    const granted = card.grantedTypes;
+    const suppressed = card.suppressedTypes;
+    if (
+        (granted === undefined || granted.length === 0) &&
+        (suppressed === undefined || suppressed.length === 0)
+    ) {
+        return;
+    }
+    const targetCardId = (card.card as { id?: string }).id;
+    const def = targetCardId ? tryGetDefinition(targetCardId) : undefined;
+    const printedTypes = (def?.types ?? []) as string[];
+    if (granted && granted.length > 0) {
+        for (const g of granted) {
+            if (printedTypes.includes(g.type)) continue;
+            card.types = card.types.filter((t) => t !== g.type);
+        }
+        delete card.grantedTypes;
+    }
+    if (suppressed && suppressed.length > 0) {
+        for (const s of suppressed) {
+            if (!printedTypes.includes(s.type)) continue;
+            if (!card.types.includes(s.type as CardType)) {
+                card.types = [...card.types, s.type as CardType];
+            }
+        }
+        delete card.suppressedTypes;
+    }
+}
+
 /** CR 400.7 — when a card moves from the battlefield to a non-graveyard /
  *  non-exile zone (hand, library), it becomes a new object with no memory of
  *  its previous existence. Strips battlefield-only transient fields so the
@@ -9370,6 +9423,12 @@ export function resetBattlefieldTransientState(card: CardInstanceState): void {
         card.subtypes = [...card.temporarySubtypeChange.restoreSubtypes];
         delete card.temporarySubtypeChange;
     }
+    // CR 400.7 / 205 (issue #2086) — the layer-4 card-TYPE siblings of the two
+    // subtype reverts above. `grantedTypes` / `suppressedTypes` are keyed by
+    // the SOURCE but mutate the TARGET's `types` in place, so the source-driven
+    // reversal never fires when the TARGET is the one leaving. Restores the
+    // printed type line BEFORE the records are dropped; see the helper's doc.
+    revertTypeProvenance(card);
     delete card.sourceTappedPTMods;
     delete card.untapLockedBy;
     delete card.skipNextUntap;
