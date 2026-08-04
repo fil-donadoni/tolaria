@@ -117,14 +117,20 @@ async function renderLobby(myLimitedEvents: unknown[] = []) {
     let mutCall = 0;
     useMutationMock.mockImplementation(() => {
         const idx = mutCall++;
-        // order: deletePreset, createGame, createSoloGame, createManualSoloGame, joinGame
+        // Order must mirror the `useMutation` calls in `lobby.tsx`:
+        // deletePreset, createGame, createSoloGame, createManualSoloGame,
+        // createManualGame, joinGame, joinManualGame.
         const createManualSoloGame = vi.fn().mockResolvedValue("manual-game-1");
+        const createManualGame = vi.fn().mockResolvedValue("manual-game-2");
+        const joinManualGame = vi.fn().mockResolvedValue(null);
         const handlers = [
             deletePreset,
             createGame,
             createSoloGame,
             createManualSoloGame,
+            createManualGame,
             joinGame,
+            joinManualGame,
         ];
         return handlers[idx % handlers.length];
     });

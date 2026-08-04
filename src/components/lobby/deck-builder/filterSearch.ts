@@ -11,6 +11,7 @@ import {
     type MatchMode,
 } from "./useCardSearch";
 import { isSortKey, isSortDirection } from "./cardSort";
+import { isFormatId, type FormatId } from "@convex/formats";
 
 /** Raw, loosely-typed search object as read from / written to the router. */
 export type FilterSearch = Record<string, unknown>;
@@ -94,5 +95,40 @@ export function decodeFilters(search: FilterSearch): CardSearchFilters {
         sortDirection: isSortDirection(sortDirectionRaw)
             ? sortDirectionRaw
             : DEFAULT_FILTERS.sortDirection,
+    };
+}
+
+/** The one non-filter search key on the deck-builder routes: the create-mode
+ *  Format seed carried from the lobby (`/decks/create?format=…`). */
+export const FORMAT_KEY = "format";
+
+/** Read the Format seed back out of a raw search object. */
+export function decodeFormat(search: FilterSearch): FormatId | undefined {
+    const raw = search[FORMAT_KEY];
+    return typeof raw === "string" && isFormatId(raw) ? raw : undefined;
+}
+
+/**
+ * Build the next raw search object from the current one plus a patch.
+ *
+ * PURE, and the single place a deck-builder URL write is assembled — because a
+ * write REPLACES the whole search object. A filter write used to emit only
+ * `encodeFilters(...)`, which dropped `?format=manual` on the first keystroke:
+ * the builder then reverted to Freeform on reload and manual mode was
+ * unreachable by link. Anything on this route that is not a filter has to be
+ * carried through here explicitly.
+ */
+export function buildSearch(
+    search: FilterSearch,
+    patch: {
+        filters?: CardSearchFilters;
+        format?: FormatId;
+    }
+): FilterSearch {
+    const filters = patch.filters ?? decodeFilters(search);
+    const format = patch.format ?? decodeFormat(search);
+    return {
+        ...(format ? { [FORMAT_KEY]: format } : {}),
+        ...encodeFilters(filters),
     };
 }

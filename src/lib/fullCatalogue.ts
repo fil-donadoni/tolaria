@@ -55,6 +55,36 @@ export function rehydrate(wire: FullCatalogueWire): FullCatalogueRow[] {
     return rows;
 }
 
+/** Public URL of the generated catalogue asset (`scripts/fetch-full-catalogue.mjs`). */
+export const CATALOGUE_URL = "/data/full-catalogue.json.gz";
+
+/**
+ * Decode a fetched catalogue payload into its JSON text.
+ *
+ * The asset is gzip on disk, but whether the BYTES that reach us are still
+ * gzip is the server's decision, not ours: Vite's dev server (and most static
+ * hosts) infer `Content-Encoding: gzip` from the `.gz` extension, in which
+ * case the fetch layer has already inflated the body and handing it to
+ * `DecompressionStream("gzip")` throws `TypeError` — the whole catalogue then
+ * fails to load, silently degrading manual mode to an empty pool and real
+ * mode to no Unavailable Cards.
+ *
+ * So sniff instead of assume: gzip always starts with the magic bytes
+ * `1f 8b` (RFC 1952 § 2.3.1). Present → inflate; absent → the transport
+ * already did it. Correct under both server behaviours.
+ */
+export async function decodeCatalogue(buffer: ArrayBuffer): Promise<string> {
+    const bytes = new Uint8Array(buffer);
+    const isGzip = bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b;
+    if (!isGzip) return new TextDecoder().decode(bytes);
+
+    const stream = new DecompressionStream("gzip");
+    const writer = stream.writable.getWriter();
+    void writer.write(bytes);
+    void writer.close();
+    return await new Response(stream.readable).text();
+}
+
 /** Fetch + decompress + parse the Full Catalogue (lazy, browser-cached).
  *  Returns the rehydrated rows with `available === false` everywhere —
  *  availability is patched by `useFullCatalogue`. */
@@ -63,16 +93,14 @@ export function loadFullCatalogue(): Promise<FullCatalogueRow[]> {
 
     cataloguePromise = (async () => {
         const startMs = performance.now();
-        const response = await fetch("/data/full-catalogue.json.gz");
+        const response = await fetch(CATALOGUE_URL);
         if (!response.ok) {
             throw new Error(
-                `Full Catalogue fetch failed: ${response.status} ${response.statusText}`
+                `Full Catalogue fetch failed: ${response.status} ${response.statusText} — ` +
+                    `the asset is generated and gitignored; run \`bun run catalogue:ensure\``
             );
         }
-        const decompressedStream = response.body!.pipeThrough(
-            new DecompressionStream("gzip")
-        );
-        const text = await new Response(decompressedStream).text();
+        const text = await decodeCatalogue(await response.arrayBuffer());
         const wire = JSON.parse(text) as FullCatalogueWire;
         const rows = rehydrate(wire);
         const elapsed = (performance.now() - startMs).toFixed(0);

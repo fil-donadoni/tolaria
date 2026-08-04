@@ -27,7 +27,7 @@
  * has no node_modules yet.
  */
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
 const force = process.argv.includes("--force");
@@ -68,13 +68,24 @@ const primary = primaryCheckout();
 // node_modules is deliberately NOT copied — `bun install` below is correct and
 // nearly free once bun's global cache is warm, and a copied tree can carry
 // stale platform binaries.
+// `optional` entries are nice-to-have: the Full Catalogue is regenerable
+// (`bun run catalogue:ensure`, which `dev`/`build` run anyway), so a primary
+// checkout that never generated it must not fail the bootstrap — copying just
+// saves this worktree a ~1 MB Scryfall download.
 const COPIES = [
     { from: "convex/_generated", to: "convex/_generated" },
     { from: ".env.local", to: ".env.local" },
+    {
+        from: "public/data/full-catalogue.json.gz",
+        to: "public/data/full-catalogue.json.gz",
+        optional: true,
+    },
 ] as const;
 
 if (primary) {
-    for (const { from, to } of COPIES) {
+    for (const entry of COPIES) {
+        const { from, to } = entry;
+        const optional = "optional" in entry && entry.optional;
         const src = join(primary, from);
         const dst = join(cwd, to);
         if (existsSync(dst) && !force) {
@@ -82,9 +93,14 @@ if (primary) {
             continue;
         }
         if (!existsSync(src)) {
-            failed.push(`${to} — not in primary checkout (${src})`);
+            if (optional) {
+                skipped.push(`${to} (not in primary — regenerable)`);
+            } else {
+                failed.push(`${to} — not in primary checkout (${src})`);
+            }
             continue;
         }
+        mkdirSync(dirname(dst), { recursive: true });
         cpSync(src, dst, { recursive: true });
         done.push(to);
     }

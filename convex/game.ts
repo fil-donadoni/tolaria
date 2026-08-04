@@ -3611,7 +3611,7 @@ export const createGame = mutation({
         // "mode", so the rejection lives here, fail-closed.
         if (args.deck.format === "manual")
             throw new Error(
-                "Manual decks cannot start a real game. Play a Manual Game instead."
+                "Tabletop decks cannot start a real game. Play a Tabletop game instead."
             );
         const user = await getCurrentUser(ctx);
         // #155 (match-scoped, ADR 0029): at most one active match per user.
@@ -4045,11 +4045,11 @@ export const createSoloGame = mutation({
         // ADR 0080 — a manual-format deck is rejected by the real engine.
         if (args.deck.format === "manual")
             throw new Error(
-                "Manual decks cannot start a real game. Play a Manual Game instead."
+                "Tabletop decks cannot start a real game. Play a Tabletop game instead."
             );
         if (args.deck2?.format === "manual")
             throw new Error(
-                "Manual decks cannot start a real game. Play a Manual Game instead."
+                "Tabletop decks cannot start a real game. Play a Tabletop game instead."
             );
         const user = await getCurrentUser(ctx);
         // #155 (match-scoped): one active match per user (see createGame).
@@ -4155,6 +4155,22 @@ export const createSoloGame = mutation({
  * seats, no rule enforcement, no automations. Game starts in "playing"
  * immediately — no coin toss, no mulligan flow. Concede is the only terminator.
  */
+/**
+ * The Tabletop-side deck gate (ADR 0080), mirroring the three real-engine
+ * rejections in `createGame` / `joinGame` / `createSoloGame`. Two conditions:
+ * the deck's Format must be `manual`, and it must not be empty — the manual
+ * Format validates nothing by design, so `validateDeck` passes an empty deck
+ * and a table with no cards is not a game.
+ */
+function assertTabletopDeck(deck: { format: string; cards: unknown[] }): void {
+    if (deck.format !== "manual")
+        throw new Error(
+            "Only Tabletop-format decks can start a Tabletop game."
+        );
+    if (deck.cards.length === 0)
+        throw new Error("A Tabletop deck must contain at least one card.");
+}
+
 export const createManualSoloGame = mutation({
     args: {
         name: v.string(),
@@ -4163,15 +4179,9 @@ export const createManualSoloGame = mutation({
         bestOf: bestOfValidator,
     },
     handler: async (ctx, args) => {
-        // ADR 0080 — only manual-format decks can start a manual game.
-        if (args.deck.format !== "manual")
-            throw new Error(
-                "Only manual-format decks can start a Tabletop game."
-            );
-        if (args.deck2 && args.deck2.format !== "manual")
-            throw new Error(
-                "Only manual-format decks can start a Tabletop game."
-            );
+        // ADR 0080 — only Tabletop-format decks can start a Tabletop game.
+        assertTabletopDeck(args.deck);
+        if (args.deck2) assertTabletopDeck(args.deck2);
         const user = await getCurrentUser(ctx);
         if (await findActiveMatchForUser(ctx, user._id))
             throw new Error(ACTIVE_GAME_MESSAGE);
@@ -4243,6 +4253,142 @@ export const createManualSoloGame = mutation({
 });
 
 /**
+ * Open a MULTIPLAYER Tabletop (manual) table (ADR 0080 S12): a `waiting` Match
+ * another human completes with `joinManualGame`. Structurally identical to
+ * `createGame`'s waiting room — same `buildMatchPlayers` / `toGamePlayers`
+ * primitives, same single-active-match guard — with two differences: the row
+ * carries `mode: "manual"`, and the Match never enters the `pregame` coin-toss
+ * gate, because a Tabletop game has no automated turn structure to hand to a
+ * first player (roll the die verb, then "you start", exactly as at a table).
+ */
+export const createManualGame = mutation({
+    args: {
+        name: v.string(),
+        deck: deckValidator,
+        bgColor: v.optional(v.string()),
+        bestOf: bestOfValidator,
+    },
+    returns: v.id("games"),
+    handler: async (ctx, args) => {
+        assertTabletopDeck(args.deck);
+        const user = await getCurrentUser(ctx);
+        if (await findActiveMatchForUser(ctx, user._id))
+            throw new Error(ACTIVE_GAME_MESSAGE);
+
+        const now = Date.now();
+        const player: PlayerInput = {
+            id: user._id,
+            name: user.nickname,
+            bgColor: args.bgColor ?? PLAYER_COLORS[0],
+            deck: args.deck,
+        };
+
+        const matchId = await ctx.db.insert("matches", {
+            bestOf: args.bestOf ?? 1,
+            status: "waiting",
+            players: buildMatchPlayers([player]),
+            currentGameNumber: 1,
+            createdAt: now,
+            updatedAt: now,
+        });
+
+        const gameId = await ctx.db.insert("games", {
+            name: args.name,
+            matchId,
+            gameNumber: 1,
+            status: "waiting",
+            players: toGamePlayers([player]),
+            mode: "manual",
+            createdAt: now,
+            updatedAt: now,
+        });
+
+        await ctx.db.patch(matchId, { currentGameId: gameId });
+
+        return gameId;
+    },
+});
+
+/**
+ * Sit down at an open multiplayer Tabletop table (ADR 0080 S12). The mirror of
+ * `joinGame` for manual mode — and it must be a SEPARATE mutation, not a branch
+ * inside it: `joinGame` rejects a manual deck fail-closed (invariant 1, the
+ * engine's only seam), builds a `pregame` coin-toss gate the Tabletop has no
+ * use for, and runs the real-engine setup. Both seats' decks are snapshotted
+ * into the initial `ManualGameState`; the game is immediately playable.
+ */
+export const joinManualGame = mutation({
+    args: {
+        gameId: v.id("games"),
+        deck: deckValidator,
+        bgColor: v.optional(v.string()),
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        assertTabletopDeck(args.deck);
+        const user = await getCurrentUser(ctx);
+        if (await findActiveMatchForUser(ctx, user._id))
+            throw new Error(ACTIVE_GAME_MESSAGE);
+
+        const game = await ctx.db.get(args.gameId);
+        if (!game) throw new Error("Game not found");
+        if (game.mode !== "manual")
+            throw new Error(
+                "That table is a real game — join it with a real deck."
+            );
+        if (game.status !== "waiting") throw new Error("Game is not open");
+        if (game.players.length >= 2) throw new Error("Game is full");
+        if (game.players.some((p) => p.id === user._id))
+            throw new Error("Cannot join a game you are already in");
+
+        const player: PlayerInput = {
+            id: user._id,
+            name: user.nickname,
+            bgColor: args.bgColor ?? PLAYER_COLORS[1],
+            deck: args.deck,
+        };
+        const allPlayers = [...game.players, player];
+        const now = Date.now();
+
+        // No coin toss, no pregame gate: the table is live the moment the
+        // second player sits down (ADR 0080 — no automation, concede is the
+        // only terminator).
+        if (game.matchId) {
+            const match = await ctx.db.get(game.matchId);
+            if (match) {
+                await ctx.db.patch(game.matchId, {
+                    status: "playing",
+                    players: [...match.players, ...buildMatchPlayers([player])],
+                    updatedAt: now,
+                });
+            }
+        }
+
+        await ctx.db.patch(args.gameId, {
+            status: "playing",
+            players: toGamePlayers(allPlayers),
+            updatedAt: now,
+        });
+
+        const initial = setupManualGame(
+            allPlayers.map((p) => ({
+                id: p.id,
+                name: p.name,
+                bgColor: p.bgColor,
+                deck: p.deck.cards,
+            }))
+        );
+        await saveManualState(ctx, args.gameId, 0, initial, null);
+        await appendManualLog(ctx, args.gameId, {
+            text: "Tabletop game started",
+            timestamp: now,
+        });
+
+        return null;
+    },
+});
+
+/**
  * Resolve the G1 coin toss into the first Game (CR 103.2-103.4). The Match must
  * be in the "pregame" gate opened by `joinGame` / `createSoloGame`, with the
  * toss winner recorded as `playDrawChooserId`. That winner's `choice` sets the
@@ -4308,7 +4454,7 @@ export const joinGame = mutation({
         // ADR 0080 — a manual-format deck is rejected by the real engine.
         if (args.deck.format === "manual")
             throw new Error(
-                "Manual decks cannot start a real game. Play a Manual Game instead."
+                "Tabletop decks cannot start a real game. Play a Tabletop game instead."
             );
         const user = await getCurrentUser(ctx);
         // #155 (match-scoped): reject joining when the user already occupies

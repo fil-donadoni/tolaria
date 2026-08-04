@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
+import { gzipSync } from "node:zlib";
 import {
+    decodeCatalogue,
     rehydrate,
     patchAvailability,
     type FullCatalogueRow,
@@ -30,6 +32,38 @@ function wire(overrides: Partial<Wire> = {}): Wire {
         ...overrides,
     };
 }
+
+/**
+ * The transport-shape guard. The catalogue is gzip on disk, but whether the
+ * bytes reaching the client are STILL gzip is the server's decision: Vite's
+ * dev server infers `Content-Encoding: gzip` from the `.gz` extension and the
+ * fetch layer inflates the body before we see it. The original loader piped
+ * unconditionally through `DecompressionStream("gzip")`, so that (very normal)
+ * server behaviour threw `TypeError` and the whole catalogue never loaded —
+ * manual mode showed an empty pool and real mode showed no Unavailable Cards.
+ */
+describe("decodeCatalogue — gzip-magic sniffing", () => {
+    const payload = JSON.stringify({ names: ["Lightning Bolt"] });
+
+    it("inflates a body that is still gzip on the wire", async () => {
+        const gz = gzipSync(Buffer.from(payload));
+        const buffer = gz.buffer.slice(
+            gz.byteOffset,
+            gz.byteOffset + gz.byteLength
+        ) as ArrayBuffer;
+        expect(await decodeCatalogue(buffer)).toBe(payload);
+    });
+
+    it("passes through a body the transport already decompressed", async () => {
+        // What arrives when the server sends `Content-Encoding: gzip`.
+        const buffer = new TextEncoder().encode(payload).buffer as ArrayBuffer;
+        expect(await decodeCatalogue(buffer)).toBe(payload);
+    });
+
+    it("handles an empty body without throwing", async () => {
+        expect(await decodeCatalogue(new ArrayBuffer(0))).toBe("");
+    });
+});
 
 describe("rehydrate", () => {
     it("converts columnar arrays to rows with folded names", () => {

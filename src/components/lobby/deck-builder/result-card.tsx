@@ -12,12 +12,19 @@ interface ResultCardProps {
     /** Active set filter — drives the default edition when one of the card's
      *  printings belongs to a selected set. */
     activeSets: string[];
+    /** Whether an Unavailable Card (one the GRE does not implement) is dimmed
+     *  and unselectable. TRUE for a real deck — it could not be played. FALSE
+     *  in manual mode, where no rule is enforced and every printed card is
+     *  playable by construction (ADR 0080), so availability says nothing about
+     *  whether the card belongs in the deck. */
+    enforceAvailability: boolean;
     onAdd: (printId: string, cardName: string) => void;
 }
 
 export default function ResultCard({
     entry,
     activeSets,
+    enforceAvailability,
     onAdd,
 }: ResultCardProps) {
     const isCatalogue = entry.oracleText === "";
@@ -47,7 +54,7 @@ export default function ResultCard({
 
     const [override, setOverride] = useState<string | null>(null);
     const selected = override ?? defaultPrintId;
-    const unavailable = entry.available === false;
+    const unavailable = enforceAvailability && entry.available === false;
 
     if (unavailable) {
         return (
