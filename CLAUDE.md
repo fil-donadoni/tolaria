@@ -196,6 +196,8 @@ The **work-intake** skills all converge on the same tail — grill → `/to-prd`
 | `/process-gh-issues` | Draining the `ready-for-agent` queue        | Selects a file-disjoint batch, fans out one implement-subagent + worktree per issue, reviews each PR, integrates through a serial rebase + re-gate merge-train, closes on success  |
 | `/mtg-rules-check`   | Before implementing any game mechanic       | Fetches CR text, finds the implementation, reports gaps                                                                                                                            |
 | `/gre-test`          | When adding/modifying GRE logic             | Generates vitest tests following project patterns                                                                                                                                  |
+| `/new-op`            | A card needs a DSL verb that doesn't exist  | Walks all seven Op registration sites across six files (three of which no guard covers) and the Op's permanent test                                                                |
+| `/bot-slice`         | Any change to the play Bot or the draft Bot | Maps the AI subsystem, walks the seams a change must touch, enforces the verification doctrine (blade scenario first, self-play only for strength claims)                          |
 
 ### Path-specific rules (auto-loaded)
 

@@ -47,12 +47,22 @@ disclaims, so you don't re-ticket someone else's work.
 Then grep the code for the tracker's own footprint:
 
 ```
-grep -rn "tracked-by: #$1" convex/ src/ scripts/
+grep -rn "tracked-by:[^#]*#\?$1\|#$1" convex/ src/ scripts/ | grep -i "tracked-by"
+grep -rn -B3 "tracked-by:$" convex/ src/ scripts/   # markers wrapped onto the next line
 grep -rn "#$1" convex/ src/ --include='*.ts' --include='*.tsx'
 ```
 
+**Never grep the bare string `"tracked-by: #$1"`.** Prettier wraps comments at
+the print width, so a marker routinely lands as `// tracked-by:` / `// #1095`
+across two lines and a literal-string grep silently misses it. That is a
+false `shipped` verdict on a gap that is still blocked — the single most
+expensive error this skill can make. In the #1095 audit the naive grep found 2
+of 3 live markers, and the missing one had already caused a prior pass to
+record "no marker in `red.ts` — tracked elsewhere" about a card that was in
+fact still parked on the tracker being audited.
+
 Live stubs are the **ground truth of what is still blocked** — a gap with no
-surviving marker is almost certainly shipped. The second grep finds the
+surviving marker is almost certainly shipped. The third grep finds the
 _closed_ gaps' landing sites (a shipped gap leaves `issue #N` in a doc comment
 on the code that closed it), which is the cheapest possible proof of closure.
 
@@ -159,30 +169,58 @@ closed issue (issue #1841 — 10 issues, ~22 stubs).
 1. **Re-point every marker**, in a worktree (`git worktree add` +
    `bun run worktree:init`), one branch: each `// tracked-by: #<tracker>`
    becomes the new slice issue's number.
-2. **Correct the stub comments you proved wrong.** A `wrong-premise` stub whose
+2. **Converge the OTHER markers on the same gap.** A marker does not have to
+   name the audited tracker to be this audit's business. Once a gap has a
+   dedicated issue, every stub blocked on **that same gap** points at it —
+   whatever it pointed at before. Two shapes, both proven in the #1095 audit: - **Sibling stubs under a different tracker.** For each new slice issue,
+   grep the catalogue for the gap's own words, not the tracker number —
+   the Oracle phrase (`"as though it had flash"`), the capability name.
+   #1095's flash-surcharge gap had **five** stubs across five colour files
+   pointing at **four** different issues (#1086, #1095, #1399/#1405,
+   #1841); each earlier pass saw only its own colour and re-deferred, which
+   is how a five-consumer engine capability stayed filed as five one-off
+   card notes. Converging them is what turns the ticket bar's
+   "defensible without the card that surfaced it" from a guess into a count. - **Markers pointing at an already-closed issue.** Resolve the state of
+   every issue a marker cites, not just the audited one:
+   `grep -rhoE "tracked-by:? *#[0-9]+" convex/ src/ | grep -oE "[0-9]+" |
+sort -u` then `gh issue view <n> --json number,state,title` per hit. A
+   marker citing a CLOSED issue is dead on arrival — nobody will ever find
+   it. Re-point it if this audit's tickets cover it; otherwise say so in
+   the closing comment so it is not silently inherited.
+
+    Also correct the ISSUE side: when a gap moves out of another open bundle,
+    comment there saying which issue owns it now, so the bundle doesn't keep
+    advertising work it no longer holds.
+
+3. **Correct the stub comments you proved wrong.** A `wrong-premise` stub whose
    comment still asserts the false blocker will re-block the next reader. Fix
-   the prose in the same commit; it is comment-only, so it is cheap.
-3. **Run the guard**: `bunx vitest run
+   the prose in the same commit; it is comment-only, so it is cheap. This
+   includes any prose ROLL-UP the tracker left in the file — a "Shipped: … /
+   Still blocked: …" header paragraph goes just as stale as the markers under
+   it, and is read first.
+4. **Run the guard**: `bunx vitest run
 convex/cards/__tests__/divergenceMarkers.test.ts` (every marker paragraph must
    carry a tracking ref) plus `bun run check:pr`. Report any pre-existing red
    on `main` as pre-existing, with the culprit commit — never absorb it
    silently, never claim green you didn't see.
-4. **Open the PR**, listing the tracker → slice mapping as a table.
-5. **Close the tracker** with a comment carrying: the audited commit, the
+5. **Open the PR**, listing the tracker → slice mapping as a table.
+6. **Close the tracker** with a comment carrying: the audited commit, the
    shipped list (with what closed each), the mapping table, and every
    `wrong-premise` correction. Close as `not planned` with a "superseded by
    #a/#b/#c" reason — the work isn't done, it moved.
 
 ## Failure modes this skill exists to prevent
 
-| Failure                                       | Guard                                                                           |
-| --------------------------------------------- | ------------------------------------------------------------------------------- |
-| Trusting the newest housekeeping comment      | Phase 2 re-verifies every gap, including the ones a comment calls closed        |
-| Re-ticketing a gap that shipped               | anchors required for a `shipped` verdict — name the capability AND its consumer |
-| Building a primitive that already exists      | Phase 3 re-derives from Oracle + CR, not the tracker's prose                    |
-| Duplicate issue under a different name        | Phase 4 searches by mechanism, not by card/keyword name                         |
-| Dangling `tracked-by:` at a closed issue      | Phase 7 order: re-point, then close                                             |
-| A stub comment that keeps re-blocking readers | Phase 7 step 2 corrects the prose in the same PR                                |
+| Failure                                                           | Guard                                                                                                                       |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Trusting the newest housekeeping comment                          | Phase 2 re-verifies every gap, including the ones a comment calls closed                                                    |
+| Re-ticketing a gap that shipped                                   | anchors required for a `shipped` verdict — name the capability AND its consumer                                             |
+| Building a primitive that already exists                          | Phase 3 re-derives from Oracle + CR, not the tracker's prose                                                                |
+| Duplicate issue under a different name                            | Phase 4 searches by mechanism, not by card/keyword name                                                                     |
+| Dangling `tracked-by:` at a closed issue                          | Phase 7 order: re-point, then close — and step 2 resolves the state of EVERY issue a marker cites, not just the audited one |
+| A live marker missed because prettier wrapped it across two lines | Phase 1 — never grep the literal `tracked-by: #$1`; a missed marker reads as a shipped gap                                  |
+| The same gap left parked under three other trackers               | Phase 7 step 2 — grep by the gap's own words and converge every stub on the new issue                                       |
+| A stub comment that keeps re-blocking readers                     | Phase 7 step 3 corrects the prose in the same PR — including the file-level "Shipped / Still blocked" roll-up header        |
 
 ## Reference
 
