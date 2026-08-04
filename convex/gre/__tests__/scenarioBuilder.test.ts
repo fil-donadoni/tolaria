@@ -380,6 +380,54 @@ describe("buildStateFromScenario — tokens (CR 111 / 707.2)", () => {
         expect(state.players[1].battlefield[0].isSummoningSick).toBe(true);
     });
 
+    // Issue #1824 — `isSummoningSick` and `enteredOnTurn` are two halves of
+    // the SAME control-continuity clock, and only the latter is read by
+    // `hasControlledSinceTurnStart` (which now backs a target filter, not just
+    // a choice filter). Staging them inconsistently made a scenario board lie
+    // to every continuity-sensitive card on it.
+    it("keeps enteredOnTurn consistent with summoningSick for tokens (CR 302.6 / 400.7, issue #1824)", () => {
+        const base = makeState();
+        const spec: ScenarioSpec = {
+            cards: [
+                { name: "Wasp", owner: "me", token: true },
+                {
+                    name: "Wasp",
+                    owner: "opp",
+                    token: true,
+                    summoningSick: true,
+                },
+            ],
+        };
+
+        const state = buildStateFromScenario(base, spec);
+
+        // Staged as pre-existing: `createTokenPermanents`' entry stamp must be
+        // cleared, or the token reads as having entered this turn.
+        expect(state.players[0].battlefield[0].enteredOnTurn).toBeUndefined();
+        // Staged as just-created: the stamp must be present and be THIS turn.
+        expect(state.players[1].battlefield[0].enteredOnTurn).toBe(state.turn);
+    });
+
+    it("stamps enteredOnTurn for a summoning-sick NON-token permanent (issue #1824)", () => {
+        const base = makeState();
+        const spec: ScenarioSpec = {
+            cards: [
+                { name: "Grizzly Bears", owner: "me" },
+                { name: "Grizzly Bears", owner: "opp", summoningSick: true },
+            ],
+        };
+
+        const state = buildStateFromScenario(base, spec);
+
+        // Pre-existing board: no stamp, so it reads as controlled since the
+        // turn began.
+        expect(state.players[0].battlefield[0].enteredOnTurn).toBeUndefined();
+        // Explicitly staged as summoning-sick: the stamp must agree with the
+        // flag, or `hasControlledSinceTurnStart` contradicts what the UI shows.
+        expect(state.players[1].battlefield[0].isSummoningSick).toBe(true);
+        expect(state.players[1].battlefield[0].enteredOnTurn).toBe(state.turn);
+    });
+
     it("honors tapped / damage / counters on a token", () => {
         const base = makeState();
         const spec: ScenarioSpec = {

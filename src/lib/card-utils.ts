@@ -71,6 +71,7 @@ import { canPayKickerLegs } from "@convex/gre/kicker";
 import {
     checkPermanentTargetFilters,
     isAlreadySelectedTarget,
+    permanentFilterValuesFromCarrier,
     type PermanentFilterValues,
     type TargetFilterCtx,
 } from "@convex/gre/targetFilters";
@@ -711,10 +712,10 @@ const NON_PERMANENT_TARGET_TYPES = new Set([
  * gate never hides a legal ability:
  *  - a requirement in a non-battlefield zone (graveyard), or whose type names a
  *    player / spell / any card, is not judged;
- *  - only `type`, `subtypeFilter`, `controller` and the self-exclusion are
- *    applied — the finer filters (power/toughness, colour, protection, shroud,
- *    intrinsic per-card filters) are the server's, whose `getLegalTargets` /
- *    `selectTarget` remain the single authority.
+ *  - only `type`, `subtypeFilter`, `controller`, `controlledSinceTurnStart` and
+ *    the self-exclusion are applied — the finer filters (power/toughness,
+ *    colour, protection, shroud, intrinsic per-card filters) are the server's,
+ *    whose `getLegalTargets` / `selectTarget` remain the single authority.
  * So a "no candidates" answer is reliable; a "has candidates" answer only means
  * the ability is worth offering.
  */
@@ -812,6 +813,42 @@ export function hasBattlefieldTargetCandidate(
             ) {
                 continue;
             }
+            // CR 302.6 / 400.7 (issue #1824) — "target ... the active player
+            // has controlled continuously since the beginning of the turn"
+            // (Norritt, Arcum's Whistle). Judged HERE rather than through the
+            // registry above, unlike every other dimension: the registry's
+            // descriptor derives continuity from `enteredOnTurn` +
+            // `GameState.turn` + the `controlChangedThisTurn` ledger, and this
+            // gate's synthetic state is built from a `TriggerStateView`, which
+            // carries none of the three. Routing through the descriptor
+            // therefore fails CLOSED, not open: with no `state.turn` the
+            // descriptor's `typeof ctx.state.turn !== "number"` branch returns
+            // a violation for EVERY permanent, so the ability would never be
+            // offered at all (verified empirically in review — the "is
+            // OFFERED" test goes red while both "is HIDDEN" tests stay green).
+            // `buildTriggerStateView` already pre-derives the answer per
+            // permanent through the SAME authority
+            // (`hasControlledSinceTurnStart`, `gre/controlContinuity.ts`), so
+            // the boolean read here IS the registry's verdict, computed one
+            // layer up. Left undefined when that reducer was called without
+            // `turnState`, in which case this gate declines to judge —
+            // fail-open, like every other dimension it cannot see, so a
+            // legal-but-unjudgeable ability stays offered and the server
+            // re-validates.
+            // Third option, considered and NOT taken: thread `turn` /
+            // `controlChangedThisTurn` onto the synthetic state so the
+            // descriptor itself could judge, keeping ONE authority at this
+            // site too. It is the structurally cleaner shape, but it widens
+            // `TriggerStateView` (a wire-adjacent reducer shared by every
+            // affordance) for a single filter; the pre-derived boolean already
+            // comes from the same authority, so the two agree by construction.
+            // Revisit if a second turn-scoped filter needs the same fields.
+            if (
+                requirement.controlledSinceTurnStart === true &&
+                permanent.controlledSinceTurnStart === false
+            ) {
+                continue;
+            }
             matchCount++;
             if (matchCount >= required) return true;
         }
@@ -864,6 +901,21 @@ export function matchesPermanentTargetFilters(
     pendingTarget: PendingTarget,
     allPlayers: ReadonlyArray<Player>,
     activePlayerId: string,
+    /** Projected `{ turn, controlChangedThisTurn }` (CR 302.6 / 400.7, issue
+     *  #1824) — the two wire fields `PendingTarget.controlledSinceTurnStart`
+     *  is evaluated against (Norritt, Arcum's Whistle). REQUIRED, unlike
+     *  `toMatchablePermanent`/`buildTriggerStateView`'s optional twin: those
+     *  build a VIEW whose unpopulated dimension fails closed by itself,
+     *  whereas this function's synthetic `GameState` reaches the registry
+     *  directly, so a caller omitting the fields must be a COMPILE error
+     *  rather than a silently-narrowed board. Pass `undefined` only when the
+     *  engine turn is genuinely unknown (a hand-built test context) — the
+     *  filter then fails CLOSED, never open.
+     *
+     *  `turn` must be the ENGINE turn (`useGameContext().engineTurn` /
+     *  `GameState.turn`), never the board's display counter: `enteredOnTurn`
+     *  is stamped from the global turn number. */
+    turnState: ControlContinuityView | undefined,
     emblems?: ReadonlyArray<EmblemInstance>
 ): boolean {
     // CR 601.2c — a permanent already chosen under THIS SAME requirement is
@@ -906,6 +958,14 @@ export function matchesPermanentTargetFilters(
         // `powerFilter`/`toughnessFilter` check over-filters relative to the
         // server.
         emblems,
+        // CR 302.6 / 400.7 (issue #1824) — the two facts
+        // `controlledSinceTurnStart` is evaluated against (Norritt, Arcum's
+        // Whistle). Spread rather than assigned so an absent `turnState`
+        // leaves `state.turn` UNDEFINED, which the descriptor detects and
+        // fails CLOSED on — assigning `turn: undefined` explicitly would read
+        // identically, but the spread keeps the "these fields simply aren't
+        // here" intent legible.
+        ...(turnState ?? {}),
     } as unknown as GameState;
     const ctx: TargetFilterCtx = {
         state,
@@ -916,30 +976,13 @@ export function matchesPermanentTargetFilters(
         activePlayerId,
         siblingControllerId,
     };
-    const values: PermanentFilterValues = {
-        controller: pendingTarget.controller,
-        subtypeFilter: pendingTarget.subtypeFilter,
-        supertypeFilter: pendingTarget.supertypeFilter,
-        excludeSubtypes: pendingTarget.excludeSubtypes,
-        excludeSupertypes: pendingTarget.excludeSupertypes,
-        excludeTypes: pendingTarget.excludeTypes,
-        excludeColors: pendingTarget.excludeColors,
-        colorFilter: pendingTarget.colorFilter as Color | undefined,
-        colorFilterAny: pendingTarget.colorFilterAny as
-            | readonly Color[]
-            | undefined,
-        tappedFilter: pendingTarget.tappedFilter,
-        combatRoleFilter: pendingTarget.combatRoleFilter,
-        requireAbility: pendingTarget.requireAbility,
-        requireAbilityAny: pendingTarget.requireAbilityAny,
-        excludeAbility: pendingTarget.excludeAbility,
-        excludeInstanceIds: pendingTarget.excludeInstanceIds,
-        powerFilter: pendingTarget.powerFilter,
-        toughnessFilter: pendingTarget.toughnessFilter,
-        mvFilter: pendingTarget.mvFilter,
-        sameController: pendingTarget.sameController,
-        isToken: pendingTarget.isToken,
-    };
+    // Derived by iterating `PERMANENT_FILTER_KEYS`, never spelled out field by
+    // field: `PermanentFilterValues` is a `Partial<>`, so a hand-written map
+    // can drop a carried filter with `tsc` green — the client then highlights a
+    // permanent the server rejects, the #1697 symptom re-opened one dimension
+    // at a time (issue #1824 review). Same single derivation the server's own
+    // accepted-set site uses.
+    const values = permanentFilterValuesFromCarrier(pendingTarget);
     // Sound: the wire-projected `CardInstance` is a structural superset of the
     // fields `checkPermanentTargetFilters`/the layer system read off
     // `CardInstanceState` (the same cast pattern `effective-stats.ts`'s

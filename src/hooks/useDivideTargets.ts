@@ -40,7 +40,18 @@ export function useDivideTargets(): DivideTargetItem[] {
         pendingTarget,
         playerProtectionFromEverything,
         emblems,
+        engineTurn,
+        controlChangedThisTurn,
     } = useGameContext();
+    // CR 302.6 / 400.7 (issue #1824) — the continuity facts a
+    // `controlledSinceTurnStart` target filter is evaluated against. Must be
+    // `engineTurn` (the wire `GameState.turn`), never the context's display
+    // `turn`, since `enteredOnTurn` is stamped from the global turn number.
+    // Undefined when the engine turn is unknown → the filter fails CLOSED.
+    const controlContinuity =
+        typeof engineTurn === "number"
+            ? { turn: engineTurn, controlChangedThisTurn }
+            : undefined;
 
     if (
         !pendingTarget ||
@@ -64,6 +75,7 @@ export function useDivideTargets(): DivideTargetItem[] {
                     pendingTarget,
                     allPlayers,
                     activePlayerId,
+                    controlContinuity,
                     emblems
                 )
             ) {

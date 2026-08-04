@@ -2825,6 +2825,15 @@ export type PendingTarget = {
      *  #1195). `true` keeps ONLY tokens; `false` keeps ONLY nontoken
      *  permanents. Propagated from TargetRequirement.isToken. */
     isToken?: boolean;
+    /** CR 302.6 / 400.7 (issue #1824) — restricts legal permanent targets to
+     *  those their current controller has controlled continuously since the
+     *  beginning of the turn (Norritt, Arcum's Whistle). Propagated from
+     *  TargetRequirement.controlledSinceTurnStart through
+     *  `lowerPermanentFilters`. Evaluated by `hasControlledSinceTurnStart`
+     *  (`gre/controlContinuity.ts`), which reads `GameState.turn` +
+     *  `GameState.controlChangedThisTurn` — both of which the CLIENT must
+     *  supply on its synthetic filter state or the check fails CLOSED. */
+    controlledSinceTurnStart?: boolean;
     /** Targets already selected. */
     selected: TargetSelection[];
     /** Divide-as-you-choose budget (CR 601.2d / 120.4). When set, this spell
@@ -2973,6 +2982,7 @@ export const PENDING_TARGET_FILTER_KEYS = {
     mvFilter: true,
     sameController: true,
     isToken: true,
+    controlledSinceTurnStart: true,
     playerAttackedThisTurn: true,
     spellStackKind: true,
     stackSourceTypeFilter: true,

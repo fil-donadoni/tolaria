@@ -98,6 +98,7 @@ import { disruptingScepter, forest } from "@convex/cards/sets/lea";
 import { powerArmor } from "@convex/cards/sets/inv";
 import { thopterFoundry } from "@convex/cards/sets/arb/multicolor";
 import { caribouRange } from "@convex/cards/sets/ice/white";
+import { norritt } from "@convex/cards/sets/ice/black";
 import { sorrowsPath } from "@convex/cards/sets/drk/colorless";
 import { dauthiVoidwalker } from "@convex/cards/sets/mh2/black";
 import { viviOrnitier } from "@convex/cards/sets/fin";
@@ -339,7 +340,11 @@ describe("matchesPermanentTargetFilters (CR 109/202/205/613/701.20/702, issue #1
             Parameters<typeof makeInstance>[1]
         > = {},
         emblems?: EmblemInstance[],
-        selected: PendingTarget["selected"] = []
+        selected: PendingTarget["selected"] = [],
+        /** CR 302.6 / 400.7 (issue #1824) — the turn-scoped control-change
+         *  break ledger, seeded onto the SERVER state so it reaches the client
+         *  through the real projection rather than being hand-built. */
+        controlChangedThisTurn?: string[]
     ) {
         const legendary = makeInstance(livonyaSilone.id, {
             id: "legendary-1",
@@ -372,12 +377,22 @@ describe("matchesPermanentTargetFilters (CR 109/202/205/613/701.20/702, issue #1
                 ...pendingTargetFiltersFromRequirement(req, undefined),
             } as PendingTarget,
             emblems,
+            controlChangedThisTurn,
         });
 
         const projected = projectPublicState(state, 1, "p1");
         return {
             players: projected.players as unknown as Player[],
             pendingTarget: projected.pendingTarget as unknown as PendingTarget,
+            /** The `{ turn, controlChangedThisTurn }` view read back off the
+             *  PROJECTED state — the same way `board.tsx` publishes
+             *  `engineTurn`/`controlChangedThisTurn` into the game context.
+             *  Reading it from the pre-projection fixture would mask a wire
+             *  drop of either field (issue #1824). */
+            turnState: {
+                turn: projected.turn,
+                controlChangedThisTurn: projected.controlChangedThisTurn,
+            } as ControlContinuityView,
             // CR 114 (issue #1221) — the wire projection forwards the
             // top-level `emblems` field unchanged (`...state` spread in
             // `projectPublicState`); read it back the same way
@@ -416,7 +431,8 @@ describe("matchesPermanentTargetFilters (CR 109/202/205/613/701.20/702, issue #1
                 plainClient,
                 pendingTarget,
                 players,
-                "p1"
+                "p1",
+                undefined
             )
         ).toBe(false);
         expect(
@@ -424,7 +440,8 @@ describe("matchesPermanentTargetFilters (CR 109/202/205/613/701.20/702, issue #1
                 legendaryClient,
                 pendingTarget,
                 players,
-                "p1"
+                "p1",
+                undefined
             )
         ).toBe(true);
     });
@@ -449,7 +466,8 @@ describe("matchesPermanentTargetFilters (CR 109/202/205/613/701.20/702, issue #1
                 legendaryClient,
                 pendingTarget,
                 players,
-                "p1"
+                "p1",
+                undefined
             )
         ).toBe(false);
         expect(
@@ -457,7 +475,8 @@ describe("matchesPermanentTargetFilters (CR 109/202/205/613/701.20/702, issue #1
                 plainClient,
                 pendingTarget,
                 players,
-                "p1"
+                "p1",
+                undefined
             )
         ).toBe(true);
     });
@@ -496,7 +515,8 @@ describe("matchesPermanentTargetFilters (CR 109/202/205/613/701.20/702, issue #1
                 legendaryClient,
                 pendingTarget,
                 players,
-                "p1"
+                "p1",
+                undefined
             )
         ).toBe(false);
 
@@ -508,6 +528,7 @@ describe("matchesPermanentTargetFilters (CR 109/202/205/613/701.20/702, issue #1
                 pendingTarget,
                 players,
                 "p1",
+                undefined,
                 emblems
             )
         ).toBe(true);
@@ -533,7 +554,8 @@ describe("matchesPermanentTargetFilters (CR 109/202/205/613/701.20/702, issue #1
                 plainClient,
                 pendingTarget,
                 players,
-                "p1"
+                "p1",
+                undefined
             )
         ).toBe(false);
         expect(
@@ -541,9 +563,117 @@ describe("matchesPermanentTargetFilters (CR 109/202/205/613/701.20/702, issue #1
                 legendaryClient,
                 pendingTarget,
                 players,
-                "p1"
+                "p1",
+                undefined
             )
         ).toBe(true);
+    });
+
+    it("controlledSinceTurnStart (CR 302.6 / 400.7, issue #1824, Norritt): rejects a creature that entered this turn, accepts one held since before it, through the real wire projection", () => {
+        const req: TargetRequirement = {
+            type: "Creature",
+            count: 1,
+            controlledSinceTurnStart: true,
+        };
+        // `makeState` runs on turn 1, so `enteredOnTurn: 1` is "entered THIS
+        // turn". The legendary creature carries no stamp — it has been on the
+        // battlefield since before the turn began.
+        const {
+            players,
+            pendingTarget,
+            legendaryClient,
+            plainClient,
+            turnState,
+        } = projectScenario(req, {}, { enteredOnTurn: 1 });
+
+        expect(
+            matchesPermanentTargetFilters(
+                plainClient,
+                pendingTarget,
+                players,
+                "p1",
+                turnState
+            )
+        ).toBe(false);
+        expect(
+            matchesPermanentTargetFilters(
+                legendaryClient,
+                pendingTarget,
+                players,
+                "p1",
+                turnState
+            )
+        ).toBe(true);
+    });
+
+    it("controlledSinceTurnStart (issue #1824): a creature whose CONTROL changed this turn is rejected even though it entered long ago, through the real wire projection", () => {
+        const req: TargetRequirement = {
+            type: "Creature",
+            count: 1,
+            controlledSinceTurnStart: true,
+        };
+        // Neither creature entered this turn; the break ledger is the ONLY
+        // thing that distinguishes them (a start-of-turn snapshot could not).
+        const {
+            players,
+            pendingTarget,
+            legendaryClient,
+            plainClient,
+            turnState,
+        } = projectScenario(req, {}, {}, undefined, [], ["plain-1"]);
+
+        expect(
+            matchesPermanentTargetFilters(
+                plainClient,
+                pendingTarget,
+                players,
+                "p1",
+                turnState
+            )
+        ).toBe(false);
+        expect(
+            matchesPermanentTargetFilters(
+                legendaryClient,
+                pendingTarget,
+                players,
+                "p1",
+                turnState
+            )
+        ).toBe(true);
+    });
+
+    it("controlledSinceTurnStart (issue #1824): FAILS CLOSED when the caller supplies no turn state — never offers a target the server would reject", () => {
+        const req: TargetRequirement = {
+            type: "Creature",
+            count: 1,
+            controlledSinceTurnStart: true,
+        };
+        // The legendary creature is genuinely legal (no entry stamp, no
+        // control break) — but with the continuity facts absent the client
+        // cannot VERIFY that, and `enteredOnTurn >= undefined` is `false`, so
+        // a naive implementation would fail OPEN and admit even the
+        // entered-this-turn creature. Both must read as non-clickable.
+        const { players, pendingTarget, legendaryClient, plainClient } =
+            projectScenario(req, {}, { enteredOnTurn: 1 });
+
+        expect(
+            matchesPermanentTargetFilters(
+                legendaryClient,
+                pendingTarget,
+                players,
+                "p1",
+                undefined
+            )
+        ).toBe(false);
+        expect(
+            matchesPermanentTargetFilters(
+                plainClient,
+                pendingTarget,
+                players,
+                "p1",
+                undefined
+            )
+        ).toBe(false);
     });
 
     it("CR 601.2c: a permanent already chosen under this SAME requirement no longer reads as clickable, through the real wire projection", () => {
@@ -565,7 +695,8 @@ describe("matchesPermanentTargetFilters (CR 109/202/205/613/701.20/702, issue #1
                 legendaryClient,
                 pendingTarget,
                 players,
-                "p1"
+                "p1",
+                undefined
             )
         ).toBe(false);
         // Not yet picked — still a legal second-slot candidate.
@@ -574,7 +705,8 @@ describe("matchesPermanentTargetFilters (CR 109/202/205/613/701.20/702, issue #1
                 plainClient,
                 pendingTarget,
                 players,
-                "p1"
+                "p1",
+                undefined
             )
         ).toBe(true);
     });
@@ -5144,5 +5276,117 @@ describe("PLS C4 prevention slice — client affordances (#1955)", () => {
         expect(wantsPermanentTarget(pollenRemedy.targetRequirement!.type)).toBe(
             true
         );
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Norritt — the CR 602.2b "no legal target" tap-menu gate must judge
+// `controlledSinceTurnStart` (issue #1824 review, finding 3).
+//
+// `hasBattlefieldTargetCandidate` judged only `type` + `controller` +
+// `subtypeFilter` and failed OPEN on everything else. That was harmless until
+// a filter shipped that can exclude EVERY candidate on an otherwise-populated
+// board: Norritt's "the active player has controlled continuously since the
+// beginning of the turn". On a board whose only active-player creature entered
+// this turn, the gate offered the ability with zero legal targets and
+// `activateAbilityOnState` (`convex/game.ts`) then threw "Not enough legal
+// targets" — the dead menu entry this gate exists to prevent.
+//
+// Every assertion drives the REAL reducer (`buildTriggerStateView`), which is
+// what pre-derives each permanent's `controlledSinceTurnStart` through the
+// engine's own `hasControlledSinceTurnStart`. A hand-built view would supply
+// the field directly and mask exactly the drop being guarded against.
+// ---------------------------------------------------------------------------
+
+describe("Norritt — force-attack ability's no-legal-target gate honours control continuity (CR 602.2b / 400.7, issue #1824)", () => {
+    const FORCE_ATTACK = "norritt-force-attack";
+    const TURN = 5;
+
+    function norrittOnBoard(): CardInstance {
+        return makeCardInstance({
+            id: "norr",
+            card: { id: norritt.id },
+            controllerId: "p2",
+            ownerId: "p2",
+            types: ["Creature"],
+            isTapped: false,
+            isSummoningSick: false,
+        });
+    }
+    function activeCreature(id: string, enteredOnTurn: number): CardInstance {
+        return makeCardInstance({
+            id,
+            card: { id: crawWurm.id },
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Creature"],
+            enteredOnTurn,
+        });
+    }
+    /** The reducer-built view — `turnState` is what populates the per-permanent
+     *  `controlledSinceTurnStart` the gate reads. */
+    function view(
+        candidates: CardInstance[],
+        controlChangedThisTurn?: string[]
+    ) {
+        return buildTriggerStateView(
+            [
+                { id: "p1", life: 20, hand: [], battlefield: candidates },
+                {
+                    id: "p2",
+                    life: 20,
+                    hand: [],
+                    battlefield: [norrittOnBoard()],
+                },
+            ],
+            "p1",
+            undefined,
+            undefined,
+            { turn: TURN, controlChangedThisTurn }
+        );
+    }
+    const menu = (v: ReturnType<typeof view>) =>
+        getStackAbilities(norrittOnBoard(), "PRECOMBAT_MAIN", true, v).map(
+            (a) => a.id
+        );
+
+    it("is HIDDEN when the active player's only creature entered THIS turn (CR 400.7)", () => {
+        expect(menu(view([activeCreature("fresh", TURN)]))).not.toContain(
+            FORCE_ATTACK
+        );
+    });
+
+    it("is HIDDEN when the active player's only creature changed hands this turn", () => {
+        expect(
+            menu(view([activeCreature("stolen", 1)], ["stolen"]))
+        ).not.toContain(FORCE_ATTACK);
+    });
+
+    it("is OFFERED when the active player has held a creature since before the turn", () => {
+        expect(menu(view([activeCreature("held", 1)]))).toContain(FORCE_ATTACK);
+    });
+
+    it("still FAILS OPEN when the reducer was given no turn state (never hides a legal ability)", () => {
+        // No `turnState` → the reducer leaves `controlledSinceTurnStart`
+        // undefined, and this conservative UI hint declines to judge rather
+        // than hiding an ability the server would allow.
+        const blindView = buildTriggerStateView(
+            [
+                {
+                    id: "p1",
+                    life: 20,
+                    hand: [],
+                    battlefield: [activeCreature("fresh", TURN)],
+                },
+                {
+                    id: "p2",
+                    life: 20,
+                    hand: [],
+                    battlefield: [norrittOnBoard()],
+                },
+            ],
+            "p1"
+        );
+        expect(menu(blindView)).toContain(FORCE_ATTACK);
     });
 });
