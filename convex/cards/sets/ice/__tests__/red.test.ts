@@ -76,6 +76,7 @@ import { getDefinition, getCardByName } from "../../../index";
 import {
     resolveTopOfStack,
     applyExistingGrantsTo,
+    refreshCounterGatedStatics,
 } from "../../../../gre/state";
 import { sourcePreventionShieldApplies } from "../../../../gre/state";
 import {
@@ -98,7 +99,14 @@ import {
     getLegalActions,
     raiseTriggerTargetSelection,
 } from "../../../../gre/rules";
-import { finalizeTargetSelection } from "../../../../game";
+import { finalizeTargetSelection, toggleAttacker } from "../../../../game";
+import {
+    makeMutationCtx,
+    runMutation,
+    gameStateSeed,
+    type Handler,
+} from "../../../../__tests__/gameMutationHarness";
+import type { Id } from "../../../../_generated/dataModel";
 import { applyMeleeUnblockedRider } from "../../../../gre/banding";
 import { castProhibitionReason } from "../../../castRestrictions";
 import {
@@ -1020,9 +1028,19 @@ describe("Bone Shaman — grants a damage-rider regen-lock (CR 113.1 / 701.15c)"
 });
 
 describe("Chaos Lord — first strike + parity control-give + haste (CR 603.6a / 613.1b)", () => {
-    it("carries first strike and haste", () => {
+    it("carries first strike, and haste ONLY as a conditional grant (CR 611.2c)", () => {
         expect(chaosLord.staticAbilities).toContain("first strike");
-        expect(chaosLord.staticAbilities).toContain("haste");
+        // "Can attack as though it had haste UNLESS it entered this turn" is a
+        // CONDITIONAL permission — an unconditional `haste` keyword here would
+        // let a freshly-cast 7/7 attack, which the printed card forbids.
+        expect(chaosLord.staticAbilities).not.toContain("haste");
+        const grant = chaosLord.staticEffects?.find(
+            (e) => e.kind === "keyword-grant" && e.keyword === "haste"
+        );
+        expect(grant).toBeDefined();
+        expect(
+            (grant as { condition?: unknown } | undefined)?.condition
+        ).toBeTypeOf("function");
         expect(chaosLord.manaCost).toEqual({ X: 4, R: 3 });
         expect(chaosLord.power).toBe(7);
         expect(chaosLord.toughness).toBe(7);
@@ -1082,6 +1100,142 @@ describe("Chaos Lord — first strike + parity control-give + haste (CR 603.6a /
             state.players[0].battlefield.find((c) => c.id === "lord")!
                 .controllerId
         ).toBe("p1");
+    });
+});
+
+// Chaos Lord's "can attack as though it had haste UNLESS it entered this turn"
+// (CR 508.1a / 400.7), driven through the REAL declare-attackers path — the
+// registered `toggleAttacker` mutation, which is what the client calls.
+//
+// A predicate-level unit test would not prove this. `validateAttackerEligibility`
+// (`gre/combat.ts`, CR 702.10b) reads haste off the INSTANCE's materialized
+// `staticAbilities`, so a layer-6 `keyword-grant` that never reaches that array
+// ships inert and functional-looking — the deathtouch/hexproof shape (#957/#958).
+// Both cases below differ ONLY in the `enteredOnTurn` entry stamp.
+describe("Chaos Lord — conditional haste at declare-attackers (CR 508.1a / 400.7 / 611.2c)", () => {
+    const GAME_ID = "game-1" as Id<"games">;
+
+    /** p1 in DECLARE_ATTACKERS on turn 5 holding a SUMMONING-SICK Chaos Lord
+     *  that entered on `enteredOnTurn`. Sick in both scenarios (CR 302.6):
+     *  freshly cast in one, stolen mid-turn by an EXTERNAL effect (Infernal
+     *  Denizen / Merieke Ri Berit / Dominate — see the card comment) in the
+     *  other. That is the pair the Oracle clause discriminates and plain
+     *  summoning sickness cannot: both are sick, only the earlier-entered one
+     *  gets the permission.
+     *
+     *  `refreshCounterGatedStatics` is the production sweep `saveGameState`
+     *  runs before every persisted write, so the instance reaches the mutation
+     *  with its conditional statics materialized exactly as in a real game. */
+    function chaosLordCombatState(
+        enteredOnTurn: number | undefined
+    ): GameState {
+        const lord = makeInstance(chaosLord.id, {
+            id: "lord",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: true,
+            // `undefined` stages the NO-ENTRY-STAMP shape on purpose (see the
+            // fail-closed case below) — spread so the key is genuinely absent
+            // rather than present-and-undefined.
+            ...(enteredOnTurn !== undefined ? { enteredOnTurn } : {}),
+        });
+        const state = makeState({
+            turn: 5,
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [lord] }),
+                makePlayer("p2"),
+            ],
+            combat: {
+                attackerIds: [],
+                confirmed: false,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+        refreshCounterGatedStatics(state);
+        return state;
+    }
+
+    const declareLordAsAttacker = (ctx: Parameters<typeof runMutation>[1]) =>
+        runMutation<
+            { gameId: Id<"games">; playerId: string; cardInstanceId: string },
+            void
+        >(
+            toggleAttacker as unknown as Handler<
+                {
+                    gameId: Id<"games">;
+                    playerId: string;
+                    cardInstanceId: string;
+                },
+                void
+            >,
+            ctx,
+            { gameId: GAME_ID, playerId: "p1", cardInstanceId: "lord" }
+        );
+
+    it("cannot attack the turn it entered the battlefield", async () => {
+        const h = makeMutationCtx("p1", [
+            gameStateSeed(chaosLordCombatState(5)),
+        ]);
+        expect(
+            h.state().players[0].battlefield[0].staticAbilities
+        ).not.toContain("haste");
+        await expect(declareLordAsAttacker(h.ctx)).rejects.toThrow(
+            "Creature has summoning sickness"
+        );
+        expect(h.state().combat!.attackerIds).toEqual([]);
+    });
+
+    it("does not pick up haste when it actually resolves onto the battlefield", () => {
+        // Guards the ETB ORDERING: `applySourceStaticEffects` runs at entry,
+        // and if it ran before `markEnteredThisTurn` stamped `enteredOnTurn`
+        // (CR 400.7) the condition would read "unknown" and the grant would
+        // stick. Cast it for real instead of hand-placing the instance.
+        const state = makeState({ turn: 5, activePlayerId: "p1" });
+        pushSpell(state, chaosLord.id, "p1");
+        resolveTopOfStack(state);
+        const lord = state.players[0].battlefield.find(
+            (c) => c.card.id === chaosLord.id
+        )!;
+        expect(lord.enteredOnTurn).toBe(5);
+        expect(lord.staticAbilities).not.toContain("haste");
+        expect(lord.staticAbilities).toContain("first strike");
+    });
+
+    it("attacks while summoning sick when it entered on an EARLIER turn (post control change)", async () => {
+        const h = makeMutationCtx("p1", [
+            gameStateSeed(chaosLordCombatState(3)),
+        ]);
+        expect(h.state().players[0].battlefield[0].staticAbilities).toContain(
+            "haste"
+        );
+        await declareLordAsAttacker(h.ctx);
+        expect(h.state().combat!.attackerIds).toEqual(["lord"]);
+    });
+
+    // FAIL-CLOSED on a missing entry stamp. `enteredOnTurn` is optional, and
+    // plenty of instances reach the battlefield without going through
+    // `markEnteredThisTurn` (a debug-staged board, a bench fixture, any future
+    // placement path). A bare `source.enteredOnTurn !== state.turn` reads
+    // `undefined !== 5` as TRUE and hands the permission out on NO evidence —
+    // the same "unknown treated as favourable" shape as the inert-keyword trap
+    // (#957/#958), except here it grants rather than withholds. The absent
+    // stamp must mean "unknown", and a permission is granted only on positive
+    // evidence that the Lord entered on an earlier turn.
+    it("withholds the grant from a summoning-sick Lord carrying NO entry stamp", async () => {
+        const h = makeMutationCtx("p1", [
+            gameStateSeed(chaosLordCombatState(undefined)),
+        ]);
+        const staged = h.state().players[0].battlefield[0];
+        expect(staged.enteredOnTurn).toBeUndefined();
+        expect(staged.staticAbilities).not.toContain("haste");
+        await expect(declareLordAsAttacker(h.ctx)).rejects.toThrow(
+            "Creature has summoning sickness"
+        );
+        expect(h.state().combat!.attackerIds).toEqual([]);
     });
 });
 

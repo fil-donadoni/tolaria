@@ -11,7 +11,7 @@ import type {
     TargetSelection,
 } from "../../types";
 import { controlsSnowSubtype } from "../../snowReads";
-import { AURA_AFFECTS_HOST } from "../../types";
+import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../../types";
 import { cumulativeUpkeepTrigger } from "../../abilities/cumulativeUpkeep";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
@@ -515,12 +515,53 @@ export const brandOfIllOmen: CardDefinition = {
 // every permanent on the battlefield (sum of unfiltered `getBattlefieldIds` over
 // `allPlayerIds`, CR 122-agnostic) and, on an even count, hands control to the
 // opponent for the rest of the game (`gainControl`, layer-2 control change, no
-// condition → permanent). "Can attack as though it had haste unless it entered
-// this turn": modelled as the `haste` keyword (CR 702.10 / 508.1a). After a
-// control change resets summoning sickness, the keyword lets the new controller
-// attack immediately — matching the clause's intent; the "unless it entered this
-// turn" carve-out is a minor simplification (a freshly-cast Chaos Lord could
-// attack the turn it enters, which the printed card forbids).
+// condition → permanent).
+//
+// "This creature can attack as though it had haste unless it entered this
+// turn" (CR 508.1a / 702.10b) is a CONDITIONAL attack permission, strictly
+// NARROWER than haste, and it is NOT redundant with plain summoning sickness.
+// The two gates read different clocks:
+//   - CR 302.6 summoning sickness asks "has it been under its controller's
+//     control continuously since that controller's most recent turn began?"
+//     — re-set by a CONTROL CHANGE (`isSummoningSick`).
+//   - This clause asks "did it ENTER the battlefield this turn?" — a zone
+//     change only (`enteredOnTurn`, CR 400.7), untouched by a control change.
+// The reachable gap between them is a MID-TURN control change: an external
+// steal that lands during the new controller's OWN turn, after their untap
+// step, from an effect that does NOT itself grant haste and CAN legally take a
+// 7-mana 7/7. Shipped exemplars, all activatable/castable in the thief's own
+// precombat main: Infernal Denizen (`ice/black.ts:1343`, `{T}: Gain control of
+// target creature`, `targetRequirement: { type: "Creature", count: 1 }` — no
+// filter, no haste grant), Merieke Ri Berit (`ice/multicolor.ts:870`, same
+// unfiltered `{T}:` steal), and Dominate (`nem/blue.ts:102`, `mvFilter: { max:
+// "X" }` — X ≥ 7 reaches a Chaos Lord). `applyControlChange` re-sets
+// `isSummoningSick`, no untap step intervenes before that turn's combat, but
+// `enteredOnTurn` still points at an earlier turn — so the clause is what lets
+// the stolen 7/7 swing the turn it is taken. Conversely a FRESHLY CAST Chaos
+// Lord entered this turn, gets no permission, and is held back by ordinary
+// summoning sickness — the restriction that offsets a 7/7 first-striker for
+// {4}{R}{R}{R}.
+//
+// NOTE — the card's OWN upkeep trigger below is NOT the case this covers, and
+// reasoning from it gets the card backwards. That trigger is `scope: "your"`,
+// so it fires on the controller's upkeep and hands the Lord to the NON-active
+// player; `untapStep` (`gre/phases.ts`) then clears `isSummoningSick` for the
+// active player's whole battlefield unconditionally, so the recipient always
+// gets a full untap step of their own before their combat. Via the parity
+// hand-off alone the grant is never load-bearing.
+//
+// Modelled as a CR 611.2c "as long as ..." conditional layer-6 keyword grant
+// of `haste` (`keyword-grant` + `condition`, the Kavu Runner shape, issue
+// #1095), NOT as an unconditional `staticAbilities` entry. The grant is
+// materialized into the instance's `staticAbilities`, which is exactly what
+// `validateAttackerEligibility` (`gre/combat.ts`, CR 702.10b) reads, and
+// `refreshCounterGatedStatics` re-evaluates the condition on every stable
+// transition — so haste appears the turn AFTER the Lord arrives, with no
+// per-reader layer hop. (Granting the `haste` keyword rather than an
+// attack-only permission is the project's established reading of "can attack
+// as though it had haste": Instill Energy, `lea/green.ts`, does the same. The
+// difference — real haste also lifts the CR 302.6 {T}-ability lock — is
+// unobservable here: Chaos Lord has no activated abilities.)
 export const chaosLord: CardDefinition = {
     id: "ee245922-b380-4b2e-a43f-ab1ba8078943",
     name: "Chaos Lord",
@@ -532,7 +573,29 @@ export const chaosLord: CardDefinition = {
     subtypes: ["Human"],
     power: 7,
     toughness: 7,
-    staticAbilities: ["first strike", "haste"],
+    staticAbilities: ["first strike"],
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            applies: EFFECT_AFFECTS_SELF,
+            // CR 400.7 / 611.2c — "unless it entered this turn". FAILS
+            // CLOSED on either side being `undefined`: an absent entry stamp
+            // means "unknown", NOT "entered earlier", so a bare
+            // `enteredOnTurn !== state.turn` would read `undefined !== 5` as
+            // true and hand a stamp-less summoning-sick Lord the permission —
+            // exactly the bug this card's grant exists to prevent. The
+            // `source.enteredOnTurn !== undefined` guard is the REACHABLE one
+            // (any permanent staged without going through
+            // `markEnteredThisTurn`); the `state.turn` guard covers the
+            // optional-by-contract view field (`StaticEffectStateView.turn`).
+            // A permission is only ever granted on positive evidence.
+            condition: (source, state) =>
+                state.turn !== undefined &&
+                source.enteredOnTurn !== undefined &&
+                source.enteredOnTurn !== state.turn,
+            keyword: "haste",
+        },
+    ],
     triggeredAbilities: [
         phaseTrigger({
             id: "chaos-lord-parity-control",

@@ -39,6 +39,10 @@ function instance(
     };
 }
 
+/** The turn the bench position is staged on. Shared by `GameState.turn` and
+ *  the `enteredOnTurn` entry stamp below so the two agree. */
+const BENCH_TURN = 5;
+
 /** A representative mid-game position: two players, full-ish libraries, a
  *  developed battlefield and a couple of cards in hand. Sized to resemble a
  *  real GameState so the clone cost is realistic. */
@@ -60,7 +64,15 @@ export function representativeBenchState(creatureCardId: string): GameState {
         exile: [],
         battlefield: Array.from({ length: 6 }, (_, i) => ({
             ...instance(creatureCardId, `${pid}-b-${i}`, "battlefield", pid),
-            isSummoningSick: i === 0,
+            // CR 302.6 / 400.7 — the two halves of the entry clock are written
+            // TOGETHER (`markEnteredThisTurn`). Staging `isSummoningSick`
+            // alone leaves an instance that is summoning-sick yet carries no
+            // entry stamp, a state the engine itself never produces; gates
+            // that read `enteredOnTurn` (Chaos Lord's conditional haste)
+            // would then see "unknown" on a board the bench calls realistic.
+            ...(i === 0
+                ? { isSummoningSick: true, enteredOnTurn: BENCH_TURN }
+                : {}),
             counters: i % 2 === 0 ? { "+1/+1": 1 } : undefined,
         })),
         manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
@@ -69,7 +81,7 @@ export function representativeBenchState(creatureCardId: string): GameState {
     return {
         players: [buildPlayer("p1"), buildPlayer("p2")],
         stack: [],
-        turn: 5,
+        turn: BENCH_TURN,
         activePlayerId: "p1",
         priorityPlayerId: "p1",
         passCount: 0,
