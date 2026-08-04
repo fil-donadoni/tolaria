@@ -2246,7 +2246,7 @@ export const shivanOasis: CardDefinition = {
 
 // ─────────────────────────────────────────────────────────────────────────
 // RG gold (issue #1078) — Aether Rift shipped (issue #1123), Overabundance
-// still deferred
+// unblocked and pending a plain card ship (issue #2152)
 // ─────────────────────────────────────────────────────────────────────────
 
 // Aether Rift — {1}{R}{G} Enchantment. "At the beginning of your upkeep,
@@ -2364,12 +2364,27 @@ export const aetherRift: CardDefinition = {
 
 // Overabundance — {1}{R}{G} Enchantment. "Whenever a player taps a land
 // for mana, that player adds one mana of any type that land produced, and
-// this enchantment deals 1 damage to the player." tracked-by: #1123 (no
-// `GameEvent` / `EVENT_FIELD_REGISTRY` row exists for "a land was tapped
-// for mana" — `TriggeredAbility.event` has nothing to key off — AND the
-// "adds one mana of any type that land produced" doubling effect has no
-// engine precedent (Extraplanar Lens-style mana doublers are unimplemented
-// catalogue-wide). Both gaps block the whole card.)
+// this enchantment deals 1 damage to the player." tracked-by: #2152 — a
+// plain card ship, NOT a capability gap.
+//
+// #1123 parked this card behind two claimed engine gaps; the 2026-08-04
+// tracker audit re-verified both against HEAD and BOTH WERE WRONG. Do not
+// build a primitive for either:
+//   - "no `GameEvent` / `EVENT_FIELD_REGISTRY` row for a land tapped for
+//     mana" — `PERMANENT_TAPPED` carries `forMana` + `manaProduced`
+//     (`cards/types.ts`), emitted by `emitPermanentTapped` (`gre/state.ts`),
+//     and `tappedTrigger({ scope: "any", filter: { types: "Land" },
+//     forMana: true })` is the shipped way to key off it.
+//   - "the mana doubling has no engine precedent (Extraplanar Lens-style
+//     doublers unimplemented catalogue-wide)" — Mana Flare (`lea/red.ts`)
+//     is SHIPPED and its Oracle text is this card's first clause verbatim;
+//     Gauntlet of Might (`lea/colorless.ts`) ships the same shape.
+//
+// Overabundance is Mana Flare ∪ Manabarbs (both `lea/red.ts`) in ONE
+// ability, which per CR 605.1b/605.4a is a triggered MANA ability —
+// `manaAbility: true`, resolves off-stack, no window to respond to the
+// damage (ruling 2004-10-04). Note Manabarbs correctly OMITS that flag: it
+// adds no mana (CR 605.5a), so its own trigger does use the stack.
 
 // ─────────────────────────────────────────────────────────────────────────
 // Free tranche — GW (issue #1079, parent PRD #1063)

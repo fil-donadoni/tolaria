@@ -1291,11 +1291,13 @@ export const wildGrowth: CardDefinition = {
     subtypes: ["Aura"],
     targetRequirement: { type: "Land", count: 1 },
     triggeredAbilities: [
-        // NOT DSL-migratable (ADR 0045): a `tappedTrigger` FACTORY hardcodes its
-        // `resolve` and exposes no `effects[]` site, and the recipient is read
-        // from the trigger event (the tapped land's controller — tapped.controllerId,
-        // an event field). Blocked on: factory-trigger effects[] site + an
-        // event-field player ref.
+        // NOT DSL-migratable (ADR 0045): `tappedTrigger` DOES now expose an
+        // `effects[]` site (the older "the factory hardcodes its resolve" note
+        // here was stale — corrected by the #1123 tracker audit, 2026-08-04).
+        // What still blocks migration is the PAYLOAD: the recipient is read
+        // from the trigger event (the tapped land's controller —
+        // tapped.controllerId, an event field), which no script ref reaches.
+        // Blocked on: an event-field player ref. tracked-by: #2153
         tappedTrigger({
             id: "wild-growth-extra-green",
             oracleText:
