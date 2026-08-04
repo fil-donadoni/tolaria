@@ -146,6 +146,12 @@ totalToolUseCount, usage` — `resolvedModel` is the ground truth that ends the
    rule "Subagent model routing (cost)": spawn `Explore`/`general-purpose`
    read-only work with `model: sonnet`, reserve the session tier for hard
    reasoning.
+   **Superseded by #2189.** That pin lived in a hand-installed
+   `~/.claude/agents/cavecrew-builder.md` that duplicated the caveman
+   plugin's own agent — both were listed, both were paid for in the resident
+   prompt. The duplicate is gone and the plugin's copy pins no model, so the
+   tier now has to be passed at the call site: spawn
+   `caveman:cavecrew-*` with an explicit `model: sonnet`.
 3. **Lever 3 — scaffold trim (low ROI, confirmed).** Collapsed the CLAUDE.md
    Chrome section (28 lines) that fully duplicated the auto-loaded
    `chrome-debug.md` rule → pointer. Net CLAUDE.md −49 tok after adding the
@@ -365,8 +371,9 @@ number, because the 43k handed-in is already small.
 ### Applied lever — implement-subagent context discipline (process-gh-issues §3)
 
 Added a **Context discipline** block to the implement-subagent task in
-`~/.claude/skills/process-gh-issues/SKILL.md` (§3, between read-issue and
-implement): (a) delegate codebase location/mapping to a `cavecrew-investigator`
+`.claude/skills/process-gh-issues/SKILL.md` (§3, between read-issue and
+implement — the skill has since moved into this repo, #2193): (a) delegate
+codebase location/mapping to a `caveman:cavecrew-investigator`
 sub-agent (`model: sonnet`) instead of grepping the tree inline — its dumps stay
 in _its_ context, only the compressed `file:line` map returns; (b) pipe noisy
 `Bash` through `tail`/`grep`; (c) one search question = one investigator, not a
