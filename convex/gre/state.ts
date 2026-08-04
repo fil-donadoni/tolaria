@@ -6728,11 +6728,23 @@ export function refreshCounterGatedStatics(state: GameState): void {
             // passes have run. `preserveTimestamp` keeps `source.staticSeq`,
             // which is what every record it rewrites is stamped with, so the
             // refresh is idempotent by construction.
-            // `transient` (issue #1706) — the re-apply below re-takes every
-            // occupancy this teardown gives up, so a stripper currently
-            // HOLDING one of them keeps its hold: the re-apply reads it to
-            // decide the grant is outranked (CR 613.1f) and re-records itself
-            // `suppressed`. Only a final release cancels a hold.
+            // `transient` (issue #1706) — this teardown cancels no stripper
+            // hold. For every occupancy the re-apply below DOES re-take that is
+            // exactly right: the hold must still be on record for the re-apply
+            // to read it, decide the grant is outranked (CR 613.1f) and
+            // re-record itself `suppressed`; cancelling here would let the
+            // grant come back live under a still-applying "loses all
+            // abilities", on every SBA pass.
+            //
+            // It is NOT a claim that the re-apply re-takes everything. When a
+            // gate flips OFF — Cocoon's pupa counters gone, Kavu Runner's
+            // `condition` now false — the grant is not re-applied at all, and a
+            // stripper holding its occurrence is left with an orphaned hold it
+            // will later restore. That is a real (narrow) gap, not a
+            // regression: before this change the site cancelled no holds under
+            // any circumstances. Closing it needs the re-apply to report which
+            // grants it declined to re-take, which is the counter-gated
+            // refresh's own redesign rather than the release primitive's.
             unapplySourceStaticEffects(state, source, { transient: true });
             applySourceStaticEffects(state, source, {
                 preserveTimestamp: true,

@@ -215,6 +215,48 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
     });
 
     describe("a release must reclaim its occurrence from a stripper (CR 613.1f)", () => {
+        it("an until-EOT grant purged at CLEANUP under Gravity Sphere does not come back when the Sphere leaves", () => {
+            // The CLEANUP duration purge (`gre/phases.ts`) is the site issue
+            // #1706 names by line number, and the stripper-hold reclaim is the
+            // half of it nothing else reaches: every other reclaim test enters
+            // through `removeCounter` or `unapplySourceStaticEffects`.
+            const bear = makeInstance(grizzlyBears.id, { id: "bear-9" });
+            const sphere = makeInstance(gravitySphere.id, { id: "sphere-4" });
+            const state = makeBoard(bear, [sphere]);
+            const ctx = ctxFor(state);
+
+            ctx.grantStaticAbility(
+                { type: "permanent", id: "bear-9" },
+                "flying",
+                UNTIL_EOT
+            );
+            expect(count(bear, "flying")).toBe(1);
+
+            // "All creatures lose flying" takes the occurrence and holds it.
+            applySourceStaticEffects(state, sphere);
+            expect(count(bear, "flying")).toBe(0);
+            expect(bear.removedKeywords).toHaveLength(1);
+
+            // The grant expires while the Sphere is still on the battlefield:
+            // the purge releases the grant's occupancy from the HOLD, since
+            // that is where the occurrence it owns currently sits.
+            runCleanup(state);
+            expect(bear.grantedStaticAbilities).toBeUndefined();
+            expect(bear.removedKeywords).toBeUndefined();
+
+            // Sphere leaves — there is nothing left to restore. Without the
+            // reclaim the restore resurrects an occurrence whose owner expired
+            // at end of turn: phantom flying.
+            unapplySourceStaticEffects(state, sphere);
+            expect(count(bear, "flying")).toBe(0);
+
+            const projected = projectPublicState(state, 1, "p1");
+            const slim = projected.players[0].battlefield.find(
+                (c) => c.id === "bear-9"
+            )!;
+            expect(slim.staticAbilities).not.toContain("flying");
+        });
+
         it("a counter grant removed under Gravity Sphere does not come back when the Sphere leaves", () => {
             const bear = makeInstance(grizzlyBears.id, { id: "bear-6" });
             const sphere = makeInstance(gravitySphere.id, { id: "sphere-1" });
@@ -256,7 +298,14 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
             expect(count(elemental, "flying")).toBe(2);
 
             applySourceStaticEffects(state, sphere);
-            expect(count(elemental, "flying")).toBe(1);
+            // Occupancy BOOKKEEPING only — deliberately not "how many
+            // occurrences survive". Layer-6 `keyword-remove` takes ONE
+            // occurrence and records one hold, so a doubled keyword still reads
+            // as present under "all creatures lose flying": a live CR 613.1f
+            // defect, pre-existing and outside this fix's release-side model.
+            // Asserting the survivor count here would lock that defect in.
+            // tracked-by: #2198
+            expect(elemental.removedKeywords).toHaveLength(1);
 
             ctx.removeCounter({ type: "permanent", id: "ae-2" }, "flying", 1);
             // The live occurrence belongs to the counter grant and is the one
