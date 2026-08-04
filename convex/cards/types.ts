@@ -636,6 +636,34 @@ export interface TargetRequirement {
      *  documented since #1459 ("TargetRequirement has no token filter
      *  field") — see that card for the fix. */
     isToken?: boolean;
+    /** Restricts legal permanent targets to those their CURRENT controller has
+     *  controlled continuously since the beginning of the current turn — the
+     *  same continuity window CR 302.6 describes for summoning sickness, but
+     *  anchored to the CURRENT turn rather than to the controller's most recent
+     *  untap step (issue #1824). `true` keeps only continuously-controlled
+     *  permanents; `false` keeps only those whose control was interrupted (they
+     *  entered this turn, or changed controller this turn).
+     *
+     *  Used by the "choose target creature the ACTIVE PLAYER has controlled
+     *  continuously since the beginning of the turn" force-attack cycle
+     *  (Norritt, Arcum's Whistle) — pair it with `controller: "active"`, which
+     *  supplies the "the active player controls it" half; this field supplies
+     *  only the continuity half.
+     *
+     *  Evaluated through the ONE engine authority
+     *  `hasControlledSinceTurnStart` (`gre/controlContinuity.ts`), the same
+     *  predicate that backs `PermanentFilter.controlledSinceTurnStart`, off the
+     *  `enteredOnTurn` entry stamp (CR 400.7) and the turn-scoped
+     *  `GameState.controlChangedThisTurn` break ledger. Deliberately NOT
+     *  `isSummoningSick`, which is cleared at its CONTROLLER's untap step and so
+     *  stays true across the whole of the opponent's following turn.
+     *
+     *  FAILS CLOSED when the state view carries no `turn` (a client view built
+     *  without the continuity fields): an unverifiable candidate is reported
+     *  illegal rather than silently admitted, so the offered set can only ever
+     *  narrow relative to the accepted set — never widen. Ignored for player /
+     *  spell / graveyard targets. */
+    controlledSinceTurnStart?: boolean;
 }
 
 /** "For as long as" condition on a conditional control change (CR 611.2b).

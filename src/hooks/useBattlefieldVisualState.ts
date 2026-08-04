@@ -384,6 +384,7 @@ export function useBattlefieldVisualState(player: Player) {
                     pendingTarget,
                     allPlayers,
                     activePlayerId,
+                    controlContinuity,
                     emblems
                 )
             ) {
@@ -527,6 +528,7 @@ export function useBattlefieldVisualState(player: Player) {
                 pendingTarget,
                 allPlayers,
                 activePlayerId,
+                controlContinuity,
                 emblems
             ) &&
             // CR 702.16b / 702.18 / 611 (issue #1120) — a permanent the server
