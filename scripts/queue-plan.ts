@@ -35,7 +35,22 @@ import {
 
 const DEFAULTS = {
     cap: 4,
-    limit: 60,
+    // Deep enough to see the WHOLE queue, not a window of it.
+    //
+    // The loop's original query used `--limit 60`, and `gh issue list` returns
+    // NEWEST first — so with 176 open `ready-for-agent` issues it saw #2077 to
+    // #2190 and nothing else: 126 issues, back to #1215, were invisible to
+    // every pass. The lineage sort was ordering a window that had already
+    // excluded everything old, which is precisely the starvation the lineage
+    // sort exists to prevent (issue #2188, measured 2026-08-04).
+    //
+    // Raising it is free NOW and was not before: the list is consumed inside
+    // this process and only the plan crosses into the model's context. At the
+    // old shape the same change would have cost ~27k tokens of context per
+    // pass. Silent truncation of a `gh` query is a recurring class here — the
+    // default `--limit` is 30, and the previous instance of this bug also
+    // under-counted a queue.
+    limit: 300,
     staleClaimHours: 24,
     defaultImplModel: "sonnet",
 };

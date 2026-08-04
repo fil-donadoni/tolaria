@@ -27,6 +27,8 @@
 //
 // The orchestrator EXECUTES this plan; it does not re-derive it.
 
+import { lintIssue, type Finding } from "./queue-lint";
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Input — the shape `gh issue list --json number,title,labels,parent,assignees,updatedAt`
 // actually returns. Index signatures are deliberate: the CLI carries more
@@ -312,25 +314,28 @@ export function parseDependencies(body: string, self: number): number[] {
 const isHitl = (body: string): boolean => /⚠️\s*HITL|\bHITL\b/.test(body);
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Unmergeable work
+// Well-formedness
 //
-// Some work cannot be landed by an automated session no matter how well it is
-// implemented, and claiming it burns a full implement + review cycle before
-// failing at `git push`. Both cases below are detectable from the declared
-// target files alone, which is why they are checked here rather than discovered
-// at the end.
+// The rules themselves live in `queue-lint.ts` — one authority, called both at
+// intake (before an issue is published) and here (before it is admitted). The
+// planner used to carry a second copy of the unmergeable-work checks; two
+// copies of a rule is how they drift, and the drift is invisible because each
+// copy looks correct in its own file.
+//
+// This maps a blocking finding to the action the orchestrator must take. The
+// mapping is here rather than in the lint because "what to do about it" is the
+// LOOP's concern — the lint's job is to say what is wrong, and intake acts on
+// the same findings differently (it sends them back to the author).
 // ─────────────────────────────────────────────────────────────────────────────
 
-function unmergeableReason(paths: string[]): string | null {
-    for (const p of paths) {
-        if (p.startsWith(".github/workflows")) {
-            return "CI config — pushing `.github/workflows/**` needs the `workflow` OAuth scope, which only an interactive `gh auth refresh` grants";
-        }
-        if (p.startsWith("~") || p.startsWith("/") || p.startsWith("..")) {
-            return `\`${p}\` lives outside the repository — no PR can carry the change`;
-        }
+function lintAction(blocking: Finding[]): SkipAction {
+    if (blocking.some((f) => f.rule.startsWith("unmergeable"))) {
+        return "relabel-human";
     }
-    return null;
+    if (blocking.some((f) => f.rule === "prd-with-ready-for-agent")) {
+        return "strip-ready";
+    }
+    return "needs-info";
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -489,12 +494,34 @@ export function planBatch(
         const batchable =
             blastRadius === "declared" || blastRadius === "inferred";
 
-        const unmergeable = unmergeableReason(targetFiles);
-        if (unmergeable) {
+        // Well-formedness (issue #2188). The lint runs at both ends of the
+        // queue's life: intake calls it before publishing, and the planner
+        // calls it here so a pre-existing defect cannot poison a batch.
+        //
+        // It is the SINGLE authority on what makes an issue unworkable — the
+        // planner used to carry its own copy of the unmergeable-work rules, and
+        // two copies of a rule is how they drift. Only BLOCKING findings keep
+        // an issue out: measured against the live queue, the advisory ones (no
+        // declared target files, no acceptance criteria) describe 66 and 44 of
+        // 100 issues respectively, and a planner that refused those would be an
+        // outage, not a gate.
+        const lintFindings = lintIssue({
+            number: issue.number,
+            title: issue.title,
+            labels: labelNames(issue),
+            parentNumber: issue.parent?.number ?? null,
+            body: detail.body,
+        });
+        const lintBlockers = lintFindings.filter(
+            (f) => f.severity === "blocking"
+        );
+        if (lintBlockers.length > 0) {
             skipped.push({
                 number: issue.number,
-                reason: unmergeable,
-                action: "relabel-human",
+                reason: lintBlockers
+                    .map((f) => `${f.rule}: ${f.message}`)
+                    .join("; "),
+                action: lintAction(lintBlockers),
             });
             continue;
         }
