@@ -4,10 +4,10 @@ import { useGameContext } from "~/hooks/useGameContext";
 import {
     matchesTargetRequirement,
     matchesPermanentTargetFilters,
+    matchesPlayerTargetFilters,
     wantsPlayerTarget,
 } from "~/lib/card-utils";
 import { isPlayerUntargetableByPending } from "~/lib/targeting";
-import { isAlreadySelectedTarget } from "@convex/gre/targetFilters";
 
 /** One legal target of an active divide-as-you-choose spell (CR 601.2d). The
  *  divide dialog renders these inline (a mini-card / player chip + its own
@@ -29,9 +29,11 @@ export type DivideTargetItem =
  *  addressed to this seat). Reuses the SAME per-target legality predicates the
  *  board's candidate ring uses — permanent legality (`matchesTargetRequirement`
  *  + `matchesPermanentTargetFilters`, the shared target-filter registry,
- *  issue #1697) and player legality (`wantsPlayerTarget` + attacked-this-turn
- *  + shroud gate) — so the dialog and the board agree on the target set.
- *  Returns `[]` outside a divide selection. */
+ *  issue #1697) and player legality (`wantsPlayerTarget` +
+ *  `matchesPlayerTargetFilters`, the same registry for the player kind, issue
+ *  #1734, + the shroud / protection-from-everything gate) — so the dialog and
+ *  the board agree on the target set. Returns `[]` outside a divide
+ *  selection. */
 export function useDivideTargets(): DivideTargetItem[] {
     const {
         allPlayers,
@@ -91,19 +93,18 @@ export function useDivideTargets(): DivideTargetItem[] {
     }
 
     // Player targets ("any" / "player") — mirror `usePlayerInteraction`'s
-    // `isTargetable` (CR 506.2 attacked-this-turn gate + CR 702.18 shroud /
-    // CR 702.16b protection-from-everything gate).
+    // `isTargetable`: EVERY player-kind filter dimension through the shared
+    // registry (`matchesPlayerTargetFilters`, issue #1734 — it carries the
+    // CR 601.2c already-chosen exclusion, the CR 109.3/115 `controller`
+    // relationship and the CR 506.2 attacked-this-turn gate), plus the
+    // CR 702.18 shroud / CR 702.16b protection-from-everything gate. The
+    // per-dimension clauses that used to live inline here reproduced only the
+    // exclusion and the attacked gate and simply did not have `controller`,
+    // so the dialog and the board disagreed on a "target opponent" divide.
     if (wantsPlayerTarget(pendingTarget.targetType)) {
         for (const p of allPlayers) {
             if (
-                // CR 601.2c — already-chosen exclusion (see
-                // `matchesPermanentTargetFilters`'s identical guard above).
-                !isAlreadySelectedTarget(
-                    { type: "player", id: p.id },
-                    pendingTarget.selected
-                ) &&
-                (!pendingTarget.playerAttackedThisTurn ||
-                    p.battlefield.some((c) => c.hasAttackedThisTurn)) &&
+                matchesPlayerTargetFilters(p, pendingTarget, activePlayerId) &&
                 !isPlayerUntargetableByPending(
                     allPlayers,
                     p.id,

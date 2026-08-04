@@ -33,7 +33,7 @@ import { projectPublicState } from "@convex/gameProjections";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "@convex/gre/rules";
 import { pendingTargetFiltersFromRequirement } from "@convex/gre/rules";
 import type { GameState } from "@convex/gre/state";
-import type { TargetRequirement } from "@convex/cards/types";
+import type { TargetRequirement, TargetSelection } from "@convex/cards/types";
 import type { CardInstance, PendingTarget } from "~/types/game";
 import {
     matchesPlayerTargetFilters,
@@ -59,13 +59,17 @@ const CHOOSER = "p1";
  *  `pendingTargetFiltersFromRequirement` lowering `announceCast` /
  *  `raiseTriggerTargetSelection` run, so the carried filter set under test is
  *  the real one and not a test author's guess at it. */
-function pendingFor(requirement: TargetRequirement): PendingTarget {
+function pendingFor(
+    requirement: TargetRequirement,
+    /** CR 601.2c — slots already filled under THIS SAME requirement. */
+    selected: TargetSelection[] = []
+): PendingTarget {
     return {
         playerId: CHOOSER,
         cardInstanceId: "src",
         targetType: requirement.type,
-        count: 1,
-        selected: [],
+        count: requirement.count,
+        selected,
         ...pendingTargetFiltersFromRequirement(requirement, undefined),
     } as unknown as PendingTarget;
 }
@@ -74,10 +78,11 @@ function pendingFor(requirement: TargetRequirement): PendingTarget {
  *  PROJECTED state — the only thing a browser ever sees. */
 function clientSpellOffered(
     state: GameState,
-    requirement: TargetRequirement
+    requirement: TargetRequirement,
+    selected: TargetSelection[] = []
 ): string[] {
     const projected = projectPublicState(state, 1, CHOOSER);
-    const pendingTarget = pendingFor(requirement);
+    const pendingTarget = pendingFor(requirement, selected);
     const players = projected.players.map((p) => ({
         id: p.id,
         battlefield: p.battlefield as unknown as CardInstance[],
@@ -96,10 +101,11 @@ function clientSpellOffered(
 /** Ids of the players the CLIENT would ring as clickable, off the projection. */
 function clientPlayerOffered(
     state: GameState,
-    requirement: TargetRequirement
+    requirement: TargetRequirement,
+    selected: TargetSelection[] = []
 ): string[] {
     const projected = projectPublicState(state, 1, CHOOSER);
-    const pendingTarget = pendingFor(requirement);
+    const pendingTarget = pendingFor(requirement, selected);
     return projected.players
         .filter((p) =>
             matchesPlayerTargetFilters(
@@ -114,10 +120,19 @@ function clientPlayerOffered(
         .map((p) => p.id);
 }
 
-const serverOffered = (state: GameState, requirement: TargetRequirement) =>
-    getLegalTargets(state, requirement, NO_TARGETING_SOURCE, CHOOSER).map(
-        (t) => t.id
-    );
+const serverOffered = (
+    state: GameState,
+    requirement: TargetRequirement,
+    selected: TargetSelection[] = []
+) =>
+    getLegalTargets(
+        state,
+        requirement,
+        NO_TARGETING_SOURCE,
+        CHOOSER,
+        undefined,
+        selected
+    ).map((t) => t.id);
 
 // ─── spell kind (CR 114.1) ──────────────────────────────────────────────────
 
@@ -267,6 +282,44 @@ describe("player-target client parity (issue #1734)", () => {
         expect(clientPlayerOffered(state, req)).toEqual(server);
     });
 
+    it("controller distinguishes the CHOOSER from the ACTIVE player (CR 109.3)", () => {
+        // Every other player-kind fixture in this file runs on `makeState()`'s
+        // default `activePlayerId: "p1"`, which is ALSO the chooser — so a
+        // `controller` implementation that threaded the active player in as
+        // the chooser (or vice versa) would agree with the server on all of
+        // them. This fixture is the only one that can tell the two apart:
+        // p1 chooses while p2 is the active player, and the three relationship
+        // values then pick three DIFFERENT sets.
+        const state = makeState({
+            activePlayerId: "p2",
+            priorityPlayerId: "p2",
+        });
+        const you: TargetRequirement = {
+            type: "player",
+            count: 1,
+            controller: "you",
+        };
+        const opponent: TargetRequirement = {
+            type: "player",
+            count: 1,
+            controller: "opponent",
+        };
+        const active: TargetRequirement = {
+            type: "player",
+            count: 1,
+            controller: "active",
+        };
+        // The chooser's own seat is NOT the active player here, so "you" and
+        // "active" must disagree — the property the symmetric fixtures cannot
+        // express.
+        expect(serverOffered(state, you)).toEqual(["p1"]);
+        expect(clientPlayerOffered(state, you)).toEqual(["p1"]);
+        expect(serverOffered(state, opponent)).toEqual(["p2"]);
+        expect(clientPlayerOffered(state, opponent)).toEqual(["p2"]);
+        expect(serverOffered(state, active)).toEqual(["p2"]);
+        expect(clientPlayerOffered(state, active)).toEqual(["p2"]);
+    });
+
     it("a colour-filtered requirement admits no player (CR 105.2)", () => {
         // Players have no colour. `getLegalTargets` skips its whole player loop
         // when a colour filter is set and `selectTarget` throws "Players have
@@ -282,6 +335,53 @@ describe("player-target client parity (issue #1734)", () => {
             serverOffered(state, req).filter((id) => id === "p1" || id === "p2")
         ).toEqual([]);
         expect(clientPlayerOffered(state, req)).toEqual([]);
+    });
+});
+
+// ─── CR 601.2c already-chosen exclusion, spell + player kinds ───────────────
+
+describe("CR 601.2c already-chosen exclusion — client parity (issue #1734)", () => {
+    // Both new client predicates open with an `isAlreadySelectedTarget` guard
+    // mirroring the server's own exclusion — the "another target" half of a
+    // multi-count requirement (Magma Burst's kicked second target, Dust to
+    // Dust's two artifacts). Neither guard had a test: replacing the whole
+    // `if` with `if (false)` left the frontend suites entirely green, so the
+    // exclusion was new behaviour nothing could distinguish from a no-op.
+    //
+    // Both kinds are driven from ONE requirement shape — `count: 2` with NO
+    // other filter — so every candidate passes every other gate and the
+    // already-chosen dimension is the only thing that can decide the verdict.
+
+    it("a spell already chosen under this SAME requirement is no longer offered", () => {
+        const state = makeState();
+        const first = pushSpell(state, counterspell.id, "p2");
+        const second = pushSpell(state, disenchant.id, "p2");
+        const req: TargetRequirement = { type: "spell", count: 2 };
+
+        // Control: with nothing chosen yet BOTH stack items are legal, so
+        // neither is excluded for any other reason.
+        expect(clientSpellOffered(state, req).sort()).toEqual(
+            serverOffered(state, req).sort()
+        );
+        expect(clientSpellOffered(state, req)).toContain(first.id);
+
+        const selected: TargetSelection[] = [{ type: "spell", id: first.id }];
+        const server = serverOffered(state, req, selected);
+        expect(server).toEqual([second.id]);
+        expect(clientSpellOffered(state, req, selected)).toEqual(server);
+    });
+
+    it("a player already chosen under this SAME requirement is no longer offered", () => {
+        const state = makeState();
+        const req: TargetRequirement = { type: "player", count: 2 };
+
+        // Control: unfiltered, both seats are legal first picks.
+        expect(clientPlayerOffered(state, req)).toEqual(["p1", "p2"]);
+
+        const selected: TargetSelection[] = [{ type: "player", id: "p1" }];
+        const server = serverOffered(state, req, selected);
+        expect(server).toEqual(["p2"]);
+        expect(clientPlayerOffered(state, req, selected)).toEqual(server);
     });
 });
 
