@@ -161,6 +161,31 @@ Label: `ready-for-agent` when the shape is settled, `needs-design` when Phase 5
 left a real fork. Add `model:opus` only for a ticket introducing a
 primitive/Op/cross-layer shape later tickets will copy.
 
+**Wire the native parent edge — `gh issue edit <slice> --parent <tracker>`.**
+Mandatory, on every slice, at creation time. `/process-gh-issues` sorts its
+queue by `parent.number ?? number` (oldest **lineage** first) and reads
+`parent` from its cheap Stage-1 list call. Without the edge a slice cut today
+from a tracker opened months ago sorts by _today's_ date — i.e. behind the
+entire queue — so the very trackers this skill exists to drain are the ones
+that starve, and each audit makes it worse by adding more children at the
+bottom. The `Split out of #<tracker>` provenance line is documentation for
+humans; it is **not** the sort key, and parsing it would force a body fetch for
+the whole queue.
+
+The same edge closes the loop at the other end: `subIssuesSummary` is what lets
+`/process-gh-issues` close an umbrella once its last child lands. That matters
+here even when Phase 7 retires the tracker — a tracker kept open as a live PRD
+(the "not retired" case) is exactly the thing that otherwise rots.
+
+**Only wire `--parent` when the tracker is a genuine umbrella** — it carries the
+`prd` label, or it is being retired and holds no implementation work of its own.
+When the audited issue is an ordinary WORK ticket that merely had a slice split
+out of it, use `--add-blocking` / `--add-blocked-by` instead and leave `parent`
+unset. A parent edge asserts "my children fully discharge me", which is false
+for a ticket that still has its own code to write; the loop's auto-close reads
+that assertion literally (guarded by the `prd` label on its side, but do not
+lean on the far side of a contract you can honour on this one).
+
 ## Phase 7 — Retire the tracker (order matters)
 
 Do these **in this order**. Closing first is how a marker ends up pointing at a
@@ -218,16 +243,17 @@ convex/cards/__tests__/divergenceMarkers.test.ts` (every marker paragraph must
 
 ## Failure modes this skill exists to prevent
 
-| Failure                                                           | Guard                                                                                                                       |
-| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Trusting the newest housekeeping comment                          | Phase 2 re-verifies every gap, including the ones a comment calls closed                                                    |
-| Re-ticketing a gap that shipped                                   | anchors required for a `shipped` verdict — name the capability AND its consumer                                             |
-| Building a primitive that already exists                          | Phase 3 re-derives from Oracle + CR, not the tracker's prose                                                                |
-| Duplicate issue under a different name                            | Phase 4 searches by mechanism, not by card/keyword name                                                                     |
-| Dangling `tracked-by:` at a closed issue                          | Phase 7 order: re-point, then close — and step 2 resolves the state of EVERY issue a marker cites, not just the audited one |
-| A live marker missed because prettier wrapped it across two lines | Phase 1 — never grep the literal `tracked-by: #$1`; a missed marker reads as a shipped gap                                  |
-| The same gap left parked under three other trackers               | Phase 7 step 2 — grep by the gap's own words and converge every stub on the new issue                                       |
-| A stub comment that keeps re-blocking readers                     | Phase 7 step 3 corrects the prose in the same PR — including the file-level "Shipped / Still blocked" roll-up header        |
+| Failure                                                              | Guard                                                                                                                       |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Trusting the newest housekeeping comment                             | Phase 2 re-verifies every gap, including the ones a comment calls closed                                                    |
+| Re-ticketing a gap that shipped                                      | anchors required for a `shipped` verdict — name the capability AND its consumer                                             |
+| Building a primitive that already exists                             | Phase 3 re-derives from Oracle + CR, not the tracker's prose                                                                |
+| Duplicate issue under a different name                               | Phase 4 searches by mechanism, not by card/keyword name                                                                     |
+| Dangling `tracked-by:` at a closed issue                             | Phase 7 order: re-point, then close — and step 2 resolves the state of EVERY issue a marker cites, not just the audited one |
+| A live marker missed because prettier wrapped it across two lines    | Phase 1 — never grep the literal `tracked-by: #$1`; a missed marker reads as a shipped gap                                  |
+| Slices sort to the back of the queue and the audited lineage starves | Phase 6 — `gh issue edit <slice> --parent <tracker>` on every slice; `/process-gh-issues` sorts by `parent.number`          |
+| The same gap left parked under three other trackers                  | Phase 7 step 2 — grep by the gap's own words and converge every stub on the new issue                                       |
+| A stub comment that keeps re-blocking readers                        | Phase 7 step 3 corrects the prose in the same PR — including the file-level "Shipped / Still blocked" roll-up header        |
 
 ## Reference
 
