@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import { spawnSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
@@ -116,15 +116,26 @@ describe("pre-push hook", () => {
             return r.stdout.trim();
         };
 
-        /** Feed the hook one ref line, exactly as git does on push. */
-        const runHook = (remoteSha: string, localSha: string) =>
+        /**
+         * Feed the hook one ref line, exactly as git does on push.
+         *
+         * Defaults to a FEATURE ref: pushing the default branch now also runs
+         * the full gate (issue #2203), which these formatting cases are not
+         * about. The default-branch path has its own describe block below,
+         * with `bun` stubbed.
+         */
+        const runHook = (
+            remoteSha: string,
+            localSha: string,
+            opts: { ref?: string; extraPath?: string } = {}
+        ) =>
             spawnSync("sh", ["-e", HOOK], {
                 cwd: tmp,
                 encoding: "utf8",
-                input: `refs/heads/main ${localSha} refs/heads/main ${remoteSha}\n`,
+                input: `refs/heads/x ${localSha} ${opts.ref ?? "refs/heads/feature"} ${remoteSha}\n`,
                 env: {
                     ...process.env,
-                    PATH: `${path.join(REPO_ROOT, "node_modules", ".bin")}:${process.env.PATH}`,
+                    PATH: `${opts.extraPath ? `${opts.extraPath}:` : ""}${path.join(REPO_ROOT, "node_modules", ".bin")}:${process.env.PATH}`,
                 },
             });
 
@@ -173,6 +184,136 @@ describe("pre-push hook", () => {
             const r = runHook(clean, clean);
             expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
         });
+
+        /**
+         * The full gate on the default branch (issue #2203).
+         *
+         * The green-main invariant rests entirely on the gate, and there were
+         * two routes to `main` on which no gate ran: a local merge commit (git
+         * calls `pre-merge-commit`, not `pre-commit`) and a direct push.
+         * Measured 22 Jul – 4 Aug: `test` went red on `main` 14 times, no
+         * flakes, and TEN of the thirteen classifiable commits arrived by one
+         * of those two routes.
+         *
+         * `bun` is stubbed so the assertions are about WHICH commands the hook
+         * runs and whether it blocks, not about this repo's suite.
+         */
+        describe("full gate on the default branch", () => {
+            let binDir: string;
+
+            // The hook RECORDS a green sha after a successful gate, so a previous
+            // test in this block would make the next one hit the dedup path and
+            // silently stop exercising the gate at all.
+            beforeEach(() => {
+                fs.rmSync(path.join(tmp, ".claude"), {
+                    recursive: true,
+                    force: true,
+                });
+            });
+            const calls = () =>
+                fs.existsSync(path.join(binDir, "calls.log"))
+                    ? fs.readFileSync(path.join(binDir, "calls.log"), "utf8")
+                    : "";
+
+            /** @param exitCode what the stubbed `bun run …` returns */
+            const stubBun = (exitCode: number, failOn?: string) => {
+                binDir = fs.mkdtempSync(path.join(os.tmpdir(), "prepush-bun-"));
+                const script =
+                    `#!/bin/sh\n` +
+                    `echo "$@" >> "${path.join(binDir, "calls.log")}"\n` +
+                    // The pattern MUST be quoted: an unquoted `*run test*` is a
+                    // syntax error in sh (the space splits it), and a stub that
+                    // dies on a syntax error still returns non-zero, so the
+                    // test would look like it was exercising the red path while
+                    // exercising a broken stub.
+                    (failOn
+                        ? `case "$*" in *"${failOn}"*) exit 1 ;; esac\n`
+                        : "") +
+                    `exit ${exitCode}\n`;
+                fs.writeFileSync(path.join(binDir, "bun"), script, {
+                    mode: 0o755,
+                });
+                return binDir;
+            };
+
+            it("runs check:all AND the full suite when the push updates the default branch", () => {
+                const bin = stubBun(0);
+                const r = runHook(drifted, clean, {
+                    ref: "refs/heads/main",
+                    extraPath: bin,
+                });
+                expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+                expect(calls()).toMatch(/run check:all/);
+                expect(calls()).toMatch(/run test/);
+            });
+
+            it("blocks the push when the gate is red", () => {
+                const bin = stubBun(0, "run test");
+                const r = runHook(drifted, clean, {
+                    ref: "refs/heads/main",
+                    extraPath: bin,
+                });
+                expect(r.status).toBe(1);
+                expect(`${r.stdout}${r.stderr}`).toMatch(/not pushing/);
+            });
+
+            it("does NOT run the gate for a feature-branch push", () => {
+                // The direction that matters: required CI already gates those,
+                // and paying the full suite on every feature push would make
+                // the hook unusable — which is how gates get disabled.
+                const bin = stubBun(0);
+                const r = runHook(drifted, clean, { extraPath: bin });
+                expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+                expect(calls()).not.toMatch(/run test/);
+            });
+
+            it("skips the gate when the pushed commit is already recorded green — dedup, not relaxation", () => {
+                const bin = stubBun(0);
+                fs.mkdirSync(path.join(tmp, ".claude", "telemetry"), {
+                    recursive: true,
+                });
+                fs.writeFileSync(
+                    path.join(tmp, ".claude", "telemetry", "green-sha"),
+                    `${clean}\n`
+                );
+                const r = runHook(drifted, clean, {
+                    ref: "refs/heads/main",
+                    extraPath: bin,
+                });
+                expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+                expect(calls()).not.toMatch(/run test/);
+                fs.rmSync(path.join(tmp, ".claude"), {
+                    recursive: true,
+                    force: true,
+                });
+            });
+        });
+    });
+});
+
+describe("pre-merge-commit hook (issue #2203)", () => {
+    // Git does not invoke `pre-commit` for a merge commit. Seven of the ten
+    // ungated commits that broke `main` in the measured window were local merge
+    // commits — the formatting pass every other commit gets never ran on them.
+    it("is tracked in git", () => {
+        const r = spawnSync(
+            "git",
+            ["ls-files", "--error-unmatch", ".husky/pre-merge-commit"],
+            { cwd: REPO_ROOT, encoding: "utf8" }
+        );
+        expect(r.status, r.stderr).toBe(0);
+    });
+
+    it("runs the same formatting pass as pre-commit", () => {
+        const merge = fs.readFileSync(
+            path.join(REPO_ROOT, ".husky", "pre-merge-commit"),
+            "utf8"
+        );
+        const commit = fs.readFileSync(
+            path.join(REPO_ROOT, ".husky", "pre-commit"),
+            "utf8"
+        );
+        expect(merge.trim()).toBe(commit.trim());
     });
 });
 

@@ -24,11 +24,40 @@
 # over the repo costs ~43s — too slow to sit in front of every push — whereas a
 # push's own diff is a handful of files and checks in well under a second.
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Second job (issue #2203): on a push that updates the DEFAULT BRANCH, run the
+# full gate — not just the formatting check.
+#
+# The green-main invariant rests entirely on the gate, and there are two routes
+# to `main` where the gate never ran: a local merge commit (git does not invoke
+# `pre-commit` for one — that is `pre-merge-commit`, added alongside this) and a
+# direct push. Measured 22 Jul – 4 Aug: the `test` workflow went red on `main`
+# 14 times, no flakes, and TEN of the thirteen classifiable commits arrived by
+# one of those two routes with no gate anywhere. Nothing noticed — zero
+# "main is red" issues, zero reverts, in a window where the invariant broke at
+# least thirteen times.
+#
+# The fix is coverage, not prohibition: pushing to `main` stays allowed, landing
+# ungated work on it does not. Feature-branch pushes keep the fast diff-scoped
+# check below — they are gated afterwards by required CI, so slowing them down
+# buys nothing. The merge-train is unaffected: it merges server-side through
+# `gh pr merge` and never pushes to the default branch locally.
+# ─────────────────────────────────────────────────────────────────────────────
+
+default_branch=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##')
+[ -z "$default_branch" ] && default_branch='main'
+
 Z40='0000000000000000000000000000000000000000'
 files=''
+pushes_default=''
+default_sha=''
 
 # git feeds pre-push one line per ref: <local ref> <local sha> <remote ref> <remote sha>
-while read -r _local_ref local_sha _remote_ref remote_sha; do
+while read -r _local_ref local_sha remote_ref remote_sha; do
+    if [ "$remote_ref" = "refs/heads/$default_branch" ] && [ "$local_sha" != "$Z40" ]; then
+        pushes_default='yes'
+        default_sha="$local_sha"
+    fi
     # Branch deletion — nothing to check.
     [ "$local_sha" = "$Z40" ] && continue
 
@@ -45,6 +74,44 @@ while read -r _local_ref local_sha _remote_ref remote_sha; do
         '*.ts' '*.tsx' '*.js' '*.jsx' '*.json' '*.css' '*.md')
     files=$(printf '%s\n%s' "$files" "$changed")
 done
+
+# The full gate runs BEFORE the formatting section's early exits. Those exit 0
+# when the push touches no prettier-managed file — a merge commit carrying only
+# shell or config changes would otherwise skip the gate entirely, which is the
+# same silent-hole shape this hook exists to close.
+if [ -n "$pushes_default" ]; then
+    # NOT `[ -f x ] && green_sha=$(cat x)`: husky runs this hook as `sh -e`,
+    # where an `&&` list whose left side is false returns non-zero and aborts
+    # the whole script — silently, so the push would proceed ungated. That is
+    # the exact shape this file's own test suite was written to catch.
+    green_sha=''
+    if [ -f .claude/telemetry/green-sha ]; then
+        green_sha=$(cat .claude/telemetry/green-sha 2>/dev/null || printf '')
+    fi
+
+    # `-n` first: with both sides empty the comparison is vacuously TRUE, which
+    # would skip the gate rather than run it. Found by mutation testing — a
+    # mutation that should have gone red stayed green because this branch
+    # absorbed it, which is exactly the shape a vacuous guard hides.
+    if [ -n "$default_sha" ] && [ "$green_sha" = "$default_sha" ]; then
+        # Gate dedup, not gate relaxation: this exact commit already passed a
+        # full gate (the merge-train records the SHA after every green run).
+        printf '\033[32m✓ %s already verified green — skipping the full gate\033[0m\n' "$default_sha"
+    else
+        printf '\033[33m⏳ pushing %s — running the full gate (no other gate covers this route)\033[0m\n' "$default_branch"
+        if ! TOLARIA_ALLOW_FULL_SUITE=1 bun run check:all; then
+            printf '\033[31m✗ check:all failed — not pushing to %s\033[0m\n' "$default_branch"
+            exit 1
+        fi
+        if ! TOLARIA_ALLOW_FULL_SUITE=1 bun run test; then
+            printf '\033[31m✗ test suite failed — not pushing to %s\033[0m\n' "$default_branch"
+            exit 1
+        fi
+        mkdir -p .claude/telemetry 2>/dev/null
+        printf '%s\n' "$default_sha" >.claude/telemetry/green-sha 2>/dev/null || true
+        printf '\033[32m✓ full gate green\033[0m\n'
+    fi
+fi
 
 files=$(printf '%s\n' "$files" | sed '/^$/d' | sort -u)
 [ -z "$files" ] && exit 0
