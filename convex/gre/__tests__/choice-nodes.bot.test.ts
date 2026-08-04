@@ -1243,45 +1243,62 @@ describe("dslChoicePrior: OP_VALUERS context-aware (issue #1433)", () => {
         expect(shockCand.prior).toBeGreaterThan(nothingCand.prior);
     });
 
-    it("search-library: an ABILITY-only noncreature (no spell effects[] of its own) ranks above a cheap creature/land, not the flat v1 floor (issue #1433 review finding 1)", () => {
+    it("search-library: an ABILITY-only noncreature (no spell effects[] of its own) ranks above a body whose worth clears the noncreature floor, and above a flooded land (issue #1433 review finding 1)", () => {
         // Nevinyrral's Disk / Icy Manipulator / Royal Assassin shape: the
         // card's worth lives ENTIRELY on an activated ability's script — the
         // card itself has no `effects[]`. Before this fix,
         // `noncreatureCardWorth` only read the SPELL site
         // (`dslSpellScriptOpValue`), so this card fell through to the v1 flat
-        // floor (30) and a tutor would rank a vanilla 1/1 or a basic land
-        // ABOVE it despite the ability being real removal.
+        // floor (`NONCREATURE_FLOOR` = 30, `candidateValue.ts`) and a tutor
+        // would rank a body ABOVE it despite the ability being real removal.
+        //
+        // DISCRIMINATION NOTE (issue #1433 review finding 1, dead-test fix):
+        // the comparison body MUST clear `NONCREATURE_FLOOR` itself — a 1/1
+        // (`permanentWorth` = 1*1+1*1+10 = 12) or the flooded land
+        // (`LAND_SEARCH_FLOODED` = 20) both sit BELOW the floor, so the disk
+        // would win this comparison EVEN AT THE FLAT FLOOR (30 > 12, 30 >
+        // 20) — the assertions below would stay green with the ability-site
+        // fold reverted entirely. A 4/4 (`permanentWorth` =
+        // 4*4+4*4+10 = 42) sits ABOVE the floor, so the disk only wins if its
+        // ability-derived worth (real dealDamage script, ~73) genuinely beats
+        // a 42 — reverting the fold collapses the disk to the flat 30 and
+        // flips this comparison, redding the test.
         const diskId = registerAbilityOnlyArtifact(
             "test-1433-finding1-disk",
             "Finding1 Disk",
             [{ op: "dealDamage", amount: 20, to: { player: "opponent" } }]
         );
-        const cheapCreatureId = "test-1433-finding1-cheap-creature";
+        const aboveFloorCreatureId = "test-1433-finding1-above-floor-creature";
         registerTokenDefinition({
-            id: cheapCreatureId,
-            name: "Finding1 Cheap Creature",
+            id: aboveFloorCreatureId,
+            name: "Finding1 Above-Floor Creature",
             rarity: "common",
-            manaCost: { G: 1 },
+            manaCost: { G: 4 },
             types: ["Creature"],
-            power: 1,
-            toughness: 1,
+            power: 4,
+            toughness: 4,
         } as CardDefinition);
 
         const state = stateWithLibrarySearch(
-            [diskId, cheapCreatureId, forest.id],
+            [diskId, aboveFloorCreatureId, forest.id],
             {},
             { landsInPlay: 5 } // flooded — a fetched land is near-worthless too
         );
         const cands = choiceCandidates(state, state.pendingChoices![0]);
         const diskCand = cands.find((c) => c.key.includes("Finding1 Disk"))!;
         const creatureCand = cands.find((c) =>
-            c.key.includes("Finding1 Cheap Creature")
+            c.key.includes("Finding1 Above-Floor Creature")
         )!;
         expect(diskCand).toBeDefined();
         expect(creatureCand).toBeDefined();
 
-        // The ability-only card's real (undiscounted-at-30, script-derived)
-        // worth outranks BOTH the cheap creature and the (flooded) land.
+        // The comparison body itself clears the flat floor (permanentWorth
+        // 42 > 30) — see DISCRIMINATION NOTE above.
+        expect(creatureCand.hint?.materialGained).toBeGreaterThan(30);
+        // The ability-only card's real (script-derived, NOT the flat-30
+        // fallback) worth clears the floor too, and outranks BOTH the
+        // above-floor body and the (flooded) land.
+        expect(diskCand.hint?.materialGained).toBeGreaterThan(30);
         expect(cands[0].key).toBe("search-library:Finding1 Disk");
         expect(diskCand.hint?.materialGained).toBeGreaterThan(
             creatureCand.hint?.materialGained ?? 0
