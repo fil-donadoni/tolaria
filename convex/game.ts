@@ -4151,6 +4151,98 @@ export const createSoloGame = mutation({
 });
 
 /**
+ * Create a solo Tabletop (manual) game (ADR 0080 S12): one user controls both
+ * seats, no rule enforcement, no automations. Game starts in "playing"
+ * immediately — no coin toss, no mulligan flow. Concede is the only terminator.
+ */
+export const createManualSoloGame = mutation({
+    args: {
+        name: v.string(),
+        deck: deckValidator,
+        deck2: v.optional(deckValidator),
+        bestOf: bestOfValidator,
+    },
+    handler: async (ctx, args) => {
+        // ADR 0080 — only manual-format decks can start a manual game.
+        if (args.deck.format !== "manual")
+            throw new Error(
+                "Only manual-format decks can start a Tabletop game."
+            );
+        if (args.deck2 && args.deck2.format !== "manual")
+            throw new Error(
+                "Only manual-format decks can start a Tabletop game."
+            );
+        const user = await getCurrentUser(ctx);
+        if (await findActiveMatchForUser(ctx, user._id))
+            throw new Error(ACTIVE_GAME_MESSAGE);
+
+        const deck2 = args.deck2 ?? args.deck;
+
+        const player1Id = `${user._id}-p1`;
+        const player2Id = `${user._id}-p2`;
+        const allPlayers = [
+            {
+                id: player1Id,
+                name: `${user.nickname} (P1)`,
+                bgColor: PLAYER_COLORS[0],
+                deck: args.deck,
+            },
+            {
+                id: player2Id,
+                name: `${user.nickname} (P2)`,
+                bgColor: PLAYER_COLORS[1],
+                deck: deck2,
+            },
+        ];
+        const now = Date.now();
+
+        // Manual games skip the pregame/coin-toss gate — start immediately.
+        const matchPlayers = buildMatchPlayers(allPlayers);
+        const matchId = await ctx.db.insert("matches", {
+            bestOf: args.bestOf ?? 1,
+            status: "playing",
+            players: matchPlayers,
+            currentGameNumber: 1,
+            solo: true,
+            createdAt: now,
+            updatedAt: now,
+        });
+
+        const gameId = await ctx.db.insert("games", {
+            name: args.name,
+            matchId,
+            gameNumber: 1,
+            status: "playing",
+            players: toGamePlayers(allPlayers),
+            solo: true,
+            mode: "manual",
+            createdAt: now,
+            updatedAt: now,
+        });
+
+        await ctx.db.patch(matchId, { currentGameId: gameId });
+
+        // Build the initial ManualGameState from both decks.
+        const initial = setupManualGame(
+            allPlayers.map((p) => ({
+                id: p.id,
+                name: p.name,
+                bgColor: p.bgColor,
+                deck: p.deck.cards,
+            }))
+        );
+
+        await saveManualState(ctx, gameId, 0, initial, null);
+        await appendManualLog(ctx, gameId, {
+            text: "Tabletop game started",
+            timestamp: now,
+        });
+
+        return gameId;
+    },
+});
+
+/**
  * Resolve the G1 coin toss into the first Game (CR 103.2-103.4). The Match must
  * be in the "pregame" gate opened by `joinGame` / `createSoloGame`, with the
  * toss winner recorded as `playDrawChooserId`. That winner's `choice` sets the
@@ -4352,6 +4444,7 @@ export const myActiveGame = query({
             status: game.status,
             solo: game.solo === true,
             vsAi: game.vsAi === true,
+            mode: game.mode ?? null,
         };
     },
 });
@@ -14563,6 +14656,120 @@ export const manualConcede = mutation({
             manualConcedeFn(state, args.playerId)
         );
         return null;
+    },
+});
+
+/**
+ * Concede and finalize a manual game (ADR 0080 S12). The conceding player's
+ * opponent is the winner. For a Bo1 Match the Match finishes; for a Bo3 the
+ * Match advances to "sideboarding" so the players can start the next game.
+ * The manual state persists for the completed game — the log is the only
+ * artefact worth reading.
+ */
+export const manualConcedeMatch = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        await manualVerbHandler(ctx, args.gameId, (state) =>
+            manualConcedeFn(state, args.playerId)
+        );
+
+        const now = Date.now();
+        const game = await ctx.db.get(args.gameId);
+        if (!game) throw new ConvexError("Game not found");
+        if (!game.matchId) throw new Error("Game has no Match");
+
+        const opponentId = game.players.find((p) => p.id !== args.playerId)?.id;
+        if (!opponentId) throw new Error("Opponent not found");
+
+        const match = await ctx.db.get(game.matchId);
+        if (!match) throw new Error("Match not found");
+        if (match.status === "finished") return;
+
+        const patch = recordGameResult(match, opponentId);
+        if (!patch) return;
+
+        // Mark the game row finished BEFORE the match patch, so the status
+        // subscription sees a finished game with a winner.
+        await ctx.db.patch(args.gameId, {
+            status: "finished",
+            winner: opponentId,
+            updatedAt: now,
+        });
+
+        await ctx.db.patch(game.matchId, { ...patch, updatedAt: now });
+
+        // Clean up manualStates — the game is over, and the log is the only
+        // artefact worth keeping (ADR 0080 S12 open decision).
+        const manualRows = await ctx.db
+            .query("manualStates")
+            .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
+            .collect();
+        for (const row of manualRows) await ctx.db.delete(row._id);
+    },
+});
+
+/**
+ * Start the next game of a Tabletop Bo3 Match (ADR 0080 S12). Reshuffles both
+ * decks, draws 7, resets life to 20 — no coin toss, no sideboarding. The Match
+ * must be in "sideboarding" status.
+ */
+export const continueManualMatch = mutation({
+    args: {
+        matchId: v.id("matches"),
+    },
+    handler: async (ctx, args) => {
+        const user = await getCurrentUser(ctx);
+        const match = await ctx.db.get(args.matchId);
+        if (!match) throw new Error("Match not found");
+        if (!matchBelongsToUser(match, user._id))
+            throw new Error("You are not part of this match");
+        if (match.status !== "sideboarding")
+            throw new Error("Match is not awaiting the next game");
+
+        const now = Date.now();
+        const gameNumber = (match.currentGameNumber ?? 1) + 1;
+
+        // Build the next game's inputs from the Match's stored decks.
+        const seats = buildNextGameSeats(match);
+        const gameId = await ctx.db.insert("games", {
+            name: `Tabletop game ${gameNumber}`,
+            matchId: args.matchId,
+            gameNumber,
+            status: "playing",
+            players: toGamePlayers(seats),
+            solo: true,
+            mode: "manual",
+            createdAt: now,
+            updatedAt: now,
+        });
+
+        await ctx.db.patch(args.matchId, {
+            status: "playing",
+            currentGameId: gameId,
+            currentGameNumber: gameNumber,
+            updatedAt: now,
+        });
+
+        // Fresh manual state from the stored decks.
+        const initial = setupManualGame(
+            seats.map((p) => ({
+                id: p.id,
+                name: p.name,
+                bgColor: p.bgColor,
+                deck: p.deck.cards,
+            }))
+        );
+
+        await saveManualState(ctx, gameId, 0, initial, null);
+        await appendManualLog(ctx, gameId, {
+            text: `Game ${gameNumber} started`,
+            timestamp: now,
+        });
+
+        return { gameId, gameNumber };
     },
 });
 

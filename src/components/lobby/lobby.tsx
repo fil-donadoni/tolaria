@@ -221,6 +221,16 @@ function Lobby() {
             return { gameId: id, playerId: `${user._id}-p1` };
         });
 
+    const handleCreateTabletop = () =>
+        enterGame(async ({ user, deck }) => {
+            const id = await createManualSoloGame({
+                name: `${user.nickname}'s Tabletop`,
+                deck: deckPayload(deck),
+                bestOf: matchFormat,
+            });
+            return { gameId: id, playerId: `${user._id}-p1` };
+        });
+
     const handleJoin = (targetGameId: Id<"games">) =>
         enterGame(async ({ user, deck }) => {
             await joinGame({
@@ -434,6 +444,7 @@ function Lobby() {
                         onCreateSolo={handleCreateSolo}
                         onCreateManual={handleCreateManual}
                         onCreateMultiplayer={handleCreate}
+                        onCreateTabletop={handleCreateTabletop}
                         onJoin={handleJoin}
                         onChangeDeck={handleChangeDeck}
                         matchFormat={matchFormat}

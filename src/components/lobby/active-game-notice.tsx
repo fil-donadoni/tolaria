@@ -16,6 +16,7 @@ export type ActiveGame = {
     status: "waiting" | "pregame" | "playing" | "finished";
     solo: boolean;
     vsAi: boolean;
+    mode: "manual" | null;
 };
 
 type Props = {
@@ -33,20 +34,32 @@ type Props = {
  * maps to a Forfeit so no orphaned active Match is left behind. (Conceding a
  * single Game from here would only end one Game of a Bo3 and keep the Match
  * active; Forfeit ends the whole Match, awarding the opponent.)
+ *
+ * For manual games (ADR 0080 S12), one user controls both seats (P1/P2). The
+ * concede path uses `manualConcedeMatch` which operates on manual state instead
+ * of GRE state. The resume path offers both seats so the player can pick which
+ * viewpoint to enter.
  */
 export default function ActiveGameNotice({ activeGame, userId }: Props) {
     const navigate = useNavigate();
     const leaveGame = useMutation(api.game.leaveGame);
     const forfeitMatch = useMutation(api.game.forfeitMatch);
+    const manualConcede = useMutation(api.game.manualConcedeMatch);
     const [isBusy, setIsBusy] = useState(false);
     const [confirmForfeit, setConfirmForfeit] = useState(false);
 
-    // Solo / vs-AI seats are `${userId}-p1`; a 2-player seat is the bare id.
-    const playerId = activeGame.solo ? `${userId}-p1` : userId;
+    const isManual = activeGame.mode === "manual";
     const inProgress = activeGame.status === "playing";
 
-    const handleResume = () => {
-        storeSession(activeGame.gameId, playerId);
+    // Solo / vs-AI seats are `${userId}-p1`; a 2-player seat is the bare id.
+    // For manual games the default seat is P1; the user picks the other seat
+    // via the explicit buttons below.
+    const p1Id = `${userId}-p1`;
+    const p2Id = `${userId}-p2`;
+    const playerId = activeGame.solo ? p1Id : userId;
+
+    const handleResume = (seat: string) => {
+        storeSession(activeGame.gameId, seat);
         void navigate({ to: "/game" });
     };
 
@@ -64,7 +77,17 @@ export default function ActiveGameNotice({ activeGame, userId }: Props) {
         if (isBusy) return;
         setIsBusy(true);
         try {
-            await forfeitMatch({ matchId: activeGame.matchId, playerId });
+            if (isManual) {
+                await manualConcede({
+                    gameId: activeGame.gameId,
+                    playerId: p1Id,
+                });
+            } else {
+                await forfeitMatch({
+                    matchId: activeGame.matchId,
+                    playerId,
+                });
+            }
             setConfirmForfeit(false);
         } finally {
             setIsBusy(false);
@@ -83,14 +106,35 @@ export default function ActiveGameNotice({ activeGame, userId }: Props) {
                         Finish or leave it before starting another.
                     </span>
                     <div className="flex shrink-0 gap-2">
-                        <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={handleResume}
-                            disabled={isBusy}
-                        >
-                            Resume
-                        </Button>
+                        {isManual ? (
+                            <>
+                                <Button
+                                    variant="primary"
+                                    size="sm"
+                                    onClick={() => handleResume(p1Id)}
+                                    disabled={isBusy}
+                                >
+                                    Resume P1
+                                </Button>
+                                <Button
+                                    variant="primary"
+                                    size="sm"
+                                    onClick={() => handleResume(p2Id)}
+                                    disabled={isBusy}
+                                >
+                                    Resume P2
+                                </Button>
+                            </>
+                        ) : (
+                            <Button
+                                variant="primary"
+                                size="sm"
+                                onClick={() => handleResume(playerId)}
+                                disabled={isBusy}
+                            >
+                                Resume
+                            </Button>
+                        )}
                         {inProgress ? (
                             <Button
                                 variant="destructive"
