@@ -22905,7 +22905,6 @@ describe("Effect Script Op: reflexiveTrigger (CR 603.3c)", () => {
         // Untargeted reflexive ability — nothing to announce, resolve it.
         expect(state.stack.some((s) => s.reflexiveTrigger)).toBe(true);
         resolveTopOfStack(state);
-        // eslint-disable-next-line no-console
         // The BEAR_ID fixture is a Bear with power 2 → draw 2.
         expect(state.players[0].hand.length).toBe(handBefore + 2);
     });
