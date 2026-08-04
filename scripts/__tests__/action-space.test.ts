@@ -39,16 +39,33 @@ const AGENT_FACING = [".claude", "docs/agents", "CLAUDE.md"];
 const BARE_CAVECREW =
     /(?<!caveman:)\bcavecrew-(investigator|builder|reviewer)\b(?!\.md)/g;
 
+/**
+ * Tracked files PLUS untracked-but-not-ignored ones (`--others
+ * --exclude-standard`).
+ *
+ * Tracked-only was the first version, and it had a blind spot that bit
+ * immediately: a NEW agent-facing doc is untracked while you are writing it, so
+ * the guard scanned a corpus that excluded the very file being added and
+ * reported green. It went red in CI a commit later, once the file was tracked —
+ * a local-vs-CI split with no local signal, which is precisely the shape this
+ * repo's gate exists to prevent.
+ */
 function trackedMarkdown(): string[] {
-    const out = execFileSync("git", ["ls-files", "-z", ...AGENT_FACING], {
+    const args = [
+        "ls-files",
+        "-z",
+        "--cached",
+        "--others",
+        "--exclude-standard",
+    ];
+    const out = execFileSync("git", [...args, ...AGENT_FACING], {
         cwd: REPO_ROOT,
         encoding: "utf8",
         maxBuffer: 32 * 1024 * 1024,
     });
-    return out
-        .split("\0")
-        .filter((f) => f.endsWith(".md"))
-        .sort();
+    return Array.from(
+        new Set(out.split("\0").filter((f) => f.endsWith(".md")))
+    ).sort();
 }
 
 describe("action space (issue #2189)", () => {

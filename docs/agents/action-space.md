@@ -32,9 +32,9 @@ commands. **Nothing was deleted**; each is one `mv` and a restart from being bac
 | `spa-coordinator`          | framed as "SPA consuming Laravel APIs"      |
 | `gcp-devops-specialist`    | Docker / GCP deployment                     |
 | `terraform-gcp-specialist` | Terraform IaC on GCP                        |
-| `cavecrew-builder`         | **duplicate** of the caveman plugin's agent |
-| `cavecrew-investigator`    | duplicate — byte-identical to the plugin's  |
-| `cavecrew-reviewer`        | duplicate — byte-identical to the plugin's  |
+| `cavecrew-builder.md`      | **duplicate** of the caveman plugin's agent |
+| `cavecrew-investigator.md` | duplicate — byte-identical to the plugin's  |
+| `cavecrew-reviewer.md`     | duplicate — byte-identical to the plugin's  |
 
 > The user chose to prune at **user scope**, overriding #2189's original
 > "nothing is removed at user scope" criterion. Claude Code offers no
@@ -73,6 +73,34 @@ resolved through the duplicate.
 | `chrome-devtools-mcp` | a second browser automation stack, redundant with `claude-in-chrome`, which `.claude/rules/chrome-debug.md` mandates |
 
 Both stay installed; flipping the flag back to `true` restores them.
+
+## Removed — user-level skills (`~/.claude/skills/`)
+
+Moved to `~/.claude/skills-disabled/`, which carries its own README with restore
+commands. A skill's `description` is resident on every request whether or not
+the skill is ever invoked, so an unused skill is a standing cost.
+
+| Skill                                                                            | Description | Reason                                        |
+| -------------------------------------------------------------------------------- | ----------: | --------------------------------------------- |
+| `stripe-projects`                                                                |  1118 chars | payments/provisioning — no surface here       |
+| `stripe-best-practices`                                                          |   776 chars | payments                                      |
+| `stripe-directory`                                                               |   508 chars | payments                                      |
+| `stripe-docs`                                                                    |   300 chars | payments                                      |
+| `upgrade-stripe`                                                                 |    63 chars | payments                                      |
+| `frontend-api`, `migration-pattern`, `api-resource`, `form-request`, `pest-test` |   584 chars | Laravel / React-Query-over-Laravel-API idioms |
+
+~3,350 characters ≈ **840 tokens** — more than the nine parked agents combined.
+
+**These were not the plugin's.** Disabling the `stripe` plugin above removed its
+agent and its own skills; these five are a separate hand-installed copy under
+`~/.claude/skills/` and stayed fully resident until parked. Re-enabling the
+plugin should NOT come with restoring these, or both listings are paid for
+again — the same duplication shape as the cavecrew agents and the caveman hook.
+
+**Prune by measured size, not by count.** `stripe-projects` alone outweighs every
+agent parked above, and description length varies by more than an order of
+magnitude between skills (63 → 1118 chars). Counting entries would have ranked
+this list almost exactly backwards.
 
 ## Removed — a duplicated hook registration
 
