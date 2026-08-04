@@ -76,6 +76,7 @@ import {
     getAttackerCapEffect,
     foldAttackRequirements,
     markAttacking,
+    markDeclaredBlockers,
     recordAttackerDeclared,
 } from "./combat";
 import {
@@ -3241,15 +3242,7 @@ export function advancePhase(state: GameState): Phase[] {
         !!state.camouflageCombat &&
         !state.combat.blockersConfirmed;
     if (skipCamouflageBlockers && state.combat) {
-        const defenderId = getOpponentId(state, state.activePlayerId);
-        const defender = getPlayer(state, defenderId);
-        for (const blockerId of Object.keys(state.combat.blockerAssignments)) {
-            const card = defender.battlefield.find((c) => c.id === blockerId);
-            if (card) {
-                card.isBlocking = true;
-                card.hasBlockedThisTurn = true;
-            }
-        }
+        markDeclaredBlockers(state);
         state.combat.blockersConfirmed = true;
         recordBlockedAttackers(state);
         emitBlockersConfirmedEvents(state);
@@ -3413,18 +3406,7 @@ export function drainAutoPasses(state: GameState): void {
                 state.priorityPlayerId = defenderId;
                 return;
             }
-            const defender = getPlayer(state, defenderId);
-            for (const blockerId of Object.keys(
-                state.combat.blockerAssignments
-            )) {
-                const card = defender.battlefield.find(
-                    (c) => c.id === blockerId
-                );
-                if (card) {
-                    card.isBlocking = true;
-                    card.hasBlockedThisTurn = true;
-                }
-            }
+            markDeclaredBlockers(state);
             state.combat.pendingBlockerId = undefined;
             state.combat.blockersConfirmed = true;
             recordBlockedAttackers(state);

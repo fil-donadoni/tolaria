@@ -339,6 +339,7 @@ import {
     collectAttackSacrificeTax,
     collectAttackManaTax,
     markAttacking,
+    markDeclaredBlockers,
     recordAttackerDeclared,
 } from "./gre/combat";
 import {
@@ -11207,13 +11208,6 @@ export const confirmBlockers = mutation({
             throw new Error("You can't confirm blockers right now");
         }
 
-        // The blocking creatures are the DEFENDING player's, even when Melee
-        // routes the declaration to the attacker.
-        const player = getPlayer(
-            state,
-            getOpponentId(state, state.activePlayerId)
-        );
-
         // CR 509.1c: auto-assign must-block requirements (Lure, Blaze of Glory)
         // CR 509.1a/509.1c — `foldBlockRequirements` (`gre/combat.ts`) is the
         // one authority: it adds every must-block assignment the declared-
@@ -11255,11 +11249,13 @@ export const confirmBlockers = mutation({
             );
         }
 
-        // Mark each assigned blocker
-        for (const blockerId of Object.keys(state.combat.blockerAssignments)) {
-            const card = player.battlefield.find((c) => c.id === blockerId);
-            if (card) card.isBlocking = true;
-        }
+        // CR 509.1a — mark each assigned blocker (and re-materialize the
+        // condition-bearing statics that read `isBlocking`, e.g. Snow Devil's
+        // conditional first strike) BEFORE anything downstream reads
+        // `staticAbilities`: `drainAutoPasses` below can run all the way into
+        // `advancePhase`'s CR 510.5 first-strike-step skip decision without an
+        // intervening SBA pass (issue #1826).
+        markDeclaredBlockers(state);
 
         state.combat.pendingBlockerId = undefined;
         state.combat.blockersConfirmed = true;

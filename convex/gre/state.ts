@@ -151,7 +151,11 @@ import {
 } from "./protection";
 import { isGuardedAgainst } from "./permanentGuard";
 import { getEffectiveBlockGraph } from "./banding";
-import { validateBlockerEligibility, markAttacking } from "./combat";
+import {
+    validateBlockerEligibility,
+    markAttacking,
+    markDeclaredBlockers,
+} from "./combat";
 import { colorWordsPresent, landTypesPresent } from "./textChanges";
 import { randomInt, seededShuffle } from "./rng";
 import {
@@ -13456,10 +13460,12 @@ export function buildSpellContext(
             this.removeFromCombat({ type: "permanent", id: blockerAId });
             this.removeFromCombat({ type: "permanent", id: blockerBId });
 
-            cardA.isBlocking = true;
-            cardB.isBlocking = true;
             combat.blockerAssignments[blockerAId] = [...setB];
             combat.blockerAssignments[blockerBId] = [...setA];
+            // CR 509.1a — re-marking goes through the one chokepoint so the
+            // `isBlocking`-reading statics are re-materialized after the
+            // `removeFromCombat` pair cleared the flags (issue #1826).
+            markDeclaredBlockers(state);
             return true;
         },
 
@@ -13775,11 +13781,14 @@ export function buildSpellContext(
                         state
                     );
                     if (!eligible) continue;
-                    blocker.isBlocking = true;
-                    blocker.hasBlockedThisTurn = true;
                     combat.blockerAssignments[blockerId] = [attackerId];
                 }
             }
+            // CR 509.1a — the one blocker-marking chokepoint (flags + the
+            // refresh of `isBlocking`-conditioned statics, issue #1826). The
+            // pile loop above only writes `blockerAssignments`, which is
+            // exactly what this reads.
+            markDeclaredBlockers(state);
         },
         enableAttackerChoosesBlocks(): void {
             // Melee (CR 509.1 variant, #669) — for THIS combat the attacking

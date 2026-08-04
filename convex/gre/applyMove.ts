@@ -54,7 +54,11 @@ import { liveSupertypesOf } from "./snow";
 import { checkStateBasedActions } from "./sba";
 import { applyPlayLand, finalizeLandEntry } from "./playLand";
 import { applyAllCombatDamage, buildAutoDamageAssignments } from "./phases";
-import { markAttacking, recordAttackerDeclared } from "./combat";
+import {
+    markAttacking,
+    markDeclaredBlockers,
+    recordAttackerDeclared,
+} from "./combat";
 import { recordBlockedAttackers } from "./banding";
 import { cloneGameState } from "./clone";
 import { enumerateMoves, type Move } from "./moves";
@@ -234,10 +238,14 @@ function applyBlockAssignments(
     const byBlocker: Record<string, string[]> = {};
     for (const { blockerId, attackerId } of assignments) {
         (byBlocker[blockerId] ??= []).push(attackerId);
-        const blocker = findCreature(state, blockerId);
-        if (blocker) blocker.isBlocking = true;
     }
     state.combat.blockerAssignments = byBlocker;
+    // CR 509.1a — the ONE blocker-marking chokepoint. The refresh it carries
+    // is what lets `resolveCombatDamage` / `evaluate` below SEE a conditional
+    // keyword grant that turns on while blocking (Snow Devil's first strike):
+    // this probe never runs an SBA pass, so without it the greedy blocker
+    // chooser valued every block against stale `staticAbilities` (issue #1826).
+    markDeclaredBlockers(state);
     state.combat.blockersConfirmed = true;
     recordBlockedAttackers(state);
 }

@@ -472,7 +472,7 @@ describe("Snow Devil (Aura grants flying + conditional first strike, CR 611/611.
         expect(host.staticAbilities).not.toContain("first strike");
     });
 
-    // "you" (CR 303.4b) is the AURA'S controller, not the host's — the host's
+    // "you" (CR 109.5 / 611.2) is the AURA'S controller, not the host's — the host's
     // OWN controller (p2) has no snow land here; only the Aura's controller
     // (p1) does. Guards against the class of bug this issue names: reading
     // the enchanted creature's controller instead of the Aura's.

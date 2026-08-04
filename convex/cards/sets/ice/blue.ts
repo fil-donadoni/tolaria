@@ -2028,11 +2028,14 @@ export const sleightOfMindIce: CardPrint = {
 // "It's blocking and you control a snow land" gate for Snow Devil's
 // conditional first-strike grant (CR 611.2c board-state-conditional
 // keyword-grant, the Kavu Runner `condition` shape — `inv/red.ts`). `source`
-// is the Aura permanent itself, never the host: "you" (CR 303.4b) is the
-// AURA'S controller — read via `source.controllerId` — which can differ from
-// the enchanted creature's controller after a control-change effect on
-// either permanent, so the host's `controllerId` must never be substituted
-// here. The enchanted creature is resolved via `source.attachedTo`; its live
+// is the Aura permanent itself, never the host: "you" in an Aura's ability
+// (CR 109.5 — "you" means the ability's controller; CR 611.2, the controller
+// of a continuous effect from a static ability is the controller of the
+// SOURCE) is the AURA'S controller — read via `source.controllerId` — which
+// can differ from the enchanted creature's controller after a control-change
+// effect on either permanent, so the host's `controllerId` must never be
+// substituted here. The enchanted creature is resolved via
+// `source.attachedTo`; its live
 // `isBlocking` flag (`PermanentView.isBlocking`, set at DECLARE_BLOCKERS,
 // cleared at END_OF_COMBAT — the same continuous read Righteousness's
 // "target blocking creature" targeting uses) is "it's blocking" (CR 509.1).
