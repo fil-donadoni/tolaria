@@ -1080,10 +1080,13 @@ export const fertileGroundInv: CardPrint = {
 // for each creature you control." The token-creation clause is free
 // (`createToken` + a battlefield `count`), but the "pay {N} more to cast
 // with flash" cast-timing rider has no home — `AlternativeCost` REPLACES the
-// mana cost rather than adding to it. Same gap as Twilight's Call
-// (`inv/black.ts`), which #1405 owns (the flash-surcharge cast rider split
-// out of #1085 when that closed).
-// tracked-by: #1405
+// mana cost rather than adding to it, whereas CR 601.3c calls for an
+// ADDITIONAL cost that also grants a cast-timing permission. Same gap as
+// Twilight's Call (`inv/black.ts`), Rout (`inv/white.ts`), Breaking Wave
+// (`inv/blue.ts`) and Ghitu Fire (`inv/red.ts`) — all five consolidated onto
+// one issue by the 2026-08-04 tracker audit (it had been filed once per
+// colour across four different trackers).
+// tracked-by: #2146
 // export const saprolingSymbiosis: CardDefinition = {
 //     id: "2bb63748-5c84-43a0-8f17-a2a17f658337",
 //     name: "Saproling Symbiosis",

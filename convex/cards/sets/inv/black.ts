@@ -1269,7 +1269,10 @@ export const tsabosAssassin: CardDefinition = {
 //     targetRequirement: { type: "player", count: 1 },
 // };
 
-// STOP-AND-ISSUE (tracked-by: #1405) — Twilight's Call: "You may cast this
+// STOP-AND-ISSUE (tracked-by: #2146; the cast rider split out of #1405 by the
+// 2026-08-04 tracker audit, which found the same gap filed five times, once
+// per colour — CR 601.3c, an ADDITIONAL cost that also grants a cast-timing
+// permission, not an `AlternativeCost`) — Twilight's Call: "You may cast this
 // spell as though it had flash if you pay {2} more to cast it. Each player
 // returns all creature cards from their graveyard to the battlefield." The
 // mass-reanimation clause is free (a `forEach` over players + `moveZone`),

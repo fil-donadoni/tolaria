@@ -283,9 +283,11 @@ export const collapsingBorders: CardDefinition = {
 
 // ─────────────────────────────────────────────────────────────────────────
 // Free tranche (issue #1072, parent PRD #1063) — reuse-only, DSL-first.
-// 9 cards in this tranche hit a genuinely missing engine capability and are
-// left as commented stubs at the bottom of this file, each tagged
-// `// tracked-by: #1095`.
+// 9 cards in this tranche hit a genuinely missing engine capability and were
+// left as commented stubs at the bottom of this file. Six have since shipped;
+// the three that remain are tagged with the issue that owns their specific
+// gap (#2146 / #2145 / #1332) — the umbrella #1095 was retired by a tracker
+// audit on 2026-08-04.
 // ─────────────────────────────────────────────────────────────────────────
 
 // Callous Giant — {4}{R}{R} Creature — Giant, 4/4. "If a source would deal 3
@@ -1076,20 +1078,26 @@ export const kavuRunner: CardDefinition = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────
-// Issue #1095's parking lot. Cards here were stubbed because the capability
+// The former #1095 parking lot. Cards here were stubbed because the capability
 // they need did not exist; each one that has since SHIPPED sits inline with
 // the gap that unblocked it recorded above it, and the rest stay commented
-// with a live `tracked-by: #1095`. Never invented Ops — a stub cites the
-// exact gap and the tracking issue.
+// with a live `tracked-by:` pointing at the issue that owns THAT gap. Never
+// invented Ops — a stub cites the exact gap and the tracking issue.
+//
+// #1095 itself was retired by a tracker audit on 2026-08-04 (audited
+// `83e6805e`): six of its nine gaps had shipped, and the three survivors were
+// split into issues of their own, so nothing points at the umbrella any more.
 //
 // Shipped: Kavu Runner (#1811, board-state-conditional keyword grant),
 // Goblin Spy (#2111, continuous library-top reveal), Ancient Kavu (#1083's
 // `setColor`), Lightning Dart (#1747's `objectMatchesFilter`), Loafing Giant
-// (#1955's source-scoped shield + this issue's `mill` bind), Scorching Lava
-// (#1283's `preventRegeneration` + this issue's `exileOnDeath`).
-// Still blocked: Ghitu Fire (flash-for-{2}-more alternative cost), Mages'
-// Contest (bidding protocol — needs its own ADR), Turf Wound (per-PLAYER
-// land-play restriction; the only lock today is global).
+// (#1955's source-scoped shield + #2144's `mill` bind), Scorching Lava
+// (#1283's `preventRegeneration` + #2144's `exileOnDeath`).
+// Still blocked: Ghitu Fire (#2146 — conditional flash for an ADDITIONAL
+// cost, CR 601.3c; five INV cards share this one gap), Turf Wound (#2145 —
+// per-PLAYER land-play restriction; the only lock today is global), Mages'
+// Contest (#1332 — bidding, a single-consumer line on the INV one-off bucket,
+// gated behind #2071's voting sequencer and #1120's choose-a-number).
 // ─────────────────────────────────────────────────────────────────────────
 
 // Ancient Kavu — {3}{R} Creature — Kavu, 3/3. "{2}: This creature becomes
@@ -1131,9 +1139,13 @@ export const ancientKavu: CardDefinition = {
 
 // Ghitu Fire — {X}{R} Sorcery. "You may cast this spell as though it had
 // flash if you pay {2} more to cast it. Ghitu Fire deals X damage to any
-// target." No AlternativeCost shape grants flash conditionally on paying more
-// — same gap already deferred for Breaking Wave (inv/blue.ts). tracked-by:
-// #1095
+// target." Blocked on conditional flash for an ADDITIONAL cost (CR 601.3c —
+// "as though it had flash only if an alternative OR ADDITIONAL cost is
+// paid"). Note the shape: this is NOT an `AlternativeCost` (that REPLACES the
+// mana cost) but a surcharge ON TOP of {X}{R}, and the {2} is conditional on
+// the timing actually used. Five INV cards share this exact gap — Rout
+// (white), Breaking Wave (blue), Twilight's Call (black), this, Saproling
+// Symbiosis (green). tracked-by: #2146
 // export const ghituFire: CardDefinition = {
 //     id: "78827acd-a526-411b-bd22-ab9b538c75dd",
 //     name: "Ghitu Fire",
@@ -1287,9 +1299,17 @@ export const loafingGiant: CardDefinition = {
 // life. You start the bidding with a bid of 1. In turn order, each player may
 // top the high bid. The bidding ends if the high bid stands. The high bidder
 // loses life equal to the high bid. If you win the bidding, counter that
-// spell." No bidding protocol / pending-choice family exists. Likely needs
-// its own ADR (a new pending-choice kind), out of scope for a reuse-only free
-// tranche. tracked-by: #1095
+// spell." Blocked on a bidding protocol: no alternating, dynamically-
+// terminated round-robin PendingChoice exists, and no free-form integer entry
+// exists. The 2026-08-04 audit corrected #1095's "needs its own ADR from
+// scratch" premise — #2071 (will-of-the-council voting, CR 701.38) builds the
+// per-player sequential-suspend PendingChoice family, its client prompt and
+// its bot dispatch arm, and #1120 gap 6(a) owns "choose a number"; bidding is
+// those two plus an unbounded loop terminated by a pass. Multi-suspend inside
+// one Op is NOT the blocker — `castDuringResolution` (effects/interpreter.ts)
+// and `divideIntoPiles` already do it. Do this after #2071 and #1120.
+// Single-consumer (the only card in the catalogue that bids), so it is a line
+// on the INV one-off bucket rather than its own issue. tracked-by: #1332
 // export const magesContest: CardDefinition = {
 //     id: "c516861c-68d9-4d02-a343-689dba0526c6",
 //     name: "Mages' Contest",
@@ -1352,8 +1372,14 @@ export const scorchingLava: CardDefinition = {
 // Draw a card." The only existing land-play lock (`landPlayLockActive` /
 // `preventsLandPlayAndETB`) is GLOBAL (Worms of the Earth style), not scoped
 // to one player. Needs a new per-player `GameState` field (mirroring
-// `cannotCastSpellsThisTurn`) plus a `restrictLandPlay`-style Op.
-// tracked-by: #1095
+// `cannotActivateAbilitiesThisTurn`'s bare `string[]`) plus a
+// `restrictLandPlay`-style Op read at the single legality choke-point in
+// `gre/rules.ts`. Two traps recorded on the issue: it must NOT be modelled as
+// a land-drop allowance of zero (CR 101.2 — a later Exploration would
+// increment it back and silently unlock the player), and it must NOT gate
+// `canLandEnterBattlefield` (CR 305.4 — "put onto the battlefield" is not
+// "playing a land"; Worms gates both only because its own text says both).
+// tracked-by: #2145
 // export const turfWound: CardDefinition = {
 //     id: "91392e9f-f96a-4ac5-b1f1-c73540cf249e",
 //     name: "Turf Wound",
