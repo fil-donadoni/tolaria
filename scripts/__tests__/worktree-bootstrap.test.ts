@@ -317,6 +317,51 @@ describe("pre-merge-commit hook (issue #2203)", () => {
     });
 });
 
+describe("husky hooks are executable in git's index", () => {
+    it("every tracked .husky hook has mode 100755", () => {
+        // Tracked-and-present is NOT enough: git records the executable bit, so
+        // a hook committed as 100644 arrives non-executable in every checkout
+        // and every fresh worktree, and husky's shim skips it in silence —
+        // indistinguishable from the hook being absent, which is the failure
+        // #1821 was opened to fix. `.husky/pre-commit` was committed by #1821
+        // itself as 100644 and was therefore inert everywhere for six days:
+        // the fix for "the hook is missing" shipped "the hook is inert".
+        //
+        // git only ever warns (`hook was ignored because it's not set as
+        // executable`), and only on the commit that would have run it — which
+        // is exactly the commit whose output nobody reads.
+        const listing = spawnSync("git", ["ls-files", "-s", ".husky/"], {
+            cwd: REPO_ROOT,
+            encoding: "utf8",
+        });
+        expect(listing.status, listing.stderr).toBe(0);
+
+        const hooks = listing.stdout
+            .split("\n")
+            .filter(Boolean)
+            .map((line) => {
+                const [meta, file] = line.split("\t");
+                return { mode: meta.split(" ")[0], file };
+            })
+            // `.husky/_` is husky's generated shim directory and is gitignored;
+            // anything else tracked under .husky/ is a hook git must be able to
+            // execute.
+            .filter((h) => !h.file.startsWith(".husky/_"));
+
+        expect(hooks.length).toBeGreaterThan(0);
+
+        const nonExecutable = hooks
+            .filter((h) => h.mode !== "100755")
+            .map((h) => `${h.file} is ${h.mode}`);
+
+        expect(
+            nonExecutable,
+            "fix with: git update-index --chmod=+x <file>\n" +
+                nonExecutable.join("\n")
+        ).toEqual([]);
+    });
+});
+
 describe("light pre-PR gate", () => {
     it("`check:pr` runs every `check:all` check, plus the bot guards, without the mutex", () => {
         // check:index / check:ids / check:stubs cost <0.2s each. Leaving them
