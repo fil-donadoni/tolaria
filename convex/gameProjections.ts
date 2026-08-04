@@ -424,8 +424,23 @@ function projectExileCard(
     if (card.knownTo.includes(viewerId)) return decorate(slimCard(card));
     // Everyone else sees a face-down card with the identity hidden — but still
     // pinned to its permanent (the association is public; the identity is not).
-    const slimmed = slimCard({ ...card, card: { id: FACE_DOWN_CARD_ID } });
+    // issue #2092 — characteristics live on the INSTANCE, not the definition
+    // (`convex/gre/state.ts`), so masking only `card.id` is half the job: a
+    // face-down exile card deliberately keeps its real `types`/`subtypes`/
+    // `power`/`toughness`/`staticAbilities` in state (the knower must see the
+    // real card), unlike a face-down PERMANENT whose 2/2 colourless body is
+    // already overwritten in state by `turnFaceDown` (CR 708.2). CR 406.3 — a
+    // face-down card in exile is "a card" with no characteristics to show.
+    const slimmed = slimCard({
+        ...card,
+        card: { id: FACE_DOWN_CARD_ID },
+        types: [],
+        subtypes: [],
+        staticAbilities: [],
+    });
     delete (slimmed as { faceDownOf?: string }).faceDownOf;
+    delete (slimmed as { power?: number }).power;
+    delete (slimmed as { toughness?: number }).toughness;
     return opts?.exiledByPermanentId !== undefined
         ? { ...slimmed, exiledByPermanentId: opts.exiledByPermanentId }
         : slimmed;
