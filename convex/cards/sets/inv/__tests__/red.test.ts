@@ -30,6 +30,10 @@ import {
     pouncingKavu,
     kavuRunner,
     goblinSpy,
+    ancientKavu,
+    lightningDart,
+    loafingGiant,
+    scorchingLava,
 } from "../red";
 import { stun } from "../../tmp/red";
 import { registerTokenDefinition } from "../../..";
@@ -45,9 +49,13 @@ import {
     unapplySourceStaticEffects,
     removePermanentTo,
     putReanimatedSetOnBattlefield,
+    sourcePreventionShieldApplies,
     type GameState,
     type StackItem,
+    type CardInstanceState,
 } from "../../../../gre/state";
+import { getEffectiveColors } from "../../../effectiveColors";
+import type { TargetSelection } from "../../../types";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import {
@@ -1161,5 +1169,399 @@ describe("Goblin Spy — play with the top card of your library revealed (CR 401
             [1, forest.id],
         ]);
         expect(knownFor(state, "p2", "p1")).toEqual([[0, mountain.id]]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Issue #1095's parking lot, second pass. Four cards that were stubbed for a
+// missing capability and are now buildable. Two of them ride capabilities that
+// shipped elsewhere (`setColor` #1083, `objectMatchesFilter` #1747,
+// `preventDamage`'s source-scoped modes #1955, `preventRegeneration` #1283) —
+// those Ops already carry their own interpreter tests, so the assertions here
+// are card-shaped: the specific colour set, the specific 1-vs-4 split, the
+// specific kicked rider. The two capabilities this pass ADDED — `mill`'s
+// `bind` and the `exileOnDeath` Op — are exercised through the real resolution
+// path below, and their generic construct coverage lives in
+// `convex/gre/effects/__tests__/interpreter.test.ts`.
+// ---------------------------------------------------------------------------
+
+/** Push a triggered ability onto the stack with its firing event, then resolve. */
+function resolveTrigger(
+    state: GameState,
+    source: CardInstanceState,
+    triggeredAbilityId: string,
+    triggerEvent: StackItem["triggerEvent"]
+): void {
+    state.stack.push({
+        ...source,
+        zone: "stack",
+        castById: source.controllerId,
+        triggeredAbilityId,
+        triggerSourceId: source.id,
+        triggerEvent,
+        targets: [],
+    });
+    resolveTopOfStack(state);
+}
+
+/** Push an activated ability onto the stack with its source, then resolve. */
+function resolveActivated(
+    state: GameState,
+    source: CardInstanceState,
+    abilityId: string,
+    targets: StackItem["targets"] = []
+): void {
+    state.stack.push({
+        ...source,
+        zone: "stack",
+        castById: source.controllerId,
+        abilityId,
+        targets,
+    });
+    resolveTopOfStack(state);
+}
+
+describe("Ancient Kavu — {2}: becomes colorless until EOT (CR 613.1e / 105.2c)", () => {
+    function activateColorless() {
+        const kavu = makeInstance(ancientKavu.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "kavu",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [kavu] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, kavu, "ancient-kavu-colorless");
+        return state;
+    }
+
+    it("is red off its printed cost before the ability resolves", () => {
+        const kavu = makeInstance(ancientKavu.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "kavu",
+        });
+        expect(getEffectiveColors(kavu)).toEqual(["R"]);
+    });
+
+    it("becomes COLORLESS — the empty colour set, not a sixth colour", () => {
+        const state = activateColorless();
+        const kavu = state.players[0].battlefield.find((c) => c.id === "kavu")!;
+        expect(getEffectiveColors(kavu)).toEqual([]);
+    });
+
+    it("wire format: the colourlessness survives projectPublicState", () => {
+        const state = activateColorless();
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "kavu"
+        )!;
+        expect(getEffectiveColors(slim)).toEqual([]);
+    });
+
+    it("the colour change is until end of turn, not indefinite", () => {
+        const state = activateColorless();
+        const kavu = state.players[0].battlefield.find((c) => c.id === "kavu")!;
+        expect(
+            (kavu as unknown as { colorOverrideDuration?: unknown })
+                .colorOverrideDuration ??
+                ancientKavu.activatedAbilities?.[0].effects?.[0]
+        ).toBeDefined();
+        expect(ancientKavu.activatedAbilities?.[0].effects).toEqual([
+            {
+                op: "setColor",
+                target: { ref: "$source" },
+                colors: [],
+                duration: { phase: "end-of-turn" },
+            },
+        ]);
+    });
+});
+
+// Synthetic 5/5s with controlled colours: big enough to SURVIVE the 4-damage
+// branch, so the assertion reads the marked damage rather than an empty
+// battlefield slot (a dead creature would make "4 damage" and "2 damage"
+// indistinguishable — both leave `find` undefined).
+const WHITE_5_5 = "test-dart-white-5-5";
+const GREEN_5_5 = "test-dart-green-5-5";
+registerTokenDefinition({
+    id: WHITE_5_5,
+    name: WHITE_5_5,
+    rarity: "common",
+    manaCost: { X: 4, W: 1 },
+    types: ["Creature"],
+    power: 5,
+    toughness: 5,
+});
+registerTokenDefinition({
+    id: GREEN_5_5,
+    name: GREEN_5_5,
+    rarity: "common",
+    manaCost: { X: 4, G: 1 },
+    types: ["Creature"],
+    power: 5,
+    toughness: 5,
+});
+
+describe("Lightning Dart — 1 damage, 4 to a white or blue creature (CR 120.1 / 202.2)", () => {
+    function dart(
+        defId: string,
+        instanceOverrides: Partial<CardInstanceState> = {}
+    ) {
+        const victim = makeInstance(defId, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "victim",
+            ...instanceOverrides,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        pushSpell(state, lightningDart.id, "p1", [
+            { type: "permanent", id: "victim" },
+        ]);
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    it("deals 1 to a green creature", () => {
+        const state = dart(GREEN_5_5);
+        const victim = state.players[1].battlefield.find(
+            (c) => c.id === "victim"
+        )!;
+        expect(victim.damageMarked).toBe(1);
+    });
+
+    it("deals 4 to a WHITE creature", () => {
+        const state = dart(WHITE_5_5);
+        const victim = state.players[1].battlefield.find(
+            (c) => c.id === "victim"
+        )!;
+        expect(victim.damageMarked).toBe(4);
+    });
+
+    it("reads the LIVE colour (CR 613), not the printed cost — a green creature painted blue takes 4", () => {
+        const state = dart(GREEN_5_5, {
+            colorOverride: ["U"],
+        } as Partial<CardInstanceState>);
+        const victim = state.players[1].battlefield.find(
+            (c) => c.id === "victim"
+        )!;
+        expect(victim.damageMarked).toBe(4);
+    });
+
+    it("wire format: the 4-damage branch survives projectPublicState", () => {
+        const state = dart(WHITE_5_5);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "victim"
+        )!;
+        expect(slim.damageMarked).toBe(4);
+    });
+});
+
+describe("Loafing Giant — attack/block mill, land ⇒ source-scoped combat shield (CR 701.17 / 615)", () => {
+    function attackWith(libraryTopDefId: string, redirectToExile = false) {
+        const giant = makeInstance(loafingGiant.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "giant",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [giant],
+                    library: [
+                        makeInstance(libraryTopDefId, {
+                            id: "lib0",
+                            ownerId: "p1",
+                            zone: "library",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+            phase: "DECLARE_ATTACKERS",
+        });
+        if (redirectToExile) {
+            // CR 614 — a Yawgmoth's Will-style graveyard-bound redirect. The
+            // card never reaches the graveyard, so it was NOT milled.
+            state.graveyardBoundRedirectThisTurn = [{ ownerId: "p1" }];
+        }
+        resolveTrigger(state, giant, "loafing-giant-mill", {
+            type: "ATTACKERS_DECLARED",
+            attackingPlayerId: "p1",
+            attackerIds: ["giant"],
+        } as StackItem["triggerEvent"]);
+        return state;
+    }
+
+    it("mills a LAND ⇒ arms a combat-only shield covering the giant's own id", () => {
+        const state = attackWith(forest.id);
+        expect(state.players[0].graveyard.map((c) => c.id)).toEqual(["lib0"]);
+        expect(sourcePreventionShieldApplies(state, "giant", true)).toBe(true);
+    });
+
+    it("mills a NON-land ⇒ no shield", () => {
+        const state = attackWith(savannahLions.id);
+        expect(state.players[0].graveyard.map((c) => c.id)).toEqual(["lib0"]);
+        expect(sourcePreventionShieldApplies(state, "giant", false)).toBe(
+            false
+        );
+        expect(sourcePreventionShieldApplies(state, "giant", true)).toBe(false);
+    });
+
+    it("the shield is COMBAT-only — non-combat damage from the giant is unshielded", () => {
+        const state = attackWith(forest.id);
+        expect(sourcePreventionShieldApplies(state, "giant", false)).toBe(
+            false
+        );
+    });
+
+    it("shields only the GIANT, not every source its controller owns", () => {
+        const state = attackWith(forest.id);
+        expect(
+            sourcePreventionShieldApplies(state, "some-other-id", true)
+        ).toBe(false);
+    });
+
+    it("a land REDIRECTED to exile was not milled (CR 701.17a) ⇒ no shield", () => {
+        const state = attackWith(forest.id, true);
+        expect(state.players[0].graveyard).toHaveLength(0);
+        expect(state.players[0].exile.map((c) => c.id)).toEqual(["lib0"]);
+        expect(sourcePreventionShieldApplies(state, "giant", true)).toBe(false);
+    });
+
+    it("an EMPTY library mills nothing and binds nothing ⇒ no shield (CR 608.2b)", () => {
+        const giant = makeInstance(loafingGiant.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "giant",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [giant], library: [] }),
+                makePlayer("p2"),
+            ],
+            phase: "DECLARE_ATTACKERS",
+        });
+        resolveTrigger(state, giant, "loafing-giant-mill", {
+            type: "ATTACKERS_DECLARED",
+            attackingPlayerId: "p1",
+            attackerIds: ["giant"],
+        } as StackItem["triggerEvent"]);
+        expect(sourcePreventionShieldApplies(state, "giant", true)).toBe(false);
+    });
+
+    it("fires on BLOCKING too, not only on attacking (one Oracle line, two events)", () => {
+        const giant = makeInstance(loafingGiant.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "giant",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [giant],
+                    library: [
+                        makeInstance(forest.id, {
+                            id: "lib0",
+                            ownerId: "p1",
+                            zone: "library",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+            phase: "DECLARE_BLOCKERS",
+        });
+        resolveTrigger(state, giant, "loafing-giant-mill", {
+            type: "BLOCKERS_CONFIRMED",
+            blockerId: "giant",
+        } as StackItem["triggerEvent"]);
+        expect(sourcePreventionShieldApplies(state, "giant", true)).toBe(true);
+    });
+
+    it("declares ONE triggered ability keyed on both combat events (CR 603.2)", () => {
+        expect(loafingGiant.triggeredAbilities).toHaveLength(1);
+        expect(loafingGiant.triggeredAbilities?.[0].event).toEqual([
+            "ATTACKERS_DECLARED",
+            "BLOCKERS_CONFIRMED",
+        ]);
+    });
+});
+
+describe("Scorching Lava — kicked rider: regen lock + exile-on-death (CR 702.33 / 701.15c / 614.1a)", () => {
+    function cast(kicked: boolean, target: TargetSelection) {
+        const victim = makeInstance(GREEN_5_5, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "victim",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        const item: StackItem = pushSpell(state, scorchingLava.id, "p1", [
+            target,
+        ]);
+        if (kicked) item.kickerPayments = { kicker: 1 };
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    it("unkicked deals 2 damage and arms NEITHER rider", () => {
+        const state = cast(false, { type: "permanent", id: "victim" });
+        const victim = state.players[1].battlefield.find(
+            (c) => c.id === "victim"
+        )!;
+        expect(victim.damageMarked).toBe(2);
+        expect(victim.cantBeRegeneratedThisTurn).toBeUndefined();
+        expect(victim.exileOnDeath).toBeUndefined();
+    });
+
+    it("kicked arms BOTH riders on the targeted creature", () => {
+        const state = cast(true, { type: "permanent", id: "victim" });
+        const victim = state.players[1].battlefield.find(
+            (c) => c.id === "victim"
+        )!;
+        expect(victim.damageMarked).toBe(2);
+        expect(victim.cantBeRegeneratedThisTurn).toBe(true);
+        expect(victim.exileOnDeath).toBe(true);
+    });
+
+    it("kicked at a PLAYER is a clean no-op for the riders (CR 608.2b — 'that creature')", () => {
+        const state = cast(true, { type: "player", id: "p2" });
+        expect(state.players[1].life).toBe(18);
+        // The untouched bystander proves the riders did not spray the board.
+        const bystander = state.players[1].battlefield.find(
+            (c) => c.id === "victim"
+        )!;
+        expect(bystander.exileOnDeath).toBeUndefined();
+        expect(bystander.cantBeRegeneratedThisTurn).toBeUndefined();
+    });
+
+    it("wire format: both rider flags survive projectPublicState", () => {
+        const state = cast(true, { type: "permanent", id: "victim" });
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "victim"
+        )!;
+        expect(slim.cantBeRegeneratedThisTurn).toBe(true);
+        expect(slim.exileOnDeath).toBe(true);
+    });
+
+    it("declares the kicker cost {R}", () => {
+        expect(scorchingLava.kickers).toEqual([
+            { id: "kicker", description: "Kicker {R}", mana: { R: 1 } },
+        ]);
     });
 });

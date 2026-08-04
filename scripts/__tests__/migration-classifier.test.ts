@@ -1576,11 +1576,22 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // per-card test), which is where the deltas land. Net: total 478->476,
         // FREE 311->309, AFK-ready 302->300; X-only unchanged at 14,
         // Op-blocked unchanged at 153. Partition: 309+14+153=476.
+        //
+        // The `exileOnDeath` Op (CR 614.1a, issue #1095) ADDS no closure — it
+        // is a DSL skin over `SpellContext.setExileOnDeath`, which three
+        // existing `resolve()` closures already call (Disintegrate
+        // `drk/green.ts`, `fin/red.ts`, `lea/red.ts`). That primitive becoming
+        // Op-covered flips all three OUT of Op-blocked: two land FREE (both
+        // carry a per-card test, so AFK-ready too) and Disintegrate falls
+        // through to X-only instead, its `{X}{R}` cost being the remaining
+        // blocker once the exile arm is expressible. Net: total unchanged at
+        // 476, FREE 309->311, AFK-ready 300->302, X-only 14->15, Op-blocked
+        // 153->150. Partition: 311+15+150=476.
         expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(476);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(309);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(300);
-        expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(153);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(311);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(302);
+        expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(15);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(150);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

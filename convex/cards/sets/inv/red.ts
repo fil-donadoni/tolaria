@@ -1076,24 +1076,58 @@ export const kavuRunner: CardDefinition = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────
-// Deferred stubs — genuinely missing engine capability (issue #1095). Never
-// invented Ops; each cites the exact gap and the tracking issue.
+// Issue #1095's parking lot. Cards here were stubbed because the capability
+// they need did not exist; each one that has since SHIPPED sits inline with
+// the gap that unblocked it recorded above it, and the rest stay commented
+// with a live `tracked-by: #1095`. Never invented Ops — a stub cites the
+// exact gap and the tracking issue.
+//
+// Shipped: Kavu Runner (#1811, board-state-conditional keyword grant),
+// Goblin Spy (#2111, continuous library-top reveal), Ancient Kavu (#1083's
+// `setColor`), Lightning Dart (#1747's `objectMatchesFilter`), Loafing Giant
+// (#1955's source-scoped shield + this issue's `mill` bind), Scorching Lava
+// (#1283's `preventRegeneration` + this issue's `exileOnDeath`).
+// Still blocked: Ghitu Fire (flash-for-{2}-more alternative cost), Mages'
+// Contest (bidding protocol — needs its own ADR), Turf Wound (per-PLAYER
+// land-play restriction; the only lock today is global).
 // ─────────────────────────────────────────────────────────────────────────
 
 // Ancient Kavu — {3}{R} Creature — Kavu, 3/3. "{2}: This creature becomes
-// colorless until end of turn." `setColor` is `status: "planned"` in
-// EFFECT_OP_REGISTRY (mechanicsRegistry.ts) — not yet implemented. Same gap
-// already deferred for Blind Seer (inv/blue.ts). tracked-by: #1095
-// export const ancientKavu: CardDefinition = {
-//     id: "c8ccb5d0-735b-443f-addd-8b70f5f2c60d",
-//     name: "Ancient Kavu",
-//     rarity: "common",
-//     manaCost: { X: 3, R: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Kavu"],
-//     power: 3,
-//     toughness: 3,
-// };
+// colorless until end of turn." (CR 613.1e layer 5 colour-setting, CR 105.2c
+// colourless is the ABSENCE of colour rather than a sixth colour — so the
+// empty `colors: []` set, not a "colorless" member.) Was the `setColor` gap
+// of issue #1095; `setColor` shipped `implemented` with issue #1083 (Blind
+// Seer / Metathran Transport / Sway of Illusion), so this is now a pure
+// reuse: `$source` self-target, the same `{ phase: "end-of-turn" }` duration
+// Metathran Transport uses.
+export const ancientKavu: CardDefinition = {
+    id: "c8ccb5d0-735b-443f-addd-8b70f5f2c60d",
+    name: "Ancient Kavu",
+    rarity: "common",
+    oracleText: "{2}: This creature becomes colorless until end of turn.",
+    manaCost: { X: 3, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Kavu"],
+    power: 3,
+    toughness: 3,
+    activatedAbilities: [
+        {
+            id: "ancient-kavu-colorless",
+            oracleText:
+                "{2}: This creature becomes colorless until end of turn.",
+            cost: { mana: { X: 2 } },
+            useStack: true,
+            effects: [
+                {
+                    op: "setColor",
+                    target: { ref: "$source" },
+                    colors: [],
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
+};
 
 // Ghitu Fire — {X}{R} Sorcery. "You may cast this spell as though it had
 // flash if you pay {2} more to cast it. Ghitu Fire deals X damage to any
@@ -1136,34 +1170,118 @@ export const goblinSpy: CardDefinition = {
 
 // Lightning Dart — {1}{R} Instant. "Lightning Dart deals 1 damage to target
 // creature. If that creature is white or blue, Lightning Dart deals 4 damage
-// to it instead." The Effect Script `if` construct's predicate grammar is
-// frozen (ADR 0045) to boolean-binding / numeric-comparison only — no
-// "object X matches color filter Y" predicate form exists. tracked-by: #1095
-// export const lightningDart: CardDefinition = {
-//     id: "54d05157-d154-4203-bf3e-add110cb1cee",
-//     name: "Lightning Dart",
-//     rarity: "uncommon",
-//     manaCost: { X: 1, R: 1 },
-//     types: ["Instant"],
-// };
+// to it instead." (CR 120.1 damage, CR 202.2 / 613 layer 5 colour.) Was the
+// "colour-based `if` predicate" gap of issue #1095: the predicate grammar has
+// since grown `objectMatchesFilter` (issue #1747, Figure of Destiny), which
+// tests an object selector against a full `EffectCardFilter` — and `color`
+// has OR-within-the-field semantics, so `{ color: ["W", "U"] }` IS "white or
+// blue". Deliberately the LIVE read, not a snapshot: it resolves through the
+// layer-materialised battlefield matcher, so a creature painted blue by
+// Painter's Servant (or made white by a resolving effect between announcement
+// and resolution) takes 4, exactly as CR 613 requires.
+//
+// The two damage amounts are if/else branches of ONE `dealDamage`, never two:
+// "instead" replaces the amount, so a white creature is dealt 4 in a single
+// damage event — a 1-then-4 sequence would double-trigger every "whenever
+// damage is dealt" watcher and blow through a 1-damage prevention shield
+// twice (CR 615.1).
+export const lightningDart: CardDefinition = {
+    id: "54d05157-d154-4203-bf3e-add110cb1cee",
+    name: "Lightning Dart",
+    rarity: "uncommon",
+    oracleText:
+        "Lightning Dart deals 1 damage to target creature. If that creature is white or blue, Lightning Dart deals 4 damage to it instead.",
+    manaCost: { X: 1, R: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "Creature", count: 1 },
+    effects: [
+        {
+            op: "if",
+            predicate: {
+                objectMatchesFilter: { target: 0 },
+                filter: { color: ["W", "U"] },
+            },
+            then: [{ op: "dealDamage", amount: 4, to: { target: 0 } }],
+            else: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
+        },
+    ],
+};
 
 // Loafing Giant — {4}{R} Creature — Giant, 4/6. "Whenever this creature
 // attacks or blocks, mill a card. If a land card was milled this way, prevent
-// all combat damage this creature would deal this turn." No "prevent damage
-// dealt BY this one permanent only" shield exists (only two-way
-// `combatDamageImmunity` / `preventAllCombatDamageToAndBy` or the global Fog
-// shield). Suggest a `direction: "to" | "by" | "both"` field on the shield.
-// tracked-by: #1095
-// export const loafingGiant: CardDefinition = {
-//     id: "fab5f738-04d0-44c9-88ec-28469b668040",
-//     name: "Loafing Giant",
-//     rarity: "rare",
-//     manaCost: { X: 4, R: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Giant"],
-//     power: 4,
-//     toughness: 6,
-// };
+// all combat damage this creature would deal this turn." (CR 508.1 / 509.1
+// attack-or-block trigger, CR 701.17 mill, CR 615 prevention.) Was the
+// "source-only combat damage prevention" gap of issue #1095, closed on both
+// sides:
+//
+//  - the SHIELD half shipped with issue #1955 — `preventDamage`'s
+//    `"all-from-source"` mode is exactly "prevent all damage this ONE
+//    permanent would deal", and `combatOnly: true` narrows it to CR 510
+//    combat damage. Turn-scoped by construction (every source-scoped shield
+//    expires at CLEANUP, CR 514.2), so the Oracle's "this turn" needs no
+//    duration field.
+//  - the READ-BACK half is this issue's own slice: `mill` gained an optional
+//    `bind` (mirroring `discardAtRandom`'s), snapshotting the card that
+//    actually reached the graveyard so `boundMatchesFilter` can answer "if a
+//    LAND card was milled this way".
+//
+// `millCards` returns only genuinely-milled ids, so a card a CR 614
+// graveyard-bound replacement redirected to exile never satisfies the gate —
+// it was exiled, not milled (CR 701.17a), and the `if` correctly reads false.
+// An empty library mills nothing and binds nothing (CR 608.2b), which the
+// same predicate reads as false.
+//
+// The two-event `event: [...]` + `matches` shape is the standing "one Oracle
+// line = ONE TriggeredAbility" multi-event form (CR 603.2), same as
+// Smuggler's Copter (`kld/colorless.ts`).
+export const loafingGiant: CardDefinition = {
+    id: "fab5f738-04d0-44c9-88ec-28469b668040",
+    name: "Loafing Giant",
+    rarity: "rare",
+    oracleText:
+        "Whenever this creature attacks or blocks, mill a card. If a land card was milled this way, prevent all combat damage this creature would deal this turn.",
+    manaCost: { X: 4, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Giant"],
+    power: 4,
+    toughness: 6,
+    triggeredAbilities: [
+        {
+            id: "loafing-giant-mill",
+            oracleText:
+                "Whenever this creature attacks or blocks, mill a card. If a land card was milled this way, prevent all combat damage this creature would deal this turn.",
+            event: ["ATTACKERS_DECLARED", "BLOCKERS_CONFIRMED"],
+            matches: (event, self) =>
+                (event.type === "ATTACKERS_DECLARED" &&
+                    event.attackerIds.includes(self.id)) ||
+                (event.type === "BLOCKERS_CONFIRMED" &&
+                    event.blockerId === self.id),
+            effects: [
+                {
+                    op: "mill",
+                    player: "controller",
+                    count: 1,
+                    bind: "$milled",
+                },
+                {
+                    op: "if",
+                    predicate: {
+                        boundMatchesFilter: { ref: "$milled" },
+                        filter: { type: "Land" },
+                    },
+                    then: [
+                        {
+                            op: "preventDamage",
+                            mode: "all-from-source",
+                            source: { ref: "$source" },
+                            combatOnly: true,
+                        },
+                    ],
+                },
+            ],
+        },
+    ],
+};
 
 // Mages' Contest — {1}{R}{R} Instant. "You and target spell's controller bid
 // life. You start the bidding with a bid of 1. In turn order, each player may
@@ -1183,18 +1301,52 @@ export const goblinSpy: CardDefinition = {
 // Scorching Lava — {1}{R} Instant. "Kicker {R}. Scorching Lava deals 2
 // damage to any target. If this spell was kicked, that creature can't be
 // regenerated this turn and if it would die this turn, exile it instead."
-// The existing `addDestroyReplacementShield` primitive has FIXED behavior
-// (Pyramids: "remove damage, stay on battlefield"), not parametrized for
-// "exile instead"; no per-instance "can't regenerate this turn" shield
-// exists either (only the mass `cantBeRegenerated` on `destroyAll`).
-// tracked-by: #1095
-// export const scorchingLava: CardDefinition = {
-//     id: "2a85437f-052e-494c-a9ee-265c4624a409",
-//     name: "Scorching Lava",
-//     rarity: "common",
-//     manaCost: { X: 1, R: 1 },
-//     types: ["Instant"],
-// };
+// (CR 702.33 Kicker, CR 115.4 any target, CR 120.1 damage, CR 701.15c
+// regeneration lock, CR 614.1a death replacement.) Was the two-part gap 6 of
+// issue #1095, closed on both sides:
+//
+//  - the regeneration lock shipped as the `preventRegeneration` Op with
+//    issue #1283 (Incinerate's identical rider);
+//  - the "exile it instead" half is this issue's own slice — the primitive
+//    `SpellContext.setExileOnDeath` already existed with three `resolve()`
+//    callers (Disintegrate `drk/green.ts`, `fin/red.ts`, `lea/red.ts`); it
+//    now has its DSL skin, the `exileOnDeath` Op.
+//
+// The rider is DELIBERATELY unguarded by a creature check: the spell targets
+// "any target", and both Ops no-op on a player / planeswalker target
+// (CR 608.2b — `setTargetCantBeRegeneratedThisTurn` and `setExileOnDeath`
+// both require a battlefield CREATURE), which is precisely what the Oracle's
+// "that creature" means. Neither is scoped by `dealDamage`'s outcome either:
+// the Oracle applies them on a kicked resolution regardless of whether the 2
+// damage was lethal, prevented, or replaced.
+export const scorchingLava: CardDefinition = {
+    id: "2a85437f-052e-494c-a9ee-265c4624a409",
+    name: "Scorching Lava",
+    rarity: "common",
+    oracleText:
+        "Kicker {R} (You may pay an additional {R} as you cast this spell.)\nScorching Lava deals 2 damage to any target. If this spell was kicked, that creature can't be regenerated this turn and if it would die this turn, exile it instead.",
+    manaCost: { X: 1, R: 1 },
+    types: ["Instant"],
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker {R}",
+            mana: { R: 1 },
+        },
+    ],
+    targetRequirement: { type: "any", count: 1 },
+    effects: [
+        { op: "dealDamage", amount: 2, to: { target: 0 } },
+        {
+            op: "if",
+            predicate: { left: { kickerCount: true }, op: "ge", right: 1 },
+            then: [
+                { op: "preventRegeneration", target: { target: 0 } },
+                { op: "exileOnDeath", target: { target: 0 } },
+            ],
+        },
+    ],
+};
 
 // Turf Wound — {2}{R} Instant. "Target player can't play lands this turn.
 // Draw a card." The only existing land-play lock (`landPlayLockActive` /

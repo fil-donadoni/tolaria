@@ -352,6 +352,14 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Ancient Kavu",
+        "scryfallId": "c8ccb5d0-735b-443f-addd-8b70f5f2c60d",
+        "oracleId": "598a7347-b772-4839-a02f-b930076c1354",
+        "firstSet": "inv",
+        "firstPrintId": "c8ccb5d0-735b-443f-addd-8b70f5f2c60d",
+        "firstPrintSet": "inv"
+    },
+    {
         "name": "Ancient Spider",
         "scryfallId": "75ca99de-57e7-47c4-b40a-6e41e3b18069",
         "oracleId": "28537019-3061-4efc-8e87-9bb805bf520f",
@@ -7784,6 +7792,14 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Lightning Dart",
+        "scryfallId": "54d05157-d154-4203-bf3e-add110cb1cee",
+        "oracleId": "7bc53740-86e7-4e9d-aab6-b5ae62a42133",
+        "firstSet": "inv",
+        "firstPrintId": "54d05157-d154-4203-bf3e-add110cb1cee",
+        "firstPrintSet": "inv"
+    },
+    {
         "name": "Lightning Greaves",
         "scryfallId": "61a28870-cf78-4323-9d82-cee764067764",
         "oracleId": "ca204b66-8d0c-431a-8d34-282f7c2d17da",
@@ -7917,6 +7933,14 @@
         "oracleId": "9123086e-ae67-46c5-aed5-6366e2fe5a8c",
         "firstSet": "inv",
         "firstPrintId": "72e6ed79-bdfd-49f9-bfa4-be4196880487",
+        "firstPrintSet": "inv"
+    },
+    {
+        "name": "Loafing Giant",
+        "scryfallId": "fab5f738-04d0-44c9-88ec-28469b668040",
+        "oracleId": "038dce4c-f754-45ef-98a4-4e16f931a65c",
+        "firstSet": "inv",
+        "firstPrintId": "fab5f738-04d0-44c9-88ec-28469b668040",
         "firstPrintSet": "inv"
     },
     {
@@ -11558,6 +11582,14 @@
         "firstSet": "lea",
         "firstPrintId": "426984e0-88e1-4a2d-9a1c-798b95864df3",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Scorching Lava",
+        "scryfallId": "2a85437f-052e-494c-a9ee-265c4624a409",
+        "oracleId": "e42fb51e-254a-43ac-ad02-9f0fad0f4c8a",
+        "firstSet": "inv",
+        "firstPrintId": "2a85437f-052e-494c-a9ee-265c4624a409",
+        "firstPrintSet": "inv"
     },
     {
         "name": "Scrubland",

@@ -2877,7 +2877,21 @@ export const OP_EXECUTORS: {
         if (playerId === undefined) return; // CR 608.2b — player gone, skip
         const count = resolveValue(ctx, op.count);
         if (count === undefined || count <= 0) return;
-        ctx.millCards(playerId, count);
+        const milledIds = ctx.millCards(playerId, count);
+        // issue #1095 — snapshot the FIRST genuinely-milled card (CR 608.2h)
+        // so "if a land card was milled this way" (Loafing Giant) can read its
+        // last-known types off the binding. Mirrors `discardAtRandom`'s bind
+        // exactly, down to the graveyard-card snapshot kind. Uncaptured when
+        // nothing landed in a graveyard — an empty library, or every card
+        // redirected to exile by a CR 614 replacement (that card was exiled,
+        // not milled, so it must NOT satisfy the gate). CR 608.2b.
+        if (op.bind && milledIds.length > 0) {
+            bindSnapshot(ctx, op.bind, {
+                type: "graveyard-card",
+                id: milledIds[0],
+                playerId,
+            });
+        }
     },
     // CR 701.20a + CR 400.7 — reveal the top `count` card(s) of a library and
     // route each one by WHAT IT IS: "Reveal the top card of your library. If
@@ -3573,6 +3587,16 @@ export const OP_EXECUTORS: {
         const target = resolveObjectRef(ctx, op.target);
         if (!target) return;
         ctx.setTargetCantBeRegeneratedThisTurn(target);
+    },
+    // CR 614.1a (issue #1095) — arm the one-shot "if it would die this turn,
+    // exile it instead" replacement. Thin skin over the single primitive
+    // `setExileOnDeath`, one execution path (ADR 0045). No-op when the target
+    // is gone or is not a permanent (CR 608.2b — an "any target" spell aimed
+    // at a player has no creature for "that creature" to name).
+    exileOnDeath(ctx, op) {
+        const target = resolveObjectRef(ctx, op.target);
+        if (!target || target.type !== "permanent") return;
+        ctx.setExileOnDeath(target);
     },
     // CR 510.1c (issue #1283) — mark a permanent so it assigns no combat damage
     // this turn (source-side prevention). Thin skin over the single primitive

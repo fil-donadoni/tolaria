@@ -2552,8 +2552,14 @@ export interface SpellContext {
      *  card is put into your graveyard from your library" triggers (Gaea's
      *  Blessing) — emits one `CARD_MILLED` event per card AFTER it lands in the
      *  graveyard, the mill analogue of `drawCards`/`emitCardDrawn`. No-op for
-     *  `amount ≤ 0`. */
-    millCards: (playerId: string, amount: number) => void;
+     *  `amount ≤ 0`.
+     *
+     *  Returns the instance ids of the cards that GENUINELY reached the
+     *  graveyard, in mill order (issue #1095, the `mill` Op's `bind`). A card
+     *  a CR 614 graveyard-bound replacement (Yawgmoth's Will / Dauthi
+     *  Voidwalker) redirected to exile is omitted — it was exiled, not milled,
+     *  the same distinction that already gates `CARD_MILLED` emission below. */
+    millCards: (playerId: string, amount: number) => string[];
     /** CR 614 — arms a one-shot replacement for the NEXT card `playerId` would
      *  draw this turn (Aladdin's Lamp): look at the top X, keep one to draw,
      *  bottom the rest in a random order. The draw step consumes it and
@@ -10548,11 +10554,21 @@ export type EffectOp =
      *  announced target slot — "target player mills N", Thought Scour /
      *  Millstone; the resolving controller; or a forEach `$each`); `count` is
      *  how many cards to mill (a non-positive count is a no-op, CR 608.2b).
-     *  Deterministic — no player choice, unlike `scryReorder`. */
+     *  Deterministic — no player choice, unlike `scryReorder`.
+     *
+     *  Optional `bind` (issue #1095, Loafing Giant) snapshots the FIRST card
+     *  that genuinely reached the graveyard (mirrors `discardAtRandom`'s
+     *  `bind` shape) so a later `if`/`boundMatchesFilter` can test what came
+     *  up — "if a land card was milled this way". A card a CR 614
+     *  graveyard-bound replacement redirected to exile was NOT milled
+     *  (CR 701.17a is "put into a graveyard from a library"), so it is never
+     *  the bound card; nothing binds when every card was redirected or the
+     *  library was already empty (CR 608.2b). */
     | {
           op: "mill";
           player: EffectPlayerRef;
           count: EffectValue;
+          bind?: string;
       }
     /** CR 701.20a reveal + CR 400.7 zone change — reveal the top `count` card(s)
      *  of a library and send each one to a destination chosen by WHAT IT IS
@@ -11038,6 +11054,26 @@ export type EffectOp =
      *  destroy attached. No-op on a non-creature or a permanent that has left
      *  the battlefield (CR 608.2b). */
     | { op: "preventRegeneration"; target: EffectObjectSelector }
+    /** CR 614.1a (issue #1095) — arm a one-shot, turn-scoped replacement on a
+     *  permanent: if it would DIE this turn, exile it instead. "If it would
+     *  die this turn, exile it instead" (Scorching Lava's kicked rider,
+     *  Disintegrate, Flame Rift-class removal that denies the graveyard). A
+     *  thin declarative skin over the single SpellContext primitive
+     *  `setExileOnDeath`, one execution path (ADR 0045) — the migration skin
+     *  for the three `resolve()` closures that already call it
+     *  (`drk/green.ts`, `fin/red.ts`, `lea/red.ts`).
+     *
+     *  `target` is an announced target slot (`{ target: N }`), the resolving
+     *  source (`$source`), or a forEach `$each`. DEATH ONLY and cleared at
+     *  CLEANUP (CR 514.2) — distinct from `SpellContext.setExileOnLeave`,
+     *  which is a PERSISTENT flag covering every battlefield-departure path
+     *  (bounce, sacrifice, destroy) and survives across turns (Dreams of the
+     *  Dead). No-op on a non-permanent target, a non-CREATURE permanent, or
+     *  one that has already left the battlefield (CR 608.2b) — so an "any
+     *  target" spell whose target is a player or a planeswalker simply does
+     *  nothing here, which is exactly what "that creature" in the Oracle text
+     *  means. */
+    | { op: "exileOnDeath"; target: EffectObjectSelector }
     /** CR 510.1c (issue #1283) — mark a permanent so it assigns NO combat
      *  damage for the rest of the turn: a SOURCE-side prevention (the creature
      *  still fights and can be dealt damage / die, it merely deals 0 in every

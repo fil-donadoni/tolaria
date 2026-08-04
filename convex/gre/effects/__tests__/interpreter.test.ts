@@ -16741,6 +16741,300 @@ describe("Effect Script Op: mill (CR 701.17, issue #885)", () => {
         ]);
         expect(projected.players[1].library.count).toBe(1);
     });
+
+    // issue #1095 — `bind` on `mill` (Loafing Giant: "mill a card. If a LAND
+    // card was milled this way, …"). The binding is a graveyard-card SNAPSHOT,
+    // the same family `discardAtRandom`'s bind declares, so `boundMatchesFilter`
+    // reads it with no zone lookup (CR 608.2h).
+    describe("bind (issue #1095)", () => {
+        function millBindScript(name: string) {
+            return registerScript(name, [
+                { op: "mill", player: "controller", count: 1, bind: "$m" },
+                {
+                    op: "if",
+                    predicate: {
+                        boundMatchesFilter: { ref: "$m" },
+                        filter: { type: "Land" },
+                    },
+                    then: [{ op: "gainLife", player: "controller", amount: 7 }],
+                },
+            ]);
+        }
+
+        function millOne(topId: string): GameState {
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        library: [
+                            makeInstance(topId, {
+                                id: "top",
+                                controllerId: "p1",
+                                ownerId: "p1",
+                                zone: "library",
+                            }),
+                        ],
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+            return state;
+        }
+
+        it("binds a milled LAND so a later boundMatchesFilter reads true", () => {
+            const id = millBindScript("test-op-mill-bind-land");
+            const state = millOne(LAND_ID);
+            pushSpell(state, id, "p1");
+            resolveTopOfStack(state);
+            expect(state.players[0].life).toBe(27);
+        });
+
+        it("binds a milled NON-land so the same predicate reads false", () => {
+            const id = millBindScript("test-op-mill-bind-nonland");
+            const state = millOne(BEAR_ID);
+            pushSpell(state, id, "p1");
+            resolveTopOfStack(state);
+            expect(state.players[0].life).toBe(20);
+        });
+
+        it("binds nothing on an EMPTY library, so the predicate reads false (CR 608.2b)", () => {
+            const id = millBindScript("test-op-mill-bind-empty");
+            const state = makeState({
+                players: [makePlayer("p1", { library: [] }), makePlayer("p2")],
+            });
+            pushSpell(state, id, "p1");
+            expect(() => resolveTopOfStack(state)).not.toThrow();
+            expect(state.players[0].life).toBe(20);
+        });
+
+        it("binds the FIRST milled card when several are milled at once", () => {
+            const id = registerScript("test-op-mill-bind-first", [
+                { op: "mill", player: "controller", count: 2, bind: "$m" },
+                {
+                    op: "if",
+                    predicate: {
+                        boundMatchesFilter: { ref: "$m" },
+                        filter: { type: "Land" },
+                    },
+                    then: [{ op: "gainLife", player: "controller", amount: 7 }],
+                },
+            ]);
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        library: [
+                            // Non-land FIRST — a "binds the last one" or
+                            // "binds any of them" implementation would read
+                            // the land below and gain 7.
+                            makeInstance(BEAR_ID, {
+                                id: "top",
+                                controllerId: "p1",
+                                ownerId: "p1",
+                                zone: "library",
+                            }),
+                            makeInstance(LAND_ID, {
+                                id: "second",
+                                controllerId: "p1",
+                                ownerId: "p1",
+                                zone: "library",
+                            }),
+                        ],
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+            pushSpell(state, id, "p1");
+            resolveTopOfStack(state);
+            expect(state.players[0].graveyard.map((c) => c.id)).toContain(
+                "second"
+            );
+            expect(state.players[0].life).toBe(20);
+        });
+
+        it("a card REDIRECTED to exile was not milled, so it never binds (CR 701.17a / 614)", () => {
+            // The probe is deliberately NOT `boundMatchesFilter`: a snapshot of
+            // an EXILED card carries no characteristics (bindSnapshot reads
+            // them out of the graveyard), so a type filter reads false whether
+            // the bind happened or not — the assertion would pass vacuously.
+            // A trailing `moveZone` off the binding discriminates directly: it
+            // fires iff a binding exists at all, so a `millCards` that returned
+            // the redirected id would yank the land onto the battlefield.
+            const id = registerScript("test-op-mill-bind-redirected", [
+                { op: "mill", player: "controller", count: 1, bind: "$m" },
+                {
+                    op: "moveZone",
+                    target: { ref: "$m" },
+                    from: "exile",
+                    to: "battlefield",
+                },
+            ]);
+            const state = millOne(LAND_ID);
+            // Yawgmoth's Will-style: everything bound for p1's graveyard is
+            // exiled instead. The land never reaches a graveyard, so it was
+            // exiled rather than milled and must NOT bind.
+            state.graveyardBoundRedirectThisTurn = [{ ownerId: "p1" }];
+            pushSpell(state, id, "p1");
+            resolveTopOfStack(state);
+            expect(state.players[0].exile.map((c) => c.id)).toContain("top");
+            expect(state.players[0].battlefield.map((c) => c.id)).not.toContain(
+                "top"
+            );
+        });
+
+        it("the same script DOES reanimate when the card genuinely reached the graveyard (the redirect probe's positive control)", () => {
+            const id = registerScript("test-op-mill-bind-notredirected", [
+                { op: "mill", player: "controller", count: 1, bind: "$m" },
+                {
+                    op: "moveZone",
+                    target: { ref: "$m" },
+                    from: "graveyard",
+                    to: "battlefield",
+                },
+            ]);
+            const state = millOne(LAND_ID);
+            pushSpell(state, id, "p1");
+            resolveTopOfStack(state);
+            expect(state.players[0].battlefield.map((c) => c.id)).toContain(
+                "top"
+            );
+        });
+    });
+});
+
+// CR 614.1a (issue #1095) — the `exileOnDeath` Op: a one-shot, turn-scoped
+// "if it would die this turn, exile it instead" replacement. Scorching Lava's
+// kicked rider; the DSL skin over `SpellContext.setExileOnDeath`, which three
+// `resolve()` closures already call.
+describe("Effect Script Op: exileOnDeath (CR 614.1a)", () => {
+    function oneBear(): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(BEAR_ID, {
+                            controllerId: "p2",
+                            id: "bearA",
+                        }),
+                    ],
+                }),
+            ],
+        });
+    }
+
+    it("arms the death replacement on an announced target creature", () => {
+        const id = registerScript("test-op-exileondeath-target", [
+            { op: "exileOnDeath", target: { target: 0 } },
+        ]);
+        const state = oneBear();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearA" }]);
+        resolveTopOfStack(state);
+        const bear = state.players[1].battlefield.find(
+            (c) => c.id === "bearA"
+        )!;
+        expect(bear.exileOnDeath).toBe(true);
+    });
+
+    it("the armed creature is EXILED instead of dying (the replacement actually fires)", () => {
+        const id = registerScript("test-op-exileondeath-fires", [
+            { op: "exileOnDeath", target: { target: 0 } },
+            { op: "destroy", target: { target: 0 } },
+        ]);
+        const state = oneBear();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearA" }]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bearA")
+        ).toBeUndefined();
+        expect(state.players[1].graveyard.map((c) => c.id)).not.toContain(
+            "bearA"
+        );
+        expect(state.players[1].exile.map((c) => c.id)).toContain("bearA");
+    });
+
+    it("without the Op the same destroy sends the creature to the GRAVEYARD (the contrast case)", () => {
+        const id = registerScript("test-op-exileondeath-absent", [
+            { op: "destroy", target: { target: 0 } },
+        ]);
+        const state = oneBear();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearA" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain("bearA");
+        expect(state.players[1].exile.map((c) => c.id)).not.toContain("bearA");
+    });
+
+    it("is a no-op on a PLAYER target (CR 608.2b — 'that creature') and still resolves", () => {
+        const id = registerScript(
+            "test-op-exileondeath-player",
+            [{ op: "exileOnDeath", target: { target: 0 } }],
+            { targetRequirement: { type: "any", count: 1 } }
+        );
+        const state = oneBear();
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        const bear = state.players[1].battlefield.find(
+            (c) => c.id === "bearA"
+        )!;
+        expect(bear.exileOnDeath).toBeUndefined();
+    });
+
+    it("is a no-op when the targeted permanent is gone (CR 608.2b)", () => {
+        const id = registerScript("test-op-exileondeath-gone", [
+            { op: "exileOnDeath", target: { target: 0 } },
+        ]);
+        const state = oneBear();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "ghost" }]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        const bear = state.players[1].battlefield.find(
+            (c) => c.id === "bearA"
+        )!;
+        expect(bear.exileOnDeath).toBeUndefined();
+    });
+
+    it("arms every member of a forEach set via $each", () => {
+        const id = registerScript("test-op-exileondeath-foreach", [
+            {
+                op: "forEach",
+                select: { set: "permanents", zone: "battlefield" },
+                effects: [{ op: "exileOnDeath", target: { ref: "$each" } }],
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(BEAR_ID, {
+                            controllerId: "p2",
+                            id: "bearA",
+                        }),
+                        makeInstance(BEAR_ID, {
+                            controllerId: "p2",
+                            id: "bearB",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield.map((c) => c.exileOnDeath)).toEqual(
+            [true, true]
+        );
+    });
+
+    it("the flag survives projection (wire format)", () => {
+        const id = registerScript("test-op-exileondeath-wire", [
+            { op: "exileOnDeath", target: { target: 0 } },
+        ]);
+        const state = oneBear();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearA" }]);
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "bearA"
+        )!;
+        expect(slim.exileOnDeath).toBe(true);
+    });
 });
 
 // --- digToHand Op: look at top N, put one (or K) into hand, rest on the bottom
