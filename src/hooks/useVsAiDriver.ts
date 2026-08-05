@@ -137,6 +137,18 @@ export function useVsAiDriver(
         tapForPayment: useMutation(api.game.tapForPayment),
         activateAbility: useMutation(api.game.activateAbility),
         tapForActivationPayment: useMutation(api.game.tapForActivationPayment),
+        selectSacrifice: useMutation(api.game.selectSacrifice),
+        // CR 602.1 / 118 — the deferred activation-cost pickers. Unlike the
+        // attack-tax / mana-spend pickers below these ARE Move-realised: the
+        // picks travel on the `activate-ability` Move (`costPicks`), so they
+        // belong in `MoveMutations` and are submitted by `executeMove`.
+        selectActivationCost: useMutation(api.game.selectActivationCost),
+        selectActivationExileCost: useMutation(
+            api.game.selectActivationExileCost
+        ),
+        selectActivationDiscardCost: useMutation(
+            api.game.selectActivationDiscardCost
+        ),
         toggleAttacker: useMutation(api.game.toggleAttacker),
         confirmAttackers: useMutation(api.game.confirmAttackers),
         selectBlocker: useMutation(api.game.selectBlocker),

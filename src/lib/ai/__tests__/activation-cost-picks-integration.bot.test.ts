@@ -1,0 +1,292 @@
+// Integration: an activated ability whose cost is paid by NAMING CARDS, across
+// the GRE → game.ts → executor boundary (CR 602.1 / 118.3).
+//
+// Survival of the Fittest ("{G}, Discard a creature card: …") is the reference
+// shape. The server always DEFERS that leg: `activateAbility` parks a
+// `pendingActivation` carrying an unanswered `discardFilterChoice` and
+// `tryAutoCommitPendingActivation` refuses to commit until the activator names
+// the card. The bot's executor named nothing — it only ever called
+// `activateAbility` + `tapForActivationPayment` — so the activation could never
+// commit, the abandoned payment rolled back when the bot next gave up priority
+// (`rollbackPendingActivation` untaps the lands), and the identical position
+// then re-produced the identical move: the bot tapped a land, untapped it, and
+// looped forever without ever activating.
+//
+// The picks now travel ON the move (`Move.costPicks`), so this test drives the
+// REAL server functions the mutations call — `activateAbilityOnState` and
+// `selectActivationDiscardCostOnState` — through `executeMove`, and asserts the
+// activation actually commits.
+
+import { describe, expect, it } from "vitest";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "@convex/cards/__tests__/setup";
+import { getCardByName } from "@convex/cards";
+import { enumerateMoves } from "@convex/gre/moves";
+import type { GameState } from "@convex/gre/state";
+import {
+    activateAbilityOnState,
+    selectActivationDiscardCostOnState,
+    selectSacrificeOnState,
+} from "@convex/game";
+import { executeMove, type MoveMutations } from "../executor";
+
+const BOT = "u1-p1";
+const HUMAN = "u1-p2";
+
+const SURVIVAL = getCardByName("Survival of the Fittest").id;
+const BEARS = getCardByName("Grizzly Bears").id;
+const WURM = getCardByName("Craw Wurm").id;
+
+/** A Survival of the Fittest board: the enchantment in play, {G} already in
+ *  pool (so the move needs no tap plan and the flow is exactly announce →
+ *  name the discard → commit), and two DIFFERENT creatures in hand. */
+function survivalState(): GameState {
+    return makeState({
+        players: [
+            makePlayer(BOT, {
+                battlefield: [
+                    makeInstance(SURVIVAL, {
+                        id: "survival",
+                        controllerId: BOT,
+                        ownerId: BOT,
+                    }),
+                ],
+                hand: [
+                    makeInstance(BEARS, {
+                        id: "bears",
+                        controllerId: BOT,
+                        ownerId: BOT,
+                        zone: "hand",
+                    }),
+                    makeInstance(WURM, {
+                        id: "wurm",
+                        controllerId: BOT,
+                        ownerId: BOT,
+                        zone: "hand",
+                    }),
+                ],
+                library: [
+                    makeInstance(BEARS, {
+                        id: "lib-bears",
+                        controllerId: BOT,
+                        ownerId: BOT,
+                        zone: "library",
+                    }),
+                ],
+                manaPool: { W: 0, U: 0, B: 0, R: 0, G: 1, C: 0 },
+            }),
+            makePlayer(HUMAN),
+        ],
+        activePlayerId: BOT,
+        priorityPlayerId: BOT,
+    });
+}
+
+/** Mutation surface routing every call the `activate-ability` branch makes
+ *  through the SAME pure engine function the real Convex mutation calls. Any
+ *  other mutation is unexpected in this flow and throws. */
+function engineMutations(state: GameState): MoveMutations {
+    const reject = () => {
+        throw new Error("unexpected mutation in activation-cost flow");
+    };
+    return {
+        playCard: reject,
+        summonCompanion: reject,
+        announceCast: reject,
+        selectTarget: reject,
+        selectTargets: reject,
+        confirmTargets: reject,
+        tapForPayment: reject,
+        activateAbility: async ({
+            playerId,
+            cardInstanceId,
+            abilityId,
+            chosenX,
+            chosenModeId,
+        }) => {
+            activateAbilityOnState(state, {
+                playerId,
+                cardInstanceId,
+                abilityId,
+                ...(chosenX !== undefined ? { chosenX } : {}),
+                ...(chosenModeId !== undefined ? { chosenModeId } : {}),
+            });
+        },
+        tapForActivationPayment: reject,
+        selectSacrifice: async ({ playerId, cardInstanceId }) => {
+            selectSacrificeOnState(state, { playerId, cardInstanceId });
+        },
+        selectActivationCost: reject,
+        selectActivationExileCost: reject,
+        selectActivationDiscardCost: async ({ playerId, cardInstanceIds }) => {
+            selectActivationDiscardCostOnState(state, {
+                playerId,
+                cardInstanceIds,
+            });
+        },
+        toggleAttacker: reject,
+        confirmAttackers: reject,
+        selectBlocker: reject,
+        assignBlockerTarget: reject,
+        confirmBlockers: reject,
+        confirmDamage: reject,
+        declareMulligan: reject,
+        submitResolutionChoice: reject,
+        submitMayPay: reject,
+        submitLandEntryChoice: reject,
+        submitDrawReplacementPay: reject,
+        submitMadnessDecline: reject,
+        submitReboundDecline: reject,
+        submitNameCard: reject,
+        submitRandomRevealAck: reject,
+        passPriority: reject,
+    };
+}
+
+describe("activation cost picks (CR 602.1 / 118.3)", () => {
+    it("enumerates one variant per DISTINCT discard candidate, each carrying its own pick", () => {
+        const state = survivalState();
+        const activations = enumerateMoves(state, BOT).filter(
+            (m) => m.kind === "activate-ability"
+        );
+
+        // Two different creatures in hand = two genuinely different decisions
+        // (which creature the tutor engine eats), so both are searched.
+        expect(activations).toHaveLength(2);
+        const picked = activations.map((m) =>
+            m.kind === "activate-ability" ? m.costPicks?.discardIds : undefined
+        );
+        expect(picked).toEqual([["bears"], ["wurm"]]);
+    });
+
+    it("executes end to end: the ability commits and the named card is discarded", async () => {
+        const state = survivalState();
+        const move = enumerateMoves(state, BOT).find(
+            (m) => m.kind === "activate-ability"
+        )!;
+        expect(move).toBeDefined();
+
+        await executeMove(move, {
+            gameId: "g" as never,
+            botId: BOT,
+            mutations: engineMutations(state),
+        });
+
+        const bot = state.players.find((p) => p.id === BOT)!;
+        // The payment committed: nothing is left parked, so nothing can be
+        // rolled back — this is the tap/untap loop's exit condition.
+        expect(state.pendingActivation).toBeUndefined();
+        // The ability is on the stack (CR 602.2a).
+        expect(state.stack).toHaveLength(1);
+        // The named creature paid the cost (CR 118.3), the other stayed.
+        expect(bot.graveyard.map((c) => c.id)).toEqual(["bears"]);
+        expect(bot.hand.map((c) => c.id)).toEqual(["wurm"]);
+        // The mana left the pool (CR 601.2h).
+        expect(bot.manaPool.G).toBe(0);
+    });
+
+    it("the loop is closed: the bot no longer re-produces the same move on an unchanged position", async () => {
+        const state = survivalState();
+        const before = enumerateMoves(state, BOT).find(
+            (m) => m.kind === "activate-ability"
+        )!;
+
+        await executeMove(before, {
+            gameId: "g" as never,
+            botId: BOT,
+            mutations: engineMutations(state),
+        });
+
+        // Before the fix the activation rolled back and this position was
+        // byte-identical to the starting one, so the (seeded, deterministic)
+        // search re-chose the same move forever. The state has now advanced:
+        // the ability is on the stack and the cost is spent.
+        expect(state.stack).toHaveLength(1);
+        const again = enumerateMoves(state, BOT).filter(
+            (m) => m.kind === "activate-ability"
+        );
+        // {G} is spent, so the ability is no longer affordable — the bot has
+        // moved on rather than re-announcing the same activation.
+        expect(again).toHaveLength(0);
+    });
+});
+
+// The SACRIFICE leg (CR 701.16 / 118.5) is the same bug on the widest surface —
+// 44 stack-using abilities in the catalogue carry a `sacrificeFilter`. It only
+// defers when the board is NOT fungible (`autoResolveFungible` collapses an
+// indistinguishable victim set inline), which is why it survived: with one
+// creature out, or two identical ones, the bot was fine.
+describe("activation sacrifice cost (CR 701.16 / 118.5)", () => {
+    const ANGEL = getCardByName("Fallen Angel").id;
+
+    /** Fallen Angel ("Sacrifice a creature: Fallen Angel gets +2/+0") with two
+     *  DIFFERENT creatures alongside it — a real victim choice, so the server
+     *  defers instead of auto-resolving. */
+    function angelState(): GameState {
+        return makeState({
+            players: [
+                makePlayer(BOT, {
+                    battlefield: [
+                        makeInstance(ANGEL, {
+                            id: "angel",
+                            controllerId: BOT,
+                            ownerId: BOT,
+                        }),
+                        makeInstance(BEARS, {
+                            id: "bears",
+                            controllerId: BOT,
+                            ownerId: BOT,
+                        }),
+                        makeInstance(WURM, {
+                            id: "wurm",
+                            controllerId: BOT,
+                            ownerId: BOT,
+                        }),
+                    ],
+                }),
+                makePlayer(HUMAN),
+            ],
+            activePlayerId: BOT,
+            priorityPlayerId: BOT,
+        });
+    }
+
+    it("enumerates one variant per DISTINCT victim, each naming its own", () => {
+        const state = angelState();
+        const activations = enumerateMoves(state, BOT).filter(
+            (m) => m.kind === "activate-ability"
+        );
+        // Three legal victims (the Angel may eat itself, CR 701.16b).
+        const picked = activations.map((m) =>
+            m.kind === "activate-ability"
+                ? m.costPicks?.sacrificeIds
+                : undefined
+        );
+        expect(picked).toEqual([["bears"], ["angel"], ["wurm"]]);
+    });
+
+    it("executes end to end: the named victim is sacrificed and the ability commits", async () => {
+        const state = angelState();
+        const move = enumerateMoves(state, BOT).find(
+            (m) => m.kind === "activate-ability"
+        )!;
+
+        await executeMove(move, {
+            gameId: "g" as never,
+            botId: BOT,
+            mutations: engineMutations(state),
+        });
+
+        const bot = state.players.find((p) => p.id === BOT)!;
+        expect(state.pendingActivation).toBeUndefined();
+        expect(state.stack).toHaveLength(1);
+        expect(bot.graveyard.map((c) => c.id)).toEqual(["bears"]);
+        expect(bot.battlefield.map((c) => c.id).sort()).toEqual([
+            "angel",
+            "wurm",
+        ]);
+    });
+});

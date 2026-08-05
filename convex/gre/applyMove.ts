@@ -45,12 +45,11 @@ import {
     applyCostModifiers,
     getCostModifiers,
 } from "./state";
-import { matchesPermanentFilter } from "../cards/filters";
 import { isPlaneswalker } from "./constants";
-import { getEffectivePower } from "./layers";
-import { crewPowerContribution, pickTapOtherPayment } from "./tapOtherCost";
-import { handCardMatchesFilter } from "./alternativeCost";
-import { liveSupertypesOf } from "./snow";
+import {
+    activationSacrificeVictims,
+    planActivationCostPicks,
+} from "./activationCostPicks";
 import { checkStateBasedActions } from "./sba";
 import { applyPlayLand, finalizeLandEntry } from "./playLand";
 import { applyAllCombatDamage, buildAutoDamageAssignments } from "./phases";
@@ -412,9 +411,8 @@ export function applyMoveForSearch(
                     // they're applied in the search slice (even though the
                     // ability's effect resolves later) to keep the evaluated
                     // position honest. Self-sacrifice removes the source; a
-                    // filtered sacrifice removes the lowest-mana-value matching
-                    // permanent (a conservative deterministic pick — the bot
-                    // doesn't model the human's free choice here).
+                    // FILTERED sacrifice is a named victim and rides on the
+                    // move with the other deferred legs below.
                     if (ability?.cost.sacrifice) {
                         removePermanentTo(
                             next,
@@ -422,124 +420,76 @@ export function applyMoveForSearch(
                             "graveyard",
                             "sacrifice"
                         );
-                    } else if (ability?.cost.sacrificeFilter) {
-                        const owner = next.players.find((p) =>
-                            p.battlefield.some((c) => c.id === src!.id)
-                        );
-                        const candidates = (owner?.battlefield ?? []).filter(
-                            (c) =>
-                                matchesPermanentFilter(
-                                    c,
-                                    ability.cost.sacrificeFilter!,
-                                    { supertypesOf: liveSupertypesOf }
-                                )
-                        );
-                        if (candidates.length > 0) {
-                            const pick = candidates.reduce((lo, c) => {
-                                const mv = (d: CardInstanceState) => {
-                                    const cd = tryGetDefinition(
-                                        (d.card as { id?: string }).id ?? ""
-                                    );
-                                    return cd?.manaCost
-                                        ? Object.values(
-                                              cd.manaCost
-                                          ).reduce<number>(
-                                              (a, v) =>
-                                                  a +
-                                                  (typeof v === "number"
-                                                      ? v
-                                                      : 0),
-                                              0
-                                          )
-                                        : 0;
-                                };
-                                return mv(c) < mv(lo) ? c : lo;
-                            });
-                            removePermanentTo(
-                                next,
-                                pick.id,
-                                "graveyard",
-                                "sacrifice"
-                            );
-                        }
                     }
-                    // CR 602.1 / 118.8 — tap-other-creatures cost (Hand of
-                    // Justice): tap the first N untapped matching permanents
-                    // the activator controls, excluding the source. A
-                    // conservative deterministic pick — the search doesn't
-                    // model the human's free choice of which to tap.
-                    if (ability?.cost.tapOtherFilter) {
+                    // CR 602.1 / 118 — the DEFERRED cost legs (sacrifice,
+                    // tap-other, exile-from-graveyard, discard). WHICH cards
+                    // pay them is the activator's choice, so the move carries
+                    // it (`costPicks`, `activationCostPicks.ts`) and the search
+                    // applies exactly the cards the executor will later name to
+                    // the server. A hand-built move with no `costPicks` falls
+                    // back to the same module's deterministic default, so the
+                    // two can never drift.
+                    if (ability) {
                         const owner = next.players.find((p) =>
                             p.battlefield.some((c) => c.id === src!.id)
                         );
-                        const { filter } = ability.cost.tapOtherFilter;
-                        const candidates = (owner?.battlefield ?? []).filter(
-                            (c) =>
-                                c.id !== src!.id &&
-                                !c.isTapped &&
-                                matchesPermanentFilter(c, filter, {
-                                    selfControllerId: owner?.id,
-                                    supertypesOf: liveSupertypesOf,
-                                })
-                        );
-                        // CR 702.122a — the crew shape taps the fewest
-                        // (highest-power) creatures that reach the threshold;
-                        // the fixed-cardinal shape keeps the first-N pick.
-                        const picked = pickTapOtherPayment(
-                            ability.cost.tapOtherFilter,
-                            candidates.map((c) => ({
-                                id: c.id,
-                                power: crewPowerContribution(
-                                    getEffectivePower(next, c),
-                                    tryGetDefinition(
-                                        (c.card as { id?: string }).id ?? ""
-                                    )?.crewPowerBonus ?? 0
-                                ),
-                            }))
-                        );
-                        const pickedIds = new Set(picked.map((c) => c.id));
-                        for (const perm of candidates) {
-                            if (pickedIds.has(perm.id)) {
-                                tapPermanent(next, perm);
+                        const picks =
+                            move.costPicks ??
+                            (owner
+                                ? (planActivationCostPicks(
+                                      next,
+                                      owner,
+                                      src,
+                                      ability
+                                  ) ?? undefined)
+                                : undefined);
+                        if (owner) {
+                            // CR 701.16 — the filtered-sacrifice victims, both
+                            // the ones the server auto-resolves at announcement
+                            // and the ones the payer names.
+                            for (const id of activationSacrificeVictims(
+                                next,
+                                owner,
+                                src,
+                                ability,
+                                picks
+                            )) {
+                                removePermanentTo(
+                                    next,
+                                    id,
+                                    "graveyard",
+                                    "sacrifice"
+                                );
                             }
                         }
-                    }
-                    // CR 602.1 / 118.3 — "discard a card matching <filter>"
-                    // cost (Survival of the Fittest): discard the lowest-
-                    // mana-value matching card(s) from the activator's hand.
-                    // A conservative deterministic pick — the search doesn't
-                    // model the human's free choice of which card to discard.
-                    if (ability?.cost.discardFilter) {
-                        const owner = next.players.find((p) =>
-                            p.battlefield.some((c) => c.id === src!.id)
-                        );
-                        const { filter, count } = ability.cost.discardFilter;
-                        const candidates = (owner?.hand ?? [])
-                            .filter((c) => handCardMatchesFilter(c, filter))
-                            .sort((a, b) => {
-                                const mv = (d: CardInstanceState) => {
-                                    const cd = tryGetDefinition(
-                                        (d.card as { id?: string }).id ?? ""
+                        if (owner && picks) {
+                            for (const id of picks.tapOtherIds ?? []) {
+                                const perm = owner.battlefield.find(
+                                    (c) => c.id === id
+                                );
+                                if (perm) tapPermanent(next, perm);
+                            }
+                            const exile = picks.exileFromGraveyard;
+                            if (exile) {
+                                const gyOwner = next.players.find(
+                                    (p) => p.id === exile.graveyardOwnerId
+                                );
+                                for (const id of exile.cardInstanceIds) {
+                                    const idx =
+                                        gyOwner?.graveyard.findIndex(
+                                            (c) => c.id === id
+                                        ) ?? -1;
+                                    if (!gyOwner || idx < 0) continue;
+                                    const [card] = gyOwner.graveyard.splice(
+                                        idx,
+                                        1
                                     );
-                                    return cd?.manaCost
-                                        ? Object.values(
-                                              cd.manaCost
-                                          ).reduce<number>(
-                                              (acc, v) =>
-                                                  acc +
-                                                  (typeof v === "number"
-                                                      ? v
-                                                      : 0),
-                                              0
-                                          )
-                                        : 0;
-                                };
-                                return mv(a) - mv(b);
-                            })
-                            .slice(0, count);
-                        if (owner) {
-                            for (const pick of candidates) {
-                                discardToGraveyard(next, owner.id, pick.id);
+                                    card.zone = "exile";
+                                    gyOwner.exile.push(card);
+                                }
+                            }
+                            for (const id of picks.discardIds ?? []) {
+                                discardToGraveyard(next, owner.id, id);
                             }
                         }
                     }

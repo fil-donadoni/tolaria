@@ -88,6 +88,53 @@ function activationStaysAvailable(
     );
 }
 
+/** "An activation whose cost is paid by NAMING CARDS arrives at the executor
+ *  already answered" (CR 602.1 / 118.3) — the guard for the tap-a-land-then-
+ *  untap-it loop.
+ *
+ *  Asserted on the POSITION rather than the chosen move, for the same measured
+ *  reason as `activationStaysAvailable` above: the search does not put an
+ *  activated ability's EFFECT on the stack (issue #1920), so a tutor engine's
+ *  payoff is invisible and no blade can make the bot CHOOSE this activation.
+ *  What IS assertable — and what actually broke — is that every enumerated
+ *  activation carries a legal, complete pick for its deferred cost leg. Without
+ *  one the server parks a `pendingActivation` it can never commit, the payment
+ *  rolls back, and the identical position re-produces the identical move
+ *  forever.
+ *
+ *  It also asserts the pick is SEARCHED, not fixed: with two different
+ *  creatures in hand there must be one variant per creature, or the bot has no
+ *  way to express which one it wants to give up. */
+function activationCostPicksArePaid(
+    state: GameState,
+    seat: BladeSeat,
+    cardName: string
+): boolean {
+    const player = state.players[seat === "me" ? 0 : 1];
+    const defId = getCardByName(cardName).id;
+    const activations = enumerateMoves(state, player.id).filter(
+        (m) =>
+            m.kind === "activate-ability" &&
+            player.battlefield.some(
+                (c) =>
+                    c.id === m.cardInstanceId &&
+                    (c.card as { id?: string }).id === defId
+            )
+    );
+    if (activations.length === 0) return false;
+    const picked = new Set<string>();
+    for (const move of activations) {
+        if (move.kind !== "activate-ability") return false;
+        const ids = move.costPicks?.discardIds;
+        if (!ids || ids.length !== 1) return false;
+        // The named card must really be in hand — a pick the server would
+        // reject leaves the activation just as stuck as no pick at all.
+        if (!player.hand.some((c) => c.id === ids[0])) return false;
+        picked.add(ids[0]);
+    }
+    return picked.size === activations.length && picked.size >= 2;
+}
+
 export const BLADE_SCENARIOS: BladeScenario[] = [
     {
         // POSITIVE CONTROL (#1427). Deliberately the least ambiguous decision
@@ -1281,6 +1328,39 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
                 "the animation is still enumerated before combat and carries no rollout-policy penalty",
         },
         note: "Issue #1890 NEGATIVE CONTROL for the entry above — the SAME activation one step earlier, where the body it buys can still attack. Both suppressing rules are scoped away from this window (the guardrail's sorcery-speed branch needs a MAIN phase with an empty stack; the pointless-animation branch needs the mover's combat to be already over), and this entry is what fails if either ever widens. Position-asserted for the same measured reason as the Mother control: `applyMoveInSearch` never puts an activated ability's effect on the stack, so the search cannot see the 2/2 the animation would produce and a chosen-move assertion here would be riding rollout noise. NOT DISCRIMINATING by construction.",
+    },
+    {
+        label: "activation cost: names the discard for Survival of the Fittest",
+        spec: {
+            cards: [
+                {
+                    name: "Survival of the Fittest",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                { name: "Grizzly Bears", owner: "me", zone: "hand" },
+                { name: "Craw Wurm", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 2,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (_move, state) =>
+                activationCostPicksArePaid(
+                    state,
+                    "me",
+                    "Survival of the Fittest"
+                ),
+            describe:
+                "every enumerated Survival activation names a legal hand creature for its discard cost, one variant per candidate",
+        },
+        note: "Regression guard for the tap-a-land-then-untap-it loop. The three activation cost legs the server ALWAYS defers (discard / exile-from-graveyard / tap-other) are paid by naming cards; the bot's executor named none, so `tryAutoCommitPendingActivation` never fired, `rollbackPendingActivation` untapped the land when the bot next passed, and the byte-identical position re-produced the byte-identical move forever. Position-asserted rather than move-asserted for the same reason as the two controls above (issue #1920: the search cannot see a tutor's payoff, so it must not be asked to CHOOSE this activation). The end-to-end half — announce → name the discard → commit, through the real `activateAbilityOnState` / `selectActivationDiscardCostOnState` — is pinned in `src/lib/ai/__tests__/activation-cost-picks-integration.bot.test.ts`.",
     },
 ];
 

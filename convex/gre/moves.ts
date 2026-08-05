@@ -45,6 +45,8 @@ import {
 import { PHYREXIAN_LIFE_PER_PIP, phyrexianPipCount } from "./phyrexian";
 import { getEffectivePower } from "./layers";
 import { canPayTapOtherCost, crewPowerContribution } from "./tapOtherCost";
+import type { ActivationCostPicks } from "./activationCostPicks";
+import { enumerateActivationCostPicks } from "./activationCostPicks";
 import {
     MANA_COLORS,
     isPlaneswalker,
@@ -220,6 +222,14 @@ export type Move =
           targets: TargetSelection[];
           confirmTargets: boolean;
           tapPlan: ManaTap[];
+          /** CR 602.1 / 118 — the cards named to pay the ability's DEFERRED
+           *  cost legs (discard / exile-from-graveyard / tap-other). The
+           *  server parks a `pendingActivation` for each of them and never
+           *  commits until they are answered, so the pick travels ON the move:
+           *  `applyMove` applies exactly these cards in the search, and
+           *  `executor.ts` names exactly these cards to the server. Absent for
+           *  an ability with no such leg. */
+          costPicks?: ActivationCostPicks;
       }
     | {
           kind: "declare-attackers";
@@ -1055,6 +1065,21 @@ function enumerateAbilityMoves(
                       req: m.targetRequirement,
                   }))
                 : [{ modeId: undefined, req: ability.targetRequirement }];
+        // CR 602.1 / 118 — the deferred cost legs (discard / exile-from-
+        // graveyard / tap-other) are paid by NAMING cards, and the server never
+        // commits the activation until they are named. The picks therefore ride
+        // on the move (one variant per discard candidate worth searching over —
+        // WHICH creature a tutor engine eats is the decision the card is
+        // about), so the search applies exactly what the executor submits.
+        // An empty list means a leg has no legal payment: not a legal move.
+        const pickVariants = enumerateActivationCostPicks(
+            state,
+            player,
+            perm,
+            ability
+        );
+        if (pickVariants.length === 0) continue;
+
         for (const { modeId, req } of abilityModeVariants) {
             const tuples = enumerateTargetTuples(
                 state,
@@ -1064,16 +1089,20 @@ function enumerateAbilityMoves(
                 undefined
             );
             for (const targets of tuples) {
-                moves.push({
-                    kind: "activate-ability",
-                    cardInstanceId: perm.id,
-                    abilityId: ability.id,
-                    ...(modeId ? { chosenModeId: modeId } : {}),
-                    targets,
-                    confirmTargets: isVariableCount(req) && targets.length > 0,
-                    tapPlan,
-                });
-                if (moves.length >= MAX_COMBINATIONS) return moves;
+                for (const costPicks of pickVariants) {
+                    moves.push({
+                        kind: "activate-ability",
+                        cardInstanceId: perm.id,
+                        abilityId: ability.id,
+                        ...(modeId ? { chosenModeId: modeId } : {}),
+                        targets,
+                        confirmTargets:
+                            isVariableCount(req) && targets.length > 0,
+                        tapPlan,
+                        ...(costPicks ? { costPicks } : {}),
+                    });
+                    if (moves.length >= MAX_COMBINATIONS) return moves;
+                }
             }
         }
     }
