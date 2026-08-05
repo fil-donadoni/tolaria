@@ -73,8 +73,13 @@ export default function AppHeaderProfile() {
     const initial = user.nickname.charAt(0).toUpperCase();
 
     return (
-        <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-base font-bold text-surface-base">
+        <div className="flex items-center gap-3 short-viewport:gap-2">
+            {/* short-viewport:h-6/w-6 (issue #2056 defect 3 amplification):
+                the avatar circle was the tallest element in the nav row
+                (40px) — with the two-line nickname+email block below also
+                shrunk, this becomes the row's height driver, so it's the one
+                that has to shrink for the row to hit the ~40px band budget. */}
+            <div className="flex h-10 w-10 short-viewport:h-6 short-viewport:w-6 items-center justify-center rounded-full bg-accent text-base short-viewport:text-xs font-bold text-surface-base">
                 {initial}
             </div>
             {editing ? (
@@ -115,12 +120,18 @@ export default function AppHeaderProfile() {
                         variant="link"
                         size="xs"
                         onClick={startEdit}
-                        className="text-left text-sm font-semibold text-parchment"
+                        className="text-left text-sm short-viewport:text-xs font-semibold text-parchment"
                         title="Edit nickname"
                     >
                         {user.nickname}
                     </Button>
-                    <span className="text-xs text-text-muted">
+                    {/* short-viewport:hidden (issue #2056 defect 3
+                        amplification): the "two-line identity block" the
+                        browser measurement called out — with the avatar
+                        shrunk to 24px, a still-two-line nickname+email
+                        column would become the row's height driver instead.
+                        Dropping the second line keeps the row single-line. */}
+                    <span className="text-xs text-text-muted short-viewport:hidden">
                         {user.email}
                     </span>
                 </div>
@@ -129,6 +140,7 @@ export default function AppHeaderProfile() {
                 type="button"
                 variant="secondary"
                 size="sm"
+                className="short-viewport:px-1.5 short-viewport:py-0.5"
                 onClick={() => void handleSignOut()}
                 disabled={signingOut}
                 title="Sign out"

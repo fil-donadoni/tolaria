@@ -18,12 +18,23 @@ import AppHeaderProfile from "./app-header-profile";
 export default function AppHeader() {
     return (
         <header className="panel-physical relative rounded-md border border-border-subtle">
-            <CornerFiligreeFrame overlay size={32} subtle />
-            <div className="flex flex-col items-center justify-between gap-4 px-5 py-3 md:flex-row">
-                <div className="flex flex-col items-center gap-4 sm:flex-row">
+            {/* short-viewport:hidden (issue #2056 defect 3 amplification):
+                pure decoration (`overlay` mode is `absolute inset-0`, so it
+                never contributed to the band's height) — dropped anyway on a
+                scarce viewport, alongside the divider below, rather than
+                leaving ornament that competes with the content for visual
+                attention in a squeezed row. */}
+            <CornerFiligreeFrame
+                overlay
+                size={32}
+                subtle
+                className="short-viewport:hidden"
+            />
+            <div className="flex flex-col items-center justify-between gap-4 px-5 py-3 short-viewport:gap-2 short-viewport:py-1 md:flex-row">
+                <div className="flex flex-col items-center gap-4 short-viewport:gap-2 sm:flex-row">
                     <Link
                         to="/"
-                        className="flex items-center gap-3 font-beleren text-2xl tracking-[0.22em] text-accent-strong"
+                        className="flex items-center gap-3 font-beleren text-2xl short-viewport:text-sm tracking-[0.22em] text-accent-strong"
                     >
                         {/* Light-on-dark variant of the brand mark: same
                             gradients as the source logo, luminance remapped so
@@ -33,7 +44,7 @@ export default function AppHeader() {
                             src="/img/logo.svg"
                             alt=""
                             aria-hidden="true"
-                            className="h-8 w-auto shrink-0"
+                            className="h-8 short-viewport:h-4 w-auto shrink-0"
                         />
                         TOLARIA
                     </Link>
@@ -51,7 +62,10 @@ export default function AppHeader() {
 
                 <AppHeaderProfile />
             </div>
-            <OrnamentalDivider className="px-5 pb-2" />
+            {/* short-viewport:hidden (issue #2056 defect 3 amplification):
+                the divider's own `py-1` plus `pb-2` was ~16-20px of pure
+                ornament — cut where the whole nav band's budget is ~40px. */}
+            <OrnamentalDivider className="px-5 pb-2 short-viewport:hidden" />
         </header>
     );
 }

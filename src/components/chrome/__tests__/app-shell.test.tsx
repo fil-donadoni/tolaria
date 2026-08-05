@@ -73,3 +73,16 @@ describe("AppShell (issue #2056 defect 3)", () => {
         expect(found).toBe(true);
     });
 });
+
+// Issue #2056 defect 3 amplification: the coordinator's browser measurement
+// found the header wrapper's `pt-6` (24px) plus AppHeader's own band at
+// 112px total — the largest single term in the still-failing chrome budget,
+// and OUTSIDE the original short-viewport treatment entirely since it lives
+// here, above `<main>`, not inside any of the deckbuilder route surfaces.
+describe("AppShell — nav wrapper short-viewport treatment (issue #2056 defect 3 amplification)", () => {
+    it("drops the header wrapper's top padding under short-viewport", () => {
+        const { getByTestId } = render(<AppShell />);
+        const wrapper = getByTestId("app-header").parentElement as HTMLElement;
+        expect(wrapper.className.split(/\s+/)).toContain("short-viewport:pt-0");
+    });
+});

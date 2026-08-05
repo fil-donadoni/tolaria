@@ -95,4 +95,25 @@ describe("PoolBasicLandsBar — short-viewport chrome treatment (issue #2056)", 
         const root = container.firstElementChild as HTMLElement;
         expect(root.className.split(/\s+/)).toContain("short-viewport:py-0.5");
     });
+
+    // Issue #2056 defect 3 amplification: the bar's own padding alone
+    // (`short-viewport:py-0.5`, asserted above) wasn't enough — measured at
+    // ~35px against a ~28px target — because `size="sm"` buttons carry their
+    // OWN padding independent of the bar's. This pins that the buttons
+    // themselves shrink under short-viewport too.
+    it("shrinks each Add-Basic button's own padding under short-viewport", () => {
+        const { getByText } = render(
+            <PoolBasicLandsBar
+                cardIdsBySubtype={idsFor()}
+                onAdd={vi.fn()}
+                disabled={false}
+            />
+        );
+        const button = getByText("+ Mountain").closest(
+            "button"
+        ) as HTMLButtonElement;
+        const classes = button.className.split(/\s+/);
+        expect(classes).toContain("short-viewport:px-1.5");
+        expect(classes).toContain("short-viewport:py-0");
+    });
 });

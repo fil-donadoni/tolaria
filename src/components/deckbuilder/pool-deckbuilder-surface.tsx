@@ -187,7 +187,31 @@ export default function PoolDeckbuilderSurface({
     return (
         <div
             className="flex flex-1 flex-col overflow-hidden"
-            style={{ "--card-base": CARD_BASE } as React.CSSProperties}
+            style={
+                {
+                    "--card-base": CARD_BASE,
+                    // Issue #2056 defect 3 amplification: this pane's own
+                    // `overflow-hidden` triggers the CSS flexbox
+                    // automatic-minimum-size-ZERO exception (an item with
+                    // `overflow` other than `visible` gets an automatic
+                    // minimum of 0, not its content's min-content size), so
+                    // `flex-1` alone let it collapse to a measured 0px once
+                    // the sibling chrome bands (header/basics/legality/save)
+                    // ate the whole budget — "clientHeight: 0" in the
+                    // browser measurement, 0 card tiles visible. An explicit
+                    // `min-height` overrides that automatic default, and
+                    // ties the floor to the SAME floored `--card-base`
+                    // defect 1 already fixed (one card row's height, its 5:7
+                    // aspect ratio) plus the pile's own header/padding
+                    // (~3.5rem — `PoolDeckbuilderMaindeck`'s title row) —
+                    // rather than a second, unrelated hardcoded number. Below
+                    // this floor the pane's OWN internal scrollers (both
+                    // `PoolDeckbuilderMaindeck`'s column area and
+                    // `PoolSideboardPile`'s `overflow-auto`) take over, so a
+                    // real space shortfall scrolls instead of collapsing.
+                    minHeight: `calc(${CARD_BASE} * 7 / 5 + 3.5rem)`,
+                } as React.CSSProperties
+            }
         >
             <DragDropProvider sensors={sensors} onDragEnd={handleDragEnd}>
                 <div

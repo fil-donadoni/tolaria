@@ -6,6 +6,8 @@
 // main-by-default seed via `splitPoolByArrangement`).
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, cleanup, fireEvent, within } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import PoolDeckBuilderForm from "../pool-deck-builder-form";
 
 const navigate = vi.fn();
@@ -235,8 +237,18 @@ describe("PoolDeckBuilderForm — root surface height (issue #2056 defect 3)", (
 // jsdom doesn't evaluate media queries, so this asserts the CLASS is
 // present on the right elements rather than a resolved pixel height — the
 // actual "chrome <= 30% of the viewport" measurement needs a browser pass.
-describe("PoolDeckBuilderForm — short-viewport chrome treatment (issue #2056 defect 2)", () => {
-    it("the header band carries a short-viewport padding override", () => {
+//
+// Defect 3 AMPLIFICATION (browser-measured on this branch at 852x277,
+// post-fix): shrinking the header/legality bands wasn't enough — their
+// COMBINED chrome (169px) still exceeded what `<main>` had left (165px),
+// so `PoolDeckbuilderSurface` (no floor, `overflow-hidden` triggers CSS's
+// automatic-minimum-size-zero exception) collapsed to a measured 0px ("no
+// pane has clientHeight: 0" / "at least one row of tiles" both failed).
+// The header and legality bands now HIDE entirely under short-viewport
+// (rather than merely shrinking) and fold into `SaveDeckBar`'s single row
+// instead — see `save-deck-bar.tsx`'s `onBack`/`legality` props.
+describe("PoolDeckBuilderForm — short-viewport chrome treatment (issue #2056 defects 2 & 3)", () => {
+    it("the header band hides itself entirely under short-viewport — its Back affordance moves into SaveDeckBar instead of merely shrinking", () => {
         setup();
         const { container } = render(
             <PoolDeckBuilderForm
@@ -249,10 +261,12 @@ describe("PoolDeckBuilderForm — short-viewport chrome treatment (issue #2056 d
             />
         );
         const header = container.querySelector("h1")!.parentElement!;
-        expect(header.className.split(/\s+/)).toContain("short-viewport:py-1");
+        expect(header.className.split(/\s+/)).toContain(
+            "short-viewport:hidden"
+        );
     });
 
-    it("the header title carries a short-viewport type-scale override", () => {
+    it("the legality panel band hides itself entirely under short-viewport — its content moves into SaveDeckBar's compact chip instead", () => {
         setup();
         const { container } = render(
             <PoolDeckBuilderForm
@@ -264,7 +278,78 @@ describe("PoolDeckBuilderForm — short-viewport chrome treatment (issue #2056 d
                 poolArrangement={[]}
             />
         );
-        const h1 = container.querySelector("h1")!;
-        expect(h1.className.split(/\s+/)).toContain("short-viewport:text-sm");
+        const legalityBand =
+            container.querySelector('[role="status"]')!.parentElement!;
+        expect(legalityBand.className.split(/\s+/)).toContain(
+            "short-viewport:hidden"
+        );
+    });
+
+    it("SaveDeckBar's row carries a short-viewport-only Back button and legality chip so the two hidden bands' functionality survives", () => {
+        setup();
+        const { container } = render(
+            <PoolDeckBuilderForm
+                eventId={"event-1" as never}
+                seatIndex={0}
+                pool={POOL}
+                existingDeck={null}
+                eventType="sealed"
+                poolArrangement={[]}
+            />
+        );
+        const form = container.querySelector("form")!;
+        const backButtons = within(form).getAllByText("← Back to Event");
+        const shortViewportBack = backButtons.find((el) =>
+            el.className.split(/\s+/).includes("short-viewport:inline-flex")
+        );
+        expect(shortViewportBack).toBeTruthy();
+
+        const chipWrapper = form.querySelector(
+            "span.hidden.short-viewport\\:inline-flex"
+        );
+        expect(chipWrapper).toBeTruthy();
+    });
+
+    it("PoolDeckbuilderSurface keeps a min-height floor tied to the SAME floored card size defect 1 fixed, so it cannot collapse to 0", () => {
+        setup();
+        const { container } = render(
+            <PoolDeckBuilderForm
+                eventId={"event-1" as never}
+                seatIndex={0}
+                pool={POOL}
+                existingDeck={null}
+                eventType="sealed"
+                poolArrangement={[]}
+            />
+        );
+        const surfaceRoot = container.querySelector(
+            '[style*="--card-base"]'
+        ) as HTMLElement;
+        expect(surfaceRoot).toBeTruthy();
+        // jsdom's CSSOM (`cssstyle`) doesn't round-trip a `calc()` nesting
+        // `min()`/`max()` faithfully — it numerically folds the `* 7 / 5`
+        // term and mangles the inner min()/max() commas on read-back, which
+        // is a jsdom parsing limitation, not a real-browser one. Assert only
+        // that SOME non-empty min-height made it onto the element (the thing
+        // that matters for "does not collapse") here; the exact expression
+        // is pinned as a source-text assertion below instead, following the
+        // same jsdom-can't-verify-this precedent as `deck-builder-height.test.ts`.
+        expect(surfaceRoot.style.minHeight).not.toBe("");
+    });
+});
+
+// jsdom's CSSOM mangles a `calc()` that nests `min()`/`max()` on read-back
+// (see the test above), so the exact minHeight expression is pinned here as
+// a source-text assertion instead — legitimate per the same
+// jsdom-can't-verify-this precedent `deck-builder-height.test.ts` documents.
+describe("PoolDeckbuilderSurface — builder pane floor (issue #2056 defect 3 amplification)", () => {
+    it("the min-height expression is tied to CARD_BASE (the SAME floored card size defect 1 fixed), not a second unrelated hardcoded number", () => {
+        const src = readFileSync(
+            join(__dirname, "..", "pool-deckbuilder-surface.tsx"),
+            "utf8"
+        );
+        expect(src).toContain(
+            "minHeight: `calc(${CARD_BASE} * 7 / 5 + 3.5rem)`"
+        );
     });
 });

@@ -38,6 +38,12 @@ export default function PoolBasicLandsBar({
                         type="button"
                         variant="ghost"
                         size="sm"
+                        // short-viewport (issue #2056 defect 3 amplification):
+                        // `size="sm"` alone (px-3 py-1.5) measured this bar at
+                        // ~35px; these overrides shrink the button chrome
+                        // itself (not just the bar's own padding) toward the
+                        // ~28px target.
+                        className="short-viewport:px-1.5 short-viewport:py-0 short-viewport:text-[10px]"
                         disabled={disabled || cardId === null}
                         onClick={() => {
                             if (cardId !== null) onAdd(cardId, subtype);

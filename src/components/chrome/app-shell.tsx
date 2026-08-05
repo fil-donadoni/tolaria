@@ -36,7 +36,17 @@ export default function AppShell() {
         // at all.
         <div className="flex h-dvh flex-col bg-surface-base text-text">
             {shellShowsHeader(pathname) && (
-                <div className="relative z-20 mx-auto w-full max-w-6xl shrink-0 px-6 pt-6">
+                // `short-viewport:pt-0` (issue #2056 defect 3 amplification,
+                // measured 852x277 with the coordinator's browser pass): this
+                // wrapper's `pt-6` plus `AppHeader`'s own ~88px band measured
+                // 112px — 40% of a 277px viewport, and nothing in the
+                // original short-viewport treatment touched it since it
+                // lives OUTSIDE `<main>`. Dropping the top padding here is
+                // the first of several cuts (see `app-header.tsx`,
+                // `app-header-profile.tsx`) that bring the whole band to
+                // ~40px. Media-query-gated, so a tall viewport is completely
+                // unaffected.
+                <div className="relative z-20 mx-auto w-full max-w-6xl shrink-0 px-6 pt-6 short-viewport:pt-0">
                     <AppHeader />
                 </div>
             )}
