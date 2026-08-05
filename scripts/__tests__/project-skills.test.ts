@@ -337,8 +337,6 @@ describe("process-gh-issues is a frame plus on-demand references (issue #2190)",
 });
 
 describe("every skill is discoverable on a case-sensitive filesystem", () => {
-    const SKILLS_DIR = path.join(REPO_ROOT, ".claude", "skills");
-
     it("tracks each skill's manifest as `SKILL.md`, never `skill.md`", () => {
         // macOS is case-INSENSITIVE, so a manifest committed as `skill.md`
         // works perfectly on this machine and is invisible everywhere else:
