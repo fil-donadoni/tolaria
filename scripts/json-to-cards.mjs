@@ -125,6 +125,13 @@ for (const card of cards) {
     fields.push(`    id: "${scryfallId}"`);
     fields.push(`    name: "${card.name.replace(/"/g, '\\"')}"`);
     fields.push(`    rarity: "${rarity}"`);
+    // MTGJSON `text` is the CURRENT Oracle text (`originalText` is the printed
+    // Alpha wording) — which is what a CardDefinition carries: the catalogue
+    // follows modern Oracle, reminder text included, never the printed text.
+    // Emitting it here is what keeps `populate-oracle-text.mjs` a backfill for
+    // the pre-existing catalogue rather than a mandatory second pass over every
+    // freshly imported set.
+    if (card.text) fields.push(`    oracleText: ${JSON.stringify(card.text)}`);
     if (manaCost) fields.push(`    manaCost: ${formatManaCost(manaCost)}`);
     fields.push(`    types: ${formatArray(types)}`);
     if (supertypes) fields.push(`    supertypes: ${formatArray(supertypes)}`);

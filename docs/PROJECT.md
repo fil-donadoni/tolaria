@@ -1165,8 +1165,11 @@ src/
 scripts/
 ├── gate.ts                 admission control CPU
 ├── bootstrap-worktree.ts   `bun run worktree:init`
-├── check-card-index.ts check-stub-coverage.ts check-scryfall-ids.mjs
+├── check-card-index.ts check-stub-coverage.ts
+├── queue-plan.ts queue-lint.ts train-order.ts   il loop (PRD #2180)
+├── loop-scorecard.ts       metriche del loop da telemetria + receipt
 ├── migration-classifier.mjs   resolve() → effects[]
+├── generate-print-set.mts  set di sole ristampe (3ed, 4ed)
 └── list-to-cards.mjs       importer worklist (ADR 0041)
 
 data/

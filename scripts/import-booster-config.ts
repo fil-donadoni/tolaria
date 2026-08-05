@@ -1,9 +1,8 @@
 #!/usr/bin/env bun
 /**
  * Repo-data importer: MTGJSON per-set booster config → checked-in Booster
- * Config (ADR 0056), same pattern as `backfill-rarity.mjs` — a re-runnable
- * script over the `data/json/<SET>.json` MTGJSON snapshots already vendored
- * in the repo, not a network fetch.
+ * Config (ADR 0056) — a re-runnable script over the `data/json/<SET>.json`
+ * MTGJSON snapshots already vendored in the repo, not a network fetch.
  *
  * Foil/variant slots are dropped and ADR 0010-excluded cards (Chaos Orb, the
  * ante trio) are stripped from the sheets with weights renormalized — both

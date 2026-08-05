@@ -216,6 +216,13 @@ export function emitCardSource(card) {
     fields.push(`    id: "${card.id}"`);
     fields.push(`    name: "${card.name.replace(/"/g, '\\"')}"`);
     fields.push(`    rarity: "${card.rarity}"`);
+    // Oracle text verbatim from Scryfall, reminder text included — the
+    // catalogue follows modern Oracle, never the printed wording. Emitting it
+    // at import time is what keeps `populate-oracle-text.mjs` a backfill for
+    // the pre-existing catalogue rather than a mandatory second pass over
+    // every staged worklist.
+    if (card.oracle_text)
+        fields.push(`    oracleText: ${JSON.stringify(card.oracle_text)}`);
     if (cost) fields.push(`    manaCost: ${formatManaCost(cost)}`);
     fields.push(`    types: ${arr(types)}`);
     if (supertypes.length) fields.push(`    supertypes: ${arr(supertypes)}`);

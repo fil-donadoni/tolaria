@@ -33,9 +33,10 @@ with:
 jq -r '.data.cards[] | select(.name=="<Card Name>") | .identifiers.scryfallId' data/json/<SET>.json
 ```
 
-A per-set test guard (`convex/cards/sets/__tests__/card-id-scryfall.test.ts`)
-fails the gate if any card `id` is not a real scryfallId from its set JSON —
-do not work around it, fix the id.
+The gate's `check:index` (`scripts/check-card-index.ts`) fails if any card `id`
+is not in the lockfile `data/card-index.json`, or is not the card's EARLIEST
+paper printing (ADR 0041) — so an invented UUID and a reprint's id both fail it.
+Do not work around it, fix the id.
 
 ### Step 2 — Map to CardDefinition
 

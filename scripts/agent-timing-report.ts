@@ -88,11 +88,7 @@ function classify(e: Event): Span["kind"] {
         /vitest run(?!.*\.test)/.test(c)
     )
         return "gate:full-test";
-    if (
-        /vitest|bun run test|check:ts|eslint|check:index|check:stubs|check:ids/.test(
-            c
-        )
-    )
+    if (/vitest|bun run test|check:ts|eslint|check:index|check:stubs/.test(c))
         return "gate:partial";
     return "bash";
 }
@@ -254,10 +250,17 @@ const fmt = (s: number | null) =>
           ? `${Math.floor(s / 60)}m${String(s % 60).padStart(2, "0")}s`
           : `${s}s`;
 
-// --scorecard: the two headline cost measures across ALL sessions' side-files
-// (general-purpose out-token share + % of subagents in the >150k context band).
-// These are the metrics the built-in usage report surfaces; before side-file
-// enrichment the hook could never produce them (0 of 538 events had tokens).
+// --scorecard: the two headline SUBAGENT-COST measures across ALL sessions'
+// side-files (general-purpose out-token share + % of subagents in the >150k
+// context band). These are the metrics the built-in usage report surfaces;
+// before side-file enrichment the hook could never produce them (0 of 538
+// events had tokens).
+//
+// Not to be confused with `bun run loop:scorecard` (#2187), which measures the
+// LOOP — issues landed, tokens per landed issue by role, review-blocking rate,
+// fixup rounds — by joining telemetry with the batch receipts. Different
+// question, different denominator: this one is per-subagent context/cost, that
+// one is per-landed-issue throughput. Neither redefines the other's rates.
 function printScorecard() {
     if (!existsSync(projectsRoot)) {
         console.log("No transcript side-files under", projectsRoot);

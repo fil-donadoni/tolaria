@@ -91,6 +91,44 @@ describe("json-to-cards generator rarity emission (issue #511)", () => {
         expect(combined).toContain('rarity: "uncommon"');
     });
 
+    it("emits oracleText from MTGJSON `text` (the Oracle wording), not `originalText`", () => {
+        // MTGJSON carries both: `text` is the CURRENT Oracle text, and
+        // `originalText` the printed Alpha wording. The catalogue follows
+        // modern Oracle, so importing the printed text would ship a card whose
+        // rules text contradicts its own implementation ("does 3 damage to one
+        // target" vs "deals 3 damage to any target").
+        const { combined } = generate("zzx", [
+            baseCard({
+                name: "Test Bolt",
+                types: ["Instant"],
+                subtypes: [],
+                power: undefined,
+                toughness: undefined,
+                manaCost: "{R}",
+                text: "Test Bolt deals 3 damage to any target.",
+                originalText: "Test Bolt does 3 damage to one target.",
+                identifiers: {
+                    scryfallId: "00000000-0000-0000-0000-00000000000b",
+                },
+            }),
+        ]);
+        expect(combined).toContain(
+            'oracleText: "Test Bolt deals 3 damage to any target."'
+        );
+        expect(combined).not.toContain("does 3 damage to one target");
+    });
+
+    it("omits oracleText for a vanilla card rather than emitting an empty string", () => {
+        const { combined } = generate("zzw", [
+            baseCard({
+                identifiers: {
+                    scryfallId: "00000000-0000-0000-0000-00000000000c",
+                },
+            }),
+        ]);
+        expect(combined).not.toContain("oracleText");
+    });
+
     it("skips a card whose rarity is not common/uncommon/rare", () => {
         // "mythic" is a real Scryfall value but not modelled here — the card
         // must be skipped rather than generated without a valid rarity.

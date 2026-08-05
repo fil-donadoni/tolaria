@@ -262,6 +262,31 @@ describe("emitCardSource", () => {
         expect(src).toContain('id: "cap-id"');
     });
 
+    // The catalogue carries modern Oracle text on every card, and the importer
+    // used to emit none — so every staged worklist needed a second pass with
+    // `populate-oracle-text.mjs` before the cards were complete, and a set that
+    // skipped it shipped `oracleText`-less definitions (the aggregator and the
+    // inspector both read that field).
+    it("emits oracleText verbatim, reminder text and line breaks included", () => {
+        const src = emitCardSource({
+            ...free,
+            name: "Sengir Vampire",
+            oracle_text:
+                "Flying (This creature can't be blocked except by creatures with flying or reach.)\nWhenever a creature dealt damage by this creature this turn dies, put a +1/+1 counter on this creature.",
+            id: "sengir-id",
+        });
+        // A newline in the Oracle text must be an ESCAPED \n inside a string
+        // literal — a raw one would split the emitted TS and not parse.
+        expect(src).toContain(
+            'oracleText: "Flying (This creature can\'t be blocked except by creatures with flying or reach.)\\nWhenever a creature dealt damage by this creature this turn dies, put a +1/+1 counter on this creature."'
+        );
+    });
+
+    it("omits oracleText for a vanilla card rather than emitting an empty string", () => {
+        // `free` is Savannah Lions — no rules text at all.
+        expect(emitCardSource(free)).not.toContain("oracleText");
+    });
+
     it("bails loudly on an unmodelled rarity", () => {
         expect(() => emitCardSource({ ...free, rarity: "special" })).toThrow(
             /rarity/i

@@ -364,7 +364,7 @@ describe("husky hooks are executable in git's index", () => {
 
 describe("light pre-PR gate", () => {
     it("`check:pr` runs every `check:all` check, plus the bot guards, without the mutex", () => {
-        // check:index / check:ids / check:stubs cost <0.2s each. Leaving them
+        // check:index / check:stubs cost <0.2s each. Leaving them
         // out of the pre-PR gate saved nothing and cost a merge-train re-gate
         // on every card-shipping PR (the card-index lockfile drift guard).
         //

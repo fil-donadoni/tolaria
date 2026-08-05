@@ -8,9 +8,10 @@
 // existing definition/data-json comparison, `rarity.test.ts`, checks rarity
 // ONLY, so a wrong type line on any other field (supertype, type, subtype,
 // mana cost, P/T) sails through untested. This test widens the comparison to
-// every characteristic MTGJSON records, catalogue-wide, using the exact same
-// "card id == identifiers.scryfallId" join `card-id-scryfall.test.ts` already
-// established (a CardDefinition's `id` IS the home printing's Scryfall id).
+// every characteristic MTGJSON records, catalogue-wide, on the "card id ==
+// identifiers.scryfallId" join (a CardDefinition's `id` IS the home printing's
+// Scryfall id — the invariant `check:index` enforces catalogue-wide against
+// the lockfile).
 //
 // Scope: only sets that ship a vendored MTGJSON file under `data/json/` can
 // be checked at all — a definition whose id isn't in ANY vendored file is
