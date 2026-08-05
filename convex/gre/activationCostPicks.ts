@@ -35,16 +35,21 @@ import {
     buildSacrificeRequirements,
     autoResolveFungible,
     identityKey,
-    isSacrificeSelectionComplete,
-    nextUnmetRequirement,
-    sacrificeCandidates,
 } from "./sacrificeChoice";
+// The conservative pick primitives are SHARED with the live bot's reactive
+// park answers (`gre/paymentPicks.ts`, ADR 0091 / issue #1209) — one
+// implementation, so the search's plan and the bot's fallback can never drift.
+import {
+    cheapestFirst,
+    completeSacrificeSelection,
+    nextSacrificeCandidates,
+} from "./paymentPicks";
 import { getEffectivePower } from "./layers";
+import { effectivePermanentView } from "./permanentView";
 import { tryGetDefinition } from "../cards/index";
 import { matchesPermanentFilter } from "../cards/filters";
 import { liveSupertypesOf } from "./snow";
 import { handCardMatchesFilter } from "./alternativeCost";
-import { manaValue } from "./constants";
 import {
     crewPowerContribution,
     isTapOtherSelectionComplete,
@@ -75,12 +80,6 @@ export type ActivationCostPicks = {
     sacrificeIds?: string[];
 };
 
-/** Mana value of a card instance's definition (CR 202.3), 0 when unknown. */
-function instanceMana(card: CardInstanceState): number {
-    const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
-    return manaValue(def?.manaCost);
-}
-
 /** Hand cards that can pay `cost.discardFilter`, CHEAPEST FIRST (CR 118.3).
  *  Ascending mana value is the conservative default — the cheapest matching
  *  card is the least material given up — and it is also the order the search
@@ -93,12 +92,9 @@ export function activationDiscardCandidates(
 ): CardInstanceState[] {
     const leg = ability.cost.discardFilter;
     if (!leg) return [];
-    return player.hand
-        .filter((c) => handCardMatchesFilter(c, leg.filter))
-        .sort(
-            (a, b) =>
-                instanceMana(a) - instanceMana(b) || a.id.localeCompare(b.id)
-        );
+    return cheapestFirst(
+        player.hand.filter((c) => handCardMatchesFilter(c, leg.filter))
+    );
 }
 
 /** Untapped non-source permanents that can pay `cost.tapOtherFilter`
@@ -116,10 +112,24 @@ function tapOtherCandidates(
             (c) =>
                 c.id !== source.id &&
                 !c.isTapped &&
-                matchesPermanentFilter(c, leg.filter, {
-                    selfControllerId: player.id,
-                    supertypesOf: liveSupertypesOf,
-                })
+                // The layered view (`gre/permanentView.ts`, CR 105.2 / 613),
+                // matching the server's own candidate scan
+                // (`tapOtherCandidates`, `game.ts`) and the legality check that
+                // let the activation be announced. WITHOUT it a `colors`
+                // filter — Hand of Justice's "three untapped WHITE creatures
+                // you control" — matched nothing (a raw `CardInstanceState`
+                // carries no `colors` field at all), so
+                // `planActivationCostPicks` returned null and the enumerator
+                // treated every coloured tap-other activation as illegal: dead
+                // for the bot rather than stalling. Issue #1209.
+                matchesPermanentFilter(
+                    effectivePermanentView(state, c),
+                    leg.filter,
+                    {
+                        selfControllerId: player.id,
+                        supertypesOf: liveSupertypesOf,
+                    }
+                )
         )
         .map((c) => ({
             id: c.id,
@@ -158,13 +168,7 @@ function planExilePick(
         if (matching.length < leg.count) continue;
         // Cheapest first, mirroring the discard leg: the least valuable cards
         // in that graveyard pay the cost.
-        const picked = [...matching]
-            .sort(
-                (a, b) =>
-                    instanceMana(a) - instanceMana(b) ||
-                    a.id.localeCompare(b.id)
-            )
-            .slice(0, leg.count);
+        const picked = cheapestFirst(matching).slice(0, leg.count);
         return {
             graveyardOwnerId: p.id,
             cardInstanceIds: picked.map((c) => c.id),
@@ -232,44 +236,6 @@ function activationSacrificeSelection(
         player,
         def?.name ?? "Sacrifice"
     );
-}
-
-/** Legal victims for the selection's next unmet requirement, CHEAPEST FIRST
- *  and excluding everything already picked (CR 118.5 — each requirement is paid
- *  from distinct permanents). */
-function nextSacrificeCandidates(
-    state: GameState,
-    sel: SacrificeSelection
-): CardInstanceState[] {
-    const req = nextUnmetRequirement(sel);
-    if (!req) return [];
-    const taken = new Set(sel.picked);
-    return sacrificeCandidates(state, sel.playerId, req.filter)
-        .filter((c) => !taken.has(c.id))
-        .sort(
-            (a, b) =>
-                instanceMana(a) - instanceMana(b) || a.id.localeCompare(b.id)
-        );
-}
-
-/** Completes `sel` in place with the cheapest legal victims and returns the ids
- *  the payer must SUBMIT (the auto-resolved ones are already recorded).
- *  `null` when a requirement cannot be met — the activation is illegal. */
-function completeSacrificeSelection(
-    state: GameState,
-    sel: SacrificeSelection,
-    first?: CardInstanceState
-): string[] | null {
-    const submitted: string[] = [];
-    let head = first;
-    while (!isSacrificeSelectionComplete(sel)) {
-        const pick = head ?? nextSacrificeCandidates(state, sel)[0];
-        head = undefined;
-        if (!pick) return null;
-        sel.picked.push(pick.id);
-        submitted.push(pick.id);
-    }
-    return submitted;
 }
 
 /** The default (conservative, fully deterministic) picks for every deferred

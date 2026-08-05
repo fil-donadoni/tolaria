@@ -64,6 +64,7 @@ import {
     getMinimumBlockers,
 } from "./combat";
 import { isSorceryTiming } from "./phases";
+import { effectivePermanentView } from "./permanentView";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import { matchesPermanentFilter } from "../cards/filters";
 import { liveSupertypesOf, countSnowLands } from "./snow";
@@ -621,9 +622,15 @@ function enumerateCastMoves(
     if (def?.copySourceFilter) {
         const hasCopySource = state.players.some((p) =>
             p.battlefield.some((c) =>
-                matchesPermanentFilter(c, def.copySourceFilter!, {
-                    supertypesOf: liveSupertypesOf,
-                })
+                // Layered view, not the raw instance: a `colors`/P-T clause on
+                // a copy filter would otherwise fail CLOSED and silently
+                // suppress the cast for the bot (issue #1209 — the same class
+                // as the cost pre-checks below).
+                matchesPermanentFilter(
+                    effectivePermanentView(state, c),
+                    def.copySourceFilter!,
+                    { supertypesOf: liveSupertypesOf }
+                )
             )
         );
         if (!hasCopySource) return [];
@@ -951,13 +958,24 @@ function enumerateAbilityMoves(
         }
         // CR 602.1 / 118.5 — "sacrifice a permanent matching <filter>" cost is
         // unpayable when no matching permanent is on the player's battlefield
-        // (Atog, Ashnod's Altar, Orcish Mechanics, etc.).
+        // (Atog, Ashnod's Altar, Orcish Mechanics, etc.). Matched through
+        // `effectivePermanentView` — the SAME view the server's candidate scan
+        // (`sacrificeCandidates`) uses. A raw `CardInstanceState` carries no
+        // derived `colors`, so a colour-filtered cost (Thelonite Monk's
+        // "a green creature", Homarid Spawning Bed's "a blue creature",
+        // Freyalise Supplicant's "a red or white creature") matched nothing and
+        // the bot dropped the whole activation as illegal (issue #1209).
         if (
             ability.cost.sacrificeFilter &&
             !player.battlefield.some((c) =>
-                matchesPermanentFilter(c, ability.cost.sacrificeFilter!, {
-                    supertypesOf: liveSupertypesOf,
-                })
+                matchesPermanentFilter(
+                    effectivePermanentView(state, c),
+                    ability.cost.sacrificeFilter!,
+                    {
+                        selfControllerId: player.id,
+                        supertypesOf: liveSupertypesOf,
+                    }
+                )
             )
         ) {
             continue;
@@ -1000,10 +1018,19 @@ function enumerateAbilityMoves(
                     (c) =>
                         c.id !== perm.id &&
                         !c.isTapped &&
-                        matchesPermanentFilter(c, filter, {
-                            selfControllerId: player.id,
-                            supertypesOf: liveSupertypesOf,
-                        })
+                        // Same view the server's `tapOtherCandidates` uses —
+                        // a raw instance has no derived `colors`, so Hand of
+                        // Justice's "three untapped WHITE creatures you
+                        // control" matched nothing here and the enumerator
+                        // emitted ZERO activations for it (issue #1209).
+                        matchesPermanentFilter(
+                            effectivePermanentView(state, c),
+                            filter,
+                            {
+                                selfControllerId: player.id,
+                                supertypesOf: liveSupertypesOf,
+                            }
+                        )
                 )
                 .map((c) => ({
                     id: c.id,

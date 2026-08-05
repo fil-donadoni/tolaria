@@ -33,6 +33,9 @@ import { isExileCostEligible } from "@convex/cards/exileCostEligibility";
 import { getEffectiveColors } from "@convex/cards/effectiveColors";
 import type { Color, PermanentView } from "@convex/cards/types";
 import { STATIC_EFFECT_CTX } from "@convex/gre/layers";
+import { nextOwedPayment } from "@convex/gre/owedPayment";
+import { pickForOwedPayment } from "@convex/gre/paymentPicks";
+import { projectedToGameState } from "./state-adapter";
 import type {
     BotAction,
     BotView,
@@ -287,6 +290,60 @@ function buildConvokeChoiceView(
     };
 }
 
+/** ADR 0091 / issue #1209 — the first payment park the bot owes on its own
+ *  in-progress announcement, plus the conservative submission that pays it.
+ *
+ *  Runs through `projectedToGameState` rather than reading the projection
+ *  directly: the picks need real card identities (mana values for the
+ *  cheapest-first ordering, types/filters for the eligibility checks), and the
+ *  adapter is the ONE place that rebuilds them — a second hand-rolled reader
+ *  here would be exactly the parallel copy this seam exists to remove. Both the
+ *  parked containers and every zone a pick draws from (the bot's own hand,
+ *  battlefield and graveyard, and any graveyard for Night Soil) are fully
+ *  visible on the bot's own projection.
+ *
+ *  Undefined when the bot owes no park. */
+function buildOwedPaymentView(
+    state: PublicGameState,
+    botId: string
+): BotView["owedPayment"] {
+    if (!state.pendingCast && !state.pendingActivation) return undefined;
+    const full = projectedToGameState(state);
+    const park = nextOwedPayment(full, botId);
+    if (!park) return undefined;
+    return { park, submission: pickForOwedPayment(full, botId, park) };
+}
+
+/** The client-side twin of the server's `effectivePermanentView`
+ *  (`convex/gre/permanentView.ts`): a projected card as
+ *  `matchesPermanentFilter` must see it. THREE of the fields a filter reads are
+ *  DERIVED and the wire projection carries none of them, so a raw projected
+ *  instance makes every clause over them fail CLOSED — silently, as an EMPTY
+ *  candidate set rather than an error:
+ *
+ *    * `colors` (CR 202.2 / 613.1d) — via the single colour authority
+ *      (`cards/effectiveColors.ts`: layer-5 override SETS, `grantedColors`
+ *      UNION), the same one the server's view uses.
+ *    * `enteredThisTurn` / `controlledSinceTurnStart` (CR 400.7) — computed off
+ *      state. Without them a "creature you controlled since the beginning of
+ *      the turn" sacrifice choice enumerates ZERO candidates and the bot
+ *      freezes on a choice it must answer.
+ *
+ *  Every projected-battlefield filter match in this module goes through here
+ *  (issue #1209): the same class killed the mayPay permanent leg and, on the
+ *  server side, the enumerator's colour-filtered activation-cost pre-checks. */
+function projectedPermanentView(
+    state: PublicGameState,
+    c: SlimCardInstance
+): Parameters<typeof matchesPermanentFilter>[0] {
+    return {
+        ...c,
+        colors: getEffectiveColors(c as unknown as PermanentView),
+        enteredThisTurn: c.enteredOnTurn === state.turn,
+        controlledSinceTurnStart: hasControlledSinceTurnStart(state, c),
+    };
+}
+
 /** Read the cards the bot may legally pick for `head` from its projected view.
  *  The wire projection already exposes the relevant zone to the chooser
  *  (`librarySearch` for search, `libraryPeek` for reorder, `revealedHand` for
@@ -337,23 +394,7 @@ function readChoiceZone(
                 const filter = head.filter;
                 cards = cards.filter((c) =>
                     matchesPermanentFilter(
-                        {
-                            ...c,
-                            colors: getEffectiveColors(
-                                c as unknown as PermanentView
-                            ),
-                            // CR 400.7 — the two DERIVED turn-scoped flags,
-                            // computed off state rather than stored on the
-                            // instance. Same fail-CLOSED stall risk as
-                            // `controllerRelation` below: without them a
-                            // "creature you controlled since the beginning of
-                            // the turn" sacrifice choice enumerates ZERO
-                            // candidates and the bot freezes on a choice it
-                            // must answer.
-                            enteredThisTurn: c.enteredOnTurn === state.turn,
-                            controlledSinceTurnStart:
-                                hasControlledSinceTurnStart(state, c),
-                        },
+                        projectedPermanentView(state, c),
                         filter,
                         // CR 701.16 (issue #1938 fixup 2) — resolves
                         // `controllerRelation` ("sacrifice two Swamps YOU
@@ -429,15 +470,24 @@ function mayPayIsAffordable(
     if (norm.life !== undefined && bot.life < norm.life) return false;
     if (norm.permanent) {
         const matching = bot.battlefield.filter((c) =>
-            matchesPermanentFilter(c, norm.permanent!.filter, {
-                // CR 701.16 (issue #1938 fixup 2) — resolves
-                // `controllerRelation` ("sacrifice two Swamps YOU control")
-                // against the bot itself, the mayPay's payer. Without this the
-                // filter fails CLOSED and the bot always evaluates a
-                // controllerRelation-gated sacrifice leg as unaffordable, even
-                // with legal candidates on board.
-                selfControllerId: botId,
-            })
+            // Issue #1209 — the layered view, not the raw projected instance:
+            // a COLOUR-filtered may-pay sacrifice leg ("sacrifice a green
+            // creature") matched nothing here and the bot judged every such
+            // cost unaffordable with legal victims on board. Same fail-CLOSED
+            // class as the `controllerRelation` note below.
+            matchesPermanentFilter(
+                projectedPermanentView(state, c),
+                norm.permanent!.filter,
+                {
+                    // CR 701.16 (issue #1938 fixup 2) — resolves
+                    // `controllerRelation` ("sacrifice two Swamps YOU
+                    // control") against the bot itself, the mayPay's payer.
+                    // Without this the filter fails CLOSED and the bot always
+                    // evaluates a controllerRelation-gated sacrifice leg as
+                    // unaffordable, even with legal candidates on board.
+                    selfControllerId: botId,
+                }
+            )
         );
         if (typeof norm.permanent.count === "object") {
             // CR 118 threshold mode — affordable iff the payer's matching
@@ -834,6 +884,14 @@ export function buildBotView(state: PublicGameState, botId: string): BotView {
     view.castExileChoice = buildCastExileChoiceView(state, botId);
     view.convokeChoice = buildConvokeChoiceView(state, botId);
 
+    // ADR 0091 / issue #1209 — the owed-payment seam. `nextOwedPayment` is the
+    // SAME function the server's two commit gates are expressed through, so the
+    // bot cannot see a different park list than the one blocking its own
+    // announcement. It reads `pendingCast` / `pendingActivation` (which ride the
+    // wire un-slimmed) plus the bot's own zones (fully visible on its own
+    // projection), so the adapter round-trip below loses nothing the picks need.
+    view.owedPayment = buildOwedPaymentView(state, botId);
+
     return view;
 }
 
@@ -1003,6 +1061,9 @@ export function botActionToMove(
         // cast-cost pickers hang off `pendingCast`, not `pendingChoices[]`, so
         // they are driven straight through `selectCastExileCost` /
         // `selectConvokeCreatures` and have no Move to translate into.
+        // `pay-owed-payment` (ADR 0091 / issue #1209) is the same shape for
+        // every OTHER park: the answer is a named `select*` mutation the driver
+        // dispatches, so there is no Move to translate into either.
         case "search-choice":
         case "pass":
         case "declare-attackers":
@@ -1013,6 +1074,7 @@ export function botActionToMove(
         case "resolve-mana-spend":
         case "cast-exile-cost":
         case "convoke-creatures":
+        case "pay-owed-payment":
         case "none":
             return null;
         default:

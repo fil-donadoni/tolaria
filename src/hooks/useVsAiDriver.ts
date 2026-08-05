@@ -70,6 +70,10 @@ import {
 } from "~/lib/ai/brain";
 import { buildBotView, botActionToMove } from "~/lib/ai/bot-view";
 import { executeMove, type MoveMutations } from "~/lib/ai/executor";
+import {
+    submitOwedPayment,
+    type OwedPaymentMutations,
+} from "~/lib/ai/pay-owed-payment";
 import { projectedToGameState } from "~/lib/ai/state-adapter";
 import { getStoredDifficulty } from "~/lib/session";
 
@@ -188,6 +192,31 @@ export function useVsAiDriver(
     // Kept OUT of `MoveMutations` for the same reason: it hangs off
     // `pendingCast`, not `pendingChoices[]`, so it is driven directly.
     const selectConvokeCreatures = useMutation(api.game.selectConvokeCreatures);
+    // ADR 0091 / issue #1209 — the remaining CAST-side payment pickers. Like the
+    // three above they hang off `pendingCast`, are not Move-realised, and are
+    // driven directly — through the generic `pay-owed-payment` branch rather
+    // than a per-park branch of their own.
+    const selectAdditionalCost = useMutation(api.game.selectAdditionalCost);
+    const selectCastAlternativeHandCost = useMutation(
+        api.game.selectCastAlternativeHandCost
+    );
+
+    // ADR 0091 / issue #1209 — the mutation set the generic `pay-owed-payment`
+    // branch dispatches into. Assembled from handles already declared above
+    // (`MoveMutations` carries the activation-side pickers because those travel
+    // on the Move) plus the cast-side ones; the switch that consumes it
+    // (`submitOwedPayment`) is exhaustive over the submission union.
+    const owedPaymentMutations: OwedPaymentMutations = {
+        selectSacrifice: mutations.selectSacrifice,
+        selectAdditionalCost,
+        selectConvokeCreatures,
+        selectCastExileCost,
+        selectCastAlternativeHandCost,
+        selectActivationCost: mutations.selectActivationCost,
+        selectActivationExileCost: mutations.selectActivationExileCost,
+        selectActivationDiscardCost: mutations.selectActivationDiscardCost,
+        resolveManaSpendChoice,
+    };
 
     const inFlight = useRef(false);
     const lastSignature = useRef<string | null>(null);
@@ -251,14 +280,34 @@ export function useVsAiDriver(
         // Worker, no search. The engine pre-fills the default assignment on step
         // entry, so confirming is enough. Without this the bot would `pass` and
         // the server would reject it ("Must assign combat damage…") forever.
-        if (action.kind === "confirm-combat-damage") {
+        // A realisation is ATOMIC (ADR 0091 decision 6, issue #1209). `inFlight`
+        // used to be written ONLY by the Worker branch at the bottom, while every
+        // direct-mutation branch and the executor branch merely READ it — so each
+        // mutation in a multi-step realisation bumped the state seq, re-fired this
+        // reactive effect, and let a second decision interleave into a half-built
+        // announcement. It worked only because the interleaving decision happened
+        // to be the right one; two parks in one sequence (crew + mana spend) had
+        // no defined ordering at all. Every branch below now runs through this
+        // helper, which holds the guard for the WHOLE sequence.
+        const dispatch = (run: () => Promise<unknown>) => {
             if (inFlight.current) return;
+            inFlight.current = true;
             lastSignature.current = signature;
-            void mutations
-                .confirmDamage({ gameId, playerId: botId })
+            void run()
                 .catch(() => {
+                    // Stale/illegal submissions are rejected server-side; allow
+                    // the next state change to re-drive this state.
                     lastSignature.current = null;
+                })
+                .finally(() => {
+                    inFlight.current = false;
                 });
+        };
+
+        if (action.kind === "confirm-combat-damage") {
+            dispatch(() =>
+                mutations.confirmDamage({ gameId, playerId: botId })
+            );
             return;
         }
 
@@ -267,15 +316,11 @@ export function useVsAiDriver(
         // realise it straight through (no Worker, no search), mirroring the
         // damage-confirmation short-circuit above.
         if (botActionRealisation(action.kind) === "attack-tax") {
-            if (inFlight.current) return;
-            lastSignature.current = signature;
             const mutation =
                 action.kind === "pay-attack-tax"
                     ? autoTapForAttackTax
                     : cancelAttackTax;
-            void mutation({ gameId, playerId: botId }).catch(() => {
-                lastSignature.current = null;
-            });
+            dispatch(() => mutation({ gameId, playerId: botId }));
             return;
         }
 
@@ -287,15 +332,13 @@ export function useVsAiDriver(
             botActionRealisation(action.kind) === "mana-spend" &&
             action.kind === "resolve-mana-spend"
         ) {
-            if (inFlight.current) return;
-            lastSignature.current = signature;
-            void resolveManaSpendChoice({
-                gameId,
-                playerId: botId,
-                spendOrder: action.spendOrder,
-            }).catch(() => {
-                lastSignature.current = null;
-            });
+            dispatch(() =>
+                resolveManaSpendChoice({
+                    gameId,
+                    playerId: botId,
+                    spendOrder: action.spendOrder,
+                })
+            );
             return;
         }
 
@@ -309,15 +352,13 @@ export function useVsAiDriver(
             botActionRealisation(action.kind) === "cast-exile-cost" &&
             action.kind === "cast-exile-cost"
         ) {
-            if (inFlight.current) return;
-            lastSignature.current = signature;
-            void selectCastExileCost({
-                gameId,
-                playerId: botId,
-                cardInstanceIds: action.cardInstanceIds,
-            }).catch(() => {
-                lastSignature.current = null;
-            });
+            dispatch(() =>
+                selectCastExileCost({
+                    gameId,
+                    playerId: botId,
+                    cardInstanceIds: action.cardInstanceIds,
+                })
+            );
             return;
         }
 
@@ -329,15 +370,35 @@ export function useVsAiDriver(
             botActionRealisation(action.kind) === "convoke-creatures" &&
             action.kind === "convoke-creatures"
         ) {
-            if (inFlight.current) return;
-            lastSignature.current = signature;
-            void selectConvokeCreatures({
-                gameId,
-                playerId: botId,
-                creatureInstanceIds: action.creatureInstanceIds,
-            }).catch(() => {
-                lastSignature.current = null;
-            });
+            dispatch(() =>
+                selectConvokeCreatures({
+                    gameId,
+                    playerId: botId,
+                    creatureInstanceIds: action.creatureInstanceIds,
+                })
+            );
+            return;
+        }
+
+        // ADR 0091 / issue #1209 — EVERY OTHER payment park. The submission was
+        // already computed by the shared conservative pick (`pickForOwedPayment`,
+        // reached through `buildBotView`), so this branch only dispatches it to
+        // the human mutation it names, one pick per call. It is generic on
+        // purpose: a park added to the census in `convex/gre/owedPayment.ts`
+        // becomes non-stalling here with NO new driver wiring — the nine
+        // one-park-at-a-time fixes this replaces each had to add a branch.
+        if (
+            botActionRealisation(action.kind) === "owed-payment" &&
+            action.kind === "pay-owed-payment"
+        ) {
+            const { submission } = action;
+            dispatch(() =>
+                submitOwedPayment(
+                    submission,
+                    { gameId, playerId: botId },
+                    owedPaymentMutations
+                )
+            );
             return;
         }
 
@@ -357,10 +418,7 @@ export function useVsAiDriver(
             if (inFlight.current) return;
             const move = botActionToMove(action, botState, botId);
             if (!move) return;
-            lastSignature.current = signature;
-            void executeMove(move, { gameId, botId, mutations }).catch(() => {
-                lastSignature.current = null;
-            });
+            dispatch(() => executeMove(move, { gameId, botId, mutations }));
             return;
         }
 
@@ -373,13 +431,7 @@ export function useVsAiDriver(
             action.kind === "pass" &&
             !shouldThink(projectedToGameState(botState), botId)
         ) {
-            if (inFlight.current) return;
-            lastSignature.current = signature;
-            void mutations
-                .passPriority({ gameId, playerId: botId })
-                .catch(() => {
-                    lastSignature.current = null;
-                });
+            dispatch(() => mutations.passPriority({ gameId, playerId: botId }));
             return;
         }
 

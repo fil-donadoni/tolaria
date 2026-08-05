@@ -27,6 +27,7 @@ import {
 
 const MOUNTAIN = getCardByName("Mountain").id;
 const BEARS = getCardByName("Grizzly Bears").id;
+const WURM = getCardByName("Craw Wurm").id;
 
 const calls: { ref: unknown; args: unknown }[] = [];
 // Every `useQuery` invocation whose args were NOT "skip" — used to prove the
@@ -55,6 +56,12 @@ function clearPublicStateOverride() {
 // of `currentState` (issue #1778 finding 4: a vs-AI game already in progress
 // when this feature deploys has never had a tick row written for it).
 let forceNullTick = false;
+// When active, every mutation returns a promise that only settles once
+// `heldMutation.release()` is called (issue #1209).
+let heldMutation: { active: boolean; release?: () => void } = {
+    active: false,
+    release: undefined,
+};
 
 // Tag each mutation/query by a plain string so assertions never touch Convex's
 // FunctionReference proxies (which throw on primitive coercion in the matcher).
@@ -81,6 +88,25 @@ vi.mock("@convex/_generated/api", () => ({
             confirmDamage: "confirmDamage",
             declareMulligan: "declareMulligan",
             submitResolutionChoice: "submitResolutionChoice",
+            submitMayPay: "submitMayPay",
+            submitLandEntryChoice: "submitLandEntryChoice",
+            submitDrawReplacementPay: "submitDrawReplacementPay",
+            submitMadnessDecline: "submitMadnessDecline",
+            submitReboundDecline: "submitReboundDecline",
+            submitNameCard: "submitNameCard",
+            submitRandomRevealAck: "submitRandomRevealAck",
+            autoTapForAttackTax: "autoTapForAttackTax",
+            cancelAttackTax: "cancelAttackTax",
+            resolveManaSpendChoice: "resolveManaSpendChoice",
+            selectCastExileCost: "selectCastExileCost",
+            selectConvokeCreatures: "selectConvokeCreatures",
+            // ADR 0091 / issue #1209 — the owed-payment pickers.
+            selectSacrifice: "selectSacrifice",
+            selectAdditionalCost: "selectAdditionalCost",
+            selectCastAlternativeHandCost: "selectCastAlternativeHandCost",
+            selectActivationCost: "selectActivationCost",
+            selectActivationExileCost: "selectActivationExileCost",
+            selectActivationDiscardCost: "selectActivationDiscardCost",
             passPriority: "passPriority",
         },
     },
@@ -126,6 +152,14 @@ vi.mock("convex/react", () => ({
     },
     useMutation: (ref: unknown) => (args: unknown) => {
         calls.push({ ref, args });
+        // ADR 0091 / issue #1209 — a mutation can be held PENDING so a test can
+        // observe the window in which a multi-step realisation is half-done
+        // (the `inFlight` race the seam closes).
+        if (heldMutation.active) {
+            return new Promise<null>((resolve) => {
+                heldMutation.release = () => resolve(null);
+            });
+        }
         return Promise.resolve(null);
     },
 }));
@@ -176,6 +210,7 @@ describe("useVsAiDriver (issue #110)", () => {
         currentState = undefined;
         clearPublicStateOverride();
         forceNullTick = false;
+        heldMutation = { active: false, release: undefined };
         vi.useFakeTimers();
         // Deterministic random pick (first move).
         vi.spyOn(Math, "random").mockReturnValue(0);
@@ -360,6 +395,164 @@ describe("useVsAiDriver (issue #110)", () => {
             playerId: BOT,
             decision: "keep",
         });
+    });
+
+    // ADR 0091 decision 6 / issue #1209 — a realisation is ATOMIC. `inFlight`
+    // used to be written ONLY by the Worker branch; every direct-mutation and
+    // executor branch merely READ it. So each mutation in a multi-step
+    // realisation bumped the state seq, re-fired the reactive effect, and let a
+    // second decision interleave into a HALF-BUILT announcement — it worked only
+    // because the interleaving decision happened to be the right one, and two
+    // parks in one sequence (crew + mana spend) had no defined ordering at all.
+    it("holds inFlight across a MULTI-STEP owed-payment realisation", async () => {
+        // A two-victim filtered sacrifice park (CR 601.2f): the realisation is
+        // two sequential `selectSacrifice` calls. THREE distinct creatures are
+        // on the board, so the pick is a real choice the server would not
+        // auto-resolve.
+        const creature = (id: string, cardId: string) => ({
+            ...makeInstance(cardId, { id, controllerId: BOT, ownerId: BOT }),
+            card: { id: cardId },
+        });
+        const parked = (seq: number) =>
+            botState({
+                seq,
+                priorityPlayerId: BOT,
+                players: [
+                    {
+                        ...player(BOT),
+                        battlefield: [
+                            creature("c1", BEARS),
+                            creature("c2", WURM),
+                            creature("c3", BEARS),
+                        ],
+                    },
+                    player(HUMAN),
+                ],
+                pendingActivation: {
+                    playerId: BOT,
+                    cardInstanceId: "c1",
+                    abilityId: "a1",
+                    manaCost: {},
+                    tappedLandIds: [],
+                    tapSource: false,
+                    sacrificeSource: false,
+                    sacrificeSelection: {
+                        playerId: BOT,
+                        reason: "Sacrifice",
+                        requirements: [
+                            { filter: { types: "Creature" }, count: 2 },
+                        ],
+                        picked: [],
+                    },
+                },
+            });
+
+        heldMutation = { active: true, release: undefined };
+        currentState = parked(1);
+        const { rerender } = renderHook(() => useVsAiDriver(GAME, BOT));
+        await vi.runAllTimersAsync();
+
+        // The first pick is in flight; the second has NOT been sent yet.
+        expect(calls.map((c) => c.ref)).toEqual(["selectSacrifice"]);
+
+        // The server bumps the seq on that first pick, re-firing the reactive
+        // effect mid-sequence. Nothing new may be dispatched.
+        currentState = parked(2);
+        rerender();
+        await vi.runAllTimersAsync();
+        expect(calls.map((c) => c.ref)).toEqual(["selectSacrifice"]);
+
+        // Once the first pick settles the sequence continues on its own.
+        heldMutation.active = false;
+        heldMutation.release?.();
+        await vi.runAllTimersAsync();
+        expect(calls.map((c) => c.ref)).toEqual([
+            "selectSacrifice",
+            "selectSacrifice",
+        ]);
+        expect(
+            calls.map(
+                (c) => (c.args as { cardInstanceId: string }).cardInstanceId
+            )
+        ).toEqual(["c1", "c3"]);
+    });
+
+    // The EXECUTOR branch had the same hole, and it is a DIFFERENT branch from
+    // the Worker/setTimeout one at the bottom of the effect (which has always
+    // written `inFlight`). It is reached only by an executor-realised
+    // `BotAction` kind (`botActionRealisation(kind) === "executor"`: the
+    // mulligan decisions and the ADR-0016 interactive choices) — never by
+    // `pass` / `declare-attackers` / `search-choice`, which are Worker-realised.
+    // Before this PR it recorded `lastSignature` and dispatched `executeMove`
+    // WITHOUT ever writing `inFlight`, so a fresh seq arriving while the
+    // realisation was still in flight produced a brand-new signature, sailed
+    // past the dedupe, and dispatched a SECOND decision on top of a half-applied
+    // one.
+    //
+    // The fixture drives a mulligan window (`keep` → executor), holds the
+    // `declareMulligan` mutation pending, and then pushes a new seq that is
+    // itself a legal decision point — so the ONLY thing that can suppress the
+    // second dispatch is `inFlight`.
+    it("holds inFlight across an executeMove realisation (executor branch)", async () => {
+        const mulliganAt = (seq: number) => {
+            const botSeat = player(BOT);
+            botSeat.hand = [
+                makeInstance(MOUNTAIN, {
+                    id: "m1",
+                    controllerId: BOT,
+                    zone: "hand",
+                }),
+                makeInstance(BEARS, {
+                    id: "b1",
+                    controllerId: BOT,
+                    zone: "hand",
+                }),
+            ] as never;
+            return botState({
+                seq,
+                phase: "MULLIGAN",
+                players: [botSeat, player(HUMAN)],
+                mulligan: {
+                    mulligansTaken: [0, 0],
+                    declarations: [null, null],
+                    locked: [false, false],
+                    declaringPlayerId: BOT,
+                    bottoming: false,
+                },
+            });
+        };
+
+        heldMutation = { active: true, release: undefined };
+        currentState = mulliganAt(1);
+        const { rerender } = renderHook(() => useVsAiDriver(GAME, BOT));
+        await vi.runAllTimersAsync();
+
+        // The realisation went through the executor branch — not the Worker one,
+        // which never reaches `declareMulligan` (a mulligan window is decided by
+        // the gate heuristic, issue #145) — and is now pending.
+        expect(calls.map((c) => c.ref)).toEqual(["declareMulligan"]);
+
+        // A new seq arrives while it is still in flight. The state is STILL a
+        // legal decision point for the bot (the declaration hasn't landed), so
+        // the dedupe cannot suppress it — only `inFlight` can.
+        currentState = mulliganAt(2);
+        rerender();
+        await vi.runAllTimersAsync();
+        expect(calls.map((c) => c.ref)).toEqual(["declareMulligan"]);
+
+        // And once it settles the guard releases: the same still-undecided
+        // window at a further seq is driven again, so the test is asserting a
+        // HELD guard, not a permanently wedged driver.
+        heldMutation.active = false;
+        heldMutation.release?.();
+        await vi.runAllTimersAsync();
+        currentState = mulliganAt(3);
+        rerender();
+        await vi.runAllTimersAsync();
+        expect(calls.map((c) => c.ref)).toEqual([
+            "declareMulligan",
+            "declareMulligan",
+        ]);
     });
 
     it("does not act when there is no bot seat", async () => {

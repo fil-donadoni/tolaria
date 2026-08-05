@@ -43,6 +43,7 @@ import {
     recordDeclaration,
 } from "@convex/gre";
 import { manaValue } from "@convex/gre/constants";
+import { effectivePermanentView } from "@convex/gre/permanentView";
 import { getCardColorIdentity, getColorsFromCost } from "@convex/cards/colors";
 import { tryGetDefinition } from "@convex/cards";
 import {
@@ -119,16 +120,25 @@ function listCandidates(
             : zoneOwner.battlefield;
         const filtered = head.filter
             ? pool.filter((c) =>
-                  matchesPermanentFilter(c, head.filter!, {
-                      // CR 701.16 (issue #1938 fixup 2) — resolves
-                      // `controllerRelation` ("sacrifice two Swamps YOU
-                      // control") against the CHOOSER. Without this the
-                      // filter fails CLOSED, the candidate pool goes empty
-                      // even though `head.candidateIds` (intersected below)
-                      // already lists legal picks, and the headless bot can't
-                      // enumerate a move for the pick.
-                      selfControllerId: head.playerId,
-                  })
+                  // Issue #1209 — the layered view, never the raw instance:
+                  // `colors` / effective P-T / the turn-scoped flags are all
+                  // DERIVED, so a raw instance makes those clauses fail CLOSED
+                  // and the pool goes silently empty. Mirrors the live bot's
+                  // `projectedPermanentView` (`src/lib/ai/bot-view.ts`).
+                  matchesPermanentFilter(
+                      effectivePermanentView(state, c),
+                      head.filter!,
+                      {
+                          // CR 701.16 (issue #1938 fixup 2) — resolves
+                          // `controllerRelation` ("sacrifice two Swamps YOU
+                          // control") against the CHOOSER. Without this the
+                          // filter fails CLOSED, the candidate pool goes empty
+                          // even though `head.candidateIds` (intersected
+                          // below) already lists legal picks, and the headless
+                          // bot can't enumerate a move for the pick.
+                          selfControllerId: head.playerId,
+                      }
+                  )
               )
             : pool;
         return head.candidateIds
