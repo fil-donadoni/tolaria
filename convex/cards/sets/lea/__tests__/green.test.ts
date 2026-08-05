@@ -1184,6 +1184,75 @@ describe("Regrowth (return target card from your graveyard to hand, CR 400.7 / 6
         expect(p1.hand.map((c) => c.id)).not.toContain("buried");
         expect(p1.exile.map((c) => c.id)).toContain("buried");
     });
+
+    // CR 400.3 (issue #1721) — the graveyard is a PUBLIC zone, so both
+    // players watched exactly which card left it; landing it in the hidden
+    // hand does not un-reveal it (ADR 0026, the same public→hidden mechanism
+    // #1696 applied to the countered-spell case). This is the `moveZone` Op's
+    // `target`-shape → `SpellContext.moveCardById` residual site (issue
+    // #1721, narrowed scope).
+    it("stamps the returned card known to BOTH players (CR 400.3, #1721)", () => {
+        const buried = makeInstance(grizzlyBears.id, {
+            id: "buried-bear",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [buried] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, regrowth.id, "p1", [
+            { type: "graveyard-card", id: "buried-bear", playerId: "p1" },
+        ]);
+        resolveTopOfStack(state);
+        const p1 = state.players[0];
+        const moved = p1.hand.find((c) => c.id === "buried-bear")!;
+        expect([...(moved.knownTo ?? [])].sort()).toEqual(["p1", "p2"]);
+    });
+
+    it("shows the returned card to the opponent through the wire projection, leaks nothing else (#1721)", () => {
+        const buried = makeInstance(grizzlyBears.id, {
+            id: "buried-bear",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        // A second, never-seen hand card — the negative direction of the gate.
+        const hidden = makeInstance(grizzlyBears.id, {
+            id: "hidden-card",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [buried], hand: [hidden] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, regrowth.id, "p1", [
+            { type: "graveyard-card", id: "buried-bear", playerId: "p1" },
+        ]);
+        resolveTopOfStack(state);
+        // p2 (non-owner) sees the identity of the returned card in p1's
+        // otherwise-hidden hand, but not the pre-existing hidden card.
+        const asP2 = projectPublicState(state, 1, "p2");
+        const p1Hand = asP2.players.find((p) => p.id === "p1")!.hand;
+        expect(p1Hand).toHaveLength(2);
+        const visible = p1Hand.filter((c) => c !== null);
+        expect(visible).toHaveLength(1);
+        expect(visible[0]?.card.id).toBe(grizzlyBears.id);
+        // p1 (owner) sees their own returned card flagged seen-by-opponent.
+        const asP1 = projectPublicState(state, 1, "p1");
+        const own = asP1.players.find((p) => p.id === "p1")!.hand;
+        const ownMoved = own.find((c) => c?.id === "buried-bear");
+        expect(ownMoved?.seenByOpponent).toBe(true);
+        const ownHidden = own.find((c) => c?.id === "hidden-card");
+        expect(ownHidden?.seenByOpponent).toBeFalsy();
+    });
 });
 
 describe("Ice Storm (destroy target land)", () => {

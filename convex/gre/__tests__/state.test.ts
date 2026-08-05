@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+    buildSpellContext,
     clearKnowledge,
     exileFaceDownCard,
     grantKnowledge,
@@ -1390,5 +1391,124 @@ describe("moveCard clears knowledge entering a public zone (ADR 0026)", () => {
         const player = makePlayer({ id: "p1", hand });
         moveCard(player, "h0", "hand", "library");
         expect(player.library[0].knownTo).toEqual(["p2"]);
+    });
+});
+
+// CR 400.3 (issue #1721 — residual class of #1696) — a card leaving a
+// PUBLIC zone (battlefield/graveyard/exile) was watched by every player, so
+// landing it in a HIDDEN zone (hand/library) does not retroactively
+// un-reveal it. Review round 2 moved the gate OFF an optional 5th `state`
+// param on the general `moveCard` (fail-open: any future caller could omit
+// it silently) and INTO `moveCardWithGraveyardReplacement` — the private,
+// FAIL-CLOSED chokepoint every `SpellContext.moveCardById`/`moveZone` call
+// already routes through, whose own `state` param is required. `moveCard`
+// itself is now a plain 4-arg mover that never stamps; exercised here
+// through the real `ctx.moveCardById`/`ctx.shuffleLibrary` SpellContext
+// methods rather than by reaching into the private chokepoint directly. The
+// 4-arg call sites elsewhere in the GRE deliberately never cross
+// public→hidden (playLand, mulligan, draw), so they stay untouched.
+describe("moveCardById grants knowledge on a public→hidden move (issue #1721)", () => {
+    function makeCtx(state: GameState, playerId = "p1") {
+        const item: StackItem = {
+            ...makeCard({ id: "synthetic-stack-item", zone: "stack" }),
+            castById: playerId,
+        };
+        return buildSpellContext(state, item);
+    }
+
+    it("stamps the card known to EVERY player leaving the graveyard into hand (Regrowth/Raise Dead/Eternal Witness shape)", () => {
+        const graveyard = [makeCard({ id: "g0", zone: "graveyard" })];
+        const player = makePlayer({ id: "p1", graveyard });
+        const state = makeGameState({
+            players: [player, makePlayer({ id: "p2" })],
+        });
+        makeCtx(state).moveCardById("p1", "g0", "graveyard", "hand");
+        expect([...(player.hand[0].knownTo ?? [])].sort()).toEqual([
+            "p1",
+            "p2",
+        ]);
+    });
+
+    it("stamps the card known to EVERY player leaving the graveyard onto the library (Drafna's Restoration shape)", () => {
+        const graveyard = [makeCard({ id: "g0", zone: "graveyard" })];
+        const player = makePlayer({ id: "p1", graveyard });
+        const state = makeGameState({
+            players: [player, makePlayer({ id: "p2" })],
+        });
+        makeCtx(state).moveCardById("p1", "g0", "graveyard", "library");
+        expect([...(player.library[0].knownTo ?? [])].sort()).toEqual([
+            "p1",
+            "p2",
+        ]);
+    });
+
+    it("stamps a FACE-UP exile card known to EVERY player leaving exile into hand", () => {
+        const exile = [makeCard({ id: "e0", zone: "exile" })];
+        const player = makePlayer({ id: "p1", exile });
+        const state = makeGameState({
+            players: [player, makePlayer({ id: "p2" })],
+        });
+        makeCtx(state).moveCardById("p1", "e0", "exile", "hand");
+        expect([...(player.hand[0].knownTo ?? [])].sort()).toEqual([
+            "p1",
+            "p2",
+        ]);
+    });
+
+    // Review round 2, finding 1 — a card that left exile FACE DOWN
+    // (`exileFaceDownCard`, CR 406.3) carries a `knownTo` scoped to its one
+    // knower alone; the gate must NOT overwrite that with "known to
+    // everyone" when the card returns to a hidden zone (Memory Jar,
+    // ulg/colorless.ts, exercises exactly this — see the card-level
+    // regression test in ulg/__tests__/colorless.test.ts). `knownTo: ["p1"]`
+    // here models the marker `exileFaceDownCard` leaves; `projectExileCard`
+    // reads the very same non-empty-`knownTo`-on-exile signal on the wire.
+    it("does NOT stamp a FACE-DOWN exiled card leaving exile into hand — over-reveal regression", () => {
+        const exile = [makeCard({ id: "e0", zone: "exile", knownTo: ["p1"] })];
+        const player = makePlayer({ id: "p1", exile });
+        const state = makeGameState({
+            players: [player, makePlayer({ id: "p2" })],
+        });
+        makeCtx(state).moveCardById("p1", "e0", "exile", "hand");
+        expect(player.hand[0].knownTo).toEqual(["p1"]);
+    });
+
+    it("does NOT stamp on a hidden→hidden move (hand→library)", () => {
+        const hand = [makeCard({ id: "h0", zone: "hand" })];
+        const player = makePlayer({ id: "p1", hand });
+        const state = makeGameState({
+            players: [player, makePlayer({ id: "p2" })],
+        });
+        makeCtx(state).moveCardById("p1", "h0", "hand", "library");
+        expect(player.library[0].knownTo).toBeUndefined();
+    });
+
+    it("does NOT stamp on a public→public move (graveyard→exile) — already public, no grant needed", () => {
+        const graveyard = [makeCard({ id: "g0", zone: "graveyard" })];
+        const player = makePlayer({ id: "p1", graveyard });
+        const state = makeGameState({
+            players: [player, makePlayer({ id: "p2" })],
+        });
+        makeCtx(state).moveCardById("p1", "g0", "graveyard", "exile");
+        expect(player.exile[0].knownTo).toBeUndefined();
+    });
+
+    // Review round 2, non-blocking finding — this used to call
+    // `clearKnowledge(library, null)` directly ("models shuffleLibrary"),
+    // which only proves `clearKnowledge` works (already covered elsewhere)
+    // and never proved the clearing assertion was reached through a real
+    // card path. Drive the actual `SpellContext.shuffleLibrary` primitive
+    // instead (state.ts: seededShuffle + clearKnowledge).
+    it("a later real shuffle still clears the stamped knowledge for everyone (CR 701.20 regression)", () => {
+        const graveyard = [makeCard({ id: "g0", zone: "graveyard" })];
+        const player = makePlayer({ id: "p1", graveyard });
+        const state = makeGameState({
+            players: [player, makePlayer({ id: "p2" })],
+        });
+        const ctx = makeCtx(state);
+        ctx.moveCardById("p1", "g0", "graveyard", "library");
+        expect(player.library[0].knownTo).toEqual(["p1", "p2"]);
+        ctx.shuffleLibrary("p1");
+        expect(player.library[0].knownTo).toBeUndefined();
     });
 });

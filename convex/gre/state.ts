@@ -16504,7 +16504,33 @@ export function moveCard(
  *  discard-alikes, library manipulation), so a matching replacement
  *  (Yawgmoth's Will / Dauthi Voidwalker) can redirect the move to exile
  *  before it lands. Falls straight through to `moveCard` for any other
- *  destination. */
+ *  destination.
+ *
+ *  ADR 0026 / issue #1721 (fail-closed shape, review round 2) — this is ALSO
+ *  the single chokepoint that stamps persistent knowledge when a card
+ *  crosses from a PUBLIC zone (battlefield/graveyard/exile) into a HIDDEN one
+ *  (hand/library): every player watched the object sit in and leave that
+ *  public zone (CR 400.3), so landing it in a hidden zone does not
+ *  retroactively un-reveal it — the SAME reasoning and mechanism
+ *  `removePermanentTo`'s hand branch and `counter()`'s library-top/hand
+ *  branches already apply (issue #1696), reused here rather than reinvented.
+ *  `moveCard` itself takes no `state` and performs no stamping — moving the
+ *  gate here (rather than an optional `state?: GameState` param on the more
+ *  general `moveCard`) makes it fail CLOSED: `state` is required on this
+ *  function's own signature, so there is no unstamped call shape to fall
+ *  back to at this chokepoint. `moveCardById` / the `moveZone` Op (Regrowth,
+ *  Raise Dead, Eternal Witness, Drafna's Restoration) both route through
+ *  here, which is the graveyard/exile → hand/library path this closes.
+ *
+ *  Face-down exemption (CR 406.3): a card that left exile FACE DOWN
+ *  (`exileFaceDownCard`, `knownTo` scoped to its one knower — impulse-draw)
+ *  and is later moved from exile to hand/library through this chokepoint
+ *  must NOT be stamped known to every player — that would over-reveal it.
+ *  `projectExileCard` already treats a non-empty `knownTo` on an exiled card
+ *  as the face-down marker (`gameProjections.ts`); reuse that same signal
+ *  here rather than inventing a new one. Memory Jar (`ulg/colorless.ts`) is
+ *  the shipped card that exercises this: it exiles every hand face down,
+ *  then returns them via `moveCardById`. */
 function moveCardWithGraveyardReplacement(
     state: GameState,
     player: PlayerState,
@@ -16512,7 +16538,17 @@ function moveCardWithGraveyardReplacement(
     from: Exclude<Zone, "stack">,
     to: Exclude<Zone, "stack">
 ): CardInstanceState {
-    if (to !== "graveyard") return moveCard(player, cardInstanceId, from, to);
+    if (to !== "graveyard") {
+        const moved = moveCard(player, cardInstanceId, from, to);
+        if (PUBLIC_ZONES.has(from) && !PUBLIC_ZONES.has(to)) {
+            const isFaceDownExile =
+                from === "exile" && (moved.knownTo?.length ?? 0) > 0;
+            if (!isFaceDownExile) {
+                grantKnowledgeToAll(state, player.id, [moved.id]);
+            }
+        }
+        return moved;
+    }
     const sourceCard = (
         player[ZONE_TO_FIELD[from]] as CardInstanceState[]
     ).find((c) => c.id === cardInstanceId);
