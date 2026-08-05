@@ -4,6 +4,8 @@
 // artifacts (no coloured cost) live in colorless.ts.
 
 import type { CardDefinition } from "../../types";
+import { AURA_AFFECTS_HOST } from "../../types";
+import { equipAbility } from "../../abilities/equipment";
 
 // Horizon Canopy — {T}, Pay 1 life: Add {G} or {W}; {1}, {T}, Sacrifice: Draw a
 // card. (CR 605.1a mana ability — useStack: false, CR 605.3a; CR 118.4 life
@@ -64,18 +66,100 @@ export const horizonCanopy: CardDefinition = {
 // Sword of the Meek — {2} Artifact — Equipment. "Equipped creature gets
 // +1/+2. Equip {2}. Whenever a 1/1 creature you control enters, you may
 // return this card from your graveyard to the battlefield, then attach it to
-// that creature." Its original blocker — "needs an Equipment attach Op" —
-// is GONE: the Equipment spine shipped (#1349 `attach` Op + Equip ability +
-// detach SBA, #1350 equipped-creature-dies last-known, ADR 0065), and #776
-// is closed. This stub is therefore a RE-AUDIT candidate, not a capability
-// gap: the remaining question is only whether the graveyard→battlefield
-// return composes with `attach` in one Effect Script. Ship it or re-file.
-// tracked-by: #920
-// export const swordOfTheMeek: CardDefinition = {
-//     id: "e9f13705-6ede-4c29-a2b4-a082bf69e9c5",
-//     name: "Sword of the Meek",
-//     rarity: "uncommon",
-//     manaCost: { X: 2 },
-//     types: ["Artifact"],
-//     subtypes: ["Equipment"],
-// };
+// that creature." (issue #1965 — re-audited off #920; the "needs an
+// Equipment attach Op" blocker is gone: the Equipment spine shipped (#1349
+// `attach` Op + Equip ability + detach SBA, #1350 equipped-creature-dies
+// last-known, ADR 0065), #776 is closed.
+//
+// The static buff + Equip half is the plain Equipment shape (staticEffects
+// applies-while-attached + `equip` cost). The recursive trigger is a
+// `zone: "graveyard"` triggered ability (CR 603.6e — Nether Shadow /
+// Ashen Ghoul precedent) watching for ANY `PERMANENT_ENTERED` event, not
+// just an upkeep step, so it's built as a raw `TriggeredAbility` rather than
+// through `enteredTrigger` (whose factory has no `zone` parameter and whose
+// `filter` only inspects the event payload — no power/toughness there;
+// `matches` instead reads the entering creature's P/T off the EVENT itself).
+// CR 603.2 evaluates a trigger condition against the game state WITH
+// continuous effects applied, so "a 1/1 creature" is an EFFECTIVE-P/T read,
+// not the raw stored characteristic (review finding #1965/F1 — a base-1/1
+// with a `+1/+1` counter reads 2/2 through the layer pipeline and must NOT
+// fire this trigger). `emitPermanentEntered` (gre/state.ts) now snapshots
+// `power`/`toughness` via `getEffectivePower`/`getEffectiveToughness` for
+// every entering creature — the same layer functions and the same
+// "snapshot at the one producer" shape `CREATURE_DIED.creaturePower` already
+// uses — so `matches` reads `event.power`/`event.toughness` directly instead
+// of re-deriving them from `TriggerStateView`'s battlefield entries (which
+// only carry the mutable BASE characteristic). "you may" = a cost-free
+// `mayPay` (issue #680);
+// "return this card ... then attach it to that creature" is `moveZone
+// { target: { ref: "$source" } }` (the Ashen Ghoul self-reanimation shape,
+// issue #737's unconditional `$source` graveyard recovery) followed by
+// `attach` targeting the entering creature. Naming "that creature"
+// declaratively needed one new censused `$event.<field>` row —
+// `PERMANENT_ENTERED.instanceId` (object family, mirrors
+// `BECAME_TARGET.targetPermanent`) — added in `mechanicsRegistry.ts`
+// alongside this card; NOT a new Op, the existing ADR 0049 generalization
+// mechanism for exposing an already-existing event field to the DSL.
+export const swordOfTheMeek: CardDefinition = {
+    id: "e9f13705-6ede-4c29-a2b4-a082bf69e9c5",
+    name: "Sword of the Meek",
+    rarity: "uncommon",
+    oracleText:
+        "Equipped creature gets +1/+2.\nEquip {2}\nWhenever a 1/1 creature you control enters, you may return this card from your graveyard to the battlefield, then attach it to that creature.",
+    manaCost: { X: 2 },
+    types: ["Artifact"],
+    subtypes: ["Equipment"],
+    staticEffects: [
+        { kind: "pt-buff", applies: AURA_AFFECTS_HOST, power: 1, toughness: 2 },
+    ],
+    activatedAbilities: [
+        equipAbility({
+            id: "sword-of-the-meek-equip",
+            cost: { X: 2 },
+            oracleText: "Equip {2}",
+        }),
+    ],
+    triggeredAbilities: [
+        {
+            id: "sword-of-the-meek-return",
+            oracleText:
+                "Whenever a 1/1 creature you control enters, you may return this card from your graveyard to the battlefield, then attach it to that creature.",
+            event: "PERMANENT_ENTERED",
+            // CR 603.6e — this ability functions while the card sits in the
+            // graveyard (Nether Shadow's scan path), not the battlefield.
+            zone: "graveyard",
+            matches: (event, self) => {
+                if (event.type !== "PERMANENT_ENTERED") return false;
+                if (event.controllerId !== self.controllerId) return false;
+                if (!event.types.includes("Creature")) return false;
+                // EFFECTIVE P/T (CR 603.2/613.4), snapshotted by
+                // `emitPermanentEntered` at the moment of entry — NOT the raw
+                // stored characteristic. See the card-level comment above.
+                return event.power === 1 && event.toughness === 1;
+            },
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
+                    prompt: "Return Sword of the Meek to the battlefield and attach it to that creature?",
+                    bind: "$return",
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$return" },
+                    then: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$source" },
+                            to: "battlefield",
+                        },
+                        {
+                            op: "attach",
+                            target: { ref: "$event.instanceId" },
+                        },
+                    ],
+                },
+            ],
+        },
+    ],
+};

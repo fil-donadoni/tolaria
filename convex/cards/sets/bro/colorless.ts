@@ -1,6 +1,8 @@
 // bro — colorless cards (ADR 0043 colour split).
 
 import type { CardDefinition } from "../../types";
+import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
 // Haywire Mite — {1} Artifact Creature — Insect, 1/1 (Vintage Cube FREE:
 // ETB/dies/attack triggers, issue #679). "When this creature dies, you gain
@@ -52,20 +54,83 @@ export const haywireMite: CardDefinition = {
 // opponent sacrifices three creatures of their choice. At the beginning of
 // your upkeep, put target creature card from a graveyard onto the
 // battlefield under your control. It's a Phyrexian in addition to its other
-// types." UNBLOCKED — no engine gap remains, authoring only. The ETB was
-// already free (2-player-only — `choice(kind: "sacrifice-permanents", player:
-// "opponent")` + `sacrifice`, the Innocent Blood pattern). The recurring
-// upkeep reanimation's cross-player graveyard pick has since shipped too:
-// `choice` gained `zoneOwnerId?: EffectPlayerRef` (`convex/cards/types.ts`,
-// added citing this very issue) so the chooser (controller) and zone owner
-// (either player) can now differ, and `TargetRequirement` independently
-// supports `zone: "graveyard"` + `controller: "any"` (`types.ts`) — the
-// Soul-Guide Lantern shape (`thb/colorless.ts`, issue #1193).
-// tracked-by: #1965
-// export const portalToPhyrexia: CardDefinition = {
-//     id: "5f608efc-0dbc-4cc3-aadd-ed473bfc29ab",
-//     name: "Portal to Phyrexia",
-//     rarity: "mythic",
-//     manaCost: { X: 9 },
-//     types: ["Artifact"],
-// };
+// types." (issue #1965 — re-audited off #920; the original blocker is gone.)
+//
+// ETB (CR 603.6a): 2-player-only (CLAUDE.md — no 3+ player multiplayer), so
+// "each opponent" is exactly the one opponent — the Innocent Blood shape
+// (`choice(kind: "sacrifice-permanents")` binds up to 3 picks, clamped to
+// however many creatures exist per CR 608.2b, then `sacrifice` consumes the
+// binding) with no `forEach` needed.
+//
+// Upkeep (CR 603.3d target-at-announcement + CR 400.7 / 800.4a reanimation):
+// the Reya Dawnbringer / Reanimate shape — a `targetRequirement` on the
+// triggered ability itself (`zone: "graveyard"`, `controller: "any"` = "a
+// graveyard", not just the controller's own), then `moveZone` with
+// `controller: "controller"` puts it under the ability's controller
+// regardless of who owned the graveyard. `bind: "$reanimated"` snapshots the
+// permanent that just entered so `addSubtype` (CR 613.1d, layer 4 — the Guide
+// of Souls "it becomes an Angel in addition to its other types" shape) can
+// target it: "It's a Phyrexian in addition to its other types" is an
+// indefinite grant on the reanimated object itself, not on Portal to
+// Phyrexia, so it survives Portal leaving the battlefield — exactly what
+// `addSubtype`'s no-`duration` semantics express. No new Op needed.
+export const portalToPhyrexia: CardDefinition = {
+    id: "5f608efc-0dbc-4cc3-aadd-ed473bfc29ab",
+    name: "Portal to Phyrexia",
+    rarity: "mythic",
+    oracleText:
+        "When this artifact enters, each opponent sacrifices three creatures of their choice.\nAt the beginning of your upkeep, put target creature card from a graveyard onto the battlefield under your control. It's a Phyrexian in addition to its other types.",
+    manaCost: { X: 9 },
+    types: ["Artifact"],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "portal-to-phyrexia-etb",
+            oracleText:
+                "When this artifact enters, each opponent sacrifices three creatures of their choice.",
+            scope: "self",
+            effects: [
+                {
+                    op: "choice",
+                    kind: "sacrifice-permanents",
+                    player: "opponent",
+                    zone: "battlefield",
+                    filter: { type: "Creature" },
+                    count: 3,
+                    prompt: "Portal to Phyrexia: choose three creatures to sacrifice.",
+                    bind: "$sac",
+                },
+                { op: "sacrifice", permanents: { ref: "$sac" } },
+            ],
+        }),
+        phaseTrigger({
+            id: "portal-to-phyrexia-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, put target creature card from a graveyard onto the battlefield under your control. It's a Phyrexian in addition to its other types.",
+            phase: "UPKEEP",
+            scope: "your",
+            // CR 603.3d — a real announced target chosen when the trigger
+            // goes on the stack. "a graveyard" (not "your graveyard") =
+            // `controller: "any"`, the Soul-Guide Lantern / Reanimate shape.
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                zone: "graveyard",
+                controller: "any",
+            },
+            effects: [
+                {
+                    op: "moveZone",
+                    target: { target: 0 },
+                    to: "battlefield",
+                    controller: "controller",
+                    bind: "$reanimated",
+                },
+                {
+                    op: "addSubtype",
+                    target: { ref: "$reanimated" },
+                    subtype: "Phyrexian",
+                },
+            ],
+        }),
+    ],
+};

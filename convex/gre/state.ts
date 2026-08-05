@@ -5798,6 +5798,27 @@ export function emitPermanentEntered(
         );
         if (controller) controller.qualifyingActionThisTurn = true;
     }
+    // CR 603.2 / 613.4 (issue #1965 review F1) — snapshot EFFECTIVE P/T
+    // (post-layer-pipeline), not the raw stored characteristic, for an
+    // entering CREATURE. A trigger condition like "a 1/1 creature enters"
+    // (Sword of the Meek) must see continuous effects already active at the
+    // moment of entry — a +1/+1 counter applied by `entersWith` (which runs
+    // BEFORE this call, see the comment at the `entersWith` call site above),
+    // an anthem, etc. This function's own `card` param is a slim shape with
+    // no P/T fields, so the real `CardInstanceState` is looked up on the
+    // battlefield — every call site has already pushed it there before
+    // calling `emitPermanentEntered` (mirrors the CREATURE_DIED
+    // `creaturePower`/`creatureToughness` snapshot pattern above, which reads
+    // the same layer functions on the object it already has in hand).
+    let power: number | undefined;
+    let toughness: number | undefined;
+    if (card.types.includes("Creature")) {
+        const bf = findOnBattlefield(state, card.id)?.card;
+        if (bf) {
+            power = getEffectivePower(state, bf);
+            toughness = getEffectiveToughness(state, bf);
+        }
+    }
     state.pendingEvents = [
         ...(state.pendingEvents ?? []),
         {
@@ -5808,6 +5829,8 @@ export function emitPermanentEntered(
             types: [...card.types],
             ...(opts?.wasCast ? { wasCast: true } : {}),
             ...(opts?.wasPlayed ? { wasPlayed: true } : {}),
+            ...(power !== undefined ? { power } : {}),
+            ...(toughness !== undefined ? { toughness } : {}),
         },
     ];
 }
