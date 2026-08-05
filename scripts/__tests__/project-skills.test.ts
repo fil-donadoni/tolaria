@@ -143,3 +143,94 @@ describe("process-gh-issues consumes the planner (issue #2184)", () => {
         ).toEqual([]);
     });
 });
+
+describe("process-gh-issues reads receipts from artifacts (issue #2186)", () => {
+    const rel = path.join(".claude", "skills", "process-gh-issues", "SKILL.md");
+    const body = (): string =>
+        fs.readFileSync(path.join(REPO_ROOT, rel), "utf8");
+
+    it("tells the loop to compute the merge order, and the script it names exists", () => {
+        expect(body()).toMatch(/bun run queue:train/);
+        // Same failure shape as the planner probe: a renamed script leaves the
+        // loop ordering the train by priority alone, which is a VALID-looking
+        // order — no error, no red, just the restructuring PR landing second.
+        const pkg = JSON.parse(
+            fs.readFileSync(path.join(REPO_ROOT, "package.json"), "utf8")
+        ) as { scripts: Record<string, string> };
+        expect(pkg.scripts["queue:train"]).toBeTruthy();
+    });
+
+    it("tells the subagent to WRITE the receipt, not to narrate it", () => {
+        // The whole point of #2182/#2186: a receipt that exists only as prose
+        // in the orchestrator's context dies with the context.
+        expect(body()).toMatch(/writeReceipt/);
+        expect(body()).toMatch(/\.claude\/receipts\//);
+        expect(body(), "BATCH_ID is never passed to the subagent").toMatch(
+            /BATCH_ID/
+        );
+    });
+
+    it("acts on every field the train plan carries", () => {
+        for (const field of [
+            "order",
+            "cycles",
+            "edges",
+            "entries",
+            "blocked",
+            "missing",
+        ]) {
+            expect(
+                body(),
+                `train plan field \`${field}\` is never acted on`
+            ).toContain(field);
+        }
+    });
+
+    it("keeps the receipt fields the downstream consumers read", () => {
+        // `restructures` is the one a subagent will skip if the prose does not
+        // ask for it — and without it every train order collapses to priority,
+        // silently and plausibly.
+        for (const field of [
+            "targetFiles",
+            "restructures",
+            "proofOfFailure",
+            "scenario",
+        ]) {
+            expect(
+                body(),
+                `receipt field \`${field}\` is never requested from the subagent`
+            ).toContain(field);
+        }
+    });
+
+    it("can resume an interrupted train", () => {
+        expect(
+            body(),
+            "nothing tells the loop how to tell an already-merged PR from an unmerged one"
+        ).toMatch(/MERGED/);
+    });
+
+    it("does not keep the superseded receipt-in-context flow alongside", () => {
+        const forbidden: [RegExp, string][] = [
+            [
+                /Collect all receipts before moving to the integrate stage/,
+                "the collect-in-context instruction — receipts are read from disk now",
+            ],
+            [
+                /in batch priority order \(bugs first, then FIFO\):/,
+                "the hand-ordered train — queue:train computes the order",
+            ],
+            [
+                /land the PR that restructures the shared file first/,
+                "the prose topological sort — it is a function now",
+            ],
+        ];
+        const found = forbidden
+            .filter(([re]) => re.test(body()))
+            .map(([, why]) => why);
+        expect(
+            found,
+            `superseded prose is back in ${rel}:\n${found.join("\n")}`
+        ).toEqual([]);
+    });
+});
