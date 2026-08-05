@@ -332,8 +332,13 @@ export default function PoolDeckBuilderForm({
     );
 
     return (
-        <div className="flex h-dvh flex-col bg-surface-base text-text">
-            <div className="flex items-center gap-3 border-b border-border-subtle/30 bg-surface/60 px-4 py-3 md:px-6">
+        // The shell (`app-shell.tsx`) owns `min-h-dvh`; this route claims
+        // the REMAINING height (`flex-1 min-h-0`) rather than a whole extra
+        // viewport (issue #2056 defect 3) — `h-dvh` here, stacked under the
+        // shell's header band, made the document 112px taller than the
+        // viewport and pushed the Save bar + legality panel off-screen.
+        <div className="flex flex-1 min-h-0 flex-col bg-surface-base text-text">
+            <div className="flex items-center gap-3 border-b border-border-subtle/30 bg-surface/60 px-4 py-3 short-viewport:py-1 md:px-6">
                 <Button
                     variant="ghost"
                     size="sm"
@@ -341,7 +346,7 @@ export default function PoolDeckBuilderForm({
                 >
                     ← Back to Event
                 </Button>
-                <h1 className="text-lg font-semibold font-beleren tracking-wide text-parchment">
+                <h1 className="text-lg short-viewport:text-sm font-semibold font-beleren tracking-wide text-parchment">
                     Build Limited Deck
                 </h1>
             </div>

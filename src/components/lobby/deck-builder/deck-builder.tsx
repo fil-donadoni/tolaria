@@ -56,9 +56,11 @@ import {
     makeCatalogueNameResolver,
     type FullCatalogueResult,
 } from "~/lib/fullCatalogue";
+import { cardBase } from "~/lib/cardSizing";
 
-// Responsive base card width; per-zone zoom multiplies it.
-const CARD_BASE = "min(8rem, 18vw, 9.5dvh)";
+// Responsive base card width; per-zone zoom multiplies it. Floored at
+// CARD_MIN_W (issue #2056) so a short-and-wide viewport can't collapse it.
+const CARD_BASE = cardBase("8rem", "18vw", "9.5dvh");
 
 // Per-zone CSS vars driving `--card-w` / `--card-h` from a zoom multiplier.
 function zoomVars(mult: number): React.CSSProperties {
@@ -684,11 +686,16 @@ export default function DeckBuilder({
 
     return (
         <div
-            className="flex h-dvh flex-col bg-surface-base text-text"
+            // The shell (`app-shell.tsx`) owns `min-h-dvh`; this route claims
+            // the REMAINING height (`flex-1 min-h-0`) rather than a whole
+            // extra viewport (issue #2056 defect 3) — `h-dvh` here, stacked
+            // under the shell's header band, made the document 129px taller
+            // than the viewport and pushed the Save bar off-screen.
+            className="flex flex-1 min-h-0 flex-col bg-surface-base text-text"
             style={{ "--card-base": CARD_BASE } as React.CSSProperties}
         >
             <DragDropProvider sensors={sensors} onDragEnd={handleDragEnd}>
-                <div className="flex flex-col gap-3 border-b border-border-subtle/30 bg-surface/60 px-4 py-3 md:px-6">
+                <div className="flex flex-col gap-3 short-viewport:gap-1 border-b border-border-subtle/30 bg-surface/60 px-4 py-3 short-viewport:py-1 md:px-6">
                     <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
                         <div className="flex items-center gap-3">
                             <Button
@@ -698,7 +705,7 @@ export default function DeckBuilder({
                             >
                                 ← Back
                             </Button>
-                            <h1 className="text-lg font-semibold font-beleren tracking-wide text-parchment">
+                            <h1 className="text-lg short-viewport:text-sm font-semibold font-beleren tracking-wide text-parchment">
                                 {isPreset
                                     ? mode === "create"
                                         ? "New Preset"

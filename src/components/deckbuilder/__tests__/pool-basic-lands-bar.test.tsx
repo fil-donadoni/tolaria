@@ -79,3 +79,20 @@ describe("PoolBasicLandsBar (issue #1576: always render all five basics)", () =>
         expect(onAdd).not.toHaveBeenCalled();
     });
 });
+
+// Issue #2056 defect 2: short-viewport chrome treatment — the bar's own
+// padding shrinks under `short-viewport:` (`max-height: 500px`) so it stops
+// eating a fixed share of an already-scarce landscape-phone viewport.
+describe("PoolBasicLandsBar — short-viewport chrome treatment (issue #2056)", () => {
+    it("carries a short-viewport padding override on its root", () => {
+        const { container } = render(
+            <PoolBasicLandsBar
+                cardIdsBySubtype={idsFor()}
+                onAdd={vi.fn()}
+                disabled={false}
+            />
+        );
+        const root = container.firstElementChild as HTMLElement;
+        expect(root.className.split(/\s+/)).toContain("short-viewport:py-0.5");
+    });
+});

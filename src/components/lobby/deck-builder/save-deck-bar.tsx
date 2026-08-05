@@ -21,7 +21,7 @@ export default function SaveDeckBar({
                 e.preventDefault();
                 onDone();
             }}
-            className="flex flex-wrap items-center gap-2 border-t border-border-subtle/30 bg-surface/60 px-4 py-3 md:gap-3 md:px-6"
+            className="flex flex-wrap items-center gap-2 border-t border-border-subtle/30 bg-surface/60 px-4 py-3 short-viewport:py-1 md:gap-3 md:px-6"
         >
             <span className="text-label">{cardCount} cards</span>
             <input

@@ -26,7 +26,7 @@ export default function PoolBasicLandsBar({
     disabled,
 }: PoolBasicLandsBarProps) {
     return (
-        <div className="flex flex-wrap items-center gap-2 border-b border-border-subtle/30 bg-surface/60 px-4 py-2 md:px-6">
+        <div className="flex flex-wrap items-center gap-2 short-viewport:gap-1 border-b border-border-subtle/30 bg-surface/60 px-4 py-2 short-viewport:py-0.5 md:px-6">
             <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">
                 Add Basic
             </span>

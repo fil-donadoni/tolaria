@@ -29,7 +29,14 @@ export default function AppShell() {
                     <AppHeader />
                 </div>
             )}
-            <main className="flex flex-1 flex-col">
+            {/* `min-h-0` (issue #2056 defect 3): without it this flex item
+                defaults to `min-height: auto`, which refuses to shrink below
+                its content's natural size — so a page rendering more than
+                the remaining viewport height (e.g. the deckbuilder's own
+                `h-dvh` before this fix) grows `<main>` past the leftover
+                space instead of being clipped/scrolled internally, and the
+                whole document overflows. */}
+            <main className="flex flex-1 min-h-0 flex-col">
                 <Outlet />
             </main>
         </div>

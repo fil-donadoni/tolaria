@@ -21,8 +21,11 @@ import PoolSideboardPile, {
 } from "~/components/limited/pool-sideboard-pile";
 import type { PoolPileTile } from "~/components/limited/pool-column-pile";
 import type { CardDragData } from "~/components/lobby/deck-builder/dnd-types";
+import { cardBase } from "~/lib/cardSizing";
 
-const CARD_BASE = "min(7.5rem, 17vw, 9dvh)";
+// Floored at CARD_MIN_W (issue #2056) so a short-and-wide viewport (landscape
+// phone, split-screen tablet) can't collapse the `9dvh` term past legibility.
+const CARD_BASE = cardBase("7.5rem", "17vw", "9dvh");
 
 // Per-zone CSS vars driving `--card-w` / `--card-h` from a zoom multiplier —
 // mirrors the catalogue-wide `DeckBuilder`'s zoom wiring (see its

@@ -1,12 +1,14 @@
 import type { LimitedEventSeatView } from "~/hooks/useLimitedEvent";
+import { cardBase } from "~/lib/cardSizing";
 import LimitedDraftPackCard from "./limited-draft-pack-card";
 
 type DraftPackCard = NonNullable<LimitedEventSeatView["currentPack"]>[number];
 
 // Same responsive base size the shared pool deckbuilder surface scales from
 // (`pool-deckbuilder-surface.tsx`'s `CARD_BASE`) — kept in sync so the
-// Booster and the Pool below it read at a comparable default size.
-const CARD_BASE = "min(7.5rem, 17vw, 9dvh)";
+// Booster and the Pool below it read at a comparable default size. Floored
+// at CARD_MIN_W (issue #2056) so a short-and-wide viewport can't collapse it.
+const CARD_BASE = cardBase("7.5rem", "17vw", "9dvh");
 
 /** The Booster currently in front of the viewer (PRD #1107 stories 10-11,
  *  issue #1112): one card per tile, with a zoom slider (ADR 0060, issue

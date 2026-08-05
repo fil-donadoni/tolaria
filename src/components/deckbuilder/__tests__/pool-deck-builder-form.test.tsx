@@ -200,3 +200,71 @@ describe("PoolDeckBuilderForm — Add Basic bar (issue #1576)", () => {
         ]);
     });
 });
+
+// Issue #2056 defect 3: the route-level surface must claim the shell's
+// REMAINING height (`flex-1 min-h-0`), not a whole extra viewport (`h-dvh`)
+// — the shell (`app-shell.tsx`) already owns `min-h-dvh`, and stacking a
+// second full-viewport claim under its header band made the document 112px
+// taller than the viewport (measured at 852x303), pushing the Save bar and
+// legality panel off-screen.
+describe("PoolDeckBuilderForm — root surface height (issue #2056 defect 3)", () => {
+    it("claims the remaining flex height (flex-1 min-h-0), never a hard h-dvh", () => {
+        setup();
+        const { container } = render(
+            <PoolDeckBuilderForm
+                eventId={"event-1" as never}
+                seatIndex={0}
+                pool={POOL}
+                existingDeck={null}
+                eventType="sealed"
+                poolArrangement={[]}
+            />
+        );
+        const root = container.firstElementChild as HTMLElement;
+        const classes = root.className.split(/\s+/);
+        expect(classes).toContain("flex-1");
+        expect(classes).toContain("min-h-0");
+        expect(classes).not.toContain("h-dvh");
+    });
+});
+
+// Issue #2056 defect 2: on a short viewport (852x303 baseline, <=500px
+// tall), the header band's padding and title size must shrink under the
+// `short-viewport:` variant (`max-height: 500px`, defined once in
+// `index.css`) so the chrome stops eating the majority of the viewport.
+// jsdom doesn't evaluate media queries, so this asserts the CLASS is
+// present on the right elements rather than a resolved pixel height — the
+// actual "chrome <= 30% of the viewport" measurement needs a browser pass.
+describe("PoolDeckBuilderForm — short-viewport chrome treatment (issue #2056 defect 2)", () => {
+    it("the header band carries a short-viewport padding override", () => {
+        setup();
+        const { container } = render(
+            <PoolDeckBuilderForm
+                eventId={"event-1" as never}
+                seatIndex={0}
+                pool={POOL}
+                existingDeck={null}
+                eventType="sealed"
+                poolArrangement={[]}
+            />
+        );
+        const header = container.querySelector("h1")!.parentElement!;
+        expect(header.className.split(/\s+/)).toContain("short-viewport:py-1");
+    });
+
+    it("the header title carries a short-viewport type-scale override", () => {
+        setup();
+        const { container } = render(
+            <PoolDeckBuilderForm
+                eventId={"event-1" as never}
+                seatIndex={0}
+                pool={POOL}
+                existingDeck={null}
+                eventType="sealed"
+                poolArrangement={[]}
+            />
+        );
+        const h1 = container.querySelector("h1")!;
+        expect(h1.className.split(/\s+/)).toContain("short-viewport:text-sm");
+    });
+});

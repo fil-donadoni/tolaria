@@ -16,6 +16,7 @@ import CardImage from "~/components/cards/card-image";
 import { Banner } from "@/components/ui/banner";
 import CardZoomSlider from "~/components/lobby/deck-builder/card-zoom-slider";
 import { useCardZoom } from "~/components/lobby/deck-builder/useCardZoom";
+import { cardBase } from "~/lib/cardSizing";
 import LimitedDraftPack from "./limited-draft-pack";
 import LimitedDraftTimer from "./limited-draft-timer";
 import LimitedDraftPool from "./limited-draft-pool";
@@ -27,6 +28,12 @@ import {
     type DraftDragData,
     type DraftDropTarget,
 } from "./limitedDraftDrag";
+
+// Same responsive base size as the shared pool deckbuilder surface / draft
+// pack (`CARD_BASE` in `pool-deckbuilder-surface.tsx` / `limited-draft-pack.tsx`),
+// floored at CARD_MIN_W (issue #2056) so a short-and-wide viewport can't
+// collapse the drag-overlay tile past legibility.
+const CARD_BASE = cardBase("7.5rem", "17vw", "9dvh");
 
 /** The Draft table (PRD #1107 stories 10-13, issue #1112; pick gestures +
  *  Selected Card per ADR 0060, issue #1248): the Booster in front of the
@@ -259,7 +266,7 @@ export default function LimitedDraftTable({
                         <div
                             className="aspect-5/7"
                             style={{
-                                width: "calc(min(7.5rem, 17vw, 9dvh) * 1.1)",
+                                width: `calc(${CARD_BASE} * 1.1)`,
                             }}
                         >
                             <CardImage card={{ id: d.cardId }} />
