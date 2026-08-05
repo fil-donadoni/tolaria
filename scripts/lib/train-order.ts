@@ -159,6 +159,29 @@ export function computeTrainOrder(
     return { order, edges, cycles: [] };
 }
 
+/**
+ * One receipt per issue: a `fixup` supersedes the `implement` receipt it
+ * replaces, regardless of the order they arrive in.
+ *
+ * The implement receipt describes the branch as it was when review blocked it;
+ * the fixup receipt describes what will actually land. Both sit in the batch
+ * directory forever, so preferring the wrong one orders the train against a
+ * diff that no longer exists.
+ *
+ * Extracted and exported deliberately: inline, the precedence held only because
+ * `10-fixup.json` sorts before `10-implement.json`, which is an alphabetical
+ * accident no test could distinguish from the rule.
+ */
+export function latestWorkReceipts(receipts: WorkReceipt[]): WorkReceipt[] {
+    const latest = new Map<number, WorkReceipt>();
+    for (const receipt of receipts) {
+        const held = latest.get(receipt.issue);
+        if (!held || receipt.role === "fixup")
+            latest.set(receipt.issue, receipt);
+    }
+    return Array.from(latest.values());
+}
+
 function touches(restructures: string[] | undefined, path: string): boolean {
     return (restructures ?? []).some((p) => pathsOverlap(p, path));
 }

@@ -1,11 +1,18 @@
 import { describe, it, expect } from "vitest";
+import { spawnSync } from "child_process";
+import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
 
-import { computeTrainOrder } from "../lib/train-order";
+import { computeTrainOrder, latestWorkReceipts } from "../lib/train-order";
 import {
     parseReceipt,
+    writeReceipt,
     RECEIPT_VERSION,
     type WorkReceipt,
 } from "../lib/receipt";
+
+const REPO_ROOT = path.resolve(__dirname, "..", "..");
 
 /**
  * Merge-train order from the receipt conflict graph (issue #2185, PRD #2180).
@@ -244,5 +251,235 @@ describe("the receipt contract carries the restructure claim", () => {
 
     it("accepts a receipt with no restructure claim at all", () => {
         expect(receipt(10, ["a.ts"]).restructures).toBeUndefined();
+    });
+});
+
+describe("a fixup receipt supersedes the implement receipt it replaces", () => {
+    const implement = (): WorkReceipt =>
+        parseReceipt({
+            version: RECEIPT_VERSION,
+            role: "implement",
+            issue: 10,
+            outcome: "pr-open",
+            pr: 101,
+            branch: "feat/issue-10",
+            worktree: "/tmp/wt-10",
+            targetFiles: ["a.ts"],
+            proofOfFailure: [],
+        }) as WorkReceipt;
+    const fixup = (): WorkReceipt =>
+        parseReceipt({
+            version: RECEIPT_VERSION,
+            role: "fixup",
+            issue: 10,
+            outcome: "pr-open",
+            pr: 101,
+            branch: "feat/issue-10",
+            worktree: "/tmp/wt-10",
+            targetFiles: ["a.ts", "b.ts"],
+            restructures: ["b.ts"],
+            proofOfFailure: [],
+        }) as WorkReceipt;
+
+    // BOTH orders, because the on-disk read is alphabetical and `10-fixup.json`
+    // happens to sort before `10-implement.json`. A test that only fed the
+    // directory order would pass for a rule that does not exist.
+    it("wins when it arrives second", () => {
+        const [only] = latestWorkReceipts([implement(), fixup()]);
+        expect(only.role).toBe("fixup");
+        expect(only.targetFiles).toEqual(["a.ts", "b.ts"]);
+    });
+
+    it("wins when it arrives first", () => {
+        const [only] = latestWorkReceipts([fixup(), implement()]);
+        expect(only.role).toBe("fixup");
+        expect(only.targetFiles).toEqual(["a.ts", "b.ts"]);
+    });
+
+    it("leaves an issue with only an implement receipt alone", () => {
+        const [only] = latestWorkReceipts([implement()]);
+        expect(only.role).toBe("implement");
+    });
+});
+
+describe("the queue:train CLI joins receipts into a train plan", () => {
+    it("reads a batch off disk and reports order, verdicts and scenarios", () => {
+        const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tolaria-train-"));
+        const batch = "sess-cli";
+
+        writeReceipt(tmp, batch, {
+            version: RECEIPT_VERSION,
+            role: "implement",
+            issue: 10,
+            outcome: "pr-open",
+            pr: 101,
+            branch: "feat/issue-10",
+            worktree: `${tmp}/wt-10`,
+            targetFiles: ["convex/gre/layers.ts"],
+            proofOfFailure: [],
+            scenario: { label: "Bolt to the face", spec: { landCount: 3 } },
+        });
+        writeReceipt(tmp, batch, {
+            version: RECEIPT_VERSION,
+            role: "implement",
+            issue: 20,
+            outcome: "pr-open",
+            pr: 102,
+            branch: "feat/issue-20",
+            worktree: `${tmp}/wt-20`,
+            targetFiles: ["convex/gre/layers.ts"],
+            restructures: ["convex/gre/layers.ts"],
+            proofOfFailure: [],
+        });
+        writeReceipt(tmp, batch, {
+            version: RECEIPT_VERSION,
+            role: "review",
+            issue: 20,
+            outcome: "blocking",
+            pr: 102,
+            findings: ["layers.ts:88 — grant survives the source leaving"],
+        });
+
+        const result = spawnSync(
+            "bun",
+            [
+                path.join(REPO_ROOT, "scripts", "train-order.ts"),
+                "--batch",
+                batch,
+            ],
+            { cwd: tmp, encoding: "utf8" }
+        );
+        expect(result.status, result.stderr).toBe(0);
+        const plan = JSON.parse(result.stdout) as {
+            order: number[];
+            entries: Array<{
+                issue: number;
+                pr: number;
+                verdict: string | null;
+                findings: string[];
+                scenario: { label: string } | null;
+            }>;
+            missing: number;
+        };
+
+        // #20 restructures the file #10 touches, so it merges first — even
+        // though #10 came first in the batch.
+        expect(plan.order).toEqual([20, 10]);
+        const twenty = plan.entries.find((e) => e.issue === 20)!;
+        expect(twenty.verdict).toBe("blocking");
+        expect(twenty.findings).toHaveLength(1);
+        // The scenario spec survives the process boundary — this is exactly
+        // what an orchestrator dying between merge and registration loses
+        // when the receipt lives only in a context window.
+        expect(plan.entries.find((e) => e.issue === 10)!.scenario?.label).toBe(
+            "Bolt to the face"
+        );
+        expect(plan.missing).toBe(0);
+    });
+
+    it("lets a fixup receipt supersede the implement receipt it replaces", () => {
+        // The implement receipt describes the branch as it was when review
+        // blocked it; the fixup receipt describes what will actually land. Both
+        // sit in the directory forever, so preferring the wrong one orders the
+        // train against a diff that no longer exists.
+        const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tolaria-train-"));
+        const batch = "sess-fixup";
+        const base = {
+            version: RECEIPT_VERSION,
+            issue: 10,
+            outcome: "pr-open" as const,
+            pr: 101,
+            branch: "feat/issue-10",
+            worktree: `${tmp}/wt-10`,
+            proofOfFailure: [],
+        };
+        writeReceipt(tmp, batch, {
+            ...base,
+            role: "implement",
+            targetFiles: ["a.ts"],
+        });
+        writeReceipt(tmp, batch, {
+            ...base,
+            role: "fixup",
+            targetFiles: ["a.ts", "b.ts"],
+            restructures: ["b.ts"],
+        });
+        writeReceipt(tmp, batch, {
+            ...base,
+            issue: 20,
+            pr: 102,
+            branch: "feat/issue-20",
+            worktree: `${tmp}/wt-20`,
+            role: "implement",
+            targetFiles: ["b.ts"],
+        });
+
+        const result = spawnSync(
+            "bun",
+            [
+                path.join(REPO_ROOT, "scripts", "train-order.ts"),
+                "--batch",
+                batch,
+            ],
+            { cwd: tmp, encoding: "utf8" }
+        );
+        expect(result.status, result.stderr).toBe(0);
+        const plan = JSON.parse(result.stdout) as {
+            order: number[];
+            entries: Array<{ issue: number; targetFiles: string[] }>;
+        };
+        // Only the FIXUP receipt touches b.ts and restructures it. Reading the
+        // implement receipt instead would produce [10, 20] on priority alone.
+        expect(plan.entries.find((e) => e.issue === 10)!.targetFiles).toEqual([
+            "a.ts",
+            "b.ts",
+        ]);
+        expect(plan.order).toEqual([10, 20]);
+        expect(plan.entries).toHaveLength(2);
+    });
+
+    it("counts a subagent that left no receipt", () => {
+        const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tolaria-train-"));
+        writeReceipt(tmp, "sess-gap", {
+            version: RECEIPT_VERSION,
+            role: "missing",
+            outcome: "missing",
+            session: "sess-gap",
+            transcript: null,
+        });
+        const result = spawnSync(
+            "bun",
+            [
+                path.join(REPO_ROOT, "scripts", "train-order.ts"),
+                "--batch",
+                "sess-gap",
+            ],
+            { cwd: tmp, encoding: "utf8" }
+        );
+        expect(result.status, result.stderr).toBe(0);
+        const plan = JSON.parse(result.stdout) as {
+            missing: number;
+            order: number[];
+        };
+        expect(plan.missing).toBe(1);
+        expect(plan.order).toEqual([]);
+    });
+
+    it("exits non-zero on a corrupt receipt instead of merging a short batch", () => {
+        const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tolaria-train-"));
+        const dir = path.join(tmp, ".claude", "receipts", "sess-bad");
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(path.join(dir, "10-implement.json"), '{"version":99}');
+        const result = spawnSync(
+            "bun",
+            [
+                path.join(REPO_ROOT, "scripts", "train-order.ts"),
+                "--batch",
+                "sess-bad",
+            ],
+            { cwd: tmp, encoding: "utf8" }
+        );
+        expect(result.status).toBe(1);
+        expect(result.stderr).toMatch(/receipt\.version/);
     });
 });

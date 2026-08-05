@@ -150,7 +150,7 @@ It prints one JSON object (`version: 1`) and makes the `gh` calls itself — one
 bun run queue:plan --inferred '{"2104":["convex/cards/sets/ice/**"],"2109":["src/components/debug/**"]}'
 ```
 
-A declaration in the issue body always wins over an override, so this can never quietly contradict a ticket. Two cautions when inferring: an issue body names the module it is _about_, not every file it will touch — grep the candidate's key symbols for shared consumers first (two issues once both rewrote the same vs-AI driver hook, invisible until the receipts came back). And **re-check disjointness against the receipts** (§3 step 8 reports the paths actually touched): a late-discovered overlap is not fatal, but it fixes the train's merge ORDER — land the PR that restructures the shared file first and rebase the other onto it.
+A declaration in the issue body always wins over an override, so this can never quietly contradict a ticket. Two cautions when inferring: an issue body names the module it is _about_, not every file it will touch — grep the candidate's key symbols for shared consumers first (two issues once both rewrote the same vs-AI driver hook, invisible until the receipts came back). A late-discovered overlap is not fatal — the receipts report the paths actually touched, and `queue:train` (§4) recomputes the merge order from them.
 
 **If the project has no planner** (`bun run queue:plan` is absent — this skill is meant to be portable), fall back to **serial single-issue mode**: take the highest-priority unclaimed `ready-for-agent` issue by § Priority order, claim it, and run the rest of this loop with a batch of one. Do **not** hand-roll a batch query. Fan-out without a tested planner is what this section replaced: deriving the sort, the dependency scan and the disjointness walk from prose produced silent mis-orderings that looked plausible and claimed work out of order. One issue per pass is slower and always correct; the fan-out is the reward for adopting the planner.
 
@@ -207,6 +207,7 @@ Nothing to do here — the rule is `scripts/lib/queue-plan.ts`, and the plan you
 Spawn a **fresh** subagent via the `Agent` tool for **each** issue in the batch, **in a single message with multiple tool calls** so they run concurrently (one new subagent per issue — never reuse one). The orchestrator does NOT read the issue body, create the worktree, edit files, or run tests itself — each subagent does its own. Pass each subagent everything it needs in the prompt:
 
 - The issue number `#N` and its type (bug → `fix`, enhancement → `feat`).
+- The **`BATCH_ID`** — the receipt directory this pass writes to (§3 step 8). Use the orchestrator's session id, which is also what the `SubagentStop` hook derives its path from; a subagent writing to a directory the hook cannot find would defeat the missing-receipt guarantee.
 - The **verified-green SHA** from §0 (enables the subagent's abort-on-red skip).
 - Whether the HITL flag is set (so its PR is left for human review — see HITL flag).
 - The instructions below, which the subagent follows end-to-end.
@@ -218,9 +219,9 @@ The tier governs the **implement-subagent and every follow-up subagent for that 
 
 **If a plan entry looks under-tiered, say so — do not silently upgrade it.** Some work is harder than its label suggests: an issue whose difficulty is **classification or taxonomy** (a new event type, a new seam other code feeds, a new union member, anything requiring the producer census in step 4) wants `opus`, because the failure mode there is a wrong mental model rather than a typo — no gate catches that, only review does, expensively and serially. But re-deciding the tier per run is exactly the model-derived decision this loop moved into the planner: it makes the same issue route differently on two passes for reasons nobody can reconstruct afterwards. Report the suspicion in the pass report and **suggest the `model:opus` label**; applied at triage it persists, takes effect on the next pass, and every later run agrees. Run what the plan says in the meantime.
 
-Collect all receipts before moving to the integrate stage (§4). Because the batch is file-disjoint (§1), the parallel worktrees cannot collide.
+Every subagent has written its receipt before the train starts (§4 reads them from disk, not from this conversation). Because the batch is file-disjoint (§1), the parallel worktrees cannot collide.
 
-**Stalled subagents — a silent one is usually alive.** If a subagent has returned no receipt for `SUBAGENT_STALL_MINUTES`, do **not** respawn it: a second agent in the same worktree corrupts both. Probe for liveness first, cheapest signal upward:
+**Stalled subagents — a silent one is usually alive.** If a subagent has written no receipt for `SUBAGENT_STALL_MINUTES` (`ls .claude/receipts/<BATCH_ID>/`), do **not** respawn it: a second agent in the same worktree corrupts both. Probe for liveness first, cheapest signal upward:
 
 ```bash
 ls -la ../<repo>-issue-N                      # worktree still there?
@@ -233,9 +234,11 @@ Any file touched in the last 10 minutes, or a running test process against that 
 
 ### 3b. Review fan-out (parallel, receipt-triggered)
 
-The moment a `pr-open` receipt arrives — while other implementers are still working — spawn a **fresh reviewer subagent** (`opus`, always) on that PR's diff. Do not wait for the full batch: review wall-clock hides inside the fan-out this way, instead of stretching the serial train.
+The moment a `pr-open` receipt lands in the batch directory — while other implementers are still working — spawn a **fresh reviewer subagent** (`opus`, always) on that PR's diff. Do not wait for the full batch: review wall-clock hides inside the fan-out this way, instead of stretching the serial train.
 
-Reviewer prompt mandate (strict): read the PR diff (`gh pr diff`) plus surrounding context; report **only** (a) real bugs, (b) CR-correctness violations, (c) project-rule violations — primitive reuse, type sourcing, one-component-per-file, test quality (tautological/weak tests), missing mandatory coverage per `.claude/rules/`. No style commentary, no praise, no scope creep. Return a terse verdict receipt: `approve`, or `blocking` with a one-line-per-finding list.
+Reviewer prompt mandate (strict): read the PR diff (`gh pr diff`) plus surrounding context; report **only** (a) real bugs, (b) CR-correctness violations, (c) project-rule violations — primitive reuse, type sourcing, one-component-per-file, test quality (tautological/weak tests), missing mandatory coverage per `.claude/rules/`. No style commentary, no praise, no scope creep.
+
+**The verdict is a receipt, written to the same batch directory** as `<issue>-review.json` (`role: "review"`, `outcome: "approve" | "blocking"`, `pr`, `findings[]`) before the reviewer returns its one-line summary. A `blocking` verdict with an empty `findings` list is rejected by the contract — it is the shape that stalls a train with nothing to hand the fixup subagent. Persisting the verdict is what makes "was this PR reviewed?" answerable after an interrupt, instead of a question only the dead context could answer.
 
 **Prove it, don't read it — empirical verification is mandatory (not optional).** A review conducted entirely by reading is a guess with a confident tone. For every load-bearing claim — the implementer's and your own — **run something**: execute the relevant tests, and where a claim is that some test _covers_ a behaviour, **deliberately break the subject and confirm the test goes red**, then revert. Comment out the new branch, invert the condition, re-introduce the original bug. A guard that does not fire is not a guard.
 
@@ -306,24 +309,54 @@ The train (§4) consumes these verdicts. `blocking` → hand the branch to a fix
     1. Commit with message referencing the issue: `fix: <description> (closes #N)` or `feat: <description> (closes #N)`
     2. Push branch, open PR: `gh pr create --title "<type>: <short title>" --body "Closes #N\n\n<summary>"`
     3. **Stop here.** Leave the worktree intact (the orchestrator may hand the branch back for a rebase fixup in §4). Never run `gh pr merge`.
-8. **Return a terse receipt** — and nothing more (no file dumps, no full test logs). The receipt is the subagent's entire value to the orchestrator:
-    - outcome: `pr-open` | `wip` | `failed`
-    - PR number/URL
-    - branch + worktree path (so the orchestrator can integrate and release)
-    - **target files** — the actual paths the diff touched (`git diff --name-only main`), so the orchestrator can confirm the batch stayed disjoint
-    - **proof-of-failure** — for every test you added that _guards_ a behaviour (a regression test, a catalogue guard, a CR-conformance assertion), one line: what you broke and what went red. Break the subject, watch it fail, revert. A test never seen failing is not evidence, and the failure mode is silent: a test that passes when it should fail looks identical to a real one in the diff, in review, and in a green suite. If a test still passes after you break what it guards, fix the test — do not report it as covered.
-    - on `wip`/`failed`: the one-line reason (what's still red)
+8. **Write the receipt to the batch artifact directory, then return a one-line summary.** The receipt is a FILE, not a paragraph — `.claude/receipts/<BATCH_ID>/<issue>-implement.json`, written through `writeReceipt` (`scripts/lib/receipt.ts`), which validates before it writes and rejects a malformed receipt naming the offending field. `BATCH_ID` arrives in your prompt.
+
+    `WorkReceipt` in `scripts/lib/receipt.ts` **is** the field list — read it there rather than from a copy here, and let the validator tell you what is missing. Three fields carry judgment no schema can enforce:
+    - **`targetFiles`** — the paths the diff ACTUALLY touched (`git diff --name-only main`), not the paths the issue predicted. The train's conflict graph is built from these.
+    - **`restructures`** — the subset you MOVED, RENAMED, SPLIT or REWROTE, as opposed to appended to or edited in place. The train cannot derive this from paths: "we both touched `layers.ts`" says nothing about who must land first, and you are the only one who knows. Omit when nothing was restructured (the common case).
+    - **`proofOfFailure`** — one entry per test you added that _guards_ a behaviour (a regression test, a catalogue guard, a CR-conformance assertion): what you broke, and what went red. Break the subject, watch it fail, revert. A test never seen failing is not evidence, and the failure mode is silent — a test that passes when it should fail looks identical to a real one in the diff, in review, and in a green suite. If a test still passes after you break what it guards, fix the test; do not report it as covered.
+
+    Then return **one line** to the orchestrator: outcome, PR number, and — on `wip`/`failed` — what is still red. Nothing more (no file dumps, no test logs, no restated receipt). The file is the payload; the line is a pointer.
+
+    **A `SubagentStop` hook backs this up.** If you stop without writing a receipt, `.claude/hooks/receipt-guard.sh` records a `missing` marker so the gap is a fact on disk rather than an absence. That is a backstop, not an alternative — a `missing` marker carries no PR, no paths and no verdict, so an issue whose receipt is only a marker cannot be merged this pass.
 
 The subagent inherits the same error-handling rules (max 3 attempts, then `[WIP]` draft PR — see Error handling).
 
 ### 4. Integrate (serial merge-train, orchestrator-owned)
 
-Once all batch receipts are collected, merge the `pr-open` PRs **one at a time** behind a serial lock. **Never merge two PRs concurrently** — the whole point of this stage is that every merge is gated against the _actual_ post-merge state of `main`, not a stale base. Skip `wip`/`failed` receipts (their issues stay claimed for a later pass or fixup).
+**Get the merge order from the receipts. Do not derive it.**
 
-For each `pr-open` PR, in batch priority order (bugs first, then FIFO):
+```bash
+bun run queue:train --batch <BATCH_ID> --pretty
+```
+
+It reads the batch's receipts, builds the conflict graph over the paths each PR actually touched, and returns the sequence to merge in:
+
+| Field     | What it is                                                             | What you do                                                                                                    |
+| --------- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `order`   | issue numbers, in merge sequence                                       | merge in exactly this order                                                                                    |
+| `cycles`  | PRs with no correct relative order                                     | **non-empty ⇒ `order` is empty and the train does not run.** Report it, land nothing, leave the claims         |
+| `edges`   | `{before, after, path}` — why the order is what it is                  | quote in the pass report when the order surprises you                                                          |
+| `entries` | per mergeable issue: `pr`, `branch`, `worktree`, `verdict`, `scenario` | this is the join you would otherwise hold in context — read the one field you need, per step                   |
+| `blocked` | `wip` / `failed` / `collision` receipts                                | not in the train; their issues stay claimed for a later pass or fixup                                          |
+| `missing` | subagents that stopped leaving no receipt                              | > 0 means work is unaccounted for — say so in the pass report, and do not treat the batch as fully implemented |
+
+A **cycle is a stop, not a hint.** Two PRs that each restructure a file the other touches have no correct order, and that is the batch telling you it should never have been parallel. Merging one anyway means picking a sequence nobody chose. Report the cycle, leave both claimed, and let the next pass take them serially.
+
+Then merge the PRs **one at a time** behind a serial lock. **Never merge two PRs concurrently** — the whole point of this stage is that every merge is gated against the _actual_ post-merge state of `main`, not a stale base.
+
+**Resuming an interrupted train.** The batch directory survives the orchestrator, so a train that died mid-way does not restart from zero. Re-run `queue:train`, then ask GitHub what already landed:
+
+```bash
+gh pr view <pr> --json state --jq .state      # MERGED → skip; nothing to re-review, nothing to re-merge
+```
+
+Everything else needed to continue is already on disk: the verdicts (so no PR is re-reviewed), the branches and worktrees (so no PR is re-created), and the scenario specs (so §5 can still register them). Do **not** re-run the fan-out for an issue whose receipt is already there.
+
+For each issue in `order`:
 
 1. **Take the merge lock.** Only one PR integrates at a time.
-2. **Check the review verdict (§3b).** `approve` → proceed. `blocking` → hand the branch to a fixup subagent (issue's `model:*` label, max 3 attempts) and re-review the fix before proceeding; if still blocking after 3, mark `[WIP]`, release, move on. Verdict not yet in (review still running) → integrate another `approve`d PR first and come back. **A `migration`-labelled issue has no verdict by design (§3b light lane): treat it as an implicit `approve` and proceed — never wait for a review that was intentionally never spawned.**
+2. **Read the review verdict from its entry** (`entries[].verdict`, persisted by §3b). `approve` → proceed. `blocking` → hand the branch to a fixup subagent (issue's `model:*` label, max 3 attempts) with `entries[].findings`, and re-review the fix before proceeding; if still blocking after 3, mark `[WIP]`, release, move on. `null` with a review still running → integrate another approved PR first and come back. **A `migration`-labelled issue has no verdict by design (§3b light lane): a `null` verdict there is an implicit `approve` — never a review still pending.**
 3. **Rebase onto the current `main` tip.** In that PR's worktree:
     ```bash
     git -C <worktree> fetch origin main
@@ -362,9 +395,17 @@ If the HITL flag was set on an issue, its PR is **not** merged here — report "
 Back in the orchestrator (do NOT re-read the diff or re-run tests):
 
 - On a merged PR: the issue auto-closes via `Closes #N` in the PR body. Verify closure: `gh issue view N --json state`.
-- **Register the preset scenario (DB-direct), if the receipt carried one (§3 step 5).** Now that the PR is merged and the deployment redeployed, the card exists in the catalogue the loadability guard checks — so register the scenario the subagent emitted by calling `seedScenarioDirect` against the deployment: `bunx convex run debugScenarios:seedScenarioDirect '{"label":"…","spec":{…}}'` (or via the Convex MCP). It upserts by label (safe to re-run). The row is deployment-local by design (issue #1455) — not in git, so nothing to commit.
+- **Register the preset scenario (DB-direct), reading the spec from the artifact.** Now that the PR is merged and the deployment redeployed, the card exists in the catalogue the loadability guard checks. The spec is `entries[].scenario` in the `queue:train` output — read it from there, never from memory of what the subagent said:
+
+    ```bash
+    bun run queue:train --batch <BATCH_ID> --pretty | jq -r '.entries[] | select(.scenario) | .scenario | @json'
+    bunx convex run debugScenarios:seedScenarioDirect '{"label":"…","spec":{…}}'
+    ```
+
+    It upserts by label (safe to re-run), and the row is deployment-local by design (issue #1455) — not in git, so nothing to commit. Because the spec is on disk, an orchestrator that dies between the merge and the registration loses nothing: the next pass re-reads the same artifact and registers it.
     - **Expect the emitted spec to be wrong and check it.** A headless subagent never loads a scenario, so it writes the shape it _imagines_ — a plausible-looking `{deckId, hand, battlefield}` when the validator wants `{cards: [{name, owner, zone, count}], phase, landCount}` (observed). The mutation rejects it with the full expected validator in the error, which is the fastest way to learn the real shape; fix and re-run rather than handing the failure back.
     - **Then check it exercises the feature.** A scenario that loads is not a scenario that demonstrates anything — the emitted one used a 1-mana spell to show off _batched_ multi-land payment, which taps exactly one land. Re-pick the cards yourself against the actual mechanic, and verify every card name resolves in the catalogue (`grep -rn 'name: "…"' convex/cards/sets/`) before registering.
+
 - **Release the claim and tear down the worktree** for every batch issue (see Release).
 - **Close the parent umbrella when its last child closes.** For each issue closed this pass that declares a `parent`, read the parent's completion:
 
