@@ -36,6 +36,34 @@ describe("parseManaCost — plain digits, X, and bare colours (unchanged behavio
     });
 });
 
+describe("parseManaCost — fixed generic coexisting with variable X (CR 107.3 / 202.3, issue #1774)", () => {
+    it.each([
+        ["{X}{1}{W}", { X: "X", generic: 1, W: 1 }],
+        ["{1}", { X: 1 }],
+        ["{X}{X}{U}", { X: "XX", U: 1 }],
+        ["{X}{2}{B}", { X: "X", generic: 2, B: 1 }],
+    ] as const)(
+        "%s → %o (X-only / generic-only / X+generic table)",
+        (mana, expected) => {
+            expect(parseManaCost(mana)).toEqual(expected);
+        }
+    );
+
+    it('{X}{1}{W} → { X: "X", generic: 1, W: 1 } (acceptance criterion — generic pip no longer dropped)', () => {
+        expect(parseManaCost("{X}{1}{W}")).toEqual({
+            X: "X",
+            generic: 1,
+            W: 1,
+        });
+    });
+
+    it("{X}{X}{U} keeps both X's, no generic invented (acceptance criterion)", () => {
+        const result = parseManaCost("{X}{X}{U}");
+        expect(result).toEqual({ X: "XX", U: 1 });
+        expect(result).not.toHaveProperty("generic");
+    });
+});
+
 describe("parseManaCost — guild-hybrid pips (CR 202.1a / 107.4e, issue #1742)", () => {
     it('{R/W} → hybrid: [["R","W"]] (acceptance criterion)', () => {
         expect(parseManaCost("{R/W}")).toEqual({ hybrid: [["R", "W"]] });
@@ -63,10 +91,11 @@ describe("parseManaCost — Phyrexian pips (CR 107.4f, issue #1742)", () => {
     it("{1}{B/P}{B/P} → { X: 1, phyrexian: { B: 2 } } (acceptance criterion)", () => {
         // The issue text writes this as `generic/X: 1` — the importers' existing
         // convention (mirrored from json-to-cards.mjs pre-fix) folds a plain
-        // printed numeral into the `X` field, never `ManaCost.generic` (that
-        // field is reserved for fixed generic that COEXISTS with a variable
-        // `{X}` pip, e.g. Soul Burn's `{X}{2}{B}`, which this parser does not
-        // attempt to disambiguate — out of scope for this fix).
+        // printed numeral into the `X` field when there is no `{X}` pip in the
+        // cost. `ManaCost.generic` is reserved for fixed generic that COEXISTS
+        // with a variable `{X}` pip, e.g. Soul Burn's `{X}{2}{B}` — see the
+        // "fixed generic coexisting with variable X" describe block above
+        // (issue #1774).
         expect(parseManaCost("{1}{B/P}{B/P}")).toEqual({
             X: 1,
             phyrexian: { B: 2 },
@@ -133,6 +162,12 @@ describe("formatManaCost — round-trips a parsed cost into TS source", () => {
         );
     });
 
+    it("fixed generic alongside variable X round-trips (issue #1774, {X}{1}{W} shape)", () => {
+        expect(formatManaCost({ X: "X", generic: 1, W: 1 })).toBe(
+            '{ X: "X", generic: 1, W: 1 }'
+        );
+    });
+
     it("a formatted hybrid/phyrexian cost is valid JS object-literal syntax", () => {
         const src = formatManaCost({
             X: 1,
@@ -145,5 +180,11 @@ describe("formatManaCost — round-trips a parsed cost into TS source", () => {
             phyrexian: { B: 2 },
             hybrid: [["R", "W"]],
         });
+    });
+
+    it("a formatted X+generic cost is valid JS object-literal syntax (issue #1774)", () => {
+        const src = formatManaCost({ X: "X", generic: 1, W: 1 });
+        const value = new Function(`return (${src});`)();
+        expect(value).toEqual({ X: "X", generic: 1, W: 1 });
     });
 });
