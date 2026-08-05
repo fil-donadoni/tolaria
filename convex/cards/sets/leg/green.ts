@@ -813,16 +813,17 @@ export const cocoon: CardDefinition = {
                 "At the beginning of your upkeep, remove a pupa counter from this Aura. If you can't, sacrifice it, put a +1/+1 counter on enchanted creature, and that creature gains flying.",
             phase: "UPKEEP",
             scope: "your",
-            // NOT DSL-migratable (ADR 0045): two independent blockers. (a) The
-            // hatch branch acts on the Aura's ENCHANTED creature (host), read
-            // via `getAttachedToId` — the `EffectObjectSelector` grammar has
-            // no attached-host ref (same gap as the sibling `cocoon-etb`
-            // trigger above and The Brute's regenerate ability, `red.ts`).
-            // (b) The hatch's flying grant is INDEFINITE ("that creature gains
-            // flying", no duration) but `grantAbility`'s `duration` field is
-            // REQUIRED (phase-scoped only) — no indefinite-grant Op exists.
-            // Blocked on: an attached-host object selector + an indefinite
-            // grantAbility Op/variant.
+            // NOT DSL-migratable (ADR 0045): the hatch branch acts on the
+            // Aura's ENCHANTED creature (host), read via `getAttachedToId` —
+            // the `EffectObjectSelector` grammar has no attached-host ref
+            // (same gap as the sibling `cocoon-etb` trigger above and The
+            // Brute's regenerate ability, `red.ts`). Blocked on: an
+            // attached-host object selector.
+            // The INDEFINITE flying grant ("that creature gains flying", no
+            // duration) is NOT a blocker: omitting `duration` on the
+            // `grantAbility` Op routes to `grantStaticAbilityPermanent`
+            // (CR 611.2b, issue #1746) — the same source-independent primitive
+            // the closure below already calls directly.
             resolve: (ctx) => {
                 const self: TargetSelection = {
                     type: "permanent",
