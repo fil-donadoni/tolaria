@@ -89,6 +89,25 @@ export type MoveMutations = {
     tapForActivationPayment: (
         a: GP & { cardInstanceId: string; manaChoiceIndex?: number }
     ) => Promise<unknown>;
+    /** CR 701.16 / 118.5 — names ONE permanent to sacrifice for a
+     *  `sacrificeFilter` activation cost (Fallen Angel, Atog) or a static
+     *  additional-sacrifice tax. One call per victim. */
+    selectSacrifice: (a: GP & { cardInstanceId: string }) => Promise<unknown>;
+    /** CR 602.1 / 118.8 — names ONE permanent to tap for a `tapOtherFilter`
+     *  activation cost (Hand of Justice, Crew N). One call per permanent. */
+    selectActivationCost: (
+        a: GP & { cardInstanceId: string }
+    ) => Promise<unknown>;
+    /** CR 602.1 / 118.5 — names the cards exiled from ONE graveyard for an
+     *  `exileFromGraveyard` activation cost (Grim Lavamancer, Night Soil). */
+    selectActivationExileCost: (
+        a: GP & { graveyardOwnerId: string; cardInstanceIds: string[] }
+    ) => Promise<unknown>;
+    /** CR 602.1 / 118.3 — names the hand cards discarded for a `discardFilter`
+     *  activation cost (Survival of the Fittest). */
+    selectActivationDiscardCost: (
+        a: GP & { cardInstanceIds: string[] }
+    ) => Promise<unknown>;
     toggleAttacker: (a: GP & { cardInstanceId: string }) => Promise<unknown>;
     confirmAttackers: (a: GP) => Promise<unknown>;
     selectBlocker: (a: GP & { cardInstanceId: string }) => Promise<unknown>;
@@ -338,6 +357,47 @@ export async function executeMove(
             }
             if (move.confirmTargets && move.targets.length > 0) {
                 await mutations.confirmTargets(base);
+            }
+            // CR 602.1 / 118 — the DEFERRED cost legs. The server parks a
+            // `pendingActivation` carrying an unanswered picker for each of
+            // them and refuses to commit until every one is named; an
+            // activation left half-paid is rolled back when the payer next
+            // gives up priority (`rollbackPendingActivation`), which is what
+            // produced the tap-a-land-then-untap-it loop before the picks
+            // travelled on the move. Submitted AFTER targeting: while a
+            // `pendingTarget` is live the expected input is "target", and each
+            // picker asserts "priority".
+            const picks = move.costPicks;
+            if (picks) {
+                // CR 701.16 — one call per victim; the server routes it to
+                // whichever in-flight action awaits a sacrifice choice.
+                for (const cardInstanceId of picks.sacrificeIds ?? []) {
+                    await mutations.selectSacrifice({
+                        ...base,
+                        cardInstanceId,
+                    });
+                }
+                for (const cardInstanceId of picks.tapOtherIds ?? []) {
+                    await mutations.selectActivationCost({
+                        ...base,
+                        cardInstanceId,
+                    });
+                }
+                if (picks.exileFromGraveyard) {
+                    await mutations.selectActivationExileCost({
+                        ...base,
+                        graveyardOwnerId:
+                            picks.exileFromGraveyard.graveyardOwnerId,
+                        cardInstanceIds:
+                            picks.exileFromGraveyard.cardInstanceIds,
+                    });
+                }
+                if (picks.discardIds && picks.discardIds.length > 0) {
+                    await mutations.selectActivationDiscardCost({
+                        ...base,
+                        cardInstanceIds: picks.discardIds,
+                    });
+                }
             }
             // `tapForActivationPayment` batching is out of this issue's named
             // scope (item 1 is `tapForPayment` only) — stays per-item.
