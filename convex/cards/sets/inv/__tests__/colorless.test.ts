@@ -17,11 +17,13 @@ import {
 } from "../../../../gre/layers";
 import {
     applyCostModifiers,
+    applySourceStaticEffects,
     getCostModifiers,
     normalizeManaCost,
     processPendingActionTriggers,
     resolveTopOfStack,
 } from "../../../../gre/state";
+import { checkStateBasedActions } from "../../../../gre/sba";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
@@ -44,7 +46,7 @@ import {
 } from "../colorless";
 import { mishrasFactory } from "../../atq/colorless";
 import { creepingTarPit } from "../../wwk/colorless";
-import { plains, swamp } from "../../lea/colorless";
+import { forest, island, mountain, plains, swamp } from "../../lea/colorless";
 import { grizzlyBears } from "../../lea/green";
 import { spectralShield } from "../../ice/multicolor";
 import { sheoldredTheApocalypse } from "../../dmu/black";
@@ -633,16 +635,20 @@ describe("Sparring Golem (becomes blocked → +1/+1 per blocker, CR 509.1h — e
     });
 });
 
-describe("Tek (Domain-adjacent land-gated P/T + unconditional flying/first strike/trample, CR 613.1c/1d)", () => {
-    it("is a 2/2 artifact Dragon carrying flying/first strike/trample unconditionally (flagged simplification)", () => {
+describe("Tek (land-gated P/T + keyword grants, CR 613.1c/1d, issue #1850)", () => {
+    it("is a 2/2 artifact Dragon with one pt-cda and three keyword-grant static effects, no unconditional staticAbilities", () => {
         expect(tek.power).toBe(2);
         expect(tek.toughness).toBe(2);
-        expect(tek.staticAbilities).toEqual([
+        expect(tek.staticAbilities).toBeUndefined();
+        expect(tek.staticEffects?.some((e) => e.kind === "pt-cda")).toBe(true);
+        const grants = (tek.staticEffects ?? []).filter(
+            (e) => e.kind === "keyword-grant"
+        );
+        expect(grants.map((g) => g.keyword)).toEqual([
             "flying",
             "first strike",
             "trample",
         ]);
-        expect(tek.staticEffects?.some((e) => e.kind === "pt-cda")).toBe(true);
     });
 
     it("gets +0/+2 controlling a Plains and +2/+0 controlling a Swamp, summed", () => {
@@ -678,6 +684,114 @@ describe("Tek (Domain-adjacent land-gated P/T + unconditional flying/first strik
         });
         expect(getEffectivePower(state, dragon)).toBe(2);
         expect(getEffectiveToughness(state, dragon)).toBe(2);
+    });
+
+    // `keyword-grant` is MATERIALIZED into `staticAbilities` at apply time
+    // (not recomputed at every read like `pt-buff`/`pt-cda`), so each "as long
+    // as you control a <land type>" gate only stays live because the real
+    // production SBA path (`checkStateBasedActions` → `refreshCounterGatedStatics`)
+    // re-runs `condition` every SBA pass — mirrors Kavu Runner's shipped test
+    // shape (`inv/red.ts`/`__tests__/red.test.ts`, issue #1095).
+    function makeTekState() {
+        const dragon = makeInstance(tek.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "tek1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [dragon] }),
+                makePlayer("p2"),
+            ],
+        });
+        applySourceStaticEffects(state, dragon);
+        return { state, dragon };
+    }
+
+    it("has none of flying/first strike/trample controlling no basic lands", () => {
+        const { dragon } = makeTekState();
+        expect(dragon.staticAbilities ?? []).not.toContain("flying");
+        expect(dragon.staticAbilities ?? []).not.toContain("first strike");
+        expect(dragon.staticAbilities ?? []).not.toContain("trample");
+    });
+
+    it("gains flying only while controlling an Island (re-evaluated via checkStateBasedActions)", () => {
+        const { state, dragon } = makeTekState();
+        expect(dragon.staticAbilities ?? []).not.toContain("flying");
+
+        const islandCard = makeInstance(island.id, {
+            controllerId: "p1",
+            id: "isl",
+        });
+        state.players[0].battlefield.push(islandCard);
+        checkStateBasedActions(state);
+        expect(dragon.staticAbilities).toContain("flying");
+        expect(dragon.staticAbilities).not.toContain("first strike");
+        expect(dragon.staticAbilities).not.toContain("trample");
+
+        state.players[0].battlefield = state.players[0].battlefield.filter(
+            (c) => c.id !== "isl"
+        );
+        checkStateBasedActions(state);
+        expect(dragon.staticAbilities ?? []).not.toContain("flying");
+    });
+
+    it("gains first strike only while controlling a Mountain", () => {
+        const { state, dragon } = makeTekState();
+        const mountainCard = makeInstance(mountain.id, {
+            controllerId: "p1",
+            id: "mtn",
+        });
+        state.players[0].battlefield.push(mountainCard);
+        checkStateBasedActions(state);
+        expect(dragon.staticAbilities).toContain("first strike");
+        expect(dragon.staticAbilities).not.toContain("flying");
+        expect(dragon.staticAbilities).not.toContain("trample");
+    });
+
+    it("gains trample only while controlling a Forest", () => {
+        const { state, dragon } = makeTekState();
+        const forestCard = makeInstance(forest.id, {
+            controllerId: "p1",
+            id: "frs",
+        });
+        state.players[0].battlefield.push(forestCard);
+        checkStateBasedActions(state);
+        expect(dragon.staticAbilities).toContain("trample");
+        expect(dragon.staticAbilities).not.toContain("flying");
+        expect(dragon.staticAbilities).not.toContain("first strike");
+    });
+
+    // Wire format (mandatory, `.claude/rules/gre-development.md` § Frontend
+    // wiring analysis): the materialized "flying" keyword must survive
+    // `projectPublicState`'s slim reshape, both while present and once the
+    // board-state gate has removed it.
+    it("flying presence/absence survives projectPublicState (wire format)", () => {
+        const { state, dragon } = makeTekState();
+
+        const islandCard = makeInstance(island.id, {
+            controllerId: "p1",
+            id: "isl",
+        });
+        state.players[0].battlefield.push(islandCard);
+        checkStateBasedActions(state);
+
+        const projectedWithFlying = projectPublicState(state, 1, "p1");
+        const slimWithFlying = projectedWithFlying.players[0].battlefield.find(
+            (c) => c.id === dragon.id
+        )!;
+        expect(slimWithFlying.staticAbilities).toContain("flying");
+
+        state.players[0].battlefield = state.players[0].battlefield.filter(
+            (c) => c.id !== "isl"
+        );
+        checkStateBasedActions(state);
+
+        const projectedNoFlying = projectPublicState(state, 2, "p1");
+        const slimNoFlying = projectedNoFlying.players[0].battlefield.find(
+            (c) => c.id === dragon.id
+        )!;
+        expect(slimNoFlying.staticAbilities ?? []).not.toContain("flying");
     });
 });
 
