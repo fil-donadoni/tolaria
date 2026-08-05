@@ -1,0 +1,18 @@
+{"ts":1000,"phase":"pre","event":"PreToolUse","session":"batch-a","tool":"Agent","id":"t1","agent_desc":"Implement #101 — layer grant survives source leaving","agent_type":null,"model":"sonnet","cmd":null,"tokens":null}
+{"ts":1400,"phase":"post","event":"PostToolUse","session":"batch-a","tool":"Agent","id":"t1","agent_desc":"Implement #101 — layer grant survives source leaving","agent_type":null,"model":"sonnet","cmd":null,"tokens":40000}
+{"ts":1010,"phase":"pre","event":"PreToolUse","session":"batch-a","tool":"Agent","id":"t2","agent_desc":"Implement #102 — restricted mana refund affordance","agent_type":null,"model":null,"cmd":null,"tokens":null}
+{"ts":1500,"phase":"post","event":"PostToolUse","session":"batch-a","tool":"Agent","id":"t2","agent_desc":"Implement #102 — restricted mana refund affordance","agent_type":null,"model":null,"cmd":null,"tokens":60000}
+{"ts":1450,"phase":"pre","event":"PreToolUse","session":"batch-a","tool":"Agent","id":"t3","agent_desc":"Review PR for #101","agent_type":null,"model":"opus","cmd":null,"tokens":null}
+{"ts":1600,"phase":"post","event":"PostToolUse","session":"batch-a","tool":"Agent","id":"t3","agent_desc":"Review PR for #101","agent_type":null,"model":"opus","cmd":null,"tokens":12000}
+{"ts":1610,"phase":"pre","event":"PreToolUse","session":"batch-a","tool":"Agent","id":"t4","agent_desc":"Review PR for #102","agent_type":null,"model":"opus","cmd":null,"tokens":null}
+{"ts":1700,"phase":"post","event":"PostToolUse","session":"batch-a","tool":"Agent","id":"t4","agent_desc":"Review PR for #102","agent_type":null,"model":"opus","cmd":null,"tokens":8000}
+{"ts":1720,"phase":"pre","event":"PreToolUse","session":"batch-a","tool":"Agent","id":"t5","agent_desc":"Fixup #102 after blocking verdict","agent_type":null,"model":null,"cmd":null,"tokens":null}
+{"ts":1900,"phase":"post","event":"PostToolUse","session":"batch-a","tool":"Agent","id":"t5","agent_desc":"Fixup #102 after blocking verdict","agent_type":null,"model":null,"cmd":null,"tokens":15000}
+{"ts":1930,"phase":"pre","event":"PreToolUse","session":"batch-a","tool":"Agent","id":"t6","agent_desc":"map the AI subsystem","agent_type":"Explore","model":"sonnet","cmd":null,"tokens":null}
+{"ts":1950,"phase":"post","event":"PostToolUse","session":"batch-a","tool":"Agent","id":"t6","agent_desc":"map the AI subsystem","agent_type":"Explore","model":"sonnet","cmd":null,"tokens":5000}
+{"ts":1960,"phase":"pre","event":"PreToolUse","session":"batch-a","tool":"Bash","id":"t7","agent_desc":"Run the train gate","agent_type":null,"model":null,"cmd":"TOLARIA_ALLOW_FULL_SUITE=1 bun run test","tokens":null}
+{"ts":2100,"phase":"post","event":"PostToolUse","session":"batch-a","tool":"Bash","id":"t7","agent_desc":"Run the train gate","agent_type":null,"model":null,"cmd":"TOLARIA_ALLOW_FULL_SUITE=1 bun run test","tokens":null}
+{"ts":2110,"phase":"pre","event":"PreToolUse","session":"batch-a","tool":"Bash","id":"t8","agent_desc":"Light pre-PR gate","agent_type":null,"model":null,"cmd":"bun run check:pr","tokens":null}
+{"ts":2200,"phase":"pre","event":"PreToolUse","session":"batch-a","tool":"Bash","id":"t9","agent_desc":"Second train gate","agent_type":null,"model":null,"cmd":"bun run check:all","tokens":null}
+{"ts":9000,"phase":"pre","event":"PreToolUse","session":"batch-later","tool":"Agent","id":"t99","agent_desc":"Implement #999 — outside the window","agent_type":null,"model":"opus","cmd":null,"tokens":null}
+{"ts":9100,"phase":"post","event":"PostToolUse","session":"batch-later","tool":"Agent","id":"t99","agent_desc":"Implement #999 — outside the window","agent_type":null,"model":"opus","cmd":null,"tokens":999999}
