@@ -283,6 +283,11 @@ export function applyMoveForSearch(
         case "random-reveal-ack":
         case "madness-decline":
         case "rebound-decline":
+        case "submit-target":
+            // issue #2283 — a raised target submission is likewise not a 1-ply
+            // material move; the ISMCTS applier (`applyMoveInSearch`,
+            // search.ts) is the one that commits it through the shared
+            // authority.
             // No board change worth modelling for a 1-ply leaf: passing keeps
             // the position; a mulligan / resolution-choice / may-pay /
             // land-entry / random-reveal-ack / madness-decline / rebound-decline

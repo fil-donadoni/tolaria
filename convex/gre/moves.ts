@@ -35,7 +35,17 @@ import {
     solvePhyrexianSplit,
     genericManaShortfall,
     targetingSourceFromCard,
+    pendingTargetingSource,
 } from "./rules";
+// issue #2283 — the origin classification that decides whether a live
+// `pendingTarget` is the bot's own half-built announcement (hands off) or a
+// selection the engine raised at it (must answer).
+import {
+    pendingTargetCountMaxReached,
+    pendingTargetOrigin,
+    raisedPendingTargetOwedBy,
+    requirementFromPendingTarget,
+} from "./pendingTargetOrigin";
 import {
     applyGenericOffset,
     delveEligibleCards,
@@ -231,6 +241,31 @@ export type Move =
            *  `executor.ts` names exactly these cards to the server. Absent for
            *  an ability with no such leg. */
           costPicks?: ActivationCostPicks;
+      }
+    | {
+          /** Answer an ENGINE-RAISED pending target selection (issue #2283) —
+           *  a targeted trigger's targets (CR 603.3d), a retarget (CR 114.6)
+           *  or a spell copy's retarget (CR 707.10b/12c). Unlike the target
+           *  tuple that rides ON a `cast-spell` / `activate-ability` move, this
+           *  is a STANDALONE submission: nobody announced anything, the engine
+           *  simply owes the controller a choice, and until it is answered the
+           *  game cannot advance at all.
+           *
+           *  Realised through the SAME mutations a human's clicks make —
+           *  `selectTargets` (batched) then `confirmTargets` when the count is
+           *  a range. Divide-as-you-choose amounts are deliberately NOT carried:
+           *  `applyOneTargetSelection` treats `amount` as optional and the
+           *  engine auto-divides ≥1-each at finalize (CR 601.2d), which is
+           *  always a legal split and one less thing that can be rejected. */
+          kind: "submit-target";
+          /** The additional targets to pick, in order. May be EMPTY for an "up
+           *  to N" selection the bot declines (min 0) — then only
+           *  `confirmTargets` fires (`selectTargets` rejects an empty array). */
+          targets: TargetSelection[];
+          /** CR 601.2c — a variable-count selection needs an explicit
+           *  `confirmTargets`; a fixed-N one auto-finalizes on the last pick
+           *  and MUST NOT be confirmed (the selection is already gone). */
+          confirmTargets: boolean;
       }
     | {
           kind: "declare-attackers";
@@ -599,6 +634,96 @@ function comboSharesController(
         else if (controllerId !== found) return false;
     }
     return true;
+}
+
+/** CR 603.3d / 114.6 / 707.10b (issue #2283) — every legal answer to the
+ *  ENGINE-RAISED pending target selection `playerId` owes right now.
+ *
+ *  Returns `[]` when there is no such selection: no pending target, one owed to
+ *  the OPPONENT, or one this player is mid-ANNOUNCING (a `"cast"` / `"ability"`
+ *  continuation the executor drives atomically inside one cast/activation
+ *  sequence — surfacing moves there would let a second decision interleave into
+ *  a half-built announcement). The classification is
+ *  `raisedPendingTargetOwedBy`, compile-time exhaustive over
+ *  `PendingTarget["kind"]`.
+ *
+ *  Legality comes from the same `getLegalTargets` + lowered-requirement pair
+ *  the accepting site (`applyOneTargetSelection`, `game.ts`) validates with, so
+ *  an enumerated submission is one the server accepts — a rejected submission
+ *  re-freezes the bot exactly as hard as no submission at all. */
+export function enumerateRaisedTargetMoves(
+    state: GameState,
+    playerId: string
+): Move[] {
+    const pt = raisedPendingTargetOwedBy(state, playerId);
+    if (!pt) return [];
+
+    const already = pt.selected.length;
+    const legal = getLegalTargets(
+        state,
+        requirementFromPendingTarget(pt),
+        // CR 702.16b / 611 — protection and `cantBeTargeted` guards read the
+        // source's live characteristics; the same helper the human path uses.
+        pendingTargetingSource(state, pt.cardInstanceId, pt.kind ?? "cast"),
+        playerId,
+        pt.chosenX,
+        // CR 601.2c — objects already chosen under this requirement are
+        // excluded by `getLegalTargets` itself (the single authority).
+        pt.selected
+    );
+
+    const minTotal = typeof pt.count === "number" ? pt.count : pt.count.min;
+    const rawMax =
+        typeof pt.count === "number"
+            ? pt.count
+            : (pt.count.max ?? already + legal.length);
+    // CR 601.2d — a divide-as-you-choose selection can never have more targets
+    // than points to divide (each target must receive at least 1).
+    const budgetMax =
+        pt.divideTotal !== undefined
+            ? pt.divideTotal
+            : Number.POSITIVE_INFINITY;
+    const maxTotal = Math.min(rawMax, budgetMax, already + legal.length);
+
+    const lo = Math.max(0, minTotal - already);
+    const hi = maxTotal - already;
+    if (hi < lo) return [];
+
+    const moves: Move[] = [];
+    for (let size = lo; size <= hi; size++) {
+        const total = already + size;
+        // CR 601.2c — a fixed-N selection auto-finalizes on the last pick, so
+        // confirming it afterwards hits "No target selection in progress".
+        const confirmTargets = !pendingTargetCountMaxReached(pt.count, total);
+        if (size === 0) {
+            // "Up to N" declined. `selectTargets` rejects an empty array, so
+            // this submission is confirm-only — and it is legal only when the
+            // selection can actually rest at zero.
+            if (confirmTargets) {
+                moves.push({
+                    kind: "submit-target",
+                    targets: [],
+                    confirmTargets,
+                });
+            }
+            continue;
+        }
+        for (const combo of combinations(legal, size)) {
+            // CR 601.2c (issue #1104) — `sameController` is a COMBINATORIAL
+            // constraint `getLegalTargets` cannot see per-candidate; mirror the
+            // post-filter `enumerateTargetTuples` applies for casts.
+            if (pt.sameController && !comboSharesController(state, combo)) {
+                continue;
+            }
+            moves.push({
+                kind: "submit-target",
+                targets: combo,
+                confirmTargets,
+            });
+            if (moves.length >= MAX_COMBINATIONS) return moves;
+        }
+    }
+    return moves;
 }
 
 function enumerateCastMoves(
@@ -1439,6 +1564,23 @@ export function enumerateMoves(
             return [];
         }
         return choiceCandidates(state, headChoice).map((c) => c.move);
+    }
+
+    // CR 603.3d / 114.6 / 707.10b (issue #2283) — an ENGINE-RAISED target
+    // selection is a first-class decision node, exactly like the pending choice
+    // above: the engine opened it AT its owner during resolution, it freezes
+    // priority, and nothing else the owner could do is legal until it is
+    // answered. Before this branch the enumerator returned nothing for it (the
+    // blanket "a pending target is always a continuation the executor drives"
+    // below), so a bot that controlled a targeted trigger with two legal
+    // targets froze the game forever — Flickerwisp, Badgermole Cub, Azure
+    // Beastbinder. An ANNOUNCED (`"cast"` / `"ability"`) pending target keeps
+    // the old behaviour and falls through to the blanket gate below.
+    if (
+        state.pendingTarget &&
+        pendingTargetOrigin(state.pendingTarget.kind) === "raised"
+    ) {
+        return enumerateRaisedTargetMoves(state, playerId);
     }
 
     // Ordinary priority window. A mid-flight pending cast/target/activation is a

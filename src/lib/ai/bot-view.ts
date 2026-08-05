@@ -22,6 +22,10 @@ import {
     assignMayPayHandCards,
     normalizeMayPayCost,
     isSearchableChoiceNode,
+    // issue #2283 — the pending-target origin classifier + the enumerator that
+    // answers a raised one, both shared with the search.
+    enumerateRaisedTargetMoves,
+    pendingTargetOrigin,
 } from "@convex/gre";
 import { cardValueById } from "@convex/gre";
 import { manaValue, parseHybridCostKey } from "@convex/gre/constants";
@@ -892,7 +896,44 @@ export function buildBotView(state: PublicGameState, botId: string): BotView {
     // projection), so the adapter round-trip below loses nothing the picks need.
     view.owedPayment = buildOwedPaymentView(state, botId);
 
+    // CR 603.3d / 114.6 / 707.10b (issue #2283) — an engine-raised target
+    // selection owed to the bot (targeted trigger / retarget / copy retarget).
+    view.owedTarget = buildOwedTargetView(state, botId);
+
     return view;
+}
+
+/** CR 603.3d / 114.6 / 707.10b (issue #2283) — the engine-raised target
+ *  selection the bot owes, with its minimal-legal answer precomputed.
+ *
+ *  Runs through `projectedToGameState` rather than reading the projection
+ *  directly, for the same reason `buildOwedPaymentView` does: target legality
+ *  is decided by `getLegalTargets` over a real `GameState` (protection, layers,
+ *  live colours, control continuity), and a raw projected instance makes those
+ *  clauses fail CLOSED — silently, as an empty candidate set. The answer is
+ *  enumerated by the SAME function the search reads
+ *  (`enumerateRaisedTargetMoves`), so gate and search can never offer different
+ *  submissions. */
+function buildOwedTargetView(
+    state: PublicGameState,
+    botId: string
+): BotView["owedTarget"] {
+    const pt = state.pendingTarget;
+    if (!pt) return undefined;
+    if (pt.playerId !== botId) return undefined;
+    // The classification, not a `kind === "trigger"` check: `"retarget"` and
+    // `"copy-retarget"` are the same class and a sixth kind must be a build
+    // error, not a silent freeze.
+    if (pendingTargetOrigin(pt.kind) !== "raised") return undefined;
+    const full = projectedToGameState(state);
+    const moves = enumerateRaisedTargetMoves(full, botId);
+    const first = moves.find((m) => m.kind === "submit-target");
+    return {
+        kind: pt.kind as "trigger" | "retarget" | "copy-retarget",
+        submission: first
+            ? { targets: first.targets, confirmTargets: first.confirmTargets }
+            : null,
+    };
 }
 
 /** Translate a brain-resolved gate decision into the `Move` the executor
@@ -1052,6 +1093,27 @@ export function botActionToMove(
             }
             return { kind: "rebound-decline" };
         }
+        case "submit-target": {
+            // CR 603.3d / 114.6 / 707.10b (issue #2283) — the minimal-legal
+            // answer to an engine-raised target selection. Guarded against a
+            // stale gate decision: the selection must still be live, still owed
+            // to the bot, and still a RAISED origin — writing these targets
+            // into a `"cast"` / `"ability"` selection would corrupt a half-built
+            // announcement the executor is mid-way through.
+            const pt = state.pendingTarget;
+            if (
+                !pt ||
+                pt.playerId !== botId ||
+                pendingTargetOrigin(pt.kind) !== "raised"
+            ) {
+                return null;
+            }
+            return {
+                kind: "submit-target",
+                targets: action.targets,
+                confirmTargets: action.confirmTargets,
+            };
+        }
         // Realised by the driver directly (Worker search / confirmDamage /
         // attack-tax pay-cancel / no-op), never translated to a Move here.
         // `search-choice` in particular carries no answer of its own — the
@@ -1064,7 +1126,10 @@ export function botActionToMove(
         // `pay-owed-payment` (ADR 0091 / issue #1209) is the same shape for
         // every OTHER park: the answer is a named `select*` mutation the driver
         // dispatches, so there is no Move to translate into either.
+        // `search-target` (issue #2283) is the same shape as `search-choice`:
+        // the Worker's returned Move IS the submission.
         case "search-choice":
+        case "search-target":
         case "pass":
         case "declare-attackers":
         case "declare-blockers":

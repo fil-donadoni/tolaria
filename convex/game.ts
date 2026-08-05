@@ -186,7 +186,6 @@ import type {
     PermanentFilter,
     SpellMode,
     TargetRequirement,
-    TargetSelection,
 } from "./cards/types";
 import {
     permanentFilterValuesFromCarrier,
@@ -216,6 +215,14 @@ import {
     isAlreadySelectedTarget,
     genericManaShortfall,
 } from "./gre/rules";
+// issue #2283 — the raised-origin (`trigger`/`retarget`/`copy-retarget`)
+// finalization and its divide split live in one module shared with the bot's
+// in-search applier, so the two can never drift.
+import {
+    applyRaisedTargetFinalization,
+    finalizeDivideAmounts,
+    pendingTargetCountMaxReached,
+} from "./gre/pendingTargetOrigin";
 import {
     PHYREXIAN_LIFE_PER_PIP,
     phyrexianManaAdditions,
@@ -5277,51 +5284,6 @@ function resolveTargetCount(
 /** True when the selected targets have reached the maximum allowed for this
  *  requirement. Fixed N → selected >= N; range → selected >= max (undefined
  *  max means no upper limit, so this never triggers auto-advance). */
-function isTargetCountMaxReached(
-    count: number | { min: number; max?: number },
-    selected: number
-): boolean {
-    if (typeof count === "number") return selected >= count;
-    if (count.max === undefined) return false;
-    return selected >= count.max;
-}
-
-/** Finalizes the divide-as-you-choose split at commit (CR 601.2d / 120.4).
- *  Uses the caster's assigned amounts when present and complete; otherwise
- *  auto-divides the total ≥1-each (the "no real choice" / Arena-UX default —
- *  e.g. a single target takes the whole total). The returned map is keyed by
- *  `${type}:${id}` and always sums to `pt.divideTotal`. */
-function finalizeDivideAmounts(
-    pt: PendingTarget,
-    targets: TargetSelection[]
-): Record<string, number> {
-    const total = pt.divideTotal ?? 0;
-    const assigned = pt.divideAmounts;
-    // Use the caster's split iff every target has a positive amount and the
-    // amounts sum to the total (a complete, legal division). Otherwise fall
-    // back to an even ≥1-each split.
-    if (assigned) {
-        let sum = 0;
-        let complete = true;
-        for (const t of targets) {
-            const a = assigned[`${t.type}:${t.id}`] ?? 0;
-            if (a < 1) complete = false;
-            sum += a;
-        }
-        if (complete && sum === total) return assigned;
-    }
-    const out: Record<string, number> = {};
-    const n = targets.length;
-    const base = Math.floor(total / n);
-    let remainder = total - base * n;
-    for (const t of targets) {
-        const extra = remainder > 0 ? 1 : 0;
-        if (remainder > 0) remainder -= 1;
-        out[`${t.type}:${t.id}`] = base + extra;
-    }
-    return out;
-}
-
 // `pendingTargetFiltersFromRequirement` moved to `./gre/rules` (issue #1193) so
 // the gre trigger-target path (`raiseTriggerTargetSelection`) can build a
 // `PendingTarget` without importing `game.ts`. Imported above; same behavior.
@@ -5502,6 +5464,16 @@ export function finalizeTargetSelection(
     pt: PendingTarget,
     playerId: string
 ): void {
+    // CR 707.10b / 114.6 / 603.3d (issue #2283) — the three ENGINE-RAISED
+    // origins (`"copy-retarget"` / `"retarget"` / `"trigger"`) write their
+    // targets onto an object already on the stack and pay nothing. They live in
+    // `gre/pendingTargetOrigin.ts` as the SINGLE AUTHORITY, because the bot's
+    // in-tree simulation (`applyMoveInSearch`) must commit a raised selection
+    // the same way this mutation path does; a second copy there would be the
+    // "the bot simulates a different game than the server plays" bug. Returns
+    // false (untouched) for an ANNOUNCED origin, which falls through below.
+    if (applyRaisedTargetFinalization(state, pt)) return;
+
     // CR 601.2c — a multi-group spell (Fumarole) locked earlier groups' picks
     // into `priorSelected`; concatenate in declaration order so the stack
     // item's `targets` are positionally indexable by the Effect Script.
@@ -5528,58 +5500,6 @@ export function finalizeTargetSelection(
             ? finalizeDivideAmounts(pt, targets)
             : undefined;
     state.pendingTarget = undefined;
-
-    // Copy-retarget branch (CR 707.10b — Fork's "you may choose new targets
-    // for the copy"). The targets are written onto the spell COPY already on
-    // the stack; nothing is cast and no cost is paid. After the choice, the
-    // resolving spell (Fork) has finished, so a fresh priority round begins
-    // with the active player and the copy on top of the stack.
-    if (kind === "copy-retarget") {
-        const copy = state.stack.find((s) => s.id === cardInstanceId);
-        if (copy) copy.targets = targets;
-        state.priorityPlayerId = state.activePlayerId;
-        state.passCount = 0;
-        drainAutoPasses(state);
-        return;
-    }
-
-    // Retarget branch (CR 114.6 — Reflecting Mirror's "change the target of
-    // target spell"). The new target is written onto the ORIGINAL spell already
-    // on the stack (not a copy). The resolving Reflecting Mirror ability has
-    // finished, so a fresh priority round begins with the active player and the
-    // retargeted spell still on the stack.
-    if (kind === "retarget") {
-        const spell = state.stack.find((s) => s.id === cardInstanceId);
-        if (spell) spell.targets = targets;
-        state.priorityPlayerId = state.activePlayerId;
-        state.passCount = 0;
-        drainAutoPasses(state);
-        return;
-    }
-
-    // Trigger-target branch (CR 603.3d, issue #1193). The chosen target(s) —
-    // and the divide-as-you-choose split (Fury's `targetAmounts`) — are written
-    // onto the TRIGGERED-ability stack item already on the stack; nothing is
-    // cast and no cost is paid. Then chain to the next targeted trigger of the
-    // same simultaneous batch (`raiseTriggerTargetSelection`); when none remain,
-    // a fresh priority round begins with the active player (CR 117.3d) and the
-    // (now fully targeted) triggers still on the stack.
-    if (kind === "trigger") {
-        const trig = state.stack.find((s) => s.id === cardInstanceId);
-        if (trig) {
-            trig.targets = targets;
-            if (divideAmounts) trig.targetAmounts = divideAmounts;
-            // CR 603.2b / 603.3d (issue #1265) — a targeted trigger's targets
-            // are locked at announcement; fire "becomes the target of an
-            // ability" triggers (Leovold) for this trigger's controller.
-            emitBecameTargetEvents(state, targets, trig.controllerId, trig.id);
-        }
-        if (raiseTriggerTargetSelection(state)) return;
-        state.priorityPlayerId = state.activePlayerId;
-        state.passCount = 0;
-        drainAutoPasses(state);
-        return;
-    }
 
     const player = getPlayer(state, playerId);
 
@@ -9764,7 +9684,7 @@ export function applyOneTargetSelection(
             pt.divideTotal;
 
     const maxReached =
-        isTargetCountMaxReached(pt.count, pt.selected.length) ||
+        pendingTargetCountMaxReached(pt.count, pt.selected.length) ||
         divideBudgetSpent;
     if (maxReached) {
         // CR 601.2c — advance to the next independent target group

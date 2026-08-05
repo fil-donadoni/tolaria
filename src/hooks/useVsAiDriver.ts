@@ -67,6 +67,7 @@ import {
     decideBotAction,
     botActionRealisation,
     chooseOwedChoiceAction,
+    chooseOwedTargetAction,
 } from "~/lib/ai/brain";
 import { buildBotView, botActionToMove } from "~/lib/ai/bot-view";
 import { executeMove, type MoveMutations } from "~/lib/ai/executor";
@@ -456,6 +457,12 @@ export function useVsAiDriver(
                     // on the frozen priority forever. Fall back to the ADR 0016
                     // minimal-legal answer — the same one the pre-#1506 driver
                     // always gave — rather than stall.
+                    // Same safety net for a searched engine-raised TARGET
+                    // selection (issue #2283): it freezes priority just as
+                    // hard as a choice window, so if the search surfaced no
+                    // move the bot would sit on it forever. Fall back to the
+                    // minimal-legal submission the gate already enumerated
+                    // through the same authority the search reads.
                     const chosen =
                         move ??
                         (action.kind === "search-choice" && view.owedChoice
@@ -464,7 +471,13 @@ export function useVsAiDriver(
                                   botState,
                                   botId
                               )
-                            : null);
+                            : action.kind === "search-target" && view.owedTarget
+                              ? botActionToMove(
+                                    chooseOwedTargetAction(view.owedTarget),
+                                    botState,
+                                    botId
+                                )
+                              : null);
                     return chosen
                         ? executeMove(chosen, { gameId, botId, mutations })
                         : undefined;

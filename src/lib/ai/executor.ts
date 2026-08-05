@@ -15,6 +15,10 @@
 //   mulligan-bottom  → submitResolutionChoice (kind "mulligan-bottom")
 //   resolution-choice→ submitResolutionChoice (any zone-pick kind, ADR 0016)
 //   may-pay          → submitMayPay (yes-no family, ADR 0016)
+//   submit-target    → selectTargets? [→ confirmTargets] (the STANDALONE answer
+//                      to an engine-raised target selection — CR 603.3d
+//                      targeted trigger / CR 114.6 retarget / CR 707.10b copy
+//                      retarget, issue #2283; nothing is announced or paid)
 //   pass             → passPriority
 //
 // Mana payment is explicit (the engine never auto-taps): the Move carries a
@@ -258,6 +262,47 @@ export async function executeMove(
                 choiceId: move.choiceId,
             });
             return;
+
+        case "submit-target": {
+            // CR 603.3d / 114.6 / 707.10b (issue #2283) — answer an
+            // ENGINE-RAISED target selection (a targeted trigger, a retarget, a
+            // spell copy's retarget). A STANDALONE submission: unlike the
+            // target tuple that rides on `cast-spell` / `activate-ability`,
+            // nothing was announced and no cost is paid, so this is the whole
+            // sequence. Same two mutations a human's clicks make.
+            //
+            // `selectTargets` rejects an empty array, so an "up to N" selection
+            // the bot declines (targets: []) is confirm-only.
+            // See the matching comment in the "cast-spell" branch below:
+            // `"hand-card"` is never a real announced target (issue #1101), so
+            // narrow it away rather than widening the mutation's validator.
+            const targetInputs: {
+                targetType: "permanent" | "player" | "spell" | "graveyard-card";
+                targetId: string;
+                targetPlayerId?: string;
+            }[] = [];
+            for (const t of move.targets) {
+                if (t.type === "hand-card") continue;
+                targetInputs.push({
+                    targetType: t.type,
+                    targetId: t.id,
+                    targetPlayerId: t.playerId,
+                });
+            }
+            if (targetInputs.length > 0) {
+                await mutations.selectTargets({
+                    ...base,
+                    targets: targetInputs,
+                });
+            }
+            // CR 601.2c — a fixed-N selection auto-finalized on the last pick
+            // and MUST NOT be confirmed (the selection is already gone and the
+            // server throws); a range needs the explicit confirm.
+            if (move.confirmTargets) {
+                await mutations.confirmTargets(base);
+            }
+            return;
+        }
 
         case "play-land":
             await mutations.playCard({

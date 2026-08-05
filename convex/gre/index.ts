@@ -50,8 +50,27 @@ export { advancePhase } from "./phases";
 // Legal macro-move enumeration + mana tap planning (issue #110). The bot
 // enumerates candidate moves from its own (projected) view and the executor
 // replays the chosen one through existing mutations.
-export { enumerateMoves, planManaPayment, MAX_COMBINATIONS } from "./moves";
+export {
+    enumerateMoves,
+    enumerateRaisedTargetMoves,
+    planManaPayment,
+    MAX_COMBINATIONS,
+} from "./moves";
 export type { Move, ManaTap } from "./moves";
+
+// Pending-target ORIGIN (issue #2283). THE single authority on "did the owner
+// announce this target selection, or did the engine raise it at them?" —
+// compile-time exhaustive over `PendingTarget["kind"]`, the same structural
+// guard `botActionRealisation` gives `BotAction["kind"]`. Exported so the
+// client bot gate (`buildOwedTarget` → `decideBotAction`) classifies a live
+// pending target with the SAME predicate the enumerator and the search do.
+export {
+    PENDING_TARGET_ORIGIN,
+    pendingTargetOrigin,
+    raisedPendingTargetOwedBy,
+    requirementFromPendingTarget,
+} from "./pendingTargetOrigin";
+export type { PendingTargetOrigin } from "./pendingTargetOrigin";
 
 // Choice-node coverage predicate (PRD #1423, issue #1506). THE single authority
 // on "is this pending-choice kind an in-tree ISMCTS decision node?" — the same

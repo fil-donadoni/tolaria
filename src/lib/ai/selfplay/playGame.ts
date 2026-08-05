@@ -16,8 +16,13 @@
 //   * may-pay: accept a COSTLESS "may" (always affordable), decline a costed one
 //     — the headless bot does not pre-tap lands, so accepting a costed may-pay
 //     can't be paid. Rare in the preset decks; revisit with real mana planning.
-//   * mid-cast target re-selection (`pendingTarget` from copy effects, Fork) is
-//     not driven — such a game aborts with reason `"resolution-error"`.
+//   * mid-ANNOUNCEMENT target selection (a `"cast"` / `"ability"` pending
+//     target) is still not driven here — it belongs to the executor's atomic
+//     announcement sequence, which the headless loop does not run. The
+//     ENGINE-RAISED kinds (`"trigger"` / `"retarget"` / `"copy-retarget"`) ARE
+//     driven since issue #2283: `decidingPlayer` names their owner and
+//     `enumerateMoves` surfaces the legal submissions, so a targeted trigger no
+//     longer ends the game with `"stall"` / `"resolution-error"`.
 
 import {
     search,

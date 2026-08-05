@@ -106,6 +106,10 @@ export function targetedIds(move: Move): string[] {
     switch (move.kind) {
         case "cast-spell":
         case "activate-ability":
+        case "submit-target":
+            // issue #2283 — the standalone answer to an engine-raised target
+            // selection carries its targets the same way, so `target:` in a
+            // matcher works on it unchanged.
             return move.targets.map((t) => t.id);
         case "declare-blockers":
             return move.assignments.map((a) => a.attackerId);

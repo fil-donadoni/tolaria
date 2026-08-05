@@ -70,6 +70,12 @@ import {
     recordAttackerDeclared,
 } from "./combat";
 import { enumerateMoves, type Move } from "./moves";
+// issue #2283 — the shared origin classification + raised-selection commit.
+import {
+    applyRaisedTargetFinalization,
+    pendingTargetOrigin,
+    raisedPendingTargetOwedBy,
+} from "./pendingTargetOrigin";
 import { manaValue } from "./constants";
 import { getInstanceManaCost } from "../cards";
 import { applyDelveExileForSearch } from "./applyMove";
@@ -292,10 +298,24 @@ export function decidingPlayer(state: GameState): string | null {
     if (
         state.pendingCast ||
         state.pendingActivation ||
-        state.pendingTarget ||
         state.pendingCompanionPay
     ) {
         return null;
+    }
+
+    // CR 603.3d / 114.6 / 707.10b (issue #2283) — an ENGINE-RAISED target
+    // selection is a real decision node: its owner picks the trigger's /
+    // retarget's targets and `enumerateMoves` surfaces the submissions. An
+    // ANNOUNCED one (`"cast"` / `"ability"`) stays a non-decision — the
+    // executor drives it atomically inside one announcement sequence. Mirrors
+    // `enumerateMoves` exactly, including the choice-outranks-target
+    // precedence (CR 608.2 / 101.4, `computeExpectedInput`), so the two
+    // surfaces can never disagree about whether a window is decidable.
+    if (state.pendingTarget) {
+        if (state.pendingChoices?.length) return null;
+        return pendingTargetOrigin(state.pendingTarget.kind) === "raised"
+            ? state.pendingTarget.playerId
+            : null;
     }
 
     // A live mid-resolution choice is an in-tree DECISION NODE (PRD #1423,
@@ -531,6 +551,25 @@ export function applyMoveInSearch(
                 choiceId: move.choiceId,
                 cardInstanceIds: move.cardInstanceIds,
             });
+            drainAutoPasses(state);
+            checkStateBasedActions(state);
+            return;
+        }
+
+        case "submit-target": {
+            // CR 603.3d / 114.6 / 707.10b (issue #2283) — answer an
+            // ENGINE-RAISED target selection. Applied through the SAME
+            // authority the `selectTargets` mutation reaches
+            // (`applyRaisedTargetFinalization`), so the tree cannot commit a
+            // raised selection differently from the server. The origin is
+            // re-checked here rather than trusted from the move: a determinized
+            // world can have advanced past the selection the move was
+            // enumerated against, and silently writing targets onto an
+            // ANNOUNCED selection would corrupt a half-built announcement.
+            const pt = raisedPendingTargetOwedBy(state, playerId);
+            if (!pt) return;
+            pt.selected = [...pt.selected, ...move.targets];
+            applyRaisedTargetFinalization(state, pt);
             drainAutoPasses(state);
             checkStateBasedActions(state);
             return;
