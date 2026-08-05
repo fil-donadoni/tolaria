@@ -1734,19 +1734,15 @@ export const wallOfPineNeedles: CardDefinition = {
 };
 // Whiteout — Instant: "All creatures lose flying until end of turn." (CR 611.1b
 // layer-6 keyword removal via `removeStaticAbilities`, applied to every creature
-// on every battlefield.)
-//
-// DEFERRED (tracked-by: #2235): the second ability — "Sacrifice a snow land:
-// Return this card from your graveyard to your hand." (CR 113.6b — an ability
-// that states which zone it functions in) — is simply not declared on this
-// card yet.
-//
-// The old justification here ("the engine's `activateAbility` only scans
-// battlefield permanents") was FALSE and was corrected in the 2026-08-05 #1212
-// audit: `activateFromGraveyard` ships (Ashen Ghoul, `ice/black.ts`), the snow
-// sacrifice cost ships (`sacrificeFilter` + `supertypes`, Sunstone), and
-// `moveZone` reaches `$source` in the graveyard. This is card work with no
-// engine dependency.
+// on every battlefield.) Plus a graveyard-activated ability (CR 113.6b — an
+// ability that states which zone it functions in functions only from that
+// zone): "Sacrifice a snow land: Return this card from your graveyard to your
+// hand." Every piece is shipped machinery (2026-08-05 #1212 audit correction —
+// the prior "engine gap" premise here was false): `activateFromGraveyard`
+// (Ashen Ghoul, `ice/black.ts`), the snow-land `sacrificeFilter` (Sunstone,
+// `ice/colorless.ts`), and `moveZone` reaching `$source` while it sits in the
+// graveyard. No timing restriction (unlike Ashen Ghoul) — the Oracle line has
+// no upkeep/your-turn clause.
 export const whiteout: CardDefinition = {
     id: "a8645e4f-eaa8-4420-a6a3-eb53c311fab1",
     name: "Whiteout",
@@ -1775,6 +1771,19 @@ export const whiteout: CardDefinition = {
             }
         }
     },
+    activatedAbilities: [
+        {
+            id: "whiteout-return",
+            oracleText:
+                "Sacrifice a snow land: Return this card from your graveyard to your hand.",
+            cost: { sacrificeFilter: { types: "Land", supertypes: ["Snow"] } },
+            useStack: true,
+            activateFromGraveyard: true,
+            effects: [
+                { op: "moveZone", target: { ref: "$source" }, to: "hand" },
+            ],
+        },
+    ],
 };
 // Wiitigo — {3}{G}{G}{G} 0/0 Yeti. "This creature enters with six +1/+1 counters
 // on it.\nAt the beginning of your upkeep, put a +1/+1 counter on this creature

@@ -18125,7 +18125,17 @@ export function normalizeMayPayCost(cost: MayPayCost): NormalizedMayPayCost {
 }
 
 /** Battlefield permanents controlled by `playerId` matching the sacrifice
- *  filter (CR 701.16). Used to gate affordability and pick the victims. */
+ *  filter (CR 701.16). Used to gate affordability and pick the victims (the
+ *  MAY-PAY permanent leg — sacrifice OR return-to-hand). CR 205.4a (issue
+ *  #2235 fixup) — `supertypesOf: liveSupertypesOf` resolves a permanent's LIVE
+ *  snow status the same way the sibling `sacrificeCandidates` in
+ *  `./sacrificeChoice.ts` does: a `CardInstanceState` never carries a bare
+ *  `supertypes` field, so without this injected resolver a `supertypes`-
+ *  filtered may-pay permanent leg would silently fail to match any snow
+ *  permanent, printed or mutated (latent today — no shipped may-pay
+ *  `permanent.filter` uses `supertypes`/`excludeSupertypes` yet — but two
+ *  identically-named functions with divergent match contexts is exactly how
+ *  the first one rotted). */
 function sacrificeCandidates(
     state: GameState,
     playerId: string,
@@ -18136,7 +18146,7 @@ function sacrificeCandidates(
         matchesPermanentFilter(
             { ...c, colors: STATIC_EFFECT_CTX.getColors(c) },
             filter,
-            { selfControllerId: playerId }
+            { selfControllerId: playerId, supertypesOf: liveSupertypesOf }
         )
     );
 }
