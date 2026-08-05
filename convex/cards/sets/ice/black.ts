@@ -610,11 +610,21 @@ export const demonicConsultation: CardDefinition = {
 // DIVERGENCE (CR 611.2c): pieces 2 and 3 are sourced from Dread Wight's own
 // `staticEffects[]`, so the untap lock and the {4} ability end if Dread Wight
 // leaves the battlefield, whereas the Oracle text creates them once as
-// indefinite effects of the resolved trigger. Modelling the CR-exact form needs
-// a source-independent indefinite grant (the `grantAbility` Op is
-// duration-scoped and `applyKeywordCounterGrant` is reserved for CR 122.1c
-// keyword-NAMED counters). The paralyzation counters themselves persist either
-// way. tracked-by: #1712
+// indefinite effects of the resolved trigger. The paralyzation counters
+// themselves persist either way.
+// The CR-exact form needs a grant that is source-independent AND
+// condition-gated at once, and no channel offers both: `staticEffects[]`
+// entries carry `applies`/`dependsOnCounters` but are stamped with the
+// source's id and spliced out by `unapplySourceStaticEffects` when it leaves,
+// while the `grant*Permanent` primitives (`grantAbility` with no `duration`,
+// issues #1746/#1665/#1880) survive the source but take no predicate — and
+// there is no primitive to revoke a permanent grant. `applyKeywordCounterGrant`
+// is no help either: it is reserved for CR 122.1c keyword-NAMED counters.
+// Resolved structurally by the Continuous Effects Registry (ADR 0082), where an
+// effect's expiry is its own condition rather than its source's departure, so
+// revocation stops being an operation at all. This card is the registry's
+// layer-6 conformance case; DELETE this marker when that slice lands.
+// tracked-by: #2064
 export const dreadWight: CardDefinition = {
     id: "65d332e2-4b2d-4131-84f7-862cb138c477",
     name: "Dread Wight",

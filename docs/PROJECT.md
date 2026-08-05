@@ -1078,9 +1078,16 @@ carte inerti.
 - **Staged self-respec** (PRD #1737) — Op indefiniti, ciclo Figure.
 - **Modificatori di costo di lancio** (PRD #702, ADR 0063) — riduzione + payWith
   per affinity/delve/convoke.
+- **Continuous Effects Registry** (PRD #2064, ADR 0082) — un solo registro degli
+  effetti continui su `GameState` come fonte di verità per CR 613, al posto dei
+  due modelli incompatibili odierni (layer 7 ricalcolato a ogni lettura, layer 6
+  materializzato una volta). Cancella lo split in tre provenienze di
+  `staticAbilities`, che è ciò che rende impossibile un ricalcolo uniforme e
+  congela il parametro di un grant al momento della materializzazione. Otto
+  slice; S3 (layer 6) porta il caso di conformità counter-gate ×
+  source-independence assorbito da #1712 — Dread Wight.
 - Seam mirati: ritorno di un permanente andato via (#1468), scelta di spesa del
-  mana generico (#1442), typecycling (#1839), grant di abilità indefinito
-  source-independent (#1712).
+  mana generico (#1442), typecycling (#1839).
 
 **Migrazione `resolve()` → `effects[]`**
 
