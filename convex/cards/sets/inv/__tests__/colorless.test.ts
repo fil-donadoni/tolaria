@@ -793,6 +793,75 @@ describe("Tek (land-gated P/T + keyword grants, CR 613.1c/1d, issue #1850)", () 
         )!;
         expect(slimNoFlying.staticAbilities ?? []).not.toContain("flying");
     });
+
+    // CR 611.2c's gate is "AS LONG AS **YOU** CONTROL" — every clause below
+    // routes through the same file-scope `controlsBasicLandType` predicate
+    // (both `pt-cda` and all three `keyword-grant`s), so the controller
+    // dimension is a single shared leg, not five independent ones. Every test
+    // above only ever builds an OPPONENT battlefield that is empty, so this
+    // leg had zero coverage — an opponent's basic land satisfied every clause
+    // unnoticed. One case per clause below closes it.
+    it("is not granted a keyword by an OPPONENT's basic land (CR 611.2c 'you control')", () => {
+        const { state, dragon } = makeTekState();
+        const oppIsland = makeInstance(island.id, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "opp-isl",
+        });
+        state.players[1].battlefield.push(oppIsland);
+        checkStateBasedActions(state);
+        expect(dragon.staticAbilities ?? []).not.toContain("flying");
+    });
+
+    it("does not gain first strike from an OPPONENT's Mountain", () => {
+        const { state, dragon } = makeTekState();
+        const oppMountain = makeInstance(mountain.id, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "opp-mtn",
+        });
+        state.players[1].battlefield.push(oppMountain);
+        checkStateBasedActions(state);
+        expect(dragon.staticAbilities ?? []).not.toContain("first strike");
+    });
+
+    it("does not gain trample from an OPPONENT's Forest", () => {
+        const { state, dragon } = makeTekState();
+        const oppForest = makeInstance(forest.id, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "opp-frs",
+        });
+        state.players[1].battlefield.push(oppForest);
+        checkStateBasedActions(state);
+        expect(dragon.staticAbilities ?? []).not.toContain("trample");
+    });
+
+    it("stays base 2/2 controlling neither Plains nor Swamp even when the OPPONENT controls both", () => {
+        const dragon = makeInstance(tek.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "tek1",
+        });
+        const oppPlains = makeInstance(plains.id, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "opp-p",
+        });
+        const oppSwamp = makeInstance(swamp.id, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "opp-s",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [dragon] }),
+                makePlayer("p2", { battlefield: [oppPlains, oppSwamp] }),
+            ],
+        });
+        expect(getEffectivePower(state, dragon)).toBe(2);
+        expect(getEffectiveToughness(state, dragon)).toBe(2);
+    });
 });
 
 describe("Urza's Filter (multicolored spells cost {2} less to cast, CR 601.2f / 202.2)", () => {
