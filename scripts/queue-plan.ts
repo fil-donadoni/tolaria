@@ -23,8 +23,8 @@
 // candidate the planner actually considers (plus one per dependency it has to
 // resolve). Selection cost scales with the batch, not the queue.
 
-import { execFileSync } from "child_process";
 import { readFileSync } from "fs";
+import { gh } from "./lib/gh";
 import {
     planBatch,
     type BoardPriority,
@@ -53,6 +53,17 @@ const DEFAULTS = {
     // under-counted a queue.
     limit: 300,
     staleClaimHours: 24,
+    // The tier for every issue carrying no `model:*` label — which, since
+    // `model:sonnet` was retired as pure noise, is the VAST MAJORITY of the
+    // queue rather than a residue. The tracker keeps only the escalation
+    // labels (`model:opus`, `model:fable`), so "unlabelled" now means "default
+    // tier", not "nobody triaged it".
+    //
+    // Consequence, and the reason this is spelled out: changing this value
+    // silently re-routes the whole unlabelled queue. It is a fleet-wide cost
+    // and quality change, not a default tweak — if you change it, review what
+    // it re-routes rather than assuming the labelled issues are the affected
+    // ones.
     defaultImplModel: "sonnet",
 };
 
@@ -65,31 +76,6 @@ function arg(name: string, fallback: number): number {
         process.exit(2);
     }
     return value;
-}
-
-/**
- * Run `gh` under the DEVELOPER's own credentials, never the app's.
- *
- * `.env.local` carries `GITHUB_TOKEN` — the narrow, app-scoped PAT that
- * `convex/bugReports.ts` uses server-side to file issues from the client — and
- * bun auto-loads that file into `process.env` for every script it runs. `gh`
- * then prefers it over the keyring, so the whole loop was silently
- * authenticating as the bug-report integration. That token has no business
- * reading the project board, and widening it so a local orchestrator script can
- * would broaden the blast radius of a credential that ships to a server.
- *
- * So `GITHUB_TOKEN` is stripped and `gh` falls back to `gh auth login`.
- * `GH_TOKEN` — gh's own dedicated variable, and the documented way to hand it a
- * token in CI — is deliberately left intact as the explicit override.
- */
-function gh(args: string[]): string {
-    const env = { ...process.env };
-    delete env.GITHUB_TOKEN;
-    return execFileSync("gh", args, {
-        encoding: "utf8",
-        maxBuffer: 32 * 1024 * 1024,
-        env,
-    });
 }
 
 const limit = arg("limit", DEFAULTS.limit);
