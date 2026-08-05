@@ -84,6 +84,7 @@ import type { StackItem } from "@convex/gre/state";
 import { getDefinition, tryGetDefinition } from "@convex/cards";
 import { tryGetEmblemDefinition } from "@convex/cards/emblems";
 import { getEffectiveColors } from "@convex/cards/effectiveColors";
+import { liveSupertypesOf } from "@convex/cards/snowReads";
 import {
     controlsLandWithSupertype,
     negatedLandwalkSubtypes,
@@ -1311,12 +1312,20 @@ export function buildTriggerStateView(
                 // affordability hint below; without it a board that CAN crew
                 // only thanks to the bonus would never be offered the ability.
                 crewPowerBonus: tryGetDefinition(c.card.id)?.crewPowerBonus,
-                // CR 205.4a — PRINTED supertypes, for a `sacrificeFilter`
-                // activation cost narrowed by supertype (Sunstone's "sacrifice
-                // a snow land"). Same registry-lookup precedent as `colors`/
-                // `crewPowerBonus` above — the wire carries no per-permanent
-                // supertype field.
-                supertypes: tryGetDefinition(c.card.id)?.supertypes,
+                // CR 205.4a — LIVE supertypes, for a `sacrificeFilter`
+                // activation cost narrowed by supertype (Sunstone / Glacial
+                // Crevasses / Whiteout's "sacrifice a snow land"). Printed
+                // supertypes ALONE (`tryGetDefinition(...).supertypes`) missed
+                // a snow status granted by a `supertype-set` static effect or
+                // indefinite mutation (Melting / Arcum's Weathervane) — the
+                // server resolves the cost via `liveSupertypesOf`
+                // (`activateAbilityOnState`, game.ts), so a Weathervane'd land
+                // was a dead affordance: the server would activate the
+                // ability, the client gate would hide it (issue #2235
+                // review). `liveSupertypesOf` reads `grantedSupertypes`/
+                // `removedSupertypes`, which cross the wire unchanged
+                // (`slimCard` only strips `card`/`knownTo`).
+                supertypes: liveSupertypesOf(c),
                 // CR 111.5 / 701.16 — token-ness, for a `sacrificeFilter`
                 // activation cost narrowed by `isToken` (Thopter Foundry's
                 // "sacrifice a NONTOKEN artifact", Caribou Range's "sacrifice
@@ -1954,6 +1963,30 @@ export function getGraveyardStackAbilities(
                 )
             ) {
                 return false;
+            }
+            // CR 602.1 / 118.5 (issue #2235) — "sacrifice a permanent
+            // matching <filter>" (Whiteout's "Sacrifice a snow land") is
+            // unpayable when the card's OWNER (the activator — CR 602.1
+            // "from YOUR graveyard", enforced identically server-side by
+            // `activateAbilityOnState` in `game.ts`) has no matching
+            // permanent to give up. Mirrors `getStackAbilities`'s own
+            // `sacrificeFilter` gate for the battlefield zone; this one was
+            // previously missing entirely for the graveyard zone (no shipped
+            // graveyard-activated card combined `sacrificeFilter` with
+            // `activateFromGraveyard` until Whiteout), so the ability would
+            // have been offered unconditionally regardless of board state,
+            // hitting the server's "No legal permanent to pay the sacrifice
+            // cost" throw on click.
+            if (a.cost.sacrificeFilter) {
+                const mine = stateView.players.find(
+                    (p) => p.id === card.ownerId
+                );
+                const hasCandidate = (mine?.battlefield ?? []).some((c) =>
+                    matchesEnginePermanentFilter(c, a.cost.sacrificeFilter!, {
+                        selfControllerId: card.ownerId,
+                    })
+                );
+                if (!hasCandidate) return false;
             }
             if (a.canActivate) {
                 if (!a.canActivate(card as unknown as PermanentView, stateView))

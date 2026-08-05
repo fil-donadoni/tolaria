@@ -13,6 +13,7 @@ import type { PermanentFilter } from "../cards/filters";
 import { matchesPermanentFilter } from "../cards/filters";
 import { STATIC_EFFECT_CTX, getEffectivePower } from "./layers";
 import { tryGetDefinition } from "../cards/index";
+import { liveSupertypesOf } from "../cards/snowReads";
 
 export type SacrificeRequirement = {
     filter: PermanentFilter;
@@ -68,7 +69,21 @@ export function buildSacrificeRequirements(
 
 /** Matching permanents on the player's battlefield, with effective colours via
  *  the layer system (mirrors buildAdditionalCostPicker) so a `colors` filter
- *  reads the same colour the rest of the engine sees. */
+ *  reads the same colour the rest of the engine sees. CR 205.4a (issue #2235)
+ *  — `supertypesOf: liveSupertypesOf` resolves a permanent's LIVE snow status
+ *  (printed supertypes overlaid by any `setSupertype` mutation) for a
+ *  `supertypes`-filtered cost (Whiteout / Sunstone / Glacial Crevasses'
+ *  "Sacrifice a snow land"): a `CardInstanceState` never carries a bare
+ *  `supertypes` field of its own (only a token spec does), so without this
+ *  injected resolver `matchesPermanentFilter`'s `supertypes` branch always
+ *  fell through to `[]` and no snow land ever matched here — the up-front
+ *  affordability THROW at the mutation's announce step (`game.ts`, which
+ *  DOES pass this option) reported the ability as legal to activate, but
+ *  every consumer of this candidate list (`autoResolveFungible`'s inline
+ *  auto-pick, and `isSacrificeCandidateLegal`'s gate behind the player's own
+ *  `selectSacrifice` mutation) then found zero candidates and could never
+ *  complete the payment — a supertype-filtered sacrifice cost was
+ *  unactivatable end-to-end despite passing its own legality check. */
 export function sacrificeCandidates(
     state: GameState,
     playerId: string,
@@ -79,6 +94,7 @@ export function sacrificeCandidates(
         const view = { ...c, colors: STATIC_EFFECT_CTX.getColors(c) };
         return matchesPermanentFilter(view, filter, {
             selfControllerId: playerId,
+            supertypesOf: liveSupertypesOf,
         });
     });
 }
