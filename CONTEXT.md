@@ -225,6 +225,14 @@ _Avoid_: Passive ability, aura effect
 An **Activated Ability** that produces **Mana** and has no target. Resolves immediately — does not use the **Stack** (CR 605.3a).
 _Avoid_: Tap for mana
 
+**Hand-Activated Ability**:
+An **Activated Ability** that functions only while its card is in its owner's **Hand**, because a leg of its cost moves that card out of the hand (CR 113.6c — an ability whose cost moves the card out of a zone functions only in that zone). The card is not a **Permanent** and never was: it is announced from the hand, its cost discards it, and the ability resolves from the **Stack** with its source already in the graveyard. **Cycling** and **Channel (ability word)** are the two families; the engine treats them as one seam (an `activateFromHand` flag), so an affordance or a **Move** built for either serves both.
+_Avoid_: Cycling (that is one instance of the family), hand ability, cast from hand (that names casting a spell)
+
+**Channel (ability word)**:
+An **Ability Word** (CR 702 preamble — italic, no rules meaning) introduced in Kamigawa: it labels a **Hand-Activated Ability** whose cost is mana plus discarding the card, and whose effect is unrelated to what the card does on the **Battlefield** — a second, cheaper use for a card you don't want to play. It grants nothing by itself; every Channel ability is an ordinary activated ability and the word is decoration. The Kamigawa: Neon Dynasty legendary lands each pair a **Mana Ability** with a Channel ability, so one card is either a land or a spell-like effect, never both.
+_Avoid_: Channel (the Alpha sorcery of that name is a different card — always qualify the mechanic as "Channel (ability word)"), cycling (that draws a card; Channel's effect is arbitrary), alternative cost (Channel costs are activation costs, not a replacement for a **Cast** cost)
+
 **Keyword**:
 A shorthand for a defined ability (flying, haste, first strike, etc.). Read off a **Card Instance** as an **Effective Characteristic**, never as printed text alone — a keyword may be granted or removed by a **Continuous Effect**.
 
@@ -321,6 +329,10 @@ _Avoid_: "the domain" (the knowledge area / this glossary's subject — a homony
 **Cost Leg**:
 One component of a composite cost, in one of four kinds: a **mana** leg, a **permanent** leg (return or sacrifice N permanents matching a filter), a **life** leg, or a **hand** leg (exile or discard cards from hand). A cost is a set of legs, all of which must be paid; the kinds compose freely. The same leg vocabulary describes an **Alternative Cost** (which _replaces_ a **Spell**'s mana cost, CR 118.9 — evoke, dash, flashback, madness) and a **Kicker** cost (which is _added on top of_ it, CR 601.2f / 702.33a). That distinction is about whether the cost replaces or adds, never about what the legs are — which is why one `CostLegs` type serves both (ADR 0079).
 _Avoid_: Cost component, sub-cost, additional cost (that names the add-on _relationship_, not a leg)
+
+**Self Cost Reduction**:
+A CR 601.2f cost reduction an object declares on **itself** — "this spell costs {1} less to cast for each artifact you control", "this ability costs {1} less to activate for each legendary creature you control" — as opposed to a **Cost Modifier** carried by some other **Permanent** on the **Battlefield**. The distinction is not stylistic: the reducing object is not on the battlefield when the reduction must be computed (a **Spell** is still being **Announced**; a **Hand-Activated Ability**'s source is in the **Hand**), so no battlefield scan can discover it and it must be read off the announced object itself. Both kinds resolve to a generic-mana amount through one shared resolver and are applied at one shared site, so they can never disagree about the floor or about which pips a reduction may touch.
+_Avoid_: Cost modifier (that names the other-permanent kind), discount, affinity (one card's flavour of the count-driven amount)
 
 **Kicker Payment**:
 The record of which of a **Spell**'s kickers were paid as it was **Announced**, and how many times each — a map from kicker id to a count, snapshotted on the **Stack** item at cast commit and read at **Resolution**. A card may offer several kickers payable independently ("Kicker {A} and/or {B}" — the Planeshift Battlemages), so a single total cannot answer "was it kicked with its {2}{U} kicker"; the total remains available as the sum. A per-kicker count (rather than a boolean) is what lets Multikicker (CR 702.33e) be a property of one kicker rather than of the card.
