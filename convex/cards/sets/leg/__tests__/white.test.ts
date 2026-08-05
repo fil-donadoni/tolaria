@@ -1374,6 +1374,39 @@ describe("Dwarven Song (creatures become red EOT, CR 305.7 layer 5)", () => {
         )!;
         expect(STATIC_EFFECT_CTX.getColors(slim)).toEqual(["R"]);
     });
+
+    // Issue #1833: the color change is "until end of turn" (CR 305.7) — a
+    // permanent override is a rules violation for every color-matters
+    // interaction (protection, devotion, "target white creature", …) for
+    // the rest of the game.
+    it("reverts to its original color at cleanup (CR 305.7, issue #1833)", () => {
+        const lion = makeInstance(keepersOfTheFaith.id, {
+            id: "lion",
+            controllerId: "p1",
+            ownerId: "p1",
+        }); // white creature
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [lion] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, dwarvenSong.id, "p1", [
+            { type: "permanent", id: "lion" },
+        ]);
+        resolveTopOfStack(state);
+        expect(STATIC_EFFECT_CTX.getColors(lion)).toEqual(["R"]);
+
+        state.phase = "CLEANUP";
+        finalizeCleanup(state);
+
+        expect(STATIC_EFFECT_CTX.getColors(lion)).toEqual(["W"]);
+        const projected = projectPublicState(state, 0, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "lion"
+        )!;
+        expect(STATIC_EFFECT_CTX.getColors(slim)).toEqual(["W"]);
+    });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
