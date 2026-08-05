@@ -23,9 +23,29 @@ When the workflow stabilises it can be extracted into a shareable package; until
 - **Fan-out (parallel):** the orchestrator selects a _batch_ of mutually-disjoint ready issues, claims all, and spawns N subagents concurrently (each its own worktree, capped at a small concurrency limit). Subagents implement, gate, push, and open a PR — but **do not merge.**
 - **Integrate (serial, orchestrator-owned):** the orchestrator merges the resulting PRs **one at a time** behind a merge lock — rebase onto the current `main` tip → re-run the full gate on the rebased state → merge only if green; otherwise hand the branch back to a subagent for fixup. This is the only place a merge to `main` happens.
 
-**One full gate per landing tree — at the train, and CI runs it when the repo has one.** The full suite + `check:all` run exactly once per PR, in the merge-train (§4 step 4), on the rebased tree that actually lands. Subagents run only **targeted tests + fast static checks** pre-PR (§3 step 6) — they never pay the full suite (a per-branch full gate would be re-paid at the train anyway: 2N−1 → N full gates per batch). **If the repo has required CI status checks covering the suites, THEY are that gate** (§4 step 4, Lane A): with `strict: true` they run on the exact tree that lands, which a local gate cannot promise because `main` moves while the suite runs. Only run the suite locally when no such checks exist. Gate dedup applies everywhere: a full gate that passed on a given tree (`git rev-parse HEAD^{tree}`) is valid for that tree everywhere — never re-run the suite on a tree already verified green (baseline SHA cache §0, subagent abort-on-red skip §3 step 2, identical-tree skip §4 step 4). Dedup, not relaxation.
+**One full gate per landing tree — at the train, and CI runs it when the repo has one.** The full suite + `check:all` run exactly once per PR, in the merge-train (§4 step 4), on the rebased tree that actually lands. Subagents run only **targeted tests + fast static checks** pre-PR (subagent brief § pre-PR gate) — they never pay the full suite (a per-branch full gate would be re-paid at the train anyway: 2N−1 → N full gates per batch). **If the repo has required CI status checks covering the suites, THEY are that gate** (§4 step 4, Lane A): with `strict: true` they run on the exact tree that lands, which a local gate cannot promise because `main` moves while the suite runs. Only run the suite locally when no such checks exist. Gate dedup applies everywhere: a full gate that passed on a given tree (`git rev-parse HEAD^{tree}`) is valid for that tree everywhere — never re-run the suite on a tree already verified green (baseline SHA cache §0, subagent abort-on-red skip (subagent brief), identical-tree skip §4 step 4). Dedup, not relaxation.
 
 **Review pre-merge (mandatory, parallel).** Every PR is reviewed by a fresh reviewer subagent before merge. The review is spawned **as soon as that PR's receipt arrives** (§3b) — it runs in parallel with still-working implementers, so its wall-clock cost hides inside the fan-out. The merge-train (§4) consumes the verdict; it never merges an unreviewed PR.
+
+## References — loaded on demand, not part of this frame
+
+This file is the **frame**: what every pass needs. Everything episodic lives in
+`references/`, opened only when its situation arises. Two of them are read by a
+SUBAGENT rather than by the orchestrator — pass the path, never the contents.
+
+| File                                  | Open when                                                            | Read by          |
+| ------------------------------------- | -------------------------------------------------------------------- | ---------------- |
+| `references/priority-rationale.md`    | changing the sort key, or the lineage order looks wrong              | orchestrator     |
+| `references/red-baseline.md`          | the green-main precondition (§0) fails                               | orchestrator     |
+| `references/collisions.md`            | a claim probe trips, a branch/worktree exists, a subagent goes quiet | orchestrator     |
+| `references/subagent-brief.md`        | spawning an implement / fixup subagent                               | **the subagent** |
+| `references/reviewer-brief.md`        | spawning a reviewer subagent                                         | **the reviewer** |
+| `references/merge-train.md`           | picking the gate lane (once per run); `gh pr merge` misbehaves       | orchestrator     |
+| `references/scenario-registration.md` | a receipt carried a `scenario` (§5)                                  | orchestrator     |
+
+Nothing here is duplicated there. If you find yourself restating a reference in
+this frame, move the sentence rather than copying it — two copies of a rule
+drift, and the stale one reads as authoritative.
 
 ## Parameters
 
@@ -41,15 +61,7 @@ When the workflow stabilises it can be extracted into a shareable package; until
 1. `bug` label first
 2. Within same category: **oldest LINEAGE first** — sort by **`parent.number ?? number`**, ascending
 
-**The planner computes this — you do not.** `scripts/lib/queue-plan.ts` owns the sort, the two-stage fetch, the dependency scan, and the disjointness walk; `bun run queue:plan` prints the result (§1). What follows is the _rationale_, so a future reader does not "simplify" a key that looks arbitrary. It is not instructions to re-derive the query by hand.
-
-**Why the lineage and not the issue.** A child inherits its parent's queue position, not its own creation date. Without this, every spec umbrella starves: a PRD opened in July gets its slice tickets cut in August, those sort behind the entire queue, and the PRD never converges — while each fresh audit makes it worse by adding more children at the bottom. Sorting on the parent drains lineages in the order the _work_ was commissioned: all of the oldest PRD's children, then the next PRD's, and so on.
-
-**Sort on the parent's NUMBER, not its `createdAt`.** Issue numbers are monotonic in creation time, so the number is an exact proxy — and it is the only one available: `gh issue list --json parent` returns `{id, number, state, title, url}` and **no `createdAt`**, so a `parent.createdAt` key silently falls back to the child's own date and the whole ordering quietly reverts to the broken behaviour. (Verified 2026-08-04; check the payload before changing this key.) For issues with no parent the two keys agree, so mixing `number` and `createdAt` across the queue is not an option — use `number` for both sides.
-
-The edge is the **native GitHub sub-issue relationship** (`gh issue edit <child> --parent <prd>`), read from the planner's single list call — free, no body fetch. A prose `Split out of #N` line in the body is documentation for humans; it is **not** the sort key, because parsing it would force a body fetch for the whole queue and destroy two-stage selection. When an intake skill cuts children from an umbrella it MUST set `--parent`; a child with no parent edge simply sorts on its own number, so the change degrades gracefully.
-
-`gh issue edit --parent` is **unreliable under rapid fire** — observed exiting non-zero on success, no-opping silently, and once applying the wrong parent when called in a tight loop. Read every edge back (`gh issue view <child> --json parent`) and retry on mismatch; never trust the exit code. (This applies to the intake skills that WRITE edges; the planner only reads them.)
+**The planner computes this — you do not.** `bun run queue:plan` prints the result (§1). The sort key looks arbitrary and is not: see `references/priority-rationale.md` **before changing it**, and when an intake skill writes a `--parent` edge.
 
 ## Main loop
 
@@ -76,17 +88,9 @@ Every required check `success` → baseline green, proceed. Any required check f
 - If the baseline is **green** → record the tip as the **verified-green SHA** and proceed to selection.
 - If the baseline is **red** → **never select, claim, or branch off it.** Branching off red makes every subagent thrash, fix unrelated tests, or merge red. But do not simply stop either: an unattended loop that halts on someone else's red is dead until a human notices. **Classify the red first, then act** (§0b).
 
-#### 0b. Red-baseline triage (self-heal, narrowly)
+#### 0b. Red baseline → classify before acting
 
-Identify what broke it before doing anything: `git log --oneline -15`, then map each failing test/type-error to the commit that introduced it (`git log -S '<symbol>' -1 --format='%H %an %s' -- <file>`).
-
-| Cause                                                                                                | Action                                                                                                                                                                                                                                                                                                                                                                                            |
-| ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Flake** (re-run the failing set once, alone)                                                       | green on re-run → proceed, and note it in the final report. Do not chase it                                                                                                                                                                                                                                                                                                                       |
-| **A commit THIS loop merged** (it is in your session's merge list, and the gate was green before it) | **revert it** — `git revert --no-edit <squash-sha>`, re-gate, push. The green-main invariant outranks the PR. Then reopen its issue (`gh issue reopen N`) with a comment linking the revert and the failure, remove `in-progress`, and let a later pass redo it. This is the only case where the loop rewrites `main` on its own, and it is safe because it restores a tree a gate already passed |
-| **Anything else** — a direct push to `main`, another session's merge, a human's in-flight refactor   | **not yours to revert.** Open one `bug` issue (title `fix: main is red — <failing set>`), body = the failing output + the culprit commit + author, label it `bug` and `ready-for-human`, and **stop the loop** reporting that issue. Do not attempt a fix-forward on a tree you did not break: a half-understood repair on top of someone's live refactor is worse than the red                   |
-
-Reverting a commit the loop did not merge, or force-pushing `main`, is never allowed regardless of cause.
+Never select, claim or branch off a red baseline — and never simply stop either, or an unattended loop is dead until a human notices. **Classify the red, then act: `references/red-baseline.md`.** Exactly one class (a commit this loop merged) is yours to revert; a red you did not cause is a `bug` issue plus a stop.
 
 **SHA cache (gate dedup).** The orchestrator tracks the verified-green SHA across passes, updating it on every gate that passes on `main`'s tip (baseline, integrate re-gate, post-merge). At the start of each later pass: `git pull --ff-only`, compare the tip with the cached SHA — **identical → skip the baseline suite** (main is green by construction: its tip is the last merged PR, which passed the train's gate); **different** (external push, another process merged) → run the full baseline as above.
 
@@ -166,35 +170,7 @@ gh label create in-progress --color FBCA04 --description "Claimed by an agent cu
 gh issue edit N --add-label in-progress --add-assignee @me
 ```
 
-**Collision detection is by label + branch/PR existence — NEVER by assignee.** Multiple loops commonly run under the **same GitHub account**, so both appear as the _same_ assignee: an assignee check can never tell "me, this session" from "me, another session" and will pass a collision straight through. The reliable signals that a live session **already owns** an issue are, in priority order:
-
-1. a `feat/issue-N` / `fix/issue-N` **branch already exists** on the remote, or
-2. an **open PR** already targets that issue, or
-3. the `in-progress` label was **already present before you added it**.
-
-`git ls-remote` / `gh pr list` are the ownership tokens because a subagent creates the branch early (§3 step 1) — that branch creation, not the label, is the atomic claim.
-
-**Read-before-write.** For each `#N`, probe BEFORE writing the label:
-
-```bash
-gh label create in-progress --color FBCA04 --description "Claimed by an agent currently working it" 2>/dev/null || true
-
-# collision probe (read-only — no writes yet)
-git ls-remote --heads origin feat/issue-N fix/issue-N   # branch present? (a PR can't exist without its head branch, so this subsumes the open-PR check)
-gh issue view N --json labels -q '[.labels[].name]'     # is in-progress ALREADY here?
-```
-
-- **Any signal present** (branch exists, open PR exists, or `in-progress` already there) → **another session owns it.** Do NOT add the label, do NOT spawn a subagent, drop `#N` from the batch, re-select from the top. **Never touch that issue's label / branch / worktree / PR** — they belong to the other session, and the shared assignee means removing the label would unclaim _their_ work.
-- **All clear** → claim it, then re-probe once to catch a competitor that raced you between probe and write:
-    ```bash
-    gh issue edit N --add-label in-progress --add-assignee @me
-    git ls-remote --heads origin feat/issue-N fix/issue-N   # did a branch appear meanwhile?
-    ```
-    If a branch/PR appeared in the interim, the other session created the branch first and wins → drop `#N` and **leave the label as-is** (it is correctly "in progress" for them; do not remove it — the shared account means your `--remove-label` would clear their flag too).
-
-The atomic tiebreak is the branch: even if both sessions pass the probe and both add the label, only one subagent's `git worktree add -b feat/issue-N` succeeds (§3 step 1) — the other gets `branch already exists` and **must abort as a collision** (not resume it as a WIP). See §3.
-
-Track **every claimed issue in the batch** — each one, on every exit path (merge, failure, interrupt, dependency-skip), must be released (see Release). A claim you dropped because another session owns it is **not** yours to release — leave its label/branch/PR untouched.
+**Collision detection is by branch/PR existence — NEVER by assignee.** Several loops run under the same GitHub account, so an assignee check passes every collision straight through. Probe before writing the label, and re-probe after: **`references/collisions.md`** carries the probe, the race tiebreak, and what you must NOT touch when another session owns an issue (releasing their label unclaims their live work).
 
 ### 2. Dependencies — already resolved in the plan
 
@@ -207,17 +183,17 @@ Nothing to do here — the rule is `scripts/lib/queue-plan.ts`, and the plan you
 Spawn a **fresh** subagent via the `Agent` tool for **each** issue in the batch, **in a single message with multiple tool calls** so they run concurrently (one new subagent per issue — never reuse one). The orchestrator does NOT read the issue body, create the worktree, edit files, or run tests itself — each subagent does its own. Pass each subagent everything it needs in the prompt:
 
 - The issue number `#N` and its type (bug → `fix`, enhancement → `feat`).
-- The **`BATCH_ID`** — the receipt directory this pass writes to (§3 step 8). Use the orchestrator's session id, which is also what the `SubagentStop` hook derives its path from; a subagent writing to a directory the hook cannot find would defeat the missing-receipt guarantee.
+- The **`BATCH_ID`** — the receipt directory this pass writes to (subagent brief § receipt). Use the orchestrator's session id, which is also what the `SubagentStop` hook derives its path from; a subagent writing to a directory the hook cannot find would defeat the missing-receipt guarantee.
 - The **verified-green SHA** from §0 (enables the subagent's abort-on-red skip).
 - Whether the HITL flag is set (so its PR is left for human review — see HITL flag).
 - The instructions below, which the subagent follows end-to-end.
-- **One sentence naming the hard part of THIS issue** — lead with it, before any compliance material. Not "follow the rules": what is the specific thing that is easy to get wrong here? ("the hard part is deciding which of the existing raise sites count as a search", "the hard part is that two shipped cards reuse this choice kind for something else".) A prompt that is all guard checklist and silent on the semantics produces a subagent that satisfies every guard and gets the semantics wrong — the checklist cannot check what nobody stated. If you cannot name the hard part from the issue body, that is a signal the issue needs a producer census (step 4) or is under-specified, not that it has none.
+- **One sentence naming the hard part of THIS issue** — lead with it, before any compliance material. Not "follow the rules": what is the specific thing that is easy to get wrong here? ("the hard part is deciding which of the existing raise sites count as a search", "the hard part is that two shipped cards reuse this choice kind for something else".) A prompt that is all guard checklist and silent on the semantics produces a subagent that satisfies every guard and gets the semantics wrong — the checklist cannot check what nobody stated. If you cannot name the hard part from the issue body, that is a signal the issue needs a producer census (subagent brief) or is under-specified, not that it has none.
 
 **Model routing — take the tier from the plan, verbatim.** Every `batch` entry carries a `model` (§1). Pass it as the `model` parameter of that issue's `Agent` call. It is always present precisely so the parameter can never be omitted — omitting it inherits the orchestrator's session model, which silently routes routine work at whatever tier the session runs on (see Parameters). The planner resolves it from the issue's `model:<name>` label (`model:sonnet` / `model:opus` / `model:fable` / `model:haiku`), falling back to `DEFAULT_IMPL_MODEL`; several labels resolve to the most capable and arrive as `modelAmbiguity`, which you report in the batch summary.
 
 The tier governs the **implement-subagent and every follow-up subagent for that issue** — fixup and rebase-conflict-resolution handbacks (§4) inherit it (fixup difficulty correlates with issue difficulty, not with the session). The orchestrator itself and the reviewer (fixed `opus`, see Parameters) are unaffected.
 
-**If a plan entry looks under-tiered, say so — do not silently upgrade it.** Some work is harder than its label suggests: an issue whose difficulty is **classification or taxonomy** (a new event type, a new seam other code feeds, a new union member, anything requiring the producer census in step 4) wants `opus`, because the failure mode there is a wrong mental model rather than a typo — no gate catches that, only review does, expensively and serially. But re-deciding the tier per run is exactly the model-derived decision this loop moved into the planner: it makes the same issue route differently on two passes for reasons nobody can reconstruct afterwards. Report the suspicion in the pass report and **suggest the `model:opus` label**; applied at triage it persists, takes effect on the next pass, and every later run agrees. Run what the plan says in the meantime.
+**If a plan entry looks under-tiered, say so — do not silently upgrade it.** Some work is harder than its label suggests: an issue whose difficulty is **classification or taxonomy** (a new event type, a new seam other code feeds, a new union member, anything requiring the producer census in the subagent brief) wants `opus`, because the failure mode there is a wrong mental model rather than a typo — no gate catches that, only review does, expensively and serially. But re-deciding the tier per run is exactly the model-derived decision this loop moved into the planner: it makes the same issue route differently on two passes for reasons nobody can reconstruct afterwards. Report the suspicion in the pass report and **suggest the `model:opus` label**; applied at triage it persists, takes effect on the next pass, and every later run agrees. Run what the plan says in the meantime.
 
 Every subagent has written its receipt before the train starts (§4 reads them from disk, not from this conversation). Because the batch is file-disjoint (§1), the parallel worktrees cannot collide.
 
@@ -236,91 +212,15 @@ Any file touched in the last 10 minutes, or a running test process against that 
 
 The moment a `pr-open` receipt lands in the batch directory — while other implementers are still working — spawn a **fresh reviewer subagent** (`opus`, always) on that PR's diff. Do not wait for the full batch: review wall-clock hides inside the fan-out this way, instead of stretching the serial train.
 
-Reviewer prompt mandate (strict): read the PR diff (`gh pr diff`) plus surrounding context; report **only** (a) real bugs, (b) CR-correctness violations, (c) project-rule violations — primitive reuse, type sourcing, one-component-per-file, test quality (tautological/weak tests), missing mandatory coverage per `.claude/rules/`. No style commentary, no praise, no scope creep.
+Its prompt is: read the PR diff for `#N`, and follow `references/reviewer-brief.md` end to end. Do not restate the mandate in the prompt — the reviewer reads it.
 
-**The verdict is a receipt, written to the same batch directory** as `<issue>-review.json` (`role: "review"`, `outcome: "approve" | "blocking"`, `pr`, `findings[]`) before the reviewer returns its one-line summary. A `blocking` verdict with an empty `findings` list is rejected by the contract — it is the shape that stalls a train with nothing to hand the fixup subagent. Persisting the verdict is what makes "was this PR reviewed?" answerable after an interrupt, instead of a question only the dead context could answer.
-
-**Prove it, don't read it — empirical verification is mandatory (not optional).** A review conducted entirely by reading is a guess with a confident tone. For every load-bearing claim — the implementer's and your own — **run something**: execute the relevant tests, and where a claim is that some test _covers_ a behaviour, **deliberately break the subject and confirm the test goes red**, then revert. Comment out the new branch, invert the condition, re-introduce the original bug. A guard that does not fire is not a guard.
-
-This is what actually catches the recurring class, and nothing else does. Three shapes, all shipped despite green suites and careful reading:
-
-1. **The test encodes the bug** — asserts the current wrong behaviour, so it locks the defect in.
-2. **The test asserts nothing** — expected and actual are the same object by construction (a captured reference into state that the code mutates **in place**), so it passes with the feature disabled.
-3. **The test never reaches the code** — a hand-built view instead of the real reducer, or a catalogue guard that silently skips the card.
-
-The asymmetry is why reading cannot substitute: a test that fails when it should pass is loud (CI red, fixed in minutes); a test that passes when it should fail is **silent forever**, and writing it, reading it, reviewing the diff and running the suite all look identical either way. Only breaking the subject distinguishes them.
-
-**A verdict with no mutation performed and reported is not a valid verdict.** State in the receipt what you broke and what failed. If a test still passes after you break what it guards, that is a finding — report it as blocking.
-
-**Pull the context you need — never review myopically (mandatory).** The diff is the starting point, NOT the boundary. Whenever a correctness or rule judgment depends on something the diff doesn't show, actively read it from the codebase before deciding — grep for the primitive the change should have reused, open the caller/callee of a touched function, read the CR-referenced rule, follow the type to its source, walk the view reducer a UI change depends on, read the test the coverage rule requires. **Never approve or block on an assumption when the answer is one search away**, and never let a narrow diff-only read pass a bug that a caller or a reducer would have revealed (the Phelia/one-site-honored class). A review is under-contexted until every finding — and every non-finding — rests on code actually read, not guessed. Cost is not a reason to stay shallow: the reviewer is the correctness backstop for cheap implementers, and a myopic backstop is worse than none.
+**The verdict is a receipt**, written to the batch directory as `<issue>-review.json` (`role: "review"`, `outcome: "approve" | "blocking"`, `pr`, `findings[]`). A `blocking` verdict with no findings is rejected by the contract — it is the shape that stalls a train with nothing to hand the fixup subagent. Persisting it is what makes "was this PR reviewed?" answerable after an interrupt.
 
 The train (§4) consumes these verdicts. `blocking` → hand the branch to a fixup subagent (issue's `model:*` label, max 3 attempts) before that PR may enter the merge steps.
 
 **Migration light lane (`migration` label) — skip the review.** A `migration`-labelled issue is a machine-proven pure refactor: a `resolve()`→`effects[]` transcription whose behavioural equivalence is proven by its own pre-existing per-card test kept byte-for-byte untouched, green before and after (PRD #826, playbook `docs/agents/effect-script-migration.md`). It carries no CR-correctness or design risk a reviewer would catch, so **do NOT spawn a reviewer subagent** for it in this section. The train (§4 step 2) treats an absent verdict on a `migration` issue as an implicit `approve` — never as "review still running". This lightens only the **per-issue** overhead; the green-main invariant is upheld unchanged by the merge-train's full-suite gate (§4 step 4), which still runs once per train on the combined state that actually lands.
 
-**Subagent task (runs entirely in the subagent's context):**
-
-1. **Create an isolated worktree + branch.** Branch name: `fix/issue-N` (bug) or `feat/issue-N` (enhancement). Never work in the shared main checkout — a concurrent process may be editing it. Spin up a dedicated worktree instead:
-
-    ```bash
-    # from the repo root; branch off the current default branch's tip
-    git worktree add ../<repo>-issue-N -b fix/issue-N
-    cd ../<repo>-issue-N
-    ```
-
-    - `../<repo>-issue-N` is a sibling dir outside the main checkout — it gets its own working files, so parallel processes never clobber each other.
-    - **`git worktree add -b` is the atomic ownership claim.** If it fails with **`branch already exists`**, that is the last-line collision signal (§1b): another session claimed this issue between the orchestrator's probe and now. **Probe before assuming it's a resumable WIP:**
-
-        ```bash
-        git ls-remote --heads origin feat/issue-N        # remote branch present?
-        gh pr list --state open --json headRefName | grep issue-N   # open PR?
-        ```
-
-        - **Remote branch or open PR exists → another live session owns it. ABORT immediately.** Do NOT create the worktree, do NOT reuse the branch, do NOT delete or force anything. Return a `collision` receipt (`outcome: failed`, reason "branch/PR owned by another session") so the orchestrator backs off and leaves the issue to its owner.
-        - **Only** when there is **no remote branch and no open PR** (a purely local branch left by a _crashed_ prior attempt of your own loop) may you resume it with `git worktree add ../<repo>-issue-N feat/issue-N` (no `-b`).
-
-    - **Bootstrap the worktree — first command, before anything else.** A fresh worktree is missing every gitignored runtime input: deps (`node_modules`/`vendor`), generated client/codegen output (e.g. `convex/_generated`), the local env file (`.env.local`), and the git-hook shims (`.husky/_`, whose absence silently skips `lint-staged` so prettier drift reaches the merge-train). Without the generated client, hundreds of test files fail at _import_ (`Cannot find module './_generated/api'`) — the tell is **`N files failed, 0 tests failed`**, a setup error that reads as a catastrophic red baseline and will send you debugging the wrong thing.
-        - **Tolaria: `bun run worktree:init`** (idempotent; `--force` re-copies). It does all four.
-        - Other projects: install deps, then copy the codegen dir + env file from the primary checkout by hand.
-    - **All remaining steps run inside this worktree**, never in the main checkout.
-
-2. **Abort-on-red check (green-main invariant, §0) — with gate-dedup skip.** If the branch tip equals the **verified-green SHA** passed in the prompt, skip this check entirely (that exact tree already passed the baseline — same tree, same result). Otherwise run the full suite on the fresh branch: if the pre-existing failure set is **non-empty** (reds you did not introduce), abort immediately — do not implement on top of red. Return a `failed` receipt naming the reds. "Not my test" is never an exemption.
-3. Fetch and read the full issue body (`gh issue view N`) — acceptance criteria are the spec. If the body references a `Parent #N`, fetch and read `#N` (the PRD) as **additional spec/context** — the user stories, implementation and testing decisions there frame this slice. Read it, do **not** implement it wholesale.
-    - **Context discipline — keep your own context lean (measured lever).** Telemetry shows implement subagents balloon to a **228k median / 600k peak** context, driven not by the handed-in prompt (~43k) but by **inline tool-call volume** — a single heavy run logged 113 `grep`s + 95–142 `Read`s, each result resident for the rest of the run. So: **(a) delegate codebase location/mapping to a `caveman:cavecrew-investigator` sub-agent** (spawn it via the `Agent` tool, `model: sonnet` — the plugin's copy pins no model of its own) instead of grepping/globbing the tree inline — its file dumps stay in _its_ context and only the compressed `file:line` map returns to you. Reserve your own `Read` for the handful of files you will actually edit. **(b) Pipe noisy `Bash` through a filter** — `… | tail -20`, `bun run test <path> 2>&1 | tail -30`, `grep -n` over a full-file cat — so a failing suite or a build log never dumps in full. **(c) One search question = one investigator**, not a fresh grep each time you wonder where something lives. A lean implement context is cheaper _and_ sharper (less noise to reason over).
-4. **Producer census — MANDATORY before implementing, whenever the issue widens an input space.** Triggers: a new event type / trigger condition, a new hook or seam other code feeds, a new field on a shared record, a new `*.type` union member, a new predicate other call sites must satisfy. In all of these the hard part is **not writing the code — it is classifying what already flows in**, and that is precisely what a guard checklist cannot check for you.
-
-    Before writing any implementation:
-    1. **Enumerate every producer.** Grep every site that can raise/emit/produce the thing, and read each one. Not "find the choke point" — a single funnel is necessary but says nothing about the traffic through it. Delegate the sweep to a `caveman:cavecrew-investigator` (`model: sonnet`) to keep your context lean.
-    2. **Tabulate the semantics.** One row per site: which field means what, who the acting party is, and — the load-bearing column — **should this one count, yes or no**. Sites that reuse a shared kind/type for a _different_ meaning are the bug: they look identical to a `kind ===` check and are not.
-    3. **Put the table in the PR description**, and name any site you deliberately excluded plus why.
-    4. **Derive the tests from the table, one row = one test** — explicitly including the must-NOT rows. Tests written from the implementation inherit the implementation's assumptions and cannot falsify them; tests written from an independently-built census can.
-    5. **Prefer an explicit, fail-closed discriminator** over an implicit invariant ("today every real one leaves field X unset"). Implicit invariants fail _open_ the moment someone adds a producer that doesn't know about them.
-
-    Skipping this is the single most expensive failure mode this loop has: three consecutive `blocking` review rounds on one PR, each finding a producer the implementer never read (a searcher/owner mix-up, a regression in two shipped cards, and a choice-kind overloaded by two more) — every round green on the local gate, because the tests shared the bug's premise. The census is roughly 10 lines of table and would have pre-empted all three.
-
-5. Follow project development cycle (CLAUDE.md § Development cycle), including its **quality-gate cadence** (CLAUDE.md § Quality gates): targeted tests while iterating, the full gate once before the PR. Use the commands documented there — do not re-specify or assume a tool here. **Work test-first at the agreed seams** (`/tdd` discipline: red → green → refactor) — write the failing test before the implementation wherever a natural seam exists, so the tests the gate later runs prove behaviour rather than restate it.
-    - **Preset scenario — DB-direct, post-merge (mandatory for any new card / user-visible mechanic, CLAUDE.md step 7).** The DB is the single source of truth for debug scenarios — there is no code-array/file path (issue #1455). You are headless (no Debug panel), so you do NOT insert the scenario yourself. Instead **emit one `{ label, spec }` object in your PR receipt** (spec = `debugSetupScenario`'s args minus `gameId`; pick cards/zones/phase/`landCount` that hit the golden path, and make sure every card name resolves in the catalogue). The orchestrator registers it post-merge in §5. Skip ONLY for a pure refactor with no user-visible behaviour change.
-6. **Pre-PR gate (light, mandatory).** When the implementation is complete, run: (a) the **targeted tests** for everything the diff touches (the issue's own tests + the suites of the modules it modifies), and (b) the project's **complete fast static checks — never a hand-picked subset**. In Tolaria that is exactly **`bun run check:pr`**: the same `check:all:inner` as the full gate (format + lint + type-check + `check:ids` + `check:index` + `check:stubs`) on the unlocked light tier. Picking `check:ts && lint` and dropping the rest saved nothing (those three cost <0.2s each) and made every card-shipping PR fail at the merge-train on the card-index lockfile guard. Do **not** run the full suite or full `check:all` on the branch — the merge-train (§4 step 4) runs the full gate once on the rebased tree that actually lands, and a per-branch full gate would be re-paid there. Do not open the PR until this light gate is green.
-
-    **This is enforced mechanically where the project supports it, not by prose.** Tolaria's `scripts/gate.ts` makes `bun run test` / `bun run check:all` exit 1 inside a `feat/issue-N` / `fix/issue-N` worktree — telemetry showed the prose rule alone was routinely ignored, with several subagents running full suites concurrently and driving the machine to 5× oversubscription. If a subagent hits that block, the correct response is to run the targeted gate, **never** to set the `TOLARIA_ALLOW_FULL_SUITE=1` escape hatch: that flag belongs to the orchestrator's train, not to an implement subagent.
-    - **Migration light lane (`migration` label).** For a `migration`-labelled issue only, the pre-PR gate is the **targeted gate**, not the full suite: the migrated card's own per-card test (kept byte-for-byte untouched — it is the equivalence proof) plus the two catalogue sweeps that auto-discover every migrated card, `convex/cards/__tests__/effectScripts.test.ts` (static validation: schema, Op vocabulary, ref-check, JSON purity) and `convex/cards/__tests__/effectScriptSmoke.test.ts` (canned-scenario smoke through the real `resolveTopOfStack`). These three green on the branch is the pre-PR bar. The full `bun run check:all` + `bun run test` is **not** run per migration issue — the merge-train runs it once on the combined tree (§4 step 4), where it is load-bearing. Any non-`migration` issue still runs the light pre-PR gate above.
-
-7. **Ship to a PR — but do NOT merge** (all from inside the worktree). Merging is the orchestrator's job (§4), behind the serial merge lock:
-    1. Commit with message referencing the issue: `fix: <description> (closes #N)` or `feat: <description> (closes #N)`
-    2. Push branch, open PR: `gh pr create --title "<type>: <short title>" --body "Closes #N\n\n<summary>"`
-    3. **Stop here.** Leave the worktree intact (the orchestrator may hand the branch back for a rebase fixup in §4). Never run `gh pr merge`.
-8. **Write the receipt to the batch artifact directory, then return a one-line summary.** The receipt is a FILE, not a paragraph — `.claude/receipts/<BATCH_ID>/<issue>-implement.json`, written through `writeReceipt` (`scripts/lib/receipt.ts`), which validates before it writes and rejects a malformed receipt naming the offending field. `BATCH_ID` arrives in your prompt.
-
-    `WorkReceipt` in `scripts/lib/receipt.ts` **is** the field list — read it there rather than from a copy here, and let the validator tell you what is missing. Three fields carry judgment no schema can enforce:
-    - **`targetFiles`** — the paths the diff ACTUALLY touched (`git diff --name-only main`), not the paths the issue predicted. The train's conflict graph is built from these.
-    - **`restructures`** — the subset you MOVED, RENAMED, SPLIT or REWROTE, as opposed to appended to or edited in place. The train cannot derive this from paths: "we both touched `layers.ts`" says nothing about who must land first, and you are the only one who knows. Omit when nothing was restructured (the common case).
-    - **`proofOfFailure`** — one entry per test you added that _guards_ a behaviour (a regression test, a catalogue guard, a CR-conformance assertion): what you broke, and what went red. Break the subject, watch it fail, revert. A test never seen failing is not evidence, and the failure mode is silent — a test that passes when it should fail looks identical to a real one in the diff, in review, and in a green suite. If a test still passes after you break what it guards, fix the test; do not report it as covered.
-
-    Then return **one line** to the orchestrator: outcome, PR number, and — on `wip`/`failed` — what is still red. Nothing more (no file dumps, no test logs, no restated receipt). The file is the payload; the line is a pointer.
-
-    **A `SubagentStop` hook backs this up.** If you stop without writing a receipt, `.claude/hooks/receipt-guard.sh` records a `missing` marker so the gap is a fact on disk rather than an absence. That is a backstop, not an alternative — a `missing` marker carries no PR, no paths and no verdict, so an issue whose receipt is only a marker cannot be merged this pass.
-
-The subagent inherits the same error-handling rules (max 3 attempts, then `[WIP]` draft PR — see Error handling).
+**The subagent task itself lives in `references/subagent-brief.md`** — worktree, abort-on-red, producer census, implementation, pre-PR gate, PR, receipt. The subagent reads that file as its first action; do **not** paste its contents into the prompt. The prompt carries only what is specific to this issue (the list above) plus the path.
 
 ### 4. Integrate (serial merge-train, orchestrator-owned)
 
@@ -363,24 +263,7 @@ For each issue in `order`:
     git -C <worktree> rebase origin/main
     ```
     If the rebase conflicts (a prior PR in this same train touched an overlapping file — should be rare given §1's disjoint batching, but possible across passes), hand the branch back to a fresh subagent (issue's `model:*` label) to resolve the conflict + re-gate, then **re-review the conflict-resolution delta** (the reviewed diff is no longer what will land) and retry from step 3.
-4. **Gate the rebased state.** Every landing tree is gated exactly once. **WHERE that gate runs depends on whether the repo has required CI status checks — determine this once per run, before the first merge:**
-
-    ```bash
-    gh api repos/<owner>/<repo>/branches/<default>/protection \
-      --jq '.required_status_checks | {strict, contexts}'   # 404 → no protection
-    ```
-
-    **Lane A — required CI checks exist and cover the test suites (PREFERRED).** CI is the gate; do **not** re-run the full suite locally.
-    - Push the rebased branch (`git push --force-with-lease`) and wait for the required checks to go green, then `gh pr merge --squash --delete-branch`.
-    - Run locally **only what the required set does not cover.** Required contexts are frequently just the test suites, leaving type-check / lint / format in a non-required job — run those yourself (`bun run check:all`), they are minutes, not the suite.
-    - **Why this is stricter, not looser.** With `strict: true` the branch must be up to date with the base, so CI runs on the exact tree that lands. A local gate cannot promise that: `main` moves while the suite runs, and the tree you verified is not the tree you push. That is not hypothetical — it happened twice in one session against a repo with concurrent agents. CI also runs uncontended, off the machine-wide gate mutex.
-    - **`gh pr merge` failure modes to expect.** `BLOCKED` = required checks still pending, or `strict: true` and the branch fell behind (rebase again, force-push, wait for the re-run). `UNSTABLE` = mergeable, but a **non-required** check failed — inspect it before merging: if the failure is inside this PR's diff, treat it as red and hand back to fixup; if it is pre-existing on the base, merge and open a separate fix. `gh pr merge` may also print a local `fatal: 'main' is already used by worktree at …` **after** the API merge succeeded — always re-check `gh pr view N --json state` before treating it as a failure.
-
-    **Lane B — no required checks (or they don't cover the suites).** The local full gate is the only gate: run the project's whole `check:all` + full `test` (CLAUDE.md § Quality gates) on the rebased tree, then push and merge.
-    - Run it from a **dedicated gate worktree** (detached HEAD at the rebased commit, e.g. `tolaria-gate-<batch>`), never from the issue worktree — the issue-worktree guard (§3 step 6) blocks the full suite on a `feat/issue-N` / `fix/issue-N` branch by design, and never from a gate worktree another session already occupies (check `git worktree list` first). If gating in place is unavoidable, prefix with the escape hatch (`TOLARIA_ALLOW_FULL_SUITE=1 bun run test`). The train is the only caller entitled to that flag. The gate holds a machine-wide mutex, so a train gate and a concurrent session's gate serialize instead of halving each other — `[gate] waiting …` is expected output, not a hang.
-    - **A fresh worktree is not runnable as-is** — same gap as §3 step 1, and the gate worktree is a fresh worktree. Bootstrap it first: **`bun run worktree:init`** in Tolaria, or install deps + copy the codegen dir and `.env.local` by hand elsewhere. Skipping this produces `N files failed, 0 tests failed`, which reads as a catastrophic red rather than a setup error.
-    - **Never pipe the gate through `tail`/`head`** — the exit code becomes the pager's, and a red suite reports success. Redirect to a file and grep the summary, or read the exit code directly.
-    - Dedup, not relaxation: skip the run **only** if `git rev-parse HEAD^{tree}` equals a tree a full gate already passed (track the tree hashes of passing gates — e.g. an unchanged retry after a verdict wait).
+4. **Gate the rebased state — exactly once per landing tree.** WHERE it runs depends on whether the repo has required CI status checks; determine that once per run and follow the matching lane in **`references/merge-train.md`** (Lane A = CI is the gate and is stricter, Lane B = local full gate from a dedicated gate worktree). That file also carries the `gh pr merge` failure modes and the gate-dedup rule.
 
     Either lane:
     - **Green** → merge, then verify the merged tip really is the tree you gated (`git log --oneline <old-tip>..origin/main` should show only your squash) before recording it as the verified-green SHA.
@@ -403,8 +286,7 @@ Back in the orchestrator (do NOT re-read the diff or re-run tests):
     ```
 
     It upserts by label (safe to re-run), and the row is deployment-local by design (issue #1455) — not in git, so nothing to commit. Because the spec is on disk, an orchestrator that dies between the merge and the registration loses nothing: the next pass re-reads the same artifact and registers it.
-    - **Expect the emitted spec to be wrong and check it.** A headless subagent never loads a scenario, so it writes the shape it _imagines_ — a plausible-looking `{deckId, hand, battlefield}` when the validator wants `{cards: [{name, owner, zone, count}], phase, landCount}` (observed). The mutation rejects it with the full expected validator in the error, which is the fastest way to learn the real shape; fix and re-run rather than handing the failure back.
-    - **Then check it exercises the feature.** A scenario that loads is not a scenario that demonstrates anything — the emitted one used a 1-mana spell to show off _batched_ multi-land payment, which taps exactly one land. Re-pick the cards yourself against the actual mechanic, and verify every card name resolves in the catalogue (`grep -rn 'name: "…"' convex/cards/sets/`) before registering.
+    A headless subagent has never loaded a scenario, so expect the emitted spec to be both malformed and unconvincing — **`references/scenario-registration.md`** covers checking the shape and checking that it actually exercises the feature.
 
 - **Release the claim and tear down the worktree** for every batch issue (see Release).
 - **Close the parent umbrella when its last child closes.** For each issue closed this pass that declares a `parent`, read the parent's completion:
@@ -442,7 +324,7 @@ Release **every** claimed issue in the batch — iterate the rule below over eac
 - On a **successful merge** (§4), the issue is already closed; still remove the worktree and the `in-progress` label/assignment so the board stays clean.
 - On **failure / WIP** (see Error handling), keep the branch and PR but **remove the `in-progress` claim** so the issue returns to the `ready-for-agent` pool for a later pass; remove the worktree too (the branch persists independently of its worktree).
 - On **interrupt**, release **all currently-claimed batch issues** before stopping.
-- On a **collision** (`branch already exists` / branch or open PR owned by another session, per §1b / §3 step 1): the issue belongs to that session. **Do NOT remove the `in-progress` label or assignee** — the shared GitHub account means your `--remove-label`/`--remove-assignee` would unclaim _their_ live work. Just drop the issue from your batch and remove **only** a worktree you created yourself (never theirs). Nothing else to release.
+- On a **collision** (`branch already exists` / branch or open PR owned by another session, per §1b / subagent brief § worktree): the issue belongs to that session. **Do NOT remove the `in-progress` label or assignee** — the shared GitHub account means your `--remove-label`/`--remove-assignee` would unclaim _their_ live work. Just drop the issue from your batch and remove **only** a worktree you created yourself (never theirs). Nothing else to release.
 - Stale-claim recovery: if you find an `in-progress` issue whose worktree/branch no longer exists and no PR is open, it was orphaned by a crashed process — releasing it (remove label) is safe.
 
 ## HITL flag
@@ -487,7 +369,7 @@ Report final summary: issues completed, PRs merged, any skipped/WIP with reasons
 These rules govern the per-issue **subagent** (implement + gate + PR, §3) and the orchestrator's **integrate** stage (rebase + re-gate + merge, §4); the subagent reports its outcome as a receipt, which the integrate stage and Release act on.
 
 - **During implementation** (subagent), only targeted tests run (CLAUDE.md § Quality gates cadence) — if they fail, fix and retry (max 3 attempts).
-- The **light pre-PR gate** (subagent, §3 step 6: targeted tests + static checks) must pass before the PR is opened. If it fails: fix and retry (max 3 attempts).
+- The **light pre-PR gate** (subagent brief § pre-PR gate: targeted tests + static checks) must pass before the PR is opened. If it fails: fix and retry (max 3 attempts).
 - The **integrate re-gate** (orchestrator, §4) must pass on the rebased state before merge (or be skipped only via the tree-identical dedup, §4 step 4). If it fails: hand the branch to a fresh subagent for fixup (max 3 attempts), re-rebase, re-gate.
 - **Fixup / conflict-resolution subagents inherit the issue's `model:*` label** — same routing as the implement-subagent.
 - If stuck after 3 attempts (at any of the above): leave branch as-is, open/keep a draft PR with `[WIP]` prefix, **release the claim** (remove `in-progress` so the issue can be retried later) and remove the worktree (see Release), report failure, continue with the rest of the batch
