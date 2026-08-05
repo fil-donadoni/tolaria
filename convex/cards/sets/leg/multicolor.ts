@@ -911,8 +911,10 @@ export const bartelRuneaxe: CardDefinition = {
 //     own controller pays at their own upkeep (CR 603.6a, `scope: "your"`).
 //
 // Deferred (need a primitive not yet built): Elder Spawn, Forethought Amulet,
-//   Primordial Ooze (upkeep-maintenance cards, tracked-by: #1216); Pit Scorpion,
-//   Takklemaggot (named counters, tracked-by: #1213).
+//   Primordial Ooze (upkeep-maintenance cards, tracked-by: #1216);
+//   Takklemaggot (blocked on CR 613 continuous-effect capabilities, not on
+//   counters, tracked-by: #2228). Pit Scorpion is no longer deferred — poison
+//   and the damage-dealt trigger both ship (tracked-by: #2230).
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Shared resolve body for the Elder-Dragon "sacrifice this unless you pay

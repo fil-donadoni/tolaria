@@ -71,8 +71,9 @@ export const koboldsOfKherKeep: CardDefinition = {
 //   • C4 bands-with-other grant-lands: Adventurers' Guildhouse, Cathedral of
 //     Serra, Mountain Stronghold, Seafarer's Quay, Unholy Citadel; and the
 //     banding strip Tolaria.
-//   • C5 named counters: Triassic Egg (hatchling counters), Voodoo Doll (pin
-//     counters), Serpent Generator (poison-counter token).
+//   • C5 named counters: Triassic Egg (hatchling counters; no longer blocked —
+//     tracked-by: #2230), Voodoo Doll (pin counters; tracked-by: #2225),
+//     Serpent Generator (poison-counter token).
 //   • C7 upkeep pay-or-sacrifice: Forethought Amulet, The Tabernacle at Pendrell
 //     Vale.
 //

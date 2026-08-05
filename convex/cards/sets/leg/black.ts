@@ -822,11 +822,13 @@ export const moldDemon: CardDefinition = {
 //     power or it doesn't attack/can't be blocked and deals damage to you" needs
 //     a power-scaled {X} pay-or-else with an attack-restriction else-branch (C5
 //     named-counter + variable-cost cluster).
-//   • Pit Scorpion — poison counters (C5 named-counter cluster), not a
-//     pay-or-sacrifice card.
-//   • Takklemaggot — multi-counter Aura that hops between creatures on death and
-//     pings the controller each upkeep; needs the named-counter + on-death
-//     re-attach machinery (C5), not the pay-or-sacrifice pattern.
+//   • Pit Scorpion — poison counters, not a pay-or-sacrifice card. No longer
+//     blocked (poison and the damage-dealt trigger both ship) — tracked-by:
+//     #2230.
+//   • Takklemaggot — an Aura that relocates itself when its host dies, or
+//     returns as a non-Aura enchantment with rewritten text; not the
+//     pay-or-sacrifice pattern, and blocked on CR 613 continuous-effect
+//     capabilities rather than on counters — tracked-by: #2228.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -851,9 +853,10 @@ export const moldDemon: CardDefinition = {
 //   • "if ~ started the turn untapped" / "if ~ dealt damage to an opponent this
 //     turn" = new turn-scoped per-instance flags (CR 502.1 / 120.3).
 //
-// Deferred (tracked-by: #1213 — need a primitive owned by another cluster;
-// documented at the end of this section): Glyph of Delusion, All Hallow's Eve,
-// plus the C7-noted Pit Scorpion / Takklemaggot.
+// Deferred (need a primitive owned by another cluster; documented at the end of
+// this section): Glyph of Delusion (tracked-by: #2227), All Hallow's Eve
+// (tracked-by: #2226), plus the C7-noted Takklemaggot (tracked-by: #2228).
+// Pit Scorpion is NO LONGER deferred — its blockers shipped (tracked-by: #2230).
 // ═════════════════════════════════════════════════════════════════════════════
 
 // Spirit Shackle — {B}{B} Aura. "Whenever enchanted creature becomes tapped,
@@ -902,36 +905,44 @@ export const spiritShackle: CardDefinition = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// C5 deferred (tracked-by: #1213) — counter cards needing a primitive owned by another cluster:
-//   • Glyph of Delusion — "target creature that target Wall blocked this turn"
-//     needs a combat-history "blocked this turn" record AND a two-stage target
-//     (a Wall, then a creature it blocked). The named-counter half (glyph
-//     counters + does-not-untap + upkeep removal) is expressible today, but the
-//     dual restricted target is a targeting feature, not a counter feature;
+// C5 deferred — counter cards needing a primitive owned by another cluster.
+// The umbrella tracker (#1213) is retired; each card now owns an issue, and two
+// of its former entries turned out not to be gaps at all:
+//   • Glyph of Delusion (tracked-by: #2227) — "target creature that target Wall
+//     blocked this turn" needs the blocker→attacker pairing to survive past END
+//     OF COMBAT (the engine records it, but combat-scoped) AND a cross-slot
+//     target restriction filtering one announced slot against another's pick.
+//     The named-counter half (glyph counters + does-not-untap + upkeep removal)
+//     is expressible today, but neither of those is a counter feature;
 //     deferred whole to avoid a partial card.
-//   • All Hallow's Eve — exiles ITSELF with two scream counters and ticks them
-//     down from EXILE each upkeep, mass-reanimating all creatures at zero. This
-//     is a suspend-like "card waits in exile with counters and an upkeep trigger
-//     that functions from exile" mechanism (CR 603.6e off-battlefield trigger +
-//     counters on an exiled card); the engine's exile infrastructure today is
-//     the return-bundle (ADR 0028), not a counter-ticking exiled spell. Owned by
-//     a future suspend/exile-counter cluster.
-//   • Voodoo Doll — its named-counter core (upkeep pin accrual + end-step
-//     self-destruct-and-ping) is fully expressible and shippable, but its
-//     "{X}{X}, {T}: deals damage = pin count, where X is the pin count"
-//     activation needs a BOARD-COMPUTED mana cost (X is forced to the live pin
-//     count, not chosen by the player). The engine's `cost.mana` is static data
-//     and `{ X: "X" }` is a player-chosen X; there is no dynamic/board-derived
-//     cost primitive yet. Deferred whole to avoid shipping a wrong cost.
-//   • Triassic Egg — hatchling-counter accrual + the two-or-more-counter
-//     activation gate are C5 (expressible via `addCounter` + `canActivate`),
-//     but the sacrifice ability's first mode "put a creature card from your
-//     hand ONTO THE BATTLEFIELD" needs a hand→battlefield cheat primitive the
-//     engine lacks (`returnToBattlefield` only covers graveyard/exile). Deferred
-//     whole — owned by a future reanimation/cheat cluster.
-//   • Pit Scorpion (poison counters) and Takklemaggot (multi-counter hopping
-//     Aura) — noted in the C7 deferral block above; both need machinery beyond
-//     plain named counters.
+//   • All Hallow's Eve (tracked-by: #2226) — exiles ITSELF with two scream
+//     counters and ticks them down from EXILE each upkeep, mass-reanimating all
+//     creatures at zero. This is a suspend-like "card waits in exile with
+//     counters and an upkeep trigger that functions from exile" mechanism
+//     (CR 603.6e off-battlefield trigger + counters on an exiled card); the
+//     engine's exile infrastructure today is the return-bundle (ADR 0028), not
+//     a counter-ticking exiled spell. Owned by that substrate, not by Suspend
+//     (CR 702.62), whose registry row stays `planned`.
+//   • Voodoo Doll (tracked-by: #2225) — its named-counter core (upkeep pin
+//     accrual + end-step self-destruct-and-ping) is fully expressible, and the
+//     board-derived cost primitive its "{X}{X}, {T}" activation needs DOES now
+//     exist (`cost.manaEqualToCounterCount`, board-fixed and never prompted —
+//     Chromatic Armor). The one residual gap is that {X}{X} is TWICE the pin
+//     count and that descriptor has no multiplier. Deferred until it does,
+//     rather than shipping a wrong cost.
+//   • Takklemaggot (tracked-by: #2228) — an Aura that, when its host dies,
+//     returns either attached to a creature chosen by the DYING CREATURE'S
+//     controller (not its own), or as a NON-AURA enchantment that loses
+//     "enchant creature" and gains a new upkeep trigger. Blocked on four
+//     continuous-effect capabilities (CR 613), none of them counter-related.
+//
+// No longer deferred — their blockers shipped; both are ordinary DSL cards now
+// and are tracked-by: #2230:
+//   • Pit Scorpion — needs poison counters (`addPoisonCounters` + the ten-poison
+//     SBA) and a damage-dealt trigger, both of which ship. It never needed a
+//     named-counter primitive; it was mis-bucketed into this cluster.
+//   • Triassic Egg — the hand→battlefield primitive it waited on
+//     (`putFromHandOntoBattlefield`) ships and has consumers in several sets.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────────────

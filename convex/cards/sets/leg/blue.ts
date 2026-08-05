@@ -54,8 +54,9 @@ export const wallOfVapor: CardDefinition = {
 //
 // EXCLUDED from this batch (owned by #369 feature clusters, or needing an
 // unbuilt primitive — left for their owning issue):
-//   • C5 named counters — Glyph of Delusion (glyph counters), Venarian Gold
-//     (sleep counters).
+//   • C5 named counters — Glyph of Delusion (glyph counters; tracked-by: #2227
+//     — its blocker is combat history + cross-slot targeting, not counters),
+//     Venarian Gold (sleep counters).
 //   • C6 shroud / can't-be-targeted — SHIPPED below (Spectral Cloak,
 //     Anti-Magic Aura, Bartel Runeaxe). Tetsuo Umezawa and Wall of Shadows are
 //     deferred — see the C6 section footer for the per-card reasons.
