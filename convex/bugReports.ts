@@ -145,8 +145,8 @@ export function buildIssuePayload(input: IssueInput): {
     // length); fall back to a generic title for an empty first line.
     const firstLine = description.split("\n")[0]!.trim();
     const title = firstLine
-        ? `[Bug] ${firstLine.slice(0, 120)}`
-        : "[Bug] In-app report";
+        ? `[User Bug] ${firstLine.slice(0, 120)}`
+        : "[User Bug] In-app report";
 
     const bodyLines = [description, "", "---", `**Reporter:** ${name}`];
     if (input.route) bodyLines.push(`**Route:** \`${input.route}\``);

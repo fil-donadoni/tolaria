@@ -17,7 +17,7 @@ describe("buildIssuePayload (bug-report button)", () => {
             name: "Ada",
             description: "Board freezes on attack\nmore detail below",
         });
-        expect(title).toBe("[Bug] Board freezes on attack");
+        expect(title).toBe("[User Bug] Board freezes on attack");
     });
 
     it("truncates a long first line to 120 chars in the title", () => {
@@ -26,7 +26,7 @@ describe("buildIssuePayload (bug-report button)", () => {
             name: "",
             description: line,
         });
-        expect(title).toBe(`[Bug] ${"x".repeat(120)}`);
+        expect(title).toBe(`[User Bug] ${"x".repeat(120)}`);
     });
 
     it("falls back to a generic title when the first line is empty", () => {
@@ -36,7 +36,7 @@ describe("buildIssuePayload (bug-report button)", () => {
         });
         // Leading whitespace is trimmed, so the description starts at "actual
         // text" and that seeds the title.
-        expect(title).toBe("[Bug] actual text");
+        expect(title).toBe("[User Bug] actual text");
     });
 
     it("puts the reporter, route and user agent in the body footer", () => {
