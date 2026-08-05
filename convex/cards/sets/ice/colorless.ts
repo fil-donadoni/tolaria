@@ -255,10 +255,14 @@ export const arcumsWeathervane: CardDefinition = {
 // (planned-migratable — no Op exists yet, not protocol behaviour; re-assess
 // once that Op ships).
 //
-// "Controlled continuously since the beginning of the turn" is approximated by
-// the active-player controller filter (matching Nettling Imp's shipped
-// fidelity): a summoning-sick target forced to attack simply can't, and is
-// destroyed — a minor, defender-favouring deviation not modelled here.
+// "…the active player has controlled continuously since the beginning of the
+// turn" is BOTH halves of a target filter (issue #1824/#1825, the same clause
+// Norritt — ice/black.ts — carries): `controller: "active"` (CR 102.1 — whose
+// permanent it is) AND `controlledSinceTurnStart: true` (CR 302.6 / 400.7 —
+// the continuity window, via `hasControlledSinceTurnStart`,
+// gre/controlContinuity.ts). Without the continuity half a creature that
+// entered the battlefield this turn, or changed control this turn, was a
+// legal target even though the printed card forbids it.
 const ARCUMS_WHISTLE_ID = "73c07c87-0e44-4a5a-92b7-728350cd02de";
 export const arcumsWhistle: CardDefinition = {
     id: ARCUMS_WHISTLE_ID,
@@ -279,6 +283,7 @@ export const arcumsWhistle: CardDefinition = {
                 type: "Creature",
                 count: 1,
                 controller: "active",
+                controlledSinceTurnStart: true,
                 excludeSubtypes: "Wall",
             },
             activationPhaseRestriction: [

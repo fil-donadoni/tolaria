@@ -147,6 +147,7 @@ import {
     getLegalActions,
     raiseTriggerTargetSelection,
     NO_TARGETING_SOURCE,
+    pendingTargetFiltersFromRequirement,
 } from "../../../../gre/rules";
 import {
     tapSourceIntoPayment,
@@ -154,6 +155,7 @@ import {
     tryAutoCommitPendingCast,
     buildPendingActivation,
     finalizeTargetSelection,
+    applyOneTargetSelection,
 } from "../../../../game";
 import {
     buildAutoTapSources,
@@ -4094,5 +4096,114 @@ describe("Arcum's Whistle (forced attack with pay-{X} gate + delayed destroy)", 
         ).map((t) => t.id);
         expect(legal).toContain("victim");
         expect(legal).not.toContain("wall");
+    });
+
+    // Issue #1825 — the Oracle clause "target non-Wall creature THE ACTIVE
+    // PLAYER HAS CONTROLLED CONTINUOUSLY SINCE THE BEGINNING OF THE TURN" only
+    // had its `controller: "active"` half declared; the continuity half was
+    // dropped, so a creature that entered the battlefield THIS turn (or
+    // changed control this turn) was a legal target even though the printed
+    // card forbids it — a freshly cast, summoning-sick creature could be
+    // force-attacked and destroyed. Mirrors Norritt's #1824 fix
+    // (ice/black.ts), which built the shared `controlledSinceTurnStart`
+    // target filter this card now reuses.
+    it("declares BOTH halves of the active-player-continuous-control clause (issue #1825)", () => {
+        const req = arcumsWhistle.activatedAbilities![0].targetRequirement!;
+        expect(req).toMatchObject({
+            type: "Creature",
+            excludeSubtypes: "Wall",
+            controller: "active",
+            controlledSinceTurnStart: true,
+        });
+    });
+
+    it("offers only the active player's continuously-held non-Wall creature (CR 102.1 / 302.6 / 400.7, issue #1825)", () => {
+        const { state } = setup();
+        // `victim` (from setup()) has been controlled by p2 since before the
+        // turn. `fresh` entered this turn; `stolen` changed hands this turn.
+        const fresh = makeInstance(grizzlyBears.id, {
+            id: "fresh",
+            controllerId: "p2",
+            ownerId: "p2",
+            isSummoningSick: true,
+        });
+        fresh.enteredOnTurn = state.turn;
+        const stolen = makeInstance(grizzlyBears.id, {
+            id: "stolen",
+            controllerId: "p2",
+            ownerId: "p1",
+        });
+        state.players[1].battlefield.push(fresh, stolen);
+        state.controlChangedThisTurn = ["stolen"];
+
+        const req = arcumsWhistle.activatedAbilities![0].targetRequirement!;
+        const legal = getLegalTargets(
+            state,
+            req,
+            NO_TARGETING_SOURCE,
+            "p1"
+        ).map((t) => t.id);
+        expect(legal).toEqual(["victim"]);
+    });
+
+    it("REJECTS a just-entered or just-stolen creature submitted to the accept path (CR 601.2c, issue #1825)", () => {
+        const { state, whistle } = setup();
+        const fresh = makeInstance(grizzlyBears.id, {
+            id: "fresh",
+            controllerId: "p2",
+            ownerId: "p2",
+            isSummoningSick: true,
+        });
+        fresh.enteredOnTurn = state.turn;
+        const stolen = makeInstance(grizzlyBears.id, {
+            id: "stolen",
+            controllerId: "p2",
+            ownerId: "p1",
+        });
+        state.players[1].battlefield.push(fresh, stolen);
+        state.controlChangedThisTurn = ["stolen"];
+
+        const req = arcumsWhistle.activatedAbilities![0].targetRequirement!;
+        const newPending = (): NonNullable<GameState["pendingTarget"]> => ({
+            playerId: "p1",
+            cardInstanceId: whistle.id,
+            targetType: req.type,
+            count: 1,
+            selected: [],
+            kind: "ability" as const,
+            abilityId: "arcums-whistle-force",
+            ...pendingTargetFiltersFromRequirement(req, undefined),
+        });
+
+        // Asserted on the filter's own violation message, not a bare
+        // `.toThrow()` — pins the rejection to the continuity check rather
+        // than to some other broken fixture producing a different throw.
+        const CONTINUITY_VIOLATION =
+            "Must target a permanent controlled continuously since the beginning of the turn";
+
+        state.pendingTarget = newPending();
+        expect(() =>
+            applyOneTargetSelection(state, "p1", {
+                targetType: "permanent",
+                targetId: "fresh",
+            })
+        ).toThrow(CONTINUITY_VIOLATION);
+
+        state.pendingTarget = newPending();
+        expect(() =>
+            applyOneTargetSelection(state, "p1", {
+                targetType: "permanent",
+                targetId: "stolen",
+            })
+        ).toThrow(CONTINUITY_VIOLATION);
+
+        // The one genuinely legal target IS accepted, proving the two
+        // rejections above are the filter talking, not a broken fixture.
+        state.pendingTarget = newPending();
+        applyOneTargetSelection(state, "p1", {
+            targetType: "permanent",
+            targetId: "victim",
+        });
+        expect(state.pendingTarget).toBeUndefined();
     });
 });
