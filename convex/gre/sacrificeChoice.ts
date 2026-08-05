@@ -112,8 +112,11 @@ function hasAttachments(state: GameState, c: CardInstanceState): boolean {
 }
 
 /** Identity key for fungibility: same card, same tapped state, no counters, no
- *  attachments. Two permanents sharing a key are indistinguishable choices. */
-function identityKey(state: GameState, c: CardInstanceState): string {
+ *  attachments. Two permanents sharing a key are indistinguishable choices.
+ *  Exported as `sacrificeIdentityKey` for the bot's move enumerator, which
+ *  needs the SAME notion of "the same decision" when it decides how many
+ *  victim variants are worth searching over (`activationCostPicks.ts`). */
+export function identityKey(state: GameState, c: CardInstanceState): string {
     const cardId = (c.card as { id?: string }).id ?? "?";
     return [
         cardId,

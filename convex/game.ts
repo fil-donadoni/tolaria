@@ -229,6 +229,7 @@ import {
     totalTapOtherPower,
     type TapOtherCandidate,
 } from "./gre/tapOtherCost";
+import { buildActivationSacrificeSelection } from "./gre/activationCostPicks";
 import { projectFullState, projectPublicState } from "./gameProjections";
 import {
     canPayAlternativeCost,
@@ -6672,40 +6673,10 @@ function sacrificeSnapshotFromSelection(
  *  inline. Returns undefined when the ability owes no filtered sacrifice. The
  *  ability's fixed self-sacrifice (`cost.sacrifice`) is NOT folded — it has no
  *  choice and stays on `sacrificeSource`. */
-function buildActivationSacrificeSelection(
-    state: GameState,
-    ability: ActivatedAbility,
-    source: CardInstanceState,
-    player: PlayerState,
-    reason: string
-): SacrificeSelection | undefined {
-    const specs: SacrificeRequirement[] = [];
-    if (ability.cost.sacrificeFilter) {
-        specs.push({
-            filter: ability.cost.sacrificeFilter,
-            count: 1,
-            snapshot: true,
-        });
-    }
-    for (const req of getStaticAdditionalSacrifices(
-        state,
-        ability.cost.mana,
-        source,
-        "ability"
-    )) {
-        specs.push({ filter: req.filter, count: req.count });
-    }
-    const requirements = buildSacrificeRequirements(specs);
-    if (requirements.length === 0) return undefined;
-    const selection: SacrificeSelection = {
-        playerId: player.id,
-        reason,
-        requirements,
-        picked: [],
-    };
-    autoResolveFungible(state, selection);
-    return selection;
-}
+// `buildActivationSacrificeSelection` now lives in the pure engine
+// (`gre/activationCostPicks.ts`) and is imported above: the bot's move
+// enumerator needs the IDENTICAL selection to know which victims it must
+// submit, and a second copy here is exactly how the two would drift.
 
 /** CR 107.3 / 608.2g — counts cards of the given types in the casting player's
  *  opponents' graveyards (2-player: the single opponent). A card matches if its
@@ -8142,6 +8113,51 @@ export function findActiveSacrificeSelection(
  *  to whichever in-flight action is awaiting this player's sacrifice choice
  *  (cast, activation, or attack-declaration tax — exactly one is active). When
  *  the choice completes, resumes the parked action. */
+export function selectSacrificeOnState(
+    state: GameState,
+    args: { playerId: string; cardInstanceId: string }
+): void {
+    assertGameNotOver(state);
+
+    // The container decides the Expected Input this pick belongs to
+    // (ADR 0047). A cast/activation sacrifice is paid inside a priority
+    // window (the payer holds priority), so it expects `priority`. The
+    // attack-declaration land tax (CR 508.1c/1g) is a parked turn-based
+    // action, not a priority window, so it expects `sacrifice` — the gate
+    // then rejects any competing priority action (endTurn / passPriority /
+    // casting) until the pick clears. Determining the container is
+    // read-only, so it may precede the gate.
+    const active = findActiveSacrificeSelection(state, args.playerId);
+    if (!active) throw new Error("No sacrifice choice awaiting you");
+    const { sel, container } = active;
+    assertExpectedInput(state, {
+        playerId: args.playerId,
+        expect: container === "attack" ? "sacrifice" : "priority",
+    });
+    if (!isSacrificeCandidateLegal(state, sel, args.cardInstanceId)) {
+        throw new Error("Selected permanent is not a legal sacrifice");
+    }
+    sel.picked.push(args.cardInstanceId);
+
+    if (isSacrificeSelectionComplete(sel)) {
+        if (container === "cast") {
+            // tryAutoCommitPendingCast applies the selection + finalizes when
+            // mana is also covered (else the player keeps tapping lands).
+            tryAutoCommitPendingCast(state, args.playerId);
+        } else if (container === "activation") {
+            tryAutoCommitPendingActivation(state, args.playerId);
+        } else {
+            // Attack tax: apply and finalize the declaration (the cast /
+            // activation resume paths apply internally; this one does not).
+            applySacrificeSelection(state, sel);
+            if (state.combat) {
+                state.combat.pendingAttackSacrifice = undefined;
+            }
+            finalizeConfirmAttackers(state);
+        }
+    }
+}
+
 export const selectSacrifice = mutation({
     args: {
         gameId: v.id("games"),
@@ -8156,45 +8172,10 @@ export const selectSacrifice = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        assertGameNotOver(state);
-
-        // The container decides the Expected Input this pick belongs to
-        // (ADR 0047). A cast/activation sacrifice is paid inside a priority
-        // window (the payer holds priority), so it expects `priority`. The
-        // attack-declaration land tax (CR 508.1c/1g) is a parked turn-based
-        // action, not a priority window, so it expects `sacrifice` — the gate
-        // then rejects any competing priority action (endTurn / passPriority /
-        // casting) until the pick clears. Determining the container is
-        // read-only, so it may precede the gate.
-        const active = findActiveSacrificeSelection(state, args.playerId);
-        if (!active) throw new Error("No sacrifice choice awaiting you");
-        const { sel, container } = active;
-        assertExpectedInput(state, {
+        selectSacrificeOnState(state, {
             playerId: args.playerId,
-            expect: container === "attack" ? "sacrifice" : "priority",
+            cardInstanceId: args.cardInstanceId,
         });
-        if (!isSacrificeCandidateLegal(state, sel, args.cardInstanceId)) {
-            throw new Error("Selected permanent is not a legal sacrifice");
-        }
-        sel.picked.push(args.cardInstanceId);
-
-        if (isSacrificeSelectionComplete(sel)) {
-            if (container === "cast") {
-                // tryAutoCommitPendingCast applies the selection + finalizes when
-                // mana is also covered (else the player keeps tapping lands).
-                tryAutoCommitPendingCast(state, args.playerId);
-            } else if (container === "activation") {
-                tryAutoCommitPendingActivation(state, args.playerId);
-            } else {
-                // Attack tax: apply and finalize the declaration (the cast /
-                // activation resume paths apply internally; this one does not).
-                applySacrificeSelection(state, sel);
-                if (state.combat) {
-                    state.combat.pendingAttackSacrifice = undefined;
-                }
-                finalizeConfirmAttackers(state);
-            }
-        }
 
         await saveGameState(
             ctx,
@@ -8872,6 +8853,67 @@ export const selectActivationCost = mutation({
  *  move graveyard → exile at commit, so cancelling leaves the graveyard
  *  untouched), then drives tryAutoCommitPendingActivation once the pick and the
  *  mana are both in. */
+export function selectActivationExileCostOnState(
+    state: GameState,
+    args: {
+        playerId: string;
+        graveyardOwnerId: string;
+        cardInstanceIds: string[];
+    }
+): void {
+    assertGameNotOver(state);
+    assertExpectedInput(state, {
+        playerId: args.playerId,
+        expect: "priority",
+    });
+
+    const pa = state.pendingActivation;
+    if (!pa) throw new Error("No ability being activated");
+    if (pa.playerId !== args.playerId) {
+        throw new Error("Not your pending activation");
+    }
+    const ec = pa.exileFromGraveyardChoice;
+    if (!ec) {
+        throw new Error("This ability has no exile-from-graveyard cost");
+    }
+    if (ec.pickedCardIds) {
+        throw new Error("Exile cost already paid");
+    }
+    if (args.cardInstanceIds.length !== ec.count) {
+        throw new Error(
+            `Must exile exactly ${ec.count} cards from a single graveyard`
+        );
+    }
+    // CR 118.5 — the whole cost must come from ONE graveyard.
+    if (new Set(args.cardInstanceIds).size !== args.cardInstanceIds.length) {
+        throw new Error("Duplicate card selected for the exile cost");
+    }
+    // CR 118.5 — `owner: "you"` restricts the source to the activating
+    // player's OWN graveyard (Grim Lavamancer "your graveyard").
+    if (ec.owner === "you" && args.graveyardOwnerId !== pa.playerId) {
+        throw new Error("This cost must be paid from your own graveyard");
+    }
+    const owner = state.players.find((p) => p.id === args.graveyardOwnerId);
+    if (!owner) throw new Error("Graveyard owner not in this game");
+    for (const id of args.cardInstanceIds) {
+        const card = owner.graveyard.find((c) => c.id === id);
+        if (!card) {
+            throw new Error("Selected card is not in the chosen graveyard");
+        }
+        if (!graveyardCardMatchesExileCost(card, ec.cardType)) {
+            throw new Error(
+                "Selected card does not match the exile cost filter"
+            );
+        }
+    }
+    ec.pickedGraveyardOwnerId = args.graveyardOwnerId;
+    ec.pickedCardIds = [...args.cardInstanceIds];
+
+    // Commit fires here when the mana is also covered; otherwise the player
+    // taps the remaining mana via tapForActivationPayment.
+    tryAutoCommitPendingActivation(state, args.playerId);
+}
+
 export const selectActivationExileCost = mutation({
     args: {
         gameId: v.id("games"),
@@ -8887,59 +8929,11 @@ export const selectActivationExileCost = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        assertGameNotOver(state);
-        assertExpectedInput(state, {
+        selectActivationExileCostOnState(state, {
             playerId: args.playerId,
-            expect: "priority",
+            graveyardOwnerId: args.graveyardOwnerId,
+            cardInstanceIds: args.cardInstanceIds,
         });
-
-        const pa = state.pendingActivation;
-        if (!pa) throw new Error("No ability being activated");
-        if (pa.playerId !== args.playerId) {
-            throw new Error("Not your pending activation");
-        }
-        const ec = pa.exileFromGraveyardChoice;
-        if (!ec) {
-            throw new Error("This ability has no exile-from-graveyard cost");
-        }
-        if (ec.pickedCardIds) {
-            throw new Error("Exile cost already paid");
-        }
-        if (args.cardInstanceIds.length !== ec.count) {
-            throw new Error(
-                `Must exile exactly ${ec.count} cards from a single graveyard`
-            );
-        }
-        // CR 118.5 — the whole cost must come from ONE graveyard.
-        if (
-            new Set(args.cardInstanceIds).size !== args.cardInstanceIds.length
-        ) {
-            throw new Error("Duplicate card selected for the exile cost");
-        }
-        // CR 118.5 — `owner: "you"` restricts the source to the activating
-        // player's OWN graveyard (Grim Lavamancer "your graveyard").
-        if (ec.owner === "you" && args.graveyardOwnerId !== pa.playerId) {
-            throw new Error("This cost must be paid from your own graveyard");
-        }
-        const owner = state.players.find((p) => p.id === args.graveyardOwnerId);
-        if (!owner) throw new Error("Graveyard owner not in this game");
-        for (const id of args.cardInstanceIds) {
-            const card = owner.graveyard.find((c) => c.id === id);
-            if (!card) {
-                throw new Error("Selected card is not in the chosen graveyard");
-            }
-            if (!graveyardCardMatchesExileCost(card, ec.cardType)) {
-                throw new Error(
-                    "Selected card does not match the exile cost filter"
-                );
-            }
-        }
-        ec.pickedGraveyardOwnerId = args.graveyardOwnerId;
-        ec.pickedCardIds = [...args.cardInstanceIds];
-
-        // Commit fires here when the mana is also covered; otherwise the player
-        // taps the remaining mana via tapForActivationPayment.
-        tryAutoCommitPendingActivation(state, args.playerId);
 
         await saveGameState(
             ctx,
@@ -8961,6 +8955,53 @@ export const selectActivationExileCost = mutation({
  *  `discardToGraveyard` choke point, CR 614 / 701.8), so cancelling leaves
  *  the hand untouched — then drives `tryAutoCommitPendingActivation` once the
  *  pick and the mana are both in. */
+export function selectActivationDiscardCostOnState(
+    state: GameState,
+    args: { playerId: string; cardInstanceIds: string[] }
+): void {
+    assertGameNotOver(state);
+    assertExpectedInput(state, {
+        playerId: args.playerId,
+        expect: "priority",
+    });
+
+    const pa = state.pendingActivation;
+    if (!pa) throw new Error("No ability being activated");
+    if (pa.playerId !== args.playerId) {
+        throw new Error("Not your pending activation");
+    }
+    const dc = pa.discardFilterChoice;
+    if (!dc) {
+        throw new Error("This ability has no discard-a-card cost");
+    }
+    if (dc.pickedCardIds) {
+        throw new Error("Discard cost already paid");
+    }
+    if (args.cardInstanceIds.length !== dc.count) {
+        throw new Error(`Must discard exactly ${dc.count} card(s)`);
+    }
+    if (new Set(args.cardInstanceIds).size !== args.cardInstanceIds.length) {
+        throw new Error("Duplicate card selected for the discard cost");
+    }
+    const player = getPlayer(state, args.playerId);
+    for (const id of args.cardInstanceIds) {
+        const card = player.hand.find((c) => c.id === id);
+        if (!card) {
+            throw new Error("Selected card is not in your hand");
+        }
+        if (!handCardMatchesFilter(card, dc.filter)) {
+            throw new Error(
+                "Selected card does not match the discard cost filter"
+            );
+        }
+    }
+    dc.pickedCardIds = [...args.cardInstanceIds];
+
+    // Commit fires here when the mana is also covered; otherwise the player
+    // taps the remaining mana via tapForActivationPayment.
+    tryAutoCommitPendingActivation(state, args.playerId);
+}
+
 export const selectActivationDiscardCost = mutation({
     args: {
         gameId: v.id("games"),
@@ -8975,49 +9016,10 @@ export const selectActivationDiscardCost = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        assertGameNotOver(state);
-        assertExpectedInput(state, {
+        selectActivationDiscardCostOnState(state, {
             playerId: args.playerId,
-            expect: "priority",
+            cardInstanceIds: args.cardInstanceIds,
         });
-
-        const pa = state.pendingActivation;
-        if (!pa) throw new Error("No ability being activated");
-        if (pa.playerId !== args.playerId) {
-            throw new Error("Not your pending activation");
-        }
-        const dc = pa.discardFilterChoice;
-        if (!dc) {
-            throw new Error("This ability has no discard-a-card cost");
-        }
-        if (dc.pickedCardIds) {
-            throw new Error("Discard cost already paid");
-        }
-        if (args.cardInstanceIds.length !== dc.count) {
-            throw new Error(`Must discard exactly ${dc.count} card(s)`);
-        }
-        if (
-            new Set(args.cardInstanceIds).size !== args.cardInstanceIds.length
-        ) {
-            throw new Error("Duplicate card selected for the discard cost");
-        }
-        const player = getPlayer(state, args.playerId);
-        for (const id of args.cardInstanceIds) {
-            const card = player.hand.find((c) => c.id === id);
-            if (!card) {
-                throw new Error("Selected card is not in your hand");
-            }
-            if (!handCardMatchesFilter(card, dc.filter)) {
-                throw new Error(
-                    "Selected card does not match the discard cost filter"
-                );
-            }
-        }
-        dc.pickedCardIds = [...args.cardInstanceIds];
-
-        // Commit fires here when the mana is also covered; otherwise the player
-        // taps the remaining mana via tapForActivationPayment.
-        tryAutoCommitPendingActivation(state, args.playerId);
 
         await saveGameState(
             ctx,
