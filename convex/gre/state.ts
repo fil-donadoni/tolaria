@@ -134,6 +134,7 @@ import {
     normalizedHybridPips,
     CASTABLE_PERMANENT_TYPES,
     applyLandTypeReplacement,
+    composeMaterializedSubtypes,
 } from "./constants";
 import {
     STATIC_EFFECT_CTX,
@@ -625,6 +626,19 @@ export type CardInstanceState = {
     animation?: {
         savedPower: number | undefined;
         savedToughness: number | undefined;
+        /** The P/T the animation SETS (CR 613.4b layer 7b — `AnimateSpec`'s
+         *  own `power`/`toughness`), as opposed to the `saved*` pair above,
+         *  which is the pre-animation ANCHOR. Recorded (issue #1705) because
+         *  the effect value is otherwise unrecoverable from the record: an
+         *  identity swap (copy / face-down / transform) rebuilds `power` and
+         *  `toughness` from the new face's copiable values, and the replay
+         *  needs the set value to put the animation back on top. Absent on
+         *  rows persisted before #1705 — the replay then falls back to the
+         *  live pre-swap `power`/`toughness`, which hold exactly this value
+         *  (an animation is the only MATERIALISED P/T writer; every other
+         *  layer-7 record is read-time). */
+        setPower?: number;
+        setToughness?: number;
         /** True if "Creature" was added to `types` by the animation. */
         addedCreatureType: boolean;
         /** Additional card types (beyond "Creature") that the animation added
@@ -690,6 +704,15 @@ export type CardInstanceState = {
      *  and only the first value is the printed one. */
     indefiniteSubtypeSet?: {
         restoreSubtypes: string[];
+        /** The subtype line the effect SET, verbatim as passed to
+         *  `SpellContext.setSubtypes` (before any CR 305.7 land-type
+         *  narrowing). Recorded (issue #1705) for the same reason as
+         *  `animation.setPower`: an identity swap rebuilds `subtypes` from the
+         *  new face's copiable values, and the replay needs the effect value —
+         *  the record otherwise stores only the anchor. Absent on rows
+         *  persisted before #1705; the replay then falls back to the live
+         *  pre-swap `subtypes`. */
+        subtypes?: string[];
     };
     /** Conditional P/T modifications held "for as long as [the source] remains
      *  tapped" (CR 611.2 — duration tied to a continuously re-evaluated game
@@ -6352,25 +6375,11 @@ export function applySourceStaticEffects(
  *  aura cast. Behaves identically to `applySourceStaticEffects`. */
 export const applyAuraStaticEffects = applySourceStaticEffects;
 
-/** CR 613 layer-4 composition (issue #1715) — recompute a target's live
- *  `subtypes[]` by replaying its WHOLE materialized layer-4 record in
- *  timestamp order (CR 613.7).
- *
- *  `grantedSubtypes` (subtype-SET, "is a Mountain") and `grantedSubtypesAdd`
- *  (subtype-ADD, "is a Forest in addition to its other land types", CR 305.7)
- *  are two storage shapes for ONE ordered sequence of layer-4 effects, so both
- *  are merged onto a single `seq` axis and replayed together: a set wipes
- *  whatever earlier entries produced, an add appends to it. Replaying the adds
- *  unconditionally on top of the newest set — as this did before — makes an
- *  earlier add outlive a later set, which is exactly the pass-count-dependent
- *  answer issue #1715 is about.
- *
- *  Ties (equal `seq`, and legacy records persisted before the timestamp
- *  existed, which read as 0) keep sets-before-adds, the pre-#1715 order.
- *
- *  Read `target.grantedSubtypes` / `grantedSubtypesAdd` AFTER they have been
- *  updated: this composes the record, it does not mutate it. Callers that
- *  clear `printedSubtypes` must do so after calling. */
+// `composeMaterializedSubtypes` (CR 613 layer-4 composition, issue #1715)
+// lives in `gre/constants.ts` — the identity-swap replay (`gre/identitySwap.ts`,
+// issue #1705) reuses the SAME composer and cannot import it from here without
+// an import cycle (`state.ts` -> `copy.ts` -> `identitySwap.ts`).
+
 /** Snapshots the pre-layer-4 base `subtypes` before the first `subtype-set`
  *  overwrites them. Excludes subtypes that are only there because a live
  *  `subtype-add` put them there (issue #1715): the composer replays the adds
@@ -6387,41 +6396,6 @@ function capturePrintedSubtypes(target: CardInstanceState): string[] {
     return target.subtypes.filter(
         (s) => printed.includes(s) || !adds.some((a) => a.subtype === s)
     );
-}
-
-function composeMaterializedSubtypes(target: CardInstanceState): string[] {
-    const sets = target.grantedSubtypes ?? [];
-    const adds = target.grantedSubtypesAdd ?? [];
-    if (sets.length === 0 && adds.length === 0) {
-        return [...(target.printedSubtypes ?? target.subtypes)];
-    }
-    // CR 305.7 (issue #1883) — a `subtype-set` "set" entry on a LAND replaces
-    // only the land's old LAND TYPES; a subtype belonging to a different card
-    // type (Saga on `Enchantment Land — Urza's Saga`) survives. A non-land
-    // target (Figure of Destiny's "becomes a Kithkin Spirit") has no CR 305.7
-    // analogue and keeps the prior full wholesale replace.
-    const isLandTarget = target.types.includes("Land");
-    type Layer4Entry =
-        | { seq: number; set: string[] }
-        | { seq: number; add: string };
-    const entries: Layer4Entry[] = [
-        ...sets.map((g) => ({ seq: g.seq ?? 0, set: g.subtypes })),
-        ...adds.map((a) => ({ seq: a.seq ?? 0, add: a.subtype })),
-    ];
-    // Stable sort: `Array.prototype.sort` is stable per spec, so equal-seq
-    // entries keep the sets-then-adds construction order above.
-    entries.sort((a, b) => a.seq - b.seq);
-    let composed = [...(target.printedSubtypes ?? target.subtypes)];
-    for (const entry of entries) {
-        if ("set" in entry) {
-            composed = isLandTarget
-                ? applyLandTypeReplacement(composed, entry.set)
-                : [...entry.set];
-        } else if (!composed.includes(entry.add)) {
-            composed.push(entry.add);
-        }
-    }
-    return composed;
 }
 
 /** Reverse of `applySourceStaticEffects`: walks the whole battlefield and
@@ -11250,6 +11224,16 @@ export function buildSpellContext(
             if (!found.card.indefiniteSubtypeSet) {
                 found.card.indefiniteSubtypeSet = {
                     restoreSubtypes: [...found.card.subtypes],
+                    // Issue #1705 — the effect VALUE beside the anchor, so an
+                    // identity swap can replay the set over the new face.
+                    subtypes: [...subtypes],
+                };
+            } else {
+                // A staged respec (Figure of Destiny) keeps the FIRST anchor
+                // but the LATEST set value — that is what is live.
+                found.card.indefiniteSubtypeSet = {
+                    ...found.card.indefiniteSubtypeSet,
+                    subtypes: [...subtypes],
                 };
             }
             // CR 305.7 (issue #1883) — on a LAND this replaces only the old
@@ -13149,6 +13133,10 @@ export function buildSpellContext(
                 card.animation = {
                     savedPower: card.power,
                     savedToughness: card.toughness,
+                    // Issue #1705 — the layer-7b SET value, kept beside the
+                    // pre-animation anchor so an identity swap can replay it.
+                    setPower: spec.power,
+                    setToughness: spec.toughness,
                     addedCreatureType,
                     addedTypes: addedTypes.length > 0 ? addedTypes : undefined,
                     addedSubtype,

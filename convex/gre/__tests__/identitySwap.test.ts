@@ -1,0 +1,598 @@
+// Identity swaps keep the permanent's own continuous effects (issue #1705).
+//
+// `applyCopy` / `revertCopy` (`gre/copy.ts`), `turnFaceDown` / `turnFaceUp`
+// (`gre/faceDown.ts`) and both legs of `transformPermanent` (`gre/transform.ts`)
+// replace a permanent's COPIABLE VALUES — layer 1, CR 613.1a. None of them is a
+// zone change, so none of them makes a new object (CR 400.7) and none of them
+// ends a continuous effect already applying to the permanent (CR 708.2, 707.2,
+// 701.27b). Every site therefore rebuilds layer 1 and replays the permanent's
+// OWN live overlays on top, in CR 613.7 timestamp order.
+//
+// Three failure shapes, one describe block each:
+//   (a) a live grant is DROPPED by the rebuild;
+//   (b) a live REMOVAL is undone by it — the printed keyword comes back while
+//       the stripper's hold record survives, dangling;
+//   (c) a restore ANCHOR captured from the previous identity is written back
+//       onto the NEW face when the effect later expires — corruption, not loss.
+//
+// Every assertion that is board-visible is re-run through `projectPublicState`:
+// the client never sees `GameState`, and a fat-state-only assertion cannot see
+// a field the wire drops.
+
+import { describe, it, expect } from "vitest";
+import { applyCopy, revertCopy } from "../copy";
+import { turnFaceDown, turnFaceUp } from "../faceDown";
+import { transformPermanent } from "../transform";
+import {
+    applySourceStaticEffects,
+    buildSpellContext,
+    unapplySourceStaticEffects,
+    type CardInstanceState,
+    type GameState,
+    type StackItem,
+} from "../state";
+import { finalizeCleanup } from "../phases";
+import { getEffectivePower, getEffectiveToughness } from "../layers";
+import { registerTokenDefinition } from "../../cards";
+import { projectPublicState } from "../../gameProjections";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    pushSpell,
+} from "../../cards/__tests__/setup";
+import { grizzlyBears } from "../../cards/sets/lea/green";
+import { airElemental, flight, mahamotiDjinn } from "../../cards/sets/lea/blue";
+import { gravitySphere } from "../../cards/sets/leg/red";
+
+const UNTIL_EOT = { phase: "end-of-turn" } as const;
+
+// ───────────────────────────────────────────────────────────────────────────
+// Fixtures. No shipped `CardDefinition` carries a `backFace` yet (the only
+// double-faced object in the catalogue is the Incubator TOKEN spec), so the
+// transform legs need registered definitions — the same shape
+// `transform.test.ts` uses. They still travel the real `transformPermanent`.
+// ───────────────────────────────────────────────────────────────────────────
+
+/** Front: a 1/1 flier. Back: a 3/3 with trample AND flying — chosen so shape
+ *  (b) has something to resurrect on the new face (flying) and shape (a) has a
+ *  printed keyword to keep separate from a granted one (trample). */
+const SWAP_FRONT_ID = "test-identity-swap-front";
+registerTokenDefinition({
+    id: SWAP_FRONT_ID,
+    name: "Test Fledgling",
+    rarity: "common",
+    manaCost: { G: 1 },
+    types: ["Creature"],
+    subtypes: ["Bird"],
+    power: 1,
+    toughness: 1,
+    staticAbilities: ["flying"],
+    backFace: {
+        name: "Test Roc",
+        types: ["Creature"],
+        subtypes: ["Bird", "Beast"],
+        power: 3,
+        toughness: 3,
+        staticAbilities: ["flying", "trample"],
+    },
+});
+
+/** A NONCREATURE artifact front with an artifact-creature back — the shape an
+ *  animation (CR 208.2) actually meets: the front is not a creature, so the
+ *  animation adds the Creature type; the back already is one, so after the
+ *  swap the animation must add nothing and remove nothing on expiry. */
+const ANIM_FRONT_ID = "test-identity-swap-anim-front";
+registerTokenDefinition({
+    id: ANIM_FRONT_ID,
+    name: "Test Contraption",
+    rarity: "common",
+    manaCost: {},
+    types: ["Artifact"],
+    backFace: {
+        name: "Test Golem",
+        types: ["Artifact", "Creature"],
+        subtypes: ["Golem"],
+        power: 3,
+        toughness: 3,
+    },
+});
+
+/** A blanket "loses all abilities" source (CR 613.1f, the Humility /
+ *  Titania's Song shape) with no `applies` narrowing, so the test can point it
+ *  at any permanent. The catalogue's two shipped ability-loss cards both bind
+ *  to a card type (nonbasic land / noncreature artifact) that an identity swap
+ *  itself changes, which would confound the assertion under test. */
+const NULLIFIER_ID = "test-identity-swap-nullifier";
+registerTokenDefinition({
+    id: NULLIFIER_ID,
+    name: "Test Nullifier",
+    rarity: "common",
+    manaCost: {},
+    types: ["Enchantment"],
+    staticEffects: [{ kind: "ability-loss", applies: () => true }],
+});
+
+/** A blanket layer-4 `type-add` source (the Animate Artifact / Titania's Song
+ *  shape), likewise unnarrowed. */
+const TYPE_ADDER_ID = "test-identity-swap-type-adder";
+registerTokenDefinition({
+    id: TYPE_ADDER_ID,
+    name: "Test Type Adder",
+    rarity: "common",
+    manaCost: {},
+    types: ["Enchantment"],
+    staticEffects: [
+        { kind: "type-add", applies: () => true, types: ["Artifact"] },
+    ],
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// Helpers
+// ───────────────────────────────────────────────────────────────────────────
+
+function makeBoard(...cards: CardInstanceState[]): GameState {
+    return makeState({
+        players: [makePlayer("p1", { battlefield: cards }), makePlayer("p2")],
+    });
+}
+
+function ctxFor(state: GameState) {
+    const item: StackItem = pushSpell(state, grizzlyBears.id, "p1");
+    return buildSpellContext(state, item);
+}
+
+/** Occurrences of `keyword` — the only quantity the multiset model cares
+ *  about (CR 113.1, #1706). */
+function count(card: CardInstanceState, keyword: string): number {
+    return card.staticAbilities.filter((a) => a === keyword).length;
+}
+
+/** Drives the real CR 514.2 cleanup purge (not a hand-rolled tick). */
+function runCleanup(state: GameState): void {
+    state.phase = "CLEANUP";
+    finalizeCleanup(state);
+}
+
+/** The same permanent as the CLIENT sees it — through the real projection,
+ *  never a hand-built view. */
+function projected(state: GameState, id: string) {
+    const view = projectPublicState(state, 1, "p1");
+    return view.players[0].battlefield.find((c) => c.id === id)!;
+}
+
+/** The six rebuild sites, each driven through its real entry point. `source`
+ *  is a Mahamoti Djinn on the board for the copy legs to copy. */
+const SWAP_SITES: {
+    name: string;
+    run: (card: CardInstanceState, source: CardInstanceState) => void;
+}[] = [
+    { name: "applyCopy", run: (card, source) => applyCopy(card, source) },
+    {
+        name: "revertCopy",
+        run: (card, source) => {
+            applyCopy(card, source);
+            revertCopy(card);
+        },
+    },
+    { name: "turnFaceDown", run: (card) => turnFaceDown(card) },
+    {
+        name: "turnFaceUp",
+        run: (card) => {
+            turnFaceDown(card);
+            turnFaceUp(card);
+        },
+    },
+    {
+        name: "transformPermanent (front → back)",
+        run: (card) => transformPermanent(card),
+    },
+    {
+        name: "transformPermanent (back → front)",
+        run: (card) => {
+            transformPermanent(card);
+            transformPermanent(card);
+        },
+    },
+];
+
+// ───────────────────────────────────────────────────────────────────────────
+// (a) live grants survive
+// ───────────────────────────────────────────────────────────────────────────
+
+describe("shape (a) — a live keyword grant survives every identity swap (CR 400.7 / 613.1f)", () => {
+    for (const site of SWAP_SITES) {
+        it(`${site.name} keeps an until-EOT grant`, () => {
+            const card = makeInstance(SWAP_FRONT_ID, { id: "swap-1" });
+            const source = makeInstance(mahamotiDjinn.id, { id: "src-1" });
+            const state = makeBoard(card, source);
+            const ctx = ctxFor(state);
+            ctx.grantStaticAbility(
+                { type: "permanent", id: "swap-1" },
+                "haste",
+                UNTIL_EOT
+            );
+            expect(count(card, "haste")).toBe(1);
+
+            site.run(card, source);
+
+            expect(count(card, "haste")).toBe(1);
+            // The provenance record is untouched, so the CLEANUP purge can
+            // still find and release exactly its own occurrence.
+            expect(card.grantedStaticAbilities).toEqual([
+                { ability: "haste", duration: { phase: "end-of-turn" } },
+            ]);
+            // Board-visible: the grant must survive the wire too.
+            expect(projected(state, "swap-1").staticAbilities).toContain(
+                "haste"
+            );
+        });
+    }
+
+    it("a keyword-counter grant survives a transform and still releases on counter removal (CR 122.1c)", () => {
+        const card = makeInstance(SWAP_FRONT_ID, { id: "swap-c" });
+        const state = makeBoard(card);
+        const ctx = ctxFor(state);
+        ctx.addCounter({ type: "permanent", id: "swap-c" }, "flying", 1);
+        // Printed flying + the counter's own occurrence.
+        expect(count(card, "flying")).toBe(2);
+
+        transformPermanent(card);
+
+        // The back face also prints flying, so the counter's occurrence sits
+        // on top of the NEW printed one — still exactly two.
+        expect(count(card, "flying")).toBe(2);
+        ctx.removeCounter({ type: "permanent", id: "swap-c" }, "flying", 1);
+        expect(count(card, "flying")).toBe(1);
+        expect(projected(state, "swap-c").staticAbilities).toContain("flying");
+    });
+
+    it("an indefinite grant survives a face-down / face-up round trip (CR 708.2)", () => {
+        const card = makeInstance(SWAP_FRONT_ID, { id: "swap-i" });
+        const state = makeBoard(card);
+        const ctx = ctxFor(state);
+        ctx.grantStaticAbilityPermanent(
+            { type: "permanent", id: "swap-i" },
+            "vigilance"
+        );
+
+        turnFaceDown(card);
+        // CR 708.2 — face down it is a 2/2 vanilla, but the layer-6 grant is
+        // not a copiable value and applies over layer 1.
+        expect(card.power).toBe(2);
+        expect(count(card, "flying")).toBe(0);
+        expect(count(card, "vigilance")).toBe(1);
+
+        turnFaceUp(card);
+        expect(count(card, "flying")).toBe(1);
+        expect(count(card, "vigilance")).toBe(1);
+        expect(projected(state, "swap-i").staticAbilities).toContain(
+            "vigilance"
+        );
+    });
+
+    it("turnFaceUp never aliases the shared printed CardDefinition array", () => {
+        const card = makeInstance(SWAP_FRONT_ID, { id: "swap-alias" });
+        turnFaceDown(card);
+        turnFaceUp(card);
+        card.staticAbilities.push("mutated");
+        // A second permanent of the same printing must be unaffected.
+        const other = makeInstance(SWAP_FRONT_ID, { id: "swap-alias-2" });
+        turnFaceDown(other);
+        turnFaceUp(other);
+        expect(other.staticAbilities).toEqual(["flying"]);
+    });
+
+    it("the CLEANUP purge after a swap releases exactly the granted occurrence (#1706)", () => {
+        const card = makeInstance(SWAP_FRONT_ID, { id: "swap-cl" });
+        const state = makeBoard(card);
+        const ctx = ctxFor(state);
+        ctx.grantStaticAbility(
+            { type: "permanent", id: "swap-cl" },
+            "flying",
+            UNTIL_EOT
+        );
+        transformPermanent(card);
+        // Back face prints flying + trample; the grant adds a second flying.
+        expect(count(card, "flying")).toBe(2);
+        expect(count(card, "trample")).toBe(1);
+
+        runCleanup(state);
+
+        // Exactly the grant's occurrence went — the NEW face's printed flying
+        // stays, and trample is untouched.
+        expect(count(card, "flying")).toBe(1);
+        expect(count(card, "trample")).toBe(1);
+        expect(card.grantedStaticAbilities).toBeUndefined();
+    });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// (b) live removals are not undone
+// ───────────────────────────────────────────────────────────────────────────
+
+describe("shape (b) — a live layer-6 removal is not undone by an identity swap (CR 613.1f)", () => {
+    it("Gravity Sphere: a permanent that becomes a copy of a printed flier still does not fly", () => {
+        const elemental = makeInstance(airElemental.id, { id: "elem-1" });
+        const djinn = makeInstance(mahamotiDjinn.id, { id: "djinn-1" });
+        const sphere = makeInstance(gravitySphere.id, { id: "sphere-1" });
+        const state = makeBoard(elemental, djinn, sphere);
+
+        applySourceStaticEffects(state, sphere);
+        expect(count(elemental, "flying")).toBe(0);
+
+        applyCopy(elemental, djinn);
+
+        // Mahamoti Djinn prints flying; the Sphere's hold is still live.
+        expect(count(elemental, "flying")).toBe(0);
+        expect(projected(state, "elem-1").staticAbilities).not.toContain(
+            "flying"
+        );
+        // …and the Sphere leaving restores exactly one occurrence, on the new
+        // identity, not two.
+        unapplySourceStaticEffects(state, sphere);
+        expect(count(elemental, "flying")).toBe(1);
+    });
+
+    it("Gravity Sphere: transforming into a flying back face still does not fly", () => {
+        const card = makeInstance(SWAP_FRONT_ID, { id: "swap-b1" });
+        const sphere = makeInstance(gravitySphere.id, { id: "sphere-2" });
+        const state = makeBoard(card, sphere);
+
+        applySourceStaticEffects(state, sphere);
+        expect(count(card, "flying")).toBe(0);
+
+        transformPermanent(card);
+
+        expect(count(card, "flying")).toBe(0);
+        expect(count(card, "trample")).toBe(1);
+        expect(projected(state, "swap-b1").staticAbilities).toEqual([
+            "trample",
+        ]);
+    });
+
+    it("a stale hold is dropped: a keyword the new face does not print is not restored later", () => {
+        const elemental = makeInstance(airElemental.id, { id: "elem-2" });
+        const bear = makeInstance(grizzlyBears.id, { id: "bear-src" });
+        const sphere = makeInstance(gravitySphere.id, { id: "sphere-3" });
+        const state = makeBoard(elemental, bear, sphere);
+
+        applySourceStaticEffects(state, sphere);
+        expect(count(elemental, "flying")).toBe(0);
+
+        // Becomes a Grizzly Bear — which prints no flying at all.
+        applyCopy(elemental, bear);
+        expect(count(elemental, "flying")).toBe(0);
+
+        // The Sphere's hold had nothing to take on the new face, so its
+        // restore must not conjure an occurrence out of nothing.
+        unapplySourceStaticEffects(state, sphere);
+        expect(count(elemental, "flying")).toBe(0);
+    });
+
+    it("ability-loss: the NEW face's printed keywords stay stripped across a transform", () => {
+        const card = makeInstance(SWAP_FRONT_ID, { id: "swap-b2" });
+        const nullifier = makeInstance(NULLIFIER_ID, { id: "null-1" });
+        const state = makeBoard(card, nullifier);
+
+        applySourceStaticEffects(state, nullifier);
+        expect(card.staticAbilities).toEqual([]);
+
+        transformPermanent(card);
+
+        // The back face prints flying AND trample — a blanket layer-6 removal
+        // applies over layer 1 whatever layer 1 now says (CR 613.1a/613.1f).
+        expect(card.staticAbilities).toEqual([]);
+        expect(projected(state, "swap-b2").staticAbilities).toEqual([]);
+    });
+
+    it("ability-loss: unapplying the stripper restores the NEW face's keywords, not the old face's", () => {
+        const card = makeInstance(SWAP_FRONT_ID, { id: "swap-b3" });
+        const nullifier = makeInstance(NULLIFIER_ID, { id: "null-2" });
+        const state = makeBoard(card, nullifier);
+
+        applySourceStaticEffects(state, nullifier);
+        transformPermanent(card);
+        unapplySourceStaticEffects(state, nullifier);
+
+        // Back face's line, not the front's ["flying"].
+        expect([...card.staticAbilities].sort()).toEqual(["flying", "trample"]);
+        expect(card.removedKeywords).toBeUndefined();
+    });
+
+    it("CR 613.7 — a grant with a LATER timestamp than the stripper survives the swap (Humility, then Fire Whip)", () => {
+        const card = makeInstance(SWAP_FRONT_ID, { id: "swap-b4" });
+        const nullifier = makeInstance(NULLIFIER_ID, { id: "null-3" });
+        const aura = makeInstance(flight.id, {
+            id: "flight-1",
+            attachedTo: "swap-b4",
+        });
+        const state = makeBoard(card, nullifier, aura);
+
+        applySourceStaticEffects(state, nullifier); // earlier timestamp
+        applySourceStaticEffects(state, aura); // later — wins
+        expect(count(card, "flying")).toBe(1);
+
+        transformPermanent(card);
+
+        // The later grant still wins, and the back face's printed keywords are
+        // still eaten by the stripper.
+        expect(card.staticAbilities).toEqual(["flying"]);
+        expect(projected(state, "swap-b4").staticAbilities).toEqual(["flying"]);
+    });
+
+    it("CR 613.7 — Gravity Sphere then Flight still flies with a swap in the middle (#1715)", () => {
+        const card = makeInstance(SWAP_FRONT_ID, { id: "swap-b5" });
+        const sphere = makeInstance(gravitySphere.id, { id: "sphere-4" });
+        const aura = makeInstance(flight.id, {
+            id: "flight-2",
+            attachedTo: "swap-b5",
+        });
+        const state = makeBoard(card, sphere, aura);
+
+        applySourceStaticEffects(state, sphere); // strips the printed flying
+        applySourceStaticEffects(state, aura); // later grant wins
+        expect(count(card, "flying")).toBe(1);
+
+        transformPermanent(card);
+
+        // Back face prints flying too: the Sphere's hold takes one occurrence,
+        // the later grant keeps the other.
+        expect(count(card, "flying")).toBe(1);
+        expect(count(card, "trample")).toBe(1);
+    });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// (c) restore anchors re-captured from the new base
+// ───────────────────────────────────────────────────────────────────────────
+
+describe("shape (c) — a restore anchor is re-captured from the NEW base (CR 613.1a)", () => {
+    it("an animated permanent that transforms restores to the NEW face's P/T on expiry", () => {
+        const card = makeInstance(ANIM_FRONT_ID, { id: "anim-1" });
+        const state = makeBoard(card);
+        const ctx = ctxFor(state);
+        ctx.animateAsCreature(
+            { type: "permanent", id: "anim-1" },
+            {
+                power: 2,
+                toughness: 2,
+                subtype: "Assembly-Worker",
+                additionalTypes: ["Artifact"],
+                duration: UNTIL_EOT,
+            }
+        );
+        expect(card.types).toContain("Creature");
+        expect(card.power).toBe(2);
+        expect(card.animation?.addedCreatureType).toBe(true);
+
+        transformPermanent(card);
+
+        // The layer-7b set survives the swap …
+        expect(card.power).toBe(2);
+        expect(card.toughness).toBe(2);
+        expect(getEffectivePower(state, card)).toBe(2);
+        // … and its anchor now names the BACK face's printed 3/3, not the
+        // front's undefined P/T.
+        expect(card.animation?.savedPower).toBe(3);
+        expect(card.animation?.savedToughness).toBe(3);
+        // The back face is printed a creature, so the animation adds nothing
+        // and must not strip the type on expiry.
+        expect(card.animation?.addedCreatureType).toBe(false);
+
+        runCleanup(state);
+
+        expect(card.power).toBe(3);
+        expect(card.toughness).toBe(3);
+        expect(card.types).toContain("Creature");
+        expect(card.subtypes).toEqual(["Golem"]);
+        const slim = projected(state, "anim-1");
+        expect(getEffectivePower(state, slim)).toBe(3);
+        expect(getEffectiveToughness(state, slim)).toBe(3);
+    });
+
+    it("an animated permanent that is copied restores to the COPIED identity's P/T", () => {
+        const card = makeInstance(ANIM_FRONT_ID, { id: "anim-2" });
+        const bear = makeInstance(grizzlyBears.id, { id: "bear-2" });
+        const state = makeBoard(card, bear);
+        const ctx = ctxFor(state);
+        ctx.animateAsCreature(
+            { type: "permanent", id: "anim-2" },
+            { power: 5, toughness: 5, duration: UNTIL_EOT }
+        );
+        expect(card.power).toBe(5);
+
+        applyCopy(card, bear);
+
+        expect(card.power).toBe(5);
+        expect(card.animation?.savedPower).toBe(2);
+        expect(card.animation?.savedToughness).toBe(2);
+
+        runCleanup(state);
+        expect(card.power).toBe(2);
+        expect(card.toughness).toBe(2);
+    });
+
+    it("a timed subtype change restores the NEW face's printed subtype line (CR 305.7)", () => {
+        const card = makeInstance(SWAP_FRONT_ID, { id: "sub-1" });
+        const state = makeBoard(card);
+        const ctx = ctxFor(state);
+        ctx.setSubtypesUntil(
+            { type: "permanent", id: "sub-1" },
+            ["Zombie"],
+            UNTIL_EOT
+        );
+        expect(card.subtypes).toEqual(["Zombie"]);
+        expect(card.temporarySubtypeChange?.restoreSubtypes).toEqual(["Bird"]);
+
+        transformPermanent(card);
+
+        // The layer-4 set survives; its anchor is now the BACK face's line.
+        expect(card.subtypes).toEqual(["Zombie"]);
+        expect(card.temporarySubtypeChange?.restoreSubtypes).toEqual([
+            "Bird",
+            "Beast",
+        ]);
+
+        runCleanup(state);
+        expect(card.subtypes).toEqual(["Bird", "Beast"]);
+        expect(projected(state, "sub-1").subtypes).toEqual(["Bird", "Beast"]);
+    });
+
+    it("an indefinite subtype set survives a transform and re-anchors on the new face (CR 611.2b)", () => {
+        const card = makeInstance(SWAP_FRONT_ID, { id: "sub-2" });
+        const state = makeBoard(card);
+        const ctx = ctxFor(state);
+        ctx.setSubtypes({ type: "permanent", id: "sub-2" }, ["Spirit"]);
+        expect(card.subtypes).toEqual(["Spirit"]);
+
+        transformPermanent(card);
+
+        expect(card.subtypes).toEqual(["Spirit"]);
+        expect(card.indefiniteSubtypeSet?.restoreSubtypes).toEqual([
+            "Bird",
+            "Beast",
+        ]);
+        expect(projected(state, "sub-2").subtypes).toEqual(["Spirit"]);
+    });
+
+    it("a layer-4 type-add survives a transform and is not double-applied", () => {
+        const card = makeInstance(SWAP_FRONT_ID, { id: "type-1" });
+        const adder = makeInstance(TYPE_ADDER_ID, { id: "adder-1" });
+        const state = makeBoard(card, adder);
+
+        applySourceStaticEffects(state, adder);
+        expect(card.types).toEqual(["Creature", "Artifact"]);
+
+        transformPermanent(card);
+
+        expect(card.types.filter((t) => t === "Artifact")).toHaveLength(1);
+        expect(card.types).toContain("Creature");
+        expect(projected(state, "type-1").types).toContain("Artifact");
+
+        // The source leaving still removes exactly what it added — the type
+        // was not printed on either face.
+        unapplySourceStaticEffects(state, adder);
+        expect(card.types).not.toContain("Artifact");
+    });
+
+    it("read-time layer-7 records (temporaryPTSet) are neither dropped nor double-applied by a swap", () => {
+        const card = makeInstance(SWAP_FRONT_ID, { id: "pt-1" });
+        const state = makeBoard(card);
+        const ctx = ctxFor(state);
+        ctx.setBasePT({ type: "permanent", id: "pt-1" }, 7, 7, UNTIL_EOT);
+        expect(getEffectivePower(state, card)).toBe(7);
+
+        transformPermanent(card);
+
+        // A layer-7b SET beats the new face's printed 3/3 (CR 613.4b), and the
+        // base P/T underneath it is the back face's.
+        expect(getEffectivePower(state, card)).toBe(7);
+        expect(card.power).toBe(3);
+        const slim = projected(state, "pt-1");
+        expect(getEffectivePower(state, slim)).toBe(7);
+
+        runCleanup(state);
+        expect(getEffectivePower(state, card)).toBe(3);
+    });
+});
