@@ -183,6 +183,9 @@ is freshest), surfaced in its quiz for user veto:
 - Verified: labels `model:sonnet|opus|fable` + `needs-design` exist on the
   tracker; `/process-gh-issues` §156/§282 routes implement + fixup + conflict
   handbacks by the label, defaulting to Sonnet when absent.
+  _(Superseded 2026-08-05: `model:sonnet` was deleted — it duplicated the
+  default, so it was noise on every routine issue. Only the escalation labels
+  `model:opus`/`model:fable` remain; absence is the Sonnet default.)_
 
 Not applied: reviewer-driven escalation (opus reviewer flags a design concern →
 forced `model:opus` handback) — option (b), deferred as redundant now that (a)

@@ -14,7 +14,7 @@
 // Exits 1 when any BLOCKING finding is present, 0 otherwise — so an intake
 // skill can gate on it without parsing anything.
 
-import { execFileSync } from "child_process";
+import { gh } from "./lib/gh";
 import {
     lintIssue,
     isBlocking,
@@ -26,13 +26,6 @@ const argv = process.argv.slice(2);
 const asJson = argv.includes("--json");
 const all = argv.includes("--all");
 const explicit = argv.filter((a) => /^\d+$/.test(a)).map(Number);
-
-function gh(args: string[]): string {
-    return execFileSync("gh", args, {
-        encoding: "utf8",
-        maxBuffer: 32 * 1024 * 1024,
-    });
-}
 
 if (!all && explicit.length === 0) {
     console.error("usage: bun run queue:lint <issue…> | --all [--json]");

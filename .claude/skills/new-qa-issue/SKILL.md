@@ -82,21 +82,29 @@ What should happen after the fix. Be specific about edge cases.
 - Describe types, interfaces, and behavioral contracts
 - Each acceptance criterion must be independently testable
 
-### Step 5 — Pick a model label
+### Step 5 — Pick a model label (only to ESCALATE)
 
-Every issue gets exactly one model-routing label — it decides which model the
-implement-subagent runs on in `/process-gh-issues`. Judge by the scope you just
-drafted:
+The model-routing label decides which model the implement-subagent runs on in
+`/process-gh-issues`. It is an **escalation marker, not a required field**:
+route by exception, and leave the common case unlabelled.
 
-- `model:sonnet` — **default.** Bounded fix or feature: few files, clear
-  diagnosis, established pattern, low ambiguity. Most QA issues.
+- **no label — the default.** Bounded fix or feature: few files, clear
+  diagnosis, established pattern, low ambiguity. Most QA issues. The planner
+  falls back to `DEFAULT_IMPL_MODEL` (Sonnet).
 - `model:opus` — complex, high-risk, or wide-blast-radius: multi-module change,
   subtle CR/timing interaction, cross-cutting refactor, or acceptance criteria
   that need real judgement.
 - `model:fable` — **only** architecture-setting work (new ADR, new subsystem,
   design that later issues build on). Rare for a QA observation.
 
-Pick the label and carry it into the draft's label list.
+There is deliberately **no `model:sonnet` label** — it was retired because it
+said exactly what its absence already says, so it was pure noise on every
+routine issue (21 open, 84 closed carried it). The planner's resolver is generic
+over `model:<name>`, so re-creating the label would work; it just would not mean
+anything.
+
+Pick a label only if you are escalating, and carry it into the draft's label
+list.
 
 ### Step 6 — Confirm with user
 
@@ -127,6 +135,6 @@ Output the issue URL.
 - [ ] Domain terms match `CONTEXT.md` glossary
 - [ ] Acceptance criteria are testable
 - [ ] Out of scope section present
-- [ ] Model label chosen (`model:sonnet` default / `model:opus` / `model:fable`)
+- [ ] Model label decided — **none** unless escalating (`model:opus` / `model:fable`)
 - [ ] User confirmed before creation
-- [ ] Labels applied: category + `needs-triage` + `ready-for-agent` + `model:*`
+- [ ] Labels applied: category + `needs-triage` + `ready-for-agent` (+ `model:*` only if escalated)
