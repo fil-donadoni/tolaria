@@ -24,6 +24,16 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Short-viewport chrome treatment (issue #2056 defect 2): a landscape phone
+ * / split-screen tablet / short desktop window leaves the deckbuilder ~82px
+ * of vertical space for the actual card surface once the shell header + the
+ * builder's own bands (Back/title, Add-Basic bar, legality panel, Save bar)
+ * are laid out at their normal padding. `short-viewport:` trims padding and
+ * type scale on those bands so the chrome stops eating the majority of the
+ * viewport. 500px is the recommended breakpoint from the issue, not a
+ * measured cutoff — tune it here, the one place it's defined. */
+@custom-variant short-viewport (@media (max-height: 500px));
+
 /* ──────────────────────────────────────────────────────────────────────────
  * Single semantic palette — Antique Bronze (ADR 0007 roles, issue #592).
  *

@@ -55,13 +55,18 @@ export default function PoolSideboardPile({
                     : ""
             )}
         >
-            <div className="flex items-baseline gap-2">
-                <span className="font-semibold font-beleren tracking-wide text-parchment">
+            <div className="flex min-w-0 items-baseline gap-2">
+                {/* `truncate` (issue #2056): the untruncated title wrapped to
+                    3 lines / 72px in an 82px pane — the pane's own header
+                    alone consumed 88% of the available height. */}
+                <span className="truncate font-semibold font-beleren tracking-wide text-parchment">
                     {title} {count}
                     {countSuffix ?? ""}
                 </span>
                 {headerRight && (
-                    <div className="ml-auto self-center">{headerRight}</div>
+                    <div className="ml-auto shrink-0 self-center">
+                        {headerRight}
+                    </div>
                 )}
             </div>
             {count === 0 ? (

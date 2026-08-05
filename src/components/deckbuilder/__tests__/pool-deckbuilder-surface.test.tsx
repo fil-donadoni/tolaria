@@ -112,3 +112,19 @@ describe("PoolDeckbuilderSurface (issue #1575)", () => {
         expect(getByLabelText("Sideboard card size")).toBeTruthy();
     });
 });
+
+// Issue #2056 defect 1: the responsive card-size clamp must carry the
+// CARD_MIN_W floor (via `cardBase()`), or a short-and-wide viewport (the
+// `dvh` term binding) collapses tiles below legibility (measured 27.3px at
+// 852x303). This asserts the emitted `--card-base` CSS var — the thing
+// `--card-w`/`--card-h` are computed from — carries the floor, since jsdom
+// can't measure a resolved pixel width.
+describe("PoolDeckbuilderSurface — card-size floor (issue #2056)", () => {
+    it("emits a --card-base custom property wrapped in a max() floor, not a bare min()", () => {
+        const { container } = renderSurface();
+        const surfaceRoot = container.firstElementChild as HTMLElement;
+        const cardBase = surfaceRoot.style.getPropertyValue("--card-base");
+        expect(cardBase).toContain("max(4.5rem");
+        expect(cardBase.startsWith("min(")).toBe(false);
+    });
+});

@@ -1,11 +1,21 @@
 import { useState } from "react";
 import { FORMAT_RULES } from "@convex/formats";
 import type { LobbyDeck } from "~/lib/deckTypes";
+import { cardBase } from "~/lib/cardSizing";
 import ManaSymbol from "../cards/mana-symbol";
 import ActionButton from "../board/action-button";
 import { Button } from "../ui/button";
 import GameDialog from "../ui/game-dialog";
 import ManaPileView from "./mana-pile-view";
+
+// Issue #2056 defect 1: this was a bare, un-floored three-way CSS clamp —
+// the same shape that collapsed the deckbuilder's tiles below legibility on
+// a short-and-wide viewport, just with a plain viewport-height unit instead
+// of the dynamic one (which is why the original four-site sweep's
+// dvh-specific guard missed it; the widened guard now catches every
+// viewport-height unit). Routes through the shared floor like every other
+// card-size clamp.
+const CARD_BASE = cardBase("8rem", "20vw", "19vh");
 
 interface DeckDetailProps {
     deck: LobbyDeck;
@@ -74,8 +84,8 @@ export default function DeckDetail({
             <div
                 style={
                     {
-                        "--card-w": "min(8rem, 20vw, 19vh)",
-                        "--card-h": "calc(min(8rem, 20vw, 19vh) * 7 / 5)",
+                        "--card-w": CARD_BASE,
+                        "--card-h": `calc(${CARD_BASE} * 7 / 5)`,
                     } as React.CSSProperties
                 }
             >

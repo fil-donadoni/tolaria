@@ -332,8 +332,20 @@ export default function PoolDeckBuilderForm({
     );
 
     return (
-        <div className="flex h-dvh flex-col bg-surface-base text-text">
-            <div className="flex items-center gap-3 border-b border-border-subtle/30 bg-surface/60 px-4 py-3 md:px-6">
+        // The shell (`app-shell.tsx`) owns the hard `h-dvh` bound; this
+        // route claims the REMAINING height (`flex-1 min-h-0`) rather than a
+        // whole extra viewport (issue #2056 defect 3) — `h-dvh` here,
+        // stacked under the shell's header band, made the document 112px
+        // taller than the viewport and pushed the Save bar + legality panel
+        // off-screen.
+        <div className="flex flex-1 min-h-0 flex-col bg-surface-base text-text">
+            {/* short-viewport:hidden (issue #2056 defect 3 amplification,
+                852x277 browser measurement): this band alone measured 39px,
+                and the "← Back to Event" affordance it carries reappears
+                compactly inside `SaveDeckBar`'s own row via `onBack` below —
+                the header disappears rather than shrinking further, per the
+                "header 0" target. */}
+            <div className="flex items-center gap-3 border-b border-border-subtle/30 bg-surface/60 px-4 py-3 short-viewport:hidden md:px-6">
                 <Button
                     variant="ghost"
                     size="sm"
@@ -363,17 +375,30 @@ export default function PoolDeckBuilderForm({
                 sideEmptyMessage="Every remaining Pool card lives here until moved to the Maindeck."
             />
 
-            <DeckLegalityPanel
-                formatLabel="Limited"
-                isLegal={legality.isLegal}
-                reasons={legality.reasons}
-            />
+            {/* short-viewport:hidden (issue #2056 defect 3 amplification):
+                this band alone measured 48px — demoted to a `DeckLegalityChip`
+                inside `SaveDeckBar` via the `legality` prop below, which only
+                costs height while its disclosure is open. */}
+            <div className="short-viewport:hidden">
+                <DeckLegalityPanel
+                    formatLabel="Limited"
+                    isLegal={legality.isLegal}
+                    reasons={legality.reasons}
+                />
+            </div>
 
             <SaveDeckBar
                 name={deck.name}
                 onChangeName={handleSetName}
                 onDone={() => void handleDone()}
                 cardCount={deck.cards.length}
+                onBack={() => void handleDone()}
+                backLabel="← Back to Event"
+                legality={{
+                    formatLabel: "Limited",
+                    isLegal: legality.isLegal,
+                    reasons: legality.reasons,
+                }}
             />
         </div>
     );
