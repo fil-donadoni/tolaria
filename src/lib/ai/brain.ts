@@ -91,13 +91,16 @@ export type BotView = {
      *  — set only when the active bottoming choice belongs to the bot, else
      *  undefined (some other player is bottoming, or nobody is). */
     mulliganBottomCount?: number;
-    /** CR 508.1c/1g — the bot owes the parked per-attacker MANA attack tax
-     *  (Propaganda / Collective Restraint): it declared an attack against a
-     *  taxing opponent and must pay to legalize it. */
-    attackManaTaxOwed?: boolean;
-    /** Whether the bot can plausibly cover the parked attack tax from its pool
-     *  plus untapped mana sources. Drives pay-vs-cancel: pay when affordable,
-     *  else cancel the declaration (a taxed attack it can't fund is dropped). */
+    /** CR 508.1c/1g — whether the bot can plausibly cover the parked
+     *  per-attacker MANA attack tax (Propaganda / Collective Restraint) from its
+     *  pool plus untapped mana sources. Set ONLY when that tax is parked on the
+     *  bot, so it doubles as the marker that the window exists at all — there is
+     *  deliberately no separate `…Owed` flag, because owed-NESS is the engine's
+     *  answer on `owedInput` (ADR 0047 / issue #2284) and a second view field
+     *  saying the same thing is where a parallel derivation grows back.
+     *
+     *  Drives pay-vs-cancel: pay when affordable, else cancel the declaration
+     *  (a taxed attack it can't fund is dropped). */
     attackManaTaxAffordable?: boolean;
     /** True once the game has ended — the bot must not act. */
     gameOver?: boolean;

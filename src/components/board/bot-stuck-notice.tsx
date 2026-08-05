@@ -33,7 +33,14 @@ export default function BotStuckNotice({
 
     const handle = () => {
         setPending(true);
-        void onResolve().finally(() => setPending(false));
+        // `.catch` before `.finally`: a rejecting rung must re-enable the button
+        // and leave the banner up (the player retries), never surface as an
+        // unhandled promise rejection. `useVsAiDriver.resolveStuck` already
+        // swallows its own failures; this keeps the component correct for any
+        // caller that does not.
+        void onResolve()
+            .catch(() => {})
+            .finally(() => setPending(false));
     };
 
     return (

@@ -29,7 +29,7 @@ import {
 } from "./pay-owed-payment";
 import {
     submitDeclineAction,
-    type DeclineAction,
+    isDeclineAction,
     type DeclineMutations,
 } from "./decline";
 
@@ -139,9 +139,18 @@ export function realiseBotAction(
 
         // issue #2284 — an escalation rung: the CR-legal decline for the window,
         // through the same mutation a human's click would use.
+        //
+        // Narrowed on `action.kind` rather than cast: `action as DeclineAction`
+        // was the one place in this dispatch chain where the compiler stopped
+        // checking, so a future `BotAction` classified `"decline"` in
+        // `botActionRealisation` but missing from the `DeclineAction` union would
+        // have compiled and only failed at RUNTIME in `submitDeclineAction`'s
+        // `assertNever`. `isDeclineAction` is a real narrowing, so the guarantee
+        // "a new escalation kind is a build error until the driver can realise
+        // it" stays true.
         case "decline":
-            return () =>
-                submitDeclineAction(action as DeclineAction, seat, ctx.decline);
+            if (!isDeclineAction(action)) return null;
+            return () => submitDeclineAction(action, seat, ctx.decline);
 
         // Brain-resolved windows (mulligan keep / mull / bottom-N, the ADR 0016
         // interactive-choice defaults, the minimal-legal raised-target answer)

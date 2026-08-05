@@ -165,7 +165,29 @@ vi.mock("convex/react", () => ({
 }));
 
 // Imported after the mocks so the hook picks up the mocked transport.
-const { useVsAiDriver } = await import("../useVsAiDriver");
+const { useVsAiDriver, BOT_WATCHDOG_MS } = await import("../useVsAiDriver");
+
+/** Flush the driver's NORMAL decision path — the think beat, the inline search
+ *  and the mutation promises — without reaching the liveness watchdog's deadline
+ *  (issue #2284).
+ *
+ *  These fixtures hold `currentState` FROZEN: an accepted mutation resolves but
+ *  the board it publishes never changes. That is fine for asserting what the
+ *  decision path submits, but from the driver's point of view it is a game that
+ *  stopped advancing, and escalating it is the CORRECT answer — the watchdog
+ *  keys on "this state version has not changed", which is the only honest
+ *  liveness signal (a resolved mutation is not one: `passPriority` returns
+ *  without saving when the caller does not hold priority). Draining EVERY
+ *  recursively-scheduled timer therefore used to walk the whole escalation
+ *  ladder here and count its rungs as submissions.
+ *
+ *  The escalation behaviour has its own suite — `useVsAiDriver-liveness.bot.test.ts`,
+ *  which drives real projected boards through `computeExpectedInput` — so the
+ *  tests in THIS file stop short of the deadline instead of asserting against it. */
+const DRIVER_SETTLE_MS = 2000;
+async function settleDriver() {
+    await vi.advanceTimersByTimeAsync(DRIVER_SETTLE_MS);
+}
 
 const GAME = "game1" as Id<"games">;
 const GAME2 = "game2" as Id<"games">;
@@ -204,6 +226,14 @@ function botState(overrides: Record<string, unknown> = {}) {
 }
 
 describe("useVsAiDriver (issue #110)", () => {
+    it("settles the decision path strictly inside the watchdog interval", () => {
+        // Guards the helper above against a future tightening of either
+        // constant: if the settle window ever reached the watchdog deadline,
+        // every test in this file would silently start asserting against the
+        // escalation ladder instead of the decision path.
+        expect(DRIVER_SETTLE_MS).toBeLessThan(BOT_WATCHDOG_MS);
+    });
+
     beforeEach(() => {
         calls.length = 0;
         queryMounts.length = 0;
@@ -223,7 +253,7 @@ describe("useVsAiDriver (issue #110)", () => {
     it("passes on the bot seat when the bot holds priority with no other move", async () => {
         currentState = botState({ priorityPlayerId: BOT });
         renderHook(() => useVsAiDriver(GAME, BOT));
-        await vi.runAllTimersAsync();
+        await settleDriver();
 
         expect(calls).toHaveLength(1);
         expect(calls[0].ref).toBe("passPriority");
@@ -233,7 +263,7 @@ describe("useVsAiDriver (issue #110)", () => {
     it("does nothing when the human holds priority", async () => {
         currentState = botState({ priorityPlayerId: HUMAN });
         renderHook(() => useVsAiDriver(GAME, BOT));
-        await vi.runAllTimersAsync();
+        await settleDriver();
         expect(calls).toHaveLength(0);
     });
 
@@ -243,7 +273,7 @@ describe("useVsAiDriver (issue #110)", () => {
     it("never mounts getPublicState with real args while the human holds priority", async () => {
         currentState = botState({ priorityPlayerId: HUMAN });
         renderHook(() => useVsAiDriver(GAME, BOT));
-        await vi.runAllTimersAsync();
+        await settleDriver();
 
         expect(queryMounts.some((m) => m.ref === "getGameTick")).toBe(true);
         expect(queryMounts.some((m) => m.ref === "getPublicState")).toBe(false);
@@ -254,7 +284,7 @@ describe("useVsAiDriver (issue #110)", () => {
     it("mounts getPublicState and acts exactly once when the tick names the bot's seat", async () => {
         currentState = botState({ priorityPlayerId: BOT });
         renderHook(() => useVsAiDriver(GAME, BOT));
-        await vi.runAllTimersAsync();
+        await settleDriver();
 
         expect(
             queryMounts.some(
@@ -290,7 +320,7 @@ describe("useVsAiDriver (issue #110)", () => {
             },
         });
         renderHook(() => useVsAiDriver(GAME, BOT));
-        await vi.runAllTimersAsync();
+        await settleDriver();
 
         expect(calls).toHaveLength(1);
         expect(calls[0].ref).toBe("declareMulligan");
@@ -322,7 +352,7 @@ describe("useVsAiDriver (issue #110)", () => {
             },
         });
         renderHook(() => useVsAiDriver(GAME, BOT));
-        await vi.runAllTimersAsync();
+        await settleDriver();
 
         expect(calls).toHaveLength(1);
         expect(calls[0].ref).toBe("declareMulligan");
@@ -376,7 +406,7 @@ describe("useVsAiDriver (issue #110)", () => {
             ({ gameId }) => useVsAiDriver(gameId, BOT),
             { initialProps: { gameId: GAME } }
         );
-        await vi.runAllTimersAsync();
+        await settleDriver();
         expect(calls).toHaveLength(1);
         expect(calls[0].args).toEqual({
             gameId: GAME,
@@ -387,7 +417,7 @@ describe("useVsAiDriver (issue #110)", () => {
         // New game, same low seq, same reused hook instance.
         currentState = mulliganState(GAME2);
         rerender({ gameId: GAME2 });
-        await vi.runAllTimersAsync();
+        await settleDriver();
 
         expect(calls).toHaveLength(2);
         expect(calls[1].args).toEqual({
@@ -450,7 +480,7 @@ describe("useVsAiDriver (issue #110)", () => {
         heldMutation = { active: true, release: undefined };
         currentState = parked(1);
         const { rerender } = renderHook(() => useVsAiDriver(GAME, BOT));
-        await vi.runAllTimersAsync();
+        await settleDriver();
 
         // The first pick is in flight; the second has NOT been sent yet.
         expect(calls.map((c) => c.ref)).toEqual(["selectSacrifice"]);
@@ -459,13 +489,13 @@ describe("useVsAiDriver (issue #110)", () => {
         // effect mid-sequence. Nothing new may be dispatched.
         currentState = parked(2);
         rerender();
-        await vi.runAllTimersAsync();
+        await settleDriver();
         expect(calls.map((c) => c.ref)).toEqual(["selectSacrifice"]);
 
         // Once the first pick settles the sequence continues on its own.
         heldMutation.active = false;
         heldMutation.release?.();
-        await vi.runAllTimersAsync();
+        await settleDriver();
         expect(calls.map((c) => c.ref)).toEqual([
             "selectSacrifice",
             "selectSacrifice",
@@ -525,7 +555,7 @@ describe("useVsAiDriver (issue #110)", () => {
         heldMutation = { active: true, release: undefined };
         currentState = mulliganAt(1);
         const { rerender } = renderHook(() => useVsAiDriver(GAME, BOT));
-        await vi.runAllTimersAsync();
+        await settleDriver();
 
         // The realisation went through the executor branch — not the Worker one,
         // which never reaches `declareMulligan` (a mulligan window is decided by
@@ -537,7 +567,7 @@ describe("useVsAiDriver (issue #110)", () => {
         // the dedupe cannot suppress it — only `inFlight` can.
         currentState = mulliganAt(2);
         rerender();
-        await vi.runAllTimersAsync();
+        await settleDriver();
         expect(calls.map((c) => c.ref)).toEqual(["declareMulligan"]);
 
         // And once it settles the guard releases: the same still-undecided
@@ -545,10 +575,10 @@ describe("useVsAiDriver (issue #110)", () => {
         // HELD guard, not a permanently wedged driver.
         heldMutation.active = false;
         heldMutation.release?.();
-        await vi.runAllTimersAsync();
+        await settleDriver();
         currentState = mulliganAt(3);
         rerender();
-        await vi.runAllTimersAsync();
+        await settleDriver();
         expect(calls.map((c) => c.ref)).toEqual([
             "declareMulligan",
             "declareMulligan",
@@ -558,7 +588,7 @@ describe("useVsAiDriver (issue #110)", () => {
     it("does not act when there is no bot seat", async () => {
         currentState = botState();
         renderHook(() => useVsAiDriver(GAME, null));
-        await vi.runAllTimersAsync();
+        await settleDriver();
         expect(calls).toHaveLength(0);
     });
 
@@ -595,7 +625,7 @@ describe("useVsAiDriver (issue #110)", () => {
         renderHook(() => useVsAiDriver(GAME, BOT));
         // Nothing fired synchronously: this window is searched, not insta-passed.
         expect(calls).toHaveLength(0);
-        await vi.runAllTimersAsync();
+        await settleDriver();
         // After the think beat the bot acts (the search picks a real move).
         expect(calls.length).toBeGreaterThan(0);
     });
@@ -628,7 +658,7 @@ describe("useVsAiDriver (issue #110)", () => {
             },
         });
         renderHook(() => useVsAiDriver(GAME, BOT));
-        await vi.runAllTimersAsync();
+        await settleDriver();
 
         expect(calls).toHaveLength(1);
         expect(calls[0].ref).toBe("confirmDamage");
@@ -650,13 +680,13 @@ describe("useVsAiDriver (issue #110)", () => {
         currentState = seq2;
         setPublicStateOverride(seq1);
         const { rerender } = renderHook(() => useVsAiDriver(GAME, BOT));
-        await vi.runAllTimersAsync();
+        await settleDriver();
         expect(calls).toHaveLength(0);
 
         // The subscription catches up to the tick it was gated on.
         setPublicStateOverride(seq2);
         rerender();
-        await vi.runAllTimersAsync();
+        await settleDriver();
 
         expect(calls).toHaveLength(1);
         expect(calls[0].ref).toBe("passPriority");
@@ -671,7 +701,7 @@ describe("useVsAiDriver (issue #110)", () => {
         currentState = botState({ priorityPlayerId: BOT });
         forceNullTick = true;
         renderHook(() => useVsAiDriver(GAME, BOT));
-        await vi.runAllTimersAsync();
+        await settleDriver();
 
         // Fails OPEN: mounts the fat subscription despite the missing tick
         // row instead of staying silent forever.
@@ -706,7 +736,7 @@ describe("useVsAiDriver (issue #110)", () => {
         // The subscription resolves.
         clearPublicStateOverride();
         rerender();
-        await vi.runAllTimersAsync();
+        await settleDriver();
 
         // A trivial pass short-circuits the Worker/think-beat entirely (issue
         // #113) — the mount round-trip must not introduce a visible "thinking"

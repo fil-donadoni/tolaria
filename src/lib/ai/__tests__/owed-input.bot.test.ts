@@ -173,7 +173,6 @@ describe("escalationLadder — every rung is realisable and never a search", () 
         }),
         sacrifice: view({ attackSacrifice: { cardInstanceIds: ["l1"] } }),
         "attack-mana-tax": view({
-            attackManaTaxOwed: true,
             attackManaTaxAffordable: true,
         }),
         priority: view({ parkedAnnouncement: "cast" }),

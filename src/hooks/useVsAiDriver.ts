@@ -28,11 +28,14 @@
 //     disagree. A window the bot cannot answer returns `unanswered`, not
 //     `none` — the distinction that made every past freeze silent.
 //  2. **A watchdog escalates rather than waits.** While the Expected Input names
-//     the bot and the driver has not successfully submitted anything for this
-//     state version, `BOT_WATCHDOG_MS` (comfortably above the hardest search
-//     budget, so a slow think is never mistaken for a hang) later the ladder
-//     fires. An `unanswered` / "nothing owed while owed" decision is a DEFECT
-//     and escalates immediately instead of burning the interval.
+//     the bot and the STATE VERSION HAS NOT CHANGED, `BOT_WATCHDOG_MS`
+//     (comfortably above the hardest search budget, so a slow think is never
+//     mistaken for a hang) later the ladder fires — and fires again, one rung
+//     per interval, until the version does change. "The state version changed"
+//     is the only honest liveness signal: a dispatch that was *started*, or even
+//     a mutation that *resolved*, proves nothing (see the watchdog effect). An
+//     `unanswered` / "nothing owed while owed" decision is a DEFECT and
+//     escalates immediately instead of burning the interval.
 //  3. **Every rung is legal and every rung is loud.** `escalationLadder`
 //     (`src/lib/ai/owed-input.ts`) is deterministic, exhaustive over the
 //     Expected Input kind union, and made only of declines the CR already
@@ -338,6 +341,16 @@ export function useVsAiDriver(
     // change, which re-runs the effect, which re-arms the watchdog), and the
     // "never a silent no-op" guarantee turns into a render loop.
     const stuckSignature = useRef<string | null>(null);
+    // The armed watchdog, keyed to the STATE VERSION it is watching (issue
+    // #2284, review finding 1). Held in a ref rather than torn down by the
+    // effect's cleanup on purpose — see the watchdog effect below.
+    const watchdog = useRef<{ signature: string; timer: number } | null>(null);
+    const disarmWatchdog = useCallback(() => {
+        if (watchdog.current) {
+            window.clearTimeout(watchdog.current.timer);
+            watchdog.current = null;
+        }
+    }, []);
 
     // Everything both effects need, rebuilt per render but stable in content.
     const realisationContext: RealisationContext | null =
@@ -611,25 +624,74 @@ export function useVsAiDriver(
 
     // ── The watchdog ────────────────────────────────────────────────────────
     //
-    // Armed whenever the engine's Expected Input names the bot AND the driver
-    // has not successfully submitted anything for this state version. A
-    // submission that resolved without advancing the game is impossible
-    // server-side (every accepted mutation writes a new seq), so
-    // `lastSignature.current === signature` is a sound "the invariant is being
-    // upheld" signal — and a throw clears it, re-arming the watchdog.
+    // The invariant's only honest signal is **the state version changed**.
+    //
+    // It used to be `lastSignature.current === signature` — "a dispatch was
+    // started for this state version, so the game must be moving" — justified by
+    // "a submission that resolved without advancing the game is impossible
+    // server-side". That premise is false, twice over (issue #2284 review):
+    //
+    //   * the Worker branch's runner is `consultBrain(...).then(({move}) =>
+    //     chosen ? executeMove(...) : undefined)`. A search that yields `move:
+    //     null` with no local fallback RESOLVES having submitted nothing.
+    //     `brain-client.ts`'s `worker.onerror` resolves every in-flight consult
+    //     with exactly that, so one transient Worker error hit this path;
+    //   * `passPriority` (`convex/game.ts`) deliberately returns WITHOUT saving
+    //     when the caller does not hold priority — reachable at rung 4 in the
+    //     CR 510.1c combat-damage sub-flow, where `priority` conflates a window
+    //     the pass does not own.
+    //
+    // In both, nothing threw, so `.catch` never cleared the signature; `.finally`
+    // re-rendered, this effect re-ran, its cleanup cleared its own already-armed
+    // timer, and the `lastSignature` bail returned before re-arming it. No
+    // mutation, therefore no new tick, therefore nothing to ever run again:
+    // frozen with no banner and no escalation record — the exact failure this
+    // issue exists to eliminate.
+    //
+    // So the timer lives in a REF keyed to the state version, and is deliberately
+    // NOT torn down by the effect's cleanup. A re-render that leaves the state
+    // version unchanged (which is what a settled-but-inert submission produces)
+    // leaves the running clock alone rather than resetting or cancelling it. It
+    // is disarmed only by the state version actually changing, by the bot no
+    // longer being owed anything, or by unmount.
+    //
+    // `lastSignature` keeps its OTHER job — the normal decision path's dedupe,
+    // where "I already tried for this state version" is exactly what it means.
+    // Only its use as a liveness signal was dishonest.
     useEffect(() => {
-        if (!botId || !botState || !realisationContext) return;
-        if (tick === undefined) return;
-        if (tick && botState.seq !== tick.seq) return;
+        if (!botId || !botState || !realisationContext) {
+            disarmWatchdog();
+            return;
+        }
+        if (tick === undefined) {
+            disarmWatchdog();
+            return;
+        }
+        if (tick && botState.seq !== tick.seq) {
+            disarmWatchdog();
+            return;
+        }
 
         const signature = currentSignature!;
         const view = buildBotView(botState, botId);
         const owed = view.owedInput;
         // Not our window — nothing to arm. Any leftover rung-5 banner clears
         // on its own: it is keyed to the state version that produced it.
-        if (!owed) return;
-        if (inFlight.current) return;
-        if (lastSignature.current === signature) return;
+        if (!owed) {
+            disarmWatchdog();
+            return;
+        }
+        // Already the terminal rung for this state version: the player's control
+        // is the exit, and burning more timers changes nothing.
+        if (stuckSignature.current === signature) {
+            disarmWatchdog();
+            return;
+        }
+        // Already watching THIS state version. Leave the running clock alone —
+        // re-arming here is what let an inert submission reset (or, via the
+        // cleanup, cancel) the watchdog forever.
+        if (watchdog.current?.signature === signature) return;
+        disarmWatchdog();
 
         const action = decideBotAction(view);
         // "Nothing owed" while the Expected Input names the bot is a DEFECT, not
@@ -645,21 +707,59 @@ export function useVsAiDriver(
             );
         }
 
-        const timer = window.setTimeout(
-            () => escalate(signature, view, owed.kind, realisationContext),
-            escalateImmediately ? 0 : BOT_WATCHDOG_MS
-        );
-        return () => window.clearTimeout(timer);
+        const arm = (delay: number) => {
+            const timer = window.setTimeout(() => {
+                watchdog.current = null;
+                // A submission is genuinely in flight: do not interleave into it
+                // (ADR 0091 decision 6 — a realisation is atomic), but never
+                // simply STOP either. Stopping is the latch, and a consult that
+                // never replies (`consultBrain` has no timeout of its own) would
+                // otherwise hold the guard forever with no clock left running.
+                if (inFlight.current) {
+                    arm(BOT_WATCHDOG_MS);
+                    return;
+                }
+                escalate(signature, view, owed.kind, realisationContext);
+                // Keep watching the SAME state version. If the rung just
+                // dispatched also resolves without advancing the game, the next
+                // interval walks the ladder further instead of going quiet;
+                // if it does advance, this timer is disarmed by the new
+                // signature before it ever fires. Rung 5 is terminal.
+                if (stuckSignature.current !== signature) arm(BOT_WATCHDOG_MS);
+            }, delay);
+            watchdog.current = { signature, timer };
+        };
+        arm(escalateImmediately ? 0 : BOT_WATCHDOG_MS);
+        // NO cleanup: see the comment above. The timer is owned by the ref, not
+        // by this effect run.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [gameId, botId, tick, botState, settleNonce, escalate]);
+    }, [gameId, botId, tick, botState, settleNonce, escalate, disarmWatchdog]);
+
+    // The one place the watchdog is torn down by React: leaving the board.
+    useEffect(() => disarmWatchdog, [disarmWatchdog]);
 
     // Rung 5's human exit: re-walk the ladder from the top. Deliberately resets
     // the attempt counter, so the player's click always tries the cheapest legal
     // answer first rather than resuming wherever the automatic walk stopped.
+    //
+    // It does NOT clear the banner itself (review finding 3). `stuck` is DERIVED
+    // from "this state version is still the one rung 5 fired on", so the banner
+    // disappears exactly when the game moves — and only then. Clearing it after
+    // `await runner()` took a resolved mutation as proof the game advanced, which
+    // is the same false premise the watchdog used to rest on: a rung that hits
+    // `passPriority`'s silent no-op branch (`convex/game.ts` returns without
+    // saving when the caller does not hold priority) would have removed the
+    // human's ONE manual exit while the board sat exactly where it was. Clearing
+    // `stuckSignature` before submitting re-arms the automatic watchdog too, so
+    // an inert rung is followed by the next one rather than by silence.
+    //
+    // Never rejects: a rung whose mutation is rejected leaves the banner up so
+    // the player can retry, and `BotStuckNotice` re-enables its button.
     const resolveStuck = useCallback(async () => {
         if (!botId || !botState || !realisationContext) return;
         const view = buildBotView(botState, botId);
         const owed = view.owedInput;
+        // Nothing is owed any more — the game moved on without us.
         if (!owed) {
             setStuckAt(null);
             return;
@@ -676,8 +776,13 @@ export function useVsAiDriver(
             inFlight.current = false;
             stuckSignature.current = null;
             escalationSignature.current = null;
-            await runner();
-            setStuckAt(null);
+            try {
+                await runner();
+            } catch {
+                // The server rejected it. The banner is still on this state
+                // version, so it stays up and the player can try again.
+            }
+            setSettleNonce((n) => n + 1);
             return;
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps

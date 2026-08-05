@@ -8,6 +8,7 @@
 // (see the grill: "ultima decisione, sempre visibile"). Never persisted.
 
 import type { DecisionTrace } from "@convex/gre";
+import type { ExpectedInputKind } from "@convex/gre/expectedInput";
 
 let latest: DecisionTrace | null = null;
 const listeners = new Set<() => void>();
@@ -43,8 +44,11 @@ export type AiEscalationRecord = {
      *  5 = the last rung, a user-visible actionable state. */
     rung: number;
     /** The Expected Input kind the game was resting on (ADR 0047) — the whole
-     *  point of the record: it names the window nobody wired. */
-    expectedKind: string;
+     *  point of the record: it names the window nobody wired. The ENGINE's union,
+     *  not a loose `string`: `BotStuckNotice` keys its player-facing
+     *  `WINDOW_LABEL` by it, so a stale or typo'd kind must be a build error
+     *  rather than a rendered blank. */
+    expectedKind: ExpectedInputKind;
     /** The `BotAction.kind` the rung submitted, or a short reason when the rung
      *  submitted nothing. */
     action: string;

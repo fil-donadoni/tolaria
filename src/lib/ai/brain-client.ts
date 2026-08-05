@@ -23,6 +23,24 @@ export type BrainResult = { move: Move | null; trace: DecisionTrace | null };
 
 type Pending = (result: BrainResult) => void;
 
+/** How long a Worker consult may run before the client gives up on it and
+ *  resolves the same "no move" answer `worker.onerror` already resolves
+ *  (issue #2284).
+ *
+ *  Without it a Worker that never replies — a wedged search, a message lost
+ *  across a tab suspend — left the driver's in-flight guard set forever, and an
+ *  in-flight guard the driver cannot clear is a latch its watchdog cannot walk
+ *  past (the watchdog will not interleave a rung into a live submission). The
+ *  timeout turns "never replies" into the ordinary `move: null` outcome the
+ *  escalation ladder already handles.
+ *
+ *  It must stay comfortably ABOVE the hardest search budget
+ *  (`DIFFICULTY_BUDGETS.hard.timeMs = 600`) and BELOW `BOT_WATCHDOG_MS`, so a
+ *  wedged consult settles in time for the watchdog's first deadline to escalate
+ *  rather than to find a still-in-flight dispatch. `brain-client-timeout.bot.test.ts`
+ *  asserts both relations against the real constants. */
+export const BRAIN_CONSULT_TIMEOUT_MS = 5000;
+
 let worker: Worker | null = null;
 let nextId = 1;
 const pending = new Map<number, Pending>();
@@ -75,7 +93,16 @@ export function consultBrain(
     const id = nextId++;
     const request: BrainRequest = { id, state, botId, budget, ownDeck };
     return new Promise<BrainResult>((resolve) => {
-        pending.set(id, resolve);
+        // A consult ALWAYS settles (issue #2284) — see
+        // `BRAIN_CONSULT_TIMEOUT_MS`. A reply that arrives afterwards finds no
+        // pending entry and is dropped.
+        const timer = setTimeout(() => {
+            if (pending.delete(id)) resolve({ move: null, trace: null });
+        }, BRAIN_CONSULT_TIMEOUT_MS);
+        pending.set(id, (result) => {
+            clearTimeout(timer);
+            resolve(result);
+        });
         w.postMessage(request);
     });
 }

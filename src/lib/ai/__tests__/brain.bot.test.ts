@@ -50,7 +50,7 @@ function fixtureKind(v: BotView): ExpectedInputKind {
     ) {
         return "blockers";
     }
-    if (v.attackManaTaxOwed) return "attack-mana-tax";
+    if (v.attackManaTaxAffordable !== undefined) return "attack-mana-tax";
     if (v.attackSacrifice) return "sacrifice";
     return "priority";
 }
@@ -366,7 +366,6 @@ describe("decideBotAction resolves the parked attack mana tax (#1053/#1066)", ()
                     activePlayerId: BOT,
                     priorityPlayerId: BOT,
                     hasCombat: true,
-                    attackManaTaxOwed: true,
                     attackManaTaxAffordable: true,
                 })
             )
@@ -381,7 +380,6 @@ describe("decideBotAction resolves the parked attack mana tax (#1053/#1066)", ()
                     activePlayerId: BOT,
                     priorityPlayerId: BOT,
                     hasCombat: true,
-                    attackManaTaxOwed: true,
                     attackManaTaxAffordable: false,
                 })
             )
@@ -398,7 +396,6 @@ describe("decideBotAction resolves the parked attack mana tax (#1053/#1066)", ()
                 priorityPlayerId: BOT,
                 hasCombat: true,
                 attackersConfirmed: false,
-                attackManaTaxOwed: true,
                 attackManaTaxAffordable: true,
             })
         );

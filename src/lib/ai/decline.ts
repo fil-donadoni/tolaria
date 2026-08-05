@@ -41,6 +41,40 @@ export type DeclineAction = Extract<
     }
 >;
 
+/** The decline kinds, as VALUES — so `realiseBotAction` can NARROW a `BotAction`
+ *  into {@link DeclineAction} instead of casting it (issue #2284 review finding
+ *  5). A cast is the one place a dispatch chain stops being checked: a future
+ *  `BotAction` classified `"decline"` by `botActionRealisation` but never added
+ *  to the union above would compile and fail at runtime inside
+ *  {@link submitDeclineAction}'s `assertNever`.
+ *
+ *  The witness below keeps this list and the union in lockstep in the direction
+ *  that can be checked statically: a kind added to `DeclineAction` without a row
+ *  here is a build error. The other direction — a kind `botActionRealisation`
+ *  routes here but the union does not name — is not statically expressible from
+ *  a function, and now degrades to "the rung is skipped" (the same `return null`
+ *  every sibling branch uses) instead of a thrown `assertNever` mid-escalation. */
+const DECLINE_KINDS = [
+    "cancel-target",
+    "confirm-no-blockers",
+    "confirm-no-attackers",
+    "abort-announcement",
+    "select-sacrifice",
+] as const;
+
+type MissingDeclineKind = Exclude<
+    DeclineAction["kind"],
+    (typeof DECLINE_KINDS)[number]
+>;
+const _declineKindsExhaustive: [MissingDeclineKind] extends [never]
+    ? true
+    : never = true;
+void _declineKindsExhaustive;
+
+export function isDeclineAction(action: BotAction): action is DeclineAction {
+    return (DECLINE_KINDS as readonly string[]).includes(action.kind);
+}
+
 /** The public `game.ts` mutations an escalation rung can name — exactly the
  *  ones a human's click drives. */
 export type DeclineMutations = {

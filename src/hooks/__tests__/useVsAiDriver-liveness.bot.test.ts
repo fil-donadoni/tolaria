@@ -50,6 +50,9 @@ const calls: { ref: unknown; args: unknown }[] = [];
 let currentState: unknown = undefined;
 /** When set, EVERY mutation rejects — the thrown-submission fixture. */
 let mutationsThrow = false;
+/** When set, an ACCEPTED mutation advances the published board — the real
+ *  server writes a new seq, and the watchdog keys on that state version. */
+let onMutation: ((ref: unknown) => void) | undefined;
 
 vi.mock("@convex/_generated/api", () => {
     // Every mutation/query the driver reaches for, tagged by a plain string so
@@ -133,10 +136,27 @@ vi.mock("convex/react", () => ({
     },
     useMutation: (ref: unknown) => (args: unknown) => {
         calls.push({ ref, args });
-        return mutationsThrow
-            ? Promise.reject(new Error("server rejected"))
-            : Promise.resolve(null);
+        if (mutationsThrow) return Promise.reject(new Error("server rejected"));
+        // A hook for the fixtures that need an ACCEPTED mutation to actually
+        // move the board — the real server writes a new seq, and the watchdog
+        // keys on that state version.
+        onMutation?.(ref);
+        return Promise.resolve(null);
     },
+}));
+
+// The Brain Worker, stubbed. `brainResult` is what a consult resolves with;
+// `{ move: null }` is NOT hypothetical — `brain-client.ts`'s `worker.onerror`
+// resolves EVERY in-flight consult with exactly that, and a search over a
+// window with no enumerated move does the same. That is the shape that used to
+// latch the driver: the runner resolves having sent no mutation at all.
+let brainResult: { move: unknown; trace: unknown } = {
+    move: null,
+    trace: null,
+};
+vi.mock("~/lib/ai/brain-client", () => ({
+    consultBrain: () => Promise.resolve(brainResult),
+    disposeBrain: () => {},
 }));
 
 // The stub. `importOriginal` keeps every OTHER export real — the escalation
@@ -325,6 +345,17 @@ function attackManaTaxBoard(): GameState {
     return state;
 }
 
+/** `target`, ANNOUNCED origin (CR 601.2c) — the bot's own half-built cast is
+ *  waiting on its target choice. `buildOwedTargetView` deliberately surfaces no
+ *  `owedTarget` here (the executor drives an announced selection atomically), so
+ *  the search is the ONLY thing that can answer it and there is no local
+ *  fallback: the window where a `{ move: null }` consult submits nothing. */
+function announcedTargetBoard(): GameState {
+    const state = targetBoard();
+    state.pendingTarget!.kind = "cast";
+    return state;
+}
+
 /** Every Expected Input kind the bot can be waited on for, with the board that
  *  produces it. The `satisfies Record<…>` is the runtime half of the
  *  compile-time exhaustiveness witness: a new kind on the engine's union cannot
@@ -338,19 +369,72 @@ const BOARDS = {
     priority: priorityBoard,
 } satisfies Record<ExpectedInputKind, () => GameState>;
 
-/** Publish a board as the "server" state: refresh the authoritative
- *  `expectedInput`, project it to the bot's own viewpoint. */
-function publish(state: GameState) {
+/** The mutation the escalation ladder must reach for each board above — pinned
+ *  BY NAME, not merely counted (review finding 2). "The game state advanced" is
+ *  the acceptance criterion, and a rung that submits the wrong mutation is
+ *  rejected server-side while still bumping a call counter.
+ *
+ *   - `choice`          rung 2, ADR 0016 conservative default → `submitMayPay`
+ *   - `target`          rung 2, the raised-target minimal submission (#2283),
+ *                       batched → `selectTargets`
+ *   - `blockers`        rung 2, CR 509.1 empty declaration → `confirmBlockers`
+ *   - `sacrifice`       rung 2, CR 508.1g minimal victim set → `selectSacrifice`
+ *   - `attack-mana-tax` rung 3, the tax is unaffordable on this board (no
+ *                       lands), so CR 508.1c declines it → `cancelAttackTax`
+ *   - `priority`        rungs 2/3 have nothing parked, so CR 117 → `passPriority`
+ */
+const EXPECTED_ESCALATION_MUTATION = {
+    choice: "submitMayPay",
+    target: "selectTargets",
+    blockers: "confirmBlockers",
+    sacrifice: "selectSacrifice",
+    "attack-mana-tax": "cancelAttackTax",
+    priority: "passPriority",
+} satisfies Record<ExpectedInputKind, string>;
+
+/** Publish a board as the "server" state at state version `seq`: refresh the
+ *  authoritative `expectedInput`, project it to the bot's own viewpoint. The
+ *  `seq` is the driver's liveness signal — an accepted mutation writes a new
+ *  one, and the watchdog measures "this version has not changed". */
+function publish(state: GameState, seq = 1) {
     refreshExpectedInput(state);
-    currentState = projectPublicState(state, 1, BOT);
+    currentState = projectPublicState(state, seq, BOT);
     return computeExpectedInput(state);
+}
+
+/** Advance fake timers inside `act`, flushing React's passive effects.
+ *
+ *  **Cadence matters, and it is load-bearing** (review finding 2). Advancing
+ *  `BOT_WATCHDOG_MS + 100` in ONE hop fires the escalation timer *before* React
+ *  ever flushes the re-render a settled submission schedules — and that flush is
+ *  precisely what re-runs the driver's effects in production. A suite that never
+ *  interleaves it cannot fail on a watchdog that disarms itself on the re-run,
+ *  which is exactly the latch this file exists to make impossible. Every test
+ *  below therefore reaches the deadline through {@link runToWatchdog}: settle,
+ *  flush, THEN wait. */
+async function advance(ms: number) {
+    await act(async () => {
+        await vi.advanceTimersByTimeAsync(ms);
+    });
+}
+
+/** One full watchdog round, the way production experiences it: the think delay
+ *  and the search settle first (which schedules a React re-render), then a
+ *  separate `act` round so that re-render actually flushes, and only then the
+ *  watchdog deadline. */
+async function runToWatchdog() {
+    await advance(300); // THINK_DELAY_MS + the consult settling
+    await advance(10); // React flushes the settle's re-render
+    await advance(BOT_WATCHDOG_MS + 100);
 }
 
 beforeEach(() => {
     calls.length = 0;
     currentState = undefined;
     mutationsThrow = false;
+    onMutation = undefined;
     stubDecideNone = true;
+    brainResult = { move: null, trace: null };
     clearAiEscalations();
     vi.useFakeTimers();
 });
@@ -387,19 +471,72 @@ describe("bot liveness invariant (issue #2284)", () => {
             expect(computeOwedPlayerIds(state)).toContain(BOT);
 
             renderHook(() => useVsAiDriver(GAME, BOT));
-            await act(async () => {
-                await vi.advanceTimersByTimeAsync(BOT_WATCHDOG_MS + 100);
-            });
+            await runToWatchdog();
 
             // A legal submission reached the server within the watchdog
-            // interval — the game moved.
-            expect(calls.length).toBeGreaterThan(0);
+            // interval — the game moved. Assert WHICH mutation: `length > 0`
+            // would pass on a rung that reached the wrong (server-rejected)
+            // mutation, and "the game state advanced" is the criterion.
+            expect(calls.map((c) => c.ref)).toContain(
+                EXPECTED_ESCALATION_MUTATION[kind]
+            );
             expect(calls[0].args).toMatchObject({
                 gameId: GAME,
                 playerId: BOT,
             });
         });
     }
+
+    it("does NOT latch when a searched window's consult returns no move", async () => {
+        // Review finding 1, and the reason the watchdog cannot key on "a
+        // dispatch was started". The Worker branch's runner is
+        // `consultBrain(...).then(({move}) => chosen ? executeMove(...) :
+        // undefined)`: with `move: null` and no local fallback it RESOLVES
+        // having submitted nothing. Nothing threw, so the driver's `.catch`
+        // never ran; the settle re-rendered, both effects re-ran, and the
+        // watchdog used to clear its own already-armed timer and bail on
+        // "I already dispatched for this state version" — no mutation, no new
+        // tick, nothing left to ever run again.
+        //
+        // `{ move: null }` is the production shape, not a contrivance:
+        // `brain-client.ts`'s `worker.onerror` resolves every in-flight consult
+        // with it, so one transient Worker error hit this path.
+        stubDecideNone = false;
+        const state = announcedTargetBoard();
+        const expected = publish(state);
+        expect(expected?.kind).toBe("target");
+        expect(computeOwedPlayerIds(state)).toContain(BOT);
+
+        renderHook(() => useVsAiDriver(GAME, BOT));
+        await runToWatchdog();
+
+        // CR 608.2b / 601.2 — the ladder's rung 3 rewinds the selection through
+        // `cancelTarget`, the same mutation a human's "cancel" click drives.
+        expect(calls.map((c) => c.ref)).toContain("cancelTarget");
+        expect(getAiEscalations().map((r) => r.expectedKind)).toContain(
+            "target"
+        );
+    });
+
+    it("keeps walking the ladder when a rung SUBMITS but the game does not advance", async () => {
+        // Review finding 1b: `passPriority` (`convex/game.ts`) deliberately
+        // returns WITHOUT saving when the caller does not hold priority, and
+        // `ESCALATION_POLICY.priority.canPass` offers that rung in the CR 510.1c
+        // combat-damage sub-flow. A resolved mutation is therefore NOT proof the
+        // state advanced — so the watchdog must keep watching the same state
+        // version until the version itself changes. Every mutation here resolves
+        // successfully and the published state never moves.
+        publish(priorityBoard());
+        render(createElement(VsAiDriver, { gameId: GAME, botId: BOT }));
+        for (let round = 0; round < 4; round++) await runToWatchdog();
+
+        // It did not go quiet after the first accepted-but-inert submission: it
+        // exhausted the ladder and surfaced rung 5 — never a dead end.
+        expect(calls.map((c) => c.ref)).toContain("passPriority");
+        expect(screen.getByRole("alert").textContent).toContain(
+            "The AI could not act"
+        );
+    });
 
     it("stays silent when the game is NOT waiting on the bot", () => {
         // The mirror image, and the reason the watchdog can't just fire on a
@@ -427,15 +564,28 @@ describe("bot liveness invariant (issue #2284)", () => {
 
         // And end-to-end: with the real gate, a plain priority window is
         // answered by the bot's OWN decision well before the watchdog, and the
-        // watchdog then never fires (exactly one submission, not two).
+        // watchdog then never fires — exactly one submission, over TWICE the
+        // watchdog interval.
+        //
+        // The fixture advances the board when the pass lands, which is the
+        // whole point: the watchdog now measures "this state version has not
+        // changed", so a mock server that accepts a pass and then freezes the
+        // board is a STUCK game and escalating it is correct. Only a fixture
+        // that actually moves proves the non-escalation.
         stubDecideNone = false;
+        onMutation = () => {
+            const next = priorityBoard();
+            next.priorityPlayerId = HUMAN;
+            publish(next, (currentState as { seq: number }).seq + 1);
+        };
         publish(priorityBoard());
         renderHook(() => useVsAiDriver(GAME, BOT));
-        await act(async () => {
-            await vi.advanceTimersByTimeAsync(BOT_WATCHDOG_MS * 2);
-        });
+        await advance(300);
+        await advance(10);
+        await advance(BOT_WATCHDOG_MS * 2);
         expect(calls).toHaveLength(1);
         expect(calls[0].ref).toBe("passPriority");
+        expect(getAiEscalations()).toHaveLength(0);
     });
 
     it("escalates IMMEDIATELY on a 'nothing owed' decision, not after the full interval", async () => {
@@ -444,9 +594,7 @@ describe("bot liveness invariant (issue #2284)", () => {
         // already KNOWN to be missing is dead time in the human's game.
         publish(priorityBoard());
         renderHook(() => useVsAiDriver(GAME, BOT));
-        await act(async () => {
-            await vi.advanceTimersByTimeAsync(50);
-        });
+        await advance(50);
         expect(calls).toHaveLength(1);
         expect(calls[0].ref).toBe("passPriority");
     });
@@ -455,9 +603,7 @@ describe("bot liveness invariant (issue #2284)", () => {
         clearAiEscalations();
         publish(targetBoard());
         renderHook(() => useVsAiDriver(GAME, BOT));
-        await act(async () => {
-            await vi.advanceTimersByTimeAsync(BOT_WATCHDOG_MS + 100);
-        });
+        await runToWatchdog();
 
         const records = getAiEscalations();
         expect(records.length).toBeGreaterThan(0);
@@ -477,9 +623,8 @@ describe("bot liveness invariant (issue #2284)", () => {
         publish(priorityBoard());
 
         renderHook(() => useVsAiDriver(GAME, BOT));
-        await act(async () => {
-            await vi.advanceTimersByTimeAsync(BOT_WATCHDOG_MS * 2);
-        });
+        await runToWatchdog();
+        await runToWatchdog();
 
         // The first attempt, plus the retries, plus at least one escalation
         // rung — and crucially MORE than one call: the pre-#2284 driver made
@@ -496,14 +641,10 @@ describe("bot liveness invariant (issue #2284)", () => {
         mutationsThrow = true;
         publish(targetBoard());
         render(createElement(VsAiDriver, { gameId: GAME, botId: BOT }));
-        // One `act` round per rung: a rejected submission re-arms the watchdog
-        // from a microtask at the END of the previous round, so a single long
-        // advance would leave the freshly-scheduled timer unfired.
-        for (let round = 0; round < 6; round++) {
-            await act(async () => {
-                await vi.advanceTimersByTimeAsync(BOT_WATCHDOG_MS + 100);
-            });
-        }
+        // One round per rung: a settled submission re-renders from a microtask
+        // at the END of the previous round, so a single long advance would
+        // leave the freshly-scheduled timer unfired.
+        for (let round = 0; round < 6; round++) await runToWatchdog();
 
         // `getBy*`, not `findBy*`: the async queries poll on real timers, which
         // never advance under `vi.useFakeTimers()`.
@@ -511,11 +652,42 @@ describe("bot liveness invariant (issue #2284)", () => {
         expect(notice.textContent).toContain("The AI could not act");
         const button = screen.getByRole("button", { name: /continue game/i });
 
-        // The server recovers; the player clicks. UI action → mutation.
-        mutationsThrow = false;
+        // ── The server is still broken: the player clicks anyway ────────────
+        //
+        // Review finding 3. `resolveStuck` used to clear the banner
+        // unconditionally after `await runner()`, taking a settled mutation as
+        // proof the game moved — the same false premise the watchdog rested on.
+        // The human's ONE manual exit would vanish while the board sat exactly
+        // where it was: a dead end, which the issue explicitly forbids.
         calls.length = 0;
         await act(async () => {
             fireEvent.click(button);
+            await vi.advanceTimersByTimeAsync(50);
+        });
+        expect(calls.length).toBeGreaterThan(0); // it really did try
+        expect(screen.getByRole("alert")).toBeTruthy(); // …and the exit remains
+        expect(
+            screen
+                .getByRole("button", { name: /continue game/i })
+                .hasAttribute("disabled")
+        ).toBe(false); // a rejected rung re-enables the button, no unhandled rejection
+
+        // ── The server recovers; the player clicks again ────────────────────
+        mutationsThrow = false;
+        calls.length = 0;
+        // An accepted submission moves the board — that state version change is
+        // the ONLY thing that clears the banner.
+        onMutation = () => {
+            const done = targetBoard();
+            done.pendingTarget = undefined;
+            done.stack.length = 0;
+            done.priorityPlayerId = HUMAN;
+            publish(done, (currentState as { seq: number }).seq + 1);
+        };
+        await act(async () => {
+            fireEvent.click(
+                screen.getByRole("button", { name: /continue game/i })
+            );
             await vi.advanceTimersByTimeAsync(50);
         });
 
@@ -524,7 +696,7 @@ describe("bot liveness invariant (issue #2284)", () => {
         // not an invented skip, and not a state write outside the mutations.
         expect(calls.map((c) => c.ref)).toContain("selectTargets");
         expect(calls[0].args).toMatchObject({ gameId: GAME, playerId: BOT });
-        // And the banner clears once the game has moved.
+        // And the banner clears once the game has actually moved.
         expect(screen.queryByRole("alert")).toBeNull();
     });
 });

@@ -838,7 +838,6 @@ export function buildBotView(state: PublicGameState, botId: string): BotView {
     // it can't (rather than looping on a locked declaration).
     const tax = combat?.pendingAttackManaTax;
     if (tax && tax.playerId === botId) {
-        view.attackManaTaxOwed = true;
         const bot = state.players.find((p) => p.id === botId);
         const pool = bot?.manaPool ?? {};
         const poolTotal = Object.values(pool).reduce(
