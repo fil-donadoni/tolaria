@@ -56,7 +56,19 @@ export interface Window {
     to: number;
 }
 
-export type Role = "implement" | "review" | "fixup" | "orchestrator";
+/**
+ * The loop's three working roles, plus the orchestrator, plus `support` — the
+ * read-only spawns (`investigate`, `research`, `verify`, `migrate`, `audit`)
+ * that `spawn-guard.sh` also admits. Support is a REAL bucket, not a synonym
+ * for unclassified: it is work whose role IS known and simply is not one of the
+ * three the per-issue cost figures are about.
+ */
+export type Role =
+    | "implement"
+    | "review"
+    | "fixup"
+    | "support"
+    | "orchestrator";
 
 export interface Scorecard {
     window: Window;
@@ -162,7 +174,26 @@ const FULL_GATE =
 export function classifyRole(event: TelemetryEvent): Role | "unclassified" {
     if (event.tool !== "Agent") return "orchestrator";
     const type = (event.agent_type ?? "").toLowerCase();
-    const desc = (event.agent_desc ?? "").toLowerCase();
+    const desc = (event.agent_desc ?? "").toLowerCase().trimStart();
+
+    // `.claude/hooks/spawn-guard.sh` DENIES a spawn whose description does not
+    // start with one of these, so from its landing onward this is a total
+    // classification rather than a heuristic. The looser fallbacks below stay
+    // for the telemetry recorded BEFORE the hook existed — deleting them would
+    // silently reclassify ~190k historical events.
+    if (desc.startsWith("review")) return "review";
+    if (desc.startsWith("fixup")) return "fixup";
+    if (desc.startsWith("implement")) return "implement";
+    for (const verb of [
+        "investigate",
+        "research",
+        "verify",
+        "migrate",
+        "audit",
+    ]) {
+        if (desc.startsWith(verb)) return "support";
+    }
+
     if (type.includes("review") || /\breview/.test(desc)) return "review";
     if (/\bfix ?up\b/.test(desc)) return "fixup";
     if (/\bimplement\b/.test(desc) || /#\d+/.test(desc)) return "implement";
@@ -220,6 +251,7 @@ export function summarizeLoop({
         implement: 0,
         review: 0,
         fixup: 0,
+        support: 0,
         orchestrator: 0,
         unclassified: 0,
     };
@@ -233,6 +265,7 @@ export function summarizeLoop({
         tokensByRole.implement +
         tokensByRole.review +
         tokensByRole.fixup +
+        tokensByRole.support +
         tokensByRole.unclassified;
 
     // ── reviews ──
@@ -298,6 +331,7 @@ export function summarizeLoop({
                       implement: tokensByRole.implement / shippedCount,
                       review: tokensByRole.review / shippedCount,
                       fixup: tokensByRole.fixup / shippedCount,
+                      support: tokensByRole.support / shippedCount,
                       orchestrator: tokensByRole.orchestrator / shippedCount,
                       unclassified: tokensByRole.unclassified / shippedCount,
                   },
@@ -331,6 +365,7 @@ function emptyScorecard(window: Window, notes: string[]): Scorecard {
             implement: 0,
             review: 0,
             fixup: 0,
+            support: 0,
             orchestrator: 0,
             unclassified: 0,
         },
