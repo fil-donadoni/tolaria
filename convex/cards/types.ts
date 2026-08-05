@@ -6963,6 +6963,23 @@ export interface PermanentEnteredEvent {
      *  sharp line between "play a land" (305.1) and "a land enters" (603.6a).
      *  Mirrors `wasCast`'s "true only at the one real chokepoint" shape. */
     wasPlayed?: boolean;
+    /** Effective power/toughness (CR 613.4) of the entering permanent,
+     *  snapshotted at `emitPermanentEntered` — present ONLY when `types`
+     *  includes "Creature" (a noncreature has no meaningful P/T). Read by an
+     *  ETB trigger condition that inspects the entering creature's size
+     *  ("a 1/1 creature you control enters" — Sword of the Meek, issue
+     *  #1965). CR 603.2 evaluates a trigger condition against the game state
+     *  WITH continuous effects applied — a `matches` predicate reading the
+     *  entering permanent's raw stored `.power`/`.toughness` off
+     *  `TriggerStateView` instead would silently disagree with a `+1/+1`
+     *  counter or an anthem already active at the moment of entry. Mirrors
+     *  `CREATURE_DIED.creaturePower`/`.creatureToughness` (same layer
+     *  functions, same "snapshot before the state can change under you"
+     *  shape). Optional so every pre-existing `PERMANENT_ENTERED` fixture /
+     *  serialized log without the field deserializes as "no P/T reads
+     *  available" rather than throwing. */
+    power?: number;
+    toughness?: number;
 }
 
 /** Leave-the-battlefield event emitted whenever a permanent transitions

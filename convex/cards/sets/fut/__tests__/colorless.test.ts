@@ -6,6 +6,7 @@ import { savannahLions } from "../../lea/white";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
+    emitPermanentEntered,
     type GameState,
     type CardInstanceState,
 } from "../../../../gre/state";
@@ -183,16 +184,22 @@ describe("Sword of the Meek (CR 701.3 Equipment +1/+2, CR 603.6e graveyard-zone 
         });
     }
 
+    // `power`/`toughness` mirror what `emitPermanentEntered` now snapshots
+    // (EFFECTIVE P/T, CR 603.2/613.4 — review #1965/F1) — default to a
+    // printed 1/1 since most of these hand-built-event tests want the
+    // trigger's "1/1" condition satisfied.
     const enteredEvent = (
         instanceId: string,
         controllerId: string,
-        types: readonly string[] = ["Creature"]
+        types: readonly string[] = ["Creature"],
+        pt: { power?: number; toughness?: number } = { power: 1, toughness: 1 }
     ): GameEvent =>
         ({
             type: "PERMANENT_ENTERED",
             instanceId,
             controllerId,
             types,
+            ...pt,
         }) as GameEvent;
 
     it("triggers when a 1/1 creature its controller controls enters (CR 603.6e)", () => {
@@ -241,8 +248,59 @@ describe("Sword of the Meek (CR 701.3 Equipment +1/+2, CR 603.6e graveyard-zone 
             ],
         });
         const triggers = collectTriggers(state, [
-            enteredEvent("notoneone", "p1"),
+            // Savannah Lions is printed 2/1 (CR 603.2 — the event's power/
+            // toughness mirror the entering creature's actual stats here).
+            enteredEvent("notoneone", "p1", ["Creature"], {
+                power: 2,
+                toughness: 1,
+            }),
         ]);
+        expect(triggers).toHaveLength(0);
+    });
+
+    it("does NOT trigger for a creature that is a STORED 1/1 but EFFECTIVELY 2/2 via a +1/+1 counter (CR 603.2/613.4 — review #1965/F1)", () => {
+        const state = gyState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: [
+                        makeInstance(swordOfTheMeek.id, {
+                            id: "sword",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "graveyard",
+                        }),
+                    ],
+                    // Base 1/1 (like `oneOne`) but already carrying a
+                    // `+1/+1` counter when it lands on the battlefield —
+                    // mirrors `entersWith.counters`, which the engine applies
+                    // BEFORE `emitPermanentEntered` runs (state.ts comment at
+                    // the `entersWith` call site).
+                    battlefield: [
+                        makeInstance(ONE_ONE_ID, {
+                            id: "buffed-germ",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            counters: { "+1/+1": 1 },
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const buffedGerm = state.players[0].battlefield.find(
+            (c) => c.id === "buffed-germ"
+        )!;
+        // Sanity: the layer pipeline really does compute an effective 2/2
+        // for a stored 1/1 with the counter.
+        expect(getEffectivePower(state, buffedGerm)).toBe(2);
+        expect(getEffectiveToughness(state, buffedGerm)).toBe(2);
+
+        // Drive the REAL producer (not a hand-built event) — this is the
+        // actual chokepoint the fix lives at (`emitPermanentEntered`,
+        // gre/state.ts), so this proves the fix at the source rather than
+        // only at the card's own `matches`.
+        emitPermanentEntered(state, buffedGerm);
+        const triggers = collectTriggers(state, state.pendingEvents ?? []);
         expect(triggers).toHaveLength(0);
     });
 

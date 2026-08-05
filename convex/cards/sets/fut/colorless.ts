@@ -78,18 +78,18 @@ export const horizonCanopy: CardDefinition = {
 // just an upkeep step, so it's built as a raw `TriggeredAbility` rather than
 // through `enteredTrigger` (whose factory has no `zone` parameter and whose
 // `filter` only inspects the event payload — no power/toughness there;
-// `matches` instead reads the entering permanent's P/T off `TriggerStateView`
-// directly, the same "read state, not the event" shape `interveningIf`
-// predicates already use elsewhere). That P/T is the STORED value
-// (`TriggerStateView`'s battlefield entries are not layer-computed
-// server-side the way the frontend's `buildTriggerStateView` fills them for
-// an affordability hint) — matches every printed-1/1 case this ability cares
-// about; a creature whose P/T is modified by a continuous static effect
-// before this trigger's `matches` runs is outside what the current
-// `TriggerStateView` API can see (it doesn't structurally satisfy
-// `LayerStateView`, so `getEffectivePower` isn't callable here) — a
-// pre-existing engine-wide characteristic of every `matches`/`interveningIf`
-// predicate, not something specific to this card. "you may" = a cost-free
+// `matches` instead reads the entering creature's P/T off the EVENT itself).
+// CR 603.2 evaluates a trigger condition against the game state WITH
+// continuous effects applied, so "a 1/1 creature" is an EFFECTIVE-P/T read,
+// not the raw stored characteristic (review finding #1965/F1 — a base-1/1
+// with a `+1/+1` counter reads 2/2 through the layer pipeline and must NOT
+// fire this trigger). `emitPermanentEntered` (gre/state.ts) now snapshots
+// `power`/`toughness` via `getEffectivePower`/`getEffectiveToughness` for
+// every entering creature — the same layer functions and the same
+// "snapshot at the one producer" shape `CREATURE_DIED.creaturePower` already
+// uses — so `matches` reads `event.power`/`event.toughness` directly instead
+// of re-deriving them from `TriggerStateView`'s battlefield entries (which
+// only carry the mutable BASE characteristic). "you may" = a cost-free
 // `mayPay` (issue #680);
 // "return this card ... then attach it to that creature" is `moveZone
 // { target: { ref: "$source" } }` (the Ashen Ghoul self-reanimation shape,
@@ -128,14 +128,14 @@ export const swordOfTheMeek: CardDefinition = {
             // CR 603.6e — this ability functions while the card sits in the
             // graveyard (Nether Shadow's scan path), not the battlefield.
             zone: "graveyard",
-            matches: (event, self, state) => {
+            matches: (event, self) => {
                 if (event.type !== "PERMANENT_ENTERED") return false;
                 if (event.controllerId !== self.controllerId) return false;
                 if (!event.types.includes("Creature")) return false;
-                const bf = state?.players
-                    .find((p) => p.id === event.controllerId)
-                    ?.battlefield.find((b) => b.id === event.instanceId);
-                return bf?.power === 1 && bf?.toughness === 1;
+                // EFFECTIVE P/T (CR 603.2/613.4), snapshotted by
+                // `emitPermanentEntered` at the moment of entry — NOT the raw
+                // stored characteristic. See the card-level comment above.
+                return event.power === 1 && event.toughness === 1;
             },
             effects: [
                 {

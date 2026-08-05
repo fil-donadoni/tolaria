@@ -721,6 +721,31 @@ describe("Event field registry ($event.<field>, ADR 0049, issue #865)", () => {
         ).toBeUndefined();
     });
 
+    it("PERMANENT_ENTERED.instanceId flattens to the entering permanent's id (object family)", () => {
+        const event: GameEvent = {
+            type: "PERMANENT_ENTERED",
+            instanceId: "germ-1",
+            controllerId: "p1",
+            types: ["Creature"],
+            power: 1,
+            toughness: 1,
+        };
+        expect(
+            getEventFieldRow("PERMANENT_ENTERED", "instanceId")!.family
+        ).toBe("object");
+        expect(
+            getEventFieldRow("PERMANENT_ENTERED", "instanceId")!.resolve(event)
+        ).toBe("germ-1");
+        // A different event type never resolves through this row.
+        expect(
+            getEventFieldRow("PERMANENT_ENTERED", "instanceId")!.resolve({
+                type: "PHASE_BEGIN",
+                phase: "UPKEEP",
+                activePlayerId: "p1",
+            })
+        ).toBeUndefined();
+    });
+
     it("BLOCKERS_CONFIRMED object fields flatten to the pair ids", () => {
         const event: GameEvent = {
             type: "BLOCKERS_CONFIRMED",
