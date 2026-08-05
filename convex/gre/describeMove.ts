@@ -103,6 +103,14 @@ export function describeMove(move: Move, state: GameState): string {
             return "decline madness cast (to graveyard)";
         case "rebound-decline":
             return "decline rebound cast (remains exiled)";
+        case "submit-target":
+            // CR 603.3d / 114.6 / 707.10b (issue #2283) — the standalone answer
+            // to an engine-raised target selection.
+            return move.targets.length === 0
+                ? "choose no targets"
+                : `target ${move.targets
+                      .map((t) => targetLabel(state, t))
+                      .join(", ")}`;
         case "play-land":
             return `play ${instanceName(state, move.cardInstanceId)}`;
         case "summon-companion":

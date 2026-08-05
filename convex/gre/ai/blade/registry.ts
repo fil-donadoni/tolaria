@@ -17,8 +17,12 @@
 
 import type { BladeScenario, BladeSeat } from "./types";
 import type { GameState } from "../../state";
-import { enumerateMoves } from "../../moves";
-import { isDiscouragedRolloutMove } from "../../search";
+import type { Move } from "../../moves";
+import { enumerateMoves, enumerateRaisedTargetMoves } from "../../moves";
+import { applyMoveInSearch, isDiscouragedRolloutMove } from "../../search";
+import { raisedPendingTargetOwedBy } from "../../pendingTargetOrigin";
+import { cloneGameState } from "../../clone";
+import { seatPlayerId } from "./matcher";
 import { getCardByName } from "../../../cards";
 
 /** "The dominance pruner (issue #1887) still leaves the bot a cast to make" —
@@ -1362,7 +1366,167 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: "Regression guard for the tap-a-land-then-untap-it loop. The three activation cost legs the server ALWAYS defers (discard / exile-from-graveyard / tap-other) are paid by naming cards; the bot's executor named none, so `tryAutoCommitPendingActivation` never fired, `rollbackPendingActivation` untapped the land when the bot next passed, and the byte-identical position re-produced the byte-identical move forever. Position-asserted rather than move-asserted for the same reason as the two controls above (issue #1920: the search cannot see a tutor's payoff, so it must not be asked to CHOOSE this activation). The end-to-end half — announce → name the discard → commit, through the real `activateAbilityOnState` / `selectActivationDiscardCostOnState` — is pinned in `src/lib/ai/__tests__/activation-cost-picks-integration.bot.test.ts`.",
     },
+    {
+        // ISSUE #2283 — the targeted-trigger freeze, shape 1 (Flickerwisp).
+        //
+        // The bot controls a permanent whose ETB trigger owes a REAL target
+        // choice (CR 603.3d: "exile another target permanent", with two or more
+        // legal permanents on board, so the engine's single-legal-target
+        // auto-select never fires). The engine raises a `PendingTarget` of
+        // `kind: "trigger"` and freezes priority on the bot.
+        //
+        // BEFORE THE FIX this position was a permanent hang: `enumerateMoves`
+        // returned `[]` for ANY live `pendingTarget` — a blanket rule whose
+        // premise ("a pending target is always a continuation the executor
+        // drives atomically") holds only for a target the bot ANNOUNCED itself.
+        // `decidingPlayer` returned null, the search returned null, the driver
+        // idled, and NEITHER player could advance the game. Reported on
+        // Flickerwisp, Badgermole Cub (below) and Azure Beastbinder.
+        //
+        // SETUP (ADR 0070 §4): the trigger reaches the stack — and the target
+        // selection is raised — through the ENGINE's own path
+        // (`emitPermanentEntered` → `processPendingActionTriggers` →
+        // `placeTriggersOnStack` → `raiseTriggerTargetSelection`). Nothing about
+        // the pending selection is hand-built.
+        //
+        // EXPECTATION: legality + progress, not WHICH permanent it exiles —
+        // target quality is explicitly out of this issue's scope, and an
+        // arbitrary-but-legal answer is already the difference between a
+        // playable game and a dead one. See `answersRaisedTargetLegally`.
+        label: "raised target: answers its own Flickerwisp ETB trigger (#2283)",
+        spec: {
+            cards: [
+                {
+                    name: "Flickerwisp",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                // A second legal permanent (plus the lands `landCount` adds),
+                // so the requirement admits a REAL choice — with exactly one
+                // legal target the engine auto-selects and the bot is never
+                // asked, which is why this class stayed invisible for so long.
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 1,
+            libraryCount: 20,
+        },
+        setup: [{ kind: "etb-trigger", card: "Flickerwisp" }],
+        bot: "me",
+        budget: { iterations: 100 },
+        // A forced window — the bot has no other legal action at all — so the
+        // answer must hold on ANY seed (ADR 0070 §3).
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (move, state) =>
+                answersRaisedTargetLegally(move, state, "me"),
+            describe:
+                "a legal `submit-target` submission for the raised trigger target that clears `pendingTarget` and lands the targets on the trigger's stack item",
+        },
+        note: "Issue #2283. Shown to bite: flip `PENDING_TARGET_ORIGIN.trigger` to `announced` (or revert the raised branch in `enumerateMoves`) and the search returns null — the entry goes red with `chose [no move]`, which IS the freeze.",
+    },
+    {
+        // ISSUE #2283 — the targeted-trigger freeze, shape 2 (Badgermole Cub).
+        //
+        // The same class through a DIFFERENT requirement shape: earthbend's
+        // "target land you control" (`controller: "you"`, a single card type)
+        // rather than Flickerwisp's any-permanent-except-me. Two lands the bot
+        // controls make it a real choice. Kept as its own entry because the two
+        // requirements exercise different filter lowerings on the way
+        // `TargetRequirement` → `PendingTarget` → back to a requirement
+        // (`requirementFromPendingTarget`), and a dropped filter there is the
+        // documented way an enumerator offers a target the server then rejects.
+        label: "raised target: answers its own Badgermole Cub earthbend trigger (#2283)",
+        spec: {
+            cards: [
+                {
+                    name: "Badgermole Cub",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            // Two lands per seat: the bot's own two are the legal targets
+            // (`controller: "you"`); the opponent's two are not.
+            landCount: 2,
+            libraryCount: 20,
+        },
+        setup: [{ kind: "etb-trigger", card: "Badgermole Cub" }],
+        bot: "me",
+        budget: { iterations: 100 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (move, state) =>
+                answersRaisedTargetLegally(move, state, "me"),
+            describe:
+                "a legal `submit-target` submission for the raised earthbend target that clears `pendingTarget` and lands the target on the trigger's stack item",
+        },
+        note: "Issue #2283, second reported shape. Also the `controller: you` half of the census: the enumerator must offer only the bot's OWN lands, because a submission naming an opponent's land is rejected by `applyOneTargetSelection` and re-freezes the bot.",
+    },
 ];
+
+/** "The bot answered the ENGINE-RAISED target selection with a submission the
+ *  server would accept, and the game moved on" (issue #2283).
+ *
+ *  Deliberately NOT a shape-only `{ kind: "submit-target" }` matcher. The bug
+ *  this guards is not "the bot picked the wrong permanent" (target QUALITY is
+ *  explicitly out of scope) — it is that the bot produced NO action at all and
+ *  the game froze forever. So the assertion is the two properties that
+ *  distinguish a fix from a hang, both checked through the real engine:
+ *
+ *    1. LEGALITY — the chosen submission is one the enumerator actually offers
+ *       for this selection (same target ids, same `confirmTargets` flag). An
+ *       illegal or over-picked submission is rejected server-side and re-freezes
+ *       the bot exactly as hard as no submission at all, so "did not throw" is
+ *       not sufficient evidence.
+ *    2. PROGRESS — replaying it through `applyMoveInSearch` (the engine's own
+ *       move-application chokepoint) CLEARS `pendingTarget` and writes the
+ *       chosen targets onto the trigger's stack item, i.e. the position really
+ *       advances to the next priority window.
+ */
+function answersRaisedTargetLegally(
+    move: Move | null,
+    state: GameState,
+    seat: BladeSeat
+): boolean {
+    if (!move || move.kind !== "submit-target") return false;
+    const playerId = seatPlayerId(state, seat);
+    const pt = raisedPendingTargetOwedBy(state, playerId);
+    if (!pt) return false;
+
+    const key = (m: Move) =>
+        m.kind === "submit-target"
+            ? `${m.confirmTargets}|${m.targets
+                  .map((t) => `${t.type}:${t.id}`)
+                  .join(",")}`
+            : "";
+    const legal = enumerateRaisedTargetMoves(state, playerId);
+    if (!legal.some((m) => key(m) === key(move))) return false;
+
+    // CR 603.3d — replay it and demand the selection is actually committed.
+    const after = cloneGameState(state);
+    applyMoveInSearch(after, playerId, move);
+    if (after.pendingTarget !== undefined) return false;
+    const trigger = after.stack.find((s) => s.id === pt.cardInstanceId);
+    if (!trigger) return false;
+    const chosen = new Set(move.targets.map((t) => `${t.type}:${t.id}`));
+    const landed = trigger.targets ?? [];
+    return (
+        landed.length === move.targets.length &&
+        landed.every((t) => chosen.has(`${t.type}:${t.id}`))
+    );
+}
 
 /** Entries of one tier, in registry order. */
 export function bladeScenariosForTier(

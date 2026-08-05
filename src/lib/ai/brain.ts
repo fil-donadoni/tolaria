@@ -41,7 +41,7 @@ import {
     chooseConvokeCreatures,
     chooseManaSpendOrder,
 } from "@convex/gre/paymentPicks";
-import type { Color } from "@convex/cards/types";
+import type { Color, TargetSelection } from "@convex/cards/types";
 import {
     canAddCategorizedPick,
     type PickCategory,
@@ -137,6 +137,28 @@ export type BotView = {
         park: OwedPayment;
         submission: OwedPaymentSubmission | null;
     };
+    /** CR 603.3d / 114.6 / 707.10b (issue #2283) — an ENGINE-RAISED target
+     *  selection owed to the bot: a targeted trigger it controls (Flickerwisp,
+     *  Badgermole Cub), a retarget, or a spell copy's retarget. It is NOT the
+     *  bot's own half-built cast/activation target selection — that stays a
+     *  continuation the executor drives atomically and is deliberately absent
+     *  here (`pendingTargetOrigin` is the compile-time-exhaustive classifier).
+     *  Undefined unless the bot owes a raised selection. */
+    owedTarget?: OwedTarget;
+};
+
+/** An engine-raised target selection the bot owes (issue #2283). Like
+ *  `owedChoice` it is answered by the SEARCH when possible; `submission` is the
+ *  precomputed minimal-legal answer the driver falls back to when the search
+ *  yields nothing, so the window never stalls. `null` submission means the
+ *  enumerator found no legal answer at all — unreachable in practice (the
+ *  engine only raises a selection when a real choice exists, and nothing can
+ *  change the board while it freezes priority), kept explicit rather than
+ *  papered over with a non-null assertion. */
+export type OwedTarget = {
+    /** The raised kind, for tracing / tests. Always a `"raised"` origin. */
+    kind: "trigger" | "retarget" | "copy-retarget";
+    submission: { targets: TargetSelection[]; confirmTargets: boolean } | null;
 };
 
 // The parked-park pickers and their view shapes live in the GRE beside the
@@ -389,6 +411,27 @@ export type BotAction =
           park: ParkKind;
           submission: OwedPaymentSubmission;
       }
+    | {
+          /** An ENGINE-RAISED pending target (issue #2283): NOT answered here.
+           *  Like `search-choice`, the driver hands the window to the ISMCTS
+           *  Worker, whose `enumerateMoves` surfaces the legal submissions
+           *  (`enumerateRaisedTargetMoves`), and realises the returned Move
+           *  through the ordinary executor. Carries no payload — the answer is
+           *  the search's, not the gate's; `BotView.owedTarget.submission` is
+           *  the driver's minimal-legal fallback. */
+          kind: "search-target";
+      }
+    | {
+          /** CR 603.3d / 114.6 / 707.10b (issue #2283) — the deterministic
+           *  minimal-legal answer to an engine-raised target selection, used
+           *  when the search yields no move (mirroring how `search-choice`
+           *  degrades to `chooseOwedChoiceAction`). Realised by the executor
+           *  through `selectTargets` + `confirmTargets`, the same mutations a
+           *  human's clicks make. */
+          kind: "submit-target";
+          targets: TargetSelection[];
+          confirmTargets: boolean;
+      }
     | { kind: "pass" }
     | { kind: "none" };
 
@@ -480,6 +523,12 @@ export function botActionRealisation(
         case "random-reveal-ack":
         case "madness-decline":
         case "rebound-decline":
+        case "submit-target":
+            // CR 603.3d / 114.6 / 707.10b (issue #2283) — `submit-target` is
+            // the minimal-legal answer to an ENGINE-RAISED target selection,
+            // realised through the executor (`selectTargets` +
+            // `confirmTargets`) like every other brain-resolved fallback. The
+            // SEARCHED answer is `search-target` → "worker" below.
             return "executor";
         // issue #1506 — `search-choice` (a generator-covered pending choice) IS
         // a search node (PRD #1423): `decidingPlayer` names the bot and
@@ -487,7 +536,11 @@ export function botActionRealisation(
         // and must decide it. (The pre-#1506 blanket "the Worker surfaces no move
         // while a choice is pending" is only true of kinds with NO generator,
         // which still take the executor branch above.)
+        // issue #2283 — an engine-raised target selection is a search node for
+        // exactly the same reason: `decidingPlayer` names its owner and
+        // `enumerateMoves` surfaces the legal submissions.
         case "search-choice":
+        case "search-target":
         case "pass":
         case "declare-attackers":
         case "declare-blockers":
@@ -964,7 +1017,33 @@ export function decideBotAction(view: BotView): BotAction {
         return chooseOwedChoiceAction(view.owedChoice);
     }
 
+    // CR 603.3d / 114.6 / 707.10b (issue #2283) — an ENGINE-RAISED target
+    // selection owed to the bot. It freezes priority exactly like a pending
+    // choice (`computeExpectedInput` ranks it directly below one), so it
+    // precedes every payment park, combat declaration and the ordinary
+    // priority pass — otherwise the bot passes into a server rejection and the
+    // game never advances. Routed to the SEARCH (a real target decision, not
+    // an arbitrary pick); the driver falls back to
+    // `chooseOwedTargetAction(view.owedTarget)` if the search yields nothing.
+    if (view.owedTarget) return { kind: "search-target" };
+
     return decideNonChoiceAction(view);
+}
+
+/** The minimal-legal answer to an engine-raised target selection (issue #2283)
+ *  — the driver's safety net when the ISMCTS search surfaces no move for the
+ *  window, mirroring `chooseOwedChoiceAction`'s role for a searchable choice.
+ *  `buildOwedTarget` already resolved the submission through the SAME
+ *  enumerator the search reads (`enumerateRaisedTargetMoves`), so it is legal
+ *  by construction; a null submission (no legal answer at all) yields `none`
+ *  rather than an illegal guess the server would reject. */
+export function chooseOwedTargetAction(owed: OwedTarget): BotAction {
+    if (!owed.submission) return NONE;
+    return {
+        kind: "submit-target",
+        targets: owed.submission.targets,
+        confirmTargets: owed.submission.confirmTargets,
+    };
 }
 
 /** The ADR 0016 minimal-legal answer to an owed pending choice — the fallback

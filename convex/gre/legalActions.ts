@@ -21,14 +21,13 @@
 // `convex/gre/index.ts` barrel, ADR 0001). Combinatorial windows are capped at
 // `MAX_COMBINATIONS`, same policy as `moves.ts`.
 
-import type { TargetRequirement, TargetSelection } from "../cards/types";
+import type { TargetSelection } from "../cards/types";
 import type {
     CardInstanceState,
     ExpectedInput,
     GameState,
     PendingChoice,
     PendingTarget,
-    PendingTargetFilterKey,
 } from "./state";
 import {
     canPayMayPayCost,
@@ -36,8 +35,11 @@ import {
     getPendingChoiceMin,
     getPlayer,
     matchesPermanentFilter,
-    PENDING_TARGET_FILTER_KEYS,
 } from "./state";
+// issue #2283 — the PendingTarget → TargetRequirement lowering moved to the
+// shared origin module so the Move enumerator (`moves.ts`) can reuse it without
+// importing this module (which imports `moves.ts` — a cycle).
+import { requirementFromPendingTarget } from "./pendingTargetOrigin";
 import { computeExpectedInput, type GateRequest } from "./expectedInput";
 import {
     sacrificeCandidates,
@@ -445,49 +447,6 @@ function minTargetCount(count: PendingTarget["count"]): number {
  *  it (CR 601.2c — capped only by legal target availability). */
 function maxTargetCount(count: PendingTarget["count"]): number {
     return typeof count === "number" ? count : (count.max ?? Infinity);
-}
-
-/** Rebuilds the TargetRequirement the server validates against from the
- *  PendingTarget snapshot (the fields `announceCast` / `activateAbility`
- *  flattened onto it at announcement — the exact surface `selectTarget`
- *  enforces). Working from the snapshot rather than the card definition keeps
- *  this correct for modal spells, dynamic `getTargetRequirement` abilities,
- *  and copy-retargets alike, and X-dependent values (`mvFilter`) arrive
- *  already resolved.
- *
- *  The filter half is copied through `PENDING_TARGET_FILTER_KEYS` (`state.ts`)
- *  rather than a hand-written field list. The hand-written list was fail-OPEN
- *  and had already drifted by TWELVE keys (issue #1956): every dropped filter
- *  makes this enumerator offer a `select-target` action that
- *  `applyOneTargetSelection` then rejects — proven with a Lightning Bolt
- *  targeting a PLAYER on the stack, where `getLegalTargets` returned `[]` for
- *  Confound while `legalActions` still yielded the action. `moves.ts` never
- *  had the bug (it enumerates from the card's real requirement); this module
- *  is the third co-authority `targetFilters.ts` names, so it gets the same
- *  compile-forced key set as the clear list and the retarget producers.
- *
- *  Only the STRUCTURAL fields stay hand-written — `type` / `count` / `zone`
- *  are `StructuralKey`s (not registry filters) and are renamed on the
- *  `PendingTarget` (`targetType`), so they can't ride the generic copy. */
-function requirementFromPendingTarget(pt: PendingTarget): TargetRequirement {
-    const out: Record<string, unknown> = {
-        type: pt.targetType,
-        count: pt.count,
-        ...(pt.zone ? { zone: pt.zone } : {}),
-    };
-    for (const key of Object.keys(
-        PENDING_TARGET_FILTER_KEYS
-    ) as PendingTargetFilterKey[]) {
-        const value = pt[key];
-        if (value !== undefined) out[key] = value;
-    }
-    // The `PendingTarget` field IS the lowered `TargetRequirement` value for
-    // each key by construction (`pendingTargetFiltersFromRequirement` writes
-    // `lower()`'s own output), so the deliberately WIDENED `PendingTarget`
-    // declarations (`colorFilter?: string` where the requirement says `Color`)
-    // carry across unchanged — one cast here instead of a per-key one, which
-    // is what let the old hand-written list drift in the first place.
-    return out as unknown as TargetRequirement;
 }
 
 function targetActions(
