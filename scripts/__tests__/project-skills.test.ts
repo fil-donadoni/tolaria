@@ -146,8 +146,25 @@ describe("process-gh-issues consumes the planner (issue #2184)", () => {
 
 describe("process-gh-issues reads receipts from artifacts (issue #2186)", () => {
     const rel = path.join(".claude", "skills", "process-gh-issues", "SKILL.md");
-    const body = (): string =>
-        fs.readFileSync(path.join(REPO_ROOT, rel), "utf8");
+    // The whole skill — frame PLUS references. #2190 moved the subagent brief
+    // and the reviewer mandate out of SKILL.md, and these assertions are about
+    // whether the LOOP still asks for a thing, not about which file says so.
+    // Reading only the frame would have turned the decomposition into a false
+    // red, and reading only the frame AFTER a rule was accidentally dropped
+    // from a reference would be a false green.
+    const body = (): string => {
+        const dir = path.join(REPO_ROOT, path.dirname(rel));
+        const refs = path.join(dir, "references");
+        const files = [path.join(dir, "SKILL.md")].concat(
+            fs.existsSync(refs)
+                ? fs
+                      .readdirSync(refs)
+                      .filter((f) => f.endsWith(".md"))
+                      .map((f) => path.join(refs, f))
+                : []
+        );
+        return files.map((f) => fs.readFileSync(f, "utf8")).join("\n");
+    };
 
     it("tells the loop to compute the merge order, and the script it names exists", () => {
         expect(body()).toMatch(/bun run queue:train/);
@@ -231,6 +248,90 @@ describe("process-gh-issues reads receipts from artifacts (issue #2186)", () => 
         expect(
             found,
             `superseded prose is back in ${rel}:\n${found.join("\n")}`
+        ).toEqual([]);
+    });
+});
+
+describe("process-gh-issues is a frame plus on-demand references (issue #2190)", () => {
+    const SKILL_DIR = path.join(
+        REPO_ROOT,
+        ".claude",
+        "skills",
+        "process-gh-issues"
+    );
+    const REFS = path.join(SKILL_DIR, "references");
+    const frame = (): string =>
+        fs.readFileSync(path.join(SKILL_DIR, "SKILL.md"), "utf8");
+    const refFiles = (): string[] =>
+        fs.readdirSync(REFS).filter((f) => f.endsWith(".md"));
+
+    it("every reference file is reachable from the frame", () => {
+        // An unreferenced reference is worse than no reference: the content is
+        // gone from the frame and nothing ever opens it, so the rule simply
+        // stops applying — silently, with every test green.
+        const orphans = refFiles().filter(
+            (f) => !frame().includes(`references/${f}`)
+        );
+        expect(
+            orphans,
+            `unreachable reference(s) — nothing in the frame opens them:\n${orphans.join("\n")}`
+        ).toEqual([]);
+    });
+
+    it("every reference the frame links to exists", () => {
+        const linked = Array.from(
+            frame().matchAll(/references\/([a-z0-9-]+\.md)/g)
+        ).map((m) => m[1]);
+        expect(linked.length).toBeGreaterThan(0);
+        const missing = Array.from(new Set(linked)).filter(
+            (f) => !fs.existsSync(path.join(REFS, f))
+        );
+        expect(
+            missing,
+            `the frame points at reference(s) that do not exist:\n${missing.join("\n")}`
+        ).toEqual([]);
+    });
+
+    it("each reference carries an entry condition in the frame's index", () => {
+        // A pointer with no "open when" is a pointer nobody follows at the
+        // right moment — which is the same as not having the content.
+        const index =
+            frame().split("## References")[1]?.split("\n## ")[0] ?? "";
+        for (const f of refFiles()) {
+            expect(
+                index,
+                `${f} is not listed in the frame's reference index with an entry condition`
+            ).toContain(`references/${f}`);
+        }
+    });
+
+    it("the frame stays a frame", () => {
+        // Not a style budget: the frame is what the orchestrator pays for on
+        // EVERY pass. #2190 cut it from 68k to ~43k chars; this fails long
+        // before it creeps back, so re-inlining a reference is a red test
+        // rather than a slow regression nobody measures.
+        expect(frame().length).toBeLessThan(50_000);
+    });
+
+    it("does not duplicate reference content back into the frame", () => {
+        // One sentence per rule. Two copies drift, and the stale copy reads as
+        // authoritative while describing behaviour that no longer exists.
+        const markers: [string, string][] = [
+            ["**Subagent task (runs entirely", "subagent-brief.md"],
+            ["Reviewer prompt mandate (strict)", "reviewer-brief.md"],
+            ["**Lane A — required CI checks exist", "merge-train.md"],
+            [
+                "**Expect the emitted spec to be wrong",
+                "scenario-registration.md",
+            ],
+            ["#### 0b. Red-baseline triage", "red-baseline.md"],
+        ];
+        const leaked = markers
+            .filter(([text]) => frame().includes(text))
+            .map(([text, file]) => `"${text}…" belongs in ${file}`);
+        expect(
+            leaked,
+            `duplicated back into the frame:\n${leaked.join("\n")}`
         ).toEqual([]);
     });
 });
