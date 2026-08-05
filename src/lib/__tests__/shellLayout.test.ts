@@ -19,6 +19,9 @@ import {
     deriveHeightClaim,
     deriveShellModel,
     resolveShellLayout,
+    type RouteRootOverflow,
+    type ShellHeightClaim,
+    type ShellHeightClaimKind,
     type ShellModel,
 } from "../shellLayout";
 
@@ -32,6 +35,21 @@ const SHIPPED: ShellModel = {
 
 /** Desktop heights the app is actually used at, plus the two HITL sizes. */
 const DESKTOP_HEIGHTS_PX = [500, 600, 720, 768, 800, 900, 1080, 1200, 1440];
+/**
+ * A route root's height claim. `overflow` and `shrinks` are stated at every
+ * call site because `ShellHeightClaim` makes them REQUIRED — a claim that
+ * could omit its overflow is what certified the clipping lobby as correct
+ * twice (issue #2274). `shrinks` defaults to `true`, the CLAMPABLE case: a
+ * route root is a shrinkable flex child of `<main>` unless it says otherwise.
+ */
+function claim(
+    kind: ShellHeightClaimKind,
+    overflow: RouteRootOverflow,
+    heightPx = 0,
+    shrinks = true
+): ShellHeightClaim {
+    return { kind, heightPx, overflow, shrinks };
+}
 
 describe("resolveShellLayout — the shipped shell, at desktop heights (issue #2274)", () => {
     it.each(DESKTOP_HEIGHTS_PX)(
@@ -43,11 +61,7 @@ describe("resolveShellLayout — the shipped shell, at desktop heights (issue #2
                     viewportHeightPx,
                     headerBandHeightPx: SHELL_HEADER_BAND_PX,
                 },
-                {
-                    kind: "remaining",
-                    overflow: "scrolls",
-                    heightPx: viewportHeightPx * 3,
-                }
+                claim("remaining", "scrolls", viewportHeightPx * 3)
             );
             expect(layout.mainHeightPx).toBe(
                 viewportHeightPx - SHELL_HEADER_BAND_PX
@@ -69,7 +83,7 @@ describe("resolveShellLayout — the shipped shell, at desktop heights (issue #2
                     viewportHeightPx,
                     headerBandHeightPx: SHELL_HEADER_BAND_PX,
                 },
-                { kind: "intrinsic", heightPx: contentPx }
+                claim("intrinsic", "spills", contentPx)
             );
             // Exactly one scroll container, and it is the one the shell owns.
             expect(layout.scrollers).toEqual(["main"]);
@@ -92,7 +106,7 @@ describe("resolveShellLayout — the shipped shell, at desktop heights (issue #2
                     viewportHeightPx,
                     headerBandHeightPx: SHELL_HEADER_BAND_PX,
                 },
-                { kind: "viewport" }
+                claim("viewport", "spills")
             );
             // This is the defect issue #2274 names: the same overflow shape
             // #2056 removed, relocated from the document onto `<main>`. The
@@ -113,7 +127,7 @@ describe("resolveShellLayout — the shipped shell, at desktop heights (issue #2
                     viewportHeightPx,
                     headerBandHeightPx: SHELL_HEADER_BAND_PX,
                 },
-                { kind: "atLeastRemaining", heightPx: 240 }
+                claim("atLeastRemaining", "spills", 240)
             );
             expect(layout.contentHeightPx).toBe(layout.mainHeightPx);
             expect(layout.mainOverflowPx).toBe(0);
@@ -125,7 +139,7 @@ describe("resolveShellLayout — the shipped shell, at desktop heights (issue #2
         const layout = resolveShellLayout(
             SHIPPED,
             { viewportHeightPx: 900, headerBandHeightPx: SHELL_HEADER_BAND_PX },
-            { kind: "atLeastRemaining", heightPx: 2000 }
+            claim("atLeastRemaining", "spills", 2000)
         );
         expect(layout.contentHeightPx).toBe(2000);
         expect(layout.scrollers).toEqual(["main"]);
@@ -137,7 +151,7 @@ describe("resolveShellLayout — the shipped shell, at desktop heights (issue #2
         const layout = resolveShellLayout(
             SHIPPED,
             { viewportHeightPx: 1080, headerBandHeightPx: 0 },
-            { kind: "remaining", overflow: "scrolls", heightPx: 3000 }
+            claim("remaining", "scrolls", 3000)
         );
         expect(layout.mainHeightPx).toBe(1080);
         expect(layout.mainOverflowPx).toBe(0);
@@ -171,11 +185,7 @@ describe("a `flex-1` route root that HIDES its overflow clips the page (issue #2
                     viewportHeightPx,
                     headerBandHeightPx: SHELL_HEADER_BAND_PX,
                 },
-                {
-                    kind: "remaining",
-                    overflow: "clips",
-                    heightPx: LOBBY_COLUMN_PX,
-                }
+                claim("remaining", "clips", LOBBY_COLUMN_PX)
             );
             const mainHeightPx = viewportHeightPx - SHELL_HEADER_BAND_PX;
             // The box is EXACTLY the remainder — the excess is hidden, not
@@ -199,7 +209,7 @@ describe("a `flex-1` route root that HIDES its overflow clips the page (issue #2
                 viewportHeightPx: 1440,
                 headerBandHeightPx: SHELL_HEADER_BAND_PX,
             },
-            { kind: "remaining", overflow: "clips", heightPx: 400 }
+            claim("remaining", "clips", 400)
         );
         expect(layout.clippedPx).toBe(0);
         expect(layout.bottomReachable).toBe(true);
@@ -214,11 +224,7 @@ describe("a `flex-1` route root that HIDES its overflow clips the page (issue #2
                     viewportHeightPx,
                     headerBandHeightPx: SHELL_HEADER_BAND_PX,
                 },
-                {
-                    kind: "remaining",
-                    overflow: "spills",
-                    heightPx: viewportHeightPx * 3,
-                }
+                claim("remaining", "spills", viewportHeightPx * 3)
             );
             expect(layout.clippedPx).toBe(0);
             expect(layout.scrollers).toEqual(["main"]);
@@ -237,7 +243,7 @@ describe("a `flex-1` route root that HIDES its overflow clips the page (issue #2
                     viewportHeightPx,
                     headerBandHeightPx: SHELL_HEADER_BAND_PX,
                 },
-                { kind: "atLeastRemaining", heightPx: LOBBY_COLUMN_PX }
+                claim("atLeastRemaining", "spills", LOBBY_COLUMN_PX)
             );
             expect(layout.clippedPx).toBe(0);
             expect(layout.bottomReachable).toBe(true);
@@ -245,6 +251,91 @@ describe("a `flex-1` route root that HIDES its overflow clips the page (issue #2
                 LOBBY_COLUMN_PX - layout.mainHeightPx
             );
         }
+    });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// The clip, not the height claim, is what makes the bottom unreachable.
+//
+// Round 2 of issue #2274 "fixed" the lobby by changing `flex-1
+// overflow-hidden` to `min-h-full overflow-hidden`, and Chrome measured the
+// result as byte-identical to the bug (root 788, `<main>.scrollHeight` 788,
+// `maxScrollTop` 0, footer unreachable at 1440x900 AND 1920x1080), while the
+// same root WITHOUT the clip grew to 3252 and scrolled (`maxScrollTop` 2464).
+// The model agreed with the fix because `overflow` was a field of ONE claim
+// variant. These sweep the SAME clipping root across every claim kind.
+// ────────────────────────────────────────────────────────────────────────────
+describe("a clipping route root hides its bottom whatever height it claims (issue #2274)", () => {
+    const LOBBY_COLUMN_PX = 1030;
+
+    it.each([
+        ["remaining", 900],
+        ["remaining", 1080],
+        ["atLeastRemaining", 900],
+        ["atLeastRemaining", 1080],
+        ["intrinsic", 900],
+        ["intrinsic", 1080],
+    ] as [ShellHeightClaimKind, number][])(
+        "a `%s` root that CLIPS is unreachable at %ipx — the round-2 no-op, seen by the model",
+        (kind, viewportHeightPx) => {
+            const layout = resolveShellLayout(
+                SHIPPED,
+                { viewportHeightPx, headerBandHeightPx: SHELL_HEADER_BAND_PX },
+                claim(kind, "clips", LOBBY_COLUMN_PX)
+            );
+            const mainHeightPx = viewportHeightPx - SHELL_HEADER_BAND_PX;
+            expect(layout.clippedPx).toBe(LOBBY_COLUMN_PX - mainHeightPx);
+            expect(layout.scrollers).toEqual([]);
+            expect(layout.bottomReachable).toBe(false);
+        }
+    );
+
+    it.each([
+        ["remaining", 900],
+        ["remaining", 1080],
+        ["atLeastRemaining", 900],
+        ["atLeastRemaining", 1080],
+        ["intrinsic", 900],
+        ["intrinsic", 1080],
+    ] as [ShellHeightClaimKind, number][])(
+        "...and the SAME `%s` root reaches its bottom at %ipx once the clip is dropped — the round-3 fix",
+        (kind, viewportHeightPx) => {
+            const layout = resolveShellLayout(
+                SHIPPED,
+                { viewportHeightPx, headerBandHeightPx: SHELL_HEADER_BAND_PX },
+                claim(kind, "spills", LOBBY_COLUMN_PX)
+            );
+            expect(layout.clippedPx).toBe(0);
+            expect(layout.scrollers).toEqual(["main"]);
+            expect(layout.mainMaxScrollTopPx).toBe(
+                LOBBY_COLUMN_PX - layout.mainHeightPx
+            );
+            expect(layout.bottomReachable).toBe(true);
+        }
+    );
+
+    it("a whole-viewport root that CLIPS loses everything past the viewport, header band or no", () => {
+        const layout = resolveShellLayout(
+            SHIPPED,
+            { viewportHeightPx: 900, headerBandHeightPx: 0 },
+            claim("viewport", "clips", 4000)
+        );
+        expect(layout.clippedPx).toBe(4000 - 900);
+        expect(layout.bottomReachable).toBe(false);
+    });
+
+    it("a `shrink-0` root is the one shape a clip does NOT clamp — it grows and <main> scrolls to it", () => {
+        // Browser-measured: an unshrinkable root grew to 3252px with
+        // `overflow-hidden` still on it, where the shrinkable one boxed out at
+        // 788. This is why `shrinks` is an input and not an assumption.
+        const layout = resolveShellLayout(
+            SHIPPED,
+            { viewportHeightPx: 900, headerBandHeightPx: SHELL_HEADER_BAND_PX },
+            claim("atLeastRemaining", "clips", 3212, false)
+        );
+        expect(layout.clippedPx).toBe(0);
+        expect(layout.scrollers).toEqual(["main"]);
+        expect(layout.bottomReachable).toBe(true);
     });
 });
 
@@ -263,7 +354,7 @@ describe("resolveShellLayout — the shapes the contract rules out (issue #2056 
                     viewportHeightPx,
                     headerBandHeightPx: SHELL_HEADER_BAND_PX,
                 },
-                { kind: "intrinsic", heightPx: contentPx }
+                claim("intrinsic", "spills", contentPx)
             );
             // `flex-1` resolves against CONTENT once nothing above it is
             // bounded, so `<main>` grows to the whole page and never scrolls;
@@ -285,7 +376,7 @@ describe("resolveShellLayout — the shapes the contract rules out (issue #2056 
                     viewportHeightPx,
                     headerBandHeightPx: SHELL_HEADER_BAND_PX,
                 },
-                { kind: "intrinsic", heightPx: contentPx }
+                claim("intrinsic", "spills", contentPx)
             );
             expect(layout.mainHeightPx).toBe(contentPx);
             expect(layout.documentMaxScrollTopPx).toBeGreaterThan(0);
@@ -303,7 +394,7 @@ describe("resolveShellLayout — the shapes the contract rules out (issue #2056 
                     viewportHeightPx,
                     headerBandHeightPx: SHELL_HEADER_BAND_PX,
                 },
-                { kind: "intrinsic", heightPx: contentPx }
+                claim("intrinsic", "spills", contentPx)
             );
             expect(layout.mainMaxScrollTopPx).toBe(0);
             expect(layout.scrollers).toEqual(["document"]);
@@ -314,7 +405,7 @@ describe("resolveShellLayout — the shapes the contract rules out (issue #2056 
         const layout = resolveShellLayout(
             { ...SHIPPED, mainCanShrink: false },
             { viewportHeightPx: 900, headerBandHeightPx: SHELL_HEADER_BAND_PX },
-            { kind: "intrinsic", heightPx: 3000 }
+            claim("intrinsic", "spills", 3000)
         );
         expect(layout.headerHeightPx).toBe(SHELL_HEADER_BAND_PX);
     });
@@ -370,7 +461,67 @@ describe("deriveShellModel / deriveHeightClaim (issue #2274)", () => {
         expect(deriveHeightClaim("flex min-h-full items-center", 240)).toEqual({
             kind: "atLeastRemaining",
             heightPx: 240,
+            overflow: "spills",
+            shrinks: true,
         });
+    });
+
+    // The round-2 fix for this issue changed the lobby's root from `flex-1
+    // overflow-hidden` to `min-h-full overflow-hidden` and was measured in
+    // Chrome to be a NO-OP (identical 788px box, identical maxScrollTop 0).
+    // The model could not see it: `overflow` lived only on the `remaining`
+    // variant, so re-classifying the SAME clipping root dropped the field.
+    it("reads the overflow of a `min-h-full` root too — the claim that hid the round-2 no-op", () => {
+        expect(
+            deriveHeightClaim(
+                "relative min-h-full overflow-hidden bg-surface-base",
+                1030
+            )
+        ).toEqual({
+            kind: "atLeastRemaining",
+            heightPx: 1030,
+            overflow: "clips",
+            shrinks: true,
+        });
+    });
+
+    it("reads the overflow of an INTRINSIC root too — no claim kind is exempt", () => {
+        expect(deriveHeightClaim("relative overflow-hidden", 1030)).toEqual({
+            kind: "intrinsic",
+            heightPx: 1030,
+            overflow: "clips",
+            shrinks: true,
+        });
+    });
+
+    it("reads the overflow of a WHOLE-VIEWPORT root too", () => {
+        expect(
+            deriveHeightClaim(
+                "relative flex h-dvh flex-col overflow-hidden",
+                1030
+            )
+        ).toEqual({
+            kind: "viewport",
+            heightPx: 1030,
+            overflow: "clips",
+            shrinks: true,
+        });
+    });
+
+    it.each(["shrink-0", "flex-none"])(
+        "reads `%s` as a root that refuses to be squeezed by <main>",
+        (token) => {
+            expect(
+                deriveHeightClaim(`relative ${token} overflow-hidden`, 1030)
+                    .shrinks
+            ).toBe(false);
+        }
+    );
+
+    it("a root with no shrink opt-out is SHRINKABLE — the clampable case is the default", () => {
+        expect(deriveHeightClaim("relative min-h-full", 1030).shrinks).toBe(
+            true
+        );
     });
 
     it("classifies `flex-1` as the shell's remainder, SPILLING its excess to <main>", () => {
@@ -379,6 +530,7 @@ describe("deriveShellModel / deriveHeightClaim (issue #2274)", () => {
                 kind: "remaining",
                 overflow: "spills",
                 heightPx: 1800,
+                shrinks: true,
             }
         );
     });
@@ -389,7 +541,12 @@ describe("deriveShellModel / deriveHeightClaim (issue #2274)", () => {
                 "relative flex-1 overflow-hidden bg-surface-base text-text",
                 1030
             )
-        ).toEqual({ kind: "remaining", overflow: "clips", heightPx: 1030 });
+        ).toEqual({
+            kind: "remaining",
+            overflow: "clips",
+            heightPx: 1030,
+            shrinks: true,
+        });
     });
 
     it("a clipping root that is DECLARED to own a whole-column scroller reads as scrolling", () => {
@@ -397,7 +554,12 @@ describe("deriveShellModel / deriveHeightClaim (issue #2274)", () => {
             deriveHeightClaim("flex flex-1 overflow-hidden", 1030, {
                 hasOwnScroller: true,
             })
-        ).toEqual({ kind: "remaining", overflow: "scrolls", heightPx: 1030 });
+        ).toEqual({
+            kind: "remaining",
+            overflow: "scrolls",
+            heightPx: 1030,
+            shrinks: true,
+        });
     });
 
     it("`hasOwnScroller` defaults to FALSE — an unclassified clipping root reads as clipping, never as safe", () => {
@@ -406,13 +568,19 @@ describe("deriveShellModel / deriveHeightClaim (issue #2274)", () => {
             kind: "remaining",
             overflow: "clips",
             heightPx: 1030,
+            shrinks: true,
         });
     });
 
     it("a root that scrolls ITSELF reads as scrolling without any declaration", () => {
         expect(
             deriveHeightClaim("flex flex-1 min-h-0 overflow-y-auto", 1030)
-        ).toEqual({ kind: "remaining", overflow: "scrolls", heightPx: 1030 });
+        ).toEqual({
+            kind: "remaining",
+            overflow: "scrolls",
+            heightPx: 1030,
+            shrinks: true,
+        });
     });
 
     it.each(["min-h-[100dvh]", "h-[100vh]", "min-h-[110svh]"])(
@@ -439,6 +607,8 @@ describe("deriveShellModel / deriveHeightClaim (issue #2274)", () => {
         expect(deriveHeightClaim("relative", 1800)).toEqual({
             kind: "intrinsic",
             heightPx: 1800,
+            overflow: "spills",
+            shrinks: true,
         });
     });
 });

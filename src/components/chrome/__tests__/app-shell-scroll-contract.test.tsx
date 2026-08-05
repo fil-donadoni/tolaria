@@ -35,6 +35,9 @@ import {
     SHELL_HEADER_BAND_PX,
     deriveShellModel,
     resolveShellLayout,
+    type RouteRootOverflow,
+    type ShellHeightClaim,
+    type ShellHeightClaimKind,
     type ShellModel,
 } from "@/lib/shellLayout";
 
@@ -42,6 +45,21 @@ afterEach(() => {
     cleanup();
     pathname = "/decks/create";
 });
+/**
+ * A route root's height claim. `overflow` and `shrinks` are stated at every
+ * call site because `ShellHeightClaim` makes them REQUIRED — a claim that
+ * could omit its overflow is what certified the clipping lobby as correct
+ * twice (issue #2274). `shrinks` defaults to `true`, the CLAMPABLE case: a
+ * route root is a shrinkable flex child of `<main>` unless it says otherwise.
+ */
+function claim(
+    kind: ShellHeightClaimKind,
+    overflow: RouteRootOverflow,
+    heightPx = 0,
+    shrinks = true
+): ShellHeightClaim {
+    return { kind, heightPx, overflow, shrinks };
+}
 
 /**
  * Render the real `<AppShell>` and read its contract out of the rendered DOM.
@@ -87,7 +105,7 @@ describe("AppShell scroll contract — structural, at desktop heights (issue #22
                     viewportHeightPx,
                     headerBandHeightPx: SHELL_HEADER_BAND_PX,
                 },
-                { kind: "intrinsic", heightPx: contentPx }
+                claim("intrinsic", "spills", contentPx)
             );
             // No double scrollbar: exactly one box scrolls, and it is `<main>`.
             expect(layout.scrollers).toEqual(["main"]);
@@ -115,11 +133,7 @@ describe("AppShell scroll contract — structural, at desktop heights (issue #22
                     viewportHeightPx,
                     headerBandHeightPx: SHELL_HEADER_BAND_PX,
                 },
-                {
-                    kind: "remaining",
-                    overflow: "scrolls",
-                    heightPx: viewportHeightPx * 3,
-                }
+                claim("remaining", "scrolls", viewportHeightPx * 3)
             );
             expect(layout.mainOverflowPx).toBe(0);
             expect(layout.mainMaxScrollTopPx).toBe(0);
@@ -148,7 +162,7 @@ describe("AppShell scroll contract — structural, at desktop heights (issue #22
                     viewportHeightPx,
                     headerBandHeightPx: SHELL_HEADER_BAND_PX,
                 },
-                { kind: "intrinsic", heightPx: viewportHeightPx * 4 }
+                claim("intrinsic", "spills", viewportHeightPx * 4)
             );
             expect(layout.headerHeightPx).toBe(SHELL_HEADER_BAND_PX);
             // ...and the band is not merely preserved, it is preserved WHOLE:
@@ -160,7 +174,7 @@ describe("AppShell scroll contract — structural, at desktop heights (issue #22
                         viewportHeightPx,
                         headerBandHeightPx: SHELL_HEADER_BAND_PX,
                     },
-                    { kind: "intrinsic", heightPx: viewportHeightPx * 4 }
+                    claim("intrinsic", "spills", viewportHeightPx * 4)
                 ).headerHeightPx
             ).toBeLessThan(SHELL_HEADER_BAND_PX);
         }
@@ -175,7 +189,7 @@ describe("AppShell scroll contract — structural, at desktop heights (issue #22
                     viewportHeightPx,
                     headerBandHeightPx: SHELL_HEADER_BAND_PX,
                 },
-                { kind: "intrinsic", heightPx: viewportHeightPx * 4 }
+                claim("intrinsic", "spills", viewportHeightPx * 4)
             );
             expect(layout.headerHeightPx).toBe(SHELL_HEADER_BAND_PX);
         }
@@ -196,7 +210,7 @@ describe("AppShell scroll contract — the fullscreen route (issue #2274)", () =
         const layout = resolveShellLayout(
             model,
             { viewportHeightPx: 1080, headerBandHeightPx: 0 },
-            { kind: "remaining", overflow: "scrolls", heightPx: 3000 }
+            claim("remaining", "scrolls", 3000)
         );
         expect(layout.mainHeightPx).toBe(1080);
         expect(layout.scrollers).toEqual([]);

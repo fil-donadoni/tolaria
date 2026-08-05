@@ -590,6 +590,22 @@ function staticClassName(tagText: string): string | null {
 }
 
 /**
+ * A tag that HAS a `className` the sweep cannot read — a template literal, a
+ * `clsx(...)` call, a variable. Distinct from a tag with no `className` at all
+ * (`<LoadingScreen />`, a fragment), which claims nothing and is followed
+ * through the registry instead.
+ *
+ * Reviewer-proven hole: with the identical clipping element in place, a static
+ * literal reddened this guard 9x while a template literal left it 20/20 GREEN,
+ * because the sweep `continue`d with no record. A census that silently covers
+ * nothing is the exact shape this guard exists to prevent, so an unreadable
+ * route-root className is a FAILURE, not a skip.
+ */
+function hasUnreadableClassName(tagText: string): boolean {
+    return /className\s*=/.test(tagText) && staticClassName(tagText) === null;
+}
+
+/**
  * Every JSX element a file `return`s — one per branch. Only blank lines may sit
  * between the `return (` and its element, so a `return` of a non-JSX value is
  * skipped rather than mis-attributed to the next tag in the file.
@@ -637,6 +653,25 @@ describe("every route root reaches its own bottom, at every desktop height (issu
         }
     });
 
+    it("every returned route root's className is READABLE — the sweep below cannot skip one", () => {
+        const unreadable: string[] = [];
+        for (const [component, entry] of Object.entries(ROUTE_ROOTS)) {
+            for (const file of entry.files) {
+                const src = SOURCE_FILES.find((f) => f.rel === file.rel)!;
+                for (const root of returnedRoots(src.code)) {
+                    if (!hasUnreadableClassName(root.text)) continue;
+                    unreadable.push(`${component} → ${file.rel}:${root.line}`);
+                }
+            }
+        }
+        expect(
+            unreadable,
+            `these route roots hide their className behind an expression, so the height sweep below silently skips them: ${unreadable.join(
+                ", "
+            )}. Give the root a static className (put the dynamic part on an inner element), or the census covers nothing.`
+        ).toEqual([]);
+    });
+
     it.each(DESKTOP_HEIGHTS_PX)(
         "at %ipx: no route root clips its content, and every one of them reaches its bottom",
         (viewportHeightPx) => {
@@ -662,7 +697,7 @@ describe("every route root reaches its own bottom, at every desktop height (issu
                         const where = `${component} → ${file.rel}:${root.line} (${className})`;
                         expect(
                             layout.clippedPx,
-                            `${where} CLIPS ${layout.clippedPx}px — a hard box that hides its overflow, with no scroller anywhere. Give the route a page-level scroller, drop the height claim to a floor (\`min-h-full\`), or declare its own whole-column scroller.`
+                            `${where} CLIPS ${layout.clippedPx}px — a shrinkable flex child of <main> that hides its overflow, so <main> sees nothing to scroll and there is no scrollbar anywhere. DROP the clipping class (\`overflow-hidden\`/\`-clip\`) — changing the HEIGHT claim does not help, that was measured as a no-op. Otherwise: give the route its own whole-column scroller and declare it here, or make the root \`shrink-0\`.`
                         ).toBe(0);
                         expect(
                             layout.bottomReachable,

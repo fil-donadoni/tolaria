@@ -18,15 +18,19 @@ type LoadingScreenProps = {
  *  antechamber) as well as on `/game`, which does not. An `h-dvh` here was a
  *  whole viewport under a ~112px header band, i.e. an overflow of exactly the
  *  band on every headered route. `min-h-full` is the same box on `/game` (where
- *  `<main>` IS the viewport) and the right one everywhere else — and, being a
- *  floor rather than a hard height, it still grows past `<main>` if the Panel
- *  ever outgrows the space, so this component's own `overflow-hidden` (which
- *  clips the ambient ring) can never clip the message itself. */
+ *  `<main>` IS the viewport) and the right one everywhere else.
+ *
+ *  It carries NO `overflow-hidden`: this root is a shrinkable flex item of
+ *  `<main>`, so hiding its overflow would clamp it to the remainder and CLIP a
+ *  Panel that ever outgrew the space, with no scrollbar anywhere to reach it
+ *  (issue #2274 — browser-measured on the lobby, which shares this shape). The
+ *  ambient ring is clipped by `AmbientPageGround`'s own `absolute inset-0
+ *  overflow-hidden`, so nothing here needs it. */
 export default function LoadingScreen({
     message = "Loading...",
 }: LoadingScreenProps) {
     return (
-        <div className="relative flex min-h-full flex-col items-center justify-center overflow-hidden bg-surface-base text-text">
+        <div className="relative flex min-h-full flex-col items-center justify-center bg-surface-base text-text">
             <AmbientPageGround ring />
             <Panel className="relative z-10 flex max-w-md flex-col items-center gap-6 text-center">
                 <div className="flex items-center gap-3">

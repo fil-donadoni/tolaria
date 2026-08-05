@@ -35,11 +35,23 @@
  *    height — the same overflow shape #2056 removed, relocated rather than
  *    eliminated. That is the defect this module's `mainOverflowPx` names.
  *  - Per CSS Flexbox §4.5, a flex item whose computed `overflow` is not
- *    `visible` gets `min-width/min-height: auto` → 0. So a `flex-1
- *    overflow-hidden` route root resolves to EXACTLY `<main>`'s height and
- *    CLIPS everything past it: `<main>.scrollHeight === clientHeight`, its
+ *    `visible` gets `min-width/min-height: auto` → 0. A route root is a flex
+ *    ITEM of `<main>` with the default `flex-shrink: 1`, so once that floor is
+ *    dropped `<main>`'s height CLAMPS it — WHATEVER height it claims — and the
+ *    excess is CLIPPED: `<main>.scrollHeight === clientHeight`, its
  *    `overflow-y-auto` never engages, and there is no scrollbar ANYWHERE. That
- *    is the defect this module's `clippedPx` names — see `RemainderOverflow`.
+ *    is the defect this module's `clippedPx` names — see `RouteRootOverflow`.
+ *
+ *    Browser-measured (issue #2274, round 3; real stylesheet, shell box chain
+ *    reproduced, 3212px content, 1440x900): `flex-1 overflow-hidden` and
+ *    `min-h-full overflow-hidden` produce the IDENTICAL box — root 788,
+ *    `<main>.scrollHeight` 788, `maxScrollTop` 0, footer UNREACHABLE — while
+ *    the same roots WITHOUT the clip grow to 3252 and scroll (`maxScrollTop`
+ *    2464). The clip is the cause; the height claim is not. That is why
+ *    `overflow` is a field of EVERY claim here and not of one variant: the
+ *    first attempt at this fix put it on `remaining` alone, and changing the
+ *    lobby's claim to `min-h-full` simply moved the same defect into the
+ *    neighbouring variant, which had no overflow field to fail on.
  *
  * ────────────────────────────────────────────────────────────────────────────
  * EPISTEMIC LIMIT — read before trusting any sweep that runs through here.
@@ -58,20 +70,20 @@
 export type ShellScroller = "document" | "main";
 
 /**
- * What a route root whose box is a HARD height does with content taller than
- * that box.
- *
- * Only the `remaining` claim is a hard box among the claims a route can make:
- * `flex: 1 1 0%` resolves to exactly the space `<main>` has, and (CSS Flexbox
- * §4.5) hiding its overflow drops the `min-height: auto` floor that would
- * otherwise let it grow. `min-h-full` / `intrinsic` are content-sized, so
- * hiding their overflow clips nothing.
+ * What a route root does with content taller than the box `<main>` gives it.
  *
  * This is the input `resolveShellLayout` originally lacked. Without it a
  * clipping route root is indistinguishable from one that scrolls internally,
  * and the model certifies both as fine.
+ *
+ * It belongs to EVERY height claim, not to one variant. The `remaining`-only
+ * version of this field was measured to be a hole: the route root is a
+ * shrinkable flex item, so the clip — not the height claim — decides whether
+ * the box is clamped to `<main>` and the excess lost. `min-h-full
+ * overflow-hidden` clips exactly as hard as `flex-1 overflow-hidden` (see the
+ * measurement in the module header).
  */
-export type RemainderOverflow =
+export type RouteRootOverflow =
     /**
      * The route scrolls its own excess — its root, or a wrapper spanning the
      * whole content column, is a scroller. Issue #2275's deckbuilder shape:
@@ -91,26 +103,55 @@ export type RemainderOverflow =
      */
     | "spills";
 
-/** How a route's own root element claims vertical space inside `<main>`. */
-export type ShellHeightClaim =
-    /** `h-dvh` / `h-screen` / `min-h-dvh` — a WHOLE viewport, header or no. */
-    | { kind: "viewport" }
+/**
+ * The FLOOR a route's own root element claims inside `<main>` — how tall the
+ * box is before its content is taken into account.
+ *
+ *  - `viewport` — `h-dvh` / `h-screen` / `min-h-dvh`: a WHOLE viewport, header
+ *    or no. A hard, definite height: browser-measured in #2056 to overflow
+ *    `<main>` by exactly the header band rather than shrink into it.
+ *  - `remaining` — `flex-1`: whatever the shell has left after the header.
+ *  - `atLeastRemaining` — `min-h-full`: the same remainder as a FLOOR, so the
+ *    box may grow past it when the content is taller.
+ *  - `intrinsic` — no claim at all: as tall as its content wants to be.
+ *
+ * Whether the box actually GROWS past that floor is decided by `overflow` and
+ * `shrinks`, not by the kind — see `RouteRootOverflow`.
+ */
+export type ShellHeightClaimKind =
+    | "viewport"
+    | "remaining"
+    | "atLeastRemaining"
+    | "intrinsic";
+
+/**
+ * How a route's own root element claims vertical space inside `<main>`.
+ *
+ * A flat record, deliberately NOT a discriminated union with per-variant
+ * fields: every field is required, so a new call site (or a new kind) cannot
+ * silently omit one and fail OPEN. That is exactly how the lobby escaped the
+ * first version of this model — `overflow` existed only on the `remaining`
+ * variant, and re-classifying the same clipping root as `atLeastRemaining`
+ * dropped the field on the floor with no type error and no red test.
+ */
+export interface ShellHeightClaim {
+    kind: ShellHeightClaimKind;
     /**
-     * `flex-1` — whatever the shell has left after the header, as a HARD box.
-     * `overflow` says what happens to content taller than that box, and
-     * `heightPx` is what the route's content would need if nothing constrained
-     * it. Both are required: a default would fail OPEN, which is precisely the
-     * hole this variant exists to close.
+     * What the route's content would need if nothing constrained it. For
+     * `viewport` the claim itself is a floor on this: such a root is at least
+     * a whole viewport tall whatever it contains.
      */
-    | { kind: "remaining"; overflow: RemainderOverflow; heightPx: number }
+    heightPx: number;
+    /** What happens to content taller than the box `<main>` gives the root. */
+    overflow: RouteRootOverflow;
     /**
-     * `min-h-full` — the shell's remainder as a FLOOR: fills it when the
-     * content is shorter, grows past it when the content is taller (so
-     * `<main>` scrolls to the excess rather than the box clipping it).
+     * The root is a SHRINKABLE flex item of `<main>` — i.e. it does NOT carry
+     * `shrink-0` / `flex-none`. True for every route root in this repo today;
+     * a `shrink-0` root is the one shape that genuinely grows with its content
+     * even while hiding its overflow (browser-measured: root 3252 vs 788).
      */
-    | { kind: "atLeastRemaining"; heightPx: number }
-    /** An ordinary long page: as tall as its content wants to be. */
-    | { kind: "intrinsic"; heightPx: number };
+    shrinks: boolean;
+}
 
 /** The chrome a route is rendered into. */
 export interface ShellChrome {
@@ -193,10 +234,6 @@ export const VIEWPORT_HEIGHT_CLASSES = [
     "min-h-svh",
     "h-lvh",
     "min-h-lvh",
-    // `svh` / `lvh` are the same claim against a different viewport definition,
-    // and `min-h-svh` is a LIVE idiom in this repo (`auth-gate.tsx`,
-    // `auth-form.tsx` — both legitimately outside the shell). Omitting them is
-    // what would let the next headered component copy that idiom unseen.
 ] as const;
 
 /**
@@ -232,12 +269,10 @@ function hasAnyClass(className: string, tokens: readonly string[]): boolean {
  * invisible to a token list, and this is the shape a future component reaches
  * for once the named utilities are guarded.
  *
- * Only >= 100% counts. `not-found-page.tsx`'s 60dvh floor and
- * `sideboarding-dialog.tsx`'s 60vh-clamped dialog height are FRACTIONS of the
+ * Only >= 100% counts. `not-found-page.tsx`'s `min-h-[60dvh]` and
+ * `sideboarding-dialog.tsx`'s `h-[min(30rem,60vh)]` are FRACTIONS of the
  * viewport, not claims on the whole of it, and forcing them onto an allowlist
- * would buy a stale entry and no safety. (Their literals are deliberately NOT
- * quoted here: `cardSizingGuard.test.ts` scans raw source, comments included,
- * for an un-floored viewport clamp — issue #2056.)
+ * would buy a stale entry and no safety.
  */
 const ARBITRARY_VIEWPORT_RE =
     /(?:^|[^\w-])(?:min-)?h-\[(\d+(?:\.\d+)?)(?:d|s|l)?vh\]/g;
@@ -296,48 +331,50 @@ export function deriveHeightClaim(
     intrinsicHeightPx = 0,
     route: { hasOwnScroller?: boolean } = {}
 ): ShellHeightClaim {
+    // Read the OVERFLOW and the shrink behaviour first, for every kind: they
+    // are properties of the ELEMENT, and reading them per height-claim branch
+    // is what let the lobby's clip disappear when its claim changed.
+    const scrolls =
+        hasAnyClass(className, SCROLLER_CLASSES) ||
+        route.hasOwnScroller === true;
+    const overflow: RouteRootOverflow = scrolls
+        ? "scrolls"
+        : hasAnyClass(className, CLIPPING_CLASSES)
+          ? "clips"
+          : "spills";
+    const shrinks =
+        !hasClass(className, "shrink-0") && !hasClass(className, "flex-none");
+    const base = { heightPx: intrinsicHeightPx, overflow, shrinks };
+
     const claimsViewport =
         hasAnyClass(className, VIEWPORT_HEIGHT_CLASSES) ||
         arbitraryViewportClaims(className).length > 0;
-    if (claimsViewport) return { kind: "viewport" };
+    if (claimsViewport) return { kind: "viewport", ...base };
     if (hasClass(className, "min-h-full"))
-        return { kind: "atLeastRemaining", heightPx: intrinsicHeightPx };
-    if (hasClass(className, "flex-1")) {
-        const scrolls =
-            hasAnyClass(className, SCROLLER_CLASSES) ||
-            route.hasOwnScroller === true;
-        const overflow: RemainderOverflow = scrolls
-            ? "scrolls"
-            : hasAnyClass(className, CLIPPING_CLASSES)
-              ? "clips"
-              : "spills";
-        return { kind: "remaining", overflow, heightPx: intrinsicHeightPx };
-    }
-    return { kind: "intrinsic", heightPx: intrinsicHeightPx };
+        return { kind: "atLeastRemaining", ...base };
+    if (hasClass(className, "flex-1")) return { kind: "remaining", ...base };
+    return { kind: "intrinsic", ...base };
 }
 
 /**
  * The route's own intrinsic demand — what it would be tall enough to need if
- * nothing constrained it.
+ * nothing constrained it, and therefore what it PUSHES onto `<main>`.
  *
  * A `remaining` claim used to return a flat 0 here, on the premise that such a
  * route always absorbs its own deficit internally (#2275's deckbuilder). That
  * premise is exactly what made the model certify the clipping lobby as
- * correct: only `overflow: "scrolls"` earns it.
+ * correct — and the premise belongs to the OVERFLOW, not to the kind: only
+ * `overflow: "scrolls"` earns the 0, whatever height the root claims.
  */
 function naturalContentPx(
     claim: ShellHeightClaim,
     chrome: ShellChrome
 ): number {
-    switch (claim.kind) {
-        case "viewport":
-            return chrome.viewportHeightPx;
-        case "intrinsic":
-        case "atLeastRemaining":
-            return claim.heightPx;
-        case "remaining":
-            return claim.overflow === "scrolls" ? 0 : claim.heightPx;
-    }
+    if (claim.overflow === "scrolls") return 0;
+    // A whole-viewport root is at least a viewport tall whatever it holds.
+    return claim.kind === "viewport"
+        ? Math.max(chrome.viewportHeightPx, claim.heightPx)
+        : claim.heightPx;
 }
 
 /** Resolve the shell's box chain for one route at one viewport height. */
@@ -370,27 +407,52 @@ export function resolveShellLayout(
         ? headerBandHeightPx
         : Math.max(0, headerBandHeightPx - overshoot);
 
-    // `remaining` is a HARD box: `flex: 1 1 0%` gives it exactly what `<main>`
-    // has left, and hiding its overflow drops the `min-height: auto` floor
-    // (CSS Flexbox §4.5) that would otherwise let it grow. So both `scrolls`
-    // and `clips` box out at the remainder — the difference is not the BOX, it
-    // is whether the excess is reachable, which `clippedPx` below names.
-    // `spills` keeps that floor and grows with its content.
+    // The floor the root's own height CLAIM puts under its box, before any
+    // content is taken into account.
+    const claimFloorPx =
+        claim.kind === "viewport"
+            ? viewportHeightPx
+            : claim.kind === "remaining" || claim.kind === "atLeastRemaining"
+              ? mainHeightPx
+              : 0;
+    // What the box would be if `<main>` never clamped it.
+    const unclampedHeightPx = Math.max(claimFloorPx, natural);
+
+    // ...and `<main>` DOES clamp it. The route root is a flex ITEM of `<main>`
+    // with the default `flex-shrink: 1`, so once its `min-height: auto` floor
+    // is dropped — which any non-`visible` overflow does, CSS Flexbox §4.5 —
+    // it is squeezed to exactly the remainder WHATEVER height it claimed.
+    // Browser-measured: `flex-1 overflow-hidden` and `min-h-full
+    // overflow-hidden` give the identical 788px box against a 788px `<main>`
+    // (issue #2274, round 3). Two shapes escape the clamp:
+    //   - `spills` keeps the `min-height: auto` floor, so the box grows with
+    //     its content and the excess reaches `<main>`'s scrollable region;
+    //   - `shrink-0` refuses to be squeezed at all (measured: 3252px).
+    // A `viewport` claim is a HARD definite height, neither grown by content
+    // nor squeezed into the remainder — that is the #2056 shape, measured to
+    // overflow `<main>` by exactly the header band.
+    const clampedByMain =
+        claim.kind !== "viewport" &&
+        claim.shrinks &&
+        claim.overflow !== "spills";
+    const rootBoxPx =
+        claim.kind === "viewport"
+            ? viewportHeightPx
+            : clampedByMain
+              ? Math.min(unclampedHeightPx, mainHeightPx)
+              : unclampedHeightPx;
+
+    // Only a spilling root hands its excess to `<main>`; anything else is
+    // either scrolled inside the route or lost.
     const contentHeightPx =
-        claim.kind === "remaining"
-            ? claim.overflow === "spills"
-                ? Math.max(mainHeightPx, natural)
-                : mainHeightPx
-            : claim.kind === "atLeastRemaining"
-              ? Math.max(mainHeightPx, natural)
-              : natural;
+        claim.overflow === "spills" ? unclampedHeightPx : rootBoxPx;
 
     // Content the route's root HIDES rather than hands to `<main>`. It is not
     // overflow — `<main>.scrollHeight` never sees it, so no scrollbar appears
     // anywhere and the excess is unreachable by any means (issue #2274).
     const clippedPx =
-        claim.kind === "remaining" && claim.overflow === "clips"
-            ? Math.max(0, natural - mainHeightPx)
+        claim.overflow === "clips"
+            ? Math.max(0, unclampedHeightPx - rootBoxPx)
             : 0;
 
     const mainOverflowPx = Math.max(0, contentHeightPx - mainHeightPx);
@@ -419,14 +481,14 @@ export function resolveShellLayout(
     // proved nothing. These two quantities share no term:
     //
     //   routeContentBottomPx — where the route's own content ENDS, taken from
-    //     its demand, never from `contentHeightPx` (already clipped for a hard
-    //     box). A route that scrolls its own excess ends at its own box.
+    //     its UNCLAMPED demand, never from `contentHeightPx` (already clipped
+    //     for a clamped box). A route that scrolls its own excess ends at its
+    //     own box. Keyed on the overflow, not the kind: the kind-keyed version
+    //     read `min-h-full overflow-hidden` as reaching its bottom.
     //   reachableBottomPx — how far down the viewer's window can be pushed once
     //     every scroller in the chain is scrolled to its end.
     const routeContentBottomPx =
-        claim.kind === "remaining" && claim.overflow === "scrolls"
-            ? mainHeightPx
-            : Math.max(mainHeightPx, natural);
+        claim.overflow === "scrolls" ? rootBoxPx : unclampedHeightPx;
     const reachableBottomPx =
         mainHeightPx + mainMaxScrollTopPx + documentMaxScrollTopPx;
     const bottomReachable = routeContentBottomPx <= reachableBottomPx;

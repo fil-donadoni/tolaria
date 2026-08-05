@@ -36,6 +36,22 @@ const EXCLUDED_DIRS = [join(SRC_ROOT, "components", "board")];
 const BARE_DVH_CLAMP =
     /(?<!max\([^()]*)min\([^()]*\d(\.\d+)?(dvh|svh|lvh|vh)[^()]*\)/;
 
+/**
+ * Strip comments before scanning, so PROSE about a clamp is never read as a
+ * shipped clamp. Without this the guard forced every author who wanted to
+ * DISCUSS the un-floored shape (in a comment explaining why some other
+ * literal is fine) to euphemise it instead — which is how
+ * `lib/shellLayout.ts` ended up unable to name the two fractional-viewport
+ * literals it exempts. The sibling guard added by issue #2274
+ * (`shell-height-claims.guard.test.tsx`) already scans this way; this is the
+ * same treatment, not a new idea.
+ */
+function stripComments(source: string): string {
+    return source
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/(^|[^:])\/\/.*$/gm, "$1");
+}
+
 function collectSourceFiles(dir: string, out: string[] = []): string[] {
     for (const entry of readdirSync(dir)) {
         const full = join(dir, entry);
@@ -58,12 +74,34 @@ describe("card-size clamp — no un-floored dvh literal survives (issue #2056)",
     it("every .ts/.tsx source file under src/ (excluding src/components/board) is free of a bare min(...dvh) clamp", () => {
         const offenders: string[] = [];
         for (const file of collectSourceFiles(SRC_ROOT)) {
-            const text = readFileSync(file, "utf8");
+            const text = stripComments(readFileSync(file, "utf8"));
             if (BARE_DVH_CLAMP.test(text)) {
                 offenders.push(relative(SRC_ROOT, file));
             }
         }
         expect(offenders).toEqual([]);
+    });
+
+    it("scans CODE, not prose — a clamp QUOTED in a comment is not a shipped clamp, but the same literal in a code line still is", () => {
+        // The half that matters is the second one: stripping comments must not
+        // also swallow the code the guard exists to read. `shellLayout.ts`
+        // holds the first shape today (it names the fractional-viewport
+        // literals it deliberately exempts) — revert `stripComments` and this
+        // guard goes red on it.
+        expect(
+            BARE_DVH_CLAMP.test(
+                stripComments(
+                    "// h-[min(30rem,60vh)] is a FRACTION, not a bad clamp"
+                )
+            )
+        ).toBe(false);
+        expect(
+            BARE_DVH_CLAMP.test(
+                stripComments(
+                    'const w = "min(7.5rem, 17vw, 9dvh)"; // the collapsing shape'
+                )
+            )
+        ).toBe(true);
     });
 
     it("cardSizing.ts's own cardBase() output IS a max()-wrapped clamp, not a bare min() — sanity-checks the guard's own regex isn't just failing to match anything", () => {
