@@ -629,7 +629,7 @@ export const sleepingPotion: CardDefinition = {
 // 0079's documented resolution-time answer, reading `ctx.getKickerPaidCount()`
 // off the resolving item's own `kickerPayments` (`buildTriggerItem`,
 // `gre/triggers.ts`, spreads the entering permanent's fields onto each
-// triggered-ability item it raises) — i.e. CR 603.10 last known information.
+// triggered-ability item it raises) — i.e. CR 608.2h last known information.
 // The same predicate is deliberately NOT also declared as `interveningIf`:
 // that re-check runs against the LIVE battlefield permanent found by
 // `triggerSourceId`, and a blink/flicker returns the SAME instance object
@@ -809,13 +809,13 @@ export const sunkenHope: CardDefinition = {
 // The resolution-time re-check STAYS the `if { kickerPaid: "kicker" }`
 // branch inside `effects[]`, reading the resolving TRIGGER stack item's own
 // `kickerPayments` record (`buildTriggerItem`, gre/triggers.ts, spreads the
-// entering permanent's fields onto the item it raises — CR 603.10 last known
+// entering permanent's fields onto the item it raises — CR 608.2h last known
 // information) rather than a plain `interveningIf` against the LIVE
 // permanent: `resolveTopOfStackInner` (gre/state.ts) re-evaluates an
 // `interveningIf` off the LIVE battlefield object found by `triggerSourceId`,
 // and a blink/flicker returns the SAME instance with `kickerPayments`/
 // `wasKicked` already cleared by `resetBattlefieldTransientState` — which
-// would fizzle a trigger CR 603.10 says must resolve off LKI. Exact template:
+// would fizzle a trigger CR 608.2h says must resolve off LKI. Exact template:
 // Stormscape Battlemage / Nightscape Battlemage / Thunderscape Battlemage
 // (this same file / `pls/black.ts` / `pls/red.ts`).
 //

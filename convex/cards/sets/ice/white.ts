@@ -1119,11 +1119,15 @@ export const greenScarab: CardDefinition = makeScarab({
 // Hallowed Ground — {W}{W}: Return target nonsnow land you control to its
 // owner's hand (CR 701.14). A blink/protection engine for your own lands.
 //
-// SIMPLIFICATION (flagged, no engine change): the "nonsnow" target restriction
-// has no live effect in the current pool — snow-covered basics belong to a
-// later snow cluster and TargetRequirement has no supertype-exclusion field.
-// The ability targets any Land you control; the nonsnow clause is a no-op until
-// snow lands ship.
+// The "nonsnow" clause (CR 205.4a Snow supertype exclusion) is enforced via
+// `excludeSupertypes: "Snow"` — the Wasteland pattern (`sets/tmp/colorless.ts`,
+// "target nonbasic land" → `excludeSupertypes: "Basic"`). Both the offered
+// set (`getLegalTargets`) and the accepted set (`selectTarget` mutation) route
+// every candidate through the shared target-filter registry
+// (`intrinsicPermanentTargetViolation` / `checkPermanentTargetFilters`,
+// `gre/targetFilters.ts`), so this field is honored on both sides of the
+// target-legality seam by construction — see the "Hallowed Ground" describe
+// block in `__tests__/white.test.ts` for the end-to-end proof.
 export const hallowedGround: CardDefinition = {
     id: "4b35c0f4-5633-4ea9-9bda-daaf787aebdd",
     name: "Hallowed Ground",
@@ -1143,6 +1147,7 @@ export const hallowedGround: CardDefinition = {
                 type: "Land",
                 count: 1,
                 controller: "you",
+                excludeSupertypes: "Snow",
             },
             // Migrated resolve()→effects[] (ADR 0045, PRD #795): return the
             // announced target land to its owner's hand (CR 701.10 / 400.7) —

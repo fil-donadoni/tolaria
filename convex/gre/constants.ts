@@ -383,6 +383,66 @@ export function applyLandTypeReplacement(
     ];
 }
 
+/** CR 613 layer-4 composition (issue #1715) — recompute a target's live
+ *  `subtypes[]` by replaying its WHOLE materialized layer-4 record in
+ *  timestamp order (CR 613.7).
+ *
+ *  `grantedSubtypes` (subtype-SET, "is a Mountain") and `grantedSubtypesAdd`
+ *  (subtype-ADD, "is a Forest in addition to its other land types", CR 305.7)
+ *  are two storage shapes for ONE ordered sequence of layer-4 effects, so both
+ *  are merged onto a single `seq` axis and replayed together: a set wipes
+ *  whatever earlier entries produced, an add appends to it. Replaying the adds
+ *  unconditionally on top of the newest set makes an earlier add outlive a
+ *  later set, which is exactly the pass-count-dependent answer issue #1715 is
+ *  about.
+ *
+ *  Ties (equal `seq`, and legacy records persisted before the timestamp
+ *  existed, which read as 0) keep sets-before-adds, the pre-#1715 order.
+ *
+ *  Read `target.grantedSubtypes` / `grantedSubtypesAdd` AFTER they have been
+ *  updated: this composes the record, it does not mutate it. Callers that
+ *  clear `printedSubtypes` must do so after calling.
+ *
+ *  Lives here rather than in `state.ts` so the identity-swap replay
+ *  (`gre/identitySwap.ts`, issue #1705) can reuse the ONE composer without an
+ *  import cycle — `state.ts` imports `copy.ts`, which imports `identitySwap`. */
+export function composeMaterializedSubtypes(
+    target: CardInstanceState
+): string[] {
+    const sets = target.grantedSubtypes ?? [];
+    const adds = target.grantedSubtypesAdd ?? [];
+    if (sets.length === 0 && adds.length === 0) {
+        return [...(target.printedSubtypes ?? target.subtypes)];
+    }
+    // CR 305.7 (issue #1883) — a `subtype-set` "set" entry on a LAND replaces
+    // only the land's old LAND TYPES; a subtype belonging to a different card
+    // type (Saga on `Enchantment Land — Urza's Saga`) survives. A non-land
+    // target (Figure of Destiny's "becomes a Kithkin Spirit") has no CR 305.7
+    // analogue and keeps the prior full wholesale replace.
+    const isLandTarget = target.types.includes("Land");
+    type Layer4Entry =
+        | { seq: number; set: string[] }
+        | { seq: number; add: string };
+    const entries: Layer4Entry[] = [
+        ...sets.map((g) => ({ seq: g.seq ?? 0, set: g.subtypes })),
+        ...adds.map((a) => ({ seq: a.seq ?? 0, add: a.subtype })),
+    ];
+    // Stable sort: `Array.prototype.sort` is stable per spec, so equal-seq
+    // entries keep the sets-then-adds construction order above.
+    entries.sort((a, b) => a.seq - b.seq);
+    let composed = [...(target.printedSubtypes ?? target.subtypes)];
+    for (const entry of entries) {
+        if ("set" in entry) {
+            composed = isLandTarget
+                ? applyLandTypeReplacement(composed, entry.set)
+                : [...entry.set];
+        } else if (!composed.includes(entry.add)) {
+            composed.push(entry.add);
+        }
+    }
+    return composed;
+}
+
 /** Whether a card can be cast at **instant speed** (CR 601.3a / 702.8) — an
  *  Instant, or any card with the Flash keyword. Sorcery-speed-only cards
  *  (creatures, sorceries, and non-flash permanents) return false: they may be

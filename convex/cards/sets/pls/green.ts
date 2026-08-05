@@ -897,7 +897,7 @@ export const stoneKavu: CardDefinition = {
 // `interveningIf` against the LIVE battlefield permanent, and a CR 400.7
 // blink returns the same instance id with `kickerPayments` already cleared
 // by `resetBattlefieldTransientState`, fizzling a trigger that must resolve
-// off CR 603.10 last known information.
+// off CR 608.2h last known information.
 export const thornscapeBattlemage: CardDefinition = {
     id: "13f24f89-3996-4740-a6c9-d26b8869554b", // PLS 94
     rarity: "uncommon",

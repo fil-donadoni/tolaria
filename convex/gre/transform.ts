@@ -45,6 +45,7 @@ import {
 } from "../cards";
 import { resolveTokenStaticEffects } from "../cards/tokenStaticEffects";
 import type { CardBackFace, ManaCost, TokenSpec } from "../cards/types";
+import { rebuildCopiableValuesAndReplayOverlays } from "./identitySwap";
 import type { CardInstanceState } from "./state";
 
 /** Reshapes a `CardBackFace` into the `TokenSpec` shape `tokenDefinitionId`
@@ -152,13 +153,18 @@ export function transformPermanent(card: CardInstanceState): void {
         const backId = registerBackFaceDefinition(backFace);
         card.transformedFrom = frontId;
         card.card = { id: backId };
-        card.types = [...backFace.types];
-        card.subtypes = backFace.subtypes ? [...backFace.subtypes] : [];
-        card.power = backFace.power;
-        card.toughness = backFace.toughness;
-        card.staticAbilities = backFace.staticAbilities
-            ? [...backFace.staticAbilities]
-            : [];
+        // CR 701.27b / 712 — transforming is the SAME permanent (CR 400.7
+        // needs a zone change), so only its copiable values change; the
+        // permanent's own layers 2–7 are replayed on top (issue #1705).
+        rebuildCopiableValuesAndReplayOverlays(card, {
+            types: [...backFace.types],
+            subtypes: backFace.subtypes ? [...backFace.subtypes] : [],
+            power: backFace.power,
+            toughness: backFace.toughness,
+            staticAbilities: backFace.staticAbilities
+                ? [...backFace.staticAbilities]
+                : [],
+        });
         card.transformed = true;
     } else {
         const frontId = card.transformedFrom;
@@ -166,13 +172,15 @@ export function transformPermanent(card: CardInstanceState): void {
         const frontDef = tryGetDefinition(frontId);
         if (!frontDef) return;
         card.card = { id: frontId };
-        card.types = [...frontDef.types];
-        card.subtypes = frontDef.subtypes ? [...frontDef.subtypes] : [];
-        card.power = frontDef.power;
-        card.toughness = frontDef.toughness;
-        card.staticAbilities = frontDef.staticAbilities
-            ? [...frontDef.staticAbilities]
-            : [];
+        rebuildCopiableValuesAndReplayOverlays(card, {
+            types: [...frontDef.types],
+            subtypes: frontDef.subtypes ? [...frontDef.subtypes] : [],
+            power: frontDef.power,
+            toughness: frontDef.toughness,
+            staticAbilities: frontDef.staticAbilities
+                ? [...frontDef.staticAbilities]
+                : [],
+        });
         delete card.transformed;
         delete card.transformedFrom;
     }

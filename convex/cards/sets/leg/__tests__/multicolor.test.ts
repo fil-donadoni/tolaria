@@ -1151,6 +1151,127 @@ describe("Elder Dragon Legends (upkeep: sacrifice unless pay {C}{C}{C}, CR 603.6
     });
 });
 
+describe("Nicol Bolas (damage-to-opponent discard, CR 603.2, issue #1831)", () => {
+    it("carries the damage-discard trigger in its definition", () => {
+        expect(
+            nicolBolas.triggeredAbilities?.some(
+                (a) => a.id === "nicol-bolas-damage-discard"
+            )
+        ).toBe(true);
+    });
+
+    it("fires only on ITS OWN damage dealt to an opponent — combat or non-combat alike", () => {
+        const bolas = makeInstance(nicolBolas.id, {
+            id: "bolas",
+            controllerId: "p1",
+        });
+        const trigger = nicolBolas.triggeredAbilities!.find(
+            (a) => a.id === "nicol-bolas-damage-discard"
+        )!;
+        const base = {
+            type: "DAMAGE_DEALT" as const,
+            sourceInstanceId: "bolas",
+            sourceControllerId: "p1",
+            target: { type: "player" as const, id: "p2" },
+            amount: 7,
+            isCombat: true,
+        };
+        // Combat damage to the opponent — fires.
+        expect(trigger.matches(base, bolas)).toBe(true);
+        // Non-combat damage to the opponent — Oracle says "deals damage",
+        // not "deals combat damage" (unlike Blazing Specter), so this MUST
+        // still fire.
+        expect(trigger.matches({ ...base, isCombat: false }, bolas)).toBe(true);
+        // Damage from a different source — does not fire.
+        expect(
+            trigger.matches({ ...base, sourceInstanceId: "other" }, bolas)
+        ).toBe(false);
+        // Damage to a permanent, not a player — does not fire.
+        expect(
+            trigger.matches(
+                { ...base, target: { type: "permanent" as const, id: "x" } },
+                bolas
+            )
+        ).toBe(false);
+        // Damage to Bolas's OWN controller (not an opponent) — does not fire.
+        expect(
+            trigger.matches(
+                { ...base, target: { type: "player" as const, id: "p1" } },
+                bolas
+            )
+        ).toBe(false);
+    });
+
+    it("makes the damaged opponent discard their ENTIRE hand, not a chosen subset", () => {
+        const bolas = makeInstance(nicolBolas.id, {
+            id: "bolas",
+            controllerId: "p1",
+        });
+        const oppCard1 = makeInstance(grizzlyBears.id, {
+            id: "opp-hand-1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const oppCard2 = makeInstance(grizzlyBears.id, {
+            id: "opp-hand-2",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bolas] }),
+                makePlayer("p2", { hand: [oppCard1, oppCard2] }),
+            ],
+        });
+        resolveTrigger(state, bolas, "nicol-bolas-damage-discard", {
+            type: "DAMAGE_DEALT",
+            sourceInstanceId: "bolas",
+            sourceControllerId: "p1",
+            target: { type: "player", id: "p2" },
+            amount: 7,
+            isCombat: true,
+        } as never);
+        expect(state.players[1].hand).toHaveLength(0);
+        expect(
+            state.players[1].graveyard.some((c) => c.id === "opp-hand-1")
+        ).toBe(true);
+        expect(
+            state.players[1].graveyard.some((c) => c.id === "opp-hand-2")
+        ).toBe(true);
+    });
+
+    it("wire format: the discard is visible client-side (hand count drops)", () => {
+        const bolas = makeInstance(nicolBolas.id, {
+            id: "bolas",
+            controllerId: "p1",
+        });
+        const oppCard = makeInstance(grizzlyBears.id, {
+            id: "opp-hand-1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bolas] }),
+                makePlayer("p2", { hand: [oppCard] }),
+            ],
+        });
+        resolveTrigger(state, bolas, "nicol-bolas-damage-discard", {
+            type: "DAMAGE_DEALT",
+            sourceInstanceId: "bolas",
+            sourceControllerId: "p1",
+            target: { type: "player", id: "p2" },
+            amount: 7,
+            isCombat: true,
+        } as never);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[1].hand).toHaveLength(0);
+    });
+});
+
 describe("Arcades Sabboth (anthem + {W} pump, CR 613.4c / 611.1, issue #1830)", () => {
     function setup() {
         const arcades = makeInstance(arcadesSabboth.id, {
