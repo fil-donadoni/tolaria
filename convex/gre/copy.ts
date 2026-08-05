@@ -17,6 +17,7 @@ import {
     abilityLossTimestamp,
     grantOutrankedByAbilityLoss,
 } from "./activatedAbilities";
+import { rebuildCopiableValuesAndReplayOverlays } from "./identitySwap";
 import type { CardInstanceState } from "./state";
 
 /** Re-exported alias so engine call sites import copy-option typing from the
@@ -51,14 +52,16 @@ export function applyCopy(
     recipient.copiedFrom = printedId;
     recipient.card = { ...(recipient.card as object), id: sourceDefId };
 
-    recipient.types = [...def.types, ...(opts.additionalTypes ?? [])];
-    recipient.subtypes = [
-        ...(def.subtypes ?? []),
-        ...(opts.additionalSubtypes ?? []),
-    ];
-    recipient.power = def.power;
-    recipient.toughness = def.toughness;
-    recipient.staticAbilities = [...(def.staticAbilities ?? [])];
+    // CR 707.2 / 613.1a — the copy effect replaces the recipient's COPIABLE
+    // VALUES only. The recipient is the same object (CR 400.7 needs a zone
+    // change), so its own live layers 2–7 are replayed on top (issue #1705).
+    rebuildCopiableValuesAndReplayOverlays(recipient, {
+        types: [...def.types, ...(opts.additionalTypes ?? [])],
+        subtypes: [...(def.subtypes ?? []), ...(opts.additionalSubtypes ?? [])],
+        power: def.power,
+        toughness: def.toughness,
+        staticAbilities: [...(def.staticAbilities ?? [])],
+    });
 
     if (!copyColor) {
         // CR 707.9d "except it doesn't copy that creature's color": keep the
@@ -99,11 +102,13 @@ export function revertCopy(card: CardInstanceState): void {
     const def = tryGetDefinition(printedId);
     card.card = { ...(card.card as object), id: printedId };
     if (def) {
-        card.types = [...def.types];
-        card.subtypes = [...(def.subtypes ?? [])];
-        card.power = def.power;
-        card.toughness = def.toughness;
-        card.staticAbilities = [...(def.staticAbilities ?? [])];
+        rebuildCopiableValuesAndReplayOverlays(card, {
+            types: [...def.types],
+            subtypes: [...(def.subtypes ?? [])],
+            power: def.power,
+            toughness: def.toughness,
+            staticAbilities: [...(def.staticAbilities ?? [])],
+        });
     }
     // Drop any triggered-ability grant the copy effect itself installed
     // (`CopyEffectOptions.additionalTriggeredAbilityIds` — Phantasmal Image's

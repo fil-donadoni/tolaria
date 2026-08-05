@@ -1736,14 +1736,17 @@ export const wallOfPineNeedles: CardDefinition = {
 // layer-6 keyword removal via `removeStaticAbilities`, applied to every creature
 // on every battlefield.)
 //
-// DEFERRED (non-snow capability, tracked-by: #1212): the second ability —
-// "Sacrifice a snow land: Return this card from your graveyard to your hand." — is an ability ACTIVATED
-// FROM THE GRAVEYARD (CR 113.4 / 307.4-style graveyard-activated ability). The
-// engine's `activateAbility` only scans battlefield permanents, so abilities on
-// cards in the graveyard cannot be activated — a general engine gap unrelated to
-// Snow (the snow-land sacrifice cost itself is now buildable). Whiteout's main
-// spell ships; the graveyard-recursion ability waits on graveyard-activation
-// support. Flagged for a follow-up.
+// DEFERRED (tracked-by: #2235): the second ability — "Sacrifice a snow land:
+// Return this card from your graveyard to your hand." (CR 113.6b — an ability
+// that states which zone it functions in) — is simply not declared on this
+// card yet.
+//
+// The old justification here ("the engine's `activateAbility` only scans
+// battlefield permanents") was FALSE and was corrected in the 2026-08-05 #1212
+// audit: `activateFromGraveyard` ships (Ashen Ghoul, `ice/black.ts`), the snow
+// sacrifice cost ships (`sacrificeFilter` + `supertypes`, Sunstone), and
+// `moveZone` reaches `$source` in the graveyard. This is card work with no
+// engine dependency.
 export const whiteout: CardDefinition = {
     id: "a8645e4f-eaa8-4420-a6a3-eb53c311fab1",
     name: "Whiteout",

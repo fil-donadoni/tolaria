@@ -598,16 +598,23 @@ export const dwarvenSong: CardDefinition = {
     targetRequirement: { type: "Creature", count: { min: 1 } },
     // Migrated resolve()→effects[] (ADR 0045): `{ set: "targets" }` iterates
     // the WHOLE variable-count announced target set (issue #1083), each
-    // member set via `setColor`. No `duration` — mirrors the original
-    // `setColorOverride` call exactly (no end-of-turn revert was wired despite
-    // the oracle text; preserved as-is, a pure refactor of the existing
-    // closure, not a behaviour fix — same shape as Sylvan Paradise, `green.ts`).
+    // member set via `setColor` with an end-of-turn duration (CR 305.7 /
+    // 611.2c — the colour override expires at cleanup via
+    // `tickAllDurations`/`finalizeCleanup`, mirroring the sibling colour-
+    // change spells `leg/blue.ts` and `leg/black.ts`). Fixed issue #1833
+    // (the duration was previously dropped, making the change permanent —
+    // same shape as Sylvan Paradise, `green.ts`, issue #1834).
     effects: [
         {
             op: "forEach",
             select: { set: "targets" },
             effects: [
-                { op: "setColor", target: { ref: "$each" }, colors: ["R"] },
+                {
+                    op: "setColor",
+                    target: { ref: "$each" },
+                    colors: ["R"],
+                    duration: { phase: "end-of-turn" },
+                },
             ],
         },
     ],

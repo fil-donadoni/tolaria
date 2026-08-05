@@ -358,6 +358,39 @@ describe("Sylvan Paradise (creatures become green EOT, CR 305.7 layer 5)", () =>
         )!;
         expect(slim.colorOverride).toEqual(["G"]);
     });
+
+    // Issue #1834: the color change is "until end of turn" (CR 305.7) — a
+    // permanent override is a rules violation for every color-matters
+    // interaction (protection, devotion, "target black creature", …) for
+    // the rest of the game.
+    it("reverts to its original color at cleanup (CR 305.7, issue #1834)", () => {
+        const apes = makeInstance(barbaryApes.id, {
+            id: "apes",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [apes] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, sylvanParadise.id, "p1", [
+            { type: "permanent", id: "apes" },
+        ]);
+        resolveTopOfStack(state);
+        const live = state.players[0].battlefield.find((c) => c.id === "apes")!;
+        expect(live.colorOverride).toEqual(["G"]);
+
+        state.phase = "CLEANUP";
+        finalizeCleanup(state);
+
+        expect(live.colorOverride ?? []).toEqual([]);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "apes"
+        )!;
+        expect(slim.colorOverride ?? []).toEqual([]);
+    });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

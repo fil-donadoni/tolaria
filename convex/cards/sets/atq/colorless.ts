@@ -293,17 +293,17 @@ export const obeliskOfUndoing: CardDefinition = {
 // library, then shuffleLibrary randomizes — exactly "shuffle your graveyard
 // into your library".
 //
-// PRIMITIVE GAP / DIVERGENCE (flagged, no engine change): there is no `exile`
-// activation-cost kind on ActivatedAbility (only tap/mana/sacrifice/life/
-// counter/discard). "Exile this artifact" is a *cost*, so strictly it should be
-// paid at activation; here it's modeled inside resolve() via
-// `exile(sourceInstanceId)`. Practical effect is identical for this card — the
-// only observable difference is that, with the cost-vs-effect distinction, the
-// source would already be in exile while the ability is on the stack. Since the
-// ability shuffles the graveyard (not the source) and exiling self has no
-// stack-interactive payoff, the resolve-body model is behaviourally equivalent
-// for the current card pool. A general `exile`/`exileSelf` cost kind is
-// deferred to a feature tranche (tracked-by: #1212).
+// PRIMITIVE GAP / DIVERGENCE (flagged, no engine change, tracked-by: #2232):
+// there is no `exile` activation-cost kind on ActivatedAbility (only
+// tap/mana/sacrifice/life/counter/discard/exile-from-graveyard). "Exile this
+// artifact" is a *cost* (CR 118.1 / 601.2h), so it should be paid at
+// activation; here it's modeled inside resolve() via `exile(sourceInstanceId)`.
+// The difference IS observable, contrary to what this note claimed before the
+// 2026-08-05 audit: today the Cane stays on the battlefield while the ability
+// is on the stack, so an opponent can destroy it in response — and `exile`'s
+// `findOnBattlefield` lookup then silently no-ops on resolution, leaving the
+// Cane in the graveyard instead of exile. Under a real cost it is already gone
+// when the ability is announced.
 export const feldonsCane: CardDefinition = {
     id: "bb6af436-bcfd-4d47-a1aa-e84b587a725a",
     rarity: "uncommon",
@@ -1055,14 +1055,19 @@ export const batteringRam: CardDefinition = {
 // creature gets -1/-1 and gains your choice of banding, flying, first strike,
 // or trample until end of turn." (CR 611.1 temp P/T mod + keyword grant.)
 //
-// DIVERGENCE (flagged, no engine change, tracked-by: #1212): the engine has no
-// "choose one named option from a list" resolution-choice kind (ZonePickKind is all zone-picks;
-// `modes` are spell-cast-time only). The single modal ability is therefore
+// DIVERGENCE (flagged, tracked-by: #2233): the single printed ability is
 // modeled as FOUR fixed-keyword activated abilities — the player picks which
-// ability to activate, choosing the keyword that way. Each ability applies the
-// same -1/-1 and grants its own keyword until end of turn. Behaviorally
-// equivalent to the printed "your choice of …"; a general `choose-option`
-// choice kind would let it collapse back to one ability and is deferred.
+// ability to activate, choosing the keyword that way. Each applies the same
+// -1/-1 and grants its own keyword until end of turn.
+//
+// The old justification here ("the engine has no choose-one-named-option
+// resolution-choice kind") was FALSE and was corrected in the 2026-08-05 #1212
+// audit: the `optionChoice` Op / `option-pick` choice kind ships (see
+// `cards/abilities/chooseColor.ts`). The choice belongs at RESOLUTION (CR
+// 608.2) — this ability is NOT modal under CR 700.2, which requires a bulleted
+// option list, so `ActivatedAbility.modes` (announcement-time) would be wrong
+// too. Today's four-ability split puts the choice at announcement, which an
+// opponent can see before responding.
 const URZAS_AVENGER_KEYWORDS = [
     "banding",
     "flying",

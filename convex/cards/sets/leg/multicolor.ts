@@ -9,6 +9,7 @@ import { EFFECT_AFFECTS_SELF } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 import { rampageTrigger } from "../../abilities/triggers/rampageTrigger";
+import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Vanilla legendary creatures (CR 205.4a — Legendary supertype; CR 704.5j legend
@@ -1030,11 +1031,19 @@ export const arcadesSabboth: CardDefinition = {
     ],
 };
 
-// Nicol Bolas — {2}{U}{U}{B}{B}{R}{R} 7/7 Elder Dragon. C7 wires its Flying
-// keyword + the upkeep "sacrifice unless you pay {U}{B}{R}" tax (CR 603.6a +
-// CR 117.3a). Its "deals damage to an opponent → that player discards their
-// hand" trigger is a free-tranche ability owned by #369's batch — not part of
-// the C7 maintenance-cost cluster — and is added there; oracleText is full.
+// Nicol Bolas — {2}{U}{U}{B}{B}{R}{R} 7/7 Elder Dragon. Flying + the upkeep
+// "sacrifice unless you pay {U}{B}{R}" tax (CR 603.6a + CR 117.3a). Its
+// signature "deals damage to an opponent → that player discards their hand"
+// clause (issue #1831) is `damageDealtTrigger` (CR 603.2 / 120.3, ADR 0049),
+// the same factory The Fallen (`drk/black.ts`) uses for "deals damage to an
+// opponent": `source: "self"` + `target: { kind: "player", player: {
+// relation: "opponent" } }`, and — deliberately — no `isCombat` constraint,
+// unlike Blazing Specter's (`inv/multicolor.ts`, issue #1077) `isCombat:
+// true`-gated sibling: Oracle says "deals damage", not "deals COMBAT
+// damage", so a non-combat damage source must trigger it too. `{ op:
+// "discard", player: { ref: "$event.damagedPlayer" } }` with no `cards`
+// field discards the WHOLE hand (`interpreter.ts`'s `discard` Op, issue
+// #1279's bulk shape), not a player-chosen subset.
 export const nicolBolas: CardDefinition = {
     id: "729feb73-4581-4f9d-ba47-bece72481b86",
     rarity: "rare",
@@ -1054,6 +1063,19 @@ export const nicolBolas: CardDefinition = {
             cardName: "Nicol Bolas",
             cost: { U: 1, B: 1, R: 1 },
             costText: "{U}{B}{R}",
+        }),
+        damageDealtTrigger({
+            id: "nicol-bolas-damage-discard",
+            oracleText:
+                "Whenever Nicol Bolas deals damage to an opponent, that player discards their hand.",
+            source: "self",
+            target: { kind: "player", player: { relation: "opponent" } },
+            effects: [
+                {
+                    op: "discard",
+                    player: { ref: "$event.damagedPlayer" },
+                },
+            ],
         }),
     ],
 };
