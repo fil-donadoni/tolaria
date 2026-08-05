@@ -60,6 +60,8 @@ import {
 import {
     regenerateOrDestroy,
     removePermanentTo,
+    removeFromZone,
+    emitSpellCastEvent,
     resolveTopOfStack,
     emitPermanentTapped,
     processPendingActionTriggers,
@@ -68,7 +70,10 @@ import {
     unapplySourceStaticEffects,
     type CardInstanceState,
     type GameState,
+    type StackItem,
 } from "../../../../gre/state";
+import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
+import { getCardByName } from "../../../catalogue";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -1528,6 +1533,84 @@ describe("Verduran Enchantress (may draw on enchantment cast)", () => {
                 self
             )
         ).toBe(false);
+    });
+
+    // Regression (issue #1989): reported sequence — an enchantment (Mirri's
+    // Guile, tmp/green.ts) is returned to hand (CR 400.7 bounce), then RECAST
+    // from hand the following turn with Verduran Enchantress already on the
+    // battlefield. The user reported no draw. Drives the REAL production path
+    // end to end rather than a hand-built event: `removePermanentTo` (the
+    // primitive `SpellContext.returnToHand` calls) for the bounce, then the
+    // exact commit sequence `announceCast`'s no-target branch uses —
+    // `removeFromZone(hand)` → push onto `state.stack` → `emitSpellCastEvent`
+    // → `processPendingActionTriggers` (game.ts:7586-7627) — so a bug in
+    // either the bounce path or the cast-commit choke point would surface
+    // here, not just in the trigger's own `matches()` unit (already covered
+    // above).
+    it("fires the may-draw trigger when the enchantment is RECAST after being bounced to hand (issue #1989)", () => {
+        const mirrisGuile = getCardByName("Mirri's Guile");
+        const guile = makeInstance(mirrisGuile.id, {
+            id: "guile",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const enchantress = makeInstance(verduranEnchantress.id, {
+            id: "vEn",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const topOfLibrary = makeInstance(forest.id, {
+            id: "topLib",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [guile, enchantress],
+                    library: [topOfLibrary],
+                }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+        });
+
+        // CR 400.7 — opponent bounces Mirri's Guile to its owner's hand.
+        removePermanentTo(state, "guile", "hand");
+        const player = state.players[0]!;
+        expect(player.hand.map((c) => c.id)).toContain("guile");
+        expect(player.battlefield.map((c) => c.id)).not.toContain("guile");
+
+        // Next turn: recast it from hand. Mirrors the exact no-target commit
+        // branch in `announceCast` (game.ts) — `removeFromZone` onto the
+        // stack, then the CR 601.2i cast-trigger choke point.
+        const card = removeFromZone(player, "guile", "hand");
+        const stackItem: StackItem = { ...card, castById: "p1" };
+        state.stack.push(stackItem);
+        emitSpellCastEvent(state, stackItem);
+        processPendingActionTriggers(state);
+
+        // The cast trigger goes ON TOP of the spell (CR 603.2 — it resolves
+        // before the spell it triggered from).
+        expect(state.stack).toHaveLength(2);
+        const top = state.stack[state.stack.length - 1]!;
+        expect(
+            (top as StackItem & { triggeredAbilityId?: string })
+                .triggeredAbilityId
+        ).toBe("verduran-enchantress-draw");
+
+        // Resolve the trigger: it suspends on the cost-free "you may" gate.
+        expect(resolveTopOfStack(state)).toBeNull();
+        const head = state.pendingChoices?.[0];
+        expect(head?.kind).toBe("may-pay");
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+
+        // The card drew — the library's top card landed in hand.
+        expect(state.players[0]!.hand.map((c) => c.id)).toContain("topLib");
+        expect(state.players[0]!.library).toHaveLength(0);
     });
 });
 
