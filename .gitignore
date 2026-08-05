@@ -44,3 +44,7 @@ data/worklists/*.resolved.jsonl
 # with `bun run catalogue:build` when a set ships.
 data/full-catalogue.json.gz
 .claude/telemetry/
+# Subagent receipts (issue #2182) — batch-scoped run artifacts, not source. The
+# durable record of a batch is the merged PRs; these are the telemetry the
+# merge-train (#2185) and the scorecard (#2187) read while the run is alive.
+.claude/receipts/
