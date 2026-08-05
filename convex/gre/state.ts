@@ -16449,31 +16449,7 @@ export function moveCard(
     player: PlayerState,
     cardInstanceId: string,
     from: Exclude<Zone, "stack">,
-    to: Exclude<Zone, "stack">,
-    /** ADR 0026 / issue #1721 — when supplied, stamps persistent knowledge on
-     *  a card crossing from a PUBLIC zone (battlefield/graveyard/exile) into a
-     *  HIDDEN one (hand/library): every player watched the object sit in and
-     *  leave that public zone (CR 400.3), so landing it in a hidden zone does
-     *  not retroactively un-reveal it — the SAME reasoning and mechanism
-     *  `removePermanentTo`'s hand branch and `counter()`'s library-top/hand
-     *  branches already apply (issue #1696), reused here rather than
-     *  reinvented. Optional because most callers of this general mover go
-     *  hidden→hidden or hidden→public, where the gate below never fires and
-     *  `state` is not needed; `moveCardWithGraveyardReplacement` (backing
-     *  `SpellContext.moveCardById` / the `moveZone` Op — Regrowth, Raise Dead,
-     *  Eternal Witness, Drafna's Restoration) passes it because that IS the
-     *  graveyard/exile → hand/library path this closes.
-     *
-     *  Residual known gap, not exercised by any shipped card today: a card
-     *  that left exile FACE DOWN (`exileFaceDown`, `knownTo` scoped to one
-     *  knower — CR 406.3 impulse-draw) and later moved from exile to hand
-     *  through THIS gate would be stamped known to every player, over-
-     *  revealing it. No current card routes a face-down-exiled card back to
-     *  hand via `moveCardById`/`moveZone` — impulse-draw plays it straight
-     *  from exile — so this is latent, not reachable; the wider exile
-     *  `knownTo`/face-down overload is the adjacent, explicitly non-blocking
-     *  trap tracked in issue #1721's own body. */
-    state?: GameState
+    to: Exclude<Zone, "stack">
 ): CardInstanceState {
     const fromField = ZONE_TO_FIELD[from];
     const toField = ZONE_TO_FIELD[to];
@@ -16518,14 +16494,6 @@ export function moveCard(
     const targetZone = player[toField] as CardInstanceState[];
     targetZone.push(card);
 
-    // ADR 0026 / issue #1721 — public→hidden retention, see the `state` param
-    // doc above. `player` is always the card's own owner (every zone this
-    // function moves between is a single player's private array), so
-    // `player.id` is the correct `zoneOwnerId` for the grant.
-    if (state && PUBLIC_ZONES.has(from) && !PUBLIC_ZONES.has(to)) {
-        grantKnowledgeToAll(state, player.id, [card.id]);
-    }
-
     return card;
 }
 
@@ -16536,7 +16504,33 @@ export function moveCard(
  *  discard-alikes, library manipulation), so a matching replacement
  *  (Yawgmoth's Will / Dauthi Voidwalker) can redirect the move to exile
  *  before it lands. Falls straight through to `moveCard` for any other
- *  destination. */
+ *  destination.
+ *
+ *  ADR 0026 / issue #1721 (fail-closed shape, review round 2) — this is ALSO
+ *  the single chokepoint that stamps persistent knowledge when a card
+ *  crosses from a PUBLIC zone (battlefield/graveyard/exile) into a HIDDEN one
+ *  (hand/library): every player watched the object sit in and leave that
+ *  public zone (CR 400.3), so landing it in a hidden zone does not
+ *  retroactively un-reveal it — the SAME reasoning and mechanism
+ *  `removePermanentTo`'s hand branch and `counter()`'s library-top/hand
+ *  branches already apply (issue #1696), reused here rather than reinvented.
+ *  `moveCard` itself takes no `state` and performs no stamping — moving the
+ *  gate here (rather than an optional `state?: GameState` param on the more
+ *  general `moveCard`) makes it fail CLOSED: `state` is required on this
+ *  function's own signature, so there is no unstamped call shape to fall
+ *  back to at this chokepoint. `moveCardById` / the `moveZone` Op (Regrowth,
+ *  Raise Dead, Eternal Witness, Drafna's Restoration) both route through
+ *  here, which is the graveyard/exile → hand/library path this closes.
+ *
+ *  Face-down exemption (CR 406.3): a card that left exile FACE DOWN
+ *  (`exileFaceDownCard`, `knownTo` scoped to its one knower — impulse-draw)
+ *  and is later moved from exile to hand/library through this chokepoint
+ *  must NOT be stamped known to every player — that would over-reveal it.
+ *  `projectExileCard` already treats a non-empty `knownTo` on an exiled card
+ *  as the face-down marker (`gameProjections.ts`); reuse that same signal
+ *  here rather than inventing a new one. Memory Jar (`ulg/colorless.ts`) is
+ *  the shipped card that exercises this: it exiles every hand face down,
+ *  then returns them via `moveCardById`. */
 function moveCardWithGraveyardReplacement(
     state: GameState,
     player: PlayerState,
@@ -16544,8 +16538,17 @@ function moveCardWithGraveyardReplacement(
     from: Exclude<Zone, "stack">,
     to: Exclude<Zone, "stack">
 ): CardInstanceState {
-    if (to !== "graveyard")
-        return moveCard(player, cardInstanceId, from, to, state);
+    if (to !== "graveyard") {
+        const moved = moveCard(player, cardInstanceId, from, to);
+        if (PUBLIC_ZONES.has(from) && !PUBLIC_ZONES.has(to)) {
+            const isFaceDownExile =
+                from === "exile" && (moved.knownTo?.length ?? 0) > 0;
+            if (!isFaceDownExile) {
+                grantKnowledgeToAll(state, player.id, [moved.id]);
+            }
+        }
+        return moved;
+    }
     const sourceCard = (
         player[ZONE_TO_FIELD[from]] as CardInstanceState[]
     ).find((c) => c.id === cardInstanceId);
@@ -16559,7 +16562,7 @@ function moveCardWithGraveyardReplacement(
     // CR 603.10 — snapshot the types BEFORE the move; a "permanent card was put
     // into a graveyard" filter reads last-known information.
     const movedTypes = sourceCard ? [...sourceCard.types] : undefined;
-    const moved = moveCard(player, cardInstanceId, from, destination, state);
+    const moved = moveCard(player, cardInstanceId, from, destination);
     if (destination !== "graveyard") {
         applyGraveyardRedirectCounters(moved, tagCounters);
         // A CR 614 graveyard-bound replacement redirected the card to exile: it

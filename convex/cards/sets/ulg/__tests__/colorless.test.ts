@@ -226,4 +226,37 @@ describe("Memory Jar ({T}, Sacrifice: each player exiles hand face down + draws 
         expect(state.players[0].exile).toHaveLength(0);
         expect(state.players[1].exile).toHaveLength(0);
     });
+
+    // Review round 2, issue #1721 — the generic public→hidden knowledge gate
+    // (`moveCardWithGraveyardReplacement`, backing `ctx.moveCardById` here)
+    // must NOT fire for a card that left exile FACE DOWN: the gate over-
+    // firing stamped every returned card `knownTo` EVERY player, so the
+    // opponent's whole exiled-then-returned hand became permanently visible.
+    // This drives the real card path (activate → schedule → fire the delayed
+    // trigger → resolve, exactly like the test above) and asserts through
+    // the REAL wire projection that neither player's returned hand leaks to
+    // the other.
+    it("the returned hand stays hidden from the opponent through the wire projection (issue #1721 round 2 — no over-reveal on the face-down return)", () => {
+        const { state, jar } = setup();
+        activate(state, jar);
+        fireDelayedTriggers(state, "next-end-step");
+        resolveTopOfStack(state);
+
+        expect(state.players[0].hand.map((c) => c.id).sort()).toEqual([
+            "h1",
+            "h2",
+            "h3",
+        ]);
+
+        // p2 viewing p1's returned hand: every slot must be hidden (null) —
+        // NOT the real card identity. Before the fix, `knownTo` on each
+        // returned card became `["p1", "p2"]`, so this asserted `p1` and
+        // failed with the real ids visible instead of `[null, null, null]`.
+        const asP2 = projectPublicState(state, 1, "p2");
+        expect(asP2.players[0].hand).toEqual([null, null, null]);
+
+        // Symmetric check: p1 must not see p2's returned hand either.
+        const asP1 = projectPublicState(state, 1, "p1");
+        expect(asP1.players[1].hand).toEqual([null, null]);
+    });
 });
