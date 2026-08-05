@@ -600,3 +600,124 @@ describe("hooks are wired into settings.json", () => {
         ).toEqual([]);
     });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Agent spawn policy (`spawn-guard.sh`) — the model tier and the role are
+// DECLARED. Both rules replace a CLAUDE.md paragraph that measurably did not
+// hold: 12% of spawns passed no model, and 55% of agent tokens could not be
+// attributed to a role.
+//
+// Asserted in both directions, same as every rule above: a guard that denies
+// every spawn would stop the loop dead while looking exactly like a working one.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const SPAWN_GUARD = path.join(HOOKS, "spawn-guard.sh");
+
+function spawn(input: Record<string, unknown>) {
+    return {
+        session_id: "sess-1",
+        hook_event_name: "PreToolUse",
+        tool_name: "Agent",
+        tool_input: input,
+        cwd: REPO_ROOT,
+    };
+}
+
+describe("Agent spawns declare their model tier", () => {
+    it("denies a spawn with no model", () => {
+        const r = runHook(
+            SPAWN_GUARD,
+            spawn({ description: "implement #1", prompt: "x" })
+        );
+        expect(denied(r)).toBe(true);
+        expect(r.stderr).toMatch(/inherits THIS session's tier/);
+    });
+
+    it("allows the same spawn once a model is passed", () => {
+        expect(
+            denied(
+                runHook(
+                    SPAWN_GUARD,
+                    spawn({ description: "implement #1", model: "sonnet" })
+                )
+            )
+        ).toBe(false);
+    });
+
+    it("exempts `fork`, which cannot honour a model parameter", () => {
+        // A fork always inherits the parent model by design and the parameter
+        // is ignored — requiring one would deny a spawn that cannot comply.
+        expect(
+            denied(
+                runHook(
+                    SPAWN_GUARD,
+                    spawn({
+                        description: "investigate the layer stack",
+                        subagent_type: "fork",
+                    })
+                )
+            )
+        ).toBe(false);
+    });
+});
+
+describe("Agent spawns declare their role", () => {
+    it("denies an empty description", () => {
+        const r = runHook(SPAWN_GUARD, spawn({ model: "sonnet" }));
+        expect(denied(r)).toBe(true);
+        expect(r.stderr).toMatch(/no `description`/);
+    });
+
+    it("denies a description with no role prefix", () => {
+        const r = runHook(
+            SPAWN_GUARD,
+            spawn({ description: "look at the bot driver", model: "sonnet" })
+        );
+        expect(denied(r)).toBe(true);
+        expect(r.stderr).toMatch(/does not start with a role/);
+    });
+
+    it("allows every role in the closed vocabulary", () => {
+        for (const role of [
+            "implement",
+            "review",
+            "fixup",
+            "investigate",
+            "research",
+            "verify",
+            "migrate",
+            "audit",
+        ]) {
+            const r = runHook(
+                SPAWN_GUARD,
+                spawn({
+                    description: `${role} #42 — something`,
+                    model: "sonnet",
+                })
+            );
+            expect(denied(r), `${role} was denied`).toBe(false);
+        }
+    });
+
+    it("matches the role case-insensitively", () => {
+        expect(
+            denied(
+                runHook(
+                    SPAWN_GUARD,
+                    spawn({ description: "Review PR #2211", model: "opus" })
+                )
+            )
+        ).toBe(false);
+    });
+
+    it("ignores tools that are not Agent", () => {
+        const r = runHook(SPAWN_GUARD, {
+            session_id: "s",
+            hook_event_name: "PreToolUse",
+            tool_name: "Bash",
+            tool_input: { command: "ls" },
+            cwd: REPO_ROOT,
+        });
+        expect(r.code).toBe(0);
+    });
+});

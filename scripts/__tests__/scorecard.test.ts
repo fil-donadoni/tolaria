@@ -125,8 +125,9 @@ describe("tokens by role", () => {
             implement: 100_000, // #101 40k + #102 60k
             review: 20_000, // 12k + 8k
             fixup: 15_000,
+            support: 0,
             orchestrator: 0, // no non-Agent post event carries tokens
-            unclassified: 5_000, // the Explore spawn: not a loop role
+            unclassified: 5_000, // the Explore spawn: pre-hook, no role prefix
         });
     });
 
@@ -157,6 +158,12 @@ describe("tokens by role", () => {
         expect(classifyRole(at("Fixup #12 after blocking"))).toBe("fixup");
         expect(classifyRole(at("Implement #12"))).toBe("implement");
         expect(classifyRole(at("work on #12"))).toBe("implement");
+        // The closed vocabulary `spawn-guard.sh` enforces classifies totally.
+        expect(classifyRole(at("investigate the layer stack"))).toBe("support");
+        expect(classifyRole(at("research CR 702.33"))).toBe("support");
+        expect(classifyRole(at("audit the tracker"))).toBe("support");
+        // Pre-hook telemetry keeps its looser fallback rather than being
+        // silently reclassified — ~190k historical events depend on it.
         expect(classifyRole(at("map the subsystem", "Explore"))).toBe(
             "unclassified"
         );
