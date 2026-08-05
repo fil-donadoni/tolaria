@@ -1,8 +1,14 @@
 ---
 title: Nine SpellContext reads locate the trigger source by a reused instance id, so a blinked source reads (or writes) the wrong object
 discoveredBy: 2042
-status: draft
+status: declined
 confidence: medium
+declinedReason: >
+    Not a standalone ticket: #2042 is still open, and all nine sites share the
+    one lookup expression its fix replaces — a triggerSourceId-aware
+    findOnBattlefield consulting the identity signal #2042 introduces. Recorded
+    as a scope note on #2042 (per-site LKI-vs-no-op table) so the fix lands
+    once instead of nine later patches.
 ---
 
 **What is wrong.** #2042 fixes the `interveningIf` re-check's use of

@@ -1,7 +1,8 @@
 ---
 title: search.ts reimplements play-land inline and skips both battlefield-entry hooks, so ISMCTS rollouts model land entry differently from the real engine
 discoveredBy: 2042
-status: draft
+status: triaged
+issue: 2257
 confidence: high
 ---
 
