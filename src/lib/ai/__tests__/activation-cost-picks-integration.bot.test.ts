@@ -25,6 +25,7 @@ import {
 } from "@convex/cards/__tests__/setup";
 import { getCardByName } from "@convex/cards";
 import { enumerateMoves } from "@convex/gre/moves";
+import { planActivationCostPicks } from "@convex/gre/activationCostPicks";
 import type { GameState } from "@convex/gre/state";
 import {
     activateAbilityOnState,
@@ -288,5 +289,46 @@ describe("activation sacrifice cost (CR 701.16 / 118.5)", () => {
             "angel",
             "wurm",
         ]);
+    });
+});
+
+// Issue #1209 — a `tapOtherFilter` cost carrying a COLOURS filter (Hand of
+// Justice, "Tap three untapped white creatures you control", CR 118.8) was
+// invisible to the pick planner: its candidate scan matched the raw
+// `CardInstanceState`, which carries no `colors` field, so the filter matched
+// nothing, `planActivationCostPicks` returned null, and `enumerateMoves` treated
+// the activation as illegal even with the board full of white creatures. The
+// server's own scan (`tapOtherCandidates`, `game.ts`) has always read the
+// EFFECTIVE colours through the layer system, so the two disagreed — the
+// activation was legal to announce and impossible to plan. Dead for the bot
+// rather than stalling, which is why no stall test caught it.
+describe("tap-other cost with a colours filter (CR 118.8 / 105.2)", () => {
+    const HAND_OF_JUSTICE = getCardByName("Hand of Justice");
+    const LIONS = getCardByName("Savannah Lions").id; // {W} 2/1 — white
+
+    it("plans the picks for Hand of Justice's white-creature cost", () => {
+        const source = makeInstance(HAND_OF_JUSTICE.id, {
+            id: "hoj",
+            controllerId: "p1",
+        });
+        const player = makePlayer("p1", {
+            battlefield: [
+                source,
+                ...["w1", "w2", "w3", "w4"].map((id) =>
+                    makeInstance(LIONS, { id, controllerId: "p1" })
+                ),
+            ],
+        });
+        const state = makeState({ players: [player, makePlayer("p2")] });
+        const picks = planActivationCostPicks(
+            state,
+            state.players[0],
+            source,
+            HAND_OF_JUSTICE.activatedAbilities![0]
+        );
+        expect(picks).not.toBeNull();
+        expect(picks?.tapOtherIds).toHaveLength(3);
+        // Never the source itself (CR 118.8 — "OTHER" permanents).
+        expect(picks?.tapOtherIds).not.toContain("hoj");
     });
 });

@@ -29,6 +29,18 @@
 // for a searchable choice, `useVsAiDriver` falls back to it rather than stall.
 
 import type { PendingChoiceKind } from "@convex/gre";
+import type { OwedPayment, ParkKind } from "@convex/gre/owedPayment";
+import type { OwedPaymentSubmission } from "@convex/gre/paymentPicks";
+import type {
+    CastExileChoiceView,
+    ConvokeChoiceView,
+    ManaSpendChoiceView,
+} from "@convex/gre/paymentPicks";
+import {
+    chooseCastExileCost,
+    chooseConvokeCreatures,
+    chooseManaSpendOrder,
+} from "@convex/gre/paymentPicks";
 import type { Color } from "@convex/cards/types";
 import {
     canAddCategorizedPick,
@@ -113,58 +125,32 @@ export type BotView = {
      *  `pendingCast`), so it is its own `BotView` field. Undefined unless the bot
      *  itself owes the pick. */
     convokeChoice?: ConvokeChoiceView;
+    /** ADR 0091 / issue #1209 — the FIRST payment park the bot owes on its own
+     *  in-progress cast / activation announcement, in canonical commit-gate
+     *  order (`nextOwedPayment`, `convex/gre/owedPayment.ts`), together with the
+     *  conservative submission that pays it (`pickForOwedPayment`). This is the
+     *  seam that makes a NEW park non-stalling without new bot wiring: the three
+     *  fields above are the parks that earned a tuned answer before it existed.
+     *  `submission` is null when no legal payment exists. Undefined when the bot
+     *  owes no park. */
+    owedPayment?: {
+        park: OwedPayment;
+        submission: OwedPaymentSubmission | null;
+    };
 };
 
-/** The parked Convoke creature picker (CR 702.51), reduced to what the bot's
- *  deterministic picker needs. Built by `buildBotView` from the bot's own
- *  untapped creatures + their colours. */
-export type ConvokeChoiceView = {
-    /** The bot's untapped creatures it may tap, each with its live colours. */
-    candidates: { id: string; colors: string[] }[];
-    /** Guild-hybrid pips convoke MUST satisfy (colour-matched). */
-    hybridPips: [string, string][];
-    /** Single-colour pips convoke must satisfy (usually empty). */
-    coloredPips: Record<string, number>;
-    /** Forced minimum creatures to tap. */
-    min: number;
-    /** Maximum creatures to tap. */
-    max: number;
-};
-
-/** The parked graveyard/hand exile CAST cost (CR 601.2g / 702.66 / 702.34a),
- *  reduced to what the bot's deterministic picker needs. Built by
- *  `buildBotView` from the bot's own visible graveyard/hand. */
-export type CastExileChoiceView = {
-    /** Ids the bot may pay with, in zone order (its own graveyard or hand, the
-     *  cast card itself already excluded). */
-    candidateIds: string[];
-    /** How many ids the bot MUST submit — the exact count for a fixed cost, the
-     *  forced `offsetGeneric.min` for delve (0 when delving is optional). */
-    required: number;
-    /** Upper bound on the submission (`offsetGeneric.max` for delve, otherwise
-     *  the same as `required`). */
-    maximum: number;
-};
-
-/** The parked generic-mana spend choice (#1444/#1446), reduced to what the
- *  deterministic flexibility heuristic needs. Built by `buildBotView` from the
- *  bot's own visible hand + mana pool. */
-export type ManaSpendChoiceView = {
-    /** How much generic mana is still owed (CR 601.2g). */
-    generic: number;
-    /** The pool colors the generic may legally be drawn from, in canonical
-     *  W,U,B,R,G,C order (mirrors `GenericSpendAmbiguity.candidateColors`). */
-    candidateColors: string[];
-    /** The bot's current pool amount for each candidate color — caps how much
-     *  of that color the spend order may draw. */
-    poolCounts: Record<string, number>;
-    /** Heuristic usefulness score per candidate color (issue #1446): the total
-     *  colored pips of that color required among the bot's OTHER remaining
-     *  hand spells this turn. The color scoring HIGHEST is the one worth
-     *  protecting — `chooseManaSpendOrder` drains it LAST, spending the most
-     *  disposable (least useful) color first to preserve flexibility. */
-    colorUsefulness: Record<string, number>;
-};
+// The parked-park pickers and their view shapes live in the GRE beside the
+// owed-payment seam (`convex/gre/paymentPicks.ts`, ADR 0091 / issue #1209) so
+// the live bot's reactive fallback answers a park with the SAME function this
+// decide-path uses — one implementation, not two opinions. Re-exported here
+// because they were brain.ts's own until #1209 and every importer names them
+// through the brain.
+export type {
+    CastExileChoiceView,
+    ConvokeChoiceView,
+    ManaSpendChoiceView,
+} from "@convex/gre/paymentPicks";
+export { chooseCastExileCost, chooseConvokeCreatures, chooseManaSpendOrder };
 
 /** A choosable card as the bot sees it on its projected view (ADR 0016). Carries
  *  a projected latent `value` (the shared `cardValue` primitive, ADR 0018,
@@ -386,6 +372,23 @@ export type BotAction =
           kind: "convoke-creatures";
           creatureInstanceIds: string[];
       }
+    | {
+          /** ADR 0091 / issue #1209 — ANY payment park the bot owes that has no
+           *  dedicated kind above: the exhaustive reactive answer. `submission`
+           *  names the exact human `select*` mutation and its arguments
+           *  (`pickForOwedPayment`, `convex/gre/paymentPicks.ts`), so the driver
+           *  dispatches it without a hand-maintained per-park branch — which is
+           *  the whole point: a park added to the census cannot compile without
+           *  a pick, and the pick is realisable here without further wiring.
+           *
+           *  Mandatory even once the payment travels on the Move (#2135): a
+           *  carried payload can be STALE (Drought enters between search and
+           *  execution; an opponent response invalidates a pick), and this is
+           *  what answers the park it did not anticipate. */
+          kind: "pay-owed-payment";
+          park: ParkKind;
+          submission: OwedPaymentSubmission;
+      }
     | { kind: "pass" }
     | { kind: "none" };
 
@@ -420,6 +423,7 @@ export type BotActionRealisation =
     | "mana-spend"
     | "cast-exile-cost"
     | "convoke-creatures"
+    | "owed-payment"
     | "none";
 
 export function botActionRealisation(
@@ -456,6 +460,15 @@ export function botActionRealisation(
         // would stall mid-cast (Hogaak) without this branch.
         case "convoke-creatures":
             return "convoke-creatures";
+        // ADR 0091 / issue #1209 — every OTHER payment park (both containers'
+        // filtered sacrifice, the cast exile additional cost, the alternative-
+        // cost hand leg, the activation-side exile / tap-other / discard legs)
+        // is realised by the driver dispatching the submission's named
+        // mutation. Like the three parks above it hangs off `pendingCast` /
+        // `pendingActivation`, not `pendingChoices[]`, so no Worker search can
+        // answer it and the bot stalls mid-announcement without this branch.
+        case "pay-owed-payment":
+            return "owed-payment";
         case "keep":
         case "mull":
         case "mulligan-bottom":
@@ -1063,108 +1076,59 @@ export function chooseOwedChoiceAction(choice: OwedChoice): BotAction {
     };
 }
 
-/** CR 601.2g (issue #1446) — the deterministic flexibility-preserving answer to
- *  a parked generic-spend choice: build a color order of length `generic`
- *  (one entry per owed generic pip), spending the MOST-DISPOSABLE candidate
- *  color first (ascending `colorUsefulness`, `candidateColors`' own canonical
- *  W,U,B,R,G,C order breaking ties via the stable sort) so the pool retains as
- *  much of the color(s) the bot's other remaining hand spells still need. Each
- *  color is drawn only up to its `poolCounts` amount, spilling into the next
- *  least-useful color once exhausted — always a legal multiset (⊆ pool) of
- *  exactly `generic` entries, so `resolveManaSpendChoice` never rejects it.
- *  Deterministic and side-effect free. */
-export function chooseManaSpendOrder(choice: ManaSpendChoiceView): string[] {
-    const { generic, candidateColors, poolCounts, colorUsefulness } = choice;
-    const order = [...candidateColors].sort(
-        (a, b) => (colorUsefulness[a] ?? 0) - (colorUsefulness[b] ?? 0)
-    );
-    const remaining = { ...poolCounts };
-    const spendOrder: string[] = [];
-    for (const color of order) {
-        while (spendOrder.length < generic && (remaining[color] ?? 0) > 0) {
-            spendOrder.push(color);
-            remaining[color] = (remaining[color] ?? 0) - 1;
-        }
-        if (spendOrder.length >= generic) break;
-    }
-    return spendOrder;
-}
-
-/** CR 601.2g / 702.66 — the bot's deterministic answer to a parked
- *  graveyard-exile cast cost: exile exactly the number it is REQUIRED to
- *  (`required`), taking them from the front of its own graveyard. For delve
- *  (`required` = the forced `offsetGeneric.min`) that is precisely the amount
- *  the move enumerator already discounted from the tap plan, so the taps and
- *  the exiles cover the cost between them; delving further would burn
- *  graveyard resources the bot's mana did not need. For a fixed flashback /
- *  escape cost `required` equals the exact count the picker demands. Clamped
- *  to what is actually available so an under-supplied view can never emit an
- *  illegal submission. Pure and deterministic (issue #1336). */
-export function chooseCastExileCost(choice: CastExileChoiceView): string[] {
-    const n = Math.min(
-        choice.required,
-        choice.maximum,
-        choice.candidateIds.length
-    );
-    return choice.candidateIds.slice(0, Math.max(0, n));
-}
-
-/** CR 702.51 (issue #1338) — the bot's deterministic answer to a parked Convoke
- *  creature picker: pick a MINIMAL legal covering set. Colour-match the
- *  single-colour and guild-hybrid pips convoke must pay (each to the
- *  least-flexible untapped creature that can pay it — the same greedy the server
- *  validates with, `coverColoredAndHybridPips`), then top up to the forced `min`
- *  with any remaining creatures, capped at `max`. Pure and deterministic. */
-export function chooseConvokeCreatures(choice: ConvokeChoiceView): string[] {
-    const pool = choice.candidates.map((c) => ({
-        id: c.id,
-        colors: new Set(c.colors),
-    }));
-    const used = new Set<string>();
-    const pickLeastFlexible = (
-        pred: (colors: Set<string>) => boolean
-    ): string | undefined => {
-        let bestId: string | undefined;
-        let bestSize = Infinity;
-        for (const cand of pool) {
-            if (used.has(cand.id)) continue;
-            if (pred(cand.colors) && cand.colors.size < bestSize) {
-                bestId = cand.id;
-                bestSize = cand.colors.size;
-            }
-        }
-        if (bestId !== undefined) used.add(bestId);
-        return bestId;
-    };
-    const picked: string[] = [];
-    for (const [color, n] of Object.entries(choice.coloredPips)) {
-        for (let i = 0; i < n; i++) {
-            const id = pickLeastFlexible((colors) => colors.has(color));
-            if (id !== undefined) picked.push(id);
-        }
-    }
-    for (const [c1, c2] of choice.hybridPips) {
-        const id = pickLeastFlexible(
-            (colors) => colors.has(c1) || colors.has(c2)
-        );
-        if (id !== undefined) picked.push(id);
-    }
-    // Top up to the forced minimum with any remaining creatures.
-    for (const cand of pool) {
-        if (picked.length >= choice.min) break;
-        if (!used.has(cand.id)) {
-            used.add(cand.id);
-            picked.push(cand.id);
-        }
-    }
-    return picked.slice(0, Math.max(0, choice.max));
-}
-
 /** The rest of the gate, once no pending choice is owed: the parked mana-spend
  *  choice, the attack-mana tax, the combat declarations and the ordinary
  *  priority window. Split out of {@link decideBotAction} when the choice
  *  branch grew its own entry point (issue #1506); the ordering is unchanged. */
+/** ADR 0091 / issue #1209 — how the bot ANSWERS each payment park.
+ *
+ *  `"dedicated"` — the park has its own `BotAction` kind below, because its
+ *  answer is a TUNED heuristic that reads the bot's projected view rather than
+ *  raw state (the mana-spend flexibility score, #1446) or predates the seam.
+ *  `"generic"`   — the park is answered by the shared conservative pick
+ *  (`pickForOwedPayment`) dispatched through `pay-owed-payment`.
+ *
+ *  `Record<ParkKind, …>` is the guard: a park added to the census in
+ *  `gre/owedPayment.ts` cannot compile until it is routed here, and either
+ *  route reaches a real mutation. That is the axis the earlier `assertNever`
+ *  over `BotAction["kind"]` (#1506) could not cover — it classified union
+ *  members that already existed, while every instance of this bug was a member
+ *  nobody had added. */
+export const PARK_ANSWER_ROUTE: Record<ParkKind, "dedicated" | "generic"> = {
+    "cast:sacrificeSelection": "generic",
+    "cast:additionalCost": "generic",
+    "cast:convokeCreatureChoice": "dedicated",
+    "cast:exileFromGraveyardChoice": "dedicated",
+    "cast:alternativeCostHandChoice": "generic",
+    "cast:manaSpendChoice": "dedicated",
+    "activation:sacrificeSelection": "generic",
+    "activation:exileFromGraveyardChoice": "generic",
+    "activation:tapOtherChoice": "generic",
+    "activation:discardFilterChoice": "generic",
+    "activation:manaSpendChoice": "dedicated",
+};
+
 function decideNonChoiceAction(view: BotView): BotAction {
+    // ADR 0091 / issue #1209 — the FIRST payment park owed, in canonical gate
+    // order (`nextOwedPayment`). A park blocks the announcement's commit and
+    // lives outside `pendingChoices[]`, so nothing else the bot could do is
+    // legal while one is owed: it is answered before every other branch. Parks
+    // routed `"dedicated"` fall through to their own tuned branch below; the
+    // rest are answered by the shared conservative pick, which is what makes a
+    // NEW park non-stalling for free.
+    const owed = view.owedPayment;
+    if (
+        owed &&
+        PARK_ANSWER_ROUTE[owed.park.kind] === "generic" &&
+        owed.submission
+    ) {
+        return {
+            kind: "pay-owed-payment",
+            park: owed.park.kind,
+            submission: owed.submission,
+        };
+    }
+
     // CR 601.2g / 702.66 (issue #1336) — the parked graveyard-exile CAST cost
     // (delve's variable offset; the fixed flashback / escape exile costs ride
     // the same picker). Same "resolve the park before anything else" class as

@@ -224,12 +224,20 @@ import {
 import { STATIC_EFFECT_CTX, getEffectivePower } from "./gre/layers";
 import {
     canPayTapOtherCost,
-    crewPowerContribution,
-    isTapOtherSelectionComplete,
     totalTapOtherPower,
     type TapOtherCandidate,
 } from "./gre/tapOtherCost";
 import { buildActivationSacrificeSelection } from "./gre/activationCostPicks";
+// ADR 0091 / issue #1209 — the OWED-PAYMENT seam. The two commit gates below
+// are expressed through `nextOwedPayment` rather than each carrying its own
+// copy of the park list; `isTapOtherPaid` / `tapOtherContribution` live beside
+// it so the gate, the picker mutation and the bot all weigh a crew pick the
+// same way.
+import {
+    isTapOtherPaid,
+    nextOwedPayment,
+    tapOtherContribution,
+} from "./gre/owedPayment";
 import { projectFullState, projectPublicState } from "./gameProjections";
 import {
     canPayAlternativeCost,
@@ -1994,25 +2002,6 @@ function tapOtherCandidates(
     });
 }
 
-/** A permanent's contribution toward a `tapOtherFilter.totalPower` cost
- *  (CR 702.122a, Crew N): its EFFECTIVE power (layer 7, CR 613.4 — a crewing
- *  creature that's been pumped counts the pumped value) plus its own
- *  `crewPowerBonus` (CR 702.122b — Shorikai's Pilot token "crews Vehicles as
- *  though its power were 2 greater"). */
-function tapOtherContribution(
-    state: GameState,
-    card: CardInstanceState
-): TapOtherCandidate {
-    const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
-    return {
-        id: card.id,
-        power: crewPowerContribution(
-            getEffectivePower(state, card),
-            def?.crewPowerBonus ?? 0
-        ),
-    };
-}
-
 /** A tap-other picker's current picks as weighed candidates, recomputed from
  *  the LIVE battlefield (a pick that has since been pumped/shrunk counts at its
  *  current value, CR 608.2 — the cost isn't locked until it's paid). A pick
@@ -2038,20 +2027,6 @@ function tapOtherPickedPower(
 ): number {
     return totalTapOtherPower(
         tapOtherPickedCandidates(state, player, pickedIds)
-    );
-}
-
-/** True once the picker's picks fully pay the declared tap-other cost — the
- *  ONE gate both `tryAutoCommitPendingActivation` and `selectActivationCost`
- *  consult (CR 602.1 / 118.8, CR 702.122a). */
-function isTapOtherPaid(
-    state: GameState,
-    player: PlayerState,
-    toc: NonNullable<PendingActivation["tapOtherChoice"]>
-): boolean {
-    return isTapOtherSelectionComplete(
-        toc,
-        tapOtherPickedCandidates(state, player, toc.pickedIds)
     );
 }
 
@@ -2610,37 +2585,17 @@ export function tryAutoCommitPendingActivation(
         )
     )
         return null;
-    // CR 602.1 / 118.5 — commit is blocked until the "sacrifice a permanent
-    // matching <filter>" cost has been picked (selectActivationCost). Mirrors
-    // pendingCast.additionalCost gating.
-    if (
-        pa.sacrificeSelection &&
-        !isSacrificeSelectionComplete(pa.sacrificeSelection)
-    ) {
-        return null;
-    }
-    // CR 602.1 / 118.5 — commit is blocked until the "exile N cards from a
-    // single graveyard" cost has been picked (selectActivationExileCost).
-    if (
-        pa.exileFromGraveyardChoice &&
-        !pa.exileFromGraveyardChoice.pickedCardIds
-    ) {
-        return null;
-    }
-    // CR 602.1 / 118.8 — commit is blocked until the "tap untapped permanents
-    // matching <filter> you control" cost is fully paid: all N picks for the
-    // fixed-cardinal shape (Hand of Justice), or enough total power for the
-    // CR 702.122a crew shape (Crew N).
-    if (
-        pa.tapOtherChoice &&
-        !isTapOtherPaid(state, player, pa.tapOtherChoice)
-    ) {
-        return null;
-    }
-    // CR 602.1 / 118.3 — commit is blocked until the "discard a card matching
-    // <filter>" cost has been picked (selectActivationDiscardCost — Survival
-    // of the Fittest).
-    if (pa.discardFilterChoice && !pa.discardFilterChoice.pickedCardIds) {
+    // CR 602.1 / 118 — every DEFERRED cost pick (sacrifice, graveyard exile,
+    // tap-other/crew, filtered discard) blocks commit until the activator has
+    // named the cards, regardless of mana coverage. This gate does not CALL the
+    // owed-payment seam, it IS it (ADR 0091 / issue #1209): `nextOwedPayment`
+    // carries the exact chain of early returns that used to sit here, in the
+    // same order, and the vs-AI bot reads the same function — so a park cannot
+    // exist that the gate blocks on and the bot cannot see. `gateOwnsManaSpend`
+    // holds back the CR 601.2g mana-spend park only: this gate re-derives that
+    // one from the live pool a few lines below (a parked prompt whose ambiguity
+    // has since vanished must be CLEARED, not honoured).
+    if (nextOwedPayment(state, playerId, { gateOwnsManaSpend: true })) {
         return null;
     }
 
@@ -3064,44 +3019,31 @@ export function tryAutoCommitPendingCast(
     ) {
         return null;
     }
-    // CR 601.2f / 701.21a: commit is blocked until every filtered sacrifice has
-    // been chosen (Drought / own additional cost). The player completes the
-    // choice via selectSacrifice.
+    // CR 601.2f / 117.9 / 702.51 / 702.34a / 118.9 — every DEFERRED cost pick
+    // (filtered sacrifice incl. Drought's static tax, the exile additional cost,
+    // convoke's creature picker, the flashback/escape/delve graveyard exile, the
+    // alternative-cost hand leg) blocks commit until the caster has named the
+    // cards, regardless of mana coverage. This gate does not CALL the
+    // owed-payment seam, it IS it (ADR 0091 / issue #1209): `nextOwedPayment`
+    // carries the exact chain of early returns that used to sit here, in the
+    // same ORDER — convoke BEFORE delve, because the convoke pick pays the
+    // coloured/hybrid pips and reduces the generic, so the delve picker is only
+    // built after convoke resolves (`recordConvokeCreaturePick`). The vs-AI bot
+    // reads the same function, so a park cannot exist that the gate blocks on
+    // and the bot cannot see. `gateOwnsManaSpend` holds back the CR 601.2g
+    // mana-spend park only: this gate re-derives that one from the live pool
+    // below (a parked prompt whose ambiguity has since vanished must be
+    // CLEARED, not honoured).
+    if (nextOwedPayment(state, playerId, { gateOwnsManaSpend: true })) {
+        return null;
+    }
+    // Every park above is now ANSWERED — these are the answers, applied by the
+    // commit body below (they are read, never re-gated on, here).
     const castSel = state.pendingCast.sacrificeSelection;
-    if (castSel && !isSacrificeSelectionComplete(castSel)) {
-        return null;
-    }
-    // CR 117.9 — the exile additional cost (Soul Exchange) still gates on its
-    // own picker. `additionalCost` is exile-only now (sacrifice migrated).
     const ac = state.pendingCast.additionalCost;
-    if (ac && !ac.pickedId) {
-        return null;
-    }
-    // CR 702.51 / 601.2g (issue #1338) — Convoke gates on its creature picker,
-    // and BEFORE delve: the convoke pick is what pays the coloured / hybrid pips
-    // and reduces the generic, so the delve picker (`exileFromGraveyardChoice`)
-    // is only built AFTER convoke resolves (`recordConvokeCreaturePick`). Commit
-    // is blocked until the creatures are chosen (selectConvokeCreatures).
     const castConvoke = state.pendingCast.convokeCreatureChoice;
-    if (castConvoke && !castConvoke.pickedCreatureIds) {
-        return null;
-    }
-    // CR 702.34a / 118.5 — the flashback "exile X blue cards from your
-    // graveyard" cost (Flash of Insight) gates on its own picker: commit is
-    // blocked until the player has picked the cards (selectCastExileCost),
-    // regardless of mana coverage.
     const castExile = state.pendingCast.exileFromGraveyardChoice;
-    if (castExile && !castExile.pickedCardIds) {
-        return null;
-    }
-    // CR 118.9 — the alternative-cost HAND leg (Force of Will's "exile a blue
-    // card", Foil's "discard an Island card and another card") gates on its own
-    // picker: commit is blocked until the player has picked the cards
-    // (selectCastAlternativeHandCost), regardless of mana coverage.
     const castAltHand = state.pendingCast.alternativeCostHandChoice;
-    if (castAltHand && !castAltHand.pickedCardIds) {
-        return null;
-    }
     // CR 601.2g — an ambiguous generic-mana payment PARKS awaiting the caster's
     // choice of which mana pays the generic cost. Evaluated once every other
     // cost/choice gate above has cleared and mana is covered (manual floating
