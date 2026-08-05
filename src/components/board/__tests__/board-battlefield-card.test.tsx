@@ -196,6 +196,29 @@ describe("BoardBattlefieldCard visual state + anchors (#256)", () => {
         expect(anchor?.style.transform || "").not.toContain("rotate(90deg)");
     });
 
+    // Issue #1994: on a battlefield with many overlapping lands, tapped lands
+    // visually covered untapped fetchlands, making them unclickable. Root
+    // cause: a bare rotate(90deg) on a 5:7 portrait box swaps its bounding
+    // box to 7:5 landscape — WIDER than the card's own reserved slot — and
+    // that extra reach paints (and hit-tests) OVER a neighbouring permanent
+    // in an overlapped row. Scaling the rotation by the card's own aspect
+    // ratio (5/7) shrinks the rotated box back to exactly the slot's
+    // original width, so a tapped permanent's footprint never bleeds into a
+    // neighbour's click target.
+    it("scales the rotation so a tapped card's rotated footprint never exceeds its own slot width (#1994)", () => {
+        const { container } = renderCard(
+            makeCreature({ isTapped: true }),
+            NEUTRAL_VS
+        );
+        const anchor = container.querySelector<HTMLElement>(
+            "[data-arrow-anchor-permanent]"
+        );
+        const cardAspect = 5 / 7; // width / height, the codebase-wide `aspect-5/7` card ratio
+        expect(anchor?.style.transform).toBe(
+            `rotate(90deg) scale(${cardAspect})`
+        );
+    });
+
     it("shows marked damage and an effective P/T badge for a creature (projected fields)", () => {
         // damageMarked is a projected (public/full) field; the P/T badge is
         // computed by effectivePower/Toughness reading the projected

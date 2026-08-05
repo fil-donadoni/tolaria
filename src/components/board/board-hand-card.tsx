@@ -60,6 +60,22 @@ type BoardHandCardProps = {
      *  over later-painted siblings — only the slot can. Omitted by hands that
      *  don't stack their cards. */
     onStagedChange?: (staged: boolean) => void;
+    /** The card's root disables all native touch gestures (`touch-action:
+     *  none`) by default so a touch swipe never scrolls/zooms the page
+     *  instead of driving the drag-to-cast gesture. The spatial (landscape)
+     *  hand relies on that: it has no scrollable ancestor, and horizontal
+     *  pointer movement there drives the JS drag-reorder, not a native pan.
+     *  The portrait hand (#336) is DIFFERENT: above the scroll threshold its
+     *  row is `overflow-x-auto`, and a touch swipe over a card is the ONLY
+     *  way to reach cards past the right edge — but `touch-action: none`
+     *  starting on a card blocks the browser from ever recognizing that swipe
+     *  as a native scroll, regardless of any JS `preventDefault` (issue
+     *  #1994: "10-12 cards in hand on mobile, can't reach the ones past the
+     *  right edge"). Set `true` there: `touch-action: pan-x` still lets the
+     *  vertical drag-to-cast gesture reach JS (native Y panning is disabled),
+     *  while a horizontal swipe is handed to the browser's own scroll.
+     *  Omitted ⇒ `touch-none` (unchanged spatial-hand behavior). */
+    allowHorizontalPan?: boolean;
 };
 
 /** Interactive hand card for the spatial board (PRD #249, slice #254; UX fixes
@@ -99,6 +115,7 @@ export default function BoardHandCard({
     sizes = "120px",
     includeThumb = false,
     onStagedChange,
+    allowHorizontalPan = false,
 }: BoardHandCardProps) {
     const {
         gameId,
@@ -412,7 +429,8 @@ export default function BoardHandCard({
             data-drag-armed={state.armed ? "true" : undefined}
             data-tap-staged={tapStage.staged ? "true" : undefined}
             className={
-                optionCount > 0 ? "cursor-pointer touch-none" : "touch-none"
+                (optionCount > 0 ? "cursor-pointer " : "") +
+                (allowHorizontalPan ? "touch-pan-x" : "touch-none")
             }
             onClick={onRootClick}
             onTouchStart={

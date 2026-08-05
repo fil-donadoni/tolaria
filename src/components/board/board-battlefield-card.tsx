@@ -65,6 +65,14 @@ type BoardBattlefieldCardProps = {
     compactCardHeight?: number;
 };
 
+/** Every card box on the board is a fixed 5:7 portrait rectangle (`aspect-5/7`
+ *  everywhere the codebase renders a card). Rotating a tapped card 90° swaps
+ *  its bounding box to 7:5 (wider than tall); this is the uniform post-rotate
+ *  scale that shrinks it back so the rotated box's WIDTH matches the
+ *  unrotated box's width exactly — see the `tapTransform` comment below
+ *  (issue #1994). */
+const TAPPED_ROTATE_SCALE = 5 / 7;
+
 /** Battlefield card for the new spatial board (PRD #249, slice #256).
  *
  *  Carries every board-coupled visual signal a permanent needs to read at a
@@ -209,8 +217,21 @@ export default function BoardBattlefieldCard({
     ) : null;
 
     // Tapped state rotates the visual only; the slot placement (#251/#252) sizes
-    // the layout box, so rotation here never reflows neighbors.
-    const tapTransform = card.isTapped ? "rotate(90deg)" : undefined;
+    // the layout box, so rotation here never reflows neighbors' PLACEMENTS.
+    // But a bare rotate(90deg) on a 5:7 portrait box swaps its bounding box to
+    // 7:5 landscape — wider than the card's own reserved slot — so the extra
+    // horizontal reach paints (and hit-tests, since CSS transforms apply to
+    // hit-testing too) OVER a neighbouring permanent in an overlapped
+    // battlefield row, stealing its click target underneath the tapped card
+    // (issue #1994: many lands overlapping, a tapped land visually covering an
+    // untapped fetchland so it can't be clicked/sacrificed). Scaling by the
+    // card's own aspect ratio (width/height = 5/7, `TAPPED_ROTATE_SCALE`)
+    // after rotating shrinks the rotated box back to exactly the slot's
+    // original WIDTH (height shrinks correspondingly), so a tapped permanent's
+    // rendered + hit-test footprint never exceeds its own slot horizontally.
+    const tapTransform = card.isTapped
+        ? `rotate(90deg) scale(${TAPPED_ROTATE_SCALE})`
+        : undefined;
 
     // Combat lift (#1770 follow-up from #1802): landscape-compact re-derives
     // the desktop `translate-y-8` class as a proportional inline `translate`

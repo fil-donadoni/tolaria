@@ -16,8 +16,18 @@ import BoardHandPortrait from "../board-hand-portrait";
 // to plain markers so the test isolates the LAYOUT contract (scroll threshold,
 // card count, interactive split).
 vi.mock("../board-hand-card", () => ({
-    default: ({ card }: { card: CardInstance }) => (
-        <div data-testid="hand-card-interactive" data-card-id={card.id} />
+    default: ({
+        card,
+        allowHorizontalPan,
+    }: {
+        card: CardInstance;
+        allowHorizontalPan?: boolean;
+    }) => (
+        <div
+            data-testid="hand-card-interactive"
+            data-card-id={card.id}
+            data-allow-horizontal-pan={allowHorizontalPan ? "true" : "false"}
+        />
     ),
 }));
 vi.mock("../board-card", () => ({
@@ -101,6 +111,24 @@ describe("BoardHandPortrait (#336)", () => {
         expect(hand.className).toContain("overflow-x-auto");
         expect(hand.className).not.toContain("overflow-x-hidden");
         expect(screen.getAllByTestId("hand-card-interactive")).toHaveLength(7);
+    });
+
+    // Issue #1994: the portrait hand row scrolls horizontally past the
+    // threshold, and a touch swipe over a card is the ONLY way to reach cards
+    // past the right edge — so every interactive card must opt IN to native
+    // horizontal panning (`allowHorizontalPan`), not just the ones above the
+    // scroll threshold (harmless below it: no scroll container exists there).
+    it("allows native horizontal panning on every interactive card, scrolling or not (#1994)", () => {
+        render(
+            <BoardHandPortrait
+                player={makePlayer(3)}
+                interactive
+                data-testid="hand"
+            />
+        );
+        for (const card of screen.getAllByTestId("hand-card-interactive")) {
+            expect(card.getAttribute("data-allow-horizontal-pan")).toBe("true");
+        }
     });
 
     it("renders the opponent hand as presentational cards (not interactive)", () => {
