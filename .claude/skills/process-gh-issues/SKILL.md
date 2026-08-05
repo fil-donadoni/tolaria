@@ -1,6 +1,6 @@
 ---
 name: process-gh-issues
-description: Process GitHub issues labeled ready-for-agent. Selects a file-disjoint batch by priority (bugs first, then oldest), fans out parallel implement-subagents, integrates their PRs through a serial rebase+re-gate merge-train, and closes on success. Use when user says "process issues", "work on issues", "pick up issues", or invokes /process-gh-issues.
+description: Process GitHub issues labeled ready-for-agent. Selects a file-disjoint batch by priority (board Priority field first, then bugs, then oldest), fans out parallel implement-subagents, integrates their PRs through a serial rebase+re-gate merge-train, and closes on success. Use when user says "process issues", "work on issues", "pick up issues", or invokes /process-gh-issues.
 ---
 
 # Process GitHub Issues
@@ -58,10 +58,15 @@ drift, and the stale one reads as authoritative.
 
 ## Priority order
 
-1. `bug` label first
-2. Within same category: **oldest LINEAGE first** — sort by **`parent.number ?? number`**, ascending
+1. **Board `Priority`** — the `Priority` single-select on the GitHub Project board (`P0` → `P1` → `P2`), above everything unprioritized
+2. `bug` label
+3. Within same category: **oldest LINEAGE first** — sort by **`parent.number ?? number`**, ascending
 
-**The planner computes this — you do not.** `bun run queue:plan` prints the result (§1). The sort key looks arbitrary and is not: see `references/priority-rationale.md` **before changing it**, and when an intake skill writes a `--parent` edge.
+Keys 2–3 are DEFAULTS for the issues nobody has ruled on. Key 1 is the maintainer's live override and beats them all — **a `P2` outranks an unprioritized `bug`**, deliberately: a human looked at the board this week, the heuristic did not.
+
+**The planner computes this — you do not.** `bun run queue:plan` prints the result (§1), echoing `priority` on each admitted issue so the plan says _why_ something jumped. The sort key looks arbitrary and is not: see `references/priority-rationale.md` **before changing it**, and when an intake skill writes a `--parent` edge.
+
+**A board that cannot be read is a HARD STOP.** `queue:plan` exits non-zero rather than plan without the priorities — a batch ordered on stale defaults looks completely normal and nothing goes red. Fix the access (`gh auth refresh -s read:project`) or pass `--no-priority` to plan on the defaults deliberately.
 
 ## Main loop
 
