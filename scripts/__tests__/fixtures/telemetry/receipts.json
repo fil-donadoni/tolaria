@@ -1,0 +1,34 @@
+[
+    {
+        "batch": "batch-a",
+        "role": "implement",
+        "issue": 101,
+        "outcome": "pr-open"
+    },
+    {
+        "batch": "batch-a",
+        "role": "review",
+        "issue": 101,
+        "outcome": "approve"
+    },
+    {
+        "batch": "batch-a",
+        "role": "implement",
+        "issue": 102,
+        "outcome": "pr-open"
+    },
+    {
+        "batch": "batch-a",
+        "role": "review",
+        "issue": 102,
+        "outcome": "blocking"
+    },
+    { "batch": "batch-a", "role": "fixup", "issue": 102, "outcome": "pr-open" },
+    {
+        "batch": "batch-a",
+        "role": "implement",
+        "issue": 103,
+        "outcome": "collision"
+    },
+    { "batch": "batch-a", "role": "missing", "outcome": "missing" }
+]

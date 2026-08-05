@@ -27,6 +27,7 @@
         "ladder": "bun scripts/ladder.ts",
         "queue:plan": "bun scripts/queue-plan.ts",
         "queue:train": "bun scripts/train-order.ts",
+        "loop:scorecard": "bun scripts/loop-scorecard.ts",
         "queue:lint": "bun scripts/queue-lint.ts",
         "check:all": "bun scripts/gate.ts heavy 'bun run check:all:inner'",
         "check:pr": "bun scripts/gate.ts light 'bun run check:all:inner && bun run check:guards'",
