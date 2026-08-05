@@ -47,7 +47,7 @@ export default function DeckDetailRoute() {
 
     if (presetDecks === undefined || userDecks === undefined) {
         return (
-            <div className="flex h-screen items-center justify-center text-text">
+            <div className="flex min-h-full items-center justify-center text-text">
                 Loading...
             </div>
         );

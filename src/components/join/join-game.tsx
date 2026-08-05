@@ -140,7 +140,7 @@ export default function JoinGame({ gameId }: JoinGameProps) {
     const formatLabel = format ? FORMAT_RULES[format].label : "";
 
     return (
-        <div className="relative min-h-dvh overflow-hidden bg-surface-base text-text">
+        <div className="relative min-h-full overflow-hidden bg-surface-base text-text">
             <AmbientPageGround ring />
             <div className="relative z-10 mx-auto flex max-w-4xl flex-col gap-6 px-6 py-8">
                 <Panel>
