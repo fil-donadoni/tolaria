@@ -128,3 +128,22 @@ describe("PoolDeckbuilderSurface — card-size floor (issue #2056)", () => {
         expect(cardBase.startsWith("min(")).toBe(false);
     });
 });
+
+// Issue #2275 acceptance criterion: "the card-size floor is unchanged — the
+// fix is in how the shortfall is allocated." The reachability fix itself
+// lives one level up, in `PoolDeckBuilderForm` (pinning `SaveDeckBar` behind
+// the surface's own scroll wrapper — see `pool-deck-builder-form.test.tsx`),
+// because `SaveDeckBar` isn't rendered by this component at all. This is the
+// regression guard for the OTHER half of the promise: this component's own
+// min-height stays exactly what it was, still deriving from the SAME
+// unmodified `CARD_MIN_W` floor, so a future edit here can't silently
+// re-introduce a second, disconnected floor.
+describe("PoolDeckbuilderSurface — the pane floor itself is untouched by issue #2275", () => {
+    it("still emits the same --card-base clamp as issue #2056 shipped — this component does not change the floor", () => {
+        const { container } = renderSurface();
+        const surfaceRoot = container.firstElementChild as HTMLElement;
+        expect(surfaceRoot.style.getPropertyValue("--card-base")).toBe(
+            "max(4.5rem, min(7.5rem, 17vw, 9dvh))"
+        );
+    });
+});
