@@ -82,6 +82,7 @@ import {
     generateSealedPools,
     MAX_SEATS,
     MIN_SEATS,
+    randomizeSeatOrder,
     releaseSeat,
     type ResolveCardMeta,
 } from "./limited/eventLogic";
@@ -1612,8 +1613,14 @@ export const startLimitedEvent = mutation({
         }
 
         if (event.type === "draft") {
-            const seats = fillBotSeats(event.seats);
             const seed = freshSeed();
+            // Seat order is randomized BEFORE the bots fill in: `assignFreeSeat`
+            // seats every human at the first free index, so without this the
+            // humans always sit at 0..n-1 and are permanently upstream of the
+            // same bot neighbours (seat order IS the passing order,
+            // `passDirection`). Shuffling first also keeps each bot's
+            // `Bot <n>` nickname in step with its FINAL seatIndex.
+            const seats = fillBotSeats(randomizeSeatOrder(event.seats, seed));
             const now = Date.now();
             const timerConfig = buildTimerConfig(event.timerEnabled, now);
             const getPickRating = await loadEventPickRating(

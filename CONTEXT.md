@@ -818,8 +818,16 @@ The optional per-**Pick** clock of a **Draft**: the span a human **Seat** has to
 _Avoid_: Draft timer (ambiguous with **Round Deadline**, which is per-**Round**), pick deadline (that's the instant it expires, not the clock), shot clock
 
 **Auto-Pick**:
-The **Pick** made on a human **Seat**'s behalf when its **Pick Timer** expires. Resolves the seat's **Selected Card** if one is set; otherwise falls back to the **Pick Rating**/**Pick Heuristic** engine a **Bot Drafter** uses. Never randomly.
+The **Pick** made on a human **Seat**'s behalf when its **Pick Timer** expires. Resolves the seat's **Selected Card** if one is set; otherwise takes the seat's **Default Pick**. Never randomly.
 _Avoid_: Random pick, skip
+
+**Default Pick**:
+What the **Pick Heuristic** would take from the **Booster** currently in front of a human **Seat** — the card its **Auto-Pick** will take unless the seat sets a **Selected Card** first. Known from the moment the pack arrives, not computed at expiry, so the seat can be shown what the clock is about to do while there is still time to disagree. Deliberately **not** shown by default: a standing recommendation on the pack conditions the seat's own **Pick** even when it doesn't mean to, so the seat opts in to seeing it. Distinct from the **Selected Card** — one is the engine's declaration, the other the seat's choice, and the seat's always outranks it.
+_Avoid_: Suggested pick (it is not advice, it is what will happen), fallback pick (it exists from the start of the **Pick Timer**, not only at expiry), standing pick
+
+**Unattended Pick**:
+A **Pick** the clock made for a **Seat** that had chosen nothing — an **Auto-Pick** resolved from the **Default Pick**. The resulting **Pool** card is one the seat neither chose nor selected, and is surfaced as such in the **Pool** until the seat makes its next **Pick** by hand, which is what proves it is back at the table. An **Auto-Pick** that honoured a **Selected Card** is **not** unattended: the seat chose that card, the clock only committed it.
+_Avoid_: Missed pick (nothing was missed — a card was taken), unseen pick (the seat may have watched it happen and simply not acted), timeout pick
 
 **Selected Card**:
 A human **Seat**'s tentative choice within the **Booster** currently in front of it during a **Draft**, set by a single click (which only selects — it never commits the **Pick**). Server-persisted so the **Auto-Pick** timeout resolver can honour it. A committing gesture — double-click, the context-menu **Pick** action, or a drag into the **Pool**/**Sideboard** — takes the **Pick** immediately, bypassing selection.

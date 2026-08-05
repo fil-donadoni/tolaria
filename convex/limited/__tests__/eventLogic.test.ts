@@ -12,7 +12,9 @@ import {
     generateSealedPools,
     MAX_SEATS,
     MIN_SEATS,
+    randomizeSeatOrder,
     releaseSeat,
+    seatingSeed,
     type GetBoosterConfig,
     type ResolveCardMeta,
 } from "../eventLogic";
@@ -155,6 +157,74 @@ describe("fillBotSeats (PRD #1107 story 8)", () => {
         seats = assignFreeSeat(seats, "user2", "Bob");
         const after = fillBotSeats(seats);
         expect(after.every((s) => !s.isBot)).toBe(true);
+    });
+});
+
+describe("randomizeSeatOrder (draft seating)", () => {
+    // One human at seat 0 of an 8-seat pod — exactly the shape
+    // `assignFreeSeat` always produces (first free seat wins).
+    function humanFirst(seatCount = 8) {
+        return assignFreeSeat(buildEmptySeats(seatCount), "user1", "Alice");
+    }
+
+    it("keeps seatIndex a dense ascending 0..n-1 after the permutation", () => {
+        const after = randomizeSeatOrder(humanFirst(), 12345);
+        expect(after.map((s) => s.seatIndex)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+    });
+
+    it("preserves every occupant — nobody is lost or duplicated", () => {
+        let seats = buildEmptySeats(4);
+        seats = assignFreeSeat(seats, "user1", "Alice");
+        seats = assignFreeSeat(seats, "user2", "Bob");
+        const after = randomizeSeatOrder(seats, 999);
+        expect(after.filter((s) => s.userId !== undefined).length).toBe(2);
+        expect(after.map((s) => s.userId).sort()).toEqual([
+            "user1",
+            "user2",
+            undefined,
+            undefined,
+        ]);
+    });
+
+    it("moves the human off seat 0 for most seeds (the whole point)", () => {
+        // With the human at seat 0 of 8, a uniform permutation leaves them
+        // there ~1/8 of the time. Over 200 distinct seeds, "always seat 0"
+        // (the pre-fix behavior) is what this rules out.
+        const positions = new Set<number>();
+        for (let seed = 1; seed <= 200; seed++) {
+            const after = randomizeSeatOrder(humanFirst(), seed);
+            positions.add(after.findIndex((s) => s.userId === "user1"));
+        }
+        expect(positions.size).toBe(8);
+    });
+
+    it("is deterministic for a given seed (replayable)", () => {
+        const a = randomizeSeatOrder(humanFirst(), 4242);
+        const b = randomizeSeatOrder(humanFirst(), 4242);
+        expect(a).toEqual(b);
+    });
+
+    it("does not mutate the input seats", () => {
+        const seats = humanFirst(4);
+        const snapshot = structuredClone(seats);
+        randomizeSeatOrder(seats, 77);
+        expect(seats).toEqual(snapshot);
+    });
+
+    it("seatingSeed is a disjoint stream from the raw event seed", () => {
+        // Sharing the booster stream would shift every pack the draft deals.
+        expect(seatingSeed(4242)).not.toBe(4242);
+        expect(seatingSeed(4242)).toBe(seatingSeed(4242));
+    });
+
+    it("bot nicknames match their FINAL seat when filled after the shuffle", () => {
+        // This is the call order `startLimitedEvent` uses: shuffle, then fill.
+        const after = fillBotSeats(randomizeSeatOrder(humanFirst(4), 31337));
+        for (const seat of after) {
+            if (seat.isBot) {
+                expect(seat.nickname).toBe(`Bot ${seat.seatIndex + 1}`);
+            }
+        }
     });
 });
 

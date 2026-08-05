@@ -4,6 +4,7 @@
 // `convex/limitedEvents.ts` mutation makes is factored out here as a plain
 // function of plain data, so it is unit-testable directly (and so the
 // mutation's handler stays a thin DB-read/write shell around it).
+import { makeRng, shuffleWithRng } from "../gre/rng";
 import { generateBooster } from "./boosterGenerator";
 import type { BoosterConfig } from "./boosterTypes";
 import type { LimitedEventSeat, LimitedPoolCard } from "./eventTypes";
@@ -94,6 +95,37 @@ export function releaseSeat(
         delete rest.nickname;
         return rest;
     });
+}
+
+/** Derives the seating-permutation RNG seed from the event's stored seed —
+ *  same discipline as `draftEngine.ts`'s `roundSeed`: a DISJOINT stream off
+ *  the one seed persisted on the event row, so the seating stays reproducible
+ *  (replay/debug) without consuming floats from the booster-generation stream
+ *  (which would shift every pack the draft deals). */
+export function seatingSeed(eventSeed: number): number {
+    return (eventSeed ^ 0x7f4a7c15) | 0;
+}
+
+/** Randomizes the Seat ORDER at event start. `assignFreeSeat` hands every
+ *  human the first free Seat, so before this the humans always occupied seats
+ *  0..n-1 and the bots the tail — a fixed, non-random table position. In a
+ *  Draft that is a real asymmetry, not cosmetics: seat order determines who
+ *  passes to whom (`passDirection`), so a human is permanently downstream of
+ *  the same neighbours every event.
+ *
+ *  The occupants (userId/nickname/isBot and anything else a Seat carries) are
+ *  permuted; `seatIndex` is REASSIGNED 0..n-1 in the new order, so the array
+ *  stays index-aligned and every downstream consumer (packs, timers,
+ *  `limitedSeats` rows, pairings) keeps reading `seats[i].seatIndex === i`.
+ *  Safe only BEFORE any per-seat state exists — call it at start, on Seats
+ *  that hold nothing but their occupant. */
+export function randomizeSeatOrder(
+    seats: readonly LimitedEventSeat[],
+    eventSeed: number
+): LimitedEventSeat[] {
+    return shuffleWithRng(seats, makeRng(seatingSeed(eventSeed))).map(
+        (seat, seatIndex) => ({ ...seat, seatIndex })
+    );
 }
 
 /** Fills every still-empty Seat with a Bot Drafter placeholder at event start
