@@ -6,7 +6,7 @@
 // already implemented in lea/leb/arn/atq/leg/drk/fem/ice. See ADR 0014.
 //
 // Generated from data/json/3ED.json; see the 3ed barrel (index.ts) and
-// scripts/generate-3ed-prints.mts. Cards are partitioned by colour identity
+// scripts/generate-print-set.mts 3ed. Cards are partitioned by colour identity
 // derived from mana cost (CR 202.2): lands and artifacts (no coloured cost)
 // live in colorless.ts; multicolour cards in multicolor.ts.
 //

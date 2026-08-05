@@ -10,9 +10,8 @@
 //
 // `convex/` files run in a V8 isolate with no Node builtins (no `fs`), so
 // this can't `readdirSync("data/boosters")` — the file list is a small
-// hand-maintained registry instead, same pattern as `DATA_SETS` in
-// `scripts/backfill-rarity.mjs`. Add one line here for every new checked-in
-// Booster Config.
+// hand-maintained registry instead. Add one line here for every new
+// checked-in Booster Config.
 import { describe, it, expect } from "vitest";
 import leaConfigJson from "../../../data/boosters/lea.json";
 import iceConfigJson from "../../../data/boosters/ice.json";

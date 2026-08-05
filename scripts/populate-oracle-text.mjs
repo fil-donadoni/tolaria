@@ -1,7 +1,14 @@
 #!/usr/bin/env node
 /**
- * Populates the `oracleText` field on every CardDefinition in a card set
- * file by fetching the printed Oracle text from Scryfall.
+ * BACKFILL: populates the `oracleText` field on every CardDefinition in a card
+ * set file by fetching the Oracle text from Scryfall.
+ *
+ * Both importers now emit `oracleText` at generation time (`json-to-cards.mjs`
+ * from MTGJSON `text`, `list-to-cards.mjs` from the Scryfall print), so a
+ * freshly imported set needs NO second pass. This script is for the catalogue
+ * that predates that — a set file with definitions missing the field, or a
+ * hand-written card whose author skipped it. It is idempotent, so running it
+ * over an already-populated file is a no-op.
  *
  * Usage:
  *   node scripts/populate-oracle-text.mjs convex/cards/sets/lea.ts
