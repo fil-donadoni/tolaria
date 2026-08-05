@@ -335,3 +335,73 @@ describe("process-gh-issues is a frame plus on-demand references (issue #2190)",
         ).toEqual([]);
     });
 });
+
+describe("every skill is discoverable on a case-sensitive filesystem", () => {
+    it("tracks each skill's manifest as `SKILL.md`, never `skill.md`", () => {
+        // macOS is case-INSENSITIVE, so a manifest committed as `skill.md`
+        // works perfectly on this machine and is invisible everywhere else:
+        // Claude Code looks for `SKILL.md`, so on Linux the skill simply does
+        // not exist — no error, no warning, the slash command is just absent.
+        // Four were in that state (gre-test, mtg-rules-check, new-card,
+        // new-set) and it surfaced only because a CI-only test corpus came back
+        // smaller than the local one.
+        const tracked = execFileSync("git", ["ls-files", ".claude/skills/"], {
+            cwd: REPO_ROOT,
+            encoding: "utf8",
+        })
+            .split("\n")
+            .filter((f) => /skill\.md$/i.test(f));
+
+        expect(tracked.length).toBeGreaterThan(4);
+        const miscased = tracked.filter((f) => !f.endsWith("/SKILL.md"));
+        expect(
+            miscased,
+            `manifest(s) git tracks under the wrong case — invisible on a case-sensitive filesystem:\n${miscased.join("\n")}`
+        ).toEqual([]);
+    });
+});
+
+describe("every queue-facing skill instructs `Target files`", () => {
+    const SKILLS = path.join(REPO_ROOT, ".claude", "skills");
+
+    /**
+     * Derived from CONTENT, not a hard-coded list: any skill that talks about
+     * the `ready-for-agent` queue or about opening a GitHub issue is one whose
+     * output the planner has to schedule. A hard-coded list stops covering
+     * whatever is written after it — the failure the hook-registration and
+     * ADR-index guards both had before they were re-keyed.
+     */
+    const queueFacing = (): string[] =>
+        fs
+            .readdirSync(SKILLS)
+            .filter((name) => {
+                const file = path.join(SKILLS, name, "SKILL.md");
+                if (!fs.existsSync(file)) return false;
+                return /ready-for-agent|open a github issue/i.test(
+                    fs.readFileSync(file, "utf8")
+                );
+            })
+            .sort();
+
+    it("finds a real corpus", () => {
+        expect(queueFacing().length).toBeGreaterThanOrEqual(4);
+    });
+
+    it("names the section in each of them", () => {
+        // An issue with no `Target files` gets an UNKNOWN blast radius, so the
+        // planner refuses to guess and runs it solo — closing the batch around
+        // it. Measured on the live queue: one such issue at the head deferred
+        // 162 others and collapsed a BATCH_CAP=4 fan-out to one. The cost is
+        // invisible from the issue itself, which is why it needs a guard.
+        const silent = queueFacing().filter(
+            (name) =>
+                !/target files/i.test(
+                    fs.readFileSync(path.join(SKILLS, name, "SKILL.md"), "utf8")
+                )
+        );
+        expect(
+            silent,
+            `queue-facing skill(s) that never mention \`Target files\`:\n${silent.join("\n")}`
+        ).toEqual([]);
+    });
+});

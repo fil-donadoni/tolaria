@@ -224,9 +224,16 @@ function hoursBetween(fromIso: string, toIso: string): number {
     return (Date.parse(toIso) - Date.parse(fromIso)) / 3_600_000;
 }
 
+/**
+ * The repo root, as a normalized path. A `Target files` list of `- *` — the
+ * "this touches everything" the intake skills document — normalizes to this and
+ * collides with every path there is.
+ */
+export const EVERYTHING = "";
+
 /** Strip decoration so a glob and a path underneath it compare equal. */
 export function normalizePath(raw: string): string {
-    return raw
+    const path = raw
         .trim()
         .replace(/^[-*]\s+/, "")
         .replace(/`/g, "")
@@ -234,11 +241,32 @@ export function normalizePath(raw: string): string {
         .replace(/\/\*\*$/, "")
         .replace(/\/\*$/, "")
         .replace(/\/+$/, "");
+    // A bare `*` survived every strip above and then collided with NOTHING,
+    // so an issue declaring the whole repo batched happily beside all of them.
+    return path === "*" || path === "**" ? EVERYTHING : path;
 }
 
 /** Two paths collide when either contains the other. */
 export function pathsOverlap(a: string, b: string): boolean {
+    if (a === EVERYTHING || b === EVERYTHING) return true;
     return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);
+}
+
+/**
+ * Is `path` the append-only registration point `point`, or something inside it?
+ *
+ * **Directional on purpose, unlike `pathsOverlap`.** The append-only exclusion
+ * asks "may I ignore this path when checking disjointness", and a DIRECTORY that
+ * merely happens to contain a registration point is not itself append-only.
+ * Using symmetric containment here means a broad declaration silently excludes
+ * itself from every conflict check: `convex/gre/**` contains
+ * `convex/gre/serialize.ts`, so the whole engine directory was dropped from
+ * `comparable` and the issue looked conflict-free with everything. Observed on
+ * the live queue — two issues that both edit `convex/gre/state.ts` were batched
+ * together, which is the one wrong answer the fan-out cannot survive.
+ */
+export function isAppendOnlyPath(path: string, point: string): boolean {
+    return path === point || path.startsWith(`${point}/`);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -480,7 +508,12 @@ export function planBatch(
         let blastRadius: BlastRadius;
         let targetFiles: string[];
         if (declaredFiles !== null) {
-            blastRadius = declaredFiles.includes("*")
+            // `normalizePath` maps a bare `*` to `EVERYTHING` (the empty repo
+            // root), so this reads the NORMALIZED marker. Matching the raw `"*"`
+            // here is what broke when normalization learned about it — and the
+            // failure was silent: the issue kept a `declared` radius and stopped
+            // announcing that it touches the whole repo.
+            blastRadius = declaredFiles.includes(EVERYTHING)
                 ? "everything"
                 : "declared";
             targetFiles = declaredFiles;
@@ -540,7 +573,7 @@ export function planBatch(
         }
 
         const comparable = targetFiles.filter(
-            (p) => !appendOnly.some((a) => pathsOverlap(p, a))
+            (p) => !appendOnly.some((a) => isAppendOnlyPath(p, a))
         );
 
         if (batch.length > 0) {
