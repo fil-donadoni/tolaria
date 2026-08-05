@@ -84,6 +84,18 @@ export interface WorkReceipt extends ReceiptCommon {
     worktree: string;
     /** `git diff --name-only main` — the paths the diff ACTUALLY touched. */
     targetFiles: string[];
+    /**
+     * The subset of `targetFiles` this PR RESTRUCTURED — moved, renamed, split,
+     * or rewrote — as opposed to appended to or edited in place.
+     *
+     * The merge-train order (#2185) cannot derive this from paths: "both PRs
+     * touched `layers.ts`" says nothing about which one has to land first. Only
+     * the subagent that wrote the diff knows, so it declares it. Omitted means
+     * "nothing restructured", which is the common and safe case — a wrong
+     * restructure claim costs one avoidable ordering constraint, a missing one
+     * costs a rebase conflict the train resolves anyway.
+     */
+    restructures?: string[];
     proofOfFailure: ProofOfFailure[];
     /** Required when `outcome === "pr-open"`. */
     pr?: number;
@@ -361,6 +373,22 @@ export function parseReceipt(value: unknown): Receipt {
     } else {
         receipt.reason = requireString(raw, "reason");
         if (raw.pr !== undefined) receipt.pr = requirePositiveInt(raw, "pr");
+    }
+
+    if (raw.restructures !== undefined) {
+        const restructures = requireStringArray(raw, "restructures");
+        // A restructured path outside the diff is a receipt describing a PR
+        // that does not exist. The train would build an ordering constraint on
+        // a file this PR never touched — an invented edge, and the kind that
+        // reads as a considered decision afterwards.
+        const stray = restructures.filter((p) => !targetFiles.includes(p));
+        if (stray.length > 0) {
+            throw new ReceiptError(
+                "restructures",
+                `not a subset of targetFiles: ${stray.join(", ")}`
+            );
+        }
+        receipt.restructures = restructures;
     }
 
     const scenario = parseScenario(raw);
