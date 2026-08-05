@@ -7,8 +7,10 @@ import type {
     CardDefinition,
     GameEvent,
     ManaCost,
+    PermanentView,
     SpellContext,
     StaticEffectContext,
+    StaticEffectStateView,
 } from "../../types";
 import { EFFECT_AFFECTS_SELF } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
@@ -451,17 +453,27 @@ export const sparringGolem: CardDefinition = {
 // P/T clauses (Plains/Swamp) — `pt-cda` `compute` with full board access,
 // the Kird Ape / Sedge Troll pattern, summed into one CDA.
 //
-// Keyword clauses (Island/Mountain/Forest) — SIMPLIFICATION (flagged, same
-// treatment as Woolly Mammoths, `ice/green.ts`): `keyword-grant`'s `applies`
-// predicate (`StaticEffectContext`) exposes only per-card characteristic
-// helpers (`getColors`/`isCreature`/`hasSubtype`/...) — no battlefield
-// accessor — so a continuous, re-evaluated "as long as you control a <land
-// type>" keyword gate isn't expressible via `keyword-grant`. Flying / first
-// strike / trample are granted UNCONDITIONALLY as plain `staticAbilities` — a
-// strict superset of the printed behaviour (Tek is played in five-colour
-// shells where all five basics are online in practice). A board-aware
-// keyword-grant predicate would track this exactly; flagged for the same
-// follow-up as Woolly Mammoths.
+// Keyword clauses (Island/Mountain/Forest) — `keyword-grant`'s `condition`
+// field (issue #1095, generalize-don't-add; shipped on Kavu Runner,
+// `inv/red.ts`) is exactly this shape: a board-state gate evaluated once per
+// source against the whole board, re-evaluated every SBA pass by
+// `refreshCounterGatedStatics` (`gre/state.ts`) so the keyword appears/
+// disappears as the controller's basics come and go. Each of the three
+// clauses is its own `keyword-grant` entry gated on `controlsBasicLandType`,
+// the same "as long as you control a <land type>" predicate the two P/T
+// clauses above use, extracted to file scope for reuse across all five
+// clauses (issue #1850).
+function controlsBasicLandType(landType: string) {
+    return (source: PermanentView, state: StaticEffectStateView): boolean =>
+        state.players.some((p) =>
+            p.battlefield.some(
+                (c) =>
+                    c.controllerId === source.controllerId &&
+                    c.subtypes.includes(landType)
+            )
+        );
+}
+
 export const tek: CardDefinition = {
     id: "c1f38104-a699-4bb9-930a-699f7bbc338a",
     rarity: "rare",
@@ -473,26 +485,37 @@ export const tek: CardDefinition = {
     subtypes: ["Dragon"],
     power: 2,
     toughness: 2,
-    staticAbilities: ["flying", "first strike", "trample"],
     staticEffects: [
         {
             kind: "pt-cda",
             applies: EFFECT_AFFECTS_SELF,
             compute: (source, state) => {
                 const controls = (subtype: string) =>
-                    state.players.some((p) =>
-                        p.battlefield.some(
-                            (c) =>
-                                c.controllerId === source.controllerId &&
-                                c.subtypes.includes(subtype)
-                        )
-                    );
+                    controlsBasicLandType(subtype)(source, state);
                 let power = 0;
                 let toughness = 0;
                 if (controls("Plains")) toughness += 2;
                 if (controls("Swamp")) power += 2;
                 return { power, toughness };
             },
+        },
+        {
+            kind: "keyword-grant",
+            applies: EFFECT_AFFECTS_SELF,
+            condition: controlsBasicLandType("Island"),
+            keyword: "flying",
+        },
+        {
+            kind: "keyword-grant",
+            applies: EFFECT_AFFECTS_SELF,
+            condition: controlsBasicLandType("Mountain"),
+            keyword: "first strike",
+        },
+        {
+            kind: "keyword-grant",
+            applies: EFFECT_AFFECTS_SELF,
+            condition: controlsBasicLandType("Forest"),
+            keyword: "trample",
         },
     ],
 };
