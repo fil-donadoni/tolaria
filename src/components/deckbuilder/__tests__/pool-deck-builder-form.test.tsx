@@ -353,3 +353,104 @@ describe("PoolDeckbuilderSurface — builder pane floor (issue #2056 defect 3 am
         );
     });
 });
+
+// Issue #2275: below 800px of viewport height, `PoolDeckbuilderSurface`'s
+// own `minHeight` is a CONSTANT (156.8px, `poolSurfaceMinHeightPx()` in
+// `~/lib/cardSizing.ts` proves the math — see `deck-builder-height.test.ts`)
+// while the space `<main>` (the shell) actually has left for this route
+// keeps shrinking with the viewport. Below ~246px that constant used to win,
+// and since nothing absorbed the shortfall except `<main>`'s own fallback
+// scrollbar, `SaveDeckBar` — the primary Done action — spilled past the
+// bottom of the viewport, exactly the symptom the #2056 fix removed at
+// taller viewports.
+//
+// Chosen fix (branch (b) from the issue): PIN `SaveDeckBar`. Everything that
+// can outgrow its box — the header, the basics bar, and above all the pane
+// carrying the forced floor — now lives inside its OWN `overflow-y-auto`
+// wrapper; `SaveDeckBar` is a plain sibling flex item OUTSIDE it. This is
+// deliberately NOT a fix that only holds above/below some specific pixel
+// value: it is a structural invariant (a flex sibling outside a `min-h-0
+// flex-1 overflow-y-auto` wrapper always renders at its own natural height,
+// regardless of how much the wrapper's content overflows), so it holds at
+// EVERY viewport height the app supports — jsdom cannot run real layout to
+// prove a number, but it CAN prove the DOM shape that makes the number
+// irrelevant, which is what this sweep asserts once at each representative
+// height band (down to 64px — well under any real device, past which no
+// fix restores usability; through the issue's own ~246px measurement; up
+// past the 800px floor-vs-scaling boundary `deck-builder-height.test.ts`
+// exercises numerically). The fallback-scroll crossover — the height below
+// which the WRAPPER now needs its own scrollbar to show the whole pane,
+// where before this fix the deficit spilled onto `SaveDeckBar` instead — is
+// unchanged from the issue's own ~246px measurement: the pane's floor and
+// the surrounding chrome are both untouched by this fix, only what absorbs
+// the shortfall is different.
+describe("PoolDeckBuilderForm — SaveDeckBar stays reachable regardless of the pane's forced floor (issue #2275)", () => {
+    // Height is not an input this component reads (no windowed media-query
+    // JS, no ResizeObserver) — the `short-viewport:` variant is a pure CSS
+    // media query jsdom never evaluates. So "sweeping viewport heights"
+    // here means: at every height in the band, the SAME rendered DOM shape
+    // applies, and that shape is what the assertions below pin. There is
+    // nothing further to vary per height because the component's output is
+    // height-invariant by design — that invariance IS the fix.
+    const REPRESENTATIVE_HEIGHTS_PX = [
+        64, 150, 200, 245, 246, 247, 300, 500, 800, 1200,
+    ];
+
+    it.each(REPRESENTATIVE_HEIGHTS_PX)(
+        "at a %ipx-tall viewport, SaveDeckBar's form is NOT inside the pane's scrollable wrapper",
+        () => {
+            setup();
+            const { container } = render(
+                <PoolDeckBuilderForm
+                    eventId={"event-1" as never}
+                    seatIndex={0}
+                    pool={POOL}
+                    existingDeck={null}
+                    eventType="sealed"
+                    poolArrangement={[]}
+                />
+            );
+            const form = container.querySelector("form")!;
+            const scrollWrapper = container.querySelector(".overflow-y-auto")!;
+            expect(scrollWrapper).toBeTruthy();
+            expect(scrollWrapper.contains(form)).toBe(false);
+            cleanup();
+        }
+    );
+
+    it("the scrollable wrapper contains the pane carrying the forced min-height floor, so its shortfall is absorbed there instead of pushing SaveDeckBar out of the flex column", () => {
+        setup();
+        const { container } = render(
+            <PoolDeckBuilderForm
+                eventId={"event-1" as never}
+                seatIndex={0}
+                pool={POOL}
+                existingDeck={null}
+                eventType="sealed"
+                poolArrangement={[]}
+            />
+        );
+        const surfaceRoot = container.querySelector('[style*="--card-base"]')!;
+        const scrollWrapper = container.querySelector(".overflow-y-auto")!;
+        expect(scrollWrapper.contains(surfaceRoot)).toBe(true);
+    });
+
+    it("SaveDeckBar's own wrapper is a shrink-0 sibling of the scrollable wrapper — it never competes for the pane's shortfall", () => {
+        setup();
+        const { container } = render(
+            <PoolDeckBuilderForm
+                eventId={"event-1" as never}
+                seatIndex={0}
+                pool={POOL}
+                existingDeck={null}
+                eventType="sealed"
+                poolArrangement={[]}
+            />
+        );
+        const form = container.querySelector("form")!;
+        const saveBarWrapper = form.parentElement!;
+        expect(saveBarWrapper.className.split(/\s+/)).toContain("shrink-0");
+        const root = container.firstElementChild as HTMLElement;
+        expect(Array.from(root.children)).toContain(saveBarWrapper);
+    });
+});

@@ -22,3 +22,46 @@ export const CARD_MIN_W = "4.5rem";
 export function cardBase(rem: string, vw: string, dvh: string): string {
     return `max(${CARD_MIN_W}, min(${rem}, ${vw}, ${dvh}))`;
 }
+
+// --- Height-reachability math (issue #2275) -------------------------------
+//
+// `PoolDeckbuilderSurface` pins its own min-height to
+// `calc(${cardBase("7.5rem", "17vw", "9dvh")} * 7 / 5 + 3.5rem)` (see
+// `pool-deckbuilder-surface.tsx`) — CSS the browser resolves, but jsdom's
+// CSSOM mangles a `calc()` nesting `min()`/`max()` on read-back (see
+// `pool-deck-builder-form.test.tsx`), so a test that needs the actual NUMBER
+// (not just the source-text expression) has no way to ask the DOM for it.
+// This is a plain-TS mirror of that one expression, kept in the same file as
+// the floor it derives from so the two can't drift apart silently. It does
+// NOT change the floor (acceptance criterion, issue #2275) — it only lets a
+// test compute the same number the CSS already produces.
+
+const REM_PX = 16; // this app never overrides the root font-size (100%)
+const CARD_MIN_W_PX = 4.5 * REM_PX; // 72 — mirrors CARD_MIN_W
+const POOL_SURFACE_CARD_REM_CEILING_PX = 7.5 * REM_PX; // 120 — the surface's own "7.5rem" candidate
+
+/**
+ * Mirrors `PoolDeckbuilderSurface`'s `minHeight` in plain pixels for a given
+ * viewport height. Ignores the clamp's `17vw` candidate — that term only
+ * shrinks the result further on a NARROW viewport, so omitting it makes this
+ * function return the least-favorable-for-reachability (largest) minimum for
+ * a given height, never an underestimate, on any viewport at least ~706px
+ * wide (`120 / 0.17`) — the short-and-wide class (landscape phone,
+ * split-screen tablet, short desktop window) this issue and #2056 are both
+ * about.
+ *
+ * Below 800px of viewport height (`0.09 * 800 === CARD_MIN_W_PX`) the `9dvh`
+ * term is smaller than `CARD_MIN_W`, so the floor wins and the result is a
+ * CONSTANT — 156.8px — independent of viewport height. Above 800px the
+ * `9dvh` term takes over and the minimum grows with the viewport instead,
+ * until it saturates at the `7.5rem` ceiling (120px core → 224px minHeight,
+ * `120 * 7/5 + 56`) at 1333.3px of viewport height.
+ */
+export function poolSurfaceMinHeightPx(viewportHeightPx: number): number {
+    const dvhTermPx = viewportHeightPx * 0.09; // 9dvh
+    const cardBasePx = Math.max(
+        CARD_MIN_W_PX,
+        Math.min(POOL_SURFACE_CARD_REM_CEILING_PX, dvhTermPx)
+    );
+    return cardBasePx * (7 / 5) + 3.5 * REM_PX;
+}

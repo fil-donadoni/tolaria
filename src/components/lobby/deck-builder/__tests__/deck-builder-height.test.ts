@@ -9,6 +9,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { poolSurfaceMinHeightPx } from "~/lib/cardSizing";
 
 const SRC = readFileSync(join(__dirname, "..", "deck-builder.tsx"), "utf8");
 
@@ -34,5 +35,52 @@ describe("DeckBuilder — short-viewport chrome treatment (issue #2056 defect 2)
     it("the header band and title carry short-viewport overrides", () => {
         expect(SRC).toContain("short-viewport:py-1");
         expect(SRC).toContain("short-viewport:text-sm");
+    });
+});
+
+// Issue #2275: the Pool deckbuilder route (`pool-deck-builder-form.tsx`,
+// `pool-deckbuilder-surface.tsx`) shares this file's "deckbuilder height"
+// topic but not `DeckBuilder`'s own grid — its `PoolDeckbuilderSurface`
+// pane carries a hard `minHeight` floor `DeckBuilder`'s `grid-rows-[1fr_1fr]`
+// does not. `poolSurfaceMinHeightPx()` (`~/lib/cardSizing.ts`) is a plain-TS
+// mirror of that CSS expression (jsdom can't resolve the real `calc()` — see
+// `pool-deck-builder-form.test.tsx`) kept here because this file is already
+// the height-math home for the deckbuilder surfaces generally. It only
+// proves the MATH is unchanged (the card-size floor is explicitly out of
+// scope for issue #2275); the actual reachability fix — `SaveDeckBar` pinned
+// outside the pane's own scroll wrapper — is proven at the render level in
+// `pool-deck-builder-form.test.tsx`, since that structural claim can't be
+// verified from source text or arithmetic alone.
+describe("Pool deckbuilder surface — minHeight floor sweep (issue #2275)", () => {
+    it("is a CONSTANT (156.8px) at every viewport height from a phone-landscape low up through 800px — the card-size floor issue #2275 must NOT change", () => {
+        for (const h of [64, 150, 200, 246, 300, 500, 799]) {
+            expect(poolSurfaceMinHeightPx(h)).toBeCloseTo(156.8, 5);
+        }
+    });
+
+    it("grows past the floor once the viewport clears 800px, and keeps growing monotonically up to the 7.5rem ceiling", () => {
+        expect(poolSurfaceMinHeightPx(800)).toBeCloseTo(156.8, 5);
+        expect(poolSurfaceMinHeightPx(801)).toBeGreaterThan(156.8);
+        expect(poolSurfaceMinHeightPx(1000)).toBeGreaterThan(
+            poolSurfaceMinHeightPx(801)
+        );
+        // Saturates at the 7.5rem (120px) card-base ceiling: 120 * 7/5 + 56 = 224.
+        expect(poolSurfaceMinHeightPx(1333.34)).toBeCloseTo(224, 1);
+        expect(poolSurfaceMinHeightPx(2000)).toBeCloseTo(224, 1);
+    });
+
+    // The ~246px figure issue #2275 measures as the crossover where the
+    // OLD behaviour broke (the pane's 156.8px floor plus the route's own
+    // surrounding chrome — header/basics-bar/save-bar at their
+    // short-viewport sizes — stopped fitting in what `<main>` had left,
+    // spilling the Save bar into the shell's fallback scroll). The pane
+    // minimum itself does not "know" about 246px — it is a CONSTANT clear
+    // through this whole band, which is exactly why a fix that only
+    // shrinks the pane's floor further (option (a), rejected — the floor
+    // is unchanged per the acceptance criteria) was never the intended
+    // shape here; the crossover only mattered for what ABSORBS the
+    // shortfall, which `pool-deck-builder-form.test.tsx` verifies directly.
+    it("the floor at the issue's own ~246px crossover measurement is identical to the floor at the phone-landscape low (64px) — it never varies across the band the crossover sits in", () => {
+        expect(poolSurfaceMinHeightPx(246)).toBe(poolSurfaceMinHeightPx(64));
     });
 });

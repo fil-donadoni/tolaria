@@ -339,67 +339,93 @@ export default function PoolDeckBuilderForm({
         // taller than the viewport and pushed the Save bar + legality panel
         // off-screen.
         <div className="flex flex-1 min-h-0 flex-col bg-surface-base text-text">
-            {/* short-viewport:hidden (issue #2056 defect 3 amplification,
-                852x277 browser measurement): this band alone measured 39px,
-                and the "← Back to Event" affordance it carries reappears
-                compactly inside `SaveDeckBar`'s own row via `onBack` below —
-                the header disappears rather than shrinking further, per the
-                "header 0" target. */}
-            <div className="flex items-center gap-3 border-b border-border-subtle/30 bg-surface/60 px-4 py-3 short-viewport:hidden md:px-6">
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => void handleDone()}
-                >
-                    ← Back to Event
-                </Button>
-                <h1 className="text-lg font-semibold font-beleren tracking-wide text-parchment">
-                    Build Limited Deck
-                </h1>
+            {/* Issue #2275: everything that can OUTGROW the space it's given
+                — the header, the basics bar, and above all
+                `PoolDeckbuilderSurface` (whose own `minHeight` is a
+                CONSTANT floor below 800px of viewport height, issue #2056
+                defect 3 amplification, deliberately unchanged here) — lives
+                inside this ONE scrollable wrapper. `SaveDeckBar` sits
+                OUTSIDE it as a plain sibling flex item, so a viewport too
+                short to fit the pane's floor no longer pushes the whole
+                route past `<main>`'s bounds (which used to surface as the
+                shell's own fallback scrollbar swallowing the Save bar below
+                ~246px viewport height, the exact regression #2056 already
+                fixed at taller viewports). Below that crossover this
+                wrapper's OWN scrollbar absorbs the shortfall instead —
+                `SaveDeckBar` renders at its full natural height at every
+                viewport height the app supports, never the item flex-shrink
+                trims. */}
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+                {/* short-viewport:hidden (issue #2056 defect 3 amplification,
+                    852x277 browser measurement): this band alone measured 39px,
+                    and the "← Back to Event" affordance it carries reappears
+                    compactly inside `SaveDeckBar`'s own row via `onBack` below —
+                    the header disappears rather than shrinking further, per the
+                    "header 0" target. */}
+                <div className="flex items-center gap-3 border-b border-border-subtle/30 bg-surface/60 px-4 py-3 short-viewport:hidden md:px-6">
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => void handleDone()}
+                    >
+                        ← Back to Event
+                    </Button>
+                    <h1 className="text-lg font-semibold font-beleren tracking-wide text-parchment">
+                        Build Limited Deck
+                    </h1>
+                </div>
+
+                <PoolBasicLandsBar
+                    cardIdsBySubtype={basicCardIds}
+                    onAdd={handleAddBasic}
+                    disabled={saving}
+                />
+
+                <PoolDeckbuilderSurface
+                    mainCards={deck.cards}
+                    sideCards={deck.sideboard}
+                    onMoveToSideboard={handleMainClick}
+                    onMoveToMaindeck={handleSideClick}
+                    columnOf={columnOf}
+                    onSetColumn={handleSetColumn}
+                    mainEmptyMessage="Move Pool cards here (or add Basics above) to build your deck."
+                    sideEmptyMessage="Every remaining Pool card lives here until moved to the Maindeck."
+                />
+
+                {/* short-viewport:hidden (issue #2056 defect 3 amplification):
+                    this band alone measured 48px — demoted to a `DeckLegalityChip`
+                    inside `SaveDeckBar` via the `legality` prop below, which only
+                    costs height while its disclosure is open. */}
+                <div className="short-viewport:hidden">
+                    <DeckLegalityPanel
+                        formatLabel="Limited"
+                        isLegal={legality.isLegal}
+                        reasons={legality.reasons}
+                    />
+                </div>
             </div>
 
-            <PoolBasicLandsBar
-                cardIdsBySubtype={basicCardIds}
-                onAdd={handleAddBasic}
-                disabled={saving}
-            />
-
-            <PoolDeckbuilderSurface
-                mainCards={deck.cards}
-                sideCards={deck.sideboard}
-                onMoveToSideboard={handleMainClick}
-                onMoveToMaindeck={handleSideClick}
-                columnOf={columnOf}
-                onSetColumn={handleSetColumn}
-                mainEmptyMessage="Move Pool cards here (or add Basics above) to build your deck."
-                sideEmptyMessage="Every remaining Pool card lives here until moved to the Maindeck."
-            />
-
-            {/* short-viewport:hidden (issue #2056 defect 3 amplification):
-                this band alone measured 48px — demoted to a `DeckLegalityChip`
-                inside `SaveDeckBar` via the `legality` prop below, which only
-                costs height while its disclosure is open. */}
-            <div className="short-viewport:hidden">
-                <DeckLegalityPanel
-                    formatLabel="Limited"
-                    isLegal={legality.isLegal}
-                    reasons={legality.reasons}
+            {/* shrink-0 (issue #2275): a plain flex item's default
+                `flex-shrink: 1` would let the row above's overflow squeeze
+                this one too once the outer column ran out of room. It never
+                needs to — the wrapper above absorbs the shortfall — but
+                `shrink-0` makes that guarantee explicit rather than
+                incidental. */}
+            <div className="shrink-0">
+                <SaveDeckBar
+                    name={deck.name}
+                    onChangeName={handleSetName}
+                    onDone={() => void handleDone()}
+                    cardCount={deck.cards.length}
+                    onBack={() => void handleDone()}
+                    backLabel="← Back to Event"
+                    legality={{
+                        formatLabel: "Limited",
+                        isLegal: legality.isLegal,
+                        reasons: legality.reasons,
+                    }}
                 />
             </div>
-
-            <SaveDeckBar
-                name={deck.name}
-                onChangeName={handleSetName}
-                onDone={() => void handleDone()}
-                cardCount={deck.cards.length}
-                onBack={() => void handleDone()}
-                backLabel="← Back to Event"
-                legality={{
-                    formatLabel: "Limited",
-                    isLegal: legality.isLegal,
-                    reasons: legality.reasons,
-                }}
-            />
         </div>
     );
 }
