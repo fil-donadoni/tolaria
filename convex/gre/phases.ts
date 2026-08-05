@@ -50,10 +50,8 @@ import {
     tickDuration,
 } from "./state";
 import { tryGetDefinition } from "../cards";
-import {
-    hasControlledSinceTurnStart,
-    resetControlContinuity,
-} from "./controlContinuity";
+import { resetControlContinuity } from "./controlContinuity";
+import { effectivePermanentView } from "./permanentView";
 import { advanceSagasAtPrecombatMain } from "./sagas";
 import { seededShuffle } from "./rng";
 import { describeDamageSource } from "./replacements";
@@ -311,40 +309,10 @@ export function finalizeUntapPick(
     drainAutoPasses(state);
 }
 
-/** Returns a `MatchablePermanent`-shaped view of `card` with its `power` and
- *  `toughness` overridden by the effective values read at call time
- *  (CR 613 layer 7c/7d — counters, +N/+N auras, temporary buffs). The
- *  untap-step dispatcher uses this so power-keyed filters (Meekstone's
- *  `powerAtLeast: 3`) honor the live layer system instead of printed P/T. */
-export function effectivePermanentView(
-    state: GameState,
-    card: CardInstanceState
-): CardInstanceState {
-    // CR 105 / 202.2 / 613.1d — populate effective colors so color-scoped
-    // filters (Magnetic Mountain's "blue creatures") match on the battlefield.
-    // `colors` honors layer-5 colorOverride + grantedColors via getColors.
-    const colors = STATIC_EFFECT_CTX.getColors(card);
-    // CR 400.7 — the two DERIVED turn-scoped `MatchablePermanent` flags. Both
-    // are computed off state, not stored on the instance, so a raw
-    // `CardInstanceState` handed to `matchesPermanentFilter` leaves them
-    // undefined and the filter fails CLOSED — i.e. the pending-choice submit
-    // validator would reject a pick the choice itself offered. Derived here,
-    // once, for every caller of this view.
-    const turnFlags = {
-        enteredThisTurn: card.enteredOnTurn === state.turn,
-        controlledSinceTurnStart: hasControlledSinceTurnStart(state, card),
-    };
-    if (!card.types.includes("Creature")) {
-        return { ...card, colors, ...turnFlags } as CardInstanceState;
-    }
-    return {
-        ...card,
-        colors,
-        ...turnFlags,
-        power: getEffectivePower(state, card),
-        toughness: getEffectiveToughness(state, card),
-    } as CardInstanceState;
-}
+// The layered filter view moved DOWN to `./permanentView` (issue #1209) so the
+// cost/payment path can import it without pulling in the phase machinery.
+// Re-exported here for its historical importers.
+export { effectivePermanentView };
 
 /** Untap step (CR 502.1, 502.4): the active player declares which
  *  permanents they control will untap, those permanents untap

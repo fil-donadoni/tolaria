@@ -307,6 +307,7 @@ import {
     finalizeDrawReplacementPay,
     isSorceryTiming,
 } from "./gre/phases";
+import { effectivePermanentView } from "./gre/permanentView";
 import { freshSeed, seededShuffle } from "./gre/rng";
 import { makeMulliganState, recordDeclaration } from "./gre/mulligan";
 import type { Phase, ManaRestriction } from "./gre/types";
@@ -5648,9 +5649,18 @@ export function finalizeTargetSelection(
         // if no matching permanent is on the activating player's battlefield.
         if (ability.cost.sacrificeFilter) {
             const candidates = player.battlefield.filter((c) =>
-                matchesPermanentFilter(c, ability.cost.sacrificeFilter!, {
-                    supertypesOf: liveSupertypesOf,
-                })
+                // Same layered view as `sacrificeCandidates`, the scan that
+                // later builds the picker. Matching the RAW instance here made
+                // this gate disagree with it on every colour-filtered cost
+                // (issue #1209).
+                matchesPermanentFilter(
+                    effectivePermanentView(state, c),
+                    ability.cost.sacrificeFilter!,
+                    {
+                        selfControllerId: player.id,
+                        supertypesOf: liveSupertypesOf,
+                    }
+                )
             );
             if (candidates.length === 0) {
                 throw new Error("No legal permanent to pay the sacrifice cost");
@@ -12670,9 +12680,15 @@ export function activateAbilityOnState(
     // pendingActivation that can't be paid.
     if (ability.cost.sacrificeFilter) {
         const candidates = player.battlefield.filter((c) =>
-            matchesPermanentFilter(c, ability.cost.sacrificeFilter!, {
-                supertypesOf: liveSupertypesOf,
-            })
+            // Layered view, matching `sacrificeCandidates` (issue #1209).
+            matchesPermanentFilter(
+                effectivePermanentView(state, c),
+                ability.cost.sacrificeFilter!,
+                {
+                    selfControllerId: player.id,
+                    supertypesOf: liveSupertypesOf,
+                }
+            )
         );
         if (candidates.length === 0) {
             throw new Error("No legal permanent to pay the sacrifice cost");

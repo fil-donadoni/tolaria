@@ -314,6 +314,36 @@ function buildOwedPaymentView(
     return { park, submission: pickForOwedPayment(full, botId, park) };
 }
 
+/** The client-side twin of the server's `effectivePermanentView`
+ *  (`convex/gre/permanentView.ts`): a projected card as
+ *  `matchesPermanentFilter` must see it. THREE of the fields a filter reads are
+ *  DERIVED and the wire projection carries none of them, so a raw projected
+ *  instance makes every clause over them fail CLOSED — silently, as an EMPTY
+ *  candidate set rather than an error:
+ *
+ *    * `colors` (CR 202.2 / 613.1d) — via the single colour authority
+ *      (`cards/effectiveColors.ts`: layer-5 override SETS, `grantedColors`
+ *      UNION), the same one the server's view uses.
+ *    * `enteredThisTurn` / `controlledSinceTurnStart` (CR 400.7) — computed off
+ *      state. Without them a "creature you controlled since the beginning of
+ *      the turn" sacrifice choice enumerates ZERO candidates and the bot
+ *      freezes on a choice it must answer.
+ *
+ *  Every projected-battlefield filter match in this module goes through here
+ *  (issue #1209): the same class killed the mayPay permanent leg and, on the
+ *  server side, the enumerator's colour-filtered activation-cost pre-checks. */
+function projectedPermanentView(
+    state: PublicGameState,
+    c: SlimCardInstance
+): Parameters<typeof matchesPermanentFilter>[0] {
+    return {
+        ...c,
+        colors: getEffectiveColors(c as unknown as PermanentView),
+        enteredThisTurn: c.enteredOnTurn === state.turn,
+        controlledSinceTurnStart: hasControlledSinceTurnStart(state, c),
+    };
+}
+
 /** Read the cards the bot may legally pick for `head` from its projected view.
  *  The wire projection already exposes the relevant zone to the chooser
  *  (`librarySearch` for search, `libraryPeek` for reorder, `revealedHand` for
@@ -364,23 +394,7 @@ function readChoiceZone(
                 const filter = head.filter;
                 cards = cards.filter((c) =>
                     matchesPermanentFilter(
-                        {
-                            ...c,
-                            colors: getEffectiveColors(
-                                c as unknown as PermanentView
-                            ),
-                            // CR 400.7 — the two DERIVED turn-scoped flags,
-                            // computed off state rather than stored on the
-                            // instance. Same fail-CLOSED stall risk as
-                            // `controllerRelation` below: without them a
-                            // "creature you controlled since the beginning of
-                            // the turn" sacrifice choice enumerates ZERO
-                            // candidates and the bot freezes on a choice it
-                            // must answer.
-                            enteredThisTurn: c.enteredOnTurn === state.turn,
-                            controlledSinceTurnStart:
-                                hasControlledSinceTurnStart(state, c),
-                        },
+                        projectedPermanentView(state, c),
                         filter,
                         // CR 701.16 (issue #1938 fixup 2) — resolves
                         // `controllerRelation` ("sacrifice two Swamps YOU
@@ -456,15 +470,24 @@ function mayPayIsAffordable(
     if (norm.life !== undefined && bot.life < norm.life) return false;
     if (norm.permanent) {
         const matching = bot.battlefield.filter((c) =>
-            matchesPermanentFilter(c, norm.permanent!.filter, {
-                // CR 701.16 (issue #1938 fixup 2) — resolves
-                // `controllerRelation` ("sacrifice two Swamps YOU control")
-                // against the bot itself, the mayPay's payer. Without this the
-                // filter fails CLOSED and the bot always evaluates a
-                // controllerRelation-gated sacrifice leg as unaffordable, even
-                // with legal candidates on board.
-                selfControllerId: botId,
-            })
+            // Issue #1209 — the layered view, not the raw projected instance:
+            // a COLOUR-filtered may-pay sacrifice leg ("sacrifice a green
+            // creature") matched nothing here and the bot judged every such
+            // cost unaffordable with legal victims on board. Same fail-CLOSED
+            // class as the `controllerRelation` note below.
+            matchesPermanentFilter(
+                projectedPermanentView(state, c),
+                norm.permanent!.filter,
+                {
+                    // CR 701.16 (issue #1938 fixup 2) — resolves
+                    // `controllerRelation` ("sacrifice two Swamps YOU
+                    // control") against the bot itself, the mayPay's payer.
+                    // Without this the filter fails CLOSED and the bot always
+                    // evaluates a controllerRelation-gated sacrifice leg as
+                    // unaffordable, even with legal candidates on board.
+                    selfControllerId: botId,
+                }
+            )
         );
         if (typeof norm.permanent.count === "object") {
             // CR 118 threshold mode — affordable iff the payer's matching

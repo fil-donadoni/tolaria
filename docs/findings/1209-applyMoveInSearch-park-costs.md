@@ -31,21 +31,34 @@ a hang. If #2155 is being sequenced, this is the argument for sooner.
 
 ---
 
-**Second, smaller observation, fixed in this PR rather than left as a finding
-(recorded here because it is a repeat of a known shape).**
-`convex/gre/activationCostPicks.ts`'s `tapOtherCandidates` matched the RAW
-`CardInstanceState` against the declared filter, while the server's own scan
-(`convex/game.ts`, `tapOtherCandidates`) has always built a
-`{ ...c, colors: STATIC_EFFECT_CTX.getColors(c) }` view first. A
-`CardInstanceState` carries no `colors` field, so Hand of Justice's "tap three
-untapped WHITE creatures you control" (CR 118.8) matched nothing:
-`planActivationCostPicks` returned `null` with four white creatures on the
-board, and `enumerateMoves` treated the activation as illegal. Dead for the bot
-rather than stalling, which is why no stall test caught it. Fixed here with a
-regression test
-(`src/lib/ai/__tests__/activation-cost-picks-integration.bot.test.ts`), but the
-CLASS — a filter evaluated against the raw instance instead of the layered view
-— has now bitten at least three sites (`selectAdditionalCost`,
-`tapOtherCandidates` ×2). A catalogue-wide guard that every
-`matchesPermanentFilter` call site with a `colors`-capable filter goes through
-the layered view would be defensible on its own.
+**Second, larger-than-first-thought observation, fixed in this PR rather than
+left as a finding (recorded here because the CLASS matters more than the site).**
+A filter evaluated against the RAW `CardInstanceState` instead of the layered
+view. `matchesPermanentFilter` takes a `MatchablePermanent` and a raw instance is
+STRUCTURALLY assignable to one — so it type-checks and is wrong: `colors`
+(CR 202.2 / 613.1d), `power`/`toughness` (CR 613) and
+`enteredThisTurn`/`controlledSinceTurnStart` (CR 400.7) are all DERIVED and
+absent from the instance, so every clause over them fails CLOSED, silently, as an
+empty candidate list rather than an error.
+
+The first pass of this PR fixed ONE site (`activationCostPicks.ts`'s
+`tapOtherCandidates`) and its regression test called `planActivationCostPicks`
+directly — so it went green while the end-to-end path was still dead. Review
+finding F2 caught that. The true count on the cost / payment / move-enumeration
+path was **SEVEN raw call sites**, not the three this note originally claimed:
+
+| Site                                     | What it gated                                                                                                            |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `convex/gre/moves.ts` (tapOtherFilter)   | the enumerator's OWN payability pre-check — `enumerateMoves` returned ZERO activations for Hand of Justice               |
+| `convex/gre/moves.ts` (sacrificeFilter)  | every colour-filtered sacrifice cost (Thelonite Monk, Homarid Spawning Bed, Freyalise Supplicant) invisible to the bot   |
+| `convex/gre/moves.ts` (copySourceFilter) | a colour-filtered copy-on-ETB cast silently suppressed for the bot                                                       |
+| `convex/game.ts` ×2 (sacrificeFilter)    | the SERVER's announce-time legality gates, disagreeing with `sacrificeCandidates` — the scan that then builds the picker |
+| `src/lib/ai/bot-view.ts` (mayPay)        | a colour-filtered may-pay sacrifice leg always judged unaffordable                                                       |
+| `src/lib/ai/selfplay/playGame.ts`        | the headless harness's pending-choice candidate pool                                                                     |
+
+All seven now go through one helper — `effectivePermanentView`
+(`convex/gre/permanentView.ts`, moved down out of `phases.ts` so the cost path
+can import it) server-side, `projectedPermanentView` (`src/lib/ai/bot-view.ts`)
+over the wire projection — and `scripts/__tests__/permanent-filter-view.test.ts`
+fails if any call site on that path ever passes a bare instance again. The
+regression tests now drive `enumerateMoves` end to end rather than the planner.

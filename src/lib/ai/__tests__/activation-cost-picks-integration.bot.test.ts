@@ -306,20 +306,47 @@ describe("tap-other cost with a colours filter (CR 118.8 / 105.2)", () => {
     const HAND_OF_JUSTICE = getCardByName("Hand of Justice");
     const LIONS = getCardByName("Savannah Lions").id; // {W} 2/1 — white
 
-    it("plans the picks for Hand of Justice's white-creature cost", () => {
-        const source = makeInstance(HAND_OF_JUSTICE.id, {
-            id: "hoj",
-            controllerId: "p1",
-        });
-        const player = makePlayer("p1", {
-            battlefield: [
-                source,
-                ...["w1", "w2", "w3", "w4"].map((id) =>
-                    makeInstance(LIONS, { id, controllerId: "p1" })
-                ),
+    /** Hand of Justice with FOUR untapped white creatures alongside it (one
+     *  more than the cost needs) and a creature on the other side to target. */
+    function handOfJusticeState(): GameState {
+        return makeState({
+            players: [
+                makePlayer(BOT, {
+                    battlefield: [
+                        makeInstance(HAND_OF_JUSTICE.id, {
+                            id: "hoj",
+                            controllerId: BOT,
+                            ownerId: BOT,
+                        }),
+                        ...["w1", "w2", "w3", "w4"].map((id) =>
+                            makeInstance(LIONS, {
+                                id,
+                                controllerId: BOT,
+                                ownerId: BOT,
+                            })
+                        ),
+                    ],
+                }),
+                makePlayer(HUMAN, {
+                    battlefield: [
+                        makeInstance(BEARS, {
+                            id: "bear",
+                            controllerId: HUMAN,
+                            ownerId: HUMAN,
+                        }),
+                    ],
+                }),
             ],
+            activePlayerId: BOT,
+            priorityPlayerId: BOT,
         });
-        const state = makeState({ players: [player, makePlayer("p2")] });
+    }
+
+    it("plans the picks for Hand of Justice's white-creature cost", () => {
+        const state = handOfJusticeState();
+        const source = state.players[0].battlefield.find(
+            (c) => c.id === "hoj"
+        )!;
         const picks = planActivationCostPicks(
             state,
             state.players[0],
@@ -330,5 +357,95 @@ describe("tap-other cost with a colours filter (CR 118.8 / 105.2)", () => {
         expect(picks?.tapOtherIds).toHaveLength(3);
         // Never the source itself (CR 118.8 — "OTHER" permanents).
         expect(picks?.tapOtherIds).not.toContain("hoj");
+    });
+
+    // The planner passing is NOT enough: `enumerateMoves` runs its OWN
+    // tap-other payability pre-check before it ever calls the planner, and that
+    // check had the same raw-instance bug. With it, the bot saw ZERO legal
+    // activations for Hand of Justice on a board full of white creatures — the
+    // planner's fix was dead code on the real path (issue #1209 review F2).
+    it("enumerateMoves emits the activation end to end, carrying the tap picks", () => {
+        const state = handOfJusticeState();
+        const activations = enumerateMoves(state, BOT).filter(
+            (m) =>
+                m.kind === "activate-ability" &&
+                m.abilityId.startsWith("hand-of-justice")
+        );
+        expect(activations.length).toBeGreaterThan(0);
+        for (const m of activations) {
+            const picks =
+                m.kind === "activate-ability"
+                    ? m.costPicks?.tapOtherIds
+                    : undefined;
+            expect(picks).toHaveLength(3);
+            expect(picks).not.toContain("hoj");
+        }
+    });
+});
+
+// The SAME raw-instance class on the SACRIFICE leg. `enumerateMoves`'s
+// `sacrificeFilter` payability pre-check matched the raw `CardInstanceState`
+// too, so every colour-filtered sacrifice cost in the catalogue — Thelonite
+// Monk ("Sacrifice a green creature"), Homarid Spawning Bed ("a blue
+// creature"), Freyalise Supplicant ("a red or white creature") — was invisible
+// to the bot even with legal victims on the battlefield (issue #1209 review F2).
+describe("sacrifice cost with a colours filter (CR 118.5 / 105.2)", () => {
+    const MONK = getCardByName("Thelonite Monk"); // {T}, Sac a green creature
+    const FOREST = getCardByName("Forest").id;
+
+    function thelonoiteState(): GameState {
+        return makeState({
+            players: [
+                makePlayer(BOT, {
+                    battlefield: [
+                        makeInstance(MONK.id, {
+                            id: "monk",
+                            controllerId: BOT,
+                            ownerId: BOT,
+                        }),
+                        // Two DIFFERENT green creatures, so the victim choice is
+                        // real and the server defers instead of auto-resolving.
+                        makeInstance(BEARS, {
+                            id: "bears",
+                            controllerId: BOT,
+                            ownerId: BOT,
+                        }),
+                        makeInstance(WURM, {
+                            id: "wurm",
+                            controllerId: BOT,
+                            ownerId: BOT,
+                        }),
+                        // A land for the ability's target requirement.
+                        makeInstance(FOREST, {
+                            id: "forest",
+                            controllerId: BOT,
+                            ownerId: BOT,
+                        }),
+                    ],
+                }),
+                makePlayer(HUMAN),
+            ],
+            activePlayerId: BOT,
+            priorityPlayerId: BOT,
+        });
+    }
+
+    it("enumerateMoves emits the activation, carrying a green victim", () => {
+        const state = thelonoiteState();
+        const activations = enumerateMoves(state, BOT).filter(
+            (m) =>
+                m.kind === "activate-ability" &&
+                m.abilityId.startsWith("thelonite-monk")
+        );
+        expect(activations.length).toBeGreaterThan(0);
+        const picked = activations.flatMap((m) =>
+            m.kind === "activate-ability"
+                ? (m.costPicks?.sacrificeIds ?? [])
+                : []
+        );
+        // Every victim is green (CR 105.2) — Grizzly Bears, Craw Wurm, or the
+        // Monk itself. Never the Forest (a land, not a creature).
+        expect(picked.length).toBeGreaterThan(0);
+        expect(picked).not.toContain("forest");
     });
 });

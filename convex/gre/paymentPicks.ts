@@ -32,6 +32,7 @@ import { matchesPermanentFilter } from "../cards/filters";
 import { isExileCostEligible } from "../cards/exileCostEligibility";
 import { manaValue } from "./constants";
 import { STATIC_EFFECT_CTX } from "./layers";
+import { effectivePermanentView } from "./permanentView";
 import { handCardMatchesFilter } from "./alternativeCost";
 import { liveSupertypesOf } from "./snow";
 import {
@@ -448,7 +449,7 @@ export function pickForOwedPayment(
             const candidates = cheapestFirst(
                 player.battlefield.filter((c) =>
                     matchesPermanentFilter(
-                        { ...c, colors: STATIC_EFFECT_CTX.getColors(c) },
+                        effectivePermanentView(state, c),
                         ac.filter,
                         { selfControllerId: playerId }
                     )
@@ -539,15 +540,15 @@ export function pickForOwedPayment(
                         c.id !== pa?.cardInstanceId &&
                         !c.isTapped &&
                         !already.has(c.id) &&
-                        // Effective colours via the layer system, matching the
-                        // server's own candidate scan (`tapOtherCandidates`,
+                        // The layered view (`gre/permanentView.ts`), matching
+                        // the server's own candidate scan (`tapOtherCandidates`,
                         // `game.ts`): a `colors` filter (Hand of Justice's
                         // "white creatures") must read the colour the rest of
                         // the engine sees, not the raw instance — which carries
                         // no `colors` field at all, so the filter would never
                         // match and the pick would come back empty.
                         matchesPermanentFilter(
-                            { ...c, colors: STATIC_EFFECT_CTX.getColors(c) },
+                            effectivePermanentView(state, c),
                             toc.filter,
                             {
                                 selfControllerId: playerId,

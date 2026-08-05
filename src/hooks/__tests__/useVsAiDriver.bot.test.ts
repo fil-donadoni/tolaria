@@ -477,41 +477,82 @@ describe("useVsAiDriver (issue #110)", () => {
         ).toEqual(["c1", "c3"]);
     });
 
-    it("holds inFlight across a MULTI-STEP executeMove realisation", async () => {
-        // The executor branch had the same hole: it read `inFlight` but never
-        // wrote it, so a `playCard` mid-sequence could be joined by a second
-        // decision off the seq it produced.
-        heldMutation = { active: true, release: undefined };
-        currentState = botState({
-            seq: 1,
-            priorityPlayerId: BOT,
-            players: [
-                {
-                    ...player(BOT),
-                    hand: [
-                        {
-                            ...makeInstance(MOUNTAIN, {
-                                id: "land1",
-                                controllerId: BOT,
-                                ownerId: BOT,
-                                zone: "hand",
-                            }),
-                            card: { id: MOUNTAIN },
-                        },
-                    ],
+    // The EXECUTOR branch had the same hole, and it is a DIFFERENT branch from
+    // the Worker/setTimeout one at the bottom of the effect (which has always
+    // written `inFlight`). It is reached only by an executor-realised
+    // `BotAction` kind (`botActionRealisation(kind) === "executor"`: the
+    // mulligan decisions and the ADR-0016 interactive choices) — never by
+    // `pass` / `declare-attackers` / `search-choice`, which are Worker-realised.
+    // Before this PR it recorded `lastSignature` and dispatched `executeMove`
+    // WITHOUT ever writing `inFlight`, so a fresh seq arriving while the
+    // realisation was still in flight produced a brand-new signature, sailed
+    // past the dedupe, and dispatched a SECOND decision on top of a half-applied
+    // one.
+    //
+    // The fixture drives a mulligan window (`keep` → executor), holds the
+    // `declareMulligan` mutation pending, and then pushes a new seq that is
+    // itself a legal decision point — so the ONLY thing that can suppress the
+    // second dispatch is `inFlight`.
+    it("holds inFlight across an executeMove realisation (executor branch)", async () => {
+        const mulliganAt = (seq: number) => {
+            const botSeat = player(BOT);
+            botSeat.hand = [
+                makeInstance(MOUNTAIN, {
+                    id: "m1",
+                    controllerId: BOT,
+                    zone: "hand",
+                }),
+                makeInstance(BEARS, {
+                    id: "b1",
+                    controllerId: BOT,
+                    zone: "hand",
+                }),
+            ] as never;
+            return botState({
+                seq,
+                phase: "MULLIGAN",
+                players: [botSeat, player(HUMAN)],
+                mulligan: {
+                    mulligansTaken: [0, 0],
+                    declarations: [null, null],
+                    locked: [false, false],
+                    declaringPlayerId: BOT,
+                    bottoming: false,
                 },
-                player(HUMAN),
-            ],
-        });
+            });
+        };
+
+        heldMutation = { active: true, release: undefined };
+        currentState = mulliganAt(1);
         const { rerender } = renderHook(() => useVsAiDriver(GAME, BOT));
         await vi.runAllTimersAsync();
-        const first = calls.length;
-        expect(first).toBe(1);
 
-        currentState = botState({ seq: 2, priorityPlayerId: BOT });
+        // The realisation went through the executor branch — not the Worker one,
+        // which never reaches `declareMulligan` (a mulligan window is decided by
+        // the gate heuristic, issue #145) — and is now pending.
+        expect(calls.map((c) => c.ref)).toEqual(["declareMulligan"]);
+
+        // A new seq arrives while it is still in flight. The state is STILL a
+        // legal decision point for the bot (the declaration hasn't landed), so
+        // the dedupe cannot suppress it — only `inFlight` can.
+        currentState = mulliganAt(2);
         rerender();
         await vi.runAllTimersAsync();
-        expect(calls).toHaveLength(first);
+        expect(calls.map((c) => c.ref)).toEqual(["declareMulligan"]);
+
+        // And once it settles the guard releases: the same still-undecided
+        // window at a further seq is driven again, so the test is asserting a
+        // HELD guard, not a permanently wedged driver.
+        heldMutation.active = false;
+        heldMutation.release?.();
+        await vi.runAllTimersAsync();
+        currentState = mulliganAt(3);
+        rerender();
+        await vi.runAllTimersAsync();
+        expect(calls.map((c) => c.ref)).toEqual([
+            "declareMulligan",
+            "declareMulligan",
+        ]);
     });
 
     it("does not act when there is no bot seat", async () => {

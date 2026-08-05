@@ -44,7 +44,8 @@ import {
     completeSacrificeSelection,
     nextSacrificeCandidates,
 } from "./paymentPicks";
-import { STATIC_EFFECT_CTX, getEffectivePower } from "./layers";
+import { getEffectivePower } from "./layers";
+import { effectivePermanentView } from "./permanentView";
 import { tryGetDefinition } from "../cards/index";
 import { matchesPermanentFilter } from "../cards/filters";
 import { liveSupertypesOf } from "./snow";
@@ -111,18 +112,18 @@ function tapOtherCandidates(
             (c) =>
                 c.id !== source.id &&
                 !c.isTapped &&
-                // Effective colours via the layer system (CR 105.2 / 613),
+                // The layered view (`gre/permanentView.ts`, CR 105.2 / 613),
                 // matching the server's own candidate scan
                 // (`tapOtherCandidates`, `game.ts`) and the legality check that
-                // let the activation be announced. WITHOUT the colours view a
-                // `colors` filter — Hand of Justice's "three untapped WHITE
-                // creatures you control" — matched nothing (a raw
-                // `CardInstanceState` carries no `colors` field at all), so
+                // let the activation be announced. WITHOUT it a `colors`
+                // filter — Hand of Justice's "three untapped WHITE creatures
+                // you control" — matched nothing (a raw `CardInstanceState`
+                // carries no `colors` field at all), so
                 // `planActivationCostPicks` returned null and the enumerator
                 // treated every coloured tap-other activation as illegal: dead
                 // for the bot rather than stalling. Issue #1209.
                 matchesPermanentFilter(
-                    { ...c, colors: STATIC_EFFECT_CTX.getColors(c) },
+                    effectivePermanentView(state, c),
                     leg.filter,
                     {
                         selfControllerId: player.id,
