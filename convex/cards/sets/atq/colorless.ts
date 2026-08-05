@@ -14,6 +14,7 @@
 import type {
     ActivatedAbilityContext,
     CardDefinition,
+    EffectMode,
     ManaCost,
     PermanentView,
     SpellContext,
@@ -1053,27 +1054,44 @@ export const batteringRam: CardDefinition = {
 
 // Urza's Avenger — {6} Artifact Creature — Shapeshifter, 4/4. "{0}: This
 // creature gets -1/-1 and gains your choice of banding, flying, first strike,
-// or trample until end of turn." (CR 611.1 temp P/T mod + keyword grant.)
+// or trample until end of turn." (CR 611.1 temp P/T mod + keyword grant, CR
+// 608.2 resolution-time choice.)
 //
-// DIVERGENCE (flagged, tracked-by: #2233): the single printed ability is
-// modeled as FOUR fixed-keyword activated abilities — the player picks which
-// ability to activate, choosing the keyword that way. Each applies the same
-// -1/-1 and grants its own keyword until end of turn.
-//
-// The old justification here ("the engine has no choose-one-named-option
-// resolution-choice kind") was FALSE and was corrected in the 2026-08-05 #1212
-// audit: the `optionChoice` Op / `option-pick` choice kind ships (see
-// `cards/abilities/chooseColor.ts`). The choice belongs at RESOLUTION (CR
-// 608.2) — this ability is NOT modal under CR 700.2, which requires a bulleted
-// option list, so `ActivatedAbility.modes` (announcement-time) would be wrong
-// too. Today's four-ability split puts the choice at announcement, which an
-// opponent can see before responding.
+// ONE activated ability. The Oracle text has no bulleted option list, so this
+// is NOT modal under CR 700.2 (which requires "two or more options in a
+// bulleted list preceded by instructions to choose") — the keyword is an
+// ordinary choice made AS THE ABILITY RESOLVES (CR 608.2), not an
+// announcement-time mode (`ActivatedAbility.modes` would be the wrong
+// construct here). Modeled via the pre-existing `optionChoice` Op / `option-
+// pick` choice kind (2026-08-05 #1212 audit corrected the stale claim that no
+// such choice-kind existed — see #2233): `pump` (-1/-1) runs unconditionally,
+// then `optionChoice` presents the four keywords, one mode each, each mode a
+// single `grantAbility` body targeting the same permanent. Reference shape:
+// `colorChoiceModes` / `chooseColorEffects` (`cards/abilities/chooseColor.ts`).
 const URZAS_AVENGER_KEYWORDS = [
     "banding",
     "flying",
     "first strike",
     "trample",
 ] as const;
+
+function urzasAvengerKeywordModes(): EffectMode[] {
+    return URZAS_AVENGER_KEYWORDS.map((kw) => ({
+        id: kw.replace(/\s+/g, "-"),
+        label:
+            kw === "first strike"
+                ? "First strike"
+                : kw.charAt(0).toUpperCase() + kw.slice(1),
+        effects: [
+            {
+                op: "grantAbility",
+                ability: kw,
+                target: { ref: "$source" },
+                duration: { phase: "end-of-turn" },
+            },
+        ],
+    }));
+}
 
 export const urzasAvenger: CardDefinition = {
     id: "448e1811-fb16-4390-ac22-b7066a4a019c",
@@ -1086,31 +1104,35 @@ export const urzasAvenger: CardDefinition = {
     subtypes: ["Shapeshifter"],
     power: 4,
     toughness: 4,
-    activatedAbilities: URZAS_AVENGER_KEYWORDS.map((kw) => ({
-        id: `urzas-avenger-${kw.replace(/\s+/g, "-")}`,
-        oracleText: `{0}: This creature gets -1/-1 and gains ${kw} until end of turn.`,
-        cost: {},
-        useStack: true,
-        // Migrated resolve()→effects[] (ADR 0045, #843): self -1/-1 + self-grant
-        // the chosen keyword until end of turn (CR 611.1 / 611.1b). `kw` is a
-        // build-time constant from URZAS_AVENGER_KEYWORDS, so it inlines as a
-        // literal ability name per generated ability.
-        effects: [
-            {
-                op: "pump",
-                target: { ref: "$source" },
-                power: -1,
-                toughness: -1,
-                duration: { phase: "end-of-turn" },
-            },
-            {
-                op: "grantAbility",
-                ability: kw,
-                target: { ref: "$source" },
-                duration: { phase: "end-of-turn" },
-            },
-        ],
-    })),
+    activatedAbilities: [
+        {
+            id: "urzas-avenger-keyword-choice",
+            oracleText:
+                "{0}: This creature gets -1/-1 and gains your choice of banding, flying, first strike, or trample until end of turn.",
+            cost: {},
+            useStack: true,
+            // Migrated resolve()→effects[] (ADR 0045, #2233): the -1/-1 applies
+            // regardless of which keyword is picked, so `pump` stays OUTSIDE the
+            // `optionChoice` (CR 611.1). The keyword grant is chosen during
+            // resolution — `optionChoice` suspends on an `option-pick` Pending
+            // Choice, then runs the picked mode's single `grantAbility` Op
+            // (CR 611.1b).
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: -1,
+                    toughness: -1,
+                    duration: { phase: "end-of-turn" },
+                },
+                {
+                    op: "optionChoice",
+                    prompt: "Choose a keyword",
+                    modes: urzasAvengerKeywordModes(),
+                },
+            ],
+        },
+    ],
 };
 
 // Amulet of Kroog — {2} Artifact. "{2}, {T}: Prevent the next 1 damage that

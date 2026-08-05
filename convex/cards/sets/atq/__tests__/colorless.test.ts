@@ -2057,51 +2057,106 @@ describe("Battering Ram (banding grant + destroy blocking Wall)", () => {
     });
 });
 
-// Urza's Avenger (CR 611.1 -1/-1 + chosen keyword, modeled as 4 abilities)
-describe("Urza's Avenger ({0}: -1/-1 + chosen keyword EOT)", () => {
-    it("exposes one ability per keyword (banding/flying/first strike/trample)", () => {
+// Urza's Avenger (CR 611.1 -1/-1 + resolution-time chosen keyword, #2233 —
+// one ability, keyword picked via `optionChoice` DURING resolution, CR 608.2,
+// not CR 700.2 modality).
+describe("Urza's Avenger ({0}: -1/-1 + chosen keyword EOT via optionChoice)", () => {
+    it("exposes ONE activated ability for the printed line", () => {
         const ids = urzasAvenger.activatedAbilities!.map((a) => a.id);
-        expect(ids).toEqual([
-            "urzas-avenger-banding",
-            "urzas-avenger-flying",
-            "urzas-avenger-first-strike",
-            "urzas-avenger-trample",
+        expect(ids).toEqual(["urzas-avenger-keyword-choice"]);
+        expect(urzasAvenger.activatedAbilities![0].oracleText).toBe(
+            "{0}: This creature gets -1/-1 and gains your choice of banding, flying, first strike, or trample until end of turn."
+        );
+    });
+
+    function activateAndSuspend(): {
+        state: ReturnType<typeof makeState>;
+        avenger: CardInstanceState;
+    } {
+        const avenger = makeInstance(urzasAvenger.id, {
+            id: "avenger",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { battlefield: [avenger] })],
+        });
+        // resolveActivated calls resolveTopOfStack once; the ability suspends
+        // on the option-pick, so it returns null and leaves the pending choice
+        // on state for the test to answer.
+        resolveActivated(state, avenger, "urzas-avenger-keyword-choice");
+        return { state, avenger };
+    }
+
+    it("raises an option-pick with all four keyword options", () => {
+        const { state } = activateAndSuspend();
+        const pending = state.pendingChoices![0];
+        expect(pending.kind).toBe("option-pick");
+        expect(pending.options?.map((o) => o.id)).toEqual([
+            "banding",
+            "flying",
+            "first-strike",
+            "trample",
         ]);
     });
 
-    it("activating flying gives -1/-1 and grants flying until EOT", () => {
-        const avenger = makeInstance(urzasAvenger.id, {
-            id: "avenger",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const state = makeState({
-            players: [makePlayer("p1", { battlefield: [avenger] })],
-        });
-        resolveActivated(state, avenger, "urzas-avenger-flying");
+    it("applies the -1/-1 immediately, BEFORE the keyword is chosen", () => {
+        const { state } = activateAndSuspend();
         const live = state.players[0].battlefield.find(
             (c) => c.id === "avenger"
         )!;
+        // The pump op runs before the suspending optionChoice — it must not
+        // wait on the pick.
         expect(getEffectivePower(state, live)).toBe(3);
         expect(getEffectiveToughness(state, live)).toBe(3);
-        expect(live.staticAbilities).toContain("flying");
+        expect(live.staticAbilities ?? []).not.toContain("flying");
+        expect(live.staticAbilities ?? []).not.toContain("banding");
+        expect(live.staticAbilities ?? []).not.toContain("first strike");
+        expect(live.staticAbilities ?? []).not.toContain("trample");
     });
 
-    it("activating first strike grants first strike (not flying)", () => {
-        const avenger = makeInstance(urzasAvenger.id, {
-            id: "avenger",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const state = makeState({
-            players: [makePlayer("p1", { battlefield: [avenger] })],
-        });
-        resolveActivated(state, avenger, "urzas-avenger-first-strike");
-        const live = state.players[0].battlefield.find(
-            (c) => c.id === "avenger"
-        )!;
-        expect(live.staticAbilities).toContain("first strike");
-        expect(live.staticAbilities).not.toContain("flying");
+    it.each([
+        ["banding", "banding"],
+        ["flying", "flying"],
+        ["first-strike", "first strike"],
+        ["trample", "trample"],
+    ] as const)(
+        "picking %s grants exactly %s (and only that keyword) plus the -1/-1",
+        (optionId, keyword) => {
+            const { state } = activateAndSuspend();
+            submitChoice(state, [optionId]);
+            const live = state.players[0].battlefield.find(
+                (c) => c.id === "avenger"
+            )!;
+            expect(getEffectivePower(state, live)).toBe(3);
+            expect(getEffectiveToughness(state, live)).toBe(3);
+            expect(live.staticAbilities).toContain(keyword);
+            for (const other of [
+                "banding",
+                "flying",
+                "first strike",
+                "trample",
+            ]) {
+                if (other !== keyword) {
+                    expect(live.staticAbilities).not.toContain(other);
+                }
+            }
+            expect(state.pendingChoices).toBeUndefined();
+            expect(state.stack).toHaveLength(0);
+        }
+    );
+
+    it("the option-pick survives projectPublicState (wire format)", () => {
+        const { state } = activateAndSuspend();
+        const projected = projectPublicState(state, 1, "p1");
+        const pending = projected.pendingChoices?.[0];
+        expect(pending?.kind).toBe("option-pick");
+        expect(pending?.options?.map((o) => o.id)).toEqual([
+            "banding",
+            "flying",
+            "first-strike",
+            "trample",
+        ]);
     });
 });
 
