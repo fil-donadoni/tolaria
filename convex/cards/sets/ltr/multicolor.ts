@@ -5,12 +5,14 @@
 
 import type { CardDefinition } from "../../types";
 
-// TODO(issue #676 stub — the "choose one. If you control a Wizard, choose
-// two instead" clause is a conditional modal count: neither the `optionChoice`
-// Op (a fixed single pick) nor the legacy `modes: SpellMode[]` mechanism
-// supports a caster-controlled-permanent-conditional mode COUNT. This is a
-// bespoke structural gap, not a named keyword/Op — stop-and-issue per
-// gre-development.md rather than an invented mechanism. Tracked stub.
+// TODO(stub — the "choose one. If you control a Wizard as you cast this
+// spell, you may choose two instead" clause is a conditional modal count
+// (a RANGE 1..2 when the condition holds, per the "may"): neither the
+// announce-time `modes: SpellMode[]` mechanism (CR 700.2c) nor the
+// resolve-time `optionChoice` Op supports a mode COUNT at all, conditional
+// or otherwise. A bespoke structural gap, not a named keyword/Op —
+// stop-and-issue per gre-development.md rather than an invented mechanism.
+// tracked-by: #2266 (cards) via PRD #2261 (modal cardinality grammar)
 // export const flameOfAnor: CardDefinition = {
 //     id: "04779a7e-b453-48b9-b392-6d6fd0b8d283",
 //     name: "Flame of Anor",
