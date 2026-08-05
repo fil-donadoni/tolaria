@@ -12,6 +12,7 @@
  */
 
 import { FACE_DOWN_CARD_ID, tryGetDefinition } from "../cards";
+import { rebuildCopiableValuesAndReplayOverlays } from "./identitySwap";
 import type { CardInstanceState } from "./state";
 
 /** Turns a permanent face down in place (CR 708.2). No-op if already face
@@ -21,11 +22,16 @@ export function turnFaceDown(card: CardInstanceState): void {
     card.faceDownOf = (card.card as { id?: string }).id;
     card.card = { id: FACE_DOWN_CARD_ID };
     card.faceDown = true;
-    card.types = ["Creature"];
-    card.subtypes = [];
-    card.power = 2;
-    card.toughness = 2;
-    card.staticAbilities = [];
+    // CR 708.2a — the 2/2 vanilla values are the permanent's new COPIABLE
+    // VALUES (layer 1). Turning face down is not a zone change (CR 400.7), so
+    // the permanent's own layers 2–7 are replayed on top (issue #1705).
+    rebuildCopiableValuesAndReplayOverlays(card, {
+        types: ["Creature"],
+        subtypes: [],
+        power: 2,
+        toughness: 2,
+        staticAbilities: [],
+    });
 }
 
 /** Turns a face-down permanent face up in place (CR 708.9, ADR 0013) — the
@@ -39,11 +45,16 @@ export function turnFaceUp(card: CardInstanceState): void {
     const def = tryGetDefinition(card.faceDownOf);
     if (!def) return;
     card.card = { id: def.id };
-    card.types = def.types;
-    card.subtypes = def.subtypes ?? [];
-    card.power = def.power;
-    card.toughness = def.toughness;
-    card.staticAbilities = def.staticAbilities ?? [];
+    // Every array is COPIED, never aliased: `def.staticAbilities` is the
+    // shared printed `CardDefinition` array, and handing it to the instance
+    // would let any later in-place writer corrupt the catalogue globally.
+    rebuildCopiableValuesAndReplayOverlays(card, {
+        types: [...def.types],
+        subtypes: [...(def.subtypes ?? [])],
+        power: def.power,
+        toughness: def.toughness,
+        staticAbilities: [...(def.staticAbilities ?? [])],
+    });
     delete card.faceDown;
     delete card.faceDownOf;
 }
