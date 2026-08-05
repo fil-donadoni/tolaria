@@ -549,11 +549,17 @@ describe("hooks are wired into settings.json", () => {
         );
         const wired = JSON.stringify(settings);
 
-        for (const script of [
-            "deny-guard.sh",
-            "claim-ledger.sh",
-            "claim-sweep.sh",
-        ]) {
+        // Derived from the DIRECTORY, not an allow-list. A hard-coded list stops
+        // covering everything written after it — which is exactly what a
+        // registration guard must not do, since an unregistered hook produces no
+        // error, no output and no failing test: it simply never runs.
+        const scripts = fs
+            .readdirSync(HOOKS)
+            .filter((f) => f.endsWith(".sh"))
+            .sort();
+        expect(scripts.length).toBeGreaterThan(0);
+
+        for (const script of scripts) {
             expect(wired, `${script} is not registered`).toContain(script);
             const full = path.join(HOOKS, script);
             expect(fs.existsSync(full)).toBe(true);
@@ -562,5 +568,35 @@ describe("hooks are wired into settings.json", () => {
         }
 
         expect(settings.hooks.Stop).toBeDefined();
+        expect(settings.hooks.SubagentStop).toBeDefined();
+    });
+
+    it("every hook script is executable in git's INDEX, not just on this disk", () => {
+        // `fs.statSync` above reads the local file; git records the mode
+        // separately. A hook committed 100644 is executable here and inert in
+        // every fresh checkout — the shape that left `.husky/pre-commit` silently
+        // skipped for six days after the change that was supposed to restore it.
+        const listing = execFileSync(
+            "git",
+            ["ls-files", "-s", ".claude/hooks/"],
+            { cwd: REPO_ROOT, encoding: "utf8" }
+        );
+        const entries = listing
+            .split("\n")
+            .filter(Boolean)
+            .map((line) => {
+                const [meta, file] = line.split("\t");
+                return { mode: meta.split(" ")[0], file };
+            })
+            .filter((e) => e.file.endsWith(".sh"));
+
+        expect(entries.length).toBeGreaterThan(0);
+        const nonExecutable = entries
+            .filter((e) => e.mode !== "100755")
+            .map((e) => `${e.file} is ${e.mode}`);
+        expect(
+            nonExecutable,
+            `fix with: git update-index --chmod=+x <file>\n${nonExecutable.join("\n")}`
+        ).toEqual([]);
     });
 });
