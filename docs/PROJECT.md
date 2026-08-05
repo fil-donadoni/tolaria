@@ -431,6 +431,15 @@ L'engine non mantiene un enum di scope o filtri: ogni carta porta la propria
 regola di eleggibilità. Anthem (Crusade) e stripping di abilità (Humility) sono
 entrambi esprimibili così.
 
+**Durata indefinita (CR 611.2b).** Su `setBasePT`, `setSubtype` e `grantAbility`
+il campo `duration` è **opzionale**: omesso, l'effetto continuo generato da
+un'abilità che risolve dura indefinitamente — finché il permanente resta sul
+battlefield. È la forma che serve al respec a stadi ("becomes a Kithkin Spirit",
+Figure of Destiny/Fable), insieme al predicato live `objectMatchesFilter` che
+legge le caratteristiche materializzate a layer di un oggetto in campo. I marker
+indefiniti vengono azzerati da `resetBattlefieldTransientState` (CR 400.7), così
+un Figure rimbalzato torna 1/1 Kithkin.
+
 ### 5.8 Replacement effects
 
 `convex/gre/replacements.ts` — danno, distruzione (ADR 0020), pescata (seam
@@ -1075,7 +1084,6 @@ carte inerti.
   `{G/U/P}` chiuso out-of-scope (nessun consumer, #1744).
 - **Framework Saga** (PRD #1878, ADR 0078) — contatori lore e abilità di capitolo;
   Urza's Saga come caso di prova.
-- **Staged self-respec** (PRD #1737) — Op indefiniti, ciclo Figure.
 - **Modificatori di costo di lancio** (PRD #702, ADR 0063) — riduzione + payWith
   per affinity/delve/convoke.
 - **Continuous Effects Registry** (PRD #2064, ADR 0082) — un solo registro degli
