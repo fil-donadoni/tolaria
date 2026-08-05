@@ -3564,6 +3564,22 @@ export const EVENT_FIELD_REGISTRY: Record<
             resolve: (e) =>
                 e.type === "PERMANENT_ENTERED" ? e.controllerId : undefined,
         },
+        // CR 603.6a / 701.3 / issue #1965 — "whenever a 1/1 creature you
+        // control enters, ... attach it to THAT CREATURE" (Sword of the
+        // Meek). A `zone: "graveyard"` triggered ability's effect can't name
+        // the entering permanent any other way — it isn't an announced
+        // target (CR 603.3d targeting is for the ability's OWN card, not the
+        // event's subject) and there is no `$each`/`forEach` set here.
+        // Mirrors `BECAME_TARGET.targetPermanent`'s object-family flattening:
+        // `resolveObjectRef`'s generic `$event.<field>` branch (ADR 0049)
+        // already resolves any object-family row through the
+        // battlefield-presence recheck, so a permanent that left in
+        // response (CR 608.2b) is a silent no-op with no interpreter change.
+        instanceId: {
+            family: "object",
+            resolve: (e) =>
+                e.type === "PERMANENT_ENTERED" ? e.instanceId : undefined,
+        },
     },
     // CR 603.10 / 400.7 / issue #1940 — "whenever a permanent is returned to
     // a player's hand, THAT PLAYER discards a card" (Warped Devotion).
