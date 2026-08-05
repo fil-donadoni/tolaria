@@ -52,12 +52,10 @@ import {
     applyLandTypeReplacement,
     composeMaterializedSubtypes,
 } from "./constants";
-import {
-    abilityLossTimestamp,
-    grantOutrankedByAbilityLoss,
-} from "./activatedAbilities";
 import type { CardType } from "../cards/types";
 import type { CardInstanceState } from "./state";
+
+type KeywordHold = NonNullable<CardInstanceState["removedKeywords"]>[number];
 
 /** The copiable values (CR 613.1a layer 1) an identity swap installs: the
  *  printed characteristics of the presented face, plus whatever the swap
@@ -81,63 +79,95 @@ function takeOneOccurrence(abilities: string[], keyword: string): boolean {
     return true;
 }
 
+/** One layer-6 operation live on the permanent, as the replay orders it.
+ *
+ *  `rank` breaks a timestamp TIE in exactly the direction the two readers do,
+ *  so the replay can never disagree with them:
+ *   - a blanket stripper sorts BEFORE a grant carrying the same `seq`, so that
+ *     grant survives it — `grantOutrankedByAbilityLoss` is strictly-less
+ *     (`(grantSeq ?? 0) < strippedAt`), so an equal timestamp survives too;
+ *   - a targeted removal likewise sorts before an equally-stamped grant, which
+ *     is what the apply path's own `(r.seq ?? 0) > seq` guard says when it
+ *     decides whether a fresh `keyword-grant` is `suppressed`. */
+type Layer6Step =
+    | { seq: number; rank: 0; stripper: { sourceId: string; seq: number } }
+    | { seq: number; rank: 1; hold: KeywordHold }
+    | { seq: number; rank: 2; ability: string };
+
 /** Layer 6 (CR 613.1f) — rebuild `staticAbilities` from the new base plus the
  *  permanent's own live grants and removals, in CR 613.7 timestamp order.
  *
- *  Ordering is decided by the SAME two helpers the ability readers use
- *  (`abilityLossTimestamp` / `grantOutrankedByAbilityLoss`), so a replay can
- *  never disagree with `getEffectiveActivatedAbilities` /
- *  `effectiveTriggeredAbilities` about what a stripper removed. */
+ *  ONE ordered pass, not a blanket-first shortcut. A blanket "loses all
+ *  abilities" takes exactly the occurrences live at ITS OWN timestamp — a
+ *  targeted `keyword-remove` that landed EARLIER already holds one, and that
+ *  hold belongs to the Sphere, not to the stripper. Deciding the two kinds
+ *  separately re-attributed the earlier hold to the blanket source, so
+ *  unapplying the blanket source resurrected a keyword the targeted removal
+ *  was still holding down.
+ *
+ *  The pass reproduces the apply path (`applySourceStaticEffects`, which walks
+ *  sources in `staticSeq` order) step for step, and stays consistent with the
+ *  READERS by construction: a grant survives iff its `seq` is >= every live
+ *  stripper's, which is precisely `!grantOutrankedByAbilityLoss(seq,
+ *  abilityLossTimestamp(card))`. */
 function replayLayer6Abilities(
     card: CardInstanceState,
     base: CopiableValues
 ): void {
-    const strippedAt = abilityLossTimestamp(card);
+    const steps: Layer6Step[] = [];
 
-    // Layer 1 first. A live "loses all abilities" removes every PRINTED
-    // ability outright: printed characteristics apply in layer 1 and carry no
-    // timestamp, so CR 613.7 never lets them outrank a layer-6 removal.
-    const abilities: string[] =
-        strippedAt === null ? [...base.staticAbilities] : [];
-    // What a blanket stripper ate, so its hold ledger can be re-keyed onto the
-    // NEW identity below (entry `seq` = the grant's, `undefined` = printed).
-    const eaten: { keyword: string; grantSeq: number | undefined }[] =
-        strippedAt === null
-            ? []
-            : base.staticAbilities.map((keyword) => ({
-                  keyword,
-                  grantSeq: undefined,
-              }));
-
-    // Layer 6 grants. A grant survives a blanket stripper only with a STRICTLY
-    // later timestamp (CR 613.7 — Humility, then Fire Whip). A `suppressed`
-    // grant (#1706) owns zero occurrences by construction and releases none,
-    // so it neither pushes nor feeds the stripper.
-    for (const grant of card.grantedStaticAbilities ?? []) {
-        if (grant.suppressed) continue;
-        if (grantOutrankedByAbilityLoss(grant.seq, strippedAt)) {
-            eaten.push({ keyword: grant.ability, grantSeq: grant.seq });
-            continue;
-        }
-        abilities.push(grant.ability);
-    }
-
-    // Layer 6 targeted removals. `removedKeywords` mixes two producers: a
+    // Blanket strippers. `removedKeywords` mixes two producers: a
     // `keyword-remove` static (source-keyed, one named keyword) and the
     // per-keyword ledger an `ability-loss` static writes as it empties
     // `staticAbilities`. Only the first kind is identity-independent; the
-    // second described the OLD face and is rebuilt from `eaten` below.
-    const blanketSourceIds = new Set(
-        (card.abilitiesSuppressedBy ?? []).map((s) => s.sourceId)
-    );
-    const targetedHolds: NonNullable<CardInstanceState["removedKeywords"]> = [];
+    // second described the OLD face and is rebuilt by the pass below.
+    const blanketSourceIds = new Set<string>();
+    for (const stripper of card.abilitiesSuppressedBy ?? []) {
+        blanketSourceIds.add(stripper.sourceId);
+        steps.push({ seq: stripper.seq ?? 0, rank: 0, stripper });
+    }
     for (const hold of card.removedKeywords ?? []) {
         if (blanketSourceIds.has(hold.sourceId)) continue;
-        // A hold with no occupancy to take on the new face is stale — the
-        // stripper never took an occurrence of it, so it must not restore one.
-        if (takeOneOccurrence(abilities, hold.keyword))
-            targetedHolds.push(hold);
+        steps.push({ seq: hold.seq ?? 0, rank: 1, hold });
     }
+    // A `suppressed` grant (#1706) owns zero occurrences by construction and
+    // releases none, so it neither pushes nor feeds a stripper.
+    for (const grant of card.grantedStaticAbilities ?? []) {
+        if (grant.suppressed) continue;
+        steps.push({ seq: grant.seq ?? 0, rank: 2, ability: grant.ability });
+    }
+    steps.sort((a, b) => a.seq - b.seq || a.rank - b.rank);
+
+    // Layer 1 underneath the whole pass: printed characteristics apply in
+    // layer 1 and carry no timestamp, so they are present from the start and
+    // CR 613.7 never lets them outrank ANY layer-6 removal.
+    const abilities = [...base.staticAbilities];
+    const removed: KeywordHold[] = [];
+    for (const step of steps) {
+        if (step.rank === 2) {
+            abilities.push(step.ability);
+        } else if (step.rank === 1) {
+            // A hold with no occupancy to take at its own point in the order
+            // is stale on the new face — the stripper never took an occurrence
+            // of it, so it must not restore one.
+            if (takeOneOccurrence(abilities, step.hold.keyword)) {
+                removed.push(step.hold);
+            }
+        } else {
+            for (const keyword of abilities) {
+                removed.push({
+                    keyword,
+                    sourceId: step.stripper.sourceId,
+                    seq: step.stripper.seq,
+                });
+            }
+            abilities.length = 0;
+        }
+    }
+
+    // `temporaryRemovedKeywords` carries no timestamp of its own: it is
+    // written by a one-shot effect resolving NOW (CR 611.1b), so it applies
+    // after every timestamped record above.
     const temporaryHolds: NonNullable<
         CardInstanceState["temporaryRemovedKeywords"]
     > = [];
@@ -146,28 +176,6 @@ function replayLayer6Abilities(
             temporaryHolds.push(hold);
     }
 
-    // Re-key the blanket holds. Each eaten occurrence is attributed to the
-    // EARLIEST stripper that actually outranks it, mirroring apply order: the
-    // first `ability-loss` to land empties `staticAbilities` and records the
-    // whole ledger; a later one finds nothing left and holds nothing.
-    const strippers = [...(card.abilitiesSuppressedBy ?? [])].sort(
-        (a, b) => (a.seq ?? 0) - (b.seq ?? 0)
-    );
-    const blanketHolds: NonNullable<CardInstanceState["removedKeywords"]> = [];
-    for (const { keyword, grantSeq } of eaten) {
-        const holder =
-            strippers.find((s) =>
-                grantOutrankedByAbilityLoss(grantSeq, s.seq)
-            ) ?? strippers[0];
-        if (!holder) continue;
-        blanketHolds.push({
-            keyword,
-            sourceId: holder.sourceId,
-            seq: holder.seq,
-        });
-    }
-
-    const removed = [...targetedHolds, ...blanketHolds];
     card.removedKeywords = removed.length > 0 ? removed : undefined;
     card.temporaryRemovedKeywords =
         temporaryHolds.length > 0 ? temporaryHolds : undefined;

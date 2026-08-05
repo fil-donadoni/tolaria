@@ -32,6 +32,7 @@ import {
     type StackItem,
 } from "../state";
 import { finalizeCleanup } from "../phases";
+import { grantOutrankedByAbilityLoss } from "../activatedAbilities";
 import { getEffectivePower, getEffectiveToughness } from "../layers";
 import { registerTokenDefinition } from "../../cards";
 import { projectPublicState } from "../../gameProjections";
@@ -419,6 +420,128 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
         // still eaten by the stripper.
         expect(card.staticAbilities).toEqual(["flying"]);
         expect(projected(state, "swap-b4").staticAbilities).toEqual(["flying"]);
+    });
+
+    it("CR 613.7 — a grant with an EARLIER timestamp than the stripper stays eaten across the swap", () => {
+        const card = makeInstance(SWAP_FRONT_ID, { id: "swap-b6" });
+        const aura = makeInstance(flight.id, {
+            id: "flight-3",
+            attachedTo: "swap-b6",
+        });
+        const nullifier = makeInstance(NULLIFIER_ID, { id: "null-5" });
+        const state = makeBoard(card, aura, nullifier);
+
+        applySourceStaticEffects(state, aura); // earlier — loses
+        applySourceStaticEffects(state, nullifier); // later — strips it
+        expect(card.staticAbilities).toEqual([]);
+
+        transformPermanent(card);
+
+        // The complement of the Humility-then-Fire-Whip case above: a grant
+        // that PREDATES the stripper is still eaten on the new face, exactly
+        // as the printed keywords are.
+        expect(card.staticAbilities).toEqual([]);
+        expect(projected(state, "swap-b6").staticAbilities).toEqual([]);
+
+        // …and the stripper is still holding that grant's occurrence, so its
+        // release hands back three: the back face's flying + trample, plus the
+        // aura's flying.
+        unapplySourceStaticEffects(state, nullifier);
+        expect(count(card, "flying")).toBe(2);
+        expect(count(card, "trample")).toBe(1);
+    });
+
+    it("CR 613.7 — a targeted removal that PREDATES a blanket stripper keeps its own hold across the swap", () => {
+        const card = makeInstance(SWAP_FRONT_ID, { id: "swap-b7" });
+        const sphere = makeInstance(gravitySphere.id, { id: "sphere-5" });
+        const nullifier = makeInstance(NULLIFIER_ID, { id: "null-6" });
+        const state = makeBoard(card, sphere, nullifier);
+
+        applySourceStaticEffects(state, sphere); // earlier — takes flying
+        applySourceStaticEffects(state, nullifier); // later — takes the rest
+        expect(card.staticAbilities).toEqual([]);
+
+        transformPermanent(card);
+
+        expect(card.staticAbilities).toEqual([]);
+        // The blanket source only ever took what was live at ITS timestamp:
+        // the Sphere's own hold on flying must survive the rebuild, keyed to
+        // the Sphere, or the next unapply resurrects a keyword that is still
+        // being held down.
+        expect(card.removedKeywords).toEqual([
+            expect.objectContaining({
+                keyword: "flying",
+                sourceId: "sphere-5",
+            }),
+            expect.objectContaining({ keyword: "trample", sourceId: "null-6" }),
+        ]);
+
+        unapplySourceStaticEffects(state, nullifier);
+        expect(count(card, "flying")).toBe(0); // the Sphere is still live
+        expect(count(card, "trample")).toBe(1);
+        expect(projected(state, "swap-b7").staticAbilities).toEqual([
+            "trample",
+        ]);
+
+        unapplySourceStaticEffects(state, sphere);
+        expect(count(card, "flying")).toBe(1);
+    });
+
+    it("CR 613.7 — an eaten grant is held by the EARLIEST stripper that outranks it, not by the first one on the board", () => {
+        const card = makeInstance(SWAP_FRONT_ID, { id: "swap-b8" });
+        const first = makeInstance(NULLIFIER_ID, { id: "null-7" });
+        const aura = makeInstance(flight.id, {
+            id: "flight-4",
+            attachedTo: "swap-b8",
+        });
+        const second = makeInstance(NULLIFIER_ID, { id: "null-8" });
+        const state = makeBoard(card, first, aura, second);
+
+        applySourceStaticEffects(state, first); // seq 1 — eats printed flying
+        applySourceStaticEffects(state, aura); // seq 2 — grants flying back
+        applySourceStaticEffects(state, second); // seq 3 — eats the grant
+        expect(card.staticAbilities).toEqual([]);
+
+        transformPermanent(card);
+
+        expect(card.staticAbilities).toEqual([]);
+        // Releasing the LATER stripper hands back only what it took — the
+        // aura's occurrence. The back face's printed flying + trample are held
+        // by the earlier one and stay gone.
+        unapplySourceStaticEffects(state, second);
+        expect(count(card, "flying")).toBe(1);
+        expect(count(card, "trample")).toBe(0);
+        expect(projected(state, "swap-b8").staticAbilities).toEqual(["flying"]);
+
+        unapplySourceStaticEffects(state, first);
+        expect(count(card, "flying")).toBe(2);
+        expect(count(card, "trample")).toBe(1);
+    });
+
+    it("CR 613.7 — a grant sharing the stripper's timestamp survives, matching grantOutrankedByAbilityLoss", () => {
+        // Two sources cannot mint the same `staticSeq` through the real apply
+        // path, so the tie is built directly on the instance — the swap still
+        // travels the real `transformPermanent`. The reader's rule is
+        // strictly-less (`grantOutrankedByAbilityLoss(5, 5) === false`), and
+        // the replay must not disagree with it.
+        expect(grantOutrankedByAbilityLoss(5, 5)).toBe(false);
+        const card = makeInstance(SWAP_FRONT_ID, { id: "swap-b9" });
+        card.grantedStaticAbilities = [
+            { ability: "haste", auraId: "tie-src", seq: 5 },
+        ];
+        card.staticAbilities = ["haste"];
+        card.abilitiesSuppressedBy = [{ sourceId: "null-tie", seq: 5 }];
+        card.removedKeywords = [
+            { keyword: "flying", sourceId: "null-tie", seq: 5 },
+        ];
+
+        transformPermanent(card);
+
+        expect(card.staticAbilities).toEqual(["haste"]);
+        expect(card.removedKeywords).toEqual([
+            { keyword: "flying", sourceId: "null-tie", seq: 5 },
+            { keyword: "trample", sourceId: "null-tie", seq: 5 },
+        ]);
     });
 
     it("CR 613.7 — Gravity Sphere then Flight still flies with a swap in the middle (#1715)", () => {
