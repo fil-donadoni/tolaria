@@ -10,6 +10,7 @@ import { swamp } from "../../lea";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
+import { projectPublicState } from "../../../../gameProjections";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 
 describe("Eternal Witness (CR 603.6a optional ETB regrowth, CR 117.3a 'you may … up to one')", () => {
@@ -59,6 +60,68 @@ describe("Eternal Witness (CR 603.6a optional ETB regrowth, CR 117.3a 'you may �
         const p1 = state.players[0];
         expect(p1.hand.some((c) => c.id === "gy1")).toBe(true);
         expect(p1.graveyard.some((c) => c.id === "gy1")).toBe(false);
+    });
+
+    // CR 400.3 (issue #1721) — the graveyard is a PUBLIC zone, so both
+    // players watched exactly which card left it via the `moveZone` Op's
+    // `cards`-shape (distinct from Regrowth's `target`-shape and Drafna's
+    // Restoration's direct `moveCardById` call — the third residual site).
+    // Landing it in the hidden hand does not un-reveal it (ADR 0026).
+    it("stamps the returned card known to BOTH players, visible through the wire (#1721)", () => {
+        const witness = makeInstance(eternalWitness.id, {
+            id: "witness3",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const land = makeInstance(swamp.id, {
+            id: "gy3",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [witness],
+                    graveyard: [land],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const triggers = collectTriggers(state, [
+            {
+                type: "PERMANENT_ENTERED",
+                instanceId: "witness3",
+                controllerId: "p1",
+                cardId: eternalWitness.id,
+                types: ["Creature"],
+            },
+        ]);
+        state.stack.push(...triggers);
+        resolveTopOfStack(state);
+        const pending = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: pending.stackItemId,
+            step: pending.step,
+            choiceId: pending.choiceId,
+            cardInstanceIds: ["gy3"],
+        });
+        const p1 = state.players[0];
+        const moved = p1.hand.find((c) => c.id === "gy3")!;
+        expect([...(moved.knownTo ?? [])].sort()).toEqual(["p1", "p2"]);
+        // p2 (non-owner) sees the identity through the wire; p1 (owner) gets
+        // the seen-by-opponent flag on their own card.
+        const asP2 = projectPublicState(state, 1, "p2");
+        const p1HandAsP2 = asP2.players.find((p) => p.id === "p1")!.hand;
+        const visible = p1HandAsP2.filter((c) => c !== null);
+        expect(visible).toHaveLength(1);
+        expect(visible[0]?.id).toBe("gy3");
+        const asP1 = projectPublicState(state, 1, "p1");
+        const own = asP1.players
+            .find((p) => p.id === "p1")!
+            .hand.find((c) => c?.id === "gy3");
+        expect(own?.seenByOpponent).toBe(true);
     });
 
     it("is a no-op with an empty graveyard (CR 608.2b — the optional pick clamps to zero candidates)", () => {

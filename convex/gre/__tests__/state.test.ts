@@ -1392,3 +1392,91 @@ describe("moveCard clears knowledge entering a public zone (ADR 0026)", () => {
         expect(player.library[0].knownTo).toEqual(["p2"]);
     });
 });
+
+// CR 400.3 (issue #1721 — residual class of #1696) — a card leaving a
+// PUBLIC zone (battlefield/graveyard/exile) was watched by every player, so
+// landing it in a HIDDEN zone (hand/library) does not retroactively
+// un-reveal it. `moveCard`'s 5th `state` param is the mechanism this closes
+// (`moveCardWithGraveyardReplacement` — backing `SpellContext.moveCardById`
+// and the `moveZone` Op — passes it); the 4-arg call sites elsewhere in the
+// GRE deliberately never cross public→hidden (playLand, mulligan, draw), so
+// they stay untouched and unaffected by this gate.
+describe("moveCard grants knowledge on a public→hidden move when `state` is passed (issue #1721)", () => {
+    it("stamps the card known to EVERY player leaving the graveyard into hand (Regrowth/Raise Dead/Eternal Witness shape)", () => {
+        const graveyard = [makeCard({ id: "g0", zone: "graveyard" })];
+        const player = makePlayer({ id: "p1", graveyard });
+        const state = makeGameState({
+            players: [player, makePlayer({ id: "p2" })],
+        });
+        moveCard(player, "g0", "graveyard", "hand", state);
+        expect([...(player.hand[0].knownTo ?? [])].sort()).toEqual([
+            "p1",
+            "p2",
+        ]);
+    });
+
+    it("stamps the card known to EVERY player leaving the graveyard onto the library (Drafna's Restoration shape)", () => {
+        const graveyard = [makeCard({ id: "g0", zone: "graveyard" })];
+        const player = makePlayer({ id: "p1", graveyard });
+        const state = makeGameState({
+            players: [player, makePlayer({ id: "p2" })],
+        });
+        moveCard(player, "g0", "graveyard", "library", state);
+        expect([...(player.library[0].knownTo ?? [])].sort()).toEqual([
+            "p1",
+            "p2",
+        ]);
+    });
+
+    it("stamps the card known to EVERY player leaving exile into hand", () => {
+        const exile = [makeCard({ id: "e0", zone: "exile" })];
+        const player = makePlayer({ id: "p1", exile });
+        const state = makeGameState({
+            players: [player, makePlayer({ id: "p2" })],
+        });
+        moveCard(player, "e0", "exile", "hand", state);
+        expect([...(player.hand[0].knownTo ?? [])].sort()).toEqual([
+            "p1",
+            "p2",
+        ]);
+    });
+
+    it("does NOT stamp on a hidden→hidden move even when state is passed (hand→library)", () => {
+        const hand = [makeCard({ id: "h0", zone: "hand" })];
+        const player = makePlayer({ id: "p1", hand });
+        const state = makeGameState({
+            players: [player, makePlayer({ id: "p2" })],
+        });
+        moveCard(player, "h0", "hand", "library", state);
+        expect(player.library[0].knownTo).toBeUndefined();
+    });
+
+    it("does NOT stamp on a public→public move (graveyard→exile) — already public, no grant needed", () => {
+        const graveyard = [makeCard({ id: "g0", zone: "graveyard" })];
+        const player = makePlayer({ id: "p1", graveyard });
+        const state = makeGameState({
+            players: [player, makePlayer({ id: "p2" })],
+        });
+        moveCard(player, "g0", "graveyard", "exile", state);
+        expect(player.exile[0].knownTo).toBeUndefined();
+    });
+
+    it("does NOT stamp when `state` is omitted, even for a public→hidden move (opt-in gate)", () => {
+        const graveyard = [makeCard({ id: "g0", zone: "graveyard" })];
+        const player = makePlayer({ id: "p1", graveyard });
+        moveCard(player, "g0", "graveyard", "hand");
+        expect(player.hand[0].knownTo).toBeUndefined();
+    });
+
+    it("a later shuffle still clears the stamped knowledge for everyone (CR 701.20 regression)", () => {
+        const graveyard = [makeCard({ id: "g0", zone: "graveyard" })];
+        const player = makePlayer({ id: "p1", graveyard });
+        const state = makeGameState({
+            players: [player, makePlayer({ id: "p2" })],
+        });
+        moveCard(player, "g0", "graveyard", "library", state);
+        expect(player.library[0].knownTo).toEqual(["p1", "p2"]);
+        clearKnowledge(player.library, null); // models shuffleLibrary
+        expect(player.library[0].knownTo).toBeUndefined();
+    });
+});

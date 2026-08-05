@@ -324,6 +324,81 @@ describe("Drafna's Restoration (artifact cards from graveyard to top of library,
         expect(ids).toContain("oppArt");
         expect(ids).not.toContain("oppSpell");
     });
+
+    // CR 400.3 (issue #1721) — the graveyard is a PUBLIC zone; both players
+    // watched exactly which artifacts left it via `ctx.moveCardById` (the
+    // `moveCardById`-direct residual site, distinct from Regrowth's `moveZone`
+    // Op `target`-shape). Landing them on top of the hidden library does not
+    // un-reveal them (ADR 0026) — and since Drafna's Restoration never
+    // shuffles afterward, they stay visible through the reorder too (the
+    // acceptance criterion this card names specifically).
+    it("stamps the moved cards known to both players, and keeps them visible through the reorder since nothing shuffles (#1721)", () => {
+        const g1 = makeInstance(clayStatue.id, {
+            id: "g1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const g2 = makeInstance(dragonEngine.id, {
+            id: "g2",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const top = makeInstance(yotianSoldier.id, {
+            id: "top",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [g1, g2], library: [top] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, drafnasRestoration.id, "p1", [
+            { type: "graveyard-card", id: "g1", playerId: "p1" },
+            { type: "graveyard-card", id: "g2", playerId: "p1" },
+        ]);
+        resolveTopOfStack(state);
+        // Suspended on the reorder choice — the graveyard→library move has
+        // already happened (moveCardById), so both moved cards must already
+        // be stamped, before any reorder.
+        const suspendedLib = state.players[0].library;
+        for (const id of ["g1", "g2"]) {
+            const card = suspendedLib.find((c) => c.id === id)!;
+            expect([...(card.knownTo ?? [])].sort()).toEqual(["p1", "p2"]);
+        }
+        // The pre-existing top-of-library card was never revealed to anyone.
+        expect(
+            suspendedLib.find((c) => c.id === "top")!.knownTo
+        ).toBeUndefined();
+
+        submitChoice(state, ["g2", "g1"]);
+        const finalLib = state.players[0].library;
+        expect(finalLib.map((c) => c.id)).toEqual(["g2", "g1", "top"]);
+        for (const id of ["g1", "g2"]) {
+            const card = finalLib.find((c) => c.id === id)!;
+            expect([...(card.knownTo ?? [])].sort()).toEqual(["p1", "p2"]);
+        }
+        expect(finalLib.find((c) => c.id === "top")!.knownTo).toBeUndefined();
+
+        // Wire projection: the opponent sees exactly the two moved cards at
+        // their known indices (0 and 1), the pre-existing card stays a count.
+        for (const viewerId of ["p1", "p2"]) {
+            const projected = projectPublicState(state, 1, viewerId);
+            const lib = projected.players.find((p) => p.id === "p1")!.library;
+            expect(lib.count).toBe(3);
+            const knownInstanceIds = lib.known.map((k) => k.card.id).sort();
+            expect(knownInstanceIds).toEqual(["g1", "g2"]);
+            const knownCardIds = lib.known.map((k) => k.card.card.id).sort();
+            expect(knownCardIds).toEqual(
+                [dragonEngine.id, clayStatue.id].sort()
+            );
+            expect(lib.known.map((k) => k.index).sort()).toEqual([0, 1]);
+        }
+    });
 });
 
 describe("Sage of Lat-Nam (CR 602.1 — {T}, sac artifact: draw)", () => {
