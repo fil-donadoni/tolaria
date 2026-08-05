@@ -237,7 +237,7 @@ export function normalizePath(raw: string): string {
 }
 
 /** Two paths collide when either contains the other. */
-function pathsOverlap(a: string, b: string): boolean {
+export function pathsOverlap(a: string, b: string): boolean {
     return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);
 }
 
