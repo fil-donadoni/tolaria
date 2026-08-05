@@ -410,6 +410,22 @@ A mid-resolution `choose-permanents` **Pending Choice** whose candidates span **
 A choice each **Player** makes in turn order, starting with the **Controller** of the **Spell** or **Ability** that instructs them to (CR 701.38). Votes are **public** as they are cast, so a later voter knows the earlier ones. What is voted _for_ is a shared candidate set — in this engine, a **Permanent**; the effect then acts on whatever tied for most votes. With two players a split vote ties, so a "most votes or tied for most" effect hits **both** choices.
 _Avoid_: Choice (a Vote is one specific, ordered, public kind of choice), Will of the council (the italic ability word introducing it, with no rules meaning of its own)
 
+**Mode**:
+One option of a **Modal** **Spell** or **Ability** — a single bullet in its printed list, carrying its own effect and its own **Targets** (CR 700.2).
+_Avoid_: Option, branch, choice (a **Mode** is picked at announcement; a **Pending Choice** is answered mid-**Resolve**)
+
+**Modal**:
+Describes a **Spell** or **Ability** whose printed text offers two or more **Modes**. The picking happens at **announcement** — as the spell is **Cast** or the ability activated, before **Targets** (CR 601.2b) — never during **Resolve**. Only the picked **Modes** contribute targets, and the pick can never change afterwards.
+_Avoid_: Charm (a card cycle, not the concept), multi-choice
+
+**Mode Cardinality**:
+How many **Modes** a **Modal** spell or ability picks: exactly one, a fixed N, a range, and whether repeats are allowed ("You may choose the same mode more than once"). The count may be conditional on board state or on a cost chosen at announcement. Distinct from a **Mode**'s own content — cardinality is a property of the **list**.
+_Avoid_: Mode count (ambiguous — reads as "how many modes the card has printed"), choose-N
+
+**Mode Instance**:
+One picked occurrence of a **Mode**. A card that picks the same **Mode** twice has two **Mode Instances**, each announcing its own **Targets** — which may be the same object for both (CR 700.2d). Instances are performed in **printed** order, never pick order (CR 608.2c).
+_Avoid_: Repeat, duplicate mode, copy (a **Copy** is a different concept entirely)
+
 ### Combat
 
 **Attacker**:

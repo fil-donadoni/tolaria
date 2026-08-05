@@ -23,10 +23,11 @@
 // candidate the planner actually considers (plus one per dependency it has to
 // resolve). Selection cost scales with the batch, not the queue.
 
-import { execFileSync } from "child_process";
 import { readFileSync } from "fs";
+import { gh } from "./lib/gh";
 import {
     planBatch,
+    type BoardPriority,
     type IssueDetail,
     type PlanConfig,
     type QueueIssue,
@@ -52,6 +53,17 @@ const DEFAULTS = {
     // under-counted a queue.
     limit: 300,
     staleClaimHours: 24,
+    // The tier for every issue carrying no `model:*` label — which, since
+    // `model:sonnet` was retired as pure noise, is the VAST MAJORITY of the
+    // queue rather than a residue. The tracker keeps only the escalation
+    // labels (`model:opus`, `model:fable`), so "unlabelled" now means "default
+    // tier", not "nobody triaged it".
+    //
+    // Consequence, and the reason this is spelled out: changing this value
+    // silently re-routes the whole unlabelled queue. It is a fleet-wide cost
+    // and quality change, not a default tweak — if you change it, review what
+    // it re-routes rather than assuming the labelled issues are the affected
+    // ones.
     defaultImplModel: "sonnet",
 };
 
@@ -64,13 +76,6 @@ function arg(name: string, fallback: number): number {
         process.exit(2);
     }
     return value;
-}
-
-function gh(args: string[]): string {
-    return execFileSync("gh", args, {
-        encoding: "utf8",
-        maxBuffer: 32 * 1024 * 1024,
-    });
 }
 
 const limit = arg("limit", DEFAULTS.limit);
@@ -112,10 +117,138 @@ function issuesWithOpenPr(): number[] {
         .map(Number);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Board priority — the maintainer's live override.
+//
+// The `Priority` single-select on the GitHub Project board is the one input
+// whose criteria change week to week, so it cannot live on the issues: baking a
+// priority into 265 issues means every change of mind is 265 edits. It is read
+// here, at pick time, and applied as the planner's zeroth sort key.
+//
+// Reading it is ONE call for the whole board, which is why `QueuePort.priority`
+// is a map rather than a lookup — a per-issue call would invent the round-trip
+// the two-stage design exists to avoid.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const PROJECT_OWNER = process.env.TOLARIA_PROJECT_OWNER ?? "fil-donadoni";
+const PROJECT_NUMBER = process.env.TOLARIA_PROJECT_NUMBER ?? "2";
+const PROJECT_REPO = process.env.TOLARIA_PROJECT_REPO ?? "fil-donadoni/tolaria";
+
+/** Deep enough for the whole board with room to grow, because `gh project
+ *  item-list` DEFAULTS TO 30 and returns the newest first. At the default the
+ *  planner would see 30 of 265 items and read every older P0 as unprioritized —
+ *  the same silent-truncation class that hid 126 issues from `gh issue list`
+ *  (see the `limit` note above). The count is cross-checked below regardless:
+ *  a limit is a guess, `totalCount` is the answer. */
+const PROJECT_ITEM_LIMIT = 2000;
+
+const VALID_PRIORITIES: readonly string[] = ["P0", "P1", "P2"];
+
+interface ProjectItem {
+    content?: { type?: string; number?: number; repository?: string };
+    priority?: string;
+}
+
+function die(message: string): never {
+    console.error(`✗ ${message}`);
+    process.exit(2);
+}
+
+/**
+ * Read the board's `Priority` column.
+ *
+ * FAIL-LOUD on every degraded read. Producing a plan without the priorities is
+ * strictly worse than producing no plan: the batch looks completely normal, the
+ * loop implements four issues in the wrong order, and nothing anywhere is red.
+ * A stopped loop is a five-second fix; a silently mis-ordered one is invisible.
+ * `--no-priority` is the explicit escape, and it announces itself.
+ */
+function fetchBoardPriority(): Record<number, BoardPriority> {
+    if (process.argv.includes("--no-priority")) {
+        console.error(
+            "⚠ --no-priority: board priorities NOT applied; this plan uses the default order only"
+        );
+        return {};
+    }
+
+    let raw: string;
+    try {
+        raw = gh([
+            "project",
+            "item-list",
+            PROJECT_NUMBER,
+            "--owner",
+            PROJECT_OWNER,
+            "--format",
+            "json",
+            "--limit",
+            String(PROJECT_ITEM_LIMIT),
+        ]);
+    } catch (err) {
+        die(
+            `cannot read project ${PROJECT_OWNER}/${PROJECT_NUMBER}: ${(err as Error).message}\n` +
+                `  The board carries the Priority field the queue sorts on, so this plan would be\n` +
+                `  silently mis-ordered. Fix the access — \`gh auth refresh -s read:project\` — or\n` +
+                `  re-run with --no-priority to plan on the default order deliberately.`
+        );
+    }
+
+    const items = (JSON.parse(raw) as { items?: ProjectItem[] }).items;
+    if (!Array.isArray(items)) {
+        die(
+            "project item-list returned no `items` array — the CLI shape changed"
+        );
+    }
+
+    // A limit is a guess; `totalCount` is the answer. If the board has grown
+    // past the limit, say so rather than plan on the newest slice of it.
+    const total = JSON.parse(
+        gh([
+            "project",
+            "view",
+            PROJECT_NUMBER,
+            "--owner",
+            PROJECT_OWNER,
+            "--format",
+            "json",
+        ])
+    ) as { items?: { totalCount?: number } };
+    const expected = total.items?.totalCount;
+    if (typeof expected === "number" && items.length < expected) {
+        die(
+            `project item-list returned ${items.length} of ${expected} items — truncated.\n` +
+                `  Raise PROJECT_ITEM_LIMIT in scripts/queue-plan.ts.`
+        );
+    }
+
+    const priority: Record<number, BoardPriority> = {};
+    for (const item of items) {
+        if (item.priority === undefined) continue;
+        if (item.content?.type !== "Issue") continue;
+        // Issue numbers are unique per REPO, not per board. A board that ever
+        // gains a second repo would otherwise map #42 of one onto #42 of the
+        // other — wrong, and silent.
+        if (item.content.repository !== PROJECT_REPO) continue;
+        const number = item.content.number;
+        if (typeof number !== "number") continue;
+        if (!VALID_PRIORITIES.includes(item.priority)) {
+            die(
+                `issue #${number} has Priority "${item.priority}", which the planner does not rank.\n` +
+                    `  Known values: ${VALID_PRIORITIES.join(", ")}. Treating an unknown value as\n` +
+                    `  "unprioritized" would DEMOTE the issue someone deliberately flagged, so add the\n` +
+                    `  value to VALID_PRIORITIES and PRIORITY_RANK, or fix it on the board.`
+            );
+        }
+        priority[number] = item.priority as BoardPriority;
+    }
+    return priority;
+}
+
 const detailCache = new Map<number, IssueDetail>();
 
 const port: QueuePort = {
     issuesWithOpenPr: issuesWithOpenPr(),
+    priority: fetchBoardPriority(),
     issueDetail(number: number): IssueDetail {
         const cached = detailCache.get(number);
         if (cached) return cached;

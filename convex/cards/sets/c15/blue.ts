@@ -12,9 +12,11 @@
 // card needs "choose three, repeats allowed" — the same cardinality shape as
 // Fiery Confluence (c15/red.ts), and a strictly more general one than the
 // "choose two DISTINCT modes" gap of Kolaghan's Command. All three, plus
-// Flame of Anor's board-conditional count, are one construct, owned by #1566.
+// Flame of Anor's conditional count, are one construct — the modal
+// cardinality grammar, which per ADR 0089 belongs on the announce-time mode
+// list and NOT on the resolve-time `optionChoice` Op.
 // Stop-and-issue per gre-development.md; tracked stub.
-// tracked-by: #1566
+// tracked-by: #2266 (cards) via PRD #2261 (modal cardinality grammar)
 // export const mysticConfluence: CardDefinition = {
 //     id: "62e5d409-c0b6-4123-802d-eb32f223bd1a",
 //     name: "Mystic Confluence",

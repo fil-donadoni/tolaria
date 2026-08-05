@@ -8,6 +8,7 @@ import {
     isAppendOnlyPath,
     EVERYTHING,
     type BatchPlan,
+    type BoardPriority,
     type IssueDetail,
     type PlanConfig,
     type QueueIssue,
@@ -134,12 +135,14 @@ function body(opts: {
  *  count is part of its contract (two-stage selection). */
 function makePort(
     details: Record<number, Partial<IssueDetail> & { body?: string }>,
-    openPr: number[] = []
+    openPr: number[] = [],
+    priority: Record<number, BoardPriority> = {}
 ): QueuePort & { calls: number[] } {
     const calls: number[] = [];
     return {
         calls,
         issuesWithOpenPr: openPr,
+        priority,
         issueDetail(number: number): IssueDetail {
             calls.push(number);
             const d = details[number];
@@ -236,6 +239,97 @@ describe("queue planner — priority (issue #2181)", () => {
         };
         const plan = planBatch(issues, CONFIG, makePort(details));
         expect(numbers(plan)).toEqual([800, 900]);
+    });
+});
+
+/**
+ * The board's `Priority` field — the maintainer's live override.
+ *
+ * The keys below it (bug, lineage, number) are DEFAULTS: reasonable guesses for
+ * the issues nobody has ruled on, which is nearly all of them. Priority is the
+ * one input whose criteria change week to week, so it is the zeroth key and it
+ * beats every default, `bug` included. These tests pin that ordering, because
+ * "a P2 sorted above a bug" reads like a regression to anyone who does not know
+ * it is the entire point.
+ */
+describe("queue planner — board priority (GitHub Project `Priority` field)", () => {
+    const disjoint = (...ns: number[]) =>
+        Object.fromEntries(
+            ns.map((n) => [
+                n,
+                { body: body({ targetFiles: [`src/f${n}.ts`] }) },
+            ])
+        );
+
+    it("lifts prioritized issues above everything unprioritized, ordered P0 → P1 → P2", () => {
+        const issues = [issue(10), issue(20), issue(30), issue(40), issue(50)];
+        const plan = planBatch(
+            issues,
+            { ...CONFIG, batchCap: 5 },
+            makePort(disjoint(10, 20, 30, 40, 50), [], {
+                50: "P0",
+                30: "P1",
+                40: "P2",
+            })
+        );
+        expect(numbers(plan)).toEqual([50, 30, 40, 10, 20]);
+    });
+
+    it("puts a P2 above an unprioritized BUG — the human override outranks the default", () => {
+        // The whole reason the field exists. If this inverts, the board is
+        // decorative: the maintainer sets a priority and the loop ignores it in
+        // favour of a heuristic that has never seen this week's context.
+        const issues = [
+            issue(10, { labels: ["bug", "ready-for-agent"] }),
+            issue(20, { labels: ["enhancement", "ready-for-agent"] }),
+        ];
+        const plan = planBatch(
+            issues,
+            CONFIG,
+            makePort(disjoint(10, 20), [], { 20: "P2" })
+        );
+        expect(numbers(plan)).toEqual([20, 10]);
+    });
+
+    it("leaves the existing bug → lineage → number order intact BELOW the prioritized ones", () => {
+        const issues = [
+            issue(500, { parent: null }),
+            issue(900, { parent: 100 }), // child of an old PRD
+            issue(600, { labels: ["bug", "ready-for-agent"] }),
+            issue(700, { parent: null }),
+        ];
+        const plan = planBatch(
+            issues,
+            CONFIG,
+            makePort(disjoint(500, 600, 700, 900), [], { 700: "P1" })
+        );
+        // 700 jumps on priority; the rest keep bug-first, then oldest lineage.
+        expect(numbers(plan)).toEqual([700, 600, 900, 500]);
+    });
+
+    it("treats 'on the board with no Priority set' exactly like 'not on the board'", () => {
+        // A board where only the urgent few carry a value is the intended
+        // steady state. If the planner distinguished the two, adding an issue
+        // to the board would silently reorder it.
+        const issues = [issue(10), issue(20)];
+        const onBoardNoValue = planBatch(
+            issues,
+            CONFIG,
+            makePort(disjoint(10, 20), [], {})
+        );
+        expect(numbers(onBoardNoValue)).toEqual([10, 20]);
+    });
+
+    it("echoes the priority on the admitted issue, and omits the key when there is none", () => {
+        // The plan must say WHY an issue jumped. An unexplained reordering
+        // reads as a planner bug and gets "fixed".
+        const plan = planBatch(
+            [issue(10), issue(20)],
+            CONFIG,
+            makePort(disjoint(10, 20), [], { 20: "P0" })
+        );
+        expect(plan.batch[0]).toMatchObject({ number: 20, priority: "P0" });
+        expect(plan.batch[1]).not.toHaveProperty("priority");
     });
 });
 

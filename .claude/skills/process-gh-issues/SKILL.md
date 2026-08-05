@@ -1,6 +1,6 @@
 ---
 name: process-gh-issues
-description: Process GitHub issues labeled ready-for-agent. Selects a file-disjoint batch by priority (bugs first, then oldest), fans out parallel implement-subagents, integrates their PRs through a serial rebase+re-gate merge-train, and closes on success. Use when user says "process issues", "work on issues", "pick up issues", or invokes /process-gh-issues.
+description: Process GitHub issues labeled ready-for-agent. Selects a file-disjoint batch by priority (board Priority field first, then bugs, then oldest), fans out parallel implement-subagents, integrates their PRs through a serial rebase+re-gate merge-train, and closes on success. Use when user says "process issues", "work on issues", "pick up issues", or invokes /process-gh-issues.
 ---
 
 # Process GitHub Issues
@@ -58,10 +58,15 @@ drift, and the stale one reads as authoritative.
 
 ## Priority order
 
-1. `bug` label first
-2. Within same category: **oldest LINEAGE first** — sort by **`parent.number ?? number`**, ascending
+1. **Board `Priority`** — the `Priority` single-select on the GitHub Project board (`P0` → `P1` → `P2`), above everything unprioritized
+2. `bug` label
+3. Within same category: **oldest LINEAGE first** — sort by **`parent.number ?? number`**, ascending
 
-**The planner computes this — you do not.** `bun run queue:plan` prints the result (§1). The sort key looks arbitrary and is not: see `references/priority-rationale.md` **before changing it**, and when an intake skill writes a `--parent` edge.
+Keys 2–3 are DEFAULTS for the issues nobody has ruled on. Key 1 is the maintainer's live override and beats them all — **a `P2` outranks an unprioritized `bug`**, deliberately: a human looked at the board this week, the heuristic did not.
+
+**The planner computes this — you do not.** `bun run queue:plan` prints the result (§1), echoing `priority` on each admitted issue so the plan says _why_ something jumped. The sort key looks arbitrary and is not: see `references/priority-rationale.md` **before changing it**, and when an intake skill writes a `--parent` edge.
+
+**A board that cannot be read is a HARD STOP.** `queue:plan` exits non-zero rather than plan without the priorities — a batch ordered on stale defaults looks completely normal and nothing goes red. Fix the access (`gh auth refresh -s read:project`) or pass `--no-priority` to plan on the defaults deliberately.
 
 ## Main loop
 
@@ -189,7 +194,7 @@ Spawn a **fresh** subagent via the `Agent` tool for **each** issue in the batch,
 - The instructions below, which the subagent follows end-to-end.
 - **One sentence naming the hard part of THIS issue** — lead with it, before any compliance material. Not "follow the rules": what is the specific thing that is easy to get wrong here? ("the hard part is deciding which of the existing raise sites count as a search", "the hard part is that two shipped cards reuse this choice kind for something else".) A prompt that is all guard checklist and silent on the semantics produces a subagent that satisfies every guard and gets the semantics wrong — the checklist cannot check what nobody stated. If you cannot name the hard part from the issue body, that is a signal the issue needs a producer census (subagent brief) or is under-specified, not that it has none.
 
-**Model routing — take the tier from the plan, verbatim.** Every `batch` entry carries a `model` (§1). Pass it as the `model` parameter of that issue's `Agent` call. It is always present precisely so the parameter can never be omitted — omitting it inherits the orchestrator's session model, which silently routes routine work at whatever tier the session runs on (see Parameters). The planner resolves it from the issue's `model:<name>` label (`model:sonnet` / `model:opus` / `model:fable` / `model:haiku`), falling back to `DEFAULT_IMPL_MODEL`; several labels resolve to the most capable and arrive as `modelAmbiguity`, which you report in the batch summary.
+**Model routing — take the tier from the plan, verbatim.** Every `batch` entry carries a `model` (§1). Pass it as the `model` parameter of that issue's `Agent` call. It is always present precisely so the parameter can never be omitted — omitting it inherits the orchestrator's session model, which silently routes routine work at whatever tier the session runs on (see Parameters). The planner resolves it from the issue's `model:<name>` label, falling back to `DEFAULT_IMPL_MODEL`; several labels resolve to the most capable and arrive as `modelAmbiguity`, which you report in the batch summary. The resolver is generic over any `model:<name>` in `MODEL_RANK`, but the tracker deliberately carries **only the escalation labels** — `model:opus` and `model:fable`. `model:sonnet` was retired: it said exactly what its absence already says, so it was noise on every routine issue. **An unlabelled issue is not un-triaged, it is the default tier.**
 
 The tier governs the **implement-subagent and every follow-up subagent for that issue** — fixup and rebase-conflict-resolution handbacks (§4) inherit it (fixup difficulty correlates with issue difficulty, not with the session). The orchestrator itself and the reviewer (fixed `opus`, see Parameters) are unaffected.
 

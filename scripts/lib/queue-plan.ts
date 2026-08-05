@@ -82,7 +82,29 @@ export interface QueuePort {
     /** Issues that currently have an open PR — the liveness signal that keeps a
      *  long-running claim from being swept as orphaned. */
     issuesWithOpenPr: number[];
+    /**
+     * The `Priority` field on the GitHub Project board, per issue number.
+     *
+     * A DATA field, not a method, on purpose: the board is one `gh project
+     * item-list` call for the whole queue, so making it a per-issue lookup
+     * would invent a round-trip the two-stage design exists to avoid.
+     *
+     * Absent from the map = the issue is not on the board, or is on it with no
+     * Priority set. Both mean the same thing here — no explicit priority — and
+     * the planner must not distinguish them: a board where only the urgent few
+     * carry a value is the intended steady state, not a partially-filled one.
+     */
+    priority: Record<number, BoardPriority>;
 }
+
+/** The board's `Priority` single-select, strongest first. */
+export type BoardPriority = "P0" | "P1" | "P2";
+
+const PRIORITY_RANK: Record<BoardPriority, number> = { P0: 0, P1: 1, P2: 2 };
+
+/** Where an issue sits on the board's priority axis. Unprioritized sorts LAST
+ *  — below every explicit value, including `P2`. */
+const UNPRIORITIZED = 3;
 
 export interface PlanConfig {
     batchCap: number;
@@ -156,6 +178,10 @@ export interface PlannedIssue {
     /** Several `model:*` labels — the most capable won; the loop should say so. */
     modelAmbiguity?: string[];
     hitl: boolean;
+    /** The board's `Priority`, when the maintainer set one. Echoed so the plan
+     *  says WHY an issue jumped the queue — an unexplained reordering reads as
+     *  a planner bug and gets "fixed". */
+    priority?: BoardPriority;
     targetFiles: string[];
     blastRadius: BlastRadius;
     reason: string;
@@ -464,9 +490,22 @@ export function planBatch(
     }
 
     // ── Stage 1: order ──────────────────────────────────────────────────────
-    // Bugs first, then oldest LINEAGE, then the issue's own number so the order
-    // is total (a comparator with ties is not reproducible).
+    // Board priority first, then bugs, then oldest LINEAGE, then the issue's
+    // own number so the order is total (a comparator with ties is not
+    // reproducible).
+    //
+    // Priority is the ZEROTH key, above `bug`, and that is the whole point: it
+    // is the maintainer's live override, the one input whose criteria change
+    // week to week. A P2 outranking an unprioritized `bug` is correct — the
+    // human looked at the board and said so. Every key below it is a default
+    // for the issues nobody has ruled on, which is the vast majority.
+    const rank = (issue: QueueIssue): number => {
+        const p = port.priority[issue.number];
+        return p === undefined ? UNPRIORITIZED : PRIORITY_RANK[p];
+    };
     eligible.sort((a, b) => {
+        const priorityDelta = rank(a) - rank(b);
+        if (priorityDelta !== 0) return priorityDelta;
         const bugA = hasLabel(a, "bug") ? 0 : 1;
         const bugB = hasLabel(b, "bug") ? 0 : 1;
         if (bugA !== bugB) return bugA - bugB;
@@ -611,6 +650,9 @@ export function planBatch(
             model,
             ...(ambiguity ? { modelAmbiguity: ambiguity } : {}),
             hitl: isHitl(detail.body),
+            ...(port.priority[issue.number]
+                ? { priority: port.priority[issue.number] }
+                : {}),
             targetFiles: comparable,
             blastRadius,
             reason: batchable

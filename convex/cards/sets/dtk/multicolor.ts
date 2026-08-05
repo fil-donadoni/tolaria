@@ -7,8 +7,10 @@
 // card. / Destroy target artifact. / Kolaghan's Command deals 2 damage to any
 // target." Blocked: "Choose two —" (two DIFFERENT modes) has no construct —
 // `optionChoice`/`EffectMode` (ADR 0045, issue #849) picks exactly ONE mode; a
-// "choose N distinct modes" generalization doesn't exist yet (issue #1566).
-// tracked-by: #1566
+// "choose N distinct modes" generalization doesn't exist yet. Per ADR 0089 a
+// printed modal pick is announce-time (`CardDefinition.modes`), so that is
+// where the cardinality grammar goes — not on the resolve-time Op.
+// tracked-by: #2266 (cards) via PRD #2261 (modal cardinality grammar)
 // export const kolaghansCommand: CardDefinition = {
 //     id: "7c884e1e-fecb-4330-b3de-5fc2a60f7173",
 //     name: "Kolaghan's Command",
