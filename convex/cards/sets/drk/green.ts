@@ -759,12 +759,13 @@ export const venom: CardDefinition = {
 // implemented exactly via `setExileOnDeath` (the Disintegrate primitive: marks
 // the creature so it is exiled rather than dying, and suppresses regeneration,
 // cleared at CLEANUP). DEFERRED (documented simplification, NOT a new card-
-// specific primitive): the middle clause — "damage ... can't be prevented or
-// dealt instead to another permanent or player" — is an anti-prevention /
-// anti-redirection lock for which no engine primitive exists. It is a narrow
-// rider (matters only against active Fog-style prevention or redirection on the
-// same turn) and does not change Whippoorwill's primary function. Flagged for a
-// follow-up; see PR.
+// specific primitive, tracked-by: #2231): the middle clause — "damage ... can't
+// be prevented or dealt instead to another permanent or player" — is an
+// anti-prevention / anti-redirection lock (CR 615 / 614.9, and CR 702.16e —
+// protection's damage leg is prevention) for which no engine primitive exists.
+// Same gap as ICE Lava Burst, at the turn-scoped end: this one locks damage to
+// the TARGETED creature from any source for the turn. Until the 2026-08-05
+// #1212 audit this deferral carried no tracking ref at all.
 export const whippoorwill: CardDefinition = {
     id: "e56146bf-5db0-4bef-83bb-efa5ebec6684",
     rarity: "uncommon",

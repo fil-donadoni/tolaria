@@ -1501,12 +1501,12 @@ export const karplusanYeti: CardDefinition = {
 // from the cost.)
 //
 // DEFERRED (documented simplification, NOT a card-specific primitive — same gap
-// as DRK Whippoorwill, tracked-by: #1212): the rider "If Lava Burst would deal damage to a
-// creature, that damage can't be prevented or dealt instead to another permanent
-// or player" is an anti-prevention / anti-redirection lock for which no engine
-// primitive exists. It is a narrow rider (matters only against active Fog-style
-// prevention or redirection) and does not change the spell's primary function.
-// Flagged for the prevention-lock cluster.
+// as DRK Whippoorwill, tracked-by: #2231): the rider "If Lava Burst would deal
+// damage to a creature, that damage can't be prevented or dealt instead to
+// another permanent or player" is an anti-prevention / anti-redirection lock
+// (CR 615 / 614.9, and CR 702.16e — protection's damage leg is prevention).
+// `dealDamage.unpreventable` covers only the prevention half and is not passed
+// here; the redirection half has no engine primitive at all.
 export const lavaBurst: CardDefinition = {
     id: "79dc0e20-5790-4927-8432-cf0e9b7381d4",
     name: "Lava Burst",
