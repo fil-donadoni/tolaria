@@ -27,6 +27,14 @@
 // reported as an explicit SKIP with a reason (collected + printed), never
 // silently green. The sweep also fails if it becomes vacuous (no ability
 // exercised) so deleting the last such card can't hide a regression.
+//
+// CR 113.6 (issue #2235) — a GRAVEYARD-source ability (`activateFromGraveyard`,
+// Whiteout / Ashen Ghoul) is never offered by `getStackAbilities` at all (that
+// gate unconditionally hides it — CR 113.6/602.5b: it functions ONLY from the
+// graveyard). Its real affordance is the sibling reducer
+// `getGraveyardStackAbilities`, which this sweep dispatches to instead for any
+// such ability — same fully-affordable/broken-by-one-shape harness, just
+// through the graveyard zone-listing helper.
 
 import { describe, it, expect } from "vitest";
 import { getAllCards } from "@convex/cards";
@@ -36,7 +44,11 @@ import type {
     EffectCardFilter,
 } from "@convex/cards/types";
 import type { CardInstance } from "../../types/game";
-import { getStackAbilities, buildTriggerStateView } from "../card-utils";
+import {
+    getStackAbilities,
+    getGraveyardStackAbilities,
+    buildTriggerStateView,
+} from "../card-utils";
 import {
     matchesPermanentFilter,
     type PermanentFilter,
@@ -577,6 +589,14 @@ function env(c: Case, broken: boolean) {
             ? ability.cost.sacrificeFilter.types
             : [ability.cost.sacrificeFilter.types]
         : [];
+    // CR 113.6 (issue #2235) — a graveyard-source ability's SOURCE sits in the
+    // graveyard, never the battlefield (Whiteout, Ashen Ghoul): stamp its zone
+    // and place it in `graveyard` rather than `battlefield` below, so the
+    // fixture matches what `getGraveyardStackAbilities` actually receives from
+    // the real caller (a card drawn from `player.graveyard`).
+    if (ability.activateFromGraveyard) {
+        source = { ...source, zone: "graveyard" };
+    }
     const view = buildTriggerStateView(
         [
             {
@@ -584,7 +604,7 @@ function env(c: Case, broken: boolean) {
                 life: payerLife,
                 hand: [],
                 battlefield: [
-                    source,
+                    ...(ability.activateFromGraveyard ? [] : [source]),
                     // For a tapOtherFilter case the viewer's target dummy is
                     // TAPPED: it is a legal target either way (CR 115.4 — tap
                     // state doesn't gate targeting), but an untapped one would
@@ -602,7 +622,9 @@ function env(c: Case, broken: boolean) {
                     ...tapHelpers,
                     ...sacrificeHelpers,
                 ],
-                graveyard: viewerGrave,
+                graveyard: ability.activateFromGraveyard
+                    ? [source, ...viewerGrave]
+                    : viewerGrave,
             },
             {
                 id: OPP,
@@ -615,6 +637,27 @@ function env(c: Case, broken: boolean) {
         VIEWER
     );
     return { source, view, payerLife, hand };
+}
+
+/** Dispatches to the affordance a `Case`'s ability actually uses: the
+ *  graveyard zone-listing helper (CR 113.6, issue #2235) for
+ *  `activateFromGraveyard` abilities — `getStackAbilities` unconditionally
+ *  hides those — else the ordinary battlefield helper. */
+function surfacedAbilityIds(c: Case, env_: ReturnType<typeof env>): string[] {
+    const { source, view, payerLife, hand } = env_;
+    if (c.ability.activateFromGraveyard) {
+        return getGraveyardStackAbilities(source, undefined, view).map(
+            (x) => x.id
+        );
+    }
+    return getStackAbilities(
+        source,
+        undefined,
+        true,
+        view,
+        payerLife,
+        hand
+    ).map((x) => x.id);
 }
 
 describe("frontend affordability wiring — catalogue sweep", () => {
@@ -641,28 +684,12 @@ describe("frontend affordability wiring — catalogue sweep", () => {
     for (const c of cases) {
         describe(c.label, () => {
             it("is SURFACED when the cost is fully affordable (via buildTriggerStateView)", () => {
-                const { source, view, payerLife, hand } = env(c, false);
-                const ids = getStackAbilities(
-                    source,
-                    undefined,
-                    true,
-                    view,
-                    payerLife,
-                    hand
-                ).map((x) => x.id);
+                const ids = surfacedAbilityIds(c, env(c, false));
                 expect(ids).toContain(c.ability.id);
             });
 
             it("is HIDDEN when the cost shape under test is unaffordable", () => {
-                const { source, view, payerLife, hand } = env(c, true);
-                const ids = getStackAbilities(
-                    source,
-                    undefined,
-                    true,
-                    view,
-                    payerLife,
-                    hand
-                ).map((x) => x.id);
+                const ids = surfacedAbilityIds(c, env(c, true));
                 expect(ids).not.toContain(c.ability.id);
             });
         });

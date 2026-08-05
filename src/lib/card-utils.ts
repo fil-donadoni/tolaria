@@ -1955,6 +1955,30 @@ export function getGraveyardStackAbilities(
             ) {
                 return false;
             }
+            // CR 602.1 / 118.5 (issue #2235) — "sacrifice a permanent
+            // matching <filter>" (Whiteout's "Sacrifice a snow land") is
+            // unpayable when the card's OWNER (the activator — CR 602.1
+            // "from YOUR graveyard", enforced identically server-side by
+            // `activateAbilityOnState` in `game.ts`) has no matching
+            // permanent to give up. Mirrors `getStackAbilities`'s own
+            // `sacrificeFilter` gate for the battlefield zone; this one was
+            // previously missing entirely for the graveyard zone (no shipped
+            // graveyard-activated card combined `sacrificeFilter` with
+            // `activateFromGraveyard` until Whiteout), so the ability would
+            // have been offered unconditionally regardless of board state,
+            // hitting the server's "No legal permanent to pay the sacrifice
+            // cost" throw on click.
+            if (a.cost.sacrificeFilter) {
+                const mine = stateView.players.find(
+                    (p) => p.id === card.ownerId
+                );
+                const hasCandidate = (mine?.battlefield ?? []).some((c) =>
+                    matchesEnginePermanentFilter(c, a.cost.sacrificeFilter!, {
+                        selfControllerId: card.ownerId,
+                    })
+                );
+                if (!hasCandidate) return false;
+            }
             if (a.canActivate) {
                 if (!a.canActivate(card as unknown as PermanentView, stateView))
                     return false;

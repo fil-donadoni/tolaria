@@ -94,7 +94,11 @@ import {
     NO_TARGETING_SOURCE,
 } from "../../../../gre/rules";
 import { castProhibitionReason } from "../../../castRestrictions";
-import { tryAutoCommitPendingActivation } from "../../../../game";
+import {
+    tryAutoCommitPendingActivation,
+    activateAbilityOnState,
+    buildPendingActivation,
+} from "../../../../game";
 import {
     makeInstance,
     makePlayer,
@@ -1924,6 +1928,169 @@ describe("Woolly Mammoths / Whiteout (snow-flavored green)", () => {
             (c) => c.id === "flyer"
         )!;
         expect(after.staticAbilities).not.toContain("flying");
+    });
+});
+
+describe("Whiteout — graveyard-activated recursion (CR 113.6b, issue #2235)", () => {
+    // #1212 tracker-audit correction: every piece of this ability is shipped
+    // machinery (`activateFromGraveyard` — Ashen Ghoul; `sacrificeFilter` +
+    // `supertypes` — Sunstone; `moveZone` reaching `$source` in a graveyard —
+    // Ashen Ghoul again), so this is card work with no engine dependency. No
+    // timing restriction (unlike Ashen Ghoul): the Oracle line carries no
+    // upkeep/your-turn clause.
+    const ability = whiteout.activatedAbilities![0];
+
+    it("declares the graveyard-activated snow-land-sacrifice ability with no timing restriction", () => {
+        expect(ability.id).toBe("whiteout-return");
+        expect(ability.activateFromGraveyard).toBe(true);
+        expect(ability.useStack).toBe(true);
+        expect(ability.cost.sacrificeFilter).toEqual({
+            types: "Land",
+            supertypes: ["Snow"],
+        });
+        expect(ability.controllerTurnOnly).toBeUndefined();
+        expect(ability.activationPhaseRestriction).toBeUndefined();
+    });
+
+    /** Whiteout in the graveyard + one snow-covered Forest on the battlefield
+     *  (unless `withSnowLand` is false, exercising the illegal-activation
+     *  case), owned/controlled by p1. */
+    function setup(withSnowLand: boolean) {
+        const wo = makeInstance(whiteout.id, {
+            id: "wo",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const battlefield = withSnowLand
+            ? [snowLand(snowCoveredForest.id, "snow-1", "p1")]
+            : [];
+        return makeState({
+            players: [
+                makePlayer("p1", { graveyard: [wo], battlefield }),
+                makePlayer("p2"),
+            ],
+            priorityPlayerId: "p1",
+        });
+    }
+
+    it("is illegal to activate with no snow land to sacrifice (CR 602.1 / 118.5)", () => {
+        const state = setup(false);
+        expect(() =>
+            activateAbilityOnState(state, {
+                playerId: "p1",
+                cardInstanceId: "wo",
+                abilityId: ability.id,
+            })
+        ).toThrow(/No legal permanent to pay the sacrifice cost/);
+    });
+
+    it("a non-snow land does not satisfy the sacrifice cost", () => {
+        const state = setup(false);
+        state.players[0].battlefield.push(
+            makeInstance(mountain.id, {
+                id: "plain-mountain",
+                controllerId: "p1",
+                ownerId: "p1",
+                types: ["Land"] as CardType[],
+            })
+        );
+        expect(() =>
+            activateAbilityOnState(state, {
+                playerId: "p1",
+                cardInstanceId: "wo",
+                abilityId: ability.id,
+            })
+        ).toThrow(/No legal permanent to pay the sacrifice cost/);
+    });
+
+    it("sacrifices the snow land and returns Whiteout from the graveyard to hand", () => {
+        const state = setup(true);
+        // A single legal candidate is fungible — `activateAbilityOnState`
+        // auto-resolves the sacrifice choice and commits inline (no
+        // intervening pendingActivation payment phase).
+        activateAbilityOnState(state, {
+            playerId: "p1",
+            cardInstanceId: "wo",
+            abilityId: ability.id,
+        });
+        expect(state.pendingActivation).toBeUndefined();
+        expect(state.stack).toHaveLength(1);
+        // The snow land is sacrificed as part of the cost, before resolution.
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "snow-1")
+        ).toBe(false);
+        expect(state.players[0].graveyard.some((c) => c.id === "snow-1")).toBe(
+            true
+        );
+        resolveTopOfStack(state);
+        // Whiteout itself moves from the graveyard to hand on resolution.
+        expect(state.players[0].hand.some((c) => c.id === "wo")).toBe(true);
+        expect(state.players[0].graveyard.some((c) => c.id === "wo")).toBe(
+            false
+        );
+    });
+
+    // Proof-of-failure (drop `activateFromGraveyard`): mirrors the
+    // authoritative gate at `game.ts` (`activateAbilityOnState`) that rejects
+    // a graveyard-source activation for an ability not opted in via
+    // `activateFromGraveyard` — verified by temporarily setting it to
+    // `false` and observing the exact rejection this test guards against.
+    it("would be rejected from the graveyard if activateFromGraveyard were dropped (proof-of-failure guard)", () => {
+        const state = setup(true);
+        const original = ability.activateFromGraveyard;
+        (ability as { activateFromGraveyard?: boolean }).activateFromGraveyard =
+            false;
+        try {
+            expect(() =>
+                activateAbilityOnState(state, {
+                    playerId: "p1",
+                    cardInstanceId: "wo",
+                    abilityId: ability.id,
+                })
+            ).toThrow(/can't be activated from the graveyard/);
+        } finally {
+            (
+                ability as { activateFromGraveyard?: boolean }
+            ).activateFromGraveyard = original;
+        }
+    });
+
+    it("builds a matching pendingActivation via buildPendingActivation (fromGraveyard + sacrificeSelection)", () => {
+        const pa = buildPendingActivation({
+            playerId: "p1",
+            cardInstanceId: "wo",
+            abilityId: ability.id,
+            ability,
+            manaCost: {},
+            fromGraveyard: true,
+            sacrificeSelection: {
+                playerId: "p1",
+                reason: "Whiteout",
+                requirements: [
+                    {
+                        filter: ability.cost.sacrificeFilter!,
+                        count: 1,
+                        snapshot: true,
+                    },
+                ],
+                picked: ["snow-1"],
+            },
+        });
+        expect(pa.fromGraveyard).toBe(true);
+        expect(pa.sacrificeSelection?.picked).toEqual(["snow-1"]);
+        // Independently drives the deferred-commit path (mirrors Ashen
+        // Ghoul's own shape) to prove `tryAutoCommitPendingActivation`
+        // accepts the same descriptor `activateAbilityOnState` would build.
+        const state = setup(true);
+        state.pendingActivation = pa;
+        const committed = tryAutoCommitPendingActivation(state, "p1");
+        expect(committed).not.toBeNull();
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.some((c) => c.id === "wo")).toBe(true);
+        expect(state.players[0].graveyard.some((c) => c.id === "snow-1")).toBe(
+            true
+        );
     });
 });
 
