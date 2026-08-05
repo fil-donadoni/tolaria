@@ -140,8 +140,13 @@ function makeCard(
 
 /** The card under its two required providers. `ctxOverrides` exists for the
  *  tap-stage tests (#1767), which need to move the game state under a staged
- *  card (a priority/turn change must drop the stage). */
-function tree(card: CardInstance, ctxOverrides: Record<string, unknown> = {}) {
+ *  card (a priority/turn change must drop the stage). `cardProps` forwards
+ *  extra `BoardHandCard` props (e.g. `allowHorizontalPan`, issue #1994). */
+function tree(
+    card: CardInstance,
+    ctxOverrides: Record<string, unknown> = {},
+    cardProps: Record<string, unknown> = {}
+) {
     const value = {
         gameId: "game-id" as never,
         playerId: "me",
@@ -161,7 +166,7 @@ function tree(card: CardInstance, ctxOverrides: Record<string, unknown> = {}) {
     return (
         <GameContext value={value}>
             <PendingChoiceBufferContext value={noopBuffer}>
-                <BoardHandCard card={card} />
+                <BoardHandCard card={card} {...cardProps} />
             </PendingChoiceBufferContext>
         </GameContext>
     );
@@ -169,9 +174,10 @@ function tree(card: CardInstance, ctxOverrides: Record<string, unknown> = {}) {
 
 function renderCard(
     card: CardInstance,
-    ctxOverrides: Record<string, unknown> = {}
+    ctxOverrides: Record<string, unknown> = {},
+    cardProps: Record<string, unknown> = {}
 ) {
-    return render(tree(card, ctxOverrides));
+    return render(tree(card, ctxOverrides, cardProps));
 }
 
 function el() {
@@ -987,5 +993,38 @@ describe("commit gesture is inert while an interaction is pending", () => {
         drag(120);
 
         expect(announceCast).not.toHaveBeenCalled();
+    });
+});
+
+// Issue #1994: with 10-12 cards in the portrait hand, cards past the right
+// edge were unreachable. Root cause — the card root disabled ALL native touch
+// gestures (`touch-action: none`, Tailwind `touch-none`) unconditionally, so a
+// touch swipe starting on a card (almost all of the hand row's touch surface,
+// given the fan overlap) could never be recognized by the browser as the
+// portrait hand's own `overflow-x-auto` scroll (#336), regardless of any JS
+// `preventDefault`. `allowHorizontalPan` (set by the portrait hand only) swaps
+// `touch-none` for `touch-pan-x`: native Y-panning stays disabled (so the
+// vertical drag-to-cast gesture still reaches JS), but a horizontal swipe is
+// now handed to the browser's own scroll.
+describe("BoardHandCard touch-action (issue #1994)", () => {
+    it("disables ALL native touch panning by default (spatial/landscape hand, unchanged)", () => {
+        renderCard(makeCard("land1", ["play"]));
+        expect(el().className).toContain("touch-none");
+        expect(el().className).not.toContain("touch-pan-x");
+    });
+
+    it("allows native horizontal panning when allowHorizontalPan is set (portrait hand)", () => {
+        renderCard(
+            makeCard("land1", ["play"]),
+            {},
+            { allowHorizontalPan: true }
+        );
+        expect(el().className).toContain("touch-pan-x");
+        expect(el().className).not.toContain("touch-none");
+    });
+
+    it("keeps the pan opt-in even for an inert card (no legal action)", () => {
+        renderCard(makeCard("inert", []), {}, { allowHorizontalPan: true });
+        expect(el().className).toContain("touch-pan-x");
     });
 });

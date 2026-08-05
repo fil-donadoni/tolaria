@@ -417,7 +417,14 @@ export default function BoardBattlefield({
         );
         // A fanned stack is wider than one card, so each group reserves its own
         // footprint width in the row (issue #977) — otherwise a 6-card fan
-        // overflows its slot and covers the next permanent's click target.
+        // overflows its slot and covers the next permanent's click target. A
+        // TAPPED member does NOT widen this reservation (issue #1994, PR #2279
+        // review round 2): reserving the rotated footprint in `widths[]` was
+        // measured to make the reported occlusion bug WORSE, not better — see
+        // the `tapTransform` comment in `board-battlefield-card.tsx` for the
+        // full rationale. The rotation is now purely presentational
+        // (`pointer-events: none` while tapped), so the row layout stays
+        // completely blind to tap state, exactly as it was before #1994.
         const widthsOf = (groups: { members: CardInstance[] }[]) =>
             groups.map((g) =>
                 stackFootprintWidth(g.members.length, compact?.cardWidth)

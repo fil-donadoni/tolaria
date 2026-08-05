@@ -103,6 +103,17 @@ export default function BoardHandPortrait({
                                     card={card}
                                     sizes={`${cardWidth}px`}
                                     includeThumb
+                                    // This row scrolls horizontally past the
+                                    // threshold (#336) — a touch swipe over a
+                                    // card is the only way to reach cards past
+                                    // the right edge, so it must not disable
+                                    // native panning (issue #1994). Gated on
+                                    // `scrolls`: below the threshold there is
+                                    // no scroll container to pan, so the wider
+                                    // `touch-action: pan-x` (which narrows the
+                                    // window for the drag-to-cast gesture) buys
+                                    // nothing there.
+                                    allowHorizontalPan={scrolls}
                                 />
                             </motion.div>
                         ) : (

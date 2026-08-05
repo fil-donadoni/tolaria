@@ -565,4 +565,72 @@ describe("CardPreview — Arena click model (#332)", () => {
             expect(anchored()).toBeTruthy();
         });
     });
+
+    // Issue #1994 (PR #2279 review round 4): a TAPPED battlefield permanent
+    // rotates its visual and sets `pointer-events: none` on an INNER layer
+    // (`[data-tap-visual]`, `board-battlefield-card.tsx`) that sits between
+    // the tilt root and CardPreview's own container — so a real touch
+    // landing on the rotated art hit-tests to the tilt root (an ancestor of
+    // this container, same reasoning as the right-press binding above), not
+    // to this container itself. The mobile long-press gesture used to be
+    // bound as plain React `onTouch*` props directly on the container, which
+    // would never receive that touch. It now binds imperatively on the same
+    // `[data-card-tilt-root]` ancestor.
+    describe("tap inert layer — long-press binds on the tilt root (#1994 round 4)", () => {
+        function renderTapped() {
+            const preview = (
+                <div data-card-tilt-root>
+                    <div data-card-tilt>
+                        <div data-tap-visual style={{ pointerEvents: "none" }}>
+                            <div className="overflow-hidden">
+                                <CardPreview
+                                    cardId="bolt"
+                                    cardName="Lightning Bolt"
+                                >
+                                    <div>face</div>
+                                </CardPreview>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+            return render(
+                <GameContext value={GAME_CTX}>{preview}</GameContext>
+            );
+        }
+
+        it("opens the mobile long-press overlay from a touch that targets the tilt root, not the inert container beneath it", () => {
+            const { container } = renderTapped();
+            const tiltRoot = container.querySelector(
+                "[data-card-tilt-root]"
+            ) as HTMLElement;
+
+            act(() => {
+                fireEvent.touchStart(tiltRoot, {
+                    touches: [{ clientX: 10, clientY: 10 }],
+                });
+                vi.advanceTimersByTime(400);
+            });
+
+            const overlay = document.querySelector(".fixed.inset-0");
+            expect(overlay).toBeTruthy();
+        });
+
+        it("suppresses the right-button path after a touch on the tilt root (sawTouchRef still set from the imperative binding)", () => {
+            const { container } = renderTapped();
+            const tiltRoot = container.querySelector(
+                "[data-card-tilt-root]"
+            ) as HTMLElement;
+
+            act(() => {
+                fireEvent.touchStart(tiltRoot, {
+                    touches: [{ clientX: 10, clientY: 10 }],
+                });
+            });
+            rightPress(tiltRoot);
+            release();
+
+            expect(anchored()).toBeNull();
+        });
+    });
 });

@@ -72,14 +72,24 @@ type BoardBattlefieldCardProps = {
  *  (`useBattlefieldVisualState`) so the classic and spatial boards never
  *  diverge:
  *  - combat grouping ring (`vs.ringClass`) + combat-group badge (`vs.badge`),
- *  - tapped rotation (90° visual rotate, layout box unchanged),
+ *  - tapped rotation (90° visual rotate at FULL card size, issue #1994) — the
+ *    rotation lives on an inert presentational layer INSIDE this card's own
+ *    unrotated slot box, never on the interactive box itself, so tapping a
+ *    permanent never changes its own hit-testable footprint and never widens
+ *    what the row layout reserves for it (see the `tapTransform` comment
+ *    below for the full rationale),
  *  - marked damage (CR 120.3) + effective P/T (CR 613, layer 7c) on creatures,
  *  - legal-target / legal-choice highlight rides on `vs.ringClass` during
  *    targeting/choice; a dim overlay marks ineligible/dimmed permanents.
  *
  *  Emits `data-arrow-anchor-permanent` so target arrows
- *  (`target-arrows-overlay.tsx`) attach to this card. Hover tilt + zoom preview
- *  ride along via {@link CardTilt3D} / {@link CardImage} (#253).
+ *  (`target-arrows-overlay.tsx`) attach to this card. Hover tilt + zoom
+ *  preview ride along via {@link CardTilt3D} / {@link CardImage} (#253) and
+ *  stay live tapped or not: {@link CardTilt3D} wraps the rotated presentational
+ *  layer rather than living inside it, so its own pointer listeners (and
+ *  `card-preview.tsx`'s) sit outside the `pointer-events: none` region a
+ *  tapped permanent's overhang uses to stay non-hit-testable (see
+ *  `tapTransform`).
  *
  *  Reads ONLY projected (`PublicGameState` / `FullGameState`) fields — no GRE
  *  import — consistent with the CLAUDE.md wire-format rule. The battlefield is
@@ -208,8 +218,75 @@ export default function BoardBattlefieldCard({
         />
     ) : null;
 
-    // Tapped state rotates the visual only; the slot placement (#251/#252) sizes
-    // the layout box, so rotation here never reflows neighbors.
+    // Tapped state rotates the visual only — a bare rotate(90deg) on a 5:7
+    // portrait box swaps its bounding box to 7:5 landscape, wider than the
+    // card's own unrotated slot. Three mechanisms were tried and rejected
+    // before this one (issue #1994, PR #2279 review rounds 1-3):
+    //
+    //   1. Scale the rotated box back down by the card's own aspect ratio
+    //      (5/7) to fit the unrotated slot. Restored the footprint, but
+    //      rendered EVERY tapped permanent 29% smaller linear (51% area) on
+    //      EVERY viewport — desktop included, where the occlusion this issue
+    //      fixes never occurs — and every attacking creature in combat
+    //      (attackers are tapped). Undisclosed global visual regression.
+    //   2. Reserve the wider rotated footprint in the ROW LAYOUT instead
+    //      (`tappedFootprintWidth`, since removed from `board-layout.ts`).
+    //      Measured (round-2 review) to make the REPORTED bug strictly
+    //      WORSE: slots paint in DOM order with `z-index: auto`, so a tapped
+    //      card's overhang can only ever cover its LEFT neighbour (the right
+    //      overhang is painted over by the next slot and never stole
+    //      anything) — the reservation protected the harmless right side and
+    //      left the harmful left side untouched. Worse, `widths[]` doesn't
+    //      create row width, it SPENDS it: inflating one item's reservation
+    //      shrinks the row's one shared inter-item gap for every card in it,
+    //      so on a phone battlefield already in the overlap/MIN_SCALE regime,
+    //      reserving 48px per tapped land compressed the whole row — the
+    //      untapped fetchland the issue reports went from 408 clickable px²
+    //      on `main` to 0 on that branch.
+    //   3. `pointer-events: none` on `[data-tap-visual]` with {@link
+    //      CardTilt3D} still WRAPPING it (round 3). Fixed the reported bug —
+    //      measured, every card in the row lands on hit-test geometry
+    //      identical to the all-untapped control — but `pointer-events` is
+    //      inherited DOWNWARD: CardTilt3D's own root (`[data-card-tilt-
+    //      root]`) lived INSIDE `[data-tap-visual]`, so it and everything
+    //      nested under it (CardImage, CardPreview) inherited `none` too.
+    //      That silently killed hover-tilt, hover-dwell preview, right-click
+    //      pinned preview and mobile long-press preview on EVERY tapped
+    //      permanent on EVERY viewport (including desktop, where the
+    //      occlusion this issue fixes never occurs), and un-disclosed a
+    //      second regression: both `contextmenu` `preventDefault()` sites
+    //      (CardTilt3D's own, and `card-preview.tsx`'s) were inside the now-
+    //      inert subtree, so Chrome's NATIVE context menu started popping on
+    //      right-click of any tapped permanent (`ui/context-menu.tsx`
+    //      deliberately leaves a genuine right-click un-prevented, expecting
+    //      the preview's own listener to own it). Same shape as round 1: a
+    //      global desktop-visible cost paid to fix a phone-only bug.
+    //
+    // This version keeps round 3's win (spends no row width, fixes both
+    // overhang sides, `cardContent` never rotates and is IDENTICAL tapped or
+    // not) and closes its regression by re-ordering the nesting: {@link
+    // CardTilt3D} now WRAPS `[data-tap-visual]` instead of living inside it.
+    // `[data-card-tilt-root]` therefore sits OUTSIDE the inert layer — its
+    // own computed `pointer-events` no longer inherits `none` from a
+    // rotated descendant, so its `onPointerMove`/`onPointerLeave`/
+    // `onContextMenu` (and `card-preview.tsx`'s listeners, bound via
+    // `closest("[data-card-tilt-root]")` onto that same element) keep
+    // firing. `[data-tap-visual]` still rotates and still goes
+    // `pointer-events: none` while tapped — a `pointer-events: none` element
+    // can never itself be hit-tested, so a click/hover anywhere in the
+    // overhang still falls straight through it to whatever is genuinely
+    // painted underneath (typically a neighbour's own unrotated box) instead
+    // of this card stealing it; a point in the rotated overhang still
+    // resolves to the NEIGHBOUR, because the neighbour's own tilt root sits
+    // there, unaffected by this card's inert layer.
+    //
+    // Accepted, disclosed cost: mobile long-press preview is bound as React
+    // `onTouch*` props directly on `CardPreview`'s own container (inside
+    // `card-preview.tsx`), which — unlike the pointer/contextmenu listeners
+    // — still lives INSIDE `[data-tap-visual]` (the art has to rotate with
+    // the card). `card-preview.tsx` re-binds those handlers imperatively on
+    // the same `[data-card-tilt-root]` ancestor the other listeners use, so
+    // long-press is restored too — see that file's own comment.
     const tapTransform = card.isTapped ? "rotate(90deg)" : undefined;
 
     // Combat lift (#1770 follow-up from #1802): landscape-compact re-derives
@@ -247,30 +324,44 @@ export default function BoardBattlefieldCard({
         </div>
     ) : null;
 
+    // `CardTilt3D` wraps `[data-tap-visual]` (not the other way around, see
+    // the `tapTransform` comment above): its own root (`[data-card-tilt-
+    // root]`) must sit OUTSIDE the inert rotated layer so its pointer
+    // listeners — and `card-preview.tsx`'s, bound onto the same element —
+    // keep receiving events on a tapped permanent.
     const inner = (
         <CardTilt3D>
             <div
-                className={`relative w-full h-full rounded-sm overflow-hidden ${
-                    vs.targetGlow
-                        ? ""
-                        : "ring-1 ring-black/40 shadow-[0_6px_16px_rgba(0,0,0,0.55)]"
-                } ${vs.ringClass}`}
-                style={
-                    vs.targetGlow
-                        ? { boxShadow: `${TARGET_GLOW}, ${BASE_SHADOW}` }
-                        : undefined
-                }
+                data-tap-visual
+                className="relative w-full h-full transition duration-250"
+                style={{
+                    transform: tapTransform,
+                    pointerEvents: card.isTapped ? "none" : undefined,
+                }}
             >
-                <CardImage card={card} sizes="120px" includeThumb={false} />
-                {colorOverrideOverlay}
-                {darkenOverlay}
-                {highlightRing}
-                {phasedBadge}
-                <CounterBadges card={card} />
-                {!phased && <SummoningSicknessBadge card={card} />}
-                <NotedManaBadge card={card} />
-                {ptDamageStack}
-                <PlaneswalkerLoyaltyBadge card={card} />
+                <div
+                    className={`relative w-full h-full rounded-sm overflow-hidden ${
+                        vs.targetGlow
+                            ? ""
+                            : "ring-1 ring-black/40 shadow-[0_6px_16px_rgba(0,0,0,0.55)]"
+                    } ${vs.ringClass}`}
+                    style={
+                        vs.targetGlow
+                            ? { boxShadow: `${TARGET_GLOW}, ${BASE_SHADOW}` }
+                            : undefined
+                    }
+                >
+                    <CardImage card={card} sizes="120px" includeThumb={false} />
+                    {colorOverrideOverlay}
+                    {darkenOverlay}
+                    {highlightRing}
+                    {phasedBadge}
+                    <CounterBadges card={card} />
+                    {!phased && <SummoningSicknessBadge card={card} />}
+                    <NotedManaBadge card={card} />
+                    {ptDamageStack}
+                    <PlaneswalkerLoyaltyBadge card={card} />
+                </div>
             </div>
         </CardTilt3D>
     );
@@ -295,7 +386,10 @@ export default function BoardBattlefieldCard({
                 phased ? "cursor-default pointer-events-none" : cursorClass
             } transition duration-250`}
             style={{
-                transform: tapTransform,
+                // NEVER rotated — this is the interactive box (click/pointer
+                // handlers below), and its box must be identical tapped or
+                // not (see the `tapTransform` comment above). The visual
+                // rotation lives one layer deeper, on `data-tap-visual`.
                 translate: compactLiftTranslate,
                 opacity: phased ? 0.4 : litState === "unlit" ? 0.4 : 1,
                 filter: phased ? "grayscale(0.85)" : undefined,
@@ -307,7 +401,18 @@ export default function BoardBattlefieldCard({
             {/* Cards held in exile by this permanent (Parallax Wave / Banishing
                 Light) render as a corner peek-stack BEHIND the host, with a pile
                 dialog on click; cast-from-exile (Ice Cauldron / Dauthi) rides on
-                each dialog card. */}
+                each dialog card. Deliberately OUTSIDE `data-tap-visual` below —
+                it stays upright and clickable regardless of the host's tap
+                state. NOT the same treatment as the counter/summoning-sickness
+                badges: those render INSIDE `inner` (i.e. inside
+                `data-tap-visual`) and DO rotate with a tapped host on this
+                board — this peek-stack is a deliberate exception, chosen so
+                the held-card pile stays legible and clickable while tapped,
+                at the cost of visually detaching from the rotated art on a
+                tapped Ice Cauldron / Banishing Light. See
+                `board-battlefield-card.test.tsx`'s
+                "peek-stack placement" describe block for the regression
+                guard. */}
             {associatedExiled.length > 0 && (
                 <AttachedCardsCluster
                     cards={associatedExiled}
@@ -324,7 +429,13 @@ export default function BoardBattlefieldCard({
                     }
                 />
             )}
-            {/* Host paints above the peek-stack (which is z-0). */}
+            {/* Host paints above the peek-stack (which is z-0) — a plain
+                stacking wrapper, NOT the rotation layer itself (issue #1994
+                round 4): `[data-tap-visual]` now lives one level deeper,
+                INSIDE `inner`'s `CardTilt3D`, so `[data-card-tilt-root]` sits
+                outside the inert layer and keeps receiving pointer events on
+                a tapped permanent — see the `tapTransform` comment above for
+                the full rationale. */}
             <div className="relative z-10 w-full h-full">{inner}</div>
         </div>
     );

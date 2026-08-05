@@ -14,7 +14,39 @@ import type { CardInstance, Player } from "~/types/game";
 import type { CardVisualState } from "../battlefield-card";
 import { GameContext } from "~/hooks/useGameContext";
 
-vi.mock("motion/react", () => ({ useReducedMotion: () => false }));
+// `motion.div` stub (not just `useReducedMotion`): the peek-stack placement
+// describe block below renders a real `AttachedCardsCluster`, whose dialog
+// (`CardsPile`) imports `motion` from this module for its own card tiles —
+// same pattern as `coin-flip-animation.test.tsx`.
+const MOTION_PROPS = new Set([
+    "initial",
+    "animate",
+    "transition",
+    "layout",
+    "layoutId",
+    "onAnimationComplete",
+]);
+vi.mock("motion/react", () => ({
+    useReducedMotion: () => false,
+    motion: new Proxy(
+        {},
+        {
+            get:
+                () =>
+                (props: {
+                    children?: React.ReactNode;
+                    [k: string]: unknown;
+                }) => {
+                    const domProps: Record<string, unknown> = {};
+                    for (const [k, v] of Object.entries(props)) {
+                        if (k === "children" || MOTION_PROPS.has(k)) continue;
+                        domProps[k] = v;
+                    }
+                    return <div {...domProps}>{props.children}</div>;
+                },
+        }
+    ),
+}));
 
 // Leaf face + tilt → inert markers (no Convex/router/refs needed).
 vi.mock("../../cards/card-image", () => ({
@@ -175,25 +207,79 @@ describe("BoardBattlefieldCard visual state + anchors (#256)", () => {
         expect(anchor?.style.translate).toBeFalsy();
     });
 
-    it("rotates 90° when the permanent is tapped", () => {
+    // Issue #1994 (PR #2279, review round 2): the INTERACTIVE box
+    // (`data-arrow-anchor-permanent` — click/pointer handlers, the element
+    // neighbours are hit-tested against) must be the SAME whether tapped or
+    // not, so tapping a permanent never changes its own hit-testable
+    // footprint. The 90° rotation lives on a separate, purely presentational
+    // `data-tap-visual` layer one level in, which additionally goes
+    // `pointer-events: none` while tapped so its overhang can never itself be
+    // hit-tested (a click there falls through to whatever is genuinely
+    // painted underneath instead of this card stealing it).
+    it("never rotates or transforms the interactive (click-anchor) box, tapped or not", () => {
+        const untapped = renderCard(
+            makeCreature({ id: "c-untapped" }),
+            NEUTRAL_VS
+        );
+        const untappedAnchor = untapped.container.querySelector<HTMLElement>(
+            "[data-arrow-anchor-permanent]"
+        );
+        expect(untappedAnchor?.style.transform || "").toBe("");
+        cleanup();
+
+        const tapped = renderCard(
+            makeCreature({ id: "c-tapped", isTapped: true }),
+            NEUTRAL_VS
+        );
+        const tappedAnchor = tapped.container.querySelector<HTMLElement>(
+            "[data-arrow-anchor-permanent]"
+        );
+        expect(tappedAnchor?.getAttribute("data-tapped")).toBe("true");
+        // Same box as the untapped case — no rotation, no scale, nothing.
+        expect(tappedAnchor?.style.transform || "").toBe("");
+    });
+
+    it("rotates the presentational tap-visual layer 90° when tapped, without any compensating scale", () => {
         const { container } = renderCard(
             makeCreature({ isTapped: true }),
             NEUTRAL_VS
         );
-        const anchor = container.querySelector<HTMLElement>(
-            "[data-arrow-anchor-permanent]"
-        );
-        expect(anchor?.getAttribute("data-tapped")).toBe("true");
-        expect(anchor?.style.transform).toContain("rotate(90deg)");
+        const visual =
+            container.querySelector<HTMLElement>("[data-tap-visual]");
+        expect(visual?.style.transform).toBe("rotate(90deg)");
+        expect(visual?.style.transform).not.toContain("scale");
     });
 
-    it("does not rotate when untapped", () => {
+    it("does not rotate the tap-visual layer when untapped", () => {
         const { container } = renderCard(makeCreature(), NEUTRAL_VS);
-        const anchor = container.querySelector<HTMLElement>(
-            "[data-arrow-anchor-permanent]"
+        const visual =
+            container.querySelector<HTMLElement>("[data-tap-visual]");
+        expect(visual?.style.transform || "").not.toContain("rotate(90deg)");
+    });
+
+    // The mechanism that actually fixes #1994: a `pointer-events: none` layer
+    // can never itself be hit-tested (by construction — CSS, not this app's
+    // logic), so the rotated overhang is inert to both click and hover; the
+    // click falls through to whatever a neighbour's own box exposes instead
+    // of this card stealing it. Verified by mutation (proof-of-failure):
+    // deleting the `pointerEvents` line turns this red.
+    it("makes the tap-visual layer pointer-events:none while tapped, so its overhang can never be hit-tested", () => {
+        const { container } = renderCard(
+            makeCreature({ isTapped: true }),
+            NEUTRAL_VS
         );
-        expect(anchor?.getAttribute("data-tapped")).toBeNull();
-        expect(anchor?.style.transform || "").not.toContain("rotate(90deg)");
+        const visual =
+            container.querySelector<HTMLElement>("[data-tap-visual]");
+        expect(visual?.style.pointerEvents).toBe("none");
+    });
+
+    it("leaves the tap-visual layer's pointer-events untouched (auto) when untapped", () => {
+        const { container } = renderCard(makeCreature(), NEUTRAL_VS);
+        const visual =
+            container.querySelector<HTMLElement>("[data-tap-visual]");
+        // No inline override at all — untapped cards keep full hover/tilt/
+        // preview interactivity, unaffected by the tapped-only mechanism.
+        expect(visual?.style.pointerEvents).toBe("");
     });
 
     it("shows marked damage and an effective P/T badge for a creature (projected fields)", () => {
@@ -495,5 +581,70 @@ describe("BoardBattlefieldCard summoning-sickness badge (CR 302.6)", () => {
             NEUTRAL_VS
         );
         expect(badge(container)).toBeNull();
+    });
+});
+
+// Round 3's PR body claimed the `associatedExiled` peek-stack (Banishing
+// Light's held permanent, Ice Cauldron's noted card) "stays clickable
+// regardless of tap state" because it renders OUTSIDE `[data-tap-visual]`.
+// That claim had NO test — review round 4's mutation M5 moved the cluster
+// INSIDE `[data-tap-visual]` and all 716 board tests stayed green. This
+// closes that gap: assert the cluster is never a descendant of the inert
+// rotated layer, on a TAPPED host (where it matters).
+describe("BoardBattlefieldCard peek-stack placement (#1994 round 4)", () => {
+    beforeEach(() => cleanup());
+
+    it("keeps the associatedExiled peek-stack OUTSIDE [data-tap-visual] on a tapped host", () => {
+        const host = makeCreature({ id: "host", isTapped: true });
+        const exiledCard = {
+            id: "exiled-1",
+            card: { id: "some-exiled-def" },
+            controllerId: "me",
+            ownerId: "me",
+            zone: "exile",
+            exiledByPermanentId: "host",
+        } as CardInstance;
+
+        const me: Player = {
+            id: "me",
+            name: "me",
+            bgColor: "#000",
+            life: 20,
+            hand: [],
+            library: { count: 0 },
+            graveyard: [],
+            exile: [exiledCard],
+            battlefield: [host],
+            manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+        };
+        const value = {
+            gameId: "game-id" as never,
+            playerId: "me",
+            activePlayerId: "me",
+            priorityPlayerId: "me",
+            phase: "PRECOMBAT_MAIN",
+            turn: 1,
+            engineTurn: 1,
+            stackCount: 0,
+            stackItems: [],
+            allPlayers: [me],
+            showAllCards: false,
+            debugAllActions: false,
+            onSwitchGame: () => {},
+        } as React.ContextType<typeof GameContext>;
+
+        const { container } = render(
+            <GameContext value={value}>
+                <BoardBattlefieldCard card={host} vs={NEUTRAL_VS} />
+            </GameContext>
+        );
+
+        const exiledImage = Array.from(
+            container.querySelectorAll('[data-testid="card-image"]')
+        ).find((el) => el.getAttribute("data-card-id") === "exiled-1");
+        expect(exiledImage).toBeTruthy();
+        // Must NOT be inside the rotated/inert layer — a tapped host would
+        // otherwise make its own held-card peek unclickable.
+        expect(exiledImage!.closest("[data-tap-visual]")).toBeNull();
     });
 });

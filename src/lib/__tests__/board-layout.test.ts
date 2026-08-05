@@ -813,6 +813,22 @@ describe("stackFootprintWidth — reserved row width per group (issue #977)", ()
     });
 });
 
+// Issue #1994 (PR #2279, review round 2): a row-layout reservation for a
+// tapped permanent's rotated footprint (`tappedFootprintWidth`) was tried and
+// removed — measured (real browser hit-testing against the actual rendered
+// DOM) to make the reported occlusion bug WORSE, not better: it protected
+// only the harmless right-side overhang (slots paint in DOM order, so only
+// the LEFT overhang ever steals a click) and, by inflating `widths[]`,
+// shrank the row's one shared inter-item gap for EVERY card in it — on a
+// phone already in the overlap/MIN_SCALE regime this compressed the whole
+// row instead of relieving it. The fix now lives entirely in
+// `board-battlefield-card.tsx` (`tapTransform` / `data-tap-visual`, a
+// presentational-only rotation with `pointer-events: none` while tapped) —
+// `rowLayout` and `stackFootprintWidth` are unaware of tap state, exactly as
+// they were before #1994. See `board-battlefield-tapped-footprint.test.tsx`
+// for the end-to-end regression guard (row layout blind to tap state) and
+// `board-battlefield-card.test.tsx` for the `data-tap-visual` geometry.
+
 describe("isDepthPile — large permanent stack threshold (PRD #621, #624)", () => {
     it("is false at and below the threshold (these still fan)", () => {
         for (let n = 0; n <= STACK_DEPTH_PILE_THRESHOLD; n++) {
