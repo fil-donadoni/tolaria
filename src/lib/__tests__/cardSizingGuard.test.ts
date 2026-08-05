@@ -20,13 +20,21 @@ const SRC_ROOT = join(__dirname, "..", "..");
 // from the scan, not merely un-migrated.
 const EXCLUDED_DIRS = [join(SRC_ROOT, "components", "board")];
 
-// A bare `min(...)` clamp with a numeric `dvh` term — the exact shape that
-// let the viewport-height term collapse the tile below legibility. The
-// negative lookbehind excludes a `max(..., min(...))`-wrapped occurrence
-// (the `cardBase()` output, already floored) — JS regex lookbehind is
-// unbounded, so this correctly skips any amount of text between `max(` and
-// the `min(` it wraps, as long as there's no closing `)` in between.
-const BARE_DVH_CLAMP = /(?<!max\([^()]*)min\([^()]*\d(\.\d+)?dvh\)/;
+// A bare `min(...)` clamp with a numeric viewport-height term (`vh`, `dvh`,
+// `svh`, or `lvh`) — the exact shape that let the viewport-height term
+// collapse the tile below legibility. Two things this must NOT require,
+// because a real-world review found both wrong in an earlier version of this
+// regex: (1) the viewport-height term does not have to be the LAST argument
+// — `min(9dvh, 7.5rem, 17vw)` collapses the tile exactly the same as
+// `min(7.5rem, 17vw, 9dvh)`, so `[^()]*` surrounds the unit term on BOTH
+// sides, not just before it; (2) it is not `dvh`-only — `vh`/`svh`/`lvh`
+// collapse the same way and must all be caught. The negative lookbehind
+// excludes a `max(..., min(...))`-wrapped occurrence (the `cardBase()`
+// output, already floored) — JS regex lookbehind is unbounded, so this
+// correctly skips any amount of text between `max(` and the `min(` it wraps,
+// as long as there's no closing `)` in between.
+const BARE_DVH_CLAMP =
+    /(?<!max\([^()]*)min\([^()]*\d(\.\d+)?(dvh|svh|lvh|vh)[^()]*\)/;
 
 function collectSourceFiles(dir: string, out: string[] = []): string[] {
     for (const entry of readdirSync(dir)) {
@@ -62,5 +70,33 @@ describe("card-size clamp — no un-floored dvh literal survives (issue #2056)",
         const sample = cardBase("7.5rem", "17vw", "9dvh");
         expect(BARE_DVH_CLAMP.test(sample)).toBe(false);
         expect(BARE_DVH_CLAMP.test(`min(7.5rem, 17vw, 9dvh)`)).toBe(true);
+    });
+
+    // A prior version of this regex required the viewport-height term to be
+    // the LAST argument (`min\([^()]*\d(\.\d+)?dvh\)`), which meant a
+    // reordered clamp — `min(9dvh, 7.5rem, 17vw)` — matched nothing and the
+    // guard stayed green while shipping the exact bug it exists to catch.
+    // Reviewer-proven mutation: reordering a real call site's arguments left
+    // the old regex green. These pin the widened behaviour.
+    it("catches the viewport-height term in ANY position, not only last", () => {
+        expect(BARE_DVH_CLAMP.test("min(9dvh, 7.5rem, 17vw)")).toBe(true);
+        expect(BARE_DVH_CLAMP.test("min(7.5rem, 9dvh, 17vw)")).toBe(true);
+        expect(BARE_DVH_CLAMP.test("min(7.5rem, 17vw, 9dvh)")).toBe(true);
+    });
+
+    it("catches vh/svh/lvh, not only dvh", () => {
+        expect(BARE_DVH_CLAMP.test("min(7.5rem, 17vw, 9vh)")).toBe(true);
+        expect(BARE_DVH_CLAMP.test("min(7.5rem, 17vw, 9svh)")).toBe(true);
+        expect(BARE_DVH_CLAMP.test("min(7.5rem, 17vw, 9lvh)")).toBe(true);
+        expect(BARE_DVH_CLAMP.test("min(9svh, 7.5rem, 17vw)")).toBe(true);
+    });
+
+    it("still does not false-positive on a max()-wrapped clamp regardless of the viewport-height term's position inside the min()", () => {
+        expect(
+            BARE_DVH_CLAMP.test("max(4.5rem, min(9dvh, 7.5rem, 17vw))")
+        ).toBe(false);
+        expect(
+            BARE_DVH_CLAMP.test("max(4.5rem, min(7.5rem, 9svh, 17vw))")
+        ).toBe(false);
     });
 });

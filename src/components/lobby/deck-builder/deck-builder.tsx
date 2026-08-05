@@ -686,11 +686,12 @@ export default function DeckBuilder({
 
     return (
         <div
-            // The shell (`app-shell.tsx`) owns `min-h-dvh`; this route claims
-            // the REMAINING height (`flex-1 min-h-0`) rather than a whole
-            // extra viewport (issue #2056 defect 3) — `h-dvh` here, stacked
-            // under the shell's header band, made the document 129px taller
-            // than the viewport and pushed the Save bar off-screen.
+            // The shell (`app-shell.tsx`) owns the hard `h-dvh` bound; this
+            // route claims the REMAINING height (`flex-1 min-h-0`) rather
+            // than a whole extra viewport (issue #2056 defect 3) — `h-dvh`
+            // here, stacked under the shell's header band, made the document
+            // 129px taller than the viewport and pushed the Save bar
+            // off-screen.
             className="flex flex-1 min-h-0 flex-col bg-surface-base text-text"
             style={{ "--card-base": CARD_BASE } as React.CSSProperties}
         >

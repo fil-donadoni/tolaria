@@ -6,6 +6,14 @@
 // `min-h-0` is what lets a flex item shrink below its content's min-content
 // size; without it, `flex-1` alone does nothing once the container itself
 // only has `min-height` (not a hard `height`) to size against.
+//
+// A first attempt at this fix gave the shell root `min-h-dvh` (a MINIMUM)
+// and relied on `<main>`'s `min-h-0` alone — browser-measured regression:
+// `document.scrollHeight` went from 471 (pre-fix bug) to 1199 on the SAME
+// viewport, because an unbounded-height ancestor makes `flex-1` resolve
+// against content, not the viewport. The chain needs a hard bound
+// somewhere above `<main>`, not just `min-h-0` on `<main>` itself — that is
+// what these tests pin.
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 
@@ -30,16 +38,38 @@ describe("AppShell (issue #2056 defect 3)", () => {
         expect(classes).toContain("min-h-0");
     });
 
-    it("keeps the shell's own root at min-h-dvh (the shell, not the page, owns the viewport height)", () => {
+    it("bounds the shell's own root at a hard h-dvh, never a bare min-h-dvh (the amplified regression)", () => {
         const { getByTestId } = render(<AppShell />);
         const root = getByTestId("app-header").closest(
             "div.flex"
         ) as HTMLElement;
-        expect(root.className).toContain("min-h-dvh");
-        // The shell root is never a hard `h-dvh` — that would make it exactly
-        // one viewport regardless of the header band's own height, instead of
-        // "at least one viewport, taller if a page's content legitimately
-        // needs to scroll the page (not the deckbuilder's overflow bug)".
-        expect(root.className.split(/\s+/)).not.toContain("h-dvh");
+        const classes = root.className.split(/\s+/);
+        // `h-dvh` is a HARD bound: exactly one viewport, which is what gives
+        // `<main>`'s `flex-1 min-h-0` something real to shrink against. A
+        // bare `min-h-dvh` (no `h-dvh` anywhere on the chain) is the shape
+        // that regressed — `flex-1` resolves against content instead of the
+        // viewport and `<main>` grows past the leftover space instead of
+        // being clipped/scrolled internally.
+        expect(classes).toContain("h-dvh");
+    });
+
+    it("gives <main> overflow-y-auto, so an ordinary long page (no internal scroller of its own) scrolls INSIDE main instead of overflowing the now hard-bounded document", () => {
+        const { getByTestId } = render(<AppShell />);
+        const main = getByTestId("outlet").closest("main") as HTMLElement;
+        expect(main.className.split(/\s+/)).toContain("overflow-y-auto");
+    });
+
+    it("the route surface (<Outlet>) sits inside a height-bounded ancestor chain — walks parentElement up from the outlet and requires an h-dvh class somewhere above it", () => {
+        const { getByTestId } = render(<AppShell />);
+        let node: HTMLElement | null = getByTestId("outlet");
+        let found = false;
+        while (node) {
+            if (node.className?.split(/\s+/).includes("h-dvh")) {
+                found = true;
+                break;
+            }
+            node = node.parentElement;
+        }
+        expect(found).toBe(true);
     });
 });
