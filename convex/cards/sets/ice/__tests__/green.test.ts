@@ -2077,11 +2077,14 @@ describe("Whiteout — graveyard-activated recursion (CR 113.6b, issue #2235)", 
                 picked: ["snow-1"],
             },
         });
-        expect(pa.fromGraveyard).toBe(true);
-        expect(pa.sacrificeSelection?.picked).toEqual(["snow-1"]);
-        // Independently drives the deferred-commit path (mirrors Ashen
-        // Ghoul's own shape) to prove `tryAutoCommitPendingActivation`
-        // accepts the same descriptor `activateAbilityOnState` would build.
+        // `pa.fromGraveyard`/`pa.sacrificeSelection?.picked` are NOT asserted
+        // here: `buildPendingActivation` is a pure builder and echoing those
+        // literals back would be vacuous (they're the exact args just passed
+        // in) — confirmed non-load-bearing under a `sacrificeChoice.ts`
+        // mutation review round (issue #2235 review). The REAL coverage below
+        // drives the deferred-commit path (mirrors Ashen Ghoul's own shape) to
+        // prove `tryAutoCommitPendingActivation` accepts the same descriptor
+        // `activateAbilityOnState` would build.
         const state = setup(true);
         state.pendingActivation = pa;
         const committed = tryAutoCommitPendingActivation(state, "p1");

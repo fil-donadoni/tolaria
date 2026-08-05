@@ -276,6 +276,23 @@ export interface CardInstance {
      *  filters / target highlighting on the board agree with the server.
      *  Mirrors `CardInstanceState.grantedColors` in `convex/gre/state.ts`. */
     grantedColors?: { color: string; sourceId: string }[];
+    /** CR 205.4a — supertype(s) ADDED to this permanent by a `supertype-set`
+     *  static effect or indefinite mutation (Melting / Arcum's Weathervane
+     *  making a land snow). Forwarded by `slimCard` (the projection only
+     *  strips `card`/`knownTo`); read through the single supertype authority
+     *  `liveSupertypesOf` (`convex/cards/snowReads.ts`) so a client-side
+     *  `sacrificeFilter`/`PermanentFilter` `supertypes` clause (Whiteout /
+     *  Sunstone / Glacial Crevasses "sacrifice a snow land") matches the
+     *  server's live status instead of only the PRINTED supertypes — a
+     *  Weathervane'd land was a dead affordance without this (issue #2235
+     *  review). Mirrors `CardInstanceState.grantedSupertypes` in
+     *  `convex/gre/state.ts`. */
+    grantedSupertypes?: { supertype: string; sourceId: string }[];
+    /** CR 205.4a — supertype(s) REMOVED from this permanent by the same
+     *  mutation mechanism (a Melting'd land losing "Snow"). See
+     *  `grantedSupertypes` above; mirrors
+     *  `CardInstanceState.removedSupertypes` in `convex/gre/state.ts`. */
+    removedSupertypes?: { supertype: string; sourceId: string }[];
     /** Copy effect anchor (CR 707.2). When set, this permanent is a copy and
      *  `card.id` carries the copied object's def id; `copiedFrom` holds the
      *  printed identity restored when the copy leaves the battlefield. */

@@ -7743,15 +7743,23 @@ export interface TriggerStateView {
              *  frontend's Crew N affordability hint weighs a candidate exactly
              *  as the server's `tapOtherContribution` does. */
             crewPowerBonus?: number;
-            /** CR 205.4a — PRINTED supertypes (Basic/Legendary/Snow/World),
-             *  for a `sacrificeFilter` activation-cost affordability hint that
+            /** CR 205.4a — LIVE supertypes (Basic/Legendary/Snow/World), for a
+             *  `sacrificeFilter` activation-cost affordability hint that
              *  narrows by supertype (Sunstone's "Sacrifice a snow land",
-             *  Glacial Crevasses' "Sacrifice a snow Mountain"). Populated by
-             *  `buildTriggerStateView` from a card-registry lookup (the
-             *  wire projection carries no per-permanent supertype field) —
-             *  same PRINTED-only limitation as the may-pay permanent-leg
-             *  matcher (`toMatchablePermanent`, `src/lib/card-utils.ts`): no
-             *  live snow-mutation awareness (Melting-style un-snow effects). */
+             *  Glacial Crevasses' "Sacrifice a snow Mountain", Whiteout's
+             *  "Sacrifice a snow land"). Populated by `buildTriggerStateView`
+             *  via `liveSupertypesOf` (`convex/cards/snowReads.ts`) — printed
+             *  supertypes overlaid by any `grantedSupertypes`/
+             *  `removedSupertypes` mutation (Melting / Arcum's Weathervane),
+             *  the SAME live authority the server resolves the cost with
+             *  (`activateAbilityOnState`). Printed-only was a dead affordance:
+             *  a Weathervane'd land activated server-side while this hint hid
+             *  the ability client-side (issue #2235 review). The may-pay
+             *  permanent-leg matcher (`toMatchablePermanent`,
+             *  `src/lib/card-utils.ts`) still reads PRINTED-only supertypes —
+             *  latent only (no shipped may-pay permanent-leg filter uses
+             *  `supertypes`/`excludeSupertypes` yet), left as-is here; see
+             *  that function's own comment. */
             supertypes?: ReadonlyArray<string>;
             /** CR 508/509 — combat-role filters (a `sacrificeFilter`/
              *  `tapOtherFilter` scoped to attackers/blockers). Mirrors

@@ -93,6 +93,7 @@ import { powerArmor } from "@convex/cards/sets/inv";
 import { thopterFoundry } from "@convex/cards/sets/arb/multicolor";
 import { caribouRange } from "@convex/cards/sets/ice/white";
 import { norritt } from "@convex/cards/sets/ice/black";
+import { whiteout } from "@convex/cards/sets/ice/green";
 import { sorrowsPath } from "@convex/cards/sets/drk/colorless";
 import { dauthiVoidwalker } from "@convex/cards/sets/mh2/black";
 import { viviOrnitier } from "@convex/cards/sets/fin";
@@ -1468,6 +1469,96 @@ describe("getGraveyardStackAbilities (CR 113.6 — Ashen Ghoul, #737)", () => {
         expect(
             getGraveyardStackAbilities(makeGhoul(), "UPKEEP", lockedView)
         ).toHaveLength(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// getGraveyardStackAbilities' `sacrificeFilter` gate vs LIVE supertype status
+// (Whiteout, issue #2235 review — the fail-closed-vs-live-snow-status class).
+//
+// `buildTriggerStateView` used to populate a battlefield entry's `supertypes`
+// from the PRINTED definition only (`tryGetDefinition(...).supertypes`), while
+// the server resolves a `sacrificeFilter`'s `supertypes` clause against LIVE
+// status (`activateAbilityOnState`, game.ts, via `liveSupertypesOf`) — printed
+// supertypes overlaid by any `grantedSupertypes`/`removedSupertypes` mutation
+// (Melting / Arcum's Weathervane's "Target land becomes snow"). A land made
+// snow ONLY via that grant (never printed as Snow) would activate Whiteout
+// server-side while this gate returned `[]` client-side: the Activate button
+// would never render even though the mutation succeeds on click-through from
+// any OTHER entry point. The view is built via the real `buildTriggerStateView`
+// reducer (as the UI does) — a hand-built view would mask exactly this class
+// of dropped-field bug.
+// ---------------------------------------------------------------------------
+
+describe("getGraveyardStackAbilities vs LIVE snow status (Whiteout, issue #2235 review)", () => {
+    const makeWhiteout = (): CardInstance =>
+        makeCardInstance({
+            id: "wo-1",
+            card: { id: whiteout.id },
+            types: ["Instant"],
+            ownerId: "p1",
+            controllerId: "p1",
+            zone: "graveyard",
+        });
+
+    /** A plain LEA Forest (NOT printed Snow) made snow ONLY via a
+     *  `grantedSupertypes` marker — exactly the shape Arcum's Weathervane's
+     *  `arcums-weathervane-snow` ability produces
+     *  (`convex/cards/sets/ice/colorless.ts`), and what `applyIndefiniteSupertypeMutation`
+     *  (`convex/gre/snow.ts`) writes onto the target instance. */
+    const weathervanedForest: CardInstance = {
+        id: "forest-1",
+        card: { id: forest.id },
+        controllerId: "p1",
+        ownerId: "p1",
+        zone: "battlefield",
+        types: ["Land"],
+        subtypes: ["Forest"],
+        isTapped: false,
+        grantedSupertypes: [{ supertype: "Snow", sourceId: "indefinite" }],
+    };
+
+    /** The SAME Forest with no snow status at all — the negative control. */
+    const plainForest: CardInstance = {
+        ...weathervanedForest,
+        id: "forest-2",
+        grantedSupertypes: undefined,
+    };
+
+    it("surfaces whiteout-return when the owner's only land is snow ONLY via grantedSupertypes (LIVE status, not printed)", () => {
+        const view = buildTriggerStateView([
+            {
+                id: "p1",
+                life: 20,
+                hand: [],
+                battlefield: [weathervanedForest],
+                graveyard: [makeWhiteout()],
+            },
+        ]);
+        const abilities = getGraveyardStackAbilities(
+            makeWhiteout(),
+            "PRECOMBAT_MAIN",
+            view
+        );
+        expect(abilities.map((a) => a.id)).toContain("whiteout-return");
+    });
+
+    it("hides whiteout-return when the owner's only land has no snow status at all (negative control)", () => {
+        const view = buildTriggerStateView([
+            {
+                id: "p1",
+                life: 20,
+                hand: [],
+                battlefield: [plainForest],
+                graveyard: [makeWhiteout()],
+            },
+        ]);
+        const abilities = getGraveyardStackAbilities(
+            makeWhiteout(),
+            "PRECOMBAT_MAIN",
+            view
+        );
+        expect(abilities.map((a) => a.id)).not.toContain("whiteout-return");
     });
 });
 
