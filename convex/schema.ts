@@ -821,6 +821,43 @@ export default defineSchema({
         // `(scope, cardId)` is this table's natural primary key, mirroring
         // `cardRatings`'s `by_scope_and_card`.
         .index("by_scope_card", ["scope", "cardId"]),
+    // Bug reports filed from the in-app button. The GitHub issue is the WORK
+    // ITEM; this row is the EVIDENCE, and the two are split on exactly one
+    // line: the tracker repo is PUBLIC, so anything that identifies the
+    // reporter or exposes hidden game information lives here and never crosses
+    // into the issue body. Email (contacting the reporter), the full game
+    // state (both players' hands and libraries, often mid-game) and the
+    // attachment all stay server-side; the issue carries the description, the
+    // non-sensitive board context and this row's id.
+    bugReports: defineTable({
+        // Who filed it, resolved server-side from the caller's identity — the
+        // client-supplied name/email are display values and are NOT trusted to
+        // identify the account.
+        userId: v.id("users"),
+        name: v.string(),
+        // Contact address. The single reason this table exists rather than the
+        // report living wholly in the issue.
+        email: v.string(),
+        description: v.string(),
+        route: v.optional(v.string()),
+        userAgent: v.optional(v.string()),
+        attachmentId: v.optional(v.id("_storage")),
+        attachmentName: v.optional(v.string()),
+        // Board context, present only for a report filed from a game the
+        // reporter is actually seated in. `state` is the EXPANDED `GameState`
+        // (`v.any()`, mirroring `gameStates.state`): a frozen copy, not a
+        // reference — the live row is patched in place on every action and
+        // would no longer show what the reporter was looking at.
+        gameId: v.optional(v.id("games")),
+        seq: v.optional(v.number()),
+        state: v.optional(v.any()),
+        // Back-reference to the filed issue, patched in after the GitHub POST
+        // succeeds. Absent when the POST failed — the row is written FIRST so
+        // a GitHub outage loses the issue, never the report.
+        issueNumber: v.optional(v.number()),
+        issueUrl: v.optional(v.string()),
+    }).index("by_issueNumber", ["issueNumber"]),
+
     debugScenarios: defineTable({
         // Authorship provenance for interactively-saved rows only (set by
         // `saveDebugScenario` from the current admin). OPTIONAL because scenarios

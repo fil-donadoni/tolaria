@@ -537,7 +537,7 @@ export const maggotCarrier: CardDefinition = {
 // back to the stack item's last known information only when the source is NOT
 // on the battlefield. A blink/flicker (Ephemerate) returns the SAME instance
 // object after `resetBattlefieldTransientState` deleted `kickerPayments`, so
-// the re-check would read a cleared record and fizzle a trigger CR 603.10 says
+// the re-check would read a cleared record and fizzle a trigger CR 608.2h says
 // must resolve off LKI. The resolution-time answer is instead the
 // `if { kickerPaid: "<id>" }` branch inside `effects[]` — the resolving stack
 // item's own record, the same shape Thunderscape (`pls/red.ts`) and

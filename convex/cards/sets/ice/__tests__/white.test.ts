@@ -65,7 +65,7 @@ import {
 } from "../../ice";
 import { plains } from "../../lea";
 import { getDefinition, getCardByName } from "../../../index";
-import { tryAutoCommitPendingCast } from "../../../../game";
+import { tryAutoCommitPendingCast, selectTarget } from "../../../../game";
 import { applyDamageReplacements } from "../../../../gre/replacements";
 import {
     resolveTopOfStack,
@@ -97,7 +97,11 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
-import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
+import {
+    getLegalTargets,
+    NO_TARGETING_SOURCE,
+    pendingTargetFiltersFromRequirement,
+} from "../../../../gre/rules";
 import {
     advancePhase,
     applyAllCombatDamage,
@@ -117,8 +121,16 @@ import {
 } from "../../../__tests__/setup";
 import type { CardInstanceState } from "../../../../gre/state";
 import type { StackItem } from "../../../../gre/state";
+import type { PendingTarget } from "../../../../gre/state";
 import type { CardType } from "../../../types";
 import type { Phase } from "../../../../gre/types";
+import type { Id } from "../../../../_generated/dataModel";
+import {
+    makeMutationCtx,
+    runMutation,
+    gameStateSeed,
+    type Handler,
+} from "../../../../__tests__/gameMutationHarness";
 import {
     resolveActivated,
     resolveTrigger,
@@ -550,6 +562,19 @@ describe("Snow Hound (self + green/blue bounce, CR 701.14)", () => {
 // --- Hallowed Ground ({W}{W}: bounce your land, CR 701.14) ------------------
 
 describe("Hallowed Ground (return your land, CR 701.14)", () => {
+    const bounceAbility = hallowedGround.activatedAbilities!.find(
+        (a) => a.id === "hallowed-ground-bounce"
+    )!;
+    const bounceReq = bounceAbility.targetRequirement!;
+
+    it("declares the nonsnow exclusion on its targetRequirement", () => {
+        expect(bounceReq).toMatchObject({
+            type: "Land",
+            controller: "you",
+            excludeSupertypes: "Snow",
+        });
+    });
+
     it("returns the target land you control to hand", () => {
         const ground = makeInstance(hallowedGround.id, {
             id: "ground",
@@ -581,6 +606,115 @@ describe("Hallowed Ground (return your land, CR 701.14)", () => {
         expect(
             state.players[0].hand.find((c) => c.id === "land")
         ).toBeDefined();
+    });
+
+    // Both sides of the target-legality seam (CR 205.4a Snow supertype):
+    // `getLegalTargets` (the OFFERED set) and the `selectTarget` mutation
+    // (the ACCEPTED set) must agree that a Snow-Covered basic is illegal —
+    // otherwise the client could never offer it, yet a spoofed/older client
+    // could still have it accepted server-side (the Phelia bug class,
+    // `intrinsicPermanentTargetViolation`'s own doc comment). A test that
+    // only asserts the definition's shape (above) does not prove either.
+    it("getLegalTargets (offered set) excludes a Snow-Covered land you control and includes a nonsnow one", () => {
+        const ground = makeInstance(hallowedGround.id, {
+            id: "ground",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const snowForest = snowLand(snowCoveredForest.id, "sf", "p1");
+        const nonsnowPlains = makeInstance(plains.id, {
+            id: "pl",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [ground, snowForest, nonsnowPlains],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const legal = getLegalTargets(
+            state,
+            bounceReq,
+            NO_TARGETING_SOURCE,
+            "p1"
+        );
+        const legalIds = legal.map((t) => ("id" in t ? t.id : undefined));
+        expect(legalIds).toContain("pl");
+        expect(legalIds).not.toContain("sf");
+    });
+
+    it("selectTarget mutation (accepted set) rejects a Snow-Covered land and accepts a nonsnow one", async () => {
+        const GAME_ID = "game-1" as Id<"games">;
+        const ground = makeInstance(hallowedGround.id, {
+            id: "ground",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const snowForest = snowLand(snowCoveredForest.id, "sf", "p1");
+        const nonsnowPlains = makeInstance(plains.id, {
+            id: "pl",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        // Same builder game.ts's activateAbility mutation uses to seed
+        // `state.pendingTarget` for this ability (`pendingTargetFiltersFromRequirement`,
+        // ADR 0068) — so the carried filter set under test is exactly the one
+        // production code carries, not a hand-rolled substitute.
+        const pendingTarget: PendingTarget = {
+            playerId: "p1",
+            cardInstanceId: "ground",
+            targetType: bounceReq.type,
+            count: 1,
+            selected: [],
+            kind: "ability",
+            abilityId: "hallowed-ground-bounce",
+            ...pendingTargetFiltersFromRequirement(bounceReq, undefined),
+        };
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [ground, snowForest, nonsnowPlains],
+                }),
+                makePlayer("p2"),
+            ],
+            pendingTarget,
+        });
+
+        const harness = makeMutationCtx("p1", [gameStateSeed(state)]);
+        const runSelectTarget = (targetId: string) =>
+            runMutation<
+                {
+                    gameId: Id<"games">;
+                    playerId: string;
+                    targetType: "permanent";
+                    targetId: string;
+                },
+                void
+            >(selectTarget as unknown as Handler<unknown, void>, harness.ctx, {
+                gameId: GAME_ID,
+                playerId: "p1",
+                targetType: "permanent",
+                targetId,
+            });
+
+        await expect(runSelectTarget("sf")).rejects.toThrow(
+            /must not be Snow/i
+        );
+        // The rejected snow target never landed — selection is still open.
+        expect(harness.state().pendingTarget?.selected ?? []).toHaveLength(0);
+
+        await runSelectTarget("pl");
+        // A nonsnow land is accepted — either still recorded as selected, or
+        // (count === 1) the selection finalized and pendingTarget cleared.
+        const after = harness.state();
+        const stillSelecting = after.pendingTarget?.selected?.some(
+            (t) => "id" in t && t.id === "pl"
+        );
+        const finalized = after.pendingTarget === undefined;
+        expect(stillSelecting || finalized).toBe(true);
     });
 });
 

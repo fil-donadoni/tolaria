@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import GameDialog from "@/components/ui/game-dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { getStoredSession } from "~/lib/session";
 import { describeSubmitError } from "./describe-submit-error";
 
 type BugReportDialogProps = {
@@ -95,6 +96,16 @@ export default function BugReportDialog({
                 attachmentName = file.name;
             }
 
+            // Most in-app reports are about something happening on the board
+            // right now, and the description alone is rarely actionable (#1728
+            // was one sentence with no card, phase or game id). Send the id of
+            // the game the reporter is sitting in — the server reads the state
+            // itself, and only for a participant of that game. Read at submit
+            // time, not at mount: this dialog is mounted at the router root for
+            // the whole session, so a value captured on mount would go stale
+            // the moment the user starts a different game.
+            const { gameId } = getStoredSession();
+
             const result = await submitBugReport({
                 name: nameValue,
                 email: emailValue,
@@ -103,6 +114,7 @@ export default function BugReportDialog({
                 attachmentName,
                 route: window.location.pathname,
                 userAgent: navigator.userAgent,
+                gameId: gameId ?? undefined,
             });
             setIssueUrl(result.issueUrl);
         } catch (err) {

@@ -48,11 +48,14 @@
 //         stacked with #2150's hand-sweep gap, and a pay-more-for-flash
 //         cast-timing rider, respectively — setColor itself, #1085's own
 //         Op, shipped and is no longer these cards' blocker).
-//       - Yawgmoth's Agenda → tracked-by #1238 (graveyard-cast permission +
-//         replacement capability. Was #686, which has since closed without
-//         building it; #1238 "[engine] Yawgmoth's Agenda: indefinite
-//         graveyard-cast permission + one-spell-per-turn cap" is the live
-//         owner).
+//       - Yawgmoth's Agenda → tracked-by #2246 (the card slice). Was #686,
+//         then #1238; #1238 was re-audited and split, since two of its three
+//         premises had drifted — the redirect clause is already shipped infra
+//         (the permanent-bound graveyard-bound replacement, #1145), and the
+//         cap is a battlefield-scanned STATIC, not the turn-scoped primitive
+//         #1238 proposed. Engine slices: #2244 (one graveyard play permission
+//         record + single resolver, ADR 0093) and #2245 (static spell-count
+//         cap); #2246 ships the card on top of both.
 // ═════════════════════════════════════════════════════════════════════════════
 
 import type {
@@ -1354,22 +1357,24 @@ export const urborgSkeleton: CardDefinition = {
     ],
 };
 
-// STOP-AND-ISSUE (tracked-by: #1238) — Yawgmoth's Agenda: "You can't cast
+// STOP-AND-ISSUE (tracked-by: #2246) — Yawgmoth's Agenda: "You can't cast
 // more than one spell each turn. You may play lands and cast spells from
 // your graveyard. If a card would be put into your graveyard from anywhere,
-// exile it instead." #1149 SHIPPED Yawgmoth's Will's TURN-SCOPED shape
-// (`grantGraveyardPlay` Op + `armGraveyardRedirect` Op), but Agenda's clauses
-// are INDEFINITE (a static enchantment ability, no "until end of turn") —
-// needs a battlefield-derived (not turn-scoped) graveyard-cast permission
-// (generalizing the LAND-only `playsLandsFromGraveyard`, #1190, to cover
-// spells) and confirmation the redirect composes with the already-shipped
-// permanent-bound `graveyard-bound` replacement (Dauthi Voidwalker precedent,
-// `mh2/black.ts`, stub #1156). PLUS a third, wholly new capability: "can't
-// cast more than one spell each turn" has no restriction primitive today
-// (only an unenforced `spellsCastThisTurn` counter). Split out of #686 once
-// the Vintage Cube FREE tranche confirmed none of the three had shipped; the
-// whole card stays one stub (every clause must be enforced together). Not
-// invented; left a stub. See #1238 for the full design notes.
+// exile it instead." All three clauses are INDEFINITE (a static enchantment
+// ability, no "until end of turn"), which is what #1149's TURN-SCOPED
+// Yawgmoth's Will shape (`grantGraveyardPlay` + `armGraveyardRedirect` Ops)
+// cannot express. Re-audited 2026-08-05 and split three ways:
+//   - clause 3 (the redirect) needs NO new capability — the permanent-bound
+//     `graveyard-bound` replacement (#1145) already ships it, scoped to an
+//     opponent's graveyard by Dauthi Voidwalker (`mh2/black.ts`); Agenda is
+//     the same entry with the predicate flipped to its controller's own.
+//   - clause 2 → #2244: one graveyard play permission record + a single
+//     resolver, retiring `playsLandsFromGraveyard` (#1190) and
+//     `castsPermanentsFromGraveyard` (#1392) — ADR 0093.
+//   - clause 1 → #2245: a battlefield-scanned STATIC spell-count cap (NOT a
+//     turn-scoped flag — the cap must die with the enchantment mid-turn).
+// The whole card stays one stub until both land (every clause must be
+// enforced together). Not invented; left a stub. See #2246 for the card.
 // export const yawgmothsAgenda: CardDefinition = {
 //     id: "50f7ea7f-4f17-4f78-b68e-693e265ca829", // INV 135
 //     name: "Yawgmoth's Agenda",
