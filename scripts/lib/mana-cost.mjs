@@ -23,8 +23,12 @@ const PHYREXIAN_RE = new RegExp(`^([${HYBRID_COLORS.join("")}])/P$`);
 const COLOR_SET = new Set(["W", "U", "B", "R", "G", "C"]);
 
 /** Canonical field order used both when reading a plain colour pip and when
- *  emitting the generated `manaCost: { ... }` object literal. */
-const COLOR_ORDER = ["X", "W", "U", "B", "R", "G", "C"];
+ *  emitting the generated `manaCost: { ... }` object literal. `xFactor`
+ *  (CR 107.3, a repeated `{X}{X}` cost) sits directly after `X` — the same
+ *  position shipped card definitions use (Recall, Part Water, Meteor Shower,
+ *  Walking Ballista: `{ X: "X", xFactor: 2, ... }`) — never dropped at emit
+ *  the way `generic` used to be (issue #1774 fixup). */
+const COLOR_ORDER = ["X", "xFactor", "generic", "W", "U", "B", "R", "G", "C"];
 
 /** Classifies one printed mana symbol (braces already stripped). Never
  *  silently drops an unrecognised symbol (issue #1742) — throws instead, so
@@ -53,14 +57,22 @@ function classifySymbol(inner) {
 
 /** Scryfall/MTGJSON `{1}{G}{B/P}`-style mana string → engine `ManaCost`
  *  (`convex/cards/types.ts`). Plain generic pips fold into `X` (a bare number
- *  when there is no `{X}` symbol, `"X".repeat(n)` when there is — the
- *  importers' existing convention; `ManaCost.generic` is a distinct field for
- *  costs that mix fixed generic WITH a variable `{X}`, which this parser does
- *  not attempt to disambiguate). Guild-hybrid pips accumulate into `hybrid`
- *  (one array entry per pip, printed-order colours: `{R/W}` → `["R","W"]`).
- *  Phyrexian pips accumulate into `phyrexian` (a per-colour count map:
- *  `{B/P}{B/P}` → `{ B: 2 }`). Throws on any symbol it cannot classify —
- *  see {@link classifySymbol}. */
+ *  when there is no `{X}` symbol). A REPEATED `{X}` (`{X}{X}`, Recall/Part
+ *  Water/Meteor Shower/Walking Ballista) is the canonical `X: "X"` marker
+ *  plus `xFactor: <count>` (CR 107.3) — `normalizeManaCost`
+ *  (`convex/gre/state.ts`) treats any string `X` as ONE variable pip
+ *  multiplied by `xFactor` (default 1), so a naive `"X".repeat(n)` string
+ *  prices identically to a single `{X}` and silently undercharges the spell
+ *  (issue #1774 fixup — the same silent-cheaper-cost class the field exists
+ *  to prevent). When a cost carries BOTH a variable `{X}` AND a fixed printed
+ *  generic — Soul Burn `{X}{2}{B}`, Jacked Rabbit `{X}{1}{W}` — the `X` field
+ *  holds the variable marker and the fixed portion goes into the distinct
+ *  `ManaCost.generic` field instead of being dropped (issue #1774; #1742
+ *  fixed the same silent-cheaper-cost defect for hybrid/Phyrexian pips).
+ *  Guild-hybrid pips accumulate into `hybrid` (one array entry per pip,
+ *  printed-order colours: `{R/W}` → `["R","W"]`). Phyrexian pips accumulate
+ *  into `phyrexian` (a per-colour count map: `{B/P}{B/P}` → `{ B: 2 }`).
+ *  Throws on any symbol it cannot classify — see {@link classifySymbol}. */
 export function parseManaCost(mana) {
     if (!mana) return undefined;
 
@@ -93,8 +105,22 @@ export function parseManaCost(mana) {
         }
     }
 
-    if (xCount > 0) cost.X = "X".repeat(xCount);
-    else if (genericNum > 0) cost.X = genericNum;
+    if (xCount > 0) {
+        // Variable `{X}` and fixed printed generic are NOT mutually exclusive
+        // (Soul Burn `{X}{2}{B}`, Jacked Rabbit `{X}{1}{W}`, issue #1774) — the
+        // `X` field holds the variable marker, the coexisting fixed portion
+        // goes into `ManaCost.generic` rather than being silently dropped.
+        cost.X = "X";
+        // A REPEATED `{X}` (`{X}{X}`) is the canonical `xFactor: <count>`
+        // shape (CR 107.3), not a longer string — `normalizeManaCost` prices
+        // any string `X` as ONE variable pip times `xFactor` (default 1), so
+        // `"XX"` would price identically to `"X"` and silently undercharge
+        // (issue #1774 fixup).
+        if (xCount > 1) cost.xFactor = xCount;
+        if (genericNum > 0) cost.generic = genericNum;
+    } else if (genericNum > 0) {
+        cost.X = genericNum;
+    }
     if (hybridPips.length > 0) cost.hybrid = hybridPips;
     if (phyrexianPips) cost.phyrexian = phyrexianPips;
 
