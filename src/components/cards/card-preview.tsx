@@ -194,6 +194,71 @@ export default function CardPreview({
         };
     }, [onRightPress]);
 
+    // Bind the mobile long-press gesture on the same resolved host as the
+    // right-press/hover gestures above, instead of as React `onTouch*` props
+    // directly on `containerRef` (the pre-#1994-round-4 shape). On the
+    // spatial board a TAPPED permanent's presentational layer
+    // (`[data-tap-visual]`, `board-battlefield-card.tsx`) rotates the art —
+    // this container included — and goes `pointer-events: none` so its
+    // overhang can never be hit-tested; a real touch landing on that art
+    // never reaches a listener bound as a plain prop on THIS element, because
+    // the browser's hit test falls straight through the inert subtree to
+    // whatever's genuinely painted underneath. `[data-card-tilt-root]`
+    // (`card-tilt-3d.tsx`) now wraps that rotated layer instead of living
+    // inside it (round 4), so it stays fully hit-testable on a tapped
+    // permanent — binding here instead of on `container` restores long-press
+    // preview on a tapped card. Off the board (no tilt-root ancestor, e.g.
+    // the lobby/deck-builder) `closest` falls back to `container` itself, so
+    // behaviour there is unchanged. `sawTouchRef` is set here (not in a JSX
+    // wrapper) so a later mouse-only gesture (right-press, hover-dwell) on
+    // the same touch device still gets suppressed.
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
+        const cardEl =
+            container.closest<HTMLElement>("[data-card-tilt-root]") ??
+            container;
+        const onTouchStart = (e: TouchEvent) => {
+            sawTouchRef.current = true;
+            longPress.handlers.onTouchStart(e as unknown as React.TouchEvent);
+        };
+        const onTouchMove = (e: TouchEvent) =>
+            longPress.handlers.onTouchMove(e as unknown as React.TouchEvent);
+        const onTouchEnd = (e: TouchEvent) =>
+            longPress.handlers.onTouchEnd(e as unknown as React.TouchEvent);
+        const onTouchCancel = () => longPress.handlers.onTouchCancel();
+        // touchend calls `preventDefault()` (peek dismiss / lock) — needs a
+        // non-passive listener or the browser ignores the call and warns.
+        cardEl.addEventListener("touchstart", onTouchStart, {
+            passive: true,
+        });
+        cardEl.addEventListener("touchmove", onTouchMove, { passive: true });
+        cardEl.addEventListener("touchend", onTouchEnd, { passive: false });
+        cardEl.addEventListener("touchcancel", onTouchCancel);
+        return () => {
+            cardEl.removeEventListener("touchstart", onTouchStart);
+            cardEl.removeEventListener("touchmove", onTouchMove);
+            cardEl.removeEventListener("touchend", onTouchEnd);
+            cardEl.removeEventListener("touchcancel", onTouchCancel);
+        };
+        // `longPress.handlers` is a fresh object every render (only its
+        // individual callbacks are memoised) — depend on the specific
+        // handler functions, same reasoning as `onRightPress` above.
+        // `cardInstance?.isTapped` is included defensively: `cardEl`'s
+        // identity doesn't itself depend on tap state in this component (the
+        // rotation/inertness lives one component up), but re-running the
+        // resolution on a tap toggle costs nothing and guards against this
+        // effect silently going stale if a future ancestor DOES restructure
+        // around tap state.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [
+        longPress.handlers.onTouchStart,
+        longPress.handlers.onTouchMove,
+        longPress.handlers.onTouchEnd,
+        longPress.handlers.onTouchCancel,
+        cardInstance?.isTapped,
+    ]);
+
     // Close grace shared by the card's own pointerleave and the dock's (hovering
     // the dock keeps it open so its controls are usable).
     const scheduleHoverClose = useCallback(() => {
@@ -292,12 +357,12 @@ export default function CardPreview({
             ref={containerRef}
             className="w-full h-full"
             style={longPress.scaleStyle}
-            {...longPress.handlers}
-            onTouchStart={(e) => {
-                sawTouchRef.current = true;
-                longPress.handlers.onTouchStart(e);
-            }}
         >
+            {/* Long-press touch handlers are bound imperatively above (see
+                the `useEffect` next to `onRightPress`), not as React props
+                here — this container can sit inside a tapped permanent's
+                inert rotated layer on the board, where a plain prop here
+                would never receive the touch. */}
             {children}
             {/* Mobile long-press centered overlay (ADR 0009) — UNCHANGED. */}
             {showOverlay &&

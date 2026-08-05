@@ -1,83 +1,62 @@
 ---
-title: Tapped permanents lose hover-tilt / hover-dwell / right-click / long-press preview while tapped (decoupled hit-target fix)
+title: Tapped-permanent peek-stack (associatedExiled) visually detaches from the rotated art
 discoveredBy: 1994
 status: draft
-confidence: medium
+confidence: low
 ---
 
-**Superseded finding.** This file originally described a left-side click-
-stealing regression in the `widths[]`-reservation fix
-(`tappedFootprintWidth`, PR #2279 round 2). That mechanism was reverted
-wholesale in round 3 — reviewed and measured to make the reported bug WORSE,
-not better (an untapped fetchland's clickable area went from 408px² on
-`main` to 0px² on that branch; see `.claude/receipts/.../1994-review.json`
-round 2 for the full measurement). `tappedFootprintWidth` no longer exists in
-`src/lib/board-layout.ts`, so the geometry this file used to describe is
-moot. Replaced below with the residual cost of the mechanism that replaced
-it.
+**Superseded twice — history for the next reader.** This file originally
+described a left-side click-stealing regression in the `widths[]`-reservation
+fix (`tappedFootprintWidth`, PR #2279 round 2). That mechanism was reverted
+wholesale in round 3, measured to make the reported bug WORSE, not better
+(see `.claude/receipts/.../1994-review.json` round 2). Round 3 replaced it
+with `pointer-events: none` on a purely presentational `[data-tap-visual]`
+layer — which genuinely fixed the reported occlusion, but put `CardTilt3D`'s
+own root (`[data-card-tilt-root]`) INSIDE that inert layer, so it (and
+`CardImage`/`CardPreview` nested under it) inherited `pointer-events: none`
+too. That silently killed hover-tilt, hover-dwell preview, right-click
+preview and mobile long-press preview on every tapped permanent, and
+un-suppressed the browser's native context menu on right-click of a tapped
+permanent (round-3 review, blocking).
 
-**What the current fix does.** `board-battlefield-card.tsx`'s `tapTransform`
-now rotates a separate, purely presentational `[data-tap-visual]` layer
-nested INSIDE the interactive `cardContent` box, which never itself rotates.
-While tapped, `[data-tap-visual]` is also given `pointer-events: none`, so
-its overhang can never be hit-tested — a click there falls through to
-whatever is genuinely painted underneath (typically a neighbour's own
-unrotated box) instead of the tapped card stealing it. This fixes the
-reported bug at both the row-compression level (no `widths[]` spend at all)
-and the paint-order level (both the left AND right overhang are now inert,
-not just the right one the reservation approach protected).
+**Round 4 (current) fixes that regression.** `CardTilt3D` now WRAPS
+`[data-tap-visual]` instead of living inside it — `[data-card-tilt-root]`
+sits OUTSIDE the inert layer, so its own pointer listeners (and
+`card-preview.tsx`'s, bound onto that same element via
+`closest("[data-card-tilt-root]")`) keep firing on a tapped permanent:
+hover-tilt, hover-dwell preview, right-click pinned preview and native-menu
+suppression are all restored, verified structurally in jsdom
+(`board-battlefield-card-tap-inert-layer.test.tsx`: `[data-card-tilt-root]`'s
+computed `pointer-events` no longer inherits `none`). Mobile long-press —
+the one gesture that still lived as a plain React prop on `CardPreview`'s own
+container, which stays INSIDE the rotated layer because the art itself has
+to rotate — is now bound imperatively on the same tilt-root ancestor
+(`card-preview.tsx`, mirroring the pre-existing right-press pattern),
+verified in `card-preview.test.tsx`'s "tap inert layer" describe block. All
+four affordances are proven with a proof-of-failure mutation (see
+`.claude/receipts/.../1994-fixup.json`).
 
-**What is (probably) wrong.** `pointer-events: none` disables ALL pointer
-interaction on that subtree, not just clicks. Two features that trigger via
-native/synthetic pointer listeners bound INSIDE that subtree stop firing for
-a TAPPED permanent specifically:
+**What remains, disclosed rather than fixed: a cosmetic-only detachment.**
+The `associatedExiled` peek-stack (Banishing Light's held permanent, Ice
+Cauldron's noted card) is deliberately rendered OUTSIDE `[data-tap-visual]`
+so it stays clickable regardless of tap state (now covered by a test —
+round-3's version of this claim had none, see
+`board-battlefield-card.test.tsx`'s "peek-stack placement" describe block).
+The cost: on a TAPPED host, the peek-stack no longer rotates with the art
+underneath it (the art is inside `[data-tap-visual]`, the peek-stack is not),
+so it visually detaches from the card's rotated orientation — pinned to the
+unrotated box's corner while the art beneath it is sideways. This is purely
+cosmetic (no functional loss — the pile stays clickable, which is the whole
+point of the exception) and only visible on the narrow intersection of
+"permanent holds an exiled card" AND "that permanent is tapped" (Ice
+Cauldron, Banishing Light-style effects).
 
-- `CardTilt3D`'s hover-tilt + moving glare (`card-tilt-3d.tsx`) — its
-  `onPointerMove`/`onPointerLeave` are on `[data-card-tilt-root]`, which
-  lives inside `inner`, i.e. inside `[data-tap-visual]`.
-- `CardPreview`'s hover-dwell zoom dock, right-click preview, and mobile
-  long-press preview (`card-preview.tsx`) — its `pointerenter`/`pointerleave`
-  /`pointerdown`/`contextmenu` listeners are bound (via raw
-  `addEventListener`, not React's synthetic system) on that SAME
-  `[data-card-tilt-root]` ancestor (`card-preview.tsx`'s own comment explains
-  why: `overflow-hidden` inside a `preserve-3d` context flattens the subtree,
-  so a real pointer event hit-tests to that ancestor, not to `CardPreview`'s
-  own container). The mobile long-press path is the one most relevant to the
-  ORIGINAL bug report (iPhone Safari) — a tapped permanent can no longer be
-  long-pressed to preview its text while tapped.
-
-Untapped permanents are completely unaffected (no transform, no
-`pointer-events` override) — this is scoped exactly to the tapped state.
-
-**Evidence.**
-
-- `src/components/board/board-battlefield-card.tsx` — `[data-tap-visual]`'s
-  `pointerEvents: card.isTapped ? "none" : undefined`, wrapping `{inner}`
-  which contains `<CardTilt3D><CardImage .../></CardTilt3D>`.
-- `src/components/board/card-tilt-3d.tsx:105-110` — `onPointerMove`/
-  `onPointerLeave` bound on `[data-card-tilt-root]`, the outermost element of
-  `inner`.
-- `src/components/cards/card-preview.tsx:173-195,215-266` — both listener
-  `useEffect`s explicitly climb to `container.closest("[data-card-tilt-
-root]") ?? container` before calling `addEventListener`, so they bind on
-  the exact element that is now inside the inert layer while tapped.
-- The resulting preview UI itself (`card-preview-dock.tsx`,
-  `card-preview-anchored.tsx`) is unaffected once open — both are portalled
-  to `document.body`, outside `[data-tap-visual]`'s subtree — only the
-  TRIGGER (hover/right-click/long-press starting on the card) is blocked.
-
-**Why it may not deserve its own issue yet.** This is a disclosed,
-accepted-in-the-PR trade-off (stated in `tapTransform`'s comment and the PR
-body), not a silent regression, and it is strictly smaller in blast radius
-than either rejected alternative (a 51%-area global shrink, or an
-unclickable neighbour). The primary reported symptom — a tapped permanent
-permanently hiding an interactive neighbour — is fixed. Whether losing
-hover/long-press preview SPECIFICALLY on tapped permanents (arguably the
-state where a player most wants to re-read a card, mid-combat) is worth
-restoring is a product call, and restoring it needs a real design: e.g. a
-coordinate-gated click/pointer handler on the always-interactive
-`cardContent` box (compare pointer coordinates against `cardContent`'s own
-unrotated `getBoundingClientRect()` and only honour the ones that ACTIVATE
-the card, while still forwarding a raw pointer-move to drive
-`CardTilt3D`/`CardPreview`'s effects imperatively) rather than a CSS-only
-fix — meaningfully more invasive than this fixup's scope.
+**Why it may not deserve its own issue.** Single-consumer-class cosmetic
+detail with no functional cost, on a narrow card intersection, already
+documented in the component's own comment
+(`board-battlefield-card.tsx`, the `associatedExiled` JSX comment). If a
+future reviewer wants the peek-stack to visually track the rotated art
+instead, that is a design call (rotate the peek-stack counter to the art so
+it reads upright regardless of host orientation — real work, not a
+CSS-only fix) rather than a bug fix, and is better filed against whichever
+card first makes the mismatch bother a real playtester.

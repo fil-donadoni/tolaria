@@ -14,7 +14,39 @@ import type { CardInstance, Player } from "~/types/game";
 import type { CardVisualState } from "../battlefield-card";
 import { GameContext } from "~/hooks/useGameContext";
 
-vi.mock("motion/react", () => ({ useReducedMotion: () => false }));
+// `motion.div` stub (not just `useReducedMotion`): the peek-stack placement
+// describe block below renders a real `AttachedCardsCluster`, whose dialog
+// (`CardsPile`) imports `motion` from this module for its own card tiles —
+// same pattern as `coin-flip-animation.test.tsx`.
+const MOTION_PROPS = new Set([
+    "initial",
+    "animate",
+    "transition",
+    "layout",
+    "layoutId",
+    "onAnimationComplete",
+]);
+vi.mock("motion/react", () => ({
+    useReducedMotion: () => false,
+    motion: new Proxy(
+        {},
+        {
+            get:
+                () =>
+                (props: {
+                    children?: React.ReactNode;
+                    [k: string]: unknown;
+                }) => {
+                    const domProps: Record<string, unknown> = {};
+                    for (const [k, v] of Object.entries(props)) {
+                        if (k === "children" || MOTION_PROPS.has(k)) continue;
+                        domProps[k] = v;
+                    }
+                    return <div {...domProps}>{props.children}</div>;
+                },
+        }
+    ),
+}));
 
 // Leaf face + tilt → inert markers (no Convex/router/refs needed).
 vi.mock("../../cards/card-image", () => ({
@@ -549,5 +581,70 @@ describe("BoardBattlefieldCard summoning-sickness badge (CR 302.6)", () => {
             NEUTRAL_VS
         );
         expect(badge(container)).toBeNull();
+    });
+});
+
+// Round 3's PR body claimed the `associatedExiled` peek-stack (Banishing
+// Light's held permanent, Ice Cauldron's noted card) "stays clickable
+// regardless of tap state" because it renders OUTSIDE `[data-tap-visual]`.
+// That claim had NO test — review round 4's mutation M5 moved the cluster
+// INSIDE `[data-tap-visual]` and all 716 board tests stayed green. This
+// closes that gap: assert the cluster is never a descendant of the inert
+// rotated layer, on a TAPPED host (where it matters).
+describe("BoardBattlefieldCard peek-stack placement (#1994 round 4)", () => {
+    beforeEach(() => cleanup());
+
+    it("keeps the associatedExiled peek-stack OUTSIDE [data-tap-visual] on a tapped host", () => {
+        const host = makeCreature({ id: "host", isTapped: true });
+        const exiledCard = {
+            id: "exiled-1",
+            card: { id: "some-exiled-def" },
+            controllerId: "me",
+            ownerId: "me",
+            zone: "exile",
+            exiledByPermanentId: "host",
+        } as CardInstance;
+
+        const me: Player = {
+            id: "me",
+            name: "me",
+            bgColor: "#000",
+            life: 20,
+            hand: [],
+            library: { count: 0 },
+            graveyard: [],
+            exile: [exiledCard],
+            battlefield: [host],
+            manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+        };
+        const value = {
+            gameId: "game-id" as never,
+            playerId: "me",
+            activePlayerId: "me",
+            priorityPlayerId: "me",
+            phase: "PRECOMBAT_MAIN",
+            turn: 1,
+            engineTurn: 1,
+            stackCount: 0,
+            stackItems: [],
+            allPlayers: [me],
+            showAllCards: false,
+            debugAllActions: false,
+            onSwitchGame: () => {},
+        } as React.ContextType<typeof GameContext>;
+
+        const { container } = render(
+            <GameContext value={value}>
+                <BoardBattlefieldCard card={host} vs={NEUTRAL_VS} />
+            </GameContext>
+        );
+
+        const exiledImage = Array.from(
+            container.querySelectorAll('[data-testid="card-image"]')
+        ).find((el) => el.getAttribute("data-card-id") === "exiled-1");
+        expect(exiledImage).toBeTruthy();
+        // Must NOT be inside the rotated/inert layer — a tapped host would
+        // otherwise make its own held-card peek unclickable.
+        expect(exiledImage!.closest("[data-tap-visual]")).toBeNull();
     });
 });
