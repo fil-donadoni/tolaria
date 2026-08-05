@@ -1151,6 +1151,154 @@ describe("Elder Dragon Legends (upkeep: sacrifice unless pay {C}{C}{C}, CR 603.6
     });
 });
 
+describe("Arcades Sabboth (anthem + {W} pump, CR 613.4c / 611.1, issue #1830)", () => {
+    function setup() {
+        const arcades = makeInstance(arcadesSabboth.id, {
+            id: "arcades",
+            controllerId: "p1",
+        });
+        const untappedNonAttacker = makeInstance(grizzlyBears.id, {
+            id: "bystander",
+            controllerId: "p1",
+        });
+        const tappedNonAttacker = makeInstance(grizzlyBears.id, {
+            id: "tapped-bear",
+            controllerId: "p1",
+            isTapped: true,
+        });
+        const attacker = makeInstance(grizzlyBears.id, {
+            id: "attacker",
+            controllerId: "p1",
+            isAttacking: true,
+        });
+        // Vigilance shape: attacking but NOT tapped — must still lose the
+        // bonus, proving `isAttacking` (not `isTapped`) is the gate.
+        const vigilanceAttacker = makeInstance(grizzlyBears.id, {
+            id: "vigilance-attacker",
+            controllerId: "p1",
+            isAttacking: true,
+            isTapped: false,
+        });
+        const oppUntapped = makeInstance(grizzlyBears.id, {
+            id: "opp-bear",
+            controllerId: "p2",
+        });
+        const p1 = makePlayer("p1", {
+            battlefield: [
+                arcades,
+                untappedNonAttacker,
+                tappedNonAttacker,
+                attacker,
+                vigilanceAttacker,
+            ],
+        });
+        const p2 = makePlayer("p2", { battlefield: [oppUntapped] });
+        return makeState({ players: [p1, p2] });
+    }
+
+    it("buffs an untapped, non-attacking creature you control +0/+2 (CR 613.4c)", () => {
+        const state = setup();
+        const bystander = state.players[0].battlefield.find(
+            (c) => c.id === "bystander"
+        )!;
+        expect(getEffectivePower(state, bystander)).toBe(2); // unchanged
+        expect(getEffectiveToughness(state, bystander)).toBe(4); // 2 base + 2
+    });
+
+    it("buffs Arcades Sabboth itself when untapped and not attacking", () => {
+        const state = setup();
+        const arcades = state.players[0].battlefield.find(
+            (c) => c.id === "arcades"
+        )!;
+        expect(getEffectiveToughness(state, arcades)).toBe(9); // 7 base + 2
+    });
+
+    it("does NOT buff a tapped creature", () => {
+        const state = setup();
+        const tapped = state.players[0].battlefield.find(
+            (c) => c.id === "tapped-bear"
+        )!;
+        expect(getEffectiveToughness(state, tapped)).toBe(2); // base only
+    });
+
+    it("does NOT buff an attacking creature", () => {
+        const state = setup();
+        const attacker = state.players[0].battlefield.find(
+            (c) => c.id === "attacker"
+        )!;
+        expect(getEffectiveToughness(state, attacker)).toBe(2); // base only
+    });
+
+    it("does NOT buff an attacking-but-untapped (vigilance) creature — isAttacking gates, not isTapped", () => {
+        const state = setup();
+        const vigilance = state.players[0].battlefield.find(
+            (c) => c.id === "vigilance-attacker"
+        )!;
+        expect(vigilance.isTapped).toBe(false);
+        expect(getEffectiveToughness(state, vigilance)).toBe(2); // base only
+    });
+
+    it("does NOT buff the opponent's creatures", () => {
+        const state = setup();
+        const opp = state.players[1].battlefield.find(
+            (c) => c.id === "opp-bear"
+        )!;
+        expect(getEffectiveToughness(state, opp)).toBe(2); // base only
+    });
+
+    it("bonus disappears the instant a creature becomes an attacker (declare attackers)", () => {
+        const state = setup();
+        const bystander = state.players[0].battlefield.find(
+            (c) => c.id === "bystander"
+        )!;
+        expect(getEffectiveToughness(state, bystander)).toBe(4);
+        bystander.isAttacking = true;
+        expect(getEffectiveToughness(state, bystander)).toBe(2);
+    });
+
+    it("wire format: anthem survives projectPublicState", () => {
+        const state = setup();
+        const projected = projectPublicState(state, 1, "p1");
+        const projBystander = projected.players[0].battlefield.find(
+            (c) => c.id === "bystander"
+        )!;
+        expect(getEffectivePower(projected, projBystander)).toBe(2);
+        expect(getEffectiveToughness(projected, projBystander)).toBe(4);
+        const projAttacker = projected.players[0].battlefield.find(
+            (c) => c.id === "attacker"
+        )!;
+        expect(getEffectiveToughness(projected, projAttacker)).toBe(2);
+    });
+
+    it("{W}: gets +0/+1 until end of turn (CR 611.1)", () => {
+        const arcades = makeInstance(arcadesSabboth.id, {
+            id: "arcades",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [arcades] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(getEffectiveToughness(state, arcades)).toBe(9); // 7 + anthem's own +2
+        resolveActivated(state, arcades, "arcades-sabboth-pump");
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "arcades"
+        )!;
+        expect(getEffectivePower(state, live)).toBe(7); // unchanged
+        expect(getEffectiveToughness(state, live)).toBe(10); // 7 + 2 (anthem) + 1 (pump)
+    });
+
+    it("carries the {W} activated ability in its definition", () => {
+        expect(
+            arcadesSabboth.activatedAbilities?.some(
+                (a) => a.id === "arcades-sabboth-pump"
+            )
+        ).toBe(true);
+    });
+});
+
 describe("Rasputin Dreamweaver (dream counters: enters with 7, mana / prevent removal, capped regrow, CR 122)", () => {
     it("enters with seven dream counters (CR 122.1)", () => {
         expect(rasputinDreamweaver.entersWith?.counters).toEqual([

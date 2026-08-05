@@ -964,12 +964,18 @@ export function payOrSacrificeUpkeepTrigger(args: {
     });
 }
 
-// Arcades Sabboth — {2}{G}{G}{W}{W}{U}{U} 7/7 Elder Dragon. C7 wires its Flying
-// keyword + the upkeep "sacrifice unless you pay {G}{W}{U}" tax (CR 603.6a +
-// CR 117.3a). Its +0/+2 untapped-non-attacker anthem and {W} pump are
-// free-tranche abilities (staticEffects / activated) owned by #369's mono /
-// multicolor batch — NOT part of the C7 maintenance-cost cluster — and are
-// added by that batch; the oracleText is the full card.
+// Arcades Sabboth — {2}{G}{G}{W}{W}{U}{U} 7/7 Elder Dragon. Flying + the
+// upkeep "sacrifice unless you pay {G}{W}{U}" tax (CR 603.6a + CR 117.3a).
+// The anthem ("Each untapped creature you control gets +0/+2 as long as it's
+// not attacking") is a layer 7c `staticEffects` P/T buff (CR 613.4c) whose
+// `applies` predicate is re-evaluated at read time against the live board:
+// `!target.isTapped && !target.isAttacking` — a vigilance creature that
+// attacks while staying untapped still loses the bonus, because "attacking"
+// (`isAttacking`) and "tapped" (`isTapped`) are independent flags on
+// `PermanentView`, not proxies for each other. Arcades itself qualifies too
+// (it's a creature its own controller controls). The {W} pump is a plain
+// self-targeting `activatedAbilities` entry via the `pump` Op (CR 611.1),
+// mirroring the sibling Pavel Maliki ability in this same file. Issue #1830.
 export const arcadesSabboth: CardDefinition = {
     id: "2c1dbc62-ceb5-4540-ae38-901e5deafc75",
     rarity: "rare",
@@ -983,6 +989,18 @@ export const arcadesSabboth: CardDefinition = {
     power: 7,
     toughness: 7,
     staticAbilities: ["flying"],
+    staticEffects: [
+        {
+            kind: "pt-buff",
+            applies: (target, source, ctx) =>
+                ctx.isCreature(target) &&
+                target.controllerId === source.controllerId &&
+                !target.isTapped &&
+                !target.isAttacking,
+            power: 0,
+            toughness: 2,
+        },
+    ],
     triggeredAbilities: [
         payOrSacrificeUpkeepTrigger({
             id: "arcades-sabboth-upkeep",
@@ -990,6 +1008,23 @@ export const arcadesSabboth: CardDefinition = {
             cost: { G: 1, W: 1, U: 1 },
             costText: "{G}{W}{U}",
         }),
+    ],
+    activatedAbilities: [
+        {
+            id: "arcades-sabboth-pump",
+            oracleText: "{W}: Arcades Sabboth gets +0/+1 until end of turn.",
+            cost: { mana: { W: 1 } },
+            useStack: true,
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 0,
+                    toughness: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
     ],
 };
 
