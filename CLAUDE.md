@@ -268,6 +268,19 @@ with a quick push). Both hooks are tracked in git and guarded by
 `.husky/pre-commit` vanished in a 2026-06-17 merge resolution and stayed gone
 for six weeks, every `linter` CI failure in that window being its Format step.
 
+`pre-push` has a **second** job (issue #2203): a push that updates the **default
+branch** also runs the full gate (`check:all` + `test`), because a local merge
+commit and a direct push are the two routes to `main` on which no gate otherwise
+runs. Feature-branch pushes keep only the fast diff-scoped formatting check —
+required CI gates them afterwards. Two ways out, both non-silent: the gate is
+skipped when the pushed SHA is already recorded in `.claude/telemetry/green-sha`
+(dedup — the merge-train writes it after every green run), and
+**`TOLARIA_SKIP_PUSH_GATE=1 git push`** is a deliberate per-push opt-out that
+prints a red banner and records **no** green SHA. The formatting check is not
+skippable that way (sub-second, never the reason anyone wants out); the escape
+hatch exists so the alternative isn't `--no-verify`, which drops both and leaves
+no trace of intent.
+
 **`check:all` VERIFIES formatting, it does not fix it.** Its first step is
 `format:check` (`prettier --check`). On drift it fails with a pointer to
 `bun run format` — fix it and re-run. It used to call `bun run format`

@@ -127,7 +127,11 @@ describe("pre-push hook", () => {
         const runHook = (
             remoteSha: string,
             localSha: string,
-            opts: { ref?: string; extraPath?: string } = {}
+            opts: {
+                ref?: string;
+                extraPath?: string;
+                env?: Record<string, string>;
+            } = {}
         ) =>
             spawnSync("sh", ["-e", HOOK], {
                 cwd: tmp,
@@ -135,6 +139,11 @@ describe("pre-push hook", () => {
                 input: `refs/heads/x ${localSha} ${opts.ref ?? "refs/heads/feature"} ${remoteSha}\n`,
                 env: {
                     ...process.env,
+                    // Hermetic: the escape hatch must not leak in from the
+                    // developer's own shell and silently defuse the gate
+                    // assertions below.
+                    TOLARIA_SKIP_PUSH_GATE: "",
+                    ...opts.env,
                     PATH: `${opts.extraPath ? `${opts.extraPath}:` : ""}${path.join(REPO_ROOT, "node_modules", ".bin")}:${process.env.PATH}`,
                 },
             });
@@ -286,6 +295,64 @@ describe("pre-push hook", () => {
                     recursive: true,
                     force: true,
                 });
+            });
+
+            // The explicit opt-out. Its whole justification is that the
+            // alternative people actually reach for is `git push --no-verify`,
+            // which ALSO drops the formatting check and records no intent.
+            it("skips the gate when TOLARIA_SKIP_PUSH_GATE is set", () => {
+                const bin = stubBun(0);
+                const r = runHook(drifted, clean, {
+                    ref: "refs/heads/main",
+                    extraPath: bin,
+                    env: { TOLARIA_SKIP_PUSH_GATE: "1" },
+                });
+                expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+                expect(calls()).not.toMatch(/run check:all/);
+                expect(calls()).not.toMatch(/run test/);
+            });
+
+            it("says loudly that the gate was skipped", () => {
+                // A silent bypass is indistinguishable from a gate that ran and
+                // passed — the exact failure mode this hook exists to close.
+                const bin = stubBun(0);
+                const r = runHook(drifted, clean, {
+                    ref: "refs/heads/main",
+                    extraPath: bin,
+                    env: { TOLARIA_SKIP_PUSH_GATE: "1" },
+                });
+                expect(`${r.stdout}${r.stderr}`).toMatch(
+                    /TOLARIA_SKIP_PUSH_GATE set — full gate NOT run/
+                );
+            });
+
+            it("records no green sha when the gate is skipped", () => {
+                // Skipping is not verifying: writing the sha here would make the
+                // dedup path treat an ungated commit as proven green forever.
+                const bin = stubBun(0);
+                runHook(drifted, clean, {
+                    ref: "refs/heads/main",
+                    extraPath: bin,
+                    env: { TOLARIA_SKIP_PUSH_GATE: "1" },
+                });
+                expect(
+                    fs.existsSync(
+                        path.join(tmp, ".claude", "telemetry", "green-sha")
+                    )
+                ).toBe(false);
+            });
+
+            it("still runs the formatting check when the gate is skipped", () => {
+                // Sub-second, and never the reason anyone wants out. The escape
+                // hatch buys out of the SUITE, not out of the hook.
+                const bin = stubBun(0);
+                const r = runHook(base, drifted, {
+                    ref: "refs/heads/main",
+                    extraPath: bin,
+                    env: { TOLARIA_SKIP_PUSH_GATE: "1" },
+                });
+                expect(r.status).toBe(1);
+                expect(`${r.stdout}${r.stderr}`).toMatch(/bun run format/);
             });
         });
     });

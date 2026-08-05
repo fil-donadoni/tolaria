@@ -42,6 +42,13 @@
 # check below — they are gated afterwards by required CI, so slowing them down
 # buys nothing. The merge-train is unaffected: it merges server-side through
 # `gh pr merge` and never pushes to the default branch locally.
+#
+# ESCAPE HATCH: `TOLARIA_SKIP_PUSH_GATE=1 git push`. Deliberate, per-push, and
+# LOUD — it prints a red banner naming the invariant it is bypassing, so it can
+# never be mistaken for the gate having run. It exists because the alternative
+# to an explicit opt-out is `--no-verify`, which also silently drops the
+# formatting check below and leaves no trace of intent. The formatting pass is
+# NOT skippable this way: it is sub-second and never the reason anyone wants out.
 # ─────────────────────────────────────────────────────────────────────────────
 
 default_branch=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##')
@@ -79,6 +86,12 @@ done
 # when the push touches no prettier-managed file — a merge commit carrying only
 # shell or config changes would otherwise skip the gate entirely, which is the
 # same silent-hole shape this hook exists to close.
+if [ -n "$pushes_default" ] && [ -n "$TOLARIA_SKIP_PUSH_GATE" ]; then
+    printf '\033[31m⚠ TOLARIA_SKIP_PUSH_GATE set — full gate NOT run for %s.\033[0m\n' "$default_branch"
+    printf '\033[31m  The green-main invariant is on you for this push.\033[0m\n'
+    pushes_default=''
+fi
+
 if [ -n "$pushes_default" ]; then
     # NOT `[ -f x ] && green_sha=$(cat x)`: husky runs this hook as `sh -e`,
     # where an `&&` list whose left side is false returns non-zero and aborts
