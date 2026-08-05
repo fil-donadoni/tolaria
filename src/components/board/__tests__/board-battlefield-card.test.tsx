@@ -197,15 +197,18 @@ describe("BoardBattlefieldCard visual state + anchors (#256)", () => {
     });
 
     // Issue #1994: on a battlefield with many overlapping lands, tapped lands
-    // visually covered untapped fetchlands, making them unclickable. Root
-    // cause: a bare rotate(90deg) on a 5:7 portrait box swaps its bounding
-    // box to 7:5 landscape — WIDER than the card's own reserved slot — and
-    // that extra reach paints (and hit-tests) OVER a neighbouring permanent
-    // in an overlapped row. Scaling the rotation by the card's own aspect
-    // ratio (5/7) shrinks the rotated box back to exactly the slot's
-    // original width, so a tapped permanent's footprint never bleeds into a
-    // neighbour's click target.
-    it("scales the rotation so a tapped card's rotated footprint never exceeds its own slot width (#1994)", () => {
+    // visually covered untapped fetchlands, making them unclickable. An
+    // earlier version of this fix scaled the rotation down by the card's own
+    // aspect ratio (5/7) to shrink the rotated box back to the unrotated
+    // slot's width — that "fixed" the overhang by rendering EVERY tapped
+    // permanent 29% smaller (51% area) on every viewport, including desktop
+    // and every attacking creature in combat, undisclosed as a visual
+    // regression (review on #2279). The footprint is now reserved in the
+    // ROW LAYOUT instead (`tappedFootprintWidth`, `board-layout.ts` — see
+    // its own `describe` block in `board-layout.test.ts` for the reserved-
+    // footprint invariant), so the card itself stays FULL SIZE: a bare
+    // `rotate(90deg)` with no compensating scale.
+    it("rotates a tapped card WITHOUT any compensating scale — the card stays full size (#1994)", () => {
         const { container } = renderCard(
             makeCreature({ isTapped: true }),
             NEUTRAL_VS
@@ -213,10 +216,39 @@ describe("BoardBattlefieldCard visual state + anchors (#256)", () => {
         const anchor = container.querySelector<HTMLElement>(
             "[data-arrow-anchor-permanent]"
         );
-        const cardAspect = 5 / 7; // width / height, the codebase-wide `aspect-5/7` card ratio
-        expect(anchor?.style.transform).toBe(
-            `rotate(90deg) scale(${cardAspect})`
+        expect(anchor?.style.transform).toBe("rotate(90deg)");
+        expect(anchor?.style.transform).not.toContain("scale");
+    });
+
+    // The load-bearing size claim: a tapped card's transform carries no scale
+    // term at all, so whatever `scale` its slot renders at (from the row
+    // layout's shared `Placement.scale`, `board-layout.ts`) is IDENTICAL to
+    // an untapped card's — nothing here shrinks it further. Before this fix
+    // a tapped card's inline transform diverged from an untapped card's by
+    // the extra `scale(5/7)` term; now the only difference is the rotation.
+    it("gives a tapped card's transform the SAME scale as an untapped card's (no per-tap shrink)", () => {
+        const untapped = renderCard(
+            makeCreature({ id: "c-untapped" }),
+            NEUTRAL_VS
         );
+        const untappedAnchor = untapped.container.querySelector<HTMLElement>(
+            "[data-arrow-anchor-permanent]"
+        );
+        // No transform at all when untapped — the baseline to compare against.
+        expect(untappedAnchor?.style.transform || "").not.toContain("scale");
+        cleanup();
+
+        const tapped = renderCard(
+            makeCreature({ id: "c-tapped", isTapped: true }),
+            NEUTRAL_VS
+        );
+        const tappedAnchor = tapped.container.querySelector<HTMLElement>(
+            "[data-arrow-anchor-permanent]"
+        );
+        // Rotated, but — like the untapped card — carries no scale term of
+        // its own. Both cards are sized entirely by the shared row `scale`
+        // one layer up (`SpatialSlot`), never by this component.
+        expect(tappedAnchor?.style.transform || "").not.toContain("scale");
     });
 
     it("shows marked damage and an effective P/T badge for a creature (projected fields)", () => {

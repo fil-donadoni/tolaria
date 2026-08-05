@@ -115,10 +115,27 @@ describe("BoardHandPortrait (#336)", () => {
 
     // Issue #1994: the portrait hand row scrolls horizontally past the
     // threshold, and a touch swipe over a card is the ONLY way to reach cards
-    // past the right edge — so every interactive card must opt IN to native
-    // horizontal panning (`allowHorizontalPan`), not just the ones above the
-    // scroll threshold (harmless below it: no scroll container exists there).
-    it("allows native horizontal panning on every interactive card, scrolling or not (#1994)", () => {
+    // past the right edge — so once the row scrolls, every interactive card
+    // must opt IN to native horizontal panning (`allowHorizontalPan`).
+    it("allows native horizontal panning on every interactive card once the row scrolls (#1994)", () => {
+        render(
+            <BoardHandPortrait
+                player={makePlayer(7)}
+                interactive
+                data-testid="hand"
+            />
+        );
+        for (const card of screen.getAllByTestId("hand-card-interactive")) {
+            expect(card.getAttribute("data-allow-horizontal-pan")).toBe("true");
+        }
+    });
+
+    // Hardening (review on #2279): below the scroll threshold there is no
+    // scroll container to pan, so `allowHorizontalPan` buys nothing there —
+    // and it costs something (a wider `touch-action: pan-x` narrows the
+    // window for the drag-to-cast gesture, `useDragToCommit`). Gate it on
+    // `scrolls` instead of applying it unconditionally.
+    it("does NOT enable horizontal panning below the scroll threshold (nothing to pan)", () => {
         render(
             <BoardHandPortrait
                 player={makePlayer(3)}
@@ -127,7 +144,9 @@ describe("BoardHandPortrait (#336)", () => {
             />
         );
         for (const card of screen.getAllByTestId("hand-card-interactive")) {
-            expect(card.getAttribute("data-allow-horizontal-pan")).toBe("true");
+            expect(card.getAttribute("data-allow-horizontal-pan")).toBe(
+                "false"
+            );
         }
     });
 

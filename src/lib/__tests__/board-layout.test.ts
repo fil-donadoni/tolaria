@@ -12,6 +12,7 @@ import {
     reconcileHandOrder,
     stackFanOffset,
     stackFootprintWidth,
+    tappedFootprintWidth,
     isDepthPile,
     stackDepthOffset,
     STACK_DEPTH_PILE_THRESHOLD,
@@ -810,6 +811,89 @@ describe("stackFootprintWidth — reserved row width per group (issue #977)", ()
         const w = stackFootprintWidth(40);
         expect(w).toBe(CARD_WIDTH + stackDepthOffset(39));
         expect(w).toBeLessThan(stackFootprintWidth(8));
+    });
+});
+
+// Issue #1994 (review on PR #2279): the previous fix scaled a tapped card
+// down by its own aspect ratio to fit the unrotated slot, shrinking every
+// tapped permanent 29% linear (51% area) on every viewport — undisclosed.
+// The replacement reserves the ROTATED footprint in the row layout instead
+// (the SAME per-item `widths[]` mechanism `stackFootprintWidth` uses for a
+// fanned stack, issue #977) and leaves the card itself full size. These
+// tests assert the geometry directly — a pure function, no jsdom, no string
+// comparison against a literal the same commit just wrote.
+describe("tappedFootprintWidth — reserved row width for a tapped permanent (issue #1994)", () => {
+    it("equals the card's rotated width: its own HEIGHT, not its width", () => {
+        expect(tappedFootprintWidth(CARD_WIDTH)).toBe(CARD_HEIGHT);
+        expect(tappedFootprintWidth()).toBe(CARD_HEIGHT);
+    });
+
+    it("tracks CARD_HEIGHT's own 7/5 formula at any card width, so the two can never drift apart (landscape-compact passes a smaller cardWidth)", () => {
+        for (const cw of [64, 80, 120, 168, 200]) {
+            expect(tappedFootprintWidth(cw)).toBe(Math.round((cw * 7) / 5));
+        }
+    });
+
+    it("the reserved-footprint invariant: never narrower than the card's actual rotated width, so a tapped permanent cannot overhang the room reserved for it", () => {
+        for (const cw of [64, 80, 120, 168, 200]) {
+            const rotatedWidth = Math.round((cw * 7) / 5);
+            expect(tappedFootprintWidth(cw)).toBeGreaterThanOrEqual(
+                rotatedWidth
+            );
+        }
+    });
+
+    it("is wider than the plain unrotated slot — this is the accepted cost: a tapped permanent reflows its row instead of shrinking", () => {
+        expect(tappedFootprintWidth(CARD_WIDTH)).toBeGreaterThan(CARD_WIDTH);
+    });
+});
+
+describe("rowLayout reserves a tapped permanent's rotated footprint (issue #1994)", () => {
+    it("clears the following item from a tapped item's rotated box when the row fits at full scale", () => {
+        // Plenty of width — the row stays in the "fit" regime (scale 1), so
+        // the geometry below is exact, not shrunk by an unrelated overflow.
+        const tappedWidth = tappedFootprintWidth();
+        const placements = rowLayout({
+            count: 2,
+            width: 2000,
+            centerY: 0,
+            widths: [tappedWidth, CARD_WIDTH],
+        });
+        expect(placements[0].scale).toBe(1);
+        // Item 0's reserved footprint right edge: its own (unrotated) box
+        // left edge plus the tapped width reserved for it.
+        const item0FootprintRightEdge =
+            placements[0].x - CARD_WIDTH / 2 + tappedWidth;
+        const item1BoxLeftEdge = placements[1].x - CARD_WIDTH / 2;
+        expect(item1BoxLeftEdge).toBeGreaterThanOrEqual(
+            item0FootprintRightEdge - 0.001
+        );
+    });
+
+    it("shares ONE scale across every item in the row — a tapped item's wider footprint never applies a per-item shrink, only a possible whole-row reflow", () => {
+        const tapped = rowLayout({
+            count: 3,
+            width: 500,
+            centerY: 0,
+            widths: [tappedFootprintWidth(), CARD_WIDTH, CARD_WIDTH],
+        });
+        const scales = new Set(tapped.map((p) => p.scale));
+        expect(scales.size).toBe(1);
+    });
+
+    it("reduces to the plain uniform layout when nothing is tapped (every widths[] entry is cardWidth, matching stackFootprintWidth(1))", () => {
+        const untapped = rowLayout({
+            count: 3,
+            width: 500,
+            centerY: 0,
+            widths: [
+                stackFootprintWidth(1),
+                stackFootprintWidth(1),
+                stackFootprintWidth(1),
+            ],
+        });
+        const plain = rowLayout({ count: 3, width: 500, centerY: 0 });
+        expect(untapped).toEqual(plain);
     });
 });
 
