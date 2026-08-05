@@ -58,7 +58,15 @@ contents — this is the single biggest thing the frame does not have to carry.
     1. Commit with message referencing the issue: `fix: <description> (closes #N)` or `feat: <description> (closes #N)`
     2. Push branch, open PR: `gh pr create --title "<type>: <short title>" --body "Closes #N\n\n<summary>"`
     3. **Stop here.** Leave the worktree intact (the orchestrator may hand the branch back for a rebase fixup in SKILL.md §4). Never run `gh pr merge`.
-8. **Write the receipt to the batch artifact directory, then return a one-line summary.** The receipt is a FILE, not a paragraph — `.claude/receipts/<BATCH_ID>/<issue>-implement.json`, written through `writeReceipt` (`scripts/lib/receipt.ts`), which validates before it writes and rejects a malformed receipt naming the offending field. `BATCH_ID` arrives in your prompt.
+8. **Record what you noticed but were not asked to fix — as a DRAFT, never an issue.** Working an issue routinely turns up something adjacent: a producer nobody enumerated, a guard that fails open, a second card carrying the same bug. Write one file per observation:
+
+    `docs/findings/<issue>-<slug>.md` — format and fields in `docs/findings/README.md`. It lands with your PR, so it is tracked in git and readable next month.
+
+    **Do NOT open a GitHub issue for it.** The loop drains the queue and never fills it; an agent that files its own work removes the one place a human sets direction. Your job is the draft, the triage is theirs (`bun run findings`).
+
+    Two things make a finding worth writing rather than noise: **`file:line` evidence** instead of prose, and a sentence on **why it might NOT deserve a ticket** — you are the one best placed to know, and a one-sided finding leaves the reader to redo your work. `confidence: low` is fine; silence is not.
+
+9. **Write the receipt to the batch artifact directory, then return a one-line summary.** The receipt is a FILE, not a paragraph — `.claude/receipts/<BATCH_ID>/<issue>-implement.json`, written through `writeReceipt` (`scripts/lib/receipt.ts`), which validates before it writes and rejects a malformed receipt naming the offending field. `BATCH_ID` arrives in your prompt.
 
     `WorkReceipt` in `scripts/lib/receipt.ts` **is** the field list — read it there rather than from a copy here, and let the validator tell you what is missing. Three fields carry judgment no schema can enforce:
     - **`targetFiles`** — the paths the diff ACTUALLY touched (`git diff --name-only main`), not the paths the issue predicted. The train's conflict graph is built from these.
