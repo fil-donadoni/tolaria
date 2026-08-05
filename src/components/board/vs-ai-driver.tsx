@@ -7,6 +7,7 @@
 import type { Id } from "@convex/_generated/dataModel";
 import { useVsAiDriver } from "~/hooks/useVsAiDriver";
 import BotThinkingIndicator from "./bot-thinking-indicator";
+import BotStuckNotice from "./bot-stuck-notice";
 
 export default function VsAiDriver({
     gameId,
@@ -15,6 +16,13 @@ export default function VsAiDriver({
     gameId: Id<"games">;
     botId: string | null;
 }) {
-    const { thinking } = useVsAiDriver(gameId, botId);
-    return <BotThinkingIndicator thinking={thinking} />;
+    const { thinking, stuck, resolveStuck } = useVsAiDriver(gameId, botId);
+    return (
+        <>
+            <BotThinkingIndicator thinking={thinking} />
+            {/* issue #2284 — rung 5: the ladder found no legal automatic exit,
+                so the player gets one. Never a silent no-op. */}
+            <BotStuckNotice stuck={stuck} onResolve={resolveStuck} />
+        </>
+    );
 }

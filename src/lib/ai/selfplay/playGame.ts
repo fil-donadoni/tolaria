@@ -47,6 +47,10 @@ import {
     applyNameCardSubmit,
     recordDeclaration,
 } from "@convex/gre";
+import {
+    computeExpectedInput,
+    type ExpectedInputKind,
+} from "@convex/gre/expectedInput";
 import { manaValue } from "@convex/gre/constants";
 import { effectivePermanentView } from "@convex/gre/permanentView";
 import { getCardColorIdentity, getColorsFromCost } from "@convex/cards/colors";
@@ -86,6 +90,12 @@ export type GameResult = {
      *  Saturation-proof (`materialMargin`), so it stays informative even after a
      *  terminal life swing. */
     marginA: number;
+    /** The Expected Input kind (ADR 0047) the game was resting on when a guard
+     *  reason fired — `stall` / `resolution-error` (issue #2284). Headless
+     *  self-play inherits the liveness invariant: an UNDRIVEN window must fail
+     *  loudly, naming the window nobody handled, instead of disappearing into a
+     *  generic reason string. `undefined` for a real MTG outcome. */
+    unhandledExpectedInput?: ExpectedInputKind;
 };
 
 export type SeatConfig = {
@@ -312,6 +322,9 @@ export function runHeadlessGame(
 
     let plies = 0;
     let reason: GameEndReason = "max-plies";
+    // issue #2284 — set alongside every guard reason so a headless stall names
+    // the Expected Input kind that was not handled.
+    let unhandledExpectedInput: ExpectedInputKind | undefined;
 
     while (plies < MAX_PLIES) {
         if (state.gameOver) {
@@ -348,6 +361,7 @@ export function runHeadlessGame(
                 const legal = enumerateMoves(state, pid);
                 if (legal.length === 0) {
                     reason = "stall";
+                    unhandledExpectedInput = computeExpectedInput(state)?.kind;
                     break;
                 }
                 applyMoveInSearch(state, pid, legal[0]);
@@ -357,16 +371,21 @@ export function runHeadlessGame(
             try {
                 if (!resolvePending(state)) {
                     reason = "resolution-error";
+                    unhandledExpectedInput = computeExpectedInput(state)?.kind;
                     break;
                 }
             } catch {
                 reason = "resolution-error";
+                unhandledExpectedInput = computeExpectedInput(state)?.kind;
                 break;
             }
         } else {
             // Not game over, nobody owes a decision, no pending choice: the engine
             // failed to settle to a stable point (mid-cast target / engine bug).
+            // Name the window nobody drove (issue #2284) — "stall" alone told
+            // you a game died, never WHICH Expected Input had no handler.
             reason = "stall";
+            unhandledExpectedInput = computeExpectedInput(state)?.kind;
             break;
         }
         plies++;
@@ -382,5 +401,6 @@ export function runHeadlessGame(
         turns: state.turn,
         plies,
         marginA: materialMargin(state, seatA.id),
+        unhandledExpectedInput,
     };
 }
