@@ -115,11 +115,54 @@ describe("AppShell scroll contract — structural, at desktop heights (issue #22
                     viewportHeightPx,
                     headerBandHeightPx: SHELL_HEADER_BAND_PX,
                 },
-                { kind: "remaining" }
+                {
+                    kind: "remaining",
+                    overflow: "scrolls",
+                    heightPx: viewportHeightPx * 3,
+                }
             );
             expect(layout.mainOverflowPx).toBe(0);
             expect(layout.mainMaxScrollTopPx).toBe(0);
+            expect(layout.clippedPx).toBe(0);
             expect(layout.scrollers).toEqual([]);
+        }
+    );
+
+    it.each(DESKTOP_HEIGHTS_PX)(
+        "at %ipx: the header band survives the loss of <main>'s `min-h-0` — which is the only thing `shrink-0` is FOR",
+        (viewportHeightPx) => {
+            // `headerPinned` has no consequence in the shipped configuration:
+            // with `mainCanShrink: true` the overshoot is always 0, so a test
+            // that only sweeps the shipped model asserts the flag structurally
+            // and nothing more (dropping `shrink-0` reddened exactly one
+            // structural equality, and zero behavioural assertions).
+            //
+            // `shrink-0` is defence in depth: it is what keeps the header at
+            // full height if `<main>` ever stops being able to shrink. So drive
+            // the RENDERED model through exactly that scenario — the flag comes
+            // from `app-shell.tsx`'s real DOM, the consequence is a height.
+            const rendered = renderedShellModel();
+            const layout = resolveShellLayout(
+                { ...rendered, mainCanShrink: false },
+                {
+                    viewportHeightPx,
+                    headerBandHeightPx: SHELL_HEADER_BAND_PX,
+                },
+                { kind: "intrinsic", heightPx: viewportHeightPx * 4 }
+            );
+            expect(layout.headerHeightPx).toBe(SHELL_HEADER_BAND_PX);
+            // ...and the band is not merely preserved, it is preserved WHOLE:
+            // an unpinned band would be squeezed to nothing at these heights.
+            expect(
+                resolveShellLayout(
+                    { ...rendered, mainCanShrink: false, headerPinned: false },
+                    {
+                        viewportHeightPx,
+                        headerBandHeightPx: SHELL_HEADER_BAND_PX,
+                    },
+                    { kind: "intrinsic", heightPx: viewportHeightPx * 4 }
+                ).headerHeightPx
+            ).toBeLessThan(SHELL_HEADER_BAND_PX);
         }
     );
 
@@ -153,7 +196,7 @@ describe("AppShell scroll contract — the fullscreen route (issue #2274)", () =
         const layout = resolveShellLayout(
             model,
             { viewportHeightPx: 1080, headerBandHeightPx: 0 },
-            { kind: "remaining" }
+            { kind: "remaining", overflow: "scrolls", heightPx: 3000 }
         );
         expect(layout.mainHeightPx).toBe(1080);
         expect(layout.scrollers).toEqual([]);

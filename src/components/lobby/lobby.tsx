@@ -437,7 +437,21 @@ function Lobby() {
         : undefined;
 
     return (
-        <div className="relative flex-1 overflow-hidden bg-surface-base text-text">
+        // `min-h-full`, not `flex-1` (issue #2274). Per CSS Flexbox §4.5 a flex
+        // item whose `overflow` is not `visible` gets `min-height: auto` → 0, so
+        // `flex-1 overflow-hidden` resolved this root to EXACTLY `<main>`'s
+        // height and clipped the column below it: `<main>.scrollHeight ===
+        // clientHeight`, its `overflow-y-auto` never engaged, and there was no
+        // scrollbar anywhere — `LobbyFooter` was unreachable at both 1440x900
+        // and 1920x1080. (Latent since commit f01a27b3 moved this root from
+        // `min-h-dvh overflow-hidden` to `flex-1 overflow-hidden`: under the old
+        // unbounded root the box grew with its content, so the clip was inert.)
+        // `min-h-full` is the shell's remainder as a FLOOR — the same shape the
+        // other state screens use — so the box grows past the remainder instead,
+        // `<main>` scrolls to it, and `overflow-hidden` clips nothing. The
+        // ambient ground clips itself (`ambient-page-ground.tsx`: `absolute
+        // inset-0 overflow-hidden`), so the class here is belt-and-braces.
+        <div className="relative min-h-full overflow-hidden bg-surface-base text-text">
             <LobbyBackground />
             <div className="relative z-10 mx-auto flex max-w-6xl flex-col gap-6 px-6 py-8">
                 {activeGame && user && (

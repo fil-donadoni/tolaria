@@ -35,7 +35,7 @@ const DESKTOP_HEIGHTS_PX = [500, 600, 720, 768, 800, 900, 1080, 1200, 1440];
 
 describe("resolveShellLayout — the shipped shell, at desktop heights (issue #2274)", () => {
     it.each(DESKTOP_HEIGHTS_PX)(
-        "at %ipx: a route claiming the shell's remainder needs no scrollbar anywhere",
+        "at %ipx: a route claiming the shell's remainder and scrolling its own excess needs no scrollbar anywhere",
         (viewportHeightPx) => {
             const layout = resolveShellLayout(
                 SHIPPED,
@@ -43,12 +43,17 @@ describe("resolveShellLayout — the shipped shell, at desktop heights (issue #2
                     viewportHeightPx,
                     headerBandHeightPx: SHELL_HEADER_BAND_PX,
                 },
-                { kind: "remaining" }
+                {
+                    kind: "remaining",
+                    overflow: "scrolls",
+                    heightPx: viewportHeightPx * 3,
+                }
             );
             expect(layout.mainHeightPx).toBe(
                 viewportHeightPx - SHELL_HEADER_BAND_PX
             );
             expect(layout.mainOverflowPx).toBe(0);
+            expect(layout.clippedPx).toBe(0);
             expect(layout.scrollers).toEqual([]);
             expect(layout.bottomReachable).toBe(true);
         }
@@ -132,11 +137,114 @@ describe("resolveShellLayout — the shipped shell, at desktop heights (issue #2
         const layout = resolveShellLayout(
             SHIPPED,
             { viewportHeightPx: 1080, headerBandHeightPx: 0 },
-            { kind: "remaining" }
+            { kind: "remaining", overflow: "scrolls", heightPx: 3000 }
         );
         expect(layout.mainHeightPx).toBe(1080);
         expect(layout.mainOverflowPx).toBe(0);
         expect(layout.scrollers).toEqual([]);
+    });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// The clipping route root — issue #2274's blocking finding.
+//
+// `resolveShellLayout` originally had NO input for a route root's overflow: a
+// `remaining` claim was assumed to absorb its own deficit in an internal
+// scroller. True for the deckbuilder (#2275), false for the lobby, whose root
+// was `flex-1 overflow-hidden` with only per-panel scrollers. The model
+// therefore reported `/` as "no overflow, `<main>` scrolls" while in reality
+// nothing scrolled and `LobbyFooter` was unreachable at every desktop height.
+// ────────────────────────────────────────────────────────────────────────────
+describe("a `flex-1` route root that HIDES its overflow clips the page (issue #2274)", () => {
+    /** The lobby's measured content column against the two HITL viewports. */
+    const LOBBY_COLUMN_PX = 1030;
+
+    it.each([
+        [900, 1440], // 1440x900
+        [1080, 1920], // 1920x1080
+    ])(
+        "at %ipx (the %ipx-wide HITL size): the bottom is NOT reachable, and no scrollbar exists to reach it",
+        (viewportHeightPx) => {
+            const layout = resolveShellLayout(
+                SHIPPED,
+                {
+                    viewportHeightPx,
+                    headerBandHeightPx: SHELL_HEADER_BAND_PX,
+                },
+                {
+                    kind: "remaining",
+                    overflow: "clips",
+                    heightPx: LOBBY_COLUMN_PX,
+                }
+            );
+            const mainHeightPx = viewportHeightPx - SHELL_HEADER_BAND_PX;
+            // The box is EXACTLY the remainder — the excess is hidden, not
+            // handed to `<main>`, so `<main>` sees nothing to scroll.
+            expect(layout.mainHeightPx).toBe(mainHeightPx);
+            expect(layout.mainOverflowPx).toBe(0);
+            expect(layout.mainMaxScrollTopPx).toBe(0);
+            expect(layout.documentMaxScrollTopPx).toBe(0);
+            expect(layout.scrollers).toEqual([]);
+            // ...and this is the difference that `mainOverflowPx` alone cannot
+            // express: content is LOST, not merely off-screen.
+            expect(layout.clippedPx).toBe(LOBBY_COLUMN_PX - mainHeightPx);
+            expect(layout.bottomReachable).toBe(false);
+        }
+    );
+
+    it("a clipping root whose content FITS the remainder is fine — the flag tracks the content, not the class", () => {
+        const layout = resolveShellLayout(
+            SHIPPED,
+            {
+                viewportHeightPx: 1440,
+                headerBandHeightPx: SHELL_HEADER_BAND_PX,
+            },
+            { kind: "remaining", overflow: "clips", heightPx: 400 }
+        );
+        expect(layout.clippedPx).toBe(0);
+        expect(layout.bottomReachable).toBe(true);
+    });
+
+    it.each(DESKTOP_HEIGHTS_PX)(
+        "at %ipx: the SAME content in a root that SPILLS instead reaches its bottom through <main>",
+        (viewportHeightPx) => {
+            const layout = resolveShellLayout(
+                SHIPPED,
+                {
+                    viewportHeightPx,
+                    headerBandHeightPx: SHELL_HEADER_BAND_PX,
+                },
+                {
+                    kind: "remaining",
+                    overflow: "spills",
+                    heightPx: viewportHeightPx * 3,
+                }
+            );
+            expect(layout.clippedPx).toBe(0);
+            expect(layout.scrollers).toEqual(["main"]);
+            expect(layout.mainMaxScrollTopPx).toBe(
+                viewportHeightPx * 3 - layout.mainHeightPx
+            );
+            expect(layout.bottomReachable).toBe(true);
+        }
+    );
+
+    it("the lobby's post-fix claim (`min-h-full`) reaches the same content's bottom at both HITL heights", () => {
+        for (const viewportHeightPx of [900, 1080]) {
+            const layout = resolveShellLayout(
+                SHIPPED,
+                {
+                    viewportHeightPx,
+                    headerBandHeightPx: SHELL_HEADER_BAND_PX,
+                },
+                { kind: "atLeastRemaining", heightPx: LOBBY_COLUMN_PX }
+            );
+            expect(layout.clippedPx).toBe(0);
+            expect(layout.bottomReachable).toBe(true);
+            expect(layout.mainMaxScrollTopPx).toBe(
+                LOBBY_COLUMN_PX - layout.mainHeightPx
+            );
+        }
     });
 });
 
@@ -265,11 +373,67 @@ describe("deriveShellModel / deriveHeightClaim (issue #2274)", () => {
         });
     });
 
-    it("classifies `flex-1` as the shell's remainder", () => {
-        expect(deriveHeightClaim("flex flex-1 min-h-0 flex-col").kind).toBe(
-            "remaining"
+    it("classifies `flex-1` as the shell's remainder, SPILLING its excess to <main>", () => {
+        expect(deriveHeightClaim("flex flex-1 min-h-0 flex-col", 1800)).toEqual(
+            {
+                kind: "remaining",
+                overflow: "spills",
+                heightPx: 1800,
+            }
         );
     });
+
+    it("classifies `flex-1 overflow-hidden` as CLIPPING — the lobby's pre-fix root", () => {
+        expect(
+            deriveHeightClaim(
+                "relative flex-1 overflow-hidden bg-surface-base text-text",
+                1030
+            )
+        ).toEqual({ kind: "remaining", overflow: "clips", heightPx: 1030 });
+    });
+
+    it("a clipping root that is DECLARED to own a whole-column scroller reads as scrolling", () => {
+        expect(
+            deriveHeightClaim("flex flex-1 overflow-hidden", 1030, {
+                hasOwnScroller: true,
+            })
+        ).toEqual({ kind: "remaining", overflow: "scrolls", heightPx: 1030 });
+    });
+
+    it("`hasOwnScroller` defaults to FALSE — an unclassified clipping root reads as clipping, never as safe", () => {
+        // Fail-closed. The fail-open default is what certified the lobby.
+        expect(deriveHeightClaim("flex flex-1 overflow-hidden", 1030)).toEqual({
+            kind: "remaining",
+            overflow: "clips",
+            heightPx: 1030,
+        });
+    });
+
+    it("a root that scrolls ITSELF reads as scrolling without any declaration", () => {
+        expect(
+            deriveHeightClaim("flex flex-1 min-h-0 overflow-y-auto", 1030)
+        ).toEqual({ kind: "remaining", overflow: "scrolls", heightPx: 1030 });
+    });
+
+    it.each(["min-h-[100dvh]", "h-[100vh]", "min-h-[110svh]"])(
+        "classifies the arbitrary-value claim `%s` as a whole viewport",
+        (token) => {
+            expect(
+                deriveHeightClaim(`relative flex ${token} flex-col`).kind
+            ).toBe("viewport");
+        }
+    );
+
+    it.each(["min-h-[60dvh]", "h-[min(30rem,60vh)]", "max-h-[80vh]"])(
+        "does NOT read the FRACTIONAL viewport value `%s` as a whole-viewport claim",
+        (token) => {
+            // Both live idioms (`not-found-page.tsx`, `sideboarding-dialog.tsx`).
+            // Flagging them would buy allowlist entries and no safety.
+            expect(
+                deriveHeightClaim(`relative flex ${token} flex-col`).kind
+            ).not.toBe("viewport");
+        }
+    );
 
     it("classifies anything else as an ordinary intrinsic-height page", () => {
         expect(deriveHeightClaim("relative", 1800)).toEqual({

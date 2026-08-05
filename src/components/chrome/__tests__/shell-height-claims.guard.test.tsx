@@ -17,12 +17,26 @@
 //     one that MOVED in #2056. A sticky header pinned to a scroller that is no
 //     longer the one its content scrolls in is the classic symptom of exactly
 //     this kind of relocation.
+//  3. Every ROUTE ROOT — the element `<main>` renders as its direct flex child —
+//     can be scrolled to its own bottom at every desktop height. This is the
+//     guard the first cut of this PR did not have, and its absence is how `/`
+//     was certified as correct while its `flex-1 overflow-hidden` root clipped
+//     the page with no scrollbar anywhere. A census, not a spot-check: the
+//     registry below is checked for completeness against `router.tsx`.
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { render } from "@testing-library/react";
 import { shellShowsHeader } from "@/lib/shellChrome";
-import { VIEWPORT_HEIGHT_CLASSES } from "@/lib/shellLayout";
+import {
+    SHELL_HEADER_BAND_PX,
+    SCROLLER_CLASSES,
+    VIEWPORT_HEIGHT_CLASSES,
+    arbitraryViewportClaims,
+    deriveHeightClaim,
+    resolveShellLayout,
+    type ShellModel,
+} from "@/lib/shellLayout";
 import GameDialog from "@/components/ui/game-dialog";
 
 const SRC_ROOT = resolve(__dirname, "../../..");
@@ -76,7 +90,7 @@ const SOURCE_FILES = walkSourceFiles(SRC_ROOT).map((path) => ({
  */
 const VIEWPORT_HEIGHT_ALLOWLIST: Record<
     string,
-    { why: string; routePath?: string }
+    { why: string; routePath?: string; outsideShell?: true }
 > = {
     "components/chrome/app-shell.tsx": {
         why: "The shell root IS the hard bound the rest of the contract needs (issue #2056 defect 3).",
@@ -93,6 +107,20 @@ const VIEWPORT_HEIGHT_ALLOWLIST: Record<
         why: "Rendered only by `game.route.tsx` while an opponent is awaited — `/game`, no header band.",
         routePath: "/game/abc123",
     },
+    // The auth screens render OUTSIDE `AppShell` entirely — `router.tsx` wraps
+    // the shell in `<AuthGate>`, so neither is ever a descendant of `<main>`.
+    // That premise is checked structurally by the test below, not declared.
+    // They are on this list because `min-h-svh` is a whole-viewport claim and
+    // the vocabulary now sees it; it was invisible before, which is exactly the
+    // idiom a future headered component would have copied unnoticed.
+    "components/auth/auth-gate.tsx": {
+        why: "Renders ABOVE the shell — `router.tsx` puts `<AuthGate>` outside `<AppShell/>`, so it is never inside `<main>`.",
+        outsideShell: true,
+    },
+    "components/auth/auth-form.tsx": {
+        why: "Rendered by `auth-gate.tsx`, i.e. also above the shell — never inside `<main>`.",
+        outsideShell: true,
+    },
 };
 
 const VIEWPORT_CLAIM_RE = new RegExp(
@@ -101,7 +129,10 @@ const VIEWPORT_CLAIM_RE = new RegExp(
 
 function filesClaimingAViewportHeight(): string[] {
     return SOURCE_FILES.filter(
-        (f) => !SCAN_EXCLUDE.has(f.rel) && VIEWPORT_CLAIM_RE.test(f.code)
+        (f) =>
+            !SCAN_EXCLUDE.has(f.rel) &&
+            (VIEWPORT_CLAIM_RE.test(f.code) ||
+                arbitraryViewportClaims(f.code).length > 0)
     ).map((f) => f.rel);
 }
 
@@ -132,6 +163,39 @@ describe("no component under the shared header claims a whole viewport height (i
         }
     });
 
+    it("every `outsideShell` exemption really renders above the shell, not inside <main>", () => {
+        const router = SOURCE_FILES.find((f) => f.rel === "router.tsx")!;
+        const shellLine =
+            router.code.split("\n").findIndex((l) => /<AppShell\b/.test(l)) + 1;
+        expect(
+            shellLine,
+            "<AppShell/> not found in router.tsx"
+        ).toBeGreaterThan(0);
+        // `<AuthGate>` is an ANCESTOR of `<AppShell/>`, so everything AuthGate
+        // renders in place of the shell is outside `<main>` by construction.
+        expect(
+            jsxAncestorsOf(router.code, shellLine).map((a) => a.tag)
+        ).toContain("AuthGate");
+
+        const gate = SOURCE_FILES.find(
+            (f) => f.rel === "components/auth/auth-gate.tsx"
+        )!;
+        // ...and the form is AuthGate's own unauthenticated branch, so it
+        // inherits the same position. Both premises are read from source.
+        expect(gate.code).toMatch(/<AuthForm\b/);
+
+        for (const [rel, entry] of Object.entries(VIEWPORT_HEIGHT_ALLOWLIST)) {
+            if (!entry.outsideShell) continue;
+            expect(
+                [
+                    "components/auth/auth-gate.tsx",
+                    "components/auth/auth-form.tsx",
+                ],
+                `${rel} claims to render outside the shell but is not one of the files this test traced`
+            ).toContain(rel);
+        }
+    });
+
     it("the fixed state screens claim the shell's remainder instead", () => {
         // The four sites issue #2274 names: the shared loading screen, the join
         // antechamber shell, and the deck-builder / deck-detail route branches.
@@ -154,13 +218,6 @@ describe("no component under the shared header claims a whole viewport height (i
 // ────────────────────────────────────────────────────────────────────────────
 // Guard 2 — every sticky element scrolls against its OWN nested scroller
 // ────────────────────────────────────────────────────────────────────────────
-
-const SCROLLER_CLASSES = [
-    "overflow-y-auto",
-    "overflow-auto",
-    "overflow-y-scroll",
-    "overflow-scroll",
-];
 
 interface JsxOpeningTag {
     line: number;
@@ -219,16 +276,22 @@ function isScroller(tagText: string): boolean {
     );
 }
 
-/** Every `className` carrying a `sticky` utility, repo-wide. */
+/**
+ * Every `className` carrying a `sticky` utility, repo-wide.
+ *
+ * Scans whole JSX opening TAGS, not source lines: a `sticky` inside a
+ * multi-line `className={clsx(...)}` shares no line with the `className` token
+ * and a per-line scan cannot see it. The census was complete under the
+ * line-based version, but only by accident of formatting.
+ */
 function stickySites(): { rel: string; line: number; text: string }[] {
     const sites: { rel: string; line: number; text: string }[] = [];
     for (const file of SOURCE_FILES) {
-        const lines = file.code.split("\n");
-        lines.forEach((text, i) => {
-            if (!text.includes("className")) return;
-            if (!/(?<![\w-])sticky(?![\w-])/.test(text)) return;
-            sites.push({ rel: file.rel, line: i + 1, text });
-        });
+        for (const tag of openingTags(file.code)) {
+            if (!tag.text.includes("className")) continue;
+            if (!/(?<![\w-])sticky(?![\w-])/.test(tag.text)) continue;
+            sites.push({ rel: file.rel, line: tag.line, text: tag.text });
+        }
     }
     return sites;
 }
@@ -340,6 +403,291 @@ describe("every sticky header sits inside its own nested scroller, not the shell
                 ownerAncestors.some((a) => a.tag === "main"),
                 `${entry.ownedBy.rel} renders ${entry.ownedBy.usage} directly under <main>`
             ).toBe(false);
+        }
+    });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// Guard 3 — every route root can be scrolled to its own bottom
+//
+// The blocking finding on the first cut of this PR: `/` was certified as
+// "no own scroller / `<main>` overflow 0 / `<main>` scrolls" while its root was
+// `flex-1 overflow-hidden`. Per CSS Flexbox §4.5 that is a HARD box at exactly
+// `<main>`'s height which CLIPS the column below it — `<main>.scrollHeight ===
+// clientHeight`, so `overflow-y-auto` never engaged and no scrollbar existed
+// anywhere. `LobbyFooter` was unreachable at both HITL sizes.
+//
+// A prose census in a PR body cannot fail. This one runs the shell's own
+// arithmetic over every route root's REAL className at every desktop height,
+// and its completeness is checked against `router.tsx`.
+// ────────────────────────────────────────────────────────────────────────────
+
+const DESKTOP_HEIGHTS_PX = [500, 600, 720, 768, 800, 900, 1080, 1200, 1440];
+
+/** The shape `app-shell.tsx` ships — asserted against the real DOM in
+ *  `app-shell-scroll-contract.test.tsx`. */
+const SHELL: ShellModel = {
+    rootBounded: true,
+    headerPinned: true,
+    mainCanShrink: true,
+    mainScrolls: true,
+};
+
+/**
+ * A content demand taller than any desktop viewport in the sweep. The question
+ * this guard asks is not "does today's content fit" — it is "if this route's
+ * content outgrows the shell's remainder, is the excess REACHABLE".
+ */
+const TALL_CONTENT_PX = 4000;
+
+interface RouteRootFile {
+    rel: string;
+    /**
+     * A scroller INSIDE the route spanning the whole content column, so the
+     * route absorbs its own deficit (issue #2275's deckbuilder shape). Absent
+     * means the route does not — the fail-closed default.
+     */
+    ownScroller?: { at: string; why: string };
+}
+
+/**
+ * Every route component `router.tsx` mounts → the files that can supply that
+ * route's ROOT element. A route wrapper that only renders another component
+ * (`LobbyRoute` → `<Lobby/>`) is followed through to the file that produces the
+ * outermost DOM element, because that is what `<main>` lays out as its direct
+ * flex child; EVERY early-return branch counts, not just the happy path.
+ */
+const ROUTE_ROOTS: Record<
+    string,
+    { routePath: string; files: RouteRootFile[] }
+> = {
+    LobbyRoute: {
+        routePath: "/",
+        files: [
+            { rel: "components/lobby/lobby.tsx" },
+            { rel: "components/ui/loading-screen.tsx" },
+        ],
+    },
+    DeckBuilderRoute: {
+        routePath: "/decks/create",
+        files: [
+            { rel: "routes/deck-builder.route.tsx" },
+            { rel: "components/lobby/deck-builder/deck-builder.tsx" },
+        ],
+    },
+    DeckDetailRoute: {
+        routePath: "/decks/some-slug",
+        files: [
+            { rel: "routes/deck-detail.route.tsx" },
+            { rel: "components/lobby/deck-detail.tsx" },
+        ],
+    },
+    JoinRoute: {
+        routePath: "/join/abc123",
+        files: [
+            { rel: "components/join/join-game.tsx" },
+            { rel: "components/join/join-antechamber-shell.tsx" },
+            { rel: "components/ui/loading-screen.tsx" },
+        ],
+    },
+    LimitedEventsRoute: {
+        routePath: "/limited",
+        files: [
+            { rel: "components/limited/limited-events-page.tsx" },
+            { rel: "components/ui/loading-screen.tsx" },
+        ],
+    },
+    LimitedEventDetailRoute: {
+        routePath: "/limited/abc123",
+        files: [
+            { rel: "components/limited/limited-event-page-frame.tsx" },
+            { rel: "components/ui/loading-screen.tsx" },
+        ],
+    },
+    LimitedDeckBuilderRoute: {
+        routePath: "/limited/abc123/build",
+        files: [
+            {
+                rel: "components/deckbuilder/pool-deck-builder-form.tsx",
+                ownScroller: {
+                    at: "the `flex min-h-0 flex-1 flex-col overflow-y-auto` wrapper around the whole content column",
+                    why: "PR #2276 (issue #2275): the deficit is absorbed inside the route, with `SaveDeckBar` as a `shrink-0` sibling outside it.",
+                },
+            },
+            { rel: "components/ui/loading-screen.tsx" },
+        ],
+    },
+    AdminLayoutRoute: {
+        routePath: "/admin",
+        files: [{ rel: "components/ui/not-found-page.tsx" }],
+    },
+    AdminIndexRoute: {
+        routePath: "/admin",
+        files: [{ rel: "routes/admin/admin-index.route.tsx" }],
+    },
+    AdminScenariosRoute: {
+        routePath: "/admin/scenarios",
+        files: [{ rel: "components/admin/admin-page-frame.tsx" }],
+    },
+    AdminBanlistsRoute: {
+        routePath: "/admin/banlists",
+        files: [{ rel: "components/admin/admin-page-frame.tsx" }],
+    },
+    AdminPickRatingsRoute: {
+        routePath: "/admin/pick-ratings",
+        files: [{ rel: "components/admin/admin-page-frame.tsx" }],
+    },
+    AdminCardProfilesRoute: {
+        routePath: "/admin/card-profiles",
+        files: [{ rel: "components/admin/admin-page-frame.tsx" }],
+    },
+    DraftLabRoute: {
+        routePath: "/admin/draft-lab",
+        files: [{ rel: "routes/draft-lab.route.tsx" }],
+    },
+    DesignSystemRoute: {
+        routePath: "/admin/design-system",
+        files: [{ rel: "routes/design-system.route.tsx" }],
+    },
+    NotFoundPage: {
+        routePath: "/no-such-route",
+        files: [{ rel: "components/ui/not-found-page.tsx" }],
+    },
+    GameRoute: {
+        // The one route with no header band — `<main>` IS the viewport there.
+        routePath: "/game/abc123",
+        files: [
+            { rel: "routes/game.route.tsx" },
+            { rel: "components/board/waiting-for-opponent.tsx" },
+            { rel: "components/ui/loading-screen.tsx" },
+        ],
+    },
+};
+
+/**
+ * `router.tsx`'s root component is the SHELL, not a route root — it renders
+ * `<AppShell/>`, which is the thing every route root is laid out inside.
+ */
+const SHELL_COMPONENTS = new Set(["AuthGate"]);
+
+/** Every component `router.tsx` mounts as a route (or as the 404 fallback). */
+function routerComponents(): string[] {
+    const router = SOURCE_FILES.find((f) => f.rel === "router.tsx")!;
+    const names = new Set<string>();
+    for (const m of router.code.matchAll(
+        /(?:component|defaultNotFoundComponent):\s*(?:\(\)\s*=>\s*\(?\s*)?<?\s*([A-Z]\w*)/g
+    )) {
+        if (!SHELL_COMPONENTS.has(m[1])) names.add(m[1]);
+    }
+    return [...names].sort();
+}
+
+/** The `className` of a JSX opening tag, when it is a static string literal. */
+function staticClassName(tagText: string): string | null {
+    const m = /className=(?:"([^"]*)"|\{\s*"([^"]*)"\s*\})/.exec(tagText);
+    if (!m) return null;
+    return (m[1] ?? m[2]).replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Every JSX element a file `return`s — one per branch. Only blank lines may sit
+ * between the `return (` and its element, so a `return` of a non-JSX value is
+ * skipped rather than mis-attributed to the next tag in the file.
+ */
+function returnedRoots(source: string): JsxOpeningTag[] {
+    const lines = source.split("\n");
+    const tags = openingTags(source);
+    const roots: JsxOpeningTag[] = [];
+    lines.forEach((text, i) => {
+        const inline = /^\s*return\s+(<[\s\S]*)$/.exec(text);
+        if (inline) {
+            const tag = tags.find((t) => t.line === i + 1);
+            if (tag) roots.push(tag);
+            return;
+        }
+        if (!/^\s*return\s*\(\s*$/.test(text)) return;
+        const next = tags.find((t) => t.line > i + 1);
+        if (!next) return;
+        // Everything between must be blank (comments are already stripped).
+        const gap = lines.slice(i + 1, next.line - 1);
+        if (gap.some((l) => l.trim() !== "")) return;
+        roots.push(next);
+    });
+    return roots;
+}
+
+describe("every route root reaches its own bottom, at every desktop height (issue #2274)", () => {
+    it("the route-root registry covers every component router.tsx mounts", () => {
+        expect(Object.keys(ROUTE_ROOTS).sort()).toEqual(routerComponents());
+    });
+
+    it("every registered root file exists and returns at least one element with a static className", () => {
+        for (const [component, entry] of Object.entries(ROUTE_ROOTS)) {
+            for (const file of entry.files) {
+                const src = SOURCE_FILES.find((f) => f.rel === file.rel);
+                expect(src, `${component}: ${file.rel} not found`).toBeTruthy();
+                const withClass = returnedRoots(src!.code).filter((t) =>
+                    staticClassName(t.text)
+                );
+                expect(
+                    withClass.length,
+                    `${component}: ${file.rel} yields no returned element with a static className — the census below would silently cover nothing`
+                ).toBeGreaterThan(0);
+            }
+        }
+    });
+
+    it.each(DESKTOP_HEIGHTS_PX)(
+        "at %ipx: no route root clips its content, and every one of them reaches its bottom",
+        (viewportHeightPx) => {
+            for (const [component, entry] of Object.entries(ROUTE_ROOTS)) {
+                const headerBandHeightPx = shellShowsHeader(entry.routePath)
+                    ? SHELL_HEADER_BAND_PX
+                    : 0;
+                for (const file of entry.files) {
+                    const src = SOURCE_FILES.find((f) => f.rel === file.rel)!;
+                    for (const root of returnedRoots(src.code)) {
+                        const className = staticClassName(root.text);
+                        if (className === null) continue;
+                        const claim = deriveHeightClaim(
+                            className,
+                            TALL_CONTENT_PX,
+                            { hasOwnScroller: file.ownScroller !== undefined }
+                        );
+                        const layout = resolveShellLayout(
+                            SHELL,
+                            { viewportHeightPx, headerBandHeightPx },
+                            claim
+                        );
+                        const where = `${component} → ${file.rel}:${root.line} (${className})`;
+                        expect(
+                            layout.clippedPx,
+                            `${where} CLIPS ${layout.clippedPx}px — a hard box that hides its overflow, with no scroller anywhere. Give the route a page-level scroller, drop the height claim to a floor (\`min-h-full\`), or declare its own whole-column scroller.`
+                        ).toBe(0);
+                        expect(
+                            layout.bottomReachable,
+                            `${where} cannot be scrolled to its own bottom at ${viewportHeightPx}px`
+                        ).toBe(true);
+                    }
+                }
+            }
+        }
+    );
+
+    it("a declared `ownScroller` really exists in that file — the premise is read from source, not asserted", () => {
+        for (const [component, entry] of Object.entries(ROUTE_ROOTS)) {
+            for (const file of entry.files) {
+                if (!file.ownScroller) continue;
+                const src = SOURCE_FILES.find((f) => f.rel === file.rel)!;
+                const scrollers = openingTags(src.code).filter((t) =>
+                    isScroller(t.text)
+                );
+                expect(
+                    scrollers.length,
+                    `${component}: ${file.rel} declares an own scroller (${file.ownScroller.at}) but contains none`
+                ).toBeGreaterThan(0);
+                expect(file.ownScroller.why.length).toBeGreaterThan(20);
+            }
         }
     });
 });
