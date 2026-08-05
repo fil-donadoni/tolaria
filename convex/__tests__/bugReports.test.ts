@@ -15,7 +15,6 @@ describe("buildIssuePayload (bug-report button)", () => {
     it("derives the title from the first line of the description", () => {
         const { title } = buildIssuePayload({
             name: "Ada",
-            email: "ada@example.com",
             description: "Board freezes on attack\nmore detail below",
         });
         expect(title).toBe("[Bug] Board freezes on attack");
@@ -25,7 +24,6 @@ describe("buildIssuePayload (bug-report button)", () => {
         const line = "x".repeat(200);
         const { title } = buildIssuePayload({
             name: "",
-            email: "",
             description: line,
         });
         expect(title).toBe(`[Bug] ${"x".repeat(120)}`);
@@ -34,7 +32,6 @@ describe("buildIssuePayload (bug-report button)", () => {
     it("falls back to a generic title when the first line is empty", () => {
         const { title } = buildIssuePayload({
             name: "Ada",
-            email: "ada@example.com",
             description: "   \nactual text",
         });
         // Leading whitespace is trimmed, so the description starts at "actual
@@ -45,55 +42,51 @@ describe("buildIssuePayload (bug-report button)", () => {
     it("puts the reporter, route and user agent in the body footer", () => {
         const { body } = buildIssuePayload({
             name: "Ada",
-            email: "ada@example.com",
             description: "It broke",
             route: "/game",
             userAgent: "Mozilla/5.0",
         });
         expect(body).toContain("It broke");
-        expect(body).toContain("**Reporter:** Ada (ada@example.com)");
+        expect(body).toContain("**Reporter:** Ada");
         expect(body).toContain("**Route:** `/game`");
         expect(body).toContain("**User agent:** Mozilla/5.0");
     });
 
-    it("defaults name/email to Anonymous/n/a when blank", () => {
+    it("defaults the name to Anonymous when blank", () => {
         const { body } = buildIssuePayload({
             name: "   ",
-            email: "",
             description: "hi",
         });
-        expect(body).toContain("**Reporter:** Anonymous (n/a)");
+        expect(body).toContain("**Reporter:** Anonymous");
     });
 
-    it("embeds an attachment link only when a URL is provided", () => {
+    it("names an attachment without linking to it", () => {
         const withFile = buildIssuePayload({
             name: "Ada",
-            email: "a@b.c",
             description: "see screenshot",
-            attachmentUrl: "https://files.convex.dev/abc",
             attachmentName: "screen.png",
         });
-        expect(withFile.body).toContain(
-            "**Attachment:** [screen.png](https://files.convex.dev/abc)"
-        );
+        expect(withFile.body).toContain("**Attachment:** `screen.png`");
+        // A screenshot of a board shows a hand — the file stays on the report
+        // row, so the body names it and links nothing.
+        expect(withFile.body).not.toContain("http");
 
         const noFile = buildIssuePayload({
             name: "Ada",
-            email: "a@b.c",
             description: "no file",
         });
         expect(noFile.body).not.toContain("**Attachment:**");
     });
 
-    it("labels the attachment 'attachment' when no name is given", () => {
+    it("prints the report id and how to read it", () => {
         const { body } = buildIssuePayload({
             name: "Ada",
-            email: "a@b.c",
             description: "x",
-            attachmentUrl: "https://files.convex.dev/abc",
+            reportId: "k57xyz",
         });
+        expect(body).toContain("**Report:** `k57xyz`");
         expect(body).toContain(
-            "**Attachment:** [attachment](https://files.convex.dev/abc)"
+            `bunx convex run bugReports:getReport '{"reportId":"k57xyz"}' --prod`
         );
     });
 
@@ -101,7 +94,6 @@ describe("buildIssuePayload (bug-report button)", () => {
         expect(() =>
             buildIssuePayload({
                 name: "Ada",
-                email: "a@b.c",
                 description: "  ",
             })
         ).toThrow("Description is required");
@@ -111,7 +103,6 @@ describe("buildIssuePayload (bug-report button)", () => {
         expect(() =>
             buildIssuePayload({
                 name: "Ada",
-                email: "a@b.c",
                 description: "x".repeat(8001),
             })
         ).toThrow(/too long/);
@@ -201,18 +192,25 @@ describe("buildGameStateSection (bug-report game snapshot)", () => {
         expect(section).toContain("priority: p2");
     });
 
-    it("embeds the state as parseable JSON in a collapsed block", () => {
-        const state = makeSnapshotState();
+    // The tracker repo is PUBLIC and a game is often still in progress when the
+    // report is filed, so the section is a summary of the position and never
+    // the position itself. The state lives on the `bugReports` row.
+    it("never emits the state itself, only facts about it", () => {
         const section = buildGameStateSection({
             gameId: "g",
             seq: 1,
-            state,
+            state: makeSnapshotState({
+                players: [
+                    { id: "p1", hand: ["Black Lotus"], library: ["Ancestral"] },
+                    { id: "p2", hand: ["Mox Jet"], library: ["Time Walk"] },
+                ],
+            }),
         });
-        expect(section).toContain(
-            "<details><summary>Game state (JSON)</summary>"
-        );
-        const json = section.split("```json\n")[1]!.split("\n```")[0]!;
-        expect(JSON.parse(json)).toEqual(state);
+        expect(section).not.toContain("Black Lotus");
+        expect(section).not.toContain("Ancestral");
+        expect(section).not.toContain("hand");
+        expect(section).not.toContain("library");
+        expect(section).not.toContain("```");
     });
 
     it("names the owed input in the header when the game is parked", () => {
@@ -235,17 +233,16 @@ describe("buildGameStateSection (bug-report game snapshot)", () => {
         expect(section).not.toContain("**Owed input:**");
     });
 
-    // GitHub rejects a body over 65536 chars, and a rejected POST loses the
-    // report itself. Dropping the JSON whole (never truncating it, which would
-    // read as complete but parse as garbage) keeps the header and the report.
-    it("drops an oversized state instead of truncating it", () => {
+    // The section is bounded by construction (a fixed set of facts), so a huge
+    // state cannot push the issue body past GitHub's 65536-char limit and lose
+    // the report — the size cap the JSON-in-body version needed is gone with it.
+    it("stays small regardless of how large the state is", () => {
         const section = buildGameStateSection({
             gameId: "g",
             seq: 1,
-            state: makeSnapshotState({ bloat: "x".repeat(60000) }),
+            state: makeSnapshotState({ bloat: "x".repeat(200000) }),
         });
-        expect(section).toContain("Game state omitted");
-        expect(section).not.toContain("```json");
+        expect(section.length).toBeLessThan(500);
         expect(section).toContain("turn 6");
     });
 });
@@ -283,7 +280,6 @@ describe("buildIssuePayload — game section", () => {
     it("includes the game section when one is supplied", () => {
         const { body } = buildIssuePayload({
             name: "Ada",
-            email: "a@b.c",
             description: "bot hangs",
             gameSection: "**Game:** `g` · seq 3",
         });
@@ -293,9 +289,53 @@ describe("buildIssuePayload — game section", () => {
     it("omits it entirely for a report filed outside a game", () => {
         const { body } = buildIssuePayload({
             name: "Ada",
-            email: "a@b.c",
             description: "lobby is broken",
         });
         expect(body).not.toContain("**Game:**");
+    });
+});
+
+// The public/private line is enforced by the builder's SIGNATURE, not by a
+// reviewer remembering it: `IssueInput` has no email, no attachment URL and no
+// state field, so there is nothing for a template edit to leak. This block
+// pins the property from the caller's side — if any of those ever come back as
+// a field, one of these goes red.
+describe("buildIssuePayload — public-repo boundary", () => {
+    it("carries no reporter email", () => {
+        const { body } = buildIssuePayload({
+            name: "Gaulun",
+            description: "Oppo continua a pensare e non si sblocca",
+            route: "/game",
+            attachmentName: "board.png",
+            gameSection: "**Game:** `g` · seq 3",
+            reportId: "k57xyz",
+        });
+        expect(body).not.toContain("@");
+    });
+
+    it("carries no link to the attachment blob", () => {
+        const { body } = buildIssuePayload({
+            name: "Gaulun",
+            description: "screenshot attached",
+            attachmentName: "board.png",
+            reportId: "k57xyz",
+        });
+        expect(body).toContain("board.png");
+        expect(body).not.toContain("http");
+    });
+
+    it("is bounded in size — a report can never be lost to GitHub's body limit", () => {
+        const { body } = buildIssuePayload({
+            name: "Gaulun",
+            description: "x".repeat(8000),
+            userAgent: "Mozilla/5.0",
+            gameSection: buildGameStateSection({
+                gameId: "g",
+                seq: 1,
+                state: makeSnapshotState({ bloat: "x".repeat(200000) }),
+            }),
+            reportId: "k57xyz",
+        });
+        expect(body.length).toBeLessThan(65536);
     });
 });

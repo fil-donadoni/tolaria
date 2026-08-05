@@ -1,6 +1,12 @@
 import { ConvexError, v } from "convex/values";
-import { action, internalQuery, mutation } from "./_generated/server";
+import {
+    action,
+    internalMutation,
+    internalQuery,
+    mutation,
+} from "./_generated/server";
 import { internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 import { getCurrentUserId } from "./auth";
 import { expandState } from "./gre/serialize";
 
@@ -13,11 +19,20 @@ import { expandState } from "./gre/serialize";
 // and embedded in the issue body as a link — the GitHub REST API cannot attach
 // binary files to an issue directly.
 //
-// A report filed FROM a game also carries that game's state (issue #1728). Most
+// Every report is ALSO persisted to the `bugReports` table, and the split
+// between that row and the issue is one line: **the tracker repo is public.**
+//
+// - The ROW holds the evidence: the reporter's email (the only way to ask a
+//   follow-up question), the full game state, and the attachment.
+// - The ISSUE holds the work item: the description, the non-sensitive board
+//   context (turn / phase / who has priority / what input is owed) and the
+//   row's id.
+//
+// A report filed FROM a game captures that game's state (issue #1728). Most
 // in-app reports are about something happening on the board right now, and the
 // free-text description is almost never enough to act on: #1728 was "Oppo
 // continua a pensare e non si sblocca" and nothing else — no card, no phase, no
-// game id — which is exactly the information the state row already holds. The
+// game id — which is exactly the information the state row already held. The
 // snapshot is read SERVER-SIDE from `gameStates` (the client passes only a
 // `gameId`, and only a participant of that game can read it), so a report can
 // neither forge a state nor harvest someone else's.
@@ -26,23 +41,16 @@ const REPO = "fil-donadoni/tolaria";
 const TRIAGE_LABEL = "needs-triage";
 const DESCRIPTION_MAX = 8000;
 
-/** Cap on the minified state JSON embedded in the issue body. A `gameStates`
- *  row measures 3–9 KB compact and expands to well under this, so the cap is a
- *  backstop, not the normal path: GitHub rejects an issue body over 65536
- *  characters, and a rejected POST would lose the whole report — including the
- *  user's own words — over an attachment they never asked for. Over the cap the
- *  state is dropped and the omission is stated in the body. */
-const GAME_STATE_JSON_MAX = 50000;
-
 export type IssueInput = {
     name: string;
-    email: string;
     description: string;
     route?: string;
     userAgent?: string;
-    attachmentUrl?: string | null;
     attachmentName?: string;
     gameSection?: string | null;
+    /** `bugReports` row id, printed in the issue so a maintainer can pull the
+     *  evidence the issue deliberately does not carry. */
+    reportId?: string;
 };
 
 /** The `gameStates` row for a report, already expanded to a real `GameState`.
@@ -80,15 +88,13 @@ export function describeOwedInput(state: Record<string, unknown>): string[] {
 }
 
 /**
- * Pure renderer for the game-state section of the issue body. Emits a
- * human-readable header (what a maintainer needs to know at a glance) followed
- * by the full state as minified JSON inside a collapsed `<details>` — collapsed
- * so several KB of JSON does not bury the reporter's own description, and
- * fenced as `json` so the agent that later triages the issue can lift it out
- * without guessing where it starts.
+ * Pure renderer for the board-context lines of the issue body.
  *
- * Over `GAME_STATE_JSON_MAX` the JSON is dropped and the omission is stated:
- * silently truncating it would produce invalid JSON that reads as complete.
+ * Deliberately a SUMMARY and not the state itself. Turn, phase, whose priority
+ * it is and which container is owed input are public facts about a position —
+ * they are what makes a one-sentence report triageable, and they say nothing
+ * about either player's hidden zones. The state that answers "and then what
+ * happened" lives on the `bugReports` row, off the public tracker.
  */
 export function buildGameStateSection(snapshot: GameSnapshot): string {
     const { state } = snapshot;
@@ -105,25 +111,6 @@ export function buildGameStateSection(snapshot: GameSnapshot): string {
     const owed = describeOwedInput(state);
     if (owed.length > 0) lines.push(`**Owed input:** ${owed.join(", ")}`);
 
-    const json = JSON.stringify(state);
-    if (json.length > GAME_STATE_JSON_MAX) {
-        lines.push(
-            "",
-            `_Game state omitted: ${json.length} characters exceeds the ${GAME_STATE_JSON_MAX}-character cap._`
-        );
-        return lines.join("\n");
-    }
-
-    lines.push(
-        "",
-        "<details><summary>Game state (JSON)</summary>",
-        "",
-        "```json",
-        json,
-        "```",
-        "",
-        "</details>"
-    );
     return lines.join("\n");
 }
 
@@ -131,9 +118,14 @@ export function buildGameStateSection(snapshot: GameSnapshot): string {
  * Pure GitHub-issue payload builder — kept free of Convex/network so it can be
  * unit-tested directly (the project has no convex-test harness). Derives the
  * title from the first line of the description and appends a reporter/context
- * footer plus an optional attachment link. Throws `ConvexError` on an
- * empty/oversized description — a plain `Error` message is stripped by Convex
- * in production and reaches the client as a bare "Server Error".
+ * footer. Throws `ConvexError` on an empty/oversized description — a plain
+ * `Error` message is stripped by Convex in production and reaches the client as
+ * a bare "Server Error".
+ *
+ * This function is where the public/private line is DRAWN, so it takes no
+ * email, no state and no attachment URL: a field that never reaches the builder
+ * cannot be leaked by a later edit to the template. What it emits instead is
+ * the report id, which is how a maintainer reaches all three.
  */
 export function buildIssuePayload(input: IssueInput): {
     title: string;
@@ -148,7 +140,6 @@ export function buildIssuePayload(input: IssueInput): {
     }
 
     const name = input.name.trim() || "Anonymous";
-    const email = input.email.trim() || "n/a";
 
     // First line of the description seeds the issue title (trimmed to a sane
     // length); fall back to a generic title for an empty first line.
@@ -157,21 +148,27 @@ export function buildIssuePayload(input: IssueInput): {
         ? `[Bug] ${firstLine.slice(0, 120)}`
         : "[Bug] In-app report";
 
-    const bodyLines = [
-        description,
-        "",
-        "---",
-        `**Reporter:** ${name} (${email})`,
-    ];
+    const bodyLines = [description, "", "---", `**Reporter:** ${name}`];
     if (input.route) bodyLines.push(`**Route:** \`${input.route}\``);
     if (input.userAgent) {
         bodyLines.push(`**User agent:** ${input.userAgent}`);
     }
-    if (input.attachmentUrl) {
-        const label = input.attachmentName ?? "attachment";
-        bodyLines.push(`**Attachment:** [${label}](${input.attachmentUrl})`);
+    // The file itself stays on the report row: a screenshot of a board shows a
+    // hand. Name it so a maintainer knows there is one to fetch.
+    if (input.attachmentName) {
+        bodyLines.push(`**Attachment:** \`${input.attachmentName}\``);
     }
     if (input.gameSection) bodyLines.push("", input.gameSection);
+    if (input.reportId) {
+        bodyLines.push(
+            "",
+            `**Report:** \`${input.reportId}\` — email, attachment and full game state are on the report row, not here (public repo). Read it with:`,
+            "",
+            "```",
+            `bunx convex run bugReports:getReport '{"reportId":"${input.reportId}"}' --prod`,
+            "```"
+        );
+    }
     bodyLines.push("", "_Filed from the in-app bug-report button._");
 
     return { title, body: bodyLines.join("\n") };
@@ -212,9 +209,12 @@ export function isGameParticipant(
  * caller is `submitBugReport` — but it still authorises independently: an
  * action propagates the caller's identity into `ctx.runQuery`, and this query
  * is the one place that decides whether the caller may read this game. The
- * client supplies a `gameId` it cannot be trusted with, and the issue this
- * feeds is filed on a PUBLIC repo, so a missing check here would let anyone
- * publish any game's hidden zones by filing a report against its id.
+ * client supplies a `gameId` it cannot be trusted with; without this check
+ * anyone could pull an arbitrary game's state into a report of their own — and
+ * publish its board context to the public tracker — by filing against its id.
+ * The state no longer reaches the issue body, which narrows the blast radius
+ * but does not remove it: the check is the thing that makes `gameId` safe to
+ * accept from a client at all.
  *
  * Returns `null` — never throws — for a missing game, a non-participant or a
  * game with no state row yet (waiting/pregame). A bug report must still be
@@ -257,6 +257,105 @@ export const getGameSnapshotForReport = internalQuery({
 });
 
 /**
+ * Persists the report BEFORE the issue is filed. Order is deliberate: the row
+ * is the report, the issue is a view of it, and a GitHub outage (or a revoked
+ * token) must cost us the issue and never the user's words. It also means the
+ * row id exists in time to be printed in the issue body.
+ *
+ * `userId` comes from the caller's identity, not from the client-supplied
+ * name/email — those are display values a reporter may edit freely in the
+ * dialog, so they identify a person to contact, not an account.
+ */
+export const createReportRow = internalMutation({
+    args: {
+        name: v.string(),
+        email: v.string(),
+        description: v.string(),
+        route: v.optional(v.string()),
+        userAgent: v.optional(v.string()),
+        attachmentId: v.optional(v.id("_storage")),
+        attachmentName: v.optional(v.string()),
+        gameId: v.optional(v.id("games")),
+        seq: v.optional(v.number()),
+        state: v.optional(v.any()),
+    },
+    returns: v.id("bugReports"),
+    handler: async (ctx, args) => {
+        const userId = await getCurrentUserId(ctx);
+        return await ctx.db.insert("bugReports", { ...args, userId });
+    },
+});
+
+/** Back-links the filed issue onto its report row. Separate from the insert
+ *  because the issue number only exists after the POST returns. */
+export const attachIssueRef = internalMutation({
+    args: {
+        reportId: v.id("bugReports"),
+        issueNumber: v.optional(v.number()),
+        issueUrl: v.string(),
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        const { reportId, ...ref } = args;
+        await ctx.db.patch(reportId, ref);
+        return null;
+    },
+});
+
+/**
+ * Reads back everything the issue deliberately withholds — email, attachment,
+ * full game state. `internalQuery`, so it is reachable only from the server or
+ * from an operator holding the deployment's admin key
+ * (`bunx convex run bugReports:getReport … --prod`), never from a client.
+ *
+ * The attachment is returned as a freshly-resolved storage URL rather than a
+ * stored one: the stored form is an id, and minting the link at read time
+ * keeps the only public-ish URL out of the DB as well as out of the issue.
+ */
+export const getReport = internalQuery({
+    args: { reportId: v.id("bugReports") },
+    returns: v.union(
+        v.null(),
+        v.object({
+            name: v.string(),
+            email: v.string(),
+            description: v.string(),
+            route: v.optional(v.string()),
+            userAgent: v.optional(v.string()),
+            attachmentName: v.optional(v.string()),
+            attachmentUrl: v.union(v.string(), v.null()),
+            gameId: v.optional(v.id("games")),
+            seq: v.optional(v.number()),
+            state: v.optional(v.any()),
+            issueNumber: v.optional(v.number()),
+            issueUrl: v.optional(v.string()),
+            filedAt: v.number(),
+        })
+    ),
+    handler: async (ctx, args) => {
+        const row = await ctx.db.get(args.reportId);
+        if (!row) return null;
+        return {
+            name: row.name,
+            email: row.email,
+            description: row.description,
+            route: row.route,
+            userAgent: row.userAgent,
+            attachmentName: row.attachmentName,
+            attachmentUrl: row.attachmentId
+                ? await ctx.storage.getUrl(row.attachmentId)
+                : null,
+            gameId: row.gameId,
+            seq: row.seq,
+            state: row.state,
+            issueNumber: row.issueNumber,
+            issueUrl: row.issueUrl,
+            filedAt: row._creationTime,
+        };
+    },
+});
+
+/**
  * Files a GitHub issue from a bug report. Runs as an action because it performs
  * a network `fetch` to the GitHub REST API — mutations cannot. Returns the
  * created issue URL on success; throws with a readable message on failure so
@@ -290,11 +389,6 @@ export const submitBugReport = action({
             );
         }
 
-        // Resolve the optional attachment to a public URL for the issue body.
-        const attachmentUrl = args.attachmentId
-            ? await ctx.storage.getUrl(args.attachmentId)
-            : null;
-
         // The snapshot is best-effort: a report filed from the lobby has no
         // gameId, and a game that has not started has no state row. Neither is
         // a reason to fail the report.
@@ -304,15 +398,30 @@ export const submitBugReport = action({
               })
             : null;
 
+        const reportId: Id<"bugReports"> = await ctx.runMutation(
+            internal.bugReports.createReportRow,
+            {
+                name: args.name,
+                email: args.email,
+                description: args.description,
+                route: args.route,
+                userAgent: args.userAgent,
+                attachmentId: args.attachmentId,
+                attachmentName: args.attachmentName,
+                gameId: args.gameId,
+                seq: snapshot?.seq,
+                state: snapshot?.state,
+            }
+        );
+
         const { title, body } = buildIssuePayload({
             name: args.name,
-            email: args.email,
             description: args.description,
             route: args.route,
             userAgent: args.userAgent,
-            attachmentUrl,
             attachmentName: args.attachmentName,
             gameSection: snapshot ? buildGameStateSection(snapshot) : null,
+            reportId,
         });
 
         const res = await fetch(`https://api.github.com/repos/${REPO}/issues`, {
@@ -334,10 +443,18 @@ export const submitBugReport = action({
             );
         }
 
-        const issue = (await res.json()) as { html_url?: string };
+        const issue = (await res.json()) as {
+            html_url?: string;
+            number?: number;
+        };
         if (!issue.html_url) {
             throw new ConvexError("GitHub API returned no issue URL");
         }
+        await ctx.runMutation(internal.bugReports.attachIssueRef, {
+            reportId,
+            issueNumber: issue.number,
+            issueUrl: issue.html_url,
+        });
         return { issueUrl: issue.html_url };
     },
 });
