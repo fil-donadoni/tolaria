@@ -1,7 +1,8 @@
 ---
 title: indefiniteSubtypeSet is never persisted, so an indefinite subtype set becomes permanent across a DB round-trip
 discoveredBy: 1705
-status: draft
+status: triaged
+issue: 2253
 confidence: high
 ---
 

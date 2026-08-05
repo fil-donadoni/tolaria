@@ -1,8 +1,14 @@
 ---
 title: a targeted keyword-remove is not re-evaluated against a new face that gains the keyword for the first time
 discoveredBy: 1705
-status: draft
+status: declined
 confidence: medium
+declinedReason: >
+    Not defensible without the ticket that surfaced it — unreachable today (no
+    CardDefinition in the catalogue carries a backFace), and the fix is not a
+    patch but re-deriving layer-6 predicates against new characteristics, which
+    PRD #2064 / ADR 0082 does by construction. Recorded as a line on #2064
+    instead of a ticket.
 ---
 
 **What is wrong.** #1705's replay (`convex/gre/identitySwap.ts`) rebuilds a permanent's
