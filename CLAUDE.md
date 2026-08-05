@@ -345,6 +345,19 @@ rather than assuming it's deferred — most mechanics are now supported.
 
 Issues live in GitHub Issues for `fil-donadoni/tolaria`. Use the `gh` CLI. See `docs/agents/issue-tracker.md`.
 
+### Findings drawer (pre-triage)
+
+`docs/findings/` holds what a subagent **noticed but was not asked to fix** —
+one tracked markdown file per observation, landing with the PR that discovered
+it. Read them with `bun run findings`; format in `docs/findings/README.md`.
+
+A subagent writes the **draft** and never the issue. The loop drains the
+`ready-for-agent` queue and never fills it: an agent that files its own work
+removes the one place a human sets direction. The existing bar still decides
+what graduates — a gap earns its own issue only if it is defensible **without**
+the card or ticket that surfaced it; everything else is a line on an existing
+tracker, or `declined` with a reason.
+
 ### Triage labels
 
 Five canonical roles, default names (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
