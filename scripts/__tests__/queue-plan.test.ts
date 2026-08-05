@@ -3,6 +3,10 @@ import * as fs from "fs";
 import * as path from "path";
 import {
     planBatch,
+    pathsOverlap,
+    normalizePath,
+    isAppendOnlyPath,
+    EVERYTHING,
     type BatchPlan,
     type IssueDetail,
     type PlanConfig,
@@ -684,5 +688,95 @@ describe("queue planner — determinism and cost (issue #2181)", () => {
         // Four admitted, so four bodies. A planner that pulled the whole queue
         // would be at 40 — the exact cost two-stage selection exists to avoid.
         expect(port.calls).toEqual([100, 101, 102, 103]);
+    });
+});
+
+describe("a broad declaration must not exempt itself from disjointness (live-queue defect)", () => {
+    /**
+     * The append-only exclusion asks "may I ignore this path when checking
+     * disjointness". It used symmetric containment, so a DIRECTORY that merely
+     * CONTAINS a registration point classified as append-only and vanished from
+     * `comparable` — `convex/gre/**` contains `convex/gre/serialize.ts`, so the
+     * whole engine directory was exempted and the issue read as conflict-free
+     * with everything.
+     *
+     * Observed on the live queue: two issues both editing `convex/gre/state.ts`
+     * landed in the same batch. That is the one wrong answer the fan-out cannot
+     * survive — two subagents in overlapping trees.
+     */
+    it("a directory containing a registration point is NOT append-only", () => {
+        expect(isAppendOnlyPath("convex/gre", "convex/gre/serialize.ts")).toBe(
+            false
+        );
+        expect(isAppendOnlyPath("convex", "convex/cards/index.ts")).toBe(false);
+    });
+
+    it("the registration point itself still is", () => {
+        // The direction that must keep working: without it every card-shipping
+        // batch serialises on `convex/cards/index.ts`.
+        expect(
+            isAppendOnlyPath("convex/cards/index.ts", "convex/cards/index.ts")
+        ).toBe(true);
+    });
+
+    it("keeps two engine issues out of the same batch when one declares a glob", () => {
+        const issues = [issue(100, {}), issue(200, {})];
+        const details = {
+            100: { body: body({ targetFiles: ["convex/gre/**"] }) },
+            200: { body: body({ targetFiles: ["convex/gre/state.ts"] }) },
+        };
+        const plan = planBatch(issues, CONFIG, makePort(details));
+        expect(numbers(plan)).toEqual([100]);
+    });
+});
+
+describe("`- *` means the whole repo", () => {
+    it("normalizes to the everything-matcher", () => {
+        // It survived every decoration strip and then collided with NOTHING,
+        // so an issue declaring the whole repo batched beside all of them.
+        expect(normalizePath("- `*`")).toBe(EVERYTHING);
+        expect(normalizePath("- **")).toBe(EVERYTHING);
+    });
+
+    it("collides with every path", () => {
+        expect(pathsOverlap(EVERYTHING, "convex/gre/state.ts")).toBe(true);
+        expect(pathsOverlap("src/components/Hand.tsx", EVERYTHING)).toBe(true);
+    });
+
+    it("closes the batch around itself", () => {
+        const issues = [issue(100, {}), issue(200, {})];
+        const details = {
+            100: { body: body({ targetFiles: ["*"] }) },
+            200: { body: body({ targetFiles: ["src/components/Hand.tsx"] }) },
+        };
+        expect(numbers(planBatch(issues, CONFIG, makePort(details)))).toEqual([
+            100,
+        ]);
+    });
+});
+
+describe("normal paths keep their existing behaviour", () => {
+    it("a glob still collides with a file underneath it", () => {
+        expect(
+            pathsOverlap(
+                normalizePath("src/components/**"),
+                normalizePath("src/components/Card.tsx")
+            )
+        ).toBe(true);
+    });
+
+    it("genuinely disjoint card files stay disjoint", () => {
+        expect(
+            pathsOverlap(
+                "convex/cards/sets/ice/white.ts",
+                "convex/cards/sets/leg/red.ts"
+            )
+        ).toBe(false);
+    });
+
+    it("a shared filename PREFIX is not containment", () => {
+        expect(
+            pathsOverlap("convex/gre/state.ts", "convex/gre/stateAdapter.ts")
+        ).toBe(false);
     });
 });

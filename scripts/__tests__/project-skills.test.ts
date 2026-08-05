@@ -335,3 +335,48 @@ describe("process-gh-issues is a frame plus on-demand references (issue #2190)",
         ).toEqual([]);
     });
 });
+
+describe("every queue-facing skill instructs `Target files`", () => {
+    const SKILLS = path.join(REPO_ROOT, ".claude", "skills");
+
+    /**
+     * Derived from CONTENT, not a hard-coded list: any skill that talks about
+     * the `ready-for-agent` queue or about opening a GitHub issue is one whose
+     * output the planner has to schedule. A hard-coded list stops covering
+     * whatever is written after it — the failure the hook-registration and
+     * ADR-index guards both had before they were re-keyed.
+     */
+    const queueFacing = (): string[] =>
+        fs
+            .readdirSync(SKILLS)
+            .filter((name) => {
+                const file = path.join(SKILLS, name, "SKILL.md");
+                if (!fs.existsSync(file)) return false;
+                return /ready-for-agent|open a github issue/i.test(
+                    fs.readFileSync(file, "utf8")
+                );
+            })
+            .sort();
+
+    it("finds a real corpus", () => {
+        expect(queueFacing().length).toBeGreaterThanOrEqual(4);
+    });
+
+    it("names the section in each of them", () => {
+        // An issue with no `Target files` gets an UNKNOWN blast radius, so the
+        // planner refuses to guess and runs it solo — closing the batch around
+        // it. Measured on the live queue: one such issue at the head deferred
+        // 162 others and collapsed a BATCH_CAP=4 fan-out to one. The cost is
+        // invisible from the issue itself, which is why it needs a guard.
+        const silent = queueFacing().filter(
+            (name) =>
+                !/target files/i.test(
+                    fs.readFileSync(path.join(SKILLS, name, "SKILL.md"), "utf8")
+                )
+        );
+        expect(
+            silent,
+            `queue-facing skill(s) that never mention \`Target files\`:\n${silent.join("\n")}`
+        ).toEqual([]);
+    });
+});

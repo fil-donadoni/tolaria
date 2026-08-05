@@ -282,6 +282,7 @@ placeholder (and an emblem trigger once crashed the stack row):
 - [ ] Frontend wiring walked (Step 7c): any affordability/target/instance-field the card adds is preserved through `buildTriggerStateView` / `projectPublicState`, and a new cost shape (if any) is added to the affordability catalogue sweep + gated in `getStackAbilities`
 - [ ] `data/card-index.json` refreshed via incremental `backfill-card-index.ts` (Step 8) — `bun run check:index` passes
 - [ ] If the card makes a token/emblem (Step 8b): `imagePrintId` wired (shared spec, lockfile refresh, or explicit) — `tokenPrintLookup.test.ts` / `emblemArt.test.ts` pass
+- [ ] **Any issue this skill opens carries a `## Target files` section** — a plain bullet list of the module/glob paths the work touches (for a card: its `convex/cards/sets/<code>/<colour>.ts`, plus any engine file a capability gap forces). It is scheduling metadata the queue planner parses (`scripts/lib/queue-plan.ts`), not spec: without it the planner refuses to guess the blast radius and runs the issue SOLO, closing the batch around it — measured at 162 issues deferred behind one such ticket. Omit append-only registration points (`convex/cards/index.ts`, `data/card-index.json`); the merge-train absorbs those by design. A WRONG path is worse than a missing one, so widen rather than guess.
 
 The deck builder's card list is computed in-memory from the colour-split set
 modules `convex/cards/sets/<code>/<colour>.ts` on every query call (see

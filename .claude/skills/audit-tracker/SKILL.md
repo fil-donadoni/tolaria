@@ -156,6 +156,17 @@ self-contained, because the tracker is about to be closed:
 - **Definition of done** — including the standing per-slice obligations
   (proof-of-failure on new tests, frontend wiring walked, debug scenario
   emitted in the PR receipt as `{ label, spec }`).
+- **`## Target files`** — MANDATORY, a plain bullet list of the module/glob
+  paths the slice touches, derived from the Sites table. This is not a
+  duplicate: the Sites table is prose for the implementer, `## Target files` is
+  **scheduling metadata** the queue planner parses (`scripts/lib/queue-plan.ts`)
+  to batch file-disjoint issues in parallel. Omit it and the planner refuses to
+  guess the blast radius, runs the issue SOLO, and closes the batch around it —
+  measured: a single such issue at the head of the queue deferred 162 others and
+  collapsed a `BATCH_CAP = 4` fan-out to one. Coarse is fine, `- *` when it
+  touches everything; omit append-only registration points. A WRONG path is
+  worse than a missing one (it makes two issues look disjoint when they are
+  not), so widen rather than guess.
 
 Label: `ready-for-agent` when the shape is settled, `needs-design` when Phase 5
 left a real fork. Add `model:opus` only for a ticket introducing a
