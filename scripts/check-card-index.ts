@@ -20,6 +20,15 @@
  * lockfile carries `firstPrintId` (resolved online by the backfill), so the
  * check stays offline: `scryfallId === firstPrintId` for every entry.
  *
+ * It SUBSUMES the two MTGJSON-based id guards ADR 0041 set out to replace
+ * (`check-scryfall-ids.mjs`, `card-id-scryfall.test.ts`, both now deleted):
+ * each read `data/json/<SET>.json` for a hardcoded handful of sets, so a card
+ * from an unvendored set was unguarded. An id that is not a real Scryfall print
+ * id — an invented UUID, or an oracle id — resolves to nothing at Scryfall, so
+ * the backfill never indexes it and it lands in `missing` here; an id that is a
+ * real print but the WRONG one fails the `firstPrintId` check below. Both,
+ * catalogue-wide, still offline.
+ *
  * This check is OFFLINE (registry ⇄ lockfile id set comparison) so it can live
  * in `check:all`. The FIX is online — regenerate from the registry:
  *
