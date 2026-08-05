@@ -20,6 +20,10 @@ _Avoid_: session
 A participant in a **Game**, identified by a **Player ID**. Has life total, **Zones**, and a **Mana Pool**.
 _Avoid_: User (that's the authenticated human; a user controls one or two players)
 
+**Opponent**:
+The other **Player** in a **Game**.
+_AKA_: Oppo
+
 **Turn**:
 One full cycle of **Phases** for the **Active Player**. Numbered sequentially from 1.
 _Avoid_: Round
@@ -786,15 +790,19 @@ A developer surface that runs a whole **Draft** in the browser and shows, for ev
 _Avoid_: Draft replay (that is one of its two modes), draft debugger, simulator (it is also a replay tool)
 
 **Draft**:
-The classic booster draft flow of a **Limited Event**: three **Boosters** per **Seat**; each round every seat **Picks** one card and passes the rest to the adjacent seat (left, then right, then left per booster). Picking is **synchronous**: seats pick in parallel, a passed pack queues at the receiving seat, and an optional per-pick timer (on/off only — when on, each pick within a pack gets progressively less time, following the official Wizards booster-draft schedule) fires an **Auto-Pick** on expiry so an absent human never freezes the table. **Bot Drafters** pick instantly.
+The classic booster draft flow of a **Limited Event**: three **Boosters** per **Seat**; each round every seat **Picks** one card and passes the rest to the adjacent seat (left, then right, then left per booster). Picking is **synchronous**: seats pick in parallel, a passed pack queues at the receiving seat, and an optional **Pick Timer** fires an **Auto-Pick** on expiry so an absent human never freezes the table. **Bot Drafters** pick instantly.
 _Avoid_: Rochester/Winston (other draft variants, out of scope for now)
 
 **Pick**:
 The act of a **Seat** taking exactly one card from the **Booster** currently in front of it during a **Draft**. Picked cards accumulate into the seat's **Pool**. Hidden information: a seat never sees another seat's picks.
 _Avoid_: Choice (that's the gameplay **Pending Choice**), selection
 
+**Pick Timer**:
+The optional per-**Pick** clock of a **Draft**: the span a human **Seat** has to take the **Booster** in front of it before an **Auto-Pick** is made for it. Configured on/off only for the whole **Limited Event** — its length is never chosen, it is a pure function of the **cards remaining** in the pack being picked from, descending through the official Wizards booster-draft schedule, so a short pack simply starts further down the same table. With one card left there is no choice to time and no Pick Timer runs. It is a **readout**, never an alarm: it reports how much of this Pick's span is left and never interrupts the **Seat** to demand a decision.
+_Avoid_: Draft timer (ambiguous with **Round Deadline**, which is per-**Round**), pick deadline (that's the instant it expires, not the clock), shot clock
+
 **Auto-Pick**:
-The **Pick** made on a human **Seat**'s behalf when its **Draft** timer expires. Resolves the seat's **Selected Card** if one is set; otherwise falls back to the **Pick Rating**/**Pick Heuristic** engine a **Bot Drafter** uses. Never randomly.
+The **Pick** made on a human **Seat**'s behalf when its **Pick Timer** expires. Resolves the seat's **Selected Card** if one is set; otherwise falls back to the **Pick Rating**/**Pick Heuristic** engine a **Bot Drafter** uses. Never randomly.
 _Avoid_: Random pick, skip
 
 **Selected Card**:
@@ -835,7 +843,7 @@ _Avoid_: Format (that's the deck-construction constraint set — a different con
 
 **Round Deadline**:
 The optional per-**Round** clock of a **Limited Event**, configured at creation as a duration in **minutes** (not an epoch — each Round stamps its own expiry when it opens) and range-checked server-side. When it expires, an undecided human **Pairing** is closed as a loss with source `timeout`. Absent means the event has no clock: a relaxed table is never cut short. It is also how a Seat that goes away is handled — there is no explicit drop.
-_Avoid_: Timer (that's the per-**Pick** draft clock), time limit
+_Avoid_: Timer, **Pick Timer** (that's the per-**Pick** clock), time limit
 
 **Bye**:
 A **Pairing** with only one **Seat** — the odd Seat out at a table with an odd count — awarded the match win, worth the games its **Match Format** requires, with source `bye`. At most one per Seat per event.
