@@ -1,68 +1,83 @@
 ---
-title: tappedFootprintWidth's widths[] reservation only guards a tapped permanent's RIGHT neighbour, not its left one
+title: Tapped permanents lose hover-tilt / hover-dwell / right-click / long-press preview while tapped (decoupled hit-target fix)
 discoveredBy: 1994
 status: draft
 confidence: medium
 ---
 
-**What is wrong.** The row layout (`rowLayout` / `splitRowLayout`,
-`src/lib/board-layout.ts`) reserves a tapped permanent's rotated footprint by
-widening ITS OWN `widths[]` entry (`tappedFootprintWidth`). That footprint
-grows rightward from the item's own (unrotated) box left edge — the exact
-convention `stackFootprintWidth` established for a fanned stack (issue #977),
-reused here rather than reinvented, per review guidance on PR #2279.
+**Superseded finding.** This file originally described a left-side click-
+stealing regression in the `widths[]`-reservation fix
+(`tappedFootprintWidth`, PR #2279 round 2). That mechanism was reverted
+wholesale in round 3 — reviewed and measured to make the reported bug WORSE,
+not better (an untapped fetchland's clickable area went from 408px² on
+`main` to 0px² on that branch; see `.claude/receipts/.../1994-review.json`
+round 2 for the full measurement). `tappedFootprintWidth` no longer exists in
+`src/lib/board-layout.ts`, so the geometry this file used to describe is
+moot. Replaced below with the residual cost of the mechanism that replaced
+it.
 
-But a rotated card's overhang is geometrically SYMMETRIC (24px on each side
-at the default 120px card width — `(CARD_HEIGHT − CARD_WIDTH) / 2`), while the
-`widths[]` reservation is asymmetric (rightward only). Concretely: item `i`'s
-box left edge is fixed at `leftEdge_i` regardless of item `i`'s own footprint
-entry — only item `i-1`'s footprint controls how far right `leftEdge_i` sits.
-So when item `i` is tapped, its rotated box's LEFT edge sits
-`(tappedFootprintWidth − cardWidth) / 2` px to the left of `leftEdge_i`
-(24px at default scale) — outside the reservation entirely, exactly the same
-amount it overhung BEFORE this fix.
+**What the current fix does.** `board-battlefield-card.tsx`'s `tapTransform`
+now rotates a separate, purely presentational `[data-tap-visual]` layer
+nested INSIDE the interactive `cardContent` box, which never itself rotates.
+While tapped, `[data-tap-visual]` is also given `pointer-events: none`, so
+its overhang can never be hit-tested — a click there falls through to
+whatever is genuinely painted underneath (typically a neighbour's own
+unrotated box) instead of the tapped card stealing it. This fixes the
+reported bug at both the row-compression level (no `widths[]` spend at all)
+and the paint-order level (both the left AND right overhang are now inert,
+not just the right one the reservation approach protected).
 
-In the default DOM stacking order (no explicit `zIndex` — the common case for
-a permanent with no attached aura/exile-held card, `board-battlefield.tsx`'s
-`hostHasAttachments`), a LATER item paints on top of an EARLIER one. So a
-tapped item's unprotected LEFT overhang can still visually/hit-test cover the
-permanent immediately before it in the row — which is the reported bug's
-literal shape ("a tapped land visually covering an untapped fetchland"),
-if the fetchland was played earlier (and so sits earlier in
-`player.battlefield`, hence earlier in the row) and the tapped mana land was
-played later.
+**What is (probably) wrong.** `pointer-events: none` disables ALL pointer
+interaction on that subtree, not just clicks. Two features that trigger via
+native/synthetic pointer listeners bound INSIDE that subtree stop firing for
+a TAPPED permanent specifically:
 
-The RIGHT side is fully protected by this fix (and slightly over-reserved):
-a tapped item's own widened footprint pushes the FOLLOWING item clear, which
-is what `board-battlefield-tapped-footprint.test.tsx` proves. The LEFT side
-is not — no test in this PR exercises that direction because doing so
-requires an ordering assumption (which item is later in `player.battlefield`)
-that the fix doesn't currently make.
+- `CardTilt3D`'s hover-tilt + moving glare (`card-tilt-3d.tsx`) — its
+  `onPointerMove`/`onPointerLeave` are on `[data-card-tilt-root]`, which
+  lives inside `inner`, i.e. inside `[data-tap-visual]`.
+- `CardPreview`'s hover-dwell zoom dock, right-click preview, and mobile
+  long-press preview (`card-preview.tsx`) — its `pointerenter`/`pointerleave`
+  /`pointerdown`/`contextmenu` listeners are bound (via raw
+  `addEventListener`, not React's synthetic system) on that SAME
+  `[data-card-tilt-root]` ancestor (`card-preview.tsx`'s own comment explains
+  why: `overflow-hidden` inside a `preserve-3d` context flattens the subtree,
+  so a real pointer event hit-tests to that ancestor, not to `CardPreview`'s
+  own container). The mobile long-press path is the one most relevant to the
+  ORIGINAL bug report (iPhone Safari) — a tapped permanent can no longer be
+  long-pressed to preview its text while tapped.
+
+Untapped permanents are completely unaffected (no transform, no
+`pointer-events` override) — this is scoped exactly to the tapped state.
 
 **Evidence.**
 
-- `src/lib/board-layout.ts` — `rowLayout`'s accumulator: `x = leftEdge + halfBox;
-leftEdge += w[i]*scale + onScreenGap;`. Item `i`'s box position depends on
-  `w[i-1]`, never `w[i]`.
-- `src/components/board/spatial-slot.tsx` — `zIndex: snap ? LIFTED_CARD_Z :
-zIndex`, and `zIndex` is only set by `board-battlefield.tsx`'s
-  `hostHasAttachments` check; a plain tapped land with no attached aura/exile
-  gets no explicit z-index, so DOM order (= row left-to-right order) decides
-  paint order, later-on-top.
+- `src/components/board/board-battlefield-card.tsx` — `[data-tap-visual]`'s
+  `pointerEvents: card.isTapped ? "none" : undefined`, wrapping `{inner}`
+  which contains `<CardTilt3D><CardImage .../></CardTilt3D>`.
+- `src/components/board/card-tilt-3d.tsx:105-110` — `onPointerMove`/
+  `onPointerLeave` bound on `[data-card-tilt-root]`, the outermost element of
+  `inner`.
+- `src/components/cards/card-preview.tsx:173-195,215-266` — both listener
+  `useEffect`s explicitly climb to `container.closest("[data-card-tilt-
+root]") ?? container` before calling `addEventListener`, so they bind on
+  the exact element that is now inside the inert layer while tapped.
+- The resulting preview UI itself (`card-preview-dock.tsx`,
+  `card-preview-anchored.tsx`) is unaffected once open — both are portalled
+  to `document.body`, outside `[data-tap-visual]`'s subtree — only the
+  TRIGGER (hover/right-click/long-press starting on the card) is blocked.
 
-**Why it may not deserve its own issue yet.** The review on #2279 explicitly
-asked for "a tapped permanent reserving cardHeight instead of cardWidth" —
-this fix does exactly that, following the #977 precedent literally, and it
-demonstrably fixes the DISCLOSED blocking regression (the undisclosed global
-shrink) which was the actual gate. Whether the residual left-side gap is a
-real, reproducible click-stealing bug in practice depends on battlefield
-ordering patterns this repo doesn't currently test or document (does a newer
-permanent reliably render after an older one in `player.battlefield`? for
-lands specifically, `backRowRank` only sorts lands-before-noncreature, not by
-play order) — that's design/behavioral research, not a one-line fix. A full
-symmetric fix would need either (a) a genuinely new reservation shape (extra
-margin BEFORE an item, which `widths[]`'s "grows rightward" convention
-doesn't express), or (b) centering the box within its reservation instead of
-left-flush (which would change `stackFootprintWidth`'s fan-anchor semantics
-too, since fans and taps would then need different anchor conventions on the
-same array). Either is a bigger design change than this fixup's scope.
+**Why it may not deserve its own issue yet.** This is a disclosed,
+accepted-in-the-PR trade-off (stated in `tapTransform`'s comment and the PR
+body), not a silent regression, and it is strictly smaller in blast radius
+than either rejected alternative (a 51%-area global shrink, or an
+unclickable neighbour). The primary reported symptom — a tapped permanent
+permanently hiding an interactive neighbour — is fixed. Whether losing
+hover/long-press preview SPECIFICALLY on tapped permanents (arguably the
+state where a player most wants to re-read a card, mid-combat) is worth
+restoring is a product call, and restoring it needs a real design: e.g. a
+coordinate-gated click/pointer handler on the always-interactive
+`cardContent` box (compare pointer coordinates against `cardContent`'s own
+unrotated `getBoundingClientRect()` and only honour the ones that ACTIVATE
+the card, while still forwarding a raw pointer-move to drive
+`CardTilt3D`/`CardPreview`'s effects imperatively) rather than a CSS-only
+fix — meaningfully more invasive than this fixup's scope.

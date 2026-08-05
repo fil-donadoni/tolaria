@@ -1,25 +1,39 @@
-// Issue #1994 (review on PR #2279): a tapped permanent's rotated box (7:5
-// after rotating a 5:7 portrait card 90°) is wider than its unrotated slot,
-// so an earlier fix shrunk the card back down to fit — undisclosed, and a
-// global visual regression (every tapped permanent 29% smaller on every
-// viewport). The replacement reserves the wider ROTATED footprint in the row
-// LAYOUT instead (`tappedFootprintWidth`, `board-layout.ts`), so tapping a
-// permanent reflows its row rather than shrinking the card.
+// Issue #1994 (PR #2279, review round 2): a tapped permanent's rotated box
+// (7:5 after rotating a 5:7 portrait card 90°) is wider than its unrotated
+// slot. Two fixes were tried and rejected before this one:
 //
-// `board-layout.test.ts` proves the pure math (`tappedFootprintWidth`,
-// `rowLayout`'s reservation). This file proves `BoardBattlefield` actually
-// WIRES that math into its per-item `widths[]` — the same class of gap
-// `board-battlefield-landscape-footprint.test.tsx` closed for the compact
-// card metrics (a prop threaded through but never consumed passes every
-// other test in the suite). Drives the REAL `BoardBattlefield` →
-// `SpatialZone` → `SpatialSlot` chain and reads the rendered slot transform
-// (`spatial-slot.tsx` — the literal resolved placement, never a mid-tween
-// value), same technique as that file.
+//   1. Scale the rotated box back down to fit the slot — shrank EVERY tapped
+//      permanent 29% smaller (51% area) on every viewport, undisclosed.
+//   2. Reserve the wider rotated footprint in the ROW LAYOUT
+//      (`tappedFootprintWidth`, since removed from `board-layout.ts`) — this
+//      was MEASURED (browser `elementFromPoint`, real BoardBattlefield DOM,
+//      round-2 review) to make the reported bug WORSE: it protected the
+//      harmless right-side overhang (slots paint in DOM order, so only the
+//      LEFT overhang ever steals a click) and, on a phone already in the
+//      overlap regime, `widths[]` inflation shrank the row's one shared
+//      inter-item gap for EVERY card — an untapped fetchland's clickable
+//      area went from 408px² on `main` to 0px² on that branch.
+//
+// The current fix (`board-battlefield-card.tsx`'s `tapTransform` /
+// `data-tap-visual`) spends NO row width at all: the rotation is purely
+// presentational and `pointer-events: none` while tapped, so the row layout
+// is completely blind to tap state — this file's first `describe` block
+// proves that blindness end-to-end (regression guard: if someone re-adds a
+// tap-aware reservation, `land-b`'s position moves and this goes red).
+//
+// `board-battlefield-card.test.tsx` proves `data-tap-visual`'s
+// transform/pointer-events in isolation (a single card, hand-built props).
+// This file proves `BoardBattlefield` actually WIRES a real battlefield's
+// `isTapped` flag through the REAL `BoardBattlefield` → `SpatialZone` →
+// `SpatialSlot` → `BoardBattlefieldCard` chain to that same DOM shape — the
+// same class of gap `board-battlefield-landscape-footprint.test.tsx` closed
+// for the compact card metrics (a prop threaded through but never consumed
+// passes every other test in the suite).
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 import type { CardInstance, Player } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
-import { CARD_WIDTH, tappedFootprintWidth } from "~/lib/board-layout";
+import { CARD_WIDTH } from "~/lib/board-layout";
 
 // Wide enough that both lands lay out in the "fit" regime (scale 1, full
 // gap) — the geometry below is then exact, not shrunk by an unrelated
@@ -137,38 +151,49 @@ function xOf(slotId: string): number {
 
 beforeEach(cleanup);
 
-describe("BoardBattlefield reserves a tapped permanent's rotated footprint in the row (#1994)", () => {
-    it("pushes the NEXT land further right when the FIRST land is tapped, by exactly the extra rotated footprint", () => {
-        // Baseline: both untapped — normal one-card-width spacing.
+describe("BoardBattlefield row layout is blind to tap state (#1994 round 2)", () => {
+    it("places the NEXT land at the EXACT SAME x whether the first land is tapped or not", () => {
         renderBattlefield([
             land("land-a", "forest-def", false),
             land("land-b", "island-def", false),
         ]);
-        const baselineGap = xOf("land-b") - xOf("land-a");
+        const baselineX = xOf("land-b");
         cleanup();
 
-        // Same pair, land-a now tapped — its footprint reservation widens by
-        // `tappedFootprintWidth(CARD_WIDTH) - CARD_WIDTH`, pushing land-b out
-        // by exactly that much (both rows are in the fit regime, scale 1).
+        // Same pair, land-a now tapped — if the row layout reserved a wider
+        // footprint for a tapped item (the rejected mechanism), land-b would
+        // move. It must NOT: the rotation is purely presentational now.
         renderBattlefield([
             land("land-a", "forest-def", true),
             land("land-b", "island-def", false),
         ]);
-        const tappedGap = xOf("land-b") - xOf("land-a");
+        const tappedX = xOf("land-b");
 
-        const expectedExtra = tappedFootprintWidth(CARD_WIDTH) - CARD_WIDTH;
-        expect(expectedExtra).toBeGreaterThan(0); // sanity: the fixture is meaningful
-        expect(tappedGap - baselineGap).toBeCloseTo(expectedExtra, 3);
+        expect(tappedX).toBeCloseTo(baselineX, 3);
     });
 
-    it("reserves NO extra footprint when nothing is tapped — untapped lands keep the pre-#1994 spacing", () => {
+    it("keeps the pre-#1994 spacing (card width + default gap) regardless of tap state", () => {
         renderBattlefield([
-            land("land-a", "forest-def", false),
+            land("land-a", "forest-def", true),
             land("land-b", "island-def", false),
         ]);
         const gap = xOf("land-b") - xOf("land-a");
-        // Plain card width + the row's default full gap (12px) at scale 1 —
-        // no rotation-driven widening in play.
         expect(gap).toBeCloseTo(CARD_WIDTH + 12, 3);
+    });
+});
+
+describe("BoardBattlefield wires isTapped through to the presentational tap-visual layer", () => {
+    it("gives a REAL tapped battlefield card's tap-visual layer pointer-events:none and a 90° rotation", () => {
+        renderBattlefield([land("land-a", "forest-def", true)]);
+        const visual = document.querySelector<HTMLElement>("[data-tap-visual]");
+        expect(visual?.style.transform).toBe("rotate(90deg)");
+        expect(visual?.style.pointerEvents).toBe("none");
+    });
+
+    it("leaves an untapped battlefield card's tap-visual layer fully interactive", () => {
+        renderBattlefield([land("land-a", "forest-def", false)]);
+        const visual = document.querySelector<HTMLElement>("[data-tap-visual]");
+        expect(visual?.style.transform || "").toBe("");
+        expect(visual?.style.pointerEvents).toBe("");
     });
 });

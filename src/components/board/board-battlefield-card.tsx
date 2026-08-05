@@ -72,16 +72,21 @@ type BoardBattlefieldCardProps = {
  *  (`useBattlefieldVisualState`) so the classic and spatial boards never
  *  diverge:
  *  - combat grouping ring (`vs.ringClass`) + combat-group badge (`vs.badge`),
- *  - tapped rotation (90° visual rotate at FULL card size — the row layout
- *    reserves the wider rotated footprint instead of shrinking the card, so
- *    tapping a permanent reflows its row, issue #1994),
+ *  - tapped rotation (90° visual rotate at FULL card size, issue #1994) — the
+ *    rotation lives on an inert presentational layer INSIDE this card's own
+ *    unrotated slot box, never on the interactive box itself, so tapping a
+ *    permanent never changes its own hit-testable footprint and never widens
+ *    what the row layout reserves for it (see the `tapTransform` comment
+ *    below for the full rationale),
  *  - marked damage (CR 120.3) + effective P/T (CR 613, layer 7c) on creatures,
  *  - legal-target / legal-choice highlight rides on `vs.ringClass` during
  *    targeting/choice; a dim overlay marks ineligible/dimmed permanents.
  *
  *  Emits `data-arrow-anchor-permanent` so target arrows
  *  (`target-arrows-overlay.tsx`) attach to this card. Hover tilt + zoom preview
- *  ride along via {@link CardTilt3D} / {@link CardImage} (#253).
+ *  ride along via {@link CardTilt3D} / {@link CardImage} (#253) — EXCEPT while
+ *  tapped, when they're inert along with the rest of the rotated visual layer
+ *  (see `tapTransform`).
  *
  *  Reads ONLY projected (`PublicGameState` / `FullGameState`) fields — no GRE
  *  import — consistent with the CLAUDE.md wire-format rule. The battlefield is
@@ -212,26 +217,58 @@ export default function BoardBattlefieldCard({
 
     // Tapped state rotates the visual only — a bare rotate(90deg) on a 5:7
     // portrait box swaps its bounding box to 7:5 landscape, wider than the
-    // card's own unrotated slot, and that extra horizontal reach paints (and
-    // hit-tests, since CSS transforms apply to hit-testing too) OVER a
-    // neighbouring permanent in an overlapped battlefield row, stealing its
-    // click target underneath the tapped card (issue #1994: many lands
-    // overlapping, a tapped land visually covering an untapped fetchland so
-    // it can't be clicked/sacrificed).
+    // card's own unrotated slot. Two mechanisms were tried and rejected
+    // before this one (issue #1994, PR #2279 review rounds 1 and 2):
     //
-    // The card stays FULL SIZE here: the LAYOUT reserves the wider rotated
-    // footprint instead (`tappedFootprintWidth`, board-layout.ts, fed into
-    // the row's per-item `widths[]`, the same mechanism `stackFootprintWidth`
-    // uses for a fanned stack, issue #977) — a tapped permanent in physical
-    // Magic is the same size, merely rotated. An earlier version of this fix
-    // instead scaled the rotated box back down by the card's own aspect ratio
-    // (5/7), which restored the footprint by rendering EVERY tapped
-    // permanent 29% smaller linear (51% area) on every viewport — desktop
-    // included, where the occlusion this issue fixes never occurs — and
-    // every attacking creature during combat (attackers are tapped). That
-    // shrink was never disclosed as a visual regression. Reserving the
-    // footprint in the row layout instead means tapping a permanent reflows
-    // its row — the accepted cost, same as on a physical table.
+    //   1. Scale the rotated box back down by the card's own aspect ratio
+    //      (5/7) to fit the unrotated slot. Restored the footprint, but
+    //      rendered EVERY tapped permanent 29% smaller linear (51% area) on
+    //      EVERY viewport — desktop included, where the occlusion this issue
+    //      fixes never occurs — and every attacking creature in combat
+    //      (attackers are tapped). Undisclosed global visual regression.
+    //   2. Reserve the wider rotated footprint in the ROW LAYOUT instead
+    //      (`tappedFootprintWidth`, since removed from `board-layout.ts`).
+    //      Measured (round-2 review) to make the REPORTED bug strictly
+    //      WORSE: slots paint in DOM order with `z-index: auto`, so a tapped
+    //      card's overhang can only ever cover its LEFT neighbour (the right
+    //      overhang is painted over by the next slot and never stole
+    //      anything) — the reservation protected the harmless right side and
+    //      left the harmful left side untouched. Worse, `widths[]` doesn't
+    //      create row width, it SPENDS it: inflating one item's reservation
+    //      shrinks the row's one shared inter-item gap for every card in it,
+    //      so on a phone battlefield already in the overlap/MIN_SCALE regime,
+    //      reserving 48px per tapped land compressed the whole row — the
+    //      untapped fetchland the issue reports went from 408 clickable px²
+    //      on `main` to 0 on that branch.
+    //
+    // This version spends no row width and fixes both sides: the box that
+    // carries the click/pointer handlers (`cardContent` below, the element
+    // with `data-arrow-anchor-permanent`) NEVER rotates and is IDENTICAL
+    // whether tapped or not — a tapped permanent can never widen what the row
+    // reserves for it, and can never grow the box neighbours are hit-tested
+    // against. `tapTransform` instead rotates a separate INNER presentational
+    // layer (the `z-10` wrapper around `inner`, below) that is given
+    // `pointer-events: none` while tapped: the rotated visual can overhang
+    // both neighbours exactly as a tapped card does on a real table, but a
+    // `pointer-events: none` element can never itself be hit-tested, so a
+    // click/hover anywhere in the overhang falls straight through it to
+    // whatever is genuinely painted underneath (typically a neighbour's own
+    // unrotated box) instead of this card stealing it.
+    //
+    // Accepted, disclosed cost: while tapped, {@link CardTilt3D}'s hover-tilt
+    // and `CardPreview`'s hover-dwell / right-click / long-press preview
+    // (`card-preview.tsx` binds its native listeners on `[data-card-tilt-
+    // root]`, which lives inside `inner`) stop receiving pointer events —
+    // they're inside the now-inert rotated layer. Nothing re-enables
+    // `pointer-events` on any descendant of that layer (grep confirms the
+    // only other `pointer-events` values inside this subtree are the
+    // decorative badges' own `pointer-events-none`, and the preview dock /
+    // anchored preview are portals mounted at `document.body`, outside this
+    // subtree entirely). Clicking/tapping a tapped permanent to activate an
+    // ability still works exactly as before — that handler lives on
+    // `cardContent`, which never rotates and is never wrapped in
+    // `pointer-events: none`. Untapped permanents (the common case) are
+    // completely unaffected: no transform, no `pointer-events` override.
     const tapTransform = card.isTapped ? "rotate(90deg)" : undefined;
 
     // Combat lift (#1770 follow-up from #1802): landscape-compact re-derives
@@ -317,7 +354,10 @@ export default function BoardBattlefieldCard({
                 phased ? "cursor-default pointer-events-none" : cursorClass
             } transition duration-250`}
             style={{
-                transform: tapTransform,
+                // NEVER rotated — this is the interactive box (click/pointer
+                // handlers below), and its box must be identical tapped or
+                // not (see the `tapTransform` comment above). The visual
+                // rotation lives one layer deeper, on `data-tap-visual`.
                 translate: compactLiftTranslate,
                 opacity: phased ? 0.4 : litState === "unlit" ? 0.4 : 1,
                 filter: phased ? "grayscale(0.85)" : undefined,
@@ -329,7 +369,10 @@ export default function BoardBattlefieldCard({
             {/* Cards held in exile by this permanent (Parallax Wave / Banishing
                 Light) render as a corner peek-stack BEHIND the host, with a pile
                 dialog on click; cast-from-exile (Ice Cauldron / Dauthi) rides on
-                each dialog card. */}
+                each dialog card. Deliberately OUTSIDE `data-tap-visual` below —
+                it stays upright and clickable regardless of the host's tap
+                state, same as the counter/summoning-sickness badges the
+                classic board never rotates either. */}
             {associatedExiled.length > 0 && (
                 <AttachedCardsCluster
                     cards={associatedExiled}
@@ -346,8 +389,25 @@ export default function BoardBattlefieldCard({
                     }
                 />
             )}
-            {/* Host paints above the peek-stack (which is z-0). */}
-            <div className="relative z-10 w-full h-full">{inner}</div>
+            {/* Host paints above the peek-stack (which is z-0). This is the
+                presentational rotation layer (issue #1994): `tapTransform`
+                lives HERE, not on the interactive box above, and while tapped
+                it is `pointer-events: none` so its overhang can never be
+                hit-tested — see the `tapTransform` comment for the full
+                rationale and the accepted hover/preview cost. `transition`
+                mirrors the outer box's so the rotation still springs smoothly
+                on tap/untap (Tailwind's bare `transition` utility includes
+                `transform`). */}
+            <div
+                data-tap-visual
+                className="relative z-10 w-full h-full transition duration-250"
+                style={{
+                    transform: tapTransform,
+                    pointerEvents: card.isTapped ? "none" : undefined,
+                }}
+            >
+                {inner}
+            </div>
         </div>
     );
 

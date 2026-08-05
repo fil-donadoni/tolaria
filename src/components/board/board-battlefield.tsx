@@ -9,7 +9,6 @@ import { tryGetDefinition } from "@convex/cards";
 import {
     bandedRowsLayout,
     stackFootprintWidth,
-    tappedFootprintWidth,
     RIGHT_GUTTER,
 } from "~/lib/board-layout";
 import type { LandscapeCardMetrics } from "~/lib/landscape-board-bands";
@@ -419,31 +418,20 @@ export default function BoardBattlefield({
         // A fanned stack is wider than one card, so each group reserves its own
         // footprint width in the row (issue #977) — otherwise a 6-card fan
         // overflows its slot and covers the next permanent's click target. A
-        // tapped member widens that reservation further (issue #1994): its
-        // rotated box is `tappedFootprintWidth` wide, not `cardWidth`, so a
-        // tapped card's footprint is reserved in the layout instead of the
-        // card being shrunk to fit the unrotated slot (`board-battlefield-
-        // card.tsx`'s `tapTransform`). `Math.max` because both reservations
-        // can apply to the same group (a fanned stack with a tapped member).
+        // TAPPED member does NOT widen this reservation (issue #1994, PR #2279
+        // review round 2): reserving the rotated footprint in `widths[]` was
+        // measured to make the reported occlusion bug WORSE, not better — see
+        // the `tapTransform` comment in `board-battlefield-card.tsx` for the
+        // full rationale. The rotation is now purely presentational
+        // (`pointer-events: none` while tapped), so the row layout stays
+        // completely blind to tap state, exactly as it was before #1994.
         const widthsOf = (groups: { members: CardInstance[] }[]) =>
-            groups.map((g) => {
-                const fanFootprint = stackFootprintWidth(
-                    g.members.length,
-                    compact?.cardWidth
-                );
-                const anyTapped = g.members.some((m) => m.isTapped);
-                return anyTapped
-                    ? Math.max(
-                          fanFootprint,
-                          tappedFootprintWidth(compact?.cardWidth)
-                      )
-                    : fanFootprint;
-            });
+            groups.map((g) =>
+                stackFootprintWidth(g.members.length, compact?.cardWidth)
+            );
         // CR 702.26 — phased-out permanents join their band as inert singletons
         // (never grouped/stacked), appended AFTER the live groups so they sit at
-        // the tail of the row. Each reserves one card's footprint width — a
-        // tapped one (still rotates while phased) reserves the wider rotated
-        // footprint (issue #1994).
+        // the tail of the row. Each reserves one card's footprint width.
         const phasedCreatures: CardInstance[] = [];
         const phasedLands: CardInstance[] = [];
         const phasedOthers: CardInstance[] = [];
@@ -453,11 +441,7 @@ export default function BoardBattlefield({
             else phasedOthers.push(card);
         }
         const singleWidths = (cards: CardInstance[]) =>
-            cards.map((c) =>
-                c.isTapped
-                    ? tappedFootprintWidth(compact?.cardWidth)
-                    : stackFootprintWidth(1, compact?.cardWidth)
-            );
+            cards.map(() => stackFootprintWidth(1, compact?.cardWidth));
         const creatureItems = [
             ...creatureGroups.map(groupToItem),
             ...phasedCreatures.map(renderPhasedCard),

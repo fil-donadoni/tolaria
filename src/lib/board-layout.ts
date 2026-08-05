@@ -111,31 +111,6 @@ export function stackFootprintWidth(
     return cardWidth + (n - 1) * stackFanOffset(n);
 }
 
-/** The horizontal footprint (px) a TAPPED permanent occupies on the
- *  battlefield row (issue #1994). Rotating a 5:7 portrait card 90° swaps its
- *  bounding box to a 7:5 landscape rectangle, so its rendered — and
- *  hit-tested, CSS transforms affect hit-testing too — width becomes the
- *  card's own HEIGHT, not its width. Same formula as {@link CARD_HEIGHT} so
- *  the two can never drift apart when `cardWidth` changes (landscape-compact
- *  passes a smaller one): `tappedFootprintWidth(CARD_WIDTH) === CARD_HEIGHT`.
- *
- *  The row layout ({@link rowLayout} / {@link splitRowLayout}) reserves this
- *  as the tapped item's `widths[]` entry — the SAME mechanism
- *  {@link stackFootprintWidth} uses for a fanned stack (issue #977), reused
- *  here rather than reinvented. An earlier version of this fix instead
- *  post-rotate-scaled the card by its own aspect ratio (5/7) to shrink the
- *  rotated box back down to the UNROTATED slot width — that restored the
- *  footprint, but at the cost of rendering every tapped permanent 29% smaller
- *  linear (51% area) on EVERY viewport, including desktop (where the
- *  occlusion this issue fixes never occurs) and every attacking creature in
- *  combat (attackers are tapped) — an undisclosed global visual regression.
- *  Reserving the wider footprint in the layout instead keeps the card at full
- *  size, exactly as a tapped permanent looks on a physical table; the
- *  accepted cost is that tapping a permanent reflows its row. */
-export function tappedFootprintWidth(cardWidth: number = CARD_WIDTH): number {
-    return Math.round((cardWidth * 7) / 5);
-}
-
 /** Default gap between full-size cards before any overlap kicks in. */
 const DEFAULT_GAP = 12;
 

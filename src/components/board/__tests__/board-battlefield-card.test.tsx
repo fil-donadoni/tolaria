@@ -175,58 +175,16 @@ describe("BoardBattlefieldCard visual state + anchors (#256)", () => {
         expect(anchor?.style.translate).toBeFalsy();
     });
 
-    it("rotates 90° when the permanent is tapped", () => {
-        const { container } = renderCard(
-            makeCreature({ isTapped: true }),
-            NEUTRAL_VS
-        );
-        const anchor = container.querySelector<HTMLElement>(
-            "[data-arrow-anchor-permanent]"
-        );
-        expect(anchor?.getAttribute("data-tapped")).toBe("true");
-        expect(anchor?.style.transform).toContain("rotate(90deg)");
-    });
-
-    it("does not rotate when untapped", () => {
-        const { container } = renderCard(makeCreature(), NEUTRAL_VS);
-        const anchor = container.querySelector<HTMLElement>(
-            "[data-arrow-anchor-permanent]"
-        );
-        expect(anchor?.getAttribute("data-tapped")).toBeNull();
-        expect(anchor?.style.transform || "").not.toContain("rotate(90deg)");
-    });
-
-    // Issue #1994: on a battlefield with many overlapping lands, tapped lands
-    // visually covered untapped fetchlands, making them unclickable. An
-    // earlier version of this fix scaled the rotation down by the card's own
-    // aspect ratio (5/7) to shrink the rotated box back to the unrotated
-    // slot's width — that "fixed" the overhang by rendering EVERY tapped
-    // permanent 29% smaller (51% area) on every viewport, including desktop
-    // and every attacking creature in combat, undisclosed as a visual
-    // regression (review on #2279). The footprint is now reserved in the
-    // ROW LAYOUT instead (`tappedFootprintWidth`, `board-layout.ts` — see
-    // its own `describe` block in `board-layout.test.ts` for the reserved-
-    // footprint invariant), so the card itself stays FULL SIZE: a bare
-    // `rotate(90deg)` with no compensating scale.
-    it("rotates a tapped card WITHOUT any compensating scale — the card stays full size (#1994)", () => {
-        const { container } = renderCard(
-            makeCreature({ isTapped: true }),
-            NEUTRAL_VS
-        );
-        const anchor = container.querySelector<HTMLElement>(
-            "[data-arrow-anchor-permanent]"
-        );
-        expect(anchor?.style.transform).toBe("rotate(90deg)");
-        expect(anchor?.style.transform).not.toContain("scale");
-    });
-
-    // The load-bearing size claim: a tapped card's transform carries no scale
-    // term at all, so whatever `scale` its slot renders at (from the row
-    // layout's shared `Placement.scale`, `board-layout.ts`) is IDENTICAL to
-    // an untapped card's — nothing here shrinks it further. Before this fix
-    // a tapped card's inline transform diverged from an untapped card's by
-    // the extra `scale(5/7)` term; now the only difference is the rotation.
-    it("gives a tapped card's transform the SAME scale as an untapped card's (no per-tap shrink)", () => {
+    // Issue #1994 (PR #2279, review round 2): the INTERACTIVE box
+    // (`data-arrow-anchor-permanent` — click/pointer handlers, the element
+    // neighbours are hit-tested against) must be the SAME whether tapped or
+    // not, so tapping a permanent never changes its own hit-testable
+    // footprint. The 90° rotation lives on a separate, purely presentational
+    // `data-tap-visual` layer one level in, which additionally goes
+    // `pointer-events: none` while tapped so its overhang can never itself be
+    // hit-tested (a click there falls through to whatever is genuinely
+    // painted underneath instead of this card stealing it).
+    it("never rotates or transforms the interactive (click-anchor) box, tapped or not", () => {
         const untapped = renderCard(
             makeCreature({ id: "c-untapped" }),
             NEUTRAL_VS
@@ -234,8 +192,7 @@ describe("BoardBattlefieldCard visual state + anchors (#256)", () => {
         const untappedAnchor = untapped.container.querySelector<HTMLElement>(
             "[data-arrow-anchor-permanent]"
         );
-        // No transform at all when untapped — the baseline to compare against.
-        expect(untappedAnchor?.style.transform || "").not.toContain("scale");
+        expect(untappedAnchor?.style.transform || "").toBe("");
         cleanup();
 
         const tapped = renderCard(
@@ -245,10 +202,52 @@ describe("BoardBattlefieldCard visual state + anchors (#256)", () => {
         const tappedAnchor = tapped.container.querySelector<HTMLElement>(
             "[data-arrow-anchor-permanent]"
         );
-        // Rotated, but — like the untapped card — carries no scale term of
-        // its own. Both cards are sized entirely by the shared row `scale`
-        // one layer up (`SpatialSlot`), never by this component.
-        expect(tappedAnchor?.style.transform || "").not.toContain("scale");
+        expect(tappedAnchor?.getAttribute("data-tapped")).toBe("true");
+        // Same box as the untapped case — no rotation, no scale, nothing.
+        expect(tappedAnchor?.style.transform || "").toBe("");
+    });
+
+    it("rotates the presentational tap-visual layer 90° when tapped, without any compensating scale", () => {
+        const { container } = renderCard(
+            makeCreature({ isTapped: true }),
+            NEUTRAL_VS
+        );
+        const visual =
+            container.querySelector<HTMLElement>("[data-tap-visual]");
+        expect(visual?.style.transform).toBe("rotate(90deg)");
+        expect(visual?.style.transform).not.toContain("scale");
+    });
+
+    it("does not rotate the tap-visual layer when untapped", () => {
+        const { container } = renderCard(makeCreature(), NEUTRAL_VS);
+        const visual =
+            container.querySelector<HTMLElement>("[data-tap-visual]");
+        expect(visual?.style.transform || "").not.toContain("rotate(90deg)");
+    });
+
+    // The mechanism that actually fixes #1994: a `pointer-events: none` layer
+    // can never itself be hit-tested (by construction — CSS, not this app's
+    // logic), so the rotated overhang is inert to both click and hover; the
+    // click falls through to whatever a neighbour's own box exposes instead
+    // of this card stealing it. Verified by mutation (proof-of-failure):
+    // deleting the `pointerEvents` line turns this red.
+    it("makes the tap-visual layer pointer-events:none while tapped, so its overhang can never be hit-tested", () => {
+        const { container } = renderCard(
+            makeCreature({ isTapped: true }),
+            NEUTRAL_VS
+        );
+        const visual =
+            container.querySelector<HTMLElement>("[data-tap-visual]");
+        expect(visual?.style.pointerEvents).toBe("none");
+    });
+
+    it("leaves the tap-visual layer's pointer-events untouched (auto) when untapped", () => {
+        const { container } = renderCard(makeCreature(), NEUTRAL_VS);
+        const visual =
+            container.querySelector<HTMLElement>("[data-tap-visual]");
+        // No inline override at all — untapped cards keep full hover/tilt/
+        // preview interactivity, unaffected by the tapped-only mechanism.
+        expect(visual?.style.pointerEvents).toBe("");
     });
 
     it("shows marked damage and an effective P/T badge for a creature (projected fields)", () => {
