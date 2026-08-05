@@ -904,7 +904,7 @@ export const teferisCare: CardDefinition = {
 // kickerPaidCondition("kicker")` at CR 603.4 check time, and the matching
 // `if { kickerPaid: "kicker" }` branch inside `effects[]` at resolution
 // time, reading the resolving TRIGGER stack item's own `kickerPayments`
-// record (CR 603.10 last known information) rather than an `interveningIf`
+// record (CR 608.2h last known information) rather than an `interveningIf`
 // re-evaluated against the LIVE permanent. This sidesteps the blink
 // divergence documented on Jacked Rabbit and tracked-by: #2042 — a CR 400.7
 // zone change (Ephemerate) clears the LIVE permanent's `kickerPayments`

@@ -426,8 +426,13 @@ function kickerPaidTimes(self: PermanentView, kickerId: string): number {
  *  instance object — a blink/flicker (Ephemerate), a bounce-and-replay —
  *  re-finds the permanent by that id AFTER `resetBattlefieldTransientState`
  *  has deleted `kickerPayments`, so the re-check would read a CLEARED record
- *  and fizzle a trigger that CR 603.10 says must resolve off last known
- *  information. The correct resolution-time answer is the
+ *  and fizzle a trigger that CR 608.2h says must resolve off last known
+ *  information — the object the ability expects ceased to exist (CR 400.7
+ *  makes the returned permanent a NEW object), so 608.2h's "no longer in
+ *  that zone" leg applies even though something with the same instance id
+ *  is sitting on the battlefield. (Not CR 603.10, which is the unrelated
+ *  "look back in time" rule about whether an ability TRIGGERS at all.)
+ *  The correct resolution-time answer is the
  *  `if { kickerPaid: "<id>" }` branch inside the ability's own `effects[]`:
  *  it reads the RESOLVING STACK ITEM's payment record (`buildTriggerItem`'s
  *  `...self` spread, `gre/triggers.ts`), which is exactly the LKI snapshot,
@@ -438,10 +443,19 @@ function kickerPaidTimes(self: PermanentView, kickerId: string): number {
  *  for ANY one-shot cast fact `resetBattlefieldTransientState` clears
  *  (`chosenXOnCast`/`chosenX` and `wasKicked` alongside `kickerPayments`).
  *  Jacked Rabbit's Ravenous trigger (`sets/blc/white.ts`) still ships the
- *  buggy shape: blinked at X=6 it draws 0 cards. The engine-level fix — a
- *  re-entry identity stamp so a reused instance id stops reading as the same
- *  object — is tracked-by: #2042. Until it lands, gate at check time here and
- *  at resolution time inside `effects[]`. */
+ *  buggy shape: blinked at X=6 it draws 0 cards, and a 2026-08-05 census
+ *  found four more consumers reading a re-entry-cleared field the same way
+ *  (Erg Raiders, the Clockwork pair, Living Artifact). The mirror-image bug
+ *  — a one-shot fact `resetBattlefieldTransientState` fails to clear, so the
+ *  new object INHERITS it (`echoPending`, `startedTurnUntapped`, …) — is a
+ *  separate gap, #2223. The engine-level fix for THIS one — a departure-time
+ *  LKI snapshot stamped onto the stack item at the
+ *  `removePermanentTo` funnel, preferred over the live permanent by
+ *  `resolveTopOfStackInner` — is tracked-by: #2042. Until it lands, gate at
+ *  check time here and at resolution time inside `effects[]`. Keep this pair
+ *  even AFTER it lands: the `if { kickerPaid }` branch is also what survives
+ *  an ability COPY reaching the stack without re-running `matches`
+ *  (CR 707.10), which the engine fix does not address. */
 export function kickerPaidCondition(
     kickerId: string
 ): (self: PermanentView) => boolean {

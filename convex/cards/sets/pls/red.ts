@@ -687,7 +687,7 @@ export const tahngarthTalruumHeroAlt: CardPrint = {
 // The resolution-time half is the `if { kickerPaid: "<id>" }` gate inside
 // each `effects[]` — ADR 0079's documented answer, reading the RESOLVING
 // STACK ITEM's own `kickerPayments` (`buildTriggerItem`'s `...self` spread,
-// `gre/triggers.ts`), i.e. CR 603.10 last known information, and what still
+// `gre/triggers.ts`), i.e. CR 608.2h last known information, and what still
 // holds if an ability COPY reaches the stack without re-running `matches`
 // (CR 707.10). It is deliberately NOT also declared as `interveningIf`:
 // `resolveTopOfStackInner` re-evaluates an `interveningIf` against the LIVE
