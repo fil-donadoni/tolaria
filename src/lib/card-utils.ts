@@ -50,6 +50,7 @@ import {
     getEffectiveManaChoices,
     getManaTapOptions,
     hybridCostKey,
+    isSpellStackItem,
     normalizedHybridPips,
 } from "@convex/gre/constants";
 import type {
@@ -2338,10 +2339,10 @@ export function getStackModeLines(item: {
     delayedTriggerId?: string;
 }): StackModeLine[] | null {
     if (!item.chosenModeId) return null;
-    // Only a spell carries a spell-level chosen mode — never an ability item.
-    if (item.abilityId || item.triggeredAbilityId || item.delayedTriggerId) {
-        return null;
-    }
+    // CR 112.1 — only a spell carries a spell-level chosen mode, never an
+    // ability item. The shared discriminator (`gre/constants.ts`), which is
+    // structurally typed precisely so the client's `StackItem` satisfies it.
+    if (!isSpellStackItem(item)) return null;
     // `card.id` is `unknown` on the fat engine `StackItem` (Record-typed card)
     // and `string` on the wire `SlimStackItem` — accept both.
     const cardId = item.card.id;

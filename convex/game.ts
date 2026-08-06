@@ -344,6 +344,7 @@ import {
     isTapLockedBySummoningSickness,
     manaGateBattlefields,
     manaValue,
+    resolvePendingTargetKind,
 } from "./gre/constants";
 import {
     validateAttackerEligibility,
@@ -5528,7 +5529,9 @@ export function finalizeTargetSelection(
     // cost paid at this commit and propagated to the resolving stack item.
     const buybackPaid = pt.buybackPaid ?? false;
     const chosenModeId = pt.chosenModeId;
-    const kind = pt.kind ?? "cast";
+    // The absent-kind default is the SHARED one (`gre/constants.ts`), never a
+    // local `?? "cast"` — issue #2296 review.
+    const kind = resolvePendingTargetKind(pt.kind);
     const abilityId = pt.abilityId;
     // CR 601.2d / 120.4 — divide-as-you-choose split assigned during target
     // selection. Fill in a deterministic ≥1-each default when the caster did
@@ -9529,7 +9532,10 @@ export function applyOneTargetSelection(
         );
         if (filterViolation) throw new Error(filterViolation);
         // CR 702.16b / 611 — the source whose target-selection is in progress.
-        const guardSourceKind = pt.kind ?? "cast";
+        // The RAW `kind` goes in: the absent-kind default (an ordinary cast
+        // omits it) lives inside `pendingTargetingSource`, so the accepted set,
+        // the offered set and the client's gate share ONE resolution of it
+        // (issue #2296 review).
         // The ACCEPTED set applies the same quality gates as the offered set
         // (CR 702.16b protection, CR 611 `cantBeTargeted` guards) — and it
         // derives them from the SAME `pendingTargetingSource` the offered set
@@ -9543,7 +9549,7 @@ export function applyOneTargetSelection(
         const targetingSource = pendingTargetingSource(
             state,
             pt.cardInstanceId,
-            guardSourceKind
+            pt.kind
         );
         // CR 702.16b — the colour form, the CR 702.16k player quality (issue
         // #1748) for which the targeting player IS the source's controller,

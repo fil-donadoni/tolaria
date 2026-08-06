@@ -13,6 +13,12 @@ import {
 } from "@convex/cards/__tests__/setup";
 import { projectPublicState } from "@convex/gameProjections";
 import { PROTECTION_FROM_COLORED_SPELLS } from "@convex/gre/protection";
+// The SERVER's accepted set, imported so the parity rows below compare the two
+// real implementations instead of a client-side restatement of the server's
+// rule: `applyOneTargetSelection` is the per-target function the `selectTarget`
+// mutation calls (issue #2296 review).
+import { applyOneTargetSelection } from "@convex/game";
+import type { PendingTarget } from "@convex/gre/state";
 
 // Client mirror of the server `cantBeTargeted` gate (#382, CR 702.18 / 611 /
 // 113.3 / 109.5). When `isUntargetableByPending` returns true the battlefield
@@ -539,23 +545,57 @@ describe("isUntargetableByPending — trigger source on the stack (CR 405 / 702.
 // colour-only client implementation looks like it works and is wrong in
 // exactly the CR 113.3 cases (an ability of a coloured permanent).
 //
-// Every assertion below runs the REAL client helper (`isUntargetableByPending`)
-// over the REAL wire projection (`projectPublicState`) — a hand-built `Player[]`
-// would mask a field the projection drops, which is the whole failure mode.
+// Every row below asserts BOTH verdicts against the SAME `PendingTarget`:
+//   * the CLIENT's, from the real helper (`isUntargetableByPending`) fed the
+//     way the two hooks feed it — `pendingTarget.{cardInstanceId,kind,playerId}`
+//     read off the REAL wire projection (`projectPublicState`);
+//   * the SERVER's, from the real accepted-set function the `selectTarget`
+//     mutation calls per target (`applyOneTargetSelection`, `convex/game.ts`).
+//
+// Neither side's `kind` default is written in this file. That matters: the
+// first version of this block passed an explicit `"cast"` literal, a shape
+// production NEVER produces (`announceCast` omits `kind` entirely), and the
+// client read the absent kind as "not a spell" while the server read it as
+// "cast" — so an ordinary Lightning Bolt was OFFERED against a creature with
+// protection from coloured spells and rejected on click. Proof-of-failure
+// test-shape 3: the assertion never reached the real input.
 
 describe("CR 702.16a — client parity for protection from coloured spells (#2296)", () => {
     const LIGHTNING_BOLT_ID = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a"; // red Instant
     const ORNITHOPTER_ID = "59cc9bdb-7cf2-4795-bac7-ffff605c9eb0"; // colourless
     const PRODIGAL_SORCERER_ID = "e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a"; // blue
 
-    /** p1's warded creature + a plain bystander, seen through the wire by p2,
-     *  who holds a red Instant and a colourless artifact creature and controls
-     *  a blue Prodigal Sorcerer. */
-    function projectedBoard(): {
-        players: Player[];
-        warded: CardInstance;
-        bystander: CardInstance;
-    } {
+    /** The `PendingTarget` an ordinary CAST produces. `kind` is deliberately
+     *  ABSENT: `announceCast`'s builder (`convex/game.ts`) never writes the
+     *  field, so `undefined` is what every real cast puts on the wire. Spelling
+     *  `kind: "cast"` here would test a shape production has no way to make.
+     *
+     *  `max` is open-ended so a legal pick does NOT auto-finalize into the
+     *  cast-commit path (mana payment this fixture doesn't seed) — the
+     *  `protectionQualityTargeting.test.ts` convention. The CR 702.16 gate
+     *  under test runs before finalization either way. */
+    function castPendingTarget(sourceId: string): PendingTarget {
+        return {
+            playerId: "p2",
+            cardInstanceId: sourceId,
+            targetType: "Creature",
+            count: { min: 1, max: 3 },
+            selected: [],
+        };
+    }
+
+    /** The same selection announced from an ACTIVATED ability instead (CR
+     *  602.2b) — the one production shape that DOES set `kind`. */
+    function abilityPendingTarget(sourceId: string): PendingTarget {
+        return { ...castPendingTarget(sourceId), kind: "ability" };
+    }
+
+    /** p1's warded creature + a plain bystander; p2 (the chooser) holds a red
+     *  Instant and a colourless artifact creature and controls a blue Prodigal
+     *  Sorcerer. Returns the FAT engine state (what the server validates) and
+     *  its WIRE projection (what the client's hooks read) — the pair is the
+     *  point: a hand-built `Player[]` would mask a field the projection drops. */
+    function board(pendingTarget: PendingTarget) {
         const wardedCard = makeInstance(GRIZZLY_BEARS_ID, {
             id: "warded",
             controllerId: "p1",
@@ -601,30 +641,59 @@ describe("CR 702.16a — client parity for protection from coloured spells (#229
                     ],
                 }),
             ],
+            pendingTarget,
         });
         // Viewer = p2 (the chooser), so their own hand is visible on the wire
-        // — the zone a `kind: "cast"` source is located in.
+        // — the zone a cast source is located in.
         const projected = projectPublicState(state, 1, "p2");
-        const players = projected.players as unknown as Player[];
-        return {
-            players,
-            warded: players[0].battlefield[0],
-            bystander: players[0].battlefield[1],
-        };
+        return { state, projected };
     }
 
-    it("MUST — greys the warded creature out for a red Instant being cast", () => {
-        const { players, warded } = projectedBoard();
-        expect(
-            isUntargetableByPending(players, warded, "bolt", "cast", [], "p2")
-        ).toBe(true);
+    /** Runs BOTH gates over one board and reports whether each BARS the pick.
+     *  The client call mirrors `useBattlefieldVisualState` field for field; the
+     *  server call is the exact function `selectTarget` runs per target. */
+    function verdicts(pendingTarget: PendingTarget, targetId: string) {
+        const { state, projected } = board(pendingTarget);
+        const pt = projected.pendingTarget!;
+        const players = projected.players as unknown as Player[];
+        const candidate = players[0].battlefield.find(
+            (c) => c.id === targetId
+        )!;
+        const clientBars = isUntargetableByPending(
+            players,
+            candidate,
+            pt.cardInstanceId,
+            // NOT a literal — the kind as it survives the wire. For a cast this
+            // is `undefined`, which is the whole point of this block.
+            pt.kind,
+            (projected.stack ?? []) as unknown as StackItem[],
+            pt.playerId
+        );
+        let serverBars = false;
+        try {
+            applyOneTargetSelection(state, "p2", {
+                targetType: "permanent",
+                targetId,
+            });
+        } catch (e) {
+            serverBars = /protection/i.test((e as Error).message);
+        }
+        return { clientBars, serverBars, kind: pt.kind };
+    }
+
+    it("MUST — bars a red Instant being CAST, on both sides, with kind ABSENT on the wire", () => {
+        const v = verdicts(castPendingTarget("bolt"), "warded");
+        // The production shape this whole finding was about.
+        expect(v.kind).toBeUndefined();
+        expect(v.serverBars).toBe(true);
+        expect(v.clientBars).toBe(v.serverBars);
     });
 
     it("must-NOT — leaves it clickable for a COLOURLESS spell (CR 105.2)", () => {
-        const { players, warded } = projectedBoard();
-        expect(
-            isUntargetableByPending(players, warded, "orni", "cast", [], "p2")
-        ).toBe(false);
+        const v = verdicts(castPendingTarget("orni"), "warded");
+        expect(v.kind).toBeUndefined();
+        expect(v.serverBars).toBe(false);
+        expect(v.clientBars).toBe(v.serverBars);
     });
 
     it("must-NOT — leaves it clickable for a COLOURED permanent's ability (CR 113.3)", () => {
@@ -632,23 +701,15 @@ describe("CR 702.16a — client parity for protection from coloured spells (#229
         // `kind` distinguishes this from the barred cast above. A client that
         // derived the quality from colours alone would grey this out and the
         // player could never use Tim on the creature.
-        const { players, warded } = projectedBoard();
-        expect(
-            isUntargetableByPending(players, warded, "tim", "ability", [], "p2")
-        ).toBe(false);
+        const v = verdicts(abilityPendingTarget("tim"), "warded");
+        expect(v.kind).toBe("ability");
+        expect(v.serverBars).toBe(false);
+        expect(v.clientBars).toBe(v.serverBars);
     });
 
     it("must-NOT — leaves an unprotected bystander clickable for the red Instant", () => {
-        const { players, bystander } = projectedBoard();
-        expect(
-            isUntargetableByPending(
-                players,
-                bystander,
-                "bolt",
-                "cast",
-                [],
-                "p2"
-            )
-        ).toBe(false);
+        const v = verdicts(castPendingTarget("bolt"), "bystander");
+        expect(v.serverBars).toBe(false);
+        expect(v.clientBars).toBe(v.serverBars);
     });
 });

@@ -26,7 +26,7 @@ import { getDefinition, tryGetDefinition } from "../cards";
 // `{T}: Add …` (Urza's Saga chapter I) is visible to the auto-tap solver and
 // the castability probe exactly like a printed one.
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
-import type { CardInstanceState, GameState } from "./state";
+import type { CardInstanceState, GameState, PendingTarget } from "./state";
 import { applySubstitution } from "./textChanges";
 import {
     STATIC_EFFECT_CTX,
@@ -467,15 +467,20 @@ export function isAura(card: {
 /** CR 112.1 / 113.3 — true when a STACK OBJECT is a spell (a card or copy put
  *  onto the stack), false when it is an activated or triggered ability.
  *
- *  THE single discriminator for that distinction. An ability's stack item is
- *  cloned from its source permanent, so it is indistinguishable from a
- *  permanent (and from a permanent spell) by types/colours alone — the only
- *  reliable tell is which ability-id the engine stamped on it when it went on
- *  the stack. That three-field test used to be open-coded at five sites
- *  (`resolveTopOfStack`, three `targetFilters` descriptors, and — the site
- *  this was extracted for — the CR 702.16e damage gate in `dealDamage`); a
- *  sixth site guessing a fourth field, or forgetting `delayedTriggerId`,
- *  would call a delayed trigger a spell.
+ *  THE single discriminator for that distinction — every site that asks it
+ *  now calls this. An ability's stack item is cloned from its source permanent,
+ *  so it is indistinguishable from a permanent (and from a permanent spell) by
+ *  types/colours alone; the only reliable tell is which ability-id the engine
+ *  stamped on it when it went on the stack. The three-field test used to be
+ *  open-coded at seven sites — `resolveTopOfStack`, the CR 702.16e damage gate
+ *  in `dealDamage` (the site this was extracted for), the three `targetFilters`
+ *  spell-filter descriptors, and the client's `getStackModeLines`
+ *  (`src/lib/card-utils.ts`) — an eighth guessing a fourth field, or forgetting
+ *  `delayedTriggerId`, would call a delayed trigger a spell.
+ *
+ *  Two nearby predicates deliberately stay open-coded because they are NOT
+ *  this test: `gre/state.ts`'s and `gre/triggers.ts`'s are supersets that
+ *  additionally exclude other stack shapes.
  *
  *  Structurally typed so the CLIENT's `StackItem` (`src/types/game.ts`, which
  *  carries the same three optional ids) satisfies it too. */
@@ -487,6 +492,40 @@ export function isSpellStackItem(item: {
     return (
         !item.abilityId && !item.triggeredAbilityId && !item.delayedTriggerId
     );
+}
+
+/** The kind of target selection in progress, with the ABSENT case resolved.
+ *  `PendingTarget.kind` is optional and the spell-cast builder (`announceCast`,
+ *  `game.ts`) omits it, so `undefined` means `"cast"` — the engine-wide default
+ *  already applied by `finalizeTargetSelection`, `targetActions`,
+ *  `pendingTargetOrigin` and the Move enumerator.
+ *
+ *  THE single place that default lives. It used to be a hand-written
+ *  `pt.kind ?? "cast"` at every server site while the CLIENT's gate mapped
+ *  `undefined` to "not a spell" — so for the dominant production shape (any
+ *  ordinary cast, whose `kind` is absent) the client offered a target the
+ *  server then rejected. That is the ADR 0068 offered-vs-accepted divergence,
+ *  and a shared default is what makes it unreachable (issue #2296 review). */
+export function resolvePendingTargetKind(
+    kind: PendingTarget["kind"]
+): NonNullable<PendingTarget["kind"]> {
+    return kind ?? "cast";
+}
+
+/** CR 112.1 / 113.3 — is the source of a pending target selection a SPELL?
+ *  A cast or a (copy-)retargeted spell is; an activated OR triggered ability
+ *  is not, even though its stack item is a clone of its coloured source
+ *  permanent (so no card object can answer this — only the `kind` can).
+ *
+ *  THE single derivation, read by the server (`pendingTargetingSource`,
+ *  `gre/rules.ts` — hence `getLegalTargets` and `selectTarget`) and by the
+ *  client's two targeting gates (`src/lib/targeting.ts`: the CR 611
+ *  `cantBeTargeted` guard and the CR 702.16a spell-restricted protection
+ *  quality). Two independent derivations of the same fact is how the client's
+ *  offered set drifts from the server's accepted set one gate at a time. */
+export function pendingSourceIsSpell(kind: PendingTarget["kind"]): boolean {
+    const resolved = resolvePendingTargetKind(kind);
+    return resolved !== "ability" && resolved !== "trigger";
 }
 
 /** CR 613.1f — true while the permanent has lost all abilities (Titania's

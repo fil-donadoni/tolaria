@@ -28,6 +28,8 @@ import {
     isTapLockedBySummoningSickness,
     manaGateBattlefields,
     manaValue,
+    pendingSourceIsSpell,
+    resolvePendingTargetKind,
 } from "./constants";
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 import { STATIC_EFFECT_CTX, getEffectivePower } from "./layers";
@@ -2093,11 +2095,17 @@ export function protectionSourceFromTargeting(
 export function pendingTargetingSource(
     state: GameState,
     cardInstanceId: string,
-    kind: "cast" | "ability" | "copy-retarget" | "retarget" | "trigger"
+    /** Accepts the RAW `PendingTarget["kind"]`, absent included: the cast
+     *  builder omits it, and resolving the default here (rather than at each
+     *  caller's `?? "cast"`) is what keeps the offered set, the accepted set
+     *  and the client's gate on one derivation — issue #2296 review. */
+    rawKind: PendingTarget["kind"]
 ): TargetingSource {
+    const kind = resolvePendingTargetKind(rawKind);
     // CR 113.3 — only a cast / (copy-)retargeted spell is a spell; an
-    // activated or triggered ability is not.
-    const isSpell = kind !== "ability" && kind !== "trigger";
+    // activated or triggered ability is not. Same shared derivation the client
+    // gate reads (`src/lib/targeting.ts`).
+    const isSpell = pendingSourceIsSpell(rawKind);
     const source: CardInstanceState | undefined =
         kind === "copy-retarget" || kind === "retarget" || kind === "trigger"
             ? state.stack.find((x) => x.id === cardInstanceId)

@@ -471,15 +471,16 @@ function targetActions(
         pt.divideTotal === undefined || pt.divideTotal - spentBudget >= 1;
 
     if (pt.selected.length < maxTargetCount(pt.count) && budgetOpen) {
-        const kind = pt.kind ?? "cast";
         const legal = getLegalTargets(
             state,
             requirementFromPendingTarget(pt),
             // CR 702.16b / 611 — protection and `cantBeTargeted` guards read
             // the source's live colours / types / subtypes / supertypes, all
             // five derived together by the SAME helper `selectTarget` uses, so
-            // this enumerator's offered set matches the accepted set.
-            pendingTargetingSource(state, pt.cardInstanceId, kind),
+            // this enumerator's offered set matches the accepted set. The
+            // ABSENT-kind default lives inside that helper (issue #2296
+            // review), so no caller re-states it.
+            pendingTargetingSource(state, pt.cardInstanceId, pt.kind),
             playerId,
             pt.chosenX,
             // CR 601.2c — `getLegalTargets` itself now excludes objects

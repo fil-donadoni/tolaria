@@ -43,7 +43,7 @@ import {
     raiseTriggerTargetSelection,
 } from "../rules";
 import { collectTriggers } from "../triggers";
-import { resolveTopOfStack } from "../state";
+import { buildSpellContext, resolveTopOfStack } from "../state";
 import { pushSpell } from "../../cards/__tests__/setup";
 import { legalActions } from "../legalActions";
 import { validateBlockerEligibility } from "../combat";
@@ -793,7 +793,15 @@ function stripComments(text: string): string {
  *  `NO_TARGETING_SOURCE` / `protectionSourceFromTargeting`) and
  *  `gre/protection.ts` (`ProtectionSourceView` + `protectionSourceView` /
  *  `protectionSourceCharacteristics`, issue #2296). */
-function productionFiles(): string[] {
+function productionFiles(
+    /** Repo-relative path suffixes of the modules that legitimately DEFINE
+     *  what the caller's guard polices. Defaults to the two source-bundle
+     *  constructors; the absent-kind guard below passes `gre/constants.ts`. */
+    definingModules: string[] = [
+        join("gre", "rules.ts"),
+        join("gre", "protection.ts"),
+    ]
+): string[] {
     const out: string[] = [];
     const walk = (dir: string): void => {
         for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -811,8 +819,7 @@ function productionFiles(): string[] {
             }
             if (!/\.tsx?$/.test(entry.name)) continue;
             if (/\.test\.tsx?$/.test(entry.name)) continue;
-            if (full.endsWith(join("gre", "rules.ts"))) continue;
-            if (full.endsWith(join("gre", "protection.ts"))) continue;
+            if (definingModules.some((m) => full.endsWith(m))) continue;
             out.push(full);
         }
     };
@@ -888,6 +895,40 @@ describe("single-authority guard — source bundles are never hand-assembled", (
             HAND_ASSEMBLED.test(
                 `{ types: [], subtypes: [], isSpell: true, controllerId: "p1" }`
             )
+        ).toBe(false);
+    });
+
+    // ── The ABSENT-kind default has one home too (issue #2296 review) ──
+    //
+    // `PendingTarget.kind` is optional and `announceCast` omits it, so every
+    // reader must resolve `undefined` to `"cast"`. That default used to be
+    // hand-written at six server sites while the CLIENT's gate independently
+    // mapped `undefined` to "not a spell" — so for the DOMINANT production
+    // shape (any ordinary cast) the client offered a target the server then
+    // rejected: the ADR 0068 divergence, from a duplicated one-liner rather
+    // than a duplicated bundle. `resolvePendingTargetKind` (`gre/constants.ts`)
+    // is now the only place it lives.
+    const LOCAL_KIND_DEFAULT = /\bkind\b\s*\?\?\s*["']cast["']/;
+
+    it("production code never re-states the absent-kind default", () => {
+        const offenders: string[] = [];
+        for (const file of productionFiles([join("gre", "constants.ts")])) {
+            const code = stripComments(readFileSync(file, "utf8"));
+            if (LOCAL_KIND_DEFAULT.test(code)) offenders.push(file);
+        }
+        expect(offenders).toEqual([]);
+    });
+
+    it("the absent-kind pattern matches the shapes it claims to (self-check)", () => {
+        expect(LOCAL_KIND_DEFAULT.test(`const k = pt.kind ?? "cast";`)).toBe(
+            true
+        );
+        expect(
+            LOCAL_KIND_DEFAULT.test(`source(state, id, kind ?? 'cast')`)
+        ).toBe(true);
+        // …and does not fire on the shared helper's own call sites.
+        expect(
+            LOCAL_KIND_DEFAULT.test(`resolvePendingTargetKind(pt.kind)`)
         ).toBe(false);
     });
 
@@ -1302,6 +1343,41 @@ describe("CR 702.16e — damage from a coloured spell is prevented, from an abil
         expect(
             bf.find((c) => c.id === "plain")!.damageMarked ?? 0
         ).toBeGreaterThan(0);
+    });
+
+    it("must-NOT — damage from a COLOURLESS spell lands (CR 105.2, the acceptance criterion's damage half)", () => {
+        // The targeting half of "a colourless spell affects it normally" is
+        // asserted above (`offered`/`accepted` rows); this is the DAMAGE half,
+        // through the same `SpellContext.dealDamage` an Effect Script's
+        // `dealDamage` Op calls — hence the same CR 702.16e gate Pyroclasm is
+        // stopped by. The source is a colourless PERMANENT spell (Ornithopter)
+        // on the stack rather than a burn spell because the catalogue contains
+        // no colourless Instant/Sorcery at all (471 of them, every one
+        // coloured); what the gate reads is the pair (is-a-spell, colours), and
+        // this fixture is the only shipped way to present "spell + colourless".
+        const state = damageBoard();
+        const orni = makeInstance(ORNITHOPTER, {
+            id: "orni",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "stack",
+        });
+        const item = {
+            ...orni,
+            castById: "p2",
+        } as unknown as (typeof state.stack)[number];
+        state.stack.push(item);
+        // 1, not lethal: the warded creature is a 2/2, and a destroyed
+        // creature would leave `find(...)` undefined instead of asserting the
+        // damage actually landed.
+        buildSpellContext(state, item).dealDamage(
+            { type: "permanent", id: "warded" },
+            1
+        );
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "warded")!
+                .damageMarked ?? 0
+        ).toBe(1);
     });
 
     it("must-NOT — the same 1 damage from a coloured permanent's ABILITY lands (CR 113.3)", () => {

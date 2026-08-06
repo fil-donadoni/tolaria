@@ -7,6 +7,15 @@ import {
     type GuardActionSource,
 } from "@convex/gre/permanentGuard";
 import { isProtectedFrom, protectionSourceView } from "@convex/gre/protection";
+// CR 112.1 / 113.3 (issue #2296) — the SHARED spell-bit derivation, the same
+// function `pendingTargetingSource` (`gre/rules.ts`) runs for the server's
+// offered AND accepted sets. Imported rather than re-derived: the client's own
+// copy read an ABSENT `kind` (what every ordinary cast produces — `announceCast`
+// omits the field) as "not a spell" while the server read it as "cast", so a
+// coloured spell was offered against a permanent with protection from coloured
+// spells and rejected on click. That is the ADR 0068 divergence this whole
+// issue exists to prevent, reintroduced by the mirror itself.
+import { pendingSourceIsSpell } from "@convex/gre/constants";
 
 // Client-side mirror of the server's `cantBeTargeted` gate (CR 702.18 shroud /
 // "can't be the target of spells or abilities", CR 611 continuous guard). The
@@ -56,29 +65,6 @@ function toGuardState(players: Player[]): {
             battlefield: p.battlefield.map(toGuardTarget),
         })),
     };
-}
-
-/** CR 112.1 / 113.3 — is the pending source a SPELL? Only a cast or a
- *  (copy-)retargeted spell is; an activated OR triggered ability is not, even
- *  though its stack item is a clone of its coloured source permanent.
- *  Mirrors the server's `pendingTargetingSource` (`convex/gre/rules.ts`).
- *
- *  ONE helper, read by BOTH client gates that need the fact — the CR 611
- *  `cantBeTargeted` guard (`GuardActionSource.isSpell`, "spells only" —
- *  Anti-Magic Aura / Lurker) and the CR 702.16a spell-restricted protection
- *  quality (`ProtectionSourceView.isSpell`, issue #2296). Two independent
- *  derivations of the same fact is how the client's offered set drifts from
- *  the server's accepted set one gate at a time. */
-function pendingSourceIsSpell(
-    kind:
-        | "cast"
-        | "ability"
-        | "copy-retarget"
-        | "retarget"
-        | "trigger"
-        | undefined
-): boolean {
-    return kind === "cast" || kind === "retarget" || kind === "copy-retarget";
 }
 
 /** Locates the spell/ability source whose target selection is in progress, so
