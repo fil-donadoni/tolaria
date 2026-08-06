@@ -773,7 +773,10 @@ export function validateBlockerEligibility(
     }
 
     // Pass 4 — protection (CR 702.16f).
-    if (isProtectedFromSource(attacker, blocker)) {
+    // CR 112.1 — a blocker is a battlefield permanent, never a spell. The
+    // spell-restricted quality (issue #2296) therefore always answers "no"
+    // here: CR 702.16f is vacuous for it, but the path still RUNS.
+    if (isProtectedFromSource(attacker, blocker, false)) {
         return {
             eligible: false,
             reason: "Attacker has protection from this blocker",

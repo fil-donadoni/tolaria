@@ -104,7 +104,9 @@ describe("Giver of Runes (CR 702.16 protection incl. colorless; CR 109.2 'anothe
             controllerId: "p2",
             ownerId: "p2",
         });
-        expect(isProtectedFromSource(target, colorlessSource)).toBe(true);
+        expect(isProtectedFromSource(target, colorlessSource, false)).toBe(
+            true
+        );
 
         // A colored source (green) is untouched by protection FROM colorless.
         const coloredSource = makeInstance(balduvianBears.id, {
@@ -112,7 +114,7 @@ describe("Giver of Runes (CR 702.16 protection incl. colorless; CR 109.2 'anothe
             controllerId: "p2",
             ownerId: "p2",
         });
-        expect(isProtectedFromSource(target, coloredSource)).toBe(false);
+        expect(isProtectedFromSource(target, coloredSource, false)).toBe(false);
 
         // CR 702.16b — a colorless spell/source (sourceColors: []) can no
         // longer choose the protected creature as a target.
@@ -142,7 +144,9 @@ describe("Giver of Runes (CR 702.16 protection incl. colorless; CR 109.2 'anothe
         expect(slimTarget.staticAbilities).toContain(
             "protection from colorless"
         );
-        expect(isProtectedFromSource(slimTarget, colorlessSource)).toBe(true);
+        expect(isProtectedFromSource(slimTarget, colorlessSource, false)).toBe(
+            true
+        );
     });
 
     it("grants a chosen color's protection to another target creature", () => {

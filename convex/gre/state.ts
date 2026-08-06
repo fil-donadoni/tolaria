@@ -126,6 +126,7 @@ import {
     isDamageablePermanent,
     isLandDefinition,
     isPlaneswalker,
+    isSpellStackItem,
     LAND_DROPS_PER_TURN,
     manaGateBattlefields,
     manaValue,
@@ -4689,8 +4690,8 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
     const cardDef = cardId
         ? (tryGetDefinition(cardId) ?? undefined)
         : undefined;
-    const isSpell =
-        !top.abilityId && !top.triggeredAbilityId && !top.delayedTriggerId;
+    // CR 112.1 / 113.3 — the shared discriminator (`gre/constants.ts`).
+    const isSpell = isSpellStackItem(top);
 
     // --- Target-legality gate (CR 608.2b/608.2c) ---
     // Re-check chosen targets BEFORE dispatching any resolve handler. Only run
@@ -5492,7 +5493,10 @@ function finalizeSpellResolution(state: GameState, item: StackItem): void {
 
             const isLegalHost =
                 hostPlayerId !== undefined ||
-                (host !== undefined && isFullyLegalAuraHost(state, host, item));
+                (host !== undefined &&
+                    // CR 608.2b — `item` is the Aura SPELL still on the stack,
+                    // re-checking its target's legality before it resolves.
+                    isFullyLegalAuraHost(state, host, item, true));
             if (!isLegalHost) {
                 sendStackItemToGraveyard(state, item);
                 return;
@@ -7055,11 +7059,19 @@ export function auraEnchantsPlayers(aura: CardInstanceState): boolean {
 function isFullyLegalAuraHost(
     state: GameState,
     host: CardInstanceState,
-    aura: CardInstanceState
+    aura: CardInstanceState,
+    /** CR 112.1 / 702.16b vs 702.16c (issue #2296) — is `aura` still a SPELL?
+     *  TRUE only on the CR 608.2b resolution path, where the Aura spell is
+     *  re-checking that its target is still legal; FALSE on every CR 303.4f
+     *  put-onto-the-battlefield path, where the Aura is already a permanent
+     *  choosing what it enchants. The distinction is invisible in the card
+     *  object (an Aura spell and an Aura permanent carry the same
+     *  `types`/`subtypes`), so the caller states it. */
+    auraIsSpell: boolean
 ): boolean {
     return (
         isLegalAuraHost(host, aura) &&
-        !isProtectedFromSource(host, aura) &&
+        !isProtectedFromSource(host, aura, auraIsSpell) &&
         !isGuardedAgainst(state, host, "cantBeEnchanted")
     );
 }
@@ -7091,7 +7103,9 @@ function findAllLegalAuraHosts(
     for (const player of state.players) {
         for (const host of player.battlefield) {
             if (host.id === excludeId) continue;
-            if (isFullyLegalAuraHost(state, host, aura)) {
+            // CR 303.4f — this candidate scan runs when the Aura enters NOT
+            // as a cast spell, so the source is a PERMANENT (CR 112.1).
+            if (isFullyLegalAuraHost(state, host, aura, false)) {
                 hosts.push({ kind: "permanent", id: host.id, card: host });
             }
         }
@@ -7123,7 +7137,9 @@ function resolveAuraHostCandidate(
         if (player) return { kind: "player", id: player.id };
     }
     const host = findOnBattlefield(state, hostId)?.card;
-    if (host && isFullyLegalAuraHost(state, host, aura)) {
+    // CR 303.4f — same non-cast entry path as `findAllLegalAuraHosts`: the
+    // Aura is a permanent, never a spell (CR 112.1).
+    if (host && isFullyLegalAuraHost(state, host, aura, false)) {
         return { kind: "permanent", id: host.id, card: host };
     }
     return undefined;
@@ -7658,7 +7674,9 @@ function markDamageFromPermanentSource(
     if (!isDamageablePermanent(found.card)) return null;
     // CR 702.16e: damage from a source with the named quality to a permanent
     // with protection is prevented.
-    if (isProtectedFromSource(found.card, source)) return null;
+    // The source is an explicit BATTLEFIELD PERMANENT (a fight combatant, a
+    // redirect source) — never a spell (CR 112.1).
+    if (isProtectedFromSource(found.card, source, false)) return null;
     const reduced = applyTargetPrevention(
         state,
         "permanent",
@@ -10682,7 +10700,18 @@ export function buildSpellContext(
                 // the stated quality to a permanent with protection is
                 // prevented. `item` is the stack item resolving (spell or
                 // ability); its colors come from its mana cost (CR 202.2).
-                if (isProtectedFromSource(found.card, item)) return;
+                if (
+                    isProtectedFromSource(
+                        found.card,
+                        item,
+                        // CR 112.1 / 113.3 — `item` may be a spell OR an
+                        // activated/triggered ability; the ability's stack
+                        // item is a clone of its source permanent and is
+                        // otherwise indistinguishable from one.
+                        isSpellStackItem(item)
+                    )
+                )
+                    return;
                 const reduced = unpreventable
                     ? amount
                     : applyTargetPrevention(

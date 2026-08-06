@@ -31,6 +31,7 @@ import {
     isProtectedFromSource,
     isProtectionAbility,
     parseProtectionQuality,
+    PROTECTION_FROM_COLORED_SPELLS,
     protectionSourceView,
 } from "../protection";
 import {
@@ -38,9 +39,12 @@ import {
     getPendingTargetSourceSupertypes,
     NO_TARGETING_SOURCE,
     pendingTargetingSource,
+    protectionSourceFromTargeting,
     raiseTriggerTargetSelection,
 } from "../rules";
 import { collectTriggers } from "../triggers";
+import { buildSpellContext, resolveTopOfStack } from "../state";
+import { pushSpell } from "../../cards/__tests__/setup";
 import { legalActions } from "../legalActions";
 import { validateBlockerEligibility } from "../combat";
 import { checkAttachmentSBA, checkAuraAttachmentSBA } from "../sba";
@@ -243,19 +247,19 @@ describe("catalogue guard — every shipped protection quality parses (CR 702.16
 describe("isProtectedFrom — characteristic quality (CR 702.16a)", () => {
     it("matches a legendary CREATURE source", () => {
         const source = makeInstance(BARKTOOTH, { id: "legend" });
-        expect(isProtectedFromSource(tsabo(), source)).toBe(true);
+        expect(isProtectedFromSource(tsabo(), source, false)).toBe(true);
     });
 
     it("does NOT match a non-legendary creature source", () => {
         const source = makeInstance(GRIZZLY_BEARS, { id: "bears" });
-        expect(isProtectedFromSource(tsabo(), source)).toBe(false);
+        expect(isProtectedFromSource(tsabo(), source, false)).toBe(false);
     });
 
     it("does NOT match a legendary NON-creature source (the conjunction holds)", () => {
         // Karakas is a Legendary Land — it has the supertype but not the card
         // type, so "protection from legendary creatures" does not apply.
         const source = makeInstance(KARAKAS, { id: "karakas" });
-        expect(isProtectedFromSource(tsabo(), source)).toBe(false);
+        expect(isProtectedFromSource(tsabo(), source, false)).toBe(false);
     });
 
     it("has NO controller exception — the controller's own legend is barred too", () => {
@@ -264,13 +268,15 @@ describe("isProtectedFrom — characteristic quality (CR 702.16a)", () => {
             controllerId: "p1",
             ownerId: "p1",
         });
-        expect(isProtectedFromSource(tsabo("p1"), own)).toBe(true);
+        expect(isProtectedFromSource(tsabo("p1"), own, false)).toBe(true);
     });
 
     it("reads supertypes LIVE (CR 205.4a) — a granted Legendary makes a plain bear match", () => {
         const bears = makeInstance(GRIZZLY_BEARS, { id: "bears" });
-        expect(isProtectedFromSource(tsabo(), bears)).toBe(false);
-        expect(isProtectedFromSource(tsabo(), makeLegendary(bears))).toBe(true);
+        expect(isProtectedFromSource(tsabo(), bears, false)).toBe(false);
+        expect(
+            isProtectedFromSource(tsabo(), makeLegendary(bears), false)
+        ).toBe(true);
     });
 
     it("fails closed on a source with no matching characteristics", () => {
@@ -280,6 +286,7 @@ describe("isProtectedFrom — characteristic quality (CR 702.16a)", () => {
                 types: [],
                 supertypes: [],
                 controllerId: "p2",
+                isSpell: false,
             })
         ).toBe(false);
     });
@@ -399,7 +406,11 @@ describe("CR 702.16b — can't be targeted by a source with the quality", () => 
         const state = boardWithTsabo();
         const legend0 = state.players[1].battlefield[0];
         expect(
-            isProtectedFromSource(state.players[0].battlefield[0], legend0)
+            isProtectedFromSource(
+                state.players[0].battlefield[0],
+                legend0,
+                false
+            )
         ).toBe(true);
 
         const projected = projectPublicState(state, 1, "p2");
@@ -418,18 +429,22 @@ describe("CR 702.16b — can't be targeted by a source with the quality", () => 
         expect(
             isProtectedFromSource(
                 slimTsabo as unknown as CardInstanceState,
-                slimLegend as unknown as CardInstanceState
+                slimLegend as unknown as CardInstanceState,
+                false
             )
         ).toBe(true);
         expect(
             isProtectedFromSource(
                 slimTsabo as unknown as CardInstanceState,
-                slimBears as unknown as CardInstanceState
+                slimBears as unknown as CardInstanceState,
+                false
             )
         ).toBe(false);
         expect(
-            protectionSourceView(slimLegend as unknown as CardInstanceState)
-                .supertypes
+            protectionSourceView(
+                slimLegend as unknown as CardInstanceState,
+                false
+            ).supertypes
         ).toEqual(["Legendary"]);
     });
 });
@@ -555,8 +570,8 @@ describe("CR 702.16e — combat damage from a source with the quality is prevent
         // the block test below for the end-to-end run.
         const legend = makeInstance(BARKTOOTH, { id: "d" });
         const bear = makeInstance(GRIZZLY_BEARS, { id: "b" });
-        expect(isProtectedFromSource(tsabo(), legend)).toBe(true);
-        expect(isProtectedFromSource(tsabo(), bear)).toBe(false);
+        expect(isProtectedFromSource(tsabo(), legend, false)).toBe(true);
+        expect(isProtectedFromSource(tsabo(), bear, false)).toBe(false);
     });
 
     it("end-to-end through applyAllCombatDamage — the legend's damage is prevented", () => {
@@ -771,10 +786,22 @@ function stripComments(text: string): string {
         .replace(/(^|[^:])\/\/[^\n]*/g, "$1");
 }
 
-/** Every production (non-test) `.ts`/`.tsx` file, excluding `gre/rules.ts` —
- *  the one module that DEFINES `TargetingSource` and its three constructors,
- *  and therefore the one place the shape may legitimately be written. */
-function productionFiles(): string[] {
+/** Every production (non-test) `.ts`/`.tsx` file, excluding the TWO modules
+ *  that DEFINE a source bundle and its constructors, and are therefore the
+ *  only places the shape may legitimately be written out: `gre/rules.ts`
+ *  (`TargetingSource` + `targetingSourceFromCard` / `pendingTargetingSource` /
+ *  `NO_TARGETING_SOURCE` / `protectionSourceFromTargeting`) and
+ *  `gre/protection.ts` (`ProtectionSourceView` + `protectionSourceView` /
+ *  `protectionSourceCharacteristics`, issue #2296). */
+function productionFiles(
+    /** Repo-relative path suffixes of the modules that legitimately DEFINE
+     *  what the caller's guard polices. Defaults to the two source-bundle
+     *  constructors; the absent-kind guard below passes `gre/constants.ts`. */
+    definingModules: string[] = [
+        join("gre", "rules.ts"),
+        join("gre", "protection.ts"),
+    ]
+): string[] {
     const out: string[] = [];
     const walk = (dir: string): void => {
         for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -792,7 +819,7 @@ function productionFiles(): string[] {
             }
             if (!/\.tsx?$/.test(entry.name)) continue;
             if (/\.test\.tsx?$/.test(entry.name)) continue;
-            if (full.endsWith(join("gre", "rules.ts"))) continue;
+            if (definingModules.some((m) => full.endsWith(m))) continue;
             out.push(full);
         }
     };
@@ -801,7 +828,8 @@ function productionFiles(): string[] {
     return out;
 }
 
-/** A `TargetingSource` being written out by hand. This is a LEXICAL scan, not
+/** A `TargetingSource` — or, since issue #2296, a `ProtectionSourceView` —
+ *  being written out by hand. This is a LEXICAL scan, not
  *  an AST shape check: it flags the co-occurrence of the `supertypes` and
  *  `isSpell` IDENTIFIERS within 400 characters of each other in
  *  comment-stripped code. Matching on identifiers rather than `key:` colon
@@ -810,9 +838,15 @@ function productionFiles(): string[] {
  *  helper) and property assignment, both of which an earlier `supertypes:` …
  *  `isSpell:` version walked straight past.
  *
- *  Why the pair discriminates: no other type in the codebase carries both
- *  fields — `GuardActionSource` has `isSpell` and no `supertypes`; the various
- *  supertype views have `supertypes` and no `isSpell`.
+ *  Why the pair discriminates: exactly two types in the codebase carry both
+ *  fields, `TargetingSource` and `ProtectionSourceView`, and both are excluded
+ *  above at their defining module — `GuardActionSource` has `isSpell` and no
+ *  `supertypes`; the various supertype views have `supertypes` and no
+ *  `isSpell`. Since #2296 that makes this ONE regex police BOTH bundles: the
+ *  accepted set (`game.ts::selectTarget`) used to hand-write its
+ *  `ProtectionSourceView` literal, which the guard could not see because the
+ *  view had no `isSpell` field to co-occur with; it now goes through
+ *  `protectionSourceFromTargeting`, the same projection the offered set uses.
  *
  *  What it does NOT catch, stated plainly rather than overclaimed: a hand-built
  *  bundle whose two fields are more than 400 characters apart, or one assembled
@@ -822,8 +856,8 @@ function productionFiles(): string[] {
 const HAND_ASSEMBLED =
     /\bsupertypes\b[\s\S]{0,400}?\bisSpell\b|\bisSpell\b[\s\S]{0,400}?\bsupertypes\b/;
 
-describe("single-authority guard — TargetingSource is never hand-assembled", () => {
-    it("production code builds a TargetingSource ONLY through the three constructors", () => {
+describe("single-authority guard — source bundles are never hand-assembled", () => {
+    it("production code builds a TargetingSource / ProtectionSourceView ONLY through their constructors", () => {
         // `TargetingSource` has five required fields, so omitting one is a
         // compile error — but a hand-written bundle type-checks fine and
         // silently reintroduces the divergence class (a site free-hands
@@ -861,6 +895,40 @@ describe("single-authority guard — TargetingSource is never hand-assembled", (
             HAND_ASSEMBLED.test(
                 `{ types: [], subtypes: [], isSpell: true, controllerId: "p1" }`
             )
+        ).toBe(false);
+    });
+
+    // ── The ABSENT-kind default has one home too (issue #2296 review) ──
+    //
+    // `PendingTarget.kind` is optional and `announceCast` omits it, so every
+    // reader must resolve `undefined` to `"cast"`. That default used to be
+    // hand-written at six server sites while the CLIENT's gate independently
+    // mapped `undefined` to "not a spell" — so for the DOMINANT production
+    // shape (any ordinary cast) the client offered a target the server then
+    // rejected: the ADR 0068 divergence, from a duplicated one-liner rather
+    // than a duplicated bundle. `resolvePendingTargetKind` (`gre/constants.ts`)
+    // is now the only place it lives.
+    const LOCAL_KIND_DEFAULT = /\bkind\b\s*\?\?\s*["']cast["']/;
+
+    it("production code never re-states the absent-kind default", () => {
+        const offenders: string[] = [];
+        for (const file of productionFiles([join("gre", "constants.ts")])) {
+            const code = stripComments(readFileSync(file, "utf8"));
+            if (LOCAL_KIND_DEFAULT.test(code)) offenders.push(file);
+        }
+        expect(offenders).toEqual([]);
+    });
+
+    it("the absent-kind pattern matches the shapes it claims to (self-check)", () => {
+        expect(LOCAL_KIND_DEFAULT.test(`const k = pt.kind ?? "cast";`)).toBe(
+            true
+        );
+        expect(
+            LOCAL_KIND_DEFAULT.test(`source(state, id, kind ?? 'cast')`)
+        ).toBe(true);
+        // …and does not fire on the shared helper's own call sites.
+        expect(
+            LOCAL_KIND_DEFAULT.test(`resolvePendingTargetKind(pt.kind)`)
         ).toBe(false);
     });
 
@@ -986,5 +1054,455 @@ describe("CR 113.3 — a triggered ability is not a spell (Lurker, spell-only gu
         ).map((t) => t.id);
         expect(offered).not.toContain("lurker");
         expect(offered).toContain("bear");
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// CR 702.16a — "protection from spells that are one or more colors"
+// (issue #2296): the SPELL-RESTRICTED, ANY-COLOUR quality
+// ─────────────────────────────────────────────────────────────────────────
+//
+// The quality is a CONJUNCTION of two independent facts, and this block is
+// organised as the producer census that drove it — one `it` per source shape,
+// with the must-NOT rows carrying most of the weight. Honouring only the
+// colour half (the easy half: `colors.length > 0`) leaves an engine that bars
+// coloured PERMANENTS, coloured BLOCKERS and the ABILITIES of coloured
+// permanents, none of which CR 702.16 bars. Every source below is derived
+// from a REAL catalogue card through the production projection
+// (`pendingTargetingSource` / `protectionSourceFromTargeting` /
+// `protectionSourceView`) — never a hand-written literal — because a literal
+// lets the test assert the answer it already assumed.
+//
+//   source shape                                     spell?  coloured?  barred?
+//   Lightning Bolt cast from hand (red Instant)      yes     yes        YES
+//   Blessing cast from hand (white Aura)             yes     yes        YES
+//   Ornithopter cast from hand (colourless)          yes     no         no
+//   Prodigal Sorcerer's activated ability (blue)     no      yes        no
+//   Grizzly Bears blocking / dealing combat damage   no      yes        no
+
+const LIGHTNING_BOLT = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a"; // red Instant
+const PYROCLASM = "88040748-ad76-4b9a-bd4e-87e5980e9816"; // red Sorcery, untargeted sweep
+const ORNITHOPTER = "59cc9bdb-7cf2-4795-bac7-ffff605c9eb0"; // colourless Artifact Creature
+const PRODIGAL_SORCERER = "e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a"; // blue, {T}: 1 damage
+
+/** A plain creature carrying the new quality. Granted onto a shipped vanilla
+ *  rather than invented as a card definition: no catalogue card declares the
+ *  string yet (Emrakul is the tracked stub this slice unblocks, PRD #1301),
+ *  and `staticAbilities` is exactly where a printed or granted keyword lands,
+ *  so the predicate reads it through the identical path either way. */
+function warded(controllerId = "p1", id = "warded"): CardInstanceState {
+    const card = makeInstance(GRIZZLY_BEARS, {
+        id,
+        controllerId,
+        ownerId: controllerId,
+    });
+    card.staticAbilities = [
+        ...card.staticAbilities,
+        PROTECTION_FROM_COLORED_SPELLS,
+    ];
+    return card;
+}
+
+describe("parseProtectionQuality — spells that are one or more colors (CR 702.16a)", () => {
+    it("parses the phrase, and the parser agrees with isProtectionAbility", () => {
+        expect(isProtectionAbility(PROTECTION_FROM_COLORED_SPELLS)).toBe(true);
+        expect(parseProtectionQuality(PROTECTION_FROM_COLORED_SPELLS)).toEqual({
+            kind: "colored-spell",
+        });
+        // The combination the catalogue guard fails on — `isProtectionAbility`
+        // true while the parser returns null — is what blocked the card.
+        expect(parseProtectionQuality(PROTECTION_FROM_COLORED_SPELLS)).not.toBe(
+            null
+        );
+    });
+
+    it("still FAILS CLOSED on a neighbouring phrasing it does not name", () => {
+        // The parser must not become a loose "mentions spells and colors"
+        // heuristic — an unnameable quality has to reach the catalogue guard.
+        expect(
+            parseProtectionQuality("protection from colored spells")
+        ).toBeNull();
+        expect(
+            parseProtectionQuality("protection from spells that are all colors")
+        ).toBeNull();
+    });
+
+    it("reads through CR 612.6 text changes and dedups (CR 702.16m)", () => {
+        const card = warded();
+        card.staticAbilities = [
+            PROTECTION_FROM_COLORED_SPELLS,
+            PROTECTION_FROM_COLORED_SPELLS,
+        ];
+        expect(getProtectionQualities(card)).toEqual([
+            { kind: "colored-spell" },
+        ]);
+    });
+});
+
+describe("isProtectedFrom — spells that are one or more colors (CR 702.16a/112.1/105.2)", () => {
+    /** The board every row below reads from: the warded creature and a plain
+     *  bear for p1; p2 holds a red Instant, a white Aura and a colourless
+     *  artifact creature in hand, and controls a blue Prodigal Sorcerer. */
+    function board(): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        warded("p1"),
+                        makeInstance(GRIZZLY_BEARS, {
+                            id: "plain",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2", {
+                    hand: [
+                        makeInstance(LIGHTNING_BOLT, {
+                            id: "bolt",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "hand",
+                        }),
+                        makeInstance(BLESSING, {
+                            id: "aura",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "hand",
+                        }),
+                        makeInstance(ORNITHOPTER, {
+                            id: "orni",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "hand",
+                        }),
+                    ],
+                    battlefield: [
+                        makeInstance(PRODIGAL_SORCERER, {
+                            id: "tim",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+        });
+    }
+
+    /** The OFFERED set (`getLegalTargets`) for a "target creature" requirement,
+     *  from a source derived by the production helper. */
+    function offered(
+        state: GameState,
+        sourceId: string,
+        kind: "cast" | "ability"
+    ): string[] {
+        return getLegalTargets(
+            state,
+            CREATURE_REQ,
+            pendingTargetingSource(state, sourceId, kind),
+            "p2"
+        ).map((t) => t.id);
+    }
+
+    /** The ACCEPTED set's verdict — the exact expression `selectTarget`
+     *  (`convex/game.ts`) evaluates for CR 702.16b. */
+    function accepted(
+        state: GameState,
+        sourceId: string,
+        kind: "cast" | "ability",
+        target: CardInstanceState
+    ): boolean {
+        return isProtectedFrom(
+            target,
+            protectionSourceFromTargeting(
+                pendingTargetingSource(state, sourceId, kind),
+                "p2"
+            )
+        );
+    }
+
+    it("MUST — a coloured SPELL cannot target it, offered set and accepted set agreeing", () => {
+        const state = board();
+        const target = state.players[0].battlefield[0];
+        expect(pendingTargetingSource(state, "bolt", "cast")).toMatchObject({
+            colors: ["R"],
+            isSpell: true,
+        });
+        expect(offered(state, "bolt", "cast")).not.toContain("warded");
+        expect(offered(state, "bolt", "cast")).toContain("plain");
+        expect(accepted(state, "bolt", "cast", target)).toBe(true);
+    });
+
+    it("MUST — a coloured AURA spell cannot target it (CR 702.16b, not 702.16c)", () => {
+        const state = board();
+        const target = state.players[0].battlefield[0];
+        expect(pendingTargetingSource(state, "aura", "cast")).toMatchObject({
+            colors: ["W"],
+            isSpell: true,
+        });
+        expect(offered(state, "aura", "cast")).not.toContain("warded");
+        expect(accepted(state, "aura", "cast", target)).toBe(true);
+    });
+
+    it("must-NOT — a COLOURLESS spell targets it normally (CR 105.2)", () => {
+        const state = board();
+        const target = state.players[0].battlefield[0];
+        expect(pendingTargetingSource(state, "orni", "cast")).toMatchObject({
+            colors: [],
+            isSpell: true,
+        });
+        expect(offered(state, "orni", "cast")).toContain("warded");
+        expect(accepted(state, "orni", "cast", target)).toBe(false);
+    });
+
+    it("must-NOT — an ABILITY of a COLOURED permanent targets it normally (CR 113.3)", () => {
+        const state = board();
+        const target = state.players[0].battlefield[0];
+        // The ability's stack item is a clone of the blue permanent, so its
+        // COLOURS match the permanent's exactly — the spell bit is the only
+        // thing that separates this row from the Lightning Bolt row above.
+        expect(pendingTargetingSource(state, "tim", "ability")).toMatchObject({
+            colors: ["U"],
+            isSpell: false,
+        });
+        expect(offered(state, "tim", "ability")).toContain("warded");
+        expect(accepted(state, "tim", "ability", target)).toBe(false);
+    });
+
+    it("must-NOT — a coloured PERMANENT source is not barred at all", () => {
+        const bear = makeInstance(GRIZZLY_BEARS, { id: "bear" });
+        expect(isProtectedFromSource(warded(), bear, false)).toBe(false);
+        // …and the SAME card object, stated as a spell, IS barred. One
+        // argument apart: proof the predicate keys on the caller's fact and
+        // not on anything readable off the card.
+        expect(isProtectedFromSource(warded(), bear, true)).toBe(true);
+    });
+
+    it("wire format — the same verdicts survive projectPublicState", () => {
+        const state = board();
+        const projected = projectPublicState(state, 1, "p2");
+        const slimWarded = projected.players[0].battlefield.find(
+            (c) => c.id === "warded"
+        )! as unknown as CardInstanceState;
+        const slimTim = projected.players[1].battlefield.find(
+            (c) => c.id === "tim"
+        )! as unknown as CardInstanceState;
+        expect(slimWarded.staticAbilities).toContain(
+            PROTECTION_FROM_COLORED_SPELLS
+        );
+        // The projection strips `card.card` to `{ id }`; colours must still
+        // resolve through the registry on the client's side of the wire.
+        expect(protectionSourceView(slimTim, true).colors).toEqual(["U"]);
+        expect(isProtectedFromSource(slimWarded, slimTim, true)).toBe(true);
+        expect(isProtectedFromSource(slimWarded, slimTim, false)).toBe(false);
+    });
+});
+
+describe("CR 702.16e — damage from a coloured spell is prevented, from an ability is not", () => {
+    function damageBoard(): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        warded("p1"),
+                        // 6/5, so it SURVIVES the 2 damage below and can be
+                        // read for `damageMarked` (a 2/2 control would be
+                        // destroyed by SBA and the assertion would read
+                        // `undefined ?? 0`, passing for the wrong reason).
+                        makeInstance(BARKTOOTH, {
+                            id: "plain",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(PRODIGAL_SORCERER, {
+                            id: "tim",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+        });
+    }
+
+    it("MUST — Pyroclasm (a red SORCERY) deals it no damage, but hits the plain bear", () => {
+        // End-to-end through the real path: pushSpell → resolveTopOfStack →
+        // the Effect Script's `dealDamage` → `isProtectedFromSource(card,
+        // item, isSpellStackItem(item))`. Pyroclasm is UNTARGETED, so the CR
+        // 608.2b legality gate cannot be what stops it — this isolates the
+        // 702.16e damage clause from the 702.16b targeting clause.
+        const state = damageBoard();
+        pushSpell(state, PYROCLASM, "p2");
+        resolveTopOfStack(state);
+        const bf = state.players[0].battlefield;
+        expect(bf.find((c) => c.id === "warded")!.damageMarked ?? 0).toBe(0);
+        expect(
+            bf.find((c) => c.id === "plain")!.damageMarked ?? 0
+        ).toBeGreaterThan(0);
+    });
+
+    it("must-NOT — damage from a COLOURLESS spell lands (CR 105.2, the acceptance criterion's damage half)", () => {
+        // The targeting half of "a colourless spell affects it normally" is
+        // asserted above (`offered`/`accepted` rows); this is the DAMAGE half,
+        // through the same `SpellContext.dealDamage` an Effect Script's
+        // `dealDamage` Op calls — hence the same CR 702.16e gate Pyroclasm is
+        // stopped by. The source is a colourless PERMANENT spell (Ornithopter)
+        // on the stack rather than a burn spell because the catalogue contains
+        // no colourless Instant/Sorcery at all (471 of them, every one
+        // coloured); what the gate reads is the pair (is-a-spell, colours), and
+        // this fixture is the only shipped way to present "spell + colourless".
+        const state = damageBoard();
+        const orni = makeInstance(ORNITHOPTER, {
+            id: "orni",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "stack",
+        });
+        const item = {
+            ...orni,
+            castById: "p2",
+        } as unknown as (typeof state.stack)[number];
+        state.stack.push(item);
+        // 1, not lethal: the warded creature is a 2/2, and a destroyed
+        // creature would leave `find(...)` undefined instead of asserting the
+        // damage actually landed.
+        buildSpellContext(state, item).dealDamage(
+            { type: "permanent", id: "warded" },
+            1
+        );
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "warded")!
+                .damageMarked ?? 0
+        ).toBe(1);
+    });
+
+    it("must-NOT — the same 1 damage from a coloured permanent's ABILITY lands (CR 113.3)", () => {
+        const state = damageBoard();
+        const tim = state.players[1].battlefield[0];
+        state.stack.push({
+            ...tim,
+            zone: "stack",
+            castById: "p2",
+            abilityId: "prodigal-sorcerer-zap",
+            targets: [{ type: "permanent", id: "warded" }],
+        });
+        resolveTopOfStack(state);
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "warded"
+        );
+        // The ability was neither fizzled by the CR 608.2b gate nor prevented
+        // by CR 702.16e — a blue permanent's ability is not a blue spell.
+        expect(after?.damageMarked ?? 0).toBe(1);
+    });
+});
+
+describe("CR 702.16d/f — a coloured PERMANENT blocks, is blocked, and equips normally", () => {
+    it("must-NOT — a coloured creature can block it and be blocked by it", () => {
+        // CR 702.16f is VACUOUS for this quality (a spell never blocks), but
+        // the code path still RUNS and must answer "no" rather than be
+        // skipped. Both directions, since the protected creature is the
+        // ATTACKER in one and the BLOCKER in the other.
+        const attacker = warded("p1", "atk");
+        attacker.isAttacking = true;
+        const blocker = makeInstance(GRIZZLY_BEARS, {
+            id: "blk",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [attacker] }),
+                makePlayer("p2", { battlefield: [blocker] }),
+            ],
+        });
+        expect(
+            validateBlockerEligibility(attacker, blocker, [blocker], state)
+                .eligible
+        ).toBe(true);
+        expect(
+            validateBlockerEligibility(blocker, attacker, [attacker], state)
+                .eligible
+        ).toBe(true);
+    });
+
+    it("must-NOT — combat damage from a coloured creature still lands", () => {
+        const attacker = makeInstance(GRIZZLY_BEARS, {
+            id: "attacker",
+            controllerId: "p2",
+            ownerId: "p2",
+            isAttacking: true,
+        });
+        const blocker = warded("p1");
+        blocker.isBlocking = true;
+        const state = makeState({
+            phase: "COMBAT_DAMAGE",
+            activePlayerId: "p2",
+            players: [
+                makePlayer("p1", { battlefield: [blocker] }),
+                makePlayer("p2", { battlefield: [attacker] }),
+            ],
+            combat: {
+                confirmed: true,
+                attackerIds: ["attacker"],
+                blockerAssignments: { warded: ["attacker"] },
+                blockedAttackerIds: ["attacker"],
+                blockersConfirmed: true,
+                damageConfirmed: false,
+            } as GameState["combat"],
+        });
+        // 1, not 2: the warded creature is a 2/2 and lethal damage would let
+        // the SBA remove it, so the assertion below would read `undefined`
+        // and a genuinely PREVENTED hit would look identical to a landed one.
+        applyAllCombatDamage(state, { attacker: { warded: 1 } });
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "warded")
+                ?.damageMarked ?? 0
+        ).toBeGreaterThan(0);
+    });
+
+    it("must-NOT — a coloured Equipment stays attached (CR 702.16d, 704.5n)", () => {
+        const host = warded("p1");
+        host.attachedTo = undefined;
+        const equipment = makeInstance(LION_SASH, {
+            id: "sash",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "warded",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [host, equipment] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(checkAttachmentSBA(state)).toBe(false);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "sash")!
+                .attachedTo
+        ).toBe("warded");
+    });
+
+    it("must-NOT — an attached coloured Aura stays attached (CR 702.16c, 704.5m)", () => {
+        const aura = makeInstance(BLESSING, {
+            id: "aura",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "warded",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [warded("p1"), aura] }),
+                makePlayer("p2"),
+            ],
+        });
+        checkAuraAttachmentSBA(state);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "aura")
+                ?.attachedTo
+        ).toBe("warded");
     });
 });

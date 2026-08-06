@@ -7,6 +7,15 @@ import {
     type GuardActionSource,
 } from "@convex/gre/permanentGuard";
 import { isProtectedFrom, protectionSourceView } from "@convex/gre/protection";
+// CR 112.1 / 113.3 (issue #2296) — the SHARED spell-bit derivation, the same
+// function `pendingTargetingSource` (`gre/rules.ts`) runs for the server's
+// offered AND accepted sets. Imported rather than re-derived: the client's own
+// copy read an ABSENT `kind` (what every ordinary cast produces — `announceCast`
+// omits the field) as "not a spell" while the server read it as "cast", so a
+// coloured spell was offered against a permanent with protection from coloured
+// spells and rejected on click. That is the ADR 0068 divergence this whole
+// issue exists to prevent, reintroduced by the mirror itself.
+import { pendingSourceIsSpell } from "@convex/gre/constants";
 
 // Client-side mirror of the server's `cantBeTargeted` gate (CR 702.18 shroud /
 // "can't be the target of spells or abilities", CR 611 continuous guard). The
@@ -76,11 +85,7 @@ function pendingGuardSource(
         | undefined,
     sourceControllerId: string | undefined
 ): GuardActionSource {
-    // CR 113.3 — only a cast / (copy-)retargeted spell is a spell; an
-    // activated OR triggered ability is not. Mirrors the server's
-    // `pendingTargetingSource`.
-    const isSpell =
-        kind === "cast" || kind === "retarget" || kind === "copy-retarget";
+    const isSpell = pendingSourceIsSpell(kind);
     const found = findPendingSourceCard(
         players,
         stackItems,
@@ -197,7 +202,16 @@ export function isUntargetableByPending(
     if (!sourceCard) return false;
     return isProtectedFrom(
         toGuardTarget(candidate),
-        protectionSourceView(toGuardTarget(sourceCard))
+        // CR 112.1 (issue #2296) — the spell bit comes from the pending
+        // source's KIND, the only thing that carries it: an ability's stack
+        // item is a clone of its source permanent, so `sourceCard` alone can
+        // never tell a coloured creature spell from the coloured creature.
+        // Derived by the same helper the guard path above uses, so the two
+        // client gates cannot disagree with each other or with the server.
+        protectionSourceView(
+            toGuardTarget(sourceCard),
+            pendingSourceIsSpell(kind)
+        )
     );
 }
 

@@ -36,6 +36,7 @@ import { PENDING_TARGET_FILTER_KEYS, emitBecameTargetEvents } from "./state";
 import type { TargetRequirement, TargetSelection } from "../cards/types";
 import { drainAutoPasses } from "./phases";
 import { raiseTriggerTargetSelection } from "./rules";
+import { resolvePendingTargetKind } from "./constants";
 
 /** Whether the player who owes a `PendingTarget` opened it themselves
  *  (`"announced"`) or the engine opened it at them (`"raised"`). */
@@ -81,14 +82,15 @@ const _pendingTargetOriginExhaustive: [MissingPendingTargetOriginKind] extends [
     : never = true;
 void _pendingTargetOriginExhaustive;
 
-/** Classify a `PendingTarget.kind`. An ABSENT kind is `"cast"` — the same
- *  `pt.kind ?? "cast"` default `finalizeTargetSelection` and `targetActions`
- *  already apply, so the fallback is announced (fail-CLOSED for the bot: an
- *  unclassifiable selection is never touched). */
+/** Classify a `PendingTarget.kind`. An ABSENT kind is `"cast"` — resolved by
+ *  the SHARED `resolvePendingTargetKind` (`gre/constants.ts`), the one default
+ *  `finalizeTargetSelection`, `targetActions`, `pendingTargetingSource` and
+ *  the client's targeting gate all read, so the fallback is announced
+ *  (fail-CLOSED for the bot: an unclassifiable selection is never touched). */
 export function pendingTargetOrigin(
     kind: PendingTarget["kind"]
 ): PendingTargetOrigin {
-    return PENDING_TARGET_ORIGIN[kind ?? "cast"];
+    return PENDING_TARGET_ORIGIN[resolvePendingTargetKind(kind)];
 }
 
 /** The live `PendingTarget` that `playerId` owes AND did not announce, or
@@ -210,7 +212,7 @@ export function applyRaisedTargetFinalization(
     state: GameState,
     pt: PendingTarget
 ): boolean {
-    const kind = pt.kind ?? "cast";
+    const kind = resolvePendingTargetKind(pt.kind);
     if (pendingTargetOrigin(kind) !== "raised") return false;
 
     // CR 601.2c — a multi-group selection locked earlier groups' picks into

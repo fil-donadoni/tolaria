@@ -1331,7 +1331,9 @@ export function applyAllCombatDamage(
                 activePlayer.battlefield.find((c) => c.id === finalTarget.id) ??
                 defender.battlefield.find((c) => c.id === finalTarget.id);
             if (!targetCard) return;
-            if (isProtectedFromSource(targetCard, source)) return;
+            // CR 112.1 — a combat damage source is the attacking/blocking
+            // CREATURE, never a spell.
+            if (isProtectedFromSource(targetCard, source, false)) return;
             // CR 615 / 611 — continuous source-filtered combat-damage
             // prevention (Enchanted Being, Wall of Vapor). Re-evaluated live
             // each combat: prevents all combat damage from a matching source.

@@ -60,7 +60,7 @@ import {
 } from "./layers";
 import { hasSupertypeLive } from "./snow";
 import { totalKickerCount } from "./kicker";
-import { isLand, manaValue } from "./constants";
+import { isLand, isSpellStackItem, manaValue } from "./constants";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import { hasControlledSinceTurnStart } from "./controlContinuity";
 
@@ -162,9 +162,8 @@ export function spellMatchesExcludeTypeFilter(
     excludeTypes: ReadonlyArray<CardType> | undefined
 ): boolean {
     if (!excludeTypes || excludeTypes.length === 0) return true;
-    if (item.abilityId || item.triggeredAbilityId || item.delayedTriggerId) {
-        return false;
-    }
+    // CR 112.1 — an ability on the stack is not a spell (shared discriminator).
+    if (!isSpellStackItem(item)) return false;
     return !excludeTypes.some((t) => item.types.includes(t));
 }
 
@@ -181,9 +180,8 @@ export function spellMatchesCreaturePtFilter(
     filter: { maxPowerOrToughness: number } | undefined
 ): boolean {
     if (!filter) return true;
-    if (item.abilityId || item.triggeredAbilityId || item.delayedTriggerId) {
-        return false;
-    }
+    // CR 112.1 — an ability on the stack is not a spell (shared discriminator).
+    if (!isSpellStackItem(item)) return false;
     if (!item.types.includes("Creature")) return false;
     const max = filter.maxPowerOrToughness;
     const powerOk = item.power !== undefined && item.power <= max;
@@ -209,10 +207,9 @@ export function spellWouldDestroyLandControlledBy(
     item: StackItem,
     playerId: string
 ): boolean {
-    // An activated/triggered/delayed ability on the stack is not a spell.
-    if (item.abilityId || item.triggeredAbilityId || item.delayedTriggerId) {
-        return false;
-    }
+    // CR 112.1 — an activated/triggered/delayed ability on the stack is not a
+    // spell (shared discriminator).
+    if (!isSpellStackItem(item)) return false;
     const cardId = (item.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
     if (!def) return false;
@@ -976,10 +973,7 @@ const spellStackKindDescriptor = defineFilter<
     lower: (req) => req.spellStackKind ?? "spell",
     checks: {
         spell: (item, value) => {
-            const isAbilityItem =
-                !!item.abilityId ||
-                !!item.triggeredAbilityId ||
-                !!item.delayedTriggerId;
+            const isAbilityItem = !isSpellStackItem(item);
             const acceptsSpell = value === "spell" || value === "any";
             const acceptsAbility =
                 value === "activated-ability" ||
@@ -1043,10 +1037,7 @@ const spellTypeFilterDescriptor = defineFilter<CardType[]>({
     lower: (req) => arr(req.spellTypeFilter),
     checks: {
         spell: (item, value) => {
-            const isAbility =
-                !!item.abilityId ||
-                !!item.triggeredAbilityId ||
-                !!item.delayedTriggerId;
+            const isAbility = !isSpellStackItem(item);
             if (isAbility || !value.some((t) => item.types.includes(t))) {
                 return "Target is not a spell of the required type";
             }
@@ -1087,10 +1078,7 @@ const spellSingleTargetingControllerDescriptor = defineFilter<boolean>({
     lower: (req) => (req.spellSingleTargetingController ? true : undefined),
     checks: {
         spell: (item, _value, ctx) => {
-            const isAbility =
-                !!item.abilityId ||
-                !!item.triggeredAbilityId ||
-                !!item.delayedTriggerId;
+            const isAbility = !isSpellStackItem(item);
             const tgts = item.targets ?? [];
             const ok =
                 !isAbility &&

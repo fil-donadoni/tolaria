@@ -664,7 +664,7 @@ export function enumerateRaisedTargetMoves(
         requirementFromPendingTarget(pt),
         // CR 702.16b / 611 — protection and `cantBeTargeted` guards read the
         // source's live characteristics; the same helper the human path uses.
-        pendingTargetingSource(state, pt.cardInstanceId, pt.kind ?? "cast"),
+        pendingTargetingSource(state, pt.cardInstanceId, pt.kind),
         playerId,
         pt.chosenX,
         // CR 601.2c — objects already chosen under this requirement are
