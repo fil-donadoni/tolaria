@@ -12,7 +12,9 @@ Create agent-readable GitHub issues from a QA observation.
 
 ### Step 1 — Parse input
 
-Extract the message and optional `--type` flag (default: `bug`). Valid types: `bug`, `enhancement`. Also tag as `ready-for-agent` to make it findable by ralph.
+Extract the message and optional `--type` flag (default: `bug`). Valid types: `bug`, `enhancement`.
+
+The **queue label** (`ready-for-agent` vs `needs-triage`) is decided in Step 6, once the draft exists — the two are **mutually exclusive**, never both.
 
 ### Step 2 — Clarify if vague
 
@@ -106,26 +108,74 @@ anything.
 Pick a label only if you are escalating, and carry it into the draft's label
 list.
 
-### Step 6 — Confirm with user
+### Step 6 — Pick the queue label (exactly ONE)
 
-Present the full draft (title, body, labels including the model label) and ask
-for approval. Accept edits. Do not create the issue until the user confirms.
+`ready-for-agent` and `needs-triage` are **mutually exclusive** — never apply
+both. They answer opposite questions, and an issue carrying both is a
+contradiction: it claims to be executable AND to be waiting on a human.
 
-### Step 7 — Create the issue
+- **`ready-for-agent`** — the draft is complete: area identified, current vs
+  desired behavior stated, acceptance criteria testable, out-of-scope drawn. An
+  implement-subagent could pick it up as-is. `/process-gh-issues` drains this
+  queue.
+- **`needs-triage`** — something still needs a human decision: the repro is
+  unconfirmed, the desired behavior is a product call, the scope is unbounded,
+  or a criterion can't be written without the maintainer choosing. The issue is
+  a record, not a work order.
 
-Ensure the `needs-triage` label exists:
+If after Step 2's clarification round the answer is still "an agent could not
+execute this without asking someone", it is `needs-triage`. Otherwise it is
+`ready-for-agent`. Never hedge by applying both.
+
+### Step 7 — Confirm with user
+
+Present the full draft (title, body, labels including the queue label and the
+model label) and ask for approval. Accept edits. Do not create the issue until
+the user confirms.
+
+### Step 8 — Create the issue
+
+Ensure the queue label exists (only the one chosen in Step 6):
 
 ```sh
 gh label create needs-triage --description "Maintainer needs to evaluate" --color "FBCA04" --force
 ```
 
-Create the issue (`<model>` = the model label chosen in Step 5):
+Create the issue — `<queue>` = **one** of `ready-for-agent` / `needs-triage`,
+`<model>` = the model label from Step 5 (omit the flag entirely when not
+escalating):
 
 ```sh
-gh issue create --title "<title>" --body "<body>" --label "<type>" --label "needs-triage" --label "ready-for-agent" --label "model:<sonnet|opus|fable>"
+gh issue create --title "<title>" --body "<body>" --label "<type>" --label "<queue>" --label "model:<opus|fable>"
 ```
 
 Output the issue URL.
+
+### Step 8b — Wire the parent edge (only when the issue came out of an umbrella)
+
+**Every issue cut from a `prd`-labelled umbrella MUST carry the native
+sub-issue edge — `gh issue edit <child> --parent <umbrella>`.** This applies
+whenever the observation is filed as a slice of an existing PRD, and whenever
+an issue is turned INTO a PRD and its work is split out of it: the children
+are wired in the same pass, never left for later.
+
+Why it is mandatory and not decorative: `/process-gh-issues` sorts its queue
+by `parent.number ?? number` — oldest **lineage** first — read from its cheap
+Stage-1 list call. A child with no edge sorts on its own number, so a slice
+cut today from a PRD opened months ago lands at the **back** of the queue and
+its umbrella never converges. The edge is also what `subIssuesSummary` reads,
+which is the only signal that lets the loop close the PRD when its last slice
+lands. A prose `Parent: #N` line is documentation for humans — it is not the
+sort key, and parsing it would force a body fetch for the whole queue.
+
+Verify, don't assume — `gh issue view <umbrella> --json subIssuesSummary`
+must report `total` equal to the number of children just cut.
+
+**Only wire `--parent` to a genuine umbrella** (it carries `prd`, or holds no
+implementation work of its own). When a QA issue is split out of an ordinary
+WORK ticket, use `--add-blocked-by` / `--add-blocking` and leave `parent`
+unset: a parent edge asserts "my children fully discharge me", which is false
+for a work ticket that keeps its own scope.
 
 ## Checklist
 
@@ -136,5 +186,7 @@ Output the issue URL.
 - [ ] Acceptance criteria are testable
 - [ ] Out of scope section present
 - [ ] Model label decided — **none** unless escalating (`model:opus` / `model:fable`)
+- [ ] Queue label decided — **exactly one** of `ready-for-agent` / `needs-triage`, never both
 - [ ] User confirmed before creation
-- [ ] Labels applied: category + `needs-triage` + `ready-for-agent` (+ `model:*` only if escalated)
+- [ ] Labels applied: category + exactly one queue label (+ `model:*` only if escalated)
+- [ ] If cut from a `prd` umbrella: `--parent` wired and `subIssuesSummary.total` verified
