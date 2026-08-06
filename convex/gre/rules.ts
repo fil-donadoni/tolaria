@@ -34,7 +34,7 @@ import { STATIC_EFFECT_CTX, getEffectivePower } from "./layers";
 import {
     isProtectedFrom,
     playerHasProtectionFromEverything,
-    protectionSourceView,
+    protectionSourceCharacteristics,
     type ProtectionSourceView,
 } from "./protection";
 import { isGuardedAgainst, playerHasShroud } from "./permanentGuard";
@@ -105,6 +105,7 @@ export {
     parseProtectionFromColor,
     parseProtectionQuality,
     playerHasProtectionFromEverything,
+    protectionSourceCharacteristics,
     protectionSourceView,
     type ProtectionSourceView,
 } from "./protection";
@@ -2043,13 +2044,42 @@ export function targetingSourceFromCard(
     card: CardInstanceState,
     isSpell: boolean | undefined
 ): TargetingSource {
-    const protectionView = protectionSourceView(card);
+    const characteristics = protectionSourceCharacteristics(card);
     return {
-        colors: protectionView.colors,
-        types: protectionView.types,
+        colors: characteristics.colors,
+        types: characteristics.types,
         subtypes: card.subtypes,
-        supertypes: protectionView.supertypes,
+        supertypes: characteristics.supertypes,
         isSpell,
+    };
+}
+
+/** CR 702.16 — the ONE projection from a `TargetingSource` into the protection
+ *  predicate's own source view. Both CR 702.16b consult sites read it: the
+ *  OFFERED set (`getLegalTargets`, just below) and the ACCEPTED set
+ *  (`game.ts::selectTarget`). Neither may hand-assemble the bundle — that is
+ *  how the two sides diverge on a quality family, and a guard test
+ *  (`gre/__tests__/protectionQuality.test.ts`) fails on any production file
+ *  that writes one out.
+ *
+ *  `TargetingSource.isSpell` is three-way (`undefined` = "the caller genuinely
+ *  doesn't know", which in practice means `NO_TARGETING_SOURCE` — no source at
+ *  all). `ProtectionSourceView.isSpell` is a plain boolean, so the projection
+ *  narrows: no located source ⇒ not a spell ⇒ the CR 702.16a spell-restricted
+ *  quality is inert, exactly like every other quality family against
+ *  `NO_TARGETING_SOURCE` (whose `colors`/`types`/`supertypes` are empty too).
+ *  This is a narrowing of "there is no source", NOT a default standing in for
+ *  a site that failed to say (issue #2296). */
+export function protectionSourceFromTargeting(
+    source: TargetingSource,
+    controllerId: string | undefined
+): ProtectionSourceView {
+    return {
+        colors: source.colors,
+        types: source.types,
+        supertypes: source.supertypes,
+        controllerId,
+        isSpell: source.isSpell === true,
     };
 }
 
@@ -2111,13 +2141,10 @@ export function getLegalTargets(
         isSpell: sourceIsSpell,
     } = source;
     // CR 702.16 — the source's characteristics, bundled ONCE for the single
-    // protection predicate every consult site shares (`isProtectedFrom`).
-    const protectionSource: ProtectionSourceView = {
-        colors: source.colors,
-        types: source.types,
-        supertypes: source.supertypes,
-        controllerId: casterId,
-    };
+    // protection predicate every consult site shares (`isProtectedFrom`), and
+    // through the SAME projection the accepted set (`selectTarget`) uses.
+    const protectionSource: ProtectionSourceView =
+        protectionSourceFromTargeting(source, casterId);
 
     // CR 601.2c same-controller cross-slot constraint (issue #1104) — the
     // sibling's live controllerId, if one applies (see `siblingControllerIdFor`
@@ -2520,7 +2547,9 @@ export function getPendingTargetSourceSupertypes(
             : state.players
                   .flatMap((p) => (kind === "ability" ? p.battlefield : p.hand))
                   .find((x) => x.id === cardInstanceId);
-    return source ? [...protectionSourceView(source).supertypes] : [];
+    return source
+        ? [...protectionSourceCharacteristics(source).supertypes]
+        : [];
 }
 
 /** Effective POWER (CR 613 layer 7c) of a TRIGGERED ability's source

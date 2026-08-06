@@ -603,8 +603,8 @@ describe("Protection keyword helpers (CR 702.16)", () => {
             controllerId: "p1",
             zone: "stack",
         });
-        expect(isProtectedFromSource(wk, blackSource)).toBe(true);
-        expect(isProtectedFromSource(wk, redSource)).toBe(false);
+        expect(isProtectedFromSource(wk, blackSource, false)).toBe(true);
+        expect(isProtectedFromSource(wk, redSource, true)).toBe(false);
     });
 });
 
@@ -756,7 +756,7 @@ describe("White Knight (first strike + protection from black, CR 702.7 + 702.16)
                 .eligible
         ).toBe(false);
         // Protection detection still resolves through the slim projection.
-        expect(isProtectedFromSource(slimWk, slimWraith)).toBe(true);
+        expect(isProtectedFromSource(slimWk, slimWraith, false)).toBe(true);
     });
 });
 
@@ -969,7 +969,7 @@ describe("Red Ward (Aura keyword-grant → protection from red, CR 611 + 702.16)
         const slimBear = projected.players[0].battlefield.find(
             (c) => c.id === "bear"
         )! as CardInstanceState;
-        expect(isProtectedFromSource(slimBear, redBolt)).toBe(true);
+        expect(isProtectedFromSource(slimBear, redBolt, true)).toBe(true);
     });
 });
 

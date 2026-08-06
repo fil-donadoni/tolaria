@@ -71,6 +71,7 @@ describe("protection from each of your opponents (CR 702.16k)", () => {
                 types: ["Instant"],
                 supertypes: [],
                 controllerId: undefined,
+                isSpell: true,
             })
         ).toBe(false);
         expect(
@@ -90,8 +91,8 @@ describe("protection from each of your opponents (CR 702.16k)", () => {
         const target = protectedCreature("p1");
         const opponentSource = plainCreature("src", "p2");
         const ownSource = plainCreature("own", "p1");
-        expect(isProtectedFromSource(target, opponentSource)).toBe(true);
-        expect(isProtectedFromSource(target, ownSource)).toBe(false);
+        expect(isProtectedFromSource(target, opponentSource, false)).toBe(true);
+        expect(isProtectedFromSource(target, ownSource, false)).toBe(false);
     });
 
     it("CR 702.16b — an opponent can't target it, its controller can", () => {

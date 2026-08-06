@@ -60,7 +60,7 @@ import {
 } from "./layers";
 import { hasSupertypeLive } from "./snow";
 import { totalKickerCount } from "./kicker";
-import { isLand, manaValue } from "./constants";
+import { isLand, isSpellStackItem, manaValue } from "./constants";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import { hasControlledSinceTurnStart } from "./controlContinuity";
 
@@ -976,10 +976,7 @@ const spellStackKindDescriptor = defineFilter<
     lower: (req) => req.spellStackKind ?? "spell",
     checks: {
         spell: (item, value) => {
-            const isAbilityItem =
-                !!item.abilityId ||
-                !!item.triggeredAbilityId ||
-                !!item.delayedTriggerId;
+            const isAbilityItem = !isSpellStackItem(item);
             const acceptsSpell = value === "spell" || value === "any";
             const acceptsAbility =
                 value === "activated-ability" ||
@@ -1043,10 +1040,7 @@ const spellTypeFilterDescriptor = defineFilter<CardType[]>({
     lower: (req) => arr(req.spellTypeFilter),
     checks: {
         spell: (item, value) => {
-            const isAbility =
-                !!item.abilityId ||
-                !!item.triggeredAbilityId ||
-                !!item.delayedTriggerId;
+            const isAbility = !isSpellStackItem(item);
             if (isAbility || !value.some((t) => item.types.includes(t))) {
                 return "Target is not a spell of the required type";
             }
@@ -1087,10 +1081,7 @@ const spellSingleTargetingControllerDescriptor = defineFilter<boolean>({
     lower: (req) => (req.spellSingleTargetingController ? true : undefined),
     checks: {
         spell: (item, _value, ctx) => {
-            const isAbility =
-                !!item.abilityId ||
-                !!item.triggeredAbilityId ||
-                !!item.delayedTriggerId;
+            const isAbility = !isSpellStackItem(item);
             const tgts = item.targets ?? [];
             const ok =
                 !isAbility &&

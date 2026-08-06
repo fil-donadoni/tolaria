@@ -208,6 +208,7 @@ import {
     type TargetFilterCtx,
     pendingTargetingSource,
     isProtectedFrom,
+    protectionSourceFromTargeting,
     targetingSourceFromCard,
     pendingTargetFiltersFromRequirement,
     raiseTriggerTargetSelection,
@@ -9546,15 +9547,18 @@ export function applyOneTargetSelection(
         );
         // CR 702.16b — the colour form, the CR 702.16k player quality (issue
         // #1748) for which the targeting player IS the source's controller,
-        // and the CR 702.16a CHARACTERISTIC quality (issue #1120) read off the
-        // source's live types/supertypes.
+        // the CR 702.16a CHARACTERISTIC quality (issue #1120) read off the
+        // source's live types/supertypes, and the CR 702.16a SPELL-RESTRICTED
+        // quality (issue #2296) read off the CR 112.1 spell bit. Projected
+        // through `protectionSourceFromTargeting` — the SAME single projection
+        // `getLegalTargets` (the offered set) uses — rather than hand-assembled
+        // here, so the accepted set cannot drop a dimension the offered set
+        // honours.
         if (
-            isProtectedFrom(matchedCard, {
-                colors: targetingSource.colors,
-                types: targetingSource.types,
-                supertypes: targetingSource.supertypes,
-                controllerId: pt.playerId,
-            })
+            isProtectedFrom(
+                matchedCard,
+                protectionSourceFromTargeting(targetingSource, pt.playerId)
+            )
         ) {
             throw new Error("Target has protection from this source");
         }

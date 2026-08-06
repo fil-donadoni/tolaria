@@ -464,6 +464,31 @@ export function isAura(card: {
     return card.types.includes("Enchantment") && card.subtypes.includes("Aura");
 }
 
+/** CR 112.1 / 113.3 — true when a STACK OBJECT is a spell (a card or copy put
+ *  onto the stack), false when it is an activated or triggered ability.
+ *
+ *  THE single discriminator for that distinction. An ability's stack item is
+ *  cloned from its source permanent, so it is indistinguishable from a
+ *  permanent (and from a permanent spell) by types/colours alone — the only
+ *  reliable tell is which ability-id the engine stamped on it when it went on
+ *  the stack. That three-field test used to be open-coded at five sites
+ *  (`resolveTopOfStack`, three `targetFilters` descriptors, and — the site
+ *  this was extracted for — the CR 702.16e damage gate in `dealDamage`); a
+ *  sixth site guessing a fourth field, or forgetting `delayedTriggerId`,
+ *  would call a delayed trigger a spell.
+ *
+ *  Structurally typed so the CLIENT's `StackItem` (`src/types/game.ts`, which
+ *  carries the same three optional ids) satisfies it too. */
+export function isSpellStackItem(item: {
+    abilityId?: string;
+    triggeredAbilityId?: string;
+    delayedTriggerId?: string;
+}): boolean {
+    return (
+        !item.abilityId && !item.triggeredAbilityId && !item.delayedTriggerId
+    );
+}
+
 /** CR 613.1f — true while the permanent has lost all abilities (Titania's
  *  Song, Blood Moon). Its PRINTED activated mana abilities don't function while
  *  suppressed. Note this does NOT suppress intrinsic basic-land subtype mana

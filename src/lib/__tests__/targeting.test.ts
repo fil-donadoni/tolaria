@@ -6,6 +6,13 @@ import {
 import type { CardInstance, Player, StackItem } from "~/types/game";
 import { registerTokenDefinition } from "@convex/cards";
 import type { CardDefinition } from "@convex/cards/types";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "@convex/cards/__tests__/setup";
+import { projectPublicState } from "@convex/gameProjections";
+import { PROTECTION_FROM_COLORED_SPELLS } from "@convex/gre/protection";
 
 // Client mirror of the server `cantBeTargeted` gate (#382, CR 702.18 / 611 /
 // 113.3 / 109.5). When `isUntargetableByPending` returns true the battlefield
@@ -514,6 +521,132 @@ describe("isUntargetableByPending — trigger source on the stack (CR 405 / 702.
                 "trigger-1",
                 "trigger",
                 stack,
+                "p2"
+            )
+        ).toBe(false);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// CR 702.16a — "protection from spells that are one or more colors"
+// (issue #2296): client parity for the SPELL-RESTRICTED quality
+// ─────────────────────────────────────────────────────────────────────────
+//
+// The Phelia bug class (ADR 0068): the server's ACCEPTED set learns a quality
+// family and the client's OFFERED set does not, so a permanent glows, the
+// player clicks, and `selectTarget` throws. This quality is the worst possible
+// shape for it — the client CAN see the source's colours off the wire, so a
+// colour-only client implementation looks like it works and is wrong in
+// exactly the CR 113.3 cases (an ability of a coloured permanent).
+//
+// Every assertion below runs the REAL client helper (`isUntargetableByPending`)
+// over the REAL wire projection (`projectPublicState`) — a hand-built `Player[]`
+// would mask a field the projection drops, which is the whole failure mode.
+
+describe("CR 702.16a — client parity for protection from coloured spells (#2296)", () => {
+    const LIGHTNING_BOLT_ID = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a"; // red Instant
+    const ORNITHOPTER_ID = "59cc9bdb-7cf2-4795-bac7-ffff605c9eb0"; // colourless
+    const PRODIGAL_SORCERER_ID = "e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a"; // blue
+
+    /** p1's warded creature + a plain bystander, seen through the wire by p2,
+     *  who holds a red Instant and a colourless artifact creature and controls
+     *  a blue Prodigal Sorcerer. */
+    function projectedBoard(): {
+        players: Player[];
+        warded: CardInstance;
+        bystander: CardInstance;
+    } {
+        const wardedCard = makeInstance(GRIZZLY_BEARS_ID, {
+            id: "warded",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        wardedCard.staticAbilities = [
+            ...wardedCard.staticAbilities,
+            PROTECTION_FROM_COLORED_SPELLS,
+        ];
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        wardedCard,
+                        makeInstance(GRIZZLY_BEARS_ID, {
+                            id: "bystander",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2", {
+                    hand: [
+                        makeInstance(LIGHTNING_BOLT_ID, {
+                            id: "bolt",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "hand",
+                        }),
+                        makeInstance(ORNITHOPTER_ID, {
+                            id: "orni",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "hand",
+                        }),
+                    ],
+                    battlefield: [
+                        makeInstance(PRODIGAL_SORCERER_ID, {
+                            id: "tim",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        // Viewer = p2 (the chooser), so their own hand is visible on the wire
+        // — the zone a `kind: "cast"` source is located in.
+        const projected = projectPublicState(state, 1, "p2");
+        const players = projected.players as unknown as Player[];
+        return {
+            players,
+            warded: players[0].battlefield[0],
+            bystander: players[0].battlefield[1],
+        };
+    }
+
+    it("MUST — greys the warded creature out for a red Instant being cast", () => {
+        const { players, warded } = projectedBoard();
+        expect(
+            isUntargetableByPending(players, warded, "bolt", "cast", [], "p2")
+        ).toBe(true);
+    });
+
+    it("must-NOT — leaves it clickable for a COLOURLESS spell (CR 105.2)", () => {
+        const { players, warded } = projectedBoard();
+        expect(
+            isUntargetableByPending(players, warded, "orni", "cast", [], "p2")
+        ).toBe(false);
+    });
+
+    it("must-NOT — leaves it clickable for a COLOURED permanent's ability (CR 113.3)", () => {
+        // The client sees Prodigal Sorcerer's colours perfectly well; only the
+        // `kind` distinguishes this from the barred cast above. A client that
+        // derived the quality from colours alone would grey this out and the
+        // player could never use Tim on the creature.
+        const { players, warded } = projectedBoard();
+        expect(
+            isUntargetableByPending(players, warded, "tim", "ability", [], "p2")
+        ).toBe(false);
+    });
+
+    it("must-NOT — leaves an unprotected bystander clickable for the red Instant", () => {
+        const { players, bystander } = projectedBoard();
+        expect(
+            isUntargetableByPending(
+                players,
+                bystander,
+                "bolt",
+                "cast",
+                [],
                 "p2"
             )
         ).toBe(false);

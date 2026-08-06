@@ -224,8 +224,9 @@ export function checkAttachmentSBA(state: GameState): boolean {
             if (
                 !host ||
                 !isCreature(host) ||
-                // CR 702.16d — protection unattaches the Equipment.
-                isProtectedFromSource(host, card)
+                // CR 702.16d — protection unattaches the Equipment. CR
+                // 112.1: an Equipment is a permanent, never a spell.
+                isProtectedFromSource(host, card, false)
             ) {
                 toDetach.push(card.id);
             }
@@ -276,7 +277,9 @@ function isAuraBlockedByProtection(
     const cardId = (aura.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : null;
     if (def?.exemptFromProtectionDetach) return false;
-    return isProtectedFromSource(host, aura);
+    // CR 112.1 — an ATTACHED Aura is a permanent, never a spell (the Aura
+    // SPELL's own targeting legality is CR 702.16b, checked at 608.2b).
+    return isProtectedFromSource(host, aura, false);
 }
 
 function findOnBattlefield(

@@ -58,6 +58,29 @@ function toGuardState(players: Player[]): {
     };
 }
 
+/** CR 112.1 / 113.3 — is the pending source a SPELL? Only a cast or a
+ *  (copy-)retargeted spell is; an activated OR triggered ability is not, even
+ *  though its stack item is a clone of its coloured source permanent.
+ *  Mirrors the server's `pendingTargetingSource` (`convex/gre/rules.ts`).
+ *
+ *  ONE helper, read by BOTH client gates that need the fact — the CR 611
+ *  `cantBeTargeted` guard (`GuardActionSource.isSpell`, "spells only" —
+ *  Anti-Magic Aura / Lurker) and the CR 702.16a spell-restricted protection
+ *  quality (`ProtectionSourceView.isSpell`, issue #2296). Two independent
+ *  derivations of the same fact is how the client's offered set drifts from
+ *  the server's accepted set one gate at a time. */
+function pendingSourceIsSpell(
+    kind:
+        | "cast"
+        | "ability"
+        | "copy-retarget"
+        | "retarget"
+        | "trigger"
+        | undefined
+): boolean {
+    return kind === "cast" || kind === "retarget" || kind === "copy-retarget";
+}
+
 /** Locates the spell/ability source whose target selection is in progress, so
  *  source-narrowed guards ("Aura spells", "spells only" — CR 109.5 / 113.3)
  *  evaluate correctly. For `kind: "ability"` the source is a battlefield
@@ -76,11 +99,7 @@ function pendingGuardSource(
         | undefined,
     sourceControllerId: string | undefined
 ): GuardActionSource {
-    // CR 113.3 — only a cast / (copy-)retargeted spell is a spell; an
-    // activated OR triggered ability is not. Mirrors the server's
-    // `pendingTargetingSource`.
-    const isSpell =
-        kind === "cast" || kind === "retarget" || kind === "copy-retarget";
+    const isSpell = pendingSourceIsSpell(kind);
     const found = findPendingSourceCard(
         players,
         stackItems,
@@ -197,7 +216,16 @@ export function isUntargetableByPending(
     if (!sourceCard) return false;
     return isProtectedFrom(
         toGuardTarget(candidate),
-        protectionSourceView(toGuardTarget(sourceCard))
+        // CR 112.1 (issue #2296) — the spell bit comes from the pending
+        // source's KIND, the only thing that carries it: an ability's stack
+        // item is a clone of its source permanent, so `sourceCard` alone can
+        // never tell a coloured creature spell from the coloured creature.
+        // Derived by the same helper the guard path above uses, so the two
+        // client gates cannot disagree with each other or with the server.
+        protectionSourceView(
+            toGuardTarget(sourceCard),
+            pendingSourceIsSpell(kind)
+        )
     );
 }
 

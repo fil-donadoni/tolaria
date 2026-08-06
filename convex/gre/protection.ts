@@ -1,7 +1,7 @@
 // Protection keyword ability primitives (CR 702.16).
 //
 // Protection is stored on a card as `staticAbilities[]` entries of the form
-// `"protection from <quality>"`. THREE quality families are modelled here, all
+// `"protection from <quality>"`. FOUR quality families are modelled here, all
 // behind ONE parser (`parseProtectionQuality`) and ONE predicate
 // (`isProtectedFrom`) so no consult site can honour a family the others drop:
 //
@@ -25,6 +25,17 @@
 //      own live characteristics wherever it currently is (battlefield
 //      permanent, spell on the stack, card in a graveyard), which is exactly
 //      what `ProtectionSourceView` carries.
+//   4. SPELL-RESTRICTED ANY-COLOUR (CR 702.16a, issue #2296) — "protection
+//      from spells that are one or more colors". The ONLY family whose quality
+//      is a CONJUNCTION of two independent dimensions: the source must BE a
+//      spell (CR 112.1 — a card or copy on the stack; CR 113.3 — an activated
+//      or triggered ability is never a spell, even when its source permanent
+//      is coloured) AND have at least one colour (CR 105.2 — a colourless
+//      spell passes straight through). Honouring only the colour half would
+//      silently bar coloured permanents, coloured blockers and the abilities
+//      of coloured permanents, which is why `ProtectionSourceView.isSpell` is
+//      a REQUIRED boolean rather than an optional one: no consult site may
+//      "forget" to say, and no default may answer for it.
 //
 // The parser is TOTAL and FAILS CLOSED: an ability string that starts with
 // "protection from " but whose quality it cannot name returns `null` rather
@@ -43,16 +54,29 @@
 // Both return `null` from the parser, so the catalogue guard turns either one
 // into a CI failure the moment a card wants it.
 //
-// Consult sites — every DEBT clause of CR 702.16, server and client:
-//   - can't be Targeted  (702.16b): rules.ts::getLegalTargets (offered set),
-//     game.ts::selectTarget (accepted set), src/lib/targeting.ts (click gate)
-//   - can't be Enchanted (702.16c): state.ts::isFullyLegalAuraHost (attach
-//     time), sba.ts::checkAuraAttachmentSBA (CR 704.5m fall-off)
+// Consult sites — every DEBT clause of CR 702.16, server and client. The
+// trailing column is the CR 112.1 `isSpell` each site states (issue #2296);
+// EVERY site reaches the predicate, including the ones that can only ever
+// answer "no" (a spell never blocks, so 702.16f is vacuous for the
+// spell-restricted family — but the path runs and returns false rather than
+// being skipped):
+//   - can't be Targeted  (702.16b): rules.ts::getLegalTargets (offered set)
+//     and game.ts::selectTarget (accepted set) — both via ONE projection,
+//     rules.ts::protectionSourceFromTargeting, so they cannot disagree;
+//     src/lib/targeting.ts::isUntargetableByPending (client click gate).
+//     isSpell = the CR 113.3 cast/retarget-vs-ability/trigger fact.
+//   - can't be Enchanted (702.16c): state.ts::isFullyLegalAuraHost — TRUE on
+//     the CR 608.2b resolution path (the Aura is still a spell), FALSE on the
+//     CR 303.4f put-onto-the-battlefield path; sba.ts::checkAuraAttachmentSBA
+//     (CR 704.5m fall-off) — false, an attached Aura is a permanent.
 //   - can't be Equipped  (702.16d): sba.ts::checkAttachmentSBA (CR 704.5n
-//     unattach), state.ts equip/reconfigure attach
-//   - Damage prevented   (702.16e): state.ts::dealDamage,
-//     state.ts::markDamageFromPermanentSource, phases.ts::applyAllCombatDamage
-//   - can't Block        (702.16f): combat.ts::validateBlockerEligibility
+//     unattach) — false, an Equipment is a permanent.
+//   - Damage prevented   (702.16e): state.ts::dealDamage —
+//     `isSpellStackItem(item)`, the resolving object may be either;
+//     state.ts::markDamageFromPermanentSource and phases.ts::
+//     applyAllCombatDamage — false, both sources are battlefield permanents.
+//   - can't Block        (702.16f): combat.ts::validateBlockerEligibility —
+//     false, a blocker is a permanent.
 
 import type { CardInstanceState } from "./state";
 import type { CardSupertype, CardType, Color } from "../cards/types";
@@ -79,6 +103,15 @@ const PROTECTION_COLOR_NAME_TO_CODE: Record<string, Color> = {
  *  with the permanent (CR 109.4 / 702.16). Figure of Fable's final stage. */
 export const PROTECTION_FROM_EACH_OPPONENT =
     "protection from each of your opponents";
+
+/** CR 702.16a — the SPELL-RESTRICTED ANY-COLOUR protection string (issue
+ *  #2296). Matched EXACTLY (after lowercasing/trimming) rather than by a
+ *  loose "spells" + "colors" heuristic: the parser's whole contract is to
+ *  fail closed on a phrase it cannot name, and a near-miss phrasing must
+ *  reach the catalogue guard as an unparseable string, not be silently
+ *  approximated by this one. */
+export const PROTECTION_FROM_COLORED_SPELLS =
+    "protection from spells that are one or more colors";
 
 /** CR 205.4a — every supertype a protection quality can name. Iterated to read
  *  a source's LIVE supertypes (`hasSupertypeLive`, so a Melting / Arcum's
@@ -142,7 +175,13 @@ export type ProtectionQuality =
           kind: "characteristic";
           types: readonly CardType[];
           supertypes: readonly CardSupertype[];
-      };
+      }
+    /** CR 702.16a — "spells that are one or more colors" (issue #2296). A
+     *  CONJUNCTION of two dimensions that no other family combines: the source
+     *  is a SPELL (CR 112.1 / 113.3) **and** it has at least one colour
+     *  (CR 105.2). Carries no payload — "one or more colors" names every
+     *  colour at once, so there is nothing to parametrize. */
+    | { kind: "colored-spell" };
 
 /** Everything about a SOURCE that a CR 702.16 quality can be keyed on. Every
  *  field is REQUIRED — an optional field would let a consult site omit it and
@@ -160,6 +199,21 @@ export interface ProtectionSourceView {
     supertypes: readonly CardSupertype[];
     /** CR 109.5 — the source's controller, for the CR 702.16k player quality. */
     controllerId: string | undefined;
+    /** CR 112.1 / 113.3 — is this source a SPELL (a card or copy on the
+     *  stack), as opposed to a permanent, a blocker, or an activated /
+     *  triggered ability of one? Read by the CR 702.16a spell-restricted
+     *  quality (issue #2296).
+     *
+     *  A plain `boolean`, deliberately NOT `boolean | undefined` like
+     *  `controllerId` and NOT optional like `GuardActionSource.isSpell`
+     *  (`permanentGuard.ts`, whose "undefined ⇒ stay conservative" leniency is
+     *  the opposite trade). Nothing on a card object can infer it — a creature
+     *  SPELL's `types` include `Creature` exactly like the permanent's — so
+     *  the only way a consult site can be right is to state what it knows, and
+     *  the only way to make every site state it is to make omitting it a
+     *  compile error. Build the view through `protectionSourceView` /
+     *  `protectionSourceCharacteristics`, never by hand. */
+    isSpell: boolean;
 }
 
 /** True if `ability` is a protection keyword string at all (CR 702.16a) —
@@ -270,6 +324,12 @@ export function parseProtectionQuality(
     if (normalized === PROTECTION_FROM_EACH_OPPONENT) {
         return { kind: "each-opponent" };
     }
+    // CR 702.16a (issue #2296) — checked BEFORE the characteristic parser,
+    // which would reject the phrase word-by-word ("spells" is not a card type;
+    // "one", "more", "colors" name nothing) and return null.
+    if (normalized === PROTECTION_FROM_COLORED_SPELLS) {
+        return { kind: "colored-spell" };
+    }
     const color = parseProtectionFromColor(normalized);
     if (color) return { kind: "color", color };
     if (!normalized.startsWith(PROTECTION_PREFIX)) return null;
@@ -310,7 +370,9 @@ function sameQuality(a: ProtectionQuality, b: ProtectionQuality): boolean {
             a.supertypes.every((s) => b.supertypes.includes(s))
         );
     }
-    return true; // both "each-opponent"
+    // Both "each-opponent", or both "colored-spell" — neither carries a
+    // payload, so same kind means same quality (CR 702.16m redundancy).
+    return true;
 }
 
 /** Colors this card has protection from (CR 702.16a). Kept as the narrow
@@ -374,6 +436,18 @@ export function isProtectedFrom(
                     return true;
                 }
                 break;
+            case "colored-spell":
+                // CR 702.16a (issue #2296) — BOTH conjuncts, and the order of
+                // the `&&` is irrelevant: dropping either one is a shipped
+                // bug. `source.isSpell` (CR 112.1 / 113.3) bars only objects
+                // on the stack — never a coloured permanent, never a coloured
+                // blocker, never an activated/triggered ability of a coloured
+                // permanent. `source.colors.length > 0` (CR 105.2) lets every
+                // colourless spell through.
+                if (source.isSpell && source.colors.length > 0) {
+                    return true;
+                }
+                break;
         }
     }
     return false;
@@ -393,8 +467,28 @@ function liveSupertypes(source: CardInstanceState): CardSupertype[] {
  *  "sources that are permanents with that card type … and any sources not on
  *  the battlefield that are of that card type". */
 export function protectionSourceView(
-    source: CardInstanceState
+    source: CardInstanceState,
+    /** CR 112.1 / 113.3 — see `ProtectionSourceView.isSpell`. REQUIRED: a card
+     *  object cannot tell you this (a creature spell's `types` are the
+     *  permanent's), so the caller — which knows the zone/kind it fetched the
+     *  object from — must say. */
+    isSpell: boolean
 ): ProtectionSourceView {
+    return { ...protectionSourceCharacteristics(source), isSpell };
+}
+
+/** The CHARACTERISTICS half of `protectionSourceView` — everything that can be
+ *  read off a card object itself (CR 202.2 colours, CR 205.2 types, CR 205.4a
+ *  supertypes, CR 109.5 controller), and nothing that cannot.
+ *
+ *  Exists so a caller that needs only these (`targetingSourceFromCard`,
+ *  `getPendingTargetSourceSupertypes` — both projecting into a DIFFERENT
+ *  bundle) is not forced to invent a `isSpell` value it will immediately
+ *  discard. Any caller building a real `ProtectionSourceView` uses
+ *  `protectionSourceView` and states the bit. */
+export function protectionSourceCharacteristics(
+    source: CardInstanceState
+): Omit<ProtectionSourceView, "isSpell"> {
     return {
         colors: STATIC_EFFECT_CTX.getColors(source),
         types: source.types,
@@ -407,12 +501,19 @@ export function protectionSourceView(
  *  is a card object the caller already holds. Works uniformly for battlefield
  *  permanents and for stack items (spells, activated abilities, triggered
  *  abilities) — ability stack items are cloned from their source permanent, so
- *  their characteristics match. */
+ *  their characteristics match.
+ *
+ *  …and that cloning is exactly why `sourceIsSpell` is a REQUIRED parameter
+ *  (issue #2296): the clone is indistinguishable from its permanent, so the
+ *  CR 112.1 spell bit can only come from the caller's own knowledge of what it
+ *  is holding. A blocker, an Equipment, an attached Aura and a fight source
+ *  pass `false`; a resolving stack item passes `isSpellStackItem(item)`. */
 export function isProtectedFromSource(
     target: CardInstanceState,
-    source: CardInstanceState
+    source: CardInstanceState,
+    sourceIsSpell: boolean
 ): boolean {
-    return isProtectedFrom(target, protectionSourceView(source));
+    return isProtectedFrom(target, protectionSourceView(source, sourceIsSpell));
 }
 
 /** True if `playerId` currently has PROTECTION FROM EVERYTHING (CR 702.16j

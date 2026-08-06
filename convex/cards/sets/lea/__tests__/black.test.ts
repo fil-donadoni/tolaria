@@ -889,7 +889,7 @@ describe("Black Knight (first strike + protection from white, CR 702.7 + 702.16)
         const slimLion = projected.players[1].battlefield.find(
             (c) => c.id === "lion"
         )! as CardInstanceState;
-        expect(isProtectedFromSource(slimBk, slimLion)).toBe(true);
+        expect(isProtectedFromSource(slimBk, slimLion, false)).toBe(true);
     });
 });
 
