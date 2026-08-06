@@ -4,7 +4,7 @@
 // `setPoolArrangementEntry` mutation the draft Pool uses. The surface is
 // stubbed to buttons that fire `onPin` directly so this file isolates the
 // form → mutation seam; the REAL drag through the REAL surface lives in
-// `pool-deckbuilder-surface.test.tsx`, and the pure resolution in
+// `deck-builder-shell.test.tsx`, and the pure resolution in
 // `deckZoneDrag.test.ts`.
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, cleanup, fireEvent } from "@testing-library/react";

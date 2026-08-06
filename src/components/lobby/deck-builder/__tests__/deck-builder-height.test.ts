@@ -1,11 +1,11 @@
-// `DeckBuilder` (the catalogue-wide /decks/create builder) has no render
-// harness in this suite — it needs a full DragDropProvider + catalogue +
-// mutation-sink graph to mount, which none of the existing tests attempt.
-// These are structural (source-text) assertions instead of a render test —
+// Structural (source-text) assertions rather than render assertions —
 // legitimate here because every literal this checks is a static className
 // string, not something computed per-render (see `game-stack-narrow.test.tsx`
-// for the same pattern used elsewhere in this repo). A render-based
-// assertion would be strictly stronger; this is the pragmatic substitute.
+// for the same pattern used elsewhere in this repo). A render-based assertion
+// would be strictly stronger; render harnesses for both builders do exist now
+// (`deck-builder-zones.test.tsx`, `deckbuilder/__tests__/deck-builder-*`), but
+// jsdom evaluates no media query, so the `short-viewport:` treatment below
+// still has no render-level observable.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -56,11 +56,12 @@ describe("DeckBuilderHeader — short-viewport chrome treatment (issue #2056 def
     });
 });
 
-// Issue #2275: the Pool deckbuilder route (`pool-deck-builder-form.tsx`,
-// `pool-deckbuilder-surface.tsx`) shares this file's "deckbuilder height"
-// topic but not `DeckBuilder`'s own grid — its `PoolDeckbuilderSurface`
-// pane carries a hard `minHeight` floor `DeckBuilder`'s `grid-rows-[1fr_1fr]`
-// does not. `poolSurfaceMinHeightPx()` (`~/lib/cardSizing.ts`) is a plain-TS
+// Issue #2275: the Pool deckbuilder route's zone pane carries a hard
+// `minHeight` floor. Since issue #1623 that floor lives on the shared
+// `DeckBuilderShell` and derives from each variant's declared
+// `view.cardBase`, so BOTH builders now have it; the arithmetic swept below
+// is the Limited variant's (`cardBase("7.5rem", "17vw", "9dvh")`), which is
+// what issue #2275 measured. `poolSurfaceMinHeightPx()` (`~/lib/cardSizing.ts`) is a plain-TS
 // mirror of that CSS expression (jsdom can't resolve the real `calc()` — see
 // `pool-deck-builder-form.test.tsx`) kept here because this file is already
 // the height-math home for the deckbuilder surfaces generally. It only

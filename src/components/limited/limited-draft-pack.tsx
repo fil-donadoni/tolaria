@@ -5,7 +5,7 @@ import LimitedDraftPackCard from "./limited-draft-pack-card";
 type DraftPackCard = NonNullable<LimitedEventSeatView["currentPack"]>[number];
 
 // Same responsive base size the shared pool deckbuilder surface scales from
-// (`pool-deckbuilder-surface.tsx`'s `CARD_BASE`) — kept in sync so the
+// (`pool-deck-builder-form.tsx`'s `CARD_BASE`) — kept in sync so the
 // Booster and the Pool below it read at a comparable default size. Floored
 // at CARD_MIN_W (issue #2056) so a short-and-wide viewport can't collapse it.
 const CARD_BASE = cardBase("7.5rem", "17vw", "9dvh");

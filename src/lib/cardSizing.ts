@@ -27,7 +27,7 @@ export function cardBase(rem: string, vw: string, dvh: string): string {
 //
 // `PoolDeckbuilderSurface` pins its own min-height to
 // `calc(${cardBase("7.5rem", "17vw", "9dvh")} * 7 / 5 + 3.5rem)` (see
-// `pool-deckbuilder-surface.tsx`) — CSS the browser resolves, but jsdom's
+// `deck-builder-shell.tsx`) — CSS the browser resolves, but jsdom's
 // CSSOM mangles a `calc()` nesting `min()`/`max()` on read-back (see
 // `pool-deck-builder-form.test.tsx`), so a test that needs the actual NUMBER
 // (not just the source-text expression) has no way to ask the DOM for it.
