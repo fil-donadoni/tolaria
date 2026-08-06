@@ -242,8 +242,14 @@ an ADR under `docs/adr/` for a hard-to-reverse mechanic.
 ## Phase 2 — Write the PRD (`to-prd`)
 
 Invoke **`to-prd`**. It synthesizes the grill context (does NOT re-interview)
-into one **umbrella GitHub issue** labeled `prd` + `ready-for-agent`. Ensure the
-PRD's **Implementation Decisions** name:
+into one **umbrella GitHub issue** labeled `prd` — and **not**
+`ready-for-agent`: a PRD is a spec, not a work item, and
+`/process-gh-issues` refuses to select `prd`-labelled issues, so the queue
+label would make the umbrella get skipped on every pass forever while
+falsifying the loop's stop condition. If `to-prd` applied it, remove it. The
+executable work is the Phase 3 issues, which carry the queue label and hang
+off this umbrella as sub-issues. Ensure the PRD's **Implementation Decisions**
+name:
 
 - The **import mode**: **set mode** (`bun scripts/json-to-cards.mjs
 data/json/<CODE_UPPER>.json` → the colour-split `convex/cards/sets/<code>/`
@@ -283,6 +289,18 @@ tagged HITL/AFK (prefer AFK), published in dependency order (blockers first).
 
 Conventions to hold it to:
 
+- **Every cut issue is a native SUB-ISSUE of the umbrella PRD** —
+  `gh issue edit <child> --parent <umbrella>`, in the same pass that creates
+  it, never back-wired later. `to-tickets` mandates this; hold it to it and
+  verify rather than assume: `gh issue view <umbrella> --json subIssuesSummary`
+  must report `total` equal to the number of issues just cut. The reason is
+  scheduling, not tidiness — `/process-gh-issues` sorts by
+  `parent.number ?? number` (oldest **lineage** first) off its cheap Stage-1
+  list call, so a cluster issue with no edge sorts on its own number and the
+  set's later slices land at the BACK of the queue while its earlier ones
+  starve. The edge is also what `subIssuesSummary` reads, which is what lets
+  the loop close the umbrella in Phase 4 once the last cluster lands. The
+  `## Parent` body line below is for humans and is NOT the sort key.
 - **Walking skeleton first** (scaffold the `sets/<code>/` directory — 7 colour
   modules + `index.ts` barrel, per-colour `__tests__/` — plus registry wiring
   via `import * as <code> from "./sets/<code>"` + import), then free-tranche
