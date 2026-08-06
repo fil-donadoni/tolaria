@@ -155,6 +155,114 @@ describe("PoolDeckBuilderForm — draft column arrangement carry-over (issue #15
     });
 });
 
+// Per-zone Grouping/Ordering controls (issue #1624) — the Limited builder is
+// the SECOND declared variant (`DeckBuilderShell`, issue #1623), so the
+// controls and the round-trip guarantee must hold here too, not only in
+// Constructed.
+describe("PoolDeckBuilderForm — per-zone Grouping/Ordering controls (issue #1624)", () => {
+    afterEach(() => {
+        window.localStorage.clear();
+    });
+
+    it("both zones carry their own Grouping and Ordering controls", () => {
+        setup();
+        const { getByLabelText } = render(
+            <PoolDeckBuilderForm
+                eventId={"event-1" as never}
+                seatIndex={0}
+                pool={POOL}
+                existingDeck={null}
+                eventType="draft"
+                poolArrangement={[]}
+            />
+        );
+        expect(
+            (getByLabelText("Maindeck grouping") as HTMLSelectElement).value
+        ).toBe("mv");
+        expect(
+            (getByLabelText("Maindeck ordering") as HTMLSelectElement).value
+        ).toBe("name");
+        expect(
+            (getByLabelText("Pool (Sideboard) grouping") as HTMLSelectElement)
+                .value
+        ).toBe("mv");
+        expect(
+            (getByLabelText("Pool (Sideboard) ordering") as HTMLSelectElement)
+                .value
+        ).toBe("name");
+    });
+
+    it("changing the Maindeck's Grouping leaves the Sideboard's own Grouping untouched", () => {
+        setup();
+        const { getByLabelText } = render(
+            <PoolDeckBuilderForm
+                eventId={"event-1" as never}
+                seatIndex={0}
+                pool={POOL}
+                existingDeck={null}
+                eventType="draft"
+                poolArrangement={[]}
+            />
+        );
+        fireEvent.change(getByLabelText("Maindeck grouping"), {
+            target: { value: "color" },
+        });
+        expect(
+            (getByLabelText("Maindeck grouping") as HTMLSelectElement).value
+        ).toBe("color");
+        expect(
+            (getByLabelText("Pool (Sideboard) grouping") as HTMLSelectElement)
+                .value
+        ).toBe("mv");
+    });
+});
+
+describe("PoolDeckBuilderForm — Grouping round-trip preserves the Pool Arrangement Pin (issue #1624)", () => {
+    afterEach(() => {
+        window.localStorage.clear();
+    });
+
+    it("flipping Grouping to Colour and back to Mana Value keeps the Pool Arrangement's Pin exactly", () => {
+        setup();
+        const { container, getByLabelText } = render(
+            <PoolDeckBuilderForm
+                eventId={"event-1" as never}
+                seatIndex={0}
+                pool={POOL}
+                existingDeck={null}
+                eventType="draft"
+                poolArrangement={[{ poolIndex: 0, column: 6 }]}
+            />
+        );
+        expect(
+            within(container.querySelector('[data-column="mv:6"]')!).getByTitle(
+                /Remove Lightning Bolt/
+            )
+        ).toBeTruthy();
+
+        fireEvent.change(getByLabelText("Maindeck grouping"), {
+            target: { value: "color" },
+        });
+        expect(
+            within(
+                container.querySelector('[data-column="color:R"]')!
+            ).getByTitle(/Remove Lightning Bolt/)
+        ).toBeTruthy();
+
+        fireEvent.change(getByLabelText("Maindeck grouping"), {
+            target: { value: "mv" },
+        });
+        const mv6 = container.querySelector(
+            '[data-column="mv:6"]'
+        ) as HTMLElement;
+        const mv1 = container.querySelector(
+            '[data-column="mv:1"]'
+        ) as HTMLElement;
+        expect(within(mv6).getByTitle(/Remove Lightning Bolt/)).toBeTruthy();
+        expect(within(mv1).queryByTitle(/Remove Lightning Bolt/)).toBeNull();
+    });
+});
+
 // All-five-basics-always-offered + autosave wiring (issue #1576).
 const MOUNTAIN_ID = "eace2c85-976c-425e-9800-5a6ccbd91b56"; // catalogue Mountain
 

@@ -43,6 +43,8 @@ function renderZone(props: Partial<DeckZoneSurfaceProps> = {}) {
         title: "Maindeck",
         cards: [],
         layout: createColumnLayout(),
+        onGroupingChange: () => {},
+        onOrderingChange: () => {},
         dropModel: "columns",
         onCardClick: () => {},
         cardTitle: (card) => `Remove ${card.cardName} (drag to move zone)`,

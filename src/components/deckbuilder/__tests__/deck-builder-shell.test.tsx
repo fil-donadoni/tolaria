@@ -57,6 +57,10 @@ const NO_ACTIONS: DeckZoneActions = {
     onPin: () => {},
     onMainCardClick: () => {},
     onSideCardClick: () => {},
+    onMainGroupingChange: () => {},
+    onSideGroupingChange: () => {},
+    onMainOrderingChange: () => {},
+    onSideOrderingChange: () => {},
 };
 
 function renderShell(
