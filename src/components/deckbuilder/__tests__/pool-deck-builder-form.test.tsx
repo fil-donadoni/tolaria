@@ -142,8 +142,12 @@ describe("PoolDeckBuilderForm — draft column arrangement carry-over (issue #15
                 poolArrangement={[{ poolIndex: 0, column: 6 }]}
             />
         );
-        const mv6 = container.querySelector('[data-column="6"]') as HTMLElement;
-        const mv1 = container.querySelector('[data-column="1"]') as HTMLElement;
+        const mv6 = container.querySelector(
+            '[data-column="mv:6"]'
+        ) as HTMLElement;
+        const mv1 = container.querySelector(
+            '[data-column="mv:1"]'
+        ) as HTMLElement;
         expect(mv6).toBeTruthy();
         expect(within(mv6).getByTitle(/Remove Lightning Bolt/)).toBeTruthy();
         // ...and it is NOT in its auto MV 1 column.

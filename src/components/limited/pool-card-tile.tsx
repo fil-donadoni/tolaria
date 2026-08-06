@@ -2,6 +2,7 @@ import { useDraggable } from "@dnd-kit/react";
 import { cn } from "~/lib/utils";
 import { pileCardTop } from "~/lib/card-layout";
 import CardImage from "~/components/cards/card-image";
+import FeaturedCardButton from "~/components/lobby/deck-builder/featured-card-button";
 import type { DraftDragData } from "./limitedDraftDrag";
 import type { CardDragData } from "~/components/lobby/deck-builder/dnd-types";
 
@@ -37,6 +38,15 @@ export interface PoolCardTileProps {
      *  staggered `top` so only a sliver of each lower card shows and the
      *  topmost reads as the primary target. */
     stackIndex?: number;
+    /** This card is the deck's Featured Card (PRD #589, issue #599) — draws
+     *  the persistent indicator ring. Constructed only; the Limited builder
+     *  and the draft Pool leave it unset. */
+    isFeatured?: boolean;
+    /** Pick this card as the deck's Featured Card. Presence is what renders
+     *  the affordance, so a surface with no Featured Card concept simply omits
+     *  it. Set on the TOPMOST (visible) copy of a card only — a lower copy's
+     *  button would sit behind the next card. */
+    onSetFeatured?: () => void;
 }
 
 export default function PoolCardTile({
@@ -47,6 +57,8 @@ export default function PoolCardTile({
     onClick,
     onDoubleClick,
     stackIndex,
+    isFeatured,
+    onSetFeatured,
 }: PoolCardTileProps) {
     const { ref, isDragging } = useDraggable({ id: dragId, data: dragData });
     const stacked = stackIndex !== undefined;
@@ -69,6 +81,15 @@ export default function PoolCardTile({
             {/* A "removable" hover cue (parity with the pre-#1581 deckbuilder
                 tile), keyed off the group so it only lights the hovered card. */}
             <div className="pointer-events-none absolute inset-0 rounded-sm ring-2 ring-transparent group-hover:ring-danger-strong/70" />
+            {isFeatured && (
+                <div className="pointer-events-none absolute inset-0 rounded-sm ring-2 ring-accent" />
+            )}
+            {onSetFeatured && (
+                <FeaturedCardButton
+                    isFeatured={!!isFeatured}
+                    onSetFeatured={onSetFeatured}
+                />
+            )}
         </div>
     );
 }

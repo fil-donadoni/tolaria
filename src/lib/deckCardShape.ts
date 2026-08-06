@@ -1,6 +1,13 @@
 import { useMemo } from "react";
 import { tryGetDefinition } from "@convex/cards";
 import { getCardColorIdentity } from "@convex/cards/colors";
+import type {
+    CardDefinition,
+    CardType,
+    Color,
+    ManaCost,
+} from "@convex/cards/types";
+import type { CardLookup } from "@convex/deckLayout";
 import { manaValue } from "@convex/gre/constants";
 import { useFullCatalogue, type FullCatalogueRow } from "./fullCatalogue";
 import { parseTypeLine } from "./typeLine";
@@ -71,6 +78,60 @@ export function makeDeckCardShapeResolver(
         if (fromRegistry) return fromRegistry;
         const row = byPrintId.get(cardId);
         return row ? catalogueRowShape(row) : null;
+    };
+}
+
+const COLORED: Color[] = ["W", "U", "B", "R", "G"];
+
+/** A `DeckCardShape` re-expressed as the minimal `CardDefinition` the Column
+ *  Layout engine's predicates actually read: `types` (the Lands Column), the
+ *  mana cost (`manaValue` for the `mv` Grouping, colour pips for the `color`
+ *  one) and `name` (the `name` Ordering). Everything else is filler — this is
+ *  NOT a registry substitute, it is the projection a catalogue-only Tabletop
+ *  card can honestly supply (ADR 0080). */
+function syntheticDefinition(
+    cardId: string,
+    shape: DeckCardShape,
+    name: string
+): CardDefinition {
+    const colors = shape.colors.filter((c): c is Color =>
+        (COLORED as string[]).includes(c)
+    );
+    const manaCost: ManaCost = {
+        generic: Math.max(0, shape.manaValue - colors.length),
+    };
+    for (const color of colors) manaCost[color] = 1;
+    return {
+        id: cardId,
+        name,
+        rarity: "common",
+        types: (shape.isLand ? ["Land"] : []) as CardType[],
+        manaCost: shape.isLand ? undefined : manaCost,
+    };
+}
+
+/**
+ * The `CardLookup` a deckbuilder surface hands the Column Layout engine
+ * (`convex/deckLayout.ts`). The registry answers for every implemented card;
+ * a card only the Full Catalogue knows (a Tabletop deck, ADR 0080) resolves
+ * through `resolve` into a {@link syntheticDefinition} so it still buckets by
+ * Mana Value instead of falling into the Catch-All Column — the successor of
+ * `groupDeckIntoPiles`' `resolve` seam, in the vocabulary the engine speaks.
+ *
+ * `nameOf` supplies the deck row's own `cardName` for the synthetic
+ * definition, preserving the `cardName`-then-`cardId` ordering every deck
+ * surface used before the engine.
+ */
+export function deckCardLookup(
+    resolve: DeckCardShapeResolver = registryDeckCardShape,
+    nameOf?: (cardId: string) => string | undefined
+): CardLookup {
+    return (cardId) => {
+        const def = tryGetDefinition(cardId);
+        if (def) return def;
+        const shape = resolve(cardId);
+        if (!shape) return undefined;
+        return syntheticDefinition(cardId, shape, nameOf?.(cardId) ?? cardId);
     };
 }
 

@@ -7,10 +7,10 @@ import { describe, it, expect } from "vitest";
 import { makeColumnId } from "../../deckLayout";
 import type { LimitedPoolCard, PoolArrangementEntry } from "../eventTypes";
 import {
-    columnOverridesByCardId,
     findColumnOverrideablePoolIndex,
     findMovablePoolIndex,
     mvColumnFromPins,
+    pinsByCardId,
     readEntryPins,
     resolvePoolPlacements,
     splitPoolByArrangement,
@@ -21,36 +21,57 @@ function card(cardId: string, cardName = cardId): LimitedPoolCard {
     return { scryfallId: `s-${cardId}`, cardId, cardName };
 }
 
-// Real registry ids — the deckbuilder column helpers resolve a card's auto
-// column via the card registry, but `columnOverridesByCardId` /
-// `findColumnOverrideablePoolIndex` only read the RECORDED override + card
-// id, so synthetic ids are fine here (no registry lookup on this path).
-describe("columnOverridesByCardId (issue #1575)", () => {
-    it("maps each cardId that has a recorded column override, skipping auto-column cards", () => {
+// The shared zone surface (issue #1622) reads a card's Pins by Card ID.
+// `pinsByCardId` / `findColumnOverrideablePoolIndex` only read the RECORDED
+// entry + card id, so synthetic ids are fine here (no registry lookup on this
+// path).
+describe("pinsByCardId (issue #1575, namespaced for issue #1622)", () => {
+    it("maps each cardId that carries a Pin, skipping auto-column cards", () => {
         const pool = [card("bolt"), card("plains"), card("goblin")];
         const arrangement: PoolArrangementEntry[] = [
             { poolIndex: 0, column: 5 },
             { poolIndex: 1, column: "lands" },
-            // poolIndex 2 (goblin) has no override → absent from the map.
+            // poolIndex 2 (goblin) has no Pin → absent from the map.
         ];
-        const map = columnOverridesByCardId(pool, arrangement);
-        expect(map.get("bolt")).toBe(5);
-        expect(map.get("plains")).toBe("lands");
-        expect(map.has("goblin")).toBe(false);
+        const pins = pinsByCardId(pool, arrangement);
+        expect(pins.bolt).toEqual({ mv: makeColumnId("mv", "5") });
+        expect(pins.plains).toEqual({ mv: makeColumnId("mv", "lands") });
+        expect(pins.goblin).toBeUndefined();
+    });
+
+    it("reads a NEW-shape entry's Pins through unchanged, every namespace", () => {
+        const pool = [card("bolt")];
+        const arrangement: PoolArrangementEntry[] = [
+            {
+                poolIndex: 0,
+                pins: {
+                    mv: makeColumnId("mv", "3"),
+                    color: makeColumnId("color", "R"),
+                    custom: makeColumnId("custom", "combo"),
+                },
+            },
+        ];
+        expect(pinsByCardId(pool, arrangement).bolt).toEqual({
+            mv: "mv:3",
+            color: "color:R",
+            custom: "custom:combo",
+        });
     });
 
     it("is empty for an untouched (undefined) arrangement", () => {
         const pool = [card("bolt")];
-        expect(columnOverridesByCardId(pool, undefined).size).toBe(0);
+        expect(Object.keys(pinsByCardId(pool, undefined)).length).toBe(0);
     });
 
-    it("last copy wins when two copies of one card carry divergent overrides", () => {
+    it("last copy wins when two copies of one card carry divergent Pins", () => {
         const pool = [card("bolt"), card("bolt")];
         const arrangement: PoolArrangementEntry[] = [
             { poolIndex: 0, column: 1 },
             { poolIndex: 1, column: 6 },
         ];
-        expect(columnOverridesByCardId(pool, arrangement).get("bolt")).toBe(6);
+        expect(pinsByCardId(pool, arrangement).bolt).toEqual({
+            mv: makeColumnId("mv", "6"),
+        });
     });
 });
 
@@ -469,8 +490,8 @@ describe("legacy and new shapes resolve to the SAME placement (issue #1621: noth
         expect(splitPoolByArrangement(pool, legacy)).toEqual(
             splitPoolByArrangement(pool, migrated)
         );
-        expect(columnOverridesByCardId(pool, legacy)).toEqual(
-            columnOverridesByCardId(pool, migrated)
+        expect(pinsByCardId(pool, legacy)).toEqual(
+            pinsByCardId(pool, migrated)
         );
     });
 

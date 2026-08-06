@@ -1,14 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { DragDropProvider, DragOverlay } from "@dnd-kit/react";
+import type { DragDropManager } from "@dnd-kit/dom";
 import {
-    DragDropProvider,
-    DragOverlay,
-    KeyboardSensor,
-    PointerSensor,
-} from "@dnd-kit/react";
-import { PointerActivationConstraints } from "@dnd-kit/dom";
+    createDeckColumnLayout,
+    pinCardToColumn,
+    type ColumnId,
+    type DeckColumnLayout,
+} from "@convex/deckLayout";
 import { effectiveFeatured, toggleFeatured } from "~/lib/featuredPicker";
 import { computeDeckColors } from "~/lib/deckColors";
-import { makeDeckCardShapeResolver } from "~/lib/deckCardShape";
+import { deckCardLookup, makeDeckCardShapeResolver } from "~/lib/deckCardShape";
+import DeckZonesSurface from "~/components/deckbuilder/deck-zones-surface";
+import { useDeckDragSensors } from "~/components/deckbuilder/useDeckDragSensors";
+import {
+    applyDeckZoneDragAction,
+    resolveDeckZoneDragAction,
+} from "~/components/deckbuilder/deckZoneDrag";
 import { useBanlistOverride } from "~/hooks/useBanlistOverride";
 import { FORMAT_RULES, type FormatId, validateDeck } from "@convex/formats";
 import { type LobbyDeck } from "~/lib/deckTypes";
@@ -34,8 +41,7 @@ import CardZoomSlider from "./card-zoom-slider";
 import ColorFilter from "./color-filter";
 import DeckExportButton from "./deck-export-button";
 import DeckImportDialog from "./deck-import-dialog";
-import DeckPileArea from "./deck-pile-area";
-import type { CardDragData, DropZoneId } from "./dnd-types";
+import type { CardDragData } from "./dnd-types";
 import ManaValueFilter from "./mana-value-filter";
 import ResultsGrid from "./results-grid";
 import SaveDeckBar from "./save-deck-bar";
@@ -109,6 +115,12 @@ interface DeckBuilderProps {
     fullCatalogue?: FullCatalogueResult;
     onClose: (savedDeckId: string | null) => void;
     onDelete?: () => Promise<void>;
+    // dnd-kit manager. Omitted in the app (the provider makes its own); the
+    // mounted drag test injects one so it can drive REAL drag operations
+    // against the REAL droppable registry — jsdom has no layout, so a
+    // pointer-driven drag can never resolve a drop target there. Same escape
+    // hatch `PoolDeckbuilderSurface` carries for the Limited builder.
+    manager?: DragDropManager;
 }
 
 const SAVE_DEBOUNCE_MS = 800;
@@ -128,6 +140,7 @@ export default function DeckBuilder({
     fullCatalogue,
     onClose,
     onDelete,
+    manager,
 }: DeckBuilderProps) {
     const isPreset = kind === "preset";
     const [confirmDelete, setConfirmDelete] = useState(false);
@@ -193,6 +206,16 @@ export default function DeckBuilder({
                 deck.format === "manual" ? fullCatalogue?.rows : undefined
             ),
         [deck.format, fullCatalogue?.rows]
+    );
+
+    // The deck's Column Layout (ADR 0075, issue #1622). Grouping is pinned to
+    // Mana Value in this slice — there is no user-facing control yet — so the
+    // only thing that changes here is the Card Pin map a column drag records.
+    // Held in the WORKING deck, not persisted: `userDecks.layout` lands in a
+    // later slice of PRD #1617, so a pin survives re-render (and every other
+    // edit to the deck) but not a reload.
+    const [layout, setLayout] = useState<DeckColumnLayout>(() =>
+        createDeckColumnLayout()
     );
 
     // Same split for a pasted decklist: in Tabletop a name the GRE doesn't
@@ -451,6 +474,16 @@ export default function DeckBuilder({
         [updateDeck]
     );
 
+    // A Maindeck column drag records a Card Pin on the Maindeck's Layout
+    // (ADR 0075 §3). Pins are keyed by Card ID here — four Lightning Bolts pin
+    // together, which is always what a Constructed builder wants (ADR 0075 §4).
+    const handlePin = useCallback((cardId: string, columnId: ColumnId) => {
+        setLayout((current) => ({
+            ...current,
+            maindeck: pinCardToColumn(current.maindeck, cardId, columnId),
+        }));
+    }, []);
+
     // Append an imported decklist to the working deck. Import is additive
     // (per design): resolved copies are pushed onto the existing Maindeck and
     // Sideboard; unresolved lines were already surfaced by the dialog.
@@ -618,71 +651,49 @@ export default function DeckBuilder({
         max: 1.8,
         initial: 0.95,
     });
-    const mainZoom = useCardZoom({
-        zone: "main",
-        min: 1,
-        max: 2.2,
-        initial: 1.25,
-    });
-    const sideZoom = useCardZoom({
-        zone: "side",
-        min: 1,
-        max: 2.2,
-        initial: 1.25,
-    });
+    // The Maindeck/Sideboard zoom zones ("main"/"side") live inside
+    // `DeckZonesSurface` now — one sider per zone, same localStorage keys.
 
-    // Touch drag waits ~250ms so a quick swipe still scrolls the list and only a
-    // deliberate hold-then-move starts a drag (under the 400ms long-press preview
-    // threshold, so the two never collide). Mouse drag starts after a small move.
-    const sensors = useMemo(
-        () => [
-            PointerSensor.configure({
-                activationConstraints: (event: PointerEvent) =>
-                    event.pointerType === "touch"
-                        ? [
-                              new PointerActivationConstraints.Delay({
-                                  value: 250,
-                                  tolerance: 10,
-                              }),
-                          ]
-                        : [
-                              new PointerActivationConstraints.Distance({
-                                  value: 8,
-                              }),
-                          ],
-            }),
-            KeyboardSensor,
-        ],
-        []
-    );
+    const sensors = useDeckDragSensors();
 
     const handleDragEnd = useCallback(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (event: any) => {
             if (event.canceled) return;
-            const source = event.operation?.source;
-            const target = event.operation?.target;
-            if (!source || !target) return;
-            const data = source.data as CardDragData | undefined;
-            if (!data) return;
-            const dest = target.id as DropZoneId;
-            if (data.kind === "result") {
-                if (dest === "side")
-                    handleAddSideboard(data.cardId, data.cardName);
-                else handleAdd(data.cardId, data.cardName);
-            } else if (data.kind === "main" && dest === "side") {
-                handleMoveToSideboard(data.cardId);
-            } else if (data.kind === "side" && dest === "main") {
-                handleMoveToMaindeck(data.cardId);
-            }
+            const action = resolveDeckZoneDragAction(
+                event.operation?.source?.data as CardDragData | undefined,
+                event.operation?.target?.id as string | undefined
+            );
+            if (!action) return;
+            applyDeckZoneDragAction(action, {
+                onAddToMaindeck: handleAdd,
+                onAddToSideboard: handleAddSideboard,
+                onMoveToSideboard: handleMoveToSideboard,
+                onMoveToMaindeck: handleMoveToMaindeck,
+                onPin: handlePin,
+            });
         },
         [
             handleAdd,
             handleAddSideboard,
             handleMoveToSideboard,
             handleMoveToMaindeck,
+            handlePin,
         ]
     );
+
+    // The Column Layout engine's catalogue lookup. A Tabletop deck's
+    // catalogue-only cards (ADR 0080) resolve through the shape resolver into a
+    // synthetic definition, so they still bucket by Mana Value instead of
+    // falling into the Catch-All; `nameOf` keeps the deck row's own name as the
+    // in-column sort key, exactly as the retired pile grouping did.
+    const cardLookup = useMemo(() => {
+        const names = new Map<string, string>();
+        for (const card of deck.cards) names.set(card.cardId, card.cardName);
+        for (const card of deck.sideboard)
+            names.set(card.cardId, card.cardName);
+        return deckCardLookup(resolveShape, (id) => names.get(id));
+    }, [resolveShape, deck.cards, deck.sideboard]);
 
     return (
         <div
@@ -695,7 +706,11 @@ export default function DeckBuilder({
             className="flex flex-1 min-h-0 flex-col bg-surface-base text-text"
             style={{ "--card-base": CARD_BASE } as React.CSSProperties}
         >
-            <DragDropProvider sensors={sensors} onDragEnd={handleDragEnd}>
+            <DragDropProvider
+                manager={manager}
+                sensors={sensors}
+                onDragEnd={handleDragEnd}
+            >
                 <div className="flex flex-col gap-3 short-viewport:gap-1 border-b border-border-subtle/30 bg-surface/60 px-4 py-3 short-viewport:py-1 md:px-6">
                     <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
                         <div className="flex items-center gap-3">
@@ -838,59 +853,40 @@ export default function DeckBuilder({
                         />
                     </div>
                     <div className="flex min-h-0 divide-x divide-border-subtle/30 overflow-hidden">
-                        <div
-                            className="h-full w-3/4 overflow-hidden"
-                            style={zoomVars(mainZoom.value)}
-                        >
-                            <DeckPileArea
-                                title="Maindeck"
-                                zone="main"
-                                grouped
-                                cards={deck.cards}
-                                onRemove={handleRemove}
-                                resolveShape={resolveShape}
-                                featuredCardId={effectiveFeaturedCardId}
-                                onSetFeatured={handleSetFeatured}
-                                emptyMessage="Click or drag cards here to add them."
-                                headerRight={
-                                    <CardZoomSlider
-                                        value={mainZoom.value}
-                                        min={mainZoom.min}
-                                        max={mainZoom.max}
-                                        onChange={mainZoom.set}
-                                        label="Maindeck card size"
-                                    />
-                                }
-                            />
-                        </div>
-                        <div
-                            className="h-full w-1/4 overflow-hidden"
-                            style={zoomVars(sideZoom.value)}
-                        >
-                            <DeckPileArea
-                                title="Sideboard"
-                                zone="side"
-                                grouped={false}
-                                cards={deck.sideboard}
-                                onRemove={handleRemoveSideboard}
-                                countSuffix={`/${SIDEBOARD_LIMIT}`}
-                                warning={
-                                    deck.sideboard.length > SIDEBOARD_LIMIT
-                                        ? "over limit"
-                                        : null
-                                }
-                                emptyMessage="Drag cards here to keep them aside (0–15)."
-                                headerRight={
-                                    <CardZoomSlider
-                                        value={sideZoom.value}
-                                        min={sideZoom.min}
-                                        max={sideZoom.max}
-                                        onChange={sideZoom.set}
-                                        label="Sideboard card size"
-                                    />
-                                }
-                            />
-                        </div>
+                        <DeckZonesSurface
+                            mainCards={deck.cards}
+                            sideCards={deck.sideboard}
+                            layout={layout}
+                            lookup={cardLookup}
+                            cardBase={CARD_BASE}
+                            splitZone="deckbuilder"
+                            splitDefault={3 / 4}
+                            mainZoomZone="main"
+                            sideZoomZone="side"
+                            zoomInitial={1.25}
+                            mainEmptyMessage="Click or drag cards here to add them."
+                            sideEmptyMessage="Drag cards here to keep them aside (0–15)."
+                            sideCountSuffix={`/${SIDEBOARD_LIMIT}`}
+                            sideWarning={
+                                deck.sideboard.length > SIDEBOARD_LIMIT
+                                    ? "over limit"
+                                    : null
+                            }
+                            onMainCardClick={(card) =>
+                                handleRemove(card.cardId)
+                            }
+                            onSideCardClick={(card) =>
+                                handleRemoveSideboard(card.cardId)
+                            }
+                            mainCardTitle={(card) =>
+                                `Remove ${card.cardName} (drag to move zone)`
+                            }
+                            sideCardTitle={(card) =>
+                                `Remove ${card.cardName} (drag to move zone)`
+                            }
+                            featuredCardId={effectiveFeaturedCardId}
+                            onSetFeatured={handleSetFeatured}
+                        />
                     </div>
                 </div>
 

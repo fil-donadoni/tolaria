@@ -1,7 +1,7 @@
 import { useMemo } from "react";
+import { createColumnLayout, resolveColumnLayout } from "@convex/deckLayout";
 import type { DeckCard } from "~/types/game";
-import { useDeckCardShapeResolver } from "~/lib/deckCardShape";
-import { groupDeckIntoPiles } from "./deckGrouping";
+import { deckCardLookup, useDeckCardShapeResolver } from "~/lib/deckCardShape";
 import ManaPile from "./mana-pile";
 
 interface ManaPileViewProps {
@@ -18,10 +18,25 @@ export default function ManaPileView({
     catalogueBacked = false,
 }: ManaPileViewProps) {
     const resolveShape = useDeckCardShapeResolver(catalogueBacked);
-    const piles = useMemo(
-        () => groupDeckIntoPiles(cards, resolveShape),
-        [cards, resolveShape]
-    );
+    // Columns come from the shared Column Layout engine (ADR 0075, issue
+    // #1622) — the same authority the deckbuilder zone surface reads, in place
+    // of the retired `groupDeckIntoPiles`. This is a read-only PREVIEW with no
+    // drop targets, so the empty columns of the fixed `mv` ladder are dropped
+    // and only the piles that hold a card render — the dynamic look the pile
+    // view has always had.
+    const piles = useMemo(() => {
+        const names = new Map(cards.map((c) => [c.cardId, c.cardName]));
+        return resolveColumnLayout<DeckCard>({
+            layout: createColumnLayout(),
+            items: cards,
+            adapter: {
+                cardId: (c) => c.cardId,
+                pinKey: (c) => c.cardId,
+                tiebreak: (a, b) => a.cardId.localeCompare(b.cardId),
+            },
+            lookup: deckCardLookup(resolveShape, (id) => names.get(id)),
+        }).filter((column) => column.items.length > 0);
+    }, [cards, resolveShape]);
 
     if (piles.length === 0) {
         return (
@@ -33,10 +48,10 @@ export default function ManaPileView({
         <div className="overflow-x-auto whitespace-nowrap">
             {piles.map((pile, i) => (
                 <div
-                    key={pile.key}
+                    key={pile.id}
                     className={`inline-block align-top whitespace-normal ${i > 0 ? "ml-2 md:ml-6" : ""}`}
                 >
-                    <ManaPile label={pile.label} cards={pile.cards} />
+                    <ManaPile label={pile.label} cards={pile.items} />
                 </div>
             ))}
         </div>
