@@ -88,6 +88,10 @@ const ALLOWLIST = new Map([
         "one describe block asserts bot move enumeration for Giant Turtle",
     ],
     [
+        "convex/cards/sets/bng/__tests__/green.test.ts",
+        "one describe block asserts bot move enumeration for Courser of Kruphix (the play-lands-from-top permission must be reachable by the AI)",
+    ],
+    [
         "convex/gre/__tests__/autoTap.test.ts",
         "covers the auto-tap solver, whose scorer (evaluateAutoTapPosition) is app-facing — called from convex/game.ts for human players",
     ],
