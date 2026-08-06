@@ -1,0 +1,896 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Tolaria telemetry</title>
+        <style>
+            :root {
+                color-scheme: light;
+                --surface-1: #fcfcfb;
+                --plane: #f9f9f7;
+                --text-primary: #0b0b0b;
+                --text-secondary: #52514e;
+                --muted: #898781;
+                --grid: #e1e0d9;
+                --axis: #c3c2b7;
+                --border: rgba(11, 11, 11, 0.1);
+                --series-1: #2a78d6;
+                --series-2: #eb6834;
+                --series-3: #1baf7a;
+                --series-4: #eda100;
+                --series-5: #e87ba4;
+                --series-6: #008300;
+                --series-7: #4a3aa7;
+                --series-8: #e34948;
+            }
+            @media (prefers-color-scheme: dark) {
+                :root:where(:not([data-theme="light"])) {
+                    color-scheme: dark;
+                    --surface-1: #1a1a19;
+                    --plane: #0d0d0d;
+                    --text-primary: #ffffff;
+                    --text-secondary: #c3c2b7;
+                    --muted: #898781;
+                    --grid: #2c2c2a;
+                    --axis: #383835;
+                    --border: rgba(255, 255, 255, 0.1);
+                    --series-1: #3987e5;
+                    --series-2: #d95926;
+                    --series-3: #199e70;
+                    --series-4: #c98500;
+                    --series-5: #d55181;
+                    --series-6: #008300;
+                    --series-7: #9085e9;
+                    --series-8: #e66767;
+                }
+            }
+            :root[data-theme="dark"] {
+                color-scheme: dark;
+                --surface-1: #1a1a19;
+                --plane: #0d0d0d;
+                --text-primary: #ffffff;
+                --text-secondary: #c3c2b7;
+                --muted: #898781;
+                --grid: #2c2c2a;
+                --axis: #383835;
+                --border: rgba(255, 255, 255, 0.1);
+                --series-1: #3987e5;
+                --series-2: #d95926;
+                --series-3: #199e70;
+                --series-4: #c98500;
+                --series-5: #d55181;
+                --series-6: #008300;
+                --series-7: #9085e9;
+                --series-8: #e66767;
+            }
+
+            * {
+                box-sizing: border-box;
+            }
+            body {
+                margin: 0;
+                background: var(--plane);
+                color: var(--text-primary);
+                font:
+                    14px/1.5 system-ui,
+                    -apple-system,
+                    "Segoe UI",
+                    sans-serif;
+            }
+            .wrap {
+                max-width: 1400px;
+                margin: 0 auto;
+                padding: 24px 20px 64px;
+            }
+            header {
+                display: flex;
+                align-items: baseline;
+                gap: 16px;
+                flex-wrap: wrap;
+                margin-bottom: 20px;
+            }
+            h1 {
+                font-size: 20px;
+                margin: 0;
+                font-weight: 600;
+            }
+            .sub {
+                color: var(--text-secondary);
+                font-size: 13px;
+            }
+            button.theme {
+                margin-left: auto;
+                background: var(--surface-1);
+                color: var(--text-secondary);
+                border: 1px solid var(--border);
+                border-radius: 6px;
+                padding: 5px 10px;
+                cursor: pointer;
+                font: inherit;
+                font-size: 13px;
+            }
+
+            /* One filter row above everything it scopes. */
+            .filters {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px 14px;
+                align-items: flex-end;
+                background: var(--surface-1);
+                border: 1px solid var(--border);
+                border-radius: 10px;
+                padding: 14px 16px;
+                margin-bottom: 20px;
+            }
+            .field {
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+            }
+            .field > label {
+                font-size: 11px;
+                letter-spacing: 0.04em;
+                text-transform: uppercase;
+                color: var(--muted);
+            }
+            select,
+            input[type="date"] {
+                background: var(--plane);
+                color: var(--text-primary);
+                border: 1px solid var(--border);
+                border-radius: 6px;
+                padding: 6px 8px;
+                font: inherit;
+                font-size: 13px;
+                min-width: 130px;
+            }
+            .chips {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 6px;
+                width: 100%;
+            }
+            .chip {
+                border: 1px solid var(--border);
+                background: var(--plane);
+                color: var(--text-secondary);
+                border-radius: 999px;
+                padding: 3px 10px;
+                font-size: 12px;
+                cursor: pointer;
+                font-family: inherit;
+            }
+            .chip[aria-pressed="true"] {
+                background: var(--text-primary);
+                color: var(--surface-1);
+                border-color: var(--text-primary);
+            }
+
+            .tiles {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+                gap: 12px;
+                margin-bottom: 20px;
+            }
+            .tile {
+                background: var(--surface-1);
+                border: 1px solid var(--border);
+                border-radius: 10px;
+                padding: 14px 16px;
+            }
+            .tile .k {
+                font-size: 11px;
+                letter-spacing: 0.04em;
+                text-transform: uppercase;
+                color: var(--muted);
+            }
+            .tile .v {
+                font-size: 26px;
+                font-weight: 600;
+                margin-top: 4px;
+                line-height: 1.15;
+            }
+            .tile .n {
+                font-size: 12px;
+                color: var(--text-secondary);
+                margin-top: 2px;
+            }
+
+            .card {
+                background: var(--surface-1);
+                border: 1px solid var(--border);
+                border-radius: 10px;
+                padding: 16px;
+                margin-bottom: 20px;
+            }
+            .card h2 {
+                font-size: 14px;
+                font-weight: 600;
+                margin: 0 0 2px;
+            }
+            .card .h-sub {
+                font-size: 12px;
+                color: var(--text-secondary);
+                margin-bottom: 12px;
+            }
+            .scroll {
+                overflow-x: auto;
+            }
+            svg {
+                display: block;
+                max-width: 100%;
+            }
+            .legend {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 4px 14px;
+                margin-top: 12px;
+                font-size: 12px;
+                color: var(--text-secondary);
+            }
+            .legend span.sw {
+                display: inline-block;
+                width: 9px;
+                height: 9px;
+                border-radius: 2px;
+                margin-right: 5px;
+                vertical-align: -1px;
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+                font-size: 13px;
+            }
+            th,
+            td {
+                text-align: right;
+                padding: 6px 10px;
+                border-bottom: 1px solid var(--grid);
+                font-variant-numeric: tabular-nums;
+                white-space: nowrap;
+            }
+            th:first-child,
+            td:first-child {
+                text-align: left;
+                font-variant-numeric: normal;
+            }
+            th {
+                color: var(--muted);
+                font-weight: 500;
+                font-size: 11px;
+                letter-spacing: 0.03em;
+                text-transform: uppercase;
+                cursor: pointer;
+                user-select: none;
+                position: sticky;
+                top: 0;
+                background: var(--surface-1);
+            }
+            tbody tr:hover {
+                background: var(--plane);
+            }
+            .tbl-wrap {
+                max-height: 520px;
+                overflow: auto;
+            }
+
+            #tip {
+                position: fixed;
+                pointer-events: none;
+                background: var(--surface-1);
+                color: var(--text-primary);
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                padding: 8px 10px;
+                font-size: 12px;
+                box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
+                opacity: 0;
+                transition: opacity 0.09s;
+                z-index: 20;
+                max-width: 280px;
+            }
+            #tip b {
+                font-weight: 600;
+            }
+            .err {
+                color: #d03b3b;
+                font-size: 13px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="wrap">
+            <header>
+                <h1>Tolaria telemetry</h1>
+                <span class="sub" id="meta-line">loading…</span>
+                <button class="theme" id="theme">theme</button>
+            </header>
+
+            <div class="filters" id="filters"></div>
+            <div class="tiles" id="tiles"></div>
+
+            <section class="card">
+                <h2 id="ts-title">Over time</h2>
+                <div class="h-sub" id="ts-sub"></div>
+                <div class="scroll"><svg id="ts"></svg></div>
+                <div class="legend" id="ts-legend"></div>
+            </section>
+
+            <section class="card">
+                <h2 id="rank-title">Ranking</h2>
+                <div class="h-sub" id="rank-sub"></div>
+                <div class="scroll"><svg id="rank"></svg></div>
+            </section>
+
+            <section class="card">
+                <h2>Table</h2>
+                <div class="h-sub" id="tbl-sub">
+                    Every metric for the current slice. Click a header to sort.
+                </div>
+                <div class="tbl-wrap"><table id="tbl"></table></div>
+            </section>
+        </div>
+        <div id="tip"></div>
+
+        <script type="module">
+            const SERIES = [
+                "--series-1",
+                "--series-2",
+                "--series-3",
+                "--series-4",
+                "--series-5",
+                "--series-6",
+                "--series-7",
+                "--series-8",
+            ];
+            const OTHER = "var(--muted)";
+            const MAX_SERIES = 8;
+
+            const state = {
+                table: "agent_runs",
+                metric: "total_seconds",
+                split: "role",
+                from: "",
+                to: "",
+                filters: {},
+                sort: null,
+                sortDir: -1,
+            };
+            let META = null;
+            /**
+             * Colour is bound to the entity, not its current rank: a filter that
+             * removes series must not repaint the survivors, so a value keeps the
+             * slot it was first assigned for the lifetime of the page.
+             */
+            const colorMap = new Map();
+
+            function colorFor(dim, value) {
+                const key = `${dim} ${value}`;
+                if (!colorMap.has(key)) {
+                    const used = [...colorMap.keys()].filter((k) =>
+                        k.startsWith(dim + " ")
+                    ).length;
+                    colorMap.set(
+                        key,
+                        used < MAX_SERIES ? `var(${SERIES[used]})` : OTHER
+                    );
+                }
+                return colorMap.get(key);
+            }
+
+            // ---- formatting -------------------------------------------------
+            const isSeconds = (m) => m.endsWith("seconds");
+            const isCost = (m) => m.includes("cost");
+            const isTokens = (m) => m.endsWith("tokens");
+
+            function fmtDur(s) {
+                if (s == null) return "–";
+                if (s < 60) return `${s.toFixed(s < 10 ? 1 : 0)}s`;
+                if (s < 3600)
+                    return `${Math.floor(s / 60)}m ${Math.round(s % 60)}s`;
+                const h = Math.floor(s / 3600);
+                return `${h}h ${Math.round((s % 3600) / 60)}m`;
+            }
+            // Counts are whole things — rendering one run as "1.0" reads as a
+            // rate, not a tally.
+            const isCount = (m) => ["runs", "calls", "messages"].includes(m);
+            function fmtNum(n, integral = false) {
+                if (n == null) return "–";
+                const a = Math.abs(n);
+                if (a >= 1e9) return (n / 1e9).toFixed(2) + "B";
+                if (a >= 1e6) return (n / 1e6).toFixed(2) + "M";
+                if (a >= 1e4) return (n / 1e3).toFixed(1) + "k";
+                if (integral || a >= 10) return Math.round(n).toLocaleString();
+                return n.toFixed(1);
+            }
+            function fmtUsd(n) {
+                if (n == null) return "–";
+                return n >= 100
+                    ? "$" + Math.round(n).toLocaleString()
+                    : "$" + n.toFixed(2);
+            }
+            function fmtMetric(metric, v) {
+                if (isSeconds(metric)) return fmtDur(v);
+                if (isCost(metric)) return fmtUsd(v);
+                return fmtNum(v, isCount(metric));
+            }
+
+            // ---- data -------------------------------------------------------
+            async function q(body) {
+                const res = await fetch("/api/q", {
+                    method: "POST",
+                    headers: { "content-type": "application/json" },
+                    body: JSON.stringify({
+                        table: state.table,
+                        from: state.from || undefined,
+                        to: state.to || undefined,
+                        filters: state.filters,
+                        metric: state.metric,
+                        ...body,
+                    }),
+                });
+                const j = await res.json();
+                if (j.error) throw new Error(j.error);
+                return j;
+            }
+
+            // ---- tooltip ----------------------------------------------------
+            const tip = document.getElementById("tip");
+            function showTip(evt, html) {
+                tip.innerHTML = html;
+                tip.style.opacity = "1";
+                const pad = 14;
+                const r = tip.getBoundingClientRect();
+                let x = evt.clientX + pad;
+                let y = evt.clientY + pad;
+                if (x + r.width > innerWidth - 8)
+                    x = evt.clientX - r.width - pad;
+                if (y + r.height > innerHeight - 8)
+                    y = evt.clientY - r.height - pad;
+                tip.style.left = x + "px";
+                tip.style.top = y + "px";
+            }
+            const hideTip = () => (tip.style.opacity = "0");
+            document.addEventListener("scroll", hideTip, true);
+
+            // ---- charts -----------------------------------------------------
+            const NS = "http://www.w3.org/2000/svg";
+            const el = (n, a = {}) => {
+                const e = document.createElementNS(NS, n);
+                for (const [k, v] of Object.entries(a)) e.setAttribute(k, v);
+                return e;
+            };
+
+            /** Rounded top on the topmost segment only; flat where it stacks. */
+            function barPath(x, y, w, h, r) {
+                const rr = Math.min(r, w / 2, h);
+                return `M${x},${y + h}V${y + rr}a${rr},${rr} 0 0 1 ${rr},${-rr}h${w - 2 * rr}a${rr},${rr} 0 0 1 ${rr},${rr}V${y + h}Z`;
+            }
+
+            function niceTicks(max, count = 4) {
+                if (max <= 0) return [0];
+                const raw = max / count;
+                const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+                const step =
+                    [1, 2, 2.5, 5, 10]
+                        .map((m) => m * mag)
+                        .find((s) => s >= raw) ?? mag * 10;
+                const out = [];
+                for (let v = 0; v <= max * 1.0001; v += step) out.push(v);
+                return out;
+            }
+
+            function renderTimeSeries(rows, split, metric) {
+                const svg = document.getElementById("ts");
+                svg.innerHTML = "";
+                const days = [...new Set(rows.map((r) => r.day))].sort();
+                const keys = [...new Set(rows.map((r) => r[split]))];
+                const totalByKey = new Map();
+                for (const r of rows)
+                    totalByKey.set(
+                        r[split],
+                        (totalByKey.get(r[split]) ?? 0) + (r[metric] ?? 0)
+                    );
+                // Past 8 series the palette stops being distinguishable, so the
+                // tail folds into one explicit "Other" rather than cycling hues.
+                const ranked = keys.sort(
+                    (a, b) => totalByKey.get(b) - totalByKey.get(a)
+                );
+                const top = ranked.slice(0, MAX_SERIES);
+                const fold = new Set(ranked.slice(MAX_SERIES));
+                const seriesKeys = fold.size ? [...top, "Other"] : top;
+
+                const stack = new Map(days.map((d) => [d, new Map()]));
+                for (const r of rows) {
+                    const k = fold.has(r[split]) ? "Other" : r[split];
+                    const m = stack.get(r.day);
+                    m.set(k, (m.get(k) ?? 0) + (r[metric] ?? 0));
+                }
+
+                const barW = Math.max(
+                    9,
+                    Math.min(34, Math.floor(960 / Math.max(days.length, 1)))
+                );
+                const gap = 6;
+                const padL = 68,
+                    padR = 12,
+                    padT = 10,
+                    axisH = 42;
+                const plotH = 260;
+                const W = padL + days.length * (barW + gap) + padR;
+                const H = padT + plotH + axisH;
+                svg.setAttribute("width", W);
+                svg.setAttribute("height", H);
+                svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+
+                const max = Math.max(
+                    ...days.map((d) =>
+                        [...stack.get(d).values()].reduce((a, b) => a + b, 0)
+                    ),
+                    0
+                );
+                const ticks = niceTicks(max);
+                const yTop = ticks[ticks.length - 1] || 1;
+                const y = (v) => padT + plotH - (v / yTop) * plotH;
+
+                for (const t of ticks) {
+                    svg.appendChild(
+                        el("line", {
+                            x1: padL - 6,
+                            x2: W - padR,
+                            y1: y(t),
+                            y2: y(t),
+                            stroke: "var(--grid)",
+                            "stroke-width": 1,
+                        })
+                    );
+                    const lab = el("text", {
+                        x: padL - 10,
+                        y: y(t) + 4,
+                        "text-anchor": "end",
+                        fill: "var(--muted)",
+                        "font-size": 11,
+                    });
+                    lab.textContent = fmtMetric(metric, t);
+                    svg.appendChild(lab);
+                }
+
+                days.forEach((d, i) => {
+                    const x = padL + i * (barW + gap);
+                    let acc = 0;
+                    const present = seriesKeys.filter(
+                        (k) => (stack.get(d).get(k) ?? 0) > 0
+                    );
+                    present.forEach((k, j) => {
+                        const v = stack.get(d).get(k);
+                        const y0 = y(acc + v),
+                            y1 = y(acc);
+                        // 2px surface gap between stacked segments — a separator
+                        // made of background, not a border drawn around marks.
+                        const h = Math.max(
+                            1,
+                            y1 - y0 - (j < present.length - 1 ? 0 : 0) - 2
+                        );
+                        const isTop = j === present.length - 1;
+                        const p = el("path", {
+                            d: isTop
+                                ? barPath(x, y0, barW, h, 4)
+                                : `M${x},${y0}h${barW}v${h}h${-barW}Z`,
+                            fill: k === "Other" ? OTHER : colorFor(split, k),
+                        });
+                        p.addEventListener("mousemove", (e) =>
+                            showTip(
+                                e,
+                                `<b>${d}</b><br>${k}: <b>${fmtMetric(metric, v)}</b><br><span style="color:var(--text-secondary)">day total ${fmtMetric(metric, acc + v + present.slice(j + 1).reduce((s, kk) => s + (stack.get(d).get(kk) ?? 0), 0))}</span>`
+                            )
+                        );
+                        p.addEventListener("mouseleave", hideTip);
+                        svg.appendChild(p);
+                        acc += v;
+                    });
+                    if (
+                        days.length <= 40 ||
+                        i % Math.ceil(days.length / 30) === 0
+                    ) {
+                        const t = el("text", {
+                            x: x + barW / 2,
+                            y: padT + plotH + 16,
+                            "text-anchor": "end",
+                            fill: "var(--muted)",
+                            "font-size": 10,
+                            transform: `rotate(-45 ${x + barW / 2} ${padT + plotH + 16})`,
+                        });
+                        t.textContent = d.slice(5);
+                        svg.appendChild(t);
+                    }
+                });
+
+                svg.appendChild(
+                    el("line", {
+                        x1: padL - 6,
+                        x2: W - padR,
+                        y1: padT + plotH,
+                        y2: padT + plotH,
+                        stroke: "var(--axis)",
+                        "stroke-width": 1,
+                    })
+                );
+
+                const leg = document.getElementById("ts-legend");
+                leg.innerHTML = seriesKeys
+                    .map(
+                        (k) =>
+                            `<span><span class="sw" style="background:${k === "Other" ? OTHER : colorFor(split, k)}"></span>${k}</span>`
+                    )
+                    .join("");
+            }
+
+            function renderRanking(rows, split, metric) {
+                const svg = document.getElementById("rank");
+                svg.innerHTML = "";
+                const data = rows
+                    .map((r) => ({ k: r[split], v: r[metric] ?? 0, row: r }))
+                    .filter((d) => d.v > 0)
+                    .slice(0, 18);
+                if (!data.length) {
+                    svg.setAttribute("height", 0);
+                    return;
+                }
+                const rowH = 26,
+                    padL = 168,
+                    padR = 90,
+                    padT = 6;
+                const W = Math.min(1180, Math.max(560, innerWidth - 90));
+                const H = padT + data.length * rowH + 8;
+                svg.setAttribute("width", W);
+                svg.setAttribute("height", H);
+                svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+                const max = Math.max(...data.map((d) => d.v));
+                const barMax = W - padL - padR;
+
+                data.forEach((d, i) => {
+                    const y = padT + i * rowH;
+                    const w = Math.max(2, (d.v / max) * barMax);
+                    const lab = el("text", {
+                        x: padL - 10,
+                        y: y + 15,
+                        "text-anchor": "end",
+                        fill: "var(--text-secondary)",
+                        "font-size": 12,
+                    });
+                    lab.textContent = String(d.k).slice(0, 26);
+                    svg.appendChild(lab);
+                    const p = el("path", {
+                        // Rounded data-end only; the bar stays anchored to the axis.
+                        d: `M${padL},${y + 4}h${w - 4}a4,4 0 0 1 4,4v6a4,4 0 0 1 -4,4h${-(w - 4)}Z`,
+                        // One measure, nominal categories, a direct label on every
+                        // row: colour would double-encode bar length and leave any
+                        // ninth-and-beyond category in an indistinguishable grey.
+                        fill: "var(--series-1)",
+                    });
+                    p.addEventListener("mousemove", (e) =>
+                        showTip(
+                            e,
+                            `<b>${d.k}</b><br>${metric}: <b>${fmtMetric(metric, d.v)}</b>`
+                        )
+                    );
+                    p.addEventListener("mouseleave", hideTip);
+                    svg.appendChild(p);
+                    // Direct value labels: the light-mode palette has three slots
+                    // under 3:1 against the surface, so the relief rule applies.
+                    const val = el("text", {
+                        x: padL + w + 8,
+                        y: y + 15,
+                        fill: "var(--text-primary)",
+                        "font-size": 12,
+                    });
+                    val.textContent = fmtMetric(metric, d.v);
+                    svg.appendChild(val);
+                });
+            }
+
+            function renderTable(rows, split, metricNames) {
+                const tbl = document.getElementById("tbl");
+                const sortKey = state.sort ?? state.metric;
+                const sorted = [...rows].sort(
+                    (a, b) =>
+                        ((b[sortKey] ?? 0) - (a[sortKey] ?? 0)) *
+                        (state.sortDir === -1 ? 1 : -1)
+                );
+                const head =
+                    `<thead><tr><th data-k="${split}">${split}</th>` +
+                    metricNames
+                        .map(
+                            (m) =>
+                                `<th data-k="${m}">${m.replace(/_/g, " ")}</th>`
+                        )
+                        .join("") +
+                    "</tr></thead>";
+                const body =
+                    "<tbody>" +
+                    sorted
+                        .map(
+                            (r) =>
+                                `<tr><td>${r[split]}</td>` +
+                                metricNames
+                                    .map(
+                                        (m) => `<td>${fmtMetric(m, r[m])}</td>`
+                                    )
+                                    .join("") +
+                                "</tr>"
+                        )
+                        .join("") +
+                    "</tbody>";
+                tbl.innerHTML = head + body;
+                tbl.querySelectorAll("th").forEach((th) =>
+                    th.addEventListener("click", () => {
+                        const k = th.dataset.k;
+                        state.sortDir = state.sort === k ? -state.sortDir : -1;
+                        state.sort = k;
+                        refresh();
+                    })
+                );
+            }
+
+            function renderTiles(total, rowsBySplit, split) {
+                const t = document.getElementById("tiles");
+                const mets = META.metrics[state.table];
+                const names = Object.keys(mets);
+                const pick = names.slice(0, 4);
+                const top = rowsBySplit[0];
+                t.innerHTML =
+                    pick
+                        .map(
+                            (m) =>
+                                `<div class="tile"><div class="k">${m.replace(/_/g, " ")}</div><div class="v">${fmtMetric(m, total[m])}</div></div>`
+                        )
+                        .join("") +
+                    (top
+                        ? `<div class="tile"><div class="k">top ${split}</div><div class="v">${top[split]}</div><div class="n">${fmtMetric(state.metric, top[state.metric])} · ${((top[state.metric] / (total[state.metric] || 1)) * 100).toFixed(0)}% of total</div></div>`
+                        : "");
+            }
+
+            // ---- controls ---------------------------------------------------
+            function renderFilters() {
+                const f = document.getElementById("filters");
+                const dims = META.dimensions[state.table];
+                const mets = Object.keys(META.metrics[state.table]);
+                if (!mets.includes(state.metric)) state.metric = mets[0];
+                if (!dims.includes(state.split))
+                    state.split = dims[2] ?? dims[0];
+
+                const sel = (label, id, opts, cur) =>
+                    `<div class="field"><label for="${id}">${label}</label><select id="${id}">` +
+                    opts
+                        .map(
+                            (o) =>
+                                `<option value="${o}"${o === cur ? " selected" : ""}>${String(o).replace(/_/g, " ")}</option>`
+                        )
+                        .join("") +
+                    "</select></div>";
+
+                f.innerHTML =
+                    sel(
+                        "Dataset",
+                        "f-table",
+                        Object.keys(META.dimensions),
+                        state.table
+                    ) +
+                    sel("Metric", "f-metric", mets, state.metric) +
+                    sel(
+                        "Split by",
+                        "f-split",
+                        dims.filter((d) => d !== "day"),
+                        state.split
+                    ) +
+                    `<div class="field"><label for="f-from">From</label><input type="date" id="f-from" value="${state.from}"></div>` +
+                    `<div class="field"><label for="f-to">To</label><input type="date" id="f-to" value="${state.to}"></div>` +
+                    `<div class="field" style="flex:1;min-width:240px"><label>Filter · ${state.split}</label><div class="chips" id="f-chips"></div></div>`;
+
+                const vals = META.values[state.table][state.split] ?? [];
+                const active = new Set(state.filters[state.split] ?? []);
+                document.getElementById("f-chips").innerHTML = vals
+                    .map(
+                        (v) =>
+                            `<button class="chip" data-v="${v}" aria-pressed="${active.has(v)}">${v}</button>`
+                    )
+                    .join("");
+                document.querySelectorAll("#f-chips .chip").forEach((c) =>
+                    c.addEventListener("click", () => {
+                        const v = c.dataset.v;
+                        const cur = new Set(state.filters[state.split] ?? []);
+                        cur.has(v) ? cur.delete(v) : cur.add(v);
+                        if (cur.size) state.filters[state.split] = [...cur];
+                        else delete state.filters[state.split];
+                        renderFilters();
+                        refresh();
+                    })
+                );
+
+                const bind = (id, key, rerenderFilters) =>
+                    document
+                        .getElementById(id)
+                        .addEventListener("change", (e) => {
+                            state[key] = e.target.value;
+                            if (key === "table") {
+                                state.filters = {};
+                                state.sort = null;
+                            }
+                            if (key === "split") state.sort = null;
+                            if (rerenderFilters) renderFilters();
+                            refresh();
+                        });
+                bind("f-table", "table", true);
+                bind("f-metric", "metric", false);
+                bind("f-split", "split", true);
+                bind("f-from", "from", false);
+                bind("f-to", "to", false);
+            }
+
+            // ---- orchestration ----------------------------------------------
+            async function refresh() {
+                const split = state.split,
+                    metric = state.metric;
+                document.getElementById("ts-title").textContent =
+                    `${metric.replace(/_/g, " ")} per day, by ${split}`;
+                document.getElementById("ts-sub").textContent =
+                    `Stacked; series past the eighth fold into "Other".`;
+                document.getElementById("rank-title").textContent =
+                    `${metric.replace(/_/g, " ")} by ${split}`;
+                document.getElementById("rank-sub").textContent =
+                    `Top 18, descending.`;
+
+                try {
+                    const [ts, byS, tot] = await Promise.all([
+                        q({ groupBy: ["day", split], limit: 5000 }),
+                        q({ groupBy: [split], limit: 500 }),
+                        q({ groupBy: [] }),
+                    ]);
+                    renderTimeSeries(ts.rows, split, metric);
+                    renderRanking(byS.rows, split, metric);
+                    renderTable(byS.rows, split, byS.metrics);
+                    renderTiles(tot.rows[0] ?? {}, byS.rows, split);
+                } catch (e) {
+                    document.getElementById("tbl").innerHTML =
+                        `<tbody><tr><td class="err">${e.message}</td></tr></tbody>`;
+                }
+            }
+
+            document.getElementById("theme").addEventListener("click", () => {
+                const cur = document.documentElement.getAttribute("data-theme");
+                const next =
+                    cur === "dark"
+                        ? "light"
+                        : cur === "light"
+                          ? null
+                          : matchMedia("(prefers-color-scheme: dark)").matches
+                            ? "light"
+                            : "dark";
+                if (next)
+                    document.documentElement.setAttribute("data-theme", next);
+                else document.documentElement.removeAttribute("data-theme");
+                refresh();
+            });
+
+            // ?theme=light|dark pins the palette for a shared link or a capture.
+            const themeParam = new URLSearchParams(location.search).get(
+                "theme"
+            );
+            if (themeParam === "light" || themeParam === "dark")
+                document.documentElement.setAttribute("data-theme", themeParam);
+
+            META = await (await fetch("/api/meta")).json();
+            state.from = META.range?.min_day ?? "";
+            state.to = META.range?.max_day ?? "";
+            document.getElementById("meta-line").textContent =
+                `${META.counts.spans.toLocaleString()} spans · ${META.counts.llm.toLocaleString()} messages · ` +
+                `${META.counts.agent_runs.toLocaleString()} agent runs · ` +
+                `${META.range.min_day} → ${META.range.max_day} · ` +
+                `ingested ${new Date(Number(META.lastIngest)).toLocaleString()}`;
+            renderFilters();
+            refresh();
+        </script>
+    </body>
+</html>
