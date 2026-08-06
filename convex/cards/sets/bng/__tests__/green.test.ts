@@ -23,47 +23,12 @@ import {
     finalizeLandEntry,
     resolvePlayLandSourceZone,
 } from "../../../../gre/playLand";
-import { enumerateMoves } from "../../../../gre/moves";
 import { projectPublicState } from "../../../../gameProjections";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { courserOfKruphix } from "../green";
+import { courserBoard } from "./courserBoard";
 import { forest, mountain } from "../../lea/colorless";
 import { stompingGround } from "../../gpt/colorless";
 import { grizzlyBears } from "../../lea/green";
-
-/** A board where p1 optionally controls a Courser and has `libraryIds` on top
- *  of their library, top-first. */
-function courserBoard(
-    libraryIds: string[],
-    withCourser = true,
-    playerOverrides: Parameters<typeof makePlayer>[1] = {}
-) {
-    return makeState({
-        players: [
-            makePlayer("p1", {
-                battlefield: withCourser
-                    ? [
-                          makeInstance(courserOfKruphix.id, {
-                              controllerId: "p1",
-                              ownerId: "p1",
-                              id: "courser",
-                          }),
-                      ]
-                    : [],
-                library: libraryIds.map((cardId, i) =>
-                    makeInstance(cardId, {
-                        controllerId: "p1",
-                        ownerId: "p1",
-                        id: `p1-lib-${i}`,
-                        zone: "library",
-                    })
-                ),
-                ...playerOverrides,
-            }),
-            makePlayer("p2"),
-        ],
-    });
-}
 
 describe("Courser of Kruphix — card definition", () => {
     it("is a 2/4 Enchantment Creature — Centaur for {1}{G}{G}", () => {
@@ -264,25 +229,8 @@ describe("landfall interaction (CR 603.6a) — a top-played land still triggers"
     });
 });
 
-describe("bot move enumeration — the permission is reachable by the AI", () => {
-    it("enumerates a play-land move for the top library land", () => {
-        const state = courserBoard([forest.id]);
-        const moves = enumerateMoves(state, "p1");
-        expect(moves).toContainEqual({
-            kind: "play-land",
-            cardInstanceId: "p1-lib-0",
-        });
-    });
-
-    it("enumerates NO library play-land move without the permission", () => {
-        const state = courserBoard([forest.id], false);
-        const moves = enumerateMoves(state, "p1");
-        expect(moves).not.toContainEqual({
-            kind: "play-land",
-            cardInstanceId: "p1-lib-0",
-        });
-    });
-});
+// The bot-side counterpart of this coverage — `enumerateMoves` sees the
+// permission — lives in `green.bot.test.ts` (bot-suite boundary).
 
 describe("wire SURFACE — projectPublicState tags the playable top land", () => {
     it("attaches legalActions to the viewer's OWN library top", () => {

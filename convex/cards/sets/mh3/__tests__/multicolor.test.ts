@@ -111,6 +111,9 @@ describe("Psychic Frog ({U}{B} 1/2 Frog; CR 510.4 / 122.1 / 611.1b)", () => {
         const ability = psychicFrog.activatedAbilities!.find(
             (a) => a.id === "psychic-frog-exile-flying"
         )!;
+        // `owner: "you"` — Oracle says "Exile three cards from YOUR graveyard",
+        // so the cost may not be paid from an opponent's (unlike Night Soil,
+        // which reads "from a single graveyard").
         expect(ability.cost.exileFromGraveyard).toEqual({
             count: 3,
             owner: "you",
