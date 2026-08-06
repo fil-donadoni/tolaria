@@ -17,10 +17,16 @@ interface PoolBasicLandsBarProps {
     /** Adds `count` copies of the subtype's resolved cardId to the Maindeck —
      *  1 for a plain click, 5 for the `+5` step. */
     onAdd: (cardId: string, cardName: string, count: number) => void;
-    /** Removes exactly one copy. Never invoked for a subtype at zero copies —
-     *  every gesture that reaches it is gated on `counts[subtype] > 0` in
-     *  this component, so a caller never has to re-check the floor. */
-    onRemove: (cardId: string) => void;
+    /** Removes exactly one copy of the SUBTYPE — deliberately not of a cardId
+     *  (PR #2320 review B1). `counts` is computed per subtype, so a remover
+     *  keyed on one resolved printing disagrees with the number right next to
+     *  the button: a Maindeck Mountain added under any other printing was
+     *  counted, enabled the control, and was never removed. Passing the
+     *  subtype makes the two halves share one classifier by construction.
+     *  Never invoked for a subtype at zero copies — every gesture that reaches
+     *  it is gated on `counts[subtype] > 0` in this component, so a caller
+     *  never has to re-check the floor. */
+    onRemove: (subtype: BasicLandSubtype) => void;
     disabled: boolean;
 }
 
@@ -57,8 +63,10 @@ export default function PoolBasicLandsBar({
                 const cardId = cardIdsBySubtype[subtype];
                 const count = counts[subtype];
                 const addDisabled = disabled || cardId === null;
-                const removeDisabled =
-                    disabled || cardId === null || count === 0;
+                // Removing needs no resolved cardId: the copies are already in
+                // the Maindeck and are identified by subtype (review B1). The
+                // count IS the floor, and the only one.
+                const removeDisabled = disabled || count === 0;
 
                 const addOne = () => {
                     if (cardId !== null) onAdd(cardId, subtype, 1);
@@ -67,7 +75,7 @@ export default function PoolBasicLandsBar({
                     if (cardId !== null) onAdd(cardId, subtype, 5);
                 };
                 const removeOne = () => {
-                    if (cardId !== null && count > 0) onRemove(cardId);
+                    if (count > 0) onRemove(subtype);
                 };
 
                 return (

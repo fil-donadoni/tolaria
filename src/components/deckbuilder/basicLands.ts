@@ -69,9 +69,18 @@ export function resolveCanonicalBasicLandCardIds(): Record<
 }
 
 /** The Basic subtype a cardId resolves to, or `null` if it isn't a Basic land
- *  at all — the shared classification `isBasicLandCardId` and
- *  `countBasicLandCopies` both key off. */
-function basicLandSubtypeOf(cardId: string): BasicLandSubtype | null {
+ *  at all — the ONE classifier every basics affordance keys off:
+ *  `isBasicLandCardId`, the bar's counter (`countBasicLandCopies`) and the
+ *  bar's remove path (`findBasicLandRemovalIndex`).
+ *
+ *  Sharing it is load-bearing, not tidiness (PR #2320 review B1). `cardId` is
+ *  whatever id the entry was ADDED under, which is a PRINT id from the
+ *  Constructed search grid's edition dropdown and a Pool printing in Limited;
+ *  `tryGetDefinition` resolves all 30+ Mountain prints back to the one
+ *  Mountain definition. A counter that classifies by subtype paired with a
+ *  remover that matched by `cardId` therefore counted copies it could never
+ *  remove, and offered an ENABLED `−` button that silently did nothing. */
+export function basicLandSubtypeOf(cardId: string): BasicLandSubtype | null {
     const def = tryGetDefinition(cardId);
     if (!def?.supertypes?.includes("Basic")) return null;
     for (const subtype of BASIC_LAND_SUBTYPES) {
@@ -111,4 +120,44 @@ export function countBasicLandCopies(
         if (subtype !== null) counts[subtype]++;
     }
     return counts;
+}
+
+/**
+ * Which Maindeck entry a "remove one <subtype>" gesture takes out, or `-1`
+ * when the zone holds none (issue #1627, PR #2320 review B1/NB1). The
+ * counter's exact inverse: it classifies through `basicLandSubtypeOf`, the
+ * same function `countBasicLandCopies` counts with, so every copy the bar
+ * displays is a copy the bar can remove — whatever printing it was added
+ * under.
+ *
+ * Two selection rules on top of that, in order:
+ *
+ * 1. **An explicitly named copy wins** (`pinKey`, issue #1626). A tap on a
+ *    Maindeck TILE identifies one physical copy; that copy is the one that
+ *    leaves, exactly as for a non-Basic. The bar's own gesture names no copy
+ *    (there is no tile to tap), so it falls through to rule 2.
+ * 2. **Prefer an UNPINNED copy, scanning from the end.** Pool-seeded entries
+ *    carry a `pinKey` and precede the bar-appended ones, so first-match
+ *    removal took the Pool copy — leaving the working deck and stranding the
+ *    Column Pin recorded against it, while the copy the user had just added
+ *    stayed (NB1). Basics are Pool-exempt (ADR 0054/0055), so a bar-added
+ *    copy is always the safer thing to give back; the last pinned copy is
+ *    the fallback for a Maindeck that holds only Pool ones.
+ */
+export function findBasicLandRemovalIndex(
+    cards: readonly { cardId: string; pinKey?: string }[],
+    subtype: BasicLandSubtype,
+    pinKey?: string
+): number {
+    if (pinKey !== undefined) {
+        const named = cards.findIndex((c) => c.pinKey === pinKey);
+        if (named >= 0) return named;
+    }
+    let pinnedFallback = -1;
+    for (let i = cards.length - 1; i >= 0; i--) {
+        if (basicLandSubtypeOf(cards[i].cardId) !== subtype) continue;
+        if (cards[i].pinKey === undefined) return i;
+        if (pinnedFallback < 0) pinnedFallback = i;
+    }
+    return pinnedFallback;
 }

@@ -20,7 +20,9 @@ import { computeDeckColors } from "~/lib/deckColors";
 import { deckCardLookup, makeDeckCardShapeResolver } from "~/lib/deckCardShape";
 import {
     countBasicLandCopies,
+    findBasicLandRemovalIndex,
     resolveCanonicalBasicLandCardIds,
+    type BasicLandSubtype,
 } from "~/components/deckbuilder/basicLands";
 import PoolBasicLandsBar from "~/components/deckbuilder/pool-basic-lands-bar";
 import DeckBuilderShell from "~/components/deckbuilder/deck-builder-shell";
@@ -527,6 +529,27 @@ export default function DeckBuilder({
         [updateDeck]
     );
 
+    /** The Add-Basic bar's remove gesture (issue #1627, PR #2320 review B1) —
+     *  deliberately NOT `handleRemove` above. `handleRemove` serves the
+     *  Maindeck tile click, where the user pointed at one specific card and
+     *  its `cardId` is exactly right; the bar points at a SUBTYPE, and its
+     *  counter counts by subtype. Constructed is where that gap bites hardest:
+     *  the search grid adds by PRINT id (the edition dropdown's value), so a
+     *  deck built from any printing but the catalogue's canonical one was
+     *  counted by the bar and untouchable by it. */
+    const handleRemoveBasic = useCallback(
+        (subtype: BasicLandSubtype) => {
+            updateDeck((d) => {
+                const idx = findBasicLandRemovalIndex(d.cards, subtype);
+                if (idx < 0) return d;
+                const next = [...d.cards];
+                next.splice(idx, 1);
+                return { ...d, cards: next };
+            });
+        },
+        [updateDeck]
+    );
+
     const handleRemoveSideboard = useCallback(
         (cardId: string) => {
             updateDeck((d) => {
@@ -801,7 +824,7 @@ export default function DeckBuilder({
                     cardIdsBySubtype={basicCardIds}
                     counts={basicCounts}
                     onAdd={handleAdd}
-                    onRemove={handleRemove}
+                    onRemove={handleRemoveBasic}
                     disabled={saving}
                 />
             }

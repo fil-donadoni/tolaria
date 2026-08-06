@@ -104,6 +104,28 @@ describe("PoolBasicLandsBar (issue #1576: always render all five basics)", () =>
         const swampFive = getByLabelText("Add five Swamp") as HTMLButtonElement;
         expect(swampFive.disabled).toBe(true);
     });
+
+    // The add controls need a resolved cardId (there is nothing to append
+    // without one); the remove control does not — the copies are already in
+    // the Maindeck and are named by SUBTYPE (PR #2320 review B1). Gating
+    // removal on the add's id is how a Maindeck can hold copies nobody can
+    // take out.
+    it("still offers REMOVE for a subtype that resolved to null while the Maindeck holds copies of it", () => {
+        const onRemove = vi.fn();
+        const { getByLabelText } = render(
+            <PoolBasicLandsBar
+                cardIdsBySubtype={idsFor({ Swamp: null })}
+                counts={countsFor({ Swamp: 2 })}
+                onAdd={vi.fn()}
+                onRemove={onRemove}
+                disabled={false}
+            />
+        );
+        const minus = getByLabelText("Remove one Swamp") as HTMLButtonElement;
+        expect(minus.disabled).toBe(false);
+        fireEvent.click(minus);
+        expect(onRemove).toHaveBeenCalledWith("Swamp");
+    });
 });
 
 describe("PoolBasicLandsBar — per-subtype Maindeck counter (issue #1627)", () => {
@@ -171,7 +193,7 @@ describe("PoolBasicLandsBar — remove, floored at zero and visibly unavailable 
             />
         );
         fireEvent.click(getByText("+ Swamp"), { shiftKey: true });
-        expect(onRemove).toHaveBeenCalledWith("swamp-id");
+        expect(onRemove).toHaveBeenCalledWith("Swamp");
         expect(onAdd).not.toHaveBeenCalled();
     });
 
@@ -187,7 +209,7 @@ describe("PoolBasicLandsBar — remove, floored at zero and visibly unavailable 
             />
         );
         const event = fireEvent.contextMenu(getByText("+ Forest"));
-        expect(onRemove).toHaveBeenCalledWith("forest-id");
+        expect(onRemove).toHaveBeenCalledWith("Forest");
         // fireEvent returns `false` when the dispatched event's default was
         // prevented — the native context menu must never appear.
         expect(event).toBe(false);
@@ -205,7 +227,7 @@ describe("PoolBasicLandsBar — remove, floored at zero and visibly unavailable 
             />
         );
         fireEvent.click(getByLabelText("Remove one Plains"));
-        expect(onRemove).toHaveBeenCalledWith("plains-id");
+        expect(onRemove).toHaveBeenCalledWith("Plains");
     });
 
     it("at zero copies the − button is disabled (visibly unavailable) and a click is a no-op", () => {

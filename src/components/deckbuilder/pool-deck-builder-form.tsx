@@ -42,9 +42,11 @@ import {
 } from "~/lib/deckSideboard";
 import { cardBase } from "~/lib/cardSizing";
 import {
+    basicLandSubtypeOf,
     countBasicLandCopies,
-    isBasicLandCardId,
+    findBasicLandRemovalIndex,
     resolveBasicLandCardIds,
+    type BasicLandSubtype,
 } from "./basicLands";
 import DeckBuilderShell from "./deck-builder-shell";
 import type { DeckBuilderViewSpec, WorkingDeck } from "./deckBuilderVariant";
@@ -289,19 +291,19 @@ export default function PoolDeckBuilderForm({
         },
     });
 
-    /** Removes exactly one copy of a Basic land from the Maindeck by cardId
-     *  (issue #1627) — shared by a direct tap on a Maindeck tile
-     *  (`handleMainClick` below, pre-existing) and the Add-Basic bar's remove
-     *  gesture (shift-click/right-click/the dedicated `−` button). A Basic
-     *  carries no `pinKey` — the bar never assigns one (see `toZoneCards`
-     *  above) — so, like the pre-#1627 tap-to-remove path, this removes the
-     *  first matching entry rather than a specific copy, consistent with
-     *  basics being exempt from per-copy Pool identity altogether (ADR
-     *  0054/0055). */
+    /** Removes exactly one copy of a Basic land SUBTYPE from the Maindeck
+     *  (issue #1627, PR #2320 review B1/NB1) — shared by a direct tap on a
+     *  Maindeck tile (`handleMainClick` below, pre-existing) and the
+     *  Add-Basic bar's remove gesture (shift-click/right-click/the dedicated
+     *  `−` button). Which copy leaves is `findBasicLandRemovalIndex`'s
+     *  decision, the exact inverse of the counter the bar renders: by subtype
+     *  (so a Pool printing and the catalogue printing are the same
+     *  "Mountain"), honouring an explicitly tapped `pinKey`, and otherwise
+     *  preferring an unpinned bar-added copy over a pinned Pool one. */
     const handleRemoveBasic = useCallback(
-        (cardId: string) => {
+        (subtype: BasicLandSubtype, pinKey?: string) => {
             updateDeck((d) => {
-                const idx = d.cards.findIndex((c) => c.cardId === cardId);
+                const idx = findBasicLandRemovalIndex(d.cards, subtype, pinKey);
                 if (idx < 0) return d;
                 const next = [...d.cards];
                 next.splice(idx, 1);
@@ -322,8 +324,12 @@ export default function PoolDeckBuilderForm({
     // and strands its Column (PR #2318 review B1).
     const handleMainClick = useCallback(
         (cardId: string, pinKey?: string) => {
-            if (isBasicLandCardId(cardId)) {
-                handleRemoveBasic(cardId);
+            // A tap names a physical copy, so the `pinKey` travels: the tile
+            // the player touched is the one that leaves, Basic or not (issue
+            // #1626 / PR #2320 review NB1).
+            const basicSubtype = basicLandSubtypeOf(cardId);
+            if (basicSubtype !== null) {
+                handleRemoveBasic(basicSubtype, pinKey);
                 return;
             }
             updateDeck((d) => {

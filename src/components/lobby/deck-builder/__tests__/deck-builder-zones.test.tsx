@@ -11,7 +11,7 @@
 // `DeckBuilder` needs, and everything the assertions traverse is the real
 // component, the real Column Layout engine and the real drag resolution.
 import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
-import { render, fireEvent, within } from "@testing-library/react";
+import { render, fireEvent, within, act } from "@testing-library/react";
 import { DragDropManager } from "@dnd-kit/dom";
 import {
     dragOnto,
@@ -64,11 +64,15 @@ const sinks = {
     },
 };
 
-function deck(cards = [BOLT], sideboard = [PLAINS]): LobbyDeck {
+function deck(
+    cards = [BOLT],
+    sideboard = [PLAINS],
+    format = "freeform"
+): LobbyDeck {
     return {
         id: "deck-1",
         name: "Test Deck",
-        format: "freeform",
+        format,
         colors: [],
         cards,
         sideboard,
@@ -661,26 +665,123 @@ describe("DeckBuilder — Add-Basic bar counter/add/remove/floor/+5 (issue #1627
         expect(getByTestId("basic-count-Mountain").textContent).toBe("0");
     });
 
-    it("a basic added from the bar counts toward Format legality exactly like any other card, and lands in the Lands column", () => {
+    it("a basic added from the bar lands in the Lands column under EVERY Grouping that has one", () => {
         const { container, getByText, getByLabelText } = renderBuilder(
             deck([], [])
         );
-        expect(cardsIn(paneOf(container, /^Maindeck /), "mv:lands")).toEqual(
-            []
-        );
+        const main = () => paneOf(container, /^Maindeck /);
+        expect(cardsIn(main(), "mv:lands")).toEqual([]);
 
         fireEvent.click(getByText("+ Forest"));
 
-        expect(cardsIn(paneOf(container, /^Maindeck /), "mv:lands")).toEqual([
-            "Forest",
-        ]);
+        expect(cardsIn(main(), "mv:lands")).toEqual(["Forest"]);
         expect(getByText(/^Maindeck 1$/)).toBeTruthy();
 
-        fireEvent.change(getByLabelText("Maindeck grouping"), {
-            target: { value: "color" },
-        });
-        expect(cardsIn(paneOf(container, /^Maindeck /), "color:lands")).toEqual(
-            ["Forest"]
+        const grouping = () => getByLabelText("Maindeck grouping");
+        fireEvent.change(grouping(), { target: { value: "color" } });
+        expect(cardsIn(main(), "color:lands")).toEqual(["Forest"]);
+
+        // `type` is the third Grouping that generates a Lands Column
+        // (`deckLayout.ts` `landsColumn("type")`); `none` deliberately has no
+        // Lands Column at all (issue #1618). The AC says EVERY Grouping, so
+        // stopping at two of the three left one untested (PR #2320 review NB2).
+        fireEvent.change(grouping(), { target: { value: "type" } });
+        expect(cardsIn(main(), "type:lands")).toEqual(["Forest"]);
+    });
+
+    // The AC's other half, previously claimed by a title whose body never
+    // read a legality surface (PR #2320 review NB4). Old School has a real
+    // `minMain` (60), so the live `validateDeck` readout names the Maindeck
+    // count — and a bar-added basic has to move it.
+    it("a basic added from the bar counts toward Format legality exactly like any other card", () => {
+        const { getByText } = renderBuilder(deck([], [], "old-school"));
+        expect(getByText("Illegal")).toBeTruthy();
+        expect(getByText("Maindeck has 0 cards, minimum is 60.")).toBeTruthy();
+
+        fireEvent.click(getByText("+ Forest"));
+
+        expect(getByText("Maindeck has 1 cards, minimum is 60.")).toBeTruthy();
+    });
+});
+
+// PR #2320 review B1: the bar's counter classifies by SUBTYPE
+// (`countBasicLandCopies`), so its remove gesture must too. Constructed is
+// where this is trivially reachable — the search grid adds a card by PRINT id
+// (`result-card.tsx`: the edition dropdown's value), and Mountain has 30+ of
+// them, every one of which `tryGetDefinition` resolves back to the Mountain
+// definition. Matching removal by `cardId` therefore counted those copies,
+// enabled the `−` button for them, and removed nothing.
+const MOUNTAIN_LEB_PRINT = {
+    cardId: "7af9c715-8d72-4eae-b412-fc89138ff588", // a real LEB Mountain PRINT id
+    cardName: "Mountain",
+};
+
+describe("DeckBuilder — the bar removes exactly what it counted (PR #2320 review B1)", () => {
+    it("removes a Mountain added under a non-canonical PRINTING and a bar-added one interchangeably", () => {
+        const { container, getByText, getByLabelText, getByTestId } =
+            renderBuilder(deck([MOUNTAIN_LEB_PRINT], []));
+
+        // The search grid's printing counts toward "Mountain" …
+        expect(getByTestId("basic-count-Mountain").textContent).toBe("1");
+        const minus = () =>
+            getByLabelText("Remove one Mountain") as HTMLButtonElement;
+        expect(minus().disabled).toBe(false);
+
+        // … alongside the canonical printing the bar itself adds.
+        fireEvent.click(getByText("+ Mountain"));
+        expect(getByTestId("basic-count-Mountain").textContent).toBe("2");
+
+        // Both must come off — an enabled control that silently does nothing
+        // is the inverse of the floor the acceptance criteria asks for.
+        fireEvent.click(minus());
+        fireEvent.click(getByText("+ Mountain"), { shiftKey: true });
+        expect(getByTestId("basic-count-Mountain").textContent).toBe("0");
+        expect(cardsIn(paneOf(container, /^Maindeck /), "mv:lands")).toEqual(
+            []
         );
+        expect(minus().disabled).toBe(true);
+    });
+});
+
+// The disabled-while-saving acceptance criterion, asserted through the real
+// builder rather than by handing the bar a `disabled` prop (PR #2320 review
+// NB3). The prop-level test could not see this wiring at all: setting
+// `disabled={false}` at the call site left the whole 341-test deckbuilder
+// suite green. Constructed's `saving` destructure is new in this slice, so
+// nothing else covered it either.
+describe("DeckBuilder — Add-Basic bar disabled while a save is in flight (issue #1627)", () => {
+    it("disables every add/remove control for the duration of the write", () => {
+        vi.useFakeTimers();
+        try {
+            // A write that never settles: `saving` stays true so the assertion
+            // is not a race against the debounce.
+            sinks.user.update.mockReturnValueOnce(new Promise(() => {}));
+            const { getByText, getByLabelText, getByTestId } = renderBuilder(
+                deck([], [])
+            );
+            const pill = () =>
+                getByText("+ Mountain").closest("button") as HTMLButtonElement;
+            const minus = () =>
+                getByLabelText("Remove one Mountain") as HTMLButtonElement;
+            const plusFive = () =>
+                getByLabelText("Add five Mountain") as HTMLButtonElement;
+
+            fireEvent.click(getByText("+ Mountain"));
+            expect(getByTestId("basic-count-Mountain").textContent).toBe("1");
+            // Before the debounce trailing edge nothing is in flight yet.
+            expect(pill().disabled).toBe(false);
+            expect(minus().disabled).toBe(false);
+
+            act(() => {
+                vi.advanceTimersByTime(1000);
+            });
+
+            expect(sinks.user.update).toHaveBeenCalledTimes(1);
+            expect(pill().disabled).toBe(true);
+            expect(minus().disabled).toBe(true);
+            expect(plusFive().disabled).toBe(true);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });
