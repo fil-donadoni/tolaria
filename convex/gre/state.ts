@@ -16261,8 +16261,9 @@ export function createTokenPermanents(
         // tokens" fires once for a batch of three, "whenever a creature you
         // control enters" fires three times.
         //
-        // Two prerequisites in this loop are load-bearing, each pinned by a
-        // test that was watched go red with the emit moved off them:
+        // THREE prerequisites in this loop are load-bearing — this emit is
+        // LAST for a reason, not by habit. Each is pinned by a test that was
+        // watched go red with the emit moved off it:
         //   * AFTER the CR 614 chokepoint above — a token this loop redirected
         //     to exile never entered the battlefield and `continue`d out long
         //     before reaching here, so it announces nothing (CR 614.1).
@@ -16270,15 +16271,26 @@ export function createTokenPermanents(
         //     real instance up on the battlefield to snapshot P/T, so an emit
         //     before the push silently drops `power`/`toughness` from the
         //     payload and every P/T-keyed trigger condition stops matching.
-        // Sitting after `applyExistingGrantsTo` / `applySourceStaticEffects` is
-        // DEFENSIVE, not load-bearing: the P/T snapshot is the EFFECTIVE value
-        // through the layer pipeline (CR 603.2 / 613.4 — a 1/1-spec'd token
-        // created under an anthem is not a 1/1 for Sword of the Meek), and the
-        // layer read only needs the token on the battlefield, so it already
-        // sees anthems and the token's own `staticEffects` regardless. The emit
-        // stays last anyway because "the permanent has finished entering" is
-        // the honest point to announce an entry, and a future grant pass that
-        // DID stamp a characteristic would otherwise be missed silently.
+        //   * AFTER `applyExistingGrantsTo` / `applySourceStaticEffects` —
+        //     these two passes MATERIALIZE layer-4 grants onto the instance
+        //     (CR 613.1d): the `type-add` branch stamps `token.types` (and
+        //     `subtype-set` / `subtype-add` stamp `token.subtypes`). The emit
+        //     reads `token.types` TWICE: for the payload's `types`, and for
+        //     the `includes("Creature")` gate that decides whether P/T is
+        //     snapshotted at all — so a granted type that is not stamped yet
+        //     is a type the entry never announces. Titania's Song
+        //     (`cards/sets/atq/green.ts`, shipped) is the live instance — a
+        //     Treasure token entering under it must announce
+        //     `["Artifact","Creature"]` WITH a P/T; emitted above these two
+        //     passes it announces a bare `["Artifact"]` and no P/T, and every
+        //     "whenever a creature enters" trigger silently stops seeing it.
+        // What is NOT the reason: layer 7d. `getStaticPTBuff` (`gre/layers.ts`)
+        // is a LIVE battlefield scan, so an anthem's +1/+1 is already visible
+        // the instant the token is pushed — the effective-P/T snapshot (CR
+        // 603.2 / 613.4, a 1/1-spec'd token under an anthem is not a 1/1 for
+        // Sword of the Meek) needs only the push, not these passes. It is the
+        // layer-4 MATERIALIZATION — a characteristic STAMPED onto the instance
+        // rather than recomputed on read — that has to have happened first.
         // No `wasCast` / `wasPlayed`: a token is neither cast nor played
         // (CR 111.1 / 601.2i / 305.2), matching every other non-chokepoint
         // caller of `emitPermanentEntered`.

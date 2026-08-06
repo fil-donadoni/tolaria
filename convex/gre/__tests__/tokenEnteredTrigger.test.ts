@@ -29,6 +29,7 @@ import { buildStateFromScenario } from "../scenarioBuilder";
 import { registerTokenDefinition } from "../../cards";
 import { enteredTrigger } from "../../cards/abilities/triggers/enteredTrigger";
 import { spreadingPlague } from "../../cards/sets/inv/black";
+import { titaniasSong } from "../../cards/sets/atq/green";
 import {
     makeInstance,
     makePlayer,
@@ -358,6 +359,41 @@ describe("token entry emits PERMANENT_ENTERED (CR 111.1 / 603.6a, issue #2300)",
         expect(
             collectTriggers(withAnthem, withAnthem.pendingEvents ?? [])
         ).toHaveLength(0);
+    });
+
+    it("announces layer-4 GRANTED types: a Treasure entering under Titania's Song is an artifact CREATURE (CR 613.1d)", () => {
+        // Pins the ORDERING of the emit against `applyExistingGrantsTo` /
+        // `applySourceStaticEffects` in `createTokenPermanents`. Unlike the
+        // anthem case above — layer 7d is a LIVE battlefield scan, already
+        // visible the instant the token is pushed — a layer-4 `type-add`
+        // MATERIALIZES onto `token.types`, and `emitPermanentEntered` reads
+        // that array twice: for the payload AND for the `includes("Creature")`
+        // gate that decides whether P/T is snapshotted at all. Emit before the
+        // grant passes and the Treasure announces a bare `["Artifact"]` with
+        // no P/T, and every "whenever a creature enters" trigger silently
+        // stops seeing it. Titania's Song (`sets/atq/green.ts`) is the shipped
+        // instance of that shape.
+        const state = boardWith([titaniasSong.id, CREATURE_WATCHER_ID]);
+        createTokenPermanents(state, TREASURE, "p1", 1);
+
+        expect(enteredEvents(state)).toHaveLength(1);
+        const [event] = enteredEvents(state);
+        expect(event.type === "PERMANENT_ENTERED" && event.types).toEqual([
+            "Artifact",
+            "Creature",
+        ]);
+        // The Creature gate opened, so the P/T snapshot ran: CR 604.3 / 613.4a
+        // — the Song's CDA sets P/T to the Treasure's mana value (0).
+        expect(event).toMatchObject({ power: 0, toughness: 0 });
+
+        // …and it reaches the stack through the engine's real trigger scan:
+        // `enteredTrigger`'s `matches` reads ONLY the event payload, so a
+        // missing "Creature" in `types` is the difference between the trigger
+        // firing and not existing.
+        processPendingActionTriggers(state);
+        expect(state.stack.map((s) => s.triggeredAbilityId)).toEqual([
+            "test-2300-creature-watcher-trigger",
+        ]);
     });
 
     it("MUST NOT set Arboria's qualifying-action flag (CR 508.1c — a token does not count)", () => {
