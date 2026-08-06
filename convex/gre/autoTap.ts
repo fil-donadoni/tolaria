@@ -1,6 +1,7 @@
 import type { Color } from "../cards/types";
 import {
     getActivatedManaAbility,
+    getManaChoiceCounterCost,
     getManaTapOptionRestriction,
     getManaTapOptionsDetailed,
     isTapLockedBySummoningSickness,
@@ -188,9 +189,21 @@ export function buildAutoTapSources(
         );
         if (options.length === 0) continue; // non-mana source: leave manual
         // CR 605.1a — an index is submitted only when the payment primitive
-        // actually demands one (`manaTapNeedsChoice`): 2+ options, or a
-        // choice-based ability even with a single entry.
-        const needsIndex = options.length >= 2 || !!ability?.manaChoices;
+        // actually demands one (`manaTapNeedsChoice` in `game.ts`, the same
+        // authority): 2+ options, or a choice-based ability even with a
+        // single entry — `manaChoices` (static), `getManaChoices` (board-
+        // derived hook) or `manaColorSource` (declarative). Restated here
+        // rather than imported because `manaTapNeedsChoice` is private to
+        // `game.ts`; keep the two conditions identical (issue #2240 review) —
+        // a board-dependent chooser resolving to a single-entry list still
+        // needs an index, since its list is choice-based, not fixed-output.
+        const needsIndex =
+            options.length >= 2 ||
+            !!(
+                ability?.manaChoices ||
+                ability?.getManaChoices ||
+                ability?.manaColorSource
+            );
         // CR 106.6 — restricted mana (Mishra's Workshop; the SECOND, legendary-
         // spell-only ability on Delighted Halfling) can pay only for certain
         // spells; the solver reasons over the fungible pool and can't model
@@ -200,6 +213,20 @@ export function buildAutoTapSources(
         // unrestricted "{T}: Add {C}.") stays auto-tappable on its free
         // option; only Mishra's-Workshop-style wholly-restricted sources end
         // up excluded entirely (their only option is filtered out below).
+        // CR 122.6 (issue #2240 review, BLOCKING) — a `manaChoiceRemovesCounters`
+        // option (Mana Battery / storage lands) whose choice index is > 0
+        // spends the player's stored counters as PART OF the option's cost,
+        // exactly the same "stored resource the player must not have spent on
+        // their behalf" category as the `cost.sacrifice` skip above. Before
+        // #2240 threaded the board snapshot, the blanket `getManaChoices` skip
+        // kept these choosers manual as a side effect; now that they are real
+        // auto-tap candidates, `solveSmartAutoTap` (which minimizes tap COUNT)
+        // will always prefer a single counter-burning tap over two ordinary
+        // lands, silently draining every counter the ability can reach. Drop
+        // every counter-burning option (`getManaChoiceCounterCost(...).count >
+        // 0`) here, keeping only the free index-0 "remove 0 counters" pick —
+        // the battery stays auto-tappable for its base mana, never for a
+        // scaling tap the player didn't choose.
         // Indices are kept against the FULL unified `options` list — the same
         // list `tapSourceIntoPayment` / `resolveManaTapChoice` resolve
         // `manaChoiceIndex` against — so filtering never renumbers them.
@@ -207,7 +234,8 @@ export function buildAutoTapSources(
             .map((opt, index) => ({ opt, index }))
             .filter(
                 ({ opt }) =>
-                    getManaTapOptionRestriction(card, opt.source) === null
+                    getManaTapOptionRestriction(card, opt.source) === null &&
+                    getManaChoiceCounterCost(card, opt.source) === null
             );
         if (usable.length === 0) continue; // wholly restricted: leave manual
         sources.push({
