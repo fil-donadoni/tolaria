@@ -79,6 +79,7 @@ import {
 import { manaValue } from "./constants";
 import { getInstanceManaCost } from "../cards";
 import { applyDelveExileForSearch } from "./applyMove";
+import { resolvePlayLandSourceZone } from "./playLand";
 import {
     evaluate,
     evaluateBreakdown,
@@ -576,10 +577,35 @@ export function applyMoveInSearch(
         }
 
         case "play-land": {
+            // CR 305.9 — hand is the normal source, but a play-from-graveyard
+            // (Icetill Explorer) or play-from-top-of-library (Courser of
+            // Kruphix) permission makes those legal sources too, and the
+            // enumerator now offers them. Resolve the actual zone through the
+            // shared resolver rather than assuming hand: a hard-coded "hand"
+            // made `moveCard` THROW (`Card <id> not found in hand`) the moment
+            // such a move reached this leaf. `null` means no permitted source
+            // still holds the card (a stale move) — skip it rather than throw.
+            const sourceZone = resolvePlayLandSourceZone(
+                state,
+                player,
+                move.cardInstanceId
+            );
+            if (sourceZone === null) return;
+            // CR 601.3e (#1156) — a cross-player exile grant (Dauthi
+            // Voidwalker) leaves the card in the OPPONENT's exile, which
+            // `moveCard` (single-player zones only) cannot move. That case has
+            // never been reachable in this coarse leaf; skip it rather than
+            // throw, leaving the position unchanged for evaluation.
+            if (
+                sourceZone === "exile" &&
+                !player.exile.some((c) => c.id === move.cardInstanceId)
+            ) {
+                return;
+            }
             const card = moveCard(
                 player,
                 move.cardInstanceId,
-                "hand",
+                sourceZone === "library-top" ? "library" : sourceZone,
                 "battlefield"
             );
             if (card.types.includes("Land")) {

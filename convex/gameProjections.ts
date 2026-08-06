@@ -13,6 +13,7 @@ import {
     canCastFromGraveyardByPermission,
     canCastPermanentFromGraveyardByPermission,
     canPlayLandsFromGraveyard,
+    isPlayableLibraryTopLand,
     getLegalActions,
     phyrexianLifePipOptions,
 } from "./gre/rules";
@@ -119,9 +120,22 @@ export type SlimCompanionSlot = {
     canSummon?: boolean;
 };
 
+/** A viewer-known library card, optionally carrying the play affordance.
+ *  `legalActions` is attached ONLY to the viewer's OWN library top (index 0)
+ *  while they hold a play-lands-from-top-of-library permission (Courser of
+ *  Kruphix, CR 305.1-analog). Mirrors `SlimGraveyardCard`'s land branch: the
+ *  board never sees the GRE, so a playable card must arrive already tagged for
+ *  the UI to offer — and gate — the Play button. No `castKind`: this is a
+ *  "play", not a keyword cast. Never attached to an opponent's library, whose
+ *  top card can legitimately be known (the CR 401.5 reveal is symmetric) but is
+ *  never playable by the viewer. */
+export type SlimLibraryCard = SlimCardInstance & {
+    legalActions?: CardAction[];
+};
+
 /** ADR 0026 / PRD #338 — one viewer-known library card, projected sparsely.
  *  `index` is the position from the top of the library (0 = top). */
-export type KnownLibraryCard = { index: number; card: SlimCardInstance };
+export type KnownLibraryCard = { index: number; card: SlimLibraryCard };
 
 /** Projected library wire shape (ADR 0026). `count` is the full size; `known`
  *  carries only the cards the viewer legitimately knows (`viewer ∈ knownTo`),
@@ -294,11 +308,25 @@ function hasNonOwnerKnower(card: CardInstanceState): boolean {
  *  every projection it cannot go stale: after a draw / shuffle / mill / put-on-
  *  top the new index 0 is the revealed card (CR 401.6, CR 701.20d), and when
  *  the source leaves the battlefield the flag is simply false again. An EMPTY
- *  library reveals nothing (the loop never runs) — `known` stays `[]`. */
+ *  library reveals nothing (the loop never runs) — `known` stays `[]`.
+ *
+ *  CR 305.1-analog — `topLandLegalActions`, when supplied, is attached to the
+ *  index-0 entry as its `legalActions`: the viewer's OWN library top is a
+ *  playable land under a play-lands-from-top-of-library permission (Courser of
+ *  Kruphix). Computed by the caller (which alone knows whether this library
+ *  belongs to the viewer) and re-derived every projection, so the affordance
+ *  disappears the instant the granting source leaves play, the land drop is
+ *  spent, or a draw/shuffle moves a different card to the top. It rides the
+ *  card object rather than a new wire field, exactly as the graveyard land
+ *  affordance does (`SlimGraveyardCard`), so the client's per-card action
+ *  overlay needs no new plumbing. Only emitted when index 0 is ALSO known —
+ *  which is why it never leaks identity: it is an affordance on a card the
+ *  viewer can already see, never a signal about a hidden one. */
 function projectLibrary(
     library: CardInstanceState[],
     viewerId: string,
-    topRevealed: boolean = false
+    topRevealed: boolean = false,
+    topLandLegalActions?: CardAction[]
 ): PublicLibrary {
     // CR 401.5 — the continuous reveal is viewer-INDEPENDENT and covers exactly
     // index 0; every other position stays gated by per-viewer `knownTo`.
@@ -309,7 +337,14 @@ function projectLibrary(
     // Top run: [0, topEnd).
     let topEnd = 0;
     while (topEnd < library.length && knows(library[topEnd], topEnd)) {
-        known.push({ index: topEnd, card: slimCard(library[topEnd]) });
+        const slim = slimCard(library[topEnd]);
+        known.push({
+            index: topEnd,
+            card:
+                topEnd === 0 && topLandLegalActions !== undefined
+                    ? { ...slim, legalActions: topLandLegalActions }
+                    : slim,
+        });
         topEnd++;
     }
     // Bottom run: (bottomStart, length), scanning up but never crossing topEnd
@@ -567,6 +602,32 @@ function projectGraveyardCard(
         return { ...slim, legalActions: legalActionsFor() };
     }
     return slim;
+}
+
+/** CR 305.1-analog (Courser of Kruphix) — the `legalActions` to attach to the
+ *  viewer's OWN library top when it is a LAND they currently hold the
+ *  play-from-top permission for, or `undefined` when the affordance doesn't
+ *  apply at all. Returns the array even when it is empty: an empty
+ *  `legalActions` still tells the client "this card is playable in principle,
+ *  just not right now" (no land drop left, not your main phase), which is what
+ *  renders the Play button DISABLED rather than absent — the same
+ *  present-but-empty convention the graveyard land affordance uses.
+ *
+ *  Gated on `player.id === viewerId`: an opponent's library top can legitimately
+ *  be known (the CR 401.5 reveal is symmetric — both seats see it) but is never
+ *  playable by the viewer, so it must never carry an affordance. */
+function libraryTopLandPlayable(
+    state: GameState,
+    player: PlayerState,
+    viewerId: string,
+    allActions: boolean
+): CardAction[] | undefined {
+    if (player.id !== viewerId) return undefined;
+    const top = player.library[0];
+    if (!top || !isPlayableLibraryTopLand(state, player, top.id)) {
+        return undefined;
+    }
+    return getLegalActions(state, player, top, allActions);
 }
 
 /** Hydrate a granted ability instance with its template data for the wire. */
@@ -944,7 +1005,8 @@ export function projectPublicState(
             library: projectLibrary(
                 player.library,
                 viewerId,
-                libraryTopRevealedPlayers.has(player.id)
+                libraryTopRevealedPlayers.has(player.id),
+                libraryTopLandPlayable(state, player, viewerId, allActions)
             ),
             librarySearch,
             libraryPeek,

@@ -51,7 +51,7 @@ import {
     planActivationCostPicks,
 } from "./activationCostPicks";
 import { checkStateBasedActions } from "./sba";
-import { applyPlayLand, finalizeLandEntry } from "./playLand";
+import { applyPlayLandFromAnyZone, finalizeLandEntry } from "./playLand";
 import { applyAllCombatDamage, buildAutoDamageAssignments } from "./phases";
 import {
     markAttacking,
@@ -299,7 +299,12 @@ export function applyMoveForSearch(
         case "play-land": {
             // Shared canonical play-land core (CR 305 / 302.6) — identical to
             // the authoritative `playCard` mutation in game.ts. See playLand.ts.
-            applyPlayLand(next, player, move.cardInstanceId);
+            // Routed through `applyPlayLandFromAnyZone` so an alternate-zone
+            // land play the enumerator legitimately offers (a graveyard land
+            // under Icetill Explorer, the top library land under Courser of
+            // Kruphix) resolves here too. Hard-coding `applyPlayLand` made this
+            // path throw `Card <id> not found in hand` for exactly those moves.
+            applyPlayLandFromAnyZone(next, player, move.cardInstanceId);
             // CR 614.12 / ADR 0051 — a shock land suspends entry on a
             // `land-entry-tapped` pending choice. Search must not stall on it.
             autoFinalizeLandEntryChoices(next);

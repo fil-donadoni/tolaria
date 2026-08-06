@@ -178,6 +178,52 @@ export function canPlayLandsFromGraveyard(
     );
 }
 
+/** Whether `player` currently holds an unconditional, player-wide permission
+ *  to play lands from the TOP of their own library (CR 305.1 special action /
+ *  601.3e-analog), granted by ANY permanent declaring
+ *  `playsLandsFromTopOfLibrary` on their battlefield (Courser of Kruphix).
+ *  Read live from the battlefield (mirrors `canPlayLandsFromGraveyard`), so
+ *  the permission ends the instant the granting source leaves play — no stale
+ *  flag.
+ *
+ *  Independent of the CR 401.5 top-card REVEAL (`revealsLibraryTop`): the
+ *  permission is about legality, the reveal about information. See
+ *  `CardDefinition.playsLandsFromTopOfLibrary`. */
+export function canPlayLandsFromTopOfLibrary(
+    _state: GameState,
+    player: PlayerState
+): boolean {
+    for (const card of player.battlefield) {
+        const cardId = (card.card as { id?: string }).id;
+        if (!cardId) continue;
+        const def = tryGetDefinition(cardId);
+        if (def?.playsLandsFromTopOfLibrary) return true;
+    }
+    return false;
+}
+
+/** Whether `cardInstanceId` is the LAND on top of `player`'s own library while
+ *  `player` holds the play-from-top permission (CR 305.1-analog). The position
+ *  check is strict — index 0 only — because the permission names the TOP card,
+ *  and the library is otherwise a hidden zone (CR 400.2): a land two deep is
+ *  never a legal play source, even under the permission. Recomputed from the
+ *  live library on every call, so a draw / shuffle / mill / put-on-top moves
+ *  the affordance with the position and never leaves it pointing at a card
+ *  that is no longer on top. */
+export function isPlayableLibraryTopLand(
+    state: GameState,
+    player: PlayerState,
+    cardInstanceId: string
+): boolean {
+    if (!canPlayLandsFromTopOfLibrary(state, player)) return false;
+    const top = player.library[0];
+    return (
+        top !== undefined &&
+        top.id === cardInstanceId &&
+        top.types.includes("Land")
+    );
+}
+
 /** Reads the turn-scoped, player-wide graveyard play/cast permission granted
  *  to `playerId` by the `grantGraveyardPlay` Effect Script Op (Yawgmoth's
  *  Will, CR 305.1-analog / 601, issue #1149), or `undefined` if none is
@@ -478,10 +524,17 @@ export function getLegalActions(
         //     `player` = the CASTER, not necessarily the zone owner, with no
         //     separate `casterId` — mirrors `findCastableExileCard`'s own
         //     all-players scan (`convex/game.ts`).
+        //   - library TOP (index 0 only): while the player holds the
+        //     unconditional, player-wide play-lands-from-top-of-library
+        //     permission (Courser of Kruphix, `isPlayableLibraryTopLand`).
+        //     Position-checked, not merely zone-checked — the permission names
+        //     the top card, and the rest of the library stays hidden (CR
+        //     400.2).
         const isPlayableLandSource =
             player.hand.some((c) => c.id === card.id) ||
             (player.graveyard.some((c) => c.id === card.id) &&
                 canPlayLandsFromGraveyard(state, player)) ||
+            isPlayableLibraryTopLand(state, player, card.id) ||
             (card.castableFromExileBy === casterId &&
                 card.castableFromExileIncludesLand === true &&
                 state.players.some((p) =>

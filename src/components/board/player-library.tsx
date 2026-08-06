@@ -14,6 +14,7 @@ import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
 import CardsPile from "./cards-pile";
 import LibrarySearchConfirm from "./library-search-confirm";
 import LibraryOrderPicker from "./library-order/library-order-picker";
+import LibraryPlayLandButton from "./library-play-land-button";
 import { buildLibraryPileModel } from "~/lib/library-knowledge";
 import { orderLibrarySearchCards } from "~/lib/library-search-order";
 import { canAddCategorizedPick } from "@convex/gre/categorizedPick";
@@ -276,6 +277,25 @@ export default function PlayerLibrary({
                 isLibraryPick ? (
                     <LibrarySearchConfirm min={searchMin} max={searchMax} />
                 ) : undefined
+            }
+            // CR 305.1-analog (Courser of Kruphix) — the viewer's own library
+            // TOP card carries `legalActions` from the projection when it is a
+            // LAND they may play from the top; surface the Play button on it.
+            // The projection is the only gate that matters (it re-derives the
+            // permission, the position and the land drop live), so this needs
+            // no client-side rule of its own — matching the graveyard land
+            // affordance. Suppressed while a library pick owns the pile so the
+            // interactions never collide.
+            renderCardAction={
+                isMe && !isLibraryPick
+                    ? (card, onClose) =>
+                          card.legalActions === undefined ? null : (
+                              <LibraryPlayLandButton
+                                  card={card}
+                                  onCommitted={onClose}
+                              />
+                          )
+                    : undefined
             }
         />
     );

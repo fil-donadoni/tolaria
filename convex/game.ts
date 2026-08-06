@@ -197,6 +197,7 @@ import {
     canCastFromGraveyardByPermission,
     canCastPermanentFromGraveyardByPermission,
     canPlayLandsFromGraveyard,
+    isPlayableLibraryTopLand,
     markGraveyardPermanentCastUsed,
     getLegalTargets,
     checkPermanentTargetFilters,
@@ -375,6 +376,7 @@ import {
     applyPlayLand,
     applyPlayLandFromExile,
     applyPlayLandFromGraveyard,
+    applyPlayLandFromLibraryTop,
 } from "./gre/playLand";
 import {
     applyPendingChoiceSubmit,
@@ -2104,6 +2106,24 @@ function findPlayableGraveyardLand(
     if (!canPlayLandsFromGraveyard(state, player)) return undefined;
     const card = player.graveyard.find((c) => c.id === instanceId);
     return card && card.types.includes("Land") ? card : undefined;
+}
+
+/** Play-from-top-of-library lookup (CR 305.1-analog permission — Courser of
+ *  Kruphix). Returns the LAND on top of `player`'s own library when it matches
+ *  `instanceId` and `player` holds the play-from-top permission, or undefined.
+ *  Position-strict: only index 0 qualifies, because the permission names the
+ *  TOP card and the rest of the library is a hidden zone (CR 400.2) — a stale
+ *  client id naming a card the library has since moved must not become a play
+ *  from the middle of the deck. Like the graveyard permission this is derived
+ *  live from the battlefield every call, so there is nothing on the card
+ *  itself to check or clear. */
+function findPlayableLibraryTopLand(
+    state: GameState,
+    player: PlayerState,
+    instanceId: string
+): CardInstanceState | undefined {
+    if (!isPlayableLibraryTopLand(state, player, instanceId)) return undefined;
+    return player.library[0];
 }
 
 /** CR 305.1-analog / 601 (issue #1149) — the SPELL half of the BROAD,
@@ -4984,7 +5004,10 @@ export const playCard = mutation({
         // "you may play that card this turn") is also a legal play source; a
         // LAND in the graveyard is a legal play source while the controller
         // holds an unconditional play-lands-from-graveyard permission (Icetill
-        // Explorer, issue #1190 — `canPlayLandsFromGraveyard`).
+        // Explorer, issue #1190 — `canPlayLandsFromGraveyard`); the LAND on
+        // top of the controller's own library is a legal play source while
+        // they hold the play-from-top permission (Courser of Kruphix —
+        // `isPlayableLibraryTopLand`, position-strict at index 0).
         const cardInHand = player.hand.find(
             (c) => c.id === args.cardInstanceId
         );
@@ -4995,7 +5018,16 @@ export const playCard = mutation({
             cardInHand || exileLand
                 ? undefined
                 : findPlayableGraveyardLand(state, player, args.cardInstanceId);
-        const playSource = cardInHand ?? exileLand ?? graveyardLand;
+        const libraryTopLand =
+            cardInHand || exileLand || graveyardLand
+                ? undefined
+                : findPlayableLibraryTopLand(
+                      state,
+                      player,
+                      args.cardInstanceId
+                  );
+        const playSource =
+            cardInHand ?? exileLand ?? graveyardLand ?? libraryTopLand;
         if (!playSource) throw new Error("Card not in hand");
         if (exileLand && !exileLand.types.includes("Land")) {
             // A non-land exile card is cast (announceCast), never played here.
@@ -5016,6 +5048,8 @@ export const playCard = mutation({
             applyPlayLandFromExile(state, player, args.cardInstanceId);
         } else if (graveyardLand) {
             applyPlayLandFromGraveyard(state, player, args.cardInstanceId);
+        } else if (libraryTopLand) {
+            applyPlayLandFromLibraryTop(state, player, args.cardInstanceId);
         } else {
             applyPlayLand(state, player, args.cardInstanceId);
         }

@@ -2520,6 +2520,14 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Courser of Kruphix",
+        "scryfallId": "da5a807f-58e8-4d92-a61c-47bb9b28977f",
+        "oracleId": "46779609-4fa7-4fd2-b5b4-7d4d749339e6",
+        "firstSet": "bng",
+        "firstPrintId": "da5a807f-58e8-4d92-a61c-47bb9b28977f",
+        "firstPrintSet": "bng"
+    },
+    {
         "name": "Coveted Jewel",
         "scryfallId": "f83ed433-fae3-4fa5-acad-bb8a5b535ce3",
         "oracleId": "98492d7d-3b9e-4ae1-ac45-1b508d6d2670",

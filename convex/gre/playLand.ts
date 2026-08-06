@@ -32,6 +32,7 @@ import {
     resetBattlefieldTransientState,
 } from "./state";
 import { checkStateBasedActions } from "./sba";
+import { canPlayLandsFromGraveyard, isPlayableLibraryTopLand } from "./rules";
 import { checkAscendCityBlessing } from "./cityBlessing";
 import { tryGetDefinition } from "../cards";
 import type { MayPayCost } from "../cards/types";
@@ -238,6 +239,129 @@ export function applyPlayLandFromGraveyard(
     return settleEnteredLand(state, player, card, willEnterTapped);
 }
 
+/** CR 305 / 305.1-analog — play a LAND from the TOP of the player's own
+ *  library under an unconditional, player-wide play-from-top permission
+ *  (Courser of Kruphix; see `canPlayLandsFromTopOfLibrary` /
+ *  `isPlayableLibraryTopLand` in `rules.ts`). Moves `cardInstanceId` from
+ *  index 0 of the library to the battlefield and runs the identical land-entry
+ *  settlement as {@link applyPlayLand} / {@link applyPlayLandFromExile} /
+ *  {@link applyPlayLandFromGraveyard}. The caller has already validated the
+ *  permission and the "play" legality (land-drop count, sorcery timing); like
+ *  the graveyard path there is no per-card grant to consume, the permission
+ *  being re-derived off the battlefield every time.
+ *
+ *  Defensively re-checks that `cardInstanceId` is still index 0 — the whole
+ *  permission is positional (CR 400.2 keeps the rest of the library hidden),
+ *  so a stale client id naming a card the library has since moved must be a
+ *  no-op rather than a play from the middle of the deck.
+ *
+ *  Unlike the exile path, the interactive `entersTappedUnlessPay` pay-choice
+ *  (shock lands, CR 614.12) IS wired here: Courser plus a shock land is a
+ *  mainstream interaction, and letting it enter untapped for free would be a
+ *  rules bug, not a deferral. The land stays at index 0 for the choice window
+ *  (priority is frozen on the chooser, so nothing can reorder the library) and
+ *  `finalizeLandEntry` completes the entry from there. */
+export function applyPlayLandFromLibraryTop(
+    state: GameState,
+    player: PlayerState,
+    cardInstanceId: string
+): CardInstanceState | null {
+    const top = player.library[0];
+    if (!top || top.id !== cardInstanceId) return null;
+
+    // CR 614.12 / ADR 0051 — suspend on the pay-choice BEFORE the zone move,
+    // exactly like the hand path; the land stays on top for the window.
+    const cardId = (top.card as { id?: string } | undefined)?.id;
+    const def = cardId ? tryGetDefinition(cardId) : undefined;
+    if (def?.entersTappedUnlessPay) {
+        enqueueLandEntryChoice(
+            state,
+            player.id,
+            top.id,
+            def.entersTappedUnlessPay,
+            top.card
+        );
+        return null;
+    }
+
+    // CR 614.1c — tapped-on-entry is decided from the PRE-move board, exactly
+    // like the hand, exile and graveyard play paths.
+    const willEnterTapped = shouldEnterTapped(state, top);
+
+    const card = moveCard(player, cardInstanceId, "library", "battlefield");
+    return settleEnteredLand(state, player, card, willEnterTapped);
+}
+
+/** The zone a play-land action is sourcing its card from (CR 305.9 — hand
+ *  unless an effect explicitly says otherwise). */
+export type PlayLandSourceZone = "hand" | "exile" | "graveyard" | "library-top";
+
+/** Resolves WHICH zone `cardInstanceId` is being played from, or `null` when
+ *  no permitted source holds it. The permission checks are the same ones
+ *  `getLegalActions` uses, so this never widens legality — it only answers
+ *  "given that the play is legal, which `applyPlayLandFrom*` performs it".
+ *
+ *  Exists because the three play-land call sites (`playCard` in game.ts, the
+ *  Bot's `applyMoveForSearch` in applyMove.ts, and the ISMCTS coarse leaf in
+ *  search.ts) each used to hard-code their own source resolution — the latter
+ *  two hard-coded `"hand"` outright, so a bot holding a play-from-graveyard or
+ *  play-from-top permission could never use it and, worse, `moveCard` threw
+ *  `Card <id> not found in hand` if a move for one ever reached them. Routing
+ *  all three through one resolver is what keeps the authoritative and
+ *  simulated paths from drifting, exactly as `applyPlayLand` itself does for
+ *  the settlement. */
+export function resolvePlayLandSourceZone(
+    state: GameState,
+    player: PlayerState,
+    cardInstanceId: string
+): PlayLandSourceZone | null {
+    if (player.hand.some((c) => c.id === cardInstanceId)) return "hand";
+    if (isPlayableLibraryTopLand(state, player, cardInstanceId)) {
+        return "library-top";
+    }
+    if (
+        player.graveyard.some((c) => c.id === cardInstanceId) &&
+        canPlayLandsFromGraveyard(state, player)
+    ) {
+        return "graveyard";
+    }
+    const exileCard = state.players
+        .flatMap((p) => p.exile)
+        .find((c) => c.id === cardInstanceId);
+    if (
+        exileCard &&
+        exileCard.castableFromExileBy === player.id &&
+        exileCard.castableFromExileIncludesLand === true
+    ) {
+        return "exile";
+    }
+    return null;
+}
+
+/** Play a land from whichever permitted zone currently holds it — the single
+ *  entry point every play-land call site should use. Dispatches to the
+ *  matching `applyPlayLandFrom*` (or `applyPlayLand` for the ordinary hand
+ *  drop); returns `null` when no permitted source holds the card, or when the
+ *  entry suspended on a CR 614.12 pay-choice. */
+export function applyPlayLandFromAnyZone(
+    state: GameState,
+    player: PlayerState,
+    cardInstanceId: string
+): CardInstanceState | null {
+    switch (resolvePlayLandSourceZone(state, player, cardInstanceId)) {
+        case "hand":
+            return applyPlayLand(state, player, cardInstanceId);
+        case "library-top":
+            return applyPlayLandFromLibraryTop(state, player, cardInstanceId);
+        case "graveyard":
+            return applyPlayLandFromGraveyard(state, player, cardInstanceId);
+        case "exile":
+            return applyPlayLandFromExile(state, player, cardInstanceId);
+        case null:
+            return null;
+    }
+}
+
 /** Post-move land-entry bookkeeping (steps 2–7 of `applyPlayLand`), shared by
  *  the normal path and the land-entry-choice finalizer so a shock land and a
  *  plain land settle through byte-identical logic. Assumes `card` is already
@@ -398,16 +522,40 @@ export function finalizeLandEntry(
     const player = getPlayer(state, playerId);
     if (accept) payMayPayCost(state, playerId, cost);
 
-    const handCard = player.hand.find((c) => c.id === landInstanceId);
-    if (handCard) {
-        // Play-land path (CR 305): the land is still in hand for the choice
-        // window; move it and run the full land-entry settlement (records the
-        // land drop). Kismet-style forced-tapped is read from the PRE-move board.
+    // Play-land path (CR 305): the land is still in the zone it is being PLAYED
+    // from for the choice window. That is normally hand, but a play-from-top
+    // permission (Courser of Kruphix) suspends with the land still at index 0
+    // of the library — `applyPlayLandFromLibraryTop` enqueues before the zone
+    // move exactly as the hand path does. Both are the same "play" origin and
+    // settle identically; only the source zone the move reads differs. The
+    // library lookup is position-strict (index 0), mirroring the permission
+    // itself. Graveyard/exile origins never enqueue this choice (see
+    // `applyPlayLandFromExile`'s scope note, tracked-by: #1980), so they are
+    // deliberately not searched here.
+    const playSource:
+        | { card: CardInstanceState; zone: "hand" | "library" }
+        | undefined = (() => {
+        const handCard = player.hand.find((c) => c.id === landInstanceId);
+        if (handCard) return { card: handCard, zone: "hand" as const };
+        const top = player.library[0];
+        if (top && top.id === landInstanceId) {
+            return { card: top, zone: "library" as const };
+        }
+        return undefined;
+    })();
+    if (playSource) {
+        // Move it and run the full land-entry settlement (records the land
+        // drop). Kismet-style forced-tapped is read from the PRE-move board.
         // A shock land declares no own `entersTapped(Unless)`, so
         // `shouldEnterTapped` returns only the battlefield-scanned replacement.
-        const forcedTapped = shouldEnterTapped(state, handCard);
+        const forcedTapped = shouldEnterTapped(state, playSource.card);
         const willEnterTapped = forcedTapped || !accept;
-        const card = moveCard(player, landInstanceId, "hand", "battlefield");
+        const card = moveCard(
+            player,
+            landInstanceId,
+            playSource.zone,
+            "battlefield"
+        );
         return settleEnteredLand(state, player, card, willEnterTapped);
     }
 

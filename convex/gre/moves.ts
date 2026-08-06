@@ -1613,6 +1613,35 @@ export function enumerateMoves(
             moves.push(...enumerateCastMoves(state, player, card));
         }
     }
+    // CR 305.9 — a land can be played from a NON-hand zone whenever an effect
+    // grants the permission: the graveyard under `playsLandsFromGraveyard`
+    // (Icetill Explorer / Crucible of Worlds / Ramunap Excavator, #1190), or
+    // the TOP of the library under `playsLandsFromTopOfLibrary` (Courser of
+    // Kruphix). Legality itself is unchanged — `getLegalActions` has always
+    // returned "play" for these — but this enumerator only ever fed it HAND
+    // cards, so the Bot could hold any of those permanents and never once use
+    // the permission. The candidate SET is what was missing, not the rule.
+    // Only lands are considered: `getLegalActions` returns "play" for a land
+    // and "cast" for everything else, and a graveyard/library CAST is a
+    // separate mechanism (flashback/escape) enumerated elsewhere.
+    for (const card of player.graveyard) {
+        if (!card.types.includes("Land")) continue;
+        if (getLegalActions(state, player, card).includes("play")) {
+            moves.push({ kind: "play-land", cardInstanceId: card.id });
+        }
+    }
+    // Library: index 0 ONLY — the permission is positional and the rest of the
+    // library is hidden (CR 400.2). Feeding the whole library here would leak
+    // hidden information into the Bot's move set even though `getLegalActions`
+    // would reject every other position.
+    const libraryTop = player.library[0];
+    if (
+        libraryTop &&
+        libraryTop.types.includes("Land") &&
+        getLegalActions(state, player, libraryTop).includes("play")
+    ) {
+        moves.push({ kind: "play-land", cardInstanceId: libraryTop.id });
+    }
     for (const perm of player.battlefield) {
         moves.push(...enumerateAbilityMoves(state, player, perm));
     }

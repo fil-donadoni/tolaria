@@ -13072,6 +13072,30 @@ export interface CardDefinition {
      *  permission granted to a specific card (Serra Paragon, issue #1149),
      *  which is a per-instance `CardInstanceState` grant, not player-wide. */
     playsLandsFromGraveyard?: boolean;
+    /** Unconditional, player-wide permission (CR 305.1 special action /
+     *  601.3e-analog) to play lands from the TOP of the controller's own
+     *  library — and only the top card (index 0) — as though they were in
+     *  hand, while ANY permanent with this flag is on the battlefield
+     *  (Courser of Kruphix, Oracle of Mul Daya, Augur of Autumn). The sibling
+     *  of {@link playsLandsFromGraveyard} for the other permitted alternate
+     *  land-play zone; read live off the battlefield the same way
+     *  (`canPlayLandsFromTopOfLibrary`, `gre/rules.ts`), so the permission
+     *  ends the instant the granting source leaves play — no stale flag, no
+     *  `GameState` field.
+     *
+     *  DELIBERATELY ORTHOGONAL to {@link revealsLibraryTop}. CR does not tie
+     *  the two: Courser of Kruphix prints both clauses and so declares both
+     *  fields, but "you may play lands from the top of your library" is a
+     *  legality permission and "play with the top card of your library
+     *  revealed" is an information effect (CR 401.5). A card can print either
+     *  alone (Vizier of the Menagerie plays creatures off the top WITHOUT
+     *  revealing; Goblin Spy reveals WITHOUT any play permission), so folding
+     *  them into one flag would be wrong in both directions. In particular the
+     *  permission does NOT make the top card visible: a player granted only
+     *  this may play a top land they cannot see, which is exactly what a
+     *  hidden-information library (CR 400.2) requires — the top card's
+     *  identity crosses the wire only when a reveal is separately in force. */
+    playsLandsFromTopOfLibrary?: boolean;
     /** CR 702.139 (issue #1392, Lurrus of the Dream-Den) — "Once during each
      *  of your turns, you may cast a permanent spell with mana value N or
      *  less from your graveyard." A STATIC, battlefield-derived permission —
