@@ -144,7 +144,7 @@ describe("Lobby vs-AI two-step flow", () => {
         fireEvent.click(getByText("Play vs AI"));
         expect(createSoloGame).not.toHaveBeenCalled();
         // Dialog content is now present (the two vs-AI selectors). Match
-        // Format is not among them — it governs Solo / Create Multiplayer too
+        // Format is not among them — it governs Solo / Multiplayer too
         // and is picked in the Play box, so exactly one instance exists.
         expect(getByLabelText("AI Difficulty")).toBeTruthy();
         expect(getByLabelText("AI Opponent Deck")).toBeTruthy();

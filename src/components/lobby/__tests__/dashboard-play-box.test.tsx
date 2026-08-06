@@ -175,7 +175,7 @@ describe("DashboardPlayBox deck legality gate (issue #512)", () => {
         for (const label of [
             "Play vs AI",
             "Solo Game",
-            "Create Multiplayer",
+            "Multiplayer",
             "Tabletop",
         ]) {
             const btn = getByText(label).closest("button") as HTMLButtonElement;
@@ -219,7 +219,7 @@ describe("DashboardPlayBox vs-AI dialog handoff (two-step flow)", () => {
     }
 
     // The vs-AI-only knobs stay in the dialog. Match Format is NOT vs-AI-only:
-    // it governs Solo and Create Multiplayer too, so it lives in the Play box.
+    // it governs Solo and Multiplayer too, so it lives in the Play box.
     it("no longer renders the inline difficulty / AI-deck selectors", () => {
         const { queryByLabelText } = renderBox();
         expect(queryByLabelText("AI Difficulty")).toBeNull();
@@ -236,7 +236,7 @@ describe("DashboardPlayBox vs-AI dialog handoff (two-step flow)", () => {
 });
 
 // The Bo1/Bo3 knob used to live ONLY inside the vs-AI setup dialog, so the
-// Solo and Create Multiplayer actions silently used the persisted default with
+// Solo and Multiplayer actions silently used the persisted default with
 // no way to change it. The selector now sits in the Play box, next to the
 // actions it governs.
 describe("DashboardPlayBox match format selector", () => {
@@ -322,13 +322,13 @@ describe("DashboardPlayBox mode gating by deck format (ADR 0080)", () => {
     const button = (getByText: (t: string) => HTMLElement, label: string) =>
         getByText(label).closest("button") as HTMLButtonElement;
 
-    it("offers Tabletop + Create Multiplayer, but no engine mode, for a Tabletop deck", () => {
+    it("offers Tabletop + Multiplayer, but no engine mode, for a Tabletop deck", () => {
         const { getByText } = renderWith(MANUAL);
-        // "Create Multiplayer" is mode-agnostic — it opens a table of whatever
+        // "Multiplayer" is mode-agnostic — it opens a table of whatever
         // kind the deck implies (the lobby dispatches createGame vs
         // createManualGame).
         expect(button(getByText, "Tabletop").disabled).toBe(false);
-        expect(button(getByText, "Create Multiplayer").disabled).toBe(false);
+        expect(button(getByText, "Multiplayer").disabled).toBe(false);
         for (const label of ["Play vs AI", "Solo Game"]) {
             expect(button(getByText, label).disabled).toBe(true);
         }
@@ -337,7 +337,7 @@ describe("DashboardPlayBox mode gating by deck format (ADR 0080)", () => {
     it("offers only the real modes for a real deck", () => {
         const { getByText } = renderWith({ ...DECK, cards: [] });
         expect(button(getByText, "Tabletop").disabled).toBe(true);
-        for (const label of ["Play vs AI", "Solo Game", "Create Multiplayer"]) {
+        for (const label of ["Play vs AI", "Solo Game", "Multiplayer"]) {
             expect(button(getByText, label).disabled).toBe(false);
         }
     });

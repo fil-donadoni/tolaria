@@ -179,7 +179,7 @@ function Lobby() {
         }
     };
 
-    // One "Create Multiplayer" action, two backends: a Tabletop-format deck
+    // One "Multiplayer" action, two backends: a Tabletop-format deck
     // opens a Tabletop table, anything else a real game. The mode is a property
     // of the DECK, never a separate button — the two are mutually exclusive
     // server-side anyway (ADR 0080), so a second button could only ever be the
