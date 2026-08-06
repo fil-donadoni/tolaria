@@ -297,6 +297,23 @@ function stickySites(): { rel: string; line: number; text: string }[] {
 }
 
 /**
+ * The component whose JSX supplies a sticky element's scroller.
+ *
+ * `slottedBy` is the SLOT hop issue #1623 introduced. Both deckbuilders now
+ * render through ONE `DeckBuilderShell`, so the file that owns the scroller no
+ * longer renders the sticky element's file directly — it renders a `{slot}`
+ * expression, and a thin wrapper passes the sticky element into that slot. BOTH
+ * hops are read from source below: naming only the scroller's owner would leave
+ * this guard green while nothing tied `results-grid.tsx` to it at all, which is
+ * a census that covers nothing.
+ */
+interface StickyScrollerOwner {
+    rel: string;
+    usage: string;
+    slottedBy?: { rel: string; slot: string; usage: string };
+}
+
+/**
  * How each sticky element gets a scroller that is NOT `<main>`.
  * `ownedBy` names the parent component whose JSX supplies the scroller (the
  * sticky element's own file does not contain it); `portaledBy` names the
@@ -304,15 +321,20 @@ function stickySites(): { rel: string; line: number; text: string }[] {
  */
 const STICKY_SITES: Record<
     string,
-    | { ownedBy: { rel: string; usage: string }; why: string }
+    | { ownedBy: StickyScrollerOwner; why: string }
     | { portaledBy: { rel: string; portalIn: string }; why: string }
 > = {
     "components/lobby/deck-builder/results-grid.tsx": {
         ownedBy: {
-            rel: "components/lobby/deck-builder/deck-builder.tsx",
-            usage: "<ResultsGrid",
+            rel: "components/deckbuilder/deck-builder-shell.tsx",
+            usage: "{sourcePanel}",
+            slottedBy: {
+                rel: "components/lobby/deck-builder/deck-builder.tsx",
+                slot: "sourcePanel",
+                usage: "<ResultsGrid",
+            },
         },
-        why: "The results-count header pins to the deck-builder's own results pane, not to `<main>`.",
+        why: "The results-count header pins to the shell's own source-panel scroller (`min-h-0 flex-1 basis-0 overflow-y-auto`), not to `<main>`; the Constructed wrapper passes `<ResultsGrid` into that slot (issue #1623).",
     },
     "components/board/cards-pile.tsx": {
         portaledBy: {
@@ -403,6 +425,50 @@ describe("every sticky header sits inside its own nested scroller, not the shell
                 ownerAncestors.some((a) => a.tag === "main"),
                 `${entry.ownedBy.rel} renders ${entry.ownedBy.usage} directly under <main>`
             ).toBe(false);
+
+            // The SLOT hop (issue #1623). The owner above scrolls a `{slot}`
+            // expression, so the chain only reaches the sticky element if the
+            // wrapper really passes THIS file into THAT slot — and adds no
+            // scroller of its own on the way, or the registry would be naming
+            // the wrong owner and checking a box the header never pins to.
+            const slot = entry.ownedBy.slottedBy;
+            if (!slot) continue;
+            const passer = SOURCE_FILES.find((f) => f.rel === slot.rel);
+            expect(passer, `${slot.rel} not found`).toBeTruthy();
+            const passerLines = passer!.code.split("\n");
+            const slotIdx = passerLines.findIndex((l) =>
+                new RegExp(`(?<![\\w-])${slot.slot}=\\{`).test(l)
+            );
+            expect(
+                slotIdx,
+                `${slot.rel} no longer passes a \`${slot.slot}\` prop to ${entry.ownedBy.rel}`
+            ).toBeGreaterThanOrEqual(0);
+            // A prop's VALUE is the run of MORE-indented lines beneath its own
+            // line (the closing `}` returns to the prop's indent), so a usage
+            // match elsewhere in the file cannot pass for one inside the slot.
+            const slotIndent = /^(\s*)/.exec(passerLines[slotIdx])![1].length;
+            let slotEnd = slotIdx + 1;
+            while (
+                slotEnd < passerLines.length &&
+                (passerLines[slotEnd].trim() === "" ||
+                    /^(\s*)/.exec(passerLines[slotEnd])![1].length > slotIndent)
+            ) {
+                slotEnd++;
+            }
+            expect(
+                passerLines
+                    .slice(slotIdx, slotEnd)
+                    .some((l) => l.includes(slot.usage)),
+                `${slot.rel} no longer renders ${slot.usage} inside the \`${slot.slot}\` slot — ${site.rel}'s sticky header would pin somewhere ${entry.ownedBy.rel} does not scroll`
+            ).toBe(true);
+            const passerUsageLine =
+                passerLines.findIndex((l) => l.includes(slot.usage)) + 1;
+            expect(
+                jsxAncestorsOf(passer!.code, passerUsageLine).some((a) =>
+                    isScroller(a.text)
+                ),
+                `${slot.rel} now wraps ${slot.usage} in a scroller of its OWN — the registry credits ${entry.ownedBy.rel} and would no longer be checking the box the sticky header actually pins to`
+            ).toBe(false);
         }
     });
 });
@@ -448,6 +514,34 @@ interface RouteRootFile {
      * means the route does not — the fail-closed default.
      */
     ownScroller?: { at: string; why: string };
+    /**
+     * Wrapper components on the route's render path that produce NO DOM element
+     * of their own — they return another component, which is why `rel` is the
+     * file followed THROUGH to. Listed so the follow-through stays a premise
+     * read from source: the test below fails the moment a wrapper starts
+     * returning an element of its own, because that element would be what
+     * `<main>` lays out and would have to be registered as a root instead.
+     */
+    renderedThrough?: { rel: string; component: string }[];
+}
+
+/**
+ * Both deckbuilder routes render their whole surface through ONE
+ * `DeckBuilderShell` (ADR 0075 §1, issue #1623), so the element `<main>` lays
+ * out as its direct flex child is the SHELL's root in both cases — the
+ * Constructed and Limited wrappers contribute no box at all. The `ownScroller`
+ * declaration moved with the markup: the whole-content-column scroller belongs
+ * to the shell now, not to either wrapper.
+ */
+function deckBuilderShellRoot(wrapperRel: string): RouteRootFile {
+    return {
+        rel: "components/deckbuilder/deck-builder-shell.tsx",
+        ownScroller: {
+            at: "the `flex min-h-0 flex-1 flex-col overflow-y-auto` wrapper around the whole content column",
+            why: "PR #2276 (issue #2275), generalised to both builders by issue #1623: the deficit is absorbed inside the shell, with `SaveDeckBar` as a `shrink-0` sibling outside it.",
+        },
+        renderedThrough: [{ rel: wrapperRel, component: "DeckBuilderShell" }],
+    };
 }
 
 /**
@@ -472,7 +566,9 @@ const ROUTE_ROOTS: Record<
         routePath: "/decks/create",
         files: [
             { rel: "routes/deck-builder.route.tsx" },
-            { rel: "components/lobby/deck-builder/deck-builder.tsx" },
+            deckBuilderShellRoot(
+                "components/lobby/deck-builder/deck-builder.tsx"
+            ),
         ],
     },
     DeckDetailRoute: {
@@ -507,13 +603,9 @@ const ROUTE_ROOTS: Record<
     LimitedDeckBuilderRoute: {
         routePath: "/limited/abc123/build",
         files: [
-            {
-                rel: "components/deckbuilder/pool-deck-builder-form.tsx",
-                ownScroller: {
-                    at: "the `flex min-h-0 flex-1 flex-col overflow-y-auto` wrapper around the whole content column",
-                    why: "PR #2276 (issue #2275): the deficit is absorbed inside the route, with `SaveDeckBar` as a `shrink-0` sibling outside it.",
-                },
-            },
+            deckBuilderShellRoot(
+                "components/deckbuilder/pool-deck-builder-form.tsx"
+            ),
             { rel: "components/ui/loading-screen.tsx" },
         ],
     },
@@ -649,6 +741,35 @@ describe("every route root reaches its own bottom, at every desktop height (issu
                     withClass.length,
                     `${component}: ${file.rel} yields no returned element with a static className — the census below would silently cover nothing`
                 ).toBeGreaterThan(0);
+            }
+        }
+    });
+
+    it("a `renderedThrough` wrapper contributes no box of its own — the follow-through is read from source, not asserted", () => {
+        for (const [component, entry] of Object.entries(ROUTE_ROOTS)) {
+            for (const file of entry.files) {
+                for (const hop of file.renderedThrough ?? []) {
+                    const src = SOURCE_FILES.find((f) => f.rel === hop.rel);
+                    expect(
+                        src,
+                        `${component}: ${hop.rel} not found`
+                    ).toBeTruthy();
+                    const roots = returnedRoots(src!.code);
+                    expect(
+                        roots.length,
+                        `${component}: ${hop.rel} returns no element at all — it cannot be the wrapper that mounts <${hop.component}>`
+                    ).toBeGreaterThan(0);
+                    for (const root of roots) {
+                        expect(
+                            root.tag,
+                            `${component}: ${hop.rel}:${root.line} returns <${root.tag}>, not <${hop.component}> — that element IS a route root and must be registered as one rather than followed through`
+                        ).toBe(hop.component);
+                        expect(
+                            staticClassName(root.text),
+                            `${component}: ${hop.rel}:${root.line} gives <${hop.component}> a className of its own, so ${file.rel}'s root is no longer what <main> lays out`
+                        ).toBeNull();
+                    }
+                }
             }
         }
     });

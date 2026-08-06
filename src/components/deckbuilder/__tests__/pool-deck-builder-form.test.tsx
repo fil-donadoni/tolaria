@@ -346,14 +346,47 @@ describe("PoolDeckBuilderForm — short-viewport chrome treatment (issue #2056 d
 // (see the test above), so the exact minHeight expression is pinned here as
 // a source-text assertion instead — legitimate per the same
 // jsdom-can't-verify-this precedent `deck-builder-height.test.ts` documents.
-describe("PoolDeckbuilderSurface — builder pane floor (issue #2056 defect 3 amplification)", () => {
-    it("the min-height expression is tied to CARD_BASE (the SAME floored card size defect 1 fixed), not a second unrelated hardcoded number", () => {
+describe("DeckBuilderShell — builder pane floor (issue #2056 defect 3 amplification)", () => {
+    it("the min-height expression is tied to the variant's declared card base (the SAME floored card size defect 1 fixed), not a second unrelated hardcoded number", () => {
+        // Issue #1623 absorbed `pool-deckbuilder-surface.tsx` into the shared
+        // `DeckBuilderShell`, so the floor now derives from the view spec the
+        // variant declares (`view.cardBase`) rather than a per-surface const.
         const src = readFileSync(
-            join(__dirname, "..", "pool-deckbuilder-surface.tsx"),
+            join(__dirname, "..", "deck-builder-shell.tsx"),
             "utf8"
         );
         expect(src).toContain(
-            "minHeight: `calc(${CARD_BASE} * 7 / 5 + 3.5rem)`"
+            "minHeight: `calc(${view.cardBase} * 7 / 5 + 3.5rem)`"
+        );
+    });
+});
+
+// Issue #2056 defect 1: the responsive card-size clamp must carry the
+// CARD_MIN_W floor (via `cardBase()`), or a short-and-wide viewport (the
+// `dvh` term binding) collapses tiles below legibility (measured 27.3px at
+// 852x303). This asserts the emitted `--card-base` CSS var — the thing
+// `--card-w`/`--card-h` are computed from — carries the floor, since jsdom
+// can't measure a resolved pixel width. Moved here from the retired
+// `pool-deckbuilder-surface.test.tsx` (issue #1623): the constant is this
+// VARIANT's, so the guard belongs where the variant is mounted.
+describe("PoolDeckBuilderForm — card-size floor (issue #2056, unchanged by #2275)", () => {
+    it("emits the same --card-base clamp as issue #2056 shipped — wrapped in a max() floor, not a bare min()", () => {
+        setup();
+        const { container } = render(
+            <PoolDeckBuilderForm
+                eventId={"event-1" as never}
+                seatIndex={0}
+                pool={POOL}
+                existingDeck={null}
+                eventType="sealed"
+                poolArrangement={[]}
+            />
+        );
+        const surfaceRoot = container.querySelector(
+            '[style*="--card-base"]'
+        ) as HTMLElement;
+        expect(surfaceRoot.style.getPropertyValue("--card-base")).toBe(
+            "max(4.5rem, min(7.5rem, 17vw, 9dvh))"
         );
     });
 });

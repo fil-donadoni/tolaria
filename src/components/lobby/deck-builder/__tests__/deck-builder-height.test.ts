@@ -1,24 +1,42 @@
-// `DeckBuilder` (the catalogue-wide /decks/create builder) has no render
-// harness in this suite — it needs a full DragDropProvider + catalogue +
-// mutation-sink graph to mount, which none of the existing tests attempt.
-// These are structural (source-text) assertions instead of a render test —
+// Structural (source-text) assertions rather than render assertions —
 // legitimate here because every literal this checks is a static className
 // string, not something computed per-render (see `game-stack-narrow.test.tsx`
-// for the same pattern used elsewhere in this repo). A render-based
-// assertion would be strictly stronger; this is the pragmatic substitute.
+// for the same pattern used elsewhere in this repo). A render-based assertion
+// would be strictly stronger; render harnesses for both builders do exist now
+// (`deck-builder-zones.test.tsx`, `deckbuilder/__tests__/deck-builder-*`), but
+// jsdom evaluates no media query, so the `short-viewport:` treatment below
+// still has no render-level observable.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { poolSurfaceMinHeightPx } from "~/lib/cardSizing";
 
 const SRC = readFileSync(join(__dirname, "..", "deck-builder.tsx"), "utf8");
+// Issue #1623 moved the route root, the header band and the chrome treatment
+// out of `deck-builder.tsx` into the ONE shared `DeckBuilderShell` both
+// builders mount. The literals these tests pin moved with them, so the
+// assertions follow — the contract is unchanged, only its home is.
+const SHELL_DIR = join(__dirname, "..", "..", "..", "deckbuilder");
+const SHELL_SRC = readFileSync(
+    join(SHELL_DIR, "deck-builder-shell.tsx"),
+    "utf8"
+);
+const HEADER_SRC = readFileSync(
+    join(SHELL_DIR, "deck-builder-header.tsx"),
+    "utf8"
+);
 
-describe("DeckBuilder — root surface height (issue #2056 defect 3)", () => {
+describe("DeckBuilderShell — root surface height (issue #2056 defect 3)", () => {
     it("the root claims flex-1 min-h-0 (the shell's remaining height), never h-dvh", () => {
-        expect(SRC).toContain(
+        expect(SHELL_SRC).toContain(
             '"flex flex-1 min-h-0 flex-col bg-surface-base text-text"'
         );
-        expect(SRC).not.toMatch(/"flex h-dvh flex-col/);
+        expect(SHELL_SRC).not.toMatch(/"flex h-dvh flex-col/);
+    });
+
+    it("DeckBuilder no longer owns a route root of its own — it mounts the shell", () => {
+        expect(SRC).toContain("DeckBuilderShell");
+        expect(SRC).not.toMatch(/flex flex-1 min-h-0 flex-col/);
     });
 });
 
@@ -31,18 +49,19 @@ describe("DeckBuilder — card-size floor (issue #2056 defect 1)", () => {
     });
 });
 
-describe("DeckBuilder — short-viewport chrome treatment (issue #2056 defect 2)", () => {
+describe("DeckBuilderHeader — short-viewport chrome treatment (issue #2056 defect 2)", () => {
     it("the header band and title carry short-viewport overrides", () => {
-        expect(SRC).toContain("short-viewport:py-1");
-        expect(SRC).toContain("short-viewport:text-sm");
+        expect(HEADER_SRC).toContain("short-viewport:py-1");
+        expect(HEADER_SRC).toContain("short-viewport:text-sm");
     });
 });
 
-// Issue #2275: the Pool deckbuilder route (`pool-deck-builder-form.tsx`,
-// `pool-deckbuilder-surface.tsx`) shares this file's "deckbuilder height"
-// topic but not `DeckBuilder`'s own grid — its `PoolDeckbuilderSurface`
-// pane carries a hard `minHeight` floor `DeckBuilder`'s `grid-rows-[1fr_1fr]`
-// does not. `poolSurfaceMinHeightPx()` (`~/lib/cardSizing.ts`) is a plain-TS
+// Issue #2275: the Pool deckbuilder route's zone pane carries a hard
+// `minHeight` floor. Since issue #1623 that floor lives on the shared
+// `DeckBuilderShell` and derives from each variant's declared
+// `view.cardBase`, so BOTH builders now have it; the arithmetic swept below
+// is the Limited variant's (`cardBase("7.5rem", "17vw", "9dvh")`), which is
+// what issue #2275 measured. `poolSurfaceMinHeightPx()` (`~/lib/cardSizing.ts`) is a plain-TS
 // mirror of that CSS expression (jsdom can't resolve the real `calc()` — see
 // `pool-deck-builder-form.test.tsx`) kept here because this file is already
 // the height-math home for the deckbuilder surfaces generally. It only
