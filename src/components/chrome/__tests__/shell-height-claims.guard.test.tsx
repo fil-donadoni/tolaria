@@ -444,9 +444,8 @@ describe("every sticky header sits inside its own nested scroller, not the shell
                 `${slot.rel} no longer passes a \`${slot.slot}\` prop to ${entry.ownedBy.rel}`
             ).toBeGreaterThanOrEqual(0);
             // A prop's VALUE is the run of MORE-indented lines beneath its own
-            // line (the closing `}` returns to the prop's indent), so a
-            // `${slot.usage}` elsewhere in the file cannot pass for one inside
-            // the slot.
+            // line (the closing `}` returns to the prop's indent), so a usage
+            // match elsewhere in the file cannot pass for one inside the slot.
             const slotIndent = /^(\s*)/.exec(passerLines[slotIdx])![1].length;
             let slotEnd = slotIdx + 1;
             while (
