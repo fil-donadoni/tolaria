@@ -29,3 +29,20 @@ by applying both. The same exclusivity holds for `needs-info` and
 still involved" excludes the AFK queue label.
 
 Edit the right-hand column to match whatever vocabulary you actually use.
+
+## Model-routing labels escalate by exception
+
+`model:opus` and `model:fable` route the implement/fixup subagent in
+`/process-gh-issues`; an unlabelled issue runs on the default tier (Sonnet).
+There is deliberately no `model:sonnet` label — absence IS the default.
+
+Apply `model:opus` **only** when the failure mode is a wrong mental model no
+gate catches: classification/taxonomy work (new event type, new seam, new
+union member, a producer census), or semantics discovery in the LKI / layers /
+copy / cast-permission core. Size is not the test — scoped engine fixes with
+covering tests, bot heuristics with a blade scenario, frontend layout, and
+card slices on existing Ops stay unlabelled regardless of file count. An issue
+implementing an already-written ADR de-escalates: the design work is done, the
+implementation defaults to Sonnet. `model:fable` is reserved for
+architecture-setting work only. Full criterion and rationale:
+`.claude/skills/new-qa-issue/SKILL.md` § Step 5.

@@ -93,11 +93,29 @@ route by exception, and leave the common case unlabelled.
 - **no label — the default.** Bounded fix or feature: few files, clear
   diagnosis, established pattern, low ambiguity. Most QA issues. The planner
   falls back to `DEFAULT_IMPL_MODEL` (Sonnet).
-- `model:opus` — complex, high-risk, or wide-blast-radius: multi-module change,
-  subtle CR/timing interaction, cross-cutting refactor, or acceptance criteria
-  that need real judgement.
+- `model:opus` — **only** when the failure mode is a wrong mental model that
+  no gate catches: the work's difficulty is classification or taxonomy (a new
+  event type, a new seam other code feeds, a new union member, a producer
+  census the subagent must run), or semantics discovery in the LKI / layers /
+  copy / cast-permission core. The test is the failure mode, not the size:
+  "multi-module" or "touches the engine" is NOT sufficient — a scoped engine
+  fix with covering tests, a bot heuristic with a blade scenario, frontend
+  layout against the design system, and a card slice on existing Ops all stay
+  unlabelled no matter how many files they touch, because the guard net
+  catches a cheap model's mistakes there.
+- **An already-written ADR de-escalates.** If the issue implements a frozen
+  ADR, the wrong-mental-model work (the design) is already done — the
+  implementation defaults to Sonnet even on a core seam. Escalate only if the
+  census/seam must be _discovered_ during implementation.
 - `model:fable` — **only** architecture-setting work (new ADR, new subsystem,
   design that later issues build on). Rare for a QA observation.
+
+> A 2026-08-06 audit found 50% of the `ready-for-agent` queue carrying
+> `model:opus` under the looser wording ("complex, high-risk, or
+> wide-blast-radius"), including frontend layout work — which routed most
+> implement/fixup volume to the expensive tier for no measured quality gain.
+> When in doubt, leave it unlabelled: the fixup-rate dashboard is the feedback
+> loop, and re-escalating one issue later is one label edit.
 
 There is deliberately **no `model:sonnet` label** — it was retired because it
 said exactly what its absence already says, so it was pure noise on every
