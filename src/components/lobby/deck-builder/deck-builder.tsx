@@ -1,16 +1,25 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { DragDropManager } from "@dnd-kit/dom";
 import {
-    createDeckColumnLayout,
+    createColumnLayout,
     pinCardToColumn,
+    setGrouping as setColumnGrouping,
+    setOrdering as setColumnOrdering,
     type ColumnId,
     type DeckColumnLayout,
+    type GroupingKind,
+    type OrderingKind,
 } from "@convex/deckLayout";
 import { effectiveFeatured, toggleFeatured } from "~/lib/featuredPicker";
 import { computeDeckColors } from "~/lib/deckColors";
 import { deckCardLookup, makeDeckCardShapeResolver } from "~/lib/deckCardShape";
 import DeckBuilderShell from "~/components/deckbuilder/deck-builder-shell";
 import type { DeckBuilderViewSpec } from "~/components/deckbuilder/deckBuilderVariant";
+import {
+    recordGroupingChange,
+    recordOrderingChange,
+    seededColumnView,
+} from "~/components/deckbuilder/deckZoneColumnView";
 import {
     useDeckWorkspace,
     type DeckSaveSink,
@@ -232,15 +241,51 @@ export default function DeckBuilder({
         fullCatalogue
     );
 
-    // The deck's Column Layout (ADR 0075, issue #1622). Grouping is pinned to
-    // Mana Value in this slice — there is no user-facing control yet — so the
-    // only thing that changes here is the Card Pin map a column drag records.
-    // Held in the WORKING deck, not persisted: `userDecks.layout` lands in a
-    // later slice of PRD #1617, so a pin survives re-render (and every other
-    // edit to the deck) but not a reload.
-    const [layout, setLayout] = useState<DeckColumnLayout>(() =>
-        createDeckColumnLayout()
-    );
+    // The deck's Column Layout (ADR 0075, issue #1622/#1624). Grouping and
+    // Ordering seed from the user's per-zone view preference (issue #1620's
+    // `deckViewPrefs` seam, bridged by `deckZoneColumnView.ts`) and are held
+    // here alongside the Card Pins a column drag records. Held in the WORKING
+    // deck, not persisted: `userDecks.layout` lands in a later slice of PRD
+    // #1617, so a pin survives re-render (and every other edit to the deck)
+    // but not a reload — Grouping/Ordering themselves DO survive a reload,
+    // via the separate per-user seam, independently of the deck.
+    const [layout, setLayout] = useState<DeckColumnLayout>(() => ({
+        maindeck: createColumnLayout(seededColumnView("maindeck")),
+        sideboard: createColumnLayout(seededColumnView("sideboard")),
+    }));
+
+    // Grouping/Ordering change handlers (issue #1624): apply the change
+    // through the engine's own `setGrouping`/`setOrdering` — which never
+    // touch `pins` (ADR 0075 §3, the guarantee that flipping to colour and
+    // back restores every Pin exactly) — AND persist the choice per-user.
+    const handleMainGroupingChange = useCallback((grouping: GroupingKind) => {
+        recordGroupingChange("maindeck", grouping);
+        setLayout((current) => ({
+            ...current,
+            maindeck: setColumnGrouping(current.maindeck, grouping),
+        }));
+    }, []);
+    const handleSideGroupingChange = useCallback((grouping: GroupingKind) => {
+        recordGroupingChange("sideboard", grouping);
+        setLayout((current) => ({
+            ...current,
+            sideboard: setColumnGrouping(current.sideboard, grouping),
+        }));
+    }, []);
+    const handleMainOrderingChange = useCallback((ordering: OrderingKind) => {
+        recordOrderingChange("maindeck", ordering);
+        setLayout((current) => ({
+            ...current,
+            maindeck: setColumnOrdering(current.maindeck, ordering),
+        }));
+    }, []);
+    const handleSideOrderingChange = useCallback((ordering: OrderingKind) => {
+        recordOrderingChange("sideboard", ordering);
+        setLayout((current) => ({
+            ...current,
+            sideboard: setColumnOrdering(current.sideboard, ordering),
+        }));
+    }, []);
 
     // Deck-side card resolution (ADR 0080). A Tabletop deck's pool is the whole
     // Full Catalogue, so its cards may be absent from the card registry — the
@@ -773,6 +818,10 @@ export default function DeckBuilder({
                 onPin: handlePin,
                 onMainCardClick: (card) => handleRemove(card.cardId),
                 onSideCardClick: (card) => handleRemoveSideboard(card.cardId),
+                onMainGroupingChange: handleMainGroupingChange,
+                onSideGroupingChange: handleSideGroupingChange,
+                onMainOrderingChange: handleMainOrderingChange,
+                onSideOrderingChange: handleSideOrderingChange,
             }}
             featured={{
                 cardId: effectiveFeaturedCardId,

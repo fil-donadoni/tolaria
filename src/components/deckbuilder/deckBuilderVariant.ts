@@ -34,6 +34,7 @@
  */
 import type { ReactNode } from "react";
 import type { FormatId, Reason } from "@convex/formats";
+import type { GroupingKind, OrderingKind } from "@convex/deckLayout";
 import type { DeckCard } from "~/types/game";
 import type { DeckZoneDragHandlers } from "./deckZoneDrag";
 
@@ -104,6 +105,13 @@ export interface DeckZonePresentation {
 export interface DeckZoneActions extends DeckZoneDragHandlers {
     onMainCardClick: (card: DeckCard) => void;
     onSideCardClick: (card: DeckCard) => void;
+    /** Per-zone Grouping/Ordering control callbacks (PRD #1617, issue #1624).
+     *  Every variant supplies all four — unlike `onAdd*` above, there is no
+     *  variant whose zones lack these controls. */
+    onMainGroupingChange: (grouping: GroupingKind) => void;
+    onSideGroupingChange: (grouping: GroupingKind) => void;
+    onMainOrderingChange: (ordering: OrderingKind) => void;
+    onSideOrderingChange: (ordering: OrderingKind) => void;
 }
 
 /** The Featured Card affordance (PRD #589). Absent = not offered. */

@@ -6,11 +6,15 @@ import {
     type CardLookup,
     type ColumnLayout,
     type DeckZone,
+    type GroupingKind,
+    type OrderingKind,
 } from "@convex/deckLayout";
 import type { DeckCard } from "~/types/game";
 import type { CardDragData } from "~/components/lobby/deck-builder/dnd-types";
 import DeckColumnPile, { type DeckPileTile } from "./deck-column-pile";
 import { zoneColumnDropId, zonePaneDropId } from "./deckZoneDrag";
+import ZoneGroupingSelect from "./zone-grouping-select";
+import ZoneOrderingSelect from "./zone-ordering-select";
 
 /**
  * THE deckbuilder zone surface (ADR 0075, PRD #1617, issue #1622) — ONE
@@ -46,9 +50,16 @@ export interface DeckZoneSurfaceProps {
     zone: DeckZone;
     title: string;
     cards: DeckCard[];
-    /** This zone's Column Layout. Grouping is pinned to Mana Value in this
-     *  slice (no user-facing control yet, issue #1622 scope limit). */
+    /** This zone's Column Layout — including its own `grouping`/`ordering`,
+     *  which the header's controls read directly off (issue #1624). */
     layout: ColumnLayout;
+    /** Fires when the Grouping control changes. Never disturbs a Card Pin
+     *  (ADR 0075 §3) — the caller applies the change through the engine's own
+     *  `setGrouping`, which touches only the `grouping` field. */
+    onGroupingChange: (grouping: GroupingKind) => void;
+    /** Fires when the Ordering control changes — orthogonal to Grouping, only
+     *  re-sorts cards INSIDE each Column (issue #1624). */
+    onOrderingChange: (ordering: OrderingKind) => void;
     /** Catalogue lookup handed to the engine. Defaults to the card registry;
      *  a Tabletop (`manual`) deck passes a catalogue-backed one so its
      *  registry-unknown cards still bucket by Mana Value (ADR 0080). */
@@ -76,6 +87,8 @@ export default function DeckZoneSurface({
     title,
     cards,
     layout,
+    onGroupingChange,
+    onOrderingChange,
     lookup,
     dropModel,
     onCardClick,
@@ -192,11 +205,19 @@ export default function DeckZoneSurface({
                         {warning}
                     </span>
                 )}
-                {headerRight && (
-                    <div className="ml-auto shrink-0 self-center">
-                        {headerRight}
-                    </div>
-                )}
+                <div className="ml-auto flex shrink-0 items-center gap-2 self-center">
+                    <ZoneGroupingSelect
+                        value={layout.grouping}
+                        onChange={onGroupingChange}
+                        zoneLabel={title}
+                    />
+                    <ZoneOrderingSelect
+                        value={layout.ordering}
+                        onChange={onOrderingChange}
+                        zoneLabel={title}
+                    />
+                    {headerRight}
+                </div>
             </div>
             {cards.length === 0 && (
                 <div className="px-3 pt-2 text-sm text-text-muted md:px-4">

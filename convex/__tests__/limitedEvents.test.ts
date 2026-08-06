@@ -1520,7 +1520,9 @@ describe("setPoolArrangementEntry through the REAL mutation handler: a legacy ro
                     eventId: Id<"limitedEvents">;
                     poolIndex: number;
                     sideboard?: boolean;
-                    column?: number | "lands" | null;
+                    // Widened for issue #1624 — the arg carries the full
+                    // namespaced Column id vocabulary, not only `mv`.
+                    column?: number | string | null;
                 }
             ) => Promise<null>;
         }
@@ -1651,6 +1653,46 @@ describe("setPoolArrangementEntry through the REAL mutation handler: a legacy ro
             { poolIndex: 0, column: 5 },
             { poolIndex: 3, pins: { mv: "mv:lands" } },
         ]);
+    });
+
+    // Issue #1624: the deckbuilder's per-zone Grouping control makes
+    // colour/type Columns live drop targets, so the mutation's OWN wire
+    // validator has to accept a namespaced Column id — this drives the
+    // registered function's real `_handler`, so it is the arg validator's
+    // vocabulary and `upsertPoolArrangementEntry` together that are on trial,
+    // not a hand-called pure function.
+    it("persists a COLOUR Column pin, alongside (never instead of) the mv arrangement built during the draft", async () => {
+        const { ctx, stored } = seedEvent([{ poolIndex: 0, column: 5 }]);
+        await handler(ctx, {
+            eventId: EVENT_ID,
+            poolIndex: 0,
+            column: "color:R",
+        });
+        expect(stored()).toEqual([
+            { poolIndex: 0, pins: { mv: "mv:5", color: "color:R" } },
+        ]);
+    });
+
+    it("persists a TYPE Column pin through the real handler", async () => {
+        const { ctx, stored } = seedEvent([]);
+        await handler(ctx, {
+            eventId: EVENT_ID,
+            poolIndex: 1,
+            column: "type:creature",
+        });
+        expect(stored()).toEqual([
+            { poolIndex: 1, pins: { type: "type:creature" } },
+        ]);
+    });
+
+    it("records NOTHING for an unnamespaced Column id — the Catch-All is never a pin target, and is never coerced into mv", async () => {
+        const { ctx, stored } = seedEvent([]);
+        await handler(ctx, {
+            eventId: EVENT_ID,
+            poolIndex: 0,
+            column: "catch-all",
+        });
+        expect(stored()).toEqual([]);
     });
 
     it("clearing the last dimension of a legacy entry DROPS it (the default-drop rule still holds through the mutation)", async () => {

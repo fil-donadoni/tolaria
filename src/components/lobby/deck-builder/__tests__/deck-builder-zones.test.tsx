@@ -17,6 +17,11 @@ import {
     dragOnto,
     installDndJsdomShims,
 } from "~/components/deckbuilder/__tests__/dragHarness";
+import {
+    cardsIn,
+    columnLabelsIn,
+    paneOf,
+} from "~/components/deckbuilder/__tests__/zoneQueries";
 
 vi.mock("@tanstack/react-router", () => ({
     useNavigate: () => vi.fn(),
@@ -84,32 +89,6 @@ function renderBuilder(
             onClose={() => {}}
             manager={manager}
         />
-    );
-}
-
-/** The pane element of one zone — its header span's grandparent. */
-function paneOf(container: HTMLElement, title: RegExp): HTMLElement {
-    const span = [...container.querySelectorAll("span")].find((el) =>
-        title.test(el.textContent ?? "")
-    )!;
-    return span.parentElement!.parentElement!;
-}
-
-/** Column labels of one zone, in render order, read off the real DOM. */
-function columnLabelsIn(pane: HTMLElement): string[] {
-    return [...pane.querySelectorAll("[data-column]")].map(
-        (el) => el.querySelector("span")!.textContent!
-    );
-}
-
-/** Card names in the Maindeck column whose Column id is `columnId`. */
-function cardsIn(container: HTMLElement, columnId: string): string[] {
-    const column = container.querySelector(`[data-column="${columnId}"]`)!;
-    return [...column.querySelectorAll("[role=button][title]")].map((el) =>
-        el
-            .getAttribute("title")!
-            .replace(/^Remove /, "")
-            .replace(/ \(.*$/, "")
     );
 }
 
@@ -292,5 +271,274 @@ describe("DeckBuilder — Constructed mounted drag (issue #1622)", () => {
                 /Remove Lightning Bolt/
             )
         ).toBeTruthy();
+    });
+});
+
+// Per-zone Grouping/Ordering controls (issue #1624). Grouping decides which
+// Columns exist; Ordering decides the sequence INSIDE a column — orthogonal
+// axes, each with its own control per zone (PRD #1617).
+describe("DeckBuilder — per-zone Grouping/Ordering controls (issue #1624)", () => {
+    it("each zone carries its OWN Grouping and Ordering controls, defaulting to Mana Value / Name", () => {
+        const { getByLabelText } = renderBuilder();
+        expect(
+            (getByLabelText("Maindeck grouping") as HTMLSelectElement).value
+        ).toBe("mv");
+        expect(
+            (getByLabelText("Maindeck ordering") as HTMLSelectElement).value
+        ).toBe("name");
+        expect(
+            (getByLabelText("Sideboard grouping") as HTMLSelectElement).value
+        ).toBe("mv");
+        expect(
+            (getByLabelText("Sideboard ordering") as HTMLSelectElement).value
+        ).toBe("name");
+    });
+
+    it("changing the Maindeck's Grouping to Colour re-columns it into the WUBRG ladder, leaving the Sideboard untouched", () => {
+        const { container, getByLabelText } = renderBuilder(
+            deck([BOLT, SERRA], [PLAINS])
+        );
+
+        fireEvent.change(getByLabelText("Maindeck grouping"), {
+            target: { value: "color" },
+        });
+
+        // `color` always emits the full fixed WUBRG + Multicolour +
+        // Colourless ladder (like `mv`'s fixed ladder) — every column is a
+        // valid drop target even while empty.
+        expect(columnLabelsIn(paneOf(container, /^Maindeck /))).toEqual([
+            "Lands",
+            "White",
+            "Blue",
+            "Black",
+            "Red",
+            "Green",
+            "Multicolour",
+            "Colourless",
+        ]);
+        expect(cardsIn(container, "color:R")).toEqual(["Lightning Bolt"]);
+        expect(cardsIn(container, "color:W")).toEqual(["Serra Angel"]);
+
+        // The Sideboard never asked for this change — its own Grouping and
+        // its own columns are exactly as they were.
+        expect(
+            (getByLabelText("Sideboard grouping") as HTMLSelectElement).value
+        ).toBe("mv");
+        expect(columnLabelsIn(paneOf(container, /^Sideboard /))).toEqual([
+            "Lands",
+        ]);
+    });
+
+    it("Grouping `type` shows one column per card type present, plus Lands", () => {
+        const { container, getByLabelText } = renderBuilder(
+            deck([SERRA, PLAINS], [])
+        );
+
+        fireEvent.change(getByLabelText("Maindeck grouping"), {
+            target: { value: "type" },
+        });
+
+        expect(columnLabelsIn(paneOf(container, /^Maindeck /))).toEqual([
+            "Lands",
+            "Creature",
+        ]);
+    });
+
+    it("Grouping `none` collapses the zone into a single column", () => {
+        const { container, getByLabelText } = renderBuilder(
+            deck([BOLT, SERRA, PLAINS], [])
+        );
+
+        fireEvent.change(getByLabelText("Maindeck grouping"), {
+            target: { value: "none" },
+        });
+
+        expect(columnLabelsIn(paneOf(container, /^Maindeck /))).toEqual([
+            "All",
+        ]);
+        expect(cardsIn(container, "all")).toEqual([
+            "Lightning Bolt",
+            "Plains",
+            "Serra Angel",
+        ]);
+    });
+
+    // The SIDEBOARD's own controls, driven for real (issue #1624 review
+    // finding F2). Every other assertion in this block drives the Maindeck
+    // and checks the Sideboard is "unchanged" — which a fully INERT
+    // Sideboard control satisfies vacuously. These two are the positive
+    // half: the Sideboard's own `<select>`s must actually re-column and
+    // re-sequence the Sideboard.
+    it("changing the SIDEBOARD's Grouping to Colour re-columns the Sideboard, leaving the Maindeck untouched", () => {
+        const { container, getByLabelText } = renderBuilder(
+            deck([BOLT], [SERRA, PLAINS])
+        );
+        // Pane model, so only the zone's NON-EMPTY columns render — under
+        // `mv` that is Lands (Plains) + MV 5 (Serra).
+        expect(columnLabelsIn(paneOf(container, /^Sideboard /))).toEqual([
+            "Lands",
+            "MV 5",
+        ]);
+
+        fireEvent.change(getByLabelText("Sideboard grouping"), {
+            target: { value: "color" },
+        });
+
+        expect(columnLabelsIn(paneOf(container, /^Sideboard /))).toEqual([
+            "Lands",
+            "White",
+        ]);
+        expect(cardsIn(paneOf(container, /^Sideboard /), "color:W")).toEqual([
+            "Serra Angel",
+        ]);
+
+        // The Maindeck never asked for this change.
+        expect(
+            (getByLabelText("Maindeck grouping") as HTMLSelectElement).value
+        ).toBe("mv");
+        expect(cardsIn(paneOf(container, /^Maindeck /), "mv:1")).toEqual([
+            "Lightning Bolt",
+        ]);
+    });
+
+    it("changing the SIDEBOARD's Ordering resequences the Sideboard's own column, leaving the Maindeck's order untouched", () => {
+        const { container, getByLabelText } = renderBuilder(
+            deck([SERRA, PLAINS], [BOLT, SERRA, PLAINS])
+        );
+
+        // Grouping `none` collapses the Sideboard into its single "All"
+        // column, so any resequencing observed there is the Ordering axis
+        // and nothing else.
+        fireEvent.change(getByLabelText("Sideboard grouping"), {
+            target: { value: "none" },
+        });
+        expect(cardsIn(paneOf(container, /^Sideboard /), "all")).toEqual([
+            "Lightning Bolt",
+            "Plains",
+            "Serra Angel",
+        ]);
+
+        fireEvent.change(getByLabelText("Sideboard ordering"), {
+            target: { value: "mv" },
+        });
+
+        expect(columnLabelsIn(paneOf(container, /^Sideboard /))).toEqual([
+            "All",
+        ]);
+        expect(cardsIn(paneOf(container, /^Sideboard /), "all")).toEqual([
+            "Plains",
+            "Lightning Bolt",
+            "Serra Angel",
+        ]);
+
+        // The Maindeck kept its own Grouping AND its own Ordering: still the
+        // Mana-Value ladder, still by name inside each column.
+        expect(
+            (getByLabelText("Maindeck ordering") as HTMLSelectElement).value
+        ).toBe("name");
+        expect(columnLabelsIn(paneOf(container, /^Maindeck /))).toEqual([
+            "Lands",
+            "MV 0",
+            "MV 1",
+            "MV 2",
+            "MV 3",
+            "MV 4",
+            "MV 5",
+            "MV 6",
+            "MV 7+",
+        ]);
+    });
+
+    it("Ordering resequences cards INSIDE a column without moving any card to a different column", () => {
+        const { container, getByLabelText } = renderBuilder(
+            deck([BOLT, SERRA, PLAINS], [])
+        );
+
+        // Grouping `none` puts every card in the one "All" column, so any
+        // reordering observed here can only be the Ordering axis at work.
+        fireEvent.change(getByLabelText("Maindeck grouping"), {
+            target: { value: "none" },
+        });
+        expect(cardsIn(container, "all")).toEqual([
+            "Lightning Bolt",
+            "Plains",
+            "Serra Angel",
+        ]);
+
+        fireEvent.change(getByLabelText("Maindeck ordering"), {
+            target: { value: "mv" },
+        });
+
+        // Same single column, same three cards — only the SEQUENCE changed
+        // (Plains and Lightning Bolt swap; Mana Value 0 sorts before 1).
+        expect(columnLabelsIn(paneOf(container, /^Maindeck /))).toEqual([
+            "All",
+        ]);
+        expect(cardsIn(container, "all")).toEqual([
+            "Plains",
+            "Lightning Bolt",
+            "Serra Angel",
+        ]);
+    });
+});
+
+describe("DeckBuilder — Grouping round-trip preserves Card Pins, through the real controls (issue #1624)", () => {
+    it("flipping Grouping to Colour and back to Mana Value restores a drag-recorded Pin exactly", async () => {
+        const manager = new DragDropManager();
+        const { container, getByTitle, getByLabelText } = renderBuilder(
+            deck([BOLT], []),
+            manager
+        );
+
+        // Pin Lightning Bolt into MV 6 via a real drag — NOT its auto MV 1.
+        await dragOnto(
+            manager,
+            getByTitle(/Remove Lightning Bolt/),
+            container.querySelector('[data-column="mv:6"]')!
+        );
+        expect(cardsIn(container, "mv:6")).toEqual(["Lightning Bolt"]);
+
+        // Flip to Colour: the `mv` Pin lives in a DIFFERENT namespace, so it
+        // simply does not apply here — the card falls back to its natural
+        // Red column, exactly as an un-pinned card would.
+        fireEvent.change(getByLabelText("Maindeck grouping"), {
+            target: { value: "color" },
+        });
+        expect(cardsIn(container, "color:R")).toEqual(["Lightning Bolt"]);
+
+        // Flip back to Mana Value: the ORIGINAL Pin must still be there —
+        // this is the whole reason Pins are namespaced (ADR 0075 §3) rather
+        // than recomputed or cleared on a Grouping switch.
+        fireEvent.change(getByLabelText("Maindeck grouping"), {
+            target: { value: "mv" },
+        });
+        expect(cardsIn(container, "mv:6")).toEqual(["Lightning Bolt"]);
+        expect(cardsIn(container, "mv:1")).toEqual([]);
+    });
+});
+
+describe("DeckBuilder — Grouping/Ordering persist per-user via the view-preferences seam (issue #1624/#1620)", () => {
+    it("persists a change to the shared deckViewPrefs key, and a fresh mount (any deck) picks it up", () => {
+        const { getByLabelText, unmount } = renderBuilder();
+
+        fireEvent.change(getByLabelText("Sideboard ordering"), {
+            target: { value: "rarity" },
+        });
+        expect(
+            window.localStorage.getItem("tolaria:deckViewPrefs:ordering:side")
+        ).toBe(JSON.stringify("rarity"));
+
+        unmount();
+
+        // A fresh mount of a DIFFERENT deck reads the SAME per-user
+        // preference — Grouping/Ordering are remembered for the user, not
+        // scoped to one deck (PRD #1617 § "view preferences on the user").
+        const { getByLabelText: getByLabelTextAgain } = renderBuilder(
+            deck([], [])
+        );
+        expect(
+            (getByLabelTextAgain("Sideboard ordering") as HTMLSelectElement)
+                .value
+        ).toBe("rarity");
     });
 });

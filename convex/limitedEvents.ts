@@ -1732,20 +1732,38 @@ export const startLimitedEvent = mutation({
  *  mutation already accepts `column` so that later change needs no API
  *  change, only a new caller.
  *
- *  The `column` ARG is unchanged (every caller still speaks it), but what gets
- *  PERSISTED is the namespaced Card Pin map — `upsertPoolArrangementEntry`
- *  emits `pins` and never the deprecated `column` field, so each entry an
- *  active seat touches migrates itself (ADR 0075 §5, issue #1621). */
+ *  What gets PERSISTED is the namespaced Card Pin map —
+ *  `upsertPoolArrangementEntry` emits `pins` and never the deprecated `column`
+ *  field, so each entry an active seat touches migrates itself (ADR 0075 §5,
+ *  issue #1621).
+ *
+ *  The `column` ARG carries the FULL Column id vocabulary since issue #1624
+ *  (`mv:6`, `color:R`, `type:creature`, `custom:combo`), alongside the legacy
+ *  `number`/`"lands"` shape every draft-time Pool caller still speaks. It had
+ *  to widen: the deckbuilder's Grouping control makes colour/type Columns
+ *  live drop targets, and an arg that can only express `mv` turned every such
+ *  drop into a silent no-op at the call site — a highlighted, drag-accepting,
+ *  dead affordance. */
 export const setPoolArrangementEntry = mutation({
     args: {
         eventId: v.id("limitedEvents"),
         poolIndex: v.number(),
         sideboard: v.optional(v.boolean()),
-        // `null` explicitly clears a manual column override back to auto;
-        // `undefined`/omitted leaves any existing override untouched. The
-        // literal "lands" pins the card into the Lands column regardless of
-        // its own type (issue #1573).
-        column: v.optional(v.union(v.number(), v.literal("lands"), v.null())),
+        // The Column to pin into, in EITHER vocabulary (issue #1624 — see
+        // `ArrangementPatch.column`): a namespaced Column id (`mv:6`,
+        // `color:R`, `type:creature`, `custom:combo`) records THAT
+        // namespace's Card Pin, while a legacy number or the literal
+        // "lands" (issue #1573) still normalises into `mv`. `null`
+        // explicitly clears the `mv` override back to auto;
+        // `undefined`/omitted leaves every existing Pin untouched.
+        //
+        // `v.string()` rather than an enumerated union because the id space
+        // is open by construction — `custom:<slug>` names a user-created
+        // Column. The narrowing is done where it belongs, in
+        // `upsertPoolArrangementEntry`: an id with no recognised namespace
+        // is not a pin target and records nothing (fail-closed), so a
+        // forged/garbage string can never land in the Arrangement.
+        column: v.optional(v.union(v.number(), v.string(), v.null())),
     },
     returns: v.null(),
     handler: async (ctx, args) => {
