@@ -111,7 +111,10 @@ describe("Psychic Frog ({U}{B} 1/2 Frog; CR 510.4 / 122.1 / 611.1b)", () => {
         const ability = psychicFrog.activatedAbilities!.find(
             (a) => a.id === "psychic-frog-exile-flying"
         )!;
-        expect(ability.cost.exileFromGraveyard).toEqual({ count: 3 });
+        expect(ability.cost.exileFromGraveyard).toEqual({
+            count: 3,
+            owner: "you",
+        });
     });
 
     it("discard ability: discards a chosen card and adds a +1/+1 counter", () => {
