@@ -408,13 +408,49 @@ describe("claim-sweep — releases this session's claims, and only those", () =>
         return { dir, bin, calls: path.join(dir, "gh-calls.log") };
     }
 
-    /** gh stub: issue is claimed, no open PR. */
+    /**
+     * gh stub: issue is claimed, and NOTHING is in flight for it.
+     *
+     * The `pr list` arm answers per QUERY SHAPE rather than unconditionally,
+     * because the shape is what was broken (#2314). Real `gh` behaviour,
+     * reproduced against PR #2313 on head `feat/issue-1625`:
+     *
+     *     gh pr list --state open --search "issue-1625 in:head"  → 0
+     *     gh pr list --state open --limit 200 --json headRefName → the PR
+     *
+     * `in:` is a qualifier over title/body/comments, not over the head branch,
+     * so the search form returns 0 for EVERY issue. A stub that echoes a fixed
+     * count regardless of arguments cannot tell the two apart — which is why
+     * the original suite passed against a guard that never matched anything.
+     */
     const CLAIMED_NO_PR = `
 echo "$@" >> "$GH_CALLS"
 case "$1 $2" in
   "issue view") echo "bug,in-progress" ;;
-  "pr list")    echo "0" ;;
-  *)            exit 0 ;;
+  "pr list")
+    case "$*" in
+      *--search*) echo "0" ;;        # the broken form: matches nothing, ever
+      *headRefName*) echo "0" ;;     # the working form: genuinely no open PR
+      *) echo "0" ;;
+    esac
+    ;;
+  *) exit 0 ;;
+esac
+`;
+
+    /** gh stub: issue is claimed AND an open PR exists on its head branch. */
+    const CLAIMED_WITH_PR = `
+echo "$@" >> "$GH_CALLS"
+case "$1 $2" in
+  "issue view") echo "bug,in-progress" ;;
+  "pr list")
+    case "$*" in
+      *--search*)    echo "0" ;;     # what real gh returns for \`in:head\`
+      *headRefName*) echo "1" ;;     # the PR is visible only to the head probe
+      *) echo "0" ;;
+    esac
+    ;;
+  *) exit 0 ;;
 esac
 `;
 
@@ -425,7 +461,7 @@ esac
         );
         const r = runHook(
             CLAIM_SWEEP,
-            { session_id: "sess-A", hook_event_name: "Stop" },
+            { session_id: "sess-A", hook_event_name: "SessionEnd" },
             {
                 CLAUDE_PROJECT_DIR: dir,
                 PATH: `${bin}:${process.env.PATH}`,
@@ -448,7 +484,7 @@ esac
         );
         runHook(
             CLAIM_SWEEP,
-            { session_id: "sess-A", hook_event_name: "Stop" },
+            { session_id: "sess-A", hook_event_name: "SessionEnd" },
             {
                 CLAUDE_PROJECT_DIR: dir,
                 PATH: `${bin}:${process.env.PATH}`,
@@ -459,20 +495,46 @@ esac
     });
 
     it("does NOT release an issue with an open PR — the work is in flight", () => {
+        // The load-bearing regression (#2314). The probe must look at the head
+        // REF; the previous `--search "issue-N in:head"` form returned 0 with
+        // the PR wide open, so the guard failed OPEN and the sweep released
+        // every claim it saw. The stub answers per query shape, so a revert to
+        // the search form goes red here instead of silently passing.
         const { dir, bin, calls } = setup(
             [{ ts: 1, session: "sess-A", issue: 700, event: "claim" }],
-            `
-echo "$@" >> "$GH_CALLS"
-case "$1 $2" in
-  "issue view") echo "bug,in-progress" ;;
-  "pr list")    echo "1" ;;
-  *)            exit 0 ;;
-esac
-`
+            CLAIMED_WITH_PR
         );
         runHook(
             CLAIM_SWEEP,
-            { session_id: "sess-A", hook_event_name: "Stop" },
+            { session_id: "sess-A", hook_event_name: "SessionEnd" },
+            {
+                CLAUDE_PROJECT_DIR: dir,
+                PATH: `${bin}:${process.env.PATH}`,
+                GH_CALLS: calls,
+            }
+        );
+        const log = fs.readFileSync(calls, "utf8");
+        expect(log).not.toMatch(/issue edit/);
+        // …and it must be asking about the head ref at all.
+        expect(log).toMatch(/headRefName/);
+    });
+
+    it("does NOT release an issue whose branch is pushed but has no PR yet", () => {
+        // The window between the subagent's first push and `gh pr create` is
+        // exactly when a claim is most load-bearing and least visible: no PR
+        // exists, so a PR-only probe reads it as abandoned work.
+        const { dir, bin, calls } = setup(
+            [{ ts: 1, session: "sess-A", issue: 700, event: "claim" }],
+            CLAIMED_NO_PR
+        );
+        fs.writeFileSync(
+            path.join(bin, "git"),
+            `#!/bin/sh\ncase "$*" in\n  *ls-remote*) echo "deadbeef\\trefs/heads/feat/issue-700" ;;\n  *) exit 0 ;;\nesac\n`,
+            { mode: 0o755 }
+        );
+        runHook(
+            CLAIM_SWEEP,
+            { session_id: "sess-A", hook_event_name: "SessionEnd" },
             {
                 CLAUDE_PROJECT_DIR: dir,
                 PATH: `${bin}:${process.env.PATH}`,
@@ -496,7 +558,7 @@ esac
         );
         runHook(
             CLAIM_SWEEP,
-            { session_id: "sess-A", hook_event_name: "Stop" },
+            { session_id: "sess-A", hook_event_name: "SessionEnd" },
             {
                 CLAUDE_PROJECT_DIR: dir,
                 PATH: `${bin}:${process.env.PATH}`,
@@ -516,7 +578,7 @@ esac
         );
         runHook(
             CLAIM_SWEEP,
-            { session_id: "sess-A", hook_event_name: "Stop" },
+            { session_id: "sess-A", hook_event_name: "SessionEnd" },
             {
                 CLAUDE_PROJECT_DIR: dir,
                 PATH: `${bin}:${process.env.PATH}`,
@@ -530,7 +592,7 @@ esac
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hook-sweep-empty-"));
         const r = runHook(
             CLAIM_SWEEP,
-            { session_id: "sess-A", hook_event_name: "Stop" },
+            { session_id: "sess-A", hook_event_name: "SessionEnd" },
             { CLAUDE_PROJECT_DIR: dir }
         );
         expect(r.code).toBe(0);
@@ -563,12 +625,65 @@ describe("hooks are wired into settings.json", () => {
             expect(wired, `${script} is not registered`).toContain(script);
             const full = path.join(HOOKS, script);
             expect(fs.existsSync(full)).toBe(true);
-            // eslint-disable-next-line no-bitwise
             expect(fs.statSync(full).mode & 0o111).toBeGreaterThan(0);
         }
 
-        expect(settings.hooks.Stop).toBeDefined();
         expect(settings.hooks.SubagentStop).toBeDefined();
+    });
+
+    it("wires each hook to the EVENT it is written for", () => {
+        // Registration is not enough. `claim-sweep.sh` was wired to `Stop`,
+        // which fires at the end of every assistant TURN — so it ran mid-batch
+        // and released claims whose work had barely started (issue #2314). The
+        // registration guard above was green throughout: the hook was present,
+        // executable and referenced, just listening to the wrong thing.
+        //
+        // The map is the declaration a new hook must make. Adding a script
+        // without an entry fails here, which forces the "when does this run?"
+        // question to be answered once, in writing.
+        const EVENT_OF: Record<string, string> = {
+            "claim-ledger.sh": "PreToolUse",
+            "claim-sweep.sh": "SessionEnd",
+            "deny-guard.sh": "PreToolUse",
+            "receipt-guard.sh": "SubagentStop",
+            "spawn-guard.sh": "PreToolUse",
+            "timing-log.sh": "PreToolUse", // also PostToolUse; asserted below
+        };
+
+        const settings = JSON.parse(
+            fs.readFileSync(
+                path.join(REPO_ROOT, ".claude", "settings.json"),
+                "utf8"
+            )
+        );
+
+        /** Every event a given script is registered under. */
+        const eventsOf = (script: string): string[] =>
+            Object.entries(settings.hooks as Record<string, unknown[]>)
+                .filter(([, groups]) => JSON.stringify(groups).includes(script))
+                .map(([event]) => event);
+
+        const scripts = fs
+            .readdirSync(HOOKS)
+            .filter((f) => f.endsWith(".sh"))
+            .sort();
+
+        for (const script of scripts) {
+            const expected = EVENT_OF[script];
+            expect(
+                expected,
+                `${script} has no declared event — add it to EVENT_OF`
+            ).toBeDefined();
+            expect(
+                eventsOf(script),
+                `${script} is not wired to ${expected}`
+            ).toContain(expected);
+        }
+
+        // The sweep releases claims. On `Stop` it would fire while the batch's
+        // subagents are still working — the exact #2314 regression.
+        expect(eventsOf("claim-sweep.sh")).not.toContain("Stop");
+        expect(eventsOf("timing-log.sh")).toContain("PostToolUse");
     });
 
     it("every hook script is executable in git's INDEX, not just on this disk", () => {
