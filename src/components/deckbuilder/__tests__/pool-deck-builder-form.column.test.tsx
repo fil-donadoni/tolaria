@@ -4,7 +4,7 @@
 // `setPoolArrangementEntry` mutation the draft Pool uses. The surface is
 // stubbed to buttons that fire `onPin` directly so this file isolates the
 // form → mutation seam; the REAL drag through the REAL surface lives in
-// `pool-deckbuilder-surface.test.tsx`, and the pure resolution in
+// `deck-builder-shell.test.tsx`, and the pure resolution in
 // `deckZoneDrag.test.ts`.
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, cleanup, fireEvent } from "@testing-library/react";
@@ -31,20 +31,26 @@ vi.mock("~/hooks/useUserDecks", () => ({
 const BOLT_ID = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a"; // Lightning Bolt
 const PLAINS_ID = "b1623d57-4729-4796-b3f7-f1837a05c6ed"; // Plains
 
-// Stub the surface: expose the Pin callback as buttons so the form's handlers
-// can be driven without a real drag (the REAL mounted drag lives in
-// `pool-deckbuilder-surface.test.tsx`; this file proves the form → mutation
-// seam). Ids are inlined (a vi.mock factory is hoisted above the top-level
-// consts, so it can't close over them).
-vi.mock("../pool-deckbuilder-surface", () => ({
+// Stub the SHELL (issue #1623 absorbed `pool-deckbuilder-surface` into it):
+// expose the Pin callback as buttons so the form's handlers can be driven
+// without a real drag (the REAL mounted drag lives in
+// `deck-builder-shell.test.tsx`; this file proves the form → mutation seam).
+// Ids are inlined (a vi.mock factory is hoisted above the top-level consts, so
+// it can't close over them).
+vi.mock("../deck-builder-shell", () => ({
     default: (props: {
-        onPin: (cardId: string, columnId: string) => void;
-        onMoveToMaindeck: (cardId: string) => void;
+        actions: {
+            onPin: (cardId: string, columnId: string) => void;
+            onMoveToMaindeck: (cardId: string) => void;
+        };
     }) => (
         <div>
             <button
                 onClick={() =>
-                    props.onPin("d573ef03-4730-45aa-93dd-e45ac1dbaf4a", "mv:6")
+                    props.actions.onPin(
+                        "d573ef03-4730-45aa-93dd-e45ac1dbaf4a",
+                        "mv:6"
+                    )
                 }
                 type="button"
             >
@@ -52,7 +58,10 @@ vi.mock("../pool-deckbuilder-surface", () => ({
             </button>
             <button
                 onClick={() =>
-                    props.onPin("eace2c85-976c-425e-9800-5a6ccbd91b56", "mv:4")
+                    props.actions.onPin(
+                        "eace2c85-976c-425e-9800-5a6ccbd91b56",
+                        "mv:4"
+                    )
                 }
                 type="button"
             >
@@ -60,7 +69,7 @@ vi.mock("../pool-deckbuilder-surface", () => ({
             </button>
             <button
                 onClick={() =>
-                    props.onPin(
+                    props.actions.onPin(
                         "d573ef03-4730-45aa-93dd-e45ac1dbaf4a",
                         "custom:combo"
                     )

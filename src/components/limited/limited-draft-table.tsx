@@ -30,7 +30,7 @@ import {
 } from "./limitedDraftDrag";
 
 // Same responsive base size as the shared pool deckbuilder surface / draft
-// pack (`CARD_BASE` in `pool-deckbuilder-surface.tsx` / `limited-draft-pack.tsx`),
+// pack (`CARD_BASE` in `pool-deck-builder-form.tsx` / `limited-draft-pack.tsx`),
 // floored at CARD_MIN_W (issue #2056) so a short-and-wide viewport can't
 // collapse the drag-overlay tile past legibility.
 const CARD_BASE = cardBase("7.5rem", "17vw", "9dvh");

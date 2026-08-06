@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { DragDropProvider, DragOverlay } from "@dnd-kit/react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { DragDropManager } from "@dnd-kit/dom";
 import {
     createDeckColumnLayout,
@@ -10,12 +9,12 @@ import {
 import { effectiveFeatured, toggleFeatured } from "~/lib/featuredPicker";
 import { computeDeckColors } from "~/lib/deckColors";
 import { deckCardLookup, makeDeckCardShapeResolver } from "~/lib/deckCardShape";
-import DeckZonesSurface from "~/components/deckbuilder/deck-zones-surface";
-import { useDeckDragSensors } from "~/components/deckbuilder/useDeckDragSensors";
+import DeckBuilderShell from "~/components/deckbuilder/deck-builder-shell";
+import type { DeckBuilderViewSpec } from "~/components/deckbuilder/deckBuilderVariant";
 import {
-    applyDeckZoneDragAction,
-    resolveDeckZoneDragAction,
-} from "~/components/deckbuilder/deckZoneDrag";
+    useDeckWorkspace,
+    type DeckSaveSink,
+} from "~/components/deckbuilder/useDeckWorkspace";
 import { useBanlistOverride } from "~/hooks/useBanlistOverride";
 import { FORMAT_RULES, type FormatId, validateDeck } from "@convex/formats";
 import { type LobbyDeck } from "~/lib/deckTypes";
@@ -31,9 +30,7 @@ import {
     moveToMaindeck,
     moveToSideboard,
 } from "~/lib/deckSideboard";
-import type { DeckCard } from "~/types/game";
 import type { ParsedDecklist } from "~/lib/deckImport";
-import CardImage from "~/components/cards/card-image";
 import { Button } from "~/components/ui/button";
 import GameDialog from "~/components/ui/game-dialog";
 import ActionButton from "~/components/board/action-button";
@@ -41,10 +38,8 @@ import CardZoomSlider from "./card-zoom-slider";
 import ColorFilter from "./color-filter";
 import DeckExportButton from "./deck-export-button";
 import DeckImportDialog from "./deck-import-dialog";
-import type { CardDragData } from "./dnd-types";
 import ManaValueFilter from "./mana-value-filter";
 import ResultsGrid from "./results-grid";
-import SaveDeckBar from "./save-deck-bar";
 import SearchBar from "./search-bar";
 import FormatSelect from "./format-select";
 import DeckBanlistPanel from "./deck-banlist-panel";
@@ -53,7 +48,6 @@ import TypeFilter from "./type-filter";
 import CubeFilter from "./cube-filter";
 import SortSelect from "./sort-select";
 import { type SortDirection, type SortKey } from "./cardSort";
-import DeckLegalityPanel from "./deck-legality-panel";
 import { useCardZoom } from "./useCardZoom";
 import { useFilterSearchParams } from "./useFilterSearchParams";
 import { type ColorMode, type MatchMode, useCardSearch } from "./useCardSearch";
@@ -68,25 +62,24 @@ import { cardBase } from "~/lib/cardSizing";
 // CARD_MIN_W (issue #2056) so a short-and-wide viewport can't collapse it.
 const CARD_BASE = cardBase("8rem", "18vw", "9.5dvh");
 
+/** This variant's declared view spec. The `localStorage` namespaces are the
+ *  Constructed builder's own — never the Limited builder's `pool` ones, which
+ *  would silently merge two independent saved layouts (issue #1622). */
+const VIEW: DeckBuilderViewSpec = {
+    cardBase: CARD_BASE,
+    splitZone: "deckbuilder",
+    splitDefault: 3 / 4,
+    mainZoomZone: "main",
+    sideZoomZone: "side",
+    zoomInitial: 1.25,
+};
+
 // Per-zone CSS vars driving `--card-w` / `--card-h` from a zoom multiplier.
 function zoomVars(mult: number): React.CSSProperties {
     return {
         "--card-w": `calc(${CARD_BASE} * ${mult})`,
         "--card-h": `calc(${CARD_BASE} * ${mult} * 7 / 5)`,
     } as React.CSSProperties;
-}
-
-interface WorkingDeck {
-    name: string;
-    format: FormatId;
-    colors: string[];
-    cards: DeckCard[];
-    sideboard: DeckCard[];
-    // Featured Card override (PRD #589, issue #599). The Card ID the player
-    // picked to supply the deck's art, or `undefined` to let the resolver
-    // default to the first Maindeck card. Persisted via the existing deck
-    // update mutation (admin-gated for presets, ADR 0033).
-    featuredCardId?: string;
 }
 
 interface DeckBuilderProps {
@@ -115,20 +108,35 @@ interface DeckBuilderProps {
     fullCatalogue?: FullCatalogueResult;
     onClose: (savedDeckId: string | null) => void;
     onDelete?: () => Promise<void>;
-    // dnd-kit manager. Omitted in the app (the provider makes its own); the
-    // mounted drag test injects one so it can drive REAL drag operations
-    // against the REAL droppable registry — jsdom has no layout, so a
-    // pointer-driven drag can never resolve a drop target there. Same escape
-    // hatch `PoolDeckbuilderSurface` carries for the Limited builder.
+    // dnd-kit manager, forwarded to the shell. Omitted in the app (the provider
+    // makes its own); the mounted tests inject one so they can drive REAL drag
+    // operations against the REAL droppable registry.
     manager?: DragDropManager;
 }
 
-const SAVE_DEBOUNCE_MS = 800;
 // Trailing-edge delay before a search keystroke feeds the filter pass + URL
 // (PRD #501, issue #503). Tuned for feel; the input itself stays responsive.
 const SEARCH_DEBOUNCE_MS = 180;
 const DEFAULT_FORMAT: FormatId = "freeform";
 
+/**
+ * The **Constructed** entry point of the unified deckbuilder (ADR 0075 §1,
+ * issue #1623) — one of the shell's three declared variants. It supplies
+ * exactly what is Constructed about building from the whole catalogue:
+ *
+ *  - **the source panel** — the card-search grid, plus the header controls
+ *    that scope it (search box, Format select, cube filter, banlist panel,
+ *    deck import/export) and the filter row beneath;
+ *  - **its persistence sinks** — `dispatchDeckSave`, which maps `kind` +
+ *    `mode` + the current identity onto the user-deck or preset mutation pair;
+ *  - **its legality** — `validateDeck` against the deck's own Format, with the
+ *    DB banlist override threaded in;
+ *  - plus the Featured Card affordance and the Sideboard's `0–15` cap.
+ *
+ * Everything else — toolbar band, zones, split, drag context, legality panel,
+ * save bar, autosave — is the shell's and `useDeckWorkspace`'s, shared
+ * verbatim with the Limited variant.
+ */
 export default function DeckBuilder({
     kind,
     mode = "edit",
@@ -145,30 +153,7 @@ export default function DeckBuilder({
     const isPreset = kind === "preset";
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [importOpen, setImportOpen] = useState(false);
-    const [deck, setDeck] = useState<WorkingDeck>(() =>
-        initialDeck
-            ? {
-                  name: initialDeck.name,
-                  format: initialDeck.format,
-                  colors: initialDeck.colors,
-                  cards: initialDeck.cards,
-                  sideboard: initialDeck.sideboard ?? [],
-                  // The override is seeded `undefined` so an unchanged save
-                  // leaves the stored value untouched (the update mutation skips
-                  // an absent `featuredCardId`). The currently-featured card is
-                  // still shown via the resolved `initialDeck.featuredCardId`
-                  // (see `effectiveFeaturedCardId`), so it survives reloads.
-                  featuredCardId: undefined,
-              }
-            : {
-                  name: nextDeckName(initialDeckList),
-                  format: defaultFormat,
-                  colors: [],
-                  cards: [],
-                  sideboard: [],
-                  featuredCardId: undefined,
-              }
-    );
+
     const { filters, setFilters, setUrlFormat, updateSearch } =
         useFilterSearchParams();
 
@@ -178,13 +163,65 @@ export default function DeckBuilder({
     const [rawText, setRawText] = useState(() => filters.text);
     const debouncedText = useDebouncedValue(rawText, SEARCH_DEBOUNCE_MS);
 
-    // Current persisted identity: a userDeckId once a user deck is created, or
-    // the preset slug in preset mode. Null only for a brand-new user deck
-    // before its first flush.
-    const identityRef = useRef<string | null>(initialIdentity);
-    const pendingRef = useRef<WorkingDeck | null>(null);
-    const timerRef = useRef<number | null>(null);
-    const inflightRef = useRef<Promise<unknown> | null>(null);
+    // The persistence sink: `dispatchDeckSave` maps `kind` + current identity
+    // to the correct mutation pair (userDecks create-then-update vs
+    // decks.updatePreset by slug) and returns the resulting identity. The
+    // editor never branches on `kind` itself.
+    //
+    // Colour identity is derived HERE, at write time, off the deck being
+    // written — a Tabletop deck's cards may be absent from the card registry
+    // (ADR 0080), so they resolve through the Full Catalogue instead.
+    const save = useCallback<DeckSaveSink>(
+        (pending, identity) =>
+            dispatchDeckSave(
+                kind,
+                sinks,
+                identity,
+                mode
+            )({
+                name: pending.name,
+                format: pending.format,
+                colors: computeDeckColors(
+                    pending.cards,
+                    makeDeckCardShapeResolver(
+                        pending.format === "manual"
+                            ? fullCatalogue?.rows
+                            : undefined
+                    )
+                ),
+                cards: pending.cards,
+                sideboard: pending.sideboard,
+                featuredCardId: pending.featuredCardId,
+            }),
+        [kind, mode, sinks, fullCatalogue?.rows]
+    );
+
+    const { deck, updateDeck, setName, flush } = useDeckWorkspace({
+        initialIdentity,
+        save,
+        initial: () =>
+            initialDeck
+                ? {
+                      name: initialDeck.name,
+                      format: initialDeck.format,
+                      cards: initialDeck.cards,
+                      sideboard: initialDeck.sideboard ?? [],
+                      // The override is seeded `undefined` so an unchanged save
+                      // leaves the stored value untouched (the update mutation
+                      // skips an absent `featuredCardId`). The currently-featured
+                      // card is still shown via the resolved
+                      // `initialDeck.featuredCardId` (see
+                      // `effectiveFeaturedCardId`), so it survives reloads.
+                      featuredCardId: undefined,
+                  }
+                : {
+                      name: nextDeckName(initialDeckList),
+                      format: defaultFormat,
+                      cards: [],
+                      sideboard: [],
+                      featuredCardId: undefined,
+                  },
+    });
 
     // The card search is pre-filtered to the deck's Format allowed sets (issue
     // #514): the builder only surfaces legally-includable prints. Discovery
@@ -193,19 +230,6 @@ export default function DeckBuilder({
         filters,
         deck.format,
         fullCatalogue
-    );
-
-    // Deck-side card resolution (ADR 0080). A Tabletop deck's pool is the whole
-    // Full Catalogue, so its cards may be absent from the card registry — the
-    // pile grouping and the colour derivation must resolve them off the
-    // catalogue row instead of throwing `Card not found`. Every other format
-    // only ever holds implemented cards, so it stays registry-only.
-    const resolveShape = useMemo(
-        () =>
-            makeDeckCardShapeResolver(
-                deck.format === "manual" ? fullCatalogue?.rows : undefined
-            ),
-        [deck.format, fullCatalogue?.rows]
     );
 
     // The deck's Column Layout (ADR 0075, issue #1622). Grouping is pinned to
@@ -218,6 +242,19 @@ export default function DeckBuilder({
         createDeckColumnLayout()
     );
 
+    // Deck-side card resolution (ADR 0080). A Tabletop deck's pool is the whole
+    // Full Catalogue, so its cards may be absent from the card registry — the
+    // Column Layout engine must resolve them off the catalogue row instead of
+    // throwing `Card not found`. Every other format only ever holds implemented
+    // cards, so it stays registry-only.
+    const resolveShape = useMemo(
+        () =>
+            makeDeckCardShapeResolver(
+                deck.format === "manual" ? fullCatalogue?.rows : undefined
+            ),
+        [deck.format, fullCatalogue?.rows]
+    );
+
     // Same split for a pasted decklist: in Tabletop a name the GRE doesn't
     // implement is a legitimate import, not a skipped line.
     const resolveCatalogueName = useMemo(
@@ -226,94 +263,6 @@ export default function DeckBuilder({
                 deck.format === "manual" ? fullCatalogue?.rows : undefined
             ),
         [deck.format, fullCatalogue?.rows]
-    );
-
-    const clearTimer = () => {
-        if (timerRef.current !== null) {
-            window.clearTimeout(timerRef.current);
-            timerRef.current = null;
-        }
-    };
-
-    const flush = useCallback(async () => {
-        clearTimer();
-        if (inflightRef.current) {
-            try {
-                await inflightRef.current;
-            } catch {
-                // surfaced by the originating call site
-            }
-        }
-        const pending = pendingRef.current;
-        if (!pending) return;
-        pendingRef.current = null;
-        // The dispatch maps `kind` + current identity to the correct mutation
-        // pair (userDecks create-then-update vs decks.updatePreset by slug) and
-        // returns the resulting identity. The editor never branches on `kind`.
-        const save = dispatchDeckSave(kind, sinks, identityRef.current, mode);
-        const promise = save({
-            name: pending.name,
-            format: pending.format,
-            colors: pending.colors,
-            cards: pending.cards,
-            sideboard: pending.sideboard,
-            featuredCardId: pending.featuredCardId,
-        });
-        inflightRef.current = promise;
-        try {
-            identityRef.current = await promise;
-        } finally {
-            inflightRef.current = null;
-        }
-    }, [kind, mode, sinks]);
-
-    const schedule = useCallback(
-        (next: WorkingDeck) => {
-            const shouldPersist =
-                next.cards.length > 0 ||
-                next.sideboard.length > 0 ||
-                identityRef.current !== null;
-            if (!shouldPersist) {
-                pendingRef.current = null;
-                clearTimer();
-                return;
-            }
-            pendingRef.current = next;
-            clearTimer();
-            timerRef.current = window.setTimeout(() => {
-                timerRef.current = null;
-                void flush();
-            }, SAVE_DEBOUNCE_MS);
-        },
-        [flush]
-    );
-
-    useEffect(() => {
-        return () => {
-            void flush();
-        };
-    }, [flush]);
-
-    const updateDeck = useCallback(
-        (updater: (deck: WorkingDeck) => WorkingDeck) => {
-            setDeck((current) => {
-                const updated = updater(current);
-                const next: WorkingDeck = {
-                    ...updated,
-                    colors: computeDeckColors(updated.cards, resolveShape),
-                };
-                schedule(next);
-                return next;
-            });
-        },
-        [schedule, resolveShape]
-    );
-
-    const handleSetName = useCallback(
-        (name: string) => {
-            updateDeck((d) => ({ ...d, name }));
-        },
-        [updateDeck]
     );
 
     // Pick the Featured Card (PRD #589, issue #599). Stores the Card ID as the
@@ -499,8 +448,8 @@ export default function DeckBuilder({
     );
 
     const handleDone = useCallback(async () => {
-        await flush();
-        onClose(identityRef.current);
+        const identity = await flush();
+        onClose(identity);
     }, [flush, onClose]);
 
     const toggleColor = useCallback(
@@ -520,8 +469,8 @@ export default function DeckBuilder({
     }, [setFilters]);
 
     const setColorMode = useCallback(
-        (mode: ColorMode) => {
-            setFilters((f) => ({ ...f, colorMode: mode }));
+        (colorMode: ColorMode) => {
+            setFilters((f) => ({ ...f, colorMode }));
         },
         [setFilters]
     );
@@ -539,8 +488,8 @@ export default function DeckBuilder({
     );
 
     const setTypeMode = useCallback(
-        (mode: MatchMode) => {
-            setFilters((f) => ({ ...f, typeMode: mode }));
+        (typeMode: MatchMode) => {
+            setFilters((f) => ({ ...f, typeMode }));
         },
         [setFilters]
     );
@@ -570,8 +519,8 @@ export default function DeckBuilder({
     );
 
     const setSetMode = useCallback(
-        (mode: MatchMode) => {
-            setFilters((f) => ({ ...f, setMode: mode }));
+        (setMode: MatchMode) => {
+            setFilters((f) => ({ ...f, setMode }));
         },
         [setFilters]
     );
@@ -645,42 +594,14 @@ export default function DeckBuilder({
 
     // Per-zone card zoom (MTGO-style). Each zone's current density is its floor;
     // the default sits slightly above so cards start a touch larger.
+    // The Maindeck/Sideboard zoom zones ("main"/"side") live inside the shell's
+    // `DeckZonesSurface` — one slider per zone, same localStorage keys.
     const resultsZoom = useCardZoom({
         zone: "results",
         min: 0.75,
         max: 1.8,
         initial: 0.95,
     });
-    // The Maindeck/Sideboard zoom zones ("main"/"side") live inside
-    // `DeckZonesSurface` now — one sider per zone, same localStorage keys.
-
-    const sensors = useDeckDragSensors();
-
-    const handleDragEnd = useCallback(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (event: any) => {
-            if (event.canceled) return;
-            const action = resolveDeckZoneDragAction(
-                event.operation?.source?.data as CardDragData | undefined,
-                event.operation?.target?.id as string | undefined
-            );
-            if (!action) return;
-            applyDeckZoneDragAction(action, {
-                onAddToMaindeck: handleAdd,
-                onAddToSideboard: handleAddSideboard,
-                onMoveToSideboard: handleMoveToSideboard,
-                onMoveToMaindeck: handleMoveToMaindeck,
-                onPin: handlePin,
-            });
-        },
-        [
-            handleAdd,
-            handleAddSideboard,
-            handleMoveToSideboard,
-            handleMoveToMaindeck,
-            handlePin,
-        ]
-    );
 
     // The Column Layout engine's catalogue lookup. A Tabletop deck's
     // catalogue-only cards (ADR 0080) resolve through the shape resolver into a
@@ -696,261 +617,212 @@ export default function DeckBuilder({
     }, [resolveShape, deck.cards, deck.sideboard]);
 
     return (
-        <div
-            // The shell (`app-shell.tsx`) owns the hard `h-dvh` bound; this
-            // route claims the REMAINING height (`flex-1 min-h-0`) rather
-            // than a whole extra viewport (issue #2056 defect 3) — `h-dvh`
-            // here, stacked under the shell's header band, made the document
-            // 129px taller than the viewport and pushed the Save bar
-            // off-screen.
-            className="flex flex-1 min-h-0 flex-col bg-surface-base text-text"
-            style={{ "--card-base": CARD_BASE } as React.CSSProperties}
-        >
-            <DragDropProvider
-                manager={manager}
-                sensors={sensors}
-                onDragEnd={handleDragEnd}
-            >
-                <div className="flex flex-col gap-3 short-viewport:gap-1 border-b border-border-subtle/30 bg-surface/60 px-4 py-3 short-viewport:py-1 md:px-6">
-                    <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
-                        <div className="flex items-center gap-3">
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => void handleDone()}
-                            >
-                                ← Back
-                            </Button>
-                            <h1 className="text-lg short-viewport:text-sm font-semibold font-beleren tracking-wide text-parchment">
-                                {isPreset
-                                    ? mode === "create"
-                                        ? "New Preset"
-                                        : "Edit Preset"
-                                    : initialDeck
-                                      ? "Edit Deck"
-                                      : "New Deck"}
-                            </h1>
-                            {isPreset && initialIdentity && (
-                                <span
-                                    className="rounded-sm border border-border-subtle/40 bg-surface/60 px-2 py-1 font-mono text-xs text-text-muted"
-                                    title="Slug is read-only and never changes on rename"
-                                >
-                                    slug: {initialIdentity}
-                                </span>
-                            )}
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setImportOpen(true)}
-                            >
-                                Import
-                            </Button>
-                            <DeckExportButton
-                                deck={{
-                                    cards: deck.cards,
-                                    sideboard: deck.sideboard,
-                                }}
-                            />
-                            <FormatSelect
-                                value={deck.format}
-                                readOnly={formatReadOnly || cubeActive}
-                                lockedReason={
-                                    cubeActive && !formatReadOnly
-                                        ? "Format is forced to Freeform while a cube is selected"
-                                        : undefined
-                                }
-                                onChange={handleSetFormat}
-                            />
-                            <CubeFilter
-                                value={filters.cube}
-                                onChange={handleSetCube}
-                                disabled={cubeDisabled}
-                            />
-                            <DeckBanlistPanel format={deck.format} />
-                        </div>
-                        <SearchBar value={rawText} onChange={setText} />
-                    </div>
-                    <div className="flex flex-wrap items-center gap-4">
-                        <ColorFilter
-                            selectedColors={filters.colors}
-                            includeColorless={filters.includeColorless}
-                            mode={filters.colorMode}
-                            onToggleColor={toggleColor}
-                            onToggleColorless={toggleColorless}
-                            onChangeMode={setColorMode}
-                        />
-                        <TypeFilter
-                            selected={filters.types}
-                            onToggle={toggleType}
-                            mode={filters.typeMode}
-                            onChangeMode={setTypeMode}
-                        />
-                        <SetFilter
-                            selected={filters.sets}
-                            onToggle={toggleSet}
-                            mode={filters.setMode}
-                            onChangeMode={setSetMode}
-                        />
-                        <ManaValueFilter
-                            selected={filters.manaValues}
-                            onToggle={toggleManaValue}
-                        />
-                        <SortSelect
-                            value={filters.sort}
-                            onChange={setSort}
-                            direction={filters.sortDirection}
-                            onDirectionChange={setSortDirection}
-                        />
-                        {deck.format !== "manual" && fullCatalogue?.rows && (
-                            <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-                                <input
-                                    type="checkbox"
-                                    checked={filters.hideUnavailable}
-                                    onChange={toggleHideUnavailable}
-                                    className="size-4 accent-accent"
-                                />
-                                <span className="text-text-muted">
-                                    Hide unavailable
-                                </span>
-                            </label>
-                        )}
-                        {deck.format === "manual" && fullCatalogue?.rows && (
-                            <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-                                <input
-                                    type="checkbox"
-                                    checked={filters.showTokens}
-                                    onChange={toggleShowTokens}
-                                    className="size-4 accent-accent"
-                                />
-                                <span className="text-text-muted">Tokens</span>
-                            </label>
-                        )}
-                        <div className="ml-auto flex items-center gap-2 text-xs text-text-muted">
-                            <span className="tracking-wide">Results</span>
-                            <CardZoomSlider
-                                value={resultsZoom.value}
-                                min={resultsZoom.min}
-                                max={resultsZoom.max}
-                                onChange={resultsZoom.set}
-                                label="Results card size"
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                <div className="grid flex-1 grid-rows-[1fr_1fr] overflow-hidden">
-                    <div
-                        className="overflow-y-auto border-b border-border-subtle/30"
-                        style={zoomVars(resultsZoom.value)}
+        <DeckBuilderShell
+            title={
+                isPreset
+                    ? mode === "create"
+                        ? "New Preset"
+                        : "Edit Preset"
+                    : initialDeck
+                      ? "Edit Deck"
+                      : "New Deck"
+            }
+            onDone={() => void handleDone()}
+            manager={manager}
+            headerActions={
+                <>
+                    {isPreset && initialIdentity && (
+                        <span
+                            className="rounded-sm border border-border-subtle/40 bg-surface/60 px-2 py-1 font-mono text-xs text-text-muted"
+                            title="Slug is read-only and never changes on rename"
+                        >
+                            slug: {initialIdentity}
+                        </span>
+                    )}
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setImportOpen(true)}
                     >
-                        <ResultsGrid
-                            entries={entries}
-                            idle={idle}
-                            activeSets={filters.sets}
-                            enforceAvailability={deck.format !== "manual"}
-                            onAdd={handleAdd}
-                        />
-                    </div>
-                    <div className="flex min-h-0 divide-x divide-border-subtle/30 overflow-hidden">
-                        <DeckZonesSurface
-                            mainCards={deck.cards}
-                            sideCards={deck.sideboard}
-                            layout={layout}
-                            lookup={cardLookup}
-                            cardBase={CARD_BASE}
-                            splitZone="deckbuilder"
-                            splitDefault={3 / 4}
-                            mainZoomZone="main"
-                            sideZoomZone="side"
-                            zoomInitial={1.25}
-                            mainEmptyMessage="Click or drag cards here to add them."
-                            sideEmptyMessage="Drag cards here to keep them aside (0–15)."
-                            sideCountSuffix={`/${SIDEBOARD_LIMIT}`}
-                            sideWarning={
-                                deck.sideboard.length > SIDEBOARD_LIMIT
-                                    ? "over limit"
-                                    : null
-                            }
-                            onMainCardClick={(card) =>
-                                handleRemove(card.cardId)
-                            }
-                            onSideCardClick={(card) =>
-                                handleRemoveSideboard(card.cardId)
-                            }
-                            mainCardTitle={(card) =>
-                                `Remove ${card.cardName} (drag to move zone)`
-                            }
-                            sideCardTitle={(card) =>
-                                `Remove ${card.cardName} (drag to move zone)`
-                            }
-                            featuredCardId={effectiveFeaturedCardId}
-                            onSetFeatured={handleSetFeatured}
-                        />
-                    </div>
-                </div>
-
-                <DragOverlay dropAnimation={null}>
-                    {(source) => {
-                        const d = source.data as CardDragData;
-                        return (
-                            <div
-                                className="aspect-5/7"
-                                style={{
-                                    width: `calc(${CARD_BASE} * 1.1)`,
-                                }}
-                            >
-                                <CardImage card={{ id: d.cardId }} />
-                            </div>
-                        );
-                    }}
-                </DragOverlay>
-            </DragDropProvider>
-
-            <DeckLegalityPanel
-                formatLabel={FORMAT_RULES[deck.format].label}
-                isLegal={legality.isLegal}
-                reasons={legality.reasons}
-            />
-
-            <SaveDeckBar
-                name={deck.name}
-                onChangeName={handleSetName}
-                onDone={() => void handleDone()}
-                onDelete={onDelete ? () => setConfirmDelete(true) : undefined}
-                cardCount={deck.cards.length}
-            />
-
-            <DeckImportDialog
-                open={importOpen}
-                onOpenChange={setImportOpen}
-                format={deck.format}
-                resolveCatalogueName={resolveCatalogueName}
-                onImport={handleImport}
-            />
-
-            <GameDialog
-                open={confirmDelete}
-                onOpenChange={setConfirmDelete}
-                title={`Delete "${deck.name}"?`}
-                subtitle="This action cannot be undone."
-            >
-                <div className="flex justify-end gap-2 mt-4">
-                    <ActionButton
-                        onClick={() => setConfirmDelete(false)}
-                        label="Cancel"
-                        tone="secondary"
-                    />
-                    <ActionButton
-                        onClick={() => {
-                            setConfirmDelete(false);
-                            void onDelete?.();
+                        Import
+                    </Button>
+                    <DeckExportButton
+                        deck={{
+                            cards: deck.cards,
+                            sideboard: deck.sideboard,
                         }}
-                        label="Delete"
-                        tone="destructive"
+                    />
+                    <FormatSelect
+                        value={deck.format}
+                        readOnly={formatReadOnly || cubeActive}
+                        lockedReason={
+                            cubeActive && !formatReadOnly
+                                ? "Format is forced to Freeform while a cube is selected"
+                                : undefined
+                        }
+                        onChange={handleSetFormat}
+                    />
+                    <CubeFilter
+                        value={filters.cube}
+                        onChange={handleSetCube}
+                        disabled={cubeDisabled}
+                    />
+                    <DeckBanlistPanel format={deck.format} />
+                    <SearchBar value={rawText} onChange={setText} />
+                </>
+            }
+            headerFilters={
+                <>
+                    <ColorFilter
+                        selectedColors={filters.colors}
+                        includeColorless={filters.includeColorless}
+                        mode={filters.colorMode}
+                        onToggleColor={toggleColor}
+                        onToggleColorless={toggleColorless}
+                        onChangeMode={setColorMode}
+                    />
+                    <TypeFilter
+                        selected={filters.types}
+                        onToggle={toggleType}
+                        mode={filters.typeMode}
+                        onChangeMode={setTypeMode}
+                    />
+                    <SetFilter
+                        selected={filters.sets}
+                        onToggle={toggleSet}
+                        mode={filters.setMode}
+                        onChangeMode={setSetMode}
+                    />
+                    <ManaValueFilter
+                        selected={filters.manaValues}
+                        onToggle={toggleManaValue}
+                    />
+                    <SortSelect
+                        value={filters.sort}
+                        onChange={setSort}
+                        direction={filters.sortDirection}
+                        onDirectionChange={setSortDirection}
+                    />
+                    {deck.format !== "manual" && fullCatalogue?.rows && (
+                        <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                            <input
+                                type="checkbox"
+                                checked={filters.hideUnavailable}
+                                onChange={toggleHideUnavailable}
+                                className="size-4 accent-accent"
+                            />
+                            <span className="text-text-muted">
+                                Hide unavailable
+                            </span>
+                        </label>
+                    )}
+                    {deck.format === "manual" && fullCatalogue?.rows && (
+                        <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                            <input
+                                type="checkbox"
+                                checked={filters.showTokens}
+                                onChange={toggleShowTokens}
+                                className="size-4 accent-accent"
+                            />
+                            <span className="text-text-muted">Tokens</span>
+                        </label>
+                    )}
+                    <div className="ml-auto flex items-center gap-2 text-xs text-text-muted">
+                        <span className="tracking-wide">Results</span>
+                        <CardZoomSlider
+                            value={resultsZoom.value}
+                            min={resultsZoom.min}
+                            max={resultsZoom.max}
+                            onChange={resultsZoom.set}
+                            label="Results card size"
+                        />
+                    </div>
+                </>
+            }
+            sourcePanel={
+                <div style={zoomVars(resultsZoom.value)}>
+                    <ResultsGrid
+                        entries={entries}
+                        idle={idle}
+                        activeSets={filters.sets}
+                        enforceAvailability={deck.format !== "manual"}
+                        onAdd={handleAdd}
                     />
                 </div>
-            </GameDialog>
-        </div>
+            }
+            mainCards={deck.cards}
+            sideCards={deck.sideboard}
+            layout={layout}
+            lookup={cardLookup}
+            view={VIEW}
+            zones={{
+                mainEmptyMessage: "Click or drag cards here to add them.",
+                sideEmptyMessage: "Drag cards here to keep them aside (0–15).",
+                sideCountSuffix: `/${SIDEBOARD_LIMIT}`,
+                sideWarning:
+                    deck.sideboard.length > SIDEBOARD_LIMIT
+                        ? "over limit"
+                        : null,
+            }}
+            actions={{
+                onAddToMaindeck: handleAdd,
+                onAddToSideboard: handleAddSideboard,
+                onMoveToSideboard: handleMoveToSideboard,
+                onMoveToMaindeck: handleMoveToMaindeck,
+                onPin: handlePin,
+                onMainCardClick: (card) => handleRemove(card.cardId),
+                onSideCardClick: (card) => handleRemoveSideboard(card.cardId),
+            }}
+            featured={{
+                cardId: effectiveFeaturedCardId,
+                onSet: handleSetFeatured,
+            }}
+            legality={{
+                formatLabel: FORMAT_RULES[deck.format].label,
+                isLegal: legality.isLegal,
+                reasons: legality.reasons,
+            }}
+            saveBar={{
+                name: deck.name,
+                cardCount: deck.cards.length,
+                onChangeName: setName,
+                onDelete: onDelete ? () => setConfirmDelete(true) : undefined,
+            }}
+            overlays={
+                <>
+                    <DeckImportDialog
+                        open={importOpen}
+                        onOpenChange={setImportOpen}
+                        format={deck.format}
+                        resolveCatalogueName={resolveCatalogueName}
+                        onImport={handleImport}
+                    />
+
+                    <GameDialog
+                        open={confirmDelete}
+                        onOpenChange={setConfirmDelete}
+                        title={`Delete "${deck.name}"?`}
+                        subtitle="This action cannot be undone."
+                    >
+                        <div className="flex justify-end gap-2 mt-4">
+                            <ActionButton
+                                onClick={() => setConfirmDelete(false)}
+                                label="Cancel"
+                                tone="secondary"
+                            />
+                            <ActionButton
+                                onClick={() => {
+                                    setConfirmDelete(false);
+                                    void onDelete?.();
+                                }}
+                                label="Delete"
+                                tone="destructive"
+                            />
+                        </div>
+                    </GameDialog>
+                </>
+            }
+        />
     );
 }
