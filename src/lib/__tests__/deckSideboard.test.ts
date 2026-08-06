@@ -77,3 +77,56 @@ describe("deck sideboard moves (issue #391)", () => {
         expect(split.sideboard.length > SIDEBOARD_LIMIT).toBe(true);
     });
 });
+
+// Issue #1626 / PR #2318 review NB-B. The `pinKey`-keyed lookup in
+// `removeCopy` is what makes a Pin follow its physical card across a zone
+// move — the whole point of retiring the positional ordinal that B1 was
+// about. Breaking that lookup left this file green (only the mounted
+// deckbuilder test caught it), so the unit-level guard was missing, and the
+// documented stale-handle fallback was asserted nowhere at all.
+describe("per-copy moves keyed by pinKey (issue #1626)", () => {
+    const keyed = (
+        id: string,
+        pinKey: string
+    ): DeckCard & {
+        pinKey: string;
+    } => ({ cardId: id, cardName: id, pinKey });
+
+    it("moves the copy NAMED by pinKey, not the first one matching the cardId", () => {
+        const split: SideboardSplit = {
+            cards: [keyed("bolt", "0"), keyed("bolt", "2")],
+            sideboard: [],
+        };
+        const next = moveToSideboard(split, "bolt", "2");
+        expect(next.sideboard).toEqual([keyed("bolt", "2")]);
+        expect(next.cards).toEqual([keyed("bolt", "0")]);
+    });
+
+    it("carries the pinKey ACROSS the move (the entry itself moves, not a copy of it)", () => {
+        const split: SideboardSplit = {
+            cards: [],
+            sideboard: [keyed("bolt", "7")],
+        };
+        const next = moveToMaindeck(split, "bolt", "7");
+        expect(next.cards[0].pinKey).toBe("7");
+    });
+
+    it("falls back to the first copy when the pinKey names none (a stale UI handle stays a working gesture)", () => {
+        const split: SideboardSplit = {
+            cards: [keyed("bolt", "0"), keyed("bolt", "2")],
+            sideboard: [],
+        };
+        const next = moveToSideboard(split, "bolt", "99");
+        expect(next.sideboard).toEqual([keyed("bolt", "0")]);
+    });
+
+    it("ignores pinKey entirely for Constructed entries, which carry none", () => {
+        const split: SideboardSplit = {
+            cards: [card("bolt"), card("bolt")],
+            sideboard: [],
+        };
+        const next = moveToSideboard(split, "bolt", "0");
+        expect(next.sideboard).toEqual([card("bolt")]);
+        expect(next.cards).toEqual([card("bolt")]);
+    });
+});

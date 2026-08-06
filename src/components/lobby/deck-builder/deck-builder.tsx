@@ -554,8 +554,8 @@ export default function DeckBuilder({
     // A Maindeck column drag records a Card Pin on the Maindeck's Layout
     // (ADR 0075 §3), which now persists with the deck (issue #1626). Pins are
     // keyed by Card ID here — four Lightning Bolts pin together, which is
-    // always what a Constructed builder wants (ADR 0075 §4) — so the surface
-    // declares no `pinKeyOf` and the drag's `pinKey` IS the card id.
+    // always what a Constructed builder wants (ADR 0075 §4) — so no entry
+    // carries a `pinKey` and the surface falls back to the card id.
     //
     // Withheld for a PRESET for the same reason add/rename/delete are (issue
     // #1626, PR #2318 review NB1): `presetDecks` stores no `layout`, so

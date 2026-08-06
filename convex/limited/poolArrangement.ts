@@ -285,8 +285,9 @@ export function findMovablePoolIndex(
  *  individually placeable. Its predecessor `pinsByCardId` collapsed them —
  *  the deckbuilder rendered `cardId`-keyed `DeckCard`s and had lost the
  *  per-copy identity — which silently made the second copy's Pin unreachable
- *  and let the higher `poolIndex` win. The surface now carries a per-copy pin
- *  key instead (`DeckZoneSurface`'s `pinKeyOf`), so no collapse is needed.
+ *  and let the higher `poolIndex` win. Each entry now carries its own pin key
+ *  (`ZoneCard.pinKey`, minted once at seed time by `poolCopyPinKey` — the same
+ *  authority this map records under), so no collapse is needed.
  *
  *  A card with no Pin at all is absent from the map (auto column). */
 export function pinsByPoolIndex(

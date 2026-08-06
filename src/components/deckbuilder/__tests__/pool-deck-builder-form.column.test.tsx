@@ -15,6 +15,7 @@ interface ShellStubProps {
     actions: {
         onPin: (cardId: string, columnId: string, pinKey: string) => void;
         onMoveToMaindeck: (cardId: string) => void;
+        onMoveToSideboard: (cardId: string, pinKey?: string) => void;
     };
     mainCards: { cardId: string; pinKey?: string }[];
 }
@@ -152,6 +153,22 @@ vi.mock("../deck-builder-shell", () => {
                     type="button"
                 >
                     set-bolt-catch-all
+                </button>
+                <button
+                    onClick={() => {
+                        const copy = props.mainCards.filter(
+                            (c) =>
+                                c.cardId ===
+                                "d573ef03-4730-45aa-93dd-e45ac1dbaf4a"
+                        )[0];
+                        props.actions.onMoveToSideboard(
+                            "d573ef03-4730-45aa-93dd-e45ac1dbaf4a",
+                            copy?.pinKey
+                        );
+                    }}
+                    type="button"
+                >
+                    sideboard-bolt
                 </button>
             </div>
         ),
@@ -292,5 +309,49 @@ describe("PoolDeckBuilderForm — column persist wiring (issue #1575)", () => {
         );
         fireEvent.click(getByText("set-bolt-catch-all"));
         expect(setColumnMock).not.toHaveBeenCalled();
+    });
+});
+
+// Review NB-A. `pinKey` is WORKING-STATE identity, not deck data: `userDecks`'
+// card validator declares exactly `{ cardId, cardName }`, and Convex rejects
+// any argument a validator doesn't declare. The save sink therefore strips it
+// — but nothing asserted the strip, so deleting it left `tsc -b` clean and the
+// suite green while every real Limited save died at runtime with an
+// `ArgumentValidationError`. This is the same shape as review NB2 (an untested
+// sink call), reintroduced by the new field; the guard belongs on the sink, not
+// on the caller.
+describe("PoolDeckBuilderForm — the save sink strips the per-copy pinKey (review NB-A)", () => {
+    it("sends cards as exactly { cardId, cardName }, never the working-state pinKey", () => {
+        const { getByText } = render(
+            <PoolDeckBuilderForm
+                eventId={"event-1" as never}
+                seatIndex={0}
+                pool={POOL}
+                existingDeck={null}
+                eventType="draft"
+                poolArrangement={[]}
+            />
+        );
+
+        // A real edit, so the autosave has something pending — and a zone move
+        // is precisely the operation that carries a `pinKey` across.
+        fireEvent.click(getByText("sideboard-bolt"));
+        // Unmount flushes the debounced autosave through the real sink.
+        cleanup();
+
+        expect(createMock).toHaveBeenCalledTimes(1);
+        const payload = createMock.mock.calls[0][0] as {
+            cards: Record<string, unknown>[];
+            sideboard: Record<string, unknown>[];
+        };
+        // `toEqual` on the whole entry is the assertion that matters: an extra
+        // key is exactly what Convex rejects, so a subset check would pass on
+        // the very payload that fails at runtime.
+        for (const entry of [...payload.cards, ...payload.sideboard]) {
+            expect(Object.keys(entry).sort()).toEqual(["cardId", "cardName"]);
+        }
+        expect(payload.cards.length + payload.sideboard.length).toBe(
+            POOL.length
+        );
     });
 });
