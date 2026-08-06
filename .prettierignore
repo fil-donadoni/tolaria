@@ -32,3 +32,9 @@ skills-lock.json
 
 # Worklist importer staging output (ADR 0041) — regenerable, gitignored
 data/worklists/*.out
+
+# Per-machine Claude Code permissions. Ignored via the user's GLOBAL git ignore
+# (`~/.config/git/ignore`), which prettier cannot see at all — it reads only the
+# repo's root `.gitignore`. CI checks out a tree where this file doesn't exist,
+# so the drift is invisible there and red on every local `check:pr`.
+.claude/settings.local.json

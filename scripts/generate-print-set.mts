@@ -124,7 +124,11 @@ interface Row {
 /** camelCase export identifier from a card name, suffixed with the set code.
  *  "Air Elemental" -> airElemental4ed,
  *  "Circle of Protection: Black" -> circleOfProtectionBlack4ed. */
-function exportName(name: string, suffixIndex: number, setCode: string): string {
+function exportName(
+    name: string,
+    suffixIndex: number,
+    setCode: string
+): string {
     const cleaned = name
         .replace(/[':,.()/]/g, " ")
         .replace(/-/g, " ")

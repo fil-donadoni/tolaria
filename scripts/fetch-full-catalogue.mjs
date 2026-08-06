@@ -199,7 +199,8 @@ function cardKey(card) {
 /** True when this bulk row is a paper printing of a real, deckable card. */
 function isPaperPrinting(card) {
     if (card.lang && card.lang !== "en") return false;
-    if (Array.isArray(card.games) && !card.games.includes("paper")) return false;
+    if (Array.isArray(card.games) && !card.games.includes("paper"))
+        return false;
     const layout = (card.layout ?? "").toLowerCase();
     if (layout !== "token" && EXCLUDED_LAYOUTS.has(layout)) return false;
     return true;
