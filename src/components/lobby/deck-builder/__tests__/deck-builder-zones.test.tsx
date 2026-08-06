@@ -17,6 +17,11 @@ import {
     dragOnto,
     installDndJsdomShims,
 } from "~/components/deckbuilder/__tests__/dragHarness";
+import {
+    cardsIn,
+    columnLabelsIn,
+    paneOf,
+} from "~/components/deckbuilder/__tests__/zoneQueries";
 
 vi.mock("@tanstack/react-router", () => ({
     useNavigate: () => vi.fn(),
@@ -84,32 +89,6 @@ function renderBuilder(
             onClose={() => {}}
             manager={manager}
         />
-    );
-}
-
-/** The pane element of one zone — its header span's grandparent. */
-function paneOf(container: HTMLElement, title: RegExp): HTMLElement {
-    const span = [...container.querySelectorAll("span")].find((el) =>
-        title.test(el.textContent ?? "")
-    )!;
-    return span.parentElement!.parentElement!;
-}
-
-/** Column labels of one zone, in render order, read off the real DOM. */
-function columnLabelsIn(pane: HTMLElement): string[] {
-    return [...pane.querySelectorAll("[data-column]")].map(
-        (el) => el.querySelector("span")!.textContent!
-    );
-}
-
-/** Card names in the Maindeck column whose Column id is `columnId`. */
-function cardsIn(container: HTMLElement, columnId: string): string[] {
-    const column = container.querySelector(`[data-column="${columnId}"]`)!;
-    return [...column.querySelectorAll("[role=button][title]")].map((el) =>
-        el
-            .getAttribute("title")!
-            .replace(/^Remove /, "")
-            .replace(/ \(.*$/, "")
     );
 }
 
@@ -381,6 +360,92 @@ describe("DeckBuilder — per-zone Grouping/Ordering controls (issue #1624)", ()
             "Lightning Bolt",
             "Plains",
             "Serra Angel",
+        ]);
+    });
+
+    // The SIDEBOARD's own controls, driven for real (issue #1624 review
+    // finding F2). Every other assertion in this block drives the Maindeck
+    // and checks the Sideboard is "unchanged" — which a fully INERT
+    // Sideboard control satisfies vacuously. These two are the positive
+    // half: the Sideboard's own `<select>`s must actually re-column and
+    // re-sequence the Sideboard.
+    it("changing the SIDEBOARD's Grouping to Colour re-columns the Sideboard, leaving the Maindeck untouched", () => {
+        const { container, getByLabelText } = renderBuilder(
+            deck([BOLT], [SERRA, PLAINS])
+        );
+        // Pane model, so only the zone's NON-EMPTY columns render — under
+        // `mv` that is Lands (Plains) + MV 5 (Serra).
+        expect(columnLabelsIn(paneOf(container, /^Sideboard /))).toEqual([
+            "Lands",
+            "MV 5",
+        ]);
+
+        fireEvent.change(getByLabelText("Sideboard grouping"), {
+            target: { value: "color" },
+        });
+
+        expect(columnLabelsIn(paneOf(container, /^Sideboard /))).toEqual([
+            "Lands",
+            "White",
+        ]);
+        expect(cardsIn(paneOf(container, /^Sideboard /), "color:W")).toEqual([
+            "Serra Angel",
+        ]);
+
+        // The Maindeck never asked for this change.
+        expect(
+            (getByLabelText("Maindeck grouping") as HTMLSelectElement).value
+        ).toBe("mv");
+        expect(cardsIn(paneOf(container, /^Maindeck /), "mv:1")).toEqual([
+            "Lightning Bolt",
+        ]);
+    });
+
+    it("changing the SIDEBOARD's Ordering resequences the Sideboard's own column, leaving the Maindeck's order untouched", () => {
+        const { container, getByLabelText } = renderBuilder(
+            deck([SERRA, PLAINS], [BOLT, SERRA, PLAINS])
+        );
+
+        // Grouping `none` collapses the Sideboard into its single "All"
+        // column, so any resequencing observed there is the Ordering axis
+        // and nothing else.
+        fireEvent.change(getByLabelText("Sideboard grouping"), {
+            target: { value: "none" },
+        });
+        expect(cardsIn(paneOf(container, /^Sideboard /), "all")).toEqual([
+            "Lightning Bolt",
+            "Plains",
+            "Serra Angel",
+        ]);
+
+        fireEvent.change(getByLabelText("Sideboard ordering"), {
+            target: { value: "mv" },
+        });
+
+        expect(columnLabelsIn(paneOf(container, /^Sideboard /))).toEqual([
+            "All",
+        ]);
+        expect(cardsIn(paneOf(container, /^Sideboard /), "all")).toEqual([
+            "Plains",
+            "Lightning Bolt",
+            "Serra Angel",
+        ]);
+
+        // The Maindeck kept its own Grouping AND its own Ordering: still the
+        // Mana-Value ladder, still by name inside each column.
+        expect(
+            (getByLabelText("Maindeck ordering") as HTMLSelectElement).value
+        ).toBe("name");
+        expect(columnLabelsIn(paneOf(container, /^Maindeck /))).toEqual([
+            "Lands",
+            "MV 0",
+            "MV 1",
+            "MV 2",
+            "MV 3",
+            "MV 4",
+            "MV 5",
+            "MV 6",
+            "MV 7+",
         ]);
     });
 

@@ -4,18 +4,31 @@
 // Sealed path (no Arrangement — the pre-#1247 all-Sideboard default) and the
 // Draft path (an Arrangement present, even empty — the continuous
 // main-by-default seed via `splitPoolByArrangement`).
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeAll } from "vitest";
 import { render, cleanup, fireEvent, within } from "@testing-library/react";
+import { DragDropManager } from "@dnd-kit/dom";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { dragOnto, installDndJsdomShims } from "./dragHarness";
+import { cardsIn, columnLabelsIn, paneOf } from "./zoneQueries";
 import PoolDeckBuilderForm from "../pool-deck-builder-form";
 
 const navigate = vi.fn();
 const createMock = vi.fn().mockResolvedValue("deck-1");
 const useMutationMock = vi.fn();
+// The Pool Arrangement sink, mocked at the HOOK rather than at `useMutation`
+// so it stays distinguishable from the deck-row mutations above (every
+// `useMutation` call in this file returns the same stub).
+const setColumnMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 
 vi.mock("@tanstack/react-router", () => ({
     useNavigate: () => navigate,
+}));
+
+vi.mock("~/hooks/useLimitedEvent", () => ({
+    useLimitedEventMutations: () => ({
+        setPoolArrangementEntry: setColumnMock,
+    }),
 }));
 
 vi.mock("convex/react", () => ({
@@ -30,6 +43,12 @@ vi.mock("@convex/_generated/api", () => {
 afterEach(() => {
     cleanup();
     vi.clearAllMocks();
+    // Grouping/Ordering are per-USER preferences (issue #1620's
+    // `deckViewPrefs` seam), so a test that drives a control leaks its choice
+    // into every LATER mount in this file — which is exactly what a fresh
+    // mount is supposed to pick up. Cleared file-wide so no test's seed
+    // depends on which tests ran before it.
+    window.localStorage.clear();
 });
 
 // Real registry ids — the shared surface groups via the card registry.
@@ -214,6 +233,186 @@ describe("PoolDeckBuilderForm — per-zone Grouping/Ordering controls (issue #16
             (getByLabelText("Pool (Sideboard) grouping") as HTMLSelectElement)
                 .value
         ).toBe("mv");
+    });
+
+    // The Pool Sideboard's OWN controls, driven for real (issue #1624 review
+    // finding F2). "The Maindeck changed and the Sideboard did not" is
+    // satisfied vacuously by a Sideboard control that does nothing at all —
+    // these two are the positive half. A Sealed seat starts with every Pool
+    // card in the Sideboard, which is what gives that zone cards to column.
+    it("changing the SIDEBOARD's Grouping to Colour re-columns the Pool (Sideboard), leaving the Maindeck untouched", () => {
+        setup();
+        const { container, getByLabelText } = render(
+            <PoolDeckBuilderForm
+                eventId={"event-1" as never}
+                seatIndex={0}
+                pool={POOL}
+                existingDeck={null}
+                eventType="sealed"
+                poolArrangement={[]}
+            />
+        );
+        // Pane drop model, so only NON-EMPTY columns render: under `mv`
+        // that is Lands (Plains) + MV 1 (Bolt).
+        expect(
+            columnLabelsIn(paneOf(container, /^Pool \(Sideboard\) /))
+        ).toEqual(["Lands", "MV 1"]);
+
+        fireEvent.change(getByLabelText("Pool (Sideboard) grouping"), {
+            target: { value: "color" },
+        });
+
+        expect(
+            columnLabelsIn(paneOf(container, /^Pool \(Sideboard\) /))
+        ).toEqual(["Lands", "Red"]);
+        expect(
+            cardsIn(paneOf(container, /^Pool \(Sideboard\) /), "color:R")
+        ).toEqual(["Lightning Bolt"]);
+
+        // The Maindeck never asked for this change — still the Mana-Value
+        // ladder, still its own Grouping.
+        expect(
+            (getByLabelText("Maindeck grouping") as HTMLSelectElement).value
+        ).toBe("mv");
+        expect(columnLabelsIn(paneOf(container, /^Maindeck /))).toEqual([
+            "Lands",
+            "MV 0",
+            "MV 1",
+            "MV 2",
+            "MV 3",
+            "MV 4",
+            "MV 5",
+            "MV 6",
+            "MV 7+",
+        ]);
+    });
+
+    it("changing the SIDEBOARD's Ordering resequences the Pool (Sideboard)'s own column", () => {
+        setup();
+        const { container, getByLabelText } = render(
+            <PoolDeckBuilderForm
+                eventId={"event-1" as never}
+                seatIndex={0}
+                pool={POOL}
+                existingDeck={null}
+                eventType="sealed"
+                poolArrangement={[]}
+            />
+        );
+
+        // Grouping `none` collapses the zone into its single "All" column, so
+        // any resequencing observed there is the Ordering axis and nothing
+        // else.
+        fireEvent.change(getByLabelText("Pool (Sideboard) grouping"), {
+            target: { value: "none" },
+        });
+        expect(
+            cardsIn(paneOf(container, /^Pool \(Sideboard\) /), "all")
+        ).toEqual(["Lightning Bolt", "Plains"]);
+
+        fireEvent.change(getByLabelText("Pool (Sideboard) ordering"), {
+            target: { value: "mv" },
+        });
+
+        // Same single column, same two cards — only the SEQUENCE changed
+        // (Plains' Mana Value 0 sorts before Bolt's 1).
+        expect(
+            columnLabelsIn(paneOf(container, /^Pool \(Sideboard\) /))
+        ).toEqual(["All"]);
+        expect(
+            cardsIn(paneOf(container, /^Pool \(Sideboard\) /), "all")
+        ).toEqual(["Plains", "Lightning Bolt"]);
+
+        // The Maindeck kept its own Ordering.
+        expect(
+            (getByLabelText("Maindeck ordering") as HTMLSelectElement).value
+        ).toBe("name");
+    });
+});
+
+// Issue #1624 review finding F1. The Maindeck is `dropModel: "columns"`, so
+// every Column the Grouping control generates is a live drop target that
+// highlights and accepts a drag. Before the fix, the resulting Column id was
+// squeezed back through the `mv`-only legacy shim at the call site, which
+// returned `undefined` for a `color:`/`type:`/`custom:` id — so the mutation
+// was never called and the drop did nothing at all. This drives the whole
+// path: the REAL Grouping `<select>`, the REAL surface's droppable registry,
+// a REAL drag, and the REAL `handlePin` → mutation seam.
+describe("PoolDeckBuilderForm — a column drag persists under EVERY Grouping (issue #1624)", () => {
+    beforeAll(installDndJsdomShims);
+
+    /** A Draft seat with an untouched Arrangement: every Pool card is already
+     *  in the Maindeck, and the Sideboard is empty (so a card's tile is
+     *  unambiguous by title). */
+    function renderDraftSeat() {
+        setup();
+        const manager = new DragDropManager();
+        const rendered = render(
+            <PoolDeckBuilderForm
+                eventId={"event-1" as never}
+                seatIndex={0}
+                pool={POOL}
+                existingDeck={null}
+                eventType="draft"
+                poolArrangement={[]}
+                manager={manager}
+            />
+        );
+        return { manager, ...rendered };
+    }
+
+    it("under the default Mana-Value Grouping (the pre-#1624 path, unchanged)", async () => {
+        const { manager, container, getByTitle } = renderDraftSeat();
+        await dragOnto(
+            manager,
+            getByTitle(/Remove Lightning Bolt/),
+            container.querySelector('[data-column="mv:6"]')!
+        );
+        expect(setColumnMock).toHaveBeenCalledWith({
+            eventId: "event-1",
+            poolIndex: 0,
+            column: "mv:6",
+        });
+    });
+
+    it("under Grouping Colour — the drop target the control newly made reachable", async () => {
+        const { manager, container, getByTitle, getByLabelText } =
+            renderDraftSeat();
+        fireEvent.change(getByLabelText("Maindeck grouping"), {
+            target: { value: "color" },
+        });
+        await dragOnto(
+            manager,
+            getByTitle(/Remove Lightning Bolt/),
+            container.querySelector('[data-column="color:W"]')!
+        );
+        expect(setColumnMock).toHaveBeenCalledWith({
+            eventId: "event-1",
+            poolIndex: 0,
+            column: "color:W",
+        });
+    });
+
+    // Grouping `type` generates one Column per type PRESENT plus Lands, so
+    // this Pool's ladder is Lands + Instant — parking Bolt in the Lands
+    // Column is the cross-column move available here (column placement is
+    // player organisation, not a rules statement — issue #1573).
+    it("under Grouping Type", async () => {
+        const { manager, container, getByTitle, getByLabelText } =
+            renderDraftSeat();
+        fireEvent.change(getByLabelText("Maindeck grouping"), {
+            target: { value: "type" },
+        });
+        await dragOnto(
+            manager,
+            getByTitle(/Remove Lightning Bolt/),
+            container.querySelector('[data-column="type:lands"]')!
+        );
+        expect(setColumnMock).toHaveBeenCalledWith({
+            eventId: "event-1",
+            poolIndex: 0,
+            column: "type:lands",
+        });
     });
 });
 
