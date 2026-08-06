@@ -125,3 +125,41 @@ describe.runIf(RUN)("self-play harness (runner)", () => {
         expect(report.decisive).toBeGreaterThan(0);
     }, 1_800_000);
 });
+
+// issue #2284 — headless self-play inherits the bot's liveness invariant. A
+// window nobody drove used to disappear into a bare `"stall"` / `"resolution-
+// error"` reason string, which says a game died but never WHICH Expected Input
+// had no handler. The guard now names it.
+describe("self-play names the undriven window (issue #2284)", () => {
+    it("reports the Expected Input kind alongside a stall", async () => {
+        const { makePlayer, makeState } =
+            await import("@convex/cards/__tests__/setup");
+        const { refreshExpectedInput } =
+            await import("@convex/gre/expectedInput");
+        const state = makeState({
+            players: [makePlayer("A"), makePlayer("B")],
+            activePlayerId: "A",
+            priorityPlayerId: "A",
+        });
+        // A parked announcement makes `decidingPlayer` return null with no
+        // pending choice to resolve — the engine never settled to a stable
+        // point, which is exactly the shape the harness calls a stall.
+        state.pendingCast = {
+            playerId: "A",
+            cardInstanceId: "nope",
+            paid: {},
+            remaining: { generic: 1 },
+        } as never;
+        refreshExpectedInput(state);
+
+        const result = runHeadlessGame(
+            state,
+            { id: "A", budget: { iterations: 2 } },
+            { id: "B", budget: { iterations: 2 } },
+            7
+        );
+        expect(result.reason).toBe("stall");
+        // The load-bearing field: the window that was not handled.
+        expect(result.unhandledExpectedInput).toBe("priority");
+    });
+});

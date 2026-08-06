@@ -29,6 +29,8 @@
 // for a searchable choice, `useVsAiDriver` falls back to it rather than stall.
 
 import type { PendingChoiceKind } from "@convex/gre";
+import type { ExpectedInputKind } from "@convex/gre/expectedInput";
+import type { OwedInput } from "./owed-input";
 import type { OwedPayment, ParkKind } from "@convex/gre/owedPayment";
 import type { OwedPaymentSubmission } from "@convex/gre/paymentPicks";
 import type {
@@ -89,13 +91,16 @@ export type BotView = {
      *  — set only when the active bottoming choice belongs to the bot, else
      *  undefined (some other player is bottoming, or nobody is). */
     mulliganBottomCount?: number;
-    /** CR 508.1c/1g — the bot owes the parked per-attacker MANA attack tax
-     *  (Propaganda / Collective Restraint): it declared an attack against a
-     *  taxing opponent and must pay to legalize it. */
-    attackManaTaxOwed?: boolean;
-    /** Whether the bot can plausibly cover the parked attack tax from its pool
-     *  plus untapped mana sources. Drives pay-vs-cancel: pay when affordable,
-     *  else cancel the declaration (a taxed attack it can't fund is dropped). */
+    /** CR 508.1c/1g — whether the bot can plausibly cover the parked
+     *  per-attacker MANA attack tax (Propaganda / Collective Restraint) from its
+     *  pool plus untapped mana sources. Set ONLY when that tax is parked on the
+     *  bot, so it doubles as the marker that the window exists at all — there is
+     *  deliberately no separate `…Owed` flag, because owed-NESS is the engine's
+     *  answer on `owedInput` (ADR 0047 / issue #2284) and a second view field
+     *  saying the same thing is where a parallel derivation grows back.
+     *
+     *  Drives pay-vs-cancel: pay when affordable, else cancel the declaration
+     *  (a taxed attack it can't fund is dropped). */
     attackManaTaxAffordable?: boolean;
     /** True once the game has ended — the bot must not act. */
     gameOver?: boolean;
@@ -145,6 +150,25 @@ export type BotView = {
      *  here (`pendingTargetOrigin` is the compile-time-exhaustive classifier).
      *  Undefined unless the bot owes a raised selection. */
     owedTarget?: OwedTarget;
+    /** ADR 0047 / issue #2284 — THE authority on whether the game is waiting on
+     *  the bot, and for what. Populated by `buildBotView` by CALLING the
+     *  engine's `computeOwedPlayerIds` + `computeExpectedInput` on the bot's own
+     *  reconstructed state (`owedInputFor`), never by re-deriving owed-ness from
+     *  the pending* fields. Undefined means the game is not waiting on this seat
+     *  — and that, not a walk over the individual waiting fields, is the ONLY
+     *  reason `decideBotAction` may answer `none`. */
+    owedInput?: OwedInput;
+    /** CR 508.1c/1g / 701.21a (issue #2284) — the parked attack-declaration
+     *  land-sacrifice tax awaiting the bot (`combat.pendingAttackSacrifice`),
+     *  with the minimal-legal victims already resolved through the engine's own
+     *  selection authority. This is the `sacrifice` Expected Input kind; before
+     *  #2284 the bot had no answer for it at all. Undefined when none is owed. */
+    attackSacrifice?: { cardInstanceIds: string[] };
+    /** CR 601.2h (issue #2284) — which announcement container the bot has
+     *  parked (`pendingCast` / `pendingActivation`), so the last escalation rung
+     *  can rewind it through the matching cancel mutation. Undefined when the
+     *  bot has no announcement in flight. */
+    parkedAnnouncement?: "cast" | "activation";
 };
 
 /** An engine-raised target selection the bot owes (issue #2283). Like
@@ -432,6 +456,56 @@ export type BotAction =
           targets: TargetSelection[];
           confirmTargets: boolean;
       }
+    | {
+          /** CR 508.1c/1g / 701.21a (issue #2284) — the parked
+           *  attack-declaration land-sacrifice tax: the victims the bot
+           *  sacrifices, resolved through the engine's own selection authority
+           *  (`completeSacrificeSelection`). One `selectSacrifice` call per id.
+           *  Before this existed the `sacrifice` Expected Input window had NO
+           *  bot answer at all — the bot passed into a gate rejection forever. */
+          kind: "select-sacrifice";
+          cardInstanceIds: string[];
+      }
+    | {
+          /** CR 608.2b / 601.2 (issue #2284) — the engine's own decline for a
+           *  target selection, through `cancelTarget`: a mandatory target
+           *  nobody chooses removes the ability from the stack, an "up to"
+           *  selection resolves with none, and an announced cast's selection
+           *  rewinds the announcement. An escalation rung, never a first
+           *  choice. */
+          kind: "cancel-target";
+      }
+    | {
+          /** CR 509.1 (issue #2284) — an empty blocker declaration through
+           *  `confirmBlockers`. Both the conservative default and the legal way
+           *  to abandon the window. */
+          kind: "confirm-no-blockers";
+      }
+    | {
+          /** CR 508.1 (issue #2284) — an empty attacker declaration through
+           *  `confirmAttackers`. The escalation form of `declare-attackers`,
+           *  which is otherwise a real search decision. */
+          kind: "confirm-no-attackers";
+      }
+    | {
+          /** CR 601.2h (issue #2284) — rewind a parked announcement whose costs
+           *  were never paid, through `cancelCast` / `cancelActivation`. The
+           *  last legal exit from a `priority` window the bot has jammed with
+           *  its own half-built cast. */
+          kind: "abort-announcement";
+          container: "cast" | "activation";
+      }
+    | {
+          /** THE value that was inexpressible before issue #2284: the game is
+           *  waiting on the bot (the engine's Expected Input names it) and the
+           *  bot has no answer for that window. It used to collapse to `none` —
+           *  indistinguishable from a correct idle, which is exactly why every
+           *  freeze was silent. The driver treats it as a defect: it asserts in
+           *  development, is recorded in the AI decision trace, and triggers the
+           *  watchdog IMMEDIATELY instead of burning the full interval. */
+          kind: "unanswered";
+          expectedKind: ExpectedInputKind;
+      }
     | { kind: "pass" }
     | { kind: "none" };
 
@@ -467,6 +541,15 @@ export type BotActionRealisation =
     | "cast-exile-cost"
     | "convoke-creatures"
     | "owed-payment"
+    /** issue #2284 — an escalation rung: a LEGAL decline/abort routed through
+     *  an existing mutation by `submitDeclineAction` (`src/lib/ai/decline.ts`),
+     *  whose switch is exhaustive over the decline sub-union. Joining the same
+     *  compile-time-exhaustive dispatch as every other realisation is the point:
+     *  a new escalation kind is a build error until the driver can realise it. */
+    | "decline"
+    /** issue #2284 — "the game is waiting on me and I have no answer". Not a
+     *  submission: the driver escalates immediately and records the defect. */
+    | "unanswered"
     | "none";
 
 export function botActionRealisation(
@@ -512,6 +595,19 @@ export function botActionRealisation(
         // answer it and the bot stalls mid-announcement without this branch.
         case "pay-owed-payment":
             return "owed-payment";
+        // issue #2284 — the escalation ladder's rungs. Each is a LEGAL engine
+        // path (CR 608.2b decline, CR 509.1/508.1 empty declaration, CR 601.2h
+        // rewind, CR 508.1g minimal victim pick) driven by a direct mutation,
+        // never a search: the ladder only runs because the search already had
+        // nothing to say.
+        case "select-sacrifice":
+        case "cancel-target":
+        case "confirm-no-blockers":
+        case "confirm-no-attackers":
+        case "abort-announcement":
+            return "decline";
+        case "unanswered":
+            return "unanswered";
         case "keep":
         case "mull":
         case "mulligan-bottom":
@@ -976,58 +1072,117 @@ export function chooseResolution(choice: OwedChoice): string[] {
     }
 }
 
-/** Decide the bot's action for the current window. Returns `none` when it is not
- *  the bot's turn to act. Deterministic and side-effect free. */
+/** Decide the bot's action for the current window. Deterministic and
+ *  side-effect free.
+ *
+ *  **Owed-ness is the ENGINE's answer, not this function's** (ADR 0047, issue
+ *  #2284). `view.owedInput` is `computeOwedPlayerIds` + `computeExpectedInput`
+ *  run on the bot's own reconstructed state; when it is undefined the game is
+ *  simply not waiting on the bot and the only correct answer is `none`. This
+ *  replaced a hand-rolled walk over the individual waiting fields — a mulligan
+ *  branch keyed on `mulliganDeclaringId === botId`, a choice branch, a target
+ *  branch, then a tail of combat and `priorityPlayerId === botId` guards — that
+ *  was a SECOND, independent derivation of the same question. The two could
+ *  disagree; when they did, the engine kept waiting and the bot kept idling, and
+ *  nothing could tell that apart from a correct idle.
+ *
+ *  What survives from the old walk is the per-window ANSWER policy, now reached
+ *  through a switch that is compile-time exhaustive over the Expected Input kind
+ *  union: a new waiting kind cannot be added to the engine without this failing
+ *  to build. And a window the bot cannot answer no longer collapses to `none` —
+ *  it returns `unanswered`, which the driver escalates. */
 export function decideBotAction(view: BotView): BotAction {
     if (view.gameOver) return NONE;
 
-    // Pre-game mulligan (CR 103.5, London mulligan).
-    if (view.phase === "MULLIGAN") {
-        // Bottoming: act only when the active bottoming choice is the bot's.
-        if (view.mulliganBottomCount !== undefined) {
-            return {
-                kind: "mulligan-bottom",
-                cardInstanceIds: chooseMulliganBottoms(
-                    view.mulliganHand ?? [],
-                    view.mulliganBottomCount
-                ),
-            };
-        }
-        if (view.mulliganBottoming) return NONE;
-        // Declaration: evaluate keep vs mull via the land-count heuristic.
-        if (view.mulliganDeclaringId === view.botId) {
-            return decideMulligan(view);
-        }
-        return NONE;
+    // ADR 0047 — the single gate. No `=== view.botId` check anywhere below.
+    const owed = view.owedInput;
+    if (!owed) return NONE;
+
+    const action = answerOwedInput(owed.kind, view);
+    // The game is waiting on the bot and the bot produced nothing: a DEFECT,
+    // and one that used to be silent. Report it as such (issue #2284).
+    if (action.kind === "none") {
+        return { kind: "unanswered", expectedKind: owed.kind };
     }
+    return action;
+}
 
-    // Mid-resolution interactive choice. A non-empty `pendingChoices` freezes
-    // priority and suppresses every other move, so this precedes combat and the
-    // ordinary priority pass — otherwise the bot would `pass` into a server
-    // no-op and hang the game.
-    //
-    // A GENERATOR-COVERED choice is a real ISMCTS decision node (PRD #1423,
-    // issue #1506) — hand it to the Worker instead of answering it with the
-    // ADR 0016 minimal default. The gate is `OwedChoice.searchable`, computed in
-    // `buildOwedChoice` from `isSearchableChoiceNode` (the single
-    // authority), so a kind that gains a generator stops being heuristic-
-    // answered with no edit here.
-    if (view.owedChoice) {
-        if (view.owedChoice.searchable) return { kind: "search-choice" };
-        return chooseOwedChoiceAction(view.owedChoice);
+/** How the bot answers each Expected Input kind (ADR 0047, issue #2284). The
+ *  switch is exhaustive (`assertNever`): a new kind on the engine's union is a
+ *  build error here, which is the structural half of the liveness invariant —
+ *  the bot cannot silently inherit a waiting state nobody taught it to answer. */
+function answerOwedInput(kind: ExpectedInputKind, view: BotView): BotAction {
+    switch (kind) {
+        // CR 608.2 / 101.4 — a mid-resolution interactive choice, including the
+        // pre-game bottoming choice (CR 103.5) which rides the same queue.
+        //
+        // A GENERATOR-COVERED choice is a real ISMCTS decision node (PRD #1423,
+        // issue #1506) — hand it to the Worker instead of answering it with the
+        // ADR 0016 minimal default. The gate is `OwedChoice.searchable`,
+        // computed in `buildOwedChoice` from `isSearchableChoiceNode` (the
+        // single authority), so a kind that gains a generator stops being
+        // heuristic-answered with no edit here.
+        case "choice":
+            if (view.mulliganBottomCount !== undefined) {
+                return {
+                    kind: "mulligan-bottom",
+                    cardInstanceIds: chooseMulliganBottoms(
+                        view.mulliganHand ?? [],
+                        view.mulliganBottomCount
+                    ),
+                };
+            }
+            if (view.owedChoice) {
+                if (view.owedChoice.searchable)
+                    return { kind: "search-choice" };
+                return chooseOwedChoiceAction(view.owedChoice);
+            }
+            return NONE;
+
+        // CR 601.2c / 603.3d / 114.6 / 707.10b — a target selection. An
+        // ENGINE-RAISED one (targeted trigger, retarget, copy retarget — issue
+        // #2283) is a search node with a precomputed minimal-legal fallback; an
+        // ANNOUNCED one is the bot's own half-built cast, which the executor
+        // drives atomically as a continuation. Either way the SEARCH decides,
+        // and `escalationLadder` is what covers a window it cannot answer.
+        case "target":
+            return { kind: "search-target" };
+
+        // CR 509.1 — the declare-blockers turn-based action.
+        case "blockers":
+            return { kind: "declare-blockers" };
+
+        // CR 508.1c/1g / 701.21a — the parked attack-declaration land-sacrifice
+        // tax. The engine's own selection authority resolved the victims in
+        // `buildBotView`; submitting them is the only legal exit (the tax has no
+        // cancel mutation, CR 508.1g).
+        case "sacrifice":
+            return view.attackSacrifice
+                ? {
+                      kind: "select-sacrifice",
+                      cardInstanceIds: view.attackSacrifice.cardInstanceIds,
+                  }
+                : NONE;
+
+        // CR 508.1c/1g — the parked per-attacker MANA attack tax (Propaganda /
+        // Collective Restraint): pay it when the bot can plausibly cover it,
+        // else cancel the whole declaration.
+        case "attack-mana-tax":
+            return view.attackManaTaxAffordable
+                ? { kind: "pay-attack-tax" }
+                : { kind: "cancel-attack-tax" };
+
+        // CR 117 — the default window. Also where the engine files the pre-game
+        // mulligan declaration (`priorityPlayerId` IS the declaring player,
+        // `setup.ts`), the payment parks (the payer holds priority while
+        // paying), the combat-damage assignment sub-flow and the
+        // declare-attackers turn-based action.
+        case "priority":
+            return decidePriorityAction(view);
+
+        default:
+            return assertNever(kind);
     }
-
-    // CR 603.3d / 114.6 / 707.10b (issue #2283) — an ENGINE-RAISED target
-    // selection owed to the bot. It freezes priority exactly like a pending
-    // choice (`computeExpectedInput` ranks it directly below one), so it
-    // precedes every payment park, combat declaration and the ordinary
-    // priority pass — otherwise the bot passes into a server rejection and the
-    // game never advances. Routed to the SEARCH (a real target decision, not
-    // an arbitrary pick); the driver falls back to
-    // `chooseOwedTargetAction(view.owedTarget)` if the search yields nothing.
-    if (view.owedTarget) return { kind: "search-target" };
-
-    return decideNonChoiceAction(view);
 }
 
 /** The minimal-legal answer to an engine-raised target selection (issue #2283)
@@ -1155,10 +1310,6 @@ export function chooseOwedChoiceAction(choice: OwedChoice): BotAction {
     };
 }
 
-/** The rest of the gate, once no pending choice is owed: the parked mana-spend
- *  choice, the attack-mana tax, the combat declarations and the ordinary
- *  priority window. Split out of {@link decideBotAction} when the choice
- *  branch grew its own entry point (issue #1506); the ordering is unchanged. */
 /** ADR 0091 / issue #1209 — how the bot ANSWERS each payment park.
  *
  *  `"dedicated"` — the park has its own `BotAction` kind below, because its
@@ -1187,7 +1338,23 @@ export const PARK_ANSWER_ROUTE: Record<ParkKind, "dedicated" | "generic"> = {
     "activation:manaSpendChoice": "dedicated",
 };
 
-function decideNonChoiceAction(view: BotView): BotAction {
+/** The bot's answer inside a CR 117 priority window — the payment parks, the
+ *  pre-game mulligan declaration, the combat-damage confirmation, the
+ *  declare-attackers turn-based action and finally the ordinary pass. Reached
+ *  only once the engine's Expected Input has already named the bot (issue
+ *  #2284), so it contains no owed-ness checks of its own; exported because the
+ *  escalation ladder's rung 2 needs the same conservative default WITHOUT going
+ *  back through `decideBotAction`. */
+export function decidePriorityAction(view: BotView): BotAction {
+    // Pre-game mulligan declaration (CR 103.5, London mulligan). The engine
+    // files this under `priority` — `setup.ts` sets
+    // `priorityPlayerId = mulligan.declaringPlayerId` and `mulligan.ts` keeps it
+    // there — so the Expected Input authority already named the declarer and no
+    // `mulliganDeclaringId === botId` check is needed (nor wanted: that check
+    // WAS the parallel derivation). Bottoming rides `pendingChoices`, so it
+    // arrives as the `choice` kind instead.
+    if (view.phase === "MULLIGAN") return decideMulligan(view);
+
     // ADR 0091 / issue #1209 — the FIRST payment park owed, in canonical gate
     // order (`nextOwedPayment`). A park blocks the announcement's commit and
     // lives outside `pendingChoices[]`, so nothing else the bot could do is
@@ -1247,75 +1414,42 @@ function decideNonChoiceAction(view: BotView): BotAction {
         };
     }
 
-    // CR 508.1c/1g — the parked per-attacker MANA attack tax (Propaganda /
-    // Collective Restraint). The bot declared a taxed attack and now owes the
-    // tax: pay it (auto-tap) when it can plausibly cover it, else cancel the
-    // whole declaration. Handled BEFORE the declare-attackers branch — while the
-    // tax is parked the declaration is locked, and re-declaring would be
-    // rejected by the gate (the recurring "bot loops on a new waiting state"
-    // class, closed by routing this to a direct mutation).
-    if (view.attackManaTaxOwed) {
-        return view.attackManaTaxAffordable
-            ? { kind: "pay-attack-tax" }
-            : { kind: "cancel-attack-tax" };
-    }
-
     // Combat declarations are gated before priority can pass (the server
     // rejects passPriority until they are confirmed), so handle them first.
+    // No `activePlayerId === view.botId` guard: at DECLARE_ATTACKERS with an
+    // unconfirmed declaration the Expected Input names the ACTIVE player, and
+    // the gate above already established that it named the bot (issue #2284 —
+    // re-checking it here is the parallel derivation this issue removes).
     if (
         view.phase === "DECLARE_ATTACKERS" &&
         view.hasCombat &&
-        !view.attackersConfirmed &&
-        view.activePlayerId === view.botId
+        !view.attackersConfirmed
     ) {
         return { kind: "declare-attackers" };
     }
-    if (
-        view.phase === "DECLARE_BLOCKERS" &&
-        view.hasCombat &&
-        !view.blockersConfirmed &&
-        view.activePlayerId !== view.botId
-    ) {
-        // Defender is the non-active player; in a 2-player game that is the bot
-        // whenever the human is active.
-        return { kind: "declare-blockers" };
-    }
-
-    // The active player gets priority on entering each combat sub-step (CR
-    // 508–510), but the server forbids passing until that step's turn-based
-    // action is done — a `passPriority` is rejected, and the driver retries on
-    // the next state, looping forever. Mirror those gates so the bot resolves
-    // the step (or waits) instead of passing into a rejection.
 
     // Combat-damage assignment (CR 510.1c, multi-block). The assigner must
     // confirm damage before priority can pass; `passPriority` is rejected while
     // `damageConfirmed === false`. Confirm instead of passing.
+    //
+    // The old "bot holds priority but is not the outstanding assigner → wait"
+    // branch is gone with the parallel derivation: `computeOwedPlayerIds` folds
+    // this sub-flow in (it names the outstanding ASSIGNERS, not
+    // `priorityPlayerId`), so a bot that is not one of them is never owed here
+    // and `decideBotAction` returned `none` before reaching this function.
+    // Likewise the "attacker awaiting the defender's blocks" wait: that window's
+    // Expected Input is `blockers`, naming the defender.
     if (
         (view.phase === "FIRST_STRIKE_DAMAGE" ||
             view.phase === "COMBAT_DAMAGE") &&
         view.hasCombat &&
-        view.damageConfirmed === false
+        view.damageConfirmed === false &&
+        view.botOwesDamageConfirm
     ) {
-        if (view.botOwesDamageConfirm) return { kind: "confirm-combat-damage" };
-        // Bot holds priority but is not the (outstanding) assigner: wait for the
-        // assigner to confirm rather than pass into a rejection.
-        if (view.priorityPlayerId === view.botId) return NONE;
+        return { kind: "confirm-combat-damage" };
     }
 
-    // Attacker awaiting the defender's blocks (CR 509.1). The active attacker
-    // holds priority here, but a pass is rejected until blockers are confirmed;
-    // the defender declares blocks via its own client, so the bot just waits.
-    if (
-        view.phase === "DECLARE_BLOCKERS" &&
-        view.hasCombat &&
-        !view.blockersConfirmed &&
-        view.activePlayerId === view.botId
-    ) {
-        return NONE;
-    }
-
-    // Ordinary priority window.
-    if (view.priorityPlayerId === view.botId) return { kind: "pass" };
-
-    return NONE;
+    // Ordinary priority window (CR 117). The engine already said this seat is
+    // the one being waited on, so a pass is legal by construction.
+    return { kind: "pass" };
 }

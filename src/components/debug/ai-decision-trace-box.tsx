@@ -11,6 +11,7 @@
 import { useState } from "react";
 import { Panel } from "~/components/ui/panel";
 import AiDecisionTrace from "./ai-decision-trace";
+import AiEscalationLog from "./ai-escalation-log";
 
 export default function AiDecisionTraceBox() {
     const [open, setOpen] = useState(true);
@@ -27,7 +28,12 @@ export default function AiDecisionTraceBox() {
                 <span className="text-text-disabled">{open ? "▾" : "▸"}</span>
             </button>
             {open && (
-                <div className="mt-2 max-h-[40vh] overflow-y-auto border-t border-border-accent/20 pt-2">
+                <div className="mt-2 flex max-h-[40vh] flex-col gap-2 overflow-y-auto border-t border-border-accent/20 pt-2">
+                    {/* issue #2284 — a decision the bot could NOT make has no
+                        DecisionTrace to ride on, so the escalations get their
+                        own list. Renders nothing while the liveness invariant
+                        holds normally. */}
+                    <AiEscalationLog />
                     <AiDecisionTrace />
                 </div>
             )}

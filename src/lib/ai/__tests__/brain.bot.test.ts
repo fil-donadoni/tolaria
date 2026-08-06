@@ -11,12 +11,13 @@ import {
     type ManaSituation,
     type OwedChoice,
 } from "../brain";
+import type { ExpectedInputKind } from "@convex/gre/expectedInput";
 
 const BOT = "u1-p2";
 const HUMAN = "u1-p1";
 
 function view(overrides: Partial<BotView>): BotView {
-    return {
+    const base: BotView = {
         botId: BOT,
         phase: "PRECOMBAT_MAIN",
         priorityPlayerId: HUMAN,
@@ -26,6 +27,32 @@ function view(overrides: Partial<BotView>): BotView {
         blockersConfirmed: false,
         ...overrides,
     };
+    // ADR 0047 / issue #2284 — owed-ness is the ENGINE's answer, carried on
+    // `BotView.owedInput`; `decideBotAction` derives none of its own. These
+    // fixtures are hand-built (there is no `GameState` here to run
+    // `computeExpectedInput` against), so the helper STATES the Expected Input
+    // the engine would derive for the shape being described, following the same
+    // precedence (choice > target > blockers > attack-mana-tax > priority).
+    // A test describing a window the game is NOT waiting on the bot for passes
+    // `owedInput: undefined` explicitly.
+    if ("owedInput" in overrides) return base;
+    return { ...base, owedInput: { kind: fixtureKind(base), playerId: BOT } };
+}
+
+function fixtureKind(v: BotView): ExpectedInputKind {
+    if (v.owedChoice || v.mulliganBottomCount !== undefined) return "choice";
+    if (v.owedTarget) return "target";
+    if (
+        v.phase === "DECLARE_BLOCKERS" &&
+        v.hasCombat &&
+        !v.blockersConfirmed &&
+        v.activePlayerId !== v.botId
+    ) {
+        return "blockers";
+    }
+    if (v.attackManaTaxAffordable !== undefined) return "attack-mana-tax";
+    if (v.attackSacrifice) return "sacrifice";
+    return "priority";
 }
 
 describe("decideBotAction (pass-only bot, issue #109)", () => {
@@ -36,7 +63,12 @@ describe("decideBotAction (pass-only bot, issue #109)", () => {
     });
 
     it("does nothing when the human holds priority", () => {
-        expect(decideBotAction(view({ priorityPlayerId: HUMAN }))).toEqual({
+        // ADR 0047 - the engine names the human, so nothing is owed.
+        expect(
+            decideBotAction(
+                view({ priorityPlayerId: HUMAN, owedInput: undefined })
+            )
+        ).toEqual({
             kind: "none",
         });
     });
@@ -111,7 +143,14 @@ describe("decideBotAction (pass-only bot, issue #109)", () => {
     it("does not act on the human's mulligan declaration", () => {
         expect(
             decideBotAction(
-                view({ phase: "MULLIGAN", mulliganDeclaringId: HUMAN })
+                // The engine's Expected Input names the HUMAN as the
+                // declarer (`priorityPlayerId = mulligan.declaringPlayerId`),
+                // so the game is not waiting on the bot at all (ADR 0047).
+                view({
+                    phase: "MULLIGAN",
+                    mulliganDeclaringId: HUMAN,
+                    owedInput: undefined,
+                })
             )
         ).toEqual({ kind: "none" });
     });
@@ -119,10 +158,13 @@ describe("decideBotAction (pass-only bot, issue #109)", () => {
     it("does not act while ANOTHER player is bottoming", () => {
         expect(
             decideBotAction(
+                // The head `mulligan-bottom` choice belongs to the other
+                // player, so the `choice` Expected Input names them.
                 view({
                     phase: "MULLIGAN",
                     mulliganDeclaringId: "",
                     mulliganBottoming: true,
+                    owedInput: undefined,
                 })
             )
         ).toEqual({ kind: "none" });
@@ -200,12 +242,15 @@ describe("decideBotAction (pass-only bot, issue #109)", () => {
     it("does not declare blockers when the bot is the attacker", () => {
         expect(
             decideBotAction(
+                // CR 509.1 - the `blockers` Expected Input names the
+                // DEFENDER, which here is the human.
                 view({
                     phase: "DECLARE_BLOCKERS",
                     activePlayerId: BOT,
                     priorityPlayerId: HUMAN,
                     hasCombat: true,
                     blockersConfirmed: false,
+                    owedInput: undefined,
                 })
             )
         ).toEqual({ kind: "none" });
@@ -225,12 +270,17 @@ describe("decideBotAction does not pass into a combat-step rejection", () => {
     it("waits (none) as the attacker while blocks are unconfirmed", () => {
         expect(
             decideBotAction(
+                // The attacker holds priority here, but CR 509.1 makes this
+                // a `blockers` window owned by the DEFENDER - the engine never
+                // names the bot, so it waits (this used to need its own guard
+                // in the bot's parallel derivation).
                 view({
                     phase: "DECLARE_BLOCKERS",
                     activePlayerId: BOT,
                     priorityPlayerId: BOT,
                     hasCombat: true,
                     blockersConfirmed: false,
+                    owedInput: undefined,
                 })
             )
         ).toEqual({ kind: "none" });
@@ -270,6 +320,10 @@ describe("decideBotAction does not pass into a combat-step rejection", () => {
     it("waits (none) in a damage step it does not assign rather than passing", () => {
         expect(
             decideBotAction(
+                // CR 510.1c - `computeOwedPlayerIds` names the OUTSTANDING
+                // assigners, not `priorityPlayerId`, so a bot that is not one
+                // of them is simply not owed (issue #2284: this used to be a
+                // bespoke wait-branch in the bot's own derivation).
                 view({
                     phase: "COMBAT_DAMAGE",
                     activePlayerId: BOT,
@@ -277,6 +331,7 @@ describe("decideBotAction does not pass into a combat-step rejection", () => {
                     hasCombat: true,
                     damageConfirmed: false,
                     botOwesDamageConfirm: false,
+                    owedInput: undefined,
                 })
             )
         ).toEqual({ kind: "none" });
@@ -311,7 +366,6 @@ describe("decideBotAction resolves the parked attack mana tax (#1053/#1066)", ()
                     activePlayerId: BOT,
                     priorityPlayerId: BOT,
                     hasCombat: true,
-                    attackManaTaxOwed: true,
                     attackManaTaxAffordable: true,
                 })
             )
@@ -326,7 +380,6 @@ describe("decideBotAction resolves the parked attack mana tax (#1053/#1066)", ()
                     activePlayerId: BOT,
                     priorityPlayerId: BOT,
                     hasCombat: true,
-                    attackManaTaxOwed: true,
                     attackManaTaxAffordable: false,
                 })
             )
@@ -343,7 +396,6 @@ describe("decideBotAction resolves the parked attack mana tax (#1053/#1066)", ()
                 priorityPlayerId: BOT,
                 hasCombat: true,
                 attackersConfirmed: false,
-                attackManaTaxOwed: true,
                 attackManaTaxAffordable: true,
             })
         );

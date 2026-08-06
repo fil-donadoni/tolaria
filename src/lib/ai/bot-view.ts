@@ -38,8 +38,14 @@ import { getEffectiveColors } from "@convex/cards/effectiveColors";
 import type { Color, PermanentView } from "@convex/cards/types";
 import { STATIC_EFFECT_CTX } from "@convex/gre/layers";
 import { nextOwedPayment } from "@convex/gre/owedPayment";
-import { pickForOwedPayment } from "@convex/gre/paymentPicks";
+import {
+    completeSacrificeSelection,
+    pickForOwedPayment,
+} from "@convex/gre/paymentPicks";
+import { isSacrificeSelectionComplete } from "@convex/gre/sacrificeChoice";
+import type { GameState } from "@convex/gre/state";
 import { projectedToGameState } from "./state-adapter";
+import { owedInputFor } from "./owed-input";
 import type {
     BotAction,
     BotView,
@@ -832,7 +838,6 @@ export function buildBotView(state: PublicGameState, botId: string): BotView {
     // it can't (rather than looping on a locked declaration).
     const tax = combat?.pendingAttackManaTax;
     if (tax && tax.playerId === botId) {
-        view.attackManaTaxOwed = true;
         const bot = state.players.find((p) => p.id === botId);
         const pool = bot?.manaPool ?? {};
         const poolTotal = Object.values(pool).reduce(
@@ -900,7 +905,47 @@ export function buildBotView(state: PublicGameState, botId: string): BotView {
     // selection owed to the bot (targeted trigger / retarget / copy retarget).
     view.owedTarget = buildOwedTargetView(state, botId);
 
+    // ADR 0047 / issue #2284 — THE authority on owed-ness, consumed rather than
+    // re-derived: `computeOwedPlayerIds` + `computeExpectedInput`, the same two
+    // functions the server's gate and the game tick are expressed through. The
+    // adapter round-trip is what lets the client call them at all (they read a
+    // `GameState`, not a projection); everything they touch — `gameOver`, the
+    // pending* fields, `combat`, `phase`, `priorityPlayerId` — rides the wire
+    // un-slimmed, so the answer is byte-identical to the server's.
+    const full = projectedToGameState(state);
+    view.owedInput = owedInputFor(full, botId);
+    view.attackSacrifice = buildAttackSacrificeView(full, botId);
+    view.parkedAnnouncement =
+        full.pendingCast?.playerId === botId
+            ? "cast"
+            : full.pendingActivation?.playerId === botId
+              ? "activation"
+              : undefined;
+
     return view;
+}
+
+/** CR 508.1c/1g / 701.21a (issue #2284) — the parked attack-declaration
+ *  land-sacrifice tax awaiting the bot, with its minimal-legal victims resolved
+ *  through the ENGINE's own selection authority (`completeSacrificeSelection`,
+ *  the same function the owed-payment picks use), so the submission is legal by
+ *  construction rather than by a bot-side guess.
+ *
+ *  This is the `sacrifice` Expected Input kind — a window the bot had no answer
+ *  for at all before #2284: it fell through the old hand-rolled walk to
+ *  `priorityPlayerId === botId` and passed into a gate rejection forever. */
+function buildAttackSacrificeView(
+    full: GameState,
+    botId: string
+): BotView["attackSacrifice"] {
+    const sel = full.combat?.pendingAttackSacrifice;
+    if (!sel || sel.playerId !== botId) return undefined;
+    if (isSacrificeSelectionComplete(sel)) return undefined;
+    // `completeSacrificeSelection` fills the selection IN PLACE; clone so the
+    // view builder stays pure over the state it was handed.
+    const draft = structuredClone(sel);
+    const ids = completeSacrificeSelection(full, draft);
+    return ids && ids.length > 0 ? { cardInstanceIds: ids } : undefined;
 }
 
 /** CR 603.3d / 114.6 / 707.10b (issue #2283) — the engine-raised target
@@ -1128,6 +1173,11 @@ export function botActionToMove(
         // dispatches, so there is no Move to translate into either.
         // `search-target` (issue #2283) is the same shape as `search-choice`:
         // the Worker's returned Move IS the submission.
+        // The issue #2284 escalation rungs (`select-sacrifice`,
+        // `cancel-target`, `confirm-no-blockers`, `confirm-no-attackers`,
+        // `abort-announcement`) are declines routed straight through their own
+        // mutations (`submitDeclineAction`), not Moves; `unanswered` is a
+        // report that there is nothing to submit at all.
         case "search-choice":
         case "search-target":
         case "pass":
@@ -1140,6 +1190,12 @@ export function botActionToMove(
         case "cast-exile-cost":
         case "convoke-creatures":
         case "pay-owed-payment":
+        case "select-sacrifice":
+        case "cancel-target":
+        case "confirm-no-blockers":
+        case "confirm-no-attackers":
+        case "abort-announcement":
+        case "unanswered":
         case "none":
             return null;
         default:

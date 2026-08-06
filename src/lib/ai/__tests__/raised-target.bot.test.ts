@@ -204,8 +204,18 @@ describe("bot answers an engine-raised target selection (issue #2283)", () => {
         state.pendingTarget!.kind = "cast";
         refreshExpectedInput(state);
         const view = buildBotView(projectPublicState(state, 2, BOT), BOT);
+        // No RAISED selection is surfaced — that classification is what keeps
+        // the executor's continuation atomic, and misclassifying it in the
+        // permissive direction would break every existing bot cast.
         expect(view.owedTarget).toBeUndefined();
-        expect(decideBotAction(view).kind).toBe("pass");
+        // The window is still a `target` Expected Input (ADR 0047), so the bot
+        // hands it to the SEARCH rather than passing into a gate rejection
+        // (issue #2284 — it used to answer `pass`, which the server rejects;
+        // the Worker branch is identical either way, and with no `owedTarget`
+        // there is no minimal-legal fallback, so the watchdog's ladder is what
+        // covers a genuinely stalled continuation).
+        expect(decideBotAction(view).kind).toBe("search-target");
+        expect(botActionRealisation(decideBotAction(view).kind)).toBe("worker");
     });
 
     it("the minimal-legal fallback realises through the executor and unfreezes the game", async () => {
