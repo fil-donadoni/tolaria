@@ -20,7 +20,7 @@ import type { GameState, PlayerState } from "./state";
 import { getManaSubstitutions } from "./state";
 import { isSorceryTiming } from "./phases";
 import { buildAutoTapSources, solveSmartAutoTap } from "./autoTap";
-import { manaValue } from "./constants";
+import { manaGateBattlefields, manaValue } from "./constants";
 
 /** CR 702.139a — a companion's deck-construction condition: true when `deck`
  *  (the player's maindeck, resolved to full `CardDefinition`s) satisfies it.
@@ -176,7 +176,10 @@ export function canSummonCompanion(
         return false;
     }
     const subs = getManaSubstitutions(state, player.id);
-    const sources = buildAutoTapSources(player.battlefield);
+    const sources = buildAutoTapSources(
+        player.battlefield,
+        manaGateBattlefields(state)
+    );
     return (
         solveSmartAutoTap(
             player.manaPool,

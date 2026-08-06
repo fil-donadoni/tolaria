@@ -1415,6 +1415,36 @@ export function getManaTapOptionRestriction(
     return ability?.manaRestriction ?? null;
 }
 
+/** Counter cost (CR 122.6) carried by the SPECIFIC option a `getManaChoices`
+ *  index resolves to — a Mana Battery / storage land whose ability declares
+ *  `manaChoiceRemovesCounters`: choosing index N removes N counters of that
+ *  type as part of paying the ability's cost (`game.ts`'s
+ *  `manaChoiceRemovesCounters` handling). Null for any option that removes no
+ *  counters, including index 0 — the storage land's "remove 0 counters, add
+ *  the base amount" pick is a free (non-destructive) option, exactly like an
+ *  ordinary `{T}: Add` ability. Used by the auto-tap solver (`autoTap.ts`,
+ *  issue #2240 regression) to exclude only the counter-BURNING options from
+ *  its candidate set — the same per-OPTION-not-per-source shape as
+ *  `getManaTapOptionRestriction` above — so a battery stays auto-tappable for
+ *  its free base mana without the solver ever spending the player's stored
+ *  counters on their behalf. */
+export function getManaChoiceCounterCost(
+    card: CardInstanceState,
+    source: ManaTapOptionSource
+): { counterType: string; count: number } | null {
+    if (source.kind !== "activated" || !source.choiceIndex) return null;
+    const cardId = (card.card as { id?: string }).id;
+    const cardDef = cardId ? tryGetDefinition(cardId) : undefined;
+    const ability = cardDef?.activatedAbilities?.find(
+        (a) => a.id === source.abilityId
+    );
+    if (!ability?.manaChoiceRemovesCounters) return null;
+    return {
+        counterType: ability.manaChoiceRemovesCounters,
+        count: source.choiceIndex,
+    };
+}
+
 /** Returns the activated mana ability definition for a card, or null.
  *
  *  CR 602.5b (issue #947) — when the found ability declares its own

@@ -45,7 +45,7 @@ import {
     applyCostModifiers,
     getCostModifiers,
 } from "./state";
-import { isPlaneswalker } from "./constants";
+import { isPlaneswalker, manaGateBattlefields } from "./constants";
 import {
     activationSacrificeVictims,
     planActivationCostPicks,
@@ -322,7 +322,10 @@ export function applyMoveForSearch(
             const companion = player.companion;
             if (companion && !companion.used) {
                 const subs = getManaSubstitutions(next, playerId);
-                const sources = buildAutoTapSources(player.battlefield);
+                const sources = buildAutoTapSources(
+                    player.battlefield,
+                    manaGateBattlefields(next)
+                );
                 const plan = solveSmartAutoTap(
                     player.manaPool,
                     COMPANION_SUMMON_COST,

@@ -1139,9 +1139,10 @@ export function autoTapForManaAbilityCost(
     const substitutions = getManaSubstitutions(state, player.id);
     if (isManaCostCovered(player.manaPool, cost, substitutions)) return;
     // The activating permanent can't fund its own activation cost.
-    const sources = buildAutoTapSources(player.battlefield).filter(
-        (s) => s.cardId !== card.id
-    );
+    const sources = buildAutoTapSources(
+        player.battlefield,
+        manaGateBattlefields(state)
+    ).filter((s) => s.cardId !== card.id);
     const plan =
         solveAutoTap(player.manaPool, cost, substitutions, sources) ??
         solveAutoTapPartial(player.manaPool, cost, substitutions, sources);
@@ -5097,7 +5098,10 @@ export const summonCompanion = mutation({
         }
 
         const subs = getManaSubstitutions(state, player.id);
-        const sources = buildAutoTapSources(player.battlefield);
+        const sources = buildAutoTapSources(
+            player.battlefield,
+            manaGateBattlefields(state)
+        );
         const plan = solveSmartAutoTap(
             player.manaPool,
             COMPANION_SUMMON_COST,
@@ -8438,7 +8442,10 @@ export const autoTapForPayment = mutation({
                 ?.cantSpendManaToCast ??
                 false);
         const substitutions = getManaSubstitutions(state, player.id);
-        const sources = buildAutoTapSources(player.battlefield);
+        const sources = buildAutoTapSources(
+            player.battlefield,
+            manaGateBattlefields(state)
+        );
         // Smart auto-tap (PRD #472, ADR 0034): among all minimal-tap plans that
         // cover the cost, prefer the one that best preserves the paying
         // player's other castable hand spells (their Demands). Reads the
@@ -10336,7 +10343,10 @@ function chargeManaCostOrThrow(
 ): void {
     const payer = getPlayer(state, controllerId);
     const subs = getManaSubstitutions(state, controllerId);
-    const sources = buildAutoTapSources(payer.battlefield);
+    const sources = buildAutoTapSources(
+        payer.battlefield,
+        manaGateBattlefields(state)
+    );
     const cost = normalizeManaCost(rawCost);
     const plan = solveSmartAutoTap(payer.manaPool, cost, subs, sources);
     if (plan === null) {
@@ -10705,7 +10715,10 @@ export const autoTapForAttackTax = mutation({
 
         const player = getPlayer(state, args.playerId);
         const subs = getManaSubstitutions(state, player.id);
-        const sources = buildAutoTapSources(player.battlefield);
+        const sources = buildAutoTapSources(
+            player.battlefield,
+            manaGateBattlefields(state)
+        );
         const cost = normalizeManaCost(pending.cost);
         // Prefer a minimal full plan; fall back to the maximal-useful partial
         // (a manual source like Black Lotus still owed) so we tap what we can.
