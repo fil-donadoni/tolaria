@@ -8,10 +8,16 @@ import type {
 import { validateDeck } from "@convex/formats";
 import { poolFromLimitedPoolCards } from "@convex/limited/poolResolution";
 import {
-    columnOverridesByCardId,
     findColumnOverrideablePoolIndex,
+    mvColumnFromPins,
+    pinsByCardId,
     splitPoolByArrangement,
 } from "@convex/limited/poolArrangement";
+import {
+    createColumnLayout,
+    type ColumnId,
+    type DeckColumnLayout,
+} from "@convex/deckLayout";
 import { useLimitedEventMutations } from "~/hooks/useLimitedEvent";
 import { useUserDeckMutations } from "~/hooks/useUserDecks";
 import type { UserLobbyDeck } from "~/lib/deckTypes";
@@ -272,24 +278,33 @@ export default function PoolDeckBuilderForm({
         [updateDeck]
     );
 
-    // Per-card manual Mana-Value column overrides (issue #1575), read LIVE
-    // from the seat's Pool Arrangement so a persisted column drag reflects
-    // back reactively and carries the draft-phase arrangement over.
-    const columnOverrides = useMemo(
-        () => columnOverridesByCardId(pool, poolArrangement),
+    // The zones' Column Layouts (ADR 0075, issue #1622). Grouping is pinned to
+    // Mana Value in this slice. The Maindeck's Card Pins are the seat's Pool
+    // Arrangement, read LIVE (not just at seed time) so a persisted column
+    // drag reflects back reactively, survives a reload, and carries the
+    // draft-phase arrangement straight over (ADR 0060). The Sideboard has no
+    // Pins of its own — a drop there means "out of the deck", never a Pin.
+    const layout = useMemo<DeckColumnLayout>(
+        () => ({
+            maindeck: createColumnLayout({
+                pins: pinsByCardId(pool, poolArrangement),
+            }),
+            sideboard: createColumnLayout(),
+        }),
         [pool, poolArrangement]
     );
-    const columnOf = useCallback(
-        (cardId: string) => columnOverrides.get(cardId),
-        [columnOverrides]
-    );
 
-    // Column drag: persist the override on the seat's Pool Arrangement (the
-    // SAME store + mutation the draft Pool uses, ADR 0060). Resolves the
+    // Column drag: persist the Pin on the seat's Pool Arrangement (the SAME
+    // store + mutation the draft Pool uses, ADR 0060). Resolves the
     // `cardId`-keyed UI action back to a `poolIndex`; a Basic land added from
-    // the bar has no `poolIndex`, so its column can't be overridden (no-op).
-    const handleSetColumn = useCallback(
-        (cardId: string, column: number | "lands") => {
+    // the bar has no `poolIndex`, so its column can't be pinned (no-op). The
+    // mutation's wire vocabulary is still the legacy `column` (issue #1621:
+    // only the PERSISTED shape moved), so the namespaced Column id is read
+    // back through the engine's own inverse shim rather than re-parsed here.
+    const handlePin = useCallback(
+        (cardId: string, columnId: ColumnId) => {
+            const column = mvColumnFromPins({ mv: columnId });
+            if (column === undefined) return;
             const poolIndex = findColumnOverrideablePoolIndex(
                 pool,
                 poolArrangement,
@@ -384,10 +399,10 @@ export default function PoolDeckBuilderForm({
                 <PoolDeckbuilderSurface
                     mainCards={deck.cards}
                     sideCards={deck.sideboard}
+                    layout={layout}
                     onMoveToSideboard={handleMainClick}
                     onMoveToMaindeck={handleSideClick}
-                    columnOf={columnOf}
-                    onSetColumn={handleSetColumn}
+                    onPin={handlePin}
                     mainEmptyMessage="Move Pool cards here (or add Basics above) to build your deck."
                     sideEmptyMessage="Every remaining Pool card lives here until moved to the Maindeck."
                 />

@@ -235,22 +235,26 @@ export function findMovablePoolIndex(
     return hit ? hit.poolIndex : null;
 }
 
-/** The manual Mana-Value column override recorded for each `cardId` present
- *  in `pool`, keyed by Card ID (issue #1575). The limited deckbuilder groups
- *  its Maindeck by `cardId`-keyed `DeckCard`s — it lost the per-copy
- *  `poolIndex` identity the draft Pool keeps — so it looks a card's column up
- *  by id, treating duplicate copies as interchangeable (the same convention
+/** The Card Pins recorded for each `cardId` present in `pool`, keyed by Card
+ *  ID (issue #1575, re-expressed in the namespaced Pin vocabulary for the
+ *  shared zone surface, issue #1622). The Limited deckbuilder renders its
+ *  zones from `cardId`-keyed `DeckCard`s — it lost the per-copy `poolIndex`
+ *  identity the draft Pool keeps — so it looks a card's Pins up by id,
+ *  treating duplicate copies as interchangeable (the same convention
  *  `findMovablePoolIndex` above and `deckSideboard.ts` already use). When two
- *  copies carry divergent overrides the higher `poolIndex` wins (last write);
- *  a card with no override is absent from the map (auto column). */
-export function columnOverridesByCardId(
+ *  copies carry divergent Pins the higher `poolIndex` wins (last write); a
+ *  card with no Pin at all is absent from the map (auto column).
+ *
+ *  This is exactly the `ColumnLayout.pins` shape, so the surface hands the
+ *  result straight to `resolveColumnLayout` with no per-surface translation. */
+export function pinsByCardId(
     pool: readonly LimitedPoolCard[],
     arrangement: readonly PoolArrangementEntry[] | undefined
-): Map<string, number | "lands"> {
-    const byCardId = new Map<string, number | "lands">();
+): Record<string, CardPins> {
+    const byCardId: Record<string, CardPins> = {};
     for (const placement of resolvePoolPlacements(pool, arrangement)) {
-        if (placement.columnOverride !== undefined) {
-            byCardId.set(placement.card.cardId, placement.columnOverride);
+        if (Object.keys(placement.pins).length > 0) {
+            byCardId[placement.card.cardId] = placement.pins;
         }
     }
     return byCardId;
