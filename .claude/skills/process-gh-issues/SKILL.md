@@ -194,6 +194,25 @@ Spawn a **fresh** subagent via the `Agent` tool for **each** issue in the batch,
 - The instructions below, which the subagent follows end-to-end.
 - **One sentence naming the hard part of THIS issue** — lead with it, before any compliance material. Not "follow the rules": what is the specific thing that is easy to get wrong here? ("the hard part is deciding which of the existing raise sites count as a search", "the hard part is that two shipped cards reuse this choice kind for something else".) A prompt that is all guard checklist and silent on the semantics produces a subagent that satisfies every guard and gets the semantics wrong — the checklist cannot check what nobody stated. If you cannot name the hard part from the issue body, that is a signal the issue needs a producer census (subagent brief) or is under-specified, not that it has none.
 
+**Investigator-first — the implementer receives a map, it does not explore.**
+Telemetry (2026-08-06): implement-subagents averaged **183k tokens of context
+per message** — most of it files read while wandering — against 68k for
+`investigate` subagents, whose caveman-compressed output costs ~$2.6/run.
+Every file the implementer never opens is content it does not re-read on each
+of its next 150 messages. So, for each batch issue whose `targetFiles` name a
+glob/module or more than 2 files (engine/cross-module work): spawn an
+`investigate` subagent first (`model: sonnet`, description prefixed
+`investigate`), concurrently across the batch, asking for a compact `file:line`
+map of the sites the issue must touch (definitions, consumers, tests, the
+reducers a UI-visible change must walk). Pass that map in the
+implement-subagent's prompt with the instruction: **work from the map; do not
+re-explore** (no broad Glob/Grep sweeps — open only mapped files plus what a
+mapped file directly forces). If the map proves wrong somewhere, the
+implementer may explore minimally and MUST note the correction in its receipt
+(that feedback is how bad maps get caught). **Skip the investigator** when
+`targetFiles` pin 1–2 explicit files — a map of a two-file fix is pure
+overhead.
+
 **Model routing — take the tier from the plan, verbatim.** Every `batch` entry carries a `model` (§1). Pass it as the `model` parameter of that issue's `Agent` call. It is always present precisely so the parameter can never be omitted — omitting it inherits the orchestrator's session model, which silently routes routine work at whatever tier the session runs on (see Parameters). The planner resolves it from the issue's `model:<name>` label, falling back to `DEFAULT_IMPL_MODEL`; several labels resolve to the most capable and arrive as `modelAmbiguity`, which you report in the batch summary. The resolver is generic over any `model:<name>` in `MODEL_RANK`, but the tracker deliberately carries **only the escalation labels** — `model:opus` and `model:fable`. `model:sonnet` was retired: it said exactly what its absence already says, so it was noise on every routine issue. **An unlabelled issue is not un-triaged, it is the default tier.**
 
 The tier governs the **implement-subagent and every follow-up subagent for that issue** — fixup and rebase-conflict-resolution handbacks (§4) inherit it (fixup difficulty correlates with issue difficulty, not with the session). The orchestrator itself and the reviewer (fixed `opus`, see Parameters) are unaffected.

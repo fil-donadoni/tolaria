@@ -126,6 +126,23 @@ anything.
 Pick a label only if you are escalating, and carry it into the draft's label
 list.
 
+### Step 5b — Pick the area label (exactly ONE, mandatory)
+
+Every issue carries exactly one `area:*` label — it is the family axis the
+telemetry dashboard aggregates time/token spend by. The family says **WHERE in
+the system**, never why (there is deliberately no `area:optimizations` — a
+perf fix on the bot is `area:game-bot`):
+
+`area:cards` (card slices on existing Ops, set rollouts) · `area:mechanics`
+(keywords, CR, engine seams, layers, LKI, new DSL/Ops) · `area:ui-ux` ·
+`area:game-bot` (Brain/ISMCTS/evaluate/moves/driver) · `area:limited-bot`
+(botDrafter, pick ratings, draft engine) · `area:workflow` (loop, skills,
+gates, hooks, queue, merge-train) · `area:monitoring` (telemetry, dashboards,
+scorecard) · `area:admin` (auth, profiles, deck management, matchmaking,
+Convex infra) · `area:docs`.
+
+Boundary rule: a card needing a new seam/keyword is `mechanics`, not `cards`.
+
 ### Step 6 — Pick the queue label (exactly ONE)
 
 `ready-for-agent` and `needs-triage` are **mutually exclusive** — never apply

@@ -36,6 +36,20 @@ contents — this is the single biggest thing the frame does not have to carry.
 2. **Abort-on-red check (green-main invariant, SKILL.md §0) — with gate-dedup skip.** If the branch tip equals the **verified-green SHA** passed in the prompt, skip this check entirely (that exact tree already passed the baseline — same tree, same result). Otherwise run the full suite on the fresh branch: if the pre-existing failure set is **non-empty** (reds you did not introduce), abort immediately — do not implement on top of red. Return a `failed` receipt naming the reds. "Not my test" is never an exemption.
 3. Fetch and read the full issue body (`gh issue view N`) — acceptance criteria are the spec. If the body references a `Parent #N`, fetch and read `#N` (the PRD) as **additional spec/context** — the user stories, implementation and testing decisions there frame this slice. Read it, do **not** implement it wholesale.
     - **Context discipline — keep your own context lean (measured lever).** Telemetry shows implement subagents balloon to a **228k median / 600k peak** context, driven not by the handed-in prompt (~43k) but by **inline tool-call volume** — a single heavy run logged 113 `grep`s + 95–142 `Read`s, each result resident for the rest of the run. So: **(a) delegate codebase location/mapping to a `caveman:cavecrew-investigator` sub-agent** (spawn it via the `Agent` tool, `model: sonnet` — the plugin's copy pins no model of its own) instead of grepping/globbing the tree inline — its file dumps stay in _its_ context and only the compressed `file:line` map returns to you. Reserve your own `Read` for the handful of files you will actually edit. **(b) Pipe noisy `Bash` through a filter** — `… | tail -20`, `bun run test <path> 2>&1 | tail -30`, `grep -n` over a full-file cat — so a failing suite or a build log never dumps in full. **(c) One search question = one investigator**, not a fresh grep each time you wonder where something lives. A lean implement context is cheaper _and_ sharper (less noise to reason over).
+    - **Convergence cap — stopping is a legitimate outcome, grinding is not.**
+      The cost of a run is roughly quadratic in its length (every message
+      re-reads everything before it), and the expensive tail of implement runs
+      is a handful of agents that never got told stopping was allowed: one
+      2026-08-06 run spent 284 messages and a 246k average context on a card it
+      still did not finish. Concrete stop-rule — if **either** (a) you are on
+      your **third failed gate/fix cycle** on the same failure, or (b) the work
+      has grown past the issue's acceptance criteria (a missing capability, a
+      seam that needs design), then **stop**: write a `wip` receipt stating
+      precisely what is done, what remains, what you learned (including the
+      failing test names and your best hypothesis), and return. A precise
+      partial receipt lets the orchestrator respawn a fresh, cheap, targeted
+      agent — or escalate the tier — which is strictly better than doubling
+      down inside a bloated context.
 4. **Producer census — MANDATORY before implementing, whenever the issue widens an input space.** Triggers: a new event type / trigger condition, a new hook or seam other code feeds, a new field on a shared record, a new `*.type` union member, a new predicate other call sites must satisfy. In all of these the hard part is **not writing the code — it is classifying what already flows in**, and that is precisely what a guard checklist cannot check for you.
 
     Before writing any implementation:

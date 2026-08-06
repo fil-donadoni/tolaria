@@ -176,4 +176,44 @@ without \`-a\` remain allowed.)"
     fi
 fi
 
+# ─────────────────────────────────────────────────────────────────────────────
+# 5. One planner run per session (MAX_PASSES = 1, enforced).
+#
+# SKILL.md § Running unattended already says it in as many words: one batch,
+# then exit — a fresh process per batch costs nothing (all loop state is
+# durable: labels, PRs, green-sha) and caps orchestrator context growth. The
+# prose did not hold: a 2026-08-06 session ran batches back-to-back for 13.6h
+# ("prosegui" × 21, /compact instead of /clear), averaged 173k context per
+# message, and alone cost 44% of the day. The planner invocation is the one
+# chokepoint every pass goes through, so the rule lives here.
+#
+# A SECOND `queue:plan` in the same session is denied. The same-pass replan
+# after a claim collision (§1b) is legitimate and stays available behind an
+# explicit, visible opt-in in the command itself:
+#   TOLARIA_ALLOW_REPLAN=1 bun run queue:plan --cap 4 --pretty
+# ─────────────────────────────────────────────────────────────────────────────
+# Match the INVOCATION shape, not the bare word: "queue:plan" travels inside
+# prose (commit messages quoting this very rule, greps over the skill file) and
+# a word-match created exactly the false denial the header above warns about.
+PLAN_INVOKE='(^|[;&|[:space:]])bun[[:space:]]+(run[[:space:]]+queue:plan|[^[:space:]]*queue-plan\.ts)([[:space:]]|$)'
+if seg_has "$PLAN_INVOKE"; then
+    session=$(printf '%s' "$payload" | jq -r '.session_id // ""')
+    if [ -n "$session" ]; then
+        markers="${CLAUDE_PROJECT_DIR:-$cwd}/.claude/telemetry/pass-markers"
+        mkdir -p "$markers" 2>/dev/null || true
+        # prune markers older than a day so the directory stays small
+        find "$markers" -type f -mtime +1 -delete 2>/dev/null || true
+        marker="$markers/$session"
+        if [ -f "$marker" ] && ! seg_has 'TOLARIA_ALLOW_REPLAN=1' "$PLAN_INVOKE"; then
+            deny "BLOCKED: second planner run in this session (MAX_PASSES = 1).
+One batch per session: finish this pass, report, and EXIT — the next batch
+belongs to a fresh session (context reset is the point; all loop state is
+durable in labels/PRs/green-sha, nothing is lost). If this is a same-pass
+replan after a claim collision (§1b), opt in explicitly:
+  TOLARIA_ALLOW_REPLAN=1 bun run queue:plan --cap 4 --pretty"
+        fi
+        touch "$marker" 2>/dev/null || true
+    fi
+fi
+
 exit 0
