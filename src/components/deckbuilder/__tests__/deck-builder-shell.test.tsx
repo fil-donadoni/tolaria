@@ -290,7 +290,9 @@ describe("DeckBuilderShell — mounted drag (issue #1622)", () => {
             container.querySelector('[data-column="mv:6"]')!
         );
 
-        expect(onPin).toHaveBeenCalledWith(BOLT_ID, "mv:6");
+        // The third argument is the dragged COPY's pin key (issue #1626);
+        // with no `pinKeys` declared it is the card id — the Constructed rule.
+        expect(onPin).toHaveBeenCalledWith(BOLT_ID, "mv:6", BOLT_ID);
     });
 
     it("dragging a Sideboard card onto a Maindeck column moves it in AND pins it, in one gesture", async () => {
@@ -310,7 +312,7 @@ describe("DeckBuilderShell — mounted drag (issue #1622)", () => {
         );
 
         expect(onMoveToMaindeck).toHaveBeenCalledWith(BOLT_ID);
-        expect(onPin).toHaveBeenCalledWith(BOLT_ID, "mv:lands");
+        expect(onPin).toHaveBeenCalledWith(BOLT_ID, "mv:lands", BOLT_ID);
     });
 
     it("dragging a Maindeck card onto the Sideboard moves it out of the deck, with no pin", async () => {

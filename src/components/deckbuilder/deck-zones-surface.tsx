@@ -1,10 +1,12 @@
 import type {
     CardLookup,
+    ColumnId,
     DeckColumnLayout,
     GroupingKind,
     OrderingKind,
 } from "@convex/deckLayout";
 import type { DeckCard } from "~/types/game";
+import type { DeckZonePinKeys } from "./deckBuilderVariant";
 import CardZoomSlider from "~/components/lobby/deck-builder/card-zoom-slider";
 import { useCardZoom } from "~/components/lobby/deck-builder/useCardZoom";
 import { useSplitRatio } from "~/components/lobby/deck-builder/useSplitRatio";
@@ -72,6 +74,14 @@ export interface DeckZonesSurfaceProps {
     sideCardTitle: (card: DeckCard) => string;
     featuredCardId?: string | null;
     onSetFeatured?: (cardId: string) => void;
+    /** Per-Zone Card Pin identity (issue #1626) — see {@link DeckZonePinKeys}. */
+    pinKeys?: DeckZonePinKeys;
+    /** Manual-Column management for the MAINDECK (ADR 0075 §2, issue #1626).
+     *  Not offered on the Sideboard: its whole pane is one drop target, so a
+     *  manual Column there could never receive a card. */
+    onAddColumn?: (label: string) => void;
+    onRenameColumn?: (columnId: ColumnId, label: string) => void;
+    onDeleteColumn?: (columnId: ColumnId) => void;
 }
 
 export default function DeckZonesSurface({
@@ -101,6 +111,10 @@ export default function DeckZonesSurface({
     sideCardTitle,
     featuredCardId,
     onSetFeatured,
+    pinKeys,
+    onAddColumn,
+    onRenameColumn,
+    onDeleteColumn,
 }: DeckZonesSurfaceProps) {
     const mainZoom = useCardZoom({
         zone: mainZoomZone,
@@ -149,6 +163,10 @@ export default function DeckZonesSurface({
                     emptyMessage={mainEmptyMessage}
                     featuredCardId={featuredCardId}
                     onSetFeatured={onSetFeatured}
+                    pinKeyOf={pinKeys?.maindeck}
+                    onAddColumn={onAddColumn}
+                    onRenameColumn={onRenameColumn}
+                    onDeleteColumn={onDeleteColumn}
                     headerRight={
                         <CardZoomSlider
                             value={mainZoom.value}
@@ -179,6 +197,7 @@ export default function DeckZonesSurface({
                     emptyMessage={sideEmptyMessage}
                     countSuffix={sideCountSuffix}
                     warning={sideWarning}
+                    pinKeyOf={pinKeys?.sideboard}
                     headerRight={
                         <CardZoomSlider
                             value={sideZoom.value}

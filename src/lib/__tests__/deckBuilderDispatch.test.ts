@@ -8,6 +8,7 @@ import {
     saveUserDeck,
     savePreset,
     savePresetCreate,
+    toPresetPayload,
     toUpdatePatch,
     type DeckBuilderSinks,
     type DeckSavePayload,
@@ -201,5 +202,46 @@ describe("Featured Card picker → update path (PRD #589, issue #599)", () => {
         expect(userCreate).toHaveBeenCalledWith(
             expect.objectContaining({ featuredCardId: "bolt" })
         );
+    });
+});
+
+// ── the Column Layout at the save boundary (ADR 0075 §4, issue #1626) ────────
+
+describe("Column Layout on the save path (issue #1626)", () => {
+    const layout = {
+        maindeck: {
+            manualColumns: [{ id: "custom:removal", label: "Removal" }],
+            pins: { bolt: { custom: "custom:removal" } },
+        },
+    };
+
+    it("carries the layout into a USER deck's update patch", () => {
+        // `userDecks.update` reads it as the whole arrangement, never a merge.
+        expect(toUpdatePatch({ ...payload, layout }).layout).toEqual(layout);
+    });
+
+    it("OMITS the key entirely when the arrangement was never touched", () => {
+        // Absent means "leave the stored layout alone" — which is what editing
+        // a deck saved before this slice must do. An explicit `layout:
+        // undefined` key would say the same to Convex today, but says nothing
+        // to a reader and would survive a future merge-style patch.
+        const patch = toUpdatePatch(payload);
+        expect("layout" in patch).toBe(false);
+    });
+
+    it("passes an EMPTY layout through — that is how a cleared arrangement is cleared", () => {
+        expect(toUpdatePatch({ ...payload, layout: {} }).layout).toEqual({});
+    });
+
+    it("strips the layout from every PRESET payload", () => {
+        // `presetDecks` declares no `layout` argument, and Convex rejects an
+        // argument its validator doesn't know — so the field is dropped at
+        // this one boundary rather than guarded at each preset call site.
+        const preset = toPresetPayload({ ...payload, layout });
+        expect("layout" in preset).toBe(false);
+        expect("layout" in toUpdatePatch(preset)).toBe(false);
+        // Everything else survives untouched.
+        expect(preset.name).toBe(payload.name);
+        expect(preset.cards).toEqual(payload.cards);
     });
 });

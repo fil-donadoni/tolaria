@@ -269,50 +269,52 @@ export function findMovablePoolIndex(
     return hit ? hit.poolIndex : null;
 }
 
-/** The Card Pins recorded for each `cardId` present in `pool`, keyed by Card
- *  ID (issue #1575, re-expressed in the namespaced Pin vocabulary for the
- *  shared zone surface, issue #1622). The Limited deckbuilder renders its
- *  zones from `cardId`-keyed `DeckCard`s — it lost the per-copy `poolIndex`
- *  identity the draft Pool keeps — so it looks a card's Pins up by id,
- *  treating duplicate copies as interchangeable (the same convention
- *  `findMovablePoolIndex` above and `deckSideboard.ts` already use). When two
- *  copies carry divergent Pins the higher `poolIndex` wins (last write); a
- *  card with no Pin at all is absent from the map (auto column).
+/** The Card Pins recorded for every pinned Pool card, keyed by `String`ified
+ *  `poolIndex` — exactly the `ColumnLayout.pins` shape, so the Limited
+ *  deckbuilder hands the result straight to `resolveColumnLayout` with no
+ *  per-surface translation (issue #1575 → #1622 → #1626).
  *
- *  This is exactly the `ColumnLayout.pins` shape, so the surface hands the
- *  result straight to `resolveColumnLayout` with no per-surface translation. */
-export function pinsByCardId(
+ *  Keyed PER COPY, which is the whole point (ADR 0075 §4): the Pool already
+ *  distinguishes two physical copies of one card, so the two must stay
+ *  individually placeable. Its predecessor `pinsByCardId` collapsed them —
+ *  the deckbuilder rendered `cardId`-keyed `DeckCard`s and had lost the
+ *  per-copy identity — which silently made the second copy's Pin unreachable
+ *  and let the higher `poolIndex` win. The surface now carries a per-copy pin
+ *  key instead (`DeckZoneSurface`'s `pinKeyOf`), so no collapse is needed.
+ *
+ *  A card with no Pin at all is absent from the map (auto column). */
+export function pinsByPoolIndex(
     pool: readonly LimitedPoolCard[],
     arrangement: readonly PoolArrangementEntry[] | undefined
 ): Record<string, CardPins> {
-    const byCardId: Record<string, CardPins> = {};
+    const byPoolIndex: Record<string, CardPins> = {};
     for (const placement of resolvePoolPlacements(pool, arrangement)) {
         if (Object.keys(placement.pins).length > 0) {
-            byCardId[placement.card.cardId] = placement.pins;
+            byPoolIndex[String(placement.poolIndex)] = placement.pins;
         }
     }
-    return byCardId;
+    return byPoolIndex;
 }
 
-/** Resolves a `cardId`-keyed deckbuilder column drag back to the `poolIndex`
- *  `setPoolArrangementEntry` keys its column override on (issue #1575). Prefers
- *  a copy currently in the Maindeck (`sideboard: false`) — the copy the player
- *  is looking at when they drag between columns — then falls back to ANY copy
- *  of that card, so a column drag still records even for a card the Arrangement
- *  happens to have parked in the Sideboard (duplicate copies are
- *  interchangeable). `null` for a card that isn't in the Pool at all (a Basic
- *  land added from the bar — it has no `poolIndex`, so its column can't be
- *  overridden and the drag is a no-op). */
-export function findColumnOverrideablePoolIndex(
+/** The `poolIndex` of the `copyIndex`-th copy of `cardId` in the Pool, as the
+ *  Card Pin KEY `pinsByPoolIndex` records under (issue #1626). `null` for a
+ *  card the Pool doesn't hold that many copies of — a Basic land added from
+ *  the bar has no `poolIndex` at all, so it can never be pinned, and the
+ *  caller turns that into a no-op rather than into a wrong copy's Pin.
+ *
+ *  Pure and total: given the same Pool and ordinal it always names the same
+ *  physical card, which is what lets the deckbuilder recover the per-copy
+ *  identity its `cardId`-keyed `DeckCard[]` zones dropped. */
+export function poolIndexForCopy(
     pool: readonly LimitedPoolCard[],
-    arrangement: readonly PoolArrangementEntry[] | undefined,
-    cardId: string
+    cardId: string,
+    copyIndex: number
 ): number | null {
-    const placements = resolvePoolPlacements(pool, arrangement);
-    const inMain = placements.find(
-        (p) => p.card.cardId === cardId && !p.sideboard
-    );
-    if (inMain) return inMain.poolIndex;
-    const any = placements.find((p) => p.card.cardId === cardId);
-    return any ? any.poolIndex : null;
+    let seen = 0;
+    for (let i = 0; i < pool.length; i++) {
+        if (pool[i].cardId !== cardId) continue;
+        if (seen === copyIndex) return i;
+        seen++;
+    }
+    return null;
 }

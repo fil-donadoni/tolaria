@@ -20,6 +20,7 @@ import {
 import {
     type DeckBuilderKind,
     type DeckBuilderSinks,
+    toPresetPayload,
     toUpdatePatch,
 } from "~/lib/deckBuilderDispatch";
 import { useFullCatalogue } from "~/lib/fullCatalogue";
@@ -79,8 +80,13 @@ export default function DeckBuilderRoute({
                 },
             },
             preset: {
+                // `toPresetPayload` strips the Column Layout (issue #1626):
+                // `presetDecks` stores none, and Convex rejects an argument
+                // its validator doesn't declare.
                 create: async (payload) => {
-                    const { slug } = await createPreset({ input: payload });
+                    const { slug } = await createPreset({
+                        input: toPresetPayload(payload),
+                    });
                     return slug;
                 },
                 // `format` is immutable after creation (ADR 0036); the preset
@@ -88,7 +94,7 @@ export default function DeckBuilderRoute({
                 update: async (presetSlug, payload) => {
                     await updatePreset({
                         slug: presetSlug,
-                        patch: toUpdatePatch(payload),
+                        patch: toUpdatePatch(toPresetPayload(payload)),
                     });
                 },
             },

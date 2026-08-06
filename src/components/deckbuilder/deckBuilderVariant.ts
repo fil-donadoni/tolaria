@@ -34,7 +34,12 @@
  */
 import type { ReactNode } from "react";
 import type { FormatId, Reason } from "@convex/formats";
-import type { GroupingKind, OrderingKind } from "@convex/deckLayout";
+import type {
+    ColumnId,
+    GroupingKind,
+    OrderingKind,
+    StoredDeckColumnLayout,
+} from "@convex/deckLayout";
 import type { DeckCard } from "~/types/game";
 import type { DeckZoneDragHandlers } from "./deckZoneDrag";
 
@@ -58,6 +63,18 @@ export interface WorkingDeck {
     cards: DeckCard[];
     sideboard: DeckCard[];
     featuredCardId?: string;
+    /** The deck's persisted Column Layout (ADR 0075 §4, issue #1626) — manual
+     *  Columns, deleted Columns, Card Pins. It lives in the WORKING DECK, not
+     *  beside it, because it IS deck data: every column edit then rides the
+     *  same debounced autosave as a card edit, with no second save path to
+     *  keep in step. `undefined` = the player has not touched the arrangement
+     *  in this session, which the sinks read as "leave the stored layout
+     *  alone".
+     *
+     *  Grouping and Ordering are deliberately NOT in here: they are per-user
+     *  view preferences (`localStorage`), so a variant holds them separately
+     *  and merges the two halves through `fromStoredDeckColumnLayout`. */
+    layout?: StoredDeckColumnLayout;
 }
 
 /**
@@ -112,6 +129,45 @@ export interface DeckZoneActions extends DeckZoneDragHandlers {
     onSideGroupingChange: (grouping: GroupingKind) => void;
     onMainOrderingChange: (ordering: OrderingKind) => void;
     onSideOrderingChange: (ordering: OrderingKind) => void;
+    /** Manual-Column management for the MAINDECK (ADR 0075 §2, issue #1626).
+     *
+     *  Optional as a TRIO, and the surface renders the affordances only when
+     *  they are supplied — the reduced draft-time bar (ADR 0075 §6) declares
+     *  none, because adding and deleting columns is a workbench gesture, not a
+     *  timed-draft one. Supplied for the Maindeck and not the Sideboard: the
+     *  Sideboard is a single whole-pane drop target (`dropModel: "pane"`), so a
+     *  manual Column there could never receive a card.
+     *
+     *  `onAddColumn` takes the raw label — the engine normalises it and mints
+     *  the collision-free `custom:` id, so no caller has to. */
+    onAddColumn?: (label: string) => void;
+    onRenameColumn?: (columnId: ColumnId, label: string) => void;
+    onDeleteColumn?: (columnId: ColumnId) => void;
+}
+
+/** Resolves ONE copy of a card to the key its Card Pin is recorded under (ADR
+ *  0075 §4, issue #1626), given the card and its occurrence ordinal among
+ *  same-`cardId` cards in that Zone. */
+export type ZonePinKeyResolver = (card: DeckCard, copyIndex: number) => string;
+
+/**
+ * Per-Zone pin keys — the ONE place the two builders' Pin identity differs
+ * (ADR 0075 §4).
+ *
+ * Absent for a Zone = the Constructed rule: every copy shares the `cardId`, so
+ * pinning one Lightning Bolt files all four, which is always what a
+ * Constructed builder wants. The Limited variant supplies a resolver per Zone
+ * mapping the ordinal onto the Pool's own `poolIndex`, because the Pool
+ * already distinguishes copies and two physical copies must stay individually
+ * placeable.
+ *
+ * Declared as data rather than as another `DeckZoneActions` callback because
+ * it is a READ of the variant's identity model, not a gesture: the shell hands
+ * it to the surfaces and never calls it.
+ */
+export interface DeckZonePinKeys {
+    maindeck?: ZonePinKeyResolver;
+    sideboard?: ZonePinKeyResolver;
 }
 
 /** The Featured Card affordance (PRD #589). Absent = not offered. */

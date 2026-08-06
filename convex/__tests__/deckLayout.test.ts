@@ -11,25 +11,33 @@ import { describe, it, expect } from "vitest";
 import type { CardDefinition } from "../cards/types";
 import {
     CATCH_ALL_COLUMN_ID,
+    MANUAL_COLUMN_LABEL_MAX,
     MAX_MANA_VALUE_COLUMN,
     UNGROUPED_COLUMN_ID,
     addManualColumn,
     canDeleteColumn,
     createColumnLayout,
     createDeckColumnLayout,
+    fromStoredColumnLayout,
+    fromStoredDeckColumnLayout,
     generateColumns,
     makeColumnId,
+    manualColumnIdForLabel,
+    normalizeManualColumnLabel,
     normalizeLegacyColumn,
     parseColumnId,
     pinCardToColumn,
     pinNamespaceForGrouping,
     removeColumn,
+    renameManualColumn,
     resolveColumnLayout,
     restoreColumn,
     setCardPin,
     setGrouping,
     setOrdering,
+    storeZoneLayout,
     toManualColumnId,
+    toStoredColumnLayout,
     type ColumnLayout,
     type ColumnLayoutAdapter,
     type GroupingKind,
@@ -891,5 +899,225 @@ describe("purity and the default catalogue lookup (issue #1618)", () => {
                 adapter,
             })
         ).not.toThrow();
+    });
+});
+
+// ── manual-Column naming and renaming (issue #1626) ─────────────────────────
+
+describe("manual Column labels and ids (ADR 0075 §2, issue #1626)", () => {
+    it("normalises a label: collapses whitespace, trims, truncates", () => {
+        expect(normalizeManualColumnLabel("  Removal  ")).toBe("Removal");
+        expect(normalizeManualColumnLabel("Cheap   Removal")).toBe(
+            "Cheap Removal"
+        );
+        expect(normalizeManualColumnLabel("x".repeat(40))).toBe(
+            "x".repeat(MANUAL_COLUMN_LABEL_MAX)
+        );
+    });
+
+    it("rejects a label that is empty once trimmed", () => {
+        // The one rejection the engine makes: an unlabelled Column is one
+        // nobody could name afterwards.
+        expect(normalizeManualColumnLabel("   ")).toBeNull();
+        expect(normalizeManualColumnLabel("")).toBeNull();
+    });
+
+    it("mints a slug id in the `custom` namespace", () => {
+        const layout = createColumnLayout();
+        expect(manualColumnIdForLabel(layout, "Removal")).toBe(
+            makeColumnId("custom", "removal")
+        );
+        expect(manualColumnIdForLabel(layout, "Cheap Removal!")).toBe(
+            makeColumnId("custom", "cheap-removal")
+        );
+        // A label with no slug-able character still gets a usable id.
+        expect(manualColumnIdForLabel(layout, "★")).toBe(
+            makeColumnId("custom", "column")
+        );
+    });
+
+    it("de-duplicates against the manual Columns already present", () => {
+        let layout = createColumnLayout();
+        layout = addManualColumn(layout, {
+            id: manualColumnIdForLabel(layout, "Removal"),
+            label: "Removal",
+        });
+        const second = manualColumnIdForLabel(layout, "Removal");
+        expect(second).toBe("custom:removal-2");
+        layout = addManualColumn(layout, { id: second, label: "Removal" });
+        expect(manualColumnIdForLabel(layout, "Removal")).toBe(
+            "custom:removal-3"
+        );
+        // Two Columns, both labelled "Removal", with DISTINCT ids — the id is
+        // what a Pin names, so a collision would file both piles' cards into
+        // one column.
+        expect(layout.manualColumns.map((c) => c.id)).toEqual([
+            "custom:removal",
+            "custom:removal-2",
+        ]);
+    });
+
+    it("never collides with a GENERATED id, whatever the label", () => {
+        // Every generated id lives in the mv/color/type namespace, so a
+        // `custom:`-prefixed id cannot clash — even for a label that reads
+        // like one.
+        const layout = createColumnLayout();
+        expect(manualColumnIdForLabel(layout, "mv:5")).toBe("custom:mv-5");
+        expect(
+            generateColumns("mv", []).some(
+                (c) => c.id === manualColumnIdForLabel(layout, "mv:5")
+            )
+        ).toBe(false);
+    });
+});
+
+describe("renameManualColumn (issue #1626)", () => {
+    const base = addManualColumn(createColumnLayout(), {
+        id: "custom:removal",
+        label: "Removal",
+    });
+
+    it("renames a manual Column, keeping its ID — so every Pin still applies", () => {
+        const pinned = setCardPin(base, "bolt", "custom", "custom:removal");
+        const renamed = renameManualColumn(pinned, "custom:removal", "Burn");
+        expect(renamed.manualColumns).toEqual([
+            { id: "custom:removal", label: "Burn" },
+        ]);
+        // The Pin names the ID, which the rename never touches.
+        expect(renamed.pins.bolt).toEqual({ custom: "custom:removal" });
+        expect(
+            resolveColumnLayout({
+                layout: renamed,
+                items: [{ cardId: "bolt" }],
+                adapter,
+                lookup,
+            }).find((c) => c.id === "custom:removal")!.items
+        ).toEqual([{ cardId: "bolt" }]);
+    });
+
+    it("normalises the new label the same way creation does", () => {
+        expect(
+            renameManualColumn(base, "custom:removal", "  Cheap   Burn  ")
+                .manualColumns[0].label
+        ).toBe("Cheap Burn");
+    });
+
+    it("is a no-op for a blank label, an unknown id, a generated id, and an unchanged name", () => {
+        expect(renameManualColumn(base, "custom:removal", "   ")).toBe(base);
+        expect(renameManualColumn(base, "custom:nope", "Burn")).toBe(base);
+        expect(renameManualColumn(base, "mv:5", "Burn")).toBe(base);
+        expect(renameManualColumn(base, "custom:removal", "Removal")).toBe(
+            base
+        );
+    });
+});
+
+// ── persistence: the deck half vs the view half (ADR 0075 §4, issue #1626) ──
+
+describe("stored Column Layout (ADR 0075 §4, issue #1626)", () => {
+    const view = { grouping: "color" as const, ordering: "mv" as const };
+
+    function arranged(): ColumnLayout {
+        let layout = createColumnLayout({ grouping: "mv", ordering: "name" });
+        layout = addManualColumn(layout, {
+            id: "custom:removal",
+            label: "Removal",
+        });
+        layout = removeColumn(layout, makeColumnId("mv", "3"));
+        layout = pinCardToColumn(layout, "bolt", "custom:removal");
+        return layout;
+    }
+
+    it("round-trips the deck half without loss", () => {
+        const stored = toStoredColumnLayout(arranged());
+        expect(stored).toEqual({
+            manualColumns: [{ id: "custom:removal", label: "Removal" }],
+            removedColumnIds: ["mv:3"],
+            pins: { bolt: { custom: "custom:removal" } },
+        });
+        const rehydrated = fromStoredColumnLayout(stored, view);
+        expect(rehydrated.manualColumns).toEqual(stored!.manualColumns);
+        expect(rehydrated.removedColumnIds).toEqual(stored!.removedColumnIds);
+        expect(rehydrated.pins).toEqual(stored!.pins);
+    });
+
+    it("stores NOTHING for an untouched Zone, whatever its view preference", () => {
+        // A Grouping/Ordering choice is a per-USER preference and must never
+        // reach the deck row — otherwise "group by colour" would follow one
+        // deck instead of the user.
+        expect(
+            toStoredColumnLayout(
+                createColumnLayout({ grouping: "type", ordering: "rarity" })
+            )
+        ).toBeUndefined();
+    });
+
+    it("takes Grouping/Ordering from the VIEW, never from the stored half", () => {
+        const rehydrated = fromStoredColumnLayout(
+            toStoredColumnLayout(arranged()),
+            view
+        );
+        expect(rehydrated.grouping).toBe("color");
+        expect(rehydrated.ordering).toBe("mv");
+    });
+
+    it("reads an ABSENT layout as the plain default — a deck saved before this slice", () => {
+        // The whole "no migration" claim (ADR 0075 §5): a pre-#1626 row has no
+        // `layout` at all and must behave exactly as it did.
+        expect(fromStoredColumnLayout(undefined, view)).toEqual(
+            createColumnLayout(view)
+        );
+        expect(
+            fromStoredDeckColumnLayout(undefined, {
+                maindeck: view,
+                sideboard: view,
+            })
+        ).toEqual({
+            maindeck: createColumnLayout(view),
+            sideboard: createColumnLayout(view),
+        });
+    });
+
+    it("omits the Pins when the caller keeps them elsewhere (Limited)", () => {
+        // A Limited seat's Pins live on the Pool Arrangement, keyed by
+        // `poolIndex`. Writing them onto the deck row too would give one
+        // datum two homes that immediately diverge.
+        expect(toStoredColumnLayout(arranged(), false)).toEqual({
+            manualColumns: [{ id: "custom:removal", label: "Removal" }],
+            removedColumnIds: ["mv:3"],
+        });
+    });
+
+    it("never aliases live state — a stored layout is a deep copy", () => {
+        const layout = arranged();
+        const stored = toStoredColumnLayout(layout)!;
+        stored.manualColumns![0].label = "MUTATED";
+        stored.pins!.bolt.custom = "custom:elsewhere";
+        expect(layout.manualColumns[0].label).toBe("Removal");
+        expect(layout.pins.bolt).toEqual({ custom: "custom:removal" });
+    });
+
+    it("storeZoneLayout writes one Zone and leaves the other alone", () => {
+        const stored = storeZoneLayout(undefined, "maindeck", arranged());
+        expect(stored.maindeck).toBeDefined();
+        expect(stored.sideboard).toBeUndefined();
+        const both = storeZoneLayout(stored, "sideboard", arranged());
+        expect(both.maindeck).toEqual(stored.maindeck);
+        expect(both.sideboard).toBeDefined();
+    });
+
+    it("storeZoneLayout drops an emptied Zone's key but still returns an object", () => {
+        // `{}` vs `undefined` is the ONE signal a persistence sink has to tell
+        // "never arranged" (leave the stored row alone) from "the player just
+        // cleared it" (overwrite). Collapsing the two would make a cleared
+        // arrangement unclearable.
+        const stored = storeZoneLayout(undefined, "maindeck", arranged());
+        const cleared = storeZoneLayout(
+            stored,
+            "maindeck",
+            createColumnLayout()
+        );
+        expect(cleared).toEqual({});
+        expect(cleared).not.toBeUndefined();
     });
 });

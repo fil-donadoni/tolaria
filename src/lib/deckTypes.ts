@@ -10,6 +10,7 @@ import {
     type Reason,
     validateDeck,
 } from "@convex/formats";
+import type { StoredDeckColumnLayout } from "@convex/deckLayout";
 
 export interface LobbyDeckBase {
     presetId: string;
@@ -36,6 +37,12 @@ export interface LobbyDeckBase {
     // Absent on every other deck.
     limitedEventId?: string;
     limitedSeatId?: string;
+    // Persisted Column Layout (ADR 0075 §4, PRD #1617, issue #1626) — the
+    // deckbuilder workspace the player built ON THIS DECK: manual Columns,
+    // deleted Columns and Card Pins. Absent for a deck saved before this
+    // slice, and for a Preset (only `userDecks` stores a layout today), which
+    // the builder rehydrates as the empty default.
+    layout?: StoredDeckColumnLayout;
 }
 
 export interface PresetLobbyDeck extends LobbyDeckBase {
@@ -142,6 +149,10 @@ export function toUserLobbyDeck(
         reasons: legality.reasons,
         limitedEventId: d.limitedEventId,
         limitedSeatId: d.limitedSeatId,
+        // Persisted Column Layout (ADR 0075 §4, issue #1626). Passed through
+        // verbatim — the Column Layout engine is its only interpreter, and a
+        // row saved before this slice simply has none.
+        layout: d.layout,
     };
 }
 

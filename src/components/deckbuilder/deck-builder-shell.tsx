@@ -18,6 +18,7 @@ import {
     deckCardTitle,
     type DeckBuilderSlots,
     type DeckBuilderViewSpec,
+    type DeckZonePinKeys,
     type DeckLegalitySpec,
     type DeckSaveBarSpec,
     type DeckZoneActions,
@@ -41,6 +42,9 @@ export interface DeckBuilderShellProps extends DeckBuilderSlots {
     layout: DeckColumnLayout;
     /** Catalogue lookup handed to the Column Layout engine (ADR 0080). */
     lookup?: CardLookup;
+    /** Per-Zone Card Pin identity (ADR 0075 §4, issue #1626): absent = pin by
+     *  Card ID (Constructed), supplied = pin per copy (Limited's `poolIndex`). */
+    pinKeys?: DeckZonePinKeys;
     zones: DeckZonePresentation;
     actions: DeckZoneActions;
     featured?: FeaturedCardSpec;
@@ -93,6 +97,7 @@ export default function DeckBuilderShell({
     sideCards,
     layout,
     lookup,
+    pinKeys,
     zones,
     actions,
     featured,
@@ -177,6 +182,10 @@ export default function DeckBuilderShell({
                             onMainOrderingChange={actions.onMainOrderingChange}
                             onSideOrderingChange={actions.onSideOrderingChange}
                             lookup={lookup}
+                            pinKeys={pinKeys}
+                            onAddColumn={actions.onAddColumn}
+                            onRenameColumn={actions.onRenameColumn}
+                            onDeleteColumn={actions.onDeleteColumn}
                             cardBase={view.cardBase}
                             splitZone={view.splitZone}
                             splitDefault={view.splitDefault}

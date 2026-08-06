@@ -17,6 +17,7 @@
 // else in here is erased at compile time.
 import { v, type Infer } from "convex/values";
 import type { CardPins } from "../deckLayout";
+import { cardPinsValidator } from "../deckLayoutStorage";
 
 /** One physical card opened into a seat's Pool (ADR 0054/0055): the exact
  *  printing drawn from a Booster (`scryfallId`) plus the canonical Card ID
@@ -209,19 +210,18 @@ export interface PoolArrangementEntry {
 }
 
 /** {@link PoolArrangementEntry.pins} as a Convex validator — Card Pins
- *  (ADR 0075 §3/§5, PRD #1617, issue #1621). Values are namespaced Column ids
- *  minted by the Column Layout engine (`convex/deckLayout.ts` —
- *  `makeColumnId`), e.g. `mv:5` / `mv:lands` / `color:R` / `custom:combo`;
- *  stored as free `v.string()` because the id vocabulary is OPEN (a `custom:`
- *  key is user-authored) and the engine, not the DB, is its authority.
- *  Every field optional, and the whole map optional on the entry, so a row
- *  written before this slice validates untouched (tolerant read, ADR 0075 §5). */
-export const cardPinsValidator = v.object({
-    mv: v.optional(v.string()),
-    color: v.optional(v.string()),
-    type: v.optional(v.string()),
-    custom: v.optional(v.string()),
-});
+ *  (ADR 0075 §3/§5, PRD #1617, issue #1621).
+ *
+ *  Re-exported, not re-declared (issue #1626): `userDecks.layout` stores the
+ *  SAME Pin map, so the validator moved to the leaf module
+ *  `convex/deckLayoutStorage.ts` where both persistence sites can reach it
+ *  without pulling in the engine's card-registry edge. A second hand-kept copy
+ *  here is exactly the drift this file's own header warns about — a namespace
+ *  added to `CardPins` and to one copy but not the other is invisible to
+ *  `tsc` and 500s a query at runtime. Kept as a named re-export because
+ *  `convex/schema.ts` and `convex/limitedEvents.ts` already import it from
+ *  here. */
+export { cardPinsValidator };
 
 /** {@link PoolArrangementEntry} as a Convex validator — THE single authority,
  *  imported by every site that has to describe the shape to Convex:

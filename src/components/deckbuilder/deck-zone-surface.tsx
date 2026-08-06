@@ -2,8 +2,10 @@ import { useMemo, useState } from "react";
 import { useDroppable } from "@dnd-kit/react";
 import type { Color } from "@convex/cards/types";
 import {
+    canDeleteColumn,
     resolveColumnLayout,
     type CardLookup,
+    type ColumnId,
     type ColumnLayout,
     type DeckZone,
     type GroupingKind,
@@ -22,6 +24,8 @@ import {
     type ZoneFilter,
 } from "./deckZoneFilter";
 import { zoneColumnDropId, zonePaneDropId } from "./deckZoneDrag";
+import DeckColumnActions from "./deck-column-actions";
+import ZoneAddColumnControl from "./zone-add-column-control";
 import ZoneColorFilterToggles from "./zone-color-filter-toggles";
 import ZoneCreatureFilterSelect from "./zone-creature-filter-select";
 import ZoneFilterChip from "./zone-filter-chip";
@@ -92,6 +96,34 @@ export interface DeckZoneSurfaceProps {
     /** Presence enables the "Set as featured" affordance on each card's
      *  topmost copy. Constructed Maindeck only. */
     onSetFeatured?: (cardId: string) => void;
+    /** The key a Card Pin for ONE COPY is recorded under (ADR 0075 §4, issue
+     *  #1626), given the card and its occurrence ordinal among same-`cardId`
+     *  cards in THIS zone (0 for the first copy, 1 for the second, …).
+     *
+     *  Absent = the Constructed rule: every copy shares the `cardId` key, so
+     *  pinning one Lightning Bolt files all four. The Limited builder supplies
+     *  a per-copy function resolving the ordinal to the Pool's own
+     *  `poolIndex`, which is what keeps two physical copies of one card
+     *  individually placeable. */
+    pinKeyOf?: (card: DeckCard, copyIndex: number) => string;
+    /** Manual-Column management (ADR 0075 §2, issue #1626). Supplied as a trio
+     *  or not at all; when absent the surface renders no add/rename/delete
+     *  affordance, which is the reduced draft-time bar (ADR 0075 §6) and the
+     *  Sideboard (whose whole pane is one drop target, so a manual Column
+     *  there could never receive a card). */
+    onAddColumn?: (label: string) => void;
+    onRenameColumn?: (columnId: ColumnId, label: string) => void;
+    onDeleteColumn?: (columnId: ColumnId) => void;
+}
+
+/** One card of a Zone, carrying the key its Card Pin is recorded under. The
+ *  Column Layout engine resolves ITEMS, not card ids — wrapping the pair here
+ *  is what lets two physically distinct copies of one card be claimed by two
+ *  different Columns (issue #1626), which a `cardId`-keyed adapter cannot
+ *  express. */
+interface ZoneItem {
+    card: DeckCard;
+    pinKey: string;
 }
 
 export default function DeckZoneSurface({
@@ -111,6 +143,10 @@ export default function DeckZoneSurface({
     headerRight,
     featuredCardId,
     onSetFeatured,
+    pinKeyOf,
+    onAddColumn,
+    onRenameColumn,
+    onDeleteColumn,
 }: DeckZoneSurfaceProps) {
     // The Zone build-time filter (issue #1625, ADR 0075 § "Filter is
     // momentary") lives ONLY in this component's own state — never lifted to
@@ -125,11 +161,27 @@ export default function DeckZoneSurface({
     const [filter, setFilter] = useState<ZoneFilter>(DEFAULT_ZONE_FILTER);
     const filterActive = isZoneFilterActive(filter);
 
+    // Each card paired with the key its Pin is recorded under (issue #1626).
+    // The ordinal is counted over the UNFILTERED zone, so hiding a card can
+    // never renumber the copies that stay visible — the same reason columns
+    // resolve from `cards` below.
+    const items = useMemo<ZoneItem[]>(() => {
+        const seen = new Map<string, number>();
+        return cards.map((card) => {
+            const copyIndex = seen.get(card.cardId) ?? 0;
+            seen.set(card.cardId, copyIndex + 1);
+            return {
+                card,
+                pinKey: pinKeyOf ? pinKeyOf(card, copyIndex) : card.cardId,
+            };
+        });
+    }, [cards, pinKeyOf]);
+
     // Filtering narrows what's VISIBLE, never what generates a Column — see
     // below (issue #2313 review, F1).
     const visible = useMemo(
-        () => filterZoneCards(cards, filter, (c) => c.cardId, lookup),
-        [cards, filter, lookup]
+        () => filterZoneCards(items, filter, (i) => i.card.cardId, lookup),
+        [items, filter, lookup]
     );
 
     // Columns are resolved from the UNFILTERED `cards`. `generateColumns`
@@ -148,21 +200,24 @@ export default function DeckZoneSurface({
     // naming one — filter-independent; only Column CONTENTS narrow below.
     const rawColumns = useMemo(
         () =>
-            resolveColumnLayout<DeckCard>({
+            resolveColumnLayout<ZoneItem>({
                 layout,
-                items: cards,
+                items,
                 adapter: {
-                    cardId: (c) => c.cardId,
+                    cardId: (i) => i.card.cardId,
                     // Constructed pins by Card ID (four Lightning Bolts pin
-                    // together); Limited resolves its per-copy Pool Pins into
-                    // the same cardId-keyed map before handing the Layout over
-                    // (ADR 0075 §4), so one adapter serves both.
-                    pinKey: (c) => c.cardId,
-                    tiebreak: (a, b) => a.cardId.localeCompare(b.cardId),
+                    // together); Limited pins by the Pool's own `poolIndex`,
+                    // so its two physical copies of one card stay
+                    // individually placeable (ADR 0075 §4). Which of the two
+                    // applies is the host's `pinKeyOf`, resolved above — one
+                    // adapter serves both.
+                    pinKey: (i) => i.pinKey,
+                    tiebreak: (a, b) =>
+                        a.card.cardId.localeCompare(b.card.cardId),
                 },
                 lookup,
             }),
-        [layout, cards, lookup]
+        [layout, items, lookup]
     );
 
     // The filter narrows each resolved Column's ITEMS — never the Column
@@ -178,7 +233,7 @@ export default function DeckZoneSurface({
                       items: filterZoneCards(
                           column.items,
                           filter,
-                          (c) => c.cardId,
+                          (i) => i.card.cardId,
                           lookup
                       ),
                   }))
@@ -199,15 +254,25 @@ export default function DeckZoneSurface({
                 )
                 .map((column) => {
                     const topIndexByCardId = new Map<string, number>();
-                    column.items.forEach((card, idx) =>
-                        topIndexByCardId.set(card.cardId, idx)
+                    column.items.forEach((item, idx) =>
+                        topIndexByCardId.set(item.card.cardId, idx)
                     );
                     return {
                         id: column.id,
                         label: column.label,
+                        kind: column.kind,
                         dropId: zoneColumnDropId(zone, column.id),
+                        // Deletability is judged on `rawColumns` — the
+                        // UNFILTERED resolve — not on the narrowed `column`
+                        // being rendered. A Zone filter hides cards without
+                        // emptying a Column, so asking the filtered view would
+                        // let a filter authorise a deletion that displaces the
+                        // very cards it is hiding, breaking the empty-only
+                        // rule's whole guarantee ("deleting can never lose a
+                        // card", ADR 0075 rationale §2).
+                        deletable: canDeleteColumn(rawColumns, column.id),
                         tiles: column.items.map(
-                            (card, idx): DeckPileTile => ({
+                            ({ card, pinKey }, idx): DeckPileTile => ({
                                 key: `${column.id}:${card.cardId}:${idx}`,
                                 cardId: card.cardId,
                                 dragId: `${zone}:${column.id}:${card.cardId}:${idx}`,
@@ -215,6 +280,11 @@ export default function DeckZoneSurface({
                                     kind: zone === "maindeck" ? "main" : "side",
                                     cardId: card.cardId,
                                     cardName: card.cardName,
+                                    // The COPY being dragged (issue #1626) —
+                                    // carried on the payload so the drop
+                                    // resolver never has to re-derive which of
+                                    // several identical cards moved.
+                                    pinKey,
                                 } satisfies CardDragData,
                                 title: cardTitle(card),
                                 onClick: () => onCardClick(card),
@@ -232,6 +302,7 @@ export default function DeckZoneSurface({
                 }),
         [
             columns,
+            rawColumns,
             dropModel,
             zone,
             cardTitle,
@@ -317,6 +388,12 @@ export default function DeckZoneSurface({
                         onChange={onOrderingChange}
                         zoneLabel={title}
                     />
+                    {onAddColumn && (
+                        <ZoneAddColumnControl
+                            onAdd={onAddColumn}
+                            zoneLabel={title}
+                        />
+                    )}
                     {headerRight}
                 </div>
             </div>
@@ -339,6 +416,27 @@ export default function DeckZoneSurface({
                         droppable={dropModel === "columns"}
                         dataColumn={column.id}
                         tiles={column.tiles}
+                        actions={
+                            // The Catch-All is never renameable and never
+                            // deletable (ADR 0075 §2), so it gets no controls
+                            // at all rather than two disabled ones. Renaming
+                            // is offered for MANUAL Columns only — a generated
+                            // Column's label comes from its Grouping.
+                            (onRenameColumn || onDeleteColumn) &&
+                            column.kind !== "catchAll" ? (
+                                <DeckColumnActions
+                                    columnId={column.id}
+                                    label={column.label}
+                                    onRename={
+                                        column.kind === "manual"
+                                            ? onRenameColumn
+                                            : undefined
+                                    }
+                                    onDelete={onDeleteColumn}
+                                    deletable={column.deletable}
+                                />
+                            ) : undefined
+                        }
                     />
                 ))}
             </div>

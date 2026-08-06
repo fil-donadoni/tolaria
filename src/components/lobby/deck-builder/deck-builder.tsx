@@ -1,11 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { DragDropManager } from "@dnd-kit/dom";
 import {
-    createColumnLayout,
+    addManualColumn,
+    fromStoredDeckColumnLayout,
+    manualColumnIdForLabel,
+    normalizeManualColumnLabel,
     pinCardToColumn,
-    setGrouping as setColumnGrouping,
-    setOrdering as setColumnOrdering,
+    removeColumn,
+    renameManualColumn,
+    storeZoneLayout,
     type ColumnId,
+    type ColumnLayout,
     type DeckColumnLayout,
     type GroupingKind,
     type OrderingKind,
@@ -201,6 +206,13 @@ export default function DeckBuilder({
                 cards: pending.cards,
                 sideboard: pending.sideboard,
                 featuredCardId: pending.featuredCardId,
+                // The deck's Column Layout (ADR 0075 §4, issue #1626) — it
+                // rides the SAME debounced autosave as the cards, because it
+                // is deck data. `undefined` (a deck whose arrangement was
+                // never touched) is dropped by the sinks, so editing a deck
+                // saved before this slice never writes a layout onto it; the
+                // preset sinks strip it entirely (`presetDecks` stores none).
+                layout: pending.layout,
             }),
         [kind, mode, sinks, fullCatalogue?.rows]
     );
@@ -222,6 +234,14 @@ export default function DeckBuilder({
                       // `initialDeck.featuredCardId` (see
                       // `effectiveFeaturedCardId`), so it survives reloads.
                       featuredCardId: undefined,
+                      // The stored Column Layout (issue #1626), seeded whole
+                      // — unlike `featuredCardId` above it is NOT seeded
+                      // `undefined`, because it is the complete value rather
+                      // than an override: re-sending it unchanged is a no-op,
+                      // while seeding `undefined` would make the FIRST column
+                      // edit overwrite the other Zone's stored arrangement
+                      // with nothing.
+                      layout: initialDeck.layout,
                   }
                 : {
                       name: nextDeckName(initialDeckList),
@@ -229,6 +249,7 @@ export default function DeckBuilder({
                       cards: [],
                       sideboard: [],
                       featuredCardId: undefined,
+                      layout: undefined,
                   },
     });
 
@@ -241,51 +262,113 @@ export default function DeckBuilder({
         fullCatalogue
     );
 
-    // The deck's Column Layout (ADR 0075, issue #1622/#1624). Grouping and
-    // Ordering seed from the user's per-zone view preference (issue #1620's
-    // `deckViewPrefs` seam, bridged by `deckZoneColumnView.ts`) and are held
-    // here alongside the Card Pins a column drag records. Held in the WORKING
-    // deck, not persisted: `userDecks.layout` lands in a later slice of PRD
-    // #1617, so a pin survives re-render (and every other edit to the deck)
-    // but not a reload — Grouping/Ordering themselves DO survive a reload,
-    // via the separate per-user seam, independently of the deck.
-    const [layout, setLayout] = useState<DeckColumnLayout>(() => ({
-        maindeck: createColumnLayout(seededColumnView("maindeck")),
-        sideboard: createColumnLayout(seededColumnView("sideboard")),
-    }));
+    // The deck's Column Layout (ADR 0075, issue #1622/#1624/#1626), assembled
+    // from its TWO homes — the split is the whole point of ADR 0075 §4:
+    //
+    //  - Grouping and Ordering are per-USER view preferences, held here in
+    //    component state and mirrored to `localStorage` (issue #1620's
+    //    `deckViewPrefs` seam, bridged by `deckZoneColumnView.ts`), so they
+    //    apply to every deck the user opens;
+    //  - manual Columns, deleted Columns and Card Pins are DECK data, held in
+    //    the working deck (`deck.layout`) and persisted on the deck row by the
+    //    same debounced autosave as the cards, so they follow the deck across
+    //    devices.
+    //
+    // A deck saved before #1626 has no stored layout, and
+    // `fromStoredDeckColumnLayout` rehydrates that as the plain default —
+    // which is what makes "it behaves exactly as it does today" structural
+    // rather than a migration.
+    const [mainView, setMainView] = useState(() =>
+        seededColumnView("maindeck")
+    );
+    const [sideView, setSideView] = useState(() =>
+        seededColumnView("sideboard")
+    );
+    const layout = useMemo<DeckColumnLayout>(
+        () =>
+            fromStoredDeckColumnLayout(deck.layout, {
+                maindeck: mainView,
+                sideboard: sideView,
+            }),
+        [deck.layout, mainView, sideView]
+    );
 
-    // Grouping/Ordering change handlers (issue #1624): apply the change
-    // through the engine's own `setGrouping`/`setOrdering` — which never
-    // touch `pins` (ADR 0075 §3, the guarantee that flipping to colour and
-    // back restores every Pin exactly) — AND persist the choice per-user.
+    // Grouping/Ordering change handlers (issue #1624). They touch ONLY the
+    // view preference — never `pins` — which is the guarantee that flipping to
+    // colour and back restores every Pin exactly (ADR 0075 §3): a Pin lives in
+    // the persisted half, which these never write.
     const handleMainGroupingChange = useCallback((grouping: GroupingKind) => {
         recordGroupingChange("maindeck", grouping);
-        setLayout((current) => ({
-            ...current,
-            maindeck: setColumnGrouping(current.maindeck, grouping),
-        }));
+        setMainView((v) => ({ ...v, grouping }));
     }, []);
     const handleSideGroupingChange = useCallback((grouping: GroupingKind) => {
         recordGroupingChange("sideboard", grouping);
-        setLayout((current) => ({
-            ...current,
-            sideboard: setColumnGrouping(current.sideboard, grouping),
-        }));
+        setSideView((v) => ({ ...v, grouping }));
     }, []);
     const handleMainOrderingChange = useCallback((ordering: OrderingKind) => {
         recordOrderingChange("maindeck", ordering);
-        setLayout((current) => ({
-            ...current,
-            maindeck: setColumnOrdering(current.maindeck, ordering),
-        }));
+        setMainView((v) => ({ ...v, ordering }));
     }, []);
     const handleSideOrderingChange = useCallback((ordering: OrderingKind) => {
         recordOrderingChange("sideboard", ordering);
-        setLayout((current) => ({
-            ...current,
-            sideboard: setColumnOrdering(current.sideboard, ordering),
-        }));
+        setSideView((v) => ({ ...v, ordering }));
     }, []);
+
+    /** Folds one engine edit of the MAINDECK Layout back into the working
+     *  deck, which schedules the autosave. Every column gesture below goes
+     *  through here, so "a layout edit persists exactly like a card edit" has
+     *  one implementation rather than four. */
+    const updateMaindeckLayout = useCallback(
+        (edit: (layout: ColumnLayout) => ColumnLayout) => {
+            updateDeck((d) => {
+                const current = fromStoredDeckColumnLayout(d.layout, {
+                    maindeck: mainView,
+                    sideboard: sideView,
+                }).maindeck;
+                const next = edit(current);
+                if (next === current) return d;
+                return {
+                    ...d,
+                    layout: storeZoneLayout(d.layout, "maindeck", next),
+                };
+            });
+        },
+        [updateDeck, mainView, sideView]
+    );
+
+    // Manual Columns (ADR 0075 §2, issue #1626). The engine mints the
+    // collision-free `custom:` id from the label and rejects a blank one, so
+    // this handler carries no id or validation logic of its own.
+    const handleAddColumn = useCallback(
+        (rawLabel: string) => {
+            const label = normalizeManualColumnLabel(rawLabel);
+            if (label === null) return;
+            updateMaindeckLayout((current) =>
+                addManualColumn(current, {
+                    id: manualColumnIdForLabel(current, label),
+                    label,
+                })
+            );
+        },
+        [updateMaindeckLayout]
+    );
+    const handleRenameColumn = useCallback(
+        (columnId: ColumnId, label: string) => {
+            updateMaindeckLayout((current) =>
+                renameManualColumn(current, columnId, label)
+            );
+        },
+        [updateMaindeckLayout]
+    );
+    // Deletion is gated in the surface by the engine's own `canDeleteColumn`
+    // over the UNFILTERED columns — a non-empty column's control is rendered
+    // disabled with its reason, never wired to this.
+    const handleDeleteColumn = useCallback(
+        (columnId: ColumnId) => {
+            updateMaindeckLayout((current) => removeColumn(current, columnId));
+        },
+        [updateMaindeckLayout]
+    );
 
     // Deck-side card resolution (ADR 0080). A Tabletop deck's pool is the whole
     // Full Catalogue, so its cards may be absent from the card registry — the
@@ -469,14 +552,18 @@ export default function DeckBuilder({
     );
 
     // A Maindeck column drag records a Card Pin on the Maindeck's Layout
-    // (ADR 0075 §3). Pins are keyed by Card ID here — four Lightning Bolts pin
-    // together, which is always what a Constructed builder wants (ADR 0075 §4).
-    const handlePin = useCallback((cardId: string, columnId: ColumnId) => {
-        setLayout((current) => ({
-            ...current,
-            maindeck: pinCardToColumn(current.maindeck, cardId, columnId),
-        }));
-    }, []);
+    // (ADR 0075 §3), which now persists with the deck (issue #1626). Pins are
+    // keyed by Card ID here — four Lightning Bolts pin together, which is
+    // always what a Constructed builder wants (ADR 0075 §4) — so the surface
+    // declares no `pinKeyOf` and the drag's `pinKey` IS the card id.
+    const handlePin = useCallback(
+        (_cardId: string, columnId: ColumnId, pinKey: string) => {
+            updateMaindeckLayout((current) =>
+                pinCardToColumn(current, pinKey, columnId)
+            );
+        },
+        [updateMaindeckLayout]
+    );
 
     // Append an imported decklist to the working deck. Import is additive
     // (per design): resolved copies are pushed onto the existing Maindeck and
@@ -822,6 +909,12 @@ export default function DeckBuilder({
                 onSideGroupingChange: handleSideGroupingChange,
                 onMainOrderingChange: handleMainOrderingChange,
                 onSideOrderingChange: handleSideOrderingChange,
+                // Manual-Column management, Maindeck only (issue #1626) — a
+                // preset row stores no layout, so the affordances that would
+                // silently lose their work are not offered there.
+                onAddColumn: isPreset ? undefined : handleAddColumn,
+                onRenameColumn: isPreset ? undefined : handleRenameColumn,
+                onDeleteColumn: isPreset ? undefined : handleDeleteColumn,
             }}
             featured={{
                 cardId: effectiveFeaturedCardId,

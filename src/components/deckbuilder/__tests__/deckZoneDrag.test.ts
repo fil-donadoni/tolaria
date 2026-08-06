@@ -97,7 +97,14 @@ describe("resolveDeckZoneDragAction (issue #1622)", () => {
                 mainCard,
                 zoneColumnDropId("maindeck", MV5)
             )
-        ).toEqual({ type: "pin", cardId: "bolt", columnId: "mv:5" });
+        ).toEqual({
+            type: "pin",
+            cardId: "bolt",
+            columnId: "mv:5",
+            // No `pinKey` on the source, so it falls back to the card id —
+            // the Constructed rule, where all copies pin together (#1626).
+            pinKey: "bolt",
+        });
     });
 
     it("Maindeck card → the Lands Column pins it into Lands (issue #1573 parity)", () => {
@@ -106,7 +113,42 @@ describe("resolveDeckZoneDragAction (issue #1622)", () => {
                 mainCard,
                 zoneColumnDropId("maindeck", LANDS)
             )
-        ).toEqual({ type: "pin", cardId: "bolt", columnId: "mv:lands" });
+        ).toEqual({
+            type: "pin",
+            cardId: "bolt",
+            columnId: "mv:lands",
+            pinKey: "bolt",
+        });
+    });
+
+    // Per-copy Card Pins (issue #1626): a surface that distinguishes copies
+    // (Limited, keyed by `poolIndex`) puts the copy's own key on the drag
+    // payload, and the resolver carries it through untouched instead of
+    // re-deriving it from the card id — which is what made two copies of one
+    // card impossible to file separately.
+    it("carries the dragged COPY's pin key through, when the source declares one", () => {
+        expect(
+            resolveDeckZoneDragAction(
+                { ...mainCard, pinKey: "7" },
+                zoneColumnDropId("maindeck", MV5)
+            )
+        ).toEqual({
+            type: "pin",
+            cardId: "bolt",
+            columnId: "mv:5",
+            pinKey: "7",
+        });
+        expect(
+            resolveDeckZoneDragAction(
+                { ...sideCard, pinKey: "9" },
+                zoneColumnDropId("maindeck", MV5)
+            )
+        ).toEqual({
+            type: "moveToMaindeck",
+            cardId: "bolt",
+            columnId: "mv:5",
+            pinKey: "9",
+        });
     });
 
     it("Maindeck card → the Maindeck pane (no Column) is a no-op, not a cleared Pin", () => {
@@ -125,6 +167,7 @@ describe("resolveDeckZoneDragAction (issue #1622)", () => {
             type: "moveToMaindeck",
             cardId: "bolt",
             columnId: "mv:5",
+            pinKey: "bolt",
         });
     });
 
@@ -174,7 +217,12 @@ describe("resolveDeckZoneDragAction (issue #1622)", () => {
                     mainCard,
                     zoneColumnDropId("maindeck", columnId)
                 )
-            ).toEqual({ type: "pin", cardId: "bolt", columnId });
+            ).toEqual({
+                type: "pin",
+                cardId: "bolt",
+                columnId,
+                pinKey: "bolt",
+            });
         }
     });
 });
@@ -183,7 +231,9 @@ function handlers() {
     return {
         onMoveToSideboard: vi.fn<(cardId: string) => void>(),
         onMoveToMaindeck: vi.fn<(cardId: string) => void>(),
-        onPin: vi.fn<(cardId: string, columnId: string) => void>(),
+        onPin: vi.fn<
+            (cardId: string, columnId: string, pinKey: string) => void
+        >(),
         onAddToMaindeck: vi.fn<(cardId: string, cardName: string) => void>(),
         onAddToSideboard: vi.fn<(cardId: string, cardName: string) => void>(),
     } satisfies DeckZoneDragHandlers;
@@ -193,11 +243,16 @@ describe("applyDeckZoneDragAction (issue #1622)", () => {
     it("a Sideboard→Column drop is ONE gesture: membership AND the Pin", () => {
         const h = handlers();
         applyDeckZoneDragAction(
-            { type: "moveToMaindeck", cardId: "bolt", columnId: "mv:5" },
+            {
+                type: "moveToMaindeck",
+                cardId: "bolt",
+                columnId: "mv:5",
+                pinKey: "bolt",
+            },
             h
         );
         expect(h.onMoveToMaindeck).toHaveBeenCalledWith("bolt");
-        expect(h.onPin).toHaveBeenCalledWith("bolt", "mv:5");
+        expect(h.onPin).toHaveBeenCalledWith("bolt", "mv:5", "bolt");
     });
 
     it("a Maindeck→Sideboard drop records no Pin", () => {

@@ -61,6 +61,10 @@ export interface DeckZoneDragSource {
     kind: DragSourceKind;
     cardId: string;
     cardName: string;
+    /** The key a Pin for THIS copy is recorded under (issue #1626). Absent
+     *  falls back to `cardId` — the Constructed rule, where all copies of a
+     *  card pin together. */
+    pinKey?: string;
 }
 
 /** What a resolved drop MEANS. Membership actions (`add*`, `moveTo*`) are the
@@ -78,10 +82,17 @@ export type DeckZoneDragAction =
     | { type: "moveToSideboard"; cardId: string }
     /** A Sideboard card dropped on a Maindeck Column — move it into the deck
      *  AND pin it to exactly that Column, in one gesture. */
-    | { type: "moveToMaindeck"; cardId: string; columnId: ColumnId | null }
+    | {
+          type: "moveToMaindeck";
+          cardId: string;
+          columnId: ColumnId | null;
+          /** Pin key of the dragged COPY (issue #1626); see
+           *  {@link DeckZoneDragSource.pinKey}. */
+          pinKey: string;
+      }
     /** A Maindeck card dropped on another Maindeck Column — record a Card Pin;
      *  it stays in the deck. */
-    | { type: "pin"; cardId: string; columnId: ColumnId };
+    | { type: "pin"; cardId: string; columnId: ColumnId; pinKey: string };
 
 /** Resolves a completed drag into the action it represents, or `null` for a
  *  cancelled / no-op drop (missing data or target, an id this surface doesn't
@@ -117,11 +128,17 @@ export function resolveDeckZoneDragAction(
             : null;
     }
 
+    // The Pin key of the dragged COPY (issue #1626), defaulted to the card id
+    // — the Constructed rule (all copies pin together) and the shape every
+    // surface that declares no per-copy key gets for free.
+    const pinKey = source.pinKey ?? source.cardId;
+
     if (source.kind === "side") {
         return {
             type: "moveToMaindeck",
             cardId: source.cardId,
             columnId: target.columnId,
+            pinKey,
         };
     }
 
@@ -130,7 +147,12 @@ export function resolveDeckZoneDragAction(
     // to record — a no-op rather than a silent clear.
     return target.columnId === null
         ? null
-        : { type: "pin", cardId: source.cardId, columnId: target.columnId };
+        : {
+              type: "pin",
+              cardId: source.cardId,
+              columnId: target.columnId,
+              pinKey,
+          };
 }
 
 /** The callbacks a host wires the resolved action to. Every one is optional
@@ -141,7 +163,10 @@ export interface DeckZoneDragHandlers {
     /** Membership only — the Pin half of the one-gesture Sideboard→Column drop
      *  is dispatched separately through {@link DeckZoneDragHandlers.onPin}. */
     onMoveToMaindeck: (cardId: string) => void;
-    onPin: (cardId: string, columnId: ColumnId) => void;
+    /** Records a Card Pin. `pinKey` names the COPY being pinned (issue #1626)
+     *  — `cardId` in Constructed, `String(poolIndex)` in Limited — so a host
+     *  keyed per copy never has to re-derive it from the card id. */
+    onPin: (cardId: string, columnId: ColumnId, pinKey: string) => void;
     onAddToMaindeck?: (cardId: string, cardName: string) => void;
     onAddToSideboard?: (cardId: string, cardName: string) => void;
 }
@@ -166,11 +191,11 @@ export function applyDeckZoneDragAction(
         case "moveToMaindeck":
             handlers.onMoveToMaindeck(action.cardId);
             if (action.columnId !== null) {
-                handlers.onPin(action.cardId, action.columnId);
+                handlers.onPin(action.cardId, action.columnId, action.pinKey);
             }
             return;
         case "pin":
-            handlers.onPin(action.cardId, action.columnId);
+            handlers.onPin(action.cardId, action.columnId, action.pinKey);
             return;
     }
 }

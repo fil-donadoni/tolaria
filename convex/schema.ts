@@ -12,6 +12,13 @@ import { v } from "convex/values";
 // `convex/values` only (its `CardPins` import is type-only), so importing it
 // here adds no runtime weight to the schema.
 import { poolArrangementEntryValidator } from "./limited/eventTypes";
+// The persisted Column Layout of a deck row (ADR 0075 §4, issue #1626). Same
+// arrangement, same reason: declared once in the leaf module
+// `convex/deckLayoutStorage.ts` (types + `convex/values` only — the Column
+// Layout ENGINE it mirrors carries a card-registry edge this schema must not
+// pull in) and imported by both the storage site below and `userDecks.ts`'s
+// mutation args.
+import { storedDeckColumnLayoutValidator } from "./deckLayoutStorage";
 
 // Typed, immutable deck Format (PRD #509, ADR 0036). `userDecks` and
 // `presetDecks` store one of these literals — a non-conforming string is
@@ -159,6 +166,22 @@ export default defineSchema({
         // `ResolvePool`); absent on every non-limited deck.
         limitedEventId: v.optional(v.string()),
         limitedSeatId: v.optional(v.string()),
+        // Column Layout (ADR 0075 §4, PRD #1617, issue #1626) — the DECK half
+        // of the deckbuilder workspace: the manual Columns the player added,
+        // the Columns they deleted, and their Card Pins. Deck data, so it
+        // follows the deck across devices, exactly as the Pool Arrangement
+        // follows a Limited seat. Grouping, Ordering, zoom and split are NOT
+        // here: those are per-USER view preferences and live in
+        // `localStorage` (`src/lib/deckViewPrefs.ts`); the Zone filter is
+        // never persisted at all.
+        //
+        // Optional, with every field inside it optional too, so a deck saved
+        // before this slice loads with no layout and behaves exactly as it
+        // did — no migration, the same tolerant-read rule ADR 0075 §5 applies
+        // to `poolArrangement`. A Limited deck row leaves `pins` absent: its
+        // Pins are keyed by `poolIndex` on the seat's Pool Arrangement so two
+        // physical copies stay individually placeable.
+        layout: v.optional(storedDeckColumnLayoutValidator),
     })
         .index("by_user", ["userId"])
         // Every `limited`-format deck tied to one event, across ALL users

@@ -9,14 +9,21 @@ import type {
 import { validateDeck } from "@convex/formats";
 import { poolFromLimitedPoolCards } from "@convex/limited/poolResolution";
 import {
-    findColumnOverrideablePoolIndex,
-    pinsByCardId,
+    pinsByPoolIndex,
+    poolIndexForCopy,
     splitPoolByArrangement,
 } from "@convex/limited/poolArrangement";
 import {
-    createColumnLayout,
+    addManualColumn,
+    fromStoredDeckColumnLayout,
+    manualColumnIdForLabel,
+    normalizeManualColumnLabel,
     parseColumnId,
+    removeColumn,
+    renameManualColumn,
+    storeZoneLayout,
     type ColumnId,
+    type ColumnLayout,
     type DeckColumnLayout,
     type GroupingKind,
     type OrderingKind,
@@ -103,6 +110,20 @@ function applySplit(deck: WorkingDeck, split: SideboardSplit): WorkingDeck {
     return { ...deck, cards: split.cards, sideboard: split.sideboard };
 }
 
+/** The Card Pin key of one COPY (issue #1626): the Pool's own `poolIndex`,
+ *  stringified — the key `pinsByPoolIndex` records Pins under. A card the Pool
+ *  doesn't hold (a Basic land added from the bar) gets a deliberately
+ *  NON-numeric key: it has no Pin, can never collide with a real `poolIndex`,
+ *  and `handlePin` rejects it rather than pinning some other card's copy. */
+function poolPinKey(
+    pool: readonly LimitedPoolCard[],
+    cardId: string,
+    copyIndex: number
+): string {
+    const poolIndex = poolIndexForCopy(pool, cardId, copyIndex);
+    return poolIndex === null ? `unpooled:${cardId}` : String(poolIndex);
+}
+
 interface PoolDeckBuilderFormProps {
     eventId: Id<"limitedEvents">;
     seatIndex: number;
@@ -177,6 +198,11 @@ export default function PoolDeckBuilderForm({
                     sideboard: pending.sideboard,
                     limitedEventId: eventId,
                     limitedSeatId: String(seatIndex),
+                    // Manual/deleted Columns only (issue #1626): this deck's
+                    // Card Pins live on the seat's Pool Arrangement, keyed by
+                    // `poolIndex`, so they are never copied onto the deck row
+                    // — see `storeZoneLayout(..., includePins = false)` below.
+                    layout: pending.layout,
                 });
                 return id as string;
             }
@@ -187,6 +213,7 @@ export default function PoolDeckBuilderForm({
                     colors,
                     cards: pending.cards,
                     sideboard: pending.sideboard,
+                    layout: pending.layout,
                 },
             });
             return identity;
@@ -204,6 +231,10 @@ export default function PoolDeckBuilderForm({
                     format: "limited",
                     cards: existingDeck.cards,
                     sideboard: existingDeck.sideboard ?? [],
+                    // The manual Columns saved with this seat's deck (issue
+                    // #1626). Absent for a deck saved before the slice, which
+                    // rehydrates as the plain default.
+                    layout: existingDeck.layout,
                 };
             }
             return eventType === "draft"
@@ -273,28 +304,68 @@ export default function PoolDeckBuilderForm({
         seededColumnView("sideboard")
     );
 
-    // The zones' Column Layouts (ADR 0075, issue #1622/#1624). The Maindeck's
-    // Card Pins are the seat's Pool Arrangement, read LIVE (not just at seed
-    // time) so a persisted column drag reflects back reactively, survives a
-    // reload, and carries the draft-phase arrangement straight over (ADR
-    // 0060). The Sideboard has no Pins of its own — a drop there means "out
-    // of the deck", never a Pin. Rebuilt fresh from `mainView`/`sideView` on
-    // every Grouping/Ordering change, so there is no separate "preserve the
-    // pins" step to get wrong: `pinsByCardId` is recomputed from the live
-    // Pool Arrangement regardless of which Grouping is active.
-    const layout = useMemo<DeckColumnLayout>(
+    // The zones' Column Layouts (ADR 0075, issue #1622/#1624/#1626), assembled
+    // from THREE homes — this variant is the one that shows why ADR 0075 §4
+    // splits them:
+    //
+    //  - Grouping/Ordering: per-user view preference (`mainView`/`sideView`);
+    //  - manual + deleted Columns: deck data on the seat's deck row
+    //    (`deck.layout`), so the workspace follows the deck;
+    //  - Card Pins: the seat's Pool Arrangement, keyed by `poolIndex` and read
+    //    LIVE (not just at seed time) so a persisted column drag reflects back
+    //    reactively, survives a reload, and carries the draft-phase
+    //    arrangement straight over (ADR 0060). Per COPY, so two physical
+    //    copies of one card stay individually placeable.
+    //
+    // The Sideboard has no Pins of its own — a drop there means "out of the
+    // deck", never a Pin. Rebuilt on every change, so there is no separate
+    // "preserve the pins" step to get wrong.
+    const layout = useMemo<DeckColumnLayout>(() => {
+        const base = fromStoredDeckColumnLayout(deck.layout, {
+            maindeck: mainView,
+            sideboard: sideView,
+        });
+        return {
+            ...base,
+            maindeck: {
+                ...base.maindeck,
+                pins: pinsByPoolIndex(pool, poolArrangement),
+            },
+        };
+    }, [deck.layout, pool, poolArrangement, mainView, sideView]);
+
+    // Per-copy Card Pin keys (ADR 0075 §4, issue #1626). The shared zones
+    // render `cardId`-keyed `DeckCard`s, which have no per-copy identity of
+    // their own; these resolvers put it back by mapping "the Nth copy of this
+    // card in this Zone" onto the Pool's own `poolIndex` — the key the Pool
+    // Arrangement stores Pins under.
+    //
+    // The two Zones are numbered CONSECUTIVELY (the Sideboard's ordinals
+    // continue where the Maindeck's stop) so a Maindeck copy and a Sideboard
+    // copy of the same card can never resolve to the same `poolIndex` — which
+    // would make moving the Sideboard copy into a column re-pin the copy
+    // already sitting there. A card the Pool does not hold (a Basic added from
+    // the bar) resolves to a deliberately NON-numeric key, so it simply has no
+    // Pin and `handlePin` no-ops on it.
+    const mainCopyCounts = useMemo(() => {
+        const counts = new Map<string, number>();
+        for (const card of deck.cards)
+            counts.set(card.cardId, (counts.get(card.cardId) ?? 0) + 1);
+        return counts;
+    }, [deck.cards]);
+
+    const pinKeys = useMemo(
         () => ({
-            maindeck: createColumnLayout({
-                pins: pinsByCardId(pool, poolArrangement),
-                grouping: mainView.grouping,
-                ordering: mainView.ordering,
-            }),
-            sideboard: createColumnLayout({
-                grouping: sideView.grouping,
-                ordering: sideView.ordering,
-            }),
+            maindeck: (card: { cardId: string }, copyIndex: number) =>
+                poolPinKey(pool, card.cardId, copyIndex),
+            sideboard: (card: { cardId: string }, copyIndex: number) =>
+                poolPinKey(
+                    pool,
+                    card.cardId,
+                    (mainCopyCounts.get(card.cardId) ?? 0) + copyIndex
+                ),
         }),
-        [pool, poolArrangement, mainView, sideView]
+        [pool, mainCopyCounts]
     );
 
     const handleMainGroupingChange = useCallback((grouping: GroupingKind) => {
@@ -315,37 +386,85 @@ export default function PoolDeckBuilderForm({
     }, []);
 
     // Column drag: persist the Pin on the seat's Pool Arrangement (the SAME
-    // store + mutation the draft Pool uses, ADR 0060). Resolves the
-    // `cardId`-keyed UI action back to a `poolIndex`; a Basic land added from
-    // the bar has no `poolIndex`, so its column can't be pinned (no-op).
+    // store + mutation the draft Pool uses, ADR 0060), for the COPY that was
+    // dragged. The `poolIndex` arrives on the drag payload as the pin key
+    // (issue #1626) rather than being re-derived from the card id — the old
+    // `findColumnOverrideablePoolIndex` shim had to GUESS which copy moved
+    // ("prefer one in the Maindeck, else any"), which meant two copies of one
+    // card could never be filed in different columns. A Basic land added from
+    // the bar has no `poolIndex`, so its key is non-numeric and the drag is a
+    // no-op.
     //
     // The namespaced Column id travels WHOLE (issue #1624): the mutation's
     // `column` arg speaks the engine's full vocabulary, so a drop onto a
     // `color:`/`type:`/`custom:` Column persists in its own Pin namespace
-    // exactly as an `mv:` drop always has. It previously went through the
-    // `mv`-only inverse shim (`mvColumnFromPins`), which returned `undefined`
-    // for every other namespace — and since this zone's Grouping control can
-    // now generate colour/type Columns, that made every one of them a live,
-    // highlighting, DEAD drop target.
+    // exactly as an `mv:` drop always has.
     const handlePin = useCallback(
-        (cardId: string, columnId: ColumnId) => {
+        (_cardId: string, columnId: ColumnId, pinKey: string) => {
             // The Catch-All (and grouping `none`'s single Column) carry no
             // namespace and are never pin targets — the same rule the
             // engine's own `pinCardToColumn` applies.
             if (!parseColumnId(columnId)) return;
-            const poolIndex = findColumnOverrideablePoolIndex(
-                pool,
-                poolArrangement,
-                cardId
-            );
-            if (poolIndex === null) return;
+            const poolIndex = Number(pinKey);
+            if (!Number.isInteger(poolIndex)) return;
             void setPoolArrangementEntry({
                 eventId,
                 poolIndex,
                 column: columnId,
             }).catch(() => {});
         },
-        [pool, poolArrangement, setPoolArrangementEntry, eventId]
+        [setPoolArrangementEntry, eventId]
+    );
+
+    // Manual Columns (ADR 0075 §2, issue #1626). They persist on the SEAT'S
+    // DECK ROW, not on the Pool Arrangement: the Arrangement is a per-card
+    // record and a Column is not a card. `includePins: false` is what keeps
+    // the two homes from both claiming the Pins — this zone's Pins are the
+    // Arrangement's, merged in at render time only.
+    const updateMaindeckLayout = useCallback(
+        (edit: (layout: ColumnLayout) => ColumnLayout) => {
+            updateDeck((d) => {
+                const current = fromStoredDeckColumnLayout(d.layout, {
+                    maindeck: mainView,
+                    sideboard: sideView,
+                }).maindeck;
+                const next = edit(current);
+                if (next === current) return d;
+                return {
+                    ...d,
+                    layout: storeZoneLayout(d.layout, "maindeck", next, false),
+                };
+            });
+        },
+        [updateDeck, mainView, sideView]
+    );
+
+    const handleAddColumn = useCallback(
+        (rawLabel: string) => {
+            const label = normalizeManualColumnLabel(rawLabel);
+            if (label === null) return;
+            updateMaindeckLayout((current) =>
+                addManualColumn(current, {
+                    id: manualColumnIdForLabel(current, label),
+                    label,
+                })
+            );
+        },
+        [updateMaindeckLayout]
+    );
+    const handleRenameColumn = useCallback(
+        (columnId: ColumnId, label: string) => {
+            updateMaindeckLayout((current) =>
+                renameManualColumn(current, columnId, label)
+            );
+        },
+        [updateMaindeckLayout]
+    );
+    const handleDeleteColumn = useCallback(
+        (columnId: ColumnId) => {
+            updateMaindeckLayout((current) => removeColumn(current, columnId));
+        },
+        [updateMaindeckLayout]
     );
 
     const handleDone = useCallback(async () => {
@@ -392,6 +511,7 @@ export default function PoolDeckBuilderForm({
             mainCards={deck.cards}
             sideCards={deck.sideboard}
             layout={layout}
+            pinKeys={pinKeys}
             view={VIEW}
             zones={{
                 sideTitle: "Pool (Sideboard)",
@@ -410,6 +530,9 @@ export default function PoolDeckBuilderForm({
                 onSideGroupingChange: handleSideGroupingChange,
                 onMainOrderingChange: handleMainOrderingChange,
                 onSideOrderingChange: handleSideOrderingChange,
+                onAddColumn: handleAddColumn,
+                onRenameColumn: handleRenameColumn,
+                onDeleteColumn: handleDeleteColumn,
             }}
             legality={{
                 formatLabel: "Limited",

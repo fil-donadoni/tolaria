@@ -617,3 +617,115 @@ describe("DeckZoneSurface — header count text with a countSuffix + active filt
         expect(queryByText(/1 of 2\/15/)).toBeNull();
     });
 });
+
+describe("DeckZoneSurface — column management (ADR 0075 §2, issue #1626)", () => {
+    it("offers no add/rename/delete affordance at all when the host declares none", () => {
+        // The reduced draft-time bar (ADR 0075 §6) and the Sideboard both take
+        // this path: column management is a workbench gesture, not a
+        // timed-draft one, and a manual Column in a whole-pane drop zone could
+        // never receive a card.
+        const { queryByLabelText } = renderZone({ cards: [BOLT] });
+        expect(queryByLabelText("Add Maindeck column")).toBeNull();
+        expect(queryByLabelText(/Delete column/)).toBeNull();
+    });
+
+    it("a card that would have matched a DELETED column falls to the Catch-All when it arrives later", () => {
+        // PRD #1617 story 22, at the surface: the Column is deleted while
+        // EMPTY, and the 5-drop only shows up afterwards — the case the
+        // empty-only rule leaves open, and the Catch-All answers.
+        const layout = { ...createColumnLayout(), removedColumnIds: ["mv:5"] };
+        const { container, rerender } = render(
+            <DragDropProvider>
+                <DeckZoneSurface
+                    zone="maindeck"
+                    title="Maindeck"
+                    cards={[BOLT]}
+                    layout={layout}
+                    onGroupingChange={() => {}}
+                    onOrderingChange={() => {}}
+                    dropModel="columns"
+                    onCardClick={() => {}}
+                    cardTitle={(card) => `Remove ${card.cardName}`}
+                    emptyMessage="empty"
+                />
+            </DragDropProvider>
+        );
+        expect(columnLabels(container)).not.toContain("MV 5");
+        expect(container.querySelector('[data-column="catch-all"]')).toBeNull();
+
+        rerender(
+            <DragDropProvider>
+                <DeckZoneSurface
+                    zone="maindeck"
+                    title="Maindeck"
+                    cards={[BOLT, SERRA]}
+                    layout={layout}
+                    onGroupingChange={() => {}}
+                    onOrderingChange={() => {}}
+                    dropModel="columns"
+                    onCardClick={() => {}}
+                    cardTitle={(card) => `Remove ${card.cardName}`}
+                    emptyMessage="empty"
+                />
+            </DragDropProvider>
+        );
+        expect(cardsIn(container, "catch-all")).toEqual(["Serra Angel"]);
+        expect(columnLabels(container).at(-1)).toBe("Catch-All");
+    });
+
+    // The one place the filter and the delete rule meet. A filter HIDES cards
+    // without emptying a Column, so judging deletability on what is currently
+    // VISIBLE would let a filter authorise a deletion that displaces the very
+    // cards it is hiding — and "deleting can never lose a card" (ADR 0075
+    // rationale §2) is the entire justification for the empty-only rule.
+    it("an active filter can NEVER make a non-empty column deletable", () => {
+        const { container, getByLabelText } = renderZone({
+            cards: [BOLT, SERRA],
+            onAddColumn: () => {},
+            onRenameColumn: () => {},
+            onDeleteColumn: () => {},
+        });
+        expect(
+            (getByLabelText(/^Delete column MV 3$/) as HTMLButtonElement)
+                .disabled
+        ).toBe(false);
+        expect(
+            (getByLabelText(/Cannot delete column MV 1/) as HTMLButtonElement)
+                .disabled
+        ).toBe(true);
+
+        // Hide the Instant. Its column now LOOKS empty…
+        fireEvent.click(
+            within(getByLabelText("Maindeck creature filter")).getByText(
+                "Creatures"
+            )
+        );
+        expect(cardsIn(container, "mv:1")).toEqual([]);
+        // …and is still not deletable, because the card is only hidden.
+        expect(
+            (getByLabelText(/Cannot delete column MV 1/) as HTMLButtonElement)
+                .disabled
+        ).toBe(true);
+    });
+
+    it("pins a card into a manual column per COPY when the host supplies a pin key", () => {
+        // The Limited identity model (ADR 0075 §4): two physical copies of one
+        // card, filed in two different Columns. A `cardId`-keyed surface
+        // cannot express this at all — both copies would follow one Pin.
+        let layout = createColumnLayout({
+            manualColumns: [{ id: "custom:removal", label: "Removal" }],
+        });
+        layout = pinCardToColumn(layout, "1", "custom:removal");
+        const { container } = renderZone({
+            cards: [BOLT, BOLT],
+            layout,
+            // "the Nth copy of this card" → a per-copy key, exactly as the
+            // Limited builder resolves the Pool's `poolIndex`.
+            pinKeyOf: (_card, copyIndex) => String(copyIndex),
+        });
+        expect(cardsIn(container, "custom:removal")).toEqual([
+            "Lightning Bolt",
+        ]);
+        expect(cardsIn(container, "mv:1")).toEqual(["Lightning Bolt"]);
+    });
+});
