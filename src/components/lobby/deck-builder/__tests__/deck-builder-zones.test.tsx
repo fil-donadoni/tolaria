@@ -605,3 +605,82 @@ describe("DeckBuilder — Grouping/Ordering persist per-user via the view-prefer
         ).toBe("rarity");
     });
 });
+
+// The Add-Basic bar, generalised from Limited-only to BOTH builders (issue
+// #1627, PRD #1617 § "basics bar ships in BOTH builders"). One mounted test
+// covering the whole quintet the acceptance criteria calls for — counter,
+// add, remove, floor, +5 — through the REAL Constructed builder, not a
+// hand-built bar.
+describe("DeckBuilder — Add-Basic bar counter/add/remove/floor/+5 (issue #1627)", () => {
+    it("counts, adds, removes, floors at zero, and adds five — all through the real Maindeck", () => {
+        const { container, getByText, getByLabelText, getByTestId } =
+            renderBuilder(deck([], []));
+
+        // A brand-new deck has no Mountains — the remove control starts
+        // disabled: the floor is visible before anything is ever added.
+        expect(getByTestId("basic-count-Mountain").textContent).toBe("0");
+        expect(
+            (getByLabelText("Remove one Mountain") as HTMLButtonElement)
+                .disabled
+        ).toBe(true);
+
+        // Click adds one.
+        fireEvent.click(getByText("+ Mountain"));
+        expect(getByTestId("basic-count-Mountain").textContent).toBe("1");
+        expect(
+            (getByLabelText("Remove one Mountain") as HTMLButtonElement)
+                .disabled
+        ).toBe(false);
+
+        // +5 adds five more in one action.
+        fireEvent.click(getByLabelText("Add five Mountain"));
+        expect(getByTestId("basic-count-Mountain").textContent).toBe("6");
+        expect(cardsIn(paneOf(container, /^Maindeck /), "mv:lands")).toEqual(
+            Array(6).fill("Mountain")
+        );
+
+        // Shift-click and right-click on the pill each remove one.
+        fireEvent.click(getByText("+ Mountain"), { shiftKey: true });
+        fireEvent.contextMenu(getByText("+ Mountain"));
+        expect(getByTestId("basic-count-Mountain").textContent).toBe("4");
+
+        // Drain the rest via the dedicated − button back to zero.
+        for (let i = 0; i < 4; i++) {
+            fireEvent.click(getByLabelText("Remove one Mountain"));
+        }
+        expect(getByTestId("basic-count-Mountain").textContent).toBe("0");
+
+        // Floored: the remove control is disabled again, and a further click
+        // (or shift-click) is a no-op — the count never goes negative.
+        expect(
+            (getByLabelText("Remove one Mountain") as HTMLButtonElement)
+                .disabled
+        ).toBe(true);
+        fireEvent.click(getByLabelText("Remove one Mountain"));
+        fireEvent.click(getByText("+ Mountain"), { shiftKey: true });
+        expect(getByTestId("basic-count-Mountain").textContent).toBe("0");
+    });
+
+    it("a basic added from the bar counts toward Format legality exactly like any other card, and lands in the Lands column", () => {
+        const { container, getByText, getByLabelText } = renderBuilder(
+            deck([], [])
+        );
+        expect(cardsIn(paneOf(container, /^Maindeck /), "mv:lands")).toEqual(
+            []
+        );
+
+        fireEvent.click(getByText("+ Forest"));
+
+        expect(cardsIn(paneOf(container, /^Maindeck /), "mv:lands")).toEqual([
+            "Forest",
+        ]);
+        expect(getByText(/^Maindeck 1$/)).toBeTruthy();
+
+        fireEvent.change(getByLabelText("Maindeck grouping"), {
+            target: { value: "color" },
+        });
+        expect(cardsIn(paneOf(container, /^Maindeck /), "color:lands")).toEqual(
+            ["Forest"]
+        );
+    });
+});

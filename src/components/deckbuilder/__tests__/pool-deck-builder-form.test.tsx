@@ -920,3 +920,118 @@ describe("PoolDeckBuilderForm — SaveDeckBar stays reachable regardless of the 
         expect(Array.from(root.children)).toContain(saveBarWrapper);
     });
 });
+
+// The Add-Basic bar, generalised to the shell and given a per-subtype
+// counter, a remove gesture floored at zero, and a `+5` step (issue #1627,
+// PRD #1617 § "basics bar ships in BOTH builders"). One mounted test covering
+// the whole quintet the acceptance criteria calls for — counter, add, remove,
+// floor, +5 — through the REAL Limited form, not a hand-built bar.
+describe("PoolDeckBuilderForm — Add-Basic bar counter/add/remove/floor/+5 (issue #1627)", () => {
+    it("counts, adds, removes, floors at zero, and adds five — all through the real Maindeck", () => {
+        setup();
+        const { getByText, getByLabelText, getByTestId } = render(
+            <PoolDeckBuilderForm
+                eventId={"event-1" as never}
+                seatIndex={0}
+                pool={POOL}
+                existingDeck={null}
+                eventType="sealed"
+                poolArrangement={[]}
+            />
+        );
+
+        // Starts at zero — POOL's own Basic is a Plains (sitting in the
+        // Sideboard by the Sealed default, `defaultWorkingDeck`), not a
+        // Mountain — and the remove control for a zero-count subtype is
+        // disabled: the floor is visible before anything is ever added.
+        expect(getByTestId("basic-count-Mountain").textContent).toBe("0");
+        expect(
+            (getByLabelText("Remove one Mountain") as HTMLButtonElement)
+                .disabled
+        ).toBe(true);
+
+        // Click adds one.
+        fireEvent.click(getByText("+ Mountain"));
+        expect(getByTestId("basic-count-Mountain").textContent).toBe("1");
+        expect(getByText(/^Maindeck 1/)).toBeTruthy();
+        expect(
+            (getByLabelText("Remove one Mountain") as HTMLButtonElement)
+                .disabled
+        ).toBe(false);
+
+        // +5 adds five more in one action.
+        fireEvent.click(getByLabelText("Add five Mountain"));
+        expect(getByTestId("basic-count-Mountain").textContent).toBe("6");
+        expect(getByText(/^Maindeck 6/)).toBeTruthy();
+
+        // Shift-click on the pill removes one.
+        fireEvent.click(getByText("+ Mountain"), { shiftKey: true });
+        expect(getByTestId("basic-count-Mountain").textContent).toBe("5");
+
+        // Right-click (contextmenu) on the pill also removes one.
+        fireEvent.contextMenu(getByText("+ Mountain"));
+        expect(getByTestId("basic-count-Mountain").textContent).toBe("4");
+
+        // Drain the rest via the dedicated − button back to zero.
+        for (let i = 0; i < 4; i++) {
+            fireEvent.click(getByLabelText("Remove one Mountain"));
+        }
+        expect(getByTestId("basic-count-Mountain").textContent).toBe("0");
+        expect(getByText(/^Maindeck 0/)).toBeTruthy();
+
+        // Floored: the remove control is disabled again, and a further click
+        // (or shift-click) is a no-op — the count never goes negative and
+        // the Maindeck never gains a stray removal.
+        expect(
+            (getByLabelText("Remove one Mountain") as HTMLButtonElement)
+                .disabled
+        ).toBe(true);
+        fireEvent.click(getByLabelText("Remove one Mountain"));
+        fireEvent.click(getByText("+ Mountain"), { shiftKey: true });
+        expect(getByTestId("basic-count-Mountain").textContent).toBe("0");
+        expect(getByText(/^Maindeck 0/)).toBeTruthy();
+    });
+
+    it("adding a basic never touches Pool membership — the Pool-sourced Sideboard count is unaffected", () => {
+        setup();
+        const { getByText } = render(
+            <PoolDeckBuilderForm
+                eventId={"event-1" as never}
+                seatIndex={0}
+                pool={POOL}
+                existingDeck={null}
+                eventType="sealed"
+                poolArrangement={[]}
+            />
+        );
+        expect(getByText(/^Pool \(Sideboard\) 2/)).toBeTruthy();
+        fireEvent.click(getByText("+ Forest"));
+        // The Maindeck gained a card the Sideboard never held — this is not
+        // a move, so the Sideboard's Pool-sourced count is untouched.
+        expect(getByText(/^Pool \(Sideboard\) 2/)).toBeTruthy();
+        expect(getByText(/^Maindeck 1/)).toBeTruthy();
+    });
+
+    it("a basic added from the bar lands in the Lands column under both the Mana Value and the Colour Grouping", () => {
+        setup();
+        const { getByText, getByLabelText, container } = render(
+            <PoolDeckBuilderForm
+                eventId={"event-1" as never}
+                seatIndex={0}
+                pool={POOL}
+                existingDeck={null}
+                eventType="sealed"
+                poolArrangement={[]}
+            />
+        );
+        fireEvent.click(getByText("+ Mountain"));
+
+        const main = () => paneOf(container, /^Maindeck /);
+        expect(cardsIn(main(), "mv:lands")).toEqual(["Mountain"]);
+
+        fireEvent.change(getByLabelText("Maindeck grouping"), {
+            target: { value: "color" },
+        });
+        expect(cardsIn(main(), "color:lands")).toEqual(["Mountain"]);
+    });
+});

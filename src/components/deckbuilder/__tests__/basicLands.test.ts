@@ -4,7 +4,12 @@
 // card registry, not a stub.
 import { describe, it, expect } from "vitest";
 import type { LimitedPoolCard } from "@convex/limited/eventTypes";
-import { isBasicLandCardId, resolveBasicLandCardIds } from "../basicLands";
+import {
+    countBasicLandCopies,
+    isBasicLandCardId,
+    resolveBasicLandCardIds,
+    resolveCanonicalBasicLandCardIds,
+} from "../basicLands";
 
 const BOLT_LEA = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a";
 const PLAINS = "b1623d57-4729-4796-b3f7-f1837a05c6ed";
@@ -69,5 +74,66 @@ describe("resolveBasicLandCardIds (issue #1111/#1576: unlimited basics — pool 
         ];
         const result = resolveBasicLandCardIds(pool);
         expect(result.Mountain).toBe(MOUNTAIN);
+    });
+});
+
+describe("resolveCanonicalBasicLandCardIds (issue #1627: Constructed has no Pool)", () => {
+    it("resolves every subtype to the catalogue's canonical printing, unconditionally", () => {
+        expect(resolveCanonicalBasicLandCardIds()).toEqual({
+            Plains: PLAINS,
+            Island: ISLAND,
+            Swamp: SWAMP,
+            Mountain: MOUNTAIN,
+            Forest: FOREST,
+        });
+    });
+});
+
+describe("countBasicLandCopies (issue #1627: the bar's per-subtype Maindeck counter)", () => {
+    it("counts copies of each Basic subtype and ignores non-Basic cards", () => {
+        const cards = [
+            { cardId: MOUNTAIN },
+            { cardId: MOUNTAIN },
+            { cardId: MOUNTAIN },
+            { cardId: FOREST },
+            { cardId: BOLT_LEA },
+        ];
+        expect(countBasicLandCopies(cards)).toEqual({
+            Plains: 0,
+            Island: 0,
+            Swamp: 0,
+            Mountain: 3,
+            Forest: 1,
+        });
+    });
+
+    it("returns all-zero counts for an empty or all-nonbasic Maindeck", () => {
+        expect(countBasicLandCopies([])).toEqual({
+            Plains: 0,
+            Island: 0,
+            Swamp: 0,
+            Mountain: 0,
+            Forest: 0,
+        });
+        expect(countBasicLandCopies([{ cardId: BOLT_LEA }])).toEqual({
+            Plains: 0,
+            Island: 0,
+            Swamp: 0,
+            Mountain: 0,
+            Forest: 0,
+        });
+    });
+
+    it("ignores an unresolvable cardId rather than throwing", () => {
+        expect(() =>
+            countBasicLandCopies([{ cardId: "not-a-real-card" }])
+        ).not.toThrow();
+        expect(countBasicLandCopies([{ cardId: "not-a-real-card" }])).toEqual({
+            Plains: 0,
+            Island: 0,
+            Swamp: 0,
+            Mountain: 0,
+            Forest: 0,
+        });
     });
 });
