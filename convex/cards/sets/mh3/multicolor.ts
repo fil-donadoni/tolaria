@@ -101,7 +101,7 @@ export const psychicFrog: CardDefinition = {
             id: "psychic-frog-exile-flying",
             oracleText:
                 "Exile three cards from your graveyard: This creature gains flying until end of turn.",
-            cost: { exileFromGraveyard: { count: 3 } },
+            cost: { exileFromGraveyard: { count: 3, owner: "you" } },
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #843): self-grant flying
             // until end of turn (CR 611.1b). The three-card graveyard exile is
