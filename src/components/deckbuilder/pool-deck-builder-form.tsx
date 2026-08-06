@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import type { DragDropManager } from "@dnd-kit/dom";
 import type { Id } from "@convex/_generated/dataModel";
 import type {
     LimitedPoolCard,
@@ -112,6 +113,12 @@ interface PoolDeckBuilderFormProps {
      *  `setPoolArrangementEntry` reflects back reactively AND survives reload
      *  (issue #1575). Empty for a seat nobody has arranged yet. */
     poolArrangement: PoolArrangementEntry[];
+    /** dnd-kit manager, forwarded to the shell. Omitted in the app (the
+     *  provider makes its own); the mounted drag tests inject one so they can
+     *  drive REAL drag operations against the REAL droppable registry — jsdom
+     *  has no layout, so a pointer-driven drag can never resolve a drop target
+     *  there. Same escape hatch `DeckBuilder` carries. */
+    manager?: DragDropManager;
 }
 
 /**
@@ -140,6 +147,7 @@ export default function PoolDeckBuilderForm({
     existingDeck,
     eventType,
     poolArrangement,
+    manager,
 }: PoolDeckBuilderFormProps) {
     const navigate = useNavigate();
     const { create, update } = useUserDeckMutations();
@@ -319,6 +327,7 @@ export default function PoolDeckBuilderForm({
             title="Build Limited Deck"
             backLabel="← Back to Event"
             onDone={() => void handleDone()}
+            manager={manager}
             basicsBar={
                 <PoolBasicLandsBar
                     cardIdsBySubtype={basicCardIds}

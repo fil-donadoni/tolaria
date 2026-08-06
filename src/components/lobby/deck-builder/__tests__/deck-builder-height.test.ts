@@ -12,13 +12,31 @@ import { join } from "node:path";
 import { poolSurfaceMinHeightPx } from "~/lib/cardSizing";
 
 const SRC = readFileSync(join(__dirname, "..", "deck-builder.tsx"), "utf8");
+// Issue #1623 moved the route root, the header band and the chrome treatment
+// out of `deck-builder.tsx` into the ONE shared `DeckBuilderShell` both
+// builders mount. The literals these tests pin moved with them, so the
+// assertions follow — the contract is unchanged, only its home is.
+const SHELL_DIR = join(__dirname, "..", "..", "..", "deckbuilder");
+const SHELL_SRC = readFileSync(
+    join(SHELL_DIR, "deck-builder-shell.tsx"),
+    "utf8"
+);
+const HEADER_SRC = readFileSync(
+    join(SHELL_DIR, "deck-builder-header.tsx"),
+    "utf8"
+);
 
-describe("DeckBuilder — root surface height (issue #2056 defect 3)", () => {
+describe("DeckBuilderShell — root surface height (issue #2056 defect 3)", () => {
     it("the root claims flex-1 min-h-0 (the shell's remaining height), never h-dvh", () => {
-        expect(SRC).toContain(
+        expect(SHELL_SRC).toContain(
             '"flex flex-1 min-h-0 flex-col bg-surface-base text-text"'
         );
-        expect(SRC).not.toMatch(/"flex h-dvh flex-col/);
+        expect(SHELL_SRC).not.toMatch(/"flex h-dvh flex-col/);
+    });
+
+    it("DeckBuilder no longer owns a route root of its own — it mounts the shell", () => {
+        expect(SRC).toContain("DeckBuilderShell");
+        expect(SRC).not.toMatch(/flex flex-1 min-h-0 flex-col/);
     });
 });
 
@@ -31,10 +49,10 @@ describe("DeckBuilder — card-size floor (issue #2056 defect 1)", () => {
     });
 });
 
-describe("DeckBuilder — short-viewport chrome treatment (issue #2056 defect 2)", () => {
+describe("DeckBuilderHeader — short-viewport chrome treatment (issue #2056 defect 2)", () => {
     it("the header band and title carry short-viewport overrides", () => {
-        expect(SRC).toContain("short-viewport:py-1");
-        expect(SRC).toContain("short-viewport:text-sm");
+        expect(HEADER_SRC).toContain("short-viewport:py-1");
+        expect(HEADER_SRC).toContain("short-viewport:text-sm");
     });
 });
 
