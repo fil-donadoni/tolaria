@@ -437,7 +437,31 @@ function Lobby() {
         : undefined;
 
     return (
-        <div className="relative flex-1 overflow-hidden bg-surface-base text-text">
+        // NO `overflow-hidden` here (issue #2274) — that class, not the height
+        // claim, is what made `LobbyFooter` unreachable at 1440x900 and
+        // 1920x1080. This root is a flex ITEM of `<main flex flex-1 min-h-0
+        // overflow-y-auto>` with the default `flex-shrink: 1`, so `<main>`'s
+        // height clamps it; per CSS Flexbox §4.5 hiding its overflow also drops
+        // the `min-height: auto` floor that would otherwise let it grow. The
+        // excess was then CLIPPED rather than handed to `<main>`:
+        // `<main>.scrollHeight === clientHeight`, `overflow-y-auto` never
+        // engaged, and there was no scrollbar anywhere.
+        //
+        // Browser-measured against the real stylesheet with the shell's box
+        // chain and this page's 3212px column, at 1440x900:
+        //
+        //   flex-1 overflow-hidden      root 788   scrollHeight 788   maxScroll 0
+        //   min-h-full overflow-hidden  root 788   scrollHeight 788   maxScroll 0
+        //   min-h-full                  root 3252  scrollHeight 3252  maxScroll 2464
+        //
+        // i.e. swapping the height claim while KEEPING the clip changed
+        // nothing. `min-h-full` is kept as the claim — the shell's remainder as
+        // a FLOOR, the same shape the other state screens use, so a short lobby
+        // still fills the viewport — but the clip is gone, so a tall one grows
+        // past the remainder and `<main>` scrolls to its bottom. Nothing needed
+        // the clip: the ambient ground clips itself (`ambient-page-ground.tsx`:
+        // `absolute inset-0 overflow-hidden`).
+        <div className="relative min-h-full bg-surface-base text-text">
             <LobbyBackground />
             <div className="relative z-10 mx-auto flex max-w-6xl flex-col gap-6 px-6 py-8">
                 {activeGame && user && (

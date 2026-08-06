@@ -130,14 +130,14 @@ export default function DeckBuilderRoute({
         if (kind === "preset") {
             if (editingPreset === undefined) {
                 return (
-                    <div className="flex h-screen items-center justify-center text-text">
+                    <div className="flex min-h-full items-center justify-center text-text">
                         Loading...
                     </div>
                 );
             }
             if (editingPreset === null) {
                 return (
-                    <div className="flex h-screen flex-col items-center justify-center gap-4 text-text bg-surface-base">
+                    <div className="flex min-h-full flex-col items-center justify-center gap-4 text-text bg-surface-base">
                         <p>Preset not found.</p>
                         <Button
                             variant="secondary"
@@ -164,14 +164,14 @@ export default function DeckBuilderRoute({
 
         if (editingUserDeck === undefined || userDecks === undefined) {
             return (
-                <div className="flex h-screen items-center justify-center text-text">
+                <div className="flex min-h-full items-center justify-center text-text">
                     Loading...
                 </div>
             );
         }
         if (editingUserDeck === null) {
             return (
-                <div className="flex h-screen flex-col items-center justify-center gap-4 text-text bg-surface-base">
+                <div className="flex min-h-full flex-col items-center justify-center gap-4 text-text bg-surface-base">
                     <p>Deck not found.</p>
                     <Button
                         variant="secondary"
@@ -231,7 +231,7 @@ export default function DeckBuilderRoute({
 
     if (userDecks === undefined) {
         return (
-            <div className="flex h-screen items-center justify-center text-text">
+            <div className="flex min-h-full items-center justify-center text-text">
                 Loading...
             </div>
         );

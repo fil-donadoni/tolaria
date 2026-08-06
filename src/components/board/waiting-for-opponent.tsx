@@ -34,7 +34,15 @@ export default function WaitingForOpponent({
     }
 
     return (
-        <div className="relative flex h-dvh flex-col items-center justify-center overflow-hidden bg-surface-base text-text">
+        // `h-dvh` is legitimate here — this is a `/game` surface, where the
+        // shell shows no header band and `<main>` IS the viewport (allowlisted
+        // in `shell-height-claims.guard.test.tsx`). What is NOT legitimate is
+        // hiding this root's overflow: it is a flex child of `<main>`, so a
+        // Panel taller than the viewport would be CLIPPED with no scrollbar
+        // anywhere to reach it (issue #2274, the lobby's shape). The ambient
+        // ring is clipped by `AmbientPageGround`'s own `absolute inset-0
+        // overflow-hidden`, so nothing here needs the class.
+        <div className="relative flex h-dvh flex-col items-center justify-center bg-surface-base text-text">
             <AmbientPageGround ring />
             <Panel className="relative z-10 w-full max-w-sm">
                 <PanelHeader title="Waiting for opponent" />

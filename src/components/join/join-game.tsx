@@ -140,7 +140,13 @@ export default function JoinGame({ gameId }: JoinGameProps) {
     const formatLabel = format ? FORMAT_RULES[format].label : "";
 
     return (
-        <div className="relative min-h-dvh overflow-hidden bg-surface-base text-text">
+        // The shell's remainder as a FLOOR, and NO `overflow-hidden` (issue
+        // #2274): this deck-picker column outgrows the remainder easily, and
+        // hiding the overflow of a shrinkable flex child of `<main>` clamps the
+        // box to the remainder and CLIPS the excess with no scrollbar anywhere
+        // — measured on the lobby, which shares this exact shape. The ambient
+        // ground clips itself (`ambient-page-ground.tsx`).
+        <div className="relative min-h-full bg-surface-base text-text">
             <AmbientPageGround ring />
             <div className="relative z-10 mx-auto flex max-w-4xl flex-col gap-6 px-6 py-8">
                 <Panel>
