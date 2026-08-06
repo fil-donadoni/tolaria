@@ -15,6 +15,7 @@ import { resolveTokenStaticEffects } from "./tokenStaticEffects";
 // CR 114 (issue #1221) — side-effect import so the emblem registry
 // (`convex/cards/emblems.ts`) is populated whenever the card catalogue loads.
 import "./emblems";
+import { expandAnnihilator } from "./abilities/annihilator";
 import { expandFadingVanishing } from "./abilities/fadingVanishing";
 import { expandHideaway } from "./abilities/hideaway";
 import { expandKeywordTriggers } from "./abilities/keywordTriggers";
@@ -66,10 +67,15 @@ const expandDefinition = (base: CardDefinition): CardDefinition => {
     // ADR 0078 — `chapterAbilities[]` (CR 714) desugars here too: the same
     // no-op-unless-declared shape, injecting the entry lore counter and the
     // chapter triggers. Hideaway N (CR 702.75, issue #783) injects its ETB
-    // "look at the top N, exile one face down" trigger the same way.
-    const expanded = expandHideaway(
-        expandKeywordTriggers(
-            expandFadingVanishing(expandChapterAbilities(base))
+    // "look at the top N, exile one face down" trigger the same way, and
+    // Annihilator N (CR 702.86, issue #2295) its declare-attackers
+    // "defending player sacrifices N permanents" trigger — one per declared
+    // instance of the keyword (CR 702.86b).
+    const expanded = expandAnnihilator(
+        expandHideaway(
+            expandKeywordTriggers(
+                expandFadingVanishing(expandChapterAbilities(base))
+            )
         )
     );
     expansionCache.set(base, expanded);

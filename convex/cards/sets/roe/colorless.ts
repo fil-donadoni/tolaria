@@ -6,12 +6,11 @@
 // tracked-by: #1301 — Emrakul, the Aeons Torn is blocked on uncensused
 // capabilities on its signature abilities. Prior tracker #684 (Cube FREE
 // tranche) is CLOSED and never covered this card; #1301 is the live tracker.
-//  1. "Annihilator 6" (CR 702.86) — PRIMARY blocker: `status: "planned"` in
-//     mechanicsRegistry.ts with NO `bindingPattern` for the numbered form
-//     (`isNamedMechanic("annihilator 6")` doesn't match the bare
-//     "Annihilator" row), and NO sacrifice-N-permanents-on-attack combat
-//     mechanic exists in combatRegistry.ts/phases.ts to back it. Guard A
-//     hard-blocks the card until the row flips to `implemented`.
+//  1. "Annihilator 6" (CR 702.86) — SHIPPED by #2295. The registry row is
+//     `implemented` with a `/^annihilator \d+$/` bindingPattern, and
+//     `expandAnnihilator` (convex/cards/abilities/annihilator.ts) injects the
+//     CR 702.86a attack trigger from the bare `staticAbilities` string. No
+//     longer a blocker for this card.
 //  2. "Protection from spells that are one or more colors" is a distinct
 //     702.16 sub-quality (spell-only, not the standard "protection from
 //     [color]" the engine's protection.ts module models) — no evidence the
