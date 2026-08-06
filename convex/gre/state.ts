@@ -127,6 +127,7 @@ import {
     isLandDefinition,
     isPlaneswalker,
     LAND_DROPS_PER_TURN,
+    manaGateBattlefields,
     manaValue,
     MANA_COLORS,
     assignHybridPips,
@@ -15614,7 +15615,10 @@ export function buildSpellContext(
             const handCard = findOwnedCastSource(owner, cardInstanceId)?.card;
             if (!handCard) return 0;
             const subs = getManaSubstitutions(state, controllerId);
-            const sources = buildAutoTapSources(owner.battlefield);
+            const sources = buildAutoTapSources(
+                owner.battlefield,
+                manaGateBattlefields(state)
+            );
             // Upper bound: floating pool + every land's max output. X can't
             // exceed this (the generic portion alone would exhaust the mana).
             const poolTotal = MANA_COLORS.reduce(
@@ -15789,7 +15793,10 @@ export function buildSpellContext(
                     getCostModifiers(state, handCard, "spell")
                 );
                 const subs = getManaSubstitutions(state, controllerId);
-                const sources = buildAutoTapSources(owner.battlefield);
+                const sources = buildAutoTapSources(
+                    owner.battlefield,
+                    manaGateBattlefields(state)
+                );
                 const plan = solveSmartAutoTap(
                     owner.manaPool,
                     cost,

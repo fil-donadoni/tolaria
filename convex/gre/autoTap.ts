@@ -134,10 +134,35 @@ function withTapBonus(
  *  auto-tap threw "Must choose a mana color". It also hid the granted colour
  *  from the solver entirely.
  *
+ *  `battlefields` (issue #2240) is the full multi-player board snapshot —
+ *  the same `{ playerId, battlefield }[]` shape produced by
+ *  `manaGateBattlefields(state)` and threaded to `resolveManaTapChoice` /
+ *  `tapSourceIntoPayment` at the actual payment site. A board-derived choice
+ *  ability (`getManaChoices` — a Verge land scanning the CONTROLLER's own
+ *  lands, a Mana Battery reading its own counters; `manaColorSource` —
+ *  Fellwar Stone scanning every OPPONENT's lands) can only be enumerated
+ *  correctly against that same snapshot: `getManaTapOptionsDetailed` resolves
+ *  the chooser dynamically from whichever `battlefields` it is handed, so a
+ *  narrower snapshot here than the one payment resolves against would compute
+ *  a *different* option list — and a `manaChoiceIndex` that means a different
+ *  thing server-side (issue #2240's root cause: Verge lands were never
+ *  auto-tapped even for their always-on primary colour, because the whole
+ *  card was excluded rather than only its narrower-than-payment enumeration).
+ *  When the full snapshot IS supplied, a board-derived chooser is a normal
+ *  auto-tap candidate — no special-casing, same code path as a static
+ *  `manaChoices` source. When it is NOT supplied (a caller with only one
+ *  player's battlefield in hand), the pre-existing conservative behaviour
+ *  stands: leave board-derived choosers manual rather than risk an index that
+ *  resolves differently downstream.
+ *
  *  Sorted restricted-first (fewest options) so the minimal solution prefers
  *  inflexible sources (basics) and keeps flexible ones (Birds) for last. */
 export function buildAutoTapSources(
-    battlefield: CardInstanceState[]
+    battlefield: CardInstanceState[],
+    battlefields?: ReadonlyArray<{
+        playerId: string;
+        battlefield: readonly CardInstanceState[];
+    }>
 ): AutoTapSource[] {
     const sources: AutoTapSource[] = [];
     for (const card of battlefield) {
@@ -148,16 +173,19 @@ export function buildAutoTapSources(
         if (ability?.cost.sacrifice === true) continue;
         // Summoning-sick creature mana dorks can't pay a {T} cost (CR 302.1).
         if (ability && isTapLockedBySummoningSickness(card)) continue;
-        // A board-derived choice list (Fellwar Stone's `getManaChoices` reads
-        // EVERY player's lands) can't be enumerated from the paying player's
-        // own battlefield alone, which is all this planner is handed — an index
-        // computed here could resolve to a different option server-side. Leave
-        // those sources manual, as before the unified enumeration.
-        if (ability?.getManaChoices) continue;
+        // Board-derived choosers need the full snapshot to enumerate safely —
+        // see the doc comment above. Without one, leave them manual exactly as
+        // before the unified enumeration (issue #2240).
+        const isBoardDependentChoice = !!(
+            ability?.getManaChoices || ability?.manaColorSource
+        );
+        if (isBoardDependentChoice && !battlefields) continue;
 
-        const options = getManaTapOptionsDetailed(card, card.controllerId, [
-            { playerId: card.controllerId, battlefield },
-        ]);
+        const options = getManaTapOptionsDetailed(
+            card,
+            card.controllerId,
+            battlefields ?? [{ playerId: card.controllerId, battlefield }]
+        );
         if (options.length === 0) continue; // non-mana source: leave manual
         // CR 605.1a — an index is submitted only when the payment primitive
         // actually demands one (`manaTapNeedsChoice`): 2+ options, or a

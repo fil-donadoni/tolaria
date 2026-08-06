@@ -95,7 +95,7 @@ import { describeMove } from "./describeMove";
 import { determinize } from "./determinize";
 import { makeRng } from "./rng";
 import { hasCastableInstantHint } from "./heldInteraction";
-import { isCreature, hasManaAbility } from "./constants";
+import { isCreature, hasManaAbility, manaGateBattlefields } from "./constants";
 import { tryGetDefinition } from "../cards";
 import { getManaSubstitutions } from "./state";
 import { buildAutoTapSources, solveSmartAutoTap } from "./autoTap";
@@ -632,7 +632,10 @@ export function applyMoveInSearch(
             const companion = player.companion;
             if (companion && !companion.used) {
                 const subs = getManaSubstitutions(state, playerId);
-                const sources = buildAutoTapSources(player.battlefield);
+                const sources = buildAutoTapSources(
+                    player.battlefield,
+                    manaGateBattlefields(state)
+                );
                 const plan = solveSmartAutoTap(
                     player.manaPool,
                     COMPANION_SUMMON_COST,
