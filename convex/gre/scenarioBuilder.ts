@@ -227,7 +227,16 @@ export function buildStateFromScenario(
     // A scenario PLACES a board, it never plays one out: token creation emits
     // a `TOKENS_CREATED` event (CR 111, issue #1345) that a "whenever you
     // create one or more tokens" trigger would pick up on a freshly-loaded
-    // board. Snapshot the queue and restore it after placement.
+    // board — and, since issue #2300, a per-token `PERMANENT_ENTERED`
+    // (CR 603.6a) that every ETB trigger in the catalogue would pick up too.
+    // Snapshot the queue and restore it after placement, which discards BOTH:
+    // `emitPermanentEntered` appends by REBINDING `state.pendingEvents` to a
+    // fresh array rather than mutating the one captured here, so restoring the
+    // captured reference genuinely drops every event placement queued. Nothing
+    // drains the queue in between (no `processPendingActionTriggers` call on
+    // this path), so no trigger can reach the stack before the restore.
+    // Non-token placement below is a raw `battlefield.push` that emits nothing,
+    // so the span only ever has token entries to swallow.
     const basePendingEvents = state.pendingEvents;
 
     // Place requested cards

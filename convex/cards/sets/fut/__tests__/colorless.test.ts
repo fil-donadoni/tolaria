@@ -3,6 +3,7 @@
 import { describe, it, expect } from "vitest";
 import { horizonCanopy, swordOfTheMeek } from "../colorless";
 import { savannahLions } from "../../lea/white";
+import { thopterFoundry } from "../../arb/multicolor";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
@@ -395,5 +396,73 @@ describe("Sword of the Meek (CR 701.3 Equipment +1/+2, CR 603.6e graveyard-zone 
         expect(
             state.players[0].battlefield.find((c) => c.id === "sword")
         ).toBeUndefined();
+    });
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Issue #2300 — the combo, driven end-to-end through the REAL producer.
+    //
+    // Every test above hands `collectTriggers` a HAND-BUILT `PERMANENT_ENTERED`
+    // event, which is exactly why the bug survived: the card's `matches` was
+    // always correct, it simply never received an event, because token creation
+    // emitted only the batched `TOKENS_CREATED`. This test never constructs an
+    // event — it activates Thopter Foundry and lets the engine produce one.
+    // ─────────────────────────────────────────────────────────────────────
+    it("END TO END: activating Thopter Foundry wakes Sword of the Meek from the graveyard (issue #2300)", () => {
+        const state = gyState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: [
+                        makeInstance(swordOfTheMeek.id, {
+                            id: "sword",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "graveyard",
+                        }),
+                    ],
+                    battlefield: [
+                        makeInstance(thopterFoundry.id, {
+                            id: "foundry",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+
+        // Resolve the Foundry's ability (costs assumed paid, as elsewhere in
+        // this file): it creates the 1/1 blue Thopter token and gains 1 life.
+        resolveActivated(
+            state,
+            state.players[0].battlefield[0],
+            "thopter-foundry-make-thopter"
+        );
+
+        const thopter = state.players[0].battlefield.find((c) => c.isToken);
+        expect(thopter).toBeDefined();
+        expect(state.players[0].life).toBe(21);
+
+        // The Sword's graveyard-zone trigger is on the stack — the whole point
+        // of #2300. Resolve it and accept the "you may".
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].triggeredAbilityId).toBe(
+            "sword-of-the-meek-return"
+        );
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on may-pay
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+
+        const sword = state.players[0].battlefield.find(
+            (c) => c.id === "sword"
+        );
+        expect(sword).toBeDefined();
+        // "…then attach it to THAT creature" — the freshly created Thopter.
+        expect(sword!.attachedTo).toBe(thopter!.id);
+        expect(
+            state.players[0].graveyard.find((c) => c.id === "sword")
+        ).toBeUndefined();
+        // The equipped Thopter now reads 2/3 (1/1 + Sword's +1/+2).
+        expect(getEffectivePower(state, thopter!)).toBe(2);
+        expect(getEffectiveToughness(state, thopter!)).toBe(3);
     });
 });
