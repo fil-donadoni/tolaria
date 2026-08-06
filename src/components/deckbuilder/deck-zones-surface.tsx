@@ -1,4 +1,9 @@
-import type { CardLookup, DeckColumnLayout } from "@convex/deckLayout";
+import type {
+    CardLookup,
+    DeckColumnLayout,
+    GroupingKind,
+    OrderingKind,
+} from "@convex/deckLayout";
 import type { DeckCard } from "~/types/game";
 import CardZoomSlider from "~/components/lobby/deck-builder/card-zoom-slider";
 import { useCardZoom } from "~/components/lobby/deck-builder/useCardZoom";
@@ -32,6 +37,15 @@ export interface DeckZonesSurfaceProps {
     sideCards: DeckCard[];
     /** Both zones' Column Layouts. */
     layout: DeckColumnLayout;
+    /** Per-zone Grouping/Ordering control callbacks (issue #1624) — kept as
+     *  separate `onMain*`/`onSide*` pairs, mirroring `onMainCardClick`/
+     *  `onSideCardClick` below, rather than a single `(zone, value)` callback:
+     *  each `DeckZoneSurface` instance already knows its own zone, so it takes
+     *  the un-prefixed form. */
+    onMainGroupingChange: (grouping: GroupingKind) => void;
+    onSideGroupingChange: (grouping: GroupingKind) => void;
+    onMainOrderingChange: (ordering: OrderingKind) => void;
+    onSideOrderingChange: (ordering: OrderingKind) => void;
     lookup?: CardLookup;
     /** Responsive base card width the zoom multipliers scale (`cardBase()`). */
     cardBase: string;
@@ -64,6 +78,10 @@ export default function DeckZonesSurface({
     mainCards,
     sideCards,
     layout,
+    onMainGroupingChange,
+    onSideGroupingChange,
+    onMainOrderingChange,
+    onSideOrderingChange,
     lookup,
     cardBase,
     splitZone,
@@ -122,6 +140,8 @@ export default function DeckZonesSurface({
                     title={mainTitle}
                     cards={mainCards}
                     layout={layout.maindeck}
+                    onGroupingChange={onMainGroupingChange}
+                    onOrderingChange={onMainOrderingChange}
                     lookup={lookup}
                     dropModel="columns"
                     onCardClick={onMainCardClick}
@@ -150,6 +170,8 @@ export default function DeckZonesSurface({
                     title={sideTitle}
                     cards={sideCards}
                     layout={layout.sideboard}
+                    onGroupingChange={onSideGroupingChange}
+                    onOrderingChange={onSideOrderingChange}
                     lookup={lookup}
                     dropModel="pane"
                     onCardClick={onSideCardClick}
