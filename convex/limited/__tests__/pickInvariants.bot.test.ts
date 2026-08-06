@@ -974,23 +974,15 @@ const wurmMeta = metaOf("Worldspine Wurm");
 const animateDeadMeta = metaOf("Animate Dead");
 const flashMeta = metaOf("Flash");
 
-/** Emrakul, the Aeons Torn is a TRACKED STUB in this catalogue (commented out
- *  in `cards/sets/roe/colorless.ts`, tracked-by #1301 — Annihilator is not
- *  implemented), so `metaOf` cannot resolve it. Its `cardId` here is the stub's
- *  own declared id, and the synthetic meta carries its printed
- *  characteristics. Nothing in these tests depends on its quality heuristic
- *  (an unresolvable id scores 0 there): every assertion below compares the
- *  card against ITSELF with and without a profile, so the base term is held
- *  constant by construction. */
-const EMRAKUL_CARD_ID = "67600383-bbb8-411c-b8e6-2296650bc747";
-const emrakulMeta: CardEvalMeta = {
-    cardId: EMRAKUL_CARD_ID,
-    colors: [],
-    manaValue: 15,
-    rarity: "mythic",
-    pips: {},
-    producedColors: [],
-};
+/** Emrakul, the Aeons Torn — SHIPPED (issue #2319, PRD #1301 slice S3), so
+ *  `metaOf` resolves it through the live registry exactly like every other
+ *  reference card here. It was previously a hand-built synthetic meta keyed on
+ *  the tracked stub's declared id; the real definition supplies the same
+ *  printed characteristics ({15}, colourless, mythic, no pips). Nothing in
+ *  these tests depends on its quality heuristic either way: every assertion
+ *  below compares the card against ITSELF with and without a profile, so the
+ *  base term is held constant by construction. */
+const emrakulMeta = metaOf("Emrakul, the Aeons Torn");
 
 /** How much a Card Profile census CHANGES a candidate's score against the
  *  identical Pool with no profiles at all. Isolating the synergy terms this
@@ -1055,7 +1047,7 @@ describe("Pick Invariant — Capability Fit is the veto (ADR 0072, issue #1611)"
 
     it("adding Flash may not RAISE Emrakul's score — its payoff is on ATTACK, not on death", () => {
         const getCardProfile = profileLookup({
-            [EMRAKUL_CARD_ID]: emrakulProfile,
+            [emrakulMeta.cardId]: emrakulProfile,
             [flashMeta.cardId]: flashProfile,
         });
         const trace = scoreCandidate(emrakulMeta, [flashMeta], 3, {

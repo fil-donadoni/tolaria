@@ -7978,6 +7978,25 @@ export interface TriggeredAbility {
      *  opts the card into `collectTriggers`' graveyard scan path (Nether
      *  Shadow's upkeep self-reanimation). */
     zone?: "graveyard";
+    /** CR 603.6e (issue #2319) — this ability functions while its own card is
+     *  ON THE STACK as a spell, so it must be scanned there rather than on the
+     *  battlefield: "When you cast this spell, …" (Emrakul, the Aeons Torn's
+     *  extra turn; Mana Vortex's counter-unless-you-sacrifice-a-land).
+     *
+     *  A DEDICATED marker rather than a `zone: "stack"` member, because the two
+     *  answer different questions. `zone` selects which pile
+     *  `collectTriggers` sweeps for a source that is SITTING somewhere; a cast
+     *  trigger is collected by `collectCastTriggers` at the single cast choke
+     *  point (`emitSpellCastEvent`) against the ONE spell just announced, so
+     *  the trigger lands above it in the same atomic step (CR 601.2i).
+     *
+     *  Set ONLY by `spellCastTrigger` for `scope: "self"`, never by an author
+     *  by hand. The marker is deliberately FAIL-CLOSED: an ability without it
+     *  is never scanned on the stack, so a battlefield permanent whose
+     *  `scope: "any"`/"you" cast-watching trigger happens to fire on its own
+     *  casting does NOT wrongly trigger from the stack (CR 603.6 — an ability
+     *  functions only on the battlefield unless it says otherwise). */
+    functionsFromStack?: true;
     /** True if `event` triggers this ability on the permanent carrying it.
      *  `state` is supplied for state triggers (CR 603.8) that need to inspect
      *  persistent game conditions. */

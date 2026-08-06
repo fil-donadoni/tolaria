@@ -175,7 +175,11 @@ import {
     getFirstApplicableDrawReplacement,
     graveyardDestinationFor,
 } from "./replacements";
-import { collectTriggers, placeTriggersOnStack } from "./triggers";
+import {
+    collectTriggers,
+    placeTriggersOnStack,
+    triggerHandlesEventType,
+} from "./triggers";
 import { getColorsFromCost } from "../cards/colors";
 import { combatDeclarationCap } from "../cards/attackRestrictions";
 import {
@@ -8716,7 +8720,12 @@ const STORM_TRIGGER_ID = "storm";
  *  StackItem ABOVE `castSpell` so it resolves first (CR 603.3b — a new stack
  *  object goes on top). Built for the class, not the single keyword:
  *  gravestorm (CR 702.69, still `planned` in the registry) attaches here
- *  later as another case, not a new mechanism. */
+ *  later as another case, not a new mechanism.
+ *
+ *  ALSO collects the cast card's OWN "when you cast this spell" triggers
+ *  (CR 603.6e, issue #2319) — see `collectSelfCastTriggers` below. Same reason
+ *  storm lives here: the source is the spell being announced, which no
+ *  battlefield/graveyard sweep can reach. */
 function collectCastTriggers(
     state: GameState,
     castSpell: StackItem,
@@ -8724,6 +8733,7 @@ function collectCastTriggers(
 ): void {
     const cardId = (castSpell.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
+    collectSelfCastTriggers(state, castSpell, event, def);
     const hasStorm = def?.staticAbilities?.some(
         (a) => a.toLowerCase() === STORM_KEYWORD
     );
@@ -8751,6 +8761,52 @@ function collectCastTriggers(
         stormCopiesRemaining: event.priorSpellCount ?? 0,
     };
     state.stack.push(stormItem);
+}
+
+/** CR 603.6e (issue #2319) — collects the just-announced spell's OWN "when you
+ *  cast this spell" triggered abilities. The source of such a trigger is the
+ *  spell sitting on the stack, so `collectTriggers`' battlefield/graveyard
+ *  sweep can never see it: before this pass existed, a self-scoped
+ *  `spellCastTrigger` was built, shipped, and silently never fired (Mana
+ *  Vortex's "counter it unless you sacrifice a land" was inert in production
+ *  while its unit test hand-drove the trigger).
+ *
+ *  FAIL-CLOSED by construction: only abilities carrying the explicit
+ *  `functionsFromStack` marker are considered, and `spellCastTrigger` sets it
+ *  for `scope: "self"` alone. A permanent's cast-WATCHING trigger
+ *  (`scope: "you"` / `"opponents"` / `"any"`) is therefore NOT collected here
+ *  when that permanent's own card is cast — it functions only on the
+ *  battlefield (CR 603.6), where the normal sweep already finds it. `matches`
+ *  still runs as the final authority, exactly as in `collectTriggers`.
+ *
+ *  Each trigger lands ABOVE `castSpell`, so it resolves before the spell does
+ *  — which is the whole point of a cast trigger (Emrakul's extra turn is taken
+ *  even if the spell is later countered or fizzles). */
+function collectSelfCastTriggers(
+    state: GameState,
+    castSpell: StackItem,
+    event: SpellCastEvent,
+    def: CardDefinition | null | undefined
+): void {
+    const abilities = def?.triggeredAbilities;
+    if (!abilities || abilities.length === 0) return;
+    for (const ability of abilities) {
+        if (ability.functionsFromStack !== true) continue;
+        if (!triggerHandlesEventType(ability, event.type)) continue;
+        if (!ability.matches(event, castSpell, state)) continue;
+        state.stack.push({
+            ...castSpell,
+            id: allocInstanceId(state),
+            zone: "stack",
+            castById: castSpell.castById,
+            triggeredAbilityId: ability.id,
+            triggerSourceId: castSpell.id,
+            triggerEvent: event,
+            // CR 603.3d — a trigger chooses its own targets when it is put on
+            // the stack; it never inherits the watched spell's.
+            targets: undefined,
+        });
+    }
 }
 
 /** Emits CARD_DRAWN events for a player who just drew `count` cards
