@@ -7,11 +7,21 @@
 // `convex/deckLayout.ts`. The Column Layout engine's whole job is deciding
 // WHICH COLUMN a card lands in, and it is imported by both client and server
 // (ADR 0074) because Column Layout IS persisted (`userDecks.layout` /
-// `poolArrangement`). The filter never crosses that boundary — it narrows the
-// `items` handed to `resolveColumnLayout`, purely client-side, and is never
-// read or written anywhere else. Keeping the whole feature out of the
-// persisted engine's module is what makes "the filter lives nowhere" (ADR
-// 0075 § Persistence split) true by construction rather than by discipline.
+// `poolArrangement`). The filter never crosses that boundary — it runs purely
+// client-side, AFTER the engine, and is never read or written anywhere else.
+// Keeping the whole feature out of the persisted engine's module is what makes
+// "the filter lives nowhere" (ADR 0075 § Persistence split) true by
+// construction rather than by discipline.
+//
+// **The filter runs downstream of `resolveColumnLayout`, never upstream of it**
+// (PR #2313 review F1). Handing the engine the FILTERED array looks equivalent
+// and is not: `generateColumns` derives the column SET from the defs it is
+// given for Grouping `type` — the one Grouping whose ladder isn't fixed — so a
+// filter that eliminated the last Instant also eliminated the `type:instant`
+// column, and every Card Pin naming it silently stopped applying. Callers
+// resolve columns from the UNFILTERED cards and narrow each resolved column's
+// `items` afterwards, so the column set (and every Pin, and every drop target)
+// is filter-independent and only the contents narrow.
 import { tryGetDefinition } from "@convex/cards";
 import { getCardColorIdentity } from "@convex/cards/colors";
 import type { CardDefinition, Color } from "@convex/cards/types";
@@ -76,14 +86,17 @@ export function matchesZoneFilter(
 }
 
 /** Narrows `items` to the ones `filter` keeps visible. Returns a NEW array
- *  (never mutates `items`) so a filtered Zone's remaining cards are simply
- *  the ones fed onward to `resolveColumnLayout` — their columns are computed
- *  exactly as if the hidden cards were never in the deck, which is what keeps
- *  "a card that no longer matches disappears without changing which column
- *  its remaining siblings are in" true for free (issue #1625 AC). `lookup`
- *  defaults identically to `resolveColumnLayout`'s own default (the card
- *  registry) so a caller that passes the SAME `lookup` it hands the engine —
- *  as `DeckZoneSurface` does — gets identical classification for a
+ *  (never mutates `items`).
+ *
+ *  Call this on the `items` of an ALREADY-RESOLVED column, never on the cards
+ *  you are about to hand `resolveColumnLayout` — see the F1 note in this
+ *  file's header. Applied that way it cannot move a card between columns, so
+ *  "a card that no longer matches disappears without changing which column its
+ *  remaining siblings are in" (issue #1625 AC) holds structurally.
+ *
+ *  `lookup` defaults identically to `resolveColumnLayout`'s own default (the
+ *  card registry) so a caller that passes the SAME `lookup` it hands the
+ *  engine — as `DeckZoneSurface` does — gets identical classification for a
  *  catalogue-only (Tabletop, ADR 0080) deck too. */
 export function filterZoneCards<T>(
     items: readonly T[],
