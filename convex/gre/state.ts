@@ -12841,7 +12841,19 @@ export function buildSpellContext(
             // `createToken` gets applies here too, BEFORE `applyCopy`
             // overwrites the token's copiable characteristics below — entry
             // state is independent of what gets copied.
-            const [tokenId] = ctx.createToken(
+            // Calls `createTokenPermanents` DIRECTLY rather than through
+            // `ctx.createToken` for one reason: the `deferEntryEvent` opt
+            // (issue #2300). The placeholder must not announce its own
+            // CR 603.6a entry — a 0/0 named "Copy" with no copied subtypes is
+            // exactly what the comment above means by "never observed"; this
+            // function emits the real `PERMANENT_ENTERED` below, once
+            // `applyCopy` has stamped the copied characteristics on. Nothing
+            // else is lost by bypassing the closure: its only extra work is
+            // the `tokenPrintIdFor` art lookup, which cannot resolve for the
+            // synthetic name "Copy" and which `applyCopy` supersedes anyway
+            // (the copy presents the SOURCE's definition, art included).
+            const [tokenId] = createTokenPermanents(
+                state,
                 {
                     name: "Copy",
                     types: ["Creature"],
@@ -12852,7 +12864,8 @@ export function buildSpellContext(
                 },
                 controllerId,
                 1,
-                createdBy
+                createdBy,
+                { deferEntryEvent: true }
             );
             const token = findOnBattlefield(state, tokenId)?.card;
             if (!token) return undefined;
@@ -12877,6 +12890,15 @@ export function buildSpellContext(
             // P/T-buff effects observe the copied type/color.
             applyExistingGrantsTo(state, token);
             applySourceStaticEffects(state, token);
+            // CR 111.1 / 603.6a (issue #2300) — NOW announce the entry, with
+            // the copied characteristics in place (`applyCopy` above rewrote
+            // `types`, `subtypes` and P/T; the counter + grant passes have run,
+            // so `emitPermanentEntered`'s effective-P/T snapshot is correct).
+            // `createTokenPermanents` was told to defer precisely so this
+            // event describes the COPY and not the 0/0 "Copy" placeholder.
+            // Unreachable when a CR 614 replacement sent the token to exile —
+            // the `findOnBattlefield` guard above already returned.
+            emitPermanentEntered(state, token);
             // CR 603.10 — bind the creator to its token (both directions) so the
             // creator's leave-linkage triggers can identify the exact token by
             // id after it has left the battlefield. The token already records
@@ -16052,7 +16074,19 @@ export function createTokenPermanents(
     spec: TokenSpec,
     controllerId: string,
     count = 1,
-    createdBy?: string
+    createdBy?: string,
+    /** `deferEntryEvent` (issue #2300) — suppress this function's own
+     *  `emitPermanentEntered` per entering token, leaving it to the CALLER.
+     *  Exactly one caller needs it: `SpellContext.createTokenCopyOf`, which
+     *  creates a 0/0 placeholder "Copy" token and only afterwards overwrites
+     *  every copiable characteristic via `applyCopy` (CR 707.2). Announcing
+     *  the entry here would announce the PLACEHOLDER — a 0/0 with types
+     *  `["Creature"]` and no copied subtypes — to every CR 603.2 trigger
+     *  condition, so `createTokenCopyOf` defers and emits once the token
+     *  really has its copied characteristics. Everything else (the plain
+     *  `createToken` primitive, the draw-replacement seam, the scenario
+     *  builder) leaves it false and emits inline. */
+    opts?: { deferEntryEvent?: boolean }
 ): string[] {
     const owner = getPlayer(state, controllerId);
     const ids: string[] = [];
@@ -16219,6 +16253,48 @@ export function createTokenPermanents(
         }
         applyExistingGrantsTo(state, token);
         applySourceStaticEffects(state, token);
+        // CR 111.1 / 603.6a (issue #2300) — a token IS a permanent, so its
+        // entry announces the same `PERMANENT_ENTERED` every other entry site
+        // announces. ONE per token that actually entered — contrast the
+        // batched `TOKENS_CREATED` below, which is one per CALL. The two are
+        // independent and both fire: "whenever you create one or more creature
+        // tokens" fires once for a batch of three, "whenever a creature you
+        // control enters" fires three times.
+        //
+        // THREE prerequisites in this loop are load-bearing — this emit is
+        // LAST for a reason, not by habit. Each is pinned by a test that was
+        // watched go red with the emit moved off it:
+        //   * AFTER the CR 614 chokepoint above — a token this loop redirected
+        //     to exile never entered the battlefield and `continue`d out long
+        //     before reaching here, so it announces nothing (CR 614.1).
+        //   * AFTER `owner.battlefield.push` — `emitPermanentEntered` looks the
+        //     real instance up on the battlefield to snapshot P/T, so an emit
+        //     before the push silently drops `power`/`toughness` from the
+        //     payload and every P/T-keyed trigger condition stops matching.
+        //   * AFTER `applyExistingGrantsTo` / `applySourceStaticEffects` —
+        //     these two passes MATERIALIZE layer-4 grants onto the instance
+        //     (CR 613.1d): the `type-add` branch stamps `token.types` (and
+        //     `subtype-set` / `subtype-add` stamp `token.subtypes`). The emit
+        //     reads `token.types` TWICE: for the payload's `types`, and for
+        //     the `includes("Creature")` gate that decides whether P/T is
+        //     snapshotted at all — so a granted type that is not stamped yet
+        //     is a type the entry never announces. Titania's Song
+        //     (`cards/sets/atq/green.ts`, shipped) is the live instance — a
+        //     Treasure token entering under it must announce
+        //     `["Artifact","Creature"]` WITH a P/T; emitted above these two
+        //     passes it announces a bare `["Artifact"]` and no P/T, and every
+        //     "whenever a creature enters" trigger silently stops seeing it.
+        // What is NOT the reason: layer 7d. `getStaticPTBuff` (`gre/layers.ts`)
+        // is a LIVE battlefield scan, so an anthem's +1/+1 is already visible
+        // the instant the token is pushed — the effective-P/T snapshot (CR
+        // 603.2 / 613.4, a 1/1-spec'd token under an anthem is not a 1/1 for
+        // Sword of the Meek) needs only the push, not these passes. It is the
+        // layer-4 MATERIALIZATION — a characteristic STAMPED onto the instance
+        // rather than recomputed on read — that has to have happened first.
+        // No `wasCast` / `wasPlayed`: a token is neither cast nor played
+        // (CR 111.1 / 601.2i / 305.2), matching every other non-chokepoint
+        // caller of `emitPermanentEntered`.
+        if (!opts?.deferEntryEvent) emitPermanentEntered(state, token);
         ids.push(id);
     }
     // CR 702.131b — continuous Ascend check (`gre/cityBlessing.ts`). A token
@@ -16231,10 +16307,11 @@ export function createTokenPermanents(
     // WHOLE call, not one per token. This is the naturally-batched choke
     // point "whenever you create one or more creature tokens" triggers
     // (Staff of the Storyteller) key off — see `tokenCreatedTrigger`. A
-    // purpose-built event (NOT a generic PERMANENT_ENTERED fan-out): tokens
-    // don't emit PERMANENT_ENTERED at all today, and folding them in would
-    // need a full ETB-trigger blast-radius audit out of scope here (#1345's
-    // design note). Emitted regardless of the CR 614 replacement destination
+    // purpose-built event that is INDEPENDENT of, not a substitute for, the
+    // per-token PERMANENT_ENTERED emitted inside the loop above (issue #2300
+    // did the blast-radius audit #1345's design note deferred): both fire, at
+    // different cardinalities — this one once per CALL, that one once per
+    // token that actually ENTERED. Emitted regardless of the CR 614 destination
     // any individual copy ended up in (exile included) — the tokens were
     // still CREATED (CR 111.1); `count` mirrors the requested batch size.
     if (count > 0) {
