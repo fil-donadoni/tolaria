@@ -10,12 +10,12 @@ import { validateDeck } from "@convex/formats";
 import { poolFromLimitedPoolCards } from "@convex/limited/poolResolution";
 import {
     findColumnOverrideablePoolIndex,
-    mvColumnFromPins,
     pinsByCardId,
     splitPoolByArrangement,
 } from "@convex/limited/poolArrangement";
 import {
     createColumnLayout,
+    parseColumnId,
     type ColumnId,
     type DeckColumnLayout,
     type GroupingKind,
@@ -317,23 +317,33 @@ export default function PoolDeckBuilderForm({
     // Column drag: persist the Pin on the seat's Pool Arrangement (the SAME
     // store + mutation the draft Pool uses, ADR 0060). Resolves the
     // `cardId`-keyed UI action back to a `poolIndex`; a Basic land added from
-    // the bar has no `poolIndex`, so its column can't be pinned (no-op). The
-    // mutation's wire vocabulary is still the legacy `column` (issue #1621:
-    // only the PERSISTED shape moved), so the namespaced Column id is read
-    // back through the engine's own inverse shim rather than re-parsed here.
+    // the bar has no `poolIndex`, so its column can't be pinned (no-op).
+    //
+    // The namespaced Column id travels WHOLE (issue #1624): the mutation's
+    // `column` arg speaks the engine's full vocabulary, so a drop onto a
+    // `color:`/`type:`/`custom:` Column persists in its own Pin namespace
+    // exactly as an `mv:` drop always has. It previously went through the
+    // `mv`-only inverse shim (`mvColumnFromPins`), which returned `undefined`
+    // for every other namespace — and since this zone's Grouping control can
+    // now generate colour/type Columns, that made every one of them a live,
+    // highlighting, DEAD drop target.
     const handlePin = useCallback(
         (cardId: string, columnId: ColumnId) => {
-            const column = mvColumnFromPins({ mv: columnId });
-            if (column === undefined) return;
+            // The Catch-All (and grouping `none`'s single Column) carry no
+            // namespace and are never pin targets — the same rule the
+            // engine's own `pinCardToColumn` applies.
+            if (!parseColumnId(columnId)) return;
             const poolIndex = findColumnOverrideablePoolIndex(
                 pool,
                 poolArrangement,
                 cardId
             );
             if (poolIndex === null) return;
-            void setPoolArrangementEntry({ eventId, poolIndex, column }).catch(
-                () => {}
-            );
+            void setPoolArrangementEntry({
+                eventId,
+                poolIndex,
+                column: columnId,
+            }).catch(() => {});
         },
         [pool, poolArrangement, setPoolArrangementEntry, eventId]
     );

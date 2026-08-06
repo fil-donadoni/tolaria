@@ -24,6 +24,7 @@ import {
     normalizeLegacyColumn,
     parseColumnId,
     type CardPins,
+    type ColumnId,
 } from "../deckLayout";
 import type { LimitedPoolCard, PoolArrangementEntry } from "./eventTypes";
 
@@ -44,9 +45,25 @@ export interface PlainPoolCard {
 export interface ArrangementPatch {
     poolIndex: number;
     sideboard?: boolean;
-    /** A numeric Mana-Value column override, the literal `"lands"` to pin
-     *  into Lands, or `null` to explicitly clear back to auto. */
-    column?: number | "lands" | null;
+    /** The Column this card is pinned to, in EITHER vocabulary (issue #1624):
+     *
+     *  - a **namespaced {@link ColumnId}** — `mv:6`, `color:R`,
+     *    `type:creature`, `custom:combo` — records that namespace's Card Pin
+     *    and leaves every other namespace alone (ADR 0075 §3). This is the
+     *    full vocabulary the Column Layout engine speaks, and the reason a
+     *    colour/type column drag in the Limited deckbuilder can persist at
+     *    all: the pre-#1624 arg could only express `mv`, so a drop onto a
+     *    `color:` column was silently discarded at the call site;
+     *  - a legacy **`number`** Mana-Value column, or the literal
+     *    **`"lands"`** — normalises into the `mv` namespace exactly as
+     *    before (every draft-time Pool caller still speaks this shape);
+     *  - **`null`** — clears the `mv` Pin back to auto.
+     *
+     *  An UNNAMESPACED string (the Catch-All `catch-all`, the ungrouped
+     *  `all`) is not a pin target, so it leaves the Pins untouched rather
+     *  than being coerced into `mv` — the same rule `pinCardToColumn`
+     *  applies in the engine. */
+    column?: number | "lands" | ColumnId | null;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -132,19 +149,36 @@ export function upsertPoolArrangementEntry(
     return [...rest, merged].sort((a, b) => a.poolIndex - b.poolIndex);
 }
 
-/** The patch's `column` field applied to an already-normalised Pin map:
- *  `undefined` leaves every Pin alone, `null` clears the `mv` Pin back to auto
- *  (and ONLY that one — a Pin is never erased across namespaces, ADR 0075 §3),
- *  a value overwrites it. */
+/** The patch's `column` field applied to an already-normalised Pin map — the
+ *  ONE place the two column vocabularies meet (see {@link ArrangementPatch}):
+ *
+ *  - `undefined` leaves every Pin alone;
+ *  - `null` clears the `mv` Pin back to auto (and ONLY that one — a Pin is
+ *    never erased across namespaces, ADR 0075 §3);
+ *  - a namespaced `ColumnId` overwrites THAT namespace's Pin and nothing else,
+ *    so pinning into a colour column never disturbs the `mv` arrangement built
+ *    during the draft (and vice versa);
+ *  - a legacy `number`/`"lands"` normalises into the `mv` namespace.
+ *
+ *  Fail-closed on an unnamespaced id (`catch-all`, `all`): it is not a pin
+ *  target, so it records nothing rather than being coerced into `mv`. */
 function applyColumnPatch(
     pins: CardPins,
-    column: number | "lands" | null | undefined
+    column: ArrangementPatch["column"]
 ): CardPins {
     if (column === undefined) return pins;
     if (column === null) {
         const cleared = { ...pins };
         delete cleared.mv;
         return cleared;
+    }
+    if (typeof column === "string") {
+        if (column === "lands") {
+            return { ...pins, ...normalizeLegacyColumn("lands") };
+        }
+        const parsed = parseColumnId(column);
+        if (!parsed) return pins;
+        return { ...pins, [parsed.namespace]: column };
     }
     return { ...pins, ...normalizeLegacyColumn(column) };
 }
