@@ -3944,6 +3944,14 @@
         "firstPrintSet": "tsp"
     },
     {
+        "name": "Emrakul, the Aeons Torn",
+        "scryfallId": "67600383-bbb8-411c-b8e6-2296650bc747",
+        "oracleId": "900ca697-ad38-4b2b-bc74-2ff7eb6ea951",
+        "firstSet": "roe",
+        "firstPrintId": "67600383-bbb8-411c-b8e6-2296650bc747",
+        "firstPrintSet": "roe"
+    },
+    {
         "name": "Emry, Lurker of the Loch",
         "scryfallId": "bf4b9a8a-b42a-46fb-b0d0-9cf800f63c8a",
         "oracleId": "da3e7d3d-2ca0-40c3-9602-fca37c92f507",

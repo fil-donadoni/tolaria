@@ -159,6 +159,14 @@ export function spellCastTrigger(args: SpellCastTriggerArgs): TriggeredAbility {
             return true;
         },
     };
+    // CR 603.6e (issue #2319) — a "when you cast THIS spell" trigger's source
+    // is the spell on the stack, not a battlefield permanent, so it is invisible
+    // to `collectTriggers`' battlefield/graveyard sweep. Mark it for
+    // `collectCastTriggers`, which scans the just-announced spell at the cast
+    // choke point. Only `scope: "self"` earns the marker: every other scope
+    // watches OTHER spells from a permanent already on the battlefield, where
+    // the normal scan finds it.
+    if (args.scope === "self") built.functionsFromStack = true;
     if (args.effects !== undefined) {
         built.effects = args.effects;
     } else {
