@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, useEffect } from "react";
+import { useCallback, useMemo } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import type { Id } from "@convex/_generated/dataModel";
 import type {
@@ -27,21 +27,28 @@ import {
     moveToSideboard,
     type SideboardSplit,
 } from "~/lib/deckSideboard";
-import type { DeckCard } from "~/types/game";
-import DeckLegalityPanel from "~/components/lobby/deck-builder/deck-legality-panel";
-import SaveDeckBar from "~/components/lobby/deck-builder/save-deck-bar";
-import { Button } from "@/components/ui/button";
+import { cardBase } from "~/lib/cardSizing";
 import { isBasicLandCardId, resolveBasicLandCardIds } from "./basicLands";
+import DeckBuilderShell from "./deck-builder-shell";
+import type { DeckBuilderViewSpec, WorkingDeck } from "./deckBuilderVariant";
 import PoolBasicLandsBar from "./pool-basic-lands-bar";
-import PoolDeckbuilderSurface from "./pool-deckbuilder-surface";
+import { useDeckWorkspace, type DeckSaveSink } from "./useDeckWorkspace";
 
-const SAVE_DEBOUNCE_MS = 800;
+// Floored at CARD_MIN_W (issue #2056) so a short-and-wide viewport (landscape
+// phone, split-screen tablet) can't collapse the `9dvh` term past legibility.
+const CARD_BASE = cardBase("7.5rem", "17vw", "9dvh");
 
-interface WorkingDeck {
-    name: string;
-    cards: DeckCard[];
-    sideboard: DeckCard[];
-}
+/** This variant's declared view spec: its OWN `localStorage` namespaces, kept
+ *  distinct from the Constructed builder's so the two persist independent
+ *  split and zoom (issue #1622). */
+const VIEW: DeckBuilderViewSpec = {
+    cardBase: CARD_BASE,
+    splitZone: "pool",
+    splitDefault: 2 / 3,
+    mainZoomZone: "pool-main",
+    sideZoomZone: "pool-side",
+    zoomInitial: 1.0,
+};
 
 /** Every opened Pool card (basics included) starts in the Sideboard for a
  *  brand-new Sealed deck (PRD #1107 story 19, ADR 0054/0055 — "every unplayed
@@ -53,13 +60,15 @@ interface WorkingDeck {
  *  this is the one path with no continuous-draft carry-over to seed from
  *  instead (see `continuousWorkingDeck` below). */
 function defaultWorkingDeck(pool: readonly LimitedPoolCard[]): WorkingDeck {
+    const sideboard = pool.map((c) => ({
+        cardId: c.cardId,
+        cardName: c.cardName,
+    }));
     return {
         name: "Sealed Pool Deck",
+        format: "limited",
         cards: [],
-        sideboard: pool.map((c) => ({
-            cardId: c.cardId,
-            cardName: c.cardName,
-        })),
+        sideboard,
     };
 }
 
@@ -76,6 +85,7 @@ function continuousWorkingDeck(
     const split = splitPoolByArrangement(pool, arrangement);
     return {
         name: "Draft Pool Deck",
+        format: "limited",
         cards: split.cards,
         sideboard: split.sideboard,
     };
@@ -105,14 +115,23 @@ interface PoolDeckBuilderFormProps {
 }
 
 /**
- * The pool-scoped editor itself (issue #1111) — mounted by `PoolDeckBuilder`
- * only once the Seat/Pool/existing-deck data has resolved, so the working
- * deck seeds via a plain lazy `useState` initializer (mirrors the catalogue
- * `DeckBuilder`'s `initialDeck` prop) rather than an effect-driven `setState`.
- * Reuses the SAME pile rendering (`DeckPileArea`), legality panel
- * (`DeckLegalityPanel`) and save bar (`SaveDeckBar`) as the catalogue-wide
- * builder — only the "what can be added" surface (this seat's Pool + Basics,
- * not the full catalogue search) and the persistence path differ.
+ * The **Limited** entry point of the unified deckbuilder (ADR 0075 §1, issue
+ * #1623) — one of the shell's three declared variants, and a thin wrapper by
+ * construction. It supplies exactly what is Limited about building from a
+ * sealed Pool:
+ *
+ *  - **no source panel** — the Pool zone IS the card source, so cards only
+ *    ever move between the two zones (`onAddTo*` deliberately unwired, which
+ *    makes an add-from-elsewhere drag a no-op rather than a special case);
+ *  - **its persistence sinks** — the deck row through `userDecks`, and Card
+ *    Pins through the seat's Pool Arrangement (`setPoolArrangementEntry`, the
+ *    SAME store the draft Pool writes, ADR 0060);
+ *  - **its legality** — `validateDeck` against `limited`, with the seat's own
+ *    Pool injected as the `ResolvePool`;
+ *  - plus the basics bar and the uncapped Sideboard's copy.
+ *
+ * Everything else — toolbar, zones, split, drag context, legality panel, save
+ * bar, autosave — is the shell's and `useDeckWorkspace`'s.
  */
 export default function PoolDeckBuilderForm({
     eventId,
@@ -126,108 +145,57 @@ export default function PoolDeckBuilderForm({
     const { create, update } = useUserDeckMutations();
     const { setPoolArrangementEntry } = useLimitedEventMutations();
 
-    const [deck, setDeck] = useState<WorkingDeck>(() => {
-        if (existingDeck) {
-            return {
-                name: existingDeck.name,
-                cards: existingDeck.cards,
-                sideboard: existingDeck.sideboard ?? [],
-            };
-        }
-        return eventType === "draft"
-            ? continuousWorkingDeck(pool, poolArrangement)
-            : defaultWorkingDeck(pool);
-    });
-    const [saving, setSaving] = useState(false);
-
-    const identityRef = useRef<string | null>(existingDeck?.userDeckId ?? null);
-    const pendingRef = useRef<WorkingDeck | null>(null);
-    const timerRef = useRef<number | null>(null);
-    const inflightRef = useRef<Promise<unknown> | null>(null);
-
-    const clearTimer = () => {
-        if (timerRef.current !== null) {
-            window.clearTimeout(timerRef.current);
-            timerRef.current = null;
-        }
-    };
-
-    const flush = useCallback(async () => {
-        clearTimer();
-        if (inflightRef.current) {
-            try {
-                await inflightRef.current;
-            } catch {
-                // surfaced by the originating call site
+    // The persistence sink: create the seat's deck row on the first write,
+    // patch it by id afterwards. `limitedEventId`/`limitedSeatId` bind the row
+    // to this seat so its legality can resolve the Pool.
+    const save = useCallback<DeckSaveSink>(
+        async (pending, identity) => {
+            // A Pool only ever holds registry cards, so the deck's colour
+            // identity derives registry-only (no Full Catalogue resolver).
+            const colors = computeDeckColors(pending.cards);
+            if (identity === null) {
+                const id = await create({
+                    name: pending.name,
+                    format: "limited",
+                    colors,
+                    cards: pending.cards,
+                    sideboard: pending.sideboard,
+                    limitedEventId: eventId,
+                    limitedSeatId: String(seatIndex),
+                });
+                return id as string;
             }
-        }
-        const pending = pendingRef.current;
-        if (!pending) return;
-        pendingRef.current = null;
-        setSaving(true);
-        const colors = computeDeckColors(pending.cards);
-        const promise =
-            identityRef.current === null
-                ? create({
-                      name: pending.name,
-                      format: "limited",
-                      colors,
-                      cards: pending.cards,
-                      sideboard: pending.sideboard,
-                      limitedEventId: eventId,
-                      limitedSeatId: String(seatIndex),
-                  }).then((id) => id as string)
-                : update({
-                      id: identityRef.current as Id<"userDecks">,
-                      patch: {
-                          name: pending.name,
-                          colors,
-                          cards: pending.cards,
-                          sideboard: pending.sideboard,
-                      },
-                  }).then(() => identityRef.current as string);
-        inflightRef.current = promise;
-        try {
-            identityRef.current = await promise;
-        } finally {
-            inflightRef.current = null;
-            setSaving(false);
-        }
-    }, [create, update, eventId, seatIndex]);
-
-    const schedule = useCallback(
-        (next: WorkingDeck) => {
-            pendingRef.current = next;
-            clearTimer();
-            timerRef.current = window.setTimeout(() => {
-                timerRef.current = null;
-                void flush();
-            }, SAVE_DEBOUNCE_MS);
-        },
-        [flush]
-    );
-
-    useEffect(() => {
-        return () => {
-            void flush();
-        };
-    }, [flush]);
-
-    const updateDeck = useCallback(
-        (updater: (d: WorkingDeck) => WorkingDeck) => {
-            setDeck((current) => {
-                const next = updater(current);
-                schedule(next);
-                return next;
+            await update({
+                id: identity as Id<"userDecks">,
+                patch: {
+                    name: pending.name,
+                    colors,
+                    cards: pending.cards,
+                    sideboard: pending.sideboard,
+                },
             });
+            return identity;
         },
-        [schedule]
+        [create, update, eventId, seatIndex]
     );
 
-    const handleSetName = useCallback(
-        (name: string) => updateDeck((d) => ({ ...d, name })),
-        [updateDeck]
-    );
+    const { deck, saving, updateDeck, setName, flush } = useDeckWorkspace({
+        initialIdentity: existingDeck?.userDeckId ?? null,
+        save,
+        initial: () => {
+            if (existingDeck) {
+                return {
+                    name: existingDeck.name,
+                    format: "limited",
+                    cards: existingDeck.cards,
+                    sideboard: existingDeck.sideboard ?? [],
+                };
+            }
+            return eventType === "draft"
+                ? continuousWorkingDeck(pool, poolArrangement)
+                : defaultWorkingDeck(pool);
+        },
+    });
 
     // Main-zone click: a Basic is freely removed (unlimited add/remove); a
     // Pool-sourced card only ever moves back to the Sideboard — it can never
@@ -343,104 +311,49 @@ export default function PoolDeckBuilderForm({
                 undefined,
                 () => poolFromLimitedPoolCards(pool)
             ),
-        [deck, eventId, seatIndex, pool]
+        [deck.cards, deck.sideboard, eventId, seatIndex, pool]
     );
 
     return (
-        // The shell (`app-shell.tsx`) owns the hard `h-dvh` bound; this
-        // route claims the REMAINING height (`flex-1 min-h-0`) rather than a
-        // whole extra viewport (issue #2056 defect 3) — `h-dvh` here,
-        // stacked under the shell's header band, made the document 112px
-        // taller than the viewport and pushed the Save bar + legality panel
-        // off-screen.
-        <div className="flex flex-1 min-h-0 flex-col bg-surface-base text-text">
-            {/* Issue #2275: everything that can OUTGROW the space it's given
-                — the header, the basics bar, and above all
-                `PoolDeckbuilderSurface` (whose own `minHeight` is a
-                CONSTANT floor below 800px of viewport height, issue #2056
-                defect 3 amplification, deliberately unchanged here) — lives
-                inside this ONE scrollable wrapper. `SaveDeckBar` sits
-                OUTSIDE it as a plain sibling flex item, so a viewport too
-                short to fit the pane's floor no longer pushes the whole
-                route past `<main>`'s bounds (which used to surface as the
-                shell's own fallback scrollbar swallowing the Save bar below
-                ~246px viewport height, the exact regression #2056 already
-                fixed at taller viewports). Below that crossover this
-                wrapper's OWN scrollbar absorbs the shortfall instead —
-                `SaveDeckBar` renders at its full natural height at every
-                viewport height the app supports, never the item flex-shrink
-                trims. */}
-            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-                {/* short-viewport:hidden (issue #2056 defect 3 amplification,
-                    852x277 browser measurement): this band alone measured 39px,
-                    and the "← Back to Event" affordance it carries reappears
-                    compactly inside `SaveDeckBar`'s own row via `onBack` below —
-                    the header disappears rather than shrinking further, per the
-                    "header 0" target. */}
-                <div className="flex items-center gap-3 border-b border-border-subtle/30 bg-surface/60 px-4 py-3 short-viewport:hidden md:px-6">
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => void handleDone()}
-                    >
-                        ← Back to Event
-                    </Button>
-                    <h1 className="text-lg font-semibold font-beleren tracking-wide text-parchment">
-                        Build Limited Deck
-                    </h1>
-                </div>
-
+        <DeckBuilderShell
+            title="Build Limited Deck"
+            backLabel="← Back to Event"
+            onDone={() => void handleDone()}
+            basicsBar={
                 <PoolBasicLandsBar
                     cardIdsBySubtype={basicCardIds}
                     onAdd={handleAddBasic}
                     disabled={saving}
                 />
-
-                <PoolDeckbuilderSurface
-                    mainCards={deck.cards}
-                    sideCards={deck.sideboard}
-                    layout={layout}
-                    onMoveToSideboard={handleMainClick}
-                    onMoveToMaindeck={handleSideClick}
-                    onPin={handlePin}
-                    mainEmptyMessage="Move Pool cards here (or add Basics above) to build your deck."
-                    sideEmptyMessage="Every remaining Pool card lives here until moved to the Maindeck."
-                />
-
-                {/* short-viewport:hidden (issue #2056 defect 3 amplification):
-                    this band alone measured 48px — demoted to a `DeckLegalityChip`
-                    inside `SaveDeckBar` via the `legality` prop below, which only
-                    costs height while its disclosure is open. */}
-                <div className="short-viewport:hidden">
-                    <DeckLegalityPanel
-                        formatLabel="Limited"
-                        isLegal={legality.isLegal}
-                        reasons={legality.reasons}
-                    />
-                </div>
-            </div>
-
-            {/* shrink-0 (issue #2275): a plain flex item's default
-                `flex-shrink: 1` would let the row above's overflow squeeze
-                this one too once the outer column ran out of room. It never
-                needs to — the wrapper above absorbs the shortfall — but
-                `shrink-0` makes that guarantee explicit rather than
-                incidental. */}
-            <div className="shrink-0">
-                <SaveDeckBar
-                    name={deck.name}
-                    onChangeName={handleSetName}
-                    onDone={() => void handleDone()}
-                    cardCount={deck.cards.length}
-                    onBack={() => void handleDone()}
-                    backLabel="← Back to Event"
-                    legality={{
-                        formatLabel: "Limited",
-                        isLegal: legality.isLegal,
-                        reasons: legality.reasons,
-                    }}
-                />
-            </div>
-        </div>
+            }
+            mainCards={deck.cards}
+            sideCards={deck.sideboard}
+            layout={layout}
+            view={VIEW}
+            zones={{
+                sideTitle: "Pool (Sideboard)",
+                mainEmptyMessage:
+                    "Move Pool cards here (or add Basics above) to build your deck.",
+                sideEmptyMessage:
+                    "Every remaining Pool card lives here until moved to the Maindeck.",
+            }}
+            actions={{
+                onMoveToSideboard: handleMainClick,
+                onMoveToMaindeck: handleSideClick,
+                onPin: handlePin,
+                onMainCardClick: (card) => handleMainClick(card.cardId),
+                onSideCardClick: (card) => handleSideClick(card.cardId),
+            }}
+            legality={{
+                formatLabel: "Limited",
+                isLegal: legality.isLegal,
+                reasons: legality.reasons,
+            }}
+            saveBar={{
+                name: deck.name,
+                cardCount: deck.cards.length,
+                onChangeName: setName,
+            }}
+        />
     );
 }
