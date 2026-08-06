@@ -71,11 +71,12 @@ function deck(
 
 function renderBuilder(
     initialDeck: LobbyDeck | null = deck(),
-    manager?: DragDropManager
+    manager?: DragDropManager,
+    kind: "user" | "preset" = "user"
 ) {
     return render(
         <DeckBuilder
-            kind="user"
+            kind={kind}
             initialDeck={initialDeck}
             initialIdentity="deck-1"
             initialDeckList={[]}
@@ -322,6 +323,31 @@ describe("DeckBuilder — the layout persists on the deck (ADR 0075 §4, issue #
             "Lightning Bolt",
             "Lightning Bolt",
         ]);
+    });
+
+    // A preset row stores no `layout` at all (`toPresetPayload` strips it at
+    // the save boundary), so every affordance that would record one is
+    // withheld — including the column DRAG, which was the one entry point
+    // still wired (PR #2318 review NB1). A drag that moves the card, redraws
+    // it in its new Column and then has its Pin silently discarded at save is
+    // worse than a drag that does nothing.
+    it("a PRESET records no Card Pin from a column drag either", async () => {
+        const manager = new DragDropManager();
+        const rendered = renderBuilder(deck([BOLT]), manager, "preset");
+        // The other three entry points were already withheld…
+        expect(rendered.queryByLabelText("Add Maindeck column")).toBeNull();
+        // …and the drag now is too: the card stays in its auto Column.
+        await dragOnto(
+            manager,
+            rendered.getByTitle(/Remove Lightning Bolt/),
+            rendered.container.querySelector('[data-column="mv:6"]')!
+        );
+        expect(cardsIn(rendered.container, "mv:6")).toEqual([]);
+        expect(cardsIn(rendered.container, "mv:1")).toEqual(["Lightning Bolt"]);
+        // Nothing was recorded, so nothing was scheduled to be saved and
+        // stripped.
+        rendered.unmount();
+        expect(sinks.preset.update).not.toHaveBeenCalled();
     });
 
     it("reopening the deck restores the saved manual columns and pins", () => {

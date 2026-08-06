@@ -4,6 +4,7 @@
 // can't change its slug.
 import { describe, it, expect, vi } from "vitest";
 import {
+    buildDeckBuilderSinks,
     dispatchDeckSave,
     saveUserDeck,
     savePreset,
@@ -243,5 +244,72 @@ describe("Column Layout on the save path (issue #1626)", () => {
         // Everything else survives untouched.
         expect(preset.name).toBe(payload.name);
         expect(preset.cards).toEqual(payload.cards);
+    });
+});
+
+// The SINK CONSTRUCTION itself (PR #2318 review NB2). `toUpdatePatch` and
+// `toPresetPayload` were unit-tested above, but until this slice nothing
+// asserted that the four production sinks actually CALL them: the only caller
+// was the route's inline `useMemo`, and deleting either call there is a
+// runtime `ArgumentValidationError` (Convex rejects an argument its validator
+// doesn't declare) with a fully green suite.
+describe("buildDeckBuilderSinks (issue #1626, review NB2)", () => {
+    const layout = {
+        maindeck: { manualColumns: [{ id: "custom:x", label: "X" }] },
+    };
+
+    function spies() {
+        return {
+            createUserDeck: vi.fn().mockResolvedValue("deck-1"),
+            updateUserDeck: vi.fn().mockResolvedValue(undefined),
+            createPreset: vi.fn().mockResolvedValue({ slug: "the-slug" }),
+            updatePreset: vi.fn().mockResolvedValue(undefined),
+        };
+    }
+
+    it("strips the immutable format from a USER deck's update patch (ADR 0036)", async () => {
+        const api = spies();
+        await buildDeckBuilderSinks(api).user.update("deck-1", {
+            ...payload,
+            layout,
+        });
+        const [id, patch] = api.updateUserDeck.mock.calls[0];
+        expect(id).toBe("deck-1");
+        expect("format" in patch).toBe(false);
+        // …while the Column Layout, which `userDecks` DOES store, survives.
+        expect(patch.layout).toEqual(layout);
+    });
+
+    it("creates a user deck with the payload untouched", async () => {
+        const api = spies();
+        const id = await buildDeckBuilderSinks(api).user.create({
+            ...payload,
+            layout,
+        });
+        expect(id).toBe("deck-1");
+        expect(api.createUserDeck).toHaveBeenCalledWith({ ...payload, layout });
+    });
+
+    it("strips the Column Layout from a PRESET create, and returns the server's slug", async () => {
+        const api = spies();
+        const slug = await buildDeckBuilderSinks(api).preset.create({
+            ...payload,
+            layout,
+        });
+        expect(slug).toBe("the-slug");
+        expect("layout" in api.createPreset.mock.calls[0][0]).toBe(false);
+    });
+
+    it("strips BOTH the layout and the immutable format from a PRESET update", async () => {
+        const api = spies();
+        await buildDeckBuilderSinks(api).preset.update("the-slug", {
+            ...payload,
+            layout,
+        });
+        const [slug, patch] = api.updatePreset.mock.calls[0];
+        expect(slug).toBe("the-slug");
+        expect("layout" in patch).toBe(false);
+        expect("format" in patch).toBe(false);
+        expect(patch.cards).toEqual(payload.cards);
     });
 });

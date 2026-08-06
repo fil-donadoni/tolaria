@@ -708,7 +708,7 @@ describe("DeckZoneSurface — column management (ADR 0075 §2, issue #1626)", ()
         ).toBe(true);
     });
 
-    it("pins a card into a manual column per COPY when the host supplies a pin key", () => {
+    it("pins a card into a manual column per COPY when the entries carry a pin key", () => {
         // The Limited identity model (ADR 0075 §4): two physical copies of one
         // card, filed in two different Columns. A `cardId`-keyed surface
         // cannot express this at all — both copies would follow one Pin.
@@ -717,11 +717,13 @@ describe("DeckZoneSurface — column management (ADR 0075 §2, issue #1626)", ()
         });
         layout = pinCardToColumn(layout, "1", "custom:removal");
         const { container } = renderZone({
-            cards: [BOLT, BOLT],
+            // The per-copy key travels ON THE ENTRY, exactly as the Limited
+            // builder's `String(poolIndex)` does (issue #1626).
+            cards: [
+                { ...BOLT, pinKey: "0" },
+                { ...BOLT, pinKey: "1" },
+            ],
             layout,
-            // "the Nth copy of this card" → a per-copy key, exactly as the
-            // Limited builder resolves the Pool's `poolIndex`.
-            pinKeyOf: (_card, copyIndex) => String(copyIndex),
         });
         expect(cardsIn(container, "custom:removal")).toEqual([
             "Lightning Bolt",

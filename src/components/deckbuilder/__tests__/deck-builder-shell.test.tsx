@@ -291,7 +291,8 @@ describe("DeckBuilderShell — mounted drag (issue #1622)", () => {
         );
 
         // The third argument is the dragged COPY's pin key (issue #1626);
-        // with no `pinKeys` declared it is the card id — the Constructed rule.
+        // entries carrying no `pinKey` fall back to the card id — the
+        // Constructed rule.
         expect(onPin).toHaveBeenCalledWith(BOLT_ID, "mv:6", BOLT_ID);
     });
 
@@ -311,7 +312,9 @@ describe("DeckBuilderShell — mounted drag (issue #1622)", () => {
             container.querySelector('[data-column="mv:lands"]')!
         );
 
-        expect(onMoveToMaindeck).toHaveBeenCalledWith(BOLT_ID);
+        // The dragged COPY travels with the move (issue #1626); with no
+        // per-copy key on the entry it is the card id.
+        expect(onMoveToMaindeck).toHaveBeenCalledWith(BOLT_ID, BOLT_ID);
         expect(onPin).toHaveBeenCalledWith(BOLT_ID, "mv:lands", BOLT_ID);
     });
 
@@ -333,7 +336,7 @@ describe("DeckBuilderShell — mounted drag (issue #1622)", () => {
             sidePaneOf(rendered)
         );
 
-        expect(onMoveToSideboard).toHaveBeenCalledWith(BOLT_ID);
+        expect(onMoveToSideboard).toHaveBeenCalledWith(BOLT_ID, BOLT_ID);
         expect(onPin).not.toHaveBeenCalled();
     });
 });

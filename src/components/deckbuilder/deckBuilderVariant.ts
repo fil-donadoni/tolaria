@@ -40,7 +40,7 @@ import type {
     OrderingKind,
     StoredDeckColumnLayout,
 } from "@convex/deckLayout";
-import type { DeckCard } from "~/types/game";
+import type { DeckCard, ZoneCard } from "~/types/game";
 import type { DeckZoneDragHandlers } from "./deckZoneDrag";
 
 /**
@@ -60,8 +60,11 @@ import type { DeckZoneDragHandlers } from "./deckZoneDrag";
 export interface WorkingDeck {
     name: string;
     format: FormatId;
-    cards: DeckCard[];
-    sideboard: DeckCard[];
+    /** {@link ZoneCard}, not `DeckCard`: an entry may carry the per-copy
+     *  identity its Card Pin is recorded under (issue #1626). A variant that
+     *  mints none (Constructed) simply leaves the field unset. */
+    cards: ZoneCard[];
+    sideboard: ZoneCard[];
     featuredCardId?: string;
     /** The deck's persisted Column Layout (ADR 0075 §4, issue #1626) — manual
      *  Columns, deleted Columns, Card Pins. It lives in the WORKING DECK, not
@@ -120,8 +123,11 @@ export interface DeckZonePresentation {
  * by a check inside the shell.
  */
 export interface DeckZoneActions extends DeckZoneDragHandlers {
-    onMainCardClick: (card: DeckCard) => void;
-    onSideCardClick: (card: DeckCard) => void;
+    /** The clicked entry, not merely its card id — a zone holds several
+     *  identical cards and the handler must be able to act on the COPY the
+     *  player actually tapped (issue #1626). */
+    onMainCardClick: (card: ZoneCard) => void;
+    onSideCardClick: (card: ZoneCard) => void;
     /** Per-zone Grouping/Ordering control callbacks (PRD #1617, issue #1624).
      *  Every variant supplies all four — unlike `onAdd*` above, there is no
      *  variant whose zones lack these controls. */
@@ -143,31 +149,6 @@ export interface DeckZoneActions extends DeckZoneDragHandlers {
     onAddColumn?: (label: string) => void;
     onRenameColumn?: (columnId: ColumnId, label: string) => void;
     onDeleteColumn?: (columnId: ColumnId) => void;
-}
-
-/** Resolves ONE copy of a card to the key its Card Pin is recorded under (ADR
- *  0075 §4, issue #1626), given the card and its occurrence ordinal among
- *  same-`cardId` cards in that Zone. */
-export type ZonePinKeyResolver = (card: DeckCard, copyIndex: number) => string;
-
-/**
- * Per-Zone pin keys — the ONE place the two builders' Pin identity differs
- * (ADR 0075 §4).
- *
- * Absent for a Zone = the Constructed rule: every copy shares the `cardId`, so
- * pinning one Lightning Bolt files all four, which is always what a
- * Constructed builder wants. The Limited variant supplies a resolver per Zone
- * mapping the ordinal onto the Pool's own `poolIndex`, because the Pool
- * already distinguishes copies and two physical copies must stay individually
- * placeable.
- *
- * Declared as data rather than as another `DeckZoneActions` callback because
- * it is a READ of the variant's identity model, not a gesture: the shell hands
- * it to the surfaces and never calls it.
- */
-export interface DeckZonePinKeys {
-    maindeck?: ZonePinKeyResolver;
-    sideboard?: ZonePinKeyResolver;
 }
 
 /** The Featured Card affordance (PRD #589). Absent = not offered. */

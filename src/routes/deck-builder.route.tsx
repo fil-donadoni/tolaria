@@ -19,9 +19,8 @@ import {
 } from "~/lib/deckTypes";
 import {
     type DeckBuilderKind,
+    buildDeckBuilderSinks,
     type DeckBuilderSinks,
-    toPresetPayload,
-    toUpdatePatch,
 } from "~/lib/deckBuilderDispatch";
 import { useFullCatalogue } from "~/lib/fullCatalogue";
 
@@ -65,40 +64,23 @@ export default function DeckBuilderRoute({
     const { create: createPreset, update: updatePreset } = usePresetMutations();
 
     // A single set of mutation sinks; `dispatchDeckSave` selects the pair by
-    // `kind`, so the editor itself never branches.
+    // `kind`, so the editor itself never branches. The payload SHAPING (strip
+    // the immutable `format` from an update patch, ADR 0036; strip the Column
+    // Layout from every preset payload, issue #1626) lives in
+    // `buildDeckBuilderSinks` where it is unit-tested — this route only
+    // supplies the four mutations.
     const sinks = useMemo<DeckBuilderSinks>(
-        () => ({
-            user: {
-                create: (payload) => create(payload) as Promise<string>,
-                // `format` is immutable after creation (ADR 0036) and the
-                // `update` mutation rejects it — strip it from the patch.
-                update: async (id, payload) => {
-                    await update({
-                        id: id as Id<"userDecks">,
-                        patch: toUpdatePatch(payload),
-                    });
+        () =>
+            buildDeckBuilderSinks({
+                createUserDeck: (payload) => create(payload) as Promise<string>,
+                updateUserDeck: async (id, patch) => {
+                    await update({ id: id as Id<"userDecks">, patch });
                 },
-            },
-            preset: {
-                // `toPresetPayload` strips the Column Layout (issue #1626):
-                // `presetDecks` stores none, and Convex rejects an argument
-                // its validator doesn't declare.
-                create: async (payload) => {
-                    const { slug } = await createPreset({
-                        input: toPresetPayload(payload),
-                    });
-                    return slug;
+                createPreset: (input) => createPreset({ input }),
+                updatePreset: async (slug, patch) => {
+                    await updatePreset({ slug, patch });
                 },
-                // `format` is immutable after creation (ADR 0036); the preset
-                // `update` mutation rejects it — strip it from the patch.
-                update: async (presetSlug, payload) => {
-                    await updatePreset({
-                        slug: presetSlug,
-                        patch: toUpdatePatch(toPresetPayload(payload)),
-                    });
-                },
-            },
-        }),
+            }),
         [create, update, createPreset, updatePreset]
     );
 

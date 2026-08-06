@@ -114,6 +114,30 @@ export type DeckCard = {
     cardName: string;
 };
 
+/**
+ * A Maindeck/Sideboard entry that remembers WHICH PHYSICAL COPY it is (ADR
+ * 0075 §4, issue #1626).
+ *
+ * `pinKey` is the stable per-copy identity a deckbuilder zone records a Card
+ * Pin under, and it travels ON THE ENTRY — it is never re-derived by counting
+ * a card's occurrences in a zone, because the zone arrays renumber on every
+ * Maindeck⇄Sideboard move, which silently re-associates every surviving copy's
+ * Pin with a different physical card (PR #2318 review B1).
+ *
+ * Absent = the Constructed rule: every copy shares the `cardId`, so pinning
+ * one Lightning Bolt files all four. The Limited builder mints
+ * `String(poolIndex)` from the seat's Pool (`poolCopyPinKey`), because the Pool
+ * already distinguishes two physical copies of one card and the two must stay
+ * individually placeable.
+ *
+ * A pure widening of {@link DeckCard} (the extra field is optional), so a
+ * plain `DeckCard` flows in wherever a `ZoneCard` is expected and back out
+ * again — no call site has to know which kind it holds.
+ */
+export type ZoneCard = DeckCard & {
+    pinKey?: string;
+};
+
 export interface CardInstance {
     id: string;
     /** Static definition reference. Resolve via getDefinition(card.id). */

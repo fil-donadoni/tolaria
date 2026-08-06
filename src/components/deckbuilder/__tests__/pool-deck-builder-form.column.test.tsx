@@ -8,18 +8,15 @@
 // `deckZoneDrag.test.ts`.
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, cleanup, fireEvent } from "@testing-library/react";
-/** The slice of `DeckBuilderShellProps` this file's stub reads. The pin-key
- *  resolvers are declared over `{ cardId }` alone — everything they read of a
- *  card — so the stub can drive them without inventing card names. */
+/** The slice of `DeckBuilderShellProps` this file's stub reads. `mainCards`
+ *  is the form's REAL working Maindeck, each entry carrying the per-copy Pin
+ *  key it was seeded with (issue #1626), which is what the stub pins by. */
 interface ShellStubProps {
     actions: {
         onPin: (cardId: string, columnId: string, pinKey: string) => void;
         onMoveToMaindeck: (cardId: string) => void;
     };
-    pinKeys: {
-        maindeck: (card: { cardId: string }, copyIndex: number) => string;
-        sideboard: (card: { cardId: string }, copyIndex: number) => string;
-    };
+    mainCards: { cardId: string; pinKey?: string }[];
 }
 
 const navigate = vi.fn();
@@ -51,23 +48,23 @@ const PLAINS_ID = "b1623d57-4729-4796-b3f7-f1837a05c6ed"; // Plains
 // Ids are inlined (a vi.mock factory is hoisted above the top-level consts, so
 // it can't close over them).
 //
-// Each button resolves its Pin key through the form's OWN `pinKeys.maindeck`
-// resolver (issue #1626) — never a hand-written key — so these assertions
-// traverse the real per-copy identity mapping instead of a fixture's idea of
-// it. That is what makes "the second copy of a card pins independently"
-// provable here rather than only in the pure helper's unit test.
+// Each button reads its Pin key off the form's OWN working Maindeck entries
+// (issue #1626) — never a hand-written key — so these assertions traverse the
+// real per-copy identity the form seeded, instead of a fixture's idea of it.
+// That is what makes "the second copy of a card pins independently" provable
+// here rather than only in the pure helper's unit test.
 vi.mock("../deck-builder-shell", () => {
     const pin = (
         props: ShellStubProps,
         cardId: string,
         columnId: string,
         copyIndex = 0
-    ) =>
-        props.actions.onPin(
-            cardId,
-            columnId,
-            props.pinKeys.maindeck({ cardId }, copyIndex)
-        );
+    ) => {
+        const copy = props.mainCards.filter((c) => c.cardId === cardId)[
+            copyIndex
+        ];
+        props.actions.onPin(cardId, columnId, copy?.pinKey ?? cardId);
+    };
     return {
         default: (props: ShellStubProps) => (
             <div>

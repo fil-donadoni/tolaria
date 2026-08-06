@@ -102,6 +102,62 @@ export interface DeckBuilderSinks {
 }
 
 /**
+ * The four Convex mutations the editor's sinks are built on, as plain
+ * functions. Declared here — rather than the route wiring the payload shaping
+ * inline — because the two SHAPING rules are load-bearing and were previously
+ * uncovered (issue #1626, PR #2318 review NB2): drop the `toPresetPayload`
+ * call and every preset save becomes a runtime `ArgumentValidationError`
+ * (Convex object validators reject an undeclared argument) with a fully green
+ * suite, because no test reached the only production caller.
+ */
+export interface DeckMutationApi {
+    createUserDeck: (payload: DeckSavePayload) => Promise<string>;
+    updateUserDeck: (id: string, patch: DeckUpdatePatch) => Promise<void>;
+    createPreset: (input: PresetSavePayload) => Promise<{ slug: string }>;
+    updatePreset: (
+        slug: string,
+        patch: Omit<PresetSavePayload, "format">
+    ) => Promise<void>;
+}
+
+/**
+ * Builds the editor's sink pair, applying the two payload-shaping rules at the
+ * ONE boundary that owns them:
+ *
+ *  - **`format` is immutable after creation** (ADR 0036) — stripped from every
+ *    update patch by `toUpdatePatch`, because both update mutations reject it;
+ *  - **`presetDecks` stores no Column Layout** (issue #1626) — stripped from
+ *    every preset payload by `toPresetPayload`, on create AND update.
+ *
+ * Pure: it only closes over the functions it is handed, so the rules are
+ * unit-testable without React, a router or a Convex harness.
+ */
+export function buildDeckBuilderSinks(api: DeckMutationApi): DeckBuilderSinks {
+    return {
+        user: {
+            create: (payload) => api.createUserDeck(payload),
+            update: async (id, payload) => {
+                await api.updateUserDeck(id, toUpdatePatch(payload));
+            },
+        },
+        preset: {
+            create: async (payload) => {
+                const { slug } = await api.createPreset(
+                    toPresetPayload(payload)
+                );
+                return slug;
+            },
+            update: async (slug, payload) => {
+                await api.updatePreset(
+                    slug,
+                    toUpdatePatch(toPresetPayload(payload))
+                );
+            },
+        },
+    };
+}
+
+/**
  * Persist a save for a brand-new-or-existing USER deck. Returns the deck id
  * (freshly created on the first flush, unchanged thereafter). Mirrors the
  * pre-#466 behavior verbatim.

@@ -78,8 +78,11 @@ export type DeckZoneDragAction =
     | { type: "addToSideboard"; cardId: string; cardName: string }
     /** A Maindeck card dropped on the Sideboard — move it out of the deck.
      *  Deliberately carries NO column: the Sideboard is one drop target and a
-     *  card leaving the deck records no Pin (issue #1622 AC). */
-    | { type: "moveToSideboard"; cardId: string }
+     *  card leaving the deck records no Pin (issue #1622 AC). It DOES carry
+     *  the dragged copy's key, so the copy that leaves is the one the player
+     *  dragged rather than whichever copy happens to sit first in the zone
+     *  array (issue #1626). */
+    | { type: "moveToSideboard"; cardId: string; pinKey: string }
     /** A Sideboard card dropped on a Maindeck Column — move it into the deck
      *  AND pin it to exactly that Column, in one gesture. */
     | {
@@ -120,18 +123,18 @@ export function resolveDeckZoneDragAction(
               };
     }
 
-    if (target.zone === "sideboard") {
-        // Only a Maindeck card can move TO the Sideboard; a Sideboard card
-        // dropped back on the Sideboard is a no-op.
-        return source.kind === "main"
-            ? { type: "moveToSideboard", cardId: source.cardId }
-            : null;
-    }
-
     // The Pin key of the dragged COPY (issue #1626), defaulted to the card id
     // — the Constructed rule (all copies pin together) and the shape every
     // surface that declares no per-copy key gets for free.
     const pinKey = source.pinKey ?? source.cardId;
+
+    if (target.zone === "sideboard") {
+        // Only a Maindeck card can move TO the Sideboard; a Sideboard card
+        // dropped back on the Sideboard is a no-op.
+        return source.kind === "main"
+            ? { type: "moveToSideboard", cardId: source.cardId, pinKey }
+            : null;
+    }
 
     if (source.kind === "side") {
         return {
@@ -159,10 +162,14 @@ export function resolveDeckZoneDragAction(
  *  except the two both builders always support, so the Limited builder (which
  *  has no "add from search results" source) simply omits `onAdd*`. */
 export interface DeckZoneDragHandlers {
-    onMoveToSideboard: (cardId: string) => void;
+    /** `pinKey` names the COPY being moved (issue #1626) — a host whose zones
+     *  hold several identical cards moves exactly that one; a host with no
+     *  per-copy identity (Constructed) ignores the argument and keeps the
+     *  first-match rule. */
+    onMoveToSideboard: (cardId: string, pinKey?: string) => void;
     /** Membership only — the Pin half of the one-gesture Sideboard→Column drop
      *  is dispatched separately through {@link DeckZoneDragHandlers.onPin}. */
-    onMoveToMaindeck: (cardId: string) => void;
+    onMoveToMaindeck: (cardId: string, pinKey?: string) => void;
     /** Records a Card Pin. `pinKey` names the COPY being pinned (issue #1626)
      *  — `cardId` in Constructed, `String(poolIndex)` in Limited — so a host
      *  keyed per copy never has to re-derive it from the card id. */
@@ -186,10 +193,10 @@ export function applyDeckZoneDragAction(
             handlers.onAddToSideboard?.(action.cardId, action.cardName);
             return;
         case "moveToSideboard":
-            handlers.onMoveToSideboard(action.cardId);
+            handlers.onMoveToSideboard(action.cardId, action.pinKey);
             return;
         case "moveToMaindeck":
-            handlers.onMoveToMaindeck(action.cardId);
+            handlers.onMoveToMaindeck(action.cardId, action.pinKey);
             if (action.columnId !== null) {
                 handlers.onPin(action.cardId, action.columnId, action.pinKey);
             }

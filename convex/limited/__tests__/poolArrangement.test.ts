@@ -9,8 +9,9 @@ import type { LimitedPoolCard, PoolArrangementEntry } from "../eventTypes";
 import {
     findMovablePoolIndex,
     mvColumnFromPins,
+    assignPoolCopies,
     pinsByPoolIndex,
-    poolIndexForCopy,
+    poolCopyPinKey,
     readEntryPins,
     resolvePoolPlacements,
     splitPoolByArrangement,
@@ -23,7 +24,7 @@ function card(cardId: string, cardName = cardId): LimitedPoolCard {
 
 // The shared zone surface reads a card's Pins by the key the copy is recorded
 // under — `String(poolIndex)` here (issue #1626). `pinsByPoolIndex` /
-// `poolIndexForCopy` only read the RECORDED entry + card id, so synthetic ids
+// `assignPoolCopies` only read the RECORDED entry + card id, so synthetic ids
 // are fine here (no registry lookup on this path).
 describe("pinsByPoolIndex (issue #1575, namespaced #1622, per-copy #1626)", () => {
     it("maps each poolIndex that carries a Pin, skipping auto-column cards", () => {
@@ -79,21 +80,78 @@ describe("pinsByPoolIndex (issue #1575, namespaced #1622, per-copy #1626)", () =
     });
 });
 
-describe("poolIndexForCopy (issue #1626)", () => {
-    it("names the Nth physical copy of a card, in Pool order", () => {
-        const pool = [card("bolt"), card("plains"), card("bolt")];
-        expect(poolIndexForCopy(pool, "bolt", 0)).toBe(0);
-        expect(poolIndexForCopy(pool, "bolt", 1)).toBe(2);
-        expect(poolIndexForCopy(pool, "plains", 0)).toBe(1);
+describe("poolCopyPinKey (issue #1626)", () => {
+    it("is the key pinsByPoolIndex records under — one author for both sides", () => {
+        const pool = [card("bolt"), card("plains")];
+        const arrangement: PoolArrangementEntry[] = [
+            { poolIndex: 1, column: 3 },
+        ];
+        expect(pinsByPoolIndex(pool, arrangement)[poolCopyPinKey(1)]).toEqual({
+            mv: makeColumnId("mv", "3"),
+        });
+    });
+});
+
+// Re-attaching a SAVED deck to physical Pool copies (issue #1626, PR #2318
+// review B1). A `userDecks` row stores card ids only, so reopening a Limited
+// deck has to decide WHICH of several identical Pool copies sits in which
+// Zone — and the decision has to keep every recorded Pin visible, since a Pin
+// is a Maindeck-only concept.
+describe("assignPoolCopies (issue #1626, review B1)", () => {
+    const named = (cardId: string) => ({ cardId, cardName: cardId });
+
+    it("puts the PINNED copy in the Maindeck, whichever Pool position it holds", () => {
+        const pool = [card("bolt"), card("bolt"), card("bolt")];
+        const arrangement: PoolArrangementEntry[] = [
+            { poolIndex: 2, pins: { mv: makeColumnId("mv", "6") } },
+        ];
+        const out = assignPoolCopies(pool, arrangement, {
+            cards: [named("bolt"), named("bolt")],
+            sideboard: [named("bolt")],
+        });
+        // Pinned first, then Pool order — so the Pin is still rendered.
+        expect(out.cards.map((c) => c.poolIndex)).toEqual([2, 0]);
+        expect(out.sideboard.map((c) => c.poolIndex)).toEqual([1]);
     });
 
-    it("returns null past the last copy — and for a card the Pool never held", () => {
+    it("assigns in Pool order when nothing is pinned, and never hands one copy to two entries", () => {
+        const pool = [card("bolt"), card("plains"), card("bolt")];
+        const out = assignPoolCopies(pool, [], {
+            cards: [named("bolt"), named("plains")],
+            sideboard: [named("bolt")],
+        });
+        expect(out.cards.map((c) => c.poolIndex)).toEqual([0, 1]);
+        expect(out.sideboard.map((c) => c.poolIndex)).toEqual([2]);
+    });
+
+    it("leaves a card the Pool never held unidentified — a Basic from the bar can never be pinned", () => {
         const pool = [card("bolt")];
-        // A Basic land added from the bar has no poolIndex, so it can never be
-        // pinned; the caller turns this into a no-op rather than into some
-        // other card's Pin.
-        expect(poolIndexForCopy(pool, "mountain", 0)).toBeNull();
-        expect(poolIndexForCopy(pool, "bolt", 1)).toBeNull();
+        const out = assignPoolCopies(pool, [], {
+            cards: [named("bolt"), named("mountain"), named("bolt")],
+            sideboard: [],
+        });
+        expect(out.cards.map((c) => c.poolIndex)).toEqual([
+            0,
+            undefined,
+            // a second Bolt the Pool doesn't hold — also unidentified
+            undefined,
+        ]);
+    });
+
+    it("preserves card names and never mutates its inputs", () => {
+        const pool = [card("bolt", "Lightning Bolt")];
+        const zones = {
+            cards: [{ cardId: "bolt", cardName: "Bolt" }],
+            sideboard: [],
+        };
+        const snapshot = JSON.stringify(zones);
+        const out = assignPoolCopies(pool, [], zones);
+        expect(out.cards[0]).toEqual({
+            cardId: "bolt",
+            cardName: "Bolt",
+            poolIndex: 0,
+        });
+        expect(JSON.stringify(zones)).toBe(snapshot);
     });
 });
 
@@ -237,7 +295,9 @@ describe("resolvePoolPlacements / splitPoolByArrangement (ADR 0060, issue #1247)
         const split = splitPoolByArrangement(pool, arrangement);
         expect(split.cards).toHaveLength(2);
         expect(split.sideboard).toEqual([
-            { cardId: "bolt", cardName: "Lightning Bolt" },
+            // The Pool's own index rides along (issue #1626): it is the only
+            // stable per-copy identity a zone entry has.
+            { cardId: "bolt", cardName: "Lightning Bolt", poolIndex: 0 },
         ]);
     });
 

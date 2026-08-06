@@ -473,7 +473,12 @@ export function renameManualColumn(
 
 /** Deletes a Column: a manual one drops out of the list, a generated one is
  *  recorded in `removedColumnIds` so the Grouping stops regenerating it. The
- *  Catch-All is undeletable and returns the layout unchanged.
+ *  Catch-All and Grouping `none`'s single whole-Zone Column are undeletable
+ *  and return the layout unchanged — the two Columns that are not pin targets
+ *  (see {@link canDeleteColumn}). The `none` case is the id shape this guard
+ *  used to miss: unnamespaced, so neither the Catch-All check nor the
+ *  `custom:` check below caught it, and it rode on `userDecks.layout` forever
+ *  (PR #2318 review NB3).
  *
  *  Pins are deliberately NOT erased (ADR 0075 §3: a Pin is never erased). A
  *  Pin naming a Column that no longer exists simply does not apply — and
@@ -483,6 +488,7 @@ export function removeColumn(
     columnId: ColumnId
 ): ColumnLayout {
     if (columnId === CATCH_ALL_COLUMN_ID) return layout;
+    if (columnId === UNGROUPED_COLUMN_ID) return layout;
     if (layout.manualColumns.some((c) => c.id === columnId)) {
         return {
             ...layout,
@@ -756,17 +762,27 @@ function rarityRank(def: CardDefinition | undefined): number {
 // Deletion
 // ────────────────────────────────────────────────────────────────────────────
 
-/** A Column may be deleted only while empty, and the Catch-All never (ADR
- *  0075 §2 + rationale §2 — no card ever has to be relocated by a deletion, so
- *  the only remaining question is where a FUTURE card goes, answered uniformly
- *  by the Catch-All). An unknown column id is not deletable. */
+/** A Column may be deleted only while empty, and a Column that is not a PIN
+ *  TARGET never (ADR 0075 §2 + rationale §2 — no card ever has to be relocated
+ *  by a deletion, so the only remaining question is where a FUTURE card goes,
+ *  answered uniformly by the Catch-All). An unknown column id is not
+ *  deletable.
+ *
+ *  `pinNamespace === null` is the undeletable rule, not `kind === "catchAll"`:
+ *  it covers the Catch-All AND Grouping `none`'s single {@link
+ *  UNGROUPED_COLUMN_ID} Column, which claims the WHOLE Zone and records no Pin
+ *  (`pinNamespaceForGrouping("none")` is `null`). Deleting the latter is
+ *  meaningless — every card would fall through to the Catch-All — and it was
+ *  the one id shape `removeColumn`'s anti-junk guard let through into
+ *  `removedColumnIds`, where it persisted forever with no UI to restore it
+ *  (PR #2318 review NB3). */
 export function canDeleteColumn<T>(
     columns: readonly ResolvedColumn<T>[],
     columnId: ColumnId
 ): boolean {
     const column = columns.find((c) => c.id === columnId);
     if (!column) return false;
-    if (column.kind === "catchAll") return false;
+    if (column.pinNamespace === null) return false;
     return column.items.length === 0;
 }
 

@@ -77,7 +77,7 @@ describe("resolveDeckZoneDragAction (issue #1622)", () => {
     it("Maindeck card → the Sideboard moves it out of the deck", () => {
         expect(
             resolveDeckZoneDragAction(mainCard, zonePaneDropId("sideboard"))
-        ).toEqual({ type: "moveToSideboard", cardId: "bolt" });
+        ).toEqual({ type: "moveToSideboard", cardId: "bolt", pinKey: "bolt" });
     });
 
     it("Maindeck card → a Sideboard COLUMN also just moves it out — no Pin", () => {
@@ -88,7 +88,7 @@ describe("resolveDeckZoneDragAction (issue #1622)", () => {
                 mainCard,
                 zoneColumnDropId("sideboard", MV5)
             )
-        ).toEqual({ type: "moveToSideboard", cardId: "bolt" });
+        ).toEqual({ type: "moveToSideboard", cardId: "bolt", pinKey: "bolt" });
     });
 
     it("Maindeck card → another Maindeck Column records a Card Pin, staying in the deck", () => {
@@ -251,14 +251,19 @@ describe("applyDeckZoneDragAction (issue #1622)", () => {
             },
             h
         );
-        expect(h.onMoveToMaindeck).toHaveBeenCalledWith("bolt");
+        expect(h.onMoveToMaindeck).toHaveBeenCalledWith("bolt", "bolt");
         expect(h.onPin).toHaveBeenCalledWith("bolt", "mv:5", "bolt");
     });
 
     it("a Maindeck→Sideboard drop records no Pin", () => {
         const h = handlers();
-        applyDeckZoneDragAction({ type: "moveToSideboard", cardId: "bolt" }, h);
-        expect(h.onMoveToSideboard).toHaveBeenCalledWith("bolt");
+        applyDeckZoneDragAction(
+            { type: "moveToSideboard", cardId: "bolt", pinKey: "bolt" },
+            h
+        );
+        // The dragged COPY travels with the move (issue #1626) so the host
+        // sideboards the card the player actually dragged.
+        expect(h.onMoveToSideboard).toHaveBeenCalledWith("bolt", "bolt");
         expect(h.onPin).not.toHaveBeenCalled();
     });
 

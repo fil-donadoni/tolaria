@@ -549,6 +549,17 @@ describe("canDeleteColumn (issue #1618)", () => {
         const columns = resolve(createColumnLayout(), ["bolt"]);
         expect(canDeleteColumn(columns, "mv:99")).toBe(false);
     });
+
+    // The undeletable rule is "not a pin target" (`pinNamespace === null`),
+    // not "is the Catch-All" — which is what also covers Grouping `none`'s
+    // single whole-Zone Column (PR #2318 review NB3). Deleting it is
+    // meaningless (every card falls through to the Catch-All) and it was the
+    // one id shape `removeColumn`'s anti-junk guard let through.
+    it("is false for Grouping `none`'s single whole-Zone Column, even when empty", () => {
+        const columns = resolve(setGrouping(createColumnLayout(), "none"), []);
+        expect(idsIn(columns, UNGROUPED_COLUMN_ID)).toEqual([]);
+        expect(canDeleteColumn(columns, UNGROUPED_COLUMN_ID)).toBe(false);
+    });
 });
 
 describe("deleting a column then re-introducing a matching card (issue #1618)", () => {
@@ -562,6 +573,19 @@ describe("deleting a column then re-introducing a matching card (issue #1618)", 
         // Serra Angel is MV 5 and would have matched the deleted column.
         expect(idsIn(columns, CATCH_ALL_COLUMN_ID)).toEqual(["angel"]);
         expect(idsIn(columns, "mv:1")).toEqual(["bolt"]);
+    });
+
+    // Review NB3: the unnamespaced `all` id passed both existing guards (it is
+    // not the Catch-All id, and `parseColumnId` gives it no `custom` namespace)
+    // and was recorded in `removedColumnIds`, where it rode on
+    // `userDecks.layout` forever with no UI able to restore it.
+    it("refuses to record Grouping `none`'s whole-Zone Column as removed", () => {
+        expect(
+            removeColumn(
+                setGrouping(createColumnLayout(), "none"),
+                UNGROUPED_COLUMN_ID
+            ).removedColumnIds
+        ).toEqual([]);
     });
 
     it("scopes the deletion to its own namespace", () => {

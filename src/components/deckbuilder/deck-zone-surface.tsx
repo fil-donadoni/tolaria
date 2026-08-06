@@ -12,7 +12,7 @@ import {
     type OrderingKind,
 } from "@convex/deckLayout";
 import { cn } from "~/lib/utils";
-import type { DeckCard } from "~/types/game";
+import type { ZoneCard } from "~/types/game";
 import type { CardDragData } from "~/components/lobby/deck-builder/dnd-types";
 import DeckColumnPile, { type DeckPileTile } from "./deck-column-pile";
 import {
@@ -65,7 +65,7 @@ import ZoneOrderingSelect from "./zone-ordering-select";
 export interface DeckZoneSurfaceProps {
     zone: DeckZone;
     title: string;
-    cards: DeckCard[];
+    cards: ZoneCard[];
     /** This zone's Column Layout — including its own `grouping`/`ordering`,
      *  which the header's controls read directly off (issue #1624). */
     layout: ColumnLayout;
@@ -81,10 +81,12 @@ export interface DeckZoneSurfaceProps {
      *  registry-unknown cards still bucket by Mana Value (ADR 0080). */
     lookup?: CardLookup;
     dropModel: "columns" | "pane";
-    /** Plain click on a card — remove / move to the other zone. */
-    onCardClick: (card: DeckCard) => void;
+    /** Plain click on a card — remove / move to the other zone. Receives the
+     *  clicked ENTRY, so a host holding several identical cards can act on the
+     *  copy that was tapped (issue #1626). */
+    onCardClick: (card: ZoneCard) => void;
     /** Tooltip (and the handle tests query) for one card's tile. */
-    cardTitle: (card: DeckCard) => string;
+    cardTitle: (card: ZoneCard) => string;
     emptyMessage: string;
     /** Count suffix, e.g. `/15` for the Constructed Sideboard limit. */
     countSuffix?: string;
@@ -96,16 +98,6 @@ export interface DeckZoneSurfaceProps {
     /** Presence enables the "Set as featured" affordance on each card's
      *  topmost copy. Constructed Maindeck only. */
     onSetFeatured?: (cardId: string) => void;
-    /** The key a Card Pin for ONE COPY is recorded under (ADR 0075 §4, issue
-     *  #1626), given the card and its occurrence ordinal among same-`cardId`
-     *  cards in THIS zone (0 for the first copy, 1 for the second, …).
-     *
-     *  Absent = the Constructed rule: every copy shares the `cardId` key, so
-     *  pinning one Lightning Bolt files all four. The Limited builder supplies
-     *  a per-copy function resolving the ordinal to the Pool's own
-     *  `poolIndex`, which is what keeps two physical copies of one card
-     *  individually placeable. */
-    pinKeyOf?: (card: DeckCard, copyIndex: number) => string;
     /** Manual-Column management (ADR 0075 §2, issue #1626). Supplied as a trio
      *  or not at all; when absent the surface renders no add/rename/delete
      *  affordance, which is the reduced draft-time bar (ADR 0075 §6) and the
@@ -122,7 +114,7 @@ export interface DeckZoneSurfaceProps {
  *  different Columns (issue #1626), which a `cardId`-keyed adapter cannot
  *  express. */
 interface ZoneItem {
-    card: DeckCard;
+    card: ZoneCard;
     pinKey: string;
 }
 
@@ -143,7 +135,6 @@ export default function DeckZoneSurface({
     headerRight,
     featuredCardId,
     onSetFeatured,
-    pinKeyOf,
     onAddColumn,
     onRenameColumn,
     onDeleteColumn,
@@ -162,20 +153,21 @@ export default function DeckZoneSurface({
     const filterActive = isZoneFilterActive(filter);
 
     // Each card paired with the key its Pin is recorded under (issue #1626).
-    // The ordinal is counted over the UNFILTERED zone, so hiding a card can
-    // never renumber the copies that stay visible — the same reason columns
-    // resolve from `cards` below.
-    const items = useMemo<ZoneItem[]>(() => {
-        const seen = new Map<string, number>();
-        return cards.map((card) => {
-            const copyIndex = seen.get(card.cardId) ?? 0;
-            seen.set(card.cardId, copyIndex + 1);
-            return {
+    // Read straight OFF the entry — never counted from its position in
+    // `cards`. A positional ordinal renumbers on every Maindeck⇄Sideboard
+    // move (and would renumber again per filter), which silently re-associates
+    // every surviving copy's Pin with a different physical card; carrying the
+    // identity on the entry is what makes a move preserve it by construction
+    // (PR #2318 review B1). Absent = the Constructed rule, where all copies of
+    // a card share the `cardId` key and pin together.
+    const items = useMemo<ZoneItem[]>(
+        () =>
+            cards.map((card) => ({
                 card,
-                pinKey: pinKeyOf ? pinKeyOf(card, copyIndex) : card.cardId,
-            };
-        });
-    }, [cards, pinKeyOf]);
+                pinKey: card.pinKey ?? card.cardId,
+            })),
+        [cards]
+    );
 
     // Filtering narrows what's VISIBLE, never what generates a Column — see
     // below (issue #2313 review, F1).
@@ -209,8 +201,8 @@ export default function DeckZoneSurface({
                     // together); Limited pins by the Pool's own `poolIndex`,
                     // so its two physical copies of one card stay
                     // individually placeable (ADR 0075 §4). Which of the two
-                    // applies is the host's `pinKeyOf`, resolved above — one
-                    // adapter serves both.
+                    // applies is whether the host's entries carry a `pinKey`,
+                    // resolved above — one adapter serves both.
                     pinKey: (i) => i.pinKey,
                     tiebreak: (a, b) =>
                         a.card.cardId.localeCompare(b.card.cardId),
@@ -261,6 +253,11 @@ export default function DeckZoneSurface({
                         id: column.id,
                         label: column.label,
                         kind: column.kind,
+                        // `null` = never a pin target: the Catch-All, and
+                        // Grouping `none`'s single whole-Zone Column. Both are
+                        // undeletable and unrenameable, so neither gets a
+                        // controls menu at all (PR #2318 review NB3).
+                        pinNamespace: column.pinNamespace,
                         dropId: zoneColumnDropId(zone, column.id),
                         // Deletability is judged on `rawColumns` — the
                         // UNFILTERED resolve — not on the narrowed `column`
@@ -417,13 +414,14 @@ export default function DeckZoneSurface({
                         dataColumn={column.id}
                         tiles={column.tiles}
                         actions={
-                            // The Catch-All is never renameable and never
-                            // deletable (ADR 0075 §2), so it gets no controls
-                            // at all rather than two disabled ones. Renaming
-                            // is offered for MANUAL Columns only — a generated
-                            // Column's label comes from its Grouping.
+                            // A Column that is not a pin target is never
+                            // renameable and never deletable (ADR 0075 §2), so
+                            // it gets no controls at all rather than two
+                            // disabled ones. Renaming is offered for MANUAL
+                            // Columns only — a generated Column's label comes
+                            // from its Grouping.
                             (onRenameColumn || onDeleteColumn) &&
-                            column.kind !== "catchAll" ? (
+                            column.pinNamespace !== null ? (
                                 <DeckColumnActions
                                     columnId={column.id}
                                     label={column.label}

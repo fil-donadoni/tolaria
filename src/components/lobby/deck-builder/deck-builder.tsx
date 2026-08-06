@@ -556,13 +556,22 @@ export default function DeckBuilder({
     // keyed by Card ID here — four Lightning Bolts pin together, which is
     // always what a Constructed builder wants (ADR 0075 §4) — so the surface
     // declares no `pinKeyOf` and the drag's `pinKey` IS the card id.
+    //
+    // Withheld for a PRESET for the same reason add/rename/delete are (issue
+    // #1626, PR #2318 review NB1): `presetDecks` stores no `layout`, so
+    // `toPresetPayload` strips the whole thing at save. Without this the drag
+    // moved the card, re-rendered it in its new Column and scheduled a save
+    // that silently discarded the Pin — the one preset entry point still able
+    // to record work that cannot survive the round trip. A no-op drag is a
+    // visible nothing; a drag that appears to work and is thrown away is not.
     const handlePin = useCallback(
         (_cardId: string, columnId: ColumnId, pinKey: string) => {
+            if (isPreset) return;
             updateMaindeckLayout((current) =>
                 pinCardToColumn(current, pinKey, columnId)
             );
         },
-        [updateMaindeckLayout]
+        [updateMaindeckLayout, isPreset]
     );
 
     // Append an imported decklist to the working deck. Import is additive

@@ -9,9 +9,11 @@ import type {
 import { validateDeck } from "@convex/formats";
 import { poolFromLimitedPoolCards } from "@convex/limited/poolResolution";
 import {
+    assignPoolCopies,
     pinsByPoolIndex,
-    poolIndexForCopy,
+    poolCopyPinKey,
     splitPoolByArrangement,
+    type PlainPoolCard,
 } from "@convex/limited/poolArrangement";
 import {
     addManualColumn,
@@ -31,6 +33,7 @@ import {
 import { useLimitedEventMutations } from "~/hooks/useLimitedEvent";
 import { useUserDeckMutations } from "~/hooks/useUserDecks";
 import type { UserLobbyDeck } from "~/lib/deckTypes";
+import type { DeckCard, ZoneCard } from "~/types/game";
 import { computeDeckColors } from "~/lib/deckColors";
 import {
     moveToMaindeck,
@@ -75,16 +78,37 @@ const VIEW: DeckBuilderViewSpec = {
  *  this is the one path with no continuous-draft carry-over to seed from
  *  instead (see `continuousWorkingDeck` below). */
 function defaultWorkingDeck(pool: readonly LimitedPoolCard[]): WorkingDeck {
-    const sideboard = pool.map((c) => ({
-        cardId: c.cardId,
-        cardName: c.cardName,
-    }));
     return {
         name: "Sealed Pool Deck",
         format: "limited",
         cards: [],
-        sideboard,
+        sideboard: toZoneCards(
+            pool.map((c, poolIndex) => ({
+                cardId: c.cardId,
+                cardName: c.cardName,
+                poolIndex,
+            }))
+        ),
     };
+}
+
+/** Pool cards as ZONE entries carrying their per-copy Pin identity (issue
+ *  #1626): the Pool's own `poolIndex`, stringified by the one authority
+ *  (`poolCopyPinKey`) that `pinsByPoolIndex` records Pins under.
+ *
+ *  This is where the Limited variant's per-copy identity ENTERS the working
+ *  deck, and the only place it is ever established: from here on the entry
+ *  carries it, and a Maindeck⇄Sideboard move moves the entry itself, so no
+ *  later render re-derives it by counting occurrences in an array that
+ *  renumbers (PR #2318 review B1). A card the Pool doesn't hold — a Basic
+ *  added from the bar — has no `poolIndex`, so it gets no key and simply can
+ *  never be pinned. */
+function toZoneCards(cards: readonly PlainPoolCard[]): ZoneCard[] {
+    return cards.map(({ cardId, cardName, poolIndex }) =>
+        poolIndex === undefined
+            ? { cardId, cardName }
+            : { cardId, cardName, pinKey: poolCopyPinKey(poolIndex) }
+    );
 }
 
 /** A DRAFT event's working deck, seeded from the Pool Arrangement built
@@ -101,8 +125,34 @@ function continuousWorkingDeck(
     return {
         name: "Draft Pool Deck",
         format: "limited",
-        cards: split.cards,
-        sideboard: split.sideboard,
+        cards: toZoneCards(split.cards),
+        sideboard: toZoneCards(split.sideboard),
+    };
+}
+
+/** A SAVED deck's working state (issue #1626, PR #2318 review B1). The deck
+ *  row stores card ids only, so which physical Pool copy sits in which Zone is
+ *  rebuilt here — once, at mount — by `assignPoolCopies`, which puts the
+ *  PINNED copies in the Maindeck so every recorded Pin is still visible after
+ *  a reload. */
+function savedWorkingDeck(
+    existingDeck: UserLobbyDeck,
+    pool: readonly LimitedPoolCard[],
+    arrangement: readonly PoolArrangementEntry[]
+): WorkingDeck {
+    const identified = assignPoolCopies(pool, arrangement, {
+        cards: existingDeck.cards,
+        sideboard: existingDeck.sideboard ?? [],
+    });
+    return {
+        name: existingDeck.name,
+        format: "limited",
+        cards: toZoneCards(identified.cards),
+        sideboard: toZoneCards(identified.sideboard),
+        // The manual Columns saved with this seat's deck (issue #1626).
+        // Absent for a deck saved before the slice, which rehydrates as the
+        // plain default.
+        layout: existingDeck.layout,
     };
 }
 
@@ -110,18 +160,11 @@ function applySplit(deck: WorkingDeck, split: SideboardSplit): WorkingDeck {
     return { ...deck, cards: split.cards, sideboard: split.sideboard };
 }
 
-/** The Card Pin key of one COPY (issue #1626): the Pool's own `poolIndex`,
- *  stringified — the key `pinsByPoolIndex` records Pins under. A card the Pool
- *  doesn't hold (a Basic land added from the bar) gets a deliberately
- *  NON-numeric key: it has no Pin, can never collide with a real `poolIndex`,
- *  and `handlePin` rejects it rather than pinning some other card's copy. */
-function poolPinKey(
-    pool: readonly LimitedPoolCard[],
-    cardId: string,
-    copyIndex: number
-): string {
-    const poolIndex = poolIndexForCopy(pool, cardId, copyIndex);
-    return poolIndex === null ? `unpooled:${cardId}` : String(poolIndex);
+/** One zone entry as the DECK ROW stores it — `{ cardId, cardName }` and
+ *  nothing else. See the save sink below for why the per-copy `pinKey` must
+ *  not travel. */
+function strippedCard(card: ZoneCard): DeckCard {
+    return { cardId: card.cardId, cardName: card.cardName };
 }
 
 interface PoolDeckBuilderFormProps {
@@ -189,13 +232,21 @@ export default function PoolDeckBuilderForm({
             // A Pool only ever holds registry cards, so the deck's colour
             // identity derives registry-only (no Full Catalogue resolver).
             const colors = computeDeckColors(pending.cards);
+            // The per-copy `pinKey` is a WORKING-STATE identity, not deck data
+            // (issue #1626): the Pins themselves live on the seat's Pool
+            // Arrangement, and `userDecks`' card validator declares exactly
+            // `{ cardId, cardName }` — Convex rejects any argument a validator
+            // doesn't declare, so an unstripped entry would fail the save at
+            // runtime with a fully green suite.
+            const cards = pending.cards.map(strippedCard);
+            const sideboard = pending.sideboard.map(strippedCard);
             if (identity === null) {
                 const id = await create({
                     name: pending.name,
                     format: "limited",
                     colors,
-                    cards: pending.cards,
-                    sideboard: pending.sideboard,
+                    cards,
+                    sideboard,
                     limitedEventId: eventId,
                     limitedSeatId: String(seatIndex),
                     // Manual/deleted Columns only (issue #1626): this deck's
@@ -211,8 +262,8 @@ export default function PoolDeckBuilderForm({
                 patch: {
                     name: pending.name,
                     colors,
-                    cards: pending.cards,
-                    sideboard: pending.sideboard,
+                    cards,
+                    sideboard,
                     layout: pending.layout,
                 },
             });
@@ -226,16 +277,7 @@ export default function PoolDeckBuilderForm({
         save,
         initial: () => {
             if (existingDeck) {
-                return {
-                    name: existingDeck.name,
-                    format: "limited",
-                    cards: existingDeck.cards,
-                    sideboard: existingDeck.sideboard ?? [],
-                    // The manual Columns saved with this seat's deck (issue
-                    // #1626). Absent for a deck saved before the slice, which
-                    // rehydrates as the plain default.
-                    layout: existingDeck.layout,
-                };
+                return savedWorkingDeck(existingDeck, pool, poolArrangement);
             }
             return eventType === "draft"
                 ? continuousWorkingDeck(pool, poolArrangement)
@@ -243,11 +285,17 @@ export default function PoolDeckBuilderForm({
         },
     });
 
-    // Main-zone click: a Basic is freely removed (unlimited add/remove); a
-    // Pool-sourced card only ever moves back to the Sideboard — it can never
+    // Main-zone click/drop: a Basic is freely removed (unlimited add/remove);
+    // a Pool-sourced card only ever moves back to the Sideboard — it can never
     // vanish (AC2).
+    //
+    // `pinKey` names the COPY that was tapped or dragged (issue #1626). Two
+    // identical Pool cards can sit in different Columns, so "a Lightning Bolt
+    // left the Maindeck" is not enough information: without it the first
+    // matching entry moves, which is routinely a card the player did not touch
+    // and strands its Column (PR #2318 review B1).
     const handleMainClick = useCallback(
-        (cardId: string) => {
+        (cardId: string, pinKey?: string) => {
             updateDeck((d) => {
                 if (isBasicLandCardId(cardId)) {
                     const idx = d.cards.findIndex((c) => c.cardId === cardId);
@@ -258,7 +306,8 @@ export default function PoolDeckBuilderForm({
                 }
                 const split = moveToSideboard(
                     { cards: d.cards, sideboard: d.sideboard },
-                    cardId
+                    cardId,
+                    pinKey
                 );
                 return applySplit(d, split);
             });
@@ -266,15 +315,16 @@ export default function PoolDeckBuilderForm({
         [updateDeck]
     );
 
-    // Sideboard-zone click: always moves the card into the Maindeck (Basics
-    // never start in the Sideboard, so every card offered here is
-    // Pool-sourced).
+    // Sideboard-zone click/drop: always moves the card into the Maindeck
+    // (Basics never start in the Sideboard, so every card offered here is
+    // Pool-sourced). Copy-aware for the same reason as above.
     const handleSideClick = useCallback(
-        (cardId: string) => {
+        (cardId: string, pinKey?: string) => {
             updateDeck((d) => {
                 const split = moveToMaindeck(
                     { cards: d.cards, sideboard: d.sideboard },
-                    cardId
+                    cardId,
+                    pinKey
                 );
                 return applySplit(d, split);
             });
@@ -333,40 +383,6 @@ export default function PoolDeckBuilderForm({
             },
         };
     }, [deck.layout, pool, poolArrangement, mainView, sideView]);
-
-    // Per-copy Card Pin keys (ADR 0075 §4, issue #1626). The shared zones
-    // render `cardId`-keyed `DeckCard`s, which have no per-copy identity of
-    // their own; these resolvers put it back by mapping "the Nth copy of this
-    // card in this Zone" onto the Pool's own `poolIndex` — the key the Pool
-    // Arrangement stores Pins under.
-    //
-    // The two Zones are numbered CONSECUTIVELY (the Sideboard's ordinals
-    // continue where the Maindeck's stop) so a Maindeck copy and a Sideboard
-    // copy of the same card can never resolve to the same `poolIndex` — which
-    // would make moving the Sideboard copy into a column re-pin the copy
-    // already sitting there. A card the Pool does not hold (a Basic added from
-    // the bar) resolves to a deliberately NON-numeric key, so it simply has no
-    // Pin and `handlePin` no-ops on it.
-    const mainCopyCounts = useMemo(() => {
-        const counts = new Map<string, number>();
-        for (const card of deck.cards)
-            counts.set(card.cardId, (counts.get(card.cardId) ?? 0) + 1);
-        return counts;
-    }, [deck.cards]);
-
-    const pinKeys = useMemo(
-        () => ({
-            maindeck: (card: { cardId: string }, copyIndex: number) =>
-                poolPinKey(pool, card.cardId, copyIndex),
-            sideboard: (card: { cardId: string }, copyIndex: number) =>
-                poolPinKey(
-                    pool,
-                    card.cardId,
-                    (mainCopyCounts.get(card.cardId) ?? 0) + copyIndex
-                ),
-        }),
-        [pool, mainCopyCounts]
-    );
 
     const handleMainGroupingChange = useCallback((grouping: GroupingKind) => {
         recordGroupingChange("maindeck", grouping);
@@ -511,7 +527,6 @@ export default function PoolDeckBuilderForm({
             mainCards={deck.cards}
             sideCards={deck.sideboard}
             layout={layout}
-            pinKeys={pinKeys}
             view={VIEW}
             zones={{
                 sideTitle: "Pool (Sideboard)",
@@ -524,8 +539,12 @@ export default function PoolDeckBuilderForm({
                 onMoveToSideboard: handleMainClick,
                 onMoveToMaindeck: handleSideClick,
                 onPin: handlePin,
-                onMainCardClick: (card) => handleMainClick(card.cardId),
-                onSideCardClick: (card) => handleSideClick(card.cardId),
+                // The clicked ENTRY carries its own copy key (issue #1626),
+                // so a tap moves exactly the card that was tapped.
+                onMainCardClick: (card) =>
+                    handleMainClick(card.cardId, card.pinKey),
+                onSideCardClick: (card) =>
+                    handleSideClick(card.cardId, card.pinKey),
                 onMainGroupingChange: handleMainGroupingChange,
                 onSideGroupingChange: handleSideGroupingChange,
                 onMainOrderingChange: handleMainOrderingChange,
