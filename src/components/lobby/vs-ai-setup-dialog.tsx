@@ -3,7 +3,7 @@
 // second step, which collects the two vs-AI knobs (difficulty, AI opponent
 // deck) and only fires `createSoloGame` on Confirm. The player's OWN deck
 // remains the Lobby hero selection and is NOT asked here. Match format is NOT
-// vs-AI-specific — it governs Solo and Create Multiplayer too, so its selector
+// vs-AI-specific — it governs Solo and Multiplayer too, so its selector
 // lives in the Play box (`dashboard-play-box`) and is not duplicated here.
 //
 // The selectors are the same reusable controls that used to live inline in the

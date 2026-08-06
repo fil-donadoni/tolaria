@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import type { DragDropManager } from "@dnd-kit/dom";
 import type { Id } from "@convex/_generated/dataModel";
@@ -10,14 +10,16 @@ import { validateDeck } from "@convex/formats";
 import { poolFromLimitedPoolCards } from "@convex/limited/poolResolution";
 import {
     findColumnOverrideablePoolIndex,
-    mvColumnFromPins,
     pinsByCardId,
     splitPoolByArrangement,
 } from "@convex/limited/poolArrangement";
 import {
     createColumnLayout,
+    parseColumnId,
     type ColumnId,
     type DeckColumnLayout,
+    type GroupingKind,
+    type OrderingKind,
 } from "@convex/deckLayout";
 import { useLimitedEventMutations } from "~/hooks/useLimitedEvent";
 import { useUserDeckMutations } from "~/hooks/useUserDecks";
@@ -32,6 +34,11 @@ import { cardBase } from "~/lib/cardSizing";
 import { isBasicLandCardId, resolveBasicLandCardIds } from "./basicLands";
 import DeckBuilderShell from "./deck-builder-shell";
 import type { DeckBuilderViewSpec, WorkingDeck } from "./deckBuilderVariant";
+import {
+    recordGroupingChange,
+    recordOrderingChange,
+    seededColumnView,
+} from "./deckZoneColumnView";
 import PoolBasicLandsBar from "./pool-basic-lands-bar";
 import { useDeckWorkspace, type DeckSaveSink } from "./useDeckWorkspace";
 
@@ -254,42 +261,89 @@ export default function PoolDeckBuilderForm({
         [updateDeck]
     );
 
-    // The zones' Column Layouts (ADR 0075, issue #1622). Grouping is pinned to
-    // Mana Value in this slice. The Maindeck's Card Pins are the seat's Pool
-    // Arrangement, read LIVE (not just at seed time) so a persisted column
-    // drag reflects back reactively, survives a reload, and carries the
-    // draft-phase arrangement straight over (ADR 0060). The Sideboard has no
-    // Pins of its own — a drop there means "out of the deck", never a Pin.
+    // Per-zone Grouping/Ordering (issue #1624), seeded from the user's
+    // per-zone view preference (issue #1620's `deckViewPrefs` seam, bridged by
+    // `deckZoneColumnView.ts`) — the SAME seam the Constructed builder reads,
+    // so a choice made in either builder is remembered for the user
+    // everywhere (PRD #1617 § "Persistence: view preferences on the user").
+    const [mainView, setMainView] = useState(() =>
+        seededColumnView("maindeck")
+    );
+    const [sideView, setSideView] = useState(() =>
+        seededColumnView("sideboard")
+    );
+
+    // The zones' Column Layouts (ADR 0075, issue #1622/#1624). The Maindeck's
+    // Card Pins are the seat's Pool Arrangement, read LIVE (not just at seed
+    // time) so a persisted column drag reflects back reactively, survives a
+    // reload, and carries the draft-phase arrangement straight over (ADR
+    // 0060). The Sideboard has no Pins of its own — a drop there means "out
+    // of the deck", never a Pin. Rebuilt fresh from `mainView`/`sideView` on
+    // every Grouping/Ordering change, so there is no separate "preserve the
+    // pins" step to get wrong: `pinsByCardId` is recomputed from the live
+    // Pool Arrangement regardless of which Grouping is active.
     const layout = useMemo<DeckColumnLayout>(
         () => ({
             maindeck: createColumnLayout({
                 pins: pinsByCardId(pool, poolArrangement),
+                grouping: mainView.grouping,
+                ordering: mainView.ordering,
             }),
-            sideboard: createColumnLayout(),
+            sideboard: createColumnLayout({
+                grouping: sideView.grouping,
+                ordering: sideView.ordering,
+            }),
         }),
-        [pool, poolArrangement]
+        [pool, poolArrangement, mainView, sideView]
     );
+
+    const handleMainGroupingChange = useCallback((grouping: GroupingKind) => {
+        recordGroupingChange("maindeck", grouping);
+        setMainView((v) => ({ ...v, grouping }));
+    }, []);
+    const handleSideGroupingChange = useCallback((grouping: GroupingKind) => {
+        recordGroupingChange("sideboard", grouping);
+        setSideView((v) => ({ ...v, grouping }));
+    }, []);
+    const handleMainOrderingChange = useCallback((ordering: OrderingKind) => {
+        recordOrderingChange("maindeck", ordering);
+        setMainView((v) => ({ ...v, ordering }));
+    }, []);
+    const handleSideOrderingChange = useCallback((ordering: OrderingKind) => {
+        recordOrderingChange("sideboard", ordering);
+        setSideView((v) => ({ ...v, ordering }));
+    }, []);
 
     // Column drag: persist the Pin on the seat's Pool Arrangement (the SAME
     // store + mutation the draft Pool uses, ADR 0060). Resolves the
     // `cardId`-keyed UI action back to a `poolIndex`; a Basic land added from
-    // the bar has no `poolIndex`, so its column can't be pinned (no-op). The
-    // mutation's wire vocabulary is still the legacy `column` (issue #1621:
-    // only the PERSISTED shape moved), so the namespaced Column id is read
-    // back through the engine's own inverse shim rather than re-parsed here.
+    // the bar has no `poolIndex`, so its column can't be pinned (no-op).
+    //
+    // The namespaced Column id travels WHOLE (issue #1624): the mutation's
+    // `column` arg speaks the engine's full vocabulary, so a drop onto a
+    // `color:`/`type:`/`custom:` Column persists in its own Pin namespace
+    // exactly as an `mv:` drop always has. It previously went through the
+    // `mv`-only inverse shim (`mvColumnFromPins`), which returned `undefined`
+    // for every other namespace — and since this zone's Grouping control can
+    // now generate colour/type Columns, that made every one of them a live,
+    // highlighting, DEAD drop target.
     const handlePin = useCallback(
         (cardId: string, columnId: ColumnId) => {
-            const column = mvColumnFromPins({ mv: columnId });
-            if (column === undefined) return;
+            // The Catch-All (and grouping `none`'s single Column) carry no
+            // namespace and are never pin targets — the same rule the
+            // engine's own `pinCardToColumn` applies.
+            if (!parseColumnId(columnId)) return;
             const poolIndex = findColumnOverrideablePoolIndex(
                 pool,
                 poolArrangement,
                 cardId
             );
             if (poolIndex === null) return;
-            void setPoolArrangementEntry({ eventId, poolIndex, column }).catch(
-                () => {}
-            );
+            void setPoolArrangementEntry({
+                eventId,
+                poolIndex,
+                column: columnId,
+            }).catch(() => {});
         },
         [pool, poolArrangement, setPoolArrangementEntry, eventId]
     );
@@ -352,6 +406,10 @@ export default function PoolDeckBuilderForm({
                 onPin: handlePin,
                 onMainCardClick: (card) => handleMainClick(card.cardId),
                 onSideCardClick: (card) => handleSideClick(card.cardId),
+                onMainGroupingChange: handleMainGroupingChange,
+                onSideGroupingChange: handleSideGroupingChange,
+                onMainOrderingChange: handleMainOrderingChange,
+                onSideOrderingChange: handleSideOrderingChange,
             }}
             legality={{
                 formatLabel: "Limited",

@@ -26,7 +26,7 @@ interface DashboardPlayBoxProps {
     onCreateMultiplayer: () => void;
     onJoin: (gameId: Id<"games">) => void;
     onChangeDeck: () => void;
-    /** Bo1/Bo3 for the Solo and Create Multiplayer actions (PRD #387). The
+    /** Bo1/Bo3 for the Solo and Multiplayer actions (PRD #387). The
      *  vs-AI path owns its own copy of the selector inside its setup dialog;
      *  both write the same lobby-level state, so the choice is shared. */
     matchFormat: MatchFormat;
@@ -68,7 +68,7 @@ export default function DashboardPlayBox({
     const manualDeckHasCards = (selectedDeck?.cards.length ?? 0) > 0;
     const canPlayReal = canPlay && !isManualDeck;
     const canPlayManual = canPlay && isManualDeck && manualDeckHasCards;
-    // "Create Multiplayer" is mode-agnostic: it opens a table of whatever kind
+    // "Multiplayer" is mode-agnostic: it opens a table of whatever kind
     // the selected deck implies (the lobby dispatches createGame vs
     // createManualGame). A Tabletop table is still a two-human table.
     const canCreateMultiplayer = canPlayReal || canPlayManual;
@@ -184,7 +184,7 @@ export default function DashboardPlayBox({
                     <ActionButton
                         onClick={onCreateMultiplayer}
                         disabled={!canCreateMultiplayer}
-                        label="Create Multiplayer"
+                        label="Multiplayer"
                         tone="secondary"
                     />
                 </div>
@@ -193,7 +193,7 @@ export default function DashboardPlayBox({
                     <p className="text-xs text-text-muted" role="note">
                         {isManualDeck
                             ? manualDeckHasCards
-                                ? "Tabletop: no rules enforced, every printed card available. Play solo, or open a table for another player with Create Multiplayer."
+                                ? "Tabletop: no rules enforced, every printed card available. Play solo, or open a table for another player with Multiplayer."
                                 : "This Tabletop deck is empty — add cards before starting a game."
                             : "Tabletop needs a Tabletop-format deck. Create one from the deck builder."}
                     </p>

@@ -172,6 +172,10 @@ export default function DeckBuilderShell({
                             mainCards={mainCards}
                             sideCards={sideCards}
                             layout={layout}
+                            onMainGroupingChange={actions.onMainGroupingChange}
+                            onSideGroupingChange={actions.onSideGroupingChange}
+                            onMainOrderingChange={actions.onMainOrderingChange}
+                            onSideOrderingChange={actions.onSideOrderingChange}
                             lookup={lookup}
                             cardBase={view.cardBase}
                             splitZone={view.splitZone}

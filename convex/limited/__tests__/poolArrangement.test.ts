@@ -468,6 +468,112 @@ describe("upsertPoolArrangementEntry emits only the new pin shape (issue #1621)"
     });
 });
 
+// Issue #1624: the patch's `column` field carries the FULL Column id
+// vocabulary, not only `mv`. The Limited Maindeck is `dropModel: "columns"`,
+// so once the Grouping control can generate colour/type Columns every one of
+// them is a live drop target — and a patch vocabulary that can only express
+// `mv` turns each of those drops into a silent no-op.
+describe("upsertPoolArrangementEntry accepts a namespaced Column id (issue #1624)", () => {
+    it("a `color:` id records the COLOUR Pin, not an mv one", () => {
+        const [entry] = upsertPoolArrangementEntry([], {
+            poolIndex: 0,
+            column: "color:R",
+        });
+        expect(entry.pins).toEqual({ color: "color:R" });
+    });
+
+    it("a `type:` id records the TYPE Pin", () => {
+        const [entry] = upsertPoolArrangementEntry([], {
+            poolIndex: 2,
+            column: "type:creature",
+        });
+        expect(entry.pins).toEqual({ type: "type:creature" });
+    });
+
+    it("a `custom:` id records the CUSTOM Pin (a user-created Column applies under every Grouping)", () => {
+        const [entry] = upsertPoolArrangementEntry([], {
+            poolIndex: 0,
+            column: "custom:combo",
+        });
+        expect(entry.pins).toEqual({ custom: "custom:combo" });
+    });
+
+    it("an `mv:` id is the same write as the legacy number it corresponds to", () => {
+        const [viaId] = upsertPoolArrangementEntry([], {
+            poolIndex: 0,
+            column: "mv:6",
+        });
+        const [viaLegacy] = upsertPoolArrangementEntry([], {
+            poolIndex: 0,
+            column: 6,
+        });
+        expect(viaId).toEqual(viaLegacy);
+        expect(viaId.pins).toEqual({ mv: "mv:6" });
+    });
+
+    it('`mv:lands` and the legacy `"lands"` literal are the same write too', () => {
+        const [viaId] = upsertPoolArrangementEntry([], {
+            poolIndex: 0,
+            column: "mv:lands",
+        });
+        const [viaLegacy] = upsertPoolArrangementEntry([], {
+            poolIndex: 0,
+            column: "lands",
+        });
+        expect(viaId).toEqual(viaLegacy);
+        expect(viaId.pins).toEqual({ mv: "mv:lands" });
+    });
+
+    it("pinning into a colour Column leaves the draft-built mv arrangement untouched (ADR 0075 §3)", () => {
+        const existing: PoolArrangementEntry[] = [
+            { poolIndex: 0, pins: { mv: "mv:6" } },
+        ];
+        const [entry] = upsertPoolArrangementEntry(existing, {
+            poolIndex: 0,
+            column: "color:G",
+        });
+        expect(entry.pins).toEqual({ mv: "mv:6", color: "color:G" });
+    });
+
+    it("re-pinning within a namespace overwrites rather than stacking", () => {
+        const existing: PoolArrangementEntry[] = [
+            { poolIndex: 0, pins: { color: "color:R" } },
+        ];
+        const [entry] = upsertPoolArrangementEntry(existing, {
+            poolIndex: 0,
+            column: "color:W",
+        });
+        expect(entry.pins).toEqual({ color: "color:W" });
+    });
+
+    // Fail-closed: an unnamespaced id is not a pin target, so it records
+    // NOTHING — never a coercion into `mv`, which would silently move the
+    // card in a namespace the player never touched.
+    it.each(["catch-all", "all", "", "nonsense"])(
+        "an unnamespaced id (%o) records no Pin at all",
+        (columnId) => {
+            expect(
+                upsertPoolArrangementEntry([], {
+                    poolIndex: 0,
+                    column: columnId,
+                })
+            ).toEqual([]);
+        }
+    );
+
+    it("an unnamespaced id leaves an EXISTING Pin exactly as it was", () => {
+        const existing: PoolArrangementEntry[] = [
+            { poolIndex: 0, pins: { mv: "mv:2" } },
+        ];
+        expect(
+            upsertPoolArrangementEntry(existing, {
+                poolIndex: 0,
+                column: "catch-all",
+            })
+        ).toEqual(existing);
+    });
+});
+
 describe("legacy and new shapes resolve to the SAME placement (issue #1621: nothing user-visible changes)", () => {
     const pool: LimitedPoolCard[] = [
         card("bolt", "Lightning Bolt"),

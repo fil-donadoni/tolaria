@@ -78,6 +78,39 @@ vi.mock("../deck-builder-shell", () => ({
             >
                 set-bolt-custom
             </button>
+            <button
+                onClick={() =>
+                    props.actions.onPin(
+                        "d573ef03-4730-45aa-93dd-e45ac1dbaf4a",
+                        "color:R"
+                    )
+                }
+                type="button"
+            >
+                set-bolt-color
+            </button>
+            <button
+                onClick={() =>
+                    props.actions.onPin(
+                        "d573ef03-4730-45aa-93dd-e45ac1dbaf4a",
+                        "type:instant"
+                    )
+                }
+                type="button"
+            >
+                set-bolt-type
+            </button>
+            <button
+                onClick={() =>
+                    props.actions.onPin(
+                        "d573ef03-4730-45aa-93dd-e45ac1dbaf4a",
+                        "catch-all"
+                    )
+                }
+                type="button"
+            >
+                set-bolt-catch-all
+            </button>
         </div>
     ),
 }));
@@ -111,7 +144,9 @@ describe("PoolDeckBuilderForm — column persist wiring (issue #1575)", () => {
         expect(setColumnMock).toHaveBeenCalledWith({
             eventId: "event-1",
             poolIndex: 0, // Bolt's position in the Pool
-            column: 6,
+            // The namespaced Column id travels WHOLE since issue #1624 — it
+            // is no longer squeezed back through the mv-only legacy shim.
+            column: "mv:6",
         });
     });
 
@@ -130,10 +165,44 @@ describe("PoolDeckBuilderForm — column persist wiring (issue #1575)", () => {
         expect(setColumnMock).not.toHaveBeenCalled();
     });
 
-    // The mutation's wire vocabulary is still the legacy `column` (issue
-    // #1621: only the PERSISTED shape moved), so a Pin in a namespace that
-    // vocabulary cannot express must be dropped rather than sent as garbage.
-    it("is a no-op for a Pin outside the mv namespace (no legacy column to send)", () => {
+    // Issue #1624 regression: the per-zone Grouping control makes colour and
+    // type Columns reachable, and the Maindeck is `dropModel: "columns"`, so
+    // each of them is a live drop target. Before this fix the call site
+    // funnelled the dropped Column id through the mv-only shim
+    // (`mvColumnFromPins`), which returns `undefined` for every other
+    // namespace — the mutation was never called and the drag was silently
+    // dead.
+    it.each([
+        ["set-bolt-color", "color:R"],
+        ["set-bolt-type", "type:instant"],
+        ["set-bolt-custom", "custom:combo"],
+    ])(
+        "persists a Pin outside the mv namespace (%s) with its Column id intact",
+        (button, columnId) => {
+            const { getByText } = render(
+                <PoolDeckBuilderForm
+                    eventId={"event-1" as never}
+                    seatIndex={0}
+                    pool={POOL}
+                    existingDeck={null}
+                    eventType="draft"
+                    poolArrangement={[]}
+                />
+            );
+            fireEvent.click(getByText(button));
+            expect(setColumnMock).toHaveBeenCalledTimes(1);
+            expect(setColumnMock).toHaveBeenCalledWith({
+                eventId: "event-1",
+                poolIndex: 0,
+                column: columnId,
+            });
+        }
+    );
+
+    // The Catch-All carries no namespace, so it is not a pin target — the
+    // same rule the engine's own `pinCardToColumn` applies. Nothing is sent
+    // rather than a garbage id the server would have to no-op on.
+    it("is a no-op for an unnamespaced Column id (the Catch-All is never a pin target)", () => {
         const { getByText } = render(
             <PoolDeckBuilderForm
                 eventId={"event-1" as never}
@@ -144,7 +213,7 @@ describe("PoolDeckBuilderForm — column persist wiring (issue #1575)", () => {
                 poolArrangement={[]}
             />
         );
-        fireEvent.click(getByText("set-bolt-custom"));
+        fireEvent.click(getByText("set-bolt-catch-all"));
         expect(setColumnMock).not.toHaveBeenCalled();
     });
 });
