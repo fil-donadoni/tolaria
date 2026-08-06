@@ -125,20 +125,32 @@ export default function DeckZoneSurface({
     const [filter, setFilter] = useState<ZoneFilter>(DEFAULT_ZONE_FILTER);
     const filterActive = isZoneFilterActive(filter);
 
-    // Filtering narrows the ITEMS handed to the engine, never the engine's
-    // own column-generation logic — a hidden card simply isn't in `visible`,
-    // so the columns its remaining siblings sit in are computed exactly as
-    // if it had never been in the deck (issue #1625 AC).
+    // Filtering narrows what's VISIBLE, never what generates a Column — see
+    // below (issue #2313 review, F1).
     const visible = useMemo(
         () => filterZoneCards(cards, filter, (c) => c.cardId, lookup),
         [cards, filter, lookup]
     );
 
-    const columns = useMemo(
+    // Columns are resolved from the UNFILTERED `cards`. `generateColumns`
+    // (`convex/deckLayout.ts`) derives Grouping `type`'s Column SET from the
+    // defs it is handed — the one Grouping whose ladder is not fixed — so
+    // resolving against the filtered `visible` array would change WHICH
+    // Columns exist as a side effect of hiding cards: a Card Pin naming a
+    // Column that no longer generates stops applying (`claimColumnId` step 2
+    // requires `generatedIds.has(pinned)`) and the pinned card falls through
+    // to its predicate Column, even though it still matches the filter
+    // (issue #2313 review, F1 — reproduced with Grouping `type` moving a
+    // filter-matching Serra Angel out of a Column it was pinned to). Second
+    // order, every empty `type` Column would also vanish as a drop target,
+    // contradicting this component's own `dropModel: "columns"` contract
+    // above. Resolving against `cards` keeps the Column SET — and every Pin
+    // naming one — filter-independent; only Column CONTENTS narrow below.
+    const rawColumns = useMemo(
         () =>
             resolveColumnLayout<DeckCard>({
                 layout,
-                items: visible,
+                items: cards,
                 adapter: {
                     cardId: (c) => c.cardId,
                     // Constructed pins by Card ID (four Lightning Bolts pin
@@ -150,7 +162,28 @@ export default function DeckZoneSurface({
                 },
                 lookup,
             }),
-        [layout, visible, lookup]
+        [layout, cards, lookup]
+    );
+
+    // The filter narrows each resolved Column's ITEMS — never the Column
+    // itself — so a hidden card simply isn't in a Column's `items` and the
+    // columns its remaining, still-matching siblings sit in never move
+    // (issue #1625 AC), while an empty Column stays a rendered drop target
+    // (issue #2313 review, F1).
+    const columns = useMemo(
+        () =>
+            filterActive
+                ? rawColumns.map((column) => ({
+                      ...column,
+                      items: filterZoneCards(
+                          column.items,
+                          filter,
+                          (c) => c.cardId,
+                          lookup
+                      ),
+                  }))
+                : rawColumns,
+        [rawColumns, filterActive, filter, lookup]
     );
 
     // The featured affordance/indicator goes on the LAST (topmost, visible)
@@ -217,6 +250,20 @@ export default function DeckZoneSurface({
         disabled: dropModel !== "pane",
     });
 
+    // The header's count text. The `countSuffix` branch exists because the
+    // naive `${visible.length} of ${cards.length}${countSuffix}` reads as
+    // `"1 of 2/15"` on the Constructed Sideboard — the `of`-counter runs
+    // straight into the `x/15` legality cap with no separator, so it looks
+    // like one broken fraction (issue #2313 review, N1). Spelling out
+    // "shown"/"total" keeps the cap legible instead of visually merging with
+    // the filtered count. `countSuffix` is unset on the Maindeck (it has no
+    // cap), so that instance keeps the plain `"N of M"` form.
+    const countText = filterActive
+        ? countSuffix
+            ? `${visible.length} shown, ${cards.length}${countSuffix} total`
+            : `${visible.length} of ${cards.length}`
+        : `${cards.length}${countSuffix ?? ""}`;
+
     return (
         <div
             ref={paneRef}
@@ -231,11 +278,7 @@ export default function DeckZoneSurface({
                 {/* `truncate` (issue #2056): the untruncated title wrapped to
                     3 lines / 72px in an 82px pane. */}
                 <span className="truncate font-semibold font-beleren tracking-wide text-parchment">
-                    {title}{" "}
-                    {filterActive
-                        ? `${visible.length} of ${cards.length}`
-                        : cards.length}
-                    {countSuffix ?? ""}
+                    {title} {countText}
                 </span>
                 {warning && (
                     <span className="shrink-0 text-xs font-semibold text-danger-strong">

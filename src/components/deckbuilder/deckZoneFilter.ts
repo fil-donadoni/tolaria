@@ -16,6 +16,7 @@ import { tryGetDefinition } from "@convex/cards";
 import { getCardColorIdentity } from "@convex/cards/colors";
 import type { CardDefinition, Color } from "@convex/cards/types";
 import type { CardLookup } from "@convex/deckLayout";
+import { MANA_COLORS } from "@convex/gre/constants";
 
 /** The segmented creature/non-creature control (issue #1625 AC). `"all"` is
  *  the no-op default — every other Grouping/Ordering/Filter control in this
@@ -102,20 +103,18 @@ const CREATURE_FILTER_LABEL: Record<ZoneCreatureFilter, string> = {
     "non-creatures": "Non-creatures",
 };
 
-/** WUBRG then colourless — the same order every other colour control in this
- *  surface renders in (`ColorFilter`, the `color` Grouping's columns). */
-const COLOR_SUMMARY_ORDER: Color[] = ["W", "U", "B", "R", "G", "C"];
-
 /** A short human-readable description of the active filter, for the
  *  clearable chip (issue #1625 AC). Empty string when the filter is off —
  *  callers should not render the chip in that case (see
- *  {@link isZoneFilterActive}). */
+ *  {@link isZoneFilterActive}). WUBRG then colourless — `MANA_COLORS`' own
+ *  order, the same one every other colour control in this surface renders
+ *  in (`ColorFilter`, the `color` Grouping's columns). */
 export function zoneFilterSummary(filter: ZoneFilter): string {
     const parts: string[] = [];
     if (filter.creature !== "all")
         parts.push(CREATURE_FILTER_LABEL[filter.creature]);
     if (filter.colors.size > 0) {
-        const codes = COLOR_SUMMARY_ORDER.filter((c) => filter.colors.has(c));
+        const codes = MANA_COLORS.filter((c) => filter.colors.has(c));
         parts.push(codes.join("/"));
     }
     return parts.join(" · ");

@@ -10,6 +10,7 @@ import { DragDropProvider } from "@dnd-kit/react";
 import {
     createColumnLayout,
     pinCardToColumn,
+    setGrouping,
     makeColumnId,
 } from "@convex/deckLayout";
 import { makeDeckCardShapeResolver, deckCardLookup } from "~/lib/deckCardShape";
@@ -488,5 +489,131 @@ describe("DeckZoneSurface — Zone build-time filter (issue #1625)", () => {
         const second = renderZone(props);
         expect(second.getByText("Maindeck 2")).toBeTruthy();
         expect(second.queryByText(/of 2/)).toBeNull();
+    });
+});
+
+// PR #2313 review, F1: the filtered `items` used to feed
+// `resolveColumnLayout` directly, so under Grouping `type` — the one
+// Grouping whose Column SET depends on which types are PRESENT
+// (`generateColumns`, `convex/deckLayout.ts`) — a filter silently changed
+// which Columns exist, moving a Card Pin's target out from under it even
+// though the pinned card still matched the filter. `mv`/`color` generate a
+// fixed ladder regardless of the cards present, so they were never exposed
+// to this; these tests exercise `type` (where the bug lived) and `color`
+// (to prove the fixed-ladder Groupings stay correct with a Pin in play too,
+// per the review's N3 finding that filter coverage was `mv`-only).
+describe("DeckZoneSurface — filter narrows CONTENTS, never the Column SET (issue #2313 review, F1)", () => {
+    it("Grouping `type`: the Column SET survives a filter that empties one of them", () => {
+        const { container, getByLabelText } = renderZone({
+            cards: [BOLT, SERRA, PLAINS],
+            layout: setGrouping(createColumnLayout(), "type"),
+        });
+        expect(columnLabels(container)).toEqual([
+            "Lands",
+            "Creature",
+            "Instant",
+        ]);
+
+        fireEvent.click(
+            within(getByLabelText("Maindeck creature filter")).getByText(
+                "Creatures"
+            )
+        );
+
+        // Bolt (Instant) is hidden by the filter — but the Instant Column
+        // itself must still render as an empty drop target, not disappear.
+        expect(columnLabels(container)).toEqual([
+            "Lands",
+            "Creature",
+            "Instant",
+        ]);
+        expect(cardsIn(container, "type:instant")).toEqual([]);
+        expect(cardsIn(container, "type:creature")).toEqual(["Serra Angel"]);
+    });
+
+    it("Grouping `type`: a Card Pin naming a Column the filter would otherwise eliminate still applies", () => {
+        // Serra Angel (a Creature) is pinned into the Instant Column — as if
+        // dragged there. It still MATCHES a Creature filter, so it must stay
+        // exactly where it's pinned; it must not fall through to its
+        // predicate Column (Creature) just because Bolt, the only OTHER
+        // Instant, gets hidden by the same filter.
+        const layout = pinCardToColumn(
+            setGrouping(createColumnLayout(), "type"),
+            SERRA.cardId,
+            makeColumnId("type", "instant")
+        );
+        const { container, getByLabelText } = renderZone({
+            cards: [BOLT, SERRA, PLAINS],
+            layout,
+        });
+        // Unfiltered: Bolt lands in Instant on its OWN predicate; Serra sits
+        // there too, but via its Pin rather than its (Creature) predicate.
+        expect(cardsIn(container, "type:instant")).toEqual([
+            "Lightning Bolt",
+            "Serra Angel",
+        ]);
+
+        fireEvent.click(
+            within(getByLabelText("Maindeck creature filter")).getByText(
+                "Creatures"
+            )
+        );
+
+        expect(columnLabels(container)).toContain("Instant");
+        expect(cardsIn(container, "type:instant")).toEqual(["Serra Angel"]);
+        // Serra did NOT fall through to the Catch-All or to its predicate
+        // Column (Creature) — the Pin still names a Column that exists.
+        expect(cardsIn(container, "type:creature")).toEqual([]);
+        expect(columnLabels(container)).not.toContain("Catch-All");
+    });
+
+    it("Grouping `color`: a fixed-ladder Grouping stays correct under a filter, with a Pin in play", () => {
+        // Serra Angel (mono-White) pinned into the Multicolour Column,
+        // despite not matching its predicate — proves a Pin still overrides
+        // the predicate once a filter is active, for a Grouping whose ladder
+        // is not cards-dependent (control case for the `type` fix above).
+        const layout = pinCardToColumn(
+            setGrouping(createColumnLayout(), "color"),
+            SERRA.cardId,
+            makeColumnId("color", "multicolor")
+        );
+        const { container, getByLabelText } = renderZone({
+            cards: [BOLT, SERRA],
+            layout,
+        });
+        expect(cardsIn(container, "color:multicolor")).toEqual(["Serra Angel"]);
+
+        fireEvent.click(
+            within(getByLabelText("Maindeck creature filter")).getByText(
+                "Creatures"
+            )
+        );
+
+        // Bolt (Red, non-Creature) is hidden; the Red Column stays rendered
+        // but empty, and Serra's Pin still holds.
+        expect(columnLabels(container)).toContain("Red");
+        expect(cardsIn(container, "color:R")).toEqual([]);
+        expect(cardsIn(container, "color:multicolor")).toEqual(["Serra Angel"]);
+    });
+});
+
+// PR #2313 review, N1: `${visible} of ${total}${countSuffix}` reads as
+// `"1 of 2/15"` on the Constructed Sideboard — the `of`-counter runs
+// straight into the `x/15` legality cap with no separator between them.
+describe("DeckZoneSurface — header count text with a countSuffix + active filter (issue #2313 review, N1)", () => {
+    it("spells out shown/total instead of concatenating the filtered count onto the cap", () => {
+        const { getByText, queryByText, getByLabelText } = renderZone({
+            zone: "sideboard",
+            title: "Sideboard",
+            dropModel: "pane",
+            cards: [BOLT, SERRA],
+            countSuffix: "/15",
+        });
+
+        fireEvent.click(getByLabelText("Sideboard colour R"));
+
+        expect(getByText("Sideboard 1 shown, 2/15 total")).toBeTruthy();
+        // The old, collision-prone rendering must be gone.
+        expect(queryByText(/1 of 2\/15/)).toBeNull();
     });
 });

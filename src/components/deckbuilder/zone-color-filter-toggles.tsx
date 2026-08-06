@@ -1,10 +1,7 @@
 import type { Color } from "@convex/cards/types";
+import { MANA_COLORS } from "@convex/gre/constants";
 import { cn } from "~/lib/utils";
 import ManaSymbol from "~/components/cards/mana-symbol";
-
-/** WUBRG, then colourless — the same order `deckLayout.ts`'s `color`
- *  Grouping generates its columns in. */
-const COLOR_TOGGLES: Color[] = ["W", "U", "B", "R", "G", "C"];
 
 export interface ZoneColorFilterTogglesProps {
     value: ReadonlySet<Color>;
@@ -32,7 +29,7 @@ export default function ZoneColorFilterToggles({
             role="group"
             aria-label={`${zoneLabel} colour filter`}
         >
-            {COLOR_TOGGLES.map((color) => {
+            {MANA_COLORS.map((color) => {
                 const active = value.has(color);
                 return (
                     <button
