@@ -195,6 +195,140 @@ function meta() {
     return out;
 }
 
+/** Validate a YYYY-MM-DD query param (these reach SQL as bound params only). */
+function dayParam(url: URL, name: string, fallback: string): string {
+    const v = url.searchParams.get(name) ?? fallback;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) throw new Error(`bad ${name}`);
+    return v;
+}
+
+/**
+ * Narrative view: one row per session, newest first. Role minutes/cost come
+ * from agent_runs; the orchestrator column is the session's main-surface llm
+ * spend; wall clock is the llm first→last message span.
+ */
+function sessionsView(from: string, to: string) {
+    return db
+        .query(
+            `WITH span AS (
+                SELECT session, min(ts) AS t0, max(ts) AS t1,
+                       round(sum(CASE WHEN surface='main' THEN cost ELSE 0 END),2) AS orch_cost,
+                       round(sum(cost),2) AS cost,
+                       sum(out_tok) AS out_tok, sum(cache_read) AS cache_read
+                FROM llm WHERE day >= ?1 AND day <= ?2 GROUP BY session
+            ), roles AS (
+                SELECT session,
+                       sum(CASE WHEN role='implement' THEN dur_s ELSE 0 END) AS impl_s,
+                       sum(CASE WHEN role='review' THEN dur_s ELSE 0 END) AS rev_s,
+                       sum(CASE WHEN role='fixup' THEN dur_s ELSE 0 END) AS fix_s,
+                       sum(CASE WHEN role NOT IN ('implement','review','fixup') THEN dur_s ELSE 0 END) AS other_s,
+                       count(*) AS runs,
+                       count(DISTINCT issue) AS issues
+                FROM agent_runs WHERE day >= ?1 AND day <= ?2 GROUP BY session
+            )
+            SELECT s.session, se.title, se.cmd, se.prs,
+                   s.t0, s.t1, round((s.t1 - s.t0) / 60.0, 0) AS wall_min,
+                   round(ifnull(r.impl_s,0)/60,0) AS impl_min,
+                   round(ifnull(r.rev_s,0)/60,0) AS rev_min,
+                   round(ifnull(r.fix_s,0)/60,0) AS fix_min,
+                   round(ifnull(r.other_s,0)/60,0) AS other_min,
+                   ifnull(r.runs,0) AS runs, ifnull(r.issues,0) AS issues,
+                   s.orch_cost, s.cost, s.out_tok, s.cache_read
+            FROM span s
+            LEFT JOIN sessions se ON se.session = s.session
+            LEFT JOIN roles r ON r.session = s.session
+            ORDER BY s.t0 DESC LIMIT 200`
+        )
+        .all(from, to);
+}
+
+/**
+ * Narrative view: one row per issue. Per-role minutes / tokens / cost, run
+ * count, latency (first→last event across its runs), tier, family, state.
+ */
+function issuesView(from: string, to: string) {
+    const rows = db
+        .query(
+            `SELECT r.issue, m.title, m.family, m.state, m.closed_at,
+                   count(*) AS runs,
+                   round((max(r.started + r.dur_s) - min(r.started)) / 60.0, 0) AS latency_min,
+                   -- the tier the IMPLEMENT ran on (modal across implement runs)
+                   (SELECT model FROM agent_runs x WHERE x.issue = r.issue AND x.role='implement'
+                    GROUP BY model ORDER BY count(*) DESC LIMIT 1) AS impl_model,
+                   sum(CASE WHEN r.role='implement' THEN r.dur_s ELSE 0 END)/60 AS impl_min,
+                   sum(CASE WHEN r.role='implement' THEN r.cost ELSE 0 END) AS impl_cost,
+                   sum(CASE WHEN r.role='implement' THEN r.out_tok ELSE 0 END) AS impl_out_tok,
+                   sum(CASE WHEN r.role='review' THEN r.dur_s ELSE 0 END)/60 AS rev_min,
+                   sum(CASE WHEN r.role='review' THEN r.cost ELSE 0 END) AS rev_cost,
+                   sum(CASE WHEN r.role='review' THEN r.out_tok ELSE 0 END) AS rev_out_tok,
+                   sum(CASE WHEN r.role='fixup' THEN r.dur_s ELSE 0 END)/60 AS fix_min,
+                   sum(CASE WHEN r.role='fixup' THEN r.cost ELSE 0 END) AS fix_cost,
+                   sum(CASE WHEN r.role='fixup' THEN 1 ELSE 0 END) AS fixups,
+                   sum(CASE WHEN r.role NOT IN ('implement','review','fixup') THEN r.dur_s ELSE 0 END)/60 AS other_min,
+                   sum(CASE WHEN r.role NOT IN ('implement','review','fixup') THEN r.cost ELSE 0 END) AS other_cost,
+                   round(sum(r.cost),2) AS cost,
+                   sum(r.out_tok) AS out_tok, sum(r.cache_read) AS cache_read
+            FROM agent_runs r
+            LEFT JOIN issue_meta m ON m.issue = r.issue
+            WHERE r.issue IS NOT NULL AND ifnull(m.state,'') != 'pr'
+              AND r.day >= ?1 AND r.day <= ?2
+            GROUP BY r.issue
+            ORDER BY cost DESC LIMIT 300`
+        )
+        .all(from, to) as Record<string, unknown>[];
+
+    // Fixup-rate per implement tier — the number that governs de-escalation.
+    const tiers: Record<string, { issues: number; withFixup: number }> = {};
+    for (const r of rows) {
+        const tier = String(r.impl_model ?? "(none)");
+        tiers[tier] ??= { issues: 0, withFixup: 0 };
+        tiers[tier].issues++;
+        if (Number(r.fixups) > 0) tiers[tier].withFixup++;
+    }
+    return { rows, tiers };
+}
+
+/** Per-family × role rollup — "what do reviews on mechanics issues cost". */
+function familiesView(from: string, to: string) {
+    return db
+        .query(
+            `SELECT ifnull(m.family, '(none)') AS family, r.role,
+                   count(*) AS runs, count(DISTINCT r.issue) AS issues,
+                   round(sum(r.dur_s)/60, 0) AS minutes,
+                   sum(r.out_tok) AS out_tok, sum(r.cache_read) AS cache_read,
+                   round(sum(r.cost), 2) AS cost
+            FROM agent_runs r
+            LEFT JOIN issue_meta m ON m.issue = r.issue
+            WHERE r.issue IS NOT NULL AND ifnull(m.state,'') != 'pr'
+              AND r.day >= ?1 AND r.day <= ?2
+            GROUP BY 1, 2 ORDER BY family, cost DESC`
+        )
+        .all(from, to);
+}
+
+/** Drill-down: the individual agent runs of one issue or one session. */
+function runsView(url: URL) {
+    const issue = url.searchParams.get("issue");
+    const session = url.searchParams.get("session");
+    if (!issue && !session) throw new Error("issue or session required");
+    const [col, val] = issue
+        ? ["issue", Number(issue)]
+        : ["session", String(session)];
+    if (issue && !Number.isFinite(val as number)) throw new Error("bad issue");
+    return db
+        .query(
+            `SELECT r.agent_id, r.session, r.started, round(r.dur_s/60,1) AS min,
+                    r.msgs, r.model, r.agent_type, r.role, r.issue,
+                    r.out_tok, r.cache_read,
+                    round(r.cache_read * 1.0 / max(r.msgs,1) / 1000, 0) AS avg_ctx_k,
+                    round(r.cost, 2) AS cost, m.description
+             FROM agent_runs r
+             LEFT JOIN agent_meta m ON m.agent_id = r.agent_id
+             WHERE r.${col} = ? ORDER BY r.started`
+        )
+        .all(val);
+}
+
 const portArg = process.argv.indexOf("--port");
 const port = portArg > -1 ? Number(process.argv[portArg + 1]) : 5174;
 
@@ -206,6 +340,24 @@ const server = Bun.serve({
         try {
             if (url.pathname === "/api/meta") {
                 return Response.json(meta());
+            }
+            if (url.pathname === "/api/sessions") {
+                const from = dayParam(url, "from", "1970-01-01");
+                const to = dayParam(url, "to", "9999-12-31");
+                return Response.json({ rows: sessionsView(from, to) });
+            }
+            if (url.pathname === "/api/issues") {
+                const from = dayParam(url, "from", "1970-01-01");
+                const to = dayParam(url, "to", "9999-12-31");
+                return Response.json(issuesView(from, to));
+            }
+            if (url.pathname === "/api/families") {
+                const from = dayParam(url, "from", "1970-01-01");
+                const to = dayParam(url, "to", "9999-12-31");
+                return Response.json({ rows: familiesView(from, to) });
+            }
+            if (url.pathname === "/api/runs") {
+                return Response.json({ rows: runsView(url) });
             }
             if (url.pathname === "/api/q" && req.method === "POST") {
                 // `req.json()` is `unknown` by design — every field it carries is

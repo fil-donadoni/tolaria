@@ -30,6 +30,7 @@ import {
     bucketCmd,
     costOf,
     dayHour,
+    issueFromDescription,
     normalizeModel,
 } from "./lib/telemetry-db.ts";
 
@@ -193,6 +194,9 @@ interface TranscriptLine {
     session_id?: string;
     effort?: string;
     isSidechain?: boolean;
+    customTitle?: string;
+    lastPrompt?: string;
+    prNumber?: number;
     message?: {
         model?: string;
         usage?: {
@@ -204,11 +208,62 @@ interface TranscriptLine {
     };
 }
 
+/**
+ * Session narrative facts carried by non-assistant transcript lines. Applied
+ * as an upsert so the delta pass and the one-time backfill compose.
+ */
+function applySessionEvent(
+    db: Database,
+    session: string,
+    e: TranscriptLine
+): boolean {
+    if (e.type === "custom-title" && e.customTitle) {
+        db.run(
+            `INSERT INTO sessions (session, title) VALUES (?, ?)
+             ON CONFLICT(session) DO UPDATE SET title = excluded.title`,
+            [session, e.customTitle]
+        );
+        return true;
+    }
+    if (
+        e.type === "last-prompt" &&
+        typeof e.lastPrompt === "string" &&
+        e.lastPrompt.startsWith("/")
+    ) {
+        // Keep the FIRST slash command — it names what the session is for.
+        db.run(
+            `INSERT INTO sessions (session, cmd) VALUES (?, ?)
+             ON CONFLICT(session) DO UPDATE SET cmd = coalesce(sessions.cmd, excluded.cmd)`,
+            [session, e.lastPrompt]
+        );
+        return true;
+    }
+    if (e.type === "pr-link" && typeof e.prNumber === "number") {
+        const row = db
+            .query<
+                { prs: string | null },
+                [string]
+            >("SELECT prs FROM sessions WHERE session = ?")
+            .get(session);
+        const prs: number[] = row?.prs ? JSON.parse(row.prs) : [];
+        if (!prs.includes(e.prNumber)) prs.push(e.prNumber);
+        db.run(
+            `INSERT INTO sessions (session, prs) VALUES (?, ?)
+             ON CONFLICT(session) DO UPDATE SET prs = excluded.prs`,
+            [session, JSON.stringify(prs)]
+        );
+        return true;
+    }
+    return false;
+}
+
 interface SubagentMeta {
     agentType: string | null;
     description: string | null;
     toolUseId: string | null;
     model: string | null;
+    parentAgentId: string | null;
+    spawnDepth: number | null;
 }
 
 function readSubagentMeta(path: string): SubagentMeta {
@@ -219,6 +274,8 @@ function readSubagentMeta(path: string): SubagentMeta {
             description: m.description ?? null,
             toolUseId: m.toolUseId ?? null,
             model: m.model ?? null,
+            parentAgentId: m.parentAgentId ?? null,
+            spawnDepth: m.spawnDepth ?? null,
         };
     } catch {
         return {
@@ -226,6 +283,8 @@ function readSubagentMeta(path: string): SubagentMeta {
             description: null,
             toolUseId: null,
             model: null,
+            parentAgentId: null,
+            spawnDepth: null,
         };
     }
 }
@@ -235,6 +294,11 @@ function readSubagentMeta(path: string): SubagentMeta {
  * main thread from a subagent's own file; sidechain messages inside a main
  * transcript are re-labelled so a split by surface doesn't conflate them.
  */
+/** The session id is the main transcript's basename. */
+function sessionOfPath(path: string): string {
+    return path.replace(/^.*\//, "").replace(/\.jsonl$/, "");
+}
+
 async function ingestTranscript(
     db: Database,
     path: string,
@@ -264,7 +328,11 @@ async function ingestTranscript(
             } catch {
                 continue;
             }
-            if (e.type !== "assistant") continue;
+            if (e.type !== "assistant") {
+                if (surface === "main")
+                    applySessionEvent(db, sessionOfPath(path), e);
+                continue;
+            }
             const msg = e.message;
             const usage = msg?.usage;
             if (!msg?.model || !usage) continue;
@@ -327,7 +395,200 @@ async function ingestTranscripts(db: Database): Promise<number> {
             const meta = existsSync(metaPath)
                 ? readSubagentMeta(metaPath)
                 : null;
+            if (meta) {
+                const agentId = f
+                    .replace(/^agent-/, "")
+                    .replace(/\.jsonl$/, "");
+                db.run(
+                    `INSERT OR REPLACE INTO agent_meta
+                     (agent_id, description, parent_agent_id, spawn_depth)
+                     VALUES (?, ?, ?, ?)`,
+                    [
+                        agentId,
+                        meta.description,
+                        meta.parentAgentId,
+                        meta.spawnDepth,
+                    ]
+                );
+            }
             n += await ingestTranscript(db, join(subs, f), "subagent", meta);
+        }
+    }
+    return n;
+}
+
+/**
+ * One-time sweep of the already-ingested part of every main transcript for
+ * session narrative lines — the byte cursor is past them, so the delta pass
+ * alone would only cover sessions created after this feature shipped.
+ */
+function backfillSessions(db: Database): void {
+    const done = db
+        .query<
+            { v: string },
+            []
+        >("SELECT v FROM meta WHERE k = 'sessions_backfill_v1'")
+        .get();
+    if (done) return;
+    const root = join(PROJECTS_ROOT, PROJECT_SLUG);
+    if (existsSync(root)) {
+        for (const entry of readdirSync(root)) {
+            if (!entry.endsWith(".jsonl")) continue;
+            const session = entry.replace(/\.jsonl$/, "");
+            const text = readFileSync(join(root, entry), "utf8");
+            for (const line of text.split("\n")) {
+                // Cheap substring gate before the JSON parse — most lines are
+                // assistant/user messages this pass does not care about.
+                if (
+                    !line.includes('"custom-title"') &&
+                    !line.includes('"last-prompt"') &&
+                    !line.includes('"pr-link"')
+                )
+                    continue;
+                try {
+                    applySessionEvent(db, session, JSON.parse(line));
+                } catch {
+                    /* malformed line */
+                }
+            }
+        }
+    }
+    db.run(
+        "INSERT OR REPLACE INTO meta (k, v) VALUES ('sessions_backfill_v1', ?)",
+        [String(Date.now())]
+    );
+}
+
+/**
+ * Attribute each agent run to a GitHub issue: its own description's issue ref,
+ * else the parent's (an investigate spawned inside an implement works that
+ * implement's issue). PR-only descriptions stay unattributed.
+ */
+function attributeIssues(db: Database): number {
+    const metas = db
+        .query<
+            {
+                agent_id: string;
+                description: string | null;
+                parent_agent_id: string | null;
+            },
+            []
+        >("SELECT agent_id, description, parent_agent_id FROM agent_meta")
+        .all();
+    const direct = new Map<string, number>();
+    for (const m of metas) {
+        const n = issueFromDescription(m.description);
+        if (n !== null) direct.set(m.agent_id, n);
+    }
+    const parentOf = new Map(metas.map((m) => [m.agent_id, m.parent_agent_id]));
+    const upd = db.prepare(
+        "UPDATE agent_runs SET issue = ?, parent_agent_id = ? WHERE agent_id = ?"
+    );
+    let attributed = 0;
+    db.transaction(() => {
+        for (const m of metas) {
+            let issue: number | null = direct.get(m.agent_id) ?? null;
+            // Walk up the spawn chain (bounded — depth is ≤3 in practice).
+            let cursor = m.parent_agent_id;
+            for (let hop = 0; issue === null && cursor && hop < 4; hop++) {
+                issue = direct.get(cursor) ?? null;
+                cursor = parentOf.get(cursor) ?? null;
+            }
+            upd.run(issue, m.parent_agent_id, m.agent_id);
+            if (issue !== null) attributed++;
+        }
+    })();
+    return attributed;
+}
+
+/**
+ * Fetch family (area:* label), state and title for issues the runs reference.
+ * Missing issues are fetched once; open ones are refreshed after 6h (labels
+ * and state change); closed ones are final. Offline ⇒ silently skipped.
+ */
+function refreshIssueMeta(db: Database): number {
+    const now = Math.floor(Date.now() / 1000);
+    const wanted = db
+        .query<{ issue: number }, [number]>(
+            `SELECT DISTINCT r.issue FROM agent_runs r
+             LEFT JOIN issue_meta m ON m.issue = r.issue
+             WHERE r.issue IS NOT NULL
+               AND (m.issue IS NULL OR (m.state = 'open' AND m.fetched < ?))
+             LIMIT 60`
+        )
+        .all(now - 6 * 3600);
+    if (!wanted.length) return 0;
+
+    let repo = db
+        .query<{ v: string }, []>("SELECT v FROM meta WHERE k = 'gh_repo'")
+        .get()?.v;
+    if (!repo) {
+        const cleanEnv = { ...process.env };
+        delete cleanEnv.GITHUB_TOKEN; // see refresh loop below
+        const p = Bun.spawnSync(
+            [
+                "gh",
+                "repo",
+                "view",
+                "--json",
+                "nameWithOwner",
+                "-q",
+                ".nameWithOwner",
+            ],
+            { env: cleanEnv }
+        );
+        repo = p.success ? p.stdout.toString().trim() : "";
+        if (!repo) return 0;
+        db.run("INSERT OR REPLACE INTO meta (k, v) VALUES ('gh_repo', ?)", [
+            repo,
+        ]);
+    }
+
+    const put = db.prepare(
+        `INSERT OR REPLACE INTO issue_meta (issue, title, family, state, closed_at, fetched)
+         VALUES (?, ?, ?, ?, ?, ?)`
+    );
+    // Bun auto-loads .env.local, whose limited-scope GITHUB_TOKEN shadows the
+    // gh keyring auth and 403s the API — strip it from the child env.
+    const env = { ...process.env };
+    delete env.GITHUB_TOKEN;
+    let n = 0;
+    for (const { issue } of wanted) {
+        const p = Bun.spawnSync(
+            ["gh", "api", `repos/${repo}/issues/${issue}`],
+            { env }
+        );
+        if (!p.success) {
+            // Distinguish "gh is offline" (retry next ingest) from "the number
+            // is not an issue" (a 404/gone — often a PR number misread as an
+            // issue ref): stub the latter so it stops eating fetch slots.
+            const err = p.stderr.toString();
+            if (/HTTP 404|Not Found|gone/i.test(err)) {
+                put.run(issue, null, null, "unknown", null, now);
+            }
+            continue;
+        }
+        try {
+            const j = JSON.parse(p.stdout.toString());
+            const family =
+                (j.labels ?? [])
+                    .map((l: { name?: string }) => l.name ?? "")
+                    .find((s: string) => s.startsWith("area:"))
+                    ?.slice(5) ?? null;
+            put.run(
+                issue,
+                j.title ?? null,
+                family,
+                // The issues API also answers for PR numbers — a description
+                // whose #N was really a PR gets stamped 'pr', so issue views
+                // can exclude it instead of showing a phantom issue.
+                j.pull_request ? "pr" : (j.state ?? null),
+                j.closed_at ?? null,
+                now
+            );
+            n++;
+        } catch {
+            /* malformed response */
         }
     }
     return n;
@@ -351,6 +612,8 @@ function rebuildAgentRuns(db: Database): number {
     db.run("DELETE FROM agent_runs");
     db.run(`
         INSERT INTO agent_runs
+        (agent_id, session, started, day, hour, dur_s, msgs, model, agent_type,
+         role, tool_use_id, in_tok, out_tok, cache_read, cache_write, cost)
         SELECT
             l.agent_id,
             max(l.session),
@@ -394,7 +657,10 @@ const db = openDb(DB_PATH);
 const t0 = Date.now();
 const spans = await ingestSpans(db);
 const msgs = await ingestTranscripts(db);
+backfillSessions(db);
 const runs = rebuildAgentRuns(db);
+const attributed = attributeIssues(db);
+const fetched = refreshIssueMeta(db);
 db.run("INSERT OR REPLACE INTO meta (k, v) VALUES ('last_ingest', ?)", [
     String(Date.now()),
 ]);
@@ -408,6 +674,7 @@ const totals = db
 
 console.log(
     `ingested +${spans} spans, +${msgs} messages in ${((Date.now() - t0) / 1000).toFixed(1)}s ` +
-        `(total ${totals.spans} spans, ${totals.llm} messages, ${runs} agent runs) → ${DB_PATH}`
+        `(total ${totals.spans} spans, ${totals.llm} messages, ${runs} agent runs, ` +
+        `${attributed} issue-attributed, +${fetched} issue metas) → ${DB_PATH}`
 );
 db.close();

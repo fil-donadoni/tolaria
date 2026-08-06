@@ -93,9 +93,43 @@ CREATE TABLE IF NOT EXISTS agent_runs (
     out_tok     INTEGER NOT NULL,
     cache_read  INTEGER NOT NULL,
     cache_write INTEGER NOT NULL,
-    cost        REAL NOT NULL
+    cost        REAL NOT NULL,
+    parent_agent_id TEXT,              -- depth-2 spawns (investigate under implement)
+    issue       INTEGER                -- GitHub issue this run worked, from its
+                                       -- description's #N, inherited from the parent
 );
 CREATE INDEX IF NOT EXISTS agent_runs_day ON agent_runs(day);
+
+-- Spawn metadata per subagent, read from subagents/*.meta.json. Kept separate
+-- from agent_runs (which is rebuilt wholesale from llm) so the description and
+-- parent edge survive rebuilds.
+CREATE TABLE IF NOT EXISTS agent_meta (
+    agent_id        TEXT PRIMARY KEY,
+    description     TEXT,
+    parent_agent_id TEXT,
+    spawn_depth     INTEGER
+);
+
+-- One row per session, from the main transcript's event lines (custom-title,
+-- last-prompt, pr-link). Wall clock and cost are derived from llm/spans at
+-- query time, not stored.
+CREATE TABLE IF NOT EXISTS sessions (
+    session TEXT PRIMARY KEY,
+    title   TEXT,                      -- user-visible session title ("Emrakul")
+    cmd     TEXT,                      -- first slash-command prompt seen
+    prs     TEXT                       -- JSON array of distinct PR numbers
+);
+
+-- Issue metadata fetched from GitHub (family = area:* label). Open issues are
+-- refreshed when stale; closed ones are final.
+CREATE TABLE IF NOT EXISTS issue_meta (
+    issue     INTEGER PRIMARY KEY,
+    title     TEXT,
+    family    TEXT,                    -- area label without the "area:" prefix
+    state     TEXT,                    -- open | closed
+    closed_at TEXT,
+    fetched   INTEGER                  -- epoch seconds of last gh fetch
+);
 
 -- Byte-offset cursor per source file, so a re-run only parses the delta.
 CREATE TABLE IF NOT EXISTS ingest_state (
@@ -252,7 +286,41 @@ export function bucketCmd(cmd: string | null): string | null {
 export function openDb(path: string): Database {
     const db = new Database(path, { create: true });
     db.exec(SCHEMA);
+    // CREATE TABLE IF NOT EXISTS never widens an existing table — bring an
+    // older DB up to the current agent_runs shape (idempotent, cheap).
+    for (const ddl of [
+        "ALTER TABLE agent_runs ADD COLUMN parent_agent_id TEXT",
+        "ALTER TABLE agent_runs ADD COLUMN issue INTEGER",
+    ]) {
+        try {
+            db.exec(ddl);
+        } catch {
+            /* column already exists */
+        }
+    }
+    // After the widening — an index in SCHEMA would run before it on old DBs.
+    db.exec("CREATE INDEX IF NOT EXISTS agent_runs_issue ON agent_runs(issue)");
     return db;
+}
+
+/**
+ * Extract the GitHub ISSUE a spawn description refers to. Descriptions mix
+ * issue and PR refs ("review annihilator PR #2316 (#2295)") — the issue is the
+ * parenthesised ref when present, then an explicit "issue N", then any #N not
+ * preceded by "PR". A PR-only description returns null (attribution then falls
+ * back to the parent agent's issue, or stays unattributed).
+ */
+export function issueFromDescription(desc: string | null): number | null {
+    if (!desc) return null;
+    const paren = desc.match(/\(#(\d{2,5})\)/);
+    if (paren) return Number(paren[1]);
+    const word = desc.match(/\bissue[ #]+(\d{2,5})\b/i);
+    if (word) return Number(word[1]);
+    for (const m of desc.matchAll(/#(\d{2,5})\b/g)) {
+        const before = desc.slice(Math.max(0, m.index! - 4), m.index);
+        if (!/PR ?$/i.test(before)) return Number(m[1]);
+    }
+    return null;
 }
 
 /** Local-day and local-hour, matching how a human reads "when did this run". */
