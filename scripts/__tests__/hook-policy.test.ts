@@ -625,7 +625,6 @@ describe("hooks are wired into settings.json", () => {
             expect(wired, `${script} is not registered`).toContain(script);
             const full = path.join(HOOKS, script);
             expect(fs.existsSync(full)).toBe(true);
-            // eslint-disable-next-line no-bitwise
             expect(fs.statSync(full).mode & 0o111).toBeGreaterThan(0);
         }
 
