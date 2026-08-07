@@ -32,6 +32,7 @@ export default function DeckColumnPile({
     droppable = true,
     dataColumn,
     tiles,
+    actions,
 }: {
     label: string;
     /** dnd-kit droppable id — unique within the host's `DragDropProvider`. */
@@ -41,6 +42,12 @@ export default function DeckColumnPile({
     /** Debug/query handle mirroring the Column's own identity. */
     dataColumn?: string;
     tiles: DeckPileTile[];
+    /** Column-management controls rendered in the header, in place of the card
+     *  count (`DeckColumnActions`, issue #1626). A SLOT rather than a set of
+     *  `onRename`/`onDelete` props: this component stays the dumb pile it was,
+     *  and a surface that offers no column management (the reduced draft bar,
+     *  ADR 0075 §6) passes nothing and renders exactly as before. */
+    actions?: React.ReactNode;
 }) {
     const { ref, isDropTarget } = useDroppable({
         id: dropId,
@@ -57,9 +64,12 @@ export default function DeckColumnPile({
                     : ""
             )}
         >
-            <div className="flex items-baseline justify-between gap-2 text-xs text-text-muted">
-                <span className="font-semibold">{label}</span>
-                <span className="text-text-disabled">{tiles.length}</span>
+            <div className="flex min-w-0 items-baseline justify-between gap-1 text-xs text-text-muted">
+                <span className="truncate font-semibold">{label}</span>
+                <span className="shrink-0 text-text-disabled">
+                    {tiles.length}
+                </span>
+                {actions}
             </div>
             <div
                 className="relative w-(--card-w)"

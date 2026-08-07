@@ -8,6 +8,7 @@
 
 import type { DeckCard } from "~/types/game";
 import type { FormatId } from "@convex/formats";
+import type { StoredDeckColumnLayout } from "@convex/deckLayout";
 
 /** The editable deck payload the editor flushes on autosave. The `format` is
  *  carried for the create path only — it is immutable after creation (ADR
@@ -23,11 +24,35 @@ export interface DeckSavePayload {
     // ⇒ the server/resolver defaults to the first Maindeck card. Carried on both
     // the create and update paths — unlike `format`, it stays editable.
     featuredCardId?: string;
+    // Persisted Column Layout (ADR 0075 §4, PRD #1617, issue #1626) — manual
+    // Columns, deleted Columns and Card Pins. `undefined` means "the player
+    // never touched the arrangement in this session", and the sinks omit the
+    // field entirely so the stored row is left byte-identical; an empty object
+    // is the explicit "arrangement cleared" signal and overwrites.
+    //
+    // `userDecks` ONLY: `presetDecks` has no `layout` column yet, so the
+    // preset sinks strip it through `toPresetPayload` below rather than
+    // sending a field the mutation would reject at runtime.
+    layout?: StoredDeckColumnLayout;
 }
 
 /** The patch sent on an UPDATE — everything in a save payload EXCEPT the
  *  immutable `format` (ADR 0036). */
 export type DeckUpdatePatch = Omit<DeckSavePayload, "format">;
+
+/** A save payload with no Column Layout — what the PRESET sinks send (issue
+ *  #1626). `presetDecks` stores no `layout`, and Convex rejects an argument
+ *  the validator doesn't declare, so the field is dropped at this one boundary
+ *  rather than guarded at each preset call site. Deletes the KEY rather than
+ *  setting it `undefined`: an explicitly-undefined field still travels as an
+ *  argument. */
+export type PresetSavePayload = Omit<DeckSavePayload, "layout">;
+
+export function toPresetPayload(payload: DeckSavePayload): PresetSavePayload {
+    const rest = { ...payload };
+    delete rest.layout;
+    return rest;
+}
 
 /**
  * Strip the immutable `format` from a save payload to build an update patch
@@ -37,7 +62,7 @@ export type DeckUpdatePatch = Omit<DeckSavePayload, "format">;
  * unit-tested without React or a Convex harness.
  */
 export function toUpdatePatch(payload: DeckSavePayload): DeckUpdatePatch {
-    return {
+    const patch: DeckUpdatePatch = {
         name: payload.name,
         colors: payload.colors,
         cards: payload.cards,
@@ -47,6 +72,12 @@ export function toUpdatePatch(payload: DeckSavePayload): DeckUpdatePatch {
         // it; the latter is server-gated by `assertIsAdmin` (ADR 0033).
         featuredCardId: payload.featuredCardId,
     };
+    // The Column Layout key is added only when the payload HAS one (issue
+    // #1626): `userDecks.update` reads an absent `layout` as "leave the stored
+    // arrangement alone", which is what editing a pre-#1626 deck's cards must
+    // do, and `decks.updatePreset` declares no such argument at all.
+    if (payload.layout !== undefined) patch.layout = payload.layout;
+    return patch;
 }
 
 /** A user deck is created on first save (no id yet) then patched by id. */
@@ -68,6 +99,62 @@ export interface PresetDeckSink {
 export interface DeckBuilderSinks {
     user: UserDeckSink;
     preset: PresetDeckSink;
+}
+
+/**
+ * The four Convex mutations the editor's sinks are built on, as plain
+ * functions. Declared here — rather than the route wiring the payload shaping
+ * inline — because the two SHAPING rules are load-bearing and were previously
+ * uncovered (issue #1626, PR #2318 review NB2): drop the `toPresetPayload`
+ * call and every preset save becomes a runtime `ArgumentValidationError`
+ * (Convex object validators reject an undeclared argument) with a fully green
+ * suite, because no test reached the only production caller.
+ */
+export interface DeckMutationApi {
+    createUserDeck: (payload: DeckSavePayload) => Promise<string>;
+    updateUserDeck: (id: string, patch: DeckUpdatePatch) => Promise<void>;
+    createPreset: (input: PresetSavePayload) => Promise<{ slug: string }>;
+    updatePreset: (
+        slug: string,
+        patch: Omit<PresetSavePayload, "format">
+    ) => Promise<void>;
+}
+
+/**
+ * Builds the editor's sink pair, applying the two payload-shaping rules at the
+ * ONE boundary that owns them:
+ *
+ *  - **`format` is immutable after creation** (ADR 0036) — stripped from every
+ *    update patch by `toUpdatePatch`, because both update mutations reject it;
+ *  - **`presetDecks` stores no Column Layout** (issue #1626) — stripped from
+ *    every preset payload by `toPresetPayload`, on create AND update.
+ *
+ * Pure: it only closes over the functions it is handed, so the rules are
+ * unit-testable without React, a router or a Convex harness.
+ */
+export function buildDeckBuilderSinks(api: DeckMutationApi): DeckBuilderSinks {
+    return {
+        user: {
+            create: (payload) => api.createUserDeck(payload),
+            update: async (id, payload) => {
+                await api.updateUserDeck(id, toUpdatePatch(payload));
+            },
+        },
+        preset: {
+            create: async (payload) => {
+                const { slug } = await api.createPreset(
+                    toPresetPayload(payload)
+                );
+                return slug;
+            },
+            update: async (slug, payload) => {
+                await api.updatePreset(
+                    slug,
+                    toUpdatePatch(toPresetPayload(payload))
+                );
+            },
+        },
+    };
 }
 
 /**

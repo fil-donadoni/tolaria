@@ -8,6 +8,17 @@
 // `deckZoneDrag.test.ts`.
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, cleanup, fireEvent } from "@testing-library/react";
+/** The slice of `DeckBuilderShellProps` this file's stub reads. `mainCards`
+ *  is the form's REAL working Maindeck, each entry carrying the per-copy Pin
+ *  key it was seeded with (issue #1626), which is what the stub pins by. */
+interface ShellStubProps {
+    actions: {
+        onPin: (cardId: string, columnId: string, pinKey: string) => void;
+        onMoveToMaindeck: (cardId: string) => void;
+        onMoveToSideboard: (cardId: string, pinKey?: string) => void;
+    };
+    mainCards: { cardId: string; pinKey?: string }[];
+}
 
 const navigate = vi.fn();
 const setColumnMock = vi.fn().mockResolvedValue(null);
@@ -37,89 +48,141 @@ const PLAINS_ID = "b1623d57-4729-4796-b3f7-f1837a05c6ed"; // Plains
 // `deck-builder-shell.test.tsx`; this file proves the form → mutation seam).
 // Ids are inlined (a vi.mock factory is hoisted above the top-level consts, so
 // it can't close over them).
-vi.mock("../deck-builder-shell", () => ({
-    default: (props: {
-        actions: {
-            onPin: (cardId: string, columnId: string) => void;
-            onMoveToMaindeck: (cardId: string) => void;
-        };
-    }) => (
-        <div>
-            <button
-                onClick={() =>
-                    props.actions.onPin(
-                        "d573ef03-4730-45aa-93dd-e45ac1dbaf4a",
-                        "mv:6"
-                    )
-                }
-                type="button"
-            >
-                set-bolt-mv6
-            </button>
-            <button
-                onClick={() =>
-                    props.actions.onPin(
-                        "eace2c85-976c-425e-9800-5a6ccbd91b56",
-                        "mv:4"
-                    )
-                }
-                type="button"
-            >
-                set-basic-mv4
-            </button>
-            <button
-                onClick={() =>
-                    props.actions.onPin(
-                        "d573ef03-4730-45aa-93dd-e45ac1dbaf4a",
-                        "custom:combo"
-                    )
-                }
-                type="button"
-            >
-                set-bolt-custom
-            </button>
-            <button
-                onClick={() =>
-                    props.actions.onPin(
-                        "d573ef03-4730-45aa-93dd-e45ac1dbaf4a",
-                        "color:R"
-                    )
-                }
-                type="button"
-            >
-                set-bolt-color
-            </button>
-            <button
-                onClick={() =>
-                    props.actions.onPin(
-                        "d573ef03-4730-45aa-93dd-e45ac1dbaf4a",
-                        "type:instant"
-                    )
-                }
-                type="button"
-            >
-                set-bolt-type
-            </button>
-            <button
-                onClick={() =>
-                    props.actions.onPin(
-                        "d573ef03-4730-45aa-93dd-e45ac1dbaf4a",
-                        "catch-all"
-                    )
-                }
-                type="button"
-            >
-                set-bolt-catch-all
-            </button>
-        </div>
-    ),
-}));
+//
+// Each button reads its Pin key off the form's OWN working Maindeck entries
+// (issue #1626) — never a hand-written key — so these assertions traverse the
+// real per-copy identity the form seeded, instead of a fixture's idea of it.
+// That is what makes "the second copy of a card pins independently" provable
+// here rather than only in the pure helper's unit test.
+vi.mock("../deck-builder-shell", () => {
+    const pin = (
+        props: ShellStubProps,
+        cardId: string,
+        columnId: string,
+        copyIndex = 0
+    ) => {
+        const copy = props.mainCards.filter((c) => c.cardId === cardId)[
+            copyIndex
+        ];
+        props.actions.onPin(cardId, columnId, copy?.pinKey ?? cardId);
+    };
+    return {
+        default: (props: ShellStubProps) => (
+            <div>
+                <button
+                    onClick={() =>
+                        pin(
+                            props,
+                            "d573ef03-4730-45aa-93dd-e45ac1dbaf4a",
+                            "mv:6"
+                        )
+                    }
+                    type="button"
+                >
+                    set-bolt-mv6
+                </button>
+                <button
+                    onClick={() =>
+                        pin(
+                            props,
+                            "d573ef03-4730-45aa-93dd-e45ac1dbaf4a",
+                            "mv:2",
+                            1
+                        )
+                    }
+                    type="button"
+                >
+                    set-bolt-copy2-mv2
+                </button>
+                <button
+                    onClick={() =>
+                        pin(
+                            props,
+                            "eace2c85-976c-425e-9800-5a6ccbd91b56",
+                            "mv:4"
+                        )
+                    }
+                    type="button"
+                >
+                    set-basic-mv4
+                </button>
+                <button
+                    onClick={() =>
+                        pin(
+                            props,
+                            "d573ef03-4730-45aa-93dd-e45ac1dbaf4a",
+                            "custom:combo"
+                        )
+                    }
+                    type="button"
+                >
+                    set-bolt-custom
+                </button>
+                <button
+                    onClick={() =>
+                        pin(
+                            props,
+                            "d573ef03-4730-45aa-93dd-e45ac1dbaf4a",
+                            "color:R"
+                        )
+                    }
+                    type="button"
+                >
+                    set-bolt-color
+                </button>
+                <button
+                    onClick={() =>
+                        pin(
+                            props,
+                            "d573ef03-4730-45aa-93dd-e45ac1dbaf4a",
+                            "type:instant"
+                        )
+                    }
+                    type="button"
+                >
+                    set-bolt-type
+                </button>
+                <button
+                    onClick={() =>
+                        pin(
+                            props,
+                            "d573ef03-4730-45aa-93dd-e45ac1dbaf4a",
+                            "catch-all"
+                        )
+                    }
+                    type="button"
+                >
+                    set-bolt-catch-all
+                </button>
+                <button
+                    onClick={() => {
+                        const copy = props.mainCards.filter(
+                            (c) =>
+                                c.cardId ===
+                                "d573ef03-4730-45aa-93dd-e45ac1dbaf4a"
+                        )[0];
+                        props.actions.onMoveToSideboard(
+                            "d573ef03-4730-45aa-93dd-e45ac1dbaf4a",
+                            copy?.pinKey
+                        );
+                    }}
+                    type="button"
+                >
+                    sideboard-bolt
+                </button>
+            </div>
+        ),
+    };
+});
 
 import PoolDeckBuilderForm from "../pool-deck-builder-form";
 
+// TWO Lightning Bolts on purpose (issue #1626): the Pool distinguishes its
+// physical copies, so the two must be pinnable to different Columns.
 const POOL = [
     { scryfallId: "s1", cardId: BOLT_ID, cardName: "Lightning Bolt" },
     { scryfallId: "s2", cardId: PLAINS_ID, cardName: "Plains" },
+    { scryfallId: "s3", cardId: BOLT_ID, cardName: "Lightning Bolt" },
 ];
 
 afterEach(() => {
@@ -147,6 +210,37 @@ describe("PoolDeckBuilderForm — column persist wiring (issue #1575)", () => {
             // The namespaced Column id travels WHOLE since issue #1624 — it
             // is no longer squeezed back through the mv-only legacy shim.
             column: "mv:6",
+        });
+    });
+
+    // Issue #1626 AC: "in Limited, two copies of the same card can be pinned
+    // to different columns". The pre-#1626 call site resolved a `cardId` back
+    // to a poolIndex by GUESSING ("prefer a Maindeck copy, else any"), so the
+    // second copy was unreachable and pinning either one moved the same
+    // physical card.
+    it("pins the SECOND copy of a card independently of the first", () => {
+        const { getByText } = render(
+            <PoolDeckBuilderForm
+                eventId={"event-1" as never}
+                seatIndex={0}
+                pool={POOL}
+                existingDeck={null}
+                eventType="draft"
+                poolArrangement={[]}
+            />
+        );
+        fireEvent.click(getByText("set-bolt-mv6"));
+        fireEvent.click(getByText("set-bolt-copy2-mv2"));
+        expect(setColumnMock).toHaveBeenCalledTimes(2);
+        expect(setColumnMock).toHaveBeenNthCalledWith(1, {
+            eventId: "event-1",
+            poolIndex: 0, // the first Bolt
+            column: "mv:6",
+        });
+        expect(setColumnMock).toHaveBeenNthCalledWith(2, {
+            eventId: "event-1",
+            poolIndex: 2, // the SECOND Bolt — a different physical card
+            column: "mv:2",
         });
     });
 
@@ -215,5 +309,49 @@ describe("PoolDeckBuilderForm — column persist wiring (issue #1575)", () => {
         );
         fireEvent.click(getByText("set-bolt-catch-all"));
         expect(setColumnMock).not.toHaveBeenCalled();
+    });
+});
+
+// Review NB-A. `pinKey` is WORKING-STATE identity, not deck data: `userDecks`'
+// card validator declares exactly `{ cardId, cardName }`, and Convex rejects
+// any argument a validator doesn't declare. The save sink therefore strips it
+// — but nothing asserted the strip, so deleting it left `tsc -b` clean and the
+// suite green while every real Limited save died at runtime with an
+// `ArgumentValidationError`. This is the same shape as review NB2 (an untested
+// sink call), reintroduced by the new field; the guard belongs on the sink, not
+// on the caller.
+describe("PoolDeckBuilderForm — the save sink strips the per-copy pinKey (review NB-A)", () => {
+    it("sends cards as exactly { cardId, cardName }, never the working-state pinKey", () => {
+        const { getByText } = render(
+            <PoolDeckBuilderForm
+                eventId={"event-1" as never}
+                seatIndex={0}
+                pool={POOL}
+                existingDeck={null}
+                eventType="draft"
+                poolArrangement={[]}
+            />
+        );
+
+        // A real edit, so the autosave has something pending — and a zone move
+        // is precisely the operation that carries a `pinKey` across.
+        fireEvent.click(getByText("sideboard-bolt"));
+        // Unmount flushes the debounced autosave through the real sink.
+        cleanup();
+
+        expect(createMock).toHaveBeenCalledTimes(1);
+        const payload = createMock.mock.calls[0][0] as {
+            cards: Record<string, unknown>[];
+            sideboard: Record<string, unknown>[];
+        };
+        // `toEqual` on the whole entry is the assertion that matters: an extra
+        // key is exactly what Convex rejects, so a subset check would pass on
+        // the very payload that fails at runtime.
+        for (const entry of [...payload.cards, ...payload.sideboard]) {
+            expect(Object.keys(entry).sort()).toEqual(["cardId", "cardName"]);
+        }
+        expect(payload.cards.length + payload.sideboard.length).toBe(
+            POOL.length
+        );
     });
 });

@@ -174,6 +174,128 @@ describe("PoolDeckBuilderForm — draft column arrangement carry-over (issue #15
     });
 });
 
+// ────────────────────────────────────────────────────────────────────────────
+// Per-copy Pin identity under a zone move (issue #1626, PR #2318 review B1)
+// ────────────────────────────────────────────────────────────────────────────
+//
+// The Pin key of one physical copy must be an IDENTITY the copy carries, not a
+// value re-derived on every render by counting positions in `deck.cards` — an
+// array that renumbers on every Maindeck⇄Sideboard move. The first shipped
+// attempt derived it as `poolIndexForCopy(pool, cardId, ordinalInZone)`, so
+// sideboarding any copy of a card re-associated every REMAINING copy's Pin
+// with a different physical card: the Pin silently detached from the view.
+//
+// Everything below drives the REAL form through the REAL shell and reads the
+// REAL rendered columns — a hand-built pin map would mask exactly the
+// derivation under test.
+const THREE_BOLTS = [
+    { scryfallId: "b1", cardId: BOLT_ID, cardName: "Lightning Bolt" },
+    { scryfallId: "b2", cardId: BOLT_ID, cardName: "Lightning Bolt" },
+    { scryfallId: "b3", cardId: BOLT_ID, cardName: "Lightning Bolt" },
+];
+
+/** Tiles rendered in one Column of one pane, as clickable elements. */
+function tilesIn(pane: HTMLElement, columnId: string): HTMLElement[] {
+    const column = pane.querySelector(`[data-column="${columnId}"]`);
+    expect(column, `no column ${columnId} rendered`).toBeTruthy();
+    return [...column!.querySelectorAll("[role=button][title]")].map(
+        (el) => el as HTMLElement
+    );
+}
+
+describe("PoolDeckBuilderForm — per-copy Pin identity survives a zone move (issue #1626, review B1)", () => {
+    it("a Pin stays with its own physical copy when a DIFFERENT copy is sideboarded", () => {
+        setup();
+        const { container } = render(
+            <PoolDeckBuilderForm
+                eventId={"event-1" as never}
+                seatIndex={0}
+                pool={THREE_BOLTS}
+                existingDeck={null}
+                eventType="draft"
+                // The THIRD Bolt (poolIndex 2) is pinned to MV 6.
+                poolArrangement={[{ poolIndex: 2, pins: { mv: "mv:6" } }]}
+            />
+        );
+        const main = () => paneOf(container, /^Maindeck/);
+        expect(cardsIn(main(), "mv:6")).toHaveLength(1);
+        expect(cardsIn(main(), "mv:1")).toHaveLength(2);
+
+        // Sideboard one of the UNPINNED copies (a click on a tile sitting in
+        // the auto MV 1 column).
+        fireEvent.click(tilesIn(main(), "mv:1")[0]);
+
+        expect(cardsIn(main(), "mv:1")).toHaveLength(1);
+        // The pinned copy never moved, so MV 6 still holds it.
+        expect(cardsIn(main(), "mv:6")).toHaveLength(1);
+        expect(
+            cardsIn(paneOf(container, /^Pool \(Sideboard\)/), "mv:1")
+        ).toHaveLength(1);
+    });
+
+    it("sideboards the COPY that was clicked — a Pin is never re-associated with a copy that stayed", () => {
+        setup();
+        const { container } = render(
+            <PoolDeckBuilderForm
+                eventId={"event-1" as never}
+                seatIndex={0}
+                pool={THREE_BOLTS}
+                existingDeck={null}
+                eventType="draft"
+                // The SECOND Bolt (poolIndex 1) is pinned to MV 6.
+                poolArrangement={[{ poolIndex: 1, pins: { mv: "mv:6" } }]}
+            />
+        );
+        const main = () => paneOf(container, /^Maindeck/);
+        expect(cardsIn(main(), "mv:6")).toHaveLength(1);
+
+        // Click the PINNED copy: it is the one that must leave the Maindeck.
+        fireEvent.click(tilesIn(main(), "mv:6")[0]);
+
+        // MV 6 empties because the only pinned copy left the zone — no
+        // surviving copy inherits its Pin.
+        expect(cardsIn(main(), "mv:6")).toHaveLength(0);
+        expect(cardsIn(main(), "mv:1")).toHaveLength(2);
+    });
+
+    it("re-attaches Pins to physical copies when a SAVED deck is reopened (the pinned copy is the one in the Maindeck)", () => {
+        setup();
+        const { container } = render(
+            <PoolDeckBuilderForm
+                eventId={"event-1" as never}
+                seatIndex={0}
+                pool={THREE_BOLTS}
+                existingDeck={{
+                    kind: "user",
+                    userDeckId: "deck-1" as never,
+                    presetId: "deck-1",
+                    name: "Saved Deck",
+                    format: "limited",
+                    colors: ["R"],
+                    cards: [
+                        { cardId: BOLT_ID, cardName: "Lightning Bolt" },
+                        { cardId: BOLT_ID, cardName: "Lightning Bolt" },
+                    ],
+                    sideboard: [
+                        { cardId: BOLT_ID, cardName: "Lightning Bolt" },
+                    ],
+                    featuredCardId: null,
+                    isLegal: true,
+                    reasons: [],
+                }}
+                eventType="draft"
+                poolArrangement={[{ poolIndex: 2, pins: { mv: "mv:6" } }]}
+            />
+        );
+        const main = paneOf(container, /^Maindeck/);
+        // A saved deck stores card ids only, so which of the three physical
+        // Bolts sits in the Maindeck is re-derived — and the derivation must
+        // put the PINNED copy there, or the Pin is invisible after a reload.
+        expect(cardsIn(main, "mv:6")).toHaveLength(1);
+        expect(cardsIn(main, "mv:1")).toHaveLength(1);
+    });
+});
+
 // Per-zone Grouping/Ordering controls (issue #1624) — the Limited builder is
 // the SECOND declared variant (`DeckBuilderShell`, issue #1623), so the
 // controls and the round-trip guarantee must hold here too, not only in

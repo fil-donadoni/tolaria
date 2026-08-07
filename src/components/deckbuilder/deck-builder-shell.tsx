@@ -3,7 +3,7 @@ import { DragDropProvider, DragOverlay } from "@dnd-kit/react";
 import type { DragEndEvent } from "@dnd-kit/react";
 import type { DragDropManager } from "@dnd-kit/dom";
 import type { CardLookup, DeckColumnLayout } from "@convex/deckLayout";
-import type { DeckCard } from "~/types/game";
+import type { ZoneCard } from "~/types/game";
 import CardImage from "~/components/cards/card-image";
 import type { CardDragData } from "~/components/lobby/deck-builder/dnd-types";
 import DeckLegalityPanel from "~/components/lobby/deck-builder/deck-legality-panel";
@@ -35,8 +35,8 @@ export interface DeckBuilderShellProps extends DeckBuilderSlots {
     /** Back AND Done are the same action in every variant: flush, then leave. */
     onDone: () => void;
 
-    mainCards: DeckCard[];
-    sideCards: DeckCard[];
+    mainCards: ZoneCard[];
+    sideCards: ZoneCard[];
     /** Both zones' Column Layouts. */
     layout: DeckColumnLayout;
     /** Catalogue lookup handed to the Column Layout engine (ADR 0080). */
@@ -177,6 +177,9 @@ export default function DeckBuilderShell({
                             onMainOrderingChange={actions.onMainOrderingChange}
                             onSideOrderingChange={actions.onSideOrderingChange}
                             lookup={lookup}
+                            onAddColumn={actions.onAddColumn}
+                            onRenameColumn={actions.onRenameColumn}
+                            onDeleteColumn={actions.onDeleteColumn}
                             cardBase={view.cardBase}
                             splitZone={view.splitZone}
                             splitDefault={view.splitDefault}

@@ -3,6 +3,7 @@ import type { GenericMutationCtx, GenericQueryCtx } from "convex/server";
 import type { DataModel, Doc, Id } from "./_generated/dataModel";
 import { internalMutation, mutation, query } from "./_generated/server";
 import { getCurrentUserId } from "./auth";
+import { storedDeckColumnLayoutValidator } from "./deckLayoutStorage";
 import { type FormatId, isFormatId } from "./formats";
 import { openPlayPhaseIfReady } from "./limitedEvents";
 import {
@@ -128,6 +129,11 @@ export const create = mutation({
         // does not accept these two fields.
         limitedEventId: v.optional(v.string()),
         limitedSeatId: v.optional(v.string()),
+        // Column Layout (ADR 0075 §4, issue #1626) — manual Columns, deleted
+        // Columns and Card Pins. Optional at every level: a deck created
+        // before the player arranged anything simply carries none, and a
+        // client that never sends the field is unchanged.
+        layout: v.optional(storedDeckColumnLayoutValidator),
     },
     handler: async (ctx, args) => {
         const userId = await getCurrentUserId(ctx);
@@ -167,6 +173,7 @@ export const create = mutation({
             featuredCardId: args.featuredCardId,
             limitedEventId: args.limitedEventId,
             limitedSeatId: args.limitedSeatId,
+            layout: args.layout,
         });
 
         // Limited Event play phase (PRD #1628, ADR 0076, issue #1644): this
@@ -202,6 +209,14 @@ export const update = mutation({
             // Featured Card override (PRD #589, issue #593). Set or change the
             // stored Card ID; an absent value in the patch leaves it untouched.
             featuredCardId: v.optional(v.string()),
+            // Column Layout (ADR 0075 §4, issue #1626). Absent leaves the
+            // stored layout untouched — which is what a client that never
+            // arranged anything sends, so editing a pre-#1626 deck's cards
+            // never writes a layout onto it. An empty OBJECT is the explicit
+            // "the player cleared their arrangement" signal and overwrites.
+            // Never merged field-by-field: the client holds the whole layout
+            // and a partial merge could resurrect a Column it just deleted.
+            layout: v.optional(storedDeckColumnLayoutValidator),
         }),
     },
     handler: async (ctx, args) => {
@@ -219,6 +234,7 @@ export const update = mutation({
             patch.description = args.patch.description;
         if (args.patch.featuredCardId !== undefined)
             patch.featuredCardId = args.patch.featuredCardId;
+        if (args.patch.layout !== undefined) patch.layout = args.patch.layout;
         if (Object.keys(patch).length === 0) return null;
         await ctx.db.patch(args.id, patch);
         return null;

@@ -35,6 +35,11 @@ import type { LimitedPoolCard, PoolArrangementEntry } from "./eventTypes";
 export interface PlainPoolCard {
     cardId: string;
     cardName: string;
+    /** WHICH physical Pool card this entry is (issue #1626) — the Pool's own
+     *  index, and the only stable per-copy identity the surface has. Absent
+     *  only for a card the Pool does not hold at all (a Basic added from the
+     *  bar), which therefore can never carry a Card Pin. */
+    poolIndex?: number;
 }
 
 /** A patch to fold into one seat's Pool Arrangement, keyed by `poolIndex`.
@@ -245,6 +250,7 @@ export function splitPoolByArrangement(
         target.push({
             cardId: placement.card.cardId,
             cardName: placement.card.cardName,
+            poolIndex: placement.poolIndex,
         });
     }
     return { cards, sideboard };
@@ -269,50 +275,109 @@ export function findMovablePoolIndex(
     return hit ? hit.poolIndex : null;
 }
 
-/** The Card Pins recorded for each `cardId` present in `pool`, keyed by Card
- *  ID (issue #1575, re-expressed in the namespaced Pin vocabulary for the
- *  shared zone surface, issue #1622). The Limited deckbuilder renders its
- *  zones from `cardId`-keyed `DeckCard`s — it lost the per-copy `poolIndex`
- *  identity the draft Pool keeps — so it looks a card's Pins up by id,
- *  treating duplicate copies as interchangeable (the same convention
- *  `findMovablePoolIndex` above and `deckSideboard.ts` already use). When two
- *  copies carry divergent Pins the higher `poolIndex` wins (last write); a
- *  card with no Pin at all is absent from the map (auto column).
+/** The Card Pins recorded for every pinned Pool card, keyed by `String`ified
+ *  `poolIndex` — exactly the `ColumnLayout.pins` shape, so the Limited
+ *  deckbuilder hands the result straight to `resolveColumnLayout` with no
+ *  per-surface translation (issue #1575 → #1622 → #1626).
  *
- *  This is exactly the `ColumnLayout.pins` shape, so the surface hands the
- *  result straight to `resolveColumnLayout` with no per-surface translation. */
-export function pinsByCardId(
+ *  Keyed PER COPY, which is the whole point (ADR 0075 §4): the Pool already
+ *  distinguishes two physical copies of one card, so the two must stay
+ *  individually placeable. Its predecessor `pinsByCardId` collapsed them —
+ *  the deckbuilder rendered `cardId`-keyed `DeckCard`s and had lost the
+ *  per-copy identity — which silently made the second copy's Pin unreachable
+ *  and let the higher `poolIndex` win. Each entry now carries its own pin key
+ *  (`ZoneCard.pinKey`, minted once at seed time by `poolCopyPinKey` — the same
+ *  authority this map records under), so no collapse is needed.
+ *
+ *  A card with no Pin at all is absent from the map (auto column). */
+export function pinsByPoolIndex(
     pool: readonly LimitedPoolCard[],
     arrangement: readonly PoolArrangementEntry[] | undefined
 ): Record<string, CardPins> {
-    const byCardId: Record<string, CardPins> = {};
+    const byPoolIndex: Record<string, CardPins> = {};
     for (const placement of resolvePoolPlacements(pool, arrangement)) {
         if (Object.keys(placement.pins).length > 0) {
-            byCardId[placement.card.cardId] = placement.pins;
+            byPoolIndex[poolCopyPinKey(placement.poolIndex)] = placement.pins;
         }
     }
-    return byCardId;
+    return byPoolIndex;
 }
 
-/** Resolves a `cardId`-keyed deckbuilder column drag back to the `poolIndex`
- *  `setPoolArrangementEntry` keys its column override on (issue #1575). Prefers
- *  a copy currently in the Maindeck (`sideboard: false`) — the copy the player
- *  is looking at when they drag between columns — then falls back to ANY copy
- *  of that card, so a column drag still records even for a card the Arrangement
- *  happens to have parked in the Sideboard (duplicate copies are
- *  interchangeable). `null` for a card that isn't in the Pool at all (a Basic
- *  land added from the bar — it has no `poolIndex`, so its column can't be
- *  overridden and the drag is a no-op). */
-export function findColumnOverrideablePoolIndex(
+/** THE Card Pin key of one physical Pool copy (issue #1626) — the key
+ *  {@link pinsByPoolIndex} records under and the deckbuilder zone reads back.
+ *  Trivial, and exported precisely so the stringification has ONE author: a
+ *  writer and a reader that disagree about it produce a Pin nothing ever
+ *  applies, with no error anywhere. */
+export function poolCopyPinKey(poolIndex: number): string {
+    return String(poolIndex);
+}
+
+/** A saved deck's zone entry, before it is re-attached to a physical copy. */
+interface UnidentifiedCard {
+    cardId: string;
+    cardName: string;
+}
+
+/**
+ * Re-attaches a SAVED deck's zone entries to physical Pool copies (issue
+ * #1626, PR #2318 review B1).
+ *
+ * A `userDecks` row stores card ids only — it cannot say which of the three
+ * Lightning Bolts a seat opened is the one sitting in the Maindeck. That
+ * mapping has to be rebuilt when the deck is reopened, and it is the ONLY
+ * place a rebuild happens: within a session each entry carries its
+ * `poolIndex` and a zone move moves the entry itself, so nothing is ever
+ * re-derived from a position in an array that renumbers.
+ *
+ * The rule is **pinned copies go to the Maindeck first**, then the rest in
+ * Pool order; the Sideboard takes whatever is left. A Pin is a Maindeck-only
+ * concept (the Sideboard's whole pane is one drop target and records none), so
+ * this is the assignment — and the only one — under which every recorded Pin
+ * is still visible after a reload. It is the successor of the retired
+ * `findColumnOverrideablePoolIndex`'s "prefer a Maindeck copy", narrowed from
+ * a per-gesture guess to a once-per-mount seed.
+ *
+ * A card the Pool doesn't hold (a Basic added from the bar), or a copy beyond
+ * what the Pool holds, comes back with no `poolIndex` — it simply has no
+ * Pin. Pure; neither argument is mutated.
+ */
+export function assignPoolCopies(
     pool: readonly LimitedPoolCard[],
     arrangement: readonly PoolArrangementEntry[] | undefined,
-    cardId: string
-): number | null {
-    const placements = resolvePoolPlacements(pool, arrangement);
-    const inMain = placements.find(
-        (p) => p.card.cardId === cardId && !p.sideboard
-    );
-    if (inMain) return inMain.poolIndex;
-    const any = placements.find((p) => p.card.cardId === cardId);
-    return any ? any.poolIndex : null;
+    zones: {
+        cards: readonly UnidentifiedCard[];
+        sideboard: readonly UnidentifiedCard[];
+    }
+): { cards: PlainPoolCard[]; sideboard: PlainPoolCard[] } {
+    // Per card id, the Pool's own indexes for it — pinned ones first so the
+    // Maindeck consumes them before the plain ones.
+    const pinned = new Map<string, number[]>();
+    const plain = new Map<string, number[]>();
+    for (const placement of resolvePoolPlacements(pool, arrangement)) {
+        const into =
+            Object.keys(placement.pins).length > 0
+                ? pinned // ascending within each bucket — deterministic
+                : plain;
+        const bucket = into.get(placement.card.cardId) ?? [];
+        bucket.push(placement.poolIndex);
+        into.set(placement.card.cardId, bucket);
+    }
+    const available = new Map<string, number[]>();
+    for (const cardId of new Set([...pinned.keys(), ...plain.keys()])) {
+        available.set(cardId, [
+            ...(pinned.get(cardId) ?? []),
+            ...(plain.get(cardId) ?? []),
+        ]);
+    }
+    const take = (cardId: string): number | undefined =>
+        available.get(cardId)?.shift();
+    const identify = (list: readonly UnidentifiedCard[]): PlainPoolCard[] =>
+        list.map((card) => ({
+            cardId: card.cardId,
+            cardName: card.cardName,
+            poolIndex: take(card.cardId),
+        }));
+    // Maindeck first — it is the zone whose Pins are rendered.
+    const cards = identify(zones.cards);
+    return { cards, sideboard: identify(zones.sideboard) };
 }

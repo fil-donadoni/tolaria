@@ -395,9 +395,90 @@ export function addManualColumn(
     };
 }
 
+/** Longest manual Column label the surface will store. A Column is one card
+ *  wide, so a longer label cannot render anyway; truncating at the ENGINE
+ *  (rather than with a CSS ellipsis) keeps the persisted deck data bounded —
+ *  `userDecks.layout` is user-authored text and rides on every deck read. */
+export const MANUAL_COLUMN_LABEL_MAX = 24;
+
+/** The label a manual Column is created/renamed with, normalised: whitespace
+ *  collapsed, trimmed, truncated. `null` for a label that is empty once
+ *  trimmed — the ONE rejection this engine makes, so "add a column" with a
+ *  blank name is a no-op rather than an unlabelled Column nobody can name
+ *  afterwards. */
+export function normalizeManualColumnLabel(raw: string): string | null {
+    const label = raw
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, MANUAL_COLUMN_LABEL_MAX)
+        .trim();
+    return label.length === 0 ? null : label;
+}
+
+/** Mints a fresh `custom:` id for `label`, collision-free against the manual
+ *  Columns `layout` already has: `"Removal"` → `custom:removal`, and a second
+ *  Column also called `"Removal"` → `custom:removal-2`.
+ *
+ *  Slug-derived rather than random so the persisted layout stays readable and
+ *  the id is a deterministic function of its inputs (testable without
+ *  stubbing a generator). Collision-free against GENERATED ids by
+ *  construction — every generated id lives in the `mv`/`color`/`type`
+ *  namespace, never `custom` (see {@link toManualColumnId}). A label with no
+ *  slug-able character at all (`"★"`) falls back to `column`, which then
+ *  de-duplicates like any other. */
+export function manualColumnIdForLabel(
+    layout: ColumnLayout,
+    label: string
+): ColumnId {
+    const slug = label
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+    const base = makeColumnId("custom", slug.length > 0 ? slug : "column");
+    const taken = new Set(layout.manualColumns.map((c) => c.id));
+    if (!taken.has(base)) return base;
+    for (let n = 2; ; n++) {
+        const candidate = `${base}-${n}`;
+        if (!taken.has(candidate)) return candidate;
+    }
+}
+
+/** Renames a manual Column. Only manual Columns are renameable: a generated
+ *  Column's label is derived from its Grouping (`MV 5`, `White`) and would be
+ *  regenerated over on the next resolve, and the Catch-All's is fixed.
+ *
+ *  Returns the layout unchanged for an unknown/generated id, for a label that
+ *  normalises to nothing, and for a no-op rename — so a caller can wire it
+ *  straight to an input's `onSubmit` without pre-checking. The Column's ID
+ *  never changes: it is what every Card Pin names, so re-slugging on rename
+ *  would silently unpin every card in it. */
+export function renameManualColumn(
+    layout: ColumnLayout,
+    columnId: ColumnId,
+    label: string
+): ColumnLayout {
+    const next = normalizeManualColumnLabel(label);
+    if (next === null) return layout;
+    if (
+        !layout.manualColumns.some((c) => c.id === columnId && c.label !== next)
+    )
+        return layout;
+    return {
+        ...layout,
+        manualColumns: layout.manualColumns.map((c) =>
+            c.id === columnId ? { ...c, label: next } : c
+        ),
+    };
+}
+
 /** Deletes a Column: a manual one drops out of the list, a generated one is
  *  recorded in `removedColumnIds` so the Grouping stops regenerating it. The
- *  Catch-All is undeletable and returns the layout unchanged.
+ *  Catch-All and Grouping `none`'s single whole-Zone Column are undeletable
+ *  and return the layout unchanged — the two Columns that are not pin targets
+ *  (see {@link canDeleteColumn}). The `none` case is the id shape this guard
+ *  used to miss: unnamespaced, so neither the Catch-All check nor the
+ *  `custom:` check below caught it, and it rode on `userDecks.layout` forever
+ *  (PR #2318 review NB3).
  *
  *  Pins are deliberately NOT erased (ADR 0075 §3: a Pin is never erased). A
  *  Pin naming a Column that no longer exists simply does not apply — and
@@ -407,6 +488,7 @@ export function removeColumn(
     columnId: ColumnId
 ): ColumnLayout {
     if (columnId === CATCH_ALL_COLUMN_ID) return layout;
+    if (columnId === UNGROUPED_COLUMN_ID) return layout;
     if (layout.manualColumns.some((c) => c.id === columnId)) {
         return {
             ...layout,
@@ -680,16 +762,161 @@ function rarityRank(def: CardDefinition | undefined): number {
 // Deletion
 // ────────────────────────────────────────────────────────────────────────────
 
-/** A Column may be deleted only while empty, and the Catch-All never (ADR
- *  0075 §2 + rationale §2 — no card ever has to be relocated by a deletion, so
- *  the only remaining question is where a FUTURE card goes, answered uniformly
- *  by the Catch-All). An unknown column id is not deletable. */
+/** A Column may be deleted only while empty, and a Column that is not a PIN
+ *  TARGET never (ADR 0075 §2 + rationale §2 — no card ever has to be relocated
+ *  by a deletion, so the only remaining question is where a FUTURE card goes,
+ *  answered uniformly by the Catch-All). An unknown column id is not
+ *  deletable.
+ *
+ *  `pinNamespace === null` is the undeletable rule, not `kind === "catchAll"`:
+ *  it covers the Catch-All AND Grouping `none`'s single {@link
+ *  UNGROUPED_COLUMN_ID} Column, which claims the WHOLE Zone and records no Pin
+ *  (`pinNamespaceForGrouping("none")` is `null`). Deleting the latter is
+ *  meaningless — every card would fall through to the Catch-All — and it was
+ *  the one id shape `removeColumn`'s anti-junk guard let through into
+ *  `removedColumnIds`, where it persisted forever with no UI to restore it
+ *  (PR #2318 review NB3). */
 export function canDeleteColumn<T>(
     columns: readonly ResolvedColumn<T>[],
     columnId: ColumnId
 ): boolean {
     const column = columns.find((c) => c.id === columnId);
     if (!column) return false;
-    if (column.kind === "catchAll") return false;
+    if (column.pinNamespace === null) return false;
     return column.items.length === 0;
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// Persistence (ADR 0075 §4, issue #1626)
+// ────────────────────────────────────────────────────────────────────────────
+//
+// The Column Layout splits cleanly in two, and the halves live in different
+// places on purpose:
+//
+//   - **Deck data** — manual Columns, deleted Columns, Card Pins. This is work
+//     done ON THAT DECK, so it rides on the deck row (`userDecks.layout`) and
+//     on the Pool Arrangement for Limited, and follows the deck across devices.
+//   - **View preference** — `grouping` and `ordering`. "I always look at my
+//     decks by colour" is a property of the USER, not of any one deck, so it
+//     lives in `localStorage` (`src/lib/deckViewPrefs.ts`) and applies to every
+//     deck the user opens.
+//
+// `StoredColumnLayout` is therefore the deck half ONLY — a `ColumnLayout` minus
+// its two view fields. Every field is optional and an all-default zone is
+// omitted entirely, so a deck that has never been arranged stores NOTHING and
+// a deck saved before this slice reads back as the default (tolerant read, the
+// same rule ADR 0075 §5 applies to `poolArrangement`).
+
+/** The persisted, deck-side half of one Zone's {@link ColumnLayout}. */
+export interface StoredColumnLayout {
+    manualColumns?: ManualColumn[];
+    removedColumnIds?: ColumnId[];
+    /** Keyed by the surface's own pin key — `cardId` for Constructed,
+     *  `String(poolIndex)` for Limited (whose Pins live on the Pool
+     *  Arrangement instead, so this field stays absent there). */
+    pins?: Record<string, CardPins>;
+}
+
+/** Both Zones' persisted Layouts — the shape `userDecks.layout` stores. */
+export interface StoredDeckColumnLayout {
+    maindeck?: StoredColumnLayout;
+    sideboard?: StoredColumnLayout;
+}
+
+/** The view half — the per-user preference a Layout is rehydrated with. */
+export interface ColumnViewPreference {
+    grouping: GroupingKind;
+    ordering: OrderingKind;
+}
+
+/** Narrows a live {@link ColumnLayout} to the half that persists on the deck.
+ *  `undefined` when nothing is set — an untouched Zone must not write an
+ *  empty object onto every deck row.
+ *
+ *  `includePins` is explicit because the two builders answer it differently
+ *  and getting it wrong is silent: Constructed keys its Pins by `cardId` and
+ *  stores them here, while Limited keys them by `poolIndex` and stores them on
+ *  the seat's Pool Arrangement (ADR 0075 §4) — writing that zone's Pins here
+ *  too would duplicate them into a second, diverging home. */
+export function toStoredColumnLayout(
+    layout: ColumnLayout,
+    includePins = true
+): StoredColumnLayout | undefined {
+    const stored: StoredColumnLayout = {};
+    if (layout.manualColumns.length > 0)
+        stored.manualColumns = layout.manualColumns.map((c) => ({ ...c }));
+    if (layout.removedColumnIds.length > 0)
+        stored.removedColumnIds = [...layout.removedColumnIds];
+    if (includePins && Object.keys(layout.pins).length > 0)
+        stored.pins = structuredPins(layout.pins);
+    return Object.keys(stored).length > 0 ? stored : undefined;
+}
+
+/** Deep-copies the Pin map so a stored layout never aliases live state. */
+function structuredPins(
+    pins: Record<string, CardPins>
+): Record<string, CardPins> {
+    const copy: Record<string, CardPins> = {};
+    for (const [key, value] of Object.entries(pins)) copy[key] = { ...value };
+    return copy;
+}
+
+/** Rehydrates one Zone: the persisted deck half merged with the user's view
+ *  preference. `undefined` (a deck saved before this slice, or one never
+ *  arranged) yields exactly `createColumnLayout(view)` — which is what makes
+ *  "a deck saved before this change behaves exactly as it does today" true by
+ *  construction rather than by a migration. */
+export function fromStoredColumnLayout(
+    stored: StoredColumnLayout | undefined,
+    view: ColumnViewPreference
+): ColumnLayout {
+    return createColumnLayout({
+        grouping: view.grouping,
+        ordering: view.ordering,
+        manualColumns: (stored?.manualColumns ?? []).map((c) => ({ ...c })),
+        removedColumnIds: [...(stored?.removedColumnIds ?? [])],
+        pins: structuredPins(stored?.pins ?? {}),
+    });
+}
+
+/** {@link fromStoredColumnLayout} for both Zones at once. */
+export function fromStoredDeckColumnLayout(
+    stored: StoredDeckColumnLayout | undefined,
+    views: Record<DeckZone, ColumnViewPreference>
+): DeckColumnLayout {
+    return {
+        maindeck: fromStoredColumnLayout(stored?.maindeck, views.maindeck),
+        sideboard: fromStoredColumnLayout(stored?.sideboard, views.sideboard),
+    };
+}
+
+/** Writes one Zone's live Layout back into the persisted pair, returning a NEW
+ *  stored layout. The counterpart of {@link fromStoredDeckColumnLayout}: a host
+ *  holds the stored shape in its working deck, derives the live one to render,
+ *  and folds an edit back through here.
+ *
+ *  Always returns an OBJECT, `{}` included — never `undefined`. That is the
+ *  one signal a persistence sink has to tell "this deck has never been
+ *  arranged" (the field is absent, so the sink omits it and the stored row is
+ *  left byte-identical) from "the player just emptied their arrangement" (the
+ *  field is present and empty, so the sink writes it and the stored layout is
+ *  cleared). A per-ZONE key is still dropped when that Zone is empty, so the
+ *  stored shape never accumulates `{}` sub-objects. */
+export function storeZoneLayout(
+    stored: StoredDeckColumnLayout | undefined,
+    zone: DeckZone,
+    layout: ColumnLayout,
+    includePins = true
+): StoredDeckColumnLayout {
+    const next: StoredDeckColumnLayout = { ...stored };
+    const zoneLayout = toStoredColumnLayout(layout, includePins);
+    if (zoneLayout === undefined) delete next[zone];
+    else next[zone] = zoneLayout;
+    return next;
+}
+
+// The Convex validators for the shapes above live in the LEAF module
+// `convex/deckLayoutStorage.ts`, not here: `convex/schema.ts` has to import
+// them, and this module carries a runtime edge to the whole card registry
+// (`./cards`, for `defaultLookup`). That is the same reason
+// `convex/limited/eventTypes.ts` imports `CardPins` type-only.

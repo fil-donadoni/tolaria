@@ -1,10 +1,11 @@
 import type {
     CardLookup,
+    ColumnId,
     DeckColumnLayout,
     GroupingKind,
     OrderingKind,
 } from "@convex/deckLayout";
-import type { DeckCard } from "~/types/game";
+import type { ZoneCard } from "~/types/game";
 import CardZoomSlider from "~/components/lobby/deck-builder/card-zoom-slider";
 import { useCardZoom } from "~/components/lobby/deck-builder/useCardZoom";
 import { useSplitRatio } from "~/components/lobby/deck-builder/useSplitRatio";
@@ -33,8 +34,8 @@ function zoomVars(cardBase: string, mult: number): React.CSSProperties {
  * `applyDeckZoneDragAction` pair (`deckZoneDrag.ts`).
  */
 export interface DeckZonesSurfaceProps {
-    mainCards: DeckCard[];
-    sideCards: DeckCard[];
+    mainCards: ZoneCard[];
+    sideCards: ZoneCard[];
     /** Both zones' Column Layouts. */
     layout: DeckColumnLayout;
     /** Per-zone Grouping/Ordering control callbacks (issue #1624) — kept as
@@ -66,12 +67,18 @@ export interface DeckZonesSurfaceProps {
      *  Sideboard is uncapped by design, ADR 0054/0055). */
     sideCountSuffix?: string;
     sideWarning?: string | null;
-    onMainCardClick: (card: DeckCard) => void;
-    onSideCardClick: (card: DeckCard) => void;
-    mainCardTitle: (card: DeckCard) => string;
-    sideCardTitle: (card: DeckCard) => string;
+    onMainCardClick: (card: ZoneCard) => void;
+    onSideCardClick: (card: ZoneCard) => void;
+    mainCardTitle: (card: ZoneCard) => string;
+    sideCardTitle: (card: ZoneCard) => string;
     featuredCardId?: string | null;
     onSetFeatured?: (cardId: string) => void;
+    /** Manual-Column management for the MAINDECK (ADR 0075 §2, issue #1626).
+     *  Not offered on the Sideboard: its whole pane is one drop target, so a
+     *  manual Column there could never receive a card. */
+    onAddColumn?: (label: string) => void;
+    onRenameColumn?: (columnId: ColumnId, label: string) => void;
+    onDeleteColumn?: (columnId: ColumnId) => void;
 }
 
 export default function DeckZonesSurface({
@@ -101,6 +108,9 @@ export default function DeckZonesSurface({
     sideCardTitle,
     featuredCardId,
     onSetFeatured,
+    onAddColumn,
+    onRenameColumn,
+    onDeleteColumn,
 }: DeckZonesSurfaceProps) {
     const mainZoom = useCardZoom({
         zone: mainZoomZone,
@@ -149,6 +159,9 @@ export default function DeckZonesSurface({
                     emptyMessage={mainEmptyMessage}
                     featuredCardId={featuredCardId}
                     onSetFeatured={onSetFeatured}
+                    onAddColumn={onAddColumn}
+                    onRenameColumn={onRenameColumn}
+                    onDeleteColumn={onDeleteColumn}
                     headerRight={
                         <CardZoomSlider
                             value={mainZoom.value}
