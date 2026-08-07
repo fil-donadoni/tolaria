@@ -8,7 +8,11 @@
 // would pass the fat-state test and still be broken on the client.
 
 import { describe, it, expect } from "vitest";
-import type { CardDefinition, EffectOp } from "../../../cards/types";
+import type {
+    CardDefinition,
+    EffectCardFilter,
+    EffectOp,
+} from "../../../cards/types";
 import {
     FACE_DOWN_CARD_ID,
     getCardByName,
@@ -25778,7 +25782,7 @@ describe("Effect Script Op: moveZone — positional graveyard shape (CR 404.3, i
     const reanimateTop = (
         scriptId: string,
         position: "top" | "bottom",
-        filter?: { type: string }
+        filter?: EffectCardFilter
     ) =>
         registerScript(scriptId, [
             {
@@ -25905,7 +25909,7 @@ describe("Effect Script Op: moveZone — positional graveyard shape (CR 404.3, i
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
         });
-        const spell = pushSpell(state, id, "p1");
+        pushSpell(state, id, "p1");
         resolveTopOfStack(state);
 
         expect(state.players[0].battlefield).toHaveLength(0);
@@ -26093,7 +26097,11 @@ describe("Effect Script Op: moveZone — positional graveyard shape (CR 404.3, i
                     } as unknown as EffectOp,
                 ],
             } as CardDefinition);
-            expect(errors.length).toBeGreaterThan(0);
+            // The #1967 branch specifically — the pre-existing #1469/#1726
+            // rules reject these combinations too, so asserting only
+            // "some error" would stay green with this shape's own gate
+            // removed.
+            expect(errors.join("\n")).toContain("issue #1967");
         }
     });
 });

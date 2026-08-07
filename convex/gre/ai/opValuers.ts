@@ -340,15 +340,19 @@ const moveZone: Valuer<"moveZone"> = (op) => {
         return { points: 0, tags: ["tempo"] };
     }
     // CR 404.3 (issue #1967) — the positional graveyard shape ("the top
-    // creature card of your graveyard" — Shallow Grave, Corpse Dance). It
-    // carries a `target`, so it reaches the destination scoring below and a
-    // `to: "battlefield"` pick correctly valuates as REANIMATE_VALUE rather
-    // than silently as 0. It is never `targeted` in the CR 115 sense: the
-    // engine picks the card deterministically, the caster announces nothing.
-    const isPositional = "zone" in op.target;
+    // creature card of your graveyard" — Shallow Grave, Corpse Dance) needs
+    // NO special case here, and the absence is deliberate rather than an
+    // omission: it carries a `target`, so it passes the guard above and its
+    // `to: "battlefield"` scores as REANIMATE_VALUE like any other
+    // reanimation, and `isAnnouncedTarget` already answers false for it (the
+    // engine picks the card deterministically — nothing is announced, CR
+    // 115), so it correctly misses the `targeted` tag. Both facts are pinned
+    // by a test in `__tests__/opValuers.bot.test.ts`; the guard above must
+    // stay keyed on the PRESENCE of `target`, not on it being announced, or
+    // both shipped cards silently valuate at 0 and the bot never casts them.
     const { points, tag } = moveZonePoints(op.to);
     const tags: ValueTag[] = [tag];
-    if (!isPositional && isAnnouncedTarget(op.target)) tags.push("targeted");
+    if (isAnnouncedTarget(op.target)) tags.push("targeted");
     return { points, tags };
 };
 
