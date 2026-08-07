@@ -121,6 +121,34 @@ describe("manual drop resolution (#2169)", () => {
         });
     });
 
+    it("shift-dropping onto another permanent points an arrow instead of attaching (#2171)", () => {
+        const card = manualCard("bolt");
+        const drop = resolveManualDrop({
+            card,
+            probe: {
+                permanentId: "opp-creature",
+                zone: "battlefield",
+                zoneOwnerId: "opp",
+            },
+            dx: 40,
+            dy: -10,
+            shiftKey: true,
+        });
+        expect(drop).toEqual({
+            kind: "arrow",
+            instanceId: "bolt",
+            targetId: "opp-creature",
+        });
+
+        const dispatch = spyDispatch();
+        applyManualDrop(drop, dispatch);
+        expect(dispatch.setArrow).toHaveBeenCalledWith({
+            instanceId: "bolt",
+            targetId: "opp-creature",
+        });
+        expect(dispatch.attach).not.toHaveBeenCalled();
+    });
+
     it("dropping a permanent on ITSELF does nothing", () => {
         expect(
             resolveManualDrop({

@@ -11,6 +11,7 @@ import {
     manualAttach,
     manualSetArrow,
     manualClearArrows,
+    manualClearArrow,
     manualDraw,
     manualMill,
     manualExileTop,
@@ -305,6 +306,24 @@ describe("manual verbs - table driven", () => {
         ]);
     });
 
+    it("setArrow: re-declaring the same target is a no-op, not a duplicate entry (#2338)", () => {
+        // Shift-dragging A onto B twice is a normal action — there is no
+        // toggle-off — so `arrows` must stay `["bear"]`, never `["bear",
+        // "bear"]`. A duplicate would collide on `buildManualArrowPairs`'
+        // `manual:from->to` key and crash React with a duplicate-key error.
+        const state = freshState();
+        const card = getPlayer(state, "p1").hand[0];
+        const target = getPlayer(state, "p2").hand[0];
+        moveToBattlefield(state, card.id);
+        moveToBattlefield(state, target.id);
+        const s2 = manualSetArrow(state, card.id, target.id);
+        const result = manualSetArrow(s2.state, card.id, target.id);
+
+        expect(findCardInState(result.state, card.id)!.card.arrows).toEqual([
+            target.id,
+        ]);
+    });
+
     it("clearArrows: clears all arrows", () => {
         const state = freshState();
         const card = getPlayer(state, "p1").hand[0];
@@ -313,6 +332,41 @@ describe("manual verbs - table driven", () => {
         moveToBattlefield(state, target.id);
         card.arrows = [target.id];
         const result = manualClearArrows(state, "p1");
+
+        expect(
+            findCardInState(result.state, card.id)!.card.arrows
+        ).toBeUndefined();
+    });
+
+    it("clearArrow: clears only the acting card's arrows, not a sibling's (#2171)", () => {
+        const state = freshState();
+        const bolt = getPlayer(state, "p1").hand[0];
+        const other = getPlayer(state, "p1").hand[1];
+        const target = getPlayer(state, "p2").hand[0];
+        moveToBattlefield(state, bolt.id);
+        moveToBattlefield(state, other.id);
+        moveToBattlefield(state, target.id);
+        bolt.arrows = [target.id];
+        other.arrows = [target.id];
+
+        const result = manualClearArrow(state, bolt.id);
+
+        expect(
+            findCardInState(result.state, bolt.id)!.card.arrows
+        ).toBeUndefined();
+        // The sibling card's own arrow survives — a per-card clear must not
+        // reach for `manualClearArrows`' board-wide sweep.
+        expect(findCardInState(result.state, other.id)!.card.arrows).toEqual([
+            target.id,
+        ]);
+    });
+
+    it("clearArrow: a card with no arrows is a no-op, not an error", () => {
+        const state = freshState();
+        const card = getPlayer(state, "p1").hand[0];
+        moveToBattlefield(state, card.id);
+
+        const result = manualClearArrow(state, card.id);
 
         expect(
             findCardInState(result.state, card.id)!.card.arrows

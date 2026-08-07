@@ -286,6 +286,7 @@ import {
     manualAttach as manualAttachFn,
     manualSetArrow as manualSetArrowFn,
     manualClearArrows as manualClearArrowsFn,
+    manualClearArrow as manualClearArrowFn,
     manualDraw as manualDrawFn,
     manualMill as manualMillFn,
     manualExileTop as manualExileTopFn,
@@ -14585,6 +14586,20 @@ export const manualClearArrows = mutation({
     handler: async (ctx, args) => {
         await manualVerbHandler(ctx, args.gameId, (state) =>
             manualClearArrowsFn(state, args.playerId)
+        );
+        return null;
+    },
+});
+
+export const manualClearArrow = mutation({
+    args: {
+        gameId: v.id("games"),
+        instanceId: v.string(),
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        await manualVerbHandler(ctx, args.gameId, (state) =>
+            manualClearArrowFn(state, args.instanceId)
         );
         return null;
     },

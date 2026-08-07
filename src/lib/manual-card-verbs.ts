@@ -42,6 +42,12 @@ export function manualBattlefieldVerbs(
     ];
     if (damage > 0)
         verbs.push({ id: "clear-damage", oracleText: "Clear damage" });
+    // Only offered when the card has an outgoing arrow to remove (issue
+    // #2171 AC: "an arrow can be removed from the acting card's menu") — the
+    // card that DREW the arrow is the acting one, never the card it points
+    // at, matching `manualSetArrow`'s per-source `arrows[]` field.
+    if (card.arrows && card.arrows.length > 0)
+        verbs.push({ id: "clear-arrows", oracleText: "Remove arrow(s)" });
     verbs.push(
         { id: "counter:custom", oracleText: "Custom counter…" },
         { id: "note", oracleText: "Set note…" }
@@ -80,6 +86,10 @@ export function dispatchManualCardVerb(
                 delta: -damage,
             });
         }
+        return;
+    }
+    if (verbId === "clear-arrows") {
+        dispatch.clearArrow({ instanceId: card.id });
         return;
     }
     if (verbId === "counter:custom") {

@@ -5,6 +5,7 @@ import { describe, it, expect } from "vitest";
 import {
     buildTargetArrows,
     buildCombatArrows,
+    buildManualArrows,
     resolveArrowHighlight,
     arrowPath,
     emptyAnchorMap,
@@ -427,5 +428,55 @@ describe("buildTargetArrows — ability arrows leave their source permanent", ()
         const arrows = buildTargetArrows([item], map);
         expect(arrows).toHaveLength(3);
         for (const a of arrows) expect(a.from).toEqual({ x: 900, y: 40 });
+    });
+});
+
+// Issue #2171 — Manual Mode's player-declared arrows: a flat permanent →
+// permanent pair list, resolved through the SAME anchor registry every other
+// arrow builder reads. No stack, no combat — this is `BoardArrows`' one
+// non-GRE-shaped input.
+describe("buildManualArrows — permanent → permanent pairs (#2171)", () => {
+    it("returns no arrows for an empty pair list", () => {
+        expect(buildManualArrows([], emptyAnchorMap())).toEqual([]);
+    });
+
+    it("resolves both endpoints from the permanent anchor bucket", () => {
+        const map = anchors({
+            permanent: {
+                bear: { x: 10, y: 10 },
+                opp: { x: 400, y: 300 },
+            },
+        });
+        const arrows = buildManualArrows(
+            [{ key: "manual:bear->opp", fromId: "bear", toId: "opp" }],
+            map
+        );
+        expect(arrows).toHaveLength(1);
+        expect(arrows[0]).toMatchObject({
+            key: "manual:bear->opp",
+            kind: "target",
+            fromId: "bear",
+            toId: "opp",
+            from: { x: 10, y: 10 },
+            to: { x: 400, y: 300 },
+        });
+    });
+
+    it("drops a pair whose source anchor has not been published (host left the board)", () => {
+        const map = anchors({ permanent: { opp: { x: 400, y: 300 } } });
+        const arrows = buildManualArrows(
+            [{ key: "manual:gone->opp", fromId: "gone", toId: "opp" }],
+            map
+        );
+        expect(arrows).toEqual([]);
+    });
+
+    it("drops a pair whose target anchor has not been published", () => {
+        const map = anchors({ permanent: { bear: { x: 10, y: 10 } } });
+        const arrows = buildManualArrows(
+            [{ key: "manual:bear->gone", fromId: "bear", toId: "gone" }],
+            map
+        );
+        expect(arrows).toEqual([]);
     });
 });

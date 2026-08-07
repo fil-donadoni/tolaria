@@ -25,6 +25,7 @@ import {
 } from "~/lib/board-layout";
 import { ArrowAnchorProvider } from "~/hooks/useArrowAnchors";
 import { ArrowHighlightProvider } from "~/hooks/ArrowHighlightProvider";
+import type { ManualArrowPair } from "~/lib/target-arrow-geometry";
 import BoardBattlefield, {
     type BattlefieldRowClassifier,
 } from "./board-battlefield";
@@ -81,6 +82,9 @@ type BoardSurfaceProps = {
     activePlayerId: string;
     stackItems: StackItem[];
     combat?: Combat;
+    /** Manual Mode's player-declared arrows (issue #2171), forwarded verbatim
+     *  to `BoardArrows`. Omitted ⇒ no manual arrows (every GRE board). */
+    extraArrows?: ManualArrowPair[];
     /** Portrait / landscape-compact / desktop viewport branching — computed
      *  once by the mounting caller so every consumer agrees (`useIsPortrait`
      *  is the portrait projection of the same hook `useViewportMode` reads,
@@ -149,6 +153,7 @@ export default function BoardSurface({
     activePlayerId,
     stackItems,
     combat,
+    extraArrows,
     isPortrait,
     landscapeCompact,
     viewportHeight,
@@ -441,6 +446,7 @@ export default function BoardSurface({
                         <BoardArrows
                             stack={stackItems}
                             combat={combat}
+                            extraArrows={extraArrows}
                             defenderId={
                                 orderedPlayers.find(
                                     (p) => p.id !== activePlayerId

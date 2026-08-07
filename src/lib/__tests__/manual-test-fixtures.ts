@@ -68,6 +68,8 @@ export function spyDispatch(): ManualDispatch {
         setFaceDown: vi.fn(),
         setLane: vi.fn(),
         attach: vi.fn(),
+        setArrow: vi.fn(),
+        clearArrow: vi.fn(),
         draw: vi.fn(),
         mill: vi.fn(),
         exileTop: vi.fn(),

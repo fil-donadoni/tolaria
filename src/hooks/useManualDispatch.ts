@@ -23,6 +23,8 @@ export function useManualDispatch(gameId: Id<"games">): ManualDispatch {
     const setFaceDown = useMutation(api.game.manualSetFaceDown);
     const setLane = useMutation(api.game.manualSetLane);
     const attach = useMutation(api.game.manualAttach);
+    const setArrow = useMutation(api.game.manualSetArrow);
+    const clearArrow = useMutation(api.game.manualClearArrow);
     const draw = useMutation(api.game.manualDraw);
     const mill = useMutation(api.game.manualMill);
     const exileTop = useMutation(api.game.manualExileTop);
@@ -42,6 +44,8 @@ export function useManualDispatch(gameId: Id<"games">): ManualDispatch {
             setFaceDown: (args) => void setFaceDown({ gameId, ...args }),
             setLane: (args) => void setLane({ gameId, ...args }),
             attach: (args) => void attach({ gameId, ...args }),
+            setArrow: (args) => void setArrow({ gameId, ...args }),
+            clearArrow: (args) => void clearArrow({ gameId, ...args }),
             draw: (args) => void draw({ gameId, ...args }),
             mill: (args) => void mill({ gameId, ...args }),
             exileTop: (args) => void exileTop({ gameId, ...args }),
@@ -61,6 +65,8 @@ export function useManualDispatch(gameId: Id<"games">): ManualDispatch {
             setFaceDown,
             setLane,
             attach,
+            setArrow,
+            clearArrow,
             draw,
             mill,
             exileTop,
