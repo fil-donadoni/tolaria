@@ -76,6 +76,7 @@ import type {
     EffectMode,
     EffectCountSpec,
     EffectDifferenceOperand,
+    EffectExiledWithSourceSelector,
     EffectForEachSelector,
     EffectListSelector,
     EffectObjectSelector,
@@ -1298,6 +1299,32 @@ function resolveGraveyardPosition(
         const card = cards[i];
         if (sel.filter && !matchesCardFilter(ctx, card, sel.filter)) continue;
         return { type: "graveyard-card", id: card.id, playerId };
+    }
+    return undefined;
+}
+
+/** CR 607 (issue #1319 foundation, generalized #1323) — the `moveZone` SIXTH
+ *  shape's resolver: the first card, among every card CURRENTLY exiled and
+ *  linked to the resolving ability's OWN source (`getCardsExiledWith`,
+ *  `SpellContext`, mirrors `getCardsExiledWith`'s own player-then-array
+ *  stable order), that matches an optional `filter`. Deliberately not a
+ *  player choice on 2+ matches — see the `EffectExiledWithSourceSelector`
+ *  moveZone-shape doc comment (`cards/types.ts`) for the "mirrors the
+ *  positional-selector precedent" rationale. Returns undefined — a clean
+ *  CR 608.2b no-op — when the linked pile is empty or nothing matches
+ *  `filter`. `ownerId` (not `ctx.controller`) is the pile the card is
+ *  spliced out of (CR 400.7 — the card sits in ITS OWN owner's exile,
+ *  which may differ from the resolving ability's controller); a `controller`
+ *  field on the Op itself is what redirects the reanimated permanent under
+ *  the ability's controller ("under YOUR control"). */
+function resolveExiledWithSource(
+    ctx: SpellContext,
+    filter: EffectCardFilter | undefined
+): TargetSelection | undefined {
+    const cards = ctx.getCardsExiledWith(ctx.sourceInstanceId);
+    for (const card of cards) {
+        if (filter && !matchesCardFilter(ctx, card, filter)) continue;
+        return { type: "graveyard-card", id: card.id, playerId: card.ownerId };
     }
     return undefined;
 }
@@ -2543,12 +2570,32 @@ export const OP_EXECUTORS: {
             "zone" in op.target
                 ? (op.target as EffectZonePositionSelector)
                 : undefined;
-        const explicitFrom = !positional && "from" in op ? op.from : undefined;
+        // CR 607 (issue #1319 foundation, generalized #1323) — the SIXTH
+        // shape: `target` is the linked-exile selector rather than a
+        // slot/ref/positional pick. Like the positional shape, resolve it
+        // here and let the shared graveyard-card executor below do the
+        // actual move — `resolveExiledWithSource` already returns the
+        // shared `"graveyard-card"` carrier, and its owner is re-derived as
+        // "exile" by that executor's own existing fallback (the card is
+        // never actually found in any graveyard).
+        const exiledWithSource =
+            !positional && "exiledWithSource" in op.target
+                ? (op.target as EffectExiledWithSourceSelector)
+                : undefined;
+        const explicitFrom =
+            !positional && !exiledWithSource && "from" in op
+                ? op.from
+                : undefined;
         let target = positional
             ? resolveGraveyardPosition(ctx, positional)
-            : explicitFrom
-              ? undefined
-              : resolveObjectRef(ctx, op.target as EffectObjectSelector);
+            : exiledWithSource
+              ? resolveExiledWithSource(
+                    ctx,
+                    "filter" in op ? op.filter : undefined
+                )
+              : explicitFrom
+                ? undefined
+                : resolveObjectRef(ctx, op.target as EffectObjectSelector);
         // The zone the recovered card was actually found in — always the
         // graveyard on the historical inferred path, `op.from` on the #1469
         // explicit path.
@@ -2560,7 +2607,7 @@ export const OP_EXECUTORS: {
         // the ref's id — the source reanimating itself (Ashen Ghoul's `$source`,
         // issue #737) or a `forEach { set: "graveyard" }` member reanimating
         // (`$each`, issue #1056 — Replenish, Living Death).
-        if (!positional && !target && "ref" in op.target) {
+        if (!positional && !exiledWithSource && !target && "ref" in op.target) {
             // `$source` recovery is unconditional (Ashen Ghoul, issue #737): its
             // source genuinely sits in a graveyard. A GENERAL ref (a forEach
             // graveyard member's `$each`, issue #1056) is recovered ONLY for a
@@ -2678,6 +2725,17 @@ export const OP_EXECUTORS: {
             // above, so the destination here is a MovableZone; `recoveredZone`
             // (re-derived above) is the source, not a hardcoded "graveyard".
             ctx.moveCardById(owner, target.id, recoveredZone, op.to);
+            // CR 400.7 / 607 (issue #1947, generalized #1323) — link the
+            // just-exiled card back to this ability's OWN source so a LATER
+            // "put a card exiled with ~ onto the battlefield" ability can
+            // name exactly this card (`getCardsExiledWith` / this Op's own
+            // `exiledWithSource` target shape above) — the single-target
+            // twin of the `cards`-shape's own `linkToSource` (Emperor of
+            // Bones: "exile up to one target card from a graveyard", later
+            // "a creature card exiled with this creature").
+            if (op.to === "exile" && "linkToSource" in op && op.linkToSource) {
+                ctx.linkExileToSource(target.id, ctx.sourceInstanceId);
+            }
         }
     },
     // CR 613.4c (issue #840) — a temporary P/T modification expiring at a phase

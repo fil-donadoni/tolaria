@@ -8053,6 +8053,40 @@ export function removePermanentTo(
     if (initial.card.exileOnLeave && toZone !== "exile") {
         toZone = "exile";
     }
+    // Finality counter (MH3, issue #1323 — Emperor of Bones' reanimation
+    // clause) — CR 122.1h: "One or more finality counters on a permanent
+    // create a single replacement effect that stops the permanent from going
+    // to the graveyard. That effect is 'If this permanent would be put into a
+    // graveyard from the battlefield, exile it instead.'" (the "one or more"
+    // clause is exactly the `> 0` check below — any count of counters yields
+    // the SAME single effect, not a per-counter stack). An INTRINSIC
+    // per-counter rule, not a per-card `replacementEffects[]` entry: the
+    // counter can land on ANY creature card Emperor reanimates (`counters`
+    // Op, `counter: "finality"`), not just a card that declares the rule
+    // itself — so it is checked directly here, the single funnel for every
+    // battlefield departure, exactly like the `exileOnLeave` per-instance
+    // flag right above. Scoped to "from the battlefield" only (this is the
+    // ONE `graveyardDestinationFor` call site that ever passes `fromZone:
+    // "battlefield"` — every other call site sources from stack/library/hand,
+    // so a finality-countered card leaving via those paths is unaffected,
+    // matching the printed ruling that finality counters don't intercept a
+    // move to hand/library). Consulted BEFORE the declared graveyard-bound
+    // replacement loop (Yawgmoth's Will / Dauthi Voidwalker) below — CR
+    // 122.1h itself is a CR 614 replacement effect, so a fully CR 616.1-
+    // faithful engine would offer the affected controller a CHOICE between it
+    // and any other applicable graveyard-bound replacement (e.g. Dauthi
+    // Voidwalker's void counter) rather than applying finality
+    // unconditionally. This inline rewrite auto-resolves that choice in
+    // finality's favor instead of prompting — one of the two legal outcomes,
+    // and the one the choosing player would rationally pick (exile with no
+    // void counter beats exile WITH one), so there is no OBSERVABLE
+    // divergence today. That correctness depends on
+    // `graveyardDestinationFor` never producing a non-exile destination for
+    // any OTHER shipped graveyard-bound replacement — re-examine this
+    // shortcut the day one does.
+    if (toZone === "graveyard" && (initial.card.counters?.finality ?? 0) > 0) {
+        toZone = "exile";
+    }
     // CR 614 (issue #1145) — graveyard-bound replacement (Yawgmoth's Will /
     // Dauthi Voidwalker): "if a card would be put into a graveyard from
     // anywhere, exile it instead." Consulted AFTER `exileOnLeave` (which

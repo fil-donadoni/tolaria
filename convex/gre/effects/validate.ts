@@ -1565,15 +1565,21 @@ function isZonePositionSelector(value: unknown): boolean {
     });
 }
 
-/** `moveZone`'s `target` field only (issue #1967): the shared object selector
- *  (announced slot / bare ref / `$event` ref) OR the positional graveyard
- *  selector. Deliberately NOT folded into `isObjectSelector` — every other
+/** `moveZone`'s `target` field only (issue #1967, extended #1323): the
+ *  shared object selector (announced slot / bare ref / `$event` ref), the
+ *  positional graveyard selector, OR the linked-exile selector
+ *  (`{ exiledWithSource: true }`, issue #1319/#1323's SIXTH shape).
+ *  Deliberately NOT folded into `isObjectSelector` — every other
  *  object-acting Op (destroy / exile / dealDamage / pump / counters /
  *  tapUntap) is battlefield-scoped, and widening the shared predicate would
- *  let the positional shape validate at all of them and then silently no-op
+ *  let these shapes validate at all of them and then silently no-op
  *  (fail open). `moveZone` is the one Op with a graveyard-card executor. */
 function isMoveZoneTarget(value: unknown): boolean {
-    return isObjectSelector(value) || isZonePositionSelector(value);
+    return (
+        isObjectSelector(value) ||
+        isZonePositionSelector(value) ||
+        isExiledWithSourceSelector(value)
+    );
 }
 
 /** A ManaCost's numeric pips — WUBRGC + generic + xFactor are non-negative
@@ -2640,6 +2646,13 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             const hasCards = "cards" in entry;
             const hasFromZones = "fromZones" in entry;
             const hasBulk = !hasTarget && !hasCards && !hasFromZones;
+            // issue #1323 — the SIXTH shape: `target` is the linked-exile
+            // selector rather than an announced slot / bare ref / positional
+            // pick. Computed once here so both the `linkToSource` and
+            // `filter` relaxations below and the shape's own from/position
+            // rejections can share it.
+            const isExiledWithSourceTarget =
+                hasTarget && isExiledWithSourceSelector(entry.target);
             const errors: string[] = [];
             if (
                 (hasTarget && hasCards) ||
@@ -2684,9 +2697,14 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                     );
                 }
             }
-            if ("linkToSource" in entry && !hasCards) {
+            if ("linkToSource" in entry && !hasCards && !hasTarget) {
                 errors.push(
-                    'field "linkToSource" is only valid on the "cards" shape (issue #1947)'
+                    'field "linkToSource" is only valid on the "cards" or "target" shape (issue #1947 / #1323)'
+                );
+            }
+            if (hasTarget && "linkToSource" in entry && entry.to !== "exile") {
+                errors.push(
+                    'field "linkToSource" is only valid with "target" and to: "exile" (issue #1323)'
                 );
             }
             // issue #1967 — the FIFTH shape: a positional graveyard pick
@@ -2719,6 +2737,27 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                     );
                 }
             }
+            // issue #1323 — the SIXTH shape: the linked-exile selector
+            // (`target: { exiledWithSource: true }`). Like the positional
+            // shape, its source zone is intrinsic (always exile) — `from` /
+            // `position` / `to: "library-top"` are all meaningless here.
+            if (isExiledWithSourceTarget) {
+                if ("from" in entry) {
+                    errors.push(
+                        'field "from" is not valid with an exiledWithSource "target" — the source zone is intrinsic (issue #1323)'
+                    );
+                }
+                if ("position" in entry) {
+                    errors.push(
+                        'field "position" is not valid with an exiledWithSource "target" (issue #1323)'
+                    );
+                }
+                if (entry.to === "library-top") {
+                    errors.push(
+                        'to: "library-top" is not valid with an exiledWithSource "target" (issue #1323)'
+                    );
+                }
+            }
             if (hasTarget) {
                 if ("player" in entry) {
                     errors.push('field "player" is not valid with "target"');
@@ -2730,7 +2769,11 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                 // return (`to: "battlefield"`). An announced target slot never
                 // needs it (its zone comes from the requirement), so `from`
                 // requires a `ref` selector.
-                if (!isPositionalTarget && "from" in entry) {
+                if (
+                    !isPositionalTarget &&
+                    !isExiledWithSourceTarget &&
+                    "from" in entry
+                ) {
                     if (entry.from !== "graveyard" && entry.from !== "exile") {
                         errors.push(
                             'field "from" with "target" accepts only "graveyard" or "exile" (the zone a bound, already-departed object was put into)'
@@ -2759,6 +2802,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                 // shuffle-in, which follows with a shuffle anyway).
                 if (
                     !isPositionalTarget &&
+                    !isExiledWithSourceTarget &&
                     "position" in entry &&
                     entry.to !== "library"
                 ) {
@@ -2852,8 +2896,18 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                     );
                 }
             }
-            if ("filter" in entry && !hasFromZones) {
-                errors.push('field "filter" is only valid with "fromZones"');
+            // issue #1323 — the SIXTH shape reuses the SAME sibling `filter`
+            // field the FOURTH (`fromZones`) shape already declares, rather
+            // than adding a second field name for an identical purpose
+            // (narrowing by type — "a CREATURE card exiled with ~").
+            if (
+                "filter" in entry &&
+                !hasFromZones &&
+                !isExiledWithSourceTarget
+            ) {
+                errors.push(
+                    'field "filter" is only valid with "fromZones" or an exiledWithSource "target" (issue #1323)'
+                );
             }
             if ("controller" in entry && entry.to !== "battlefield") {
                 errors.push(
