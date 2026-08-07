@@ -72,13 +72,15 @@ type DragMeta = {
  *  `pointerdown` is bound on the root (it is the only step that needs the board
  *  as a delegation scope); move / up / cancel are bound on `window` for the
  *  lifetime of the press. That is load-bearing, not defensive: the Manual
- *  Board's `<main>` is a SIBLING of the 320px `ManualLog` rail
- *  (`manual-board-container.tsx`), so a drag released over the log — or outside
- *  the window entirely — would never deliver `pointerup` to the board. Bound on
- *  the root, such a release discarded the drop, stranded the fixed-position
+ *  Board's `<main>` is a SIBLING of the `ManualLog` surface
+ *  (`manual-log-surface.tsx`, mounted by `manual-board-view.tsx` — a
+ *  collapsed overlay since issue #2172, previously a permanently docked
+ *  320px rail), so a drag released over the log — or outside the window
+ *  entirely — would never deliver `pointerup` to the board. Bound on the
+ *  root, such a release discarded the drop, stranded the fixed-position
  *  ghost on screen and left the click-swallow armed. The deleted
  *  `manual-board.tsx` avoided that with `setPointerCapture` (`:222`), which
- *  would have worked for the log rail too; window listeners were preferred
+ *  would have worked for the log surface too; window listeners were preferred
  *  because they also survive an unmount mid-gesture without a stale capture
  *  element, need no release on any exit path, and are drivable in jsdom.
  *  (Capture retargets `pointerup` to the capture element, but that would NOT
