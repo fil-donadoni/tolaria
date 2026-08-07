@@ -97,7 +97,19 @@ const IMPROVISE_SPELL_DEF = {
     staticAbilities: ["improvise"],
     activatedAbilities: [],
 };
+import {
+    mockInstanceManaCost,
+    type ManaCostSource,
+} from "~/lib/testing/convex-cards-mock";
 vi.mock("@convex/cards", () => ({
+    getInstanceManaCost: (c: ManaCostSource) =>
+        mockInstanceManaCost(c, (id: string) =>
+            id === "choice-def"
+                ? CHOICE_DEF
+                : id === "improvise-spell-def"
+                  ? IMPROVISE_SPELL_DEF
+                  : LAND_DEF
+        ),
     getDefinition: (id: string) =>
         id === "choice-def"
             ? CHOICE_DEF

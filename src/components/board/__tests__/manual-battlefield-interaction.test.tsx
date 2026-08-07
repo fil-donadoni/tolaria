@@ -35,7 +35,12 @@ vi.mock("convex/react", () => ({
 
 vi.mock("@convex/_generated/api", () => ({ api: { game: {} } }));
 
+import {
+    mockInstanceManaCost,
+    type ManaCostSource,
+} from "~/lib/testing/convex-cards-mock";
 vi.mock("@convex/cards", () => ({
+    getInstanceManaCost: (c: ManaCostSource) => mockInstanceManaCost(c),
     tryGetDefinition: () => undefined,
     FACE_DOWN_CARD_ID: "__faceDownDef",
 }));

@@ -50,7 +50,14 @@ vi.mock("@convex/_generated/api", () => {
     return { api: { game } };
 });
 const PLAIN_DEF = { id: "plain", name: "T", staticEffects: [] };
-vi.mock("@convex/cards", () => ({ getDefinition: () => PLAIN_DEF }));
+import {
+    mockInstanceManaCost,
+    type ManaCostSource,
+} from "~/lib/testing/convex-cards-mock";
+vi.mock("@convex/cards", () => ({
+    getInstanceManaCost: (c: ManaCostSource) => mockInstanceManaCost(c),
+    getDefinition: () => PLAIN_DEF,
+}));
 vi.mock("@convex/cards/attackRestrictions", () => ({
     globalAttackProhibitionReason: () => undefined,
 }));

@@ -46,7 +46,12 @@ const MODES = [
     { id: "sacrifice-artifact", label: "Mode one", oracleText: "Mode one." },
     { id: "reanimate", label: "Mode two", oracleText: "Mode two." },
 ];
+import {
+    mockInstanceManaCost,
+    type ManaCostSource,
+} from "~/lib/testing/convex-cards-mock";
 vi.mock("@convex/cards", () => ({
+    getInstanceManaCost: (c: ManaCostSource) => mockInstanceManaCost(c),
     getDefinition: () => ({
         name: "Lorehold Charm",
         types: ["Instant"],

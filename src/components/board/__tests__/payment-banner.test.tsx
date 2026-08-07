@@ -31,6 +31,10 @@ vi.mock("@convex/_generated/api", () => {
     return { api: { game } };
 });
 
+import {
+    mockInstanceManaCost,
+    type ManaCostSource,
+} from "~/lib/testing/convex-cards-mock";
 // The cast branch reads `types` / `supertypes` off the DEFINITION to key CR
 // 106.6 restricted-mana eligibility (#1713), so the stub can't stop at a name.
 vi.mock("@convex/cards", () => {
@@ -39,6 +43,7 @@ vi.mock("@convex/cards", () => {
         "some-spell": ["Instant"],
     };
     return {
+        getInstanceManaCost: (c: ManaCostSource) => mockInstanceManaCost(c),
         getDefinition: (id: string) => ({
             id,
             name: `Card ${id}`,

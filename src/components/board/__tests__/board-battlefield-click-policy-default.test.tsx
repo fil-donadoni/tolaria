@@ -91,7 +91,13 @@ const DUAL_DEF = {
     ],
 };
 const DEFS: Record<string, unknown> = { "dual-def": DUAL_DEF };
+import {
+    mockInstanceManaCost,
+    type ManaCostSource,
+} from "~/lib/testing/convex-cards-mock";
 vi.mock("@convex/cards", () => ({
+    getInstanceManaCost: (c: ManaCostSource) =>
+        mockInstanceManaCost(c, (id: string) => DEFS[id] ?? { id, name: id }),
     getDefinition: (id: string) => DEFS[id] ?? { id, name: id },
     tryGetDefinition: (id: string) => DEFS[id] ?? { id, name: id },
 }));

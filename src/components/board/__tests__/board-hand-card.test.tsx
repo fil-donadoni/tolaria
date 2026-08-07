@@ -62,7 +62,13 @@ let cardDef: {
 } = {
     name: "Test Card",
 };
+import {
+    mockInstanceManaCost,
+    type ManaCostSource,
+} from "~/lib/testing/convex-cards-mock";
 vi.mock("@convex/cards", () => ({
+    getInstanceManaCost: (c: ManaCostSource) =>
+        mockInstanceManaCost(c, () => cardDef),
     getDefinition: () => cardDef,
     // getHandStackAbilities (Cycling affordance, #689) resolves the card def via
     // tryGetDefinition; the default vanilla `cardDef` has no activatedAbilities,

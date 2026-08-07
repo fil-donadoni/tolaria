@@ -96,7 +96,13 @@ const REGISTRY: Record<string, unknown> = {
     "must-attack-def": MUST_ATTACK_DEF,
     "choice-def": CHOICE_DEF,
 };
+import {
+    mockInstanceManaCost,
+    type ManaCostSource,
+} from "~/lib/testing/convex-cards-mock";
 vi.mock("@convex/cards", () => ({
+    getInstanceManaCost: (c: ManaCostSource) =>
+        mockInstanceManaCost(c, (id: string) => REGISTRY[id] ?? PLAIN_DEF),
     getDefinition: (id: string) => REGISTRY[id] ?? PLAIN_DEF,
     tryGetDefinition: (id: string) => REGISTRY[id] ?? PLAIN_DEF,
 }));
