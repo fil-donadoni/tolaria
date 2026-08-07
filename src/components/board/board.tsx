@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
-import { LayoutGroup } from "motion/react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -29,45 +28,16 @@ import {
 } from "~/hooks/useMinimizedChoice";
 import { preloadCardImages } from "~/lib/image-preload";
 import {
-    PORTRAIT_OPPONENT_BATTLEFIELD_BAND,
-    PORTRAIT_OPPONENT_HAND_BAND,
-    PORTRAIT_VIEWER_BATTLEFIELD_BAND,
-    PORTRAIT_VIEWER_HAND_BAND,
-    portraitBandVars,
-} from "~/lib/portrait-board-bands";
-import {
-    LANDSCAPE_OPPONENT_BATTLEFIELD_BAND,
-    LANDSCAPE_OPPONENT_HAND_BAND,
-    LANDSCAPE_PILE_SCALE,
-    LANDSCAPE_VIEWER_BATTLEFIELD_BAND,
-    LANDSCAPE_VIEWER_HAND_BAND,
-    landscapeBandVars,
     landscapeCardMetrics,
     makeLandscapeHandLayout,
 } from "~/lib/landscape-board-bands";
-import { CONTROLLER_STRIP_CLEARANCE_EXPR } from "~/lib/controller-bar-metrics";
+import { rightPilesWidth } from "~/lib/right-piles-width";
 import { computeSoloViewerId } from "~/lib/priority";
-import {
-    fanLayout,
-    CARD_WIDTH,
-    CARD_HEIGHT,
-    type Placement,
-} from "~/lib/board-layout";
 import { useIsPortrait } from "~/hooks/useIsPortrait";
 import { useViewportMode } from "~/hooks/useViewportMode";
 import { useViewportHeight } from "~/hooks/useViewportHeight";
 import { useRecentArrivals } from "~/hooks/useRecentArrivals";
-import { ArrowAnchorProvider } from "~/hooks/useArrowAnchors";
-import { ArrowHighlightProvider } from "~/hooks/ArrowHighlightProvider";
-import BoardBattlefield from "./board-battlefield";
-import BoardPlayer from "./board-player";
-import BoardHand from "./board-hand";
-import BoardHandPortrait from "./board-hand-portrait";
-import BoardPiles from "./board-piles";
-import BoardPortraitChips from "./board-portrait-chips";
-import BoardArrows from "./board-arrows";
-import GameStack from "./game-stack";
-import PriorityIndicator from "./priority-indicator";
+import BoardSurface from "./board-surface";
 import BoardBackground from "./board-background";
 import Controller from "./controller";
 import AutoPassController from "./auto-pass-controller";
@@ -105,34 +75,6 @@ const POPUP_SELECTORS = [
     '[data-slot="context-menu-content"]',
 ].join(",");
 
-/** Horizontal band reserved on the right edge by the pile columns
- *  (graveyard/library/exile): right-3 (0.75rem) + 3 × --card-w-sm + 2 × gap-2
- *  (1rem). In portrait the piles collapse to bottom chips, so the band is 0.
- *  In landscape-compact (#1768) the piles are a ONE-tile-wide column docked
- *  beside the control strip, so what the play area loses on the right is the
- *  strip's own measured clearance PLUS that one pile-tile column
- *  ({@link LANDSCAPE_RIGHT_RAIL_VAR}, the board's own right inset) — omitting
- *  the tile term left a portal'd dialog centred ~half a tile off the true play
- *  area (#1770 follow-up from #1802).
- *  Single source of truth: set inline on `data-board-root` for in-subtree
- *  consumers (nameplate, hand) AND published to `document.documentElement`
- *  while the board is mounted so portal'd dialogs (rendered to body) can
- *  center on the play area instead of the full viewport. */
-function rightPilesWidth(
-    isPortrait: boolean,
-    landscapeCompact: boolean,
-    viewportHeight: number
-): string {
-    if (isPortrait) return "0px";
-    if (landscapeCompact) {
-        const pileWidth =
-            landscapeCardMetrics(viewportHeight).cardWidth *
-            LANDSCAPE_PILE_SCALE;
-        return `calc(${CONTROLLER_STRIP_CLEARANCE_EXPR} + ${pileWidth}px + 0.5rem)`;
-    }
-    return "calc(1.75rem + 3 * var(--card-w-sm))";
-}
-
 type BoardProps = {
     gameId: Id<"games">;
     playerId: string;
@@ -146,32 +88,6 @@ type BoardProps = {
     /** Re-point the session to another game in-place (see GameContext). */
     onSwitchGame: (gameId: Id<"games">, playerId: string) => void;
 };
-
-/** Hand: shallow fanned arc, baseline near the bottom of its zone so the dome
- *  lifts upward into view (`fanLayout`, #251). */
-function handLayout(count: number, width: number, height: number): Placement[] {
-    return fanLayout({ count, width, baseY: height * 0.6 });
-}
-
-/** Opponent hand: slimmer backs (≈70% size) tucked higher up so only a small
- *  Arena-style sliver peeks below the top edge. A larger `baseY` pushes the
- *  mirrored fan toward the top edge ({@link mirrorVertical} flips it), and the
- *  shrunk card footprint must match the fan's step math. */
-const OPP_HAND_CARD_WIDTH = Math.round(CARD_WIDTH * 0.7);
-const OPP_HAND_CARD_HEIGHT = Math.round(CARD_HEIGHT * 0.7);
-function opponentHandLayout(
-    count: number,
-    width: number,
-    height: number
-): Placement[] {
-    return fanLayout({
-        count,
-        width,
-        baseY: height * 0.72,
-        cardWidth: OPP_HAND_CARD_WIDTH,
-        cardHeight: OPP_HAND_CARD_HEIGHT,
-    });
-}
 
 export default function Board({
     gameId,
@@ -497,334 +413,22 @@ export default function Board({
                                             botId={botId}
                                         />
                                     )}
-                                    {/* Spatial board surface (PRD #249): the single
-                                source of truth for card positions is the shared
-                                pure layout math (`src/lib/board-layout.ts`) —
-                                every card in every zone is placed from
-                                `rowLayout` / `fanLayout` output rather than
-                                static CSS. Both seats use the same math; the
-                                opponent's side is mirrored vertically. A single
-                                LayoutGroup spans every zone so a card's
-                                shared-layout element (keyed by instance id in
-                                SpatialSlot) is matched across zone boundaries —
-                                moving hand → battlefield animates the SAME
-                                element via a FLIP rather than unmount/remount
-                                (#252). */}
-                                    <ArrowAnchorProvider>
-                                        <ArrowHighlightProvider>
-                                            <LayoutGroup>
-                                                <div
-                                                    className="absolute inset-0"
-                                                    data-board-root
-                                                    style={
-                                                        {
-                                                            // Life nameplate + hand center
-                                                            // within the space that excludes
-                                                            // the right pile band, not the
-                                                            // full viewport. See
-                                                            // rightPilesWidth() above — the
-                                                            // same value is published to
-                                                            // documentElement for dialogs.
-                                                            "--right-piles-w":
-                                                                rightPilesWidth(
-                                                                    isPortrait,
-                                                                    landscapeCompact,
-                                                                    viewportHeight
-                                                                ),
-                                                            // Portrait vertical budget
-                                                            // (#1760): the four bands below
-                                                            // are derived from the hand
-                                                            // strip's height and the bar's
-                                                            // MEASURED clearance, so no band
-                                                            // can run under the one beneath
-                                                            // it. See portrait-board-bands.
-                                                            ...portraitBandVars(),
-                                                            // Landscape vertical
-                                                            // budget (#1768):
-                                                            // four bands plus a
-                                                            // left seat rail and
-                                                            // a right pile rail,
-                                                            // all derived from
-                                                            // ONE shared card
-                                                            // footprint. Inert
-                                                            // unless a landscape
-                                                            // band class reads
-                                                            // them.
-                                                            ...landscapeBandVars(
-                                                                viewportHeight
-                                                            ),
-                                                        } as CSSProperties
-                                                    }
-                                                >
-                                                    {/* Opponent: hand on the top edge,
-                                                battlefield below it — same layout
-                                                math, mirrored to the top half. */}
-                                                    {opponent && (
-                                                        <>
-                                                            <BoardPlayer
-                                                                player={
-                                                                    opponent
-                                                                }
-                                                                side="top"
-                                                            />
-                                                            <div
-                                                                className={
-                                                                    isPortrait
-                                                                        ? PORTRAIT_OPPONENT_HAND_BAND
-                                                                        : landscapeCompact
-                                                                          ? LANDSCAPE_OPPONENT_HAND_BAND
-                                                                          : "absolute left-0 right-[var(--right-piles-w)] top-0 h-[18%]"
-                                                                }
-                                                            >
-                                                                {isPortrait ? (
-                                                                    <BoardHandPortrait
-                                                                        player={
-                                                                            opponent
-                                                                        }
-                                                                        interactive={
-                                                                            opponent.id ===
-                                                                            viewerId
-                                                                        }
-                                                                        boardHeight={
-                                                                            viewportHeight
-                                                                        }
-                                                                        seat="opponent"
-                                                                        data-testid="zone-opponent-hand"
-                                                                    />
-                                                                ) : (
-                                                                    <BoardHand
-                                                                        player={
-                                                                            opponent
-                                                                        }
-                                                                        interactive={
-                                                                            opponent.id ===
-                                                                            viewerId
-                                                                        }
-                                                                        // Landscape: the SAME flat row
-                                                                        // and the SAME card footprint as
-                                                                        // the viewer's hand — the band
-                                                                        // clips it to a sliver, which is
-                                                                        // all a face-down count needs.
-                                                                        layout={
-                                                                            landscapeCompact
-                                                                                ? landscapeHandLayout
-                                                                                : opponentHandLayout
-                                                                        }
-                                                                        cardWidth={
-                                                                            landscapeCompact
-                                                                                ? landscapeCards.cardWidth
-                                                                                : OPP_HAND_CARD_WIDTH
-                                                                        }
-                                                                        cardHeight={
-                                                                            landscapeCompact
-                                                                                ? landscapeCards.cardHeight
-                                                                                : OPP_HAND_CARD_HEIGHT
-                                                                        }
-                                                                        mirror
-                                                                        data-testid="zone-opponent-hand"
-                                                                    />
-                                                                )}
-                                                            </div>
-                                                            <div
-                                                                className={
-                                                                    isPortrait
-                                                                        ? PORTRAIT_OPPONENT_BATTLEFIELD_BAND
-                                                                        : landscapeCompact
-                                                                          ? LANDSCAPE_OPPONENT_BATTLEFIELD_BAND
-                                                                          : "absolute left-0 right-0 top-[18%] h-[32%]"
-                                                                }
-                                                            >
-                                                                <BoardBattlefield
-                                                                    player={
-                                                                        opponent
-                                                                    }
-                                                                    mirror
-                                                                    compact={
-                                                                        landscapeCompact
-                                                                            ? landscapeCards
-                                                                            : undefined
-                                                                    }
-                                                                    data-testid="zone-opponent-battlefield"
-                                                                />
-                                                            </div>
-                                                        </>
-                                                    )}
-
-                                                    {/* Viewer: battlefield on the bottom
-                                                half, hand on the bottom edge. */}
-                                                    {me && (
-                                                        <>
-                                                            <BoardPlayer
-                                                                player={me}
-                                                                side="bottom"
-                                                            />
-                                                            <div
-                                                                className={
-                                                                    isPortrait
-                                                                        ? // Bottom-anchored to
-                                                                          // the TOP of the hand
-                                                                          // strip (#1760) — a
-                                                                          // fixed `h-[32%]` ran
-                                                                          // past it and hid the
-                                                                          // lands row under a
-                                                                          // full hand.
-                                                                          PORTRAIT_VIEWER_BATTLEFIELD_BAND
-                                                                        : landscapeCompact
-                                                                          ? LANDSCAPE_VIEWER_BATTLEFIELD_BAND
-                                                                          : "absolute left-0 right-0 top-1/2 h-[32%]"
-                                                                }
-                                                            >
-                                                                <BoardBattlefield
-                                                                    player={me}
-                                                                    compact={
-                                                                        landscapeCompact
-                                                                            ? landscapeCards
-                                                                            : undefined
-                                                                    }
-                                                                    data-testid="zone-player-battlefield"
-                                                                />
-                                                            </div>
-                                                            <div
-                                                                className={
-                                                                    isPortrait
-                                                                        ? // Lifted clear of the
-                                                                          // variant-D bottom bar
-                                                                          // (#335/#1759) so the
-                                                                          // hand stays fully
-                                                                          // thumb-reachable — by
-                                                                          // the bar's MEASURED
-                                                                          // height, since its
-                                                                          // command row wraps and
-                                                                          // a fixed inset let the
-                                                                          // grown bar cover the
-                                                                          // hand's bottom edge.
-                                                                          // Its height is now the
-                                                                          // shared band the
-                                                                          // battlefield above
-                                                                          // reserves (#1760).
-                                                                          PORTRAIT_VIEWER_HAND_BAND
-                                                                        : landscapeCompact
-                                                                          ? LANDSCAPE_VIEWER_HAND_BAND
-                                                                          : "absolute left-0 right-[var(--right-piles-w)] bottom-0 h-[18%]"
-                                                                }
-                                                            >
-                                                                {isPortrait ? (
-                                                                    <BoardHandPortrait
-                                                                        player={
-                                                                            me
-                                                                        }
-                                                                        interactive={
-                                                                            me.id ===
-                                                                            viewerId
-                                                                        }
-                                                                        boardHeight={
-                                                                            viewportHeight
-                                                                        }
-                                                                        data-testid="zone-player-hand"
-                                                                    />
-                                                                ) : (
-                                                                    <BoardHand
-                                                                        player={
-                                                                            me
-                                                                        }
-                                                                        interactive={
-                                                                            me.id ===
-                                                                            viewerId
-                                                                        }
-                                                                        // Landscape: flat row, and the
-                                                                        // SAME footprint the battlefield
-                                                                        // lays out with — the whole point
-                                                                        // of #1768 (the desktop fan used
-                                                                        // to render 120×168 hand cards
-                                                                        // next to 35×49 permanents).
-                                                                        layout={
-                                                                            landscapeCompact
-                                                                                ? landscapeHandLayout
-                                                                                : handLayout
-                                                                        }
-                                                                        cardWidth={
-                                                                            landscapeCompact
-                                                                                ? landscapeCards.cardWidth
-                                                                                : undefined
-                                                                        }
-                                                                        cardHeight={
-                                                                            landscapeCompact
-                                                                                ? landscapeCards.cardHeight
-                                                                                : undefined
-                                                                        }
-                                                                        data-testid="zone-player-hand"
-                                                                    />
-                                                                )}
-                                                            </div>
-                                                        </>
-                                                    )}
-
-                                                    {/* Card piles (graveyard / library /
-                                                exile) for both seats.
-                                                Landscape/desktop reuse the spatial
-                                                pile columns (#255); portrait
-                                                collapses them — and the stack —
-                                                into tappable chips that open the
-                                                SAME reveal / stack views (#336). */}
-                                                    {isPortrait ? (
-                                                        <BoardPortraitChips
-                                                            orderedPlayers={
-                                                                orderedPlayers
-                                                            }
-                                                            stackItems={
-                                                                stackItems
-                                                            }
-                                                        />
-                                                    ) : (
-                                                        <BoardPiles
-                                                            orderedPlayers={
-                                                                orderedPlayers
-                                                            }
-                                                            compact={
-                                                                landscapeCompact
-                                                            }
-                                                        />
-                                                    )}
-
-                                                    {/* Spatial chrome. The controller pod
-                                                (phase + priority cue + actions) is
-                                                mounted below on the right edge
-                                                (#331). */}
-                                                    <PriorityIndicator />
-                                                    {/* Portrait toggles the stack behind a
-                                                chip (above); landscape/desktop keep
-                                                it always-on. */}
-                                                    {!isPortrait &&
-                                                        stackItems.length >
-                                                            0 && (
-                                                            <GameStack
-                                                                stack={
-                                                                    stackItems
-                                                                }
-                                                            />
-                                                        )}
-                                                    {/* Our own SVG target arrows (#257):
-                                                endpoints derive from the shared
-                                                layout placements via the
-                                                arrow-anchor registry, so arrows
-                                                stay glued through the spring/tilt
-                                                motion. */}
-                                                    <BoardArrows
-                                                        stack={stackItems}
-                                                        combat={combat}
-                                                        defenderId={
-                                                            allPlayers.find(
-                                                                (p) =>
-                                                                    p.id !==
-                                                                    activePlayerId
-                                                            )?.id ?? null
-                                                        }
-                                                        anchorRevision={`${me?.id ?? ""}:${opponent?.id ?? ""}`}
-                                                    />
-                                                </div>
-                                            </LayoutGroup>
-                                        </ArrowHighlightProvider>
-                                    </ArrowAnchorProvider>
+                                    <BoardSurface
+                                        opponent={opponent}
+                                        me={me}
+                                        orderedPlayers={orderedPlayers}
+                                        viewerId={viewerId}
+                                        activePlayerId={activePlayerId}
+                                        stackItems={stackItems}
+                                        combat={combat}
+                                        isPortrait={isPortrait}
+                                        landscapeCompact={landscapeCompact}
+                                        viewportHeight={viewportHeight}
+                                        landscapeCards={landscapeCards}
+                                        landscapeHandLayout={
+                                            landscapeHandLayout
+                                        }
+                                    />
                                     {pendingTarget &&
                                         pendingTarget.playerId === viewerId &&
                                         (isGraveyardTargetForViewer(
