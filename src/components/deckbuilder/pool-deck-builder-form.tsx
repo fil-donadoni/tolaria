@@ -568,17 +568,37 @@ export default function PoolDeckBuilderForm({
      *  (here, "the Pool") — to the new printing. Never touches any other
      *  saved deck or the Pool's own membership: this only edits the
      *  in-memory working deck's `cardId`s, which ride the same debounced
-     *  autosave as any other card edit. */
+     *  autosave as any other card edit.
+     *
+     *  Unlike Constructed, no Pin remap is needed HERE (review of PR #2325,
+     *  finding F1 vs F2): a Pool-sourced entry's Pin key is its `poolIndex`
+     *  (`toZoneCards`'s explicit `pinKey`), which this rewrite never touches
+     *  — only `cardId` changes — so the Pin recorded on the seat's Pool
+     *  Arrangement keeps applying in-session by construction. The gap is one
+     *  step later, at RELOAD: `assignPoolCopies` re-attaches a saved entry to
+     *  a physical Pool copy, and does so basic-aware (matching by subtype,
+     *  not raw `cardId`) precisely so a re-arted Basic still finds its
+     *  `poolIndex` back — see `convex/limited/poolArrangement.ts`. */
     const handlePickBasicArt = useCallback(
         (subtype: BasicLandSubtype, printId: string) => {
             recordBasicLandArtChoice(subtype, printId);
             setBasicLandArt((prev) => ({ ...prev, [subtype]: printId }));
+            const rewritten = rewriteBasicLandArtInDeck(deck, subtype, printId);
+            if (
+                rewritten.cards === deck.cards &&
+                rewritten.sideboard === deck.sideboard
+            ) {
+                // N1 (review of PR #2325): nothing to rewrite — skip
+                // `updateDeck` entirely rather than scheduling a debounced
+                // save of byte-identical content.
+                return;
+            }
             updateDeck((d) => ({
                 ...d,
                 ...rewriteBasicLandArtInDeck(d, subtype, printId),
             }));
         },
-        [updateDeck]
+        [updateDeck, deck]
     );
 
     // Live legality (issue #1111): the same pure `validateDeck` the server

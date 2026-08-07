@@ -5,7 +5,16 @@
 import { describe, it, expect } from "vitest";
 import type { LimitedPoolCard } from "@convex/limited/eventTypes";
 import {
+    addManualColumn,
+    createColumnLayout,
+    pinCardToColumn,
+    remapPinKeys,
+    resolveColumnLayout,
+    type ColumnLayoutAdapter,
+} from "@convex/deckLayout";
+import {
     applyBasicLandArtPreference,
+    basicLandArtCardIdsToRemap,
     basicLandPrintings,
     countBasicLandCopies,
     findBasicLandRemovalIndex,
@@ -414,5 +423,137 @@ describe("seededBasicLandArt / recordBasicLandArtChoice (issue #1629, mirrors de
         expect(seededBasicLandArt(storage)).toEqual({
             Mountain: LEB_MOUNTAIN_PRINT,
         });
+    });
+});
+
+// PR #2325 review, finding F1: the rewrite changes a Basic's `cardId`, and
+// Constructed pins by `cardId` (no `pinKey` field of its own) — so the
+// rewrite alone changes the Pin's KEY, orphaning it. `basicLandArtCardIdsToRemap`
+// is the half that names what to re-key; `remapPinKeys` (`convex/deckLayout.ts`)
+// does the re-keying itself.
+describe("basicLandArtCardIdsToRemap (issue #1629 fixup, finding F1)", () => {
+    it("names every OLD cardId of the subtype the rewrite would change, excluding printId itself", () => {
+        const cards = [
+            { cardId: MOUNTAIN, cardName: "Mountain" },
+            { cardId: LEB_MOUNTAIN_PRINT, cardName: "Mountain" },
+            { cardId: BOLT_LEA, cardName: "Lightning Bolt" },
+        ];
+        const remapped = basicLandArtCardIdsToRemap(
+            cards,
+            "Mountain",
+            ICE_MOUNTAIN_PRINT
+        );
+        expect(remapped.sort()).toEqual([MOUNTAIN, LEB_MOUNTAIN_PRINT].sort());
+    });
+
+    it("excludes cardIds that already equal printId — nothing to remap for them", () => {
+        const cards = [
+            { cardId: MOUNTAIN, cardName: "Mountain" },
+            { cardId: ICE_MOUNTAIN_PRINT, cardName: "Mountain" },
+        ];
+        expect(
+            basicLandArtCardIdsToRemap(cards, "Mountain", ICE_MOUNTAIN_PRINT)
+        ).toEqual([MOUNTAIN]);
+    });
+
+    it("returns [] when the zone holds no copy of the subtype at all", () => {
+        const cards = [{ cardId: BOLT_LEA, cardName: "Lightning Bolt" }];
+        expect(
+            basicLandArtCardIdsToRemap(cards, "Mountain", ICE_MOUNTAIN_PRINT)
+        ).toEqual([]);
+    });
+
+    it("never crosses subtypes", () => {
+        const cards = [{ cardId: FOREST, cardName: "Forest" }];
+        expect(
+            basicLandArtCardIdsToRemap(cards, "Mountain", ICE_MOUNTAIN_PRINT)
+        ).toEqual([]);
+    });
+});
+
+// End-to-end reproduction of PR #2325 review finding F1, through the REAL
+// `pinCardToColumn` + `resolveColumnLayout` — never a hand-built view — with
+// an adapter that mirrors `deck-zone-surface.tsx`'s own: absent `pinKey`
+// falls back to `cardId` (`items` useMemo), which is exactly the Constructed
+// rule "four Lightning Bolts pin together" that makes a Basic's Pin key ITS
+// `cardId` in the first place.
+describe("Constructed Card Pin survives a basic-land art rewrite end-to-end (issue #1629 fixup, finding F1)", () => {
+    interface DeckEntry {
+        cardId: string;
+        cardName: string;
+        pinKey?: string;
+    }
+    const zoneSurfaceAdapter: ColumnLayoutAdapter<DeckEntry> = {
+        cardId: (i) => i.cardId,
+        pinKey: (i) => i.pinKey ?? i.cardId,
+    };
+    const LANDS_COLUMN = "custom:lands";
+
+    it("without the remap: the rewrite strands the Pin — the manual Column resolves empty (reproduces F1)", () => {
+        let layout = addManualColumn(createColumnLayout(), {
+            id: LANDS_COLUMN,
+            label: "Lands",
+        });
+        layout = pinCardToColumn(layout, MOUNTAIN, LANDS_COLUMN);
+        const cards: DeckEntry[] = [{ cardId: MOUNTAIN, cardName: "Mountain" }];
+
+        // Before the rewrite: the manual Column holds the Mountain.
+        const before = resolveColumnLayout({
+            layout,
+            items: cards,
+            adapter: zoneSurfaceAdapter,
+        });
+        expect(before.find((c) => c.id === LANDS_COLUMN)!.items).toHaveLength(
+            1
+        );
+
+        const rewritten = rewriteBasicLandArt(
+            cards,
+            "Mountain",
+            ICE_MOUNTAIN_PRINT
+        );
+        // Same (un-remapped) layout resolved against the rewritten cards.
+        const after = resolveColumnLayout({
+            layout,
+            items: rewritten,
+            adapter: zoneSurfaceAdapter,
+        });
+        expect(after.find((c) => c.id === LANDS_COLUMN)!.items).toEqual([]);
+    });
+
+    it("with the fix: remapPinKeys keeps the Column holding the copy, and leaves no orphaned key", () => {
+        let layout = addManualColumn(createColumnLayout(), {
+            id: LANDS_COLUMN,
+            label: "Lands",
+        });
+        layout = pinCardToColumn(layout, MOUNTAIN, LANDS_COLUMN);
+        const cards: DeckEntry[] = [{ cardId: MOUNTAIN, cardName: "Mountain" }];
+
+        const rewritten = rewriteBasicLandArt(
+            cards,
+            "Mountain",
+            ICE_MOUNTAIN_PRINT
+        );
+        const staleCardIds = basicLandArtCardIdsToRemap(
+            cards,
+            "Mountain",
+            ICE_MOUNTAIN_PRINT
+        );
+        const migratedLayout = remapPinKeys(
+            layout,
+            staleCardIds,
+            ICE_MOUNTAIN_PRINT
+        );
+
+        const after = resolveColumnLayout({
+            layout: migratedLayout,
+            items: rewritten,
+            adapter: zoneSurfaceAdapter,
+        });
+        expect(after.find((c) => c.id === LANDS_COLUMN)!.items).toEqual([
+            { cardId: ICE_MOUNTAIN_PRINT, cardName: "Mountain" },
+        ]);
+        // No orphaned key left behind in the persisted layout.
+        expect(migratedLayout.pins[MOUNTAIN]).toBeUndefined();
     });
 });

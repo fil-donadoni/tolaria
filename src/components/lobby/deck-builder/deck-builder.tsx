@@ -6,6 +6,7 @@ import {
     manualColumnIdForLabel,
     normalizeManualColumnLabel,
     pinCardToColumn,
+    remapPinKeys,
     removeColumn,
     renameManualColumn,
     storeZoneLayout,
@@ -20,6 +21,7 @@ import { computeDeckColors } from "~/lib/deckColors";
 import { deckCardLookup, makeDeckCardShapeResolver } from "~/lib/deckCardShape";
 import {
     applyBasicLandArtPreference,
+    basicLandArtCardIdsToRemap,
     countBasicLandCopies,
     findBasicLandRemovalIndex,
     recordBasicLandArtChoice,
@@ -834,17 +836,62 @@ export default function DeckBuilder({
      *  rewrite every copy already in the open deck — Maindeck AND Sideboard
      *  — to the new printing. Never touches any other saved deck: this only
      *  edits the in-memory working deck, which rides the same debounced
-     *  autosave as any other card edit. */
+     *  autosave as any other card edit.
+     *
+     *  A Card Pin recorded against one of the rewritten copies rides along in
+     *  the SAME edit (review of PR #2325, finding F1): Constructed pins by
+     *  `cardId` (`deck-zone-surface.tsx`'s `card.pinKey ?? card.cardId`), and
+     *  a Basic land entry carries no `pinKey` of its own, so its Pin key IS
+     *  its `cardId` — changing that id therefore changes the Pin's key, not
+     *  just its content. `basicLandArtCardIdsToRemap` names every OLD id
+     *  about to disappear; `remapPinKeys` re-homes any Pin recorded under one
+     *  of them onto the new `printId`, in both Zones' Layouts, so the deck
+     *  row never persists an orphaned key. */
     const handlePickBasicArt = useCallback(
         (subtype: BasicLandSubtype, printId: string) => {
             recordBasicLandArtChoice(subtype, printId);
             setBasicLandArt((prev) => ({ ...prev, [subtype]: printId }));
-            updateDeck((d) => ({
-                ...d,
-                ...rewriteBasicLandArtInDeck(d, subtype, printId),
-            }));
+            const rewritten = rewriteBasicLandArtInDeck(deck, subtype, printId);
+            if (
+                rewritten.cards === deck.cards &&
+                rewritten.sideboard === deck.sideboard
+            ) {
+                // N1 (review of PR #2325): re-picking the art already in
+                // effect, or picking art for a subtype this deck holds zero
+                // copies of — nothing to rewrite, so skip `updateDeck`
+                // entirely rather than scheduling a debounced save of
+                // byte-identical content (`useDeckWorkspace`'s `schedule` has
+                // no no-op guard of its own — it fires on every call).
+                return;
+            }
+            const staleCardIds = basicLandArtCardIdsToRemap(
+                [...deck.cards, ...deck.sideboard],
+                subtype,
+                printId
+            );
+            updateDeck((d) => {
+                const currentLayout = fromStoredDeckColumnLayout(d.layout, {
+                    maindeck: mainView,
+                    sideboard: sideView,
+                });
+                let layout = storeZoneLayout(
+                    d.layout,
+                    "maindeck",
+                    remapPinKeys(currentLayout.maindeck, staleCardIds, printId)
+                );
+                layout = storeZoneLayout(
+                    layout,
+                    "sideboard",
+                    remapPinKeys(currentLayout.sideboard, staleCardIds, printId)
+                );
+                return {
+                    ...d,
+                    ...rewriteBasicLandArtInDeck(d, subtype, printId),
+                    layout,
+                };
+            });
         },
-        [updateDeck]
+        [updateDeck, deck, mainView, sideView]
     );
 
     return (

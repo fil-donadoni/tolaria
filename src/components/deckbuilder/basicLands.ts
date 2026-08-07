@@ -282,13 +282,25 @@ export function applyBasicLandArtPreference(
  * Rewrites every copy of `subtype` in `cards` to `printId` — the retroactive
  * half of the picker (issue #1629 AC5: "changing the art rewrites the copies
  * already in the open deck"). Preserves ARRAY POSITION and every other field
- * on the entry (`pinKey` included) — only `cardId` changes — which is what
- * keeps a Column Pin recorded against one of these copies intact instead of
- * silently stranded (the exact failure mode `findBasicLandRemovalIndex`'s own
- * doc comment above warns about for the remove gesture). A copy of a
+ * on the entry (`pinKey` included) — only `cardId` changes. A copy of a
  * DIFFERENT subtype, or a non-Basic card, passes through untouched. Returns
  * the SAME array reference when nothing changed, so a caller's `updateDeck`
  * doesn't schedule a save for a subtype the zone doesn't hold.
+ *
+ * This does NOT, by itself, keep a Column Pin recorded against one of these
+ * copies intact (review of PR #2325, findings F1/F2). Preserving the
+ * OPTIONAL `pinKey` FIELD preserves nothing for a Constructed entry, which
+ * never carries one — `deck-zone-surface.tsx` falls back to `card.pinKey ??
+ * card.cardId`, so for a Basic land the Pin's KEY *is* the `cardId` this
+ * function just changed. A caller that pins by `cardId` (Constructed) MUST
+ * separately re-key its persisted Pins — see `basicLandArtCardIdsToRemap`
+ * below and `remapPinKeys` (`convex/deckLayout.ts`) — in the SAME edit, or
+ * the Pin is orphaned under an id nothing resolves to anymore (the exact
+ * failure mode `findBasicLandRemovalIndex`'s own doc comment above warns
+ * about for the remove gesture). A Limited entry is unaffected in-session
+ * (its Pin key is `poolIndex`-based, untouched by a `cardId` change) but has
+ * its own re-attachment gap on reload — see `assignPoolCopies`
+ * (`convex/limited/poolArrangement.ts`).
  */
 export function rewriteBasicLandArt<
     T extends { cardId: string; cardName: string },
@@ -318,4 +330,31 @@ export function rewriteBasicLandArtInDeck<
         cards: rewriteBasicLandArt(deck.cards, subtype, printId),
         sideboard: rewriteBasicLandArt(deck.sideboard, subtype, printId),
     };
+}
+
+/** The distinct OLD `cardId`s a `rewriteBasicLandArt*` call against `cards`
+ *  would replace with `printId` (issue #1629 fixup, finding F1) — every
+ *  identity a Constructed Card Pin might currently be recorded under for this
+ *  subtype, and therefore every key a caller must fold onto `printId` (e.g.
+ *  via `remapPinKeys`, `convex/deckLayout.ts`) in the SAME edit as the
+ *  rewrite, so the persisted layout never accumulates an orphaned key. Pure
+ *  read — computed alongside the rewrite, never in place of it. `printId`
+ *  itself is excluded: it is the destination, never something to remap FROM.
+ *  `[]` when the zone holds no copy of `subtype` at all, or already holds
+ *  only `printId` (nothing to remap). */
+export function basicLandArtCardIdsToRemap(
+    cards: readonly { cardId: string }[],
+    subtype: BasicLandSubtype,
+    printId: string
+): string[] {
+    const ids = new Set<string>();
+    for (const card of cards) {
+        if (
+            card.cardId !== printId &&
+            basicLandSubtypeOf(card.cardId) === subtype
+        ) {
+            ids.add(card.cardId);
+        }
+    }
+    return [...ids];
 }
