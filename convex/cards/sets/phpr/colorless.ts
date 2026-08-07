@@ -3,10 +3,12 @@
 // through phpr/index.ts. Lands and colourless artifacts (no coloured cost)
 // live here per the colour-split convention.
 
+import { makeTapForMana } from "../../abilities";
 import type { CardDefinition } from "../../types";
 
 // Mana Crypt — {0} Artifact. "At the beginning of your upkeep, flip a coin.
-// If you lose the flip, Mana Crypt deals 3 damage to you.\n{T}: Add {C}{C}."
+// If you lose the flip, this artifact deals 3 damage to you.\n{T}: Add
+// {C}{C}."
 // (CR 705 coin flip via the shipped `coinFlip` Op, #851; the {T} mana ability
 // is trivial, useStack:false CR 605.3a.) The upkeep clause's WIN branch does
 // nothing at all — "if you LOSE, deal 3 damage", nothing on a win — which
@@ -24,14 +26,14 @@ export const manaCrypt: CardDefinition = {
     name: "Mana Crypt",
     rarity: "rare",
     oracleText:
-        "At the beginning of your upkeep, flip a coin. If you lose the flip, Mana Crypt deals 3 damage to you.\n{T}: Add {C}{C}.",
+        "At the beginning of your upkeep, flip a coin. If you lose the flip, this artifact deals 3 damage to you.\n{T}: Add {C}{C}.",
     manaCost: { X: 0 },
     types: ["Artifact"],
     triggeredAbilities: [
         {
             id: "mana-crypt-upkeep-flip",
             oracleText:
-                "At the beginning of your upkeep, flip a coin. If you lose the flip, Mana Crypt deals 3 damage to you.",
+                "At the beginning of your upkeep, flip a coin. If you lose the flip, this artifact deals 3 damage to you.",
             event: "PHASE_BEGIN",
             matches: (event, self) =>
                 event.type === "PHASE_BEGIN" &&
@@ -45,7 +47,7 @@ export const manaCrypt: CardDefinition = {
                         effects: [],
                     },
                     loss: {
-                        consequence: "Mana Crypt deals 3 damage to you.",
+                        consequence: "This artifact deals 3 damage to you.",
                         effects: [
                             {
                                 op: "dealDamage",
@@ -59,13 +61,10 @@ export const manaCrypt: CardDefinition = {
         },
     ],
     activatedAbilities: [
-        {
+        makeTapForMana({
             id: "mana-crypt-mana",
             oracleText: "{T}: Add {C}{C}.",
-            cost: { tap: true },
-            useStack: false,
-            effect: (ctx) => ctx.addMana({ C: 2 }),
-            manaProduced: { C: 2 },
-        },
+            produces: { C: 2 },
+        }),
     ],
 };
