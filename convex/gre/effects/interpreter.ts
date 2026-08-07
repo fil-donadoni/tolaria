@@ -3818,12 +3818,19 @@ export const OP_EXECUTORS: {
         // recovery `moveZone` already does for Ashen Ghoul: fall back to the
         // ability's own instance id and locate the card in exile (the
         // Eternalize shape) or the graveyard.
+        //
+        // The recovery is the ONLY path that may read a non-battlefield
+        // source, so it is flagged here and passed as an explicit per-call opt
+        // below — every other caller keeps `createTokenCopyOf`'s documented
+        // CR 608.2b fizzle when its source has left the battlefield.
+        let recoveredLastKnown = false;
         if (!source && "ref" in op.source && op.source.ref === "$source") {
             const gid = ctx.sourceInstanceId;
             const owner =
                 ctx.getExileCardOwner(gid) ?? ctx.getGraveyardCardOwner(gid);
             if (owner !== undefined) {
                 source = { type: "graveyard-card", id: gid, playerId: owner };
+                recoveredLastKnown = true;
             }
         }
         // The `graveyard-card` carrier is the generic "card sitting in a
@@ -3848,10 +3855,16 @@ export const OP_EXECUTORS: {
         // different `except`.
         const except = op.except;
         const opts =
-            op.entersTapped || op.entersAttacking || except
+            op.entersTapped ||
+            op.entersAttacking ||
+            except ||
+            recoveredLastKnown
                 ? {
                       entersTapped: op.entersTapped,
                       entersAttacking: op.entersAttacking,
+                      ...(recoveredLastKnown
+                          ? { lastKnownFromGraveyardOrExile: true }
+                          : {}),
                       ...(except?.basePower !== undefined
                           ? { basePower: except.basePower }
                           : {}),

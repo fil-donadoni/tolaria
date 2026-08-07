@@ -2166,7 +2166,19 @@ export interface SpellContext {
      *  state is independent of what gets copied). Meaningless for
      *  `becomeCopyOf` (a permanent already on the battlefield never
      *  "enters"), so those two fields live only on this function's `opts`,
-     *  not on the shared `CopyEffectOptions` interface itself. */
+     *  not on the shared `CopyEffectOptions` interface itself.
+     *
+     *  `lastKnownFromGraveyardOrExile` (CR 608.2b / 702.129a, issue #2339)
+     *  widens the source lookup — and ONLY for the caller that sets it — from
+     *  "on the battlefield" to "on the battlefield, or last known in a
+     *  graveyard or exile". Exactly one shape needs it: a keyword whose own
+     *  activation COST removed the source from the zone it was activated from
+     *  (Eternalize exiles the card from the graveyard to pay, then resolves by
+     *  copying it). Copiable values are printed values (CR 707.2), so the copy
+     *  is identical wherever the object now sits. Left unset — the default,
+     *  and every pre-existing caller — a source that has left the battlefield
+     *  still fizzles the copy. Hidden zones (hand, library) are never
+     *  searched: CR 400.2, no rules story copies a card nobody can see. */
     createTokenCopyOf: (
         sourceCreatureId: string,
         controllerId: string,
@@ -2174,6 +2186,7 @@ export interface SpellContext {
         opts?: CopyEffectOptions & {
             entersTapped?: boolean;
             entersAttacking?: boolean;
+            lastKnownFromGraveyardOrExile?: boolean;
         }
     ) => string | undefined;
     // --- Primitives ---

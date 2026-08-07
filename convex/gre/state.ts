@@ -7378,9 +7378,9 @@ function findOnBattlefield(
     return null;
 }
 
-/** Finds a card instance by id in any NON-battlefield zone of any player —
- *  graveyard, exile, hand, library (CR 400.1's zone list, minus the stack,
- *  which holds copies rather than the card itself for an activated ability).
+/** Finds a card instance by id in the two PUBLIC non-battlefield zones —
+ *  graveyard and exile (CR 400.2: those are the zones whose objects are open
+ *  information, so an effect may legitimately read one).
  *
  *  The last-known-information lookup (CR 608.2b) for an effect whose own COST
  *  moved its source out of the zone it was activated from: Eternalize
@@ -7388,20 +7388,20 @@ function findOnBattlefield(
  *  copying it. Copiable values are printed values (CR 707.2), so where the
  *  object currently sits does not change the copy — only whether it is found.
  *
+ *  Deliberately NOT hand/library-inclusive (issue #2339 review): no rules
+ *  story lets an effect create a token copy of a card in a hidden zone, and
+ *  exile + graveyard is exactly the pair the interpreter's own `$source`
+ *  recovery checks (`getExileCardOwner ?? getGraveyardCardOwner`).
+ *
  *  Deliberately NOT battlefield-inclusive: callers combine it with
  *  `findOnBattlefield`, which returns the richer `{ card, player, idx }` shape
  *  they need for in-place mutation. */
-function findCardInAnyZone(
+function findCardInGraveyardOrExile(
     state: GameState,
     cardId: string
 ): CardInstanceState | undefined {
     for (const player of state.players) {
-        for (const zone of [
-            player.graveyard,
-            player.exile,
-            player.hand,
-            player.library,
-        ]) {
+        for (const zone of [player.graveyard, player.exile]) {
             const found = zone.find((c) => c.id === cardId);
             if (found) return found;
         }
@@ -13013,18 +13013,25 @@ export function buildSpellContext(
             // source's printed values (the SAME engine path Clone / Copy
             // Artifact use via `becomeCopyOf`; the recipient here is a fresh
             // token instead of the resolving permanent). No-op if the source
-            // has already left the battlefield (the copy fizzles, CR 707.2).
+            // has already left the battlefield (the copy fizzles, CR 707.2) —
+            // that is the DEFAULT and stays the contract for every caller
+            // whose source is a battlefield permanent (Dance of Many, Satya,
+            // Ocelot Pride).
             //
-            // CR 608.2b / 702.129a (issue #2339) — a keyword whose cost REMOVES
+            // CR 608.2b / 702.129a (issue #2339) — `opts.lastKnownFromGraveyardOrExile`
+            // OPTS IN to the one exception: a keyword whose own COST removes
             // the source from the graveyard (Eternalize: "Exile this card from
             // your graveyard: create a token that's a copy of it") still copies
-            // that card, so the battlefield lookup alone is not the whole
-            // search: fall back to the card's last known object in ANY other
-            // zone. Copiable values are printed values (CR 707.2), so a
-            // non-battlefield source yields exactly the same copy.
+            // that card, so for those callers the battlefield lookup is not the
+            // whole search. Copiable values are printed values (CR 707.2), so a
+            // non-battlefield source yields exactly the same copy. Narrow by
+            // construction: opt-in per call, and only the two PUBLIC zones
+            // (CR 400.2) — never a card in hand or library.
             const source =
                 findOnBattlefield(state, sourceCreatureId)?.card ??
-                findCardInAnyZone(state, sourceCreatureId);
+                (opts?.lastKnownFromGraveyardOrExile
+                    ? findCardInGraveyardOrExile(state, sourceCreatureId)
+                    : undefined);
             if (!source) return undefined;
             // Minimal placeholder body: a 0/0 creature token. `applyCopy`
             // immediately replaces every copiable field, so the placeholder is

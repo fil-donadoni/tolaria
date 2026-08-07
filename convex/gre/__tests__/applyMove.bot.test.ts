@@ -23,6 +23,7 @@ import {
     makeState,
 } from "../../cards/__tests__/setup";
 import type { Move } from "../moves";
+import type { GameState } from "../state";
 
 const TREASURE_CRUISE = getCardByName("Treasure Cruise").id; // {7}{U}, delve
 const ISLAND = getCardByName("Island").id;
@@ -367,5 +368,156 @@ describe("search leaves record an attacker DECLARATION (CR 506.3, issue #1944)",
             (c) => c.id === "bear1"
         )!;
         expect(bearAfter.hasAttackedThisTurn).toBe(true);
+    });
+});
+
+// CR 113.6 / 702.129a (issue #2339) — a GRAVEYARD-source activation
+// (Eternalize, Ashen Ghoul) has no battlefield source, so the tap-the-source
+// leg of `activate-ability` finds nothing and both search leaves would leave
+// the card sitting in the graveyard. Its `cost.exileThis` leg is the one part
+// of the cost that changes the board, so both simulators must apply it — else
+// a single rollout line can spend the SAME graveyard card N times, each
+// enumeration still offering the activation it has already paid for.
+describe("graveyard-source activations pay `exileThis` in the search leaves (CR 702.129a, issue #2339)", () => {
+    const FANATIC = getCardByName("Fanatic of Rhonas").id; // {1}{G}, Eternalize {2}{G}{G}
+    const FOREST = getCardByName("Forest").id;
+    const BOT = "p1";
+
+    /** Fanatic in the bot's graveyard, four untapped Forests (exactly the
+     *  eternalize cost), a main phase with an empty stack — every gate clear. */
+    function eternalizeState(): GameState {
+        return makeState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: BOT,
+            priorityPlayerId: BOT,
+            players: [
+                makePlayer(BOT, {
+                    battlefield: Array.from({ length: 4 }, (_, i) =>
+                        makeInstance(FOREST, {
+                            id: `forest${i}`,
+                            controllerId: BOT,
+                            ownerId: BOT,
+                        })
+                    ),
+                    graveyard: [
+                        makeInstance(FANATIC, {
+                            id: "fanatic",
+                            controllerId: BOT,
+                            ownerId: BOT,
+                            zone: "graveyard",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    function eternalizeMove(state: GameState): Move {
+        const move = enumerateMoves(state, BOT).find(
+            (m) =>
+                m.kind === "activate-ability" &&
+                m.cardInstanceId === "fanatic" &&
+                m.abilityId === "eternalize"
+        );
+        expect(move).toBeDefined();
+        return move!;
+    }
+
+    /** Re-enumerate on the post-move position with the same player holding
+     *  priority — the shape a rollout actually reaches when it keeps taking
+     *  moves for the same seat. */
+    function eternalizeMovesAgain(state: GameState): Move[] {
+        const probe: GameState = {
+            ...state,
+            priorityPlayerId: BOT,
+            phase: "PRECOMBAT_MAIN",
+        };
+        return enumerateMoves(probe, BOT).filter(
+            (m) =>
+                m.kind === "activate-ability" &&
+                m.cardInstanceId === "fanatic" &&
+                m.abilityId === "eternalize"
+        );
+    }
+
+    it("applyMoveForSearch (greedy 1-ply sandbox) moves the card graveyard → exile", () => {
+        const state = eternalizeState();
+        const move = eternalizeMove(state);
+
+        const next = applyMoveForSearch(state, BOT, move);
+        const nextBot = next.players.find((p) => p.id === BOT)!;
+
+        expect(nextBot.graveyard.map((c) => c.id)).toEqual([]);
+        expect(nextBot.exile.map((c) => c.id)).toEqual(["fanatic"]);
+        // The pure sandbox must not leak the exile back into the caller's state.
+        expect(state.players[0].graveyard.map((c) => c.id)).toEqual([
+            "fanatic",
+        ]);
+        // And the resource is genuinely spent: the same line can't eternalize
+        // the same card twice.
+        expect(eternalizeMovesAgain(next)).toHaveLength(0);
+    });
+
+    it("applyMoveInSearch (ISMCTS tree leaf) moves the card graveyard → exile, in place", () => {
+        const state = eternalizeState();
+        const move = eternalizeMove(state);
+
+        applyMoveInSearch(state, BOT, move);
+        const bot = state.players.find((p) => p.id === BOT)!;
+
+        expect(bot.graveyard.map((c) => c.id)).toEqual([]);
+        expect(bot.exile.map((c) => c.id)).toEqual(["fanatic"]);
+        expect(eternalizeMovesAgain(state)).toHaveLength(0);
+    });
+
+    // The must-NOT row of the same census. Ashen Ghoul (ICE) is the OTHER
+    // shipped `activateFromGraveyard` ability and its cost is plain mana —
+    // exiling its source would delete the card the ability is about to
+    // reanimate. Both leaves must key on `cost.exileThis`, not on
+    // "the source is in a graveyard".
+    it("does NOT exile a graveyard source whose ability has no `exileThis` cost (Ashen Ghoul)", () => {
+        const GHOUL = getCardByName("Ashen Ghoul").id;
+        const ghoulMove: Move = {
+            kind: "activate-ability",
+            cardInstanceId: "ghoul",
+            abilityId: "ashen-ghoul-reanimate",
+            targets: [],
+            confirmTargets: false,
+            tapPlan: [],
+        };
+        function ghoulState(): GameState {
+            return makeState({
+                phase: "UPKEEP",
+                activePlayerId: BOT,
+                priorityPlayerId: BOT,
+                players: [
+                    makePlayer(BOT, {
+                        graveyard: [
+                            makeInstance(GHOUL, {
+                                id: "ghoul",
+                                controllerId: BOT,
+                                ownerId: BOT,
+                                zone: "graveyard",
+                            }),
+                        ],
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+        }
+
+        const inPlace = ghoulState();
+        applyMoveInSearch(inPlace, BOT, ghoulMove);
+        expect(inPlace.players[0].graveyard.map((c) => c.id)).toEqual([
+            "ghoul",
+        ]);
+        expect(inPlace.players[0].exile).toHaveLength(0);
+
+        const sandbox = applyMoveForSearch(ghoulState(), BOT, ghoulMove);
+        expect(sandbox.players[0].graveyard.map((c) => c.id)).toEqual([
+            "ghoul",
+        ]);
+        expect(sandbox.players[0].exile).toHaveLength(0);
     });
 });
