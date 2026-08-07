@@ -6,14 +6,38 @@
 // (`adminAuth.test.ts`, `decks.test.ts`) only re-asserts the pure
 // `isAdminUser` predicate, which proves the PREDICATE works but not that
 // these two queries actually CALL it — a query that forgot the gate would
-// pass that test suite unnoticed. This file drives each REGISTERED query's
-// own `_handler` (the function Convex actually deploys) against a stub
-// `QueryCtx`, same harness discipline as `gameTicks.test.ts` /
-// `debugMutationAdminCensus.test.ts` (this repo has no convex-test harness).
+// pass that test suite unnoticed. This file drives each REGISTERED query
+// binding's own `_handler` (the function Convex actually deploys) against a
+// stub `QueryCtx`, same technique as `debugMutationAdminCensus.test.ts` /
+// `debugBo3Sideboard.test.ts` (this repo has no convex-test harness).
+//
+// Earlier revision imported the bare EXTRACTED `listBugReportsHandler` /
+// `getBugReportHandler` functions instead of the registered `listBugReports`
+// / `getBugReport` bindings — that drives the gate logic, but proves nothing
+// about whether the `query({ ..., handler })` registration actually wires
+// that function in. A reviewer confirmed the gap by swapping the
+// registration's `handler:` for an inline, ungated closure doing the same
+// read: `listBugReportsHandler` still worked (it isn't called anymore), and
+// this suite stayed green while the deployed query leaked every report to
+// any signed-in caller. Driving `(listBugReports as ...)._handler` instead
+// closes that gap — it is the exact object Convex invokes at the RPC.
 import { describe, it, expect } from "vitest";
 import type { QueryCtx } from "../_generated/server";
 import type { Id } from "../_generated/dataModel";
-import { listBugReportsHandler, getBugReportHandler } from "../bugReports";
+import { listBugReports, getBugReport } from "../bugReports";
+
+type Handler<A, R> = { _handler: (ctx: QueryCtx, args: A) => Promise<R> };
+
+const runListBugReports = (ctx: QueryCtx) =>
+    (
+        listBugReports as unknown as Handler<Record<string, never>, unknown>
+    )._handler(ctx, {});
+
+const runGetBugReport = (ctx: QueryCtx, args: { reportId: Id<"bugReports"> }) =>
+    (getBugReport as unknown as Handler<typeof args, unknown>)._handler(
+        ctx,
+        args
+    );
 
 type Row = Record<string, unknown>;
 
@@ -65,9 +89,9 @@ const REPORT: Row = {
 describe("listBugReports / getBugReport admin gate (issue #2250)", () => {
     it("rejects an unauthenticated caller on both queries", async () => {
         const ctx = makeCtx(null, [REPORT]);
-        await expect(listBugReportsHandler(ctx)).rejects.toThrow(/admin only/i);
+        await expect(runListBugReports(ctx)).rejects.toThrow(/admin only/i);
         await expect(
-            getBugReportHandler(ctx, {
+            runGetBugReport(ctx, {
                 reportId: "report-1" as Id<"bugReports">,
             })
         ).rejects.toThrow(/admin only/i);
@@ -75,9 +99,9 @@ describe("listBugReports / getBugReport admin gate (issue #2250)", () => {
 
     it("rejects an authenticated non-admin caller on both queries", async () => {
         const ctx = makeCtx("user-1", [NON_ADMIN, REPORT]);
-        await expect(listBugReportsHandler(ctx)).rejects.toThrow(/admin only/i);
+        await expect(runListBugReports(ctx)).rejects.toThrow(/admin only/i);
         await expect(
-            getBugReportHandler(ctx, {
+            runGetBugReport(ctx, {
                 reportId: "report-1" as Id<"bugReports">,
             })
         ).rejects.toThrow(/admin only/i);
@@ -85,7 +109,7 @@ describe("listBugReports / getBugReport admin gate (issue #2250)", () => {
 
     it("allows an admin through listBugReports, and never puts state on the returned rows", async () => {
         const ctx = makeCtx("admin-1", [ADMIN, REPORT]);
-        const rows = await listBugReportsHandler(ctx);
+        const rows = (await runListBugReports(ctx)) as Row[];
         expect(rows).toHaveLength(1);
         expect(rows[0]).toEqual({
             _id: "report-1",
@@ -101,9 +125,9 @@ describe("listBugReports / getBugReport admin gate (issue #2250)", () => {
 
     it("allows an admin through getBugReport, including the full state", async () => {
         const ctx = makeCtx("admin-1", [ADMIN, REPORT]);
-        const result = await getBugReportHandler(ctx, {
+        const result = (await runGetBugReport(ctx, {
             reportId: "report-1" as Id<"bugReports">,
-        });
+        })) as Row | null;
         expect(result).not.toBeNull();
         expect(result?.email).toBe("ada@example.com");
         expect(result?.state).toEqual({ turn: 3, phase: "COMBAT" });
@@ -112,7 +136,7 @@ describe("listBugReports / getBugReport admin gate (issue #2250)", () => {
 
     it("returns null from getBugReport for a missing row, after the gate passes", async () => {
         const ctx = makeCtx("admin-1", [ADMIN]);
-        const result = await getBugReportHandler(ctx, {
+        const result = await runGetBugReport(ctx, {
             reportId: "missing" as Id<"bugReports">,
         });
         expect(result).toBeNull();
