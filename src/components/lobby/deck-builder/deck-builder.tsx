@@ -18,6 +18,13 @@ import {
 import { effectiveFeatured, toggleFeatured } from "~/lib/featuredPicker";
 import { computeDeckColors } from "~/lib/deckColors";
 import { deckCardLookup, makeDeckCardShapeResolver } from "~/lib/deckCardShape";
+import {
+    countBasicLandCopies,
+    findBasicLandRemovalIndex,
+    resolveCanonicalBasicLandCardIds,
+    type BasicLandSubtype,
+} from "~/components/deckbuilder/basicLands";
+import PoolBasicLandsBar from "~/components/deckbuilder/pool-basic-lands-bar";
 import DeckBuilderShell from "~/components/deckbuilder/deck-builder-shell";
 import type { DeckBuilderViewSpec } from "~/components/deckbuilder/deckBuilderVariant";
 import {
@@ -217,7 +224,7 @@ export default function DeckBuilder({
         [kind, mode, sinks, fullCatalogue?.rows]
     );
 
-    const { deck, updateDeck, setName, flush } = useDeckWorkspace({
+    const { deck, saving, updateDeck, setName, flush } = useDeckWorkspace({
         initialIdentity,
         save,
         initial: () =>
@@ -479,11 +486,21 @@ export default function DeckBuilder({
         [deck.cards, deck.sideboard, deck.format, banlistOverride]
     );
 
+    // `count` defaults to 1 for every EXISTING caller (the search grid's
+    // one-card-at-a-time `onAdd`) and is passed explicitly by the basics bar
+    // (issue #1627) so a `+5` click appends five copies in one working-deck
+    // update rather than five separate ones.
     const handleAdd = useCallback(
-        (cardId: string, cardName: string) => {
+        (cardId: string, cardName: string, count = 1) => {
             updateDeck((d) => ({
                 ...d,
-                cards: [...d.cards, { cardId, cardName }],
+                cards: [
+                    ...d.cards,
+                    ...Array.from({ length: count }, () => ({
+                        cardId,
+                        cardName,
+                    })),
+                ],
             }));
         },
         [updateDeck]
@@ -503,6 +520,27 @@ export default function DeckBuilder({
         (cardId: string) => {
             updateDeck((d) => {
                 const idx = d.cards.findIndex((c) => c.cardId === cardId);
+                if (idx < 0) return d;
+                const next = [...d.cards];
+                next.splice(idx, 1);
+                return { ...d, cards: next };
+            });
+        },
+        [updateDeck]
+    );
+
+    /** The Add-Basic bar's remove gesture (issue #1627, PR #2320 review B1) —
+     *  deliberately NOT `handleRemove` above. `handleRemove` serves the
+     *  Maindeck tile click, where the user pointed at one specific card and
+     *  its `cardId` is exactly right; the bar points at a SUBTYPE, and its
+     *  counter counts by subtype. Constructed is where that gap bites hardest:
+     *  the search grid adds by PRINT id (the edition dropdown's value), so a
+     *  deck built from any printing but the catalogue's canonical one was
+     *  counted by the bar and untouchable by it. */
+    const handleRemoveBasic = useCallback(
+        (subtype: BasicLandSubtype) => {
+            updateDeck((d) => {
+                const idx = findBasicLandRemovalIndex(d.cards, subtype);
                 if (idx < 0) return d;
                 const next = [...d.cards];
                 next.splice(idx, 1);
@@ -757,6 +795,17 @@ export default function DeckBuilder({
         return deckCardLookup(resolveShape, (id) => names.get(id));
     }, [resolveShape, deck.cards, deck.sideboard]);
 
+    // The basics bar, shared with the Limited builder (ADR 0075, issue
+    // #1627 — "the basics bar ships in BOTH builders"). Constructed has no
+    // Pool, so every subtype resolves straight to the catalogue's canonical
+    // printing rather than through a Pool-preference tier; the count is read
+    // off the live Maindeck exactly like the Limited variant's.
+    const basicCardIds = useMemo(() => resolveCanonicalBasicLandCardIds(), []);
+    const basicCounts = useMemo(
+        () => countBasicLandCopies(deck.cards),
+        [deck.cards]
+    );
+
     return (
         <DeckBuilderShell
             title={
@@ -770,6 +819,15 @@ export default function DeckBuilder({
             }
             onDone={() => void handleDone()}
             manager={manager}
+            basicsBar={
+                <PoolBasicLandsBar
+                    cardIdsBySubtype={basicCardIds}
+                    counts={basicCounts}
+                    onAdd={handleAdd}
+                    onRemove={handleRemoveBasic}
+                    disabled={saving}
+                />
+            }
             headerActions={
                 <>
                     {isPreset && initialIdentity && (
