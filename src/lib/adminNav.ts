@@ -40,6 +40,12 @@ export const ADMIN_NAV: readonly AdminNavEntry[] = [
             "Archetypes, Capabilities and Combo Edges per card, plus the reviewed flag over the LLM-seeded census.",
     },
     {
+        to: "/admin/bug-reports",
+        label: "Bug Reports",
+        description:
+            "The evidence behind every filed issue: reporter email, the full game state at the moment they hit the button, and the attachment.",
+    },
+    {
         to: "/admin/draft-lab",
         label: "Draft Lab",
         description:
