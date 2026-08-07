@@ -3808,18 +3808,70 @@ export const OP_EXECUTORS: {
         if (controllerId === undefined) return;
         const count = op.count === undefined ? 1 : resolveValue(ctx, op.count);
         if (count === undefined || count <= 0) return;
-        const source = resolveObjectRef(ctx, op.source);
-        if (!source || source.type !== "permanent") return;
+        let source = resolveObjectRef(ctx, op.source);
+        // CR 608.2b / 702.129a (issue #2339) — `$source` recovery for an
+        // ability whose source is NOT on the battlefield. The implicit
+        // `$source` snapshot is only seeded for a battlefield source
+        // (`runEffectScript`), and Eternalize's own COST exiles the card from
+        // the graveyard before the ability resolves — so the generic ref
+        // resolves to nothing and the copy would silently fizzle. Mirrors the
+        // recovery `moveZone` already does for Ashen Ghoul: fall back to the
+        // ability's own instance id and locate the card in exile (the
+        // Eternalize shape) or the graveyard.
+        if (!source && "ref" in op.source && op.source.ref === "$source") {
+            const gid = ctx.sourceInstanceId;
+            const owner =
+                ctx.getExileCardOwner(gid) ?? ctx.getGraveyardCardOwner(gid);
+            if (owner !== undefined) {
+                source = { type: "graveyard-card", id: gid, playerId: owner };
+            }
+        }
+        // The `graveyard-card` carrier is the generic "card sitting in a
+        // non-battlefield zone" selection shape (see `moveZone`); either
+        // carrier names an instance id `createTokenCopyOf` can locate.
+        if (
+            !source ||
+            (source.type !== "permanent" && source.type !== "graveyard-card")
+        ) {
+            return;
+        }
         // CR 508.4 (issue #1195) — "create a TAPPED and ATTACKING token
         // that's a copy of…" (Satya, Aetherflux Genius). Passed straight
         // through to `createTokenCopyOf`'s own entry-state opts; omitted
         // entirely (undefined) when neither flag is set, matching every
         // caller before this issue (Dance of Many).
+        //
+        // CR 707.2's "except" clause (issue #2339) maps 1:1 onto the SAME
+        // `CopyEffectOptions` `applyCopy` already interprets — Eternalize's
+        // "except it's a 4/4 black Zombie … with no mana cost" needs no new
+        // execution path, and Embalm (CR 702.128a) is the same call with a
+        // different `except`.
+        const except = op.except;
         const opts =
-            op.entersTapped || op.entersAttacking
+            op.entersTapped || op.entersAttacking || except
                 ? {
                       entersTapped: op.entersTapped,
                       entersAttacking: op.entersAttacking,
+                      ...(except?.basePower !== undefined
+                          ? { basePower: except.basePower }
+                          : {}),
+                      ...(except?.baseToughness !== undefined
+                          ? { baseToughness: except.baseToughness }
+                          : {}),
+                      ...(except?.colors
+                          ? { colorOverride: [...except.colors] }
+                          : {}),
+                      ...(except?.additionalSubtypes
+                          ? {
+                                additionalSubtypes: [
+                                    ...except.additionalSubtypes,
+                                ],
+                            }
+                          : {}),
+                      ...(except?.noManaCost ? { noManaCost: true } : {}),
+                      ...(except?.imagePrintId
+                          ? { imagePrintId: except.imagePrintId }
+                          : {}),
                   }
                 : undefined;
         let lastId: string | undefined;

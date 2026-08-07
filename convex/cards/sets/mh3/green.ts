@@ -10,13 +10,24 @@ import type {
 } from "../../types";
 import { PERMANENT_TYPES } from "../../types";
 import { ELDRAZI_SPAWN_TOKEN } from "../../sharedTokens";
+import { eternalizeAbility } from "../../abilities/eternalize";
+
+/** CR 111 — Fanatic of Rhonas's own printed eternalize token (tmh3 #15, a 4/4
+ *  black Token Creature — Zombie Snake Druid). Pinned by hand: the catalogue's
+ *  token-art guard (`tokenPrintLookup.test.ts`) only walks `createToken`
+ *  specs, and an eternalize token is created by `createTokenCopy`, which has no
+ *  static spec to inspect. */
+const FANATIC_OF_RHONAS_TOKEN_PRINT_ID = "6ef58164-4155-4e5b-8c16-f16f2ab65baa";
 
 // Fanatic of Rhonas — {1}{G} Creature — Snake Druid, 1/4.
 // "{T}: Add {G}. Ferocious — {T}: Add {G}{G}{G}{G}. Activate only if you
 // control a creature with power 4 or greater." (Ferocious ability word —
 // engine infra, no registry row.)
-// TODO(issue #691): Eternalize {2}{G}{G} — the Eternalize keyword is planned
-// (mechanicsRegistry.ts) but not yet implemented.
+// "Eternalize {2}{G}{G}" (CR 702.129) is the shared `eternalizeAbility`
+// factory (`convex/cards/abilities/eternalize.ts`): a graveyard-source,
+// sorcery-speed activated ability whose cost exiles this card and whose script
+// creates the CR 707.2 token copy — a 4/4 black Zombie Snake Druid with no mana
+// cost, rendered as this card's own printed eternalize token (tmh3 #15).
 export const fanaticOfRhonas: CardDefinition = {
     id: "1f9fb33a-3b39-4aff-93b8-aedafe0ea694",
     rarity: "rare",
@@ -59,6 +70,14 @@ export const fanaticOfRhonas: CardDefinition = {
                 return false;
             },
         },
+        // CR 702.129 — Eternalize {2}{G}{G}. The reminder text's "Zombie Snake
+        // Druid" body is rendered from this card's own printed subtypes; the
+        // real subtype union is computed by the copy effect at resolution.
+        eternalizeAbility(
+            { X: 2, G: 2 },
+            ["Snake", "Druid"],
+            FANATIC_OF_RHONAS_TOKEN_PRINT_ID
+        ),
     ],
 };
 

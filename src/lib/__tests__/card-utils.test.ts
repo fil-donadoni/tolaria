@@ -1445,6 +1445,63 @@ describe("getGraveyardStackAbilities (CR 113.6 — Ashen Ghoul, #737)", () => {
         expect(abilities).toHaveLength(0);
     });
 
+    // CR 702.129a (issue #2339) — Eternalize is the SECOND graveyard-source
+    // ability in the catalogue and the first with a sorcery-speed
+    // restriction. It rides the same reducer with no keyword-specific code,
+    // which is exactly what this pair proves: the affordance appears in a main
+    // phase and is hidden by `sorcerySpeedOnly` everywhere else. Driven through
+    // the real `buildTriggerStateView`, so a dropped field fails here.
+    describe("Eternalize (CR 702.129a — Fanatic of Rhonas, #2339)", () => {
+        const FANATIC_OF_RHONAS_ID = "1f9fb33a-3b39-4aff-93b8-aedafe0ea694";
+
+        const makeFanatic = () =>
+            makeCardInstance({
+                id: "fanatic-1",
+                card: { id: FANATIC_OF_RHONAS_ID },
+                types: ["Creature"],
+                subtypes: ["Snake", "Druid"],
+                ownerId: "p1",
+                controllerId: "p1",
+                zone: "graveyard",
+            });
+
+        const fanaticView = () =>
+            buildTriggerStateView(
+                [
+                    {
+                        id: "p1",
+                        life: 20,
+                        hand: [],
+                        battlefield: [],
+                        graveyard: [makeFanatic()],
+                    },
+                ],
+                "p1"
+            );
+
+        it("surfaces ONLY the eternalize ability in a main phase", () => {
+            const abilities = getGraveyardStackAbilities(
+                makeFanatic(),
+                "PRECOMBAT_MAIN",
+                fanaticView()
+            );
+            // The card's two MANA abilities are battlefield-only and must not
+            // leak into the graveyard menu.
+            expect(abilities.map((a) => a.id)).toEqual(["eternalize"]);
+            expect(abilities[0].oracleText).toContain("Eternalize {2}{G}{G}");
+        });
+
+        it("hides it outside a sorcery window (sorcerySpeedOnly, CR 307.5)", () => {
+            expect(
+                getGraveyardStackAbilities(
+                    makeFanatic(),
+                    "DECLARE_ATTACKERS",
+                    fanaticView()
+                )
+            ).toHaveLength(0);
+        });
+    });
+
     // CR 602.1 / 605.1a (issue #1124) — Abeyance's lock also hides a
     // graveyard-activated ability regardless of source zone.
     it("hides it when the owner is under Abeyance's activation lock", () => {

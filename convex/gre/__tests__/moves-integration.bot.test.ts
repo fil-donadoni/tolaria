@@ -22,6 +22,7 @@ import {
     moveCard,
     normalizeManaCost,
     payManaCost,
+    resolveTopOfStack,
 } from "../state";
 import { assertLegalAction } from "../rules";
 import { enumerateMoves, type Move } from "../moves";
@@ -38,7 +39,7 @@ import {
 import { goblinWarDrums, merseine, seasinger } from "../../cards/sets/fem";
 import { untapStep } from "../phases";
 import { applyLandManaReplacement } from "../constants";
-import { resolveAbilityManaCost } from "../../game";
+import { activateAbilityOnState, resolveAbilityManaCost } from "../../game";
 
 // Mirror of src/lib/ai/state-adapter.ts (kept inline so this convex-side test
 // doesn't pull the frontend module — and its @convex aliases — into the convex
@@ -488,5 +489,90 @@ describe("Seasinger — optional skip-untap through the real untap step (CR 502.
         expect(head?.count).toEqual({ min: 0, max: 1 });
         // The permanent is NOT auto-untapped — the controller chooses.
         expect(state.players[0].battlefield[0].isTapped).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Graveyard-source activation, end to end (CR 113.6 / 702.129a, issue #2339).
+//
+// The bot's blind spot this issue closed was structural: the Move enumerator
+// scanned the battlefield only, so no graveyard-source ability could ever be
+// enumerated, chosen or realised. This drives the whole chain the driver walks
+// — projection → enumerate → the executor's own mutation sequence
+// (`activateAbility`, funded by the move's `tapPlan`) → resolution → back
+// through the projection — and asserts the token the bot was aiming for is
+// actually on its board.
+// ---------------------------------------------------------------------------
+describe("graveyard-source activation: enumerate → execute → token (issue #2339)", () => {
+    const FANATIC = getCardByName("Fanatic of Rhonas").id;
+
+    it("the bot sees eternalize through the wire and the move it picks produces the token", () => {
+        const p1 = makePlayer("p1", {
+            battlefield: [
+                land(FOREST, "p1"),
+                land(FOREST, "p1"),
+                land(FOREST, "p1"),
+                land(FOREST, "p1"),
+            ],
+            graveyard: [
+                makeInstance(FANATIC, {
+                    id: "fanatic",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    zone: "graveyard",
+                }),
+            ],
+        });
+        const state = makeState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [p1, makePlayer("p2")],
+        });
+
+        // 1. The bot enumerates from its WIRE VIEW, not the fat server state —
+        //    a projection that dropped the graveyard card, or its definition
+        //    reference, would fail right here.
+        const botView = projectedToGameState(
+            projectPublicState(state, 1, "p1")
+        );
+        const move = enumerateMoves(botView, "p1").find(
+            (m): m is Extract<Move, { kind: "activate-ability" }> =>
+                m.kind === "activate-ability" && m.abilityId === "eternalize"
+        );
+        expect(move).toBeDefined();
+        expect(move!.cardInstanceId).toBe("fanatic");
+
+        // 2. The executor's realisation for an `activate-ability` move: fund
+        //    the plan the move carries, then fire `activateAbility` with the
+        //    named source + ability. Same order, same primitives.
+        const player = getPlayer(state, "p1");
+        for (const tap of move!.tapPlan) {
+            const source = player.battlefield.find(
+                (c) => c.id === tap.cardInstanceId
+            )!;
+            const color = getBasicLandMana(source)!;
+            source.isTapped = true;
+            player.manaPool[color] = (player.manaPool[color] ?? 0) + 1;
+        }
+        activateAbilityOnState(state, {
+            playerId: "p1",
+            cardInstanceId: move!.cardInstanceId,
+            abilityId: move!.abilityId,
+            keepPriority: true,
+        });
+        // CR 702.129a — the cost exiled the card as the ability was announced.
+        expect(state.players[0].graveyard).toHaveLength(0);
+        expect(state.stack).toHaveLength(1);
+
+        resolveTopOfStack(state);
+
+        // 3. The payoff, read back through the projection the client/bot sees.
+        const after = projectPublicState(state, 1, "p1");
+        const token = after.players[0].battlefield.find((c) => c.isToken);
+        expect(token).toBeDefined();
+        expect(token!.subtypes).toEqual(["Snake", "Druid", "Zombie"]);
+        expect(token!.power).toBe(4);
+        expect(token!.toughness).toBe(4);
     });
 });

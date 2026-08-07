@@ -58,15 +58,49 @@ export function applyCopy(
     rebuildCopiableValuesAndReplayOverlays(recipient, {
         types: [...def.types, ...(opts.additionalTypes ?? [])],
         subtypes: [...(def.subtypes ?? []), ...(opts.additionalSubtypes ?? [])],
-        power: def.power,
-        toughness: def.toughness,
+        // CR 707.2 "except its base power and toughness are 4/4" (Eternalize,
+        // CR 702.129a). The exception replaces a COPIABLE value, so it is the
+        // base the layer system starts from — 7b-7e overlays (anthems,
+        // +1/+1 counters) still stack on top, replayed by the rebuild below.
+        power: opts.basePower ?? def.power,
+        toughness: opts.baseToughness ?? def.toughness,
         staticAbilities: [...(def.staticAbilities ?? [])],
     });
 
-    if (!copyColor) {
+    // CR 707.2 "except it's black" (Eternalize) / "except it's white" (Embalm)
+    // — an explicit colour SET on the copy, written to the same layer-5
+    // `colorOverride` `getEffectiveColors` treats as outranking every other
+    // derivation. Checked BEFORE the `copyColor: false` branch: that one means
+    // "keep your OWN colours" (Vesuvan), a different clause, and an explicit
+    // colour naming wins when a caller sets both.
+    if (opts.colorOverride) {
+        recipient.colorOverride = [...opts.colorOverride];
+    } else if (!copyColor) {
         // CR 707.9d "except it doesn't copy that creature's color": keep the
         // recipient's own colors via a layer-5 override.
         recipient.colorOverride = [...(opts.ownColors ?? [])];
+    }
+
+    // CR 707.2 "except it has no mana cost" (Eternalize / Embalm). The copy
+    // presents the copied card's definition, so without an instance-level
+    // override every mana-value reader would report the printed cost; a
+    // `{}` override makes `getInstanceManaCost` — the single authority those
+    // readers share — return an empty cost, hence mana value 0 (CR 202.3) and
+    // no cost-derived colour (CR 202.2; the `colorOverride` above is what
+    // actually names the token's colour). Recomputed from `opts` on every
+    // application, same idempotency shape as `additionalSubtypes`.
+    if (opts.noManaCost) {
+        recipient.manaCostOverride = {};
+    } else {
+        delete recipient.manaCostOverride;
+    }
+
+    // CR 111 / 707.2 — cosmetic art pin (Eternalize's own printed token card).
+    // Never a characteristic: nothing in the rules engine reads it.
+    if (opts.imagePrintId) {
+        recipient.imagePrintId = opts.imagePrintId;
+    } else {
+        delete recipient.imagePrintId;
     }
 
     // CR 707.2 "except" clause granting a NEW triggered ability (Phantasmal
@@ -123,6 +157,11 @@ export function revertCopy(card: CardInstanceState): void {
     }
     delete card.copiedFrom;
     delete card.colorOverride;
+    // CR 707.2 — the copy effect (and every "except" clause riding on it) lasts
+    // only while the object is on the battlefield, so the mana-cost and art
+    // overrides an Eternalize/Embalm token carried go with it.
+    delete card.manaCostOverride;
+    delete card.imagePrintId;
 }
 
 /** Triggered abilities that function for `card` while on the battlefield,

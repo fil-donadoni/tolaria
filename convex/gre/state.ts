@@ -984,6 +984,24 @@ export type CardInstanceState = {
      *  returns this array instead of mana-cost-derived + grantedColors.
      *  Set by lace instants ("target spell or permanent becomes [color]"). */
     colorOverride?: Color[];
+    /** CR 707.2 / 202.3 (issue #2339) — an instance-level MANA COST override.
+     *  The one writer today is a copy effect's "except it has no mana cost"
+     *  clause (Eternalize CR 702.129a, Embalm CR 702.128a), which sets `{}` so
+     *  the token's mana value reads 0 and its cost contributes no colour.
+     *
+     *  It has to live on the INSTANCE rather than on `card.manaCost`: a copy
+     *  presents the COPIED card's definition (`applyCopy` overwrites
+     *  `card.id`), and the wire projection rewrites `card` down to `{ id }` —
+     *  an embedded cost would be correct server-side and silently gone on the
+     *  client. Read through `getInstanceManaCost` (`cards/registry.ts`), the
+     *  single authority every mana-value / colour reader shares. */
+    manaCostOverride?: CardManaCost;
+    /** CR 111 (issue #2339) — an instance-level Scryfall print id for ART.
+     *  Cosmetic only; no rules reader touches it. Set by a copy effect whose
+     *  result has its OWN printed card (an Eternalize/Embalm token: Fanatic of
+     *  Rhonas's tmh3 #15 Zombie Snake Druid frame, not the MH3 creature's), and
+     *  preferred by the card renderer over the definition-derived art. */
+    imagePrintId?: string;
     /** Timed color override (CR 305.7 / 613.1d — "becomes the color of your
      *  choice until end of turn", Kavu Chameleon, issue #1065). While
      *  present, `colorOverride` above has been overwritten with `colors`;
@@ -2208,6 +2226,12 @@ export type PendingActivation = {
      *  `discardToGraveyard` so CARD_DISCARDED fires — Marauding Mako). Deferred
      *  to commit so a cancelled payment leaves the card in hand. */
     discardThisSource?: boolean;
+    /** CR 702.129a / 118.3 — the Eternalize "Exile this card from your
+     *  graveyard" cost. When set, the SOURCE card moves graveyard → exile at
+     *  commit. Deferred to commit for the same reason as `discardThisSource`:
+     *  a cancelled or dropped mana payment must leave the graveyard exactly as
+     *  it was (CR 601.2h). */
+    exileThisSource?: boolean;
     /** "Discard N cards at random" cost (CR 118.3 — Coral Helm). The cards are
      *  discarded at commit via the seeded PRNG. */
     discardAtRandomCount?: number;
@@ -7352,6 +7376,37 @@ function findOnBattlefield(
         if (idx !== -1) return { card: player.battlefield[idx], player, idx };
     }
     return null;
+}
+
+/** Finds a card instance by id in any NON-battlefield zone of any player —
+ *  graveyard, exile, hand, library (CR 400.1's zone list, minus the stack,
+ *  which holds copies rather than the card itself for an activated ability).
+ *
+ *  The last-known-information lookup (CR 608.2b) for an effect whose own COST
+ *  moved its source out of the zone it was activated from: Eternalize
+ *  (CR 702.129a) exiles the card from the graveyard to pay, then resolves by
+ *  copying it. Copiable values are printed values (CR 707.2), so where the
+ *  object currently sits does not change the copy — only whether it is found.
+ *
+ *  Deliberately NOT battlefield-inclusive: callers combine it with
+ *  `findOnBattlefield`, which returns the richer `{ card, player, idx }` shape
+ *  they need for in-place mutation. */
+function findCardInAnyZone(
+    state: GameState,
+    cardId: string
+): CardInstanceState | undefined {
+    for (const player of state.players) {
+        for (const zone of [
+            player.graveyard,
+            player.exile,
+            player.hand,
+            player.library,
+        ]) {
+            const found = zone.find((c) => c.id === cardId);
+            if (found) return found;
+        }
+    }
+    return undefined;
 }
 
 /** Records that the permanent `sourceInstanceId` dealt damage to player
@@ -12959,7 +13014,17 @@ export function buildSpellContext(
             // Artifact use via `becomeCopyOf`; the recipient here is a fresh
             // token instead of the resolving permanent). No-op if the source
             // has already left the battlefield (the copy fizzles, CR 707.2).
-            const source = findOnBattlefield(state, sourceCreatureId)?.card;
+            //
+            // CR 608.2b / 702.129a (issue #2339) — a keyword whose cost REMOVES
+            // the source from the graveyard (Eternalize: "Exile this card from
+            // your graveyard: create a token that's a copy of it") still copies
+            // that card, so the battlefield lookup alone is not the whole
+            // search: fall back to the card's last known object in ANY other
+            // zone. Copiable values are printed values (CR 707.2), so a
+            // non-battlefield source yields exactly the same copy.
+            const source =
+                findOnBattlefield(state, sourceCreatureId)?.card ??
+                findCardInAnyZone(state, sourceCreatureId);
             if (!source) return undefined;
             // Minimal placeholder body: a 0/0 creature token. `applyCopy`
             // immediately replaces every copiable field, so the placeholder is
@@ -16665,6 +16730,23 @@ export function putHandCardOnTopOfLibrary(
     const known = card.knownTo ?? [];
     if (!known.includes(player.id)) card.knownTo = [...known, player.id];
     player.library.unshift(card);
+    return true;
+}
+
+/** CR 406 / 118.3 — moves one card from `player`'s graveyard to their exile
+ *  zone, reporting whether it was there to move. The non-throwing choke point
+ *  for an "exile this card from your graveyard" ACTIVATION COST (CR 702.129a
+ *  Eternalize, CR 702.128a Embalm): the cost is applied at commit, by which
+ *  point the card may have left the graveyard (another effect exiled or
+ *  reanimated it while mana was being tapped), and that must drop the payment
+ *  quietly rather than throw — the same vanished-source policy every other
+ *  deferred cost leg follows. */
+export function exileCardFromGraveyard(
+    player: PlayerState,
+    cardInstanceId: string
+): boolean {
+    if (!player.graveyard.some((c) => c.id === cardInstanceId)) return false;
+    moveCard(player, cardInstanceId, "graveyard", "exile");
     return true;
 }
 

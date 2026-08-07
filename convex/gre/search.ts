@@ -43,6 +43,7 @@
 
 import type { CardInstanceState, GameState, StackItem } from "./state";
 import {
+    exileCardFromGraveyard,
     moveCard,
     removeFromZone,
     resolveTopOfStack,
@@ -718,6 +719,26 @@ export function applyMoveInSearch(
                 (c) => c.id === move.cardInstanceId
             );
             if (src) src.isTapped = true;
+            // CR 113.6 / 702.129a (issue #2339) — a GRAVEYARD-source activation
+            // (Eternalize, Ashen Ghoul) has no battlefield source to tap; apply
+            // the one cost leg that changes the board, "exile this card from
+            // your graveyard", so a search line cannot spend the same graveyard
+            // card twice. The payoff gap above (issue #1920) is unchanged.
+            if (!src) {
+                const gvCard = player.graveyard.find(
+                    (c) => c.id === move.cardInstanceId
+                );
+                const gvAbility = gvCard
+                    ? tryGetDefinition(
+                          (gvCard.card as { id?: string }).id ?? ""
+                      )?.activatedAbilities?.find(
+                          (a) => a.id === move.abilityId
+                      )
+                    : undefined;
+                if (gvAbility?.cost.exileThis) {
+                    exileCardFromGraveyard(player, move.cardInstanceId);
+                }
+            }
             state.passCount = 0;
             state.priorityPlayerId = playerId;
             state.singleShotAutoPass = playerId;

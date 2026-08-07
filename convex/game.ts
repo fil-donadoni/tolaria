@@ -28,6 +28,7 @@ import {
     drawCard as drawCardFromLibrary,
     emitCardDrawn,
     discardToGraveyard,
+    exileCardFromGraveyard,
     matchesPermanentFilter,
     moveCard,
     removeFromZone,
@@ -2490,6 +2491,10 @@ export function buildPendingActivation(opts: {
         tapSource: !!ability.cost.tap,
         sacrificeSource: !!ability.cost.sacrifice,
         ...(ability.cost.discardThis ? { discardThisSource: true } : {}),
+        // CR 702.129a / 118.3 — Eternalize's "Exile this card from your
+        // graveyard" leg. Deferred to commit like `discardThisSource` so a
+        // cancelled mana payment leaves the graveyard untouched.
+        ...(ability.cost.exileThis ? { exileThisSource: true } : {}),
         ...(ability.cost.removeCounter
             ? { removeCounterCost: { ...ability.cost.removeCounter } }
             : {}),
@@ -2769,6 +2774,18 @@ export function tryAutoCommitPendingActivation(
     // the ability's source is captured while still valid.
     if (pa.discardThisSource) {
         if (!discardToGraveyard(state, playerId, card.id)) {
+            state.pendingActivation = undefined;
+            return null;
+        }
+    }
+    // CR 702.129a / 118.3 — the Eternalize "Exile this card from your
+    // graveyard" cost. The source moves graveyard → exile as the ability goes
+    // on the stack. Re-check at commit: the card may have left the graveyard
+    // while mana was tapped; if so, drop the payment silently (lands stay
+    // tapped, mirroring the vanished-source policy above). Runs BEFORE the
+    // stack-item clone below so the ability's source is captured while valid.
+    if (pa.exileThisSource) {
+        if (!exileCardFromGraveyard(player, card.id)) {
             state.pendingActivation = undefined;
             return null;
         }
@@ -5865,6 +5882,12 @@ export function finalizeTargetSelection(
         // stack-item clone below (the card object persists after the move).
         if (ability.cost.discardThis) {
             discardToGraveyard(state, player.id, card.id);
+        }
+        // CR 702.129a / 118.3 — the "Exile this card from your graveyard"
+        // activation cost (Eternalize). Runs BEFORE the stack-item clone below
+        // (the card object persists after the move).
+        if (ability.cost.exileThis) {
+            exileCardFromGraveyard(player, card.id);
         }
         // CR 601.2f / 118.5 / 701.21a — apply the auto-resolved filtered
         // sacrifice (Drought / fungible own cost) as the ability commits.
@@ -12861,6 +12884,13 @@ export function activateAbilityOnState(
     // stack-item clone below (the card object persists after the move).
     if (ability.cost.discardThis) {
         discardToGraveyard(state, player.id, card.id);
+    }
+    // CR 702.129a / 118.3 — the "Exile this card from your graveyard"
+    // activation cost (Eternalize): the source moves graveyard → exile as the
+    // ability commits. Runs BEFORE the stack-item clone below (the card object
+    // persists after the move).
+    if (ability.cost.exileThis) {
+        exileCardFromGraveyard(player, card.id);
     }
     // CR 601.2f / 118.5 / 701.21a — apply the auto-resolved filtered
     // sacrifice (Drought / fungible own cost) as the ability commits.

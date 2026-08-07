@@ -40,6 +40,7 @@ import {
     tapPermanent,
     canPayMayPayCost,
     discardToGraveyard,
+    exileCardFromGraveyard,
     moveCard,
     normalizeManaCost,
     applyCostModifiers,
@@ -411,6 +412,32 @@ export function applyMoveForSearch(
                         (c) => c.id === move.cardInstanceId
                     );
                     if (src) break;
+                }
+                // CR 113.6 / 702.129a — a GRAVEYARD-source activation
+                // (Eternalize, Ashen Ghoul). The source is on no battlefield,
+                // so the scan above finds nothing; apply the one cost leg that
+                // changes the board here — "exile this card from your
+                // graveyard" — so the simulated leaf does not keep pretending
+                // the card is still a reanimation/eternalize resource. The
+                // ability's PAYOFF still isn't resolved (see the file header's
+                // documented limits and issue #1920).
+                if (!src) {
+                    const owner = next.players.find((p) =>
+                        p.graveyard.some((c) => c.id === move.cardInstanceId)
+                    );
+                    const gvCard = owner?.graveyard.find(
+                        (c) => c.id === move.cardInstanceId
+                    );
+                    const gvAbility = gvCard
+                        ? tryGetDefinition(
+                              (gvCard.card as { id?: string }).id ?? ""
+                          )?.activatedAbilities?.find(
+                              (a) => a.id === move.abilityId
+                          )
+                        : undefined;
+                    if (owner && gvAbility?.cost.exileThis) {
+                        exileCardFromGraveyard(owner, move.cardInstanceId);
+                    }
                 }
                 if (src) {
                     const def = tryGetDefinition(

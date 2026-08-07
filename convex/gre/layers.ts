@@ -6,14 +6,13 @@
 // Each card declares its own eligibility rule — engine has no enum of
 // scopes/filters to maintain.
 
-import { tryGetDefinition } from "../cards";
+import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import { tryGetEmblemDefinition } from "../cards/emblems";
 import { getEffectiveColors } from "../cards/effectiveColors";
 import { hasSupertypeLive } from "./snow";
 import type {
     CardType,
     EmblemInstance,
-    ManaCost,
     PermanentView,
     StaticEffect,
     StaticEffectContext,
@@ -114,11 +113,10 @@ export const STATIC_EFFECT_CTX: StaticEffectContext = {
         // CR 202.3 — numeric X in the printed cost contributes to mana
         // value (the codebase encodes generic cost as `X: number`); only
         // the string-X placeholder for variable-X cards is treated as 0.
-        const embedded = (card.card as { manaCost?: ManaCost }).manaCost;
-        const cardId = (card.card as { id?: string }).id;
-        const cost =
-            embedded ??
-            (cardId ? tryGetDefinition(cardId)?.manaCost : undefined);
+        // Single authority (`cards/registry.ts`): instance `manaCostOverride`
+        // (CR 707.2 "except it has no mana cost" — an Eternalize token) →
+        // embedded fixture cost → registry definition.
+        const cost = getInstanceManaCost(card);
         if (!cost) return 0;
         let total = 0;
         for (const [k, v] of Object.entries(cost)) {

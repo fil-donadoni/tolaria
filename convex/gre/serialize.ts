@@ -327,6 +327,12 @@ function compactCard(
     // CR 707.2 copy anchor — `card.id` already carries the copied def id; this
     // preserves the printed identity to restore on leave (`revertCopy`).
     if (card.copiedFrom) out.copiedFrom = card.copiedFrom;
+    // CR 707.2 / 202.3 — the "except it has no mana cost" override (Eternalize
+    // / Embalm token). Persisted even when EMPTY: `{}` IS the override, and a
+    // truthiness/length test would drop exactly the case that matters.
+    if (card.manaCostOverride) out.manaCostOverride = card.manaCostOverride;
+    // CR 111 — cosmetic art pin for a copy with its own printed token card.
+    if (card.imagePrintId) out.imagePrintId = card.imagePrintId;
     if (card.exileOnDeath) out.exileOnDeath = true;
     if (card.exileOnLeave) out.exileOnLeave = true;
     if (card.cantBeRegeneratedThisTurn) out.cantBeRegeneratedThisTurn = true;
@@ -706,6 +712,15 @@ function expandCard(
             compact.textChanges as CardInstanceState["textChanges"];
     }
     if (compact.copiedFrom) result.copiedFrom = compact.copiedFrom as string;
+    // CR 707.2 / 202.3 — `{}` is a meaningful override, so test for PRESENCE
+    // (`!== undefined`), never truthiness of its contents.
+    if (compact.manaCostOverride !== undefined) {
+        result.manaCostOverride =
+            compact.manaCostOverride as CardInstanceState["manaCostOverride"];
+    }
+    if (compact.imagePrintId) {
+        result.imagePrintId = compact.imagePrintId as string;
+    }
     if (compact.exileOnDeath) result.exileOnDeath = true;
     if (compact.exileOnLeave) result.exileOnLeave = true;
     if (compact.cantBeRegeneratedThisTurn)

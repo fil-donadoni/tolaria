@@ -1698,3 +1698,100 @@ describe("bot enumeration and the confirm mutation agree on legality (CR 508.1d,
         expect(declarations(crowdOutBoard())).toEqual([["j1"]]);
     });
 });
+
+// ---------------------------------------------------------------------------
+// Graveyard-source activated abilities (CR 113.6 / 602.5b, issue #2339).
+//
+// Until this issue the enumerator scanned the BATTLEFIELD only and skipped
+// every `activateFromGraveyard` ability outright, so the bot was structurally
+// blind to the whole class — it could not see Eternalize (CR 702.129a) OR
+// Ashen Ghoul's reanimation, no matter the board. These tests drive
+// `enumerateMoves` (the same entry point the Brain and ISMCTS use) over a
+// crafted graveyard.
+// ---------------------------------------------------------------------------
+describe("enumerateMoves — graveyard-source activations (CR 113.6, issue #2339)", () => {
+    const FANATIC = getCardByName("Fanatic of Rhonas").id;
+
+    /** Fanatic in the bot's graveyard, four Forests untapped, a main phase with
+     *  an empty stack — every gate CLEAR except the one under test. */
+    function scenario(
+        overrides: { phase?: GameState["phase"]; forests?: number } = {}
+    ): GameState {
+        const forests = Array.from({ length: overrides.forests ?? 4 }, () =>
+            land(FOREST, "p1")
+        );
+        return makeState({
+            phase: overrides.phase ?? "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    battlefield: forests,
+                    graveyard: [
+                        makeInstance(FANATIC, {
+                            id: "fanatic",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "graveyard",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    function eternalizeMoves(state: GameState): Move[] {
+        return enumerateMoves(state, "p1").filter(
+            (m) =>
+                m.kind === "activate-ability" &&
+                m.cardInstanceId === "fanatic" &&
+                m.abilityId === "eternalize"
+        );
+    }
+
+    it("offers the eternalize activation off the bot's own graveyard", () => {
+        const moves = eternalizeMoves(scenario());
+        expect(moves).toHaveLength(1);
+        // The move must carry a real tap plan for {2}{G}{G} — the executor
+        // replays it verbatim against the server.
+        const move = moves[0];
+        expect(move.kind === "activate-ability" && move.tapPlan.length).toBe(4);
+    });
+
+    it("does NOT offer the card's battlefield-only mana abilities from the graveyard", () => {
+        const moves = enumerateMoves(scenario(), "p1").filter(
+            (m) =>
+                m.kind === "activate-ability" && m.cardInstanceId === "fanatic"
+        );
+        // Non-vacuous: the graveyard scan DID produce a move to filter.
+        expect(moves.length).toBeGreaterThan(0);
+        expect(
+            moves.every(
+                (m) =>
+                    m.kind === "activate-ability" &&
+                    m.abilityId === "eternalize"
+            )
+        ).toBe(true);
+    });
+
+    it("withholds it outside a sorcery window (sorcerySpeedOnly, CR 307.5)", () => {
+        expect(
+            eternalizeMoves(scenario({ phase: "DECLARE_ATTACKERS" }))
+        ).toHaveLength(0);
+    });
+
+    it("withholds it when the mana cost is unpayable", () => {
+        expect(eternalizeMoves(scenario({ forests: 3 }))).toHaveLength(0);
+    });
+
+    it("never offers it off the OPPONENT's graveyard (CR 602.1 — 'your graveyard')", () => {
+        const state = scenario();
+        // Move the card to p2's graveyard; p1 still has priority and mana.
+        const [card] = state.players[0].graveyard.splice(0, 1);
+        card.ownerId = "p2";
+        card.controllerId = "p2";
+        state.players[1].graveyard.push(card);
+        expect(eternalizeMoves(state)).toHaveLength(0);
+    });
+});
