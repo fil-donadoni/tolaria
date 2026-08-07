@@ -3005,6 +3005,54 @@ describe("Effect Script Op: coinFlip (CR 705, issue #851)", () => {
         const projected = projectPublicState(state, 1, "p1");
         expect(projected.players[1].life).toBe(18);
     });
+
+    // No-op branch (issue #1367): `effects: []` on one branch, the Mana
+    // Crypt shape ("if you LOSE, deal 3 damage" — the win branch does
+    // nothing at all). `runOpList` iterates an empty list as a clean no-op —
+    // no interpreter special-casing needed, only the validator's length
+    // constraint was relaxed.
+    const noOpWinScript: EffectOp[] = [
+        {
+            op: "coinFlip",
+            win: { consequence: "Nothing happens.", effects: [] },
+            loss: {
+                consequence: "Lose 3 life.",
+                effects: [{ op: "loseLife", player: "controller", amount: 3 }],
+            },
+        },
+    ];
+
+    it("a WIN outcome against an empty win branch is a clean no-op (issue #1367)", () => {
+        const id = registerScript("test-op-coin-noop-win", noOpWinScript);
+        const state = makeState({ rngSeed: WIN_SEED });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        ackReveal(state);
+        // No effect ran — life unchanged — and resolution completed cleanly
+        // (no lingering suspension from the empty branch).
+        expect(state.players[0].life).toBe(20);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("a LOSS outcome still runs the loss branch's effects when win is empty", () => {
+        const id = registerScript("test-op-coin-noop-loss", noOpWinScript);
+        const state = makeState({ rngSeed: LOSE_SEED });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        ackReveal(state);
+        expect(state.players[0].life).toBe(17);
+    });
+
+    it("the no-op win branch's absence of change survives projection (wire format, issue #1367)", () => {
+        const id = registerScript("test-op-coin-noop-wire", noOpWinScript);
+        const state = makeState({ rngSeed: WIN_SEED });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        ackReveal(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].life).toBe(20);
+    });
 });
 
 describe("Effect Script Op: coinFlipSync (CR 705, issue #1281)", () => {

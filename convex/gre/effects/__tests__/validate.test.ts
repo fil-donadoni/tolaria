@@ -2209,6 +2209,121 @@ describe("validateEffectScript — reveal Op (CR 701.20a, issue #945)", () => {
     });
 });
 
+// coinFlip's win/loss branch grammar (CR 705, issue #851) accepts a
+// deliberate no-op branch — `effects: []` — as of issue #1367 (Mana Crypt's
+// win branch does nothing at all). The relaxation is LENGTH-only: a branch
+// still needs a `consequence` string and an `effects` ARRAY, so a branch
+// missing `effects` entirely, or carrying a non-array value, stays rejected
+// (fail-closed).
+describe("validateEffectScript — coinFlip no-op branch (issue #1367)", () => {
+    it("accepts a coinFlip whose win branch has an empty effects[] (Mana Crypt shape)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "coinFlip",
+                        win: { consequence: "Nothing happens.", effects: [] },
+                        loss: {
+                            consequence: "Deals 3 damage to you.",
+                            effects: [
+                                {
+                                    op: "dealDamage",
+                                    amount: 3,
+                                    to: { player: "controller" },
+                                },
+                            ],
+                        },
+                    },
+                ],
+            })
+        );
+        expect(errors).toEqual([]);
+    });
+
+    it("still requires an `effects` array on each branch — missing entirely is rejected", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "coinFlip",
+                        win: { consequence: "Nothing happens." },
+                        loss: {
+                            consequence: "Lose 3 life.",
+                            effects: [
+                                {
+                                    op: "loseLife",
+                                    player: "controller",
+                                    amount: 3,
+                                },
+                            ],
+                        },
+                    } as never,
+                ],
+            })
+        );
+        expect(
+            errors.some((e) =>
+                /Op "coinFlip" field "win" has invalid value/.test(e)
+            )
+        ).toBe(true);
+    });
+
+    it("still requires an `effects` array on each branch — a non-array value is rejected", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "coinFlip",
+                        win: {
+                            consequence: "Nothing happens.",
+                            effects: "not-an-array",
+                        },
+                        loss: {
+                            consequence: "Lose 3 life.",
+                            effects: [
+                                {
+                                    op: "loseLife",
+                                    player: "controller",
+                                    amount: 3,
+                                },
+                            ],
+                        },
+                    } as never,
+                ],
+            })
+        );
+        expect(
+            errors.some((e) =>
+                /Op "coinFlip" field "win" has invalid value/.test(e)
+            )
+        ).toBe(true);
+    });
+
+    it("the same relaxation applies to coinFlipSync's branches", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "coinFlipSync",
+                        win: { consequence: "Nothing happens.", effects: [] },
+                        loss: {
+                            consequence: "Deals 3 damage to you.",
+                            effects: [
+                                {
+                                    op: "dealDamage",
+                                    amount: 3,
+                                    to: { player: "controller" },
+                                },
+                            ],
+                        },
+                    },
+                ],
+            })
+        );
+        expect(errors).toEqual([]);
+    });
+});
+
 // delayedTrigger Op schema + capture/body scoping (CR 603.7, ADR 0048, issue
 // #838). The body is validated as a FRESH script (its only initial bindings
 // are the capture keys); capture sources resolve in the OUTER scope.

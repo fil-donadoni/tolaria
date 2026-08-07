@@ -2015,10 +2015,19 @@ function isModeList(value: unknown): boolean {
 
 /** A `coinFlip` / `coinFlipSync` Op's `win` / `loss` branch (issue #851 /
  *  #1281, shared shape) — SHAPE only: `{ consequence: <non-empty string>,
- *  effects: <non-empty Op list> }`. Each branch's Op-list deep validity
+ *  effects: <Op list> }`. `effects` MAY be the empty list — a deliberate
+ *  no-op branch (issue #1367): a card whose flip only does something on ONE
+ *  outcome (Mana Crypt — "if you LOSE, deal 3 damage", the win branch does
+ *  nothing at all) has no other way to express "nothing happens" under this
+ *  frozen grammar, and padding it with a card-shaped placeholder Op is the
+ *  workaround this relaxation replaces (`chaoticStrike`, `inv/red.ts`, still
+ *  padded pending its own cleanup). Each branch's Op-list deep validity
  *  (schema, refs, nesting) is checked by the recursive schema / ref passes,
- *  exactly like an `optionChoice` mode or an `if` branch. Only `consequence`
- *  and `effects` are permitted (grammar frozen, ADR 0045). */
+ *  exactly like an `optionChoice` mode or an `if` branch — an empty list
+ *  trivially passes those (nothing to recurse into). Only `consequence` and
+ *  `effects` are permitted (grammar frozen, ADR 0045); `effects` must still
+ *  be present as an array (fail-closed — `undefined`/non-array is rejected,
+ *  only the LENGTH constraint is relaxed). */
 function isCoinFlipBranch(value: unknown): boolean {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
         return false;
@@ -2027,11 +2036,7 @@ function isCoinFlipBranch(value: unknown): boolean {
         if (key !== "consequence" && key !== "effects") return false;
     }
     const b = value as { consequence?: unknown; effects?: unknown };
-    return (
-        isNonEmptyString(b.consequence) &&
-        Array.isArray(b.effects) &&
-        b.effects.length > 0
-    );
+    return isNonEmptyString(b.consequence) && Array.isArray(b.effects);
 }
 
 /** dealDamage's `to`: an announced target, the current forEach member

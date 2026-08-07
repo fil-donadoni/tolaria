@@ -9396,15 +9396,21 @@ export interface EffectManaPool {
 /** One branch of a `coinFlip` Op (CR 705, issue #851): the nested Effect Script
  *  run for one outcome of the flip, plus the one-liner shown on the reveal
  *  overlay while the coin lands (ADR 0023 — `requestCoinFlip` pauses resolution
- *  to animate the outcome). `effects` is a non-empty Op list, run through the
- *  SAME `runOpList` path an `if` branch / `optionChoice` mode uses, so it
- *  composes bind / ref / if / forEach and even a further suspending Op. */
+ *  to animate the outcome). `effects` is an Op list, run through the SAME
+ *  `runOpList` path an `if` branch / `optionChoice` mode uses, so it composes
+ *  bind / ref / if / forEach and even a further suspending Op. `effects` MAY
+ *  be EMPTY — a deliberate no-op branch (issue #1367): a card whose flip does
+ *  something on only ONE outcome (Mana Crypt — "if you LOSE, deal 3 damage",
+ *  the win branch does nothing) sets the other branch to `effects: []` rather
+ *  than being padded with a placeholder Op. `runOpList` iterates the list, so
+ *  an empty one is a clean no-op — no interpreter special-casing needed. */
 export interface EffectCoinFlipBranch {
     /** One-liner previewed on the WIN/LOSE reveal overlay ("Create a 5/5
      *  Djinn"). Required — `requestCoinFlip` shows it as the landed face's
      *  consequence. */
     consequence: string;
-    /** Ops run when the flip lands on this branch's outcome. */
+    /** Ops run when the flip lands on this branch's outcome. May be empty
+     *  (a deliberate no-op branch, issue #1367). */
     effects: EffectOp[];
 }
 

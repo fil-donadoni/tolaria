@@ -22,6 +22,7 @@ const SET_NAMES: Record<string, string> = {
     por: "Portal",
     p02: "Portal Second Age",
     m12: "Magic 2012",
+    phpr: "HarperPrism Book Promos",
 };
 
 /** Full set name for a code, falling back to the upper-cased code when the set
