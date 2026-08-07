@@ -37,6 +37,7 @@ import {
     sourcePreventionShieldApplies,
     runDamageReplacement,
     applyTargetPrevention,
+    processPendingActionTriggers,
 } from "../../state";
 import type { CardInstanceState, GameState, StackItem } from "../../state";
 import {
@@ -70,6 +71,7 @@ import {
 } from "../../../cards/emblems";
 import type { GameEvent } from "../../../cards/types";
 import { backupTrigger } from "../../../cards/abilities/triggers/backupTrigger";
+import { counterAddedTrigger } from "../../../cards/abilities/triggers/counterAddedTrigger";
 import { spellCastTrigger } from "../../../cards/abilities/triggers/spellCastTrigger";
 import { flight } from "../../../cards/sets/lea/blue";
 
@@ -26102,6 +26104,241 @@ describe("Effect Script Op: moveZone — positional graveyard shape (CR 404.3, i
             // "some error" would stay green with this shape's own gate
             // removed.
             expect(errors.join("\n")).toContain("issue #1967");
+        }
+    });
+});
+
+// CR 607 (issue #1319 foundation, generalized #1323) — the permanent test for
+// TWO new construct usages ("new construct pays the entry fee once", PRD
+// #795): (1) `linkToSource` on the announced-target `moveZone` shape (the
+// single-card twin of the `cards`-shape's own #1947 flag), and (2) the SIXTH
+// `moveZone` shape — `target: { exiledWithSource: true }` (the existing
+// `EffectExiledWithSourceSelector`, previously wired only into
+// `castDuringResolution`) plus its sibling `filter`. Emperor of Bones
+// (`mh3/black.ts`) is the first card consumer.
+describe("Effect Script Op: moveZone — linkToSource + exiledWithSource shape (CR 607, issue #1319/#1323)", () => {
+    it("linkToSource stamps the exiled card as findable via getCardsExiledWith", () => {
+        const id = registerScript("test-op-movezone-link-target", [
+            {
+                op: "moveZone",
+                target: { target: 0 },
+                to: "exile",
+                linkToSource: true,
+            },
+        ]);
+        const dead = makeInstance(BEAR_ID, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "deadLinked",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [dead] }),
+                makePlayer("p2"),
+            ],
+        });
+        const spell = pushSpell(state, id, "p1", [
+            { type: "graveyard-card", id: "deadLinked", playerId: "p1" },
+        ]);
+        const ctx = buildSpellContext(state, spell);
+        resolveTopOfStack(state);
+        expect(state.players[0].exile.map((c) => c.id)).toContain("deadLinked");
+        // The source of the resolving ability IS the sorcery's own stack
+        // item id (`ctx.sourceInstanceId`) — the same id the link was
+        // stamped under.
+        const linked = ctx.getCardsExiledWith(ctx.sourceInstanceId);
+        expect(linked.map((c) => c.id)).toEqual(["deadLinked"]);
+    });
+
+    it("without linkToSource, the exiled card is NOT findable via getCardsExiledWith (negative case)", () => {
+        const id = registerScript("test-op-movezone-nolink-target", [
+            { op: "moveZone", target: { target: 0 }, to: "exile" },
+        ]);
+        const dead = makeInstance(BEAR_ID, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "deadUnlinked",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [dead] }),
+                makePlayer("p2"),
+            ],
+        });
+        const spell = pushSpell(state, id, "p1", [
+            { type: "graveyard-card", id: "deadUnlinked", playerId: "p1" },
+        ]);
+        const ctx = buildSpellContext(state, spell);
+        resolveTopOfStack(state);
+        expect(state.players[0].exile.map((c) => c.id)).toContain(
+            "deadUnlinked"
+        );
+        expect(ctx.getCardsExiledWith(ctx.sourceInstanceId)).toEqual([]);
+    });
+
+    /** Registers a synthetic creature carrying a `counterAddedTrigger` whose
+     *  body is the exiledWithSource `moveZone` shape — the SAME shape Emperor
+     *  of Bones uses, run through the REAL trigger pipeline (collect → stack
+     *  → resolve) rather than a hand-built `StackItem`, so `ctx
+     *  .sourceInstanceId` is genuinely the battlefield permanent with the
+     *  trigger (mirrors `counterAddedTrigger.test.ts`'s own WATCHER shape). */
+    function registerReanimateWatcher(defId: string): void {
+        registerTokenDefinition({
+            id: defId,
+            name: defId,
+            rarity: "common",
+            manaCost: { B: 1 },
+            types: ["Creature"],
+            subtypes: ["Test"],
+            power: 1,
+            toughness: 1,
+            triggeredAbilities: [
+                counterAddedTrigger({
+                    id: `${defId}-reanimate`,
+                    oracleText: "Whenever a +1/+1 counter is put on this.",
+                    scope: "self",
+                    counterType: "+1/+1",
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { exiledWithSource: true },
+                            filter: { type: "Creature" },
+                            to: "battlefield",
+                            controller: "controller",
+                            bind: "$reanimated",
+                        },
+                        {
+                            op: "counters",
+                            action: "add",
+                            counter: "finality",
+                            target: { ref: "$reanimated" },
+                            count: 1,
+                        },
+                    ],
+                }),
+            ],
+        });
+    }
+
+    /** Resolves every trigger the watcher's counter-add just stacked. */
+    function resolveWatcherTriggers(state: GameState, triggerId: string) {
+        processPendingActionTriggers(state);
+        while (
+            state.stack.length > 0 &&
+            state.stack[state.stack.length - 1]!.triggeredAbilityId ===
+                triggerId
+        ) {
+            resolveTopOfStack(state);
+        }
+    }
+
+    it("exiledWithSource shape reanimates the linked creature card onto the battlefield under the given controller", () => {
+        const defId = "test-movezone-exiledwith-reanimate";
+        registerReanimateWatcher(defId);
+        // A creature card sitting in the OPPONENT's exile, linked to the
+        // watcher permanent below — proves the search is NOT owner-scoped
+        // (CR 400.7).
+        const linkedCreature = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "exiledCreature",
+            zone: "exile",
+        });
+        const watcher = makeInstance(defId, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "watcher",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [watcher] }),
+                makePlayer("p2", { exile: [linkedCreature] }),
+            ],
+        });
+        const item = pushSpell(state, defId, "p1");
+        const ctx = buildSpellContext(state, item);
+        ctx.linkExileToSource("exiledCreature", "watcher");
+        ctx.addCounter({ type: "permanent", id: "watcher" }, "+1/+1", 1);
+        resolveWatcherTriggers(state, `${defId}-reanimate`);
+        const reanimated = state.players[0].battlefield.find(
+            (c) => c.id === "exiledCreature"
+        );
+        expect(reanimated).toBeDefined();
+        // "under YOUR control" — controller is the watcher's controller
+        // (p1), even though the card's OWNER stays p2 (CR 800.4a).
+        expect(reanimated!.controllerId).toBe("p1");
+        expect(reanimated!.ownerId).toBe("p2");
+        expect(reanimated!.counters).toEqual({ finality: 1 });
+        expect(
+            state.players[1].exile.some((c) => c.id === "exiledCreature")
+        ).toBe(false);
+    });
+
+    it("exiledWithSource shape is a clean CR 608.2b no-op when nothing is linked", () => {
+        const defId = "test-movezone-exiledwith-empty";
+        registerReanimateWatcher(defId);
+        const watcher = makeInstance(defId, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "watcher-empty",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [watcher] }),
+                makePlayer("p2"),
+            ],
+        });
+        const item = pushSpell(state, defId, "p1");
+        const ctx = buildSpellContext(state, item);
+        ctx.addCounter({ type: "permanent", id: "watcher-empty" }, "+1/+1", 1);
+        expect(() =>
+            resolveWatcherTriggers(state, `${defId}-reanimate`)
+        ).not.toThrow();
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "watcher-empty")
+        ).toBe(true);
+        expect(state.players[0].battlefield).toHaveLength(1);
+    });
+
+    it("wire format: the reanimated permanent's finality counter survives projectPublicState for both viewers", () => {
+        const defId = "test-movezone-exiledwith-wire";
+        registerReanimateWatcher(defId);
+        const linkedCreature = makeInstance(BEAR_ID, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "exiledCreatureWire",
+            zone: "exile",
+        });
+        const watcher = makeInstance(defId, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "watcher-wire",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [watcher],
+                    exile: [linkedCreature],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const item = pushSpell(state, defId, "p1");
+        const ctx = buildSpellContext(state, item);
+        ctx.linkExileToSource("exiledCreatureWire", "watcher-wire");
+        ctx.addCounter({ type: "permanent", id: "watcher-wire" }, "+1/+1", 1);
+        resolveWatcherTriggers(state, `${defId}-reanimate`);
+        for (const viewerId of ["p1", "p2"]) {
+            const projected = projectPublicState(state, 1, viewerId);
+            const slim = projected.players[0].battlefield.find(
+                (c) => c.id === "exiledCreatureWire"
+            )!;
+            expect(slim.counters).toEqual({ finality: 1 });
         }
     });
 });

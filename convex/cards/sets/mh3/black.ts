@@ -5,6 +5,9 @@
 
 import type { CardDefinition } from "../../types";
 import { EFFECT_AFFECTS_SELF } from "../../types";
+import { adaptAbility } from "../../abilities/adapt";
+import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
+import { counterAddedTrigger } from "../../abilities/triggers/counterAddedTrigger";
 
 // Nethergoyf — {B} Creature — Lhurgoyf, printed */1+*.
 // "Nethergoyf's power is equal to the number of card types among cards in your
@@ -54,4 +57,144 @@ export const nethergoyf: CardDefinition = {
     // CR 702.138 — Escape. Variable exile cost: any number of OTHER graveyard
     // cards with 4+ card types among them (the `minCardTypes` picker mode).
     escape: { mana: { X: 2, B: 1 }, exile: { minCardTypes: 4 } },
+};
+
+// Emperor of Bones — {1}{B} Creature — Skeleton Noble, 2/2 (MH3 90, issue
+// #1323, parent #917). "At the beginning of combat on your turn, exile up to
+// one target card from a graveyard. {1}{B}: Adapt 2. Whenever one or more
+// +1/+1 counters are put on this creature, put a creature card exiled with
+// this creature onto the battlefield under your control with a finality
+// counter on it. It gains haste. Sacrifice it at the beginning of the next
+// end step."
+//
+// Composes three previously-shipped foundations, each its own tracked issue:
+//   - Adapt N (CR 701.46, issue #1316) — `adaptAbility()` factory, unchanged.
+//   - Linked-exile tracking (CR 607, issue #1319) — `SpellContext
+//     .linkExileToSource` / `getCardsExiledWith`, GENERALIZED here from
+//     `castDuringResolution`-only into the `moveZone` Op's own object-
+//     selecting grammar: a `linkToSource` flag on the announced-target shape
+//     (mirrors the `cards`-shape's existing #1947 flag) for the exile clause,
+//     and a SIXTH `moveZone` shape accepting `target: { exiledWithSource:
+//     true }` (the existing `EffectExiledWithSourceSelector`) for the
+//     reanimation clause — see the Op's doc comment in `cards/types.ts` and
+//     its registry note for the full shape.
+//   - Counter-placement meta-trigger (CR 122.1, issue #1319) —
+//     `counterAddedTrigger()` factory; Emperor is its FIRST real consumer.
+//
+// Finality counter (MH3 keyword counter, CR 122.3-family reminder text "If
+// this permanent would be put into a graveyard from the battlefield, exile
+// it instead.") is a genuinely NEW small primitive this ticket adds: an
+// INTRINSIC, per-instance-counter check in `removePermanentTo`
+// (`gre/state.ts`) — any creature Emperor reanimates can carry the counter,
+// not just a card that declares the rule itself, so it cannot be a per-card
+// `replacementEffects[]` entry the way Dauthi Voidwalker's void counter is.
+// The counter itself is placed by a plain `counters` Op (`counter:
+// "finality"`) — no new Op, no card-specific closure.
+//
+// Multi-candidate note (documented simplification, see the SIXTH `moveZone`
+// shape's own doc comment): if 2+ creature cards are exiled with Emperor at
+// once, the reanimation deterministically picks the FIRST in stable order
+// rather than prompting a choice — mirrors Shallow Grave's own "deliberately
+// NOT a player choice" precedent for its positional graveyard pick, extended
+// here to the (CR-unordered) exile zone as a documented scope decision for
+// this ticket. A `docs/findings/` entry flags this as a candidate follow-up.
+export const emperorOfBones: CardDefinition = {
+    id: "df9d9075-2d1e-4848-b661-816d539e05eb", // MH3 90
+    name: "Emperor of Bones",
+    rarity: "rare",
+    oracleText:
+        "At the beginning of combat on your turn, exile up to one target card from a graveyard.\n{1}{B}: Adapt 2.\nWhenever one or more +1/+1 counters are put on this creature, put a creature card exiled with this creature onto the battlefield under your control with a finality counter on it. It gains haste. Sacrifice it at the beginning of the next end step.",
+    manaCost: { X: 1, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Skeleton", "Noble"],
+    power: 2,
+    toughness: 2,
+    triggeredAbilities: [
+        // CR 603.6a — "at the beginning of combat on your turn". "up to one"
+        // = an OPTIONAL target (`count: { min: 0, max: 1 }`, CR 601.2c);
+        // "a graveyard" = either player's (`controller: "any"`), the exact
+        // Soul-Guide Lantern (`thb/colorless.ts`) shape plus the new
+        // `linkToSource` flag so the exiled card stays findable by the
+        // reanimation trigger below.
+        phaseTrigger({
+            id: "emperor-of-bones-exile",
+            oracleText:
+                "At the beginning of combat on your turn, exile up to one target card from a graveyard.",
+            phase: "BEGINNING_OF_COMBAT",
+            scope: "your",
+            targetRequirement: {
+                type: "card",
+                count: { min: 0, max: 1 },
+                zone: "graveyard",
+                controller: "any",
+            },
+            effects: [
+                {
+                    op: "moveZone",
+                    target: { target: 0 },
+                    to: "exile",
+                    linkToSource: true,
+                },
+            ],
+        }),
+        // CR 122.1 counter-placement meta-trigger. `counterType: "+1/+1"`
+        // narrows to the Adapt-fired case (`scope: "self"`, the same shape
+        // the factory's own test suite exercises). The reanimation body: the
+        // SIXTH `moveZone` shape locates a linked creature card (CR 608.2b
+        // no-op if none), puts it onto the battlefield under the ability's
+        // OWN controller (the linked card may be owned by either player,
+        // "under your control" per the Oracle), stamps a finality counter,
+        // grants haste (no duration — indefinite, matching the printed "It
+        // gains haste" with no "until end of turn", the Sneak Attack idiom
+        // per `mir/black.ts`'s Shallow Grave), and schedules the delayed
+        // sacrifice at the next end step (same idiom, `sacrifice` swapped
+        // for Shallow Grave's `exile`).
+        counterAddedTrigger({
+            id: "emperor-of-bones-reanimate",
+            oracleText:
+                "Whenever one or more +1/+1 counters are put on this creature, put a creature card exiled with this creature onto the battlefield under your control with a finality counter on it. It gains haste. Sacrifice it at the beginning of the next end step.",
+            scope: "self",
+            counterType: "+1/+1",
+            effects: [
+                {
+                    op: "moveZone",
+                    target: { exiledWithSource: true },
+                    filter: { type: "Creature" },
+                    to: "battlefield",
+                    controller: "controller",
+                    bind: "$reanimated",
+                },
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "finality",
+                    target: { ref: "$reanimated" },
+                    count: 1,
+                },
+                {
+                    op: "grantAbility",
+                    ability: "haste",
+                    target: { ref: "$reanimated" },
+                },
+                {
+                    op: "delayedTrigger",
+                    timing: "next-end-step",
+                    oracleText:
+                        "Sacrifice it at the beginning of the next end step.",
+                    capture: { $captured: { ref: "$reanimated" } },
+                    effects: [
+                        { op: "sacrifice", target: { ref: "$captured" } },
+                    ],
+                },
+            ],
+        }),
+    ],
+    activatedAbilities: [
+        adaptAbility({
+            id: "emperor-of-bones-adapt",
+            n: 2,
+            cost: { X: 1, B: 1 },
+            costLabel: "{1}{B}",
+        }),
+    ],
 };

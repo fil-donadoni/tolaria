@@ -10218,6 +10218,18 @@ export type EffectOp =
            *  bounce); a library shorter than the position puts the card on
            *  the bottom (the official Teferi ruling). */
           position?: number;
+          /** CR 400.7 / 607 (issue #1947, generalized #1323) — stamp
+           *  `linkExileToSource` on the moved card, valid ONLY alongside
+           *  `to: "exile"` (validator-enforced). The SINGLE-target twin of
+           *  the `cards`-shape's own `linkToSource` (issue #1947, Skyship
+           *  Weatherlight's arbitrary-count sweep): "exile up to one target
+           *  card from a graveyard" (Emperor of Bones) needs the ONE exiled
+           *  card linked back to the exiling permanent so its OWN later
+           *  ability can name exactly this card (`getCardsExiledWith` /
+           *  this Op's own `exiledWithSource` target shape below) — a
+           *  "generalize, don't add" parametrization of this EXISTING
+           *  announced-target shape rather than a new Op. */
+          linkToSource?: boolean;
       }
     /** CR 400.7 (issue #677) — the SEARCH half of a tutor/fetch effect: move
      *  the cards a `choice` Op picked (a bare picks ref, e.g.
@@ -10388,6 +10400,57 @@ export type EffectOp =
     | {
           op: "moveZone";
           target: EffectZonePositionSelector;
+          to: EffectMoveZone;
+          bind?: string;
+          controller?: EffectPlayerRef;
+          tapped?: boolean;
+      }
+    /** CR 607 (issue #1319 foundation, generalized #1323) — the SIXTH
+     *  `moveZone` shape: put "a[n] [X] card exiled with this permanent" onto
+     *  the battlefield (or another zone) — Emperor of Bones' "put a creature
+     *  card exiled with this creature onto the battlefield under your
+     *  control with a finality counter on it." Mirrors the FIFTH
+     *  (positional-graveyard) shape's own precedent exactly: `target` is the
+     *  existing `EffectExiledWithSourceSelector` (`{ exiledWithSource: true
+     *  }`, issue #783 — previously wired ONLY into `castDuringResolution`'s
+     *  `card` field, generalized here into `moveZone`'s own object-selecting
+     *  grammar), read at resolution from
+     *  `SpellContext.getCardsExiledWith(ctx.sourceInstanceId)` — every card
+     *  in ANY player's exile currently linked to the resolving ability's OWN
+     *  source (CR 400.7 — the pile may span owners; a card exiled from an
+     *  opponent's graveyard stays in THEIR exile).
+     *
+     *  Optional sibling `filter` (the SAME `EffectCardFilter` field the
+     *  FOURTH shape's `fromZones` sweep already carries — reused, not
+     *  duplicated) narrows by type ("a CREATURE card exiled with ~").
+     *  DELIBERATELY NOT a player choice when multiple cards qualify: the
+     *  topmost-of-an-ordered-pile precedent the FIFTH shape set (Shallow
+     *  Grave, "deliberately NOT a player choice: substituting one would
+     *  diverge from the modern oracle text") extends here the same way —
+     *  the first filter-matching entry in `getCardsExiledWith`'s stable
+     *  return order (players in seat order, then each player's exile in
+     *  insertion/link order) is used. An exile zone carries no CR-defined
+     *  order the way a graveyard does (CR 404.3), so this is a documented
+     *  simplification of the general CR 601.2c/608.2 "the appropriate
+     *  player chooses" default for an unresolved multi-candidate tie,
+     *  scoped to the shape this ticket introduces (issue #1323) — the
+     *  common case is 0 or 1 linked card at resolution time.
+     *
+     *  Once located, execution funnels into the EXACT SAME graveyard-card
+     *  branch every other `target`-carrying shape uses (`returnToBattlefield`
+     *  for `to: "battlefield"`, re-deriving the source pile as exile via the
+     *  branch's existing owner-lookup fallback — no new SpellContext
+     *  primitive); `bind` / `controller` / `tapped` keep their existing
+     *  meanings there. `controller` is the field Emperor actually needs
+     *  ("under YOUR control" — the linked card may be owned by either
+     *  player). An empty or filter-matching-nothing linked pile is a clean
+     *  CR 608.2b no-op. `from` / `position` are validator-rejected on this
+     *  shape (the source zone is intrinsic — always exile — and a positional
+     *  library insert is meaningless with no announced slot). */
+    | {
+          op: "moveZone";
+          target: EffectExiledWithSourceSelector;
+          filter?: EffectCardFilter;
           to: EffectMoveZone;
           bind?: string;
           controller?: EffectPlayerRef;

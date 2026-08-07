@@ -8053,6 +8053,26 @@ export function removePermanentTo(
     if (initial.card.exileOnLeave && toZone !== "exile") {
         toZone = "exile";
     }
+    // Finality counter (MH3, issue #1323 — Emperor of Bones' reanimation
+    // clause) — "If a permanent with a finality counter on it would be put
+    // into a graveyard from the battlefield, exile it instead." An INTRINSIC
+    // per-counter rule, not a per-card `replacementEffects[]` entry: the
+    // counter can land on ANY creature card Emperor reanimates (`counters`
+    // Op, `counter: "finality"`), not just a card that declares the rule
+    // itself — so it is checked directly here, the single funnel for every
+    // battlefield departure, exactly like the `exileOnLeave` per-instance
+    // flag right above. Scoped to "from the battlefield" only (this is the
+    // ONE `graveyardDestinationFor` call site that ever passes `fromZone:
+    // "battlefield"` — every other call site sources from stack/library/hand,
+    // so a finality-countered card leaving via those paths is unaffected,
+    // matching the printed ruling that finality counters don't intercept a
+    // move to hand/library). Consulted BEFORE the declared graveyard-bound
+    // replacement loop (Yawgmoth's Will / Dauthi Voidwalker) below — a
+    // finality-countered permanent is redirected unconditionally, so there is
+    // nothing left for that loop to further redirect.
+    if (toZone === "graveyard" && (initial.card.counters?.finality ?? 0) > 0) {
+        toZone = "exile";
+    }
     // CR 614 (issue #1145) — graveyard-bound replacement (Yawgmoth's Will /
     // Dauthi Voidwalker): "if a card would be put into a graveyard from
     // anywhere, exile it instead." Consulted AFTER `exileOnLeave` (which
