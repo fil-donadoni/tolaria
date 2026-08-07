@@ -81,9 +81,11 @@ export const nethergoyf: CardDefinition = {
 //   - Counter-placement meta-trigger (CR 122.1, issue #1319) —
 //     `counterAddedTrigger()` factory; Emperor is its FIRST real consumer.
 //
-// Finality counter (MH3 keyword counter, CR 122.3-family reminder text "If
-// this permanent would be put into a graveyard from the battlefield, exile
-// it instead.") is a genuinely NEW small primitive this ticket adds: an
+// Finality counter (MH3 keyword counter, CR 122.1h: "One or more finality
+// counters on a permanent create a single replacement effect that stops the
+// permanent from going to the graveyard. That effect is 'If this permanent
+// would be put into a graveyard from the battlefield, exile it instead.'")
+// is a genuinely NEW small primitive this ticket adds: an
 // INTRINSIC, per-instance-counter check in `removePermanentTo`
 // (`gre/state.ts`) — any creature Emperor reanimates can carry the counter,
 // not just a card that declares the rule itself, so it cannot be a per-card

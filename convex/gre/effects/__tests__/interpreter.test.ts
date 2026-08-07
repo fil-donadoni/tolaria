@@ -26341,4 +26341,196 @@ describe("Effect Script Op: moveZone — linkToSource + exiledWithSource shape (
             expect(slim.counters).toEqual({ finality: 1 });
         }
     });
+
+    // The `filter` on this shape is LOAD-BEARING on the shipped consumer:
+    // Emperor of Bones' exile clause (`mh3/black.ts`) exiles "up to one
+    // target CARD from a graveyard" — ANY card, not just a creature — so a
+    // fail-open filter here would put a linked Lightning Bolt onto the
+    // battlefield instead of skipping past it. Mirrors the FIFTH
+    // (positional-graveyard) shape's own "is a FILTERED scan" +
+    // no-match-no-op pair (issue #1967) — every OTHER test above links only
+    // a creature, so the filter branch was otherwise never exercised.
+    it("is a FILTERED scan — a linked non-creature is skipped, a creature further down the linked pile is picked", () => {
+        const defId = "test-movezone-exiledwith-filtered";
+        registerReanimateWatcher(defId);
+        // Linked pile order = exile-array order (both cards belong to the
+        // same owner here): the instant sits AHEAD of the bear.
+        const linkedInstant = makeInstance(BLACK_CARD_ID, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "linkedInstant",
+            zone: "exile",
+        });
+        const linkedBear = makeInstance(BEAR_ID, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "linkedBear",
+            zone: "exile",
+        });
+        const watcher = makeInstance(defId, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "watcher-filtered",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [watcher],
+                    exile: [linkedInstant, linkedBear],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const item = pushSpell(state, defId, "p1");
+        const ctx = buildSpellContext(state, item);
+        ctx.linkExileToSource("linkedInstant", "watcher-filtered");
+        ctx.linkExileToSource("linkedBear", "watcher-filtered");
+        ctx.addCounter(
+            { type: "permanent", id: "watcher-filtered" },
+            "+1/+1",
+            1
+        );
+        resolveWatcherTriggers(state, `${defId}-reanimate`);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "linkedBear")
+        ).toBe(true);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "linkedInstant")
+        ).toBe(false);
+        expect(
+            state.players[0].exile.some((c) => c.id === "linkedInstant")
+        ).toBe(true);
+        expect(state.players[0].exile.some((c) => c.id === "linkedBear")).toBe(
+            false
+        );
+    });
+
+    it("exiledWithSource shape is a clean CR 608.2b no-op when the linked pile holds only a non-matching card", () => {
+        const defId = "test-movezone-exiledwith-nomatch";
+        registerReanimateWatcher(defId);
+        const linkedInstant = makeInstance(BLACK_CARD_ID, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "onlyInstant",
+            zone: "exile",
+        });
+        const watcher = makeInstance(defId, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "watcher-nomatch",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [watcher],
+                    exile: [linkedInstant],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const item = pushSpell(state, defId, "p1");
+        const ctx = buildSpellContext(state, item);
+        ctx.linkExileToSource("onlyInstant", "watcher-nomatch");
+        ctx.addCounter(
+            { type: "permanent", id: "watcher-nomatch" },
+            "+1/+1",
+            1
+        );
+        expect(() =>
+            resolveWatcherTriggers(state, `${defId}-reanimate`)
+        ).not.toThrow();
+        expect(state.players[0].battlefield).toHaveLength(1);
+        expect(state.players[0].exile.some((c) => c.id === "onlyInstant")).toBe(
+            true
+        );
+    });
+
+    // Validator fail-closed tests for the SIXTH shape's own rejection
+    // branches (`convex/gre/effects/validate.ts`, issue #1323) — mirrors the
+    // FIFTH (positional-graveyard) shape's own 4-test block above (issue
+    // #1967). Each combination is meaningless on the exiledWithSource
+    // selector (its source zone is intrinsic) and must fail CLOSED at
+    // authoring time rather than silently drop the field at runtime.
+    it('the validator REJECTS "from" alongside an exiledWithSource target (fail-closed)', () => {
+        const errors = validateEffectScript({
+            id: "test-op-exiledwithsource-from",
+            name: "test-op-exiledwithsource-from",
+            rarity: "common",
+            manaCost: { B: 1 },
+            types: ["Sorcery"],
+            effects: [
+                {
+                    op: "moveZone",
+                    target: { exiledWithSource: true },
+                    from: "exile",
+                    to: "battlefield",
+                } as unknown as EffectOp,
+            ],
+        } as CardDefinition);
+        expect(errors.join("\n")).toContain("issue #1323");
+    });
+
+    it('the validator REJECTS "position" alongside an exiledWithSource target (fail-closed)', () => {
+        const errors = validateEffectScript({
+            id: "test-op-exiledwithsource-position",
+            name: "test-op-exiledwithsource-position",
+            rarity: "common",
+            manaCost: { B: 1 },
+            types: ["Sorcery"],
+            effects: [
+                {
+                    op: "moveZone",
+                    target: { exiledWithSource: true },
+                    position: 3,
+                    to: "battlefield",
+                } as unknown as EffectOp,
+            ],
+        } as CardDefinition);
+        expect(errors.join("\n")).toContain("issue #1323");
+    });
+
+    it('the validator REJECTS to: "library-top" alongside an exiledWithSource target (fail-closed)', () => {
+        const errors = validateEffectScript({
+            id: "test-op-exiledwithsource-librarytop",
+            name: "test-op-exiledwithsource-librarytop",
+            rarity: "common",
+            manaCost: { B: 1 },
+            types: ["Sorcery"],
+            effects: [
+                {
+                    op: "moveZone",
+                    target: { exiledWithSource: true },
+                    to: "library-top",
+                } as unknown as EffectOp,
+            ],
+        } as CardDefinition);
+        expect(errors.join("\n")).toContain("issue #1323");
+    });
+
+    it('the validator REJECTS "linkToSource" on a "target" shape whose "to" is not "exile" (fail-closed)', () => {
+        const errors = validateEffectScript({
+            id: "test-op-linktosource-nonexile-to",
+            name: "test-op-linktosource-nonexile-to",
+            rarity: "common",
+            manaCost: { B: 1 },
+            types: ["Sorcery"],
+            targetRequirement: {
+                type: "card",
+                count: { min: 0, max: 1 },
+                zone: "graveyard",
+                controller: "any",
+            },
+            effects: [
+                {
+                    op: "moveZone",
+                    target: { target: 0 },
+                    to: "battlefield",
+                    linkToSource: true,
+                } as unknown as EffectOp,
+            ],
+        } as CardDefinition);
+        expect(errors.join("\n")).toContain("issue #1323");
+    });
 });

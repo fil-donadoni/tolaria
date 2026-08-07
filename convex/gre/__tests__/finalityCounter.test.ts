@@ -1,12 +1,10 @@
 // Finality counter (MH3 keyword counter, issue #1323 — Emperor of Bones'
 // reanimation clause: "put a creature card exiled with this creature onto
-// the battlefield ... with a finality counter on it"). Printed reminder
-// text: "If this permanent would be put into a graveyard from the
-// battlefield, exile it instead." (WotC ruling, 2024-06-07: "If any
-// permanent with a finality counter on it would go to a graveyard from the
-// battlefield, exile it instead." / "Finality counters don't stop
-// permanents from going to zones other than the graveyard from the
-// battlefield.")
+// the battlefield ... with a finality counter on it"). CR 122.1h: "One or
+// more finality counters on a permanent create a single replacement effect
+// that stops the permanent from going to the graveyard. That effect is 'If
+// this permanent would be put into a graveyard from the battlefield, exile
+// it instead.'"
 //
 // Modeled as an INTRINSIC per-instance-counter check at `removePermanentTo`
 // (`gre/state.ts`) — the single funnel every battlefield departure already
@@ -42,7 +40,7 @@ function creature(
     };
 }
 
-describe("finality counter (MH3, issue #1323) — graveyard-bound-from-battlefield redirect", () => {
+describe("finality counter (CR 122.1h, MH3, issue #1323) — graveyard-bound-from-battlefield redirect", () => {
     it("redirects a battlefield death (SBA, 0 toughness) to exile instead of the graveyard", () => {
         const dying = creature("victim", "p1", {
             toughness: 0,
