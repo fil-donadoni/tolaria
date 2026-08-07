@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Menu } from "lucide-react";
 import { useGameContext } from "~/hooks/useGameContext";
-import { useControllerActions } from "~/hooks/useControllerActions";
+import { useControllerActionsSource } from "~/hooks/controllerActionsContext";
 import { useControllerBarHeight } from "~/hooks/useControllerBarHeight";
 import { selectCommandSlots } from "~/lib/controller-action-slots";
 import BoardPileChips from "./board-pile-chips";
@@ -121,7 +121,11 @@ export default function ControllerBottomBar({
 }) {
     const { phase, turn, activePlayerId, playerId, allPlayers } =
         useGameContext();
-    const { cue, actions, attackAllConfirm } = useControllerActions();
+    // Injected descriptor source (#2167): defaults to `useControllerActions`
+    // absent a provider. One call, at a stable position — the bottom bar is
+    // the ONE controller layout `controller.tsx` mounted this render.
+    const useControllerState = useControllerActionsSource();
+    const { cue, actions, attackAllConfirm } = useControllerState();
     const [sheetOpen, setSheetOpen] = useState(false);
     // The bar's height is state-dependent (the command row wraps), so nothing
     // may reserve a fixed inset for it — it publishes what it measures and the
