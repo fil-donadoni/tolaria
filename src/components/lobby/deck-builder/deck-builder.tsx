@@ -25,6 +25,7 @@ import {
     type BasicLandSubtype,
 } from "~/components/deckbuilder/basicLands";
 import PoolBasicLandsBar from "~/components/deckbuilder/pool-basic-lands-bar";
+import DeckStatsButton from "~/components/deckbuilder/deck-stats-button";
 import DeckBuilderShell from "~/components/deckbuilder/deck-builder-shell";
 import type { DeckBuilderViewSpec } from "~/components/deckbuilder/deckBuilderVariant";
 import {
@@ -869,6 +870,7 @@ export default function DeckBuilder({
                     />
                     <DeckBanlistPanel format={deck.format} />
                     <SearchBar value={rawText} onChange={setText} />
+                    <DeckStatsButton mainCards={deck.cards} />
                 </>
             }
             headerFilters={

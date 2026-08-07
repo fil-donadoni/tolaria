@@ -47,6 +47,7 @@ import {
     type BasicLandSubtype,
 } from "./basicLands";
 import DeckBuilderShell from "./deck-builder-shell";
+import DeckStatsButton from "./deck-stats-button";
 import type { DeckBuilderViewSpec, WorkingDeck } from "./deckBuilderVariant";
 import {
     recordGroupingChange,
@@ -507,6 +508,27 @@ export default function PoolDeckBuilderForm({
         void navigate({ to: "/limited/$eventId", params: { eventId } });
     }, [flush, navigate, eventId]);
 
+    // The Stats toolbar action (issue #1631): the header's full-size copy
+    // and SaveDeckBar's short-viewport-only compact twin (issue #1631
+    // fixup R-F6 — a `short-viewport:` className override so the twin
+    // matches the row's other controls, Delete/Done, instead of being the
+    // row's tallest item). It is passed through the header's
+    // `foldableActions` slot rather than `headerActions` (issue #2056
+    // fixup): this builder's header carries nothing else, so #2056 hid it
+    // entirely under `short-viewport:` to hand its ~39px back to the card
+    // zones — a real `headerActions` entry would flip `carriesControls` and
+    // keep the band on screen, reopening that regression. Two separate JSX
+    // elements (rather than one reused) mount two independent component
+    // instances, each managing its own dialog open state — the same
+    // mounting behaviour either way (React mounts once per JSX usage site).
+    const statsAction = <DeckStatsButton mainCards={deck.cards} />;
+    const compactStatsAction = (
+        <DeckStatsButton
+            mainCards={deck.cards}
+            className="short-viewport:px-2 short-viewport:py-1 short-viewport:text-xs"
+        />
+    );
+
     const basicCardIds = useMemo(() => resolveBasicLandCardIds(pool), [pool]);
     // The bar's per-subtype counter (issue #1627) — read straight off the
     // live Maindeck, so it updates on every add/remove exactly like every
@@ -552,6 +574,7 @@ export default function PoolDeckBuilderForm({
                     disabled={saving}
                 />
             }
+            headerFoldableActions={statsAction}
             mainCards={deck.cards}
             sideCards={deck.sideboard}
             layout={layout}
@@ -590,6 +613,7 @@ export default function PoolDeckBuilderForm({
                 name: deck.name,
                 cardCount: deck.cards.length,
                 onChangeName: setName,
+                foldableActions: compactStatsAction,
             }}
         />
     );

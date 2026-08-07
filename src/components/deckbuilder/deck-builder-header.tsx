@@ -6,8 +6,23 @@ export interface DeckBuilderHeaderProps {
     title: string;
     backLabel: string;
     onBack: () => void;
-    /** Row-1 controls beyond Back + title. */
+    /** Row-1 controls beyond Back + title. Presence flips `carriesControls`
+     *  below — use this for a control the band must stay visible to keep
+     *  reachable at every height. */
     actions?: ReactNode;
+    /** A row-1 control that renders next to `actions` at a normal viewport
+     *  but does NOT flip `carriesControls` (issue #1631/#2056 fixup):
+     *  when it is the ONLY thing beyond Back + title, the band still hides
+     *  under `short-viewport:` exactly as a bare Back+title band does, and
+     *  this control disappears with it. Use this ONLY when the caller also
+     *  reproduces the same affordance, compact, inside `SaveDeckBar`'s
+     *  short-viewport row (the pattern `onBack`/`legality` already use
+     *  there) — otherwise the control is genuinely lost, not folded. The
+     *  Limited pool builder's Stats button is the reference case: issue
+     *  #2056 hid that builder's header band specifically to hand its ~39px
+     *  budget to the card zones (measured with ~4px of slack), so a control
+     *  that forced the band to stay visible would reopen that regression. */
+    foldableActions?: ReactNode;
     /** A full-width second row (the Constructed search filters). */
     filters?: ReactNode;
 }
@@ -28,6 +43,11 @@ export interface DeckBuilderHeaderProps {
  * true for the third variant (the draft-time Pool's Grouping + Ordering bar,
  * ADR 0075 §6) without anyone revisiting it.
  *
+ * `foldableActions` is deliberately excluded from `carriesControls` (issue
+ * #1631 fixup): a control passed there is nice-to-have in the header but not
+ * worth keeping the band on screen for, so it hides along with Back + title
+ * and must be reproduced, compact, in `SaveDeckBar`'s short-viewport row.
+ *
  * The band is a single wrapping flex row so the title's parent element IS the
  * band — the element whose short-viewport treatment the height tests assert.
  * `filters` takes `basis-full`, so it wraps onto its own line beneath.
@@ -37,6 +57,7 @@ export default function DeckBuilderHeader({
     backLabel,
     onBack,
     actions,
+    foldableActions,
     filters,
 }: DeckBuilderHeaderProps) {
     const carriesControls = Boolean(actions || filters);
@@ -57,6 +78,7 @@ export default function DeckBuilderHeader({
                 {title}
             </h1>
             {actions}
+            {foldableActions}
             {filters && (
                 <div className="flex basis-full flex-wrap items-center gap-4">
                     {filters}

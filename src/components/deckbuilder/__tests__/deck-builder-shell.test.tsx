@@ -244,6 +244,54 @@ describe("DeckBuilderShell — declared-variant vocabulary (issue #1623)", () =>
         expect(classes).toContain("short-viewport:py-1");
     });
 
+    it("a foldable action alone does NOT flip carriesControls — it renders but the band still hides (issue #1631 fixup F1)", () => {
+        // `headerFoldableActions` exists precisely for a control that is
+        // nice-to-have in the header but not worth keeping the band on
+        // screen for (the Limited pool builder's Stats button, whose header
+        // otherwise carries only Back + title and must keep hiding under
+        // short-viewport per issue #2056). Real `headerActions` still wins
+        // when both are present, since the band then genuinely carries a
+        // control it cannot afford to hide.
+        const { container, getByText } = renderShell({
+            headerFoldableActions: <button type="button">Stats</button>,
+        });
+        expect(getByText("Stats")).toBeTruthy();
+        const header = container.querySelector("[data-deckbuilder-header]")!;
+        expect(header.className.split(/\s+/)).toContain(
+            "short-viewport:hidden"
+        );
+
+        const withBoth = renderShell({
+            headerActions: <button type="button">Import</button>,
+            headerFoldableActions: <button type="button">Stats</button>,
+        }).container.querySelector("[data-deckbuilder-header]")!;
+        const classes = withBoth.className.split(/\s+/);
+        expect(classes).not.toContain("short-viewport:hidden");
+        expect(classes).toContain("short-viewport:py-1");
+    });
+
+    it("defaults SaveDeckBar's folded twin to headerFoldableActions when the caller omits saveBar.foldableActions (issue #1631 fixup R-F7)", () => {
+        // The pairing used to be enforced by prose only ("a caller supplying
+        // headerFoldableActions MUST also supply saveBar.foldableActions or
+        // the control is lost"). This proves the structural fallback: a
+        // caller that sets ONLY `headerFoldableActions` still gets the
+        // control folded into `SaveDeckBar`'s short-viewport row, with no
+        // separate `saveBar.foldableActions` at all.
+        const { container, getAllByText } = renderShell({
+            headerFoldableActions: <button type="button">Stats</button>,
+            saveBar: { name: "Deck", cardCount: 0, onChangeName: () => {} },
+        });
+        const form = container.querySelector("form")!;
+        const foldedStats = getAllByText("Stats").find((el) =>
+            form.contains(el)
+        );
+        expect(foldedStats).toBeTruthy();
+        const wrapper = foldedStats!.closest("span")!;
+        expect(wrapper.className.split(/\s+/)).toEqual(
+            expect.arrayContaining(["hidden", "short-viewport:inline-flex"])
+        );
+    });
+
     it("carries the Sideboard cap only when the variant declares one — Limited's Sideboard stays uncapped", () => {
         const uncapped = renderShell({ sideCards: [card(PLAINS_ID)] });
         expect(uncapped.getByText(/^Pool \(Sideboard\) 1$/)).toBeTruthy();

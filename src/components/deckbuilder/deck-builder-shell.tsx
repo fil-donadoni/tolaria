@@ -85,6 +85,7 @@ export default function DeckBuilderShell({
     backLabel = "← Back",
     onDone,
     headerActions,
+    headerFoldableActions,
     headerFilters,
     sourcePanel,
     basicsBar,
@@ -127,6 +128,7 @@ export default function DeckBuilderShell({
                     backLabel={backLabel}
                     onBack={onDone}
                     actions={headerActions}
+                    foldableActions={headerFoldableActions}
                     filters={headerFilters}
                 />
 
@@ -249,6 +251,17 @@ export default function DeckBuilderShell({
                         onBack={onDone}
                         backLabel={backLabel}
                         legality={legality}
+                        // Issue #1631 fixup R-F7: defaults to
+                        // `headerFoldableActions` when the caller passes ONE
+                        // control to both slots (the pool builder's
+                        // `statsAction`/`compactStatsAction` pair still wins
+                        // when they differ, e.g. R-F6's compact className) —
+                        // so a future caller that supplies
+                        // `headerFoldableActions` and forgets this twin does
+                        // not silently lose the control at short viewport.
+                        foldableActions={
+                            saveBar.foldableActions ?? headerFoldableActions
+                        }
                     />
                 </div>
             )}
