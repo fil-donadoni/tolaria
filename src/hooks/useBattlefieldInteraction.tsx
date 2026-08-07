@@ -59,9 +59,14 @@ import ErrorToast from "~/components/board/error-toast";
  *  - the mana-choice-picker state (multi-color sources: Black Lotus, Birds),
  *  - the client-side validation-error state.
  *
- *  Both `PlayerBattlefield` (classic) and the spatial battlefield consume the
- *  identical handler set, so a tap / in-payment tap / mana-choice pick
- *  dispatches the SAME mutation with the SAME args on either board.
+ *  `BoardBattlefield` (`src/components/board/board-battlefield.tsx`) is the
+ *  sole caller: a tap / in-payment tap / mana-choice pick dispatches the SAME
+ *  mutation with the SAME args regardless of which seat's battlefield it
+ *  fired from. `BoardBattlefield` never calls this hook by name — it reads
+ *  the hook FUNCTION from `useBattlefieldInteractionContext`
+ *  (`src/hooks/useBattlefieldInteractionContext.ts`), which defaults to this
+ *  hook and lets a non-GRE board (the Manual Game, PRD #2162) supply its own
+ *  without forking the component.
  *
  *  The follow-up battlefield slices (#278 ability menu / #279 targeting+choice /
  *  #281 combat) reuse the handlers untouched: their click branches and the
@@ -76,8 +81,7 @@ import ErrorToast from "~/components/board/error-toast";
  *  Returns the handlers plus `getVisualState`/`canInteract` (re-exposed from the
  *  shared visual-state hook so a consumer needs a single call) and an
  *  `overlays` node bundling the mana-choice picker + validation toast, which the
- *  caller mounts wherever its layout needs them (classic: in the battlefield
- *  root; spatial: in the board root). */
+ *  caller mounts wherever its layout needs them. */
 export function useBattlefieldInteraction(player: Player) {
     const {
         gameId,

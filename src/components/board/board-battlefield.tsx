@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import type { CardInstance, Player } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
-import { useBattlefieldInteraction } from "~/hooks/useBattlefieldInteraction";
+import { useBattlefieldInteractionHook } from "~/hooks/useBattlefieldInteractionContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { useIsPortrait } from "~/hooks/useIsPortrait";
 import { isCreature, isLand } from "~/lib/card-utils";
@@ -32,7 +32,19 @@ import AttachedCardsCluster from "./attached-cards-cluster";
  *  midline. */
 const CREATURES_CENTER_Y_FRAC = 0.28;
 const BACK_CENTER_Y_FRAC = 0.74;
-type BandKey = "creatures" | "back";
+export type BandKey = "creatures" | "back";
+
+/** The two classification decisions a battlefield row layout depends on:
+ *  which row a permanent belongs to, and — within the back row — whether it
+ *  sorts as a land (left block) or another noncreature permanent (right
+ *  block). Both read the card's TYPE, which the real GRE board hydrates onto
+ *  `CardInstance.types` but a Manual Game (PRD #2162, no `CardDefinition`
+ *  hydration by design) cannot — so both halves are one injectable parameter,
+ *  not one: a Manual battlefield needs its own answer to each. */
+export type BattlefieldRowClassifier = {
+    bandOf: (card: CardInstance) => BandKey;
+    backRowRank: (card: CardInstance) => number;
+};
 
 /** Neutral visual state for a phased-out permanent (CR 702.26): no combat ring,
  *  no tap-target highlight, not interactive — `BoardBattlefieldCard` reads
@@ -58,6 +70,12 @@ type BoardBattlefieldProps = {
      *  drops to 0 and the band's own right inset (published by the landscape
      *  budget) does the clearing instead. Omitted ⇒ desktop/portrait, unchanged. */
     compact?: LandscapeCardMetrics;
+    /** Which row a permanent lands in, and how the back row sub-orders —
+     *  injectable so a non-GRE board (the Manual Game, PRD #2162; not wired by
+     *  this component) can classify off its own data instead of a hydrated
+     *  `CardDefinition`. Omitted ⇒ {@link DEFAULT_ROW_CLASSIFIER}, byte-for-byte
+     *  today's creature-forward / land-then-other-back split. */
+    rowClassifier?: BattlefieldRowClassifier;
     "data-testid"?: string;
 };
 
@@ -74,29 +92,44 @@ function backRowRank(card: CardInstance): number {
     return isLand(card) ? 0 : 1;
 }
 
+/** The classification `BoardBattlefield` uses absent a `rowClassifier` prop —
+ *  the real GRE board's classic behaviour, definition-backed via
+ *  `isCreature`/`isLand` (`~/lib/card-utils`). */
+const DEFAULT_ROW_CLASSIFIER: BattlefieldRowClassifier = {
+    bandOf,
+    backRowRank,
+};
+
 /** One player's battlefield on the spatial board (PRD #249, slice #256).
  *
  *  Owns the per-player board-coupled visual-state AND interaction computation:
- *  it calls the shared {@link useBattlefieldInteraction} hook ONCE (which itself
- *  composes {@link useBattlefieldVisualState}, #256) and hands each permanent
- *  its {@link CardVisualState} (combat rings, tap, marked damage, legal-target
+ *  it resolves the interaction hook via {@link useBattlefieldInteractionHook}
+ *  (the real {@link useBattlefieldInteraction} absent a provider) and calls it
+ *  ONCE, unconditionally, right here — and hands each permanent its
+ *  {@link CardVisualState} (combat rings, tap, marked damage, legal-target
  *  highlight) plus its click handler to {@link BoardBattlefieldCard}. The
  *  click handler dispatches the SAME mutations as the classic board for tap /
  *  in-payment tap / mana-choice pick (#272); the hook's `overlays` node (the
  *  mana-choice picker + validation toast) is mounted here so the spatial board
- *  surfaces them. Isolating the hook in this component (rather than inside
- *  `board.tsx`'s item builder) keeps the rules-of-hooks contract clean —
- *  the hook runs unconditionally per mounted battlefield.
+ *  surfaces them. Isolating the hook CALL in this component (rather than
+ *  inside `BoardSurface`'s item builder, which mounts each seat behind its own
+ *  `{opponent && …}` / `{me && …}` conditional) keeps the rules-of-hooks
+ *  contract clean — the hook runs unconditionally per mounted battlefield
+ *  (issue #2166: this is why the context injects the HOOK, never its result).
  *
  *  Cards are split into the {@link BANDS} rows (creatures / others / lands) and
  *  each band is positioned by the shared layout math via its own
  *  {@link SpatialZone}; all bands live in the same `LayoutGroup` so a permanent
  *  that changes band (an animated land, a creature that loses its types) still
- *  FLIP-animates by `slotId` rather than teleporting. */
+ *  FLIP-animates by `slotId` rather than teleporting. Which row a permanent
+ *  lands in — and how the back row sub-orders — is itself injectable via
+ *  `rowClassifier` (defaulting to {@link DEFAULT_ROW_CLASSIFIER}), for the
+ *  same non-GRE-board reason. */
 export default function BoardBattlefield({
     player,
     mirror,
     compact,
+    rowClassifier = DEFAULT_ROW_CLASSIFIER,
     "data-testid": testId,
 }: BoardBattlefieldProps) {
     // Scan every battlefield for cross-controlled auras (CR 303.4). Falls back
@@ -125,6 +158,12 @@ export default function BoardBattlefield({
     // uses the full screen width. Same hook the controller reads — the gutter
     // and the pod can never disagree about which layout is live.
     const isPortrait = useIsPortrait();
+    // Read WHICH interaction hook to call (provider-supplied, else the real
+    // `useBattlefieldInteraction`) and call it right here, unconditionally,
+    // exactly where the direct call used to live — see the class doc and
+    // `useBattlefieldInteractionContext.ts` for why the hook itself, not its
+    // result, is what's injected (issue #2166).
+    const useInteraction = useBattlefieldInteractionHook();
     const {
         getVisualState,
         handleClick,
@@ -133,7 +172,7 @@ export default function BoardBattlefield({
         handleActivateAbility,
         isSelectingOnThisBoard,
         overlays,
-    } = useBattlefieldInteraction(player);
+    } = useInteraction(player);
     // Un-stack identical permanents while a per-instance battlefield SELECTION
     // is active on this board (a `choose-permanents` pick like Frantic Search's
     // untap, or a sacrifice/exile/tap-other cost pick), so each candidate leaves
@@ -386,8 +425,9 @@ export default function BoardBattlefield({
             if (card.attachedTo && hostExistsAnywhere.has(card.attachedTo)) {
                 continue;
             }
-            if (bandOf(card) === "creatures") creatures.push(card);
-            else if (backRowRank(card) === 0) lands.push(card);
+            if (rowClassifier.bandOf(card) === "creatures")
+                creatures.push(card);
+            else if (rowClassifier.backRowRank(card) === 0) lands.push(card);
             else others.push(card);
         }
         // Collapse identical, interchangeable permanents into fanned
@@ -436,8 +476,10 @@ export default function BoardBattlefield({
         const phasedLands: CardInstance[] = [];
         const phasedOthers: CardInstance[] = [];
         for (const card of myPhasedCards) {
-            if (bandOf(card) === "creatures") phasedCreatures.push(card);
-            else if (backRowRank(card) === 0) phasedLands.push(card);
+            if (rowClassifier.bandOf(card) === "creatures")
+                phasedCreatures.push(card);
+            else if (rowClassifier.backRowRank(card) === 0)
+                phasedLands.push(card);
             else phasedOthers.push(card);
         }
         const singleWidths = (cards: CardInstance[]) =>
@@ -488,6 +530,7 @@ export default function BoardBattlefield({
         myPhasedCards,
         arrivalDeferIds,
         compact?.cardWidth,
+        rowClassifier,
     ]);
 
     // One full-height zone; the layout stacks the creature row (centered) over
