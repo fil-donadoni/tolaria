@@ -21,12 +21,15 @@ import {
 function build() {
     const dispatch = spyDispatch();
     const state = manualState([manualSeat("me"), manualSeat("opp")]);
-    const source = makeManualControllerActions(manualRuntime(state, dispatch));
-    return { dispatch, controller: source() };
+    const onOpenLog = vi.fn();
+    const source = makeManualControllerActions(manualRuntime(state, dispatch), {
+        onOpenLog,
+    });
+    return { dispatch, onOpenLog, controller: source() };
 }
 
-describe("manual controller actions (#2169)", () => {
-    it("offers exactly End Turn, Untap all, Draw, Shuffle and Concede", () => {
+describe("manual controller actions (#2169, #2172)", () => {
+    it("offers exactly End Turn, Untap all, Draw, Shuffle, Concede and Log", () => {
         const { controller } = build();
         expect(controller.actions.map((a) => a.key)).toEqual([
             ...MANUAL_CONTROLLER_KEYS,
@@ -37,7 +40,22 @@ describe("manual controller actions (#2169)", () => {
             "Draw",
             "Shuffle",
             "Concede",
+            "Log",
         ]);
+    });
+
+    it("dispatches the injected onOpenLog callback for the Log action, not a manual verb (#2172)", () => {
+        const { controller, dispatch, onOpenLog } = build();
+        const logAction = controller.actions.find(
+            (a) => a.key === "manual-open-log"
+        )!;
+        logAction.onClick();
+        expect(onOpenLog).toHaveBeenCalledTimes(1);
+        // The log toggle is a pure view concern — it must never reach the
+        // server dispatch the other five descriptors use.
+        for (const fn of Object.values(dispatch)) {
+            expect(fn).not.toHaveBeenCalled();
+        }
     });
 
     it("offers NO Pass Turn, NO Attack all and NO auto-pass toggle", () => {

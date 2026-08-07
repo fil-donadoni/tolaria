@@ -1,10 +1,10 @@
-// Manual controller descriptors (PRD #2162, issue #2169) — the value injected
-// into the seam `controllerActionsContext` (#2167) opened.
+// Manual controller descriptors (PRD #2162, issues #2169/#2172) — the value
+// injected into the seam `controllerActionsContext` (#2167) opened.
 //
 // The GRE controller's set is priority-shaped: Pass, Attack all, End turn,
 // auto-pass, the Space/Enter hotkeys. A Manual Game enforces no turn structure
 // (ADR 0080), so NONE of those belong: the descriptor set below is deliberately
-// the five manual verbs and nothing else, and `manual-controller-actions.test`
+// the six manual verbs and nothing else, and `manual-controller-actions.test`
 // pins that "nothing else" as data.
 //
 // `cue` is fixed at "mine": with no priority to wait on, the pod would
@@ -25,10 +25,22 @@ export const MANUAL_CONTROLLER_KEYS = [
     "manual-draw",
     "manual-shuffle",
     "manual-concede",
+    "manual-open-log",
 ] as const;
 
+/** The one thing this descriptor set needs that isn't already on
+ *  {@link ManualRuntime}: opening the log is a pure VIEW toggle
+ *  (`manual-board-view.tsx`'s `logOpen` state), not a server verb, so it has
+ *  no place on `ManualDispatch` alongside the real `manual*` mutations —
+ *  bundling it there would let a descriptor dispatch a "mutation" with no
+ *  `gameStates` row behind it. Kept as its own tiny parameter instead. */
+export type ManualLogControls = {
+    onOpenLog: () => void;
+};
+
 export function makeManualControllerActions(
-    runtime: ManualRuntime
+    runtime: ManualRuntime,
+    log: ManualLogControls
 ): ControllerActionsSource {
     const { viewerId, dispatch } = runtime;
     const actions: ControllerAction[] = [
@@ -75,6 +87,19 @@ export function makeManualControllerActions(
                     dispatch.concede({ playerId: viewerId });
                 }
             },
+        },
+        {
+            // Issue #2172 — the log used to be a permanently docked rail
+            // (desktop) or a bare button behind a full-screen overlay
+            // (portrait). It is now a collapsed surface, opened from here
+            // like every other manual verb, and closed by the surface's own
+            // Close button / Escape / backdrop tap
+            // (`manual-log-surface.tsx`).
+            key: "manual-open-log",
+            label: "Log",
+            tone: "primary",
+            disabled: false,
+            onClick: log.onOpenLog,
         },
     ];
     return () => ({

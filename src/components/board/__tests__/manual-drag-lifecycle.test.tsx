@@ -2,21 +2,27 @@
 //
 // `manual-drop.test.ts` covers the pure decision function; this covers the part
 // that decides whether the decision is ever reached. The regression it guards is
-// specific and was shipped once: `ManualBoardContainer` renders the 320px
-// `ManualLog` rail as a SIBLING of `ManualBoardView`'s `<main>`, so binding
-// `pointermove`/`pointerup`/`pointercancel` on that `<main>` means a drag
-// released anywhere outside it (the log rail, or off the window) never
-// terminates — the drop is discarded, the fixed-position ghost stays pinned on
-// screen, and the click-swallow stays armed and eats the next legitimate click
-// on the board. The deleted `manual-board.tsx` avoided all of that with
-// `setPointerCapture` (`manual-board.tsx:222`); `useManualDrag` now terminates
-// the gesture on the WINDOW instead.
+// specific and was shipped once: `ManualBoardView`'s `<main>` always has SOME
+// out-of-board release target as a DOM sibling — originally the 320px
+// `ManualLog` rail `ManualBoardContainer` docked permanently, now the
+// collapsed `ManualLogSurface` overlay (issue #2172,
+// `manual-log-surface.tsx`) — so binding `pointermove`/`pointerup`/
+// `pointercancel` on that `<main>` means a drag released anywhere outside it
+// (the sibling, or off the window) never terminates — the drop is discarded,
+// the fixed-position ghost stays pinned on screen, and the click-swallow stays
+// armed and eats the next legitimate click on the board. The deleted
+// `manual-board.tsx` avoided all of that with `setPointerCapture`
+// (`manual-board.tsx:222`); `useManualDrag` now terminates the gesture on the
+// WINDOW instead.
 //
 // Everything here drives the REAL `ManualBoardView` rather than the hook in
 // isolation, so what is under test is the shipped wiring: `onPointerDown` bound
 // on the board's `<main>` (the delegation scope) with move / up / cancel bound
-// on `window` for the life of the press, and the sibling log rail actually
-// mounted outside that `<main>` as the out-of-board release target it is.
+// on `window` for the life of the press, and a synthetic sibling standing in
+// for whatever out-of-board surface is mounted outside that `<main>` as the
+// out-of-board release target it is — `manual-board-view.test.tsx` covers the
+// REAL sibling (`ManualLogSurface`) is where production wiring actually puts
+// it.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, fireEvent, cleanup, screen } from "@testing-library/react";
 import {
@@ -78,8 +84,10 @@ vi.mock("../controller-phase-panel", () => ({ default: () => <div /> }));
 
 const { default: ManualBoardView } = await import("../manual-board-view");
 
-/** The board plus the sibling that causes the bug: `ManualBoardContainer` puts
- *  `ManualLog` in a `w-80 shrink-0` div OUTSIDE the board's `<main>`. */
+/** The board plus a synthetic stand-in for whatever out-of-board sibling is
+ *  mounted OUTSIDE the board's `<main>` — production mounts
+ *  `ManualLogSurface` there (issue #2172); this test only needs SOME element
+ *  outside `<main>` to release the drag over. */
 function renderBoardWithLogRail() {
     const state = manualState([
         manualSeat("me", { battlefield: [manualCard("perm1")] }),

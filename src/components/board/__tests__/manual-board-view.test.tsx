@@ -8,7 +8,7 @@
 // context this container synthesises, and each would render a confident,
 // meaningless cue if it slipped through.
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, cleanup, screen } from "@testing-library/react";
+import { render, cleanup, fireEvent, screen } from "@testing-library/react";
 import {
     manualCard,
     manualSeat,
@@ -18,6 +18,14 @@ import {
 vi.mock("convex/react", () => ({
     useMutation: () => vi.fn(),
     useQuery: () => undefined,
+    // `ManualLogSurface` mounts `ManualLog`'s `usePaginatedQuery` subscription
+    // once opened (issue #2172) — a bare object with no `manualLog` methods
+    // isn't a paginated query result, so this stands in for it.
+    usePaginatedQuery: () => ({
+        results: [],
+        status: "Exhausted",
+        loadMore: vi.fn(),
+    }),
 }));
 vi.mock("@convex/_generated/api", () => ({
     api: { game: {}, cardIndex: {}, manualLog: {} },
@@ -107,5 +115,32 @@ describe("the Manual Board on the shared board shell (#2169)", () => {
         expect(screen.getByText("Untap all")).toBeTruthy();
         expect(screen.queryByText("Pass")).toBeNull();
         expect(screen.queryByText("Attack all")).toBeNull();
+    });
+
+    // Issue #2172 — the log used to be a `w-80` rail sibling of the board's
+    // own flex row, subtracting its width permanently. It is now collapsed by
+    // default (nothing rendered at all — see `manual-log-surface.test.tsx`
+    // for that half) and opens as an overlay SIBLING of `<main>`, never a
+    // descendant: `useManualDrag`'s `isOverBoard` check walks
+    // `.closest("[data-manual-board]")`, so nesting the surface inside `main`
+    // would make a drop released on the log itself misread as "over the
+    // board". Proof-of-failure: nesting `<ManualLogSurface>` inside `<main>`
+    // in `manual-board-view.tsx` turns this red (`board().contains(...)`
+    // flips to `true`) — confirmed and reverted for the PR.
+    it("opens the log as a sibling overlay, never nested inside the board, and never touches the board's own layout classes (#2172)", () => {
+        renderBoard();
+        const board = () =>
+            document.querySelector<HTMLElement>("[data-manual-board]")!;
+        const classNameBefore = board().className;
+        expect(document.querySelector("[data-manual-log-surface]")).toBeNull();
+
+        fireEvent.click(screen.getByText("Log"));
+
+        const logSurface = document.querySelector("[data-manual-log-surface]");
+        expect(logSurface).not.toBeNull();
+        expect(board().contains(logSurface)).toBe(false);
+        // Opening the log never mutates the board's own class list — the
+        // board is full width whether the log is open or closed (AC2).
+        expect(board().className).toBe(classNameBefore);
     });
 });

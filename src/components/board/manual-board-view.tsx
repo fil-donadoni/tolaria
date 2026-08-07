@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { Id } from "@convex/_generated/dataModel";
 import type { ProjectedManualGameState } from "@convex/manual";
 import type { Player } from "~/types/game";
@@ -49,6 +49,7 @@ import { indexManualCards, type ManualRuntime } from "~/lib/manual-runtime";
 import BoardBackground from "./board-background";
 import BoardSurface from "./board-surface";
 import Controller from "./controller";
+import ManualLogSurface from "./manual-log-surface";
 
 /** A Manual Game never re-points the client session at another game — that is
  *  the sideboarding flow's affordance and Manual Mode has no match structure
@@ -69,8 +70,9 @@ const NO_SWITCH_GAME = () => {};
  *    list rides the shared ability menu / touch action sheet;
  *  - the battlefield ROW classifier (#2166) — off the Full Catalogue type line
  *    plus the card's explicit lane (#2168), never a hydrated `CardDefinition`;
- *  - the controller's action descriptors (#2167) — the five manual verbs, and
- *    explicitly no Pass, no Attack all, no auto-pass;
+ *  - the controller's action descriptors (#2167) — the six manual verbs
+ *    (including "Log", issue #2172), and explicitly no Pass, no Attack all,
+ *    no auto-pass;
  *  - the player-nameplate interaction (#2169) — life by wheel / click / typed
  *    total, the affordance the deleted `LifeBar` carried;
  *  - the pile verbs (#2169) — the library's draw / mill / exile / peek /
@@ -80,6 +82,13 @@ const NO_SWITCH_GAME = () => {};
  *  Two things are OPTED OUT of rather than injected, both presentational: the
  *  priority indicator (Manual Mode has no priority) and the interactive hand
  *  (its cards dispatch GRE casts). Hand cards move by drag instead.
+ *
+ *  The log's open/closed state (issue #2172) lives here as plain `useState` —
+ *  it is a view-only toggle, not a manual verb, so it has no place on
+ *  {@link ManualRuntime}/`ManualDispatch` alongside the real `manual*`
+ *  mutations. {@link ManualLogSurface} mounts as a SIBLING of `<main>` below,
+ *  not a descendant — see its own doc comment for why that DOM position is
+ *  load-bearing for `useManualDrag`'s off-board release detection.
  *
  *  And one thing is contained entirely here: the inert {@link GameContext} plus
  *  the five sibling providers `BoardSurface`'s subtree consumes. Every one of
@@ -108,6 +117,13 @@ export default function ManualBoardView({
         () => makeLandscapeHandLayout(landscapeCards.cardWidth),
         [landscapeCards.cardWidth]
     );
+
+    // Issue #2172 — collapsed by default, opened from the controller's "Log"
+    // action. Plain view state: the log surface reads it directly, the
+    // controller descriptor only needs a way to flip it open.
+    const [logOpen, setLogOpen] = useState(false);
+    const openLog = useCallback(() => setLogOpen(true), []);
+    const closeLog = useCallback(() => setLogOpen(false), []);
 
     const dispatch = useManualDispatch(gameId);
     // The row classifier reads type lines off the Full Catalogue (#2168):
@@ -152,8 +168,8 @@ export default function ManualBoardView({
         [runtime]
     );
     const controllerActions = useMemo(
-        () => makeManualControllerActions(runtime),
-        [runtime]
+        () => makeManualControllerActions(runtime, { onOpenLog: openLog }),
+        [runtime, openLog]
     );
     const gameContext = useMemo(
         () =>
@@ -186,98 +202,111 @@ export default function ManualBoardView({
     const minimizedChoice = useMinimizedChoiceState(undefined);
 
     return (
-        <GameContext value={gameContext}>
-            <SkipPhasePrefsContext value={skipPhasePrefs}>
-                <PendingChoiceBufferContext value={pendingChoiceBuffer}>
-                    <AttackSequenceContext value={attackSequence}>
-                        <DivideBufferContext value={divideBuffer}>
-                            <MinimizedChoiceContext value={minimizedChoice}>
-                                <BattlefieldInteractionProvider
-                                    value={battlefieldInteraction}
-                                >
-                                    <PlayerInteractionProvider
-                                        value={playerInteraction}
+        <>
+            <GameContext value={gameContext}>
+                <SkipPhasePrefsContext value={skipPhasePrefs}>
+                    <PendingChoiceBufferContext value={pendingChoiceBuffer}>
+                        <AttackSequenceContext value={attackSequence}>
+                            <DivideBufferContext value={divideBuffer}>
+                                <MinimizedChoiceContext value={minimizedChoice}>
+                                    <BattlefieldInteractionProvider
+                                        value={battlefieldInteraction}
                                     >
-                                        <PileActionsProvider
-                                            value={pileActions}
+                                        <PlayerInteractionProvider
+                                            value={playerInteraction}
                                         >
-                                            <ControllerActionsContext
-                                                value={controllerActions}
+                                            <PileActionsProvider
+                                                value={pileActions}
                                             >
-                                                <main
-                                                    // The drag binds only
-                                                    // `pointerdown` here; move
-                                                    // / up / cancel live on the
-                                                    // window so a release over
-                                                    // the sibling log rail
-                                                    // still terminates the
-                                                    // gesture (see
-                                                    // `useManualDrag`).
-                                                    // `data-manual-board` is
-                                                    // load-bearing for it: the
-                                                    // hook reads it to tell a
-                                                    // release over the board
-                                                    // from one over the log.
-                                                    data-manual-board
-                                                    className="flex h-full w-full flex-col relative overflow-hidden select-none"
-                                                    onPointerDown={
-                                                        drag.handlers
-                                                            .onPointerDown
-                                                    }
-                                                    onClickCapture={
-                                                        drag.handlers
-                                                            .onClickCapture
-                                                    }
+                                                <ControllerActionsContext
+                                                    value={controllerActions}
                                                 >
-                                                    <BoardBackground />
-                                                    <BoardSurface
-                                                        opponent={opponent}
-                                                        me={me}
-                                                        orderedPlayers={
-                                                            orderedPlayers
+                                                    <main
+                                                        // The drag binds only
+                                                        // `pointerdown` here; move
+                                                        // / up / cancel live on the
+                                                        // window so a release over
+                                                        // the sibling log surface
+                                                        // (issue #2172) still
+                                                        // terminates the gesture
+                                                        // (see `useManualDrag`).
+                                                        // `data-manual-board` is
+                                                        // load-bearing for it: the
+                                                        // hook reads it to tell a
+                                                        // release over the board
+                                                        // from one over the log.
+                                                        data-manual-board
+                                                        className="flex h-full w-full flex-col relative overflow-hidden select-none"
+                                                        onPointerDown={
+                                                            drag.handlers
+                                                                .onPointerDown
                                                         }
-                                                        viewerId={viewerId}
-                                                        activePlayerId={
-                                                            state.activePlayerId
+                                                        onClickCapture={
+                                                            drag.handlers
+                                                                .onClickCapture
                                                         }
-                                                        stackItems={[]}
-                                                        isPortrait={isPortrait}
-                                                        landscapeCompact={
-                                                            landscapeCompact
-                                                        }
-                                                        viewportHeight={
-                                                            viewportHeight
-                                                        }
-                                                        landscapeCards={
-                                                            landscapeCards
-                                                        }
-                                                        landscapeHandLayout={
-                                                            landscapeHandLayout
-                                                        }
-                                                        showPriorityIndicator={
-                                                            false
-                                                        }
-                                                        handInteractive={false}
-                                                        rowClassifier={
-                                                            rowClassifier
-                                                        }
-                                                    />
-                                                    <Controller
-                                                        onOpenMenu={
-                                                            NO_SWITCH_GAME
-                                                        }
-                                                    />
-                                                    {drag.ghost}
-                                                </main>
-                                            </ControllerActionsContext>
-                                        </PileActionsProvider>
-                                    </PlayerInteractionProvider>
-                                </BattlefieldInteractionProvider>
-                            </MinimizedChoiceContext>
-                        </DivideBufferContext>
-                    </AttackSequenceContext>
-                </PendingChoiceBufferContext>
-            </SkipPhasePrefsContext>
-        </GameContext>
+                                                    >
+                                                        <BoardBackground />
+                                                        <BoardSurface
+                                                            opponent={opponent}
+                                                            me={me}
+                                                            orderedPlayers={
+                                                                orderedPlayers
+                                                            }
+                                                            viewerId={viewerId}
+                                                            activePlayerId={
+                                                                state.activePlayerId
+                                                            }
+                                                            stackItems={[]}
+                                                            isPortrait={
+                                                                isPortrait
+                                                            }
+                                                            landscapeCompact={
+                                                                landscapeCompact
+                                                            }
+                                                            viewportHeight={
+                                                                viewportHeight
+                                                            }
+                                                            landscapeCards={
+                                                                landscapeCards
+                                                            }
+                                                            landscapeHandLayout={
+                                                                landscapeHandLayout
+                                                            }
+                                                            showPriorityIndicator={
+                                                                false
+                                                            }
+                                                            handInteractive={
+                                                                false
+                                                            }
+                                                            rowClassifier={
+                                                                rowClassifier
+                                                            }
+                                                        />
+                                                        <Controller
+                                                            onOpenMenu={
+                                                                NO_SWITCH_GAME
+                                                            }
+                                                        />
+                                                        {drag.ghost}
+                                                    </main>
+                                                </ControllerActionsContext>
+                                            </PileActionsProvider>
+                                        </PlayerInteractionProvider>
+                                    </BattlefieldInteractionProvider>
+                                </MinimizedChoiceContext>
+                            </DivideBufferContext>
+                        </AttackSequenceContext>
+                    </PendingChoiceBufferContext>
+                </SkipPhasePrefsContext>
+            </GameContext>
+            {/* Sibling of `<main>`, not a descendant — see
+                `manual-log-surface.tsx`'s doc comment for why. */}
+            <ManualLogSurface
+                gameId={gameId}
+                open={logOpen}
+                onClose={closeLog}
+            />
+        </>
     );
 }
