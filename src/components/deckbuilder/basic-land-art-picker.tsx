@@ -83,6 +83,13 @@ export default function BasicLandArtPicker({
                                 }}
                                 aria-label={`${subtype} — ${p.setCode.toUpperCase()}`}
                                 aria-pressed={p.printId === currentPrintId}
+                                // Test-only hook: several printings from the
+                                // same set share an identical `aria-label`
+                                // (three 4ed Mountains), so a mounted test
+                                // asserting exactly WHICH printing a click
+                                // applied needs the id itself, not just its
+                                // set. No visual/behavioral role.
+                                data-print-id={p.printId}
                                 className={cn(
                                     "aspect-5/7 overflow-hidden rounded-sm ring-2 transition",
                                     p.printId === currentPrintId

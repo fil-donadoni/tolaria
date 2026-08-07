@@ -5,11 +5,18 @@
 import { describe, it, expect } from "vitest";
 import type { LimitedPoolCard } from "@convex/limited/eventTypes";
 import {
+    applyBasicLandArtPreference,
+    basicLandPrintings,
     countBasicLandCopies,
     findBasicLandRemovalIndex,
     isBasicLandCardId,
+    legalBasicLandPrintings,
+    recordBasicLandArtChoice,
     resolveBasicLandCardIds,
     resolveCanonicalBasicLandCardIds,
+    rewriteBasicLandArt,
+    rewriteBasicLandArtInDeck,
+    seededBasicLandArt,
 } from "../basicLands";
 
 const BOLT_LEA = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a";
@@ -20,9 +27,33 @@ const MOUNTAIN = "eace2c85-976c-425e-9800-5a6ccbd91b56";
 const FOREST = "6f1c8cb0-38eb-408b-94e8-16db83999b3b";
 // A real LEB Mountain PRINT id — a different id for the same definition.
 const LEB_MOUNTAIN_PRINT = "7af9c715-8d72-4eae-b412-fc89138ff588";
+// A real ICE Mountain PRINT id — used to exercise a printing that's a real
+// registry entry but illegal under a Format that doesn't allow `ice`.
+const ICE_MOUNTAIN_PRINT = "4ecf39c3-3b5f-4263-a7b5-9881bded3494";
 
 function poolCard(cardId: string, cardName = cardId): LimitedPoolCard {
     return { scryfallId: cardId, cardId, cardName };
+}
+
+/** Manual in-memory `Storage` mock — mirrors the pattern established by
+ *  `src/lib/__tests__/deckViewPrefs.test.ts` (a `Map` behind the `Storage`
+ *  interface) rather than the real jsdom global. */
+function makeStorage(): Storage {
+    const map = new Map<string, string>();
+    return {
+        get length() {
+            return map.size;
+        },
+        clear: () => map.clear(),
+        getItem: (key: string) => map.get(key) ?? null,
+        key: (i: number) => Array.from(map.keys())[i] ?? null,
+        removeItem: (key: string) => {
+            map.delete(key);
+        },
+        setItem: (key: string, value: string) => {
+            map.set(key, value);
+        },
+    };
 }
 
 describe("isBasicLandCardId", () => {
@@ -189,5 +220,199 @@ describe("findBasicLandRemovalIndex", () => {
     it("an explicitly named copy always wins — a TAP on a tile removes that tile, pinned or not", () => {
         const cards = [{ cardId: MOUNTAIN, pinKey: "0" }, { cardId: MOUNTAIN }];
         expect(findBasicLandRemovalIndex(cards, "Mountain", "0")).toBe(0);
+    });
+});
+
+// The basic-land art picker (issue #1629, ADR 0075 § "Basic-land art"). Real
+// registry printings — Mountain has 15 in the catalogue, distributed
+// `lea×2, leb×3, ice×1, 2ed×3, 3ed×3, 4ed×3` (verified against
+// `convex/cards/sets/**/colorless.ts`) — so the exact counts below are load-
+// bearing, not arbitrary.
+describe("basicLandPrintings / legalBasicLandPrintings (issue #1629 AC2/AC3)", () => {
+    it("basicLandPrintings returns every printing of the subtype's canonical definition", () => {
+        const printings = basicLandPrintings("Mountain");
+        expect(printings).toHaveLength(15);
+        expect(printings.map((p) => p.setCode).sort()).toEqual(
+            [
+                "lea",
+                "lea",
+                "leb",
+                "leb",
+                "leb",
+                "ice",
+                "2ed",
+                "2ed",
+                "2ed",
+                "3ed",
+                "3ed",
+                "3ed",
+                "4ed",
+                "4ed",
+                "4ed",
+            ].sort()
+        );
+    });
+
+    it("legalBasicLandPrintings with allowedSets: null offers every printing, unfiltered (AC3: no set restriction)", () => {
+        expect(legalBasicLandPrintings("Mountain", null)).toEqual(
+            basicLandPrintings("Mountain")
+        );
+    });
+
+    it("legalBasicLandPrintings narrows to the Format's allowed sets", () => {
+        const printings = legalBasicLandPrintings("Mountain", ["lea", "leb"]);
+        expect(printings).toHaveLength(5); // 2 lea + 3 leb
+        expect(
+            printings.every((p) => p.setCode === "lea" || p.setCode === "leb")
+        ).toBe(true);
+    });
+
+    it("returns an empty grid when the Format allows none of the subtype's sets", () => {
+        expect(legalBasicLandPrintings("Mountain", ["rtr"])).toEqual([]);
+    });
+});
+
+describe("applyBasicLandArtPreference (issue #1629 AC7/AC8: stored preference → Pool → catalogue precedence)", () => {
+    it("a legal stored preference overrides the base resolution", () => {
+        const base = resolveCanonicalBasicLandCardIds();
+        const result = applyBasicLandArtPreference(
+            base,
+            { Mountain: LEB_MOUNTAIN_PRINT },
+            null
+        );
+        expect(result.Mountain).toBe(LEB_MOUNTAIN_PRINT);
+        // Every other subtype is untouched.
+        expect(result.Plains).toBe(base.Plains);
+        expect(result.Forest).toBe(base.Forest);
+    });
+
+    it("a preference illegal under the deck's Format falls back silently to the base resolution (AC8)", () => {
+        const base = resolveCanonicalBasicLandCardIds();
+        const result = applyBasicLandArtPreference(
+            base,
+            { Mountain: ICE_MOUNTAIN_PRINT },
+            ["lea", "leb"] // ice not allowed
+        );
+        expect(result.Mountain).toBe(base.Mountain);
+    });
+
+    it("a stored preference that no longer resolves to any printing falls back silently (AC8)", () => {
+        const base = resolveCanonicalBasicLandCardIds();
+        const result = applyBasicLandArtPreference(
+            base,
+            { Mountain: "not-a-real-printing-anymore" },
+            null
+        );
+        expect(result.Mountain).toBe(base.Mountain);
+    });
+
+    it("a preference for one subtype only never subs a printing of a DIFFERENT subtype's definition", () => {
+        const base = resolveCanonicalBasicLandCardIds();
+        // A Forest printing is never a legal Mountain preference — it simply
+        // won't be found among Mountain's own printings.
+        const result = applyBasicLandArtPreference(
+            base,
+            { Mountain: FOREST },
+            null
+        );
+        expect(result.Mountain).toBe(base.Mountain);
+    });
+
+    it("with no preference at all (Limited, unset), the Pool-preferred base resolution wins unchanged — the existing heuristic is untouched", () => {
+        const pool = [poolCard(LEB_MOUNTAIN_PRINT, "Mountain")];
+        const base = resolveBasicLandCardIds(pool);
+        expect(base.Mountain).toBe(LEB_MOUNTAIN_PRINT);
+        const result = applyBasicLandArtPreference(base, {}, null);
+        expect(result.Mountain).toBe(LEB_MOUNTAIN_PRINT);
+    });
+});
+
+describe("rewriteBasicLandArt (issue #1629 AC5: retroactive rewrite, position + pinKey preserved)", () => {
+    it("rewrites every copy of the named subtype, preserving array position and pinKey, leaving other entries untouched", () => {
+        const cards = [
+            { cardId: MOUNTAIN, cardName: "Mountain" },
+            { cardId: BOLT_LEA, cardName: "Lightning Bolt", pinKey: "b1" },
+            { cardId: LEB_MOUNTAIN_PRINT, cardName: "Mountain", pinKey: "m1" },
+        ];
+        const next = rewriteBasicLandArt(cards, "Mountain", ICE_MOUNTAIN_PRINT);
+        expect(next).toEqual([
+            { cardId: ICE_MOUNTAIN_PRINT, cardName: "Mountain" },
+            { cardId: BOLT_LEA, cardName: "Lightning Bolt", pinKey: "b1" },
+            { cardId: ICE_MOUNTAIN_PRINT, cardName: "Mountain", pinKey: "m1" },
+        ]);
+    });
+
+    it("never crosses subtypes — a Forest rewrite leaves every Mountain copy untouched", () => {
+        const cards = [
+            { cardId: MOUNTAIN, cardName: "Mountain" },
+            { cardId: FOREST, cardName: "Forest" },
+        ];
+        const next = rewriteBasicLandArt(cards, "Forest", "some-forest-print");
+        expect(next).toEqual([
+            { cardId: MOUNTAIN, cardName: "Mountain" },
+            { cardId: "some-forest-print", cardName: "Forest" },
+        ]);
+    });
+
+    it("returns the SAME array reference when the zone holds no copy of the subtype (no spurious save)", () => {
+        const cards = [{ cardId: BOLT_LEA, cardName: "Lightning Bolt" }];
+        expect(rewriteBasicLandArt(cards, "Mountain", ICE_MOUNTAIN_PRINT)).toBe(
+            cards
+        );
+    });
+});
+
+describe("rewriteBasicLandArtInDeck (issue #1629 AC5: rewrites BOTH Maindeck and Sideboard)", () => {
+    it("rewrites copies in both zones of the open deck", () => {
+        const deck = {
+            cards: [{ cardId: MOUNTAIN, cardName: "Mountain" }],
+            sideboard: [
+                { cardId: LEB_MOUNTAIN_PRINT, cardName: "Mountain" },
+                { cardId: BOLT_LEA, cardName: "Lightning Bolt" },
+            ],
+        };
+        const next = rewriteBasicLandArtInDeck(
+            deck,
+            "Mountain",
+            ICE_MOUNTAIN_PRINT
+        );
+        expect(next.cards).toEqual([
+            { cardId: ICE_MOUNTAIN_PRINT, cardName: "Mountain" },
+        ]);
+        expect(next.sideboard).toEqual([
+            { cardId: ICE_MOUNTAIN_PRINT, cardName: "Mountain" },
+            { cardId: BOLT_LEA, cardName: "Lightning Bolt" },
+        ]);
+    });
+
+    it("deck size is unchanged by a rewrite (AC9: art never changes deck size)", () => {
+        const deck = {
+            cards: [
+                { cardId: MOUNTAIN, cardName: "Mountain" },
+                { cardId: BOLT_LEA, cardName: "Lightning Bolt" },
+            ],
+            sideboard: [{ cardId: FOREST, cardName: "Forest" }],
+        };
+        const next = rewriteBasicLandArtInDeck(
+            deck,
+            "Mountain",
+            ICE_MOUNTAIN_PRINT
+        );
+        expect(next.cards).toHaveLength(deck.cards.length);
+        expect(next.sideboard).toHaveLength(deck.sideboard.length);
+    });
+});
+
+describe("seededBasicLandArt / recordBasicLandArtChoice (issue #1629, mirrors deckViewPrefs's storage discipline)", () => {
+    it("seeds nothing for a subtype never chosen", () => {
+        expect(seededBasicLandArt(makeStorage())).toEqual({});
+    });
+
+    it("round-trips a recorded choice back out for its own subtype only", () => {
+        const storage = makeStorage();
+        recordBasicLandArtChoice("Mountain", LEB_MOUNTAIN_PRINT, storage);
+        expect(seededBasicLandArt(storage)).toEqual({
+            Mountain: LEB_MOUNTAIN_PRINT,
+        });
     });
 });
