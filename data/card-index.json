@@ -2504,6 +2504,14 @@
         "firstPrintSet": "tdm"
     },
     {
+        "name": "Corpse Dance",
+        "scryfallId": "76ae81ea-13e3-4ab8-b956-4c7b139a5e9c",
+        "oracleId": "59b02ca7-e7bd-4820-ac32-87ea1a8c64c0",
+        "firstSet": "tmp",
+        "firstPrintId": "76ae81ea-13e3-4ab8-b956-4c7b139a5e9c",
+        "firstPrintSet": "tmp"
+    },
+    {
         "name": "Cosmic Horror",
         "scryfallId": "18bc6ac2-19e0-4765-852b-e303a5bb4040",
         "oracleId": "d73df13d-942a-4104-ac9d-de7c100c086f",
@@ -11870,6 +11878,14 @@
         "firstSet": "mkm",
         "firstPrintId": "69c1b656-1d67-499c-bf0f-417682a86c7d",
         "firstPrintSet": "mkm"
+    },
+    {
+        "name": "Shallow Grave",
+        "scryfallId": "d5c782cc-c951-4c6f-a93f-774ae6c1c214",
+        "oracleId": "9843d8a6-bcbf-40c2-8c41-316e97db9c62",
+        "firstSet": "mir",
+        "firstPrintId": "d5c782cc-c951-4c6f-a93f-774ae6c1c214",
+        "firstPrintSet": "mir"
     },
     {
         "name": "Shambling Strider",

@@ -8,7 +8,11 @@
 // would pass the fat-state test and still be broken on the client.
 
 import { describe, it, expect } from "vitest";
-import type { CardDefinition, EffectOp } from "../../../cards/types";
+import type {
+    CardDefinition,
+    EffectCardFilter,
+    EffectOp,
+} from "../../../cards/types";
 import {
     FACE_DOWN_CARD_ID,
     getCardByName,
@@ -25742,5 +25746,362 @@ describe("$host implicit binding (CR 701.3, issue #1341)", () => {
             ],
         } as CardDefinition);
         expect(errors.length).toBeGreaterThan(0);
+    });
+});
+
+// CR 404.3 (issue #1967) — the FIFTH `moveZone` shape: a DETERMINISTIC
+// positional pick out of the ORDERED graveyard, no player choice. This is the
+// permanent test for the new `EffectZonePositionSelector` construct usage
+// ("new construct pays the entry fee once", PRD #795): the ordering contract
+// (last array element = TOP of the pile), the FILTERED scan (topmost card
+// MATCHING the filter, not "the top card if it matches"), the `bottom`
+// direction, the whose-graveyard default, the CR 608.2b no-ops, and one
+// wire-format assertion through `projectPublicState`.
+describe("Effect Script Op: moveZone — positional graveyard shape (CR 404.3, issue #1967)", () => {
+    /** Graveyard ids MINUS the resolving spell itself — a sorcery puts
+     *  itself into its owner's graveyard as the last step of resolution
+     *  (CR 608.2m), which is noise for these ordering assertions. */
+    const gyIds = (zone: { id: string }[], spellId: string) =>
+        zone.map((c) => c.id).filter((cid) => cid !== spellId);
+
+    const graveyardOf = (
+        owner: "p1" | "p2",
+        entries: { id: string; cardId: string }[]
+    ) =>
+        entries.map((e) =>
+            makeInstance(e.cardId, {
+                id: e.id,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "graveyard",
+            })
+        );
+
+    /** `{ zone: "graveyard", position, filter? }` → battlefield, the shipped
+     *  Shallow Grave / Corpse Dance shape. */
+    const reanimateTop = (
+        scriptId: string,
+        position: "top" | "bottom",
+        filter?: EffectCardFilter
+    ) =>
+        registerScript(scriptId, [
+            {
+                op: "moveZone",
+                target: {
+                    zone: "graveyard",
+                    position,
+                    player: "controller",
+                    ...(filter ? { filter } : {}),
+                },
+                to: "battlefield",
+                bind: "$revived",
+            },
+        ]);
+
+    it("returns the TOP (most recently added = LAST array element) matching card, not the oldest", () => {
+        const id = reanimateTop("test-op-movezone-gy-top", "top", {
+            type: "Creature",
+        });
+        // Insertion order: `older` went to the graveyard first, `newer`
+        // second — so `newer` is the TOP of the pile (CR 404.3).
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: graveyardOf("p1", [
+                        { id: "older", cardId: BEAR_ID },
+                        { id: "newer", cardId: BEAR_ID },
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const spell = pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+
+        expect(state.players[0].battlefield.map((c) => c.id)).toEqual([
+            "newer",
+        ]);
+        expect(gyIds(state.players[0].graveyard, spell.id)).toEqual(["older"]);
+    });
+
+    it('position: "bottom" takes the OLDEST matching card (index 0) instead', () => {
+        const id = reanimateTop("test-op-movezone-gy-bottom", "bottom", {
+            type: "Creature",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: graveyardOf("p1", [
+                        { id: "b-older", cardId: BEAR_ID },
+                        { id: "b-newer", cardId: BEAR_ID },
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const spell = pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+
+        expect(state.players[0].battlefield.map((c) => c.id)).toEqual([
+            "b-older",
+        ]);
+        expect(gyIds(state.players[0].graveyard, spell.id)).toEqual([
+            "b-newer",
+        ]);
+    });
+
+    it("is a FILTERED scan — a non-creature sitting ON TOP is scanned PAST, not a fizzle", () => {
+        const id = reanimateTop("test-op-movezone-gy-filtered", "top", {
+            type: "Creature",
+        });
+        // Pile bottom→top: bear, instant. The literal top card is the
+        // instant; "the top CREATURE card" is the bear underneath it.
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: graveyardOf("p1", [
+                        { id: "f-bear", cardId: BEAR_ID },
+                        { id: "f-instant", cardId: BLACK_CARD_ID },
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const spell = pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+
+        expect(state.players[0].battlefield.map((c) => c.id)).toEqual([
+            "f-bear",
+        ]);
+        expect(gyIds(state.players[0].graveyard, spell.id)).toEqual([
+            "f-instant",
+        ]);
+    });
+
+    it("no-ops cleanly when the graveyard holds no matching card (CR 608.2b)", () => {
+        const id = reanimateTop("test-op-movezone-gy-nomatch", "top", {
+            type: "Creature",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: graveyardOf("p1", [
+                        { id: "n-instant", cardId: BLACK_CARD_ID },
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const spell = pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+
+        expect(state.players[0].battlefield).toHaveLength(0);
+        expect(gyIds(state.players[0].graveyard, spell.id)).toEqual([
+            "n-instant",
+        ]);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("no-ops cleanly on an EMPTY graveyard (CR 608.2b)", () => {
+        const id = reanimateTop("test-op-movezone-gy-empty", "top", {
+            type: "Creature",
+        });
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+
+        expect(state.players[0].battlefield).toHaveLength(0);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("scans the CONTROLLER's graveyard by default — an opponent's top creature is never taken", () => {
+        // No `player` field at all: the default is "controller" ("YOUR
+        // graveyard", both shipped cards).
+        const id = registerScript("test-op-movezone-gy-default-player", [
+            {
+                op: "moveZone",
+                target: {
+                    zone: "graveyard",
+                    position: "top",
+                    filter: { type: "Creature" },
+                },
+                to: "battlefield",
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: graveyardOf("p1", [
+                        { id: "mine", cardId: BEAR_ID },
+                    ]),
+                }),
+                makePlayer("p2", {
+                    graveyard: graveyardOf("p2", [
+                        { id: "theirs", cardId: BEAR_ID },
+                    ]),
+                }),
+            ],
+        });
+        const spell = pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+
+        expect(state.players[0].battlefield.map((c) => c.id)).toEqual(["mine"]);
+        expect(gyIds(state.players[1].graveyard, spell.id)).toEqual(["theirs"]);
+    });
+
+    it("moves to a NON-battlefield destination too (graveyard top → hand)", () => {
+        const id = registerScript("test-op-movezone-gy-to-hand", [
+            {
+                op: "moveZone",
+                target: {
+                    zone: "graveyard",
+                    position: "top",
+                    player: "controller",
+                    filter: { type: "Creature" },
+                },
+                to: "hand",
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: graveyardOf("p1", [
+                        { id: "h-older", cardId: BEAR_ID },
+                        { id: "h-newer", cardId: BEAR_ID },
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const spell = pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["h-newer"]);
+        expect(gyIds(state.players[0].graveyard, spell.id)).toEqual([
+            "h-older",
+        ]);
+    });
+
+    it("wire format — the reanimated TOP card is on the battlefield and gone from the graveyard for BOTH viewers", () => {
+        const id = reanimateTop("test-op-movezone-gy-wire", "top", {
+            type: "Creature",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: graveyardOf("p1", [
+                        { id: "w-older", cardId: BEAR_ID },
+                        { id: "w-newer", cardId: BEAR_ID },
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const spell = pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+
+        // Battlefield and graveyard are both public zones (CR 400.2), so the
+        // projection carries the real instances for either viewer.
+        for (const viewerId of ["p1", "p2"]) {
+            const projected = projectPublicState(state, 1, viewerId);
+            expect(projected.players[0].battlefield.map((c) => c.id)).toEqual([
+                "w-newer",
+            ]);
+            expect(gyIds(projected.players[0].graveyard, spell.id)).toEqual([
+                "w-older",
+            ]);
+        }
+    });
+
+    it("the validator REJECTS the positional selector at a battlefield-scoped Op (fail-closed)", () => {
+        // `destroy`/`exile`/`dealDamage` resolve their target through the
+        // battlefield-scoped `resolveObjectRef`; if `isObjectSelector` had
+        // been widened instead of `moveZone`'s own field checker, this would
+        // validate and then silently no-op at runtime.
+        const errors = validateEffectScript({
+            id: "test-op-positional-wrong-op",
+            name: "test-op-positional-wrong-op",
+            rarity: "common",
+            manaCost: { R: 1 },
+            types: ["Sorcery"],
+            effects: [
+                {
+                    op: "destroy",
+                    target: {
+                        zone: "graveyard",
+                        position: "top",
+                    },
+                } as unknown as EffectOp,
+            ],
+        } as CardDefinition);
+        expect(errors.length).toBeGreaterThan(0);
+    });
+
+    it("the validator REJECTS an unknown field on the positional selector (fail-closed)", () => {
+        const errors = validateEffectScript({
+            id: "test-op-positional-unknown-field",
+            name: "test-op-positional-unknown-field",
+            rarity: "common",
+            manaCost: { R: 1 },
+            types: ["Sorcery"],
+            effects: [
+                {
+                    op: "moveZone",
+                    target: {
+                        zone: "graveyard",
+                        position: "top",
+                        // `owner` is not a field of the selector — `player` is.
+                        owner: "controller",
+                    },
+                    to: "battlefield",
+                } as unknown as EffectOp,
+            ],
+        } as CardDefinition);
+        expect(errors.length).toBeGreaterThan(0);
+    });
+
+    it("the validator REJECTS a non-graveyard zone on the positional selector (fail-closed)", () => {
+        const errors = validateEffectScript({
+            id: "test-op-positional-bad-zone",
+            name: "test-op-positional-bad-zone",
+            rarity: "common",
+            manaCost: { R: 1 },
+            types: ["Sorcery"],
+            effects: [
+                {
+                    op: "moveZone",
+                    target: { zone: "library", position: "top" },
+                    to: "hand",
+                } as unknown as EffectOp,
+            ],
+        } as CardDefinition);
+        expect(errors.length).toBeGreaterThan(0);
+    });
+
+    it('the validator REJECTS "from" / numeric "position" alongside a positional selector (fail-closed)', () => {
+        for (const extra of [{ from: "graveyard" }, { position: 3 }]) {
+            const errors = validateEffectScript({
+                id: `test-op-positional-extra-${Object.keys(extra)[0]}`,
+                name: "test-op-positional-extra",
+                rarity: "common",
+                manaCost: { R: 1 },
+                types: ["Sorcery"],
+                effects: [
+                    {
+                        op: "moveZone",
+                        target: { zone: "graveyard", position: "top" },
+                        to: "battlefield",
+                        ...extra,
+                    } as unknown as EffectOp,
+                ],
+            } as CardDefinition);
+            // The #1967 branch specifically — the pre-existing #1469/#1726
+            // rules reject these combinations too, so asserting only
+            // "some error" would stay green with this shape's own gate
+            // removed.
+            expect(errors.join("\n")).toContain("issue #1967");
+        }
     });
 });

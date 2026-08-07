@@ -386,6 +386,28 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
                 expect.arrayContaining(["tempo", "targeted"])
             );
         });
+
+        // CR 404.3 (issue #1967) — the positional graveyard shape. It carries
+        // a `target`, but not an ANNOUNCED one: without explicit handling the
+        // guard `!("target" in op)` would still let it through, while a
+        // future tightening of that guard would silently valuate Shallow
+        // Grave / Corpse Dance at 0 and make the bot never cast them.
+        it("the positional graveyard shape valuates as reanimation, and is NOT tagged targeted", () => {
+            const op: EffectOp = {
+                op: "moveZone",
+                target: {
+                    zone: "graveyard",
+                    position: "top",
+                    player: "controller",
+                    filter: { type: "Creature" },
+                },
+                to: "battlefield",
+            };
+            const v = valueOp(op, cf);
+            expect(v.points).toBe(140);
+            expect(v.tags).toContain("recursion");
+            expect(v.tags).not.toContain("targeted");
+        });
     });
 
     describe("createToken (CR 111 / 707.2)", () => {

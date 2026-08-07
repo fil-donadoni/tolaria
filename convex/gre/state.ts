@@ -8170,6 +8170,15 @@ export function removePermanentTo(
     }
     delete creature.counters;
     const owner = getPlayer(state, creature.ownerId);
+    // CR 404.3 (issue #1967) — APPEND, never prepend. This is the funnel for
+    // every battlefield departure (death, sacrifice, bounce, tuck), so it is
+    // the site that decides graveyard order for the overwhelming majority of
+    // cards that ever reach one. A card put into a graveyard goes on TOP of
+    // the pile = the END of the array; index 0 stays the oldest. The
+    // deterministic "top creature card of your graveyard" selector
+    // (`EffectZonePositionSelector`, Shallow Grave / Corpse Dance) depends on
+    // this orientation holding here AND at `moveCard` — the two together are
+    // the whole guarantee.
     (owner[toZone] as CardInstanceState[]).push(creature);
     // ADR 0026 — a permanent bounced to its owner's HAND stays PUBLIC
     // knowledge: every player watched it sit on the battlefield and watched it
@@ -16671,6 +16680,17 @@ export function moveCard(
     // new object, so the memory does not travel with it.
     delete card.countersAtLeave;
 
+    // CR 404.3 (issue #1967) — the graveyard is an ORDERED zone, and this
+    // `push` is what makes that order well-defined for the universal
+    // zone-mover: a card entering a graveyard goes on TOP of the pile, i.e.
+    // the END of the array. Index 0 is therefore the OLDEST card (the bottom)
+    // and the LAST index is the top. Do NOT switch this to `unshift` or an
+    // index insert: the deterministic "top of your graveyard" selector
+    // (`EffectZonePositionSelector`, Shallow Grave / Corpse Dance) reads the
+    // array in exactly this orientation, and the guarantee has to hold at
+    // EVERY insertion site, not just the ones a card happens to exercise.
+    // `removePermanentTo` (the battlefield-departure funnel) appends for the
+    // same reason.
     const targetZone = player[toField] as CardInstanceState[];
     targetZone.push(card);
 

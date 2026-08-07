@@ -50,36 +50,65 @@ export const reanimate: CardDefinition = {
 };
 
 // Corpse Dance — {2}{B} Instant. "Buyback {2} (You may pay an additional {2}
-// as you cast this spell. If you do, put this card into your hand instead of
-// into your graveyard as it resolves.)\nReturn the top creature card of your
-// graveyard to the battlefield. That creature gains haste until end of turn.
-// Exile it at the beginning of the next end step." (issue #1200, closing the
-// Buyback half — CR 702.27 — of the Vintage Cube split from #699.)
+// as you cast this spell. If you do, put this card into your hand as it
+// resolves.)\nReturn the top creature card of your graveyard to the
+// battlefield. That creature gains haste until end of turn. Exile it at the
+// beginning of the next end step." (CR 702.27 buyback, CR 404.3 ordered
+// graveyard, CR 400.7 reanimation, CR 702.10 haste, CR 603.7 delayed
+// trigger.)
 //
-// Buyback itself is no longer the blocker: `CardDefinition.buyback` (issue
-// #1200) is a shipped, real cost-system capability, and the rest of the
-// oracle text is the Sneak Attack idiom (`convex/cards/sets/usg/red.ts`,
-// issue #1151) — `moveZone`(reanimate) + `grantAbility`(haste,
-// end-of-turn) + `delayedTrigger`(next-end-step, exile the captured
-// permanent) — zero new Ops needed for that half either.
+// Two issues met here. `CardDefinition.buyback` — the real cost-system
+// capability (issue #1200: announceCast folds the additional cost,
+// finalizeSpellResolution routes the card to its owner's HAND instead of the
+// graveyard) — shipped with no card to exercise it; Corpse Dance is its
+// FIRST and so far only consumer. The reanimation half was blocked on the
+// deterministic top-of-graveyard selector, built by issue #1967
+// (`moveZone`'s fifth shape, `target: { zone: "graveyard", position: "top",
+// filter: { type: "Creature" } }`) — a FILTERED positional scan, so the
+// topmost card MATCHING the filter comes back rather than the outright top
+// card only when it happens to be a creature. Never a player choice:
+// substituting one diverges from the modern oracle text (ADR 0004).
 //
-// Blocked: "the TOP creature card of your graveyard" needs a deterministic
-// (non-player-choice) "top of graveyard" object selector; every
-// graveyard-card selection Op today (`choice(zone: "graveyard")`) is a
-// player pick, not an implicit positional one — the EXACT gap already
-// tracked for Shallow Grave (`convex/cards/sets/mir/black.ts`, co-tracked).
-// Re-flagged rather than worked around: inventing a player-choice
-// substitute for "the top card" would diverge from modern Oracle text
-// (ADR 0004).
-// tracked-by: #1967
-// export const corpseDance: CardDefinition = {
-//     id: "76ae81ea-13e3-4ab8-b956-4c7b139a5e9c", // TMP 116
-//     name: "Corpse Dance",
-//     rarity: "rare",
-//     manaCost: { X: 2, B: 1 },
-//     types: ["Instant"],
-//     buyback: { X: 2 },
-// };
+// The remainder is exactly Shallow Grave's script (`mir/black.ts`) — the
+// Sneak Attack idiom (`usg/red.ts`, issue #1151) with the sacrifice swapped
+// for an exile — since the two cards' non-buyback text is word-for-word
+// identical in modern oracle.
+export const corpseDance: CardDefinition = {
+    id: "76ae81ea-13e3-4ab8-b956-4c7b139a5e9c", // TMP 116
+    name: "Corpse Dance",
+    rarity: "rare",
+    oracleText:
+        "Buyback {2} (You may pay an additional {2} as you cast this spell. If you do, put this card into your hand as it resolves.)\nReturn the top creature card of your graveyard to the battlefield. That creature gains haste until end of turn. Exile it at the beginning of the next end step.",
+    manaCost: { X: 2, B: 1 },
+    types: ["Instant"],
+    buyback: { X: 2 },
+    effects: [
+        {
+            op: "moveZone",
+            target: {
+                zone: "graveyard",
+                position: "top",
+                player: "controller",
+                filter: { type: "Creature" },
+            },
+            to: "battlefield",
+            bind: "$revived",
+        },
+        {
+            op: "grantAbility",
+            ability: "haste",
+            target: { ref: "$revived" },
+            duration: { phase: "end-of-turn" },
+        },
+        {
+            op: "delayedTrigger",
+            timing: "next-end-step",
+            oracleText: "Exile it at the beginning of the next end step.",
+            capture: { $captured: { ref: "$revived" } },
+            effects: [{ op: "exile", target: { ref: "$captured" } }],
+        },
+    ],
+};
 
 // Reckless Spite — {1}{B}{B} Instant. "Destroy two target nonblack
 // creatures. You lose 5 life." (CR 701.8 destroy, CR 601.2c "two target" —
