@@ -31,7 +31,7 @@ export type ControllerAction = {
     tone: ControllerActionTone;
     onClick: () => void;
     disabled: boolean;
-    shortcut?: "space" | "enter" | "U";
+    shortcut?: "space" | "enter" | "U" | "S";
     /** A "status pill" action (e.g. waiting on opponent / auto-passing) renders
      *  as informative chrome rather than a primary call-to-action button. */
     pill?: boolean;
