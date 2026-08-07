@@ -8,11 +8,24 @@
 // Reading the DOM is the hook's job; deciding what the drop MEANS is this
 // module's, so the decision is testable without a browser.
 //
-// Precedence, unchanged from the deleted `resolveDrop`:
+// Precedence:
 //   1. dropped ON another permanent → attach (Aura / Equipment),
-//   2. a clearly VERTICAL drag inside the battlefield → set the combat / main
-//      lane,
+//   2. a clearly VERTICAL drag that starts AND lands on the battlefield → set
+//      the combat / main lane,
 //   3. otherwise, a drop over a different zone → move the card there.
+//
+// Rules 1 and 3 are the deleted `resolveDrop`'s. **Rule 2 deliberately
+// diverges from it.** The old rule was `isVertical && card.zone ===
+// "battlefield"` → set the lane and return, with no constraint on where the
+// pointer was released (`manual-board.tsx:403-408`). Here it additionally
+// requires the drop point to be over the battlefield or over nothing
+// (`probe.zone === null || probe.zone === "battlefield"`), so a vertical drag
+// off the battlefield into the hand band falls through to a zone MOVE where the
+// old board silently changed the lane instead. The shared surface is what makes
+// the old rule wrong: its four zone bands are stacked vertically and directly
+// adjacent, so "drag a permanent straight up/down" and "drag a permanent into
+// the neighbouring zone" are the same gesture shape — on the deleted flat
+// thumbnail grid they were not.
 //
 // Pure: no Convex, no React, no DOM.
 

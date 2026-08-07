@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import CardImage from "~/components/cards/card-image";
 import {
     applyManualDrop,
@@ -42,6 +42,16 @@ function probeDropTarget(clientX: number, clientY: number): ManualDropProbe {
     };
 }
 
+/** Was the pointer released over the manual board itself? Answered off the
+ *  board root's own inert `data-manual-board` attribute (`manual-board-view.tsx`)
+ *  rather than a ref, so the hook keeps returning a plain, ref-free record. */
+function isOverBoard(target: EventTarget | null): boolean {
+    return (
+        target instanceof Element &&
+        target.closest("[data-manual-board]") !== null
+    );
+}
+
 type DragMeta = {
     instanceId: string;
     startX: number;
@@ -53,28 +63,101 @@ type DragMeta = {
  *
  *  The shared spatial surface has no drag of its own on the battlefield (its
  *  hand owns a view-only reorder drag, which the Manual Board switches off via
- *  `handInteractive={false}`), so this is a single delegated gesture bound on
- *  the manual container's root: one `pointerdown` anywhere inside picks its
- *  source by hit-test handle, `pointermove` past {@link DRAG_THRESHOLD} arms
- *  the drag and floats a ghost, and `pointerup` resolves the drop against
- *  whatever the pointer is over.
+ *  `handInteractive={false}`), so this is a single delegated gesture: one
+ *  `pointerdown` on the manual root picks its source by hit-test handle,
+ *  `pointermove` past {@link DRAG_THRESHOLD} arms the drag and floats a ghost,
+ *  and `pointerup` resolves the drop against whatever the pointer is over.
+ *
+ *  **The gesture terminates on the WINDOW, not on the board element.** Only
+ *  `pointerdown` is bound on the root (it is the only step that needs the board
+ *  as a delegation scope); move / up / cancel are bound on `window` for the
+ *  lifetime of the press. That is load-bearing, not defensive: the Manual
+ *  Board's `<main>` is a SIBLING of the 320px `ManualLog` rail
+ *  (`manual-board-container.tsx`), so a drag released over the log — or outside
+ *  the window entirely — would never deliver `pointerup` to the board. Bound on
+ *  the root, such a release discarded the drop, stranded the fixed-position
+ *  ghost on screen and left the click-swallow armed. The deleted
+ *  `manual-board.tsx` avoided that with `setPointerCapture` (`:222`); window
+ *  listeners cover the same case plus the release-outside-the-window one, and
+ *  they keep the `pointerup` target honest — pointer capture RETARGETS the
+ *  event to the capture element, which would make "was this released over the
+ *  board?" unanswerable (see `swallowClickRef` below).
  *
  *  A completed drag swallows the click that follows it (capture phase), so
- *  releasing a drag over a permanent never also taps it. */
+ *  releasing a drag over a permanent never also taps it.
+ *
+ *  Lifecycle guard: `manual-drag-lifecycle.test.tsx`. */
 export function useManualDrag(runtime: ManualRuntime) {
     const metaRef = useRef<DragMeta | null>(null);
     const swallowClickRef = useRef(false);
+    /** Takes down the window listeners of the gesture in flight. */
+    const detachRef = useRef<(() => void) | null>(null);
     const [drag, setDrag] = useState<DragMeta | null>(null);
     const [offset, setOffset] = useState({ x: 0, y: 0 });
 
-    function reset() {
+    // The gesture's listeners deliberately outlive the board element's own
+    // event scope, so an unmount mid-drag has to take them down itself.
+    useEffect(() => () => detachRef.current?.(), []);
+
+    /** Clears every trace of the gesture: listeners, press metadata, ghost. */
+    function clearGesture() {
+        detachRef.current?.();
+        detachRef.current = null;
         metaRef.current = null;
         setDrag(null);
         setOffset({ x: 0, y: 0 });
     }
 
+    function onWindowPointerMove(e: PointerEvent) {
+        const meta = metaRef.current;
+        if (!meta) return;
+        const dx = e.clientX - meta.startX;
+        const dy = e.clientY - meta.startY;
+        if (!meta.active) {
+            if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+            meta.active = true;
+            setDrag({ ...meta });
+        }
+        setOffset({ x: dx, y: dy });
+    }
+
+    function onWindowPointerUp(e: PointerEvent) {
+        const meta = metaRef.current;
+        const overBoard = isOverBoard(e.target);
+        clearGesture();
+        if (!meta?.active) return;
+        // The browser fires `click` after `pointerup`; a drag is not a click,
+        // so the next one is swallowed by `onClickCapture`. Arm it ONLY for a
+        // release over the board: that capture handler is the sole consumer, so
+        // arming it for a release over the log rail would leave the flag set and
+        // eat the next legitimate click on the board instead.
+        swallowClickRef.current = overBoard;
+        const card = runtime.cardById.get(meta.instanceId);
+        if (!card) return;
+        applyManualDrop(
+            resolveManualDrop({
+                card,
+                probe: probeDropTarget(e.clientX, e.clientY),
+                dx: e.clientX - meta.startX,
+                dy: e.clientY - meta.startY,
+            }),
+            runtime.dispatch
+        );
+    }
+
+    function onWindowPointerCancel() {
+        clearGesture();
+    }
+
     const handlers = {
         onPointerDown(e: React.PointerEvent) {
+            // A new press closes the previous gesture's swallow window: the
+            // swallowed `click` always arrives before the next `pointerdown`,
+            // so a flag still set here can only be stale. Unconditional (ahead
+            // of every early return below) — the invariant is "the flag never
+            // survives a gesture boundary", not "the flag is tidied when the
+            // press happens to start on a card".
+            swallowClickRef.current = false;
             if (e.button !== 0) return;
             const target = e.target as Element | null;
             const source = target?.closest?.(DRAG_SOURCE_SELECTOR) ?? null;
@@ -88,40 +171,21 @@ export function useManualDrag(runtime: ManualRuntime) {
                 active: false,
             };
             setOffset({ x: 0, y: 0 });
-        },
-        onPointerMove(e: React.PointerEvent) {
-            const meta = metaRef.current;
-            if (!meta) return;
-            const dx = e.clientX - meta.startX;
-            const dy = e.clientY - meta.startY;
-            if (!meta.active) {
-                if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
-                meta.active = true;
-                setDrag({ ...meta });
-            }
-            setOffset({ x: dx, y: dy });
-        },
-        onPointerUp(e: React.PointerEvent) {
-            const meta = metaRef.current;
-            reset();
-            if (!meta?.active) return;
-            // The browser fires `click` after `pointerup`; a drag is not a
-            // click, so the next one is swallowed below.
-            swallowClickRef.current = true;
-            const card = runtime.cardById.get(meta.instanceId);
-            if (!card) return;
-            applyManualDrop(
-                resolveManualDrop({
-                    card,
-                    probe: probeDropTarget(e.clientX, e.clientY),
-                    dx: e.clientX - meta.startX,
-                    dy: e.clientY - meta.startY,
-                }),
-                runtime.dispatch
-            );
-        },
-        onPointerCancel() {
-            reset();
+            // Re-entrancy: a second pointerdown with no intervening up (a
+            // second finger, a lost event) replaces the gesture rather than
+            // leaking the first one's listeners.
+            detachRef.current?.();
+            const move = onWindowPointerMove;
+            const up = onWindowPointerUp;
+            const cancel = onWindowPointerCancel;
+            window.addEventListener("pointermove", move);
+            window.addEventListener("pointerup", up);
+            window.addEventListener("pointercancel", cancel);
+            detachRef.current = () => {
+                window.removeEventListener("pointermove", move);
+                window.removeEventListener("pointerup", up);
+                window.removeEventListener("pointercancel", cancel);
+            };
         },
         onClickCapture(e: React.MouseEvent) {
             if (!swallowClickRef.current) return;
@@ -137,6 +201,7 @@ export function useManualDrag(runtime: ManualRuntime) {
     const ghost =
         drag?.active && dragCard ? (
             <div
+                data-manual-drag-ghost={drag.instanceId}
                 className="fixed pointer-events-none z-50 opacity-80"
                 style={{
                     left: drag.startX + offset.x - 50,

@@ -79,6 +79,21 @@ describe("the Manual Board on the shared board shell (#2169)", () => {
         expect(screen.getByTestId("piles-opponent")).toBeTruthy();
     });
 
+    // ONE of these three clauses guards something this PR introduced; the other
+    // two are INHERITED guarantees, recorded here because the criterion is
+    // "these do not mount", not "these were opted out of":
+    //  - priority indicator: THE load-bearing clause. It is suppressed by the
+    //    new `showPriorityIndicator={false}`, and it is the only one that goes
+    //    red if that opt-out is dropped. Its positive counterpart — the GRE
+    //    board DOES mount it by default — is in
+    //    `board-surface-gre-defaults.test.tsx`, so the pair is falsifiable from
+    //    both sides.
+    //  - stack: suppressed by `BoardSurface`'s PRE-EXISTING
+    //    `!isPortrait && stackItems.length > 0` gate, since a Manual Game has an
+    //    empty stack. It would hold with no opt-out at all.
+    //  - mana pool: suppressed by `player-mana-pool.tsx`'s own `return null` on
+    //    an empty pool. Also pre-existing — though live, not vacuous: removing
+    //    that early return turns this clause red.
     it("does NOT mount the priority indicator, the stack or the mana pool", () => {
         renderBoard();
         expect(screen.queryByTestId("priority-indicator")).toBeNull();

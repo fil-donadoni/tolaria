@@ -205,23 +205,24 @@ export default function ManualBoardView({
                                                 value={controllerActions}
                                             >
                                                 <main
+                                                    // The drag binds only
+                                                    // `pointerdown` here; move
+                                                    // / up / cancel live on the
+                                                    // window so a release over
+                                                    // the sibling log rail
+                                                    // still terminates the
+                                                    // gesture (see
+                                                    // `useManualDrag`).
+                                                    // `data-manual-board` is
+                                                    // load-bearing for it: the
+                                                    // hook reads it to tell a
+                                                    // release over the board
+                                                    // from one over the log.
                                                     data-manual-board
                                                     className="flex h-full w-full flex-col relative overflow-hidden select-none"
                                                     onPointerDown={
                                                         drag.handlers
                                                             .onPointerDown
-                                                    }
-                                                    onPointerMove={
-                                                        drag.handlers
-                                                            .onPointerMove
-                                                    }
-                                                    onPointerUp={
-                                                        drag.handlers
-                                                            .onPointerUp
-                                                    }
-                                                    onPointerCancel={
-                                                        drag.handlers
-                                                            .onPointerCancel
                                                     }
                                                     onClickCapture={
                                                         drag.handlers
