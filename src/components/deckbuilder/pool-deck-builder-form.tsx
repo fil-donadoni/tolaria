@@ -47,6 +47,7 @@ import {
     type BasicLandSubtype,
 } from "./basicLands";
 import DeckBuilderShell from "./deck-builder-shell";
+import DeckStatsButton from "./deck-stats-button";
 import type { DeckBuilderViewSpec, WorkingDeck } from "./deckBuilderVariant";
 import {
     recordGroupingChange,
@@ -552,6 +553,7 @@ export default function PoolDeckBuilderForm({
                     disabled={saving}
                 />
             }
+            headerActions={<DeckStatsButton mainCards={deck.cards} />}
             mainCards={deck.cards}
             sideCards={deck.sideboard}
             layout={layout}

@@ -687,7 +687,14 @@ describe("PoolDeckBuilderForm — root surface height (issue #2056 defect 3)", (
 // (rather than merely shrinking) and fold into `SaveDeckBar`'s single row
 // instead — see `save-deck-bar.tsx`'s `onBack`/`legality` props.
 describe("PoolDeckBuilderForm — short-viewport chrome treatment (issue #2056 defects 2 & 3)", () => {
-    it("the header band hides itself entirely under short-viewport — its Back affordance moves into SaveDeckBar instead of merely shrinking", () => {
+    it("the header band compacts under short-viewport rather than hiding, now that it carries the Stats button (issue #1631)", () => {
+        // Before issue #1631 this band carried only Back + title and hid
+        // entirely under short-viewport (both were reproduced in
+        // SaveDeckBar's row). It now also carries the Stats header action,
+        // so per `DeckBuilderHeader`'s documented rule ("a band that also
+        // carries CONTROLS ... compacts its padding and title instead") it
+        // must stay visible and compact, or the Stats affordance would be
+        // taken off screen with it.
         setup();
         const { container } = render(
             <PoolDeckBuilderForm
@@ -700,9 +707,9 @@ describe("PoolDeckBuilderForm — short-viewport chrome treatment (issue #2056 d
             />
         );
         const header = container.querySelector("h1")!.parentElement!;
-        expect(header.className.split(/\s+/)).toContain(
-            "short-viewport:hidden"
-        );
+        const classes = header.className.split(/\s+/);
+        expect(classes).not.toContain("short-viewport:hidden");
+        expect(classes).toContain("short-viewport:py-1");
     });
 
     it("the legality panel band hides itself entirely under short-viewport — its content moves into SaveDeckBar's compact chip instead", () => {
