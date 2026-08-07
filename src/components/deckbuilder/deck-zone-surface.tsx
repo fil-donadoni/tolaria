@@ -64,9 +64,14 @@ import ZoneOrderingSelect from "./zone-ordering-select";
  * `"pane"` it follows the same "hidden while empty" rule as every other
  * Column there. Under `"columns"` it is the one Column ALWAYS rendered
  * regardless of emptiness (issue #1633 AC: "the Catch-All is always shown") —
- * the guaranteed landing spot a narrow-screen scroll can never run past,
- * including for the `"move to…"` menu below. It is the successor of
- * `groupDeckIntoPiles`' trailing `Unknown` pile.
+ * the guaranteed landing spot a narrow-screen scroll can never run past. It is
+ * the successor of `groupDeckIntoPiles`' trailing `Unknown` pile.
+ *
+ * The `"move to…"` menu (below) deliberately EXCLUDES the Catch-All (and
+ * Grouping `none`'s single Column) — see `moveMenuColumns`'s own comment for
+ * why: `pinCardToColumn` (`convex/deckLayout.ts`) returns the layout
+ * unchanged for a `pinNamespace: null` id, so listing it would be a menu
+ * entry that silently does nothing (PR #2333 review, B1).
  *
  * Must render under an ancestor `DragDropProvider` — the BUILDER owns it, not
  * this component, because the Constructed builder's search results are
@@ -276,19 +281,47 @@ export default function DeckZoneSurface({
     );
 
     // The `"move to…"` menu's own column list (issue #1633) — id + label for
-    // EVERY Column the `"columns"` drop model resolves, unfiltered by
-    // emptiness or by the Zone filter (same reasoning as `rawColumns` above:
-    // the Column SET a Pin can name must never depend on what's currently
-    // hidden). Built once per Zone rather than per tile, so every card's menu
-    // in this Zone shares one array. Empty on the `"pane"` model — the
-    // Sideboard has no Columns to pin into.
+    // every Column the `"columns"` drop model resolves that is actually a PIN
+    // TARGET, unfiltered by emptiness or by the Zone filter (same reasoning as
+    // `rawColumns` above: the Column SET a Pin can name must never depend on
+    // what's currently hidden). Built once per Zone rather than per tile, so
+    // every card's menu in this Zone shares one array. Empty on the `"pane"`
+    // model — the Sideboard has no Columns to pin into.
+    //
+    // `pinNamespace !== null` (the SAME predicate `:528` already gates
+    // `DeckColumnActions` on) excludes the Catch-All and, under Grouping
+    // `none`, its single Column: `onSelect` dispatches straight to `onPin` ->
+    // `pinCardToColumn` (`convex/deckLayout.ts:359-367`), which parses the id
+    // via `parseColumnId` and returns the layout UNCHANGED for any id with no
+    // namespace — the Catch-All's id (`catch-all`) always, and Grouping
+    // `none`'s (`all`) too. A menu entry that closes the popover and changes
+    // nothing is not "moving" the card anywhere (PR #2333 review, B1).
+    //
+    // The issue's AC does read "the menu lists manual columns and the
+    // Catch-All", but making that entry MEAN something ("move to Catch-All")
+    // would require the engine to be able to force a card into the Catch-All
+    // over a Grouping's own predicate match — `claimColumnId`
+    // (`convex/deckLayout.ts:719-751`) only ever lands a card there when NO
+    // Pin and NO generated Column claims it, which is true for almost no real
+    // card under `mv`/`color`/`type` (their generated ladders cover every
+    // definition). Simply clearing the card's active-namespace Pin does not
+    // reach the Catch-All, it just falls back to rule 3 — the SAME generated
+    // Column the card already sits in — so a Pin-clearing "move to Catch-All"
+    // would silently do nothing useful for the common case. Expressing the
+    // AC's Catch-All clause for real needs a new engine primitive (a Pin that
+    // outranks a predicate match), which is a `deckLayout.ts` data-model
+    // change, not something `onPin(cardId, columnId, pinKey)` can carry as-is
+    // — out of scope for this fixup; excluding the entry is preferred over
+    // shipping a dead one.
     const moveMenuColumns = useMemo<DeckCardMoveMenuColumn[]>(
         () =>
             dropModel === "columns"
-                ? rawColumns.map((column) => ({
-                      id: column.id,
-                      label: column.label,
-                  }))
+                ? rawColumns
+                      .filter((column) => column.pinNamespace !== null)
+                      .map((column) => ({
+                          id: column.id,
+                          label: column.label,
+                      }))
                 : [],
         [rawColumns, dropModel]
     );
@@ -508,7 +541,7 @@ export default function DeckZoneSurface({
                     No cards match this filter.
                 </div>
             )}
-            <div className="flex flex-1 items-start gap-3 overflow-auto p-3 snap-x snap-mandatory md:gap-6 md:p-4">
+            <div className="flex flex-1 items-start gap-3 overflow-auto p-3 snap-x snap-mandatory md:snap-none md:gap-6 md:p-4">
                 {rendered.map((column) => (
                     <DeckColumnPile
                         key={column.id}

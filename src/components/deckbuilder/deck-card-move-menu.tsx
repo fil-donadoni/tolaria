@@ -16,10 +16,13 @@ export interface DeckCardMoveMenuColumn {
 export interface DeckCardMoveMenuProps {
     /** For the trigger's accessible name/tooltip only. */
     cardName: string;
-    /** The Zone's resolved Columns, in render order — generated, then manual,
-     *  then the Catch-All (`resolveColumnLayout`, `convex/deckLayout.ts`).
-     *  Never hand-filtered by this component: the menu must offer exactly what
-     *  the surface renders, no more and no less (issue #1633 AC). */
+    /** The Zone's resolved Columns that are PIN TARGETS, in render order —
+     *  generated, then manual (`resolveColumnLayout`, `convex/deckLayout.ts`).
+     *  The Catch-All (and Grouping `none`'s single Column) never appear here
+     *  even though the surface renders them on the board: they carry
+     *  `pinNamespace: null`, so `onSelect`ing one would dispatch a Pin that
+     *  changes nothing (PR #2333 review, B1) — `DeckZoneSurface`'s
+     *  `moveMenuColumns` is the one filter, never re-applied here. */
     columns: readonly DeckCardMoveMenuColumn[];
     /** A Column was picked — the caller pins the card into it. */
     onSelect: (columnId: ColumnId) => void;

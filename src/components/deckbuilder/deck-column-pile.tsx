@@ -67,7 +67,7 @@ export default function DeckColumnPile({
             data-column={dataColumn}
             className={cn(
                 hiddenWhenEmpty ? "hidden md:flex" : "flex",
-                "w-(--card-w) shrink-0 snap-start flex-col gap-2 rounded-sm p-1 transition",
+                "w-(--card-w) shrink-0 snap-start md:snap-align-none flex-col gap-2 rounded-sm p-1 transition",
                 isDropTarget
                     ? "bg-accent-soft/10 ring-2 ring-inset ring-accent/60"
                     : ""
