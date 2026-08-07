@@ -397,9 +397,13 @@ export function remapPinKey(
  *  `newKey` — the shape a single rewrite needs when it can touch more than
  *  one stale identity at once (a deck can hold several different old
  *  printings of the same Basic subtype before they're all rewritten to the
- *  one just picked). Applied in order, so two `oldKeys` colliding on the same
- *  namespace resolve last-one-wins, themselves still outranked by whatever
- *  `newKey` already held (see {@link remapPinKey}). */
+ *  one just picked). Applied in order, and each step's destination value
+ *  outranks the value it's migrating in (see {@link remapPinKey}'s own merge
+ *  order) — so two `oldKeys` colliding on the same namespace resolve
+ *  FIRST-one-wins: whichever `oldKey` is processed first lands its value at
+ *  `newKey`, and every later `oldKey` colliding on that same namespace loses
+ *  to the value already sitting there, exactly as it would against a value
+ *  `newKey` held from the start. */
 export function remapPinKeys(
     layout: ColumnLayout,
     oldKeys: readonly string[],

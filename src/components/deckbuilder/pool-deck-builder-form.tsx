@@ -349,7 +349,8 @@ export default function PoolDeckBuilderForm({
     /** Adds `count` copies (1 for a plain click, 5 for the `+5` step, issue
      *  #1627) of a Basic to the Maindeck. A Basic added here carries no
      *  `pinKey` — unlike a Pool card it was never assigned a `poolIndex`, so
-     *  it can never be pinned to a manual Column (see `toZoneCards` above). */
+     *  it can never be pinned to a manual Column (see `toZoneCards`,
+     *  `poolZoneCards.ts`). */
     const handleAddBasic = useCallback(
         (cardId: string, cardName: string, count: number) => {
             updateDeck((d) => ({
@@ -576,9 +577,10 @@ export default function PoolDeckBuilderForm({
      *  — only `cardId` changes — so the Pin recorded on the seat's Pool
      *  Arrangement keeps applying in-session by construction. The gap is one
      *  step later, at RELOAD: `assignPoolCopies` re-attaches a saved entry to
-     *  a physical Pool copy, and does so basic-aware (matching by subtype,
-     *  not raw `cardId`) precisely so a re-arted Basic still finds its
-     *  `poolIndex` back — see `convex/limited/poolArrangement.ts`. */
+     *  a physical Pool copy, and does so basic-aware (matching by CANONICAL
+     *  definition id, not raw `cardId` — issue #1629 fixup findings F2/G2)
+     *  precisely so a re-arted Basic still finds its `poolIndex` back — see
+     *  `convex/limited/poolArrangement.ts`. */
     const handlePickBasicArt = useCallback(
         (subtype: BasicLandSubtype, printId: string) => {
             recordBasicLandArtChoice(subtype, printId);

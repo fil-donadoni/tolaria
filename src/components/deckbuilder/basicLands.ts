@@ -301,12 +301,23 @@ export function applyBasicLandArtPreference(
  * (its Pin key is `poolIndex`-based, untouched by a `cardId` change) but has
  * its own re-attachment gap on reload — see `assignPoolCopies`
  * (`convex/limited/poolArrangement.ts`).
+ *
+ * A copy that ALREADY carries `printId` is left alone rather than replaced
+ * with an equal-valued clone (review of PR #2325, note N1) — this is what
+ * makes "re-picking the art already in effect" a genuine no-op: without it,
+ * `changed` was set on every subtype match regardless of whether the id was
+ * already the target, so re-selecting the current art still returned a fresh
+ * array and the caller scheduled a save of byte-identical content. It also
+ * keeps this function's own exclusion consistent with
+ * `basicLandArtCardIdsToRemap`'s below, which already excludes `printId` from
+ * the ids to remap.
  */
 export function rewriteBasicLandArt<
     T extends { cardId: string; cardName: string },
 >(cards: readonly T[], subtype: BasicLandSubtype, printId: string): T[] {
     let changed = false;
     const next = cards.map((card) => {
+        if (card.cardId === printId) return card;
         if (basicLandSubtypeOf(card.cardId) !== subtype) return card;
         changed = true;
         return { ...card, cardId: printId };

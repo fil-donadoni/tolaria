@@ -8,6 +8,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, fireEvent, waitFor, cleanup } from "@testing-library/react";
 import { saveBasicLandPrintId } from "~/lib/deckViewPrefs";
 import type { LobbyDeck } from "~/lib/deckTypes";
+import type { StoredDeckColumnLayout } from "@convex/deckLayout";
 import DeckBuilder from "../deck-builder";
 
 vi.mock("@tanstack/react-router", () => ({
@@ -42,7 +43,8 @@ const sinks = {
 function deck(
     format: LobbyDeck["format"],
     cards: { cardId: string; cardName: string }[],
-    sideboard: { cardId: string; cardName: string }[] = []
+    sideboard: { cardId: string; cardName: string }[] = [],
+    layout?: StoredDeckColumnLayout
 ): LobbyDeck {
     return {
         id: "deck-1",
@@ -51,6 +53,7 @@ function deck(
         colors: [],
         cards,
         sideboard,
+        layout,
     } as unknown as LobbyDeck;
 }
 
@@ -136,6 +139,82 @@ describe("BasicLandArtPicker — retroactive rewrite of the OPEN deck (issue #16
         ).toBeGreaterThan(0);
         fireEvent.click(rendered.getAllByLabelText(/^Mountain — 4ED/)[0]);
         expect(rendered.queryByLabelText(/^Mountain — /)).toBeNull();
+    });
+});
+
+// G1 (review of PR #2325 fixup, round 2): the F1 remap primitives
+// (`basicLandArtCardIdsToRemap`, `remapPinKeys`) are proven in isolation
+// elsewhere (`basicLands.test.ts`, `deckLayout.test.ts`) and hand-composed in
+// a unit test that mirrors `handlePickBasicArt`'s own order — which proves
+// the composition against a copy of itself, not against the call site. These
+// tests mount the REAL `DeckBuilder` (this file's own harness), pin a
+// Mountain to a manual Column, pick a different printing from the art grid,
+// and assert on the REAL save-sink payload — the only path that actually
+// exercises `handlePickBasicArt`'s wiring. Deleting the `remapPinKeys` block
+// from the handler (restoring the exact F1 bug) turns these red; every other
+// test in this file and in `basicLands.test.ts`/`deckLayout.test.ts` stays
+// green under that same mutation.
+describe("Card Pin re-key wiring — full path through the real DeckBuilder (issue #1629 fixup, finding G1)", () => {
+    const LANDS_COLUMN = "custom:lands";
+
+    it("a Maindeck Pin survives an art pick, re-keyed onto the chosen printing, no orphan left", async () => {
+        const rendered = renderBuilder(
+            deck("freeform", [MOUNTAIN, BOLT], [], {
+                maindeck: {
+                    manualColumns: [{ id: LANDS_COLUMN, label: "Lands" }],
+                    pins: { [MOUNTAIN_ID]: { custom: LANDS_COLUMN } },
+                },
+            })
+        );
+        fireEvent.click(rendered.getByLabelText("Choose Mountain art"));
+        const target = rendered.getAllByLabelText(/^Mountain — 4ED/)[0];
+        const chosenPrintId = target.getAttribute("data-print-id")!;
+        fireEvent.click(target);
+
+        rendered.unmount();
+        await waitFor(() => expect(sinks.user.update).toHaveBeenCalled());
+        const [, payload] = sinks.user.update.mock.calls.at(-1)!;
+
+        expect(payload.layout.maindeck.pins).toEqual({
+            [chosenPrintId]: { custom: LANDS_COLUMN },
+        });
+        expect(payload.layout.maindeck.pins[MOUNTAIN_ID]).toBeUndefined();
+    });
+
+    it("a Sideboard Pin survives an art pick the same way", async () => {
+        const rendered = renderBuilder(
+            deck("freeform", [BOLT], [MOUNTAIN], {
+                sideboard: {
+                    manualColumns: [{ id: LANDS_COLUMN, label: "Lands" }],
+                    pins: { [MOUNTAIN_ID]: { custom: LANDS_COLUMN } },
+                },
+            })
+        );
+        fireEvent.click(rendered.getByLabelText("Choose Mountain art"));
+        const target = rendered.getAllByLabelText(/^Mountain — 4ED/)[0];
+        const chosenPrintId = target.getAttribute("data-print-id")!;
+        fireEvent.click(target);
+
+        rendered.unmount();
+        await waitFor(() => expect(sinks.user.update).toHaveBeenCalled());
+        const [, payload] = sinks.user.update.mock.calls.at(-1)!;
+
+        expect(payload.layout.sideboard.pins).toEqual({
+            [chosenPrintId]: { custom: LANDS_COLUMN },
+        });
+        expect(payload.layout.sideboard.pins[MOUNTAIN_ID]).toBeUndefined();
+    });
+
+    it("an art pick on a deck with no arrangement at all does NOT materialise an empty layout (note N3)", async () => {
+        const rendered = renderBuilder(deck("freeform", [MOUNTAIN]));
+        fireEvent.click(rendered.getByLabelText("Choose Mountain art"));
+        fireEvent.click(rendered.getAllByLabelText(/^Mountain — 4ED/)[0]);
+
+        rendered.unmount();
+        await waitFor(() => expect(sinks.user.update).toHaveBeenCalled());
+        const [, payload] = sinks.user.update.mock.calls.at(-1)!;
+
+        expect(payload.layout).toBeUndefined();
     });
 });
 

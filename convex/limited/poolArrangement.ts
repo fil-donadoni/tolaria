@@ -21,7 +21,6 @@
 // never mints or parses a column id of its own, so the id vocabulary has
 // exactly one author (issue #1621 AC).
 import { tryGetDefinition } from "../cards";
-import { BASIC_LAND_SUBTYPES } from "../cards/types";
 import {
     normalizeLegacyColumn,
     parseColumnId,
@@ -320,34 +319,29 @@ interface UnidentifiedCard {
     cardName: string;
 }
 
-/** The Basic land subtype `cardId` resolves to, or `null` — mirrors
- *  `basicLandSubtypeOf` (`src/components/deckbuilder/basicLands.ts`), which
- *  this module cannot import (a frontend module; ADR 0074's boundary runs the
- *  other way). Needed server-side for {@link assignPoolCopies}'s re-attach
- *  match below (issue #1629 fixup, finding F2): a saved Basic's `cardId` is
- *  whichever PRINTING the player last picked from the art grid, which can
- *  differ from every printing the Pool itself holds — the two are supposed to
- *  diverge once art has been picked, so matching by raw `cardId` alone misses
- *  on purpose, not by accident. */
-function basicLandSubtypeOf(cardId: string): string | null {
-    const def = tryGetDefinition(cardId);
-    if (!def?.supertypes?.includes("Basic")) return null;
-    return (
-        BASIC_LAND_SUBTYPES.find((subtype) =>
-            def.subtypes?.includes(subtype)
-        ) ?? null
-    );
-}
-
 /** The identity {@link assignPoolCopies} matches a saved entry to a Pool
- *  copy BY (issue #1629 fixup, finding F2) — a Basic's own subtype, so a
- *  Mountain re-arted after being seeded from the Pool still finds a Mountain
- *  copy to re-attach to; every other card's exact `cardId`, unchanged (a
- *  non-Basic never gets its `cardId` rewritten in place, so the exact match
- *  is still correct and this is a pure widening, not a behaviour change, for
- *  everything that isn't a Basic land). */
+ *  copy BY (issue #1629 fixup, findings F2/G2) — the CANONICAL definition id
+ *  (`tryGetDefinition(cardId)?.id`), not the raw `cardId`. A saved Basic
+ *  land's `cardId` is whichever PRINTING the player last picked from the art
+ *  grid, which can differ from every printing the Pool itself holds — the two
+ *  are supposed to diverge once art has been picked, so matching by raw
+ *  `cardId` alone misses on purpose, not by accident. Every Pool entry's
+ *  `cardId` is already minted as the canonical definition id
+ *  (`resolveDeckCardMeta` returns `def.id`, collapsing every printing —
+ *  `convex/cards/catalogue.ts`), so resolving BOTH sides to that same id finds
+ *  the match without conflating two DIFFERENT cards that merely share the
+ *  same printed name-shape.
+ *
+ *  An earlier version of this fix matched on a Basic's SUBTYPE instead, which
+ *  is broader than needed: it collapsed Snow-Covered Mountain and plain
+ *  Mountain (two different cards, same subtype) onto one identity, letting
+ *  their Pool copies swap or steal each other's index — the same per-copy
+ *  identity collapse ADR 0075 §4 retired `pinsByCardId` for. Matching by
+ *  definition id instead fixes the re-art case with ZERO widening beyond it:
+ *  a non-Basic's `cardId` never gets rewritten in place, so the definition-id
+ *  match is exactly its old exact-cardId match, unchanged. */
 function poolMatchIdentity(cardId: string): string {
-    return basicLandSubtypeOf(cardId) ?? cardId;
+    return tryGetDefinition(cardId)?.id ?? cardId;
 }
 
 /**
@@ -362,11 +356,10 @@ function poolMatchIdentity(cardId: string): string {
  * re-derived from a position in an array that renumbers.
  *
  * Matched by {@link poolMatchIdentity}, not raw `cardId` (issue #1629 fixup,
- * finding F2): a Basic land's saved `cardId` is whichever printing the player
- * last picked from the art grid, which can legitimately differ from every
- * printing the Pool holds, so a Basic matches by SUBTYPE instead — the same
- * classifier the basics bar's own remove gesture keys on
- * (`basicLandSubtypeOf`, `src/components/deckbuilder/basicLands.ts`).
+ * findings F2/G2): a Basic land's saved `cardId` is whichever printing the
+ * player last picked from the art grid, which can legitimately differ from
+ * every printing the Pool holds, so matching resolves both sides to their
+ * CANONICAL definition id instead.
  *
  * The rule is **pinned copies go to the Maindeck first**, then the rest in
  * Pool order; the Sideboard takes whatever is left. A Pin is a Maindeck-only
@@ -388,8 +381,8 @@ export function assignPoolCopies(
         sideboard: readonly UnidentifiedCard[];
     }
 ): { cards: PlainPoolCard[]; sideboard: PlainPoolCard[] } {
-    // Per MATCH identity (a Basic's own subtype, everything else its exact
-    // cardId — {@link poolMatchIdentity}, issue #1629 fixup finding F2), the
+    // Per MATCH identity (the canonical definition id, not the raw cardId —
+    // {@link poolMatchIdentity}, issue #1629 fixup findings F2/G2), the
     // Pool's own indexes for it — pinned ones first so the Maindeck consumes
     // them before the plain ones.
     const pinned = new Map<string, number[]>();

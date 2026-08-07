@@ -369,6 +369,30 @@ describe("rewriteBasicLandArt (issue #1629 AC5: retroactive rewrite, position + 
             cards
         );
     });
+
+    it("returns the SAME array reference when re-picking the art already in effect (review of PR #2325, note N1)", () => {
+        const cards = [
+            { cardId: ICE_MOUNTAIN_PRINT, cardName: "Mountain" },
+            { cardId: BOLT_LEA, cardName: "Lightning Bolt" },
+        ];
+        expect(rewriteBasicLandArt(cards, "Mountain", ICE_MOUNTAIN_PRINT)).toBe(
+            cards
+        );
+    });
+
+    it("mixed: rewrites only the copies that differ from printId, leaving the already-matching one alone", () => {
+        const cards = [
+            { cardId: MOUNTAIN, cardName: "Mountain" },
+            { cardId: ICE_MOUNTAIN_PRINT, cardName: "Mountain" },
+        ];
+        const next = rewriteBasicLandArt(cards, "Mountain", ICE_MOUNTAIN_PRINT);
+        expect(next).toEqual([
+            { cardId: ICE_MOUNTAIN_PRINT, cardName: "Mountain" },
+            { cardId: ICE_MOUNTAIN_PRINT, cardName: "Mountain" },
+        ]);
+        // The entry that was already `printId` is the SAME object, not a clone.
+        expect(next[1]).toBe(cards[1]);
+    });
 });
 
 describe("rewriteBasicLandArtInDeck (issue #1629 AC5: rewrites BOTH Maindeck and Sideboard)", () => {

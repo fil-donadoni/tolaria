@@ -861,29 +861,57 @@ export default function DeckBuilder({
                 // copies of — nothing to rewrite, so skip `updateDeck`
                 // entirely rather than scheduling a debounced save of
                 // byte-identical content (`useDeckWorkspace`'s `schedule` has
-                // no no-op guard of its own — it fires on every call).
+                // no no-op guard of its own — it fires on every call). This
+                // pre-check has to read the render-closure `deck` — it is
+                // what decides whether `updateDeck` runs at all, so there is
+                // no `d` yet to read instead.
                 return;
             }
-            const staleCardIds = basicLandArtCardIdsToRemap(
-                [...deck.cards, ...deck.sideboard],
-                subtype,
-                printId
-            );
+            // Everything from here on reads ONLY the updater's `d` (review of
+            // PR #2325, note N4) — never the render-closure `deck` above —
+            // so the edit is self-consistent under a concurrent update,
+            // matching `updateMaindeckLayout`'s own pattern.
             updateDeck((d) => {
+                const staleCardIds = basicLandArtCardIdsToRemap(
+                    [...d.cards, ...d.sideboard],
+                    subtype,
+                    printId
+                );
                 const currentLayout = fromStoredDeckColumnLayout(d.layout, {
                     maindeck: mainView,
                     sideboard: sideView,
                 });
-                let layout = storeZoneLayout(
-                    d.layout,
-                    "maindeck",
-                    remapPinKeys(currentLayout.maindeck, staleCardIds, printId)
+                const remappedMaindeck = remapPinKeys(
+                    currentLayout.maindeck,
+                    staleCardIds,
+                    printId
                 );
-                layout = storeZoneLayout(
-                    layout,
-                    "sideboard",
-                    remapPinKeys(currentLayout.sideboard, staleCardIds, printId)
+                const remappedSideboard = remapPinKeys(
+                    currentLayout.sideboard,
+                    staleCardIds,
+                    printId
                 );
+                // N3 (review of PR #2325): only touch `d.layout` for a Zone
+                // whose remap actually changed something (`remapPinKeys`
+                // returns the SAME reference when no stale key carried a
+                // Pin) — otherwise `storeZoneLayout`'s own "always an
+                // object, `{}` included" contract would materialise an empty
+                // arrangement onto a deck that was never arranged.
+                let layout = d.layout;
+                if (remappedMaindeck !== currentLayout.maindeck) {
+                    layout = storeZoneLayout(
+                        layout,
+                        "maindeck",
+                        remappedMaindeck
+                    );
+                }
+                if (remappedSideboard !== currentLayout.sideboard) {
+                    layout = storeZoneLayout(
+                        layout,
+                        "sideboard",
+                        remappedSideboard
+                    );
+                }
                 return {
                     ...d,
                     ...rewriteBasicLandArtInDeck(d, subtype, printId),

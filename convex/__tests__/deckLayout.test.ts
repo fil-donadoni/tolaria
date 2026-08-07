@@ -614,6 +614,21 @@ describe("remapPinKeys — batch remap onto one destination (issue #1629 fixup, 
         const layout = setCardPin(createColumnLayout(), "bolt", "mv", "mv:4");
         expect(remapPinKeys(layout, [], "bolt2")).toBe(layout);
     });
+
+    it("two oldKeys colliding on the SAME namespace resolve FIRST-one-wins (review of PR #2325, note N2)", () => {
+        let layout = setCardPin(createColumnLayout(), "old1", "mv", "mv:1");
+        layout = setCardPin(layout, "old2", "mv", "mv:2");
+
+        const migrated = remapPinKeys(layout, ["old1", "old2"], "newId");
+
+        // old1 is processed first and lands its `mv` value at `newId`; old2
+        // collides on the SAME namespace and loses to the value already
+        // sitting at the destination, exactly as it would against a value
+        // `newId` held from the start (remapPinKey's own merge order).
+        expect(migrated.pins["newId"]).toEqual({ mv: "mv:1" });
+        expect(migrated.pins["old1"]).toBeUndefined();
+        expect(migrated.pins["old2"]).toBeUndefined();
+    });
 });
 
 // ── AC: the Catch-All ───────────────────────────────────────────────────────
