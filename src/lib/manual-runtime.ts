@@ -19,6 +19,7 @@ import type {
     ProjectedManualCard,
     ProjectedManualGameState,
 } from "@convex/manual";
+import type { ManualArrowPair } from "./target-arrow-geometry";
 
 /** Every manual verb this board can dispatch, already bound to the game id.
  *  One entry per `convex/game.ts` `manual*` mutation the board surfaces —
@@ -40,6 +41,8 @@ export type ManualDispatch = {
     setFaceDown: (args: { instanceId: string; faceDown: boolean }) => void;
     setLane: (args: { instanceId: string; lane: "main" | "combat" }) => void;
     attach: (args: { instanceId: string; targetId: string }) => void;
+    setArrow: (args: { instanceId: string; targetId: string }) => void;
+    clearArrow: (args: { instanceId: string }) => void;
     draw: (args: { playerId: string; n: number }) => void;
     mill: (args: { playerId: string; n: number }) => void;
     exileTop: (args: { playerId: string; n: number }) => void;
@@ -75,4 +78,28 @@ export function indexManualCards(
         for (const card of player.exile) byId.set(card.id, card);
     }
     return byId;
+}
+
+/** Flattens every player-declared arrow (issue #2171) into raw permanent →
+ *  permanent pairs for `BoardArrows`' `extraArrows` input — a pure function
+ *  of the same `cardById` index every other manual seam reads, so it is
+ *  unit-testable without a renderer and without hand-rolling a view. Sourced
+ *  from every visible card, not only battlefield ones: an arrow whose source
+ *  or target has since left the battlefield simply has no published anchor
+ *  and `buildManualArrows` (`target-arrow-geometry.ts`) drops it — this
+ *  function does not need to pre-filter by zone. */
+export function buildManualArrowPairs(
+    cardById: Map<string, ProjectedManualCard>
+): ManualArrowPair[] {
+    const pairs: ManualArrowPair[] = [];
+    for (const card of cardById.values()) {
+        for (const targetId of card.arrows ?? []) {
+            pairs.push({
+                key: `manual:${card.id}->${targetId}`,
+                fromId: card.id,
+                toId: targetId,
+            });
+        }
+    }
+    return pairs;
 }

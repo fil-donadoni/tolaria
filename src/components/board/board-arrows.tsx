@@ -2,9 +2,11 @@ import { useEffect, useMemo, useRef } from "react";
 import type { StackItem } from "~/types/game";
 import {
     buildCombatArrows,
+    buildManualArrows,
     buildTargetArrows,
     emptyAnchorMap,
     resolveArrowHighlight,
+    type ManualArrowPair,
     type TargetArrow,
 } from "~/lib/target-arrow-geometry";
 import { useArrowAnchors } from "~/hooks/arrowAnchorContext";
@@ -27,6 +29,13 @@ type BoardArrowsProps = {
      *  player-pointing arrow (incl. attack arrows) lands on the wrong
      *  nameplate. */
     anchorRevision?: string;
+    /** Generic arrow input alongside stack targets / combat (issue #2171):
+     *  Manual Mode has no `StackItem`/`Combat` at all (ADR 0080), so its
+     *  player-declared arrows come in as raw permanent → permanent pairs
+     *  rather than a synthesized fake stack item — this is the arrow layer's
+     *  ONE non-GRE-shaped input, resolved through the same anchor registry as
+     *  every other arrow. */
+    extraArrows?: ManualArrowPair[];
 };
 
 /** Gold accent tokens (ADR 0007). The arrow is a metallic gold filament: a soft
@@ -65,6 +74,7 @@ export default function BoardArrows({
     combat,
     defenderId,
     anchorRevision,
+    extraArrows,
 }: BoardArrowsProps) {
     const svgRef = useRef<SVGSVGElement>(null);
     const registry = useArrowAnchors();
@@ -89,8 +99,9 @@ export default function BoardArrows({
         () => [
             ...buildTargetArrows(stack, anchors),
             ...buildCombatArrows(combat, anchors, defenderId),
+            ...buildManualArrows(extraArrows ?? [], anchors),
         ],
-        [stack, combat, anchors, defenderId]
+        [stack, combat, anchors, defenderId, extraArrows]
     );
 
     // The hover seed (an arrow `key` or a card `nodeId`) is shared via the

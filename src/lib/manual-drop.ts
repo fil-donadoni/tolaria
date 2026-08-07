@@ -9,7 +9,10 @@
 // module's, so the decision is testable without a browser.
 //
 // Precedence:
-//   1. dropped ON another permanent → attach (Aura / Equipment),
+//   0. dropped ON another permanent WITH the shift key held → point an arrow
+//      at it (issue #2171) — a player declaring an attack or a target to
+//      their opponent, never persisted as an attachment,
+//   1. dropped ON another permanent (no shift) → attach (Aura / Equipment),
 //   2. a clearly VERTICAL drag that starts AND lands on the battlefield → set
 //      the combat / main lane,
 //   3. otherwise, a drop over a different zone → move the card there.
@@ -50,6 +53,7 @@ export type ManualDropProbe = {
 
 export type ManualDrop =
     | { kind: "attach"; instanceId: string; targetId: string }
+    | { kind: "arrow"; instanceId: string; targetId: string }
     | { kind: "lane"; instanceId: string; lane: "main" | "combat" }
     | { kind: "move"; instanceId: string; toZone: ManualZone }
     | null;
@@ -59,15 +63,19 @@ export function resolveManualDrop(args: {
     probe: ManualDropProbe;
     dx: number;
     dy: number;
+    /** Held during the drop (issue #2171): turns a permanent-onto-permanent
+     *  drop into an arrow declaration instead of an attach. */
+    shiftKey?: boolean;
 }): ManualDrop {
-    const { card, probe, dx, dy } = args;
+    const { card, probe, dx, dy, shiftKey } = args;
 
-    // 1. Attach — dropping one permanent onto another. `data-arrow-anchor-
-    //    permanent` only ever renders on a battlefield card, so a hit here IS
-    //    a battlefield permanent by construction.
+    // 0/1. Dropping one permanent onto another: shift held → point an arrow
+    //    at it (#2171); otherwise attach (Aura / Equipment). `data-arrow-
+    //    anchor-permanent` only ever renders on a battlefield card, so a hit
+    //    here IS a battlefield permanent by construction.
     if (probe.permanentId && probe.permanentId !== card.id) {
         return {
-            kind: "attach",
+            kind: shiftKey ? "arrow" : "attach",
             instanceId: card.id,
             targetId: probe.permanentId,
         };
@@ -110,6 +118,13 @@ export function applyManualDrop(
     if (!drop) return;
     if (drop.kind === "attach") {
         dispatch.attach({
+            instanceId: drop.instanceId,
+            targetId: drop.targetId,
+        });
+        return;
+    }
+    if (drop.kind === "arrow") {
+        dispatch.setArrow({
             instanceId: drop.instanceId,
             targetId: drop.targetId,
         });

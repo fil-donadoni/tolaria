@@ -45,7 +45,11 @@ import { makeManualGameContext } from "~/lib/manual-game-context";
 import { makeManualPileActions } from "~/lib/manual-pile-actions";
 import { makeManualPlayerInteraction } from "~/lib/manual-player-interaction";
 import { makeManualRowClassifier } from "~/lib/manual-row-classifier";
-import { indexManualCards, type ManualRuntime } from "~/lib/manual-runtime";
+import {
+    buildManualArrowPairs,
+    indexManualCards,
+    type ManualRuntime,
+} from "~/lib/manual-runtime";
 import BoardBackground from "./board-background";
 import BoardSurface from "./board-surface";
 import Controller from "./controller";
@@ -134,6 +138,14 @@ export default function ManualBoardView({
     const { rows } = useFullCatalogue();
 
     const cardById = useMemo(() => indexManualCards(state), [state]);
+    // Every player-declared arrow (issue #2171), flattened to raw permanent →
+    // permanent pairs for `BoardArrows`' `extraArrows` input — the shared
+    // arrow layer resolves the actual anchor points, this just enumerates
+    // which pairs exist.
+    const manualArrows = useMemo(
+        () => buildManualArrowPairs(cardById),
+        [cardById]
+    );
     const runtime = useMemo<ManualRuntime>(
         () => ({ viewerId, state, cardById, dispatch }),
         [viewerId, state, cardById, dispatch]
@@ -258,6 +270,9 @@ export default function ManualBoardView({
                                                                 state.activePlayerId
                                                             }
                                                             stackItems={[]}
+                                                            extraArrows={
+                                                                manualArrows
+                                                            }
                                                             isPortrait={
                                                                 isPortrait
                                                             }
