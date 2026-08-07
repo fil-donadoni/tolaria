@@ -11,6 +11,7 @@ import {
     fireEvent,
     within,
     act,
+    waitFor,
 } from "@testing-library/react";
 import { DragDropManager } from "@dnd-kit/dom";
 import { readFileSync } from "node:fs";
@@ -1278,5 +1279,84 @@ describe("PoolDeckBuilderForm — Add-Basic bar disabled while a save is in flig
         } finally {
             vi.useRealTimers();
         }
+    });
+});
+
+// The basic-land art picker ships in BOTH builders (issue #1629, PRD #1617
+// § "the basics bar ships in BOTH builders"). Limited's `allowedSets: null`
+// (Pool-scoped legality never restricts by set) means the grid is always
+// unfiltered here — the interesting Limited-specific behavior is that the
+// retroactive rewrite reaches a Pool-sourced Sideboard copy exactly like a
+// bar-added Maindeck one, and never touches the Pool's own membership.
+describe("PoolDeckBuilderForm — basic-land art picker (issue #1629)", () => {
+    afterEach(() => {
+        window.localStorage.clear();
+    });
+
+    it("offers every printing, unfiltered (Limited: allowedSets null)", () => {
+        setup();
+        const { getByLabelText, getAllByLabelText } = render(
+            <PoolDeckBuilderForm
+                eventId={"event-1" as never}
+                seatIndex={0}
+                pool={POOL}
+                existingDeck={null}
+                eventType="sealed"
+                poolArrangement={[]}
+            />
+        );
+        fireEvent.click(getByLabelText("Choose Mountain art"));
+        expect(getAllByLabelText(/^Mountain — /)).toHaveLength(15);
+    });
+
+    it("rewrites a Pool-sourced Sideboard Mountain AND a bar-added Maindeck one, without touching the Pool's own membership", async () => {
+        setup();
+        const { getByText, getByLabelText, getAllByLabelText, unmount } =
+            render(
+                <PoolDeckBuilderForm
+                    eventId={"event-1" as never}
+                    seatIndex={0}
+                    pool={[
+                        {
+                            scryfallId: "m1",
+                            cardId: CANONICAL_MOUNTAIN_ID,
+                            cardName: "Mountain",
+                        },
+                        {
+                            scryfallId: "b1",
+                            cardId: BOLT_ID,
+                            cardName: "Lightning Bolt",
+                        },
+                    ]}
+                    existingDeck={null}
+                    eventType="sealed"
+                    poolArrangement={[]}
+                />
+            );
+        // Sealed default: both Pool cards start in the Sideboard. Add one
+        // Mountain from the bar so the Maindeck holds a copy too.
+        fireEvent.click(getByText("+ Mountain"));
+
+        fireEvent.click(getByLabelText("Choose Mountain art"));
+        const target = getAllByLabelText(/^Mountain — LEB/)[0];
+        const chosenPrintId = target.getAttribute("data-print-id")!;
+        fireEvent.click(target);
+
+        unmount();
+        await waitFor(() => expect(createMock).toHaveBeenCalled());
+        const payload = createMock.mock.calls[0][0] as {
+            cards: { cardId: string; cardName: string }[];
+            sideboard: { cardId: string; cardName: string }[];
+        };
+        expect(payload.cards).toEqual([
+            { cardId: chosenPrintId, cardName: "Mountain" },
+        ]);
+        // The Pool-sourced Mountain (Sideboard) was rewritten too; the
+        // Pool's OTHER card (Lightning Bolt) is untouched, and the Pool's
+        // total membership (2 cards) is unchanged.
+        expect(payload.sideboard).toEqual([
+            { cardId: chosenPrintId, cardName: "Mountain" },
+            { cardId: BOLT_ID, cardName: "Lightning Bolt" },
+        ]);
     });
 });

@@ -155,6 +155,111 @@ describe("assignPoolCopies (issue #1626, review B1)", () => {
     });
 });
 
+// PR #2325 review, finding F2: in-session Limited survives a basic-land art
+// rewrite (a Pool-sourced entry's Pin key is its `poolIndex`, untouched by a
+// `cardId` change), but a RELOAD does not — `savedWorkingDeck` re-attaches by
+// this very function, and a saved Basic's `cardId` is whichever printing the
+// player last picked, which can legitimately differ from every printing the
+// Pool holds. Real registry ids (mirrors
+// `src/components/deckbuilder/__tests__/basicLands.test.ts`), because the fix
+// (matching by canonical definition id) is a real `tryGetDefinition` lookup,
+// not a string comparison — a synthetic id would silently fall through to the
+// unfixed, exact-cardId path and prove nothing.
+describe("assignPoolCopies — Basic-land re-attachment survives an art rewrite (issue #1629 fixup, findings F2/G2)", () => {
+    const MOUNTAIN = "eace2c85-976c-425e-9800-5a6ccbd91b56"; // LEA Mountain
+    const LEB_MOUNTAIN_PRINT = "7af9c715-8d72-4eae-b412-fc89138ff588"; // same definition, different print
+    // Different CARD, same subtype (Mountain) — the case G2 closed: the
+    // earlier subtype-based match conflated this with plain Mountain.
+    const SNOW_MOUNTAIN = "ccd3afb3-5574-4f2d-adbe-969a428f1c63"; // ICE Snow-Covered Mountain, own definition
+    const named = (cardId: string) => ({ cardId, cardName: cardId });
+
+    it("without the fix would miss: re-attaches a saved Basic re-arted after being seeded from the Pool, by canonical definition id", () => {
+        // The Pool holds the LEA printing (what the seat opened).
+        const pool = [card(MOUNTAIN)];
+        const arrangement: PoolArrangementEntry[] = [
+            { poolIndex: 0, pins: { mv: makeColumnId("mv", "lands") } },
+        ];
+        // The saved deck holds the LEB printing — the player picked a
+        // different art for this Mountain after it entered the working deck.
+        const out = assignPoolCopies(pool, arrangement, {
+            cards: [named(LEB_MOUNTAIN_PRINT)],
+            sideboard: [],
+        });
+        expect(out.cards[0].poolIndex).toBe(0);
+    });
+
+    it("still prefers the pinned copy first among several Basics of the same printing", () => {
+        const pool = [card(MOUNTAIN), card(MOUNTAIN)];
+        const arrangement: PoolArrangementEntry[] = [
+            { poolIndex: 1, pins: { mv: makeColumnId("mv", "lands") } },
+        ];
+        const out = assignPoolCopies(pool, arrangement, {
+            cards: [named(LEB_MOUNTAIN_PRINT), named(LEB_MOUNTAIN_PRINT)],
+            sideboard: [],
+        });
+        expect(out.cards.map((c) => c.poolIndex).sort()).toEqual([0, 1]);
+        // The pinned Pool index (1) is consumed first — still visible.
+        expect(out.cards[0].poolIndex).toBe(1);
+    });
+
+    it("still matches EXACTLY by cardId for a non-Basic — the definition-id match never widens a non-Basic match", () => {
+        const pool = [card("bolt"), card("bolt")];
+        const out = assignPoolCopies(pool, [], {
+            cards: [named("bolt")],
+            sideboard: [],
+        });
+        expect(out.cards[0].poolIndex).toBe(0);
+    });
+
+    it("an unresolvable synthetic id still falls through to the plain exact-cardId match (no regression for the existing suite)", () => {
+        const pool = [card("mountain")]; // NOT a real registry id here
+        const out = assignPoolCopies(pool, [], {
+            cards: [named("mountain")],
+            sideboard: [],
+        });
+        expect(out.cards[0].poolIndex).toBe(0);
+    });
+
+    // G2 regression: a subtype-based match conflates Snow-Covered Mountain
+    // with plain Mountain (both subtype "Mountain") even though they are
+    // different cards with different definition ids — the same per-copy
+    // identity collapse ADR 0075 §4 retired `pinsByCardId` for. Matching by
+    // canonical definition id keeps them distinct.
+    it("does NOT conflate Snow-Covered Mountain with plain Mountain — no swap of a pinned copy", () => {
+        // Pool: index 0 is a PINNED plain Mountain, index 1 is a plain
+        // Snow-Covered Mountain. The saved deck holds one of each.
+        const pool = [card(MOUNTAIN), card(SNOW_MOUNTAIN)];
+        const arrangement: PoolArrangementEntry[] = [
+            { poolIndex: 0, pins: { mv: makeColumnId("mv", "lands") } },
+        ];
+        const out = assignPoolCopies(pool, arrangement, {
+            cards: [named(SNOW_MOUNTAIN), named(MOUNTAIN)],
+            sideboard: [],
+        });
+        const bySnow = out.cards.find((c) => c.cardId === SNOW_MOUNTAIN);
+        const byPlain = out.cards.find((c) => c.cardId === MOUNTAIN);
+        // Under the subtype-based match these swap (Snow -> 0, Mountain -> 1).
+        expect(bySnow?.poolIndex).toBe(1);
+        expect(byPlain?.poolIndex).toBe(0);
+    });
+
+    it("does NOT let Snow-Covered Mountain steal the real Mountain's Pool copy", () => {
+        // Pool holds only ONE physical copy: a plain Mountain.
+        const pool = [card(MOUNTAIN)];
+        // The saved deck's Maindeck holds a Snow-Covered Mountain (a
+        // different card that happens to share the "Mountain" subtype), and
+        // the Sideboard holds the genuine plain Mountain.
+        const out = assignPoolCopies(pool, [], {
+            cards: [named(SNOW_MOUNTAIN)],
+            sideboard: [named(MOUNTAIN)],
+        });
+        // Under the subtype-based match the Snow-Covered entry steals
+        // poolIndex 0 and the real Mountain copy is left unattached.
+        expect(out.cards[0].poolIndex).toBeUndefined();
+        expect(out.sideboard[0].poolIndex).toBe(0);
+    });
+});
+
 describe("upsertPoolArrangementEntry (ADR 0060, issue #1247)", () => {
     it("adds a fresh sideboard entry for a previously-untouched poolIndex", () => {
         const next = upsertPoolArrangementEntry([], {

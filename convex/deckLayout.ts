@@ -366,6 +366,54 @@ export function pinCardToColumn(
     return setCardPin(layout, pinKey, parsed.namespace, columnId);
 }
 
+/** Re-keys one card's Pins from `oldKey` to `newKey` (issue #1629 fixup,
+ *  finding F1). `pins` is keyed by the surface's own pin key — `cardId` for
+ *  Constructed — so a caller that changes what identity a physical copy is
+ *  recorded under (the basic-land art rewrite changes a Basic's `cardId`
+ *  outright) must move the Pin's KEY along with it, or the Pin is orphaned
+ *  under an id nothing resolves to anymore. A Pin already recorded at
+ *  `newKey` wins per namespace over the migrated one — it is the live state
+ *  for whatever already resolves to that identity — with the migrated Pin
+ *  only filling a namespace the target doesn't have.
+ *
+ *  Returns the SAME layout reference when `oldKey` has no Pin to move, or
+ *  when the keys are equal, so a caller can call this unconditionally instead
+ *  of guarding it themselves. */
+export function remapPinKey(
+    layout: ColumnLayout,
+    oldKey: string,
+    newKey: string
+): ColumnLayout {
+    if (oldKey === newKey) return layout;
+    const oldPins = layout.pins[oldKey];
+    if (!oldPins) return layout;
+    const pins = { ...layout.pins };
+    delete pins[oldKey];
+    pins[newKey] = { ...oldPins, ...pins[newKey] };
+    return { ...layout, pins };
+}
+
+/** {@link remapPinKey} for every key in `oldKeys`, folded onto the same
+ *  `newKey` — the shape a single rewrite needs when it can touch more than
+ *  one stale identity at once (a deck can hold several different old
+ *  printings of the same Basic subtype before they're all rewritten to the
+ *  one just picked). Applied in order, and each step's destination value
+ *  outranks the value it's migrating in (see {@link remapPinKey}'s own merge
+ *  order) — so two `oldKeys` colliding on the same namespace resolve
+ *  FIRST-one-wins: whichever `oldKey` is processed first lands its value at
+ *  `newKey`, and every later `oldKey` colliding on that same namespace loses
+ *  to the value already sitting there, exactly as it would against a value
+ *  `newKey` held from the start. */
+export function remapPinKeys(
+    layout: ColumnLayout,
+    oldKeys: readonly string[],
+    newKey: string
+): ColumnLayout {
+    let next = layout;
+    for (const oldKey of oldKeys) next = remapPinKey(next, oldKey, newKey);
+    return next;
+}
+
 /** Forces an id into the `custom:` namespace, which is the ONLY namespace a
  *  manual Column may live in. A generated-namespace id (`mv:3`) or an
  *  unnamespaced one (`combo`, the Catch-All) is re-prefixed rather than

@@ -56,6 +56,8 @@ describe("PoolBasicLandsBar (issue #1576: always render all five basics)", () =>
                 counts={countsFor()}
                 onAdd={onAdd}
                 onRemove={onRemove}
+                allowedSets={null}
+                onPickArt={vi.fn()}
                 disabled={false}
             />
         );
@@ -73,6 +75,8 @@ describe("PoolBasicLandsBar (issue #1576: always render all five basics)", () =>
                 counts={countsFor()}
                 onAdd={onAdd}
                 onRemove={vi.fn()}
+                allowedSets={null}
+                onPickArt={vi.fn()}
                 disabled={false}
             />
         );
@@ -91,6 +95,8 @@ describe("PoolBasicLandsBar (issue #1576: always render all five basics)", () =>
                 counts={countsFor()}
                 onAdd={onAdd}
                 onRemove={vi.fn()}
+                allowedSets={null}
+                onPickArt={vi.fn()}
                 disabled={false}
             />
         );
@@ -118,6 +124,8 @@ describe("PoolBasicLandsBar (issue #1576: always render all five basics)", () =>
                 counts={countsFor({ Swamp: 2 })}
                 onAdd={vi.fn()}
                 onRemove={onRemove}
+                allowedSets={null}
+                onPickArt={vi.fn()}
                 disabled={false}
             />
         );
@@ -136,6 +144,8 @@ describe("PoolBasicLandsBar — per-subtype Maindeck counter (issue #1627)", () 
                 counts={countsFor({ Mountain: 4, Forest: 1 })}
                 onAdd={vi.fn()}
                 onRemove={vi.fn()}
+                allowedSets={null}
+                onPickArt={vi.fn()}
                 disabled={false}
             />
         );
@@ -154,6 +164,8 @@ describe("PoolBasicLandsBar — add (issue #1627)", () => {
                 counts={countsFor({ Island: 2 })}
                 onAdd={onAdd}
                 onRemove={vi.fn()}
+                allowedSets={null}
+                onPickArt={vi.fn()}
                 disabled={false}
             />
         );
@@ -170,6 +182,8 @@ describe("PoolBasicLandsBar — add (issue #1627)", () => {
                 counts={countsFor()}
                 onAdd={onAdd}
                 onRemove={vi.fn()}
+                allowedSets={null}
+                onPickArt={vi.fn()}
                 disabled={false}
             />
         );
@@ -189,6 +203,8 @@ describe("PoolBasicLandsBar — remove, floored at zero and visibly unavailable 
                 counts={countsFor({ Swamp: 3 })}
                 onAdd={onAdd}
                 onRemove={onRemove}
+                allowedSets={null}
+                onPickArt={vi.fn()}
                 disabled={false}
             />
         );
@@ -205,6 +221,8 @@ describe("PoolBasicLandsBar — remove, floored at zero and visibly unavailable 
                 counts={countsFor({ Forest: 2 })}
                 onAdd={vi.fn()}
                 onRemove={onRemove}
+                allowedSets={null}
+                onPickArt={vi.fn()}
                 disabled={false}
             />
         );
@@ -223,6 +241,8 @@ describe("PoolBasicLandsBar — remove, floored at zero and visibly unavailable 
                 counts={countsFor({ Plains: 2 })}
                 onAdd={vi.fn()}
                 onRemove={onRemove}
+                allowedSets={null}
+                onPickArt={vi.fn()}
                 disabled={false}
             />
         );
@@ -238,6 +258,8 @@ describe("PoolBasicLandsBar — remove, floored at zero and visibly unavailable 
                 counts={countsFor({ Plains: 0 })}
                 onAdd={vi.fn()}
                 onRemove={onRemove}
+                allowedSets={null}
+                onPickArt={vi.fn()}
                 disabled={false}
             />
         );
@@ -256,6 +278,8 @@ describe("PoolBasicLandsBar — remove, floored at zero and visibly unavailable 
                 counts={countsFor({ Island: 0 })}
                 onAdd={onAdd}
                 onRemove={onRemove}
+                allowedSets={null}
+                onPickArt={vi.fn()}
                 disabled={false}
             />
         );
@@ -275,6 +299,8 @@ describe("PoolBasicLandsBar — disabled while a save is in flight (project-wide
                 counts={countsFor({ Mountain: 3 })}
                 onAdd={vi.fn()}
                 onRemove={vi.fn()}
+                allowedSets={null}
+                onPickArt={vi.fn()}
                 disabled={true}
             />
         );
@@ -303,6 +329,8 @@ describe("PoolBasicLandsBar — short-viewport chrome treatment (issue #2056)", 
                 counts={countsFor()}
                 onAdd={vi.fn()}
                 onRemove={vi.fn()}
+                allowedSets={null}
+                onPickArt={vi.fn()}
                 disabled={false}
             />
         );
@@ -322,6 +350,8 @@ describe("PoolBasicLandsBar — short-viewport chrome treatment (issue #2056)", 
                 counts={countsFor()}
                 onAdd={vi.fn()}
                 onRemove={vi.fn()}
+                allowedSets={null}
+                onPickArt={vi.fn()}
                 disabled={false}
             />
         );

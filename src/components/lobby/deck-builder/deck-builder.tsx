@@ -6,6 +6,7 @@ import {
     manualColumnIdForLabel,
     normalizeManualColumnLabel,
     pinCardToColumn,
+    remapPinKeys,
     removeColumn,
     renameManualColumn,
     storeZoneLayout,
@@ -19,9 +20,14 @@ import { effectiveFeatured, toggleFeatured } from "~/lib/featuredPicker";
 import { computeDeckColors } from "~/lib/deckColors";
 import { deckCardLookup, makeDeckCardShapeResolver } from "~/lib/deckCardShape";
 import {
+    applyBasicLandArtPreference,
+    basicLandArtCardIdsToRemap,
     countBasicLandCopies,
     findBasicLandRemovalIndex,
+    recordBasicLandArtChoice,
     resolveCanonicalBasicLandCardIds,
+    rewriteBasicLandArtInDeck,
+    seededBasicLandArt,
     type BasicLandSubtype,
 } from "~/components/deckbuilder/basicLands";
 import PoolBasicLandsBar from "~/components/deckbuilder/pool-basic-lands-bar";
@@ -801,10 +807,119 @@ export default function DeckBuilder({
     // Pool, so every subtype resolves straight to the catalogue's canonical
     // printing rather than through a Pool-preference tier; the count is read
     // off the live Maindeck exactly like the Limited variant's.
-    const basicCardIds = useMemo(() => resolveCanonicalBasicLandCardIds(), []);
+    //
+    // The user's basic-land art preference (issue #1629, ADR 0075 § "Basic-
+    // land art") is held here, seeded from `localStorage` on mount and
+    // updated on every pick — mirrors `mainView`/`sideView`'s
+    // `seededColumnView`/`recordGroupingChange` split above. Layered on top
+    // of the base resolution by `applyBasicLandArtPreference`, which silently
+    // ignores a stale or now-illegal stored printing (AC8).
+    const [basicLandArt, setBasicLandArt] = useState(() =>
+        seededBasicLandArt()
+    );
+    const basicCardIds = useMemo(
+        () =>
+            applyBasicLandArtPreference(
+                resolveCanonicalBasicLandCardIds(),
+                basicLandArt,
+                FORMAT_RULES[deck.format].allowedSets
+            ),
+        [basicLandArt, deck.format]
+    );
     const basicCounts = useMemo(
         () => countBasicLandCopies(deck.cards),
         [deck.cards]
+    );
+
+    /** A printing was picked from a subtype's art grid (issue #1629): persist
+     *  the preference, hold it so the bar/picker reflect it immediately, and
+     *  rewrite every copy already in the open deck — Maindeck AND Sideboard
+     *  — to the new printing. Never touches any other saved deck: this only
+     *  edits the in-memory working deck, which rides the same debounced
+     *  autosave as any other card edit.
+     *
+     *  A Card Pin recorded against one of the rewritten copies rides along in
+     *  the SAME edit (review of PR #2325, finding F1): Constructed pins by
+     *  `cardId` (`deck-zone-surface.tsx`'s `card.pinKey ?? card.cardId`), and
+     *  a Basic land entry carries no `pinKey` of its own, so its Pin key IS
+     *  its `cardId` — changing that id therefore changes the Pin's key, not
+     *  just its content. `basicLandArtCardIdsToRemap` names every OLD id
+     *  about to disappear; `remapPinKeys` re-homes any Pin recorded under one
+     *  of them onto the new `printId`, in both Zones' Layouts, so the deck
+     *  row never persists an orphaned key. */
+    const handlePickBasicArt = useCallback(
+        (subtype: BasicLandSubtype, printId: string) => {
+            recordBasicLandArtChoice(subtype, printId);
+            setBasicLandArt((prev) => ({ ...prev, [subtype]: printId }));
+            const rewritten = rewriteBasicLandArtInDeck(deck, subtype, printId);
+            if (
+                rewritten.cards === deck.cards &&
+                rewritten.sideboard === deck.sideboard
+            ) {
+                // N1 (review of PR #2325): re-picking the art already in
+                // effect, or picking art for a subtype this deck holds zero
+                // copies of — nothing to rewrite, so skip `updateDeck`
+                // entirely rather than scheduling a debounced save of
+                // byte-identical content (`useDeckWorkspace`'s `schedule` has
+                // no no-op guard of its own — it fires on every call). This
+                // pre-check has to read the render-closure `deck` — it is
+                // what decides whether `updateDeck` runs at all, so there is
+                // no `d` yet to read instead.
+                return;
+            }
+            // Everything from here on reads ONLY the updater's `d` (review of
+            // PR #2325, note N4) — never the render-closure `deck` above —
+            // so the edit is self-consistent under a concurrent update,
+            // matching `updateMaindeckLayout`'s own pattern.
+            updateDeck((d) => {
+                const staleCardIds = basicLandArtCardIdsToRemap(
+                    [...d.cards, ...d.sideboard],
+                    subtype,
+                    printId
+                );
+                const currentLayout = fromStoredDeckColumnLayout(d.layout, {
+                    maindeck: mainView,
+                    sideboard: sideView,
+                });
+                const remappedMaindeck = remapPinKeys(
+                    currentLayout.maindeck,
+                    staleCardIds,
+                    printId
+                );
+                const remappedSideboard = remapPinKeys(
+                    currentLayout.sideboard,
+                    staleCardIds,
+                    printId
+                );
+                // N3 (review of PR #2325): only touch `d.layout` for a Zone
+                // whose remap actually changed something (`remapPinKeys`
+                // returns the SAME reference when no stale key carried a
+                // Pin) — otherwise `storeZoneLayout`'s own "always an
+                // object, `{}` included" contract would materialise an empty
+                // arrangement onto a deck that was never arranged.
+                let layout = d.layout;
+                if (remappedMaindeck !== currentLayout.maindeck) {
+                    layout = storeZoneLayout(
+                        layout,
+                        "maindeck",
+                        remappedMaindeck
+                    );
+                }
+                if (remappedSideboard !== currentLayout.sideboard) {
+                    layout = storeZoneLayout(
+                        layout,
+                        "sideboard",
+                        remappedSideboard
+                    );
+                }
+                return {
+                    ...d,
+                    ...rewriteBasicLandArtInDeck(d, subtype, printId),
+                    layout,
+                };
+            });
+        },
+        [updateDeck, deck, mainView, sideView]
     );
 
     return (
@@ -826,6 +941,8 @@ export default function DeckBuilder({
                     counts={basicCounts}
                     onAdd={handleAdd}
                     onRemove={handleRemoveBasic}
+                    allowedSets={FORMAT_RULES[deck.format].allowedSets}
+                    onPickArt={handlePickBasicArt}
                     disabled={saving}
                 />
             }

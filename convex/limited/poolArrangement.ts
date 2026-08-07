@@ -20,6 +20,7 @@
 // Layout engine (`convex/deckLayout.ts`, ADR 0075, issue #1618) — this module
 // never mints or parses a column id of its own, so the id vocabulary has
 // exactly one author (issue #1621 AC).
+import { tryGetDefinition } from "../cards";
 import {
     normalizeLegacyColumn,
     parseColumnId,
@@ -318,6 +319,31 @@ interface UnidentifiedCard {
     cardName: string;
 }
 
+/** The identity {@link assignPoolCopies} matches a saved entry to a Pool
+ *  copy BY (issue #1629 fixup, findings F2/G2) — the CANONICAL definition id
+ *  (`tryGetDefinition(cardId)?.id`), not the raw `cardId`. A saved Basic
+ *  land's `cardId` is whichever PRINTING the player last picked from the art
+ *  grid, which can differ from every printing the Pool itself holds — the two
+ *  are supposed to diverge once art has been picked, so matching by raw
+ *  `cardId` alone misses on purpose, not by accident. Every Pool entry's
+ *  `cardId` is already minted as the canonical definition id
+ *  (`resolveDeckCardMeta` returns `def.id`, collapsing every printing —
+ *  `convex/cards/catalogue.ts`), so resolving BOTH sides to that same id finds
+ *  the match without conflating two DIFFERENT cards that merely share the
+ *  same printed name-shape.
+ *
+ *  An earlier version of this fix matched on a Basic's SUBTYPE instead, which
+ *  is broader than needed: it collapsed Snow-Covered Mountain and plain
+ *  Mountain (two different cards, same subtype) onto one identity, letting
+ *  their Pool copies swap or steal each other's index — the same per-copy
+ *  identity collapse ADR 0075 §4 retired `pinsByCardId` for. Matching by
+ *  definition id instead fixes the re-art case with ZERO widening beyond it:
+ *  a non-Basic's `cardId` never gets rewritten in place, so the definition-id
+ *  match is exactly its old exact-cardId match, unchanged. */
+function poolMatchIdentity(cardId: string): string {
+    return tryGetDefinition(cardId)?.id ?? cardId;
+}
+
 /**
  * Re-attaches a SAVED deck's zone entries to physical Pool copies (issue
  * #1626, PR #2318 review B1).
@@ -328,6 +354,12 @@ interface UnidentifiedCard {
  * place a rebuild happens: within a session each entry carries its
  * `poolIndex` and a zone move moves the entry itself, so nothing is ever
  * re-derived from a position in an array that renumbers.
+ *
+ * Matched by {@link poolMatchIdentity}, not raw `cardId` (issue #1629 fixup,
+ * findings F2/G2): a Basic land's saved `cardId` is whichever printing the
+ * player last picked from the art grid, which can legitimately differ from
+ * every printing the Pool holds, so matching resolves both sides to their
+ * CANONICAL definition id instead.
  *
  * The rule is **pinned copies go to the Maindeck first**, then the rest in
  * Pool order; the Sideboard takes whatever is left. A Pin is a Maindeck-only
@@ -349,8 +381,10 @@ export function assignPoolCopies(
         sideboard: readonly UnidentifiedCard[];
     }
 ): { cards: PlainPoolCard[]; sideboard: PlainPoolCard[] } {
-    // Per card id, the Pool's own indexes for it — pinned ones first so the
-    // Maindeck consumes them before the plain ones.
+    // Per MATCH identity (the canonical definition id, not the raw cardId —
+    // {@link poolMatchIdentity}, issue #1629 fixup findings F2/G2), the
+    // Pool's own indexes for it — pinned ones first so the Maindeck consumes
+    // them before the plain ones.
     const pinned = new Map<string, number[]>();
     const plain = new Map<string, number[]>();
     for (const placement of resolvePoolPlacements(pool, arrangement)) {
@@ -358,19 +392,20 @@ export function assignPoolCopies(
             Object.keys(placement.pins).length > 0
                 ? pinned // ascending within each bucket — deterministic
                 : plain;
-        const bucket = into.get(placement.card.cardId) ?? [];
+        const identity = poolMatchIdentity(placement.card.cardId);
+        const bucket = into.get(identity) ?? [];
         bucket.push(placement.poolIndex);
-        into.set(placement.card.cardId, bucket);
+        into.set(identity, bucket);
     }
     const available = new Map<string, number[]>();
-    for (const cardId of new Set([...pinned.keys(), ...plain.keys()])) {
-        available.set(cardId, [
-            ...(pinned.get(cardId) ?? []),
-            ...(plain.get(cardId) ?? []),
+    for (const identity of new Set([...pinned.keys(), ...plain.keys()])) {
+        available.set(identity, [
+            ...(pinned.get(identity) ?? []),
+            ...(plain.get(identity) ?? []),
         ]);
     }
     const take = (cardId: string): number | undefined =>
-        available.get(cardId)?.shift();
+        available.get(poolMatchIdentity(cardId))?.shift();
     const identify = (list: readonly UnidentifiedCard[]): PlainPoolCard[] =>
         list.map((card) => ({
             cardId: card.cardId,

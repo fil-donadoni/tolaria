@@ -28,6 +28,8 @@ import {
     parseColumnId,
     pinCardToColumn,
     pinNamespaceForGrouping,
+    remapPinKey,
+    remapPinKeys,
     removeColumn,
     renameManualColumn,
     resolveColumnLayout,
@@ -132,6 +134,15 @@ const CATALOGUE: Record<string, CardDefinition> = {
     }),
     // Lands — a basic and a DUAL, which must sit in Lands under `color`.
     mountain: def("mountain", {
+        name: "Mountain",
+        types: ["Land"],
+        supertypes: ["Basic"],
+        subtypes: ["Mountain"],
+    }),
+    // A DIFFERENT printing of the same Mountain definition — the shape a
+    // basic-land art rewrite produces (issue #1629 fixup, finding F1): same
+    // subtype, different `cardId`.
+    mountainIce: def("mountainIce", {
         name: "Mountain",
         types: ["Land"],
         supertypes: ["Basic"],
@@ -495,6 +506,128 @@ describe("claiming order: `custom` pin > active-Grouping pin > predicate > Catch
         layout = pinCardToColumn(layout, "bolt", manual.id);
         layout = removeColumn(layout, manual.id);
         expect(columnOf(resolve(layout, ["bolt"]), "bolt")).toBe("mv:1");
+    });
+});
+
+// ── remapPinKey / remapPinKeys (issue #1629 fixup, finding F1) ─────────────
+//
+// A rewrite that changes what identity a physical copy is recorded under
+// (the basic-land art picker changes a Basic's `cardId` in place) must move
+// the Pin's KEY along with it — preserving the optional `pinKey` FIELD on a
+// caller's own item preserves nothing for Constructed, which never carries
+// one and pins by `cardId` itself (`deck-zone-surface.tsx`'s `card.pinKey ??
+// card.cardId`). These reproduce PR #2325 review finding F1 end-to-end
+// through the REAL `pinCardToColumn` + `resolveColumnLayout`, with the same
+// cardId-as-pinKey adapter Constructed's zone surface uses.
+
+describe("remapPinKey — re-keying a Card Pin after an identity change (issue #1629 fixup, finding F1)", () => {
+    it("without the fix: rewriting a pinned card's id in place strands its Pin (reproduces F1)", () => {
+        let layout = addManualColumn(createColumnLayout(), {
+            id: "custom:lands",
+            label: "Lands",
+        });
+        layout = pinCardToColumn(layout, "mountain", "custom:lands");
+
+        // Before the rewrite: the manual Column holds the Mountain.
+        expect(idsIn(resolve(layout, ["mountain"]), "custom:lands")).toEqual([
+            "mountain",
+        ]);
+
+        // The rewrite (mirrors `rewriteBasicLandArt`) changes only the
+        // item's cardId, never touching `layout.pins` — the SAME layout is
+        // resolved against the new id.
+        const afterRewriteAlone = resolve(layout, ["mountainIce"]);
+        expect(idsIn(afterRewriteAlone, "custom:lands")).toEqual([]);
+        // The Pin is still recorded under the OLD, now-orphaned key.
+        expect(layout.pins["mountain"]).toBeDefined();
+        expect(layout.pins["mountainIce"]).toBeUndefined();
+    });
+
+    it("with the fix: remapPinKey moves the Pin onto the new id in the same step, leaving no orphan", () => {
+        let layout = addManualColumn(createColumnLayout(), {
+            id: "custom:lands",
+            label: "Lands",
+        });
+        layout = pinCardToColumn(layout, "mountain", "custom:lands");
+
+        const migrated = remapPinKey(layout, "mountain", "mountainIce");
+
+        expect(
+            idsIn(resolve(migrated, ["mountainIce"]), "custom:lands")
+        ).toEqual(["mountainIce"]);
+        // No orphaned key left behind in the persisted Pin map.
+        expect(migrated.pins["mountain"]).toBeUndefined();
+        expect(migrated.pins["mountainIce"]).toEqual({
+            custom: "custom:lands",
+        });
+    });
+
+    it("is a no-op (same reference) when the old key carries no Pin", () => {
+        const layout = createColumnLayout();
+        expect(remapPinKey(layout, "mountain", "mountainIce")).toBe(layout);
+    });
+
+    it("is a no-op (same reference) when old and new keys are equal", () => {
+        const layout = setCardPin(createColumnLayout(), "bolt", "mv", "mv:4");
+        expect(remapPinKey(layout, "bolt", "bolt")).toBe(layout);
+    });
+
+    it("a Pin already recorded at the new key wins per namespace over the migrated one", () => {
+        let layout = setCardPin(createColumnLayout(), "mountain", "mv", "mv:4");
+        layout = setCardPin(layout, "mountain", "color", "color:R");
+        layout = setCardPin(layout, "mountainIce", "mv", "mv:7");
+
+        const migrated = remapPinKey(layout, "mountain", "mountainIce");
+        // `mv` already had a live value at the destination — it wins.
+        // `color` had none at the destination — the migrated value fills it.
+        expect(migrated.pins["mountainIce"]).toEqual({
+            mv: "mv:7",
+            color: "color:R",
+        });
+        expect(migrated.pins["mountain"]).toBeUndefined();
+    });
+});
+
+describe("remapPinKeys — batch remap onto one destination (issue #1629 fixup, finding F1)", () => {
+    it("moves several stale identities onto the one printing a rewrite just picked", () => {
+        let layout = setCardPin(createColumnLayout(), "mountain", "mv", "mv:4");
+        layout = addManualColumn(layout, {
+            id: "custom:lands",
+            label: "Lands",
+        });
+        layout = pinCardToColumn(layout, "taiga", "custom:lands");
+
+        const migrated = remapPinKeys(
+            layout,
+            ["mountain", "taiga"],
+            "mountainIce"
+        );
+        expect(migrated.pins["mountain"]).toBeUndefined();
+        expect(migrated.pins["taiga"]).toBeUndefined();
+        expect(migrated.pins["mountainIce"]).toEqual({
+            mv: "mv:4",
+            custom: "custom:lands",
+        });
+    });
+
+    it("is a no-op (same reference) for an empty key list", () => {
+        const layout = setCardPin(createColumnLayout(), "bolt", "mv", "mv:4");
+        expect(remapPinKeys(layout, [], "bolt2")).toBe(layout);
+    });
+
+    it("two oldKeys colliding on the SAME namespace resolve FIRST-one-wins (review of PR #2325, note N2)", () => {
+        let layout = setCardPin(createColumnLayout(), "old1", "mv", "mv:1");
+        layout = setCardPin(layout, "old2", "mv", "mv:2");
+
+        const migrated = remapPinKeys(layout, ["old1", "old2"], "newId");
+
+        // old1 is processed first and lands its `mv` value at `newId`; old2
+        // collides on the SAME namespace and loses to the value already
+        // sitting at the destination, exactly as it would against a value
+        // `newId` held from the start (remapPinKey's own merge order).
+        expect(migrated.pins["newId"]).toEqual({ mv: "mv:1" });
+        expect(migrated.pins["old1"]).toBeUndefined();
+        expect(migrated.pins["old2"]).toBeUndefined();
     });
 });
 
