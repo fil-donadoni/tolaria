@@ -25,7 +25,9 @@ import {
 } from "~/lib/board-layout";
 import { ArrowAnchorProvider } from "~/hooks/useArrowAnchors";
 import { ArrowHighlightProvider } from "~/hooks/ArrowHighlightProvider";
-import BoardBattlefield from "./board-battlefield";
+import BoardBattlefield, {
+    type BattlefieldRowClassifier,
+} from "./board-battlefield";
 import BoardPlayer from "./board-player";
 import BoardHand from "./board-hand";
 import BoardHandPortrait from "./board-hand-portrait";
@@ -92,6 +94,22 @@ type BoardSurfaceProps = {
         width: number,
         height: number
     ) => Placement[];
+    /** Mount the priority pod indicator. Defaults to `true` (every GRE board).
+     *  A Manual Game has no priority at all (ADR 0080 — no turn structure is
+     *  enforced), so it opts out; the indicator would otherwise render a cue
+     *  synthesised from an inert context (issue #2169). */
+    showPriorityIndicator?: boolean;
+    /** Whether the VIEWER's own hand is the interactive, drag-to-cast hand.
+     *  Defaults to `true` (every GRE board). A Manual Game opts out: the
+     *  interactive hand card dispatches `playCard` / `announceCast` /
+     *  `activateAbility` straight at the GRE, and there is no `gameStates` row
+     *  behind a manual game for those to land in. Its hand cards are moved by
+     *  drag instead (issue #2169). */
+    handInteractive?: boolean;
+    /** Which battlefield row a permanent lands in, forwarded verbatim to both
+     *  seats' {@link BoardBattlefield} (#2166). Omitted ⇒ that component's own
+     *  definition-backed default, byte-for-byte today's split. */
+    rowClassifier?: BattlefieldRowClassifier;
 };
 
 /**
@@ -136,6 +154,9 @@ export default function BoardSurface({
     viewportHeight,
     landscapeCards,
     landscapeHandLayout,
+    showPriorityIndicator = true,
+    handInteractive = true,
+    rowClassifier,
 }: BoardSurfaceProps) {
     return (
         <ArrowAnchorProvider>
@@ -189,6 +210,15 @@ export default function BoardSurface({
                             <>
                                 <BoardPlayer player={opponent} side="top" />
                                 <div
+                                    // Inert hit-test handles (#2169): a
+                                    // pointer-driven zone drag resolves its
+                                    // drop target with
+                                    // `document.elementFromPoint(...)
+                                    // .closest('[data-zone-drop]')`. Pure
+                                    // attributes — no listener, no styling, no
+                                    // behaviour on the GRE board.
+                                    data-zone-drop="hand"
+                                    data-zone-owner={opponent.id}
                                     className={
                                         isPortrait
                                             ? PORTRAIT_OPPONENT_HAND_BAND
@@ -201,6 +231,7 @@ export default function BoardSurface({
                                         <BoardHandPortrait
                                             player={opponent}
                                             interactive={
+                                                handInteractive &&
                                                 opponent.id === viewerId
                                             }
                                             boardHeight={viewportHeight}
@@ -211,6 +242,7 @@ export default function BoardSurface({
                                         <BoardHand
                                             player={opponent}
                                             interactive={
+                                                handInteractive &&
                                                 opponent.id === viewerId
                                             }
                                             // Landscape: the SAME flat row
@@ -239,6 +271,8 @@ export default function BoardSurface({
                                     )}
                                 </div>
                                 <div
+                                    data-zone-drop="battlefield"
+                                    data-zone-owner={opponent.id}
                                     className={
                                         isPortrait
                                             ? PORTRAIT_OPPONENT_BATTLEFIELD_BAND
@@ -255,6 +289,7 @@ export default function BoardSurface({
                                                 ? landscapeCards
                                                 : undefined
                                         }
+                                        rowClassifier={rowClassifier}
                                         data-testid="zone-opponent-battlefield"
                                     />
                                 </div>
@@ -267,6 +302,8 @@ export default function BoardSurface({
                             <>
                                 <BoardPlayer player={me} side="bottom" />
                                 <div
+                                    data-zone-drop="battlefield"
+                                    data-zone-owner={me.id}
                                     className={
                                         isPortrait
                                             ? // Bottom-anchored to
@@ -289,10 +326,13 @@ export default function BoardSurface({
                                                 ? landscapeCards
                                                 : undefined
                                         }
+                                        rowClassifier={rowClassifier}
                                         data-testid="zone-player-battlefield"
                                     />
                                 </div>
                                 <div
+                                    data-zone-drop="hand"
+                                    data-zone-owner={me.id}
                                     className={
                                         isPortrait
                                             ? // Lifted clear of the
@@ -319,14 +359,20 @@ export default function BoardSurface({
                                     {isPortrait ? (
                                         <BoardHandPortrait
                                             player={me}
-                                            interactive={me.id === viewerId}
+                                            interactive={
+                                                handInteractive &&
+                                                me.id === viewerId
+                                            }
                                             boardHeight={viewportHeight}
                                             data-testid="zone-player-hand"
                                         />
                                     ) : (
                                         <BoardHand
                                             player={me}
-                                            interactive={me.id === viewerId}
+                                            interactive={
+                                                handInteractive &&
+                                                me.id === viewerId
+                                            }
                                             // Landscape: flat row, and the
                                             // SAME footprint the battlefield
                                             // lays out with — the whole point
@@ -379,7 +425,7 @@ export default function BoardSurface({
                     mounted below on the right edge
                     (#331), by `board.tsx` — NOT this
                     surface (#2165). */}
-                        <PriorityIndicator />
+                        {showPriorityIndicator && <PriorityIndicator />}
                         {/* Portrait toggles the stack behind a
                     chip (above); landscape/desktop keep
                     it always-on. */}

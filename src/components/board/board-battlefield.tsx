@@ -172,6 +172,7 @@ export default function BoardBattlefield({
         handleActivateAbility,
         isSelectingOnThisBoard,
         overlays,
+        clickActsWithAbilities,
     } = useInteraction(player);
     // Un-stack identical permanents while a per-instance battlefield SELECTION
     // is active on this board (a `choose-permanents` pick like Frantic Search's
@@ -273,6 +274,7 @@ export default function BoardBattlefield({
                 onActivateAbility={(abilityId, keepPriority) =>
                     handleActivateAbility(card.id, abilityId, keepPriority)
                 }
+                clickActsWithAbilities={clickActsWithAbilities}
                 compactCardHeight={compact?.cardHeight}
             />
         );

@@ -99,7 +99,7 @@ const VIEWPORT_HEIGHT_ALLOWLIST: Record<
         why: "The board is the fullscreen play surface — no shared header, so `<main>` IS the viewport.",
         routePath: "/game/abc123",
     },
-    "components/board/manual-board.tsx": {
+    "components/board/manual-board-container.tsx": {
         why: "Board-only machinery, reachable solely from `/game` (out of scope per issue #2274).",
         routePath: "/game/abc123",
     },

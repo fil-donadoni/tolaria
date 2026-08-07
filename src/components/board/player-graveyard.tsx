@@ -1,8 +1,15 @@
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
+import {
+    ContextMenu,
+    ContextMenuContent,
+    ContextMenuItem,
+    ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import GraveyardIcon from "../icons/graveyard-icon";
 import type { Player } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
+import { usePileActions, NO_PILE_ACTIONS } from "~/hooks/usePileActionsContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
 import { isGraveyardChoiceActive } from "~/lib/graveyard-choice";
@@ -40,6 +47,10 @@ export default function PlayerGraveyard({
     const selectTarget = useMutation(api.game.selectTarget);
     const bufferCtx = usePendingChoiceBuffer();
     const { isMinimized, minimize } = useMinimizedChoice();
+    // The graveyard tile carries NO built-in context menu on the GRE board —
+    // the fallback is the empty set, so absent a `PileActionsProvider` the
+    // markup below is byte-for-byte what it was (issue #2169).
+    const pileActions = usePileActions(player, "graveyard", NO_PILE_ACTIONS);
 
     // CR 400.7 / 109.2: this graveyard accepts target clicks only when (a) a
     // target selection is in progress, (b) it's targeting the graveyard zone,
@@ -100,128 +111,148 @@ export default function PlayerGraveyard({
                 })
           : undefined;
 
+    const pile = (
+        <CardsPile
+            cards={player.graveyard}
+            emptyLabel="Graveyard"
+            title={
+                isGraveyardChoice
+                    ? // The choice carries a card-specific prompt: Recall
+                      // returns to hand, Exhume reanimates to the
+                      // battlefield. Never assume "to your hand" — that
+                      // default mislabels every reanimation pick. Fall
+                      // back to a destination-neutral label only when a
+                      // choice omits its prompt.
+                      (head!.prompt ?? "Choose a card from your graveyard")
+                    : "Graveyard"
+            }
+            zoneIcon={<GraveyardIcon className="w-8 h-8 opacity-60" />}
+            onCardClick={onCardClick}
+            // Issue #315 parity with the library picker: a blocking
+            // graveyard pick owns a forceOpen grid modal (collapsible to
+            // the board indicator) with per-card selection rings and a
+            // reachable Done button.
+            forceOpen={isGraveyardChoice && !isMinimized}
+            onMinimize={isGraveyardChoice ? minimize : undefined}
+            layout="grid"
+            selectedIds={
+                isGraveyardChoice
+                    ? bufferCtx.buffer
+                    : isGraveyardTarget
+                      ? pendingTarget!.selected
+                            .filter((t) => t.type === "graveyard-card")
+                            .map((t) => t.id)
+                      : undefined
+            }
+            // Filtered graveyard pick (Exhume "only creatures", issue
+            // #933 parity): gate the ring/click affordance to the
+            // allow-listed cards, dimming the rest. `eligibleIds` is
+            // `undefined` for an unfiltered pick, so every card stays
+            // selectable. Mirrors the library search + hand-pick paths.
+            eligibleIds={isGraveyardChoice ? eligibleIds : undefined}
+            footer={
+                isGraveyardChoice ? (
+                    <LibrarySearchConfirm min={choiceMin} max={choiceMax} />
+                ) : undefined
+            }
+            // CR 702.34 — a card in the viewer's own graveyard with a
+            // Flashback cost (printed or granted, projected as
+            // `legalActions` + `castKind`) surfaces a Flashback/Escape
+            // cast button. CR 113.6 — a card with an
+            // `activateFromGraveyard` activated ability (Ashen Ghoul)
+            // surfaces an Activate button when the ability is
+            // currently legal (computed client-side from the bundled
+            // card def, same as the battlefield path). CR 305.1-analog
+            // (issue #1190) — a LAND tagged `legalActions` with NO
+            // `castKind` under an active play-lands-from-graveyard
+            // permission (Icetill Explorer) surfaces a Play button
+            // instead of the cast button — `castKind` is the
+            // discriminant (present only for a Flashback/Escape CAST
+            // affordance; a graveyard land's legalActions may
+            // legitimately be `[]` while still "playable in
+            // principle", so `legalActions.includes("play")` alone
+            // can't tell the two apart). All are suppressed while a
+            // graveyard target/choice owns the pile so the
+            // interactions never collide.
+            renderCardAction={
+                player.id === playerId &&
+                !isGraveyardChoice &&
+                !isGraveyardTarget
+                    ? (card, onClose) => {
+                          const graveyardAbilities = getGraveyardStackAbilities(
+                              card,
+                              phase,
+                              buildTriggerStateView(
+                                  allPlayers,
+                                  activePlayerId,
+                                  cannotActivateAbilitiesThisTurn
+                              )
+                          );
+                          if (graveyardAbilities.length > 0) {
+                              return (
+                                  <GraveyardActivateButton
+                                      cardInstanceId={card.id}
+                                      abilities={graveyardAbilities}
+                                      onCommitted={onClose}
+                                  />
+                              );
+                          }
+                          if (card.legalActions === undefined) {
+                              return null;
+                          }
+                          if (card.castKind === undefined) {
+                              return (
+                                  <GraveyardPlayLandButton
+                                      card={card}
+                                      onCommitted={onClose}
+                                  />
+                              );
+                          }
+                          return (
+                              <GraveyardFlashbackButton
+                                  card={card}
+                                  onCommitted={onClose}
+                              />
+                          );
+                      }
+                    : undefined
+            }
+            // Portrait chip control only drives the normal browse — never
+            // while a blocking graveyard pick owns the modal.
+            open={isGraveyardChoice ? undefined : open}
+            onOpenChange={isGraveyardChoice ? undefined : onOpenChange}
+        />
+    );
+
     return (
         <div
             data-arrow-anchor-graveyard={player.id}
+            // Inert hit-test handle for a pointer-driven zone drag (#2169) —
+            // no listener, no styling, no behaviour on the GRE board.
+            data-zone-drop="graveyard"
+            data-zone-owner={player.id}
             className="w-(--card-w-sm) aspect-5/7"
         >
-            <div className="relative">
-                <CardsPile
-                    cards={player.graveyard}
-                    emptyLabel="Graveyard"
-                    title={
-                        isGraveyardChoice
-                            ? // The choice carries a card-specific prompt: Recall
-                              // returns to hand, Exhume reanimates to the
-                              // battlefield. Never assume "to your hand" — that
-                              // default mislabels every reanimation pick. Fall
-                              // back to a destination-neutral label only when a
-                              // choice omits its prompt.
-                              (head!.prompt ??
-                              "Choose a card from your graveyard")
-                            : "Graveyard"
-                    }
-                    zoneIcon={<GraveyardIcon className="w-8 h-8 opacity-60" />}
-                    onCardClick={onCardClick}
-                    // Issue #315 parity with the library picker: a blocking
-                    // graveyard pick owns a forceOpen grid modal (collapsible to
-                    // the board indicator) with per-card selection rings and a
-                    // reachable Done button.
-                    forceOpen={isGraveyardChoice && !isMinimized}
-                    onMinimize={isGraveyardChoice ? minimize : undefined}
-                    layout="grid"
-                    selectedIds={
-                        isGraveyardChoice
-                            ? bufferCtx.buffer
-                            : isGraveyardTarget
-                              ? pendingTarget!.selected
-                                    .filter((t) => t.type === "graveyard-card")
-                                    .map((t) => t.id)
-                              : undefined
-                    }
-                    // Filtered graveyard pick (Exhume "only creatures", issue
-                    // #933 parity): gate the ring/click affordance to the
-                    // allow-listed cards, dimming the rest. `eligibleIds` is
-                    // `undefined` for an unfiltered pick, so every card stays
-                    // selectable. Mirrors the library search + hand-pick paths.
-                    eligibleIds={isGraveyardChoice ? eligibleIds : undefined}
-                    footer={
-                        isGraveyardChoice ? (
-                            <LibrarySearchConfirm
-                                min={choiceMin}
-                                max={choiceMax}
-                            />
-                        ) : undefined
-                    }
-                    // CR 702.34 — a card in the viewer's own graveyard with a
-                    // Flashback cost (printed or granted, projected as
-                    // `legalActions` + `castKind`) surfaces a Flashback/Escape
-                    // cast button. CR 113.6 — a card with an
-                    // `activateFromGraveyard` activated ability (Ashen Ghoul)
-                    // surfaces an Activate button when the ability is
-                    // currently legal (computed client-side from the bundled
-                    // card def, same as the battlefield path). CR 305.1-analog
-                    // (issue #1190) — a LAND tagged `legalActions` with NO
-                    // `castKind` under an active play-lands-from-graveyard
-                    // permission (Icetill Explorer) surfaces a Play button
-                    // instead of the cast button — `castKind` is the
-                    // discriminant (present only for a Flashback/Escape CAST
-                    // affordance; a graveyard land's legalActions may
-                    // legitimately be `[]` while still "playable in
-                    // principle", so `legalActions.includes("play")` alone
-                    // can't tell the two apart). All are suppressed while a
-                    // graveyard target/choice owns the pile so the
-                    // interactions never collide.
-                    renderCardAction={
-                        player.id === playerId &&
-                        !isGraveyardChoice &&
-                        !isGraveyardTarget
-                            ? (card, onClose) => {
-                                  const graveyardAbilities =
-                                      getGraveyardStackAbilities(
-                                          card,
-                                          phase,
-                                          buildTriggerStateView(
-                                              allPlayers,
-                                              activePlayerId,
-                                              cannotActivateAbilitiesThisTurn
-                                          )
-                                      );
-                                  if (graveyardAbilities.length > 0) {
-                                      return (
-                                          <GraveyardActivateButton
-                                              cardInstanceId={card.id}
-                                              abilities={graveyardAbilities}
-                                              onCommitted={onClose}
-                                          />
-                                      );
-                                  }
-                                  if (card.legalActions === undefined) {
-                                      return null;
-                                  }
-                                  if (card.castKind === undefined) {
-                                      return (
-                                          <GraveyardPlayLandButton
-                                              card={card}
-                                              onCommitted={onClose}
-                                          />
-                                      );
-                                  }
-                                  return (
-                                      <GraveyardFlashbackButton
-                                          card={card}
-                                          onCommitted={onClose}
-                                      />
-                                  );
-                              }
-                            : undefined
-                    }
-                    // Portrait chip control only drives the normal browse — never
-                    // while a blocking graveyard pick owns the modal.
-                    open={isGraveyardChoice ? undefined : open}
-                    onOpenChange={isGraveyardChoice ? undefined : onOpenChange}
-                />
-            </div>
+            {pileActions.length === 0 ? (
+                <div className="relative">{pile}</div>
+            ) : (
+                <ContextMenu>
+                    <ContextMenuTrigger>
+                        <div className="relative cursor-pointer">{pile}</div>
+                    </ContextMenuTrigger>
+                    <ContextMenuContent className="w-56">
+                        {pileActions.map((action) => (
+                            <ContextMenuItem
+                                key={action.key}
+                                inset
+                                onClick={action.onSelect}
+                            >
+                                {action.label}
+                            </ContextMenuItem>
+                        ))}
+                    </ContextMenuContent>
+                </ContextMenu>
+            )}
         </div>
     );
 }

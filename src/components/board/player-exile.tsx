@@ -1,5 +1,12 @@
+import {
+    ContextMenu,
+    ContextMenuContent,
+    ContextMenuItem,
+    ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import type { Player } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
+import { usePileActions, NO_PILE_ACTIONS } from "~/hooks/usePileActionsContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
 import { isExileChoiceActive } from "~/lib/exile-choice";
@@ -22,6 +29,10 @@ export default function PlayerExile({
     const { playerId, pendingChoices } = useGameContext();
     const bufferCtx = usePendingChoiceBuffer();
     const { isMinimized, minimize } = useMinimizedChoice();
+    // The exile tile carries NO built-in context menu on the GRE board — the
+    // fallback is the empty set, so absent a `PileActionsProvider` the markup
+    // below is byte-for-byte what it was (issue #2169).
+    const pileActions = usePileActions(player, "exile", NO_PILE_ACTIONS);
 
     // CR 608.2 — mid-resolution exile pick (Dauthi Voidwalker's sacrifice:
     // "choose an exiled card an opponent owns with a void counter on it").
@@ -76,59 +87,80 @@ export default function PlayerExile({
           orderLibrarySearchCards(player.exile, eligibleIds)
         : player.exile.filter((c) => !c.exiledByPermanentId);
 
+    const pile = (
+        <CardsPile
+            cards={pileCards}
+            emptyLabel="Exile"
+            title={
+                isExileChoice
+                    ? (head!.prompt ?? "Choose a card from the exile zone")
+                    : "Exile"
+            }
+            zoneIcon={<ExileIcon className="w-8 h-8 opacity-60" />}
+            onCardClick={onCardClick}
+            forceOpen={isExileChoice && !isMinimized}
+            onMinimize={isExileChoice ? minimize : undefined}
+            layout="grid"
+            selectedIds={isExileChoice ? bufferCtx.buffer : undefined}
+            eligibleIds={isExileChoice ? eligibleIds : undefined}
+            footer={
+                isExileChoice ? (
+                    <LibrarySearchConfirm min={choiceMin} max={choiceMax} />
+                ) : undefined
+            }
+            // CR 601.3e — a card a player has exiled with cast-from-exile
+            // permission (Ice Cauldron) is castable by that player from
+            // the Exile zone. Surface a Cast button on those cards; the
+            // backend cast mutation already validates the exile origin.
+            // Suppressed while an exile choice owns the pile so the two
+            // interactions never collide.
+            renderCardAction={
+                isExileChoice
+                    ? undefined
+                    : (card, onClose) =>
+                          card.castableFromExileBy === playerId ? (
+                              <ExileCastButton
+                                  card={card}
+                                  onCommitted={onClose}
+                              />
+                          ) : null
+            }
+            // Portrait chip control only drives the normal browse —
+            // never while a blocking exile pick owns the modal.
+            open={isExileChoice ? undefined : open}
+            onOpenChange={isExileChoice ? undefined : onOpenChange}
+        />
+    );
+
     return (
         <div
             data-arrow-anchor-exile={player.id}
+            // Inert hit-test handle for a pointer-driven zone drag (#2169) —
+            // no listener, no styling, no behaviour on the GRE board.
+            data-zone-drop="exile"
+            data-zone-owner={player.id}
             className="w-(--card-w-sm) aspect-5/7"
         >
-            <div className="relative">
-                <CardsPile
-                    cards={pileCards}
-                    emptyLabel="Exile"
-                    title={
-                        isExileChoice
-                            ? (head!.prompt ??
-                              "Choose a card from the exile zone")
-                            : "Exile"
-                    }
-                    zoneIcon={<ExileIcon className="w-8 h-8 opacity-60" />}
-                    onCardClick={onCardClick}
-                    forceOpen={isExileChoice && !isMinimized}
-                    onMinimize={isExileChoice ? minimize : undefined}
-                    layout="grid"
-                    selectedIds={isExileChoice ? bufferCtx.buffer : undefined}
-                    eligibleIds={isExileChoice ? eligibleIds : undefined}
-                    footer={
-                        isExileChoice ? (
-                            <LibrarySearchConfirm
-                                min={choiceMin}
-                                max={choiceMax}
-                            />
-                        ) : undefined
-                    }
-                    // CR 601.3e — a card a player has exiled with cast-from-exile
-                    // permission (Ice Cauldron) is castable by that player from
-                    // the Exile zone. Surface a Cast button on those cards; the
-                    // backend cast mutation already validates the exile origin.
-                    // Suppressed while an exile choice owns the pile so the two
-                    // interactions never collide.
-                    renderCardAction={
-                        isExileChoice
-                            ? undefined
-                            : (card, onClose) =>
-                                  card.castableFromExileBy === playerId ? (
-                                      <ExileCastButton
-                                          card={card}
-                                          onCommitted={onClose}
-                                      />
-                                  ) : null
-                    }
-                    // Portrait chip control only drives the normal browse —
-                    // never while a blocking exile pick owns the modal.
-                    open={isExileChoice ? undefined : open}
-                    onOpenChange={isExileChoice ? undefined : onOpenChange}
-                />
-            </div>
+            {pileActions.length === 0 ? (
+                <div className="relative">{pile}</div>
+            ) : (
+                <ContextMenu>
+                    <ContextMenuTrigger>
+                        <div className="relative cursor-pointer">{pile}</div>
+                    </ContextMenuTrigger>
+                    <ContextMenuContent className="w-56">
+                        {pileActions.map((action) => (
+                            <ContextMenuItem
+                                key={action.key}
+                                inset
+                                onClick={action.onSelect}
+                            >
+                                {action.label}
+                            </ContextMenuItem>
+                        ))}
+                    </ContextMenuContent>
+                </ContextMenu>
+            )}
         </div>
     );
 }

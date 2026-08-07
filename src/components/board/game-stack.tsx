@@ -139,6 +139,7 @@ export default function GameStack({ stack, elevated, narrow }: GameStackProps) {
 
     return (
         <div
+            data-testid="game-stack"
             // Anchored to the VIEWPORT right edge (QA): parked at the play
             // area's edge (`--right-piles-w`) the panel reached far enough left
             // to sit under every play-area-centered dialog (card placement,

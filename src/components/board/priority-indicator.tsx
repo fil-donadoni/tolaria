@@ -36,6 +36,7 @@ export default function PriorityIndicator() {
     return (
         <div
             aria-hidden
+            data-testid="priority-indicator"
             className="pointer-events-none absolute inset-0 z-hud"
             style={{ boxShadow: style.glow }}
         />

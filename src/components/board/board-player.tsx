@@ -1,5 +1,5 @@
 import type { Player } from "~/types/game";
-import { usePlayerInteraction } from "~/hooks/usePlayerInteraction";
+import { usePlayerInteractionHook } from "~/hooks/usePlayerInteractionContext";
 import { useIsPortrait } from "~/hooks/useIsPortrait";
 import { useViewportMode } from "~/hooks/useViewportMode";
 import { PORTRAIT_VIEWER_NAMEPLATE_BOTTOM } from "~/lib/portrait-board-bands";
@@ -92,7 +92,13 @@ function seatAnchorClass(
  *  anchor element per player, which the arrow publisher
  *  ({@link useDomAnchorPublisher}) measures. */
 export default function BoardPlayer({ player, side }: BoardPlayerProps) {
-    const interaction = usePlayerInteraction(player);
+    // Read WHICH interaction hook to call (provider-supplied, else the real
+    // `usePlayerInteraction`) and call it right here, unconditionally, exactly
+    // where the direct call used to live — see
+    // `usePlayerInteractionContext.ts` for why the hook itself, not its
+    // result, is what's injected (issue #2169, mirroring #2166).
+    const useInteraction = usePlayerInteractionHook();
+    const interaction = useInteraction(player);
     const isPortrait = useIsPortrait();
     const landscapeCompact = useViewportMode() === "landscape-compact";
     // Relative wrapper so the floating mana-pool indicator anchors to the
