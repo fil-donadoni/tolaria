@@ -4,11 +4,25 @@ import {
     internalMutation,
     internalQuery,
     mutation,
+    query,
+    type QueryCtx,
 } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import { getCurrentUserId } from "./auth";
+import { getCurrentUserId, assertIsAdmin } from "./auth";
 import { expandState } from "./gre/serialize";
+import {
+    describeOwedInput,
+    summarizeGameSnapshot,
+    type GameSnapshot,
+} from "./bugReportSummary";
+
+// Re-exported so existing importers (`convex/__tests__/bugReports.test.ts`)
+// keep working unchanged — the derivation itself now lives in
+// `bugReportSummary.ts` because it must also be importable from the client
+// (see that module's header comment).
+export { describeOwedInput };
+export type { GameSnapshot };
 
 // Bug-report intake. A floating in-app button (all routes) opens a dialog that
 // collects a reporter name/email, a free-text description and an optional file,
@@ -53,42 +67,11 @@ export type IssueInput = {
     reportId?: string;
 };
 
-/** The `gameStates` row for a report, already expanded to a real `GameState`.
- *  The compact on-disk form encodes cards as indices into a per-row pool, which
- *  is unreadable without running `expandState` — the point of attaching it is
- *  that a human or an agent can read it straight out of the issue. */
-export type GameSnapshot = {
-    gameId: string;
-    seq: number;
-    state: Record<string, unknown>;
-};
-
 /**
- * Names the containers that are holding the game up, derived from the state's
- * own keys rather than from a hand-written list. Every "the game is waiting on
- * someone" container in `GameState` is named `pending*` (`pendingCast`,
- * `pendingActivation`, `pendingChoices`, `pendingTarget`,
- * `pendingCompanionPay`, …), so a census over the keys stays correct when a new
- * one is added — a hand-maintained list is precisely how #1209's park family
- * grew uncovered one member at a time.
- */
-export function describeOwedInput(state: Record<string, unknown>): string[] {
-    const owed: string[] = [];
-    for (const key of Object.keys(state).sort()) {
-        if (!key.startsWith("pending")) continue;
-        const value = state[key];
-        if (value === undefined || value === null) continue;
-        if (Array.isArray(value)) {
-            if (value.length > 0) owed.push(`${key}[${value.length}]`);
-            continue;
-        }
-        owed.push(key);
-    }
-    return owed;
-}
-
-/**
- * Pure renderer for the board-context lines of the issue body.
+ * Pure renderer for the board-context lines of the issue body — formats
+ * `summarizeGameSnapshot`'s structured facts as markdown. The admin
+ * `/admin/bug-reports` detail view (`BugReportSnapshotHeader`) formats the
+ * SAME derivation as UI instead; neither re-derives it.
  *
  * Deliberately a SUMMARY and not the state itself. Turn, phase, whose priority
  * it is and which container is owed input are public facts about a position —
@@ -97,19 +80,20 @@ export function describeOwedInput(state: Record<string, unknown>): string[] {
  * happened" lives on the `bugReports` row, off the public tracker.
  */
 export function buildGameStateSection(snapshot: GameSnapshot): string {
-    const { state } = snapshot;
+    const summary = summarizeGameSnapshot(snapshot);
     const facts = [
-        `\`${snapshot.gameId}\``,
-        `seq ${snapshot.seq}`,
-        `turn ${String(state.turn ?? "?")}`,
-        String(state.phase ?? "?"),
-        `active: ${String(state.activePlayerId ?? "?")}`,
-        `priority: ${String(state.priorityPlayerId ?? "?")}`,
+        `\`${summary.gameId}\``,
+        `seq ${summary.seq}`,
+        `turn ${summary.turn}`,
+        summary.phase,
+        `active: ${summary.activePlayerId}`,
+        `priority: ${summary.priorityPlayerId}`,
     ];
     const lines = [`**Game:** ${facts.join(" · ")}`];
 
-    const owed = describeOwedInput(state);
-    if (owed.length > 0) lines.push(`**Owed input:** ${owed.join(", ")}`);
+    if (summary.owedInput.length > 0) {
+        lines.push(`**Owed input:** ${summary.owedInput.join(", ")}`);
+    }
 
     return lines.join("\n");
 }
@@ -353,6 +337,107 @@ export const getReport = internalQuery({
             filedAt: row._creationTime,
         };
     },
+});
+
+/**
+ * List rows for the `/admin/bug-reports` page (issue #2250). `getReport`
+ * above is `internalQuery`-only — an admin UI cannot call it, and its
+ * "operator with a deployment admin key + `bunx convex run … --prod`" path is
+ * exactly what this page exists to route around. `assertIsAdmin` runs FIRST
+ * (ADR 0033) — hiding the route in the UI (`AdminRouteGate`) is cosmetic only.
+ *
+ * Newest first: `bugReports` has no creation-time index, so plain `.order
+ * ("desc")` on the default `_creationTime` order is the newest-first read.
+ *
+ * Returns a SUMMARY shape, never `state`: a `gameStates` snapshot is 3-9 KB,
+ * and Convex has no column projection — `.collect()` deserialises whole
+ * documents regardless — so the only way to keep a snapshot off the wire is
+ * to never put it on the object this handler returns. The detail query
+ * (`getBugReport`) is the only one of the two that reads `state`.
+ */
+export async function listBugReportsHandler(ctx: QueryCtx) {
+    await assertIsAdmin(ctx);
+    const rows = await ctx.db.query("bugReports").order("desc").collect();
+    return rows.map((row) => ({
+        _id: row._id,
+        filedAt: row._creationTime,
+        name: row.name,
+        descriptionPreview: row.description.split("\n")[0]!.slice(0, 200),
+        issueNumber: row.issueNumber,
+        hasSnapshot: row.state !== undefined,
+        hasAttachment: row.attachmentId !== undefined,
+    }));
+}
+
+export const listBugReports = query({
+    args: {},
+    returns: v.array(
+        v.object({
+            _id: v.id("bugReports"),
+            filedAt: v.number(),
+            name: v.string(),
+            descriptionPreview: v.string(),
+            issueNumber: v.optional(v.number()),
+            hasSnapshot: v.boolean(),
+            hasAttachment: v.boolean(),
+        })
+    ),
+    handler: listBugReportsHandler,
+});
+
+/**
+ * Detail row for the `/admin/bug-reports` page (issue #2250) — everything
+ * `getReport` returns, `assertIsAdmin`-gated instead of internal-only. Same
+ * attachment-URL-minted-at-read-time rule as `getReport`: the stored form is
+ * an id, never a URL, so the link is always fresh and never persisted.
+ */
+export async function getBugReportHandler(
+    ctx: QueryCtx,
+    args: { reportId: Id<"bugReports"> }
+) {
+    await assertIsAdmin(ctx);
+    const row = await ctx.db.get(args.reportId);
+    if (!row) return null;
+    return {
+        name: row.name,
+        email: row.email,
+        description: row.description,
+        route: row.route,
+        userAgent: row.userAgent,
+        attachmentName: row.attachmentName,
+        attachmentUrl: row.attachmentId
+            ? await ctx.storage.getUrl(row.attachmentId)
+            : null,
+        gameId: row.gameId,
+        seq: row.seq,
+        state: row.state,
+        issueNumber: row.issueNumber,
+        issueUrl: row.issueUrl,
+        filedAt: row._creationTime,
+    };
+}
+
+export const getBugReport = query({
+    args: { reportId: v.id("bugReports") },
+    returns: v.union(
+        v.null(),
+        v.object({
+            name: v.string(),
+            email: v.string(),
+            description: v.string(),
+            route: v.optional(v.string()),
+            userAgent: v.optional(v.string()),
+            attachmentName: v.optional(v.string()),
+            attachmentUrl: v.union(v.string(), v.null()),
+            gameId: v.optional(v.id("games")),
+            seq: v.optional(v.number()),
+            state: v.optional(v.any()),
+            issueNumber: v.optional(v.number()),
+            issueUrl: v.optional(v.string()),
+            filedAt: v.number(),
+        })
+    ),
+    handler: getBugReportHandler,
 });
 
 /**
