@@ -92,13 +92,20 @@ export function buildManualArrowPairs(
     cardById: Map<string, ProjectedManualCard>
 ): ManualArrowPair[] {
     const pairs: ManualArrowPair[] = [];
+    const seenKeys = new Set<string>();
     for (const card of cardById.values()) {
         for (const targetId of card.arrows ?? []) {
-            pairs.push({
-                key: `manual:${card.id}->${targetId}`,
-                fromId: card.id,
-                toId: targetId,
-            });
+            const key = `manual:${card.id}->${targetId}`;
+            // Defensive dedupe (#2338 review): `manualSetArrow` is idempotent
+            // going forward, but a state persisted before that fix — or any
+            // other future writer — could still carry a duplicate target in
+            // one card's `arrows[]`. Two pairs with the same key feed
+            // `<g key={arrow.key}>` (`board-arrows.tsx`) and crash React with
+            // a duplicate-key error, so this reducer is the last line before
+            // that key reaches JSX.
+            if (seenKeys.has(key)) continue;
+            seenKeys.add(key);
+            pairs.push({ key, fromId: card.id, toId: targetId });
         }
     }
     return pairs;

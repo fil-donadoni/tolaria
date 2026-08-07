@@ -633,7 +633,16 @@ export function manualSetArrow(
                 timestamp: Date.now(),
             },
         };
-    found.card.arrows = [...(found.card.arrows ?? []), targetId];
+    // A declaration, not an event log: shift-dragging A onto B twice is a
+    // normal, non-toggling action (no click-to-remove affordance exists), so
+    // re-declaring an already-present target is a no-op rather than a second
+    // identical entry (#2338 review — duplicate `arrows[]` entries collide on
+    // `buildManualArrowPairs`' `manual:from->to` key and crash React with a
+    // duplicate-key error).
+    const existing = found.card.arrows ?? [];
+    found.card.arrows = existing.includes(targetId)
+        ? existing
+        : [...existing, targetId];
     const pn = playerName(state, found.card.ownerId);
     return {
         state: s,

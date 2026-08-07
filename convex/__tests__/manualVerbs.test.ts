@@ -306,6 +306,24 @@ describe("manual verbs - table driven", () => {
         ]);
     });
 
+    it("setArrow: re-declaring the same target is a no-op, not a duplicate entry (#2338)", () => {
+        // Shift-dragging A onto B twice is a normal action — there is no
+        // toggle-off — so `arrows` must stay `["bear"]`, never `["bear",
+        // "bear"]`. A duplicate would collide on `buildManualArrowPairs`'
+        // `manual:from->to` key and crash React with a duplicate-key error.
+        const state = freshState();
+        const card = getPlayer(state, "p1").hand[0];
+        const target = getPlayer(state, "p2").hand[0];
+        moveToBattlefield(state, card.id);
+        moveToBattlefield(state, target.id);
+        const s2 = manualSetArrow(state, card.id, target.id);
+        const result = manualSetArrow(s2.state, card.id, target.id);
+
+        expect(findCardInState(result.state, card.id)!.card.arrows).toEqual([
+            target.id,
+        ]);
+    });
+
     it("clearArrows: clears all arrows", () => {
         const state = freshState();
         const card = getPlayer(state, "p1").hand[0];

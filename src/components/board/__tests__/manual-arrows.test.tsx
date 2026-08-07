@@ -155,6 +155,26 @@ describe("manual arrows render through the shared arrow layer (#2171 AC1)", () =
         ]);
     });
 
+    it("dedupes a duplicate target in one card's arrows[] (defensive, #2338)", () => {
+        // `manualSetArrow` is idempotent going forward, but a state persisted
+        // before that fix (or a future writer) could still carry a repeated
+        // target. Two identical-key pairs feed `<g key={arrow.key}>`
+        // (`board-arrows.tsx`) and crash React with a duplicate-key error —
+        // this reducer is the last line before that key reaches JSX.
+        const state = manualState([
+            manualSeat("me", {
+                battlefield: [
+                    manualCard("bolt", { arrows: ["bear", "bear"] }),
+                    manualCard("bear"),
+                ],
+            }),
+        ]);
+        const cardById = indexManualCards(state);
+        expect(buildManualArrowPairs(cardById)).toEqual([
+            { key: "manual:bolt->bear", fromId: "bolt", toId: "bear" },
+        ]);
+    });
+
     it("draws an arrow between two permanents from extraArrows at their published anchors", () => {
         const { container } = render(
             <div data-board-root>
