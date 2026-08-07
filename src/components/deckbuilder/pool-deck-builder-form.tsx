@@ -11,9 +11,7 @@ import { poolFromLimitedPoolCards } from "@convex/limited/poolResolution";
 import {
     assignPoolCopies,
     pinsByPoolIndex,
-    poolCopyPinKey,
     splitPoolByArrangement,
-    type PlainPoolCard,
 } from "@convex/limited/poolArrangement";
 import {
     addManualColumn,
@@ -56,6 +54,7 @@ import {
     seededColumnView,
 } from "./deckZoneColumnView";
 import PoolBasicLandsBar from "./pool-basic-lands-bar";
+import { toZoneCards } from "./poolZoneCards";
 import { useDeckWorkspace, type DeckSaveSink } from "./useDeckWorkspace";
 
 // Floored at CARD_MIN_W (issue #2056) so a short-and-wide viewport (landscape
@@ -96,25 +95,6 @@ function defaultWorkingDeck(pool: readonly LimitedPoolCard[]): WorkingDeck {
             }))
         ),
     };
-}
-
-/** Pool cards as ZONE entries carrying their per-copy Pin identity (issue
- *  #1626): the Pool's own `poolIndex`, stringified by the one authority
- *  (`poolCopyPinKey`) that `pinsByPoolIndex` records Pins under.
- *
- *  This is where the Limited variant's per-copy identity ENTERS the working
- *  deck, and the only place it is ever established: from here on the entry
- *  carries it, and a Maindeck⇄Sideboard move moves the entry itself, so no
- *  later render re-derives it by counting occurrences in an array that
- *  renumbers (PR #2318 review B1). A card the Pool doesn't hold — a Basic
- *  added from the bar — has no `poolIndex`, so it gets no key and simply can
- *  never be pinned. */
-function toZoneCards(cards: readonly PlainPoolCard[]): ZoneCard[] {
-    return cards.map(({ cardId, cardName, poolIndex }) =>
-        poolIndex === undefined
-            ? { cardId, cardName }
-            : { cardId, cardName, pinKey: poolCopyPinKey(poolIndex) }
-    );
 }
 
 /** A DRAFT event's working deck, seeded from the Pool Arrangement built

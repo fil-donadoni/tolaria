@@ -11,7 +11,7 @@
 // poolIndex resolved from the projected pool + arrangement, not a
 // hand-picked index.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, fireEvent, cleanup } from "@testing-library/react";
+import { render, fireEvent, cleanup, within } from "@testing-library/react";
 import {
     projectLimitedEvent,
     type LimitedEventRow,
@@ -38,7 +38,14 @@ beforeEach(() => {
 
 afterEach(() => {
     cleanup();
+    // Grouping/Ordering are per-USER preferences (issue #1620's
+    // `deckViewPrefs` seam) written to `localStorage`, so a test that drives a
+    // control would otherwise seed every later mount in this file.
+    window.localStorage.clear();
 });
+
+const GROUPING_KEY = "tolaria:deckViewPrefs:grouping:";
+const ORDERING_KEY = "tolaria:deckViewPrefs:ordering:";
 
 // Real registry ids — the shared surface's `groupDeckIntoPiles` resolves
 // each card via the card registry, so synthetic ids would throw.
@@ -248,5 +255,210 @@ describe("LimitedDraftPool through projectLimitedEvent (ADR 0060, issue #1247)",
             poolIndex: 2,
             sideboard: false,
         });
+    });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// The REDUCED draft bar (ADR 0075 §6, issue #1632). The draft Pool mounts the
+// same `DeckZoneSurface` as both build views; what makes it the draft is
+// exactly what it does NOT offer, so these assertions are all about absence —
+// and absence is the failure mode nobody notices, which is why they are here
+// rather than left to a glance at the screen.
+// ────────────────────────────────────────────────────────────────────────────
+describe("LimitedDraftPool — the reduced draft bar (ADR 0075 §6, issue #1632)", () => {
+    function renderPool() {
+        const view = projectLimitedEvent(eventRow(undefined), "user1");
+        const own = view.seats.find((s) => s.seatIndex === 0)!;
+        return render(
+            <LimitedDraftPool
+                eventId={"event-1" as never}
+                pool={own.pool!}
+                arrangement={own.poolArrangement}
+            />
+        );
+    }
+
+    it("offers Grouping and Ordering on the Pool", () => {
+        const { getByLabelText } = renderPool();
+        expect(getByLabelText("Pool grouping")).toBeTruthy();
+        expect(getByLabelText("Pool ordering")).toBeTruthy();
+    });
+
+    it("offers NO filter control — hiding cards mid-draft can hide picks you already made", () => {
+        const { queryByLabelText } = renderPool();
+        expect(queryByLabelText("Pool creature filter")).toBeNull();
+        expect(queryByLabelText("Pool colour filter")).toBeNull();
+        expect(queryByLabelText("Sideboard creature filter")).toBeNull();
+        expect(queryByLabelText("Sideboard colour filter")).toBeNull();
+    });
+
+    it("offers NO column add/delete affordance — those are workbench gestures, not timed-draft ones", () => {
+        const { queryByLabelText, container } = renderPool();
+        expect(queryByLabelText("Add Pool column")).toBeNull();
+        expect(queryByLabelText("Add Sideboard column")).toBeNull();
+        // `DeckColumnActions` renders the per-column rename/delete controls;
+        // the surface passes neither callback, so no column grows one.
+        expect(
+            container.querySelector('[aria-label^="Rename column"]')
+        ).toBeNull();
+        expect(
+            container.querySelector('[aria-label^="Delete column"]')
+        ).toBeNull();
+        expect(
+            container.querySelector('[aria-label^="Cannot delete column"]')
+        ).toBeNull();
+    });
+
+    it("gives the narrow Sideboard strip no control bar of its own", () => {
+        const { queryByLabelText } = renderPool();
+        expect(queryByLabelText("Sideboard grouping")).toBeNull();
+        expect(queryByLabelText("Sideboard ordering")).toBeNull();
+    });
+
+    it("renders the Catch-All Column exactly as elsewhere — present when a card falls through, absent when none does", () => {
+        // Under Grouping `mv` with a registry-resolvable Pool nothing falls
+        // through, so the draft grows no permanently-empty extra column…
+        expect(
+            renderPool().container.querySelector('[data-column="catch-all"]')
+        ).toBeNull();
+        cleanup();
+
+        // …but a card no generated Column claims lands in it, visible, rather
+        // than vanishing — the whole guarantee the Catch-All exists for.
+        const view = projectLimitedEvent(eventRow(undefined), "user1");
+        const own = view.seats.find((s) => s.seatIndex === 0)!;
+        const { container } = render(
+            <LimitedDraftPool
+                eventId={"event-1" as never}
+                pool={[
+                    ...own.pool!,
+                    {
+                        scryfallId: "s-unknown",
+                        cardId: "not-in-the-registry",
+                        cardName: "Unresolvable Card",
+                    },
+                ]}
+                arrangement={own.poolArrangement}
+            />
+        );
+        const catchAll = container.querySelector('[data-column="catch-all"]')!;
+        expect(catchAll).toBeTruthy();
+        expect(
+            within(catchAll as HTMLElement).getByTitle(
+                /Remove Unresolvable Card/
+            )
+        ).toBeTruthy();
+    });
+});
+
+describe("LimitedDraftPool — view preferences are the draft's own (issue #1632)", () => {
+    function renderPool() {
+        const view = projectLimitedEvent(eventRow(undefined), "user1");
+        const own = view.seats.find((s) => s.seatIndex === 0)!;
+        return render(
+            <LimitedDraftPool
+                eventId={"event-1" as never}
+                pool={own.pool!}
+                arrangement={own.poolArrangement}
+            />
+        );
+    }
+
+    it("writes a Grouping change to the DRAFT key and leaves the build view's zones untouched", () => {
+        const { getByLabelText } = renderPool();
+        fireEvent.change(getByLabelText("Pool grouping"), {
+            target: { value: "color" },
+        });
+        expect(window.localStorage.getItem(GROUPING_KEY + "draft")).toBe(
+            '"color"'
+        );
+        expect(window.localStorage.getItem(GROUPING_KEY + "main")).toBeNull();
+        expect(window.localStorage.getItem(GROUPING_KEY + "side")).toBeNull();
+    });
+
+    it("writes an Ordering change to the DRAFT key too", () => {
+        const { getByLabelText } = renderPool();
+        fireEvent.change(getByLabelText("Pool ordering"), {
+            target: { value: "mv" },
+        });
+        expect(window.localStorage.getItem(ORDERING_KEY + "draft")).toBe(
+            '"mv"'
+        );
+        expect(window.localStorage.getItem(ORDERING_KEY + "main")).toBeNull();
+    });
+
+    it("seeds from the DRAFT preference, not the build view's Maindeck one", () => {
+        // The two disagree on purpose: a Pool reading `main` would render the
+        // Mana-Value ladder, and a Pool reading nothing would render the `mv`
+        // default — both distinguishable from the colour ladder below.
+        window.localStorage.setItem(GROUPING_KEY + "draft", '"color"');
+        window.localStorage.setItem(GROUPING_KEY + "main", '"mv"');
+        const { getByText, queryByText } = renderPool();
+        expect(getByText("Red")).toBeTruthy();
+        expect(queryByText("MV 1")).toBeNull();
+    });
+
+    it("a Grouping change re-buckets the Pool live, and every Card Pin survives it (ADR 0075 §3)", () => {
+        const view = projectLimitedEvent(
+            eventRow([{ poolIndex: 0, pins: { mv: "mv:6" } }]),
+            "user1"
+        );
+        const own = view.seats.find((s) => s.seatIndex === 0)!;
+        const { getByLabelText, container } = render(
+            <LimitedDraftPool
+                eventId={"event-1" as never}
+                pool={own.pool!}
+                arrangement={own.poolArrangement}
+            />
+        );
+        const boltsIn = (columnId: string) =>
+            within(
+                container.querySelector(`[data-column="${columnId}"]`)!
+            ).queryAllByTitle(/Remove Lightning Bolt/).length;
+
+        expect(boltsIn("mv:6")).toBe(1);
+        fireEvent.change(getByLabelText("Pool grouping"), {
+            target: { value: "color" },
+        });
+        // The `mv` Pin is namespaced, so the colour view buckets by colour…
+        expect(boltsIn("color:R")).toBe(2);
+        fireEvent.change(getByLabelText("Pool grouping"), {
+            target: { value: "mv" },
+        });
+        // …and flipping back finds the arrangement exactly as it was.
+        expect(boltsIn("mv:6")).toBe(1);
+    });
+});
+
+describe("LimitedDraftPool — the Booster and timer keep their vertical space (issue #1632)", () => {
+    it("both panes clamp their own height so a big Pool scrolls inside them instead of growing the page", () => {
+        // A flex child defaults to `min-height: auto` (= its content), which
+        // is exactly what lets a 45-card Pool grow the row and push the
+        // Booster and the descending timer off screen. Both panes must opt
+        // out (`min-h-0`) and contain their own overflow; the surface's card
+        // area (`flex-1 overflow-auto`) does the scrolling.
+        const view = projectLimitedEvent(eventRow(undefined), "user1");
+        const own = view.seats.find((s) => s.seatIndex === 0)!;
+        const { container } = render(
+            <LimitedDraftPool
+                eventId={"event-1" as never}
+                pool={own.pool!}
+                arrangement={own.poolArrangement}
+            />
+        );
+        const root = container.firstElementChild as HTMLElement;
+        const classesOf = (el: Element) => el.className.split(/\s+/);
+        expect(classesOf(root)).toContain("min-h-0");
+        expect(classesOf(root)).toContain("overflow-hidden");
+
+        const [poolPane, sidePane] = [...root.children] as HTMLElement[];
+        expect(classesOf(poolPane)).toContain("min-h-0");
+        expect(classesOf(poolPane)).toContain("overflow-hidden");
+        expect(classesOf(sidePane)).toContain("overflow-y-auto");
+
+        // The scrolling actually happens in the surface's own card area.
+        const scroller = poolPane.querySelector(".overflow-auto");
+        expect(scroller).toBeTruthy();
+        expect(classesOf(scroller!)).toContain("flex-1");
     });
 });

@@ -278,3 +278,46 @@ describe("default localStorage argument", () => {
         localStorage.clear();
     });
 });
+
+// The draft-time Pool is a THIRD preference zone (issue #1632, ADR 0075 §6),
+// not a reuse of the build view's Maindeck: it mounts the same shared surface
+// but under a pick timer, and a Grouping chosen there must not silently
+// reconfigure the workbench (nor the reverse).
+describe("the draft-Pool zone (issue #1632)", () => {
+    it("defaults exactly like the build view's zones when nothing is stored", () => {
+        const storage = makeStorage();
+        expect(loadGrouping("draft", storage)).toBe(DEFAULT_GROUPING);
+        expect(loadOrdering("draft", storage)).toBe(DEFAULT_ORDERING);
+    });
+
+    it("keys independently of BOTH build-view zones, in both directions", () => {
+        const storage = makeStorage();
+        saveGrouping("draft", "color", storage);
+        expect(loadGrouping("main", storage)).toBe(DEFAULT_GROUPING);
+        expect(loadGrouping("side", storage)).toBe(DEFAULT_GROUPING);
+
+        saveGrouping("main", "type", storage);
+        saveGrouping("side", "none", storage);
+        expect(loadGrouping("draft", storage)).toBe("color");
+    });
+
+    it("keys Ordering independently too", () => {
+        const storage = makeStorage();
+        saveOrdering("draft", "rarity", storage);
+        saveOrdering("main", "mv", storage);
+        expect(loadOrdering("draft", storage)).toBe("rarity");
+        expect(loadOrdering("main", storage)).toBe("mv");
+    });
+
+    it("follows the same tolaria: key convention as the other zones", () => {
+        const storage = makeStorage();
+        saveGrouping("draft", "type", storage);
+        saveOrdering("draft", "color", storage);
+        expect(storage.getItem("tolaria:deckViewPrefs:grouping:draft")).toBe(
+            '"type"'
+        );
+        expect(storage.getItem("tolaria:deckViewPrefs:ordering:draft")).toBe(
+            '"color"'
+        );
+    });
+});

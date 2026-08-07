@@ -1,21 +1,19 @@
 import { useDroppable } from "@dnd-kit/react";
 import { cn } from "~/lib/utils";
 import { pileHeight } from "~/lib/card-layout";
-import PoolCardTile, {
-    type PoolCardTileProps,
-} from "~/components/limited/pool-card-tile";
+import DeckCardTile, { type DeckCardTileProps } from "./deck-card-tile";
 
 /** One tile in a Column pile, plus the stable React key its host assigns. */
-export interface DeckPileTile extends PoolCardTileProps {
+export interface DeckPileTile extends DeckCardTileProps {
     key: string;
 }
 
 /**
  * The ONE Column pile (ADR 0075, issue #1622): a labelled, overlaid stack of
- * `PoolCardTile`s that is also a dnd-kit drop target. Every deckbuilder
+ * `DeckCardTile`s that is also a dnd-kit drop target. Every deckbuilder
  * surface renders its Columns through this — the Constructed Maindeck and
- * Sideboard, the Limited Maindeck and Sideboard, and (via `PoolColumnPile`)
- * the draft-time Pool.
+ * Sideboard, the Limited Maindeck and Sideboard, and (since issue #1632, via
+ * the same `DeckZoneSurface` as all of those) the draft-time Pool.
  *
  * `droppable: false` keeps the pile registered but inert, which is how the
  * Sideboard works: the whole PANE is the drop target there (a card dropped in
@@ -76,7 +74,7 @@ export default function DeckColumnPile({
                 style={{ height: pileHeight(tiles.length) }}
             >
                 {tiles.map(({ key, ...tile }, idx) => (
-                    <PoolCardTile key={key} {...tile} stackIndex={idx} />
+                    <DeckCardTile key={key} {...tile} stackIndex={idx} />
                 ))}
             </div>
         </div>

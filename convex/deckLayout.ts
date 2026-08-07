@@ -8,11 +8,12 @@
 // same module (ADR 0074: the frontend may import pure engine modules; it just
 // never holds authority).
 //
-// It subsumes the two grouping helpers that exist today — the Constructed
-// dynamic Mana-Value piles (`src/components/lobby/deckGrouping.ts`) and the
-// Limited fixed-column ladder (`src/components/limited/limitedPoolColumns.ts`)
-// — but this module only ADDS beside them; the rewiring happens in the
-// ZoneSurface slice.
+// It subsumed the three grouping helpers that predated it — the Constructed
+// dynamic Mana-Value piles (`src/components/lobby/deckGrouping.ts`), and the
+// Limited fixed-column ladders of the build view and the draft-time Pool
+// (`limitedPoolColumns.ts`) — all of which are now retired: every deckbuilder
+// and draft surface resolves its Columns here and nowhere else (issues
+// #1622/#1632).
 //
 // Vocabulary (CONTEXT.md): a **Column Layout** is per **Zone** and owns a
 // **Grouping** (which generates predicate-carrying **Columns**), an ordered
@@ -58,10 +59,10 @@ export const CATCH_ALL_COLUMN_LABEL = "Catch-All";
 export const UNGROUPED_COLUMN_ID = "all";
 
 /** Highest numbered Mana-Value column — every card of this value or higher
- *  shares the one `MV 7+` bucket. Mirrors `MAX_POOL_COLUMN`
- *  (`src/components/limited/limitedPoolColumns.ts`), which this engine
- *  subsumes in the ZoneSurface slice; the ladder is reproduced exactly so the
- *  Limited surface can adopt it with no visible change. */
+ *  shares the one `MV 7+` bucket. Reproduces the retired Limited
+ *  `MAX_POOL_COLUMN` ladder exactly, which is why adopting this engine cost
+ *  the Limited build view (#1622) and the draft-time Pool (#1632) no visible
+ *  change. */
 export const MAX_MANA_VALUE_COLUMN = 7;
 
 /** A **Deck Zone** — the unit a Column Layout belongs to. Each Zone owns its

@@ -6,7 +6,10 @@ import {
     PointerSensor,
     type DragEndEvent,
 } from "@dnd-kit/react";
-import { PointerActivationConstraints } from "@dnd-kit/dom";
+import {
+    PointerActivationConstraints,
+    type DragDropManager,
+} from "@dnd-kit/dom";
 import type { Id } from "@convex/_generated/dataModel";
 import {
     useLimitedEventMutations,
@@ -24,10 +27,11 @@ import LimitedPickContextMenu, {
     type LimitedPickContextMenuState,
 } from "./limited-pick-context-menu";
 import {
+    poolArrangementPatch,
     resolveDraftDragAction,
     type DraftDragData,
-    type DraftDropTarget,
 } from "./limitedDraftDrag";
+import type { ColumnId } from "@convex/deckLayout";
 
 // Same responsive base size as the shared pool deckbuilder surface / draft
 // pack (`CARD_BASE` in `pool-deck-builder-form.tsx` / `limited-draft-pack.tsx`),
@@ -39,31 +43,41 @@ const CARD_BASE = cardBase("7.5rem", "17vw", "9dvh");
  *  Selected Card per ADR 0060, issue #1248): the Booster in front of the
  *  viewer and the viewer's accumulated Pool so far, sharing ONE
  *  `DragDropProvider` so a Booster card can be dragged straight into a Pool
- *  column or the Sideboard (`LimitedDraftPool`'s columns register their own
+ *  Column or the Sideboard (`LimitedDraftPool` mounts the shared
+ *  `DeckZoneSurface`, whose Columns and Sideboard pane register their own
  *  `useDroppable` targets as descendants of this provider — see
  *  `limitedDraftDrag.ts`'s module doc comment).
  *
  *  Gestures:
  *  - single click on a Booster card → SELECTS it (`selectDraftPick`),
  *    never commits.
- *  - double click / the context-menu "Pick" / a drag onto a Pool column →
- *    commits the Pick into its Mana-Value column (or the dropped-on column,
- *    for a drag onto a SPECIFIC one).
+ *  - double click / the context-menu "Pick" / a drag onto a Pool Column →
+ *    commits the Pick into its automatic Column (or the dropped-on Column,
+ *    for a drag onto a SPECIFIC one — any Column the current Grouping
+ *    generates, issue #1632).
  *  - the context-menu "Pick to sideboard" / a drag onto the Sideboard →
  *    commits the Pick AND parks the new Pool card in the Sideboard, in one
  *    user gesture.
- *  - Pool ⇄ Sideboard / between Mana-Value columns: drag OR double-click
+ *  - Pool ⇄ Sideboard / between Columns: drag OR click
  *    (`LimitedDraftPool`'s own tiles), persisted via `setPoolArrangementEntry`. */
 export default function LimitedDraftTable({
     eventId,
     seat,
     round,
     totalRounds,
+    manager,
 }: {
     eventId: Id<"limitedEvents">;
     seat: LimitedEventSeatView;
     round: number;
     totalRounds: number;
+    /** dnd-kit manager, forwarded to this screen's own `DragDropProvider`.
+     *  Omitted in the app (the provider makes its own); the mounted drag tests
+     *  inject one so they can drive REAL drag operations against the REAL
+     *  droppable registry — jsdom has no layout, so a pointer-driven drag can
+     *  never resolve a drop target there. Same escape hatch `DeckBuilder` and
+     *  `PoolDeckBuilderForm` already carry. */
+    manager?: DragDropManager;
 }) {
     const { submitPick, selectDraftPick, setPoolArrangementEntry } =
         useLimitedEventMutations();
@@ -109,38 +123,21 @@ export default function LimitedDraftTable({
         void selectDraftPick({ eventId, pickId }).catch(() => {});
     };
 
-    // Commits the Pick AND immediately parks the freshly-picked Pool card
-    // in the Sideboard — the context-menu "Pick to sideboard" action and a
-    // Booster→Sideboard drag both resolve here. `pool` is append-only
+    // Commits the Pick AND immediately files the freshly-picked Pool card
+    // where the gesture said — the Sideboard (context-menu "Pick to
+    // sideboard", or a Booster→Sideboard drag) or the exact Column it was
+    // dropped on (a Booster→Pool-Column drag). `pool` is append-only
     // (`applyPick`), so the new card's `poolIndex` is exactly the CURRENT
     // pool length, captured before the pick lands.
-    const handlePickToSideboard = async (pickId: string) => {
-        if (pending) return;
-        setPending(true);
-        setError(null);
-        const poolIndex = pool.length;
-        try {
-            await submitPick({ eventId, pickId });
-            await setPoolArrangementEntry({
-                eventId,
-                poolIndex,
-                sideboard: true,
-            });
-        } catch (err) {
-            setError(
-                err instanceof Error ? err.message : "Something went wrong."
-            );
-        } finally {
-            setPending(false);
-        }
-    };
-
-    // Commits the Pick and overrides its column to exactly the one it was
-    // dropped on — a Booster→Pool-column drag (a numbered Mana-Value
-    // column, or "lands" — issue #1573).
-    const handlePickToColumn = async (
+    //
+    // Column ids are the shared engine's namespaced ones since issue #1632
+    // (`mv:3`, `color:R`, `custom:ramp`), not the old `number | "lands"` pair
+    // — the Pool renders through `DeckZoneSurface` now, so a drop can land on
+    // a colour or type Column just as it can in the build view.
+    const handlePickTo = async (
         pickId: string,
-        column: number | "lands"
+        sideboard: boolean,
+        columnId: ColumnId | null
     ) => {
         if (pending) return;
         setPending(true);
@@ -148,7 +145,15 @@ export default function LimitedDraftTable({
         const poolIndex = pool.length;
         try {
             await submitPick({ eventId, pickId });
-            await setPoolArrangementEntry({ eventId, poolIndex, column });
+            // A plain Pool drop that names no Column (and no Sideboard) is
+            // just a Pick: the card already defaults into the Pool, so there
+            // is nothing to record.
+            if (sideboard || columnId !== null) {
+                await setPoolArrangementEntry({
+                    eventId,
+                    ...poolArrangementPatch(poolIndex, sideboard, columnId),
+                });
+            }
         } catch (err) {
             setError(
                 err instanceof Error ? err.message : "Something went wrong."
@@ -158,17 +163,22 @@ export default function LimitedDraftTable({
         }
     };
 
+    const handlePickToSideboard = (pickId: string) =>
+        handlePickTo(pickId, true, null);
+
     // Reorganises an ALREADY-picked Pool card (Pool ⇄ Sideboard, or between
-    // Mana-Value columns) — a Pool-card drag.
+    // Columns) — a Pool-card drag. The SAME `setPoolArrangementEntry` write
+    // the build view's own column drag makes, on the same Pin model, which is
+    // what makes a draft-time arrangement already in effect when the build
+    // view opens (issue #1632).
     const handleMoveArrangement = (
         poolIndex: number,
-        target: DraftDropTarget
+        sideboard: boolean,
+        columnId: ColumnId | null
     ) => {
         void setPoolArrangementEntry({
             eventId,
-            poolIndex,
-            sideboard: target.kind === "sideboard",
-            ...(target.kind === "column" ? { column: target.column } : {}),
+            ...poolArrangementPatch(poolIndex, sideboard, columnId),
         }).catch(() => {});
     };
 
@@ -179,13 +189,13 @@ export default function LimitedDraftTable({
         const action = resolveDraftDragAction(data, destId);
         if (!action) return;
         if (action.type === "commitPick") {
-            if (action.target.kind === "sideboard") {
-                void handlePickToSideboard(action.pickId);
-            } else {
-                void handlePickToColumn(action.pickId, action.target.column);
-            }
+            void handlePickTo(action.pickId, action.sideboard, action.columnId);
         } else {
-            handleMoveArrangement(action.poolIndex, action.target);
+            handleMoveArrangement(
+                action.poolIndex,
+                action.sideboard,
+                action.columnId
+            );
         }
     };
 
@@ -212,7 +222,11 @@ export default function LimitedDraftTable({
     );
 
     return (
-        <DragDropProvider sensors={sensors} onDragEnd={handleDragEnd}>
+        <DragDropProvider
+            manager={manager}
+            sensors={sensors}
+            onDragEnd={handleDragEnd}
+        >
             <div className="mt-4 flex flex-col gap-3 border-t border-border-accent/20 pt-4">
                 <div className="flex items-center justify-between text-xs text-text-muted">
                     <span>

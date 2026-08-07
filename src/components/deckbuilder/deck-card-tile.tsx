@@ -3,36 +3,40 @@ import { cn } from "~/lib/utils";
 import { pileCardTop } from "~/lib/card-layout";
 import CardImage from "~/components/cards/card-image";
 import FeaturedCardButton from "~/components/lobby/deck-builder/featured-card-button";
-import type { DraftDragData } from "./limitedDraftDrag";
 import type { CardDragData } from "~/components/lobby/deck-builder/dnd-types";
 
-/** The drag payload a Pool tile carries — a `poolIndex`-keyed draft payload
- *  (`DraftDragData`) or a `cardId`-keyed deckbuilder payload (`CardDragData`).
- *  Each host constructs its own; the tile is agnostic. */
-export type PoolTileDragData = DraftDragData | CardDragData;
-
-/** The ONE Pool card tile (issue #1581) — a single draggable + clickable card
- *  face shared by BOTH the draft Pool and the limited deckbuilder, replacing
- *  the two forked tiles (`LimitedPoolCardTile` / `BuilderPile`'s inner
- *  `DraggableCard`). Phase-specific concerns are props, not sibling
- *  components: the drag identity/payload (`dragId` / `dragData` — a
- *  `poolIndex`-keyed `PoolDragData` in the draft, a `cardId`-keyed
- *  `CardDragData` in the deckbuilder), the gesture callbacks, and the tooltip.
- *  Every card renders as one member of an overlaid pile, so `stackIndex` is
- *  always set and the tile is `absolute`-positioned at its staggered `top`. */
-export interface PoolCardTileProps {
+/** The ONE deckbuilder card tile (issue #1581, re-homed here by #1632) — a
+ *  single draggable + clickable card face rendered by EVERY zone surface:
+ *  the Constructed Maindeck/Sideboard, the Limited build view's, and the
+ *  draft-time Pool's. It replaced the forked tiles (`LimitedPoolCardTile` /
+ *  `BuilderPile`'s inner `DraggableCard`); it lived under
+ *  `components/limited/` until the draft Pool stopped having a column
+ *  implementation of its own (#1632), which left the last file in that
+ *  directory importing it with none.
+ *
+ *  Surface-specific concerns are props, not sibling components: the drag
+ *  identity/payload (`dragId` / `dragData`), the gesture callbacks, and the
+ *  tooltip. Every card renders as one member of an overlaid pile, so
+ *  `stackIndex` is always set and the tile is `absolute`-positioned at its
+ *  staggered `top`. */
+export interface DeckCardTileProps {
     /** Registry Card ID — the card face to render. */
     cardId: string;
     /** dnd-kit draggable id (unique within the surface's DragDropProvider). */
     dragId: string;
-    /** Drag payload the surface's `onDragEnd` reads to resolve the move. */
-    dragData: PoolTileDragData;
+    /** Drag payload the surface's `onDragEnd` reads to resolve the move. One
+     *  shape across every surface: the `cardId`-keyed `CardDragData`, whose
+     *  optional `pinKey` names the physical COPY being dragged (issue #1626 —
+     *  the draft Pool's `poolIndex`, stringified). */
+    dragData: CardDragData;
     /** Tooltip; also the queryable handle tests match (`Remove <name> …`). */
     title: string;
     /** Fired on a plain click — the primary tap gesture (move zone / toggle). */
     onClick: () => void;
-    /** Fired on double-click — the draft Pool binds the SAME toggle here so
-     *  either gesture works; the deckbuilder omits it (single-click only). */
+    /** Fired on double-click. Every current surface omits it — the click
+     *  handlers are idempotent, so a double-click already resolves as the same
+     *  move twice — but it stays a prop rather than being dropped, because a
+     *  tile is the one place a distinct double-click gesture could be bound. */
     onDoubleClick?: () => void;
     /** Position in the overlaid pile — the tile renders `absolute` at the
      *  staggered `top` so only a sliver of each lower card shows and the
@@ -49,7 +53,7 @@ export interface PoolCardTileProps {
     onSetFeatured?: () => void;
 }
 
-export default function PoolCardTile({
+export default function DeckCardTile({
     cardId,
     dragId,
     dragData,
@@ -59,7 +63,7 @@ export default function PoolCardTile({
     stackIndex,
     isFeatured,
     onSetFeatured,
-}: PoolCardTileProps) {
+}: DeckCardTileProps) {
     const { ref, isDragging } = useDraggable({ id: dragId, data: dragData });
     const stacked = stackIndex !== undefined;
     return (

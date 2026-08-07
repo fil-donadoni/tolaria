@@ -56,7 +56,7 @@ export function parseDeckZoneDropId(
 
 /** The card being dragged — the existing `CardDragData` shape
  *  (`kind: "result" | "main" | "side"`), unchanged so the shared
- *  `PoolCardTile` payload stays one type across both builders and the draft. */
+ *  `DeckCardTile` payload stays one type across both builders and the draft. */
 export interface DeckZoneDragSource {
     kind: DragSourceKind;
     cardId: string;
