@@ -14,7 +14,7 @@
 // never mutates a permanent (`applySourceStaticEffects` ignores the kind), so
 // it carries no per-instance flag and auto-reverts when the source leaves play.
 
-import { tryGetDefinition } from ".";
+import { getInstanceManaCost, tryGetDefinition } from ".";
 import { getEffectiveColors } from "./effectiveColors";
 import { matchesPermanentFilter } from "./filters";
 import type { MatchablePermanent } from "./filters";
@@ -23,7 +23,6 @@ import type { SupertypeView } from "./snowReads";
 import type {
     CardType,
     CastCondition,
-    ManaCost,
     PermanentView,
     StaticEffectContext,
 } from "./types";
@@ -53,11 +52,10 @@ export const CAST_RESTRICTION_CTX: StaticEffectContext = {
         return def?.supertypes?.includes(supertype as never) ?? false;
     },
     getManaValue(card: PermanentView): number {
-        const embedded = (card.card as { manaCost?: ManaCost }).manaCost;
-        const cardId = (card.card as { id?: string }).id;
-        const cost =
-            embedded ??
-            (cardId ? tryGetDefinition(cardId)?.manaCost : undefined);
+        // Single authority (`cards/registry.ts`): instance `manaCostOverride`
+        // (CR 707.2 "except it has no mana cost" — an Eternalize token) →
+        // embedded fixture cost → registry definition.
+        const cost = getInstanceManaCost(card);
         if (!cost) return 0;
         let total = 0;
         for (const [k, v] of Object.entries(cost)) {

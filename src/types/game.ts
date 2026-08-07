@@ -291,6 +291,19 @@ export interface CardInstance {
     chosenName?: string;
     /** Layer 5 color override (CR 305.7, 613.1d). Set by lace instants. */
     colorOverride?: string[];
+    /** CR 707.2 / 202.3 — instance-level mana-cost override, set by a copy
+     *  effect's "except it has no mana cost" clause (an Eternalize / Embalm
+     *  token: `{}`). Forwarded by `slimCard` and read through the single
+     *  mana-cost authority `getInstanceManaCost` (`convex/cards/registry.ts`),
+     *  so the client's mana value and cost-derived colours agree with the
+     *  server. Mirrors `CardInstanceState.manaCostOverride`. */
+    manaCostOverride?: Record<string, unknown>;
+    /** CR 111 — instance-level Scryfall print id for ART. Cosmetic only; set by
+     *  a copy effect whose result has its OWN printed card (an Eternalize token
+     *  renders its printed token frame, not the copied creature's printing).
+     *  Preferred by `<CardImage>` over the definition-derived art. Mirrors
+     *  `CardInstanceState.imagePrintId`. */
+    imagePrintId?: string;
     /** Layer 5 color GRANT (CR 613.1d) — a colour ADDED by another permanent's
      *  static effect (Dralnu's Crusade "All Goblins are black", Sinister
      *  Strength), unioned with the printed cost's colours rather than replacing

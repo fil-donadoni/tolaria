@@ -1177,6 +1177,53 @@ function isGainControlDuration(value: unknown): boolean {
     );
 }
 
+/** CR 707.2's "except" clause on a `createTokenCopy` Op (issue #2339) — the
+ *  copiable values the copy effect overrides (Eternalize CR 702.129a: "a 4/4
+ *  black Zombie in addition to its other types … with no mana cost"). JSON-pure
+ *  (ADR 0046): only literals, no closures. Every key is optional, but the
+ *  clause itself must be a non-empty object with NO unknown keys — a typo'd
+ *  exception would otherwise ship as a silently-ignored no-op. */
+function isCopyExceptClause(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    const e = value as Record<string, unknown>;
+    const known = new Set([
+        "basePower",
+        "baseToughness",
+        "colors",
+        "additionalSubtypes",
+        "noManaCost",
+        "imagePrintId",
+    ]);
+    const keys = Object.keys(e);
+    if (keys.length === 0) return false;
+    if (!keys.every((k) => known.has(k))) return false;
+    if ("basePower" in e && typeof e.basePower !== "number") return false;
+    if ("baseToughness" in e && typeof e.baseToughness !== "number") {
+        return false;
+    }
+    if ("colors" in e && !isStringArray(e.colors, TOKEN_COLORS)) return false;
+    if (
+        "additionalSubtypes" in e &&
+        (!Array.isArray(e.additionalSubtypes) ||
+            e.additionalSubtypes.length === 0 ||
+            !e.additionalSubtypes.every(
+                (s) => typeof s === "string" && s.length > 0
+            ))
+    ) {
+        return false;
+    }
+    if ("noManaCost" in e && typeof e.noManaCost !== "boolean") return false;
+    if (
+        "imagePrintId" in e &&
+        (typeof e.imagePrintId !== "string" || e.imagePrintId.length === 0)
+    ) {
+        return false;
+    }
+    return true;
+}
+
 /** The direction of a `tapUntap` Op (issue #842, CR 701.26) — tap or untap a
  *  permanent. */
 function isTapUntapAction(value: unknown): boolean {
@@ -3077,6 +3124,9 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             // and attacking" token-copy entry flags.
             entersTapped: isBoolean,
             entersAttacking: isBoolean,
+            // CR 707.2 (issue #2339) — the "except" clause's copiable-value
+            // overrides (Eternalize / Embalm).
+            except: isCopyExceptClause,
         },
     },
     // CR 114 (issue #1221) — create a command-zone emblem. `emblem` is a

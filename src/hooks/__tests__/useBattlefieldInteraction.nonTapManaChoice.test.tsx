@@ -87,7 +87,13 @@ const VIVI_DEF = {
         },
     ],
 };
+import {
+    mockInstanceManaCost,
+    type ManaCostSource,
+} from "~/lib/testing/convex-cards-mock";
 vi.mock("@convex/cards", () => ({
+    getInstanceManaCost: (c: ManaCostSource) =>
+        mockInstanceManaCost(c, () => VIVI_DEF),
     getDefinition: () => VIVI_DEF,
     tryGetDefinition: () => VIVI_DEF,
 }));

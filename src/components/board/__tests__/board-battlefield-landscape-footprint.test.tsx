@@ -55,7 +55,13 @@ const DEFS: Record<string, unknown> = {
     "bear-def": { id: "bear-def", name: "Grizzly Bears" },
     "forest-def": { id: "forest-def", name: "Forest" },
 };
+import {
+    mockInstanceManaCost,
+    type ManaCostSource,
+} from "~/lib/testing/convex-cards-mock";
 vi.mock("@convex/cards", () => ({
+    getInstanceManaCost: (c: ManaCostSource) =>
+        mockInstanceManaCost(c, (id: string) => DEFS[id] ?? { id, name: id }),
     getDefinition: (id: string) => DEFS[id] ?? { id, name: id },
     tryGetDefinition: (id: string) => DEFS[id] ?? { id, name: id },
 }));

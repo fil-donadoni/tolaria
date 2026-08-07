@@ -55,12 +55,18 @@ vi.mock("@convex/_generated/api", () => ({
 // Vanilla def — no X, no modes — so the cast commits in one click with no
 // prompt. Types drive the Play-vs-Cast affordance (#946): a land def id yields
 // a Land type so ExileCastButton renders "Play" and dispatches playCard.
+import {
+    mockInstanceManaCost,
+    type ManaCostSource,
+} from "~/lib/testing/convex-cards-mock";
 vi.mock("@convex/cards", () => {
     const defFor = (id: string) =>
         id.includes("land")
             ? { name: "Forest", types: ["Land"] }
             : { name: "Brainstorm", types: ["Instant"] };
     return {
+        getInstanceManaCost: (c: ManaCostSource) =>
+            mockInstanceManaCost(c, (id: string) => defFor(id)),
         getDefinition: (id: string) => defFor(id),
         tryGetDefinition: (id: string) => defFor(id),
     };

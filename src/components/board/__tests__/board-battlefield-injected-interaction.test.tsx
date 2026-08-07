@@ -40,7 +40,12 @@ vi.mock("~/hooks/usePendingChoiceBuffer", () => ({
     }),
 }));
 
+import {
+    mockInstanceManaCost,
+    type ManaCostSource,
+} from "~/lib/testing/convex-cards-mock";
 vi.mock("@convex/cards", () => ({
+    getInstanceManaCost: (c: ManaCostSource) => mockInstanceManaCost(c),
     tryGetDefinition: () => undefined,
 }));
 

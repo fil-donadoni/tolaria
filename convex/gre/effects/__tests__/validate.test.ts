@@ -3039,6 +3039,68 @@ describe("validateEffectScript — createTokenCopy `source` is an OBJECT positio
         expect(errors).toEqual([]);
     });
 
+    // CR 707.2's "except" clause (issue #2339). It is a JSON-pure literal bag
+    // that `applyCopy` reads by KEY, so an unrecognised key is a silent no-op —
+    // the exception simply never happens and the card ships wrong with a green
+    // suite. The validator therefore rejects unknown keys and mistyped values
+    // outright. (`$source` is pre-declared at ABILITY sites only, so these use
+    // the same forEach `$each` source shape as the case above.)
+    const withExcept = (except: unknown) =>
+        host({
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        controller: "controller",
+                        filter: { isToken: true },
+                    },
+                    effects: [
+                        {
+                            op: "createTokenCopy",
+                            source: { ref: "$each" },
+                            controller: "controller",
+                            except,
+                        },
+                    ],
+                } as unknown as EffectOp,
+            ],
+        });
+
+    it("accepts a well-formed CR 707.2 `except` clause", () => {
+        expect(
+            validateEffectScript(
+                withExcept({
+                    basePower: 4,
+                    baseToughness: 4,
+                    colors: ["B"],
+                    additionalSubtypes: ["Zombie"],
+                    noManaCost: true,
+                    imagePrintId: "print-id",
+                })
+            )
+        ).toEqual([]);
+    });
+
+    it("rejects an `except` clause with an unknown key", () => {
+        // A typo'd exception must be LOUD: `basePwer` would otherwise leave the
+        // token at the copied card's printed body with nothing to show for it.
+        const errors = validateEffectScript(withExcept({ basePwer: 4 }));
+        expect(errors.join("\n")).toContain("except");
+    });
+
+    it("rejects an `except` clause with a mistyped value", () => {
+        const errors = validateEffectScript(withExcept({ colors: ["Zombie"] }));
+        expect(errors.join("\n")).toContain("except");
+    });
+
+    it("rejects an EMPTY `except` clause", () => {
+        expect(validateEffectScript(withExcept({})).join("\n")).toContain(
+            "except"
+        );
+    });
+
     it("still rejects an undefined binding in the source position", () => {
         const errors = validateEffectScript(
             host({

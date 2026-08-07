@@ -989,7 +989,7 @@ function enumerateAbilityMoves(
     state: GameState,
     player: PlayerState,
     perm: CardInstanceState,
-    opts?: { anyPlayerOnly?: boolean }
+    opts?: { anyPlayerOnly?: boolean; zone?: "battlefield" | "graveyard" }
 ): Move[] {
     const cardId = (perm.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
@@ -998,6 +998,7 @@ function enumerateAbilityMoves(
     // exposes none of its native activated abilities to the bot enumerator.
     if ((perm.abilitiesSuppressedBy?.length ?? 0) > 0) return [];
 
+    const fromGraveyard = opts?.zone === "graveyard";
     const moves: Move[] = [];
     for (const ability of def.activatedAbilities) {
         // When scanning an opponent's permanent (CR 113.3c / 602.1), only "any
@@ -1013,14 +1014,26 @@ function enumerateAbilityMoves(
         // ability (Clergy) is never a legal move for the controller (CR 602.1).
         if (!opts?.anyPlayerOnly && ability.activatableByOpponentsOnly)
             continue;
-        // CR 113.6 / 702.29a — a zone-restricted ability functions ONLY from the
-        // zone it opts into: Cycling (`activateFromHand`) from the hand, Ashen
-        // Ghoul (`activateFromGraveyard`) from the graveyard. Neither is legal
-        // off a permanent on the battlefield, which is the only zone this
-        // enumerator scans — a Triome in play must NOT offer its cycling.
-        // Mirrors the server gate (`game.ts` activateAbility) and the human UI
-        // gate (`getStackAbilities`, src/lib/card-utils.ts).
-        if (ability.activateFromHand || ability.activateFromGraveyard) continue;
+        // CR 113.6 / 702.29a / 702.129a — a zone-restricted ability functions
+        // ONLY from the zone it opts into: Cycling (`activateFromHand`) from
+        // the hand, Ashen Ghoul / Eternalize (`activateFromGraveyard`) from the
+        // graveyard. Mirrors the server gate (`game.ts` activateAbility) and
+        // the human UI gate (`getStackAbilities` / `getGraveyardStackAbilities`,
+        // src/lib/card-utils.ts).
+        //
+        // Before issue #2339 this enumerator scanned the BATTLEFIELD only and
+        // skipped both flags unconditionally, so the bot was structurally blind
+        // to every graveyard-source ability — Ashen Ghoul included. `zone` now
+        // says which zone the caller is scanning, and the gate is the same
+        // rule read from either side.
+        if (fromGraveyard) {
+            if (!ability.activateFromGraveyard) continue;
+            // A card in a graveyard is not a permanent (CR 110.1), so it has no
+            // tap state and a {T} leg is unpayable there.
+            if (ability.cost.tap) continue;
+        } else if (ability.activateFromHand || ability.activateFromGraveyard) {
+            continue;
+        }
         // Only abilities that use the stack are macro-moves here; mana abilities
         // are funded on demand by the cast planner, never activated standalone.
         if (!ability.useStack) continue;
@@ -1644,6 +1657,19 @@ export function enumerateMoves(
     }
     for (const perm of player.battlefield) {
         moves.push(...enumerateAbilityMoves(state, player, perm));
+    }
+    // CR 113.6 / 602.5b / 702.129a (issue #2339) — GRAVEYARD-source activated
+    // abilities (Eternalize, Ashen Ghoul's reanimation). Only the graveyard's
+    // OWNER may activate them (CR 602.1 "from YOUR graveyard"), so the
+    // opponent's graveyard is deliberately not scanned. Until this issue the
+    // enumerator skipped these abilities outright, which meant the bot could
+    // never see one at all.
+    for (const card of player.graveyard) {
+        moves.push(
+            ...enumerateAbilityMoves(state, player, card, {
+                zone: "graveyard",
+            })
+        );
     }
     // CR 113.3c — "any player may activate" abilities (Ifh-Bíff Efreet) can be
     // fired off an OPPONENT's permanent. Enumerate only those there; the bot

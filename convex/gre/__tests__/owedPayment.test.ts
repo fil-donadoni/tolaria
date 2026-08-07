@@ -98,6 +98,7 @@ const FULL_ACTIVATION: Required<PendingActivation> = {
     lifeCost: 0,
     discardLastDrawnSource: false,
     discardThisSource: false,
+    exileThisSource: false,
     discardAtRandomCount: 0,
     discardFilterChoice: { filter: {}, count: 1 },
     chosenX: 0,

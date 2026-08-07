@@ -160,6 +160,9 @@ export const ACTIVATION_KEY_CENSUS: Record<keyof PendingActivation, ParkClass> =
         discardLastDrawnSource: "non-park",
         /** CR 702.29a — Cycling discards THIS card; no pick. */
         discardThisSource: "non-park",
+        /** CR 702.129a — Eternalize exiles THIS card from the graveyard; no
+         *  pick. */
+        exileThisSource: "non-park",
         /** CR 118.3 — discarded AT RANDOM (Coral Helm): the PRNG picks, not the
          *  payer. A park would never clear. */
         discardAtRandomCount: "non-park",

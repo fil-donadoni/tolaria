@@ -48,7 +48,12 @@ vi.mock("@convex/_generated/api", () => ({
 }));
 // A Flash-of-Insight-shaped def: {X}{1}{U} Instant, no modes / alt-costs /
 // Phyrexian pips, so the ONLY deferred step is the {X} cost dialog.
+import {
+    mockInstanceManaCost,
+    type ManaCostSource,
+} from "~/lib/testing/convex-cards-mock";
 vi.mock("@convex/cards", () => ({
+    getInstanceManaCost: (c: ManaCostSource) => mockInstanceManaCost(c),
     getDefinition: () => ({
         name: "Flash of Insight",
         types: ["Instant"],

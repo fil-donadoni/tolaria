@@ -386,11 +386,18 @@ const createToken: Valuer<"createToken"> = (op, ctx) => {
 const createTokenCopy: Valuer<"createTokenCopy"> = (op, ctx) => {
     const grounded = op.count ? ctx.value(op.count) : { amount: 1 };
     const count = grounded.amount;
+    // CR 707.2's "except its base power and toughness are N/N" (Eternalize,
+    // issue #2339) is a STATIC, known-at-authoring-time body — score it exactly
+    // rather than through the representative stat, which is only a stand-in for
+    // the runtime source's unknown P/T (Dance of Many).
+    const power = op.except?.basePower ?? COPY_TOKEN_REPRESENTATIVE_STAT;
+    const toughness =
+        op.except?.baseToughness ?? COPY_TOKEN_REPRESENTATIVE_STAT;
     const per =
         TOKEN_DISCOUNT *
         creatureValueRaw(
-            COPY_TOKEN_REPRESENTATIVE_STAT,
-            COPY_TOKEN_REPRESENTATIVE_STAT,
+            power,
+            toughness,
             0, // a token copy has no mana value (CR 111.4 — no mana cost)
             []
         );

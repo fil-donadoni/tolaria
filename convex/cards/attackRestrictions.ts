@@ -10,14 +10,9 @@
 // can forbid attacks by OTHER creatures — the symmetric analogue of how
 // Crusade-style anthems (`pt-buff`) scan all permanents and buff a filtered set.
 
-import { tryGetDefinition } from ".";
+import { getInstanceManaCost, tryGetDefinition } from ".";
 import { getEffectiveColors } from "./effectiveColors";
-import type {
-    CardType,
-    ManaCost,
-    PermanentView,
-    StaticEffectContext,
-} from "./types";
+import type { CardType, PermanentView, StaticEffectContext } from "./types";
 
 /** Pure, state-free `StaticEffectContext` shared by the engine and the client.
  *  Mirrors `STATIC_EFFECT_CTX` in `gre/layers.ts` but lives here so the React
@@ -44,11 +39,10 @@ export const ATTACK_RESTRICTION_CTX: StaticEffectContext = {
         return def?.supertypes?.includes(supertype as never) ?? false;
     },
     getManaValue(card: PermanentView): number {
-        const embedded = (card.card as { manaCost?: ManaCost }).manaCost;
-        const cardId = (card.card as { id?: string }).id;
-        const cost =
-            embedded ??
-            (cardId ? tryGetDefinition(cardId)?.manaCost : undefined);
+        // Single authority (`cards/registry.ts`): instance `manaCostOverride`
+        // (CR 707.2 "except it has no mana cost" — an Eternalize token) →
+        // embedded fixture cost → registry definition.
+        const cost = getInstanceManaCost(card);
         if (!cost) return 0;
         let total = 0;
         for (const [k, v] of Object.entries(cost)) {

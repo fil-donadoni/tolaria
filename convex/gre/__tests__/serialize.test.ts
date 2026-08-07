@@ -254,6 +254,26 @@ describe("game_state serialize round-trip", () => {
         ).toBeUndefined();
     });
 
+    it("preserves an EMPTY mana-cost override and the art pin (CR 707.2 / 111, issue #2339)", () => {
+        // An Eternalize / Embalm token copy carries `manaCostOverride: {}` —
+        // the EMPTY object IS the override ("it has no mana cost"), so a
+        // truthiness/length test in the compactor would drop exactly the case
+        // that matters and the token's mana value would silently revert to the
+        // copied card's printed cost after a save/load.
+        const state = freshState();
+        const token = state.players[1].battlefield[0];
+        token.manaCostOverride = {};
+        token.imagePrintId = "6ef58164-4155-4e5b-8c16-f16f2ab65baa";
+        const got = expandState(compactState(state)).players[1].battlefield[0];
+        expect(got.manaCostOverride).toEqual({});
+        expect(got.imagePrintId).toBe("6ef58164-4155-4e5b-8c16-f16f2ab65baa");
+        // Absent for an ordinary permanent.
+        const plain = expandState(compactState(freshState())).players[1]
+            .battlefield[0];
+        expect(plain.manaCostOverride).toBeUndefined();
+        expect(plain.imagePrintId).toBeUndefined();
+    });
+
     it("preserves a timed color override (Kavu Chameleon, CR 305.7 / 613.1d, issue #1065)", () => {
         // The timed colour override is a per-instance field that must survive
         // the DB round-trip so a save/load mid-turn reverts at the right

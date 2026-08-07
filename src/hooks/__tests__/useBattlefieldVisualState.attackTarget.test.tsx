@@ -30,7 +30,13 @@ vi.mock("~/hooks/usePendingChoiceBuffer", () => ({
 }));
 
 const PLAIN_DEF = { id: "plain-def", name: "Test", staticEffects: [] };
+import {
+    mockInstanceManaCost,
+    type ManaCostSource,
+} from "~/lib/testing/convex-cards-mock";
 vi.mock("@convex/cards", () => ({
+    getInstanceManaCost: (c: ManaCostSource) =>
+        mockInstanceManaCost(c, () => PLAIN_DEF),
     getDefinition: () => PLAIN_DEF,
     tryGetDefinition: () => PLAIN_DEF,
 }));

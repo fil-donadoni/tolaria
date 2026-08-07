@@ -30,7 +30,13 @@ const REGISTRY: Record<string, { id: string; name: string }> = {
     "def-lions": { id: "def-lions", name: "Savannah Lions" },
     "def-unicorn": { id: "def-unicorn", name: "Pearled Unicorn" },
 };
+import {
+    mockInstanceManaCost,
+    type ManaCostSource,
+} from "~/lib/testing/convex-cards-mock";
 vi.mock("@convex/cards", () => ({
+    getInstanceManaCost: (c: ManaCostSource) =>
+        mockInstanceManaCost(c, (id: string) => REGISTRY[id] ?? null),
     getDefinition: (id: string) => REGISTRY[id] ?? { id, name: "Unknown" },
     tryGetDefinition: (id: string) => REGISTRY[id] ?? null,
 }));
