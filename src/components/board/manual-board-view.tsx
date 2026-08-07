@@ -51,10 +51,12 @@ import {
     indexManualCards,
     type ManualRuntime,
 } from "~/lib/manual-runtime";
+import { useManualVerbPopoverState } from "~/hooks/useManualVerbPopover";
 import BoardBackground from "./board-background";
 import BoardSurface from "./board-surface";
 import Controller from "./controller";
 import ManualLogSurface from "./manual-log-surface";
+import ManualVerbPopover from "./manual-verb-popover";
 
 /** A Manual Game never re-points the client session at another game — that is
  *  the sideboarding flow's affordance and Manual Mode has no match structure
@@ -142,6 +144,11 @@ export default function ManualBoardView({
     const closeLog = useCallback(() => setLogOpen(false), []);
 
     const dispatch = useManualDispatch(gameId);
+    // Issue #2170 — the ONE anchored popover every parameterised manual verb
+    // (pile AND battlefield card alike) collects its input through, replacing
+    // the native `window.prompt`/`window.confirm` calls the verb factories
+    // used to make inline.
+    const verbPopover = useManualVerbPopoverState();
     // The row classifier reads type lines off the Full Catalogue (#2168):
     // ADR 0080 forbids hydrating a `CardDefinition` for a manual card, so the
     // catalogue row IS the type oracle. While it loads, `rows` is undefined and
@@ -159,8 +166,14 @@ export default function ManualBoardView({
         [cardById]
     );
     const runtime = useMemo<ManualRuntime>(
-        () => ({ viewerId, state, cardById, dispatch }),
-        [viewerId, state, cardById, dispatch]
+        () => ({
+            viewerId,
+            state,
+            cardById,
+            dispatch,
+            requestVerbInput: verbPopover.requestVerbInput,
+        }),
+        [viewerId, state, cardById, dispatch, verbPopover.requestVerbInput]
     );
 
     const allPlayers = useMemo(() => adaptManualPlayers(state), [state]);
@@ -338,6 +351,13 @@ export default function ManualBoardView({
                 gameId={gameId}
                 open={logOpen}
                 onClose={closeLog}
+            />
+            {/* Issue #2170 — mounted once, renders nothing while no
+                parameterised verb is pending. Portal-based (`popover.tsx`),
+                so its DOM position is irrelevant to layout. */}
+            <ManualVerbPopover
+                pending={verbPopover.pending}
+                onClose={verbPopover.closeVerbPopover}
             />
         </>
     );

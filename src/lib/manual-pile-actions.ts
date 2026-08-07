@@ -8,9 +8,11 @@
 // "move a card out" verbs they never had (their `browse the full pile` half is
 // inherited for free from `CardsPile`).
 //
-// The three N-parameterised verbs keep the native `window.prompt` the
-// hand-written manual board used, and Shuffle keeps its `window.confirm` —
-// today's behaviour verbatim; issue #2170 replaces them.
+// The three N-parameterised verbs and Shuffle's confirmation collect their
+// input through the shared anchored popover (`runtime.requestVerbInput`,
+// issue #2170) instead of `window.prompt`/`window.confirm` — the popover is
+// anchored to THIS pile tile (`pileAnchorSelector`), so the board stays
+// visible behind it.
 
 import type {
     PileAction,
@@ -19,15 +21,7 @@ import type {
 } from "~/hooks/usePileActionsContext";
 import type { ProjectedManualCard } from "@convex/manual";
 import type { ManualRuntime } from "./manual-runtime";
-
-/** Reads a positive count from a native prompt; `null` when the player
- *  cancelled or typed something that isn't a positive integer. */
-function promptCount(message: string, fallback: string): number | null {
-    const raw = window.prompt(message, fallback);
-    if (raw === null) return null;
-    const n = Number.parseInt(raw, 10);
-    return Number.isFinite(n) && n > 0 ? n : null;
-}
+import { findManualAnchor, pileAnchorSelector } from "./manual-verb-anchor";
 
 /** The topmost card of a graveyard / exile pile, i.e. the one a "move out"
  *  verb acts on. Both zones are appended to, so the last entry is the top. */
@@ -38,12 +32,18 @@ function topOf(cards: ProjectedManualCard[]): ProjectedManualCard | undefined {
 export function makeManualPileActions(
     runtime: ManualRuntime
 ): PileActionsSource {
-    const { state, dispatch } = runtime;
+    const { state, dispatch, requestVerbInput } = runtime;
     return (player, zone: PileZone): PileAction[] => {
         const seat = state.players.find((p) => p.id === player.id);
         if (!seat) return [];
 
         if (zone === "library") {
+            // Every N-parameterised verb anchors its popover to THIS pile
+            // tile — resolved fresh at click time, never cached, since the
+            // tile is a stable, always-mounted element even while the
+            // context menu that dispatched the click is unmounting.
+            const anchor = () =>
+                findManualAnchor(pileAnchorSelector("library", seat.id));
             return [
                 {
                     key: "draw-1",
@@ -53,10 +53,14 @@ export function makeManualPileActions(
                 {
                     key: "draw-n",
                     label: "Draw N…",
-                    onSelect: () => {
-                        const n = promptCount("Draw how many?", "1");
-                        if (n) dispatch.draw({ playerId: seat.id, n });
-                    },
+                    onSelect: () =>
+                        requestVerbInput(anchor(), {
+                            kind: "number",
+                            title: "Draw how many?",
+                            defaultValue: 1,
+                            onConfirm: (n) =>
+                                dispatch.draw({ playerId: seat.id, n }),
+                        }),
                 },
                 {
                     key: "mill-1",
@@ -66,10 +70,14 @@ export function makeManualPileActions(
                 {
                     key: "mill-n",
                     label: "Mill N…",
-                    onSelect: () => {
-                        const n = promptCount("Mill how many?", "1");
-                        if (n) dispatch.mill({ playerId: seat.id, n });
-                    },
+                    onSelect: () =>
+                        requestVerbInput(anchor(), {
+                            kind: "number",
+                            title: "Mill how many?",
+                            defaultValue: 1,
+                            onConfirm: (n) =>
+                                dispatch.mill({ playerId: seat.id, n }),
+                        }),
                 },
                 {
                     key: "exile-top-1",
@@ -80,31 +88,38 @@ export function makeManualPileActions(
                 {
                     key: "exile-top-n",
                     label: "Exile top N…",
-                    onSelect: () => {
-                        const n = promptCount("Exile how many?", "1");
-                        if (n) dispatch.exileTop({ playerId: seat.id, n });
-                    },
+                    onSelect: () =>
+                        requestVerbInput(anchor(), {
+                            kind: "number",
+                            title: "Exile how many?",
+                            defaultValue: 1,
+                            onConfirm: (n) =>
+                                dispatch.exileTop({ playerId: seat.id, n }),
+                        }),
                 },
                 {
                     key: "peek",
                     label: "Peek top N…",
-                    onSelect: () => {
-                        const n = promptCount("Peek how many?", "3");
-                        if (n) dispatch.peek({ playerId: seat.id, n });
-                    },
+                    onSelect: () =>
+                        requestVerbInput(anchor(), {
+                            kind: "number",
+                            title: "Peek how many?",
+                            defaultValue: 3,
+                            onConfirm: (n) =>
+                                dispatch.peek({ playerId: seat.id, n }),
+                        }),
                 },
                 {
                     key: "shuffle",
                     label: "Shuffle",
-                    onSelect: () => {
-                        if (
-                            window.confirm(
-                                "Shuffle library? This cannot be undone."
-                            )
-                        ) {
-                            dispatch.shuffle({ playerId: seat.id });
-                        }
-                    },
+                    onSelect: () =>
+                        requestVerbInput(anchor(), {
+                            kind: "confirm",
+                            title: "Shuffle library?",
+                            description: "This cannot be undone.",
+                            onConfirm: () =>
+                                dispatch.shuffle({ playerId: seat.id }),
+                        }),
                 },
             ];
         }

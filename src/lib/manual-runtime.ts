@@ -53,6 +53,47 @@ export type ManualDispatch = {
     concede: (args: { playerId: string }) => void;
 };
 
+/** What a parameterised manual verb needs collected from the player before it
+ *  can dispatch (issue #2170) — the payload `RequestVerbInput` carries to the
+ *  anchored popover (`manual-verb-popover.tsx`), replacing the
+ *  `window.prompt`/`window.confirm` calls the pile and battlefield-card verb
+ *  factories used to make inline. `number` covers draw/mill/exile-top/peek N;
+ *  `text` covers the custom counter's name and a card's note; `confirm`
+ *  covers shuffle's "this cannot be undone" gate — an inline confirm in the
+ *  SAME popover, never a native modal. */
+export type ManualVerbRequest =
+    | {
+          kind: "number";
+          title: string;
+          defaultValue: number;
+          min?: number;
+          onConfirm: (n: number) => void;
+      }
+    | {
+          kind: "text";
+          title: string;
+          defaultValue: string;
+          placeholder?: string;
+          onConfirm: (text: string) => void;
+      }
+    | {
+          kind: "confirm";
+          title: string;
+          description?: string;
+          onConfirm: () => void;
+      };
+
+/** Opens the anchored popover for one `ManualVerbRequest`, positioned against
+ *  `anchor` — the pile tile or battlefield permanent the verb acts on
+ *  (resolved by `manual-verb-anchor.ts`). `null` when the anchor element
+ *  can't be found (should not happen for a verb whose own menu is currently
+ *  open); the popover degrades to an unanchored position rather than
+ *  dropping the request. */
+export type RequestVerbInput = (
+    anchor: Element | null,
+    request: ManualVerbRequest
+) => void;
+
 /** Everything an injected manual seam reads. */
 export type ManualRuntime = {
     /** The seat steering this client. */
@@ -63,6 +104,10 @@ export type ManualRuntime = {
      *  and a card verb both consult (which zone is it in? is it tapped?). */
     cardById: Map<string, ProjectedManualCard>;
     dispatch: ManualDispatch;
+    /** Issue #2170 — the ONE anchored popover every parameterised verb
+     *  collects its input through, shared by the pile verbs and the
+     *  battlefield card verbs alike. */
+    requestVerbInput: RequestVerbInput;
 };
 
 /** Indexes every visible card in a projected manual state by instance id.

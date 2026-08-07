@@ -42,7 +42,7 @@ const MANUAL_VISUAL: CardVisualState = {
 export function makeManualBattlefieldInteraction(
     runtime: ManualRuntime
 ): BattlefieldInteractionHook {
-    const { cardById, dispatch } = runtime;
+    const { cardById, dispatch, requestVerbInput } = runtime;
     return () => ({
         getVisualState: () => MANUAL_VISUAL,
         canInteract: () => true,
@@ -69,7 +69,12 @@ export function makeManualBattlefieldInteraction(
         handleActivateAbility: (cardInstanceId, abilityId) => {
             const manual = cardById.get(cardInstanceId);
             if (!manual) return;
-            dispatchManualCardVerb(manual, abilityId, dispatch);
+            dispatchManualCardVerb(
+                manual,
+                abilityId,
+                dispatch,
+                requestVerbInput
+            );
         },
         isSelectingOnThisBoard: false,
         overlays: <></>,

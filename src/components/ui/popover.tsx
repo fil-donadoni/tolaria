@@ -16,12 +16,13 @@ function PopoverContent({
     sideOffset = 8,
     align = "center",
     alignOffset = 0,
+    anchor,
     children,
     ...props
 }: PopoverPrimitive.Popup.Props &
     Pick<
         PopoverPrimitive.Positioner.Props,
-        "align" | "alignOffset" | "side" | "sideOffset"
+        "align" | "alignOffset" | "side" | "sideOffset" | "anchor"
     >) {
     return (
         <PopoverPrimitive.Portal>
@@ -30,6 +31,7 @@ function PopoverContent({
                 alignOffset={alignOffset}
                 side={side}
                 sideOffset={sideOffset}
+                anchor={anchor}
                 className="isolate z-modal"
             >
                 <PopoverPrimitive.Popup
