@@ -47,6 +47,8 @@ Fable of the mirror-breaker
 
 ## UX da migliorare
 
+- se la carta in cima alla library è rivelata, deve supportare gli eventi di card-preview
+
 # Bug gameplay
 
 - quando dalla pagina scenarios clicco su test, se c'è già una partita in corso non deve comparire l'errore ma un dialog che mi chiede se voglio concedere quella partita, indicando tipologia e giocatore/bot avversario
@@ -62,6 +64,17 @@ Segnalazione 2026-07-29 — tutti tracciati, raggruppati per root cause:
 - #1890 — timing attivazioni: Mother of Runes a sorcery speed, Mishra's Factory animata post-combat
 
 Causa strutturale sotto i 4 cluster: mappa wayfinder #1892 (soffitto di forza del bot — fedeltà dell'eval, non profondità di ricerca).
+
+# Note su Draft Arena
+
+- animazioni su cambio pack e su pick
+- header con direzione pick, icone pack in attesa
+- dialog ben graficato con stato del tavolo
+
+- Layout verticale:
+    - carte in decklist grandi e leggibili
+    - sideboard collassabile
+    - anteprima mana curve di fianco al titolo del mazzo
 
 # Mobile
 
