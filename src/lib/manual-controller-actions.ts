@@ -17,6 +17,7 @@
 import type { ControllerActionsSource } from "~/hooks/controllerActionsContext";
 import type { ControllerAction } from "~/hooks/useControllerActions";
 import type { ManualRuntime } from "./manual-runtime";
+import { BOARD_ANCHOR_SELECTOR, findManualAnchor } from "./manual-verb-anchor";
 
 /** Descriptor keys the manual controller offers in a TWO-PLAYER Manual Game,
  *  in display order. Exported so the guard test asserts the set rather than
@@ -60,7 +61,7 @@ export function makeManualControllerActions(
     runtime: ManualRuntime,
     log: ManualLogControls
 ): ControllerActionsSource {
-    const { viewerId, dispatch } = runtime;
+    const { viewerId, dispatch, requestVerbInput } = runtime;
     const actions: ControllerAction[] = [
         {
             key: "manual-end-turn",
@@ -100,11 +101,15 @@ export function makeManualControllerActions(
             label: "Concede",
             tone: "destructive",
             disabled: false,
-            onClick: () => {
-                if (window.confirm("Concede this game?")) {
-                    dispatch.concede({ playerId: viewerId });
-                }
-            },
+            // Issue #2170 — the confirm popover has no single card/pile to
+            // anchor to (Concede acts on the whole game), so it anchors to
+            // the board root instead of a native `window.confirm`.
+            onClick: () =>
+                requestVerbInput(findManualAnchor(BOARD_ANCHOR_SELECTOR), {
+                    kind: "confirm",
+                    title: "Concede this game?",
+                    onConfirm: () => dispatch.concede({ playerId: viewerId }),
+                }),
         },
         ...(log.onSwitchSeat
             ? [

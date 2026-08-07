@@ -7,15 +7,18 @@
 // is the whole payload: {@link dispatchManualCardVerb} parses it back and calls
 // the matching manual mutation. No new UI, no new menu component.
 //
-// Parameterised verbs (custom counter, note) keep the native `window.prompt`
-// the hand-written manual board used — that is today's behaviour verbatim, and
-// issue #2170 replaces both prompts with real dialogs.
-//
-// Pure apart from the `window.prompt` calls the two parameterised verbs make.
+// The two parameterised verbs (custom counter, note) collect their input
+// through the shared anchored popover (`requestVerbInput`, issue #2170)
+// instead of `window.prompt` — anchored to THIS card's own element
+// (`permanentAnchorSelector`), never a native dialog.
 
 import type { ProjectedManualCard } from "@convex/manual";
 import type { ActivatableAbility } from "~/components/board/battlefield-card";
-import type { ManualDispatch } from "./manual-runtime";
+import type { ManualDispatch, RequestVerbInput } from "./manual-runtime";
+import {
+    findManualAnchor,
+    permanentAnchorSelector,
+} from "./manual-verb-anchor";
 
 /** Zones a battlefield permanent can be sent to from its verb menu. */
 const MOVE_TARGETS = [
@@ -64,7 +67,8 @@ export function manualBattlefieldVerbs(
 export function dispatchManualCardVerb(
     card: ProjectedManualCard,
     verbId: string,
-    dispatch: ManualDispatch
+    dispatch: ManualDispatch,
+    requestVerbInput: RequestVerbInput
 ): void {
     if (verbId === "tap") {
         dispatch.setTapped({ instanceId: card.id, tapped: !card.isTapped });
@@ -93,16 +97,21 @@ export function dispatchManualCardVerb(
         return;
     }
     if (verbId === "counter:custom") {
-        // #2170 replaces the native prompt with a dialog; keeping it here is
-        // today's behaviour unchanged, not a new one.
-        const type = window.prompt("Counter type:");
-        if (type?.trim()) {
-            dispatch.adjustCounter({
-                instanceId: card.id,
-                type: type.trim(),
-                delta: 1,
-            });
-        }
+        requestVerbInput(findManualAnchor(permanentAnchorSelector(card.id)), {
+            kind: "text",
+            title: "Counter type",
+            defaultValue: "",
+            onConfirm: (type) => {
+                const trimmed = type.trim();
+                if (trimmed) {
+                    dispatch.adjustCounter({
+                        instanceId: card.id,
+                        type: trimmed,
+                        delta: 1,
+                    });
+                }
+            },
+        });
         return;
     }
     if (verbId.startsWith("counter:")) {
@@ -114,8 +123,13 @@ export function dispatchManualCardVerb(
         return;
     }
     if (verbId === "note") {
-        const text = window.prompt("Note:", card.note ?? "");
-        if (text !== null) dispatch.setNote({ instanceId: card.id, text });
+        requestVerbInput(findManualAnchor(permanentAnchorSelector(card.id)), {
+            kind: "text",
+            title: "Note",
+            defaultValue: card.note ?? "",
+            onConfirm: (text) =>
+                dispatch.setNote({ instanceId: card.id, text }),
+        });
         return;
     }
     if (verbId.startsWith("move:")) {

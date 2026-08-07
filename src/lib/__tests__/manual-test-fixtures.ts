@@ -8,7 +8,11 @@ import type {
     ProjectedManualGameState,
     ProjectedManualPlayer,
 } from "@convex/manual";
-import type { ManualDispatch, ManualRuntime } from "~/lib/manual-runtime";
+import type {
+    ManualDispatch,
+    ManualRuntime,
+    RequestVerbInput,
+} from "~/lib/manual-runtime";
 import { indexManualCards } from "~/lib/manual-runtime";
 
 export function manualCard(
@@ -81,15 +85,25 @@ export function spyDispatch(): ManualDispatch {
     };
 }
 
+/** A spy `requestVerbInput` — issue #2170's popover-request seam. Tests that
+ *  care WHICH request a verb opened pass their own spy via `manualRuntime`'s
+ *  fourth argument; this default just records nothing and lets a verb's
+ *  `onSelect` run without throwing. */
+export function spyRequestVerbInput(): RequestVerbInput {
+    return vi.fn();
+}
+
 export function manualRuntime(
     state: ProjectedManualGameState,
     dispatch: ManualDispatch,
-    viewerId = "me"
+    viewerId = "me",
+    requestVerbInput: RequestVerbInput = spyRequestVerbInput()
 ): ManualRuntime {
     return {
         viewerId,
         state,
         cardById: indexManualCards(state),
         dispatch,
+        requestVerbInput,
     };
 }
