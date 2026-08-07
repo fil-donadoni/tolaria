@@ -364,9 +364,10 @@
             <section class="card">
                 <h2>Sessions</h2>
                 <div class="h-sub">
-                    One row per session in range, newest first. Click a row for
-                    its agent runs.
+                    One row per session in range. Click a header to sort, a row
+                    for its agent runs.
                 </div>
+                <div class="row-filters" id="sessions-filters"></div>
                 <div class="tbl-wrap"><table id="sessions-tbl"></table></div>
             </section>
 
@@ -1256,6 +1257,154 @@
                     });
             }
 
+            // ── Sessions table: same sort + filter treatment as Issues. ───
+            const SESSION_COLS = [
+                { key: "title", label: "session" },
+                { key: "cmd", label: "command" },
+                { key: "t0", label: "start", num: true },
+                { key: "wall_min", label: "wall", num: true },
+                { key: "impl_min", label: "impl '", num: true },
+                { key: "rev_min", label: "rev '", num: true },
+                { key: "fix_min", label: "fix '", num: true },
+                { key: "other_min", label: "other '", num: true },
+                { key: "issues", label: "issues", num: true },
+                { key: "prs", label: "PRs", num: true },
+                { key: "orch_cost", label: "orch $", num: true },
+                { key: "cost", label: "total $", num: true },
+            ];
+            const sesState = {
+                rows: [],
+                sort: "t0",
+                dir: -1,
+                cmd: "",
+                text: "",
+            };
+            const prCount = (r) => (r.prs ? JSON.parse(r.prs).length : 0);
+            const cmdBase = (c) => (c ?? "").split(/\s/)[0] || "(none)";
+
+            function sessionCell(col, r) {
+                const v = r[col.key];
+                switch (col.key) {
+                    case "title":
+                        return `<td>${esc(v ?? r.session.slice(0, 8))}</td>`;
+                    case "cmd":
+                        return `<td title="${esc(v)}">${esc((v ?? "—").slice(0, 38))}</td>`;
+                    case "t0":
+                        return `<td>${new Date(v * 1000).toLocaleString([], { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}</td>`;
+                    case "wall_min":
+                        return `<td>${fmtDur(v * 60)}</td>`;
+                    case "impl_min":
+                    case "rev_min":
+                    case "fix_min":
+                    case "other_min":
+                        return `<td>${v ? Math.round(v) + "'" : "<span class='mini'>—</span>"}</td>`;
+                    case "prs": {
+                        const prs = r.prs ? JSON.parse(r.prs) : [];
+                        return `<td title="${prs.join(", ")}">${prs.length}</td>`;
+                    }
+                    case "orch_cost":
+                        return `<td>${fmtUsd(v)}</td>`;
+                    case "cost":
+                        return `<td><b>${fmtUsd(v)}</b></td>`;
+                    default:
+                        return `<td>${esc(v ?? "—")}</td>`;
+                }
+            }
+
+            function renderSessionsTable() {
+                const col = SESSION_COLS.find((c) => c.key === sesState.sort);
+                const t = sesState.text.toLowerCase();
+                const val = (r) =>
+                    sesState.sort === "prs" ? prCount(r) : r[sesState.sort];
+                const rows = sesState.rows
+                    .filter(
+                        (r) =>
+                            (!sesState.cmd ||
+                                cmdBase(r.cmd) === sesState.cmd) &&
+                            (!t ||
+                                `${r.title ?? ""} ${r.cmd ?? ""} ${r.session}`
+                                    .toLowerCase()
+                                    .includes(t))
+                    )
+                    .sort((a, b) => {
+                        const cmp = col?.num
+                            ? (Number(val(a)) || 0) - (Number(val(b)) || 0)
+                            : String(val(a) ?? "").localeCompare(
+                                  String(val(b) ?? "")
+                              );
+                        return cmp * sesState.dir;
+                    });
+                const stbl = document.getElementById("sessions-tbl");
+                const arrow = (c) =>
+                    c.key === sesState.sort
+                        ? sesState.dir === -1
+                            ? " ↓"
+                            : " ↑"
+                        : "";
+                stbl.innerHTML =
+                    `<thead><tr>` +
+                    SESSION_COLS.map(
+                        (c) =>
+                            `<th class="sortable" data-key="${c.key}">${c.label}${arrow(c)}</th>`
+                    ).join("") +
+                    `</tr></thead><tbody>` +
+                    rows
+                        .map(
+                            (r) =>
+                                `<tr class="expand" data-session="${esc(r.session)}">` +
+                                SESSION_COLS.map((c) => sessionCell(c, r)).join(
+                                    ""
+                                ) +
+                                `</tr>`
+                        )
+                        .join("") +
+                    `</tbody>`;
+                stbl.querySelectorAll("th.sortable").forEach((th) =>
+                    th.addEventListener("click", () => {
+                        const k = th.dataset.key;
+                        sesState.dir = sesState.sort === k ? -sesState.dir : -1;
+                        sesState.sort = k;
+                        renderSessionsTable();
+                    })
+                );
+                stbl.querySelectorAll("tr.expand").forEach((tr) =>
+                    tr.addEventListener("click", () =>
+                        toggleDrill(
+                            tr,
+                            `/api/runs?session=${encodeURIComponent(tr.dataset.session)}`
+                        )
+                    )
+                );
+            }
+
+            function renderSessionFilters() {
+                const cmds = new Set(sesState.rows.map((r) => cmdBase(r.cmd)));
+                document.getElementById("sessions-filters").innerHTML =
+                    `<label>command <select id="sf-cmd">` +
+                    `<option value="">all</option>` +
+                    [...cmds]
+                        .sort()
+                        .map(
+                            (v) =>
+                                `<option${v === sesState.cmd ? " selected" : ""}>${esc(v)}</option>`
+                        )
+                        .join("") +
+                    `</select></label>
+                     <label>search <input id="sf-text" type="search" placeholder="title / command / id" value="${esc(sesState.text)}"></label>`;
+                document
+                    .getElementById("sf-cmd")
+                    .addEventListener("change", (e) => {
+                        sesState.cmd = e.target.value;
+                        renderSessionsTable();
+                    });
+                document
+                    .getElementById("sf-text")
+                    .addEventListener("input", (e) => {
+                        sesState.text = e.target.value;
+                        renderSessionsTable();
+                    });
+            }
+
             async function renderNarrative() {
                 const [iss, ses, fam] = await Promise.all([
                     fetch(`/api/issues?${dayQ()}`).then((r) => r.json()),
@@ -1277,35 +1426,9 @@
                 renderIssuesTable();
 
                 // Sessions.
-                const stbl = document.getElementById("sessions-tbl");
-                stbl.innerHTML =
-                    `<thead><tr><th>session</th><th>command</th><th>start</th><th>wall</th>
-                     <th>impl</th><th>review</th><th>fixup</th><th>other</th>
-                     <th>issues</th><th>PRs</th><th>orch $</th><th>total $</th></tr></thead><tbody>` +
-                    ses.rows
-                        .map((r) => {
-                            const prs = r.prs ? JSON.parse(r.prs) : [];
-                            return `<tr class="expand" data-session="${esc(r.session)}">
-                            <td>${esc(r.title ?? r.session.slice(0, 8))}</td>
-                            <td title="${esc(r.cmd)}">${esc((r.cmd ?? "—").slice(0, 38))}</td>
-                            <td>${new Date(r.t0 * 1000).toLocaleString([], { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}</td>
-                            <td>${fmtDur(r.wall_min * 60)}</td>
-                            <td>${r.impl_min}'</td><td>${r.rev_min}'</td><td>${r.fix_min}'</td><td>${r.other_min}'</td>
-                            <td>${r.issues}</td>
-                            <td title="${prs.join(", ")}">${prs.length}</td>
-                            <td>${fmtUsd(r.orch_cost)}</td>
-                            <td><b>${fmtUsd(r.cost)}</b></td></tr>`;
-                        })
-                        .join("") +
-                    `</tbody>`;
-                stbl.querySelectorAll("tr.expand").forEach((tr) =>
-                    tr.addEventListener("click", () =>
-                        toggleDrill(
-                            tr,
-                            `/api/runs?session=${encodeURIComponent(tr.dataset.session)}`
-                        )
-                    )
-                );
+                sesState.rows = ses.rows;
+                renderSessionFilters();
+                renderSessionsTable();
 
                 // Family × role pivot: families as rows, roles as columns.
                 const roles = ["implement", "review", "fixup"];
