@@ -517,6 +517,69 @@ describe("DeckBuilder — Grouping round-trip preserves Card Pins, through the r
     });
 });
 
+// Per-zone build-time filter (PRD #1617, issue #1625, ADR 0075 § "Filter is
+// momentary"). The `deck-zone-surface.test.tsx` suite covers the filter's
+// own mechanics against `DeckZoneSurface` in isolation; this block is the
+// integration proof — through the REAL two-zone `DeckBuilder` tree — that
+// the filter changes only what's RENDERED and touches nothing a save or a
+// legality check reads.
+describe("DeckBuilder — per-zone build-time filter (issue #1625)", () => {
+    it("hides a Maindeck card from its column without touching the Sideboard", () => {
+        const { container, getByLabelText } = renderBuilder(
+            deck([BOLT, SERRA], [PLAINS])
+        );
+        expect(cardsIn(container, "mv:1")).toEqual(["Lightning Bolt"]);
+
+        fireEvent.click(getByLabelText("Maindeck colour W"));
+
+        expect(cardsIn(container, "mv:1")).toEqual([]); // Bolt (Red) hidden
+        expect(cardsIn(container, "mv:5")).toEqual(["Serra Angel"]); // Serra (W) stays
+        expect(columnLabelsIn(paneOf(container, /^Sideboard /))).toEqual([
+            "Lands",
+        ]);
+        expect(cardsIn(paneOf(container, /^Sideboard /), "mv:lands")).toEqual([
+            "Plains",
+        ]);
+    });
+
+    it("never changes the SAVED card count — SaveDeckBar reads the real Maindeck, not the filtered view", () => {
+        const { getByLabelText, getByText } = renderBuilder(
+            deck([BOLT, SERRA], [])
+        );
+        expect(getByText("2 cards")).toBeTruthy();
+
+        fireEvent.click(getByLabelText("Maindeck colour W")); // hides Bolt from view
+        expect(getByText("2 cards")).toBeTruthy(); // unchanged — nothing was removed
+    });
+
+    it("the Maindeck's filter never narrows the Sideboard's own filter, and vice versa", () => {
+        const { container, getByLabelText } = renderBuilder(
+            deck([BOLT], [BOLT, SERRA])
+        );
+        fireEvent.click(getByLabelText("Maindeck colour W"));
+
+        // Maindeck: Bolt (Red) hidden by the White-only filter.
+        expect(columnLabelsIn(paneOf(container, /^Maindeck /))).toEqual([
+            "Lands",
+            "MV 0",
+            "MV 1",
+            "MV 2",
+            "MV 3",
+            "MV 4",
+            "MV 5",
+            "MV 6",
+            "MV 7+",
+        ]);
+        expect(cardsIn(container, "mv:1")).toEqual([]);
+
+        // Sideboard never had a filter applied — both its cards still show.
+        expect(columnLabelsIn(paneOf(container, /^Sideboard /))).toEqual([
+            "MV 1",
+            "MV 5",
+        ]);
+    });
+});
+
 describe("DeckBuilder — Grouping/Ordering persist per-user via the view-preferences seam (issue #1624/#1620)", () => {
     it("persists a change to the shared deckViewPrefs key, and a fresh mount (any deck) picks it up", () => {
         const { getByLabelText, unmount } = renderBuilder();

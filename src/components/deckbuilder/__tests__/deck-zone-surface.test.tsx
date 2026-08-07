@@ -5,11 +5,12 @@
 // `deckGrouping.test.ts` (the grouping itself, now the Column Layout engine's
 // job — asserted here THROUGH the real component rather than against a helper).
 import { describe, it, expect, vi } from "vitest";
-import { render, fireEvent } from "@testing-library/react";
+import { render, fireEvent, within } from "@testing-library/react";
 import { DragDropProvider } from "@dnd-kit/react";
 import {
     createColumnLayout,
     pinCardToColumn,
+    setGrouping,
     makeColumnId,
 } from "@convex/deckLayout";
 import { makeDeckCardShapeResolver, deckCardLookup } from "~/lib/deckCardShape";
@@ -312,5 +313,307 @@ describe("DeckZoneSurface — catalogue-only cards (Tabletop, ADR 0080)", () => 
         const { container } = renderZone({ cards: [BOLT, LAND] });
         expect(columnLabels(container)).toContain("Catch-All");
         expect(cardsIn(container, "catch-all")).toEqual(["Unimplemented Land"]);
+    });
+});
+
+// Zone build-time filter (PRD #1617, issue #1625, ADR 0075 § "Filter is
+// momentary"). BOLT is a Red instant (non-Creature); SERRA is a White
+// Creature; PLAINS' colour IDENTITY is White (its produced mana, not its own
+// colourless card colour — `getCardColorIdentity`); MOX is a colourless
+// artifact.
+describe("DeckZoneSurface — Zone build-time filter (issue #1625)", () => {
+    it("the creature segment hides non-matching cards WITHOUT moving the remaining siblings' columns", () => {
+        const { container, getByLabelText } = renderZone({
+            cards: [BOLT, SERRA, PLAINS],
+        });
+        expect(cardsIn(container, "mv:1")).toEqual(["Lightning Bolt"]);
+        expect(cardsIn(container, "mv:5")).toEqual(["Serra Angel"]);
+
+        fireEvent.click(
+            within(getByLabelText("Maindeck creature filter")).getByText(
+                "Creatures"
+            )
+        );
+
+        // The non-Creature cards vanish from their columns…
+        expect(cardsIn(container, "mv:1")).toEqual([]);
+        expect(cardsIn(container, "mv:lands")).toEqual([]);
+        // …and Serra Angel is still in exactly the column it was already in.
+        expect(cardsIn(container, "mv:5")).toEqual(["Serra Angel"]);
+    });
+
+    it("the non-creatures segment keeps everything but Creatures", () => {
+        const { container, getByLabelText } = renderZone({
+            cards: [BOLT, SERRA, PLAINS],
+        });
+        fireEvent.click(
+            within(getByLabelText("Maindeck creature filter")).getByText(
+                "Non-creatures"
+            )
+        );
+        expect(cardsIn(container, "mv:1")).toEqual(["Lightning Bolt"]);
+        expect(cardsIn(container, "mv:lands")).toEqual(["Plains"]);
+        expect(cardsIn(container, "mv:5")).toEqual([]);
+    });
+
+    it("a colour toggle hides a card whose identity doesn't include it", () => {
+        const { container, getByLabelText } = renderZone({
+            cards: [BOLT, SERRA],
+        });
+        fireEvent.click(getByLabelText("Maindeck colour R"));
+        expect(cardsIn(container, "mv:1")).toEqual(["Lightning Bolt"]);
+        expect(cardsIn(container, "mv:5")).toEqual([]);
+    });
+
+    it("colour toggles combine with the creature segment by AND (issue #1625 AC)", () => {
+        const { container, getByLabelText } = renderZone({
+            cards: [BOLT, SERRA, PLAINS],
+        });
+        // Creatures ∩ White — Serra Angel qualifies, Plains (White identity,
+        // but not a Creature) does not.
+        fireEvent.click(
+            within(getByLabelText("Maindeck creature filter")).getByText(
+                "Creatures"
+            )
+        );
+        fireEvent.click(getByLabelText("Maindeck colour W"));
+        expect(cardsIn(container, "mv:5")).toEqual(["Serra Angel"]);
+        expect(cardsIn(container, "mv:lands")).toEqual([]);
+    });
+
+    it("shows `<shown> of <total>` while the filter is active, and the plain total once cleared", () => {
+        const { getByText, getByLabelText } = renderZone({
+            cards: [BOLT, SERRA, PLAINS],
+        });
+        expect(getByText("Maindeck 3")).toBeTruthy();
+
+        fireEvent.click(
+            within(getByLabelText("Maindeck creature filter")).getByText(
+                "Creatures"
+            )
+        );
+        expect(getByText("Maindeck 1 of 3")).toBeTruthy();
+
+        fireEvent.click(
+            within(getByLabelText("Maindeck creature filter")).getByText("All")
+        );
+        expect(getByText("Maindeck 3")).toBeTruthy();
+    });
+
+    it("renders a clearable chip only while the filter is active, and clears it in one click", () => {
+        const { queryByLabelText, getByLabelText, getByText } = renderZone({
+            cards: [BOLT, SERRA],
+        });
+        expect(queryByLabelText(/Clear Maindeck filter/)).toBeNull();
+
+        fireEvent.click(getByLabelText("Maindeck colour R"));
+        expect(getByText("Maindeck 1 of 2")).toBeTruthy();
+        const chip = getByLabelText("Clear Maindeck filter: R");
+        expect(chip).toBeTruthy();
+
+        fireEvent.click(chip);
+        expect(getByText("Maindeck 2")).toBeTruthy();
+        expect(queryByLabelText(/Clear Maindeck filter/)).toBeNull();
+    });
+
+    it("a card the catalogue cannot classify is never hidden by the filter", () => {
+        // No `lookup` supplied and the id is unregistered — the engine already
+        // routes it to the Catch-All; the filter must not ALSO make it vanish.
+        const UNKNOWN = { cardId: "does-not-exist", cardName: "Mystery Card" };
+        const { container, getByLabelText } = renderZone({
+            cards: [UNKNOWN],
+        });
+        fireEvent.click(
+            within(getByLabelText("Maindeck creature filter")).getByText(
+                "Creatures"
+            )
+        );
+        expect(cardsIn(container, "catch-all")).toEqual(["Mystery Card"]);
+    });
+
+    it("filtering one Zone never affects the other — independent React state per instance", () => {
+        const { container: main } = renderZone({
+            zone: "maindeck",
+            title: "Maindeck",
+            cards: [BOLT, SERRA],
+        });
+        const { container: side } = renderZone({
+            zone: "sideboard",
+            title: "Sideboard",
+            dropModel: "pane",
+            cards: [BOLT, SERRA],
+        });
+
+        fireEvent.click(
+            within(
+                main.querySelector('[aria-label="Maindeck creature filter"]')!
+            ).getByText("Creatures")
+        );
+
+        expect(cardsIn(main, "mv:1")).toEqual([]); // Maindeck filtered
+        expect(cardsIn(side, "mv:1")).toEqual(["Lightning Bolt"]); // Sideboard untouched
+    });
+
+    it("never changes the deck's own data: the caller's `cards` prop is untouched by filtering", () => {
+        const cards = [BOLT, SERRA, PLAINS];
+        const { getByLabelText } = renderZone({ cards });
+        fireEvent.click(
+            within(getByLabelText("Maindeck creature filter")).getByText(
+                "Creatures"
+            )
+        );
+        // The prop array itself — what a caller's save/legality logic reads —
+        // is the same reference with the same three cards, unfiltered.
+        expect(cards).toHaveLength(3);
+        expect(cards.map((c) => c.cardName)).toEqual([
+            "Lightning Bolt",
+            "Serra Angel",
+            "Plains",
+        ]);
+    });
+
+    it("the filter resets on remount — reopening the deckbuilder always shows everything (issue #1625 AC)", () => {
+        const props = { cards: [BOLT, SERRA] };
+        const first = renderZone(props);
+        fireEvent.click(
+            within(first.getByLabelText("Maindeck creature filter")).getByText(
+                "Creatures"
+            )
+        );
+        expect(first.getByText("Maindeck 1 of 2")).toBeTruthy();
+        first.unmount();
+
+        // A fresh mount — the only way this component is ever "reopened" — has
+        // no memory of the previous instance's filter, because the filter was
+        // never written anywhere outside this component's own React state.
+        const second = renderZone(props);
+        expect(second.getByText("Maindeck 2")).toBeTruthy();
+        expect(second.queryByText(/of 2/)).toBeNull();
+    });
+});
+
+// PR #2313 review, F1: the filtered `items` used to feed
+// `resolveColumnLayout` directly, so under Grouping `type` — the one
+// Grouping whose Column SET depends on which types are PRESENT
+// (`generateColumns`, `convex/deckLayout.ts`) — a filter silently changed
+// which Columns exist, moving a Card Pin's target out from under it even
+// though the pinned card still matched the filter. `mv`/`color` generate a
+// fixed ladder regardless of the cards present, so they were never exposed
+// to this; these tests exercise `type` (where the bug lived) and `color`
+// (to prove the fixed-ladder Groupings stay correct with a Pin in play too,
+// per the review's N3 finding that filter coverage was `mv`-only).
+describe("DeckZoneSurface — filter narrows CONTENTS, never the Column SET (issue #2313 review, F1)", () => {
+    it("Grouping `type`: the Column SET survives a filter that empties one of them", () => {
+        const { container, getByLabelText } = renderZone({
+            cards: [BOLT, SERRA, PLAINS],
+            layout: setGrouping(createColumnLayout(), "type"),
+        });
+        expect(columnLabels(container)).toEqual([
+            "Lands",
+            "Creature",
+            "Instant",
+        ]);
+
+        fireEvent.click(
+            within(getByLabelText("Maindeck creature filter")).getByText(
+                "Creatures"
+            )
+        );
+
+        // Bolt (Instant) is hidden by the filter — but the Instant Column
+        // itself must still render as an empty drop target, not disappear.
+        expect(columnLabels(container)).toEqual([
+            "Lands",
+            "Creature",
+            "Instant",
+        ]);
+        expect(cardsIn(container, "type:instant")).toEqual([]);
+        expect(cardsIn(container, "type:creature")).toEqual(["Serra Angel"]);
+    });
+
+    it("Grouping `type`: a Card Pin naming a Column the filter would otherwise eliminate still applies", () => {
+        // Serra Angel (a Creature) is pinned into the Instant Column — as if
+        // dragged there. It still MATCHES a Creature filter, so it must stay
+        // exactly where it's pinned; it must not fall through to its
+        // predicate Column (Creature) just because Bolt, the only OTHER
+        // Instant, gets hidden by the same filter.
+        const layout = pinCardToColumn(
+            setGrouping(createColumnLayout(), "type"),
+            SERRA.cardId,
+            makeColumnId("type", "instant")
+        );
+        const { container, getByLabelText } = renderZone({
+            cards: [BOLT, SERRA, PLAINS],
+            layout,
+        });
+        // Unfiltered: Bolt lands in Instant on its OWN predicate; Serra sits
+        // there too, but via its Pin rather than its (Creature) predicate.
+        expect(cardsIn(container, "type:instant")).toEqual([
+            "Lightning Bolt",
+            "Serra Angel",
+        ]);
+
+        fireEvent.click(
+            within(getByLabelText("Maindeck creature filter")).getByText(
+                "Creatures"
+            )
+        );
+
+        expect(columnLabels(container)).toContain("Instant");
+        expect(cardsIn(container, "type:instant")).toEqual(["Serra Angel"]);
+        // Serra did NOT fall through to the Catch-All or to its predicate
+        // Column (Creature) — the Pin still names a Column that exists.
+        expect(cardsIn(container, "type:creature")).toEqual([]);
+        expect(columnLabels(container)).not.toContain("Catch-All");
+    });
+
+    it("Grouping `color`: a fixed-ladder Grouping stays correct under a filter, with a Pin in play", () => {
+        // Serra Angel (mono-White) pinned into the Multicolour Column,
+        // despite not matching its predicate — proves a Pin still overrides
+        // the predicate once a filter is active, for a Grouping whose ladder
+        // is not cards-dependent (control case for the `type` fix above).
+        const layout = pinCardToColumn(
+            setGrouping(createColumnLayout(), "color"),
+            SERRA.cardId,
+            makeColumnId("color", "multicolor")
+        );
+        const { container, getByLabelText } = renderZone({
+            cards: [BOLT, SERRA],
+            layout,
+        });
+        expect(cardsIn(container, "color:multicolor")).toEqual(["Serra Angel"]);
+
+        fireEvent.click(
+            within(getByLabelText("Maindeck creature filter")).getByText(
+                "Creatures"
+            )
+        );
+
+        // Bolt (Red, non-Creature) is hidden; the Red Column stays rendered
+        // but empty, and Serra's Pin still holds.
+        expect(columnLabels(container)).toContain("Red");
+        expect(cardsIn(container, "color:R")).toEqual([]);
+        expect(cardsIn(container, "color:multicolor")).toEqual(["Serra Angel"]);
+    });
+});
+
+// PR #2313 review, N1: `${visible} of ${total}${countSuffix}` reads as
+// `"1 of 2/15"` on the Constructed Sideboard — the `of`-counter runs
+// straight into the `x/15` legality cap with no separator between them.
+describe("DeckZoneSurface — header count text with a countSuffix + active filter (issue #2313 review, N1)", () => {
+    it("spells out shown/total instead of concatenating the filtered count onto the cap", () => {
+        const { getByText, queryByText, getByLabelText } = renderZone({
+            zone: "sideboard",
+            title: "Sideboard",
+            dropModel: "pane",
+            cards: [BOLT, SERRA],
+            countSuffix: "/15",
+        });
+
+        fireEvent.click(getByLabelText("Sideboard colour R"));
+
+        expect(getByText("Sideboard 1 shown, 2/15 total")).toBeTruthy();
+        // The old, collision-prone rendering must be gone.
+        expect(queryByText(/1 of 2\/15/)).toBeNull();
     });
 });
