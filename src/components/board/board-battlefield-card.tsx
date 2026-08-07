@@ -51,6 +51,15 @@ type BoardBattlefieldCardProps = {
     /** Dispatches the selected ability — wired to the hook's
      *  `handleActivateAbility` (X prompt, keep-priority, mana entry). */
     onActivateAbility?: (abilityId: string, keepPriority: boolean) => void;
+    /** Click policy for a permanent that ALSO has activatable abilities (issue
+     *  #2169). Omitted / false ⇒ today's rule: the ability gesture owns the
+     *  click and `onClick` is not bound, so a permanent with both a tap and an
+     *  ability is never tapped by a stray click. `true` (the Manual Board,
+     *  whose every permanent carries the manual verb list and whose primary
+     *  gesture IS the tap) additionally fires `onClick` on a desktop click,
+     *  while still letting the event reach the menu trigger. Touch is
+     *  identical on both branches — the tap opens the action sheet. */
+    clickActsWithAbilities?: boolean;
     /** CR 702.26 — this permanent is phased out (set aside). It stays visible on
      *  its controller's battlefield but rendered dimmed and fully inert: no
      *  click, no ability menu, a "Phased" tag instead of interaction. */
@@ -101,6 +110,7 @@ export default function BoardBattlefieldCard({
     onClick,
     activatableAbilities,
     onActivateAbility,
+    clickActsWithAbilities = false,
     phased = false,
     compactCardHeight,
 }: BoardBattlefieldCardProps) {
@@ -374,7 +384,23 @@ export default function BoardBattlefieldCard({
     const clickHandlers = phased
         ? {}
         : hasAbilities
-          ? { onClick: ability.onClick, onTouchStart: ability.onTouchStart }
+          ? {
+                onClick: (e: React.MouseEvent) => {
+                    // Touch first: `ability.onClick` recognises the tap it was
+                    // armed for by `onTouchStart`, opens the action sheet (or
+                    // fires a lone ability) and marks the event handled. That
+                    // branch is IDENTICAL on both policies.
+                    ability.onClick(e);
+                    if (!clickActsWithAbilities || e.defaultPrevented) return;
+                    // Desktop, Manual Board only (#2169): `ability.onClick`
+                    // returned without preventing, so this click still reaches
+                    // `ContextMenuTrigger` and opens the verb menu — and the
+                    // permanent's own primary action (tap / untap) fires too,
+                    // which is exactly what the hand-written manual board did.
+                    onClick?.(e);
+                },
+                onTouchStart: ability.onTouchStart,
+            }
           : { onClick };
 
     const cardContent = (

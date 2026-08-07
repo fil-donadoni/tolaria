@@ -49,6 +49,7 @@ export default function PlayerManaPool({ player }: { player: Player }) {
     // eating the tap (the same class of bug the nameplate collision was).
     return (
         <div
+            data-testid="mana-pool"
             className={`pointer-events-none absolute ${positionClass} z-20 inline-flex w-max flex-col gap-1 bg-black/60 px-2 py-1 rounded-md whitespace-nowrap`}
         >
             {colorsWithMana.length > 0 && (

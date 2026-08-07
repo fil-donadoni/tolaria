@@ -5,7 +5,7 @@ import type { FunctionReturnType } from "convex/server";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import Board from "~/components/board/board";
-import ManualBoard from "~/components/board/manual-board";
+import ManualBoardContainer from "~/components/board/manual-board-container";
 import PregameDialog from "~/components/board/pregame-dialog";
 import DebugPanel from "~/components/debug/debug-panel";
 import AiDecisionTraceBox from "~/components/debug/ai-decision-trace-box";
@@ -99,7 +99,7 @@ export default function GameRoute() {
         if (game.mode === "manual") {
             return (
                 <div className="flex h-dvh flex-col">
-                    <ManualBoard
+                    <ManualBoardContainer
                         key={gameId}
                         gameId={gameId}
                         playerId={playerId}

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { Player } from "~/types/game";
 import type { PlayerInteraction } from "~/hooks/usePlayerInteraction";
 import CornerFiligreeFrame from "~/components/ui/corner-filigree-frame";
@@ -80,6 +81,71 @@ export default function PlayerNameplate({
 }: PlayerNameplateProps) {
     const { hasPriority, isTargetable, isDamageTargetPickable } = interaction;
 
+    // Manual Board life editing (PRD #2162 / issue #2169). Both affordances
+    // are OPT-IN through fields the GRE `usePlayerInteraction` never sets, so
+    // on the real board `lifeEditable` is false, `onLifeWheel` is undefined,
+    // and every branch below collapses to exactly the markup shipped before:
+    // no wheel listener, no wrapper element, no input.
+    const [editing, setEditing] = useState(false);
+    const [draft, setDraft] = useState("");
+    const onLifeCommit = interaction.onLifeCommit;
+    const lifeEditable = interaction.lifeEditable === true && !!onLifeCommit;
+    const onLifeWheel = interaction.onLifeWheel;
+
+    function commitLife() {
+        setEditing(false);
+        const next = Number.parseInt(draft, 10);
+        if (!Number.isNaN(next) && next !== player.life) onLifeCommit?.(next);
+    }
+
+    /** The life total, wrapped in its click-to-edit affordance when the
+     *  injected interaction offers one. Not a component — a render helper, so
+     *  the two nameplate variants (compact / full) share one definition
+     *  without duplicating the editing branch. */
+    function lifeTotal(isCompact: boolean) {
+        const total = (
+            <AnimatedLifeTotal
+                key={player.id}
+                life={player.life}
+                compact={isCompact}
+            />
+        );
+        if (!lifeEditable) return total;
+        if (editing) {
+            return (
+                <input
+                    autoFocus
+                    aria-label="Life total"
+                    data-life-input={player.id}
+                    className={`bg-surface-strong text-center font-bold text-text ${
+                        isCompact ? "w-10 text-sm" : "w-16 text-2xl"
+                    }`}
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    onBlur={commitLife}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter") commitLife();
+                        if (e.key === "Escape") setEditing(false);
+                    }}
+                />
+            );
+        }
+        return (
+            <span
+                className="cursor-pointer"
+                data-life-editable={player.id}
+                onClick={(e) => {
+                    e.stopPropagation();
+                    setDraft(String(player.life));
+                    setEditing(true);
+                }}
+            >
+                {total}
+            </span>
+        );
+    }
+
     const interactive =
         (isTargetable && !interaction.isDivideTarget) || isDamageTargetPickable;
     const boxShadow = nameplateShadow(
@@ -93,6 +159,7 @@ export default function PlayerNameplate({
         <div
             data-arrow-anchor-player={player.id}
             onClick={interaction.handleClick}
+            onWheel={onLifeWheel ? (e) => onLifeWheel(e.deltaY) : undefined}
             style={{ boxShadow }}
             // Class-constant linkage (#1814 round-3 fixup): `border` (1px ×
             // 2 edges, unconditional on this box) is
@@ -127,11 +194,7 @@ export default function PlayerNameplate({
                 // that doesn't fit truncates instead via `truncate` + a max
                 // width, not by growing taller.
                 <div className="flex flex-nowrap items-center justify-center gap-1.5">
-                    <AnimatedLifeTotal
-                        key={player.id}
-                        life={player.life}
-                        compact
-                    />
+                    {lifeTotal(true)}
                     <span className="max-w-16 truncate text-[9px] leading-none uppercase tracking-[0.15em] text-text-muted">
                         {player.name}
                     </span>
@@ -146,7 +209,7 @@ export default function PlayerNameplate({
                 </div>
             ) : (
                 <>
-                    <AnimatedLifeTotal key={player.id} life={player.life} />
+                    {lifeTotal(false)}
                     <div className="mt-0.5 text-[10px] uppercase tracking-[0.2em] text-text-muted">
                         {player.name}
                     </div>

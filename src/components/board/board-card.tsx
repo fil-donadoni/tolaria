@@ -29,7 +29,14 @@ type BoardCardProps = {
 export default function BoardCard({ card, mirror = false }: BoardCardProps) {
     return (
         <CardTilt3D>
-            <div className="w-full h-full rounded-sm overflow-hidden ring-1 ring-black/40 shadow-[0_6px_16px_rgba(0,0,0,0.55)]">
+            <div
+                // Inert hit-test handle (#2169): the Manual Board's
+                // pointer-driven zone drag resolves its SOURCE with
+                // `closest('[data-board-card]')`. Pure attribute — no listener,
+                // no styling, absent entirely on a hidden (back) slot.
+                data-board-card={card?.id}
+                className="w-full h-full rounded-sm overflow-hidden ring-1 ring-black/40 shadow-[0_6px_16px_rgba(0,0,0,0.55)]"
+            >
                 {card ? (
                     // Opponent-hand slots render 76–84px wide; hint at the
                     // upper bound, `thumb` excluded (mid-slot strategy).

@@ -61,6 +61,19 @@ export type PlayerInteraction = {
      *  toggle (damage-target), or no-ops when neither applies (incl. divide,
      *  which the stepper owns). */
     handleClick: () => void;
+    /** Manual Board only (PRD #2162 / issue #2169) — the life total on this
+     *  nameplate is directly editable: clicking it opens an inline field that
+     *  commits an exact value through {@link onLifeCommit}. The GRE hook never
+     *  sets it (life is only ever changed by the rules engine, CR 118), so the
+     *  GRE nameplate renders exactly as before. */
+    lifeEditable?: boolean;
+    /** Manual Board only — a wheel gesture over the nameplate adjusts the life
+     *  total by one in the scroll direction. Receives the raw `deltaY`.
+     *  Absent ⇒ the nameplate binds no wheel handler at all. */
+    onLifeWheel?: (deltaY: number) => void;
+    /** Manual Board only — commit an exact life total typed into the inline
+     *  field. Only consulted when {@link lifeEditable} is set. */
+    onLifeCommit?: (life: number) => void;
 };
 
 export function usePlayerInteraction(player: Player): PlayerInteraction {

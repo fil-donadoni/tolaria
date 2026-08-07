@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/context-menu";
 import type { Player } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
+import { usePileActions, type PileAction } from "~/hooks/usePileActionsContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
 import CardsPile from "./cards-pile";
@@ -168,6 +169,21 @@ export default function PlayerLibrary({
     const handleDraw = () => draw({ gameId, playerId });
     const handleMill = () => millCard({ gameId, playerId });
     const handleExile = () => exile({ gameId, playerId });
+
+    // The library tile's context menu. The DEFAULT set is exactly what this
+    // component offered before the pile-action seam existed (issue #2169), on
+    // exactly the same gate — the viewer's own non-empty library with
+    // `debugAllActions` on. A mounted `PileActionsProvider` (the Manual Game)
+    // replaces it wholesale; absent one, nothing about this pile changes.
+    const defaultActions: PileAction[] =
+        isMe && hasCards && debugAllActions
+            ? [
+                  { key: "draw", label: "Draw", onSelect: handleDraw },
+                  { key: "mill", label: "Mill", onSelect: handleMill },
+                  { key: "exile", label: "Exile", onSelect: handleExile },
+              ]
+            : [];
+    const pileActions = usePileActions(player, "library", defaultActions);
 
     // Selection bounds for the active search (CR 701.19 puts a single card in
     // hand, but the primitive supports a range). Cap the buffer at `max` so the
@@ -364,9 +380,13 @@ export default function PlayerLibrary({
         />
     ) : null;
 
-    if (!isMe || !hasCards || !debugAllActions) {
+    if (pileActions.length === 0) {
         return (
-            <div className="w-[var(--card-w-sm)] aspect-5/7">
+            <div
+                className="w-[var(--card-w-sm)] aspect-5/7"
+                data-zone-drop="library"
+                data-zone-owner={player.id}
+            >
                 <div className="relative">{pile}</div>
                 {orderPicker}
             </div>
@@ -374,22 +394,26 @@ export default function PlayerLibrary({
     }
 
     return (
-        <div className="w-[var(--card-w-sm)] aspect-5/7">
+        <div
+            className="w-[var(--card-w-sm)] aspect-5/7"
+            data-zone-drop="library"
+            data-zone-owner={player.id}
+        >
             {orderPicker}
             <ContextMenu>
                 <ContextMenuTrigger>
                     <div className="relative cursor-pointer">{pile}</div>
                 </ContextMenuTrigger>
                 <ContextMenuContent className="w-48">
-                    <ContextMenuItem inset onClick={handleDraw}>
-                        Draw
-                    </ContextMenuItem>
-                    <ContextMenuItem inset onClick={handleMill}>
-                        Mill
-                    </ContextMenuItem>
-                    <ContextMenuItem inset onClick={handleExile}>
-                        Exile
-                    </ContextMenuItem>
+                    {pileActions.map((action) => (
+                        <ContextMenuItem
+                            key={action.key}
+                            inset
+                            onClick={action.onSelect}
+                        >
+                            {action.label}
+                        </ContextMenuItem>
+                    ))}
                 </ContextMenuContent>
             </ContextMenu>
         </div>

@@ -1,0 +1,80 @@
+// Inert GRE game context for the Manual Board (PRD #2162, issue #2169).
+//
+// `BoardSurface`'s subtree is presentational but NOT context-free: every one of
+// `BoardBattlefield`, `BoardBattlefieldCard`, `BoardPlayer`, `PlayerLibrary`,
+// `PlayerGraveyard`, `PlayerExile`, `CombatPanels` and the controller layouts
+// calls `useGameContext()` unconditionally, and that hook THROWS when no
+// provider is mounted. So a Manual Game — which has no GRE state at all
+// (ADR 0080) — must still hand the subtree a complete, well-formed context.
+//
+// Every field here is deliberately empty rather than absent-shaped: an empty
+// stack, no pending cast / target / choice, no combat, no emblems. Read
+// together with the seams the Manual Board injects (interaction, controller,
+// pile verbs, row classifier) that makes every GRE-driven affordance in the
+// subtree evaluate to "nothing to do", which is exactly right for a board where
+// the rules are the player's job.
+//
+// CONTAINMENT: this is the ONE thing #2169 solves entirely on the manual side.
+// No shared component is changed to tolerate a missing context.
+//
+// Pure: no Convex, no React, no DOM.
+
+import type { Id } from "@convex/_generated/dataModel";
+import type { Phase } from "@convex/gre/types";
+import type { ProjectedManualGameState } from "@convex/manual";
+import type { Player } from "~/types/game";
+
+/** Phases the manual phase marker can name. It is a FREE marker (ADR 0080 —
+ *  it enforces nothing), so an unrecognised or absent value simply reads as the
+ *  main phase rather than being an error. */
+const MANUAL_PHASES = new Set<string>([
+    "UNTAP",
+    "UPKEEP",
+    "DRAW",
+    "PRECOMBAT_MAIN",
+    "BEGINNING_OF_COMBAT",
+    "DECLARE_ATTACKERS",
+    "DECLARE_BLOCKERS",
+    "FIRST_STRIKE_DAMAGE",
+    "COMBAT_DAMAGE",
+    "END_OF_COMBAT",
+    "POSTCOMBAT_MAIN",
+    "END_STEP",
+    "CLEANUP",
+]);
+
+export function manualPhase(phase: string | undefined): Phase {
+    return phase && MANUAL_PHASES.has(phase)
+        ? (phase as Phase)
+        : "PRECOMBAT_MAIN";
+}
+
+/** The `GameContext` value the Manual Board provides. `priorityPlayerId` is the
+ *  VIEWER: nothing reads it for a decision here (the priority indicator does
+ *  not mount and the manual player interaction reports `hasPriority: false`),
+ *  and pinning it to the viewer keeps any incidental "is it my turn" read from
+ *  cueing the player to wait on an opponent who is never asked. */
+export function makeManualGameContext(args: {
+    gameId: Id<"games">;
+    viewerId: string;
+    state: ProjectedManualGameState;
+    allPlayers: Player[];
+    onSwitchGame: (gameId: Id<"games">, playerId: string) => void;
+}) {
+    const { gameId, viewerId, state, allPlayers, onSwitchGame } = args;
+    return {
+        gameId,
+        playerId: viewerId,
+        activePlayerId: state.activePlayerId,
+        priorityPlayerId: viewerId,
+        phase: manualPhase(state.phase),
+        turn: state.turn,
+        engineTurn: state.turn,
+        stackCount: 0,
+        stackItems: [],
+        allPlayers,
+        showAllCards: false,
+        debugAllActions: false,
+        onSwitchGame,
+    };
+}
