@@ -89,6 +89,6 @@ contents — this is the single biggest thing the frame does not have to carry.
 
     Then return **one line** to the orchestrator: outcome, PR number, and — on `wip`/`failed` — what is still red. Nothing more (no file dumps, no test logs, no restated receipt). The file is the payload; the line is a pointer.
 
-    **A `SubagentStop` hook backs this up.** If you stop without writing a receipt, `.claude/hooks/receipt-guard.sh` records a `missing` marker so the gap is a fact on disk rather than an absence. That is a backstop, not an alternative — a `missing` marker carries no PR, no paths and no verdict, so an issue whose receipt is only a marker cannot be merged this pass.
+    **A `SubagentStop` hook backs this up.** If you stop without writing a receipt, `.claude/hooks/receipt-guard.sh` records a `missing` marker so the gap is a fact on disk rather than an absence. That is a backstop, not an alternative — a `missing` marker carries no PR, no paths and no verdict, so an issue whose receipt is only a marker cannot be merged this pass. The marker is keyed on your `agent_id` and rewritten in place, because `SubagentStop` fires on every yield of a background agent, not once at the end: what counts is whether YOUR marker is still there when the pass ends, and writing your receipt clears it.
 
 The subagent inherits the same error-handling rules (max 3 attempts, then `[WIP]` draft PR — see SKILL.md § Error handling).
