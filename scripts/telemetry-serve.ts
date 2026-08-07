@@ -250,6 +250,7 @@ function issuesView(from: string, to: string) {
     const rows = db
         .query(
             `SELECT r.issue, m.title, m.family, m.state, m.closed_at,
+                   min(r.started) AS first_ts,
                    count(*) AS runs,
                    round((max(r.started + r.dur_s) - min(r.started)) / 60.0, 0) AS latency_min,
                    -- the tier the IMPLEMENT ran on (modal across implement runs)
