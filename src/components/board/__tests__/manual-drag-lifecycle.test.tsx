@@ -12,9 +12,11 @@
 // `setPointerCapture` (`manual-board.tsx:222`); `useManualDrag` now terminates
 // the gesture on the WINDOW instead.
 //
-// Everything here drives the REAL `ManualBoardView` (so the `ref={drag.rootRef}`
-// wiring is under test too, not just the hook in isolation), with the sibling
-// log rail present as the out-of-board release target it actually is.
+// Everything here drives the REAL `ManualBoardView` rather than the hook in
+// isolation, so what is under test is the shipped wiring: `onPointerDown` bound
+// on the board's `<main>` (the delegation scope) with move / up / cancel bound
+// on `window` for the life of the press, and the sibling log rail actually
+// mounted outside that `<main>` as the out-of-board release target it is.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, fireEvent, cleanup, screen } from "@testing-library/react";
 import {
@@ -100,6 +102,10 @@ const permanent = () =>
         '[data-arrow-anchor-permanent="perm1"]'
     )!;
 const ghost = () => document.querySelector("[data-manual-drag-ghost]");
+/** The board's own `<main>` — inside the delegation scope, but not a drag
+ *  source, so a press on it takes `onPointerDown`'s early return. */
+const boardRoot = () =>
+    document.querySelector<HTMLElement>("[data-manual-board]")!;
 
 /** Press on the permanent and drag straight up past the combat lift, WITHOUT
  *  releasing. `pointermove` goes to the window because that is where the live
@@ -172,6 +178,31 @@ describe("Manual Board drag gesture lifecycle (#2169)", () => {
             instanceId: "perm1",
             tapped: true,
         });
+    });
+
+    it("a press ends a gesture whose pointerup AND pointercancel were both lost", () => {
+        renderBoardWithLogRail();
+        pressAndDragUp();
+        expect(ghost()).not.toBeNull();
+
+        // Window blur / OS interruption mid-drag: neither `pointerup` nor
+        // `pointercancel` ever arrives, so nothing on the gesture's own path
+        // runs. The next press is the only remaining boundary — and it lands on
+        // the board but NOT on a drag source, i.e. it takes `onPointerDown`'s
+        // early return, so the cleanup has to happen ahead of that return.
+        fireEvent.pointerDown(boardRoot(), {
+            button: 0,
+            clientX: 10,
+            clientY: 10,
+        });
+
+        // The stranded ghost is gone...
+        expect(ghost()).toBeNull();
+        // ...and so are the dead gesture's window listeners: a stray
+        // `pointerup` no longer resolves a drop for the abandoned card.
+        fireEvent.pointerUp(window, { clientX: 500, clientY: 380 });
+        expect(MUTATIONS.manualSetLane).not.toHaveBeenCalled();
+        expect(MUTATIONS.manualMoveCard).not.toHaveBeenCalled();
     });
 
     it("a pointercancel anywhere abandons the drag with no ghost and no dispatch", () => {

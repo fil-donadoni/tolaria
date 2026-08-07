@@ -23,16 +23,22 @@ through the presentational `BoardCard`, which has no menu at all.
 battlefield cards (`manual-board.tsx:467` and `:538`), and `ManualCard` wrapped
 every card in a `ContextMenu` carrying Tap/Untap, Turn face down, +1/+1, −1/−1,
 damage counter, Clear damage, Custom counter and Set note
-(`manual-board.tsx:764-953`). Hand cards could also be REORDERED. So the swap
-takes two distinct things away:
+(`manual-board.tsx:764-953`). So the swap leaves the hand short in two distinct
+ways, and only the first is a regression:
 
 1. **Removed** (existed before this PR): the hand card's context menu — turn a
-   hand card face down, put counters or a note on it — and hand reordering
-   (`canReorder`, `board-hand.tsx:208`, off with `interactive` false).
-2. **Never built** (the issue asked for them, nothing shipped them): **play face
-   down** as one gesture, **reveal** (`api.game.manualReveal` is shipped
-   server-side and now has no client caller at all), and **library TOP vs
-   BOTTOM** — the drag always uses `manualMoveCard`'s default index.
+   hand card face down, put counters or a note on it (`board-hand.tsx:224`, the
+   `interactive && card` branch that now always falls through to `BoardCard`).
+2. **Never built** (nothing here is a loss): **play face down** as one gesture,
+   **reveal** (`api.game.manualReveal` is shipped server-side and now has no
+   client caller at all), and **library TOP vs BOTTOM** — the drag always uses
+   `manualMoveCard`'s default index. Hand **reordering** belongs in this column
+   too, in a sharper sense: `canReorder` (`board-hand.tsx:208`) is a
+   SHARED-surface affordance the deleted board never had. Grepping the deleted
+   file at `origin/main` for `index` or `reorder` returns nothing: its drag
+   resolved to attach / lane / zone-move only, and `manualMoveCard` was never
+   passed an index. Opting out of `handInteractive` therefore DECLINES an
+   affordance the manual board would have gained; it does not lose one.
 
 What survives: **discard** (drag hand → graveyard), **play** (drag hand →
 battlefield), **to library** (drag hand → library tile), **exile** (drag hand →

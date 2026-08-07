@@ -77,11 +77,20 @@ type DragMeta = {
  *  the window entirely — would never deliver `pointerup` to the board. Bound on
  *  the root, such a release discarded the drop, stranded the fixed-position
  *  ghost on screen and left the click-swallow armed. The deleted
- *  `manual-board.tsx` avoided that with `setPointerCapture` (`:222`); window
- *  listeners cover the same case plus the release-outside-the-window one, and
- *  they keep the `pointerup` target honest — pointer capture RETARGETS the
- *  event to the capture element, which would make "was this released over the
- *  board?" unanswerable (see `swallowClickRef` below).
+ *  `manual-board.tsx` avoided that with `setPointerCapture` (`:222`), which
+ *  would have worked for the log rail too; window listeners were preferred
+ *  because they also survive an unmount mid-gesture without a stale capture
+ *  element, need no release on any exit path, and are drivable in jsdom.
+ *  (Capture retargets `pointerup` to the capture element, but that would NOT
+ *  have made "was this released over the board?" unanswerable — the hook
+ *  already answers spatial questions from coordinates, as `probeDropTarget`
+ *  does with `document.elementFromPoint`.)
+ *
+ *  **Nothing survives a gesture boundary.** `onPointerDown` clears the previous
+ *  gesture — listeners, press metadata, ghost, click-swallow — before it looks
+ *  at anything, because a press whose `pointerup` AND `pointercancel` were both
+ *  lost (window blur, OS interruption) leaves all four behind with no other
+ *  path back to a clean state.
  *
  *  A completed drag swallows the click that follows it (capture phase), so
  *  releasing a drag over a permanent never also taps it.
@@ -151,13 +160,23 @@ export function useManualDrag(runtime: ManualRuntime) {
 
     const handlers = {
         onPointerDown(e: React.PointerEvent) {
-            // A new press closes the previous gesture's swallow window: the
-            // swallowed `click` always arrives before the next `pointerdown`,
-            // so a flag still set here can only be stale. Unconditional (ahead
-            // of every early return below) — the invariant is "the flag never
-            // survives a gesture boundary", not "the flag is tidied when the
-            // press happens to start on a card".
+            // A new press closes the previous gesture, whatever state it was
+            // left in. Both lines are unconditional, ahead of every early
+            // return below, because the invariant is "nothing survives a
+            // gesture boundary" — not "things are tidied when the press happens
+            // to start on a card".
+            //
+            // The swallow flag: the swallowed `click` always arrives before the
+            // next `pointerdown`, so a flag still set here can only be stale.
+            //
+            // The gesture itself: `pointerup` and `pointercancel` normally
+            // clear it, but a press interrupted by a window blur can deliver
+            // neither, which strands the fixed-position ghost on screen and
+            // leaves the dead gesture's window listeners live — a later stray
+            // `pointerup` would then resolve a drop for a card the user let go
+            // of long ago. `clearGesture()` here is the only path back.
             swallowClickRef.current = false;
+            clearGesture();
             if (e.button !== 0) return;
             const target = e.target as Element | null;
             const source = target?.closest?.(DRAG_SOURCE_SELECTOR) ?? null;
@@ -171,10 +190,11 @@ export function useManualDrag(runtime: ManualRuntime) {
                 active: false,
             };
             setOffset({ x: 0, y: 0 });
-            // Re-entrancy: a second pointerdown with no intervening up (a
-            // second finger, a lost event) replaces the gesture rather than
-            // leaking the first one's listeners.
-            detachRef.current?.();
+            // Re-entrancy needs nothing here: the unconditional
+            // `clearGesture()` above already detached any gesture still in
+            // flight, so a second pointerdown with no intervening up (a second
+            // finger, a lost event) replaces the first rather than leaking its
+            // listeners.
             const move = onWindowPointerMove;
             const up = onWindowPointerUp;
             const cancel = onWindowPointerCancel;

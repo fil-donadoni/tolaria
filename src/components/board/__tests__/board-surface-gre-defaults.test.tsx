@@ -90,9 +90,15 @@ function makePlayer(id: string, hand: (CardInstance | null)[]): Player {
 
 function renderGreBoard() {
     h.state = {
-        // Opponent's hand is face-down backs; the viewer holds one real card.
+        // BOTH hands hold a real card. The opponent's is deliberately not the
+        // `null` back the default projection sends: `board-hand.tsx:224`
+        // branches on `interactive && card`, so a `null` slot renders the
+        // presentational `BoardCard` whatever `interactive` says — the seat
+        // gate below would then be untestable (a green assertion that cannot
+        // fail). Under `showAllCards` / debug the opponent's hand DOES project
+        // real cards, which is the shape that makes the gate observable.
         players: [
-            makePlayer("opp", [null]),
+            makePlayer("opp", [card("o1", "opp")]),
             makePlayer("me", [card("h1", "me")]),
         ],
         activePlayerId: "me",
@@ -135,12 +141,16 @@ describe("BoardSurface's GRE defaults (#2169)", () => {
         ).not.toBeNull();
     });
 
-    it("the OPPONENT's hand stays presentational either way (the seat gate, not the seam)", () => {
+    it("the OPPONENT's hand stays presentational (the seat gate, not the seam)", () => {
         // Guards the reading of the previous assertion: `handInteractive` is
         // ANDed with `player.id === viewerId`, so an interactive opponent hand
-        // would mean the seam was wired to the wrong condition.
+        // would mean the seam was wired to the wrong condition. The fixture
+        // hands the opponent a REAL card so this depends on the seat gate and
+        // nothing else — delete either `&& opponent.id === viewerId` in
+        // `board-surface.tsx` and it goes red.
         renderGreBoard();
         const oppHand = screen.getByTestId("zone-opponent-hand");
+        expect(oppHand.querySelector('[data-board-card="o1"]')).not.toBeNull();
         expect(oppHand.querySelector("[data-board-hand-card]")).toBeNull();
     });
 });
