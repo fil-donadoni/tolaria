@@ -5,7 +5,13 @@
 // Draft path (an Arrangement present, even empty — the continuous
 // main-by-default seed via `splitPoolByArrangement`).
 import { describe, it, expect, vi, afterEach, beforeAll } from "vitest";
-import { render, cleanup, fireEvent, within } from "@testing-library/react";
+import {
+    render,
+    cleanup,
+    fireEvent,
+    within,
+    act,
+} from "@testing-library/react";
 import { DragDropManager } from "@dnd-kit/dom";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -918,5 +924,267 @@ describe("PoolDeckBuilderForm — SaveDeckBar stays reachable regardless of the 
         expect(saveBarWrapper.className.split(/\s+/)).toContain("shrink-0");
         const root = container.firstElementChild as HTMLElement;
         expect(Array.from(root.children)).toContain(saveBarWrapper);
+    });
+});
+
+// The Add-Basic bar, generalised to the shell and given a per-subtype
+// counter, a remove gesture floored at zero, and a `+5` step (issue #1627,
+// PRD #1617 § "basics bar ships in BOTH builders"). One mounted test covering
+// the whole quintet the acceptance criteria calls for — counter, add, remove,
+// floor, +5 — through the REAL Limited form, not a hand-built bar.
+describe("PoolDeckBuilderForm — Add-Basic bar counter/add/remove/floor/+5 (issue #1627)", () => {
+    it("counts, adds, removes, floors at zero, and adds five — all through the real Maindeck", () => {
+        setup();
+        const { getByText, getByLabelText, getByTestId } = render(
+            <PoolDeckBuilderForm
+                eventId={"event-1" as never}
+                seatIndex={0}
+                pool={POOL}
+                existingDeck={null}
+                eventType="sealed"
+                poolArrangement={[]}
+            />
+        );
+
+        // Starts at zero — POOL's own Basic is a Plains (sitting in the
+        // Sideboard by the Sealed default, `defaultWorkingDeck`), not a
+        // Mountain — and the remove control for a zero-count subtype is
+        // disabled: the floor is visible before anything is ever added.
+        expect(getByTestId("basic-count-Mountain").textContent).toBe("0");
+        expect(
+            (getByLabelText("Remove one Mountain") as HTMLButtonElement)
+                .disabled
+        ).toBe(true);
+
+        // Click adds one.
+        fireEvent.click(getByText("+ Mountain"));
+        expect(getByTestId("basic-count-Mountain").textContent).toBe("1");
+        expect(getByText(/^Maindeck 1/)).toBeTruthy();
+        expect(
+            (getByLabelText("Remove one Mountain") as HTMLButtonElement)
+                .disabled
+        ).toBe(false);
+
+        // +5 adds five more in one action.
+        fireEvent.click(getByLabelText("Add five Mountain"));
+        expect(getByTestId("basic-count-Mountain").textContent).toBe("6");
+        expect(getByText(/^Maindeck 6/)).toBeTruthy();
+
+        // Shift-click on the pill removes one.
+        fireEvent.click(getByText("+ Mountain"), { shiftKey: true });
+        expect(getByTestId("basic-count-Mountain").textContent).toBe("5");
+
+        // Right-click (contextmenu) on the pill also removes one.
+        fireEvent.contextMenu(getByText("+ Mountain"));
+        expect(getByTestId("basic-count-Mountain").textContent).toBe("4");
+
+        // Drain the rest via the dedicated − button back to zero.
+        for (let i = 0; i < 4; i++) {
+            fireEvent.click(getByLabelText("Remove one Mountain"));
+        }
+        expect(getByTestId("basic-count-Mountain").textContent).toBe("0");
+        expect(getByText(/^Maindeck 0/)).toBeTruthy();
+
+        // Floored: the remove control is disabled again, and a further click
+        // (or shift-click) is a no-op — the count never goes negative and
+        // the Maindeck never gains a stray removal.
+        expect(
+            (getByLabelText("Remove one Mountain") as HTMLButtonElement)
+                .disabled
+        ).toBe(true);
+        fireEvent.click(getByLabelText("Remove one Mountain"));
+        fireEvent.click(getByText("+ Mountain"), { shiftKey: true });
+        expect(getByTestId("basic-count-Mountain").textContent).toBe("0");
+        expect(getByText(/^Maindeck 0/)).toBeTruthy();
+    });
+
+    it("adding a basic never touches Pool membership — the Pool-sourced Sideboard count is unaffected", () => {
+        setup();
+        const { getByText } = render(
+            <PoolDeckBuilderForm
+                eventId={"event-1" as never}
+                seatIndex={0}
+                pool={POOL}
+                existingDeck={null}
+                eventType="sealed"
+                poolArrangement={[]}
+            />
+        );
+        expect(getByText(/^Pool \(Sideboard\) 2/)).toBeTruthy();
+        fireEvent.click(getByText("+ Forest"));
+        // The Maindeck gained a card the Sideboard never held — this is not
+        // a move, so the Sideboard's Pool-sourced count is untouched.
+        expect(getByText(/^Pool \(Sideboard\) 2/)).toBeTruthy();
+        expect(getByText(/^Maindeck 1/)).toBeTruthy();
+    });
+
+    it("a basic added from the bar lands in the Lands column under EVERY Grouping that has one", () => {
+        setup();
+        const { getByText, getByLabelText, container } = render(
+            <PoolDeckBuilderForm
+                eventId={"event-1" as never}
+                seatIndex={0}
+                pool={POOL}
+                existingDeck={null}
+                eventType="sealed"
+                poolArrangement={[]}
+            />
+        );
+        fireEvent.click(getByText("+ Mountain"));
+
+        const main = () => paneOf(container, /^Maindeck /);
+        expect(cardsIn(main(), "mv:lands")).toEqual(["Mountain"]);
+
+        const grouping = () => getByLabelText("Maindeck grouping");
+        fireEvent.change(grouping(), { target: { value: "color" } });
+        expect(cardsIn(main(), "color:lands")).toEqual(["Mountain"]);
+
+        // `type` is the third Grouping that generates a Lands Column
+        // (`deckLayout.ts` `landsColumn("type")`); `none` deliberately has
+        // none (issue #1618). The AC says EVERY Grouping, so stopping at two
+        // of the three left one untested (PR #2320 review NB2).
+        fireEvent.change(grouping(), { target: { value: "type" } });
+        expect(cardsIn(main(), "type:lands")).toEqual(["Mountain"]);
+    });
+});
+
+// PR #2320 review B1/NB1: the bar's counter classifies by SUBTYPE
+// (`countBasicLandCopies`), so its remove gesture must classify by subtype
+// too. Matching the removal by `cardId` made the two halves disagree about
+// what "a Mountain" is: a Maindeck Mountain under any printing other than the
+// ONE id `resolveBasicLandCardIds` resolved was counted, offered an enabled
+// `−` button — and never removed. And when both halves DID agree on the id,
+// first-match removal took the PINNED Pool copy rather than the unpinned
+// copy the bar itself had just appended (NB1), stranding a recorded Column.
+const CANONICAL_MOUNTAIN_ID = "eace2c85-976c-425e-9800-5a6ccbd91b56";
+// A real LEB Mountain PRINT id. `tryGetDefinition` resolves it back to the
+// Mountain definition (whose own id is the canonical one above), which is why
+// the subtype counter sees it and an id match does not.
+const LEB_MOUNTAIN_PRINT_ID = "7af9c715-8d72-4eae-b412-fc89138ff588";
+
+describe("PoolDeckBuilderForm — the bar removes exactly what it counted (PR #2320 review B1/NB1)", () => {
+    it("removes a Mountain the Pool opened under a DIFFERENT printing — no copy is counted but unremovable", () => {
+        setup();
+        const { getByLabelText, getByTestId } = render(
+            <PoolDeckBuilderForm
+                eventId={"event-1" as never}
+                seatIndex={0}
+                pool={[
+                    {
+                        scryfallId: "m1",
+                        cardId: LEB_MOUNTAIN_PRINT_ID,
+                        cardName: "Mountain",
+                    },
+                    {
+                        scryfallId: "m2",
+                        cardId: CANONICAL_MOUNTAIN_ID,
+                        cardName: "Mountain",
+                    },
+                ]}
+                existingDeck={null}
+                eventType="draft"
+                poolArrangement={[]}
+            />
+        );
+
+        // Both printings are Mountains, so the counter reads 2 …
+        expect(getByTestId("basic-count-Mountain").textContent).toBe("2");
+        const minus = () =>
+            getByLabelText("Remove one Mountain") as HTMLButtonElement;
+        expect(minus().disabled).toBe(false);
+
+        // … and BOTH must actually come off. An enabled control that silently
+        // does nothing is worse than a disabled one: it lies about the floor.
+        fireEvent.click(minus());
+        expect(getByTestId("basic-count-Mountain").textContent).toBe("1");
+        fireEvent.click(minus());
+        expect(getByTestId("basic-count-Mountain").textContent).toBe("0");
+        expect(minus().disabled).toBe(true);
+    });
+
+    it("takes back its OWN copy, never a pinned Pool copy of the same basic (NB1)", () => {
+        setup();
+        const { container, getByText, getByLabelText, getByTestId } = render(
+            <PoolDeckBuilderForm
+                eventId={"event-1" as never}
+                seatIndex={0}
+                pool={[
+                    {
+                        scryfallId: "m1",
+                        cardId: CANONICAL_MOUNTAIN_ID,
+                        cardName: "Mountain",
+                    },
+                ]}
+                existingDeck={null}
+                eventType="draft"
+                // The Pool's own Mountain carries a Column Pin: it is the copy
+                // whose removal would strand a recorded arrangement.
+                poolArrangement={[{ poolIndex: 0, pins: { mv: "mv:6" } }]}
+            />
+        );
+        const main = () => paneOf(container, /^Maindeck/);
+        expect(cardsIn(main(), "mv:6")).toEqual(["Mountain"]);
+
+        fireEvent.click(getByText("+ Mountain"));
+        expect(getByTestId("basic-count-Mountain").textContent).toBe("2");
+        expect(cardsIn(main(), "mv:lands")).toEqual(["Mountain"]);
+
+        // "Undo my own click" — the likeliest gesture now that `−` sits one
+        // pixel from `+`.
+        fireEvent.click(getByLabelText("Remove one Mountain"));
+
+        expect(getByTestId("basic-count-Mountain").textContent).toBe("1");
+        // The Pool copy kept its Column; the bar took back the copy it added.
+        expect(cardsIn(main(), "mv:6")).toEqual(["Mountain"]);
+        expect(cardsIn(main(), "mv:lands")).toEqual([]);
+    });
+});
+
+// The disabled-while-saving acceptance criterion, asserted through the real
+// form rather than by handing the bar a `disabled` prop (PR #2320 review
+// NB3) — the prop-level test never reaches this wiring, so removing
+// `disabled={saving}` here left the whole suite green.
+describe("PoolDeckBuilderForm — Add-Basic bar disabled while a save is in flight (issue #1627)", () => {
+    it("disables every add/remove control for the duration of the write", () => {
+        vi.useFakeTimers();
+        try {
+            // A write that never settles: `saving` stays true so the assertion
+            // is not a race against the debounce.
+            useMutationMock.mockReturnValue(
+                vi.fn().mockReturnValue(new Promise(() => {}))
+            );
+            const { getByText, getByLabelText, getByTestId } = render(
+                <PoolDeckBuilderForm
+                    eventId={"event-1" as never}
+                    seatIndex={0}
+                    pool={POOL}
+                    existingDeck={null}
+                    eventType="sealed"
+                    poolArrangement={[]}
+                />
+            );
+            const pill = () =>
+                getByText("+ Mountain").closest("button") as HTMLButtonElement;
+            const minus = () =>
+                getByLabelText("Remove one Mountain") as HTMLButtonElement;
+            const plusFive = () =>
+                getByLabelText("Add five Mountain") as HTMLButtonElement;
+
+            fireEvent.click(getByText("+ Mountain"));
+            expect(getByTestId("basic-count-Mountain").textContent).toBe("1");
+            // Before the debounce trailing edge nothing is in flight yet.
+            expect(pill().disabled).toBe(false);
+            expect(minus().disabled).toBe(false);
+
+            act(() => {
+                vi.advanceTimersByTime(1000);
+            });
+
+            expect(pill().disabled).toBe(true);
+            expect(minus().disabled).toBe(true);
+            expect(plusFive().disabled).toBe(true);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });
