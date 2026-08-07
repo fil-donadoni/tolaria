@@ -185,9 +185,11 @@ export interface DeckSaveBarSpec {
     onDelete?: () => void;
     /** The compact, short-viewport-only twin of a header `foldableActions`
      *  control (issue #1631 fixup) — rendered exactly like `onBack`/
-     *  `legality` already are, hidden except under `short-viewport:`. Set
-     *  this alongside `DeckBuilderSlots.headerFoldableActions` so a control
-     *  that disappears with a hidden header band stays reachable. */
+     *  `legality` already are, hidden except under `short-viewport:`. Omit
+     *  it and the shell falls back to `DeckBuilderSlots.headerFoldableActions`
+     *  itself (issue #1631 fixup R-F7) — pass a DIFFERENT element here only
+     *  when the twin genuinely needs to differ (e.g. a `short-viewport:`
+     *  compact `className` the header copy doesn't need). */
     foldableActions?: ReactNode;
 }
 
@@ -201,10 +203,12 @@ export interface DeckBuilderSlots {
     headerActions?: ReactNode;
     /** A header-band control that does NOT keep the band on screen under
      *  `short-viewport:` (issue #1631 fixup) — passed through to
-     *  `DeckBuilderHeader`'s `foldableActions` slot. A caller supplying this
-     *  MUST also supply the same control's compact twin on
-     *  `saveBar.foldableActions`, or the control is lost (not folded) once
-     *  the band hides. The Limited pool builder's Stats button is the
+     *  `DeckBuilderHeader`'s `foldableActions` slot. The shell defaults
+     *  `saveBar.foldableActions` to this value when the caller omits it
+     *  (issue #1631 fixup R-F7), so the control folds into `SaveDeckBar`
+     *  automatically once the band hides — a caller only needs
+     *  `saveBar.foldableActions` explicitly when the twin must differ from
+     *  the header copy. The Limited pool builder's Stats button is the
      *  reference case: its header carries no other controls, so #2056's
      *  hidden-band budget (~39px handed back to the card zones) must stay
      *  intact. */

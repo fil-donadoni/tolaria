@@ -109,4 +109,33 @@ describe("DeckStatsButton — Stats dialog (issue #1631)", () => {
             .map((li) => li.querySelector("span")!.textContent);
         expect(names).toEqual(["Land", "Creature", "Instant"]);
     });
+
+    it("exposes the curve's per-bucket counts inside an accessible group, not a pruned img (issue #1631 fixup F5)", () => {
+        // `role="img"` marks every descendant "presentational" per ARIA, so
+        // a screen-reader user would get the chart's aria-label and nothing
+        // else — the bucket counts below would be unreachable even though
+        // they are plain DOM text. `role="group"` does not prune. Querying
+        // the count THROUGH a `role="group"`-scoped lookup (rather than
+        // reading `getAttribute("role")` directly) is the assertion that
+        // actually depends on the chart being a group: reverting to
+        // `role="img"` makes `getByRole("group", ...)` find nothing at all,
+        // failing this test, where a bare attribute-equality check would not
+        // distinguish "queryable as a group" from "queryable as an img".
+        render(
+            <DeckStatsButton
+                mainCards={[
+                    card(BOLT_ID, "Lightning Bolt"),
+                    card(MOUNTAIN_ID, "Mountain"),
+                ]}
+            />
+        );
+        fireEvent.click(screen.getByRole("button", { name: "Stats" }));
+
+        const curveGroup = screen.getByRole("group", {
+            name: "Mana curve by mana value, lands excluded",
+        });
+        expect(
+            within(curveGroup).getByTitle("Mana value 1: 1 card")
+        ).toBeTruthy();
+    });
 });

@@ -736,6 +736,21 @@ describe("PoolDeckBuilderForm — short-viewport chrome treatment (issue #2056 d
             expect.arrayContaining(["hidden", "short-viewport:inline-flex"])
         );
 
+        // Issue #1631 fixup R-F6: the twin must actually be compact, not
+        // merely documented as such. Without a `short-viewport:` override it
+        // renders at the base `size="sm"` padding (py-1.5, ~30px tall) —
+        // taller than every other control in this row (Back is `xs`,
+        // Delete/Done/the name input all carry `short-viewport:py-1`,
+        // ~26px), handing back roughly the same ~4px of chrome the #2056
+        // budget this row exists to protect was short by. Matching
+        // Delete/Done's own override keeps it at that ~26px ceiling instead.
+        expect(foldedStats.className.split(/\s+/)).toEqual(
+            expect.arrayContaining([
+                "short-viewport:py-1",
+                "short-viewport:px-2",
+            ])
+        );
+
         // It is the SAME real toolbar affordance, not a stand-in — clicking
         // it opens the actual Stats dialog.
         fireEvent.click(foldedStats);

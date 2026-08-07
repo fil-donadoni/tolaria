@@ -270,6 +270,28 @@ describe("DeckBuilderShell — declared-variant vocabulary (issue #1623)", () =>
         expect(classes).toContain("short-viewport:py-1");
     });
 
+    it("defaults SaveDeckBar's folded twin to headerFoldableActions when the caller omits saveBar.foldableActions (issue #1631 fixup R-F7)", () => {
+        // The pairing used to be enforced by prose only ("a caller supplying
+        // headerFoldableActions MUST also supply saveBar.foldableActions or
+        // the control is lost"). This proves the structural fallback: a
+        // caller that sets ONLY `headerFoldableActions` still gets the
+        // control folded into `SaveDeckBar`'s short-viewport row, with no
+        // separate `saveBar.foldableActions` at all.
+        const { container, getAllByText } = renderShell({
+            headerFoldableActions: <button type="button">Stats</button>,
+            saveBar: { name: "Deck", cardCount: 0, onChangeName: () => {} },
+        });
+        const form = container.querySelector("form")!;
+        const foldedStats = getAllByText("Stats").find((el) =>
+            form.contains(el)
+        );
+        expect(foldedStats).toBeTruthy();
+        const wrapper = foldedStats!.closest("span")!;
+        expect(wrapper.className.split(/\s+/)).toEqual(
+            expect.arrayContaining(["hidden", "short-viewport:inline-flex"])
+        );
+    });
+
     it("carries the Sideboard cap only when the variant declares one — Limited's Sideboard stays uncapped", () => {
         const uncapped = renderShell({ sideCards: [card(PLAINS_ID)] });
         expect(uncapped.getByText(/^Pool \(Sideboard\) 1$/)).toBeTruthy();
