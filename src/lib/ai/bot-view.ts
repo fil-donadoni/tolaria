@@ -10,6 +10,7 @@
 
 import type {
     PublicGameState,
+    PublicPlayer,
     SlimCardInstance,
 } from "@convex/gameProjections";
 import type { Move, PendingChoice } from "@convex/gre";
@@ -43,7 +44,7 @@ import {
     pickForOwedPayment,
 } from "@convex/gre/paymentPicks";
 import { isSacrificeSelectionComplete } from "@convex/gre/sacrificeChoice";
-import type { GameState } from "@convex/gre/state";
+import type { GameState, ManaRestriction } from "@convex/gre/state";
 import { projectedToGameState } from "./state-adapter";
 import { owedInputFor } from "./owed-input";
 import type {
@@ -453,12 +454,40 @@ function readChoiceZone(
     return cards;
 }
 
+/** Pool a bot `may-pay` mana leg may draw on: the fungible `manaPool` plus any
+ *  `restrictedMana` unit whose restriction EXACTLY equals `manaRestriction`
+ *  (CR 106.6, ADR 0022 / 0042). Mirrors the server's
+ *  `spendablePoolForRestriction` (`convex/gre/state.ts`) — same merge key,
+ *  same exact-match eligibility rule, no substitutions — so this gate is
+ *  never more permissive than `canPayMayPayCost` (issue #2222). Returns a
+ *  plain `manaPool` copy when no restriction is given, preserving the
+ *  historical mana-only path. */
+function spendableManaPoolForRestriction(
+    bot: Pick<PublicPlayer, "manaPool" | "restrictedMana">,
+    manaRestriction: ManaRestriction | undefined
+): Record<string, number> {
+    const pool = { ...bot.manaPool };
+    if (!manaRestriction) return pool;
+    for (const r of bot.restrictedMana ?? []) {
+        if (r.restriction === manaRestriction) {
+            pool[r.color] = (pool[r.color] ?? 0) + r.amount;
+        }
+    }
+    return pool;
+}
+
 /** Whether the bot can pay a `may-pay` cost from its CURRENT mana pool — the
  *  intentionally minimal "trivially affordable" test (ADR 0016). A cost-less
  *  may-pay is always affordable. `submitMayPay` pays from the pool only (lands
  *  must already be tapped) and throws if it can't cover, so this conservative
  *  check guarantees an accepted submission is never rejected back into a freeze;
- *  it ignores mana substitutions, which only make the server MORE permissive. */
+ *  it ignores mana substitutions, which only make the server MORE permissive.
+ *  The mana leg additionally draws on `head.manaRestriction`-matching
+ *  `restrictedMana` (CR 106.6, ADR 0042) — e.g. Snowfall / Adarkar Unicorn
+ *  mana reserved for a cumulative-upkeep `may-pay` — via
+ *  {@link spendableManaPoolForRestriction}, the same exact-restriction merge
+ *  the server's `canPayMayPayCost` uses, so this check stays no more
+ *  permissive than the server (issue #2222). */
 function mayPayIsAffordable(
     state: PublicGameState,
     head: PendingChoice,
@@ -473,7 +502,10 @@ function mayPayIsAffordable(
     const norm = normalizeMayPayCost(head.cost);
     if (
         norm.mana &&
-        !isManaCostCovered(bot.manaPool, normalizeManaCost(norm.mana))
+        !isManaCostCovered(
+            spendableManaPoolForRestriction(bot, head.manaRestriction),
+            normalizeManaCost(norm.mana)
+        )
     ) {
         return false;
     }
