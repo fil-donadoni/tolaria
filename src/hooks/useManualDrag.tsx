@@ -97,6 +97,11 @@ type DragMeta = {
  *  A completed drag swallows the click that follows it (capture phase), so
  *  releasing a drag over a permanent never also taps it.
  *
+ *  **Shift-drag onto a permanent points an arrow instead of attaching**
+ *  (issue #2171): `pointerup`'s `shiftKey` rides straight into
+ *  `resolveManualDrop`, which is the only place the drop decision is made —
+ *  this hook stays a plain DOM/state relay.
+ *
  *  Lifecycle guard: `manual-drag-lifecycle.test.tsx`. */
 export function useManualDrag(runtime: ManualRuntime) {
     const metaRef = useRef<DragMeta | null>(null);
@@ -151,6 +156,7 @@ export function useManualDrag(runtime: ManualRuntime) {
                 probe: probeDropTarget(e.clientX, e.clientY),
                 dx: e.clientX - meta.startX,
                 dy: e.clientY - meta.startY,
+                shiftKey: e.shiftKey,
             }),
             runtime.dispatch
         );

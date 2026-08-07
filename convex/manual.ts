@@ -633,7 +633,16 @@ export function manualSetArrow(
                 timestamp: Date.now(),
             },
         };
-    found.card.arrows = [...(found.card.arrows ?? []), targetId];
+    // A declaration, not an event log: shift-dragging A onto B twice is a
+    // normal, non-toggling action (no click-to-remove affordance exists), so
+    // re-declaring an already-present target is a no-op rather than a second
+    // identical entry (#2338 review — duplicate `arrows[]` entries collide on
+    // `buildManualArrowPairs`' `manual:from->to` key and crash React with a
+    // duplicate-key error).
+    const existing = found.card.arrows ?? [];
+    found.card.arrows = existing.includes(targetId)
+        ? existing
+        : [...existing, targetId];
     const pn = playerName(state, found.card.ownerId);
     return {
         state: s,
@@ -675,6 +684,40 @@ export function manualClearArrows(
             text: `${pn} clears ${cleared} arrows`,
             timestamp: Date.now(),
             playerId,
+        },
+    };
+}
+
+/** Clears the outgoing arrows OF ONE CARD (issue #2171) — the per-card
+ *  counterpart to {@link manualClearArrows}' board-wide sweep. This is what
+ *  "remove an arrow from the acting card's menu" (AC) needs: a player
+ *  un-declaring their own card's arrow(s) must not also erase every other
+ *  arrow on the board. A card with no arrows is a no-op, not an error — the
+ *  menu only ever offers this verb when `card.arrows` is non-empty, but the
+ *  reducer stays defensive against a stale render offering it anyway. */
+export function manualClearArrow(
+    state: ManualGameState,
+    instanceId: string
+): VerbResult {
+    const s = cloneState(state);
+    const found = findCard(s, instanceId);
+    if (!found)
+        return {
+            state,
+            log: {
+                text: `clearArrow(${instanceId}): card not found`,
+                timestamp: Date.now(),
+            },
+        };
+    const count = found.card.arrows?.length ?? 0;
+    delete found.card.arrows;
+    const pn = playerName(state, found.card.ownerId);
+    return {
+        state: s,
+        log: {
+            text: `${pn} clears ${count} arrow(s) from ${instanceId}`,
+            timestamp: Date.now(),
+            playerId: found.card.ownerId,
         },
     };
 }

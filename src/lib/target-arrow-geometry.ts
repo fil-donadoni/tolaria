@@ -273,6 +273,51 @@ export function buildCombatArrows(
     return arrows;
 }
 
+/** One manual arrow input (issue #2171): just the two permanent endpoints a
+ *  player shift-dragged between — a raw pointer pair, not a pre-built
+ *  {@link TargetArrow}, because only the anchor registry inside `BoardArrows`
+ *  (published by the shared layout) can resolve an instance id to a board
+ *  point. Resolving it here, alongside `buildCombatArrows`, means a manual
+ *  arrow tracks a moving/animating card exactly like a target or combat
+ *  arrow — no separate geometry path. */
+export type ManualArrowPair = {
+    key: string;
+    fromId: string;
+    toId: string;
+};
+
+/**
+ * Build the arrow set for Manual Mode's player-declared arrows (issue #2171):
+ * a flat permanent → permanent pointer pair, resolved the same way combat
+ * arrows are — both endpoints looked up in `anchors.permanent`. Kept as
+ * `kind: "target"` deliberately: the hover semantics that kind already gets
+ * (peer-to-peer, directional, non-transitive — CR has no rule here, this is a
+ * player convention) are exactly right for "this card is pointing at that
+ * one." A pair with either endpoint unpublished (not on the battlefield /
+ * anchor not measured yet) is skipped, same as every other arrow builder.
+ */
+export function buildManualArrows(
+    pairs: ManualArrowPair[],
+    anchors: AnchorMap
+): TargetArrow[] {
+    const arrows: TargetArrow[] = [];
+    for (const pair of pairs) {
+        const from = anchors.permanent[pair.fromId];
+        const to = anchors.permanent[pair.toId];
+        if (!from || !to) continue;
+        arrows.push({
+            key: pair.key,
+            kind: "target",
+            fromId: pair.fromId,
+            toId: pair.toId,
+            from,
+            to,
+            path: arrowPath(from, to),
+        });
+    }
+    return arrows;
+}
+
 /** All arrows in the combat cluster `clusterId`, with their endpoint nodes. */
 function combatCluster(
     arrows: TargetArrow[],
