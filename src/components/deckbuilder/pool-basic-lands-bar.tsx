@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import BasicLandArtPicker from "./basic-land-art-picker";
 import { BASIC_LAND_SUBTYPES, type BasicLandSubtype } from "./basicLands";
 
 interface PoolBasicLandsBarProps {
@@ -27,6 +28,13 @@ interface PoolBasicLandsBarProps {
      *  it is gated on `counts[subtype] > 0` in this component, so a caller
      *  never has to re-check the floor. */
     onRemove: (subtype: BasicLandSubtype) => void;
+    /** The deck Format's allowed sets (issue #1629 AC3) — threaded straight
+     *  to each subtype's `BasicLandArtPicker`, `null` offers every printing. */
+    allowedSets: string[] | null;
+    /** A printing was picked from a subtype's art grid (issue #1629) — the
+     *  caller persists the preference AND rewrites the open deck's copies;
+     *  this bar only forwards the gesture. */
+    onPickArt: (subtype: BasicLandSubtype, printId: string) => void;
     disabled: boolean;
 }
 
@@ -41,17 +49,21 @@ interface PoolBasicLandsBarProps {
  *  to open (a Vintage Cube Pool has none) or that Constructed has no Pool at
  *  all — so this bar must never render `null`.
  *
- *  Each subtype is three controls (issue #1627):
+ *  Each subtype is four controls (issue #1627, #1629):
  *   - a `−` button, disabled at zero copies — the visible, discoverable floor;
  *   - the pill itself: a plain click adds one, a shift-click or right-click
  *     removes one (the modifier gesture the acceptance criteria calls for,
  *     alongside the dedicated `−` button above);
- *   - a `+5` button for building a full mana base in a handful of clicks. */
+ *   - a `+5` button for building a full mana base in a handful of clicks;
+ *   - a `BasicLandArtPicker` thumbnail (issue #1629) showing the printing
+ *     currently in effect and opening a Format-filtered art grid on click. */
 export default function PoolBasicLandsBar({
     cardIdsBySubtype,
     counts,
     onAdd,
     onRemove,
+    allowedSets,
+    onPickArt,
     disabled,
 }: PoolBasicLandsBarProps) {
     return (
@@ -137,6 +149,13 @@ export default function PoolBasicLandsBar({
                         >
                             +5
                         </Button>
+                        <BasicLandArtPicker
+                            subtype={subtype}
+                            currentPrintId={cardId}
+                            allowedSets={allowedSets}
+                            onSelect={(printId) => onPickArt(subtype, printId)}
+                            disabled={disabled}
+                        />
                     </div>
                 );
             })}

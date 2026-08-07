@@ -6,7 +6,7 @@ import type {
     LimitedPoolCard,
     PoolArrangementEntry,
 } from "@convex/limited/eventTypes";
-import { validateDeck } from "@convex/formats";
+import { FORMAT_RULES, validateDeck } from "@convex/formats";
 import { poolFromLimitedPoolCards } from "@convex/limited/poolResolution";
 import {
     assignPoolCopies,
@@ -40,10 +40,14 @@ import {
 } from "~/lib/deckSideboard";
 import { cardBase } from "~/lib/cardSizing";
 import {
+    applyBasicLandArtPreference,
     basicLandSubtypeOf,
     countBasicLandCopies,
     findBasicLandRemovalIndex,
+    recordBasicLandArtChoice,
     resolveBasicLandCardIds,
+    rewriteBasicLandArtInDeck,
+    seededBasicLandArt,
     type BasicLandSubtype,
 } from "./basicLands";
 import DeckBuilderShell from "./deck-builder-shell";
@@ -529,13 +533,52 @@ export default function PoolDeckBuilderForm({
         />
     );
 
-    const basicCardIds = useMemo(() => resolveBasicLandCardIds(pool), [pool]);
+    // The user's basic-land art preference (issue #1629, ADR 0075 § "Basic-
+    // land art") — seeded from `localStorage` on mount, updated on every
+    // pick (mirrors `mainView`/`sideView`'s `seededColumnView`/
+    // `recordGroupingChange` split above). Layered on top of the Pool/
+    // catalogue resolution by `applyBasicLandArtPreference`, which leaves a
+    // subtype untouched when its stored printing is stale or now-illegal
+    // (AC8) — with `allowedSets: null` for `limited` (Pool-scoped legality
+    // never restricts by set), every printing is always legal here, so the
+    // only way a stored choice is skipped is if it no longer exists at all.
+    const [basicLandArt, setBasicLandArt] = useState(() =>
+        seededBasicLandArt()
+    );
+    const basicCardIds = useMemo(
+        () =>
+            applyBasicLandArtPreference(
+                resolveBasicLandCardIds(pool),
+                basicLandArt,
+                FORMAT_RULES.limited.allowedSets
+            ),
+        [pool, basicLandArt]
+    );
     // The bar's per-subtype counter (issue #1627) — read straight off the
     // live Maindeck, so it updates on every add/remove exactly like every
     // other zone count already does.
     const basicCounts = useMemo(
         () => countBasicLandCopies(deck.cards),
         [deck.cards]
+    );
+
+    /** A printing was picked from a subtype's art grid (issue #1629): persist
+     *  the preference, hold it so the bar/picker reflect it immediately, and
+     *  rewrite every copy already in the open deck — Maindeck AND Sideboard
+     *  (here, "the Pool") — to the new printing. Never touches any other
+     *  saved deck or the Pool's own membership: this only edits the
+     *  in-memory working deck's `cardId`s, which ride the same debounced
+     *  autosave as any other card edit. */
+    const handlePickBasicArt = useCallback(
+        (subtype: BasicLandSubtype, printId: string) => {
+            recordBasicLandArtChoice(subtype, printId);
+            setBasicLandArt((prev) => ({ ...prev, [subtype]: printId }));
+            updateDeck((d) => ({
+                ...d,
+                ...rewriteBasicLandArtInDeck(d, subtype, printId),
+            }));
+        },
+        [updateDeck]
     );
 
     // Live legality (issue #1111): the same pure `validateDeck` the server
@@ -571,6 +614,8 @@ export default function PoolDeckBuilderForm({
                     counts={basicCounts}
                     onAdd={handleAddBasic}
                     onRemove={handleRemoveBasic}
+                    allowedSets={FORMAT_RULES.limited.allowedSets}
+                    onPickArt={handlePickBasicArt}
                     disabled={saving}
                 />
             }

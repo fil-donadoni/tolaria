@@ -1,7 +1,15 @@
-import { tryGetCardByName } from "@convex/cards/catalogue";
+import {
+    getPrintingsForCard,
+    tryGetCardByName,
+    type CardPrinting,
+} from "@convex/cards/catalogue";
 import { tryGetDefinition } from "@convex/cards";
 import type { LimitedPoolCard } from "@convex/limited/eventTypes";
 import { BASIC_LAND_SUBTYPES, type BasicLandSubtype } from "~/lib/basicLands";
+import {
+    loadBasicLandPrintId,
+    saveBasicLandPrintId,
+} from "~/lib/deckViewPrefs";
 
 /** Re-exported for this module's own consumers (`pool-basic-lands-bar.tsx`)
  *  — the canonical declaration lives in `src/lib/basicLands.ts` (CR 305.2,
@@ -160,4 +168,154 @@ export function findBasicLandRemovalIndex(
         if (pinnedFallback < 0) pinnedFallback = i;
     }
     return pinnedFallback;
+}
+
+// --- Basic-land art picker (issue #1629, ADR 0075 § "Basic-land art") -----
+//
+// Every basic's fifteen printings differ ONLY by art (`lea×2, leb×3, ice,
+// 2ed×3, 3ed×3, 4ed×3`), so the existing per-card edition dropdown
+// (`src/lib/editions.ts`, `EditionDropdown`) is unusable here — a bare `LEB
+// #3` tells the player nothing about what they're picking. The functions
+// below are the pure half of the picker; the popover/grid UI lives in
+// `basic-land-art-picker.tsx`, and the two builders own the React state that
+// seeds from and writes through `recordBasicLandArtChoice`/
+// `seededBasicLandArt` (mirrors `deckZoneColumnView.ts`'s
+// `seededColumnView`/`recordGroupingChange` split for Grouping/Ordering).
+
+/** Every printing of a Basic subtype's canonical `CardDefinition` — the art
+ *  grid's full candidate list, before the Format filter. `[]` only in the
+ *  pathological case where the catalogue has no definition for the subtype's
+ *  name at all (mirrors `resolveBasicLandCardIds`'s own fallback). */
+export function basicLandPrintings(subtype: BasicLandSubtype): CardPrinting[] {
+    const def = tryGetCardByName(subtype);
+    if (!def) return [];
+    return getPrintingsForCard(def.id);
+}
+
+/** `basicLandPrintings` narrowed to what the deck's Format allows (issue
+ *  #1629 AC3) — `allowedSets: null` (Freeform, Limited: Pool-scoped legality
+ *  never restricts by set) offers every printing unfiltered. Keys on the
+ *  printing's OWN `setCode`, never the subtype's canonical definition's set,
+ *  so an LEB-printed Mountain is offered under an `["leb"]`-restricted
+ *  Format even though the canonical Mountain definition is an LEA card. */
+export function legalBasicLandPrintings(
+    subtype: BasicLandSubtype,
+    allowedSets: string[] | null
+): CardPrinting[] {
+    const printings = basicLandPrintings(subtype);
+    if (allowedSets === null) return printings;
+    const allowed = new Set(allowedSets);
+    return printings.filter((p) => allowed.has(p.setCode));
+}
+
+/** Is `printId` a printing of `subtype`'s definition, AND legal under
+ *  `allowedSets`? The single predicate a stored preference must pass before
+ *  it is allowed to override the default resolution (issue #1629 AC8) — a
+ *  stale id (the printing was retired from the catalogue) or a now-illegal
+ *  one (the deck's Format changed, or was always narrower than when the
+ *  preference was set) both read `false` here and fall through silently. */
+function isLegalBasicLandPrinting(
+    subtype: BasicLandSubtype,
+    printId: string,
+    allowedSets: string[] | null
+): boolean {
+    return legalBasicLandPrintings(subtype, allowedSets).some(
+        (p) => p.printId === printId
+    );
+}
+
+/** The subtype→printId preference to SEED a builder's held state from on
+ *  mount (issue #1629) — the user's stored choice per subtype, or omitted
+ *  entirely for a subtype never chosen. Pure read; callers own the state
+ *  (mirrors `seededColumnView`). */
+export function seededBasicLandArt(
+    storage: Storage = window.localStorage
+): Partial<Record<BasicLandSubtype, string>> {
+    const seed: Partial<Record<BasicLandSubtype, string>> = {};
+    for (const subtype of BASIC_LAND_SUBTYPES) {
+        const stored = loadBasicLandPrintId(subtype, storage);
+        if (stored !== null) seed[subtype] = stored;
+    }
+    return seed;
+}
+
+/** Persists a picked printing for `subtype` (issue #1629). Callers still
+ *  apply the choice to their own held preference state AND rewrite the open
+ *  deck's copies separately (`rewriteBasicLandArtInDeck`) — this only writes
+ *  the per-user preference (mirrors `recordGroupingChange`). */
+export function recordBasicLandArtChoice(
+    subtype: BasicLandSubtype,
+    printId: string,
+    storage: Storage = window.localStorage
+): void {
+    saveBasicLandPrintId(subtype, printId, storage);
+}
+
+/**
+ * Layers a held basic-land art preference on top of the existing
+ * Pool/catalogue resolution (`resolveBasicLandCardIds` /
+ * `resolveCanonicalBasicLandCardIds`) — the precedence issue #1629 AC7/AC8
+ * calls for: **stored preference (if legal) → Pool printing → catalogue
+ * default**. `baseIds` already encodes the last two tiers; this only ever
+ * overrides a subtype whose preference is both present and
+ * `isLegalBasicLandPrinting` — an absent, stale, or now-illegal preference
+ * leaves `baseIds[subtype]` untouched, which IS the silent fallback AC8
+ * requires (no error, no prompt, just the default resolution).
+ */
+export function applyBasicLandArtPreference(
+    baseIds: Record<BasicLandSubtype, string | null>,
+    preference: Partial<Record<BasicLandSubtype, string>>,
+    allowedSets: string[] | null
+): Record<BasicLandSubtype, string | null> {
+    const result = { ...baseIds };
+    for (const subtype of BASIC_LAND_SUBTYPES) {
+        const preferred = preference[subtype];
+        if (preferred === undefined) continue;
+        if (!isLegalBasicLandPrinting(subtype, preferred, allowedSets))
+            continue;
+        result[subtype] = preferred;
+    }
+    return result;
+}
+
+/**
+ * Rewrites every copy of `subtype` in `cards` to `printId` — the retroactive
+ * half of the picker (issue #1629 AC5: "changing the art rewrites the copies
+ * already in the open deck"). Preserves ARRAY POSITION and every other field
+ * on the entry (`pinKey` included) — only `cardId` changes — which is what
+ * keeps a Column Pin recorded against one of these copies intact instead of
+ * silently stranded (the exact failure mode `findBasicLandRemovalIndex`'s own
+ * doc comment above warns about for the remove gesture). A copy of a
+ * DIFFERENT subtype, or a non-Basic card, passes through untouched. Returns
+ * the SAME array reference when nothing changed, so a caller's `updateDeck`
+ * doesn't schedule a save for a subtype the zone doesn't hold.
+ */
+export function rewriteBasicLandArt<
+    T extends { cardId: string; cardName: string },
+>(cards: readonly T[], subtype: BasicLandSubtype, printId: string): T[] {
+    let changed = false;
+    const next = cards.map((card) => {
+        if (basicLandSubtypeOf(card.cardId) !== subtype) return card;
+        changed = true;
+        return { ...card, cardId: printId };
+    });
+    return changed ? next : (cards as T[]);
+}
+
+/** `rewriteBasicLandArt` applied to BOTH zones of an open deck (issue #1629
+ *  AC5: "rewrites every copy … in the currently open deck" names no zone,
+ *  and a Basic moves freely between Maindeck and Sideboard) — never any
+ *  OTHER saved deck (AC6), since this is a pure map over the caller's own
+ *  in-memory `WorkingDeck`, not a query. */
+export function rewriteBasicLandArtInDeck<
+    T extends { cardId: string; cardName: string },
+>(
+    deck: { cards: readonly T[]; sideboard: readonly T[] },
+    subtype: BasicLandSubtype,
+    printId: string
+): { cards: T[]; sideboard: T[] } {
+    return {
+        cards: rewriteBasicLandArt(deck.cards, subtype, printId),
+        sideboard: rewriteBasicLandArt(deck.sideboard, subtype, printId),
+    };
 }

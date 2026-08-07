@@ -19,9 +19,13 @@ import { effectiveFeatured, toggleFeatured } from "~/lib/featuredPicker";
 import { computeDeckColors } from "~/lib/deckColors";
 import { deckCardLookup, makeDeckCardShapeResolver } from "~/lib/deckCardShape";
 import {
+    applyBasicLandArtPreference,
     countBasicLandCopies,
     findBasicLandRemovalIndex,
+    recordBasicLandArtChoice,
     resolveCanonicalBasicLandCardIds,
+    rewriteBasicLandArtInDeck,
+    seededBasicLandArt,
     type BasicLandSubtype,
 } from "~/components/deckbuilder/basicLands";
 import PoolBasicLandsBar from "~/components/deckbuilder/pool-basic-lands-bar";
@@ -801,10 +805,46 @@ export default function DeckBuilder({
     // Pool, so every subtype resolves straight to the catalogue's canonical
     // printing rather than through a Pool-preference tier; the count is read
     // off the live Maindeck exactly like the Limited variant's.
-    const basicCardIds = useMemo(() => resolveCanonicalBasicLandCardIds(), []);
+    //
+    // The user's basic-land art preference (issue #1629, ADR 0075 § "Basic-
+    // land art") is held here, seeded from `localStorage` on mount and
+    // updated on every pick — mirrors `mainView`/`sideView`'s
+    // `seededColumnView`/`recordGroupingChange` split above. Layered on top
+    // of the base resolution by `applyBasicLandArtPreference`, which silently
+    // ignores a stale or now-illegal stored printing (AC8).
+    const [basicLandArt, setBasicLandArt] = useState(() =>
+        seededBasicLandArt()
+    );
+    const basicCardIds = useMemo(
+        () =>
+            applyBasicLandArtPreference(
+                resolveCanonicalBasicLandCardIds(),
+                basicLandArt,
+                FORMAT_RULES[deck.format].allowedSets
+            ),
+        [basicLandArt, deck.format]
+    );
     const basicCounts = useMemo(
         () => countBasicLandCopies(deck.cards),
         [deck.cards]
+    );
+
+    /** A printing was picked from a subtype's art grid (issue #1629): persist
+     *  the preference, hold it so the bar/picker reflect it immediately, and
+     *  rewrite every copy already in the open deck — Maindeck AND Sideboard
+     *  — to the new printing. Never touches any other saved deck: this only
+     *  edits the in-memory working deck, which rides the same debounced
+     *  autosave as any other card edit. */
+    const handlePickBasicArt = useCallback(
+        (subtype: BasicLandSubtype, printId: string) => {
+            recordBasicLandArtChoice(subtype, printId);
+            setBasicLandArt((prev) => ({ ...prev, [subtype]: printId }));
+            updateDeck((d) => ({
+                ...d,
+                ...rewriteBasicLandArtInDeck(d, subtype, printId),
+            }));
+        },
+        [updateDeck]
     );
 
     return (
@@ -826,6 +866,8 @@ export default function DeckBuilder({
                     counts={basicCounts}
                     onAdd={handleAdd}
                     onRemove={handleRemoveBasic}
+                    allowedSets={FORMAT_RULES[deck.format].allowedSets}
+                    onPickArt={handlePickBasicArt}
                     disabled={saving}
                 />
             }
