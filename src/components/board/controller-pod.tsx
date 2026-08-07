@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { useGameContext } from "~/hooks/useGameContext";
-import { useControllerActions } from "~/hooks/useControllerActions";
+import { useControllerActionsSource } from "~/hooks/controllerActionsContext";
 import { phaseGroupLabel, phaseLabel } from "~/lib/phase-labels";
 import ActionButton from "./action-button";
 import ControllerCueBadge from "./controller-cue-badge";
@@ -24,7 +24,11 @@ export default function ControllerPod({
     onOpenMenu: () => void;
 }) {
     const { phase, turn, activePlayerId, playerId } = useGameContext();
-    const { cue, actions, attackAllConfirm } = useControllerActions();
+    // Injected descriptor source (#2167): defaults to `useControllerActions`
+    // absent a provider. One call, at a stable position — the pod is the ONE
+    // controller layout `controller.tsx` mounted this render.
+    const useControllerState = useControllerActionsSource();
+    const { cue, actions, attackAllConfirm } = useControllerState();
     const [expanded, setExpanded] = useState(false);
 
     const isMyTurn = activePlayerId === playerId;

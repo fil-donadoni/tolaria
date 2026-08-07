@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Flag, Menu } from "lucide-react";
 import { useGameContext } from "~/hooks/useGameContext";
-import { useControllerActions } from "~/hooks/useControllerActions";
+import { useControllerActionsSource } from "~/hooks/controllerActionsContext";
 import { useControllerStripWidth } from "~/hooks/useControllerStripWidth";
 import { selectCommandSlots } from "~/lib/controller-action-slots";
 import { phaseGroupLabel } from "~/lib/phase-labels";
@@ -59,7 +59,11 @@ export default function ControllerLandscapeStrip({
     onOpenMenu: () => void;
 }) {
     const { phase, turn, activePlayerId, playerId } = useGameContext();
-    const { actions, attackAllConfirm } = useControllerActions();
+    // Injected descriptor source (#2167): defaults to `useControllerActions`
+    // absent a provider. One call, at a stable position — the strip is the
+    // ONE controller layout `controller.tsx` mounted this render.
+    const useControllerState = useControllerActionsSource();
+    const { actions, attackAllConfirm } = useControllerState();
     const [panelOpen, setPanelOpen] = useState(false);
     // The strip publishes the width it MEASURES; the phase panel (and, later,
     // the landscape board layout #1768) anchor to that rather than to a
