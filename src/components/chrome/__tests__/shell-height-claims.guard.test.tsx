@@ -633,6 +633,10 @@ const ROUTE_ROOTS: Record<
         routePath: "/admin/card-profiles",
         files: [{ rel: "components/admin/admin-page-frame.tsx" }],
     },
+    AdminBugReportsRoute: {
+        routePath: "/admin/bug-reports",
+        files: [{ rel: "components/admin/admin-page-frame.tsx" }],
+    },
     DraftLabRoute: {
         routePath: "/admin/draft-lab",
         files: [{ rel: "routes/draft-lab.route.tsx" }],
