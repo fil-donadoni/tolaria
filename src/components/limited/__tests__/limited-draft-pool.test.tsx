@@ -315,15 +315,25 @@ describe("LimitedDraftPool — the reduced draft bar (ADR 0075 §6, issue #1632)
         expect(queryByLabelText("Sideboard ordering")).toBeNull();
     });
 
-    it("renders the Catch-All Column exactly as elsewhere — present when a card falls through, absent when none does", () => {
+    it("renders the Catch-All Column exactly as elsewhere — always present (issue #1633), holding a card only when one falls through", () => {
         // Under Grouping `mv` with a registry-resolvable Pool nothing falls
-        // through, so the draft grows no permanently-empty extra column…
-        expect(
-            renderPool().container.querySelector('[data-column="catch-all"]')
-        ).toBeNull();
+        // through, so the Catch-All renders empty rather than not at all
+        // (issue #1633 AC: "the Catch-All is always shown") — but it is
+        // never CSS-hidden either, unlike an empty GENERATED column.
+        {
+            const { container } = renderPool();
+            const catchAll = container.querySelector(
+                '[data-column="catch-all"]'
+            )!;
+            expect(catchAll).toBeTruthy();
+            expect(
+                within(catchAll as HTMLElement).queryByRole("button")
+            ).toBeNull();
+            expect(catchAll.className.split(/\s+/)).not.toContain("hidden");
+        }
         cleanup();
 
-        // …but a card no generated Column claims lands in it, visible, rather
+        // …and a card no generated Column claims lands in it, visible, rather
         // than vanishing — the whole guarantee the Catch-All exists for.
         const view = projectLimitedEvent(eventRow(undefined), "user1");
         const own = view.seats.find((s) => s.seatIndex === 0)!;

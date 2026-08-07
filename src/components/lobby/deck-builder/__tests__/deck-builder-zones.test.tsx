@@ -117,6 +117,7 @@ describe("DeckBuilder — Constructed zones on the shared surface (issue #1622)"
             "MV 5",
             "MV 6",
             "MV 7+",
+            "Catch-All",
         ]);
         expect(cardsIn(container, "mv:lands")).toEqual(["Plains"]);
         expect(cardsIn(container, "mv:1")).toEqual(["Lightning Bolt"]);
@@ -319,6 +320,7 @@ describe("DeckBuilder — per-zone Grouping/Ordering controls (issue #1624)", ()
             "Green",
             "Multicolour",
             "Colourless",
+            "Catch-All",
         ]);
         expect(cardsIn(container, "color:R")).toEqual(["Lightning Bolt"]);
         expect(cardsIn(container, "color:W")).toEqual(["Serra Angel"]);
@@ -345,6 +347,7 @@ describe("DeckBuilder — per-zone Grouping/Ordering controls (issue #1624)", ()
         expect(columnLabelsIn(paneOf(container, /^Maindeck /))).toEqual([
             "Lands",
             "Creature",
+            "Catch-All",
         ]);
     });
 
@@ -359,6 +362,7 @@ describe("DeckBuilder — per-zone Grouping/Ordering controls (issue #1624)", ()
 
         expect(columnLabelsIn(paneOf(container, /^Maindeck /))).toEqual([
             "All",
+            "Catch-All",
         ]);
         expect(cardsIn(container, "all")).toEqual([
             "Lightning Bolt",
@@ -450,6 +454,7 @@ describe("DeckBuilder — per-zone Grouping/Ordering controls (issue #1624)", ()
             "MV 5",
             "MV 6",
             "MV 7+",
+            "Catch-All",
         ]);
     });
 
@@ -477,6 +482,7 @@ describe("DeckBuilder — per-zone Grouping/Ordering controls (issue #1624)", ()
         // (Plains and Lightning Bolt swap; Mana Value 0 sorts before 1).
         expect(columnLabelsIn(paneOf(container, /^Maindeck /))).toEqual([
             "All",
+            "Catch-All",
         ]);
         expect(cardsIn(container, "all")).toEqual([
             "Plains",
@@ -573,6 +579,7 @@ describe("DeckBuilder — per-zone build-time filter (issue #1625)", () => {
             "MV 5",
             "MV 6",
             "MV 7+",
+            "Catch-All",
         ]);
         expect(cardsIn(container, "mv:1")).toEqual([]);
 

@@ -122,8 +122,10 @@ describe("DeckBuilder — manual Columns (ADR 0075 §2, issue #1626)", () => {
         const labels = columnLabelsIn(mainPane(rendered.container));
         expect(labels).toContain("Removal");
         // Manual Columns render after the generated ladder; the Catch-All is
-        // last of all, and stays hidden while empty.
-        expect(labels[labels.length - 1]).toBe("Removal");
+        // last of all — and, since issue #1633, always rendered regardless
+        // of emptiness.
+        expect(labels[labels.length - 2]).toBe("Removal");
+        expect(labels[labels.length - 1]).toBe("Catch-All");
         expect(
             rendered.container.querySelector('[data-column="custom:removal"]')
         ).toBeTruthy();
@@ -384,6 +386,7 @@ describe("DeckBuilder — the layout persists on the deck (ADR 0075 §4, issue #
             "MV 5",
             "MV 6",
             "MV 7+",
+            "Catch-All",
         ]);
         // Remove the card — a plain contents edit.
         fireEvent.click(rendered.getByTitle(/Remove Lightning Bolt/));

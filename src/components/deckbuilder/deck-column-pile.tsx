@@ -31,6 +31,7 @@ export default function DeckColumnPile({
     dataColumn,
     tiles,
     actions,
+    hiddenWhenEmpty = false,
 }: {
     label: string;
     /** dnd-kit droppable id — unique within the host's `DragDropProvider`. */
@@ -46,6 +47,15 @@ export default function DeckColumnPile({
      *  and a surface that offers no column management (the reduced draft bar,
      *  ADR 0075 §6) passes nothing and renders exactly as before. */
     actions?: React.ReactNode;
+    /** CSS-hide this Column below the `md` breakpoint while it holds no cards
+     *  (issue #1633: "empty columns hidden" on narrow screens, so a swipe
+     *  never scrolls past nothing). A CSS class rather than a render-time
+     *  filter — the caller (`DeckZoneSurface`) still mounts and registers this
+     *  Column's droppable at every viewport, which is what keeps it a legal
+     *  DESKTOP drop target above `md` ("every column stays visible, as
+     *  today"). The Catch-All is never passed `true` here — it always stays
+     *  reachable as the guaranteed landing spot the AC calls for. */
+    hiddenWhenEmpty?: boolean;
 }) {
     const { ref, isDropTarget } = useDroppable({
         id: dropId,
@@ -56,7 +66,8 @@ export default function DeckColumnPile({
             ref={ref}
             data-column={dataColumn}
             className={cn(
-                "flex w-(--card-w) shrink-0 flex-col gap-2 rounded-sm p-1 transition",
+                hiddenWhenEmpty ? "hidden md:flex" : "flex",
+                "w-(--card-w) shrink-0 snap-start flex-col gap-2 rounded-sm p-1 transition",
                 isDropTarget
                     ? "bg-accent-soft/10 ring-2 ring-inset ring-accent/60"
                     : ""
