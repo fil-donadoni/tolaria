@@ -123,8 +123,19 @@ export interface MissingReceipt extends ReceiptCommon {
     role: "missing";
     outcome: "missing";
     session: string;
-    /** Transcript path from the hook payload, so the gap is traceable. */
+    /** Parent-session transcript from the hook payload — same for every subagent. */
     transcript: string | null;
+    /**
+     * `agent_id` from the payload: WHICH subagent left the gap. It is also the
+     * marker's filename key, which is what keeps a background agent's repeated
+     * yields collapsing onto one marker instead of one per stop. Null only on a
+     * harness whose payload carries no agent id.
+     */
+    agentId: string | null;
+    /** `agent_type` — e.g. `general-purpose`, so the gap names its role. */
+    agentType: string | null;
+    /** The subagent's OWN transcript, unlike `transcript`. Traces the gap. */
+    agentTranscript: string | null;
 }
 
 export type Receipt = WorkReceipt | ReviewReceipt | MissingReceipt;
@@ -164,6 +175,23 @@ function requireString(raw: Record<string, unknown>, field: string): string {
         throw new ReceiptError(field, "expected a non-empty string");
     }
     return value;
+}
+
+/**
+ * A field the hook writes when the payload carried it and omits otherwise.
+ * Absent, null and empty all collapse to null — a marker written by an older
+ * hook must still parse, so this can never be the thing that rejects one.
+ */
+function optionalString(
+    raw: Record<string, unknown>,
+    field: string
+): string | null {
+    const value = raw[field];
+    if (value === undefined || value === null) return null;
+    if (typeof value !== "string") {
+        throw new ReceiptError(field, "expected a string or null");
+    }
+    return value.trim() === "" ? null : value;
 }
 
 function requirePositiveInt(
@@ -303,6 +331,9 @@ export function parseReceipt(value: unknown): Receipt {
             outcome: "missing",
             session: requireString(raw, "session"),
             transcript: (transcript as string | null) ?? null,
+            agentId: optionalString(raw, "agentId"),
+            agentType: optionalString(raw, "agentType"),
+            agentTranscript: optionalString(raw, "agentTranscript"),
             ...(ts === undefined ? {} : { ts }),
         };
     }
@@ -416,11 +447,20 @@ export function receiptDir(projectRoot: string, batchId: string): string {
     return path.join(projectRoot, RECEIPTS_ROOT, batchId);
 }
 
-/** `12-implement.json`, `12-review.json`, `missing-<n>.json`. */
+/**
+ * `12-implement.json`, `12-review.json`, `missing-<agentId>.json`.
+ *
+ * A missing marker is named for the SUBAGENT, not the moment: `SubagentStop`
+ * fires on every yield of a background agent, so a timestamped name mints one
+ * file per yield (676 in the worst session on disk) while an agent-keyed one
+ * overwrites in place. Only a payload with no `agent_id` falls back to the
+ * timestamp, and then the flood is the lesser evil against silence.
+ */
 export function receiptFilename(receipt: Receipt): string {
-    return receipt.role === "missing"
-        ? `missing-${receipt.ts ?? 0}.json`
-        : `${receipt.issue}-${receipt.role}.json`;
+    if (receipt.role !== "missing") {
+        return `${receipt.issue}-${receipt.role}.json`;
+    }
+    return `missing-${receipt.agentId ?? receipt.ts ?? 0}.json`;
 }
 
 /**

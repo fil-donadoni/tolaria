@@ -334,12 +334,26 @@ describe("receipts survive an orchestrator restart", () => {
 // a subagent that crashed, was interrupted, or forgot leaves a FACT behind.
 // ─────────────────────────────────────────────────────────────────────────────
 
-function runHook(session: string, projectDir: string, transcript?: string) {
+function runHook(
+    session: string,
+    projectDir: string,
+    transcript?: string,
+    agent?: { id: string; type?: string; transcript?: string }
+) {
     return spawnSync("sh", [HOOK], {
         input: JSON.stringify({
             session_id: session,
             hook_event_name: "SubagentStop",
             ...(transcript ? { transcript_path: transcript } : {}),
+            ...(agent
+                ? {
+                      agent_id: agent.id,
+                      ...(agent.type ? { agent_type: agent.type } : {}),
+                      ...(agent.transcript
+                          ? { agent_transcript_path: agent.transcript }
+                          : {}),
+                  }
+                : {}),
         }),
         encoding: "utf8",
         env: { ...process.env, CLAUDE_PROJECT_DIR: projectDir },
@@ -401,6 +415,104 @@ describe("SubagentStop hook — a missing receipt is recorded as missing", () =>
         runHook("sess-2", tmp);
         expect(missingMarkers(receiptDir(tmp, "sess-1"))).toHaveLength(0);
         expect(missingMarkers(receiptDir(tmp, "sess-2"))).toHaveLength(1);
+    });
+
+    // ─────────────────────────────────────────────────────────────────────
+    // `SubagentStop` fires on EVERY yield of a background agent, not once per
+    // subagent — 131 events for 4 subagents in one measured 94-minute run. A
+    // marker minted per stop buried the real gaps under ~97% noise, so the
+    // marker is keyed on `agent_id` and overwritten instead.
+    // ─────────────────────────────────────────────────────────────────────
+
+    it("collapses a background agent's repeated yields onto ONE marker", () => {
+        for (let i = 0; i < 5; i++) {
+            runHook("sess-1", tmp, "/tmp/parent.jsonl", { id: "agent-aaa" });
+        }
+        expect(missingMarkers(receiptDir(tmp, "sess-1"))).toEqual([
+            "missing-agent-aaa.json",
+        ]);
+    });
+
+    it("keeps one marker per subagent when several yield", () => {
+        runHook("sess-1", tmp, undefined, { id: "agent-aaa" });
+        runHook("sess-1", tmp, undefined, { id: "agent-bbb" });
+        runHook("sess-1", tmp, undefined, { id: "agent-aaa" });
+        expect(missingMarkers(receiptDir(tmp, "sess-1")).sort()).toEqual([
+            "missing-agent-aaa.json",
+            "missing-agent-bbb.json",
+        ]);
+    });
+
+    it("clears an agent's marker once a receipt lands", () => {
+        runHook("sess-1", tmp, undefined, { id: "agent-aaa" });
+        expect(missingMarkers(receiptDir(tmp, "sess-1"))).toHaveLength(1);
+
+        // The agent writes its receipt, then stops for good.
+        writeReceipt(tmp, "sess-1", workReceipt());
+        runHook("sess-1", tmp, undefined, { id: "agent-aaa" });
+        expect(missingMarkers(receiptDir(tmp, "sess-1"))).toHaveLength(0);
+    });
+
+    it("re-marks an agent that yields again without delivering", () => {
+        // A concurrent agent's receipt can clear the wrong marker — the hook
+        // cannot attribute a receipt to an agent. It self-corrects: the agent
+        // that still owes one is re-marked at its very next yield, so the end
+        // state is right even when an intermediate one was not.
+        runHook("sess-1", tmp, undefined, { id: "agent-aaa" });
+        writeReceipt(tmp, "sess-1", workReceipt());
+        runHook("sess-1", tmp, undefined, { id: "agent-aaa" });
+        expect(missingMarkers(receiptDir(tmp, "sess-1"))).toHaveLength(0);
+
+        runHook("sess-1", tmp, undefined, { id: "agent-aaa" });
+        expect(missingMarkers(receiptDir(tmp, "sess-1"))).toEqual([
+            "missing-agent-aaa.json",
+        ]);
+    });
+
+    it("records which subagent left the gap, and its own transcript", () => {
+        runHook("sess-1", tmp, "/tmp/parent.jsonl", {
+            id: "agent-aaa",
+            type: "general-purpose",
+            transcript: "/tmp/subagents/agent-aaa.jsonl",
+        });
+        const parsed = parseReceipt(
+            JSON.parse(
+                fs.readFileSync(
+                    path.join(
+                        receiptDir(tmp, "sess-1"),
+                        "missing-agent-aaa.json"
+                    ),
+                    "utf8"
+                )
+            )
+        );
+        expect(parsed.role).toBe("missing");
+        if (parsed.role !== "missing") throw new Error("unreachable");
+        expect(parsed.agentId).toBe("agent-aaa");
+        expect(parsed.agentType).toBe("general-purpose");
+        expect(parsed.agentTranscript).toBe("/tmp/subagents/agent-aaa.jsonl");
+        // The parent transcript is still there, and is NOT the agent's own.
+        expect(parsed.transcript).toBe("/tmp/parent.jsonl");
+    });
+
+    it("keeps an agent id from escaping the receipts directory", () => {
+        runHook("sess-1", tmp, undefined, { id: "../../etc/passwd" });
+        const markers = missingMarkers(receiptDir(tmp, "sess-1"));
+        expect(markers).toHaveLength(1);
+        expect(markers[0]).not.toContain("/");
+        expect(fs.existsSync(path.join(tmp, "etc", "passwd"))).toBe(false);
+    });
+
+    it("parses a marker written by the older hook, which had no agent fields", () => {
+        const parsed = parseReceipt({
+            version: 1,
+            role: "missing",
+            outcome: "missing",
+            session: "sess-1",
+            transcript: "/tmp/parent.jsonl",
+            ts: 1786097305,
+        });
+        expect(parsed.role === "missing" && parsed.agentId).toBe(null);
     });
 
     it("exits 0 with no session id rather than taking the run with it", () => {
