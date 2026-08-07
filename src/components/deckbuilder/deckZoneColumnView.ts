@@ -20,16 +20,42 @@ import {
     loadOrdering,
     saveGrouping,
     saveOrdering,
+    type DeckZone as ViewPrefZone,
 } from "~/lib/deckViewPrefs";
 
-function prefsZone(zone: DeckZone): "main" | "side" {
-    return zone === "maindeck" ? "main" : "side";
+/** The draft-time Pool's own view-preference zone (issue #1632, ADR 0075 §6).
+ *  NOT one of the engine's two `DeckZone`s: the draft Pool mounts the shared
+ *  surface AS the Maindeck (same Column ids, same Pins, same drop model — that
+ *  is the whole point of #1632), but its Grouping/Ordering must persist
+ *  independently of the build view's Maindeck, so it needs a zone identity the
+ *  engine's union deliberately does not have. Widening `DeckZone` itself would
+ *  be wrong: `DeckColumnLayout` is a `Record<DeckZone, ColumnLayout>`, and
+ *  there is no third Column Layout — only a third preference key. */
+export const DRAFT_POOL_VIEW_ZONE = "draftPool";
+
+/** A Zone this module can seed/record a view preference for — the engine's two,
+ *  plus the draft Pool. */
+export type ColumnViewZone = DeckZone | typeof DRAFT_POOL_VIEW_ZONE;
+
+/** Exhaustive by construction (a `switch` with no `default`, returning in every
+ *  arm): a new member of either union fails type-check here rather than
+ *  silently falling into `"side"`, which is what a binary ternary did before
+ *  issue #1632. */
+function prefsZone(zone: ColumnViewZone): ViewPrefZone {
+    switch (zone) {
+        case "maindeck":
+            return "main";
+        case "sideboard":
+            return "side";
+        case DRAFT_POOL_VIEW_ZONE:
+            return "draft";
+    }
 }
 
 /** The Grouping/Ordering a Zone's Layout should seed from on mount — the
  *  user's saved preference, or the engine's own defaults (`mv/name`) on a
  *  first-ever visit (`deckViewPrefs`'s own fallback). */
-export function seededColumnView(zone: DeckZone): {
+export function seededColumnView(zone: ColumnViewZone): {
     grouping: GroupingKind;
     ordering: OrderingKind;
 } {
@@ -41,7 +67,7 @@ export function seededColumnView(zone: DeckZone): {
  *  their own Layout state separately (see module doc) — this only writes the
  *  per-user preference (issue #1620), it is not the whole state update. */
 export function recordGroupingChange(
-    zone: DeckZone,
+    zone: ColumnViewZone,
     grouping: GroupingKind
 ): void {
     saveGrouping(prefsZone(zone), grouping);
@@ -49,7 +75,7 @@ export function recordGroupingChange(
 
 /** Persists an Ordering change for `zone` — see {@link recordGroupingChange}. */
 export function recordOrderingChange(
-    zone: DeckZone,
+    zone: ColumnViewZone,
     ordering: OrderingKind
 ): void {
     saveOrdering(prefsZone(zone), ordering);

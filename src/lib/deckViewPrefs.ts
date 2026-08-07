@@ -24,12 +24,26 @@ import type { BasicLandSubtype } from "~/lib/basicLands";
  * basic-land art picker arrive in later PRD #1617 slices.
  */
 
-/** The two Zones a Column Layout applies to (ADR 0075 §2) — Maindeck and
- *  Sideboard, kept fully independent so "Maindeck by Mana Value, Sideboard by
- *  colour" is expressible. Mirrors the `"main"` / `"side"` zone suffixes
- *  already used by `useCardZoom`/`useSplitRatio`
- *  (`src/components/lobby/deck-builder/`). */
-export type DeckZone = "main" | "side";
+/** The Zones a Column Layout applies to, as this storage seam names them.
+ *
+ *  `"main"` / `"side"` are the build view's two Zones (ADR 0075 §2), kept fully
+ *  independent so "Maindeck by Mana Value, Sideboard by colour" is expressible.
+ *  They mirror the zone suffixes already used by `useCardZoom`/`useSplitRatio`
+ *  (`src/components/lobby/deck-builder/`).
+ *
+ *  `"draft"` is the draft-time Pool (issue #1632, ADR 0075 §6). It is a THIRD
+ *  key, not a reuse of `"main"`, because the reduced draft bar and the build
+ *  view's Maindeck bar are different workspaces on purpose: a Grouping picked
+ *  under a 30-second pick timer ("show me my curve") is not the one a player
+ *  wants when they sit down to build, and sharing the key would make each
+ *  surface silently reconfigure the other. The draft Sideboard has no
+ *  Grouping/Ordering control at all (see `LimitedDraftPool`), so it needs no
+ *  key of its own.
+ *
+ *  Every consumer that BRANCHES on this union is in `deckZoneColumnView.ts`'s
+ *  exhaustive `prefsZone` switch — the one bridge between the engine's Zone
+ *  vocabulary (`maindeck`/`sideboard`, `convex/deckLayout.ts`) and this one. */
+export type DeckZone = "main" | "side" | "draft";
 
 /**
  * Column-generation axis (ADR 0075 §2: "a Grouping … that generates

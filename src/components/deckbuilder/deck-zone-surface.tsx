@@ -71,11 +71,28 @@ export interface DeckZoneSurfaceProps {
     layout: ColumnLayout;
     /** Fires when the Grouping control changes. Never disturbs a Card Pin
      *  (ADR 0075 §3) — the caller applies the change through the engine's own
-     *  `setGrouping`, which touches only the `grouping` field. */
-    onGroupingChange: (grouping: GroupingKind) => void;
+     *  `setGrouping`, which touches only the `grouping` field.
+     *
+     *  ABSENT ⇒ no Grouping control is rendered, same presence-is-the-switch
+     *  convention as {@link DeckZoneSurfaceProps.onAddColumn} below. The draft
+     *  Sideboard is the one such Zone (issue #1632): it is a 160px strip beside
+     *  the Booster, so two selects in its header would leave no room for cards. */
+    onGroupingChange?: (grouping: GroupingKind) => void;
     /** Fires when the Ordering control changes — orthogonal to Grouping, only
-     *  re-sorts cards INSIDE each Column (issue #1624). */
-    onOrderingChange: (ordering: OrderingKind) => void;
+     *  re-sorts cards INSIDE each Column (issue #1624). Absent ⇒ no control,
+     *  see {@link DeckZoneSurfaceProps.onGroupingChange}. */
+    onOrderingChange?: (ordering: OrderingKind) => void;
+    /** The momentary Zone filter (issue #1625). `false` renders NO filter
+     *  affordance at all — no creature select, no colour toggles, no chip —
+     *  which is the draft-time reduced bar (ADR 0075 §6, issue #1632): hiding
+     *  cards while a Booster is in front of the player can hide picks they
+     *  already made, at exactly the moment they must not be confused.
+     *
+     *  A boolean rather than the presence of a callback, unlike every other
+     *  affordance here, because the filter is this component's OWN state and
+     *  has no callback to be absent (see the `useState` below). Defaults to
+     *  `true` so the build view's four instances are unchanged. */
+    filterable?: boolean;
     /** Catalogue lookup handed to the engine. Defaults to the card registry;
      *  a Tabletop (`manual`) deck passes a catalogue-backed one so its
      *  registry-unknown cards still bucket by Mana Value (ADR 0080). */
@@ -125,6 +142,7 @@ export default function DeckZoneSurface({
     layout,
     onGroupingChange,
     onOrderingChange,
+    filterable = true,
     lookup,
     dropModel,
     onCardClick,
@@ -150,7 +168,11 @@ export default function DeckZoneSurface({
     // Sideboard) owns its own state, so filtering one Zone can never touch
     // the other.
     const [filter, setFilter] = useState<ZoneFilter>(DEFAULT_ZONE_FILTER);
-    const filterActive = isZoneFilterActive(filter);
+    // `filterable === false` renders no way to SET a filter, so the state can
+    // only ever be the default — but the flag is folded in here too, so a Zone
+    // with no filter affordance can never present a filtered count or an
+    // orphaned clear-chip, whatever the state happens to hold.
+    const filterActive = filterable && isZoneFilterActive(filter);
 
     // Each card paired with the key its Pin is recorded under (issue #1626).
     // Read straight OFF the entry — never counted from its position in
@@ -361,30 +383,40 @@ export default function DeckZoneSurface({
                     />
                 )}
                 <div className="ml-auto flex shrink-0 flex-wrap items-center gap-2 self-center">
-                    <ZoneCreatureFilterSelect
-                        value={filter.creature}
-                        onChange={(creature) =>
-                            setFilter((f) => ({ ...f, creature }))
-                        }
-                        zoneLabel={title}
-                    />
-                    <ZoneColorFilterToggles
-                        value={filter.colors}
-                        onToggle={(color: Color) =>
-                            setFilter((f) => toggleZoneFilterColor(f, color))
-                        }
-                        zoneLabel={title}
-                    />
-                    <ZoneGroupingSelect
-                        value={layout.grouping}
-                        onChange={onGroupingChange}
-                        zoneLabel={title}
-                    />
-                    <ZoneOrderingSelect
-                        value={layout.ordering}
-                        onChange={onOrderingChange}
-                        zoneLabel={title}
-                    />
+                    {filterable && (
+                        <>
+                            <ZoneCreatureFilterSelect
+                                value={filter.creature}
+                                onChange={(creature) =>
+                                    setFilter((f) => ({ ...f, creature }))
+                                }
+                                zoneLabel={title}
+                            />
+                            <ZoneColorFilterToggles
+                                value={filter.colors}
+                                onToggle={(color: Color) =>
+                                    setFilter((f) =>
+                                        toggleZoneFilterColor(f, color)
+                                    )
+                                }
+                                zoneLabel={title}
+                            />
+                        </>
+                    )}
+                    {onGroupingChange && (
+                        <ZoneGroupingSelect
+                            value={layout.grouping}
+                            onChange={onGroupingChange}
+                            zoneLabel={title}
+                        />
+                    )}
+                    {onOrderingChange && (
+                        <ZoneOrderingSelect
+                            value={layout.ordering}
+                            onChange={onOrderingChange}
+                            zoneLabel={title}
+                        />
+                    )}
                     {onAddColumn && (
                         <ZoneAddColumnControl
                             onAdd={onAddColumn}

@@ -731,3 +731,74 @@ describe("DeckZoneSurface — column management (ADR 0075 §2, issue #1626)", ()
         expect(cardsIn(container, "mv:1")).toEqual(["Lightning Bolt"]);
     });
 });
+
+// ────────────────────────────────────────────────────────────────────────────
+// The REDUCED bar (ADR 0075 §6, issue #1632). The draft-time Pool mounts this
+// same component and differs only in what it declines to offer, so the
+// "absent ⇒ no affordance" contract is asserted here, once, rather than only
+// through the draft that relies on it.
+// ────────────────────────────────────────────────────────────────────────────
+describe("DeckZoneSurface — reduced bar (ADR 0075 §6, issue #1632)", () => {
+    it("renders the Grouping/Ordering controls when the handlers are supplied", () => {
+        const { getByLabelText } = renderZone();
+        expect(getByLabelText("Maindeck grouping")).toBeTruthy();
+        expect(getByLabelText("Maindeck ordering")).toBeTruthy();
+    });
+
+    it("renders NO Grouping/Ordering control when the handlers are absent", () => {
+        const { queryByLabelText } = renderZone({
+            onGroupingChange: undefined,
+            onOrderingChange: undefined,
+        });
+        expect(queryByLabelText("Maindeck grouping")).toBeNull();
+        expect(queryByLabelText("Maindeck ordering")).toBeNull();
+    });
+
+    it("renders the filter affordances by default", () => {
+        const { getByLabelText } = renderZone();
+        expect(getByLabelText("Maindeck creature filter")).toBeTruthy();
+        expect(getByLabelText("Maindeck colour filter")).toBeTruthy();
+    });
+
+    it("`filterable={false}` removes every filter affordance and keeps the plain count", () => {
+        const { queryByLabelText, getByText } = renderZone({
+            filterable: false,
+            cards: [BOLT, SERRA],
+        });
+        expect(queryByLabelText("Maindeck creature filter")).toBeNull();
+        expect(queryByLabelText("Maindeck colour filter")).toBeNull();
+        // No filter can be active, so the header never shows an "N of M"
+        // subset count or a clear-chip.
+        expect(getByText(/^Maindeck 2$/)).toBeTruthy();
+    });
+
+    it("`filterable={false}` still renders every card — nothing is hidden", () => {
+        const { container } = renderZone({
+            filterable: false,
+            cards: [BOLT, SERRA, PLAINS],
+        });
+        expect(cardsIn(container, "mv:1")).toEqual(["Lightning Bolt"]);
+        expect(cardsIn(container, "mv:5")).toEqual(["Serra Angel"]);
+        expect(cardsIn(container, "mv:lands")).toEqual(["Plains"]);
+    });
+});
+
+// Issue #2056: `Pool (Sideboard) N` wrapped to 3 lines / 72px in an 82px pane
+// at the 852x303 baseline — the pane's own header alone consumed 88% of the
+// available height. Guarded on `PoolSideboardPile` until issue #1632 retired
+// that component; the behaviour still ships, here, so the test moved with it.
+describe("DeckZoneSurface — title truncation (issue #2056)", () => {
+    it("the title span truncates to one line instead of wrapping", () => {
+        const { getByText } = renderZone({
+            title: "Pool (Sideboard)",
+            dropModel: "pane",
+        });
+        const titleSpan = getByText(/^Pool \(Sideboard\) 0/);
+        expect(titleSpan.className.split(/\s+/)).toContain("truncate");
+        // `truncate` only takes effect on a shrinkable flex item — the header
+        // row itself must allow the title to shrink below its content width
+        // (min-w-0), or the class is a no-op.
+        const headerRow = titleSpan.parentElement as HTMLElement;
+        expect(headerRow.className.split(/\s+/)).toContain("min-w-0");
+    });
+});

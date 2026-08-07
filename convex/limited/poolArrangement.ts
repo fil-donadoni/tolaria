@@ -101,9 +101,9 @@ export function readEntryPins(entry: PoolArrangementEntry): CardPins {
     return { ...normalizeLegacyColumn(entry.column), ...entry.pins };
 }
 
-/** The `mv`-namespace Pin read back as the legacy `number | "lands"` column
- *  the Limited Pool surface still speaks (`limitedPoolColumns.ts`). The
- *  INVERSE of `normalizeLegacyColumn`, and the reason nothing user-visible
+/** The `mv`-namespace Pin read back in the legacy `number | "lands"` column
+ *  vocabulary. The INVERSE of `normalizeLegacyColumn`, and the reason nothing
+ *  user-visible
  *  changes in issue #1621: the storage shape moved, the resolved placement
  *  did not. `undefined` for no `mv` Pin — and for a Pin naming a column this
  *  read can't express (a `mv` id whose key is neither `"lands"` nor a number),

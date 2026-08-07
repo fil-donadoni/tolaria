@@ -1,10 +1,22 @@
+// Pure drop resolution for the draft table (ADR 0060 issue #1248, re-based on
+// the shared zone surface by issue #1632).
+//
+// Every drop-target id here is minted by the SHARED helpers
+// (`zoneColumnDropId` / `zonePaneDropId`) rather than written by hand — that
+// is what makes these assertions prove the draft and the deckbuilder agree on
+// the id vocabulary, instead of proving this file agrees with itself. The
+// pre-#1632 `pool-col-N` ids and their parser are gone; a leftover one must
+// resolve to nothing.
 import { describe, it, expect } from "vitest";
 import {
-    columnDropId,
+    zoneColumnDropId,
+    zonePaneDropId,
+} from "~/components/deckbuilder/deckZoneDrag";
+import type { CardDragData } from "~/components/lobby/deck-builder/dnd-types";
+import {
+    poolArrangementPatch,
     resolveDraftDragAction,
-    SIDEBOARD_DROP_ID,
     type BoosterDragData,
-    type PoolDragData,
 } from "../limitedDraftDrag";
 
 const booster: BoosterDragData = {
@@ -13,80 +25,108 @@ const booster: BoosterDragData = {
     cardId: "bolt",
     cardName: "Lightning Bolt",
 };
-const poolCard: PoolDragData = {
-    kind: "pool",
-    poolIndex: 3,
+/** An already-picked Pool tile, exactly as `DeckZoneSurface` mints it: the
+ *  shared `CardDragData`, whose `pinKey` is the Pool copy's `poolIndex`. */
+const poolCard: CardDragData = {
+    kind: "main",
     cardId: "bolt",
     cardName: "Lightning Bolt",
+    pinKey: "3",
 };
 
-describe("resolveDraftDragAction (ADR 0060, issue #1248)", () => {
+const SIDEBOARD = zonePaneDropId("sideboard");
+const mvColumn = (n: number) => zoneColumnDropId("maindeck", `mv:${n}`);
+
+describe("resolveDraftDragAction (ADR 0060 issue #1248; shared ids, issue #1632)", () => {
     it("returns null for a cancelled/incomplete drop (missing data or target)", () => {
-        expect(resolveDraftDragAction(undefined, SIDEBOARD_DROP_ID)).toBeNull();
+        expect(resolveDraftDragAction(undefined, SIDEBOARD)).toBeNull();
         expect(resolveDraftDragAction(booster, undefined)).toBeNull();
     });
 
     it("Booster → Sideboard resolves to commitPick targeting the sideboard", () => {
-        const action = resolveDraftDragAction(booster, SIDEBOARD_DROP_ID);
-        expect(action).toEqual({
+        expect(resolveDraftDragAction(booster, SIDEBOARD)).toEqual({
             type: "commitPick",
             pickId: "r0-p0-c1",
-            target: { kind: "sideboard" },
+            sideboard: true,
+            columnId: null,
         });
     });
 
-    it("Booster → a Pool column resolves to commitPick targeting that exact column", () => {
-        const action = resolveDraftDragAction(booster, columnDropId(3));
-        expect(action).toEqual({
+    it("Booster → a Pool Column resolves to commitPick naming that exact Column", () => {
+        expect(resolveDraftDragAction(booster, mvColumn(3))).toEqual({
             type: "commitPick",
             pickId: "r0-p0-c1",
-            target: { kind: "column", column: 3 },
+            sideboard: false,
+            columnId: "mv:3",
         });
     });
 
-    it("Booster → the Lands pile resolves to commitPick targeting Lands (issue #1573)", () => {
-        const action = resolveDraftDragAction(booster, columnDropId("lands"));
-        expect(action).toEqual({
+    it("Booster → the Lands pile resolves to commitPick naming the Lands Column (issue #1573)", () => {
+        const dest = zoneColumnDropId("maindeck", "mv:lands");
+        expect(resolveDraftDragAction(booster, dest)).toEqual({
             type: "commitPick",
             pickId: "r0-p0-c1",
-            target: { kind: "column", column: "lands" },
+            sideboard: false,
+            columnId: "mv:lands",
+        });
+    });
+
+    it("Booster → a colour Column resolves to that Column — the Grouping the draft bar offers is a real drop target (issue #1632)", () => {
+        const dest = zoneColumnDropId("maindeck", "color:R");
+        expect(resolveDraftDragAction(booster, dest)).toEqual({
+            type: "commitPick",
+            pickId: "r0-p0-c1",
+            sideboard: false,
+            columnId: "color:R",
         });
     });
 
     it("Pool card → Sideboard resolves to moveArrangement with sideboard: true", () => {
-        const action = resolveDraftDragAction(poolCard, SIDEBOARD_DROP_ID);
-        expect(action).toEqual({
+        expect(resolveDraftDragAction(poolCard, SIDEBOARD)).toEqual({
             type: "moveArrangement",
             poolIndex: 3,
-            target: { kind: "sideboard" },
+            sideboard: true,
+            columnId: null,
         });
     });
 
-    it("Pool card → a different Mana-Value column resolves to moveArrangement naming that column", () => {
-        const action = resolveDraftDragAction(poolCard, columnDropId(5));
-        expect(action).toEqual({
+    it("Pool card → a different Column resolves to moveArrangement naming that Column", () => {
+        expect(resolveDraftDragAction(poolCard, mvColumn(5))).toEqual({
             type: "moveArrangement",
             poolIndex: 3,
-            target: { kind: "column", column: 5 },
+            sideboard: false,
+            columnId: "mv:5",
         });
     });
 
-    it("Pool card → the Lands pile resolves to moveArrangement naming the Lands column (issue #1573)", () => {
-        const action = resolveDraftDragAction(poolCard, columnDropId("lands"));
-        expect(action).toEqual({
+    it("Pool card → back to a Mana-Value Column from Lands resolves symmetrically", () => {
+        expect(resolveDraftDragAction(poolCard, mvColumn(2))).toEqual({
             type: "moveArrangement",
             poolIndex: 3,
-            target: { kind: "column", column: "lands" },
+            sideboard: false,
+            columnId: "mv:2",
         });
     });
 
-    it("Pool card → back to a Mana-Value column from Lands resolves symmetrically, clearing the Lands override", () => {
-        const action = resolveDraftDragAction(poolCard, columnDropId(2));
-        expect(action).toEqual({
+    it("a Sideboard tile dragged back into a Pool Column moves it AND names the Column", () => {
+        const fromSideboard: CardDragData = { ...poolCard, kind: "side" };
+        expect(resolveDraftDragAction(fromSideboard, mvColumn(1))).toEqual({
             type: "moveArrangement",
             poolIndex: 3,
-            target: { kind: "column", column: 2 },
+            sideboard: false,
+            columnId: "mv:1",
         });
+    });
+
+    it("a Pool tile carrying no per-copy pin key is a no-op — there is no Pool copy to arrange", () => {
+        const keyless: CardDragData = {
+            kind: "main",
+            cardId: "bolt",
+            cardName: "Lightning Bolt",
+        };
+        expect(resolveDraftDragAction(keyless, mvColumn(1))).toBeNull();
+        const nonNumeric: CardDragData = { ...poolCard, pinKey: "bolt" };
+        expect(resolveDraftDragAction(nonNumeric, mvColumn(1))).toBeNull();
     });
 
     it("an unrecognized drop-target id is a no-op", () => {
@@ -94,34 +134,54 @@ describe("resolveDraftDragAction (ADR 0060, issue #1248)", () => {
             resolveDraftDragAction(booster, "some-unrelated-zone")
         ).toBeNull();
     });
-});
 
-describe("columnDropId", () => {
-    it("is stable and round-trips through the resolver for every fixed column", () => {
+    it("the retired pre-#1632 `pool-col-N` ids resolve to nothing", () => {
+        expect(resolveDraftDragAction(booster, "pool-col-3")).toBeNull();
+        expect(resolveDraftDragAction(poolCard, "pool-sideboard")).toBeNull();
+    });
+
+    it("every Mana-Value Column id round-trips through the resolver, and each is distinct", () => {
+        const ids = new Set<string>();
         for (let n = 0; n <= 7; n++) {
-            const action = resolveDraftDragAction(poolCard, columnDropId(n));
-            expect(action).toEqual({
+            ids.add(mvColumn(n));
+            expect(resolveDraftDragAction(poolCard, mvColumn(n))).toEqual({
                 type: "moveArrangement",
                 poolIndex: 3,
-                target: { kind: "column", column: n },
+                sideboard: false,
+                columnId: `mv:${n}`,
             });
         }
-    });
-
-    it("the Lands column id is distinct from every numbered column id", () => {
-        const ids = new Set([
-            columnDropId("lands"),
-            ...Array.from({ length: 8 }, (_, n) => columnDropId(n)),
-        ]);
+        ids.add(zoneColumnDropId("maindeck", "mv:lands"));
         expect(ids.size).toBe(9);
     });
+});
 
-    it("the Lands column id round-trips through the resolver too", () => {
-        const action = resolveDraftDragAction(poolCard, columnDropId("lands"));
-        expect(action).toEqual({
-            type: "moveArrangement",
-            poolIndex: 3,
-            target: { kind: "column", column: "lands" },
+describe("poolArrangementPatch (issue #1632)", () => {
+    it("sends the Column id whole for a real pin target", () => {
+        expect(poolArrangementPatch(2, false, "color:R")).toEqual({
+            poolIndex: 2,
+            sideboard: false,
+            column: "color:R",
+        });
+    });
+
+    it("omits `column` entirely for a Column that is not a pin target", () => {
+        // The Catch-All and Grouping `none`'s single Column carry no
+        // namespace; the engine records nothing for them, so nothing is sent.
+        expect(poolArrangementPatch(2, false, "catch-all")).toEqual({
+            poolIndex: 2,
+            sideboard: false,
+        });
+        expect(poolArrangementPatch(2, false, "all")).toEqual({
+            poolIndex: 2,
+            sideboard: false,
+        });
+    });
+
+    it("omits `column` for a whole-pane drop, and still carries the Zone", () => {
+        expect(poolArrangementPatch(4, true, null)).toEqual({
+            poolIndex: 4,
+            sideboard: true,
         });
     });
 });
