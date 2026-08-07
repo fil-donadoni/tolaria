@@ -78,6 +78,7 @@ import * as lci from "./sets/lci";
 import * as soc from "./sets/soc";
 import * as por from "./sets/por";
 import * as p02 from "./sets/p02";
+import * as phpr from "./sets/phpr";
 import * as ktk from "./sets/ktk";
 import * as akh from "./sets/akh";
 import * as aer from "./sets/aer";
@@ -253,6 +254,7 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "soc", exports: soc },
     { code: "por", exports: por },
     { code: "p02", exports: p02 },
+    { code: "phpr", exports: phpr },
     { code: "ktk", exports: ktk },
     { code: "akh", exports: akh },
     { code: "aer", exports: aer },

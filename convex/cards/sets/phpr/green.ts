@@ -1,0 +1,5 @@
+// PHPR (HarperPrism Book Promos) — green cards, split by colour per ADR 0043.
+// The registry's `import * as phpr from "./sets/phpr"` resolves through
+// phpr/index.ts.
+
+export {};

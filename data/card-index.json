@@ -8208,6 +8208,14 @@
         "firstPrintSet": "jou"
     },
     {
+        "name": "Mana Crypt",
+        "scryfallId": "160cf235-6463-4e16-a426-8b5be76b10d2",
+        "oracleId": "2c63e4e1-89d2-4bc6-a232-94e75c4b1c8a",
+        "firstSet": "phpr",
+        "firstPrintId": "160cf235-6463-4e16-a426-8b5be76b10d2",
+        "firstPrintSet": "phpr"
+    },
+    {
         "name": "Mana Cylix",
         "scryfallId": "c6f95767-afda-4d74-bbd4-1b702eeae54b",
         "oracleId": "47f20da0-cd31-4877-8eca-0c8389a66e89",
