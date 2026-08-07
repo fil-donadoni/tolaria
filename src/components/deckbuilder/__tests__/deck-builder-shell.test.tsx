@@ -244,6 +244,32 @@ describe("DeckBuilderShell — declared-variant vocabulary (issue #1623)", () =>
         expect(classes).toContain("short-viewport:py-1");
     });
 
+    it("a foldable action alone does NOT flip carriesControls — it renders but the band still hides (issue #1631 fixup F1)", () => {
+        // `headerFoldableActions` exists precisely for a control that is
+        // nice-to-have in the header but not worth keeping the band on
+        // screen for (the Limited pool builder's Stats button, whose header
+        // otherwise carries only Back + title and must keep hiding under
+        // short-viewport per issue #2056). Real `headerActions` still wins
+        // when both are present, since the band then genuinely carries a
+        // control it cannot afford to hide.
+        const { container, getByText } = renderShell({
+            headerFoldableActions: <button type="button">Stats</button>,
+        });
+        expect(getByText("Stats")).toBeTruthy();
+        const header = container.querySelector("[data-deckbuilder-header]")!;
+        expect(header.className.split(/\s+/)).toContain(
+            "short-viewport:hidden"
+        );
+
+        const withBoth = renderShell({
+            headerActions: <button type="button">Import</button>,
+            headerFoldableActions: <button type="button">Stats</button>,
+        }).container.querySelector("[data-deckbuilder-header]")!;
+        const classes = withBoth.className.split(/\s+/);
+        expect(classes).not.toContain("short-viewport:hidden");
+        expect(classes).toContain("short-viewport:py-1");
+    });
+
     it("carries the Sideboard cap only when the variant declares one — Limited's Sideboard stays uncapped", () => {
         const uncapped = renderShell({ sideCards: [card(PLAINS_ID)] });
         expect(uncapped.getByText(/^Pool \(Sideboard\) 1$/)).toBeTruthy();

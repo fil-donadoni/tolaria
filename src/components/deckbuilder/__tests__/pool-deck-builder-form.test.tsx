@@ -687,14 +687,18 @@ describe("PoolDeckBuilderForm — root surface height (issue #2056 defect 3)", (
 // (rather than merely shrinking) and fold into `SaveDeckBar`'s single row
 // instead — see `save-deck-bar.tsx`'s `onBack`/`legality` props.
 describe("PoolDeckBuilderForm — short-viewport chrome treatment (issue #2056 defects 2 & 3)", () => {
-    it("the header band compacts under short-viewport rather than hiding, now that it carries the Stats button (issue #1631)", () => {
-        // Before issue #1631 this band carried only Back + title and hid
-        // entirely under short-viewport (both were reproduced in
-        // SaveDeckBar's row). It now also carries the Stats header action,
-        // so per `DeckBuilderHeader`'s documented rule ("a band that also
-        // carries CONTROLS ... compacts its padding and title instead") it
-        // must stay visible and compact, or the Stats affordance would be
-        // taken off screen with it.
+    it("the header band still hides entirely under short-viewport — Stats (issue #1631) is a FOLDABLE action, not a control", () => {
+        // Review finding F1 (PR #2324 fixup): a first pass put the Stats
+        // button in `headerActions`, which flips `DeckBuilderHeader`'s
+        // `carriesControls` rule and makes the band compact instead of
+        // hiding — handing #2056's reclaimed ~39px back to the chrome on the
+        // exact route (`/limited/$eventId/build`, landscape phone) whose bug
+        // report was measured with only ~4px of slack. Stats is wired
+        // through `headerFoldableActions` instead, which deliberately does
+        // NOT flip `carriesControls`, so this builder's header — which
+        // carries no other controls — keeps hiding exactly as #2056 shipped
+        // it. Stats itself is not lost: its compact twin lives in
+        // `SaveDeckBar`'s short-viewport row (asserted below).
         setup();
         const { container } = render(
             <PoolDeckBuilderForm
@@ -708,8 +712,36 @@ describe("PoolDeckBuilderForm — short-viewport chrome treatment (issue #2056 d
         );
         const header = container.querySelector("h1")!.parentElement!;
         const classes = header.className.split(/\s+/);
-        expect(classes).not.toContain("short-viewport:hidden");
-        expect(classes).toContain("short-viewport:py-1");
+        expect(classes).toContain("short-viewport:hidden");
+    });
+
+    it("Stats stays reachable at short viewport via SaveDeckBar's folded, compact twin of the header button", () => {
+        setup();
+        const { container } = render(
+            <PoolDeckBuilderForm
+                eventId={"event-1" as never}
+                seatIndex={0}
+                pool={POOL}
+                existingDeck={null}
+                eventType="sealed"
+                poolArrangement={[]}
+            />
+        );
+        const form = container.querySelector("form")!;
+        const foldedStats = within(form).getByRole("button", {
+            name: "Stats",
+        });
+        const wrapper = foldedStats.parentElement as HTMLElement;
+        expect(wrapper.className.split(/\s+/)).toEqual(
+            expect.arrayContaining(["hidden", "short-viewport:inline-flex"])
+        );
+
+        // It is the SAME real toolbar affordance, not a stand-in — clicking
+        // it opens the actual Stats dialog.
+        fireEvent.click(foldedStats);
+        expect(container.ownerDocument.body.textContent).toContain(
+            "Deck Statistics"
+        );
     });
 
     it("the legality panel band hides itself entirely under short-viewport — its content moves into SaveDeckBar's compact chip instead", () => {
@@ -781,6 +813,44 @@ describe("PoolDeckBuilderForm — short-viewport chrome treatment (issue #2056 d
         // is pinned as a source-text assertion below instead, following the
         // same jsdom-can't-verify-this precedent as `deck-builder-height.test.ts`.
         expect(surfaceRoot.style.minHeight).not.toBe("");
+    });
+});
+
+// Review finding F2 (PR #2324 fixup): the pre-existing "Maindeck only" test
+// on `DeckStatsButton` itself only ever proved the COMPONENT'S contract —
+// it stood a sideboarded card in by simply omitting it from the
+// `mainCards` prop, never touching a real wrapper. The wrapper is the only
+// place the criterion can actually break (it decides which zone's array
+// becomes `mainCards`), and mutation M6 proved it was unguarded there:
+// pointing both wrappers at `[...deck.cards, ...deck.sideboard]` left the
+// entire suite green.
+describe("PoolDeckBuilderForm — Stats reflects the Maindeck only (issue #1631 fixup F2)", () => {
+    it("a Pool card sitting in the Sideboard moves no Stats number", () => {
+        setup();
+        const { getAllByRole, getAllByText, getByText, queryByText } = render(
+            <PoolDeckBuilderForm
+                eventId={"event-1" as never}
+                seatIndex={0}
+                pool={POOL}
+                existingDeck={null}
+                eventType="sealed"
+                poolArrangement={[]}
+            />
+        );
+        // Sealed seeds EVERY Pool card (Lightning Bolt, an Instant; Plains,
+        // a land) into the Sideboard, none into the Maindeck. If the wrapper
+        // fed Stats the Sideboard too, Lightning Bolt's Instant type and its
+        // {R} pip would show up; if it correctly feeds only the (empty)
+        // Maindeck, every section reports empty.
+        const [statsButton] = getAllByRole("button", { name: "Stats" });
+        fireEvent.click(statsButton);
+
+        expect(getAllByText("No cards in the Maindeck yet.")).toHaveLength(2); // Types AND Subtypes lists
+        expect(
+            getByText("No coloured mana costs or sources in the Maindeck yet.")
+        ).toBeTruthy();
+        expect(queryByText("Instant")).toBeNull();
+        expect(queryByText("Land")).toBeNull();
     });
 });
 

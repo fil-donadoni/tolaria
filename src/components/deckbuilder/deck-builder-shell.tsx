@@ -85,6 +85,7 @@ export default function DeckBuilderShell({
     backLabel = "← Back",
     onDone,
     headerActions,
+    headerFoldableActions,
     headerFilters,
     sourcePanel,
     basicsBar,
@@ -127,6 +128,7 @@ export default function DeckBuilderShell({
                     backLabel={backLabel}
                     onBack={onDone}
                     actions={headerActions}
+                    foldableActions={headerFoldableActions}
                     filters={headerFilters}
                 />
 
@@ -249,6 +251,7 @@ export default function DeckBuilderShell({
                         onBack={onDone}
                         backLabel={backLabel}
                         legality={legality}
+                        foldableActions={saveBar.foldableActions}
                     />
                 </div>
             )}

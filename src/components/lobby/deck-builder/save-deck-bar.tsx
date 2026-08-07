@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { Reason } from "@convex/formats";
 import { Button } from "~/components/ui/button";
 import DeckLegalityChip from "./deck-legality-chip";
@@ -22,6 +23,12 @@ interface SaveDeckBarProps {
      *  treatment as `onBack`, folding a caller's standalone
      *  `DeckLegalityPanel` band into a compact `DeckLegalityChip` here. */
     legality?: { formatLabel: string; isLegal: boolean; reasons: Reason[] };
+    /** Issue #1631 fixup: same short-viewport-only treatment as `onBack` /
+     *  `legality` — the compact twin of a `DeckBuilderHeader`
+     *  `foldableActions` control (e.g. the Limited pool builder's Stats
+     *  button), rendered here so it survives the header band hiding. Omitted
+     *  by a caller with no such control. */
+    foldableActions?: ReactNode;
 }
 
 export default function SaveDeckBar({
@@ -33,6 +40,7 @@ export default function SaveDeckBar({
     onBack,
     backLabel = "← Back",
     legality,
+    foldableActions,
 }: SaveDeckBarProps) {
     return (
         <form
@@ -56,6 +64,11 @@ export default function SaveDeckBar({
             {legality && (
                 <span className="hidden short-viewport:inline-flex">
                     <DeckLegalityChip {...legality} />
+                </span>
+            )}
+            {foldableActions && (
+                <span className="hidden short-viewport:inline-flex">
+                    {foldableActions}
                 </span>
             )}
             <span className="text-label">{cardCount} cards</span>

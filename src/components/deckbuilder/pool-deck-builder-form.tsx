@@ -508,6 +508,19 @@ export default function PoolDeckBuilderForm({
         void navigate({ to: "/limited/$eventId", params: { eventId } });
     }, [flush, navigate, eventId]);
 
+    // The Stats toolbar action (issue #1631) as ONE element reused at both
+    // its render sites below — the header's full-size copy and SaveDeckBar's
+    // short-viewport-only compact twin. It is passed through the header's
+    // `foldableActions` slot rather than `headerActions` (issue #2056
+    // fixup): this builder's header carries nothing else, so #2056 hid it
+    // entirely under `short-viewport:` to hand its ~39px back to the card
+    // zones — a real `headerActions` entry would flip `carriesControls` and
+    // keep the band on screen, reopening that regression. Reusing the same
+    // element in two render slots still mounts two independent component
+    // instances (React mounts once per JSX usage site), each managing its
+    // own dialog open state.
+    const statsAction = <DeckStatsButton mainCards={deck.cards} />;
+
     const basicCardIds = useMemo(() => resolveBasicLandCardIds(pool), [pool]);
     // The bar's per-subtype counter (issue #1627) — read straight off the
     // live Maindeck, so it updates on every add/remove exactly like every
@@ -553,7 +566,7 @@ export default function PoolDeckBuilderForm({
                     disabled={saving}
                 />
             }
-            headerActions={<DeckStatsButton mainCards={deck.cards} />}
+            headerFoldableActions={statsAction}
             mainCards={deck.cards}
             sideCards={deck.sideboard}
             layout={layout}
@@ -592,6 +605,7 @@ export default function PoolDeckBuilderForm({
                 name: deck.name,
                 cardCount: deck.cards.length,
                 onChangeName: setName,
+                foldableActions: statsAction,
             }}
         />
     );

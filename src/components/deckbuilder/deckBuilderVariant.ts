@@ -183,13 +183,32 @@ export interface DeckSaveBarSpec {
     cardCount: number;
     onChangeName: (name: string) => void;
     onDelete?: () => void;
+    /** The compact, short-viewport-only twin of a header `foldableActions`
+     *  control (issue #1631 fixup) — rendered exactly like `onBack`/
+     *  `legality` already are, hidden except under `short-viewport:`. Set
+     *  this alongside `DeckBuilderSlots.headerFoldableActions` so a control
+     *  that disappears with a hidden header band stays reachable. */
+    foldableActions?: ReactNode;
 }
 
 /** Slots — the builder-specific REGIONS of the screen. */
 export interface DeckBuilderSlots {
     /** Header-band controls beyond Back + title (import/export, Format select,
-     *  cube filter, banlist panel, search box, a preset's slug chip). */
+     *  cube filter, banlist panel, search box, a preset's slug chip). Its
+     *  presence keeps the header band on screen under `short-viewport:`
+     *  (`DeckBuilderHeader`'s `carriesControls` rule) — use
+     *  `headerFoldableActions` instead for a control not worth that trade. */
     headerActions?: ReactNode;
+    /** A header-band control that does NOT keep the band on screen under
+     *  `short-viewport:` (issue #1631 fixup) — passed through to
+     *  `DeckBuilderHeader`'s `foldableActions` slot. A caller supplying this
+     *  MUST also supply the same control's compact twin on
+     *  `saveBar.foldableActions`, or the control is lost (not folded) once
+     *  the band hides. The Limited pool builder's Stats button is the
+     *  reference case: its header carries no other controls, so #2056's
+     *  hidden-band budget (~39px handed back to the card zones) must stay
+     *  intact. */
+    headerFoldableActions?: ReactNode;
     /** A second, full-width header row (the Constructed search filters). */
     headerFilters?: ReactNode;
     /** Where new cards come FROM. Absent for a variant whose zones are the

@@ -24,8 +24,14 @@ export default function DeckStatsCurveChart({
     const max = Math.max(1, ...curve);
 
     return (
+        // `role="group"` rather than `role="img"` (issue #1631 fixup F5):
+        // `img` removes every descendant from the accessibility tree, so a
+        // screen-reader user got the chart's existence and none of its
+        // per-bucket counts (the `title` attributes below are sighted-hover
+        // only). `group` keeps the label AND exposes each bar's own
+        // accessible text.
         <div
-            role="img"
+            role="group"
             aria-label="Mana curve by mana value, lands excluded"
             className="flex items-end gap-1.5"
         >

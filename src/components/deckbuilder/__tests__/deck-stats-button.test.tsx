@@ -5,13 +5,14 @@
 // its `headerActions` slot, so rendering it directly is rendering the real
 // affordance, not a stand-in for it.
 import { describe, it, expect } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import type { ZoneCard } from "~/types/game";
 import DeckStatsButton from "../deck-stats-button";
 
 // Real registry ids, reused from `deck-builder-shell.test.tsx`.
 const BOLT_ID = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a"; // Lightning Bolt — {R}, Instant
 const MOUNTAIN_ID = "eace2c85-976c-425e-9800-5a6ccbd91b56"; // Mountain — land, produces R
+const SERRA_ID = "f8ac5006-91bd-4803-93da-f87cf196dd2f"; // Serra Angel — Creature
 
 function card(cardId: string, cardName = cardId): ZoneCard {
     return { cardId, cardName };
@@ -81,5 +82,31 @@ describe("DeckStatsButton — Stats dialog (issue #1631)", () => {
 
         expect(screen.getByText(/1 source \(1 land \+ 0 other\)/)).toBeTruthy();
         expect(screen.getByText("Land")).toBeTruthy();
+    });
+
+    it("orders Types by count descending, then alphabetically on a tie (issue #1631 fixup F4)", () => {
+        // Two Mountains (Land: 2), one Serra Angel (Creature: 1), one
+        // Lightning Bolt (Instant: 1) — Creature and Instant tie at count 1,
+        // so the expected order (Land, Creature, Instant) can only come from
+        // BOTH comparator terms: count-descending puts Land first, and
+        // alphabetical tie-break puts Creature ahead of Instant. Inverting
+        // either term in `DeckStatsTypeList`'s comparator breaks this.
+        render(
+            <DeckStatsButton
+                mainCards={[
+                    card(MOUNTAIN_ID, "Mountain"),
+                    card(MOUNTAIN_ID, "Mountain"),
+                    card(SERRA_ID, "Serra Angel"),
+                    card(BOLT_ID, "Lightning Bolt"),
+                ]}
+            />
+        );
+        fireEvent.click(screen.getByRole("button", { name: "Stats" }));
+
+        const typesSection = screen.getByText("Types").closest("section")!;
+        const names = within(typesSection)
+            .getAllByRole("listitem")
+            .map((li) => li.querySelector("span")!.textContent);
+        expect(names).toEqual(["Land", "Creature", "Instant"]);
     });
 });
