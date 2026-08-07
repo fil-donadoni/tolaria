@@ -339,9 +339,16 @@ const moveZone: Valuer<"moveZone"> = (op) => {
     if (!("to" in op) || !("target" in op)) {
         return { points: 0, tags: ["tempo"] };
     }
+    // CR 404.3 (issue #1967) — the positional graveyard shape ("the top
+    // creature card of your graveyard" — Shallow Grave, Corpse Dance). It
+    // carries a `target`, so it reaches the destination scoring below and a
+    // `to: "battlefield"` pick correctly valuates as REANIMATE_VALUE rather
+    // than silently as 0. It is never `targeted` in the CR 115 sense: the
+    // engine picks the card deterministically, the caster announces nothing.
+    const isPositional = "zone" in op.target;
     const { points, tag } = moveZonePoints(op.to);
     const tags: ValueTag[] = [tag];
-    if (isAnnouncedTarget(op.target)) tags.push("targeted");
+    if (!isPositional && isAnnouncedTarget(op.target)) tags.push("targeted");
     return { points, tags };
 };
 

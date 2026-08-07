@@ -9,13 +9,14 @@
 // (`finalizeSpellResolution` routing to the owner's hand) is driven directly
 // through `resolveTopOfStack`.
 //
-// No shipped card exercises this yet: Corpse Dance (the card #1200 asked for)
-// is still a documented stub — its OTHER clause ("the TOP creature card of
-// your graveyard") is blocked on the pre-existing top-of-graveyard selector
-// gap (issue #920, unrelated to Buyback) — see
-// `convex/cards/sets/tmp/black.ts`. A synthetic probe card is the only way to
-// exercise the cast path today, exactly like kicker.test.ts's
-// `kickerAltProbe`.
+// Corpse Dance (the card #1200 asked for) SHIPPED with issue #1967, which
+// built the top-of-graveyard selector its other clause was blocked on — the
+// real-card end-to-end buyback assertion lives with it in
+// `convex/cards/sets/tmp/__tests__/black.test.ts` ("with buyback paid, Corpse
+// Dance returns to its owner's HAND while the reanimation still happens").
+// The synthetic probe card below stays: it isolates the COST-SYSTEM plumbing
+// (validation, fold, flag snapshot, serialization round-trip) from any one
+// card's effect body, exactly like kicker.test.ts's `kickerAltProbe`.
 
 import { describe, it, expect } from "vitest";
 import { resolveBuybackChoice, finalizeTargetSelection } from "../../game";

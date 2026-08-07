@@ -1539,6 +1539,43 @@ function isObjectSelector(value: unknown): boolean {
     return isTargetRef(value) || isBareRef(value) || isEventRefValue(value);
 }
 
+/** CR 404.3 (issue #1967) — the DETERMINISTIC positional graveyard selector
+ *  (`{ zone: "graveyard", position: "top" | "bottom", player?, filter? }`),
+ *  "the top creature card of your graveyard" (Shallow Grave, Corpse Dance).
+ *  Fail-closed: the exact key set is enumerated here, so an unknown/misspelt
+ *  field (`owner`, `positionFromTop`, `zones`) is rejected rather than
+ *  silently ignored at runtime — the same posture the Op field table itself
+ *  takes. `zone` is graveyard-only: no other zone in this engine carries a
+ *  meaningful, guaranteed insertion order a positional pick could read (the
+ *  library has its OWN positional grammar, and hand/exile are unordered
+ *  bags). */
+function isZonePositionSelector(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    const entries = Object.entries(value);
+    if (!entries.some(([k]) => k === "zone")) return false;
+    if (!entries.some(([k]) => k === "position")) return false;
+    return entries.every(([k, v]) => {
+        if (k === "zone") return v === "graveyard";
+        if (k === "position") return v === "top" || v === "bottom";
+        if (k === "player") return isPlayerRef(v);
+        if (k === "filter") return isCardFilter(v);
+        return false;
+    });
+}
+
+/** `moveZone`'s `target` field only (issue #1967): the shared object selector
+ *  (announced slot / bare ref / `$event` ref) OR the positional graveyard
+ *  selector. Deliberately NOT folded into `isObjectSelector` — every other
+ *  object-acting Op (destroy / exile / dealDamage / pump / counters /
+ *  tapUntap) is battlefield-scoped, and widening the shared predicate would
+ *  let the positional shape validate at all of them and then silently no-op
+ *  (fail open). `moveZone` is the one Op with a graveyard-card executor. */
+function isMoveZoneTarget(value: unknown): boolean {
+    return isObjectSelector(value) || isZonePositionSelector(value);
+}
+
 /** A ManaCost's numeric pips — WUBRGC + generic + xFactor are non-negative
  *  integers; `X` is a non-negative integer or the variable marker `"X"`. */
 const MANA_PIP_KEYS = new Set([
@@ -2576,7 +2613,10 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     moveZone: {
         required: { to: isMoveZone },
         optional: {
-            target: isObjectSelector,
+            // issue #1967 — `target` accepts the shared object selector OR the
+            // FIFTH shape's positional graveyard selector (`{ zone, position,
+            // … }`). Widened here and NOWHERE else: see `isMoveZoneTarget`.
+            target: isMoveZoneTarget,
             bind: isBindingName,
             controller: isPlayerRef,
             cards: isBarePicksRef,
@@ -2649,6 +2689,36 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                     'field "linkToSource" is only valid on the "cards" shape (issue #1947)'
                 );
             }
+            // issue #1967 — the FIFTH shape: a positional graveyard pick
+            // (`target: { zone: "graveyard", position: "top", … }`). It rides
+            // the `target` field but shares NONE of the announced-slot
+            // shape's extra fields: `from` is intrinsic (always the
+            // graveyard), and `position` (the numeric library insert, #1726)
+            // is a different concept entirely — a positional graveyard pick
+            // never names a library slot. `to: "library-top"` is likewise
+            // meaningless here (that destination belongs to the `cards`
+            // tutor-to-top shape). Rejected explicitly so a script that
+            // combines them fails CLOSED at authoring time instead of
+            // silently dropping the field at runtime.
+            const isPositionalTarget =
+                hasTarget && isZonePositionSelector(entry.target);
+            if (isPositionalTarget) {
+                if ("from" in entry) {
+                    errors.push(
+                        'field "from" is not valid with a positional graveyard "target" — the source zone is intrinsic (issue #1967)'
+                    );
+                }
+                if ("position" in entry) {
+                    errors.push(
+                        'field "position" (the numeric library insert) is not valid with a positional graveyard "target" (issue #1967)'
+                    );
+                }
+                if (entry.to === "library-top") {
+                    errors.push(
+                        'to: "library-top" is not valid with a positional graveyard "target" (issue #1967)'
+                    );
+                }
+            }
             if (hasTarget) {
                 if ("player" in entry) {
                     errors.push('field "player" is not valid with "target"');
@@ -2660,7 +2730,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                 // return (`to: "battlefield"`). An announced target slot never
                 // needs it (its zone comes from the requirement), so `from`
                 // requires a `ref` selector.
-                if ("from" in entry) {
+                if (!isPositionalTarget && "from" in entry) {
                     if (entry.from !== "graveyard" && entry.from !== "exile") {
                         errors.push(
                             'field "from" with "target" accepts only "graveyard" or "exile" (the zone a bound, already-departed object was put into)'
@@ -2687,7 +2757,11 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                 // owner's library" default), and a graveyard-card target
                 // keeps the historical moveCardById path (Worldspine Wurm's
                 // shuffle-in, which follows with a shuffle anyway).
-                if ("position" in entry && entry.to !== "library") {
+                if (
+                    !isPositionalTarget &&
+                    "position" in entry &&
+                    entry.to !== "library"
+                ) {
                     errors.push(
                         'field "position" is only valid with "target" and to: "library" (issue #1726)'
                     );

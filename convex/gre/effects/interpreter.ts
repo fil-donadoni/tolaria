@@ -86,6 +86,7 @@ import type {
     EffectSignedValue,
     EffectTargetRef,
     EffectValue,
+    EffectZonePositionSelector,
     GainControlDuration,
     ManaCost,
     MayPayCost,
@@ -1259,6 +1260,44 @@ function resolveObjectRef(
     const exileOwnerId = ctx.getExileCardOwner(id);
     if (exileOwnerId) {
         return { type: "graveyard-card", id, playerId: exileOwnerId };
+    }
+    return undefined;
+}
+
+/** CR 404.3 (issue #1967) — resolves a DETERMINISTIC positional graveyard
+ *  selector ("the top creature card of your graveyard" — Shallow Grave,
+ *  Corpse Dance) to the graveyard-card carrier `moveZone`'s executor acts on.
+ *
+ *  ORDER (the load-bearing part). The graveyard is an ordered zone (CR 404.3)
+ *  and this engine keeps `player.graveyard` in INSERTION order — every site
+ *  that puts a card there APPENDS (`moveCard` / `removePermanentTo` in
+ *  `gre/state.ts` both `push`; see the CR 404.3 notes at those two funnels).
+ *  So index 0 is the OLDEST card (the BOTTOM of the pile) and the LAST index
+ *  is the most recently added one — the TOP. `getGraveyardCards` maps over
+ *  that array without reordering, so a `position: "top"` scan walks it
+ *  BACKWARDS.
+ *
+ *  FILTERED SCAN, not a top-card type check: "the top **creature** card"
+ *  means the topmost card MATCHING the filter, so a non-creature sitting
+ *  above a creature is skipped over rather than making the effect fizzle.
+ *  Matched through the same `matchesCardFilter` every other hidden-zone
+ *  filter site uses; an omitted filter takes the outright top/bottom card.
+ *
+ *  Returns undefined — a clean CR 608.2b no-op — for an unresolvable player,
+ *  an empty graveyard, or a filter nothing matches. */
+function resolveGraveyardPosition(
+    ctx: SpellContext,
+    sel: EffectZonePositionSelector
+): TargetSelection | undefined {
+    const playerId = resolvePlayerRef(ctx, sel.player ?? "controller");
+    if (playerId === undefined) return undefined;
+    const cards = ctx.getGraveyardCards(playerId);
+    const step = sel.position === "top" ? -1 : 1;
+    const start = sel.position === "top" ? cards.length - 1 : 0;
+    for (let i = start; i >= 0 && i < cards.length; i += step) {
+        const card = cards[i];
+        if (sel.filter && !matchesCardFilter(ctx, card, sel.filter)) continue;
+        return { type: "graveyard-card", id: card.id, playerId };
     }
     return undefined;
 }
@@ -2491,10 +2530,25 @@ export const OP_EXECUTORS: {
         // preceding `destroy` (indestructible / regenerated) is still ON the
         // battlefield and must NOT be "returned" (it never left, CR 608.2b) —
         // resolving it as a permanent first would be exactly that mistake.
-        const explicitFrom = "from" in op ? op.from : undefined;
-        let target = explicitFrom
-            ? undefined
-            : resolveObjectRef(ctx, op.target);
+        //
+        // CR 404.3 (issue #1967) — the FIFTH shape: a DETERMINISTIC positional
+        // pick out of the ordered graveyard ("the top creature card of your
+        // graveyard" — Shallow Grave, Corpse Dance). It rides the `target`
+        // field like the announced-slot shape, but its value is an
+        // `EffectZonePositionSelector` (`{ zone, position, filter?, player? }`)
+        // rather than a slot/ref, so the battlefield-scoped `resolveObjectRef`
+        // path below never applies to it — resolve it here and let the shared
+        // graveyard-card executor do the actual move.
+        const positional =
+            "zone" in op.target
+                ? (op.target as EffectZonePositionSelector)
+                : undefined;
+        const explicitFrom = !positional && "from" in op ? op.from : undefined;
+        let target = positional
+            ? resolveGraveyardPosition(ctx, positional)
+            : explicitFrom
+              ? undefined
+              : resolveObjectRef(ctx, op.target as EffectObjectSelector);
         // The zone the recovered card was actually found in — always the
         // graveyard on the historical inferred path, `op.from` on the #1469
         // explicit path.
@@ -2506,7 +2560,7 @@ export const OP_EXECUTORS: {
         // the ref's id — the source reanimating itself (Ashen Ghoul's `$source`,
         // issue #737) or a `forEach { set: "graveyard" }` member reanimating
         // (`$each`, issue #1056 — Replenish, Living Death).
-        if (!target && "ref" in op.target) {
+        if (!positional && !target && "ref" in op.target) {
             // `$source` recovery is unconditional (Ashen Ghoul, issue #737): its
             // source genuinely sits in a graveyard. A GENERAL ref (a forEach
             // graveyard member's `$each`, issue #1056) is recovered ONLY for a
@@ -2563,7 +2617,10 @@ export const OP_EXECUTORS: {
                 // `position` puts the permanent on TOP (the "put on top of
                 // its owner's library" default).
                 if (op.bind) bindSnapshot(ctx, op.bind, target);
-                ctx.putIntoLibraryFromBattlefield(target, op.position ?? 1);
+                ctx.putIntoLibraryFromBattlefield(
+                    target,
+                    ("position" in op ? op.position : undefined) ?? 1
+                );
             }
             return;
         }

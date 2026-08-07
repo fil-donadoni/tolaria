@@ -8770,6 +8770,45 @@ export type EffectTargetRef = { target: number };
  *  as it can). */
 export type EffectObjectSelector = EffectTargetRef | EffectRef;
 
+/** CR 404.3 (issue #1967) — a DETERMINISTIC POSITIONAL pick out of an ORDERED
+ *  zone, with no player choice at all: "the TOP creature card of your
+ *  graveyard" (Shallow Grave, `mir/black.ts`; Corpse Dance, `tmp/black.ts`).
+ *
+ *  The graveyard IS an ordered zone (CR 404.3 — "each graveyard is kept in a
+ *  single face-up pile … order can be changed only …"), and this engine
+ *  guarantees that order: every insertion site APPENDS (`moveCard` /
+ *  `removePermanentTo` in `gre/state.ts` both `push`), so `player.graveyard`
+ *  runs OLDEST-first and the LAST element is the TOP of the pile. `position`
+ *  mirrors the library's own `"top" | "bottom"` grammar
+ *  (`putSpellOnLibrary`) rather than inventing a second one (ADR 0045
+ *  "generalize, don't add").
+ *
+ *  `filter` makes this a FILTERED positional scan, which is what the oracle
+ *  wording actually asks for: "the top **creature** card of your graveyard"
+ *  is the topmost card MATCHING the filter, NOT "the top card, if it happens
+ *  to be a creature" — a Lightning Bolt sitting above a Griselbrand does not
+ *  make Shallow Grave fizzle. Omitted, the unfiltered top/bottom card is
+ *  taken. Matched through the SAME `matchesCardFilter` every other
+ *  hidden-zone filter site uses.
+ *
+ *  `player` names whose graveyard is scanned; omitted it defaults to
+ *  `"controller"` — both shipped cards say "YOUR graveyard". A no-match (or
+ *  an empty graveyard) is a clean CR 608.2b no-op: the effect does as much as
+ *  it can, and nothing happens.
+ *
+ *  Deliberately NOT a member of `EffectObjectSelector`: every other
+ *  object-acting Op (destroy / exile / dealDamage / pump / counters) is
+ *  battlefield-scoped, and widening the shared selector would make this shape
+ *  validate — and then silently no-op — at all of them. It is accepted only
+ *  by the `moveZone` Op, whose graveyard-card branch already knows how to act
+ *  on a card sitting in a graveyard. */
+export type EffectZonePositionSelector = {
+    zone: "graveyard";
+    position: "top" | "bottom";
+    player?: EffectPlayerRef;
+    filter?: EffectCardFilter;
+};
+
 /** Destination zone for the `moveZone` Op (ADR 0045, issue #839). A card can
  *  be moved to any of the five game zones a one-shot effect addresses
  *  (CR 400.7). `battlefield` is only reachable from a graveyard card (the
@@ -10325,6 +10364,34 @@ export type EffectOp =
           fromZones: MovableZone[];
           filter: EffectCardFilter;
           to: MovableZone;
+      }
+    /** CR 404.3 / 400.7 (issue #1967) — the FIFTH `moveZone` shape: a
+     *  DETERMINISTIC POSITIONAL pick out of the ordered graveyard, no player
+     *  choice. "Return the top creature card of your graveyard to the
+     *  battlefield" (Shallow Grave, `mir/black.ts`; Corpse Dance,
+     *  `tmp/black.ts`) — the topmost card MATCHING `target.filter` (a
+     *  filtered scan from the top of the pile, per the oracle wording), moved
+     *  to `to`.
+     *
+     *  Discriminated from the other four shapes by carrying a `target` whose
+     *  value is an `EffectZonePositionSelector` (`{ zone, position, … }`)
+     *  rather than an announced slot / bare ref — see that type for the
+     *  ordering guarantee, the `filter` semantics and the `player` default.
+     *  Once the card is located, execution funnels into the EXACT same
+     *  graveyard-card branch the announced-target shape uses
+     *  (`returnToBattlefield` for `to: "battlefield"`, `moveCardById`
+     *  otherwise) — no new SpellContext primitive, and `bind` / `controller`
+     *  / `tapped` keep their existing meanings there. An empty graveyard or a
+     *  filter that matches nothing is a clean no-op (CR 608.2b). `position`
+     *  (the numeric 1-based library insert, issue #1726) is NOT valid on this
+     *  shape — a positional graveyard pick never targets a library slot. */
+    | {
+          op: "moveZone";
+          target: EffectZonePositionSelector;
+          to: EffectMoveZone;
+          bind?: string;
+          controller?: EffectPlayerRef;
+          tapped?: boolean;
       }
     /** CR 613.4c (layer 7c, issue #840) — a temporary P/T modification that
      *  expires at a phase boundary. A thin declarative skin over the
