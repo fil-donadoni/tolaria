@@ -12,6 +12,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
     dispatchManualCardVerb,
     manualBattlefieldVerbs,
+    manualHandVerbs,
 } from "~/lib/manual-card-verbs";
 import type { ManualVerbRequest, RequestVerbInput } from "~/lib/manual-runtime";
 import { manualCard, spyDispatch } from "./manual-test-fixtures";
@@ -111,5 +112,69 @@ describe("manual battlefield card verbs (#2169)", () => {
             tapped: true,
         });
         expect(requestVerbInput).not.toHaveBeenCalled();
+    });
+});
+
+// A hand card's verb list (issue #2347) — a narrower menu over the SAME
+// synthetic-ability encoding and dispatcher `manualBattlefieldVerbs` uses.
+describe("manual hand card verbs (issue #2347)", () => {
+    it("offers Play to battlefield, the three graveyard/exile/library moves, face and note, in menu order", () => {
+        const verbs = manualHandVerbs(
+            manualCard("hand1", { zone: "hand", faceDown: false })
+        );
+        expect(verbs.map((v) => v.id)).toEqual([
+            "move:battlefield",
+            "move:graveyard",
+            "move:exile",
+            "move:library",
+            "face",
+            "note",
+        ]);
+        expect(verbs[0].oracleText).toBe("Play to battlefield");
+        expect(verbs[1].oracleText).toBe("Move to graveyard");
+        expect(verbs[2].oracleText).toBe("Move to exile");
+        expect(verbs[3].oracleText).toBe("Move to library (top)");
+        expect(verbs[5].oracleText).toBe("Set note…");
+    });
+
+    it("never offers move:hand, tap, any counter verb, clear-damage or clear-arrows — all battlefield-only state", () => {
+        const verbs = manualHandVerbs(manualCard("hand1", { zone: "hand" }));
+        const ids = verbs.map((v) => v.id);
+        for (const forbidden of [
+            "move:hand",
+            "tap",
+            "counter:+1/+1",
+            "counter:-1/-1",
+            "counter:damage",
+            "counter:custom",
+            "clear-damage",
+            "clear-arrows",
+        ]) {
+            expect(ids).not.toContain(forbidden);
+        }
+    });
+
+    it("labels the face verb by the card's CURRENT faceDown state, like the battlefield verb", () => {
+        const faceDownVerb = (faceDown: boolean) =>
+            manualHandVerbs(manualCard("h", { zone: "hand", faceDown })).find(
+                (v) => v.id === "face"
+            )!.oracleText;
+        expect(faceDownVerb(false)).toBe("Turn face down");
+        expect(faceDownVerb(true)).toBe("Turn face up");
+    });
+
+    it("Play to battlefield dispatches through the EXISTING move: branch — no new dispatch shape", () => {
+        const { dispatch, requestVerbInput } = build();
+        const card = manualCard("hand1", { zone: "hand" });
+        dispatchManualCardVerb(
+            card,
+            "move:battlefield",
+            dispatch,
+            requestVerbInput
+        );
+        expect(dispatch.moveCard).toHaveBeenCalledWith({
+            instanceId: "hand1",
+            toZone: "battlefield",
+        });
     });
 });

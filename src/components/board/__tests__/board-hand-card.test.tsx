@@ -14,6 +14,10 @@ import {
     PendingChoiceBufferContext,
     type PendingChoiceBuffer,
 } from "~/hooks/usePendingChoiceBuffer";
+import {
+    ManualHandInteractionProvider,
+    type ManualHandInteraction,
+} from "~/lib/manual-card-verbs";
 
 // A no-op buffer so the hand card's unconditional `usePendingChoiceBuffer()`
 // has a provider in these drag/cast tests (no choice is active here).
@@ -1032,5 +1036,118 @@ describe("BoardHandCard touch-action (issue #1994)", () => {
     it("keeps the pan opt-in even for an inert card (no legal action)", () => {
         renderCard(makeCard("inert", []), {}, { allowHorizontalPan: true });
         expect(el().className).toContain("touch-pan-x");
+    });
+});
+
+// Manual Board variant (issue #2347) — the split seam. Under
+// `ManualHandInteractionProvider` the card must open ONLY the injected verb
+// menu and never touch the GRE cast/play/Cycling pipeline this same
+// component drives on every GRE board (proven above); the manual mode is
+// exercised through the real component, matching the AC's "tests through the
+// real hand component for both modes".
+describe("BoardHandCard manual verb menu (issue #2347)", () => {
+    const manualActivate = vi.fn();
+    const manualGetVerbs = vi.fn(() => [
+        { id: "move:battlefield", oracleText: "Play to battlefield" },
+        { id: "move:graveyard", oracleText: "Move to graveyard" },
+    ]);
+    const manualInteraction: ManualHandInteraction = {
+        getVerbs: manualGetVerbs,
+        activate: manualActivate,
+    };
+
+    function manualHandCardInstance(id: string): CardInstance {
+        // A manual card carries no `legalActions` at all (`ManualCardInstance`
+        // is a subset of `CardInstance`, ADR 0080) — omitting the field is the
+        // realistic shape, not a stand-in for "no legal actions".
+        return {
+            id,
+            card: { id: `def-${id}` },
+            controllerId: "me",
+            ownerId: "me",
+            zone: "hand",
+            isTapped: false,
+        };
+    }
+
+    function renderManual(card: CardInstance) {
+        return render(
+            <GameContext
+                value={
+                    {
+                        gameId: "game-id" as never,
+                        playerId: "me",
+                        activePlayerId: "me",
+                        priorityPlayerId: "me",
+                        phase: "PRECOMBAT_MAIN",
+                        turn: 1,
+                        engineTurn: 1,
+                        stackCount: 0,
+                        stackItems: [],
+                        allPlayers: [],
+                        showAllCards: false,
+                        debugAllActions: false,
+                        onSwitchGame: () => {},
+                    } as React.ContextType<typeof GameContext>
+                }
+            >
+                <PendingChoiceBufferContext value={noopBuffer}>
+                    <ManualHandInteractionProvider value={manualInteraction}>
+                        <BoardHandCard card={card} />
+                    </ManualHandInteractionProvider>
+                </PendingChoiceBufferContext>
+            </GameContext>
+        );
+    }
+
+    beforeEach(() => {
+        manualActivate.mockClear();
+        manualGetVerbs.mockClear();
+    });
+
+    it("a left click opens the injected manual verb menu, never the cast pipeline", () => {
+        renderManual(manualHandCardInstance("hand1"));
+        fireEvent.click(el());
+        expect(screen.getByText("Play to battlefield")).toBeTruthy();
+        expect(screen.getByText("Move to graveyard")).toBeTruthy();
+        expect(announceCast).not.toHaveBeenCalled();
+        expect(playCard).not.toHaveBeenCalled();
+        expect(activateAbility).not.toHaveBeenCalled();
+    });
+
+    it("selecting a verb dispatches through the injected `activate`, by instance id and ability id only", () => {
+        renderManual(manualHandCardInstance("hand1"));
+        fireEvent.click(el());
+        fireEvent.click(screen.getByText("Move to graveyard"));
+        expect(manualActivate).toHaveBeenCalledWith("hand1", "move:graveyard");
+        expect(announceCast).not.toHaveBeenCalled();
+        expect(playCard).not.toHaveBeenCalled();
+        expect(activateAbility).not.toHaveBeenCalled();
+    });
+
+    it("still carries the data-board-hand-card handle the manual board's drag hit-test reads", () => {
+        renderManual(manualHandCardInstance("hand1"));
+        expect(el().getAttribute("data-board-hand-card")).toBe("hand1");
+    });
+
+    it("a card with no manual verbs renders inert (no menu, no crash)", () => {
+        manualGetVerbs.mockReturnValueOnce([]);
+        renderManual(manualHandCardInstance("hand1"));
+        fireEvent.click(el());
+        expect(manualActivate).not.toHaveBeenCalled();
+    });
+});
+
+// The negative half of the split seam: with NO `ManualHandInteractionProvider`
+// (every GRE board, the default) the card must render NOTHING of the manual
+// verb menu — proof that adding the manual branch left the GRE path
+// untouched, per the issue's own acceptance criterion.
+describe("BoardHandCard has no manual verb menu on the GRE board (issue #2347)", () => {
+    it("an ordinary GRE hand card casts directly on click, with no verb-menu text mounted", () => {
+        renderCard(makeCard("bolt", ["cast"]));
+        fireEvent.click(el());
+        expect(announceCast).toHaveBeenCalledTimes(1);
+        expect(screen.queryByText("Play to battlefield")).toBeNull();
+        expect(screen.queryByText("Move to graveyard")).toBeNull();
     });
 });

@@ -15,8 +15,36 @@ import {
     manualState,
 } from "~/lib/__tests__/manual-test-fixtures";
 
+// Named manual mutations (mirrors `manual-drag-lifecycle.test.tsx`), so a
+// test can assert WHICH manual verb a click/drag dispatched — issue #2347's
+// hand verb menu needs this to prove `Play to battlefield` et al. reach
+// `manualMoveCard` and never a GRE mutation.
+const MUTATIONS: Record<string, ReturnType<typeof vi.fn>> = {};
+const MANUAL_MUTATION_NAMES = [
+    "manualMoveCard",
+    "manualSetTapped",
+    "manualUntapAll",
+    "manualAdjustLife",
+    "manualAdjustCounter",
+    "manualSetFaceDown",
+    "manualSetLane",
+    "manualAttach",
+    "manualSetArrow",
+    "manualClearArrow",
+    "manualDraw",
+    "manualMill",
+    "manualExileTop",
+    "manualPeek",
+    "manualShuffle",
+    "manualSetNote",
+    "manualEndTurn",
+    "manualConcede",
+];
+for (const n of MANUAL_MUTATION_NAMES) MUTATIONS[n] = vi.fn();
+
 vi.mock("convex/react", () => ({
-    useMutation: () => vi.fn(),
+    useMutation: (ref?: { _name?: string }) =>
+        (ref?._name ? MUTATIONS[ref._name] : undefined) ?? vi.fn(),
     useQuery: () => undefined,
     // `ManualLogSurface` mounts `ManualLog`'s `usePaginatedQuery` subscription
     // once opened (issue #2172) — a bare object with no `manualLog` methods
@@ -27,9 +55,11 @@ vi.mock("convex/react", () => ({
         loadMore: vi.fn(),
     }),
 }));
-vi.mock("@convex/_generated/api", () => ({
-    api: { game: {}, cardIndex: {}, manualLog: {} },
-}));
+vi.mock("@convex/_generated/api", () => {
+    const game: Record<string, { _name: string }> = {};
+    for (const n of MANUAL_MUTATION_NAMES) game[n] = { _name: n };
+    return { api: { game, cardIndex: {}, manualLog: {} } };
+});
 import {
     mockInstanceManaCost,
     type ManaCostSource,
@@ -37,6 +67,12 @@ import {
 vi.mock("@convex/cards", () => ({
     getInstanceManaCost: (c: ManaCostSource) => mockInstanceManaCost(c),
     tryGetDefinition: () => undefined,
+    // Issue #2347: `handInteractive={true}` now mounts the real
+    // `BoardHandCard` for the manual hand, whose unconditional
+    // `useHandCardCommit` call reads a definition even though the manual
+    // branch never wires its returned overlays to the DOM. A vanilla stub (no
+    // modes/X/kicker) is enough — this suite never exercises the cast path.
+    getDefinition: () => ({ name: "Manual Test Card" }),
     FACE_DOWN_CARD_ID: "__faceDownDef",
 }));
 // The Full Catalogue is a ~34k-row lazy asset; the row classifier's documented
@@ -76,6 +112,9 @@ function renderBoard() {
 }
 
 beforeEach(cleanup);
+beforeEach(() => {
+    for (const m of Object.values(MUTATIONS)) m.mockClear();
+});
 
 describe("the Manual Board on the shared board shell (#2169)", () => {
     it("renders the four zone bands and both pile rails", () => {
@@ -147,5 +186,85 @@ describe("the Manual Board on the shared board shell (#2169)", () => {
         // Opening the log never mutates the board's own class list — the
         // board is full width whether the log is open or closed (AC2).
         expect(board().className).toBe(classNameBefore);
+    });
+});
+
+// Issue #2347 — the hand card verb menu, end to end through the real board:
+// GRE `handInteractive` used to be one flag for two opt-outs ("no cast
+// dispatch" and "no ability menu"); the manual board now flips it to `true`
+// but injects `ManualHandInteractionProvider` so `BoardHandCard` shows ONLY
+// the manual verb menu, never the GRE cast pipeline that flag used to guard.
+describe("hand card manual verb menu (issue #2347)", () => {
+    function handCardEl() {
+        return document.querySelector<HTMLElement>(
+            '[data-board-hand-card="hand1"]'
+        )!;
+    }
+
+    it("a left click on the viewer's own hand card opens the verb menu, Play to battlefield first", () => {
+        renderBoard();
+        fireEvent.click(handCardEl());
+        expect(screen.getByText("Play to battlefield")).toBeTruthy();
+        expect(screen.getByText("Move to graveyard")).toBeTruthy();
+        expect(screen.getByText("Move to exile")).toBeTruthy();
+        expect(screen.getByText("Move to library (top)")).toBeTruthy();
+        expect(screen.getByText("Turn face down")).toBeTruthy();
+        expect(screen.getByText("Set note…")).toBeTruthy();
+    });
+
+    it("Play to battlefield dispatches manualMoveCard to the battlefield zone — never a GRE cast/play mutation", () => {
+        renderBoard();
+        fireEvent.click(handCardEl());
+        fireEvent.click(screen.getByText("Play to battlefield"));
+        expect(MUTATIONS.manualMoveCard).toHaveBeenCalledWith({
+            gameId: "game-id",
+            instanceId: "hand1",
+            toZone: "battlefield",
+        });
+    });
+
+    it("Turn face down dispatches manualSetFaceDown — a second verb, proving the whole list is wired, not just the first", () => {
+        renderBoard();
+        fireEvent.click(handCardEl());
+        fireEvent.click(screen.getByText("Turn face down"));
+        expect(MUTATIONS.manualSetFaceDown).toHaveBeenCalledWith({
+            gameId: "game-id",
+            instanceId: "hand1",
+            faceDown: true,
+        });
+    });
+
+    it("the opponent's hidden hand slot exposes no menu (projects as null — no card object to open a menu on)", () => {
+        renderBoard();
+        const oppHand = screen.getByTestId("zone-opponent-hand");
+        expect(oppHand.querySelector("[data-board-hand-card]")).toBeNull();
+    });
+
+    it("dragging the hand card still resolves the zone-move drop, unchanged — never BoardHandCard's own drag-to-cast", () => {
+        renderBoard();
+        const target = handCardEl();
+        const battlefieldBand = () =>
+            document.querySelector<HTMLElement>(
+                '[data-zone-drop="battlefield"][data-zone-owner="me"]'
+            );
+        (
+            document as unknown as {
+                elementFromPoint: (x: number, y: number) => Element | null;
+            }
+        ).elementFromPoint = () => battlefieldBand();
+
+        fireEvent.pointerDown(target, {
+            button: 0,
+            clientX: 100,
+            clientY: 600,
+        });
+        fireEvent.pointerMove(window, { clientX: 100, clientY: 400 });
+        fireEvent.pointerUp(window, { clientX: 100, clientY: 400 });
+
+        expect(MUTATIONS.manualMoveCard).toHaveBeenCalledWith({
+            gameId: "game-id",
+            instanceId: "hand1",
+            toZone: "battlefield",
+        });
     });
 });
