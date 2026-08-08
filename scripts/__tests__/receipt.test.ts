@@ -76,7 +76,7 @@ const reviewReceipt = (
 describe("the receipt contract accepts what the loop actually produces", () => {
     it("round-trips an implement receipt through disk", () => {
         writeReceipt(tmp, "sess-1", workReceipt());
-        const [receipt] = readReceipts(tmp, "sess-1") as WorkReceipt[];
+        const [receipt] = readReceipts(tmp, "sess-1").receipts as WorkReceipt[];
         expect(receipt.role).toBe("implement");
         expect(receipt.issue).toBe(2182);
         expect(receipt.outcome).toBe("pr-open");
@@ -276,13 +276,30 @@ describe("the receipt contract rejects malformed input, naming the field", () =>
         expect(fs.existsSync(receiptDir(tmp, "sess-1"))).toBe(false);
     });
 
-    it("reports the file when a receipt on disk is corrupt", () => {
+    it("reports the file when a receipt on disk is corrupt, without throwing", () => {
         const dir = receiptDir(tmp, "sess-1");
         fs.mkdirSync(dir, { recursive: true });
         fs.writeFileSync(path.join(dir, "9-implement.json"), '{"version":99}');
-        expect(() => readReceipts(tmp, "sess-1")).toThrow(
-            /9-implement\.json: receipt\.version/
-        );
+        const { receipts, errors } = readReceipts(tmp, "sess-1");
+        expect(receipts).toEqual([]);
+        expect(errors).toHaveLength(1);
+        expect(errors[0].file).toMatch(/9-implement\.json$/);
+        expect(errors[0].message).toMatch(/receipt\.version/);
+        expect(errors[0].issue).toBe(9);
+    });
+
+    it("quarantines only the corrupt file's issue — every other receipt in the same directory still reads clean", () => {
+        writeReceipt(tmp, "sess-1", workReceipt({ issue: 10 }));
+        const dir = receiptDir(tmp, "sess-1");
+        fs.writeFileSync(path.join(dir, "9-implement.json"), '{"version":99}');
+
+        const { receipts, errors } = readReceipts(tmp, "sess-1");
+        expect(errors).toHaveLength(1);
+        expect(errors[0].issue).toBe(9);
+        // #10's receipt reads back fine — the corrupt #9 file next to it
+        // does not take the whole directory down.
+        expect(receipts).toHaveLength(1);
+        expect((receipts[0] as WorkReceipt).issue).toBe(10);
     });
 });
 
@@ -297,11 +314,11 @@ describe("receipts survive an orchestrator restart", () => {
         );
 
         const roles = readReceipts(tmp, "sess-1")
-            .map((r) => r.role)
+            .receipts.map((r) => r.role)
             .sort();
         expect(roles).toEqual(["fixup", "implement", "review"]);
         // "Was this PR reviewed?" answered from disk alone.
-        const review = readReceipts(tmp, "sess-1").find(
+        const review = readReceipts(tmp, "sess-1").receipts.find(
             (r): r is ReviewReceipt => r.role === "review"
         );
         expect(review?.outcome).toBe("approve");
@@ -316,7 +333,7 @@ describe("receipts survive an orchestrator restart", () => {
 
         // A fresh read is the restart: nothing from the write survives in
         // memory, so this is the field crossing the process boundary.
-        const [receipt] = readReceipts(tmp, "sess-1") as WorkReceipt[];
+        const [receipt] = readReceipts(tmp, "sess-1").receipts as WorkReceipt[];
         expect(receipt.scenario).toEqual(scenario);
     });
 
@@ -326,6 +343,219 @@ describe("receipts survive an orchestrator restart", () => {
         );
         expect(() => receiptDir(tmp, "../elsewhere")).toThrow(ReceiptError);
         expect(() => receiptDir(tmp, "")).toThrow(ReceiptError);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Rounds: a second review or fixup for the same issue gets its own canonical
+// name instead of overwriting the first, or being hand-written outside the
+// validator (issue #2349).
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("a receipt round has its own canonical name — round 1 keeps the old one", () => {
+    it("round 1 (absent) and round 1 (explicit) both emit the un-suffixed filename", () => {
+        expect(receiptFilename(parseReceipt(workReceipt()) as Receipt)).toBe(
+            "2182-implement.json"
+        );
+        expect(
+            receiptFilename(parseReceipt(workReceipt({ round: 1 })) as Receipt)
+        ).toBe("2182-implement.json");
+    });
+
+    it("round 2+ appends the round to the filename", () => {
+        expect(
+            receiptFilename(
+                parseReceipt(reviewReceipt({ round: 2 })) as Receipt
+            )
+        ).toBe("2182-review-2.json");
+        expect(
+            receiptFilename(
+                parseReceipt(
+                    workReceipt({ role: "fixup", round: 3 })
+                ) as Receipt
+            )
+        ).toBe("2182-fixup-3.json");
+    });
+
+    it("rejects a non-positive-integer round", () => {
+        for (const round of [0, -1, 1.5, "2"] as unknown as number[]) {
+            let error: unknown;
+            try {
+                parseReceipt(workReceipt({ round }));
+            } catch (e) {
+                error = e;
+            }
+            expect(
+                error,
+                `round ${JSON.stringify(round)} was accepted`
+            ).toBeInstanceOf(ReceiptError);
+            expect((error as ReceiptError).field).toBe("round");
+        }
+    });
+
+    it("a second review round is written through writeReceipt without touching round 1", () => {
+        writeReceipt(
+            tmp,
+            "sess-1",
+            reviewReceipt({ outcome: "blocking", findings: ["x"] })
+        );
+        writeReceipt(
+            tmp,
+            "sess-1",
+            reviewReceipt({ round: 2, outcome: "approve" })
+        );
+
+        const dir = receiptDir(tmp, "sess-1");
+        expect(fs.existsSync(path.join(dir, "2182-review.json"))).toBe(true);
+        expect(fs.existsSync(path.join(dir, "2182-review-2.json"))).toBe(true);
+
+        const { receipts, errors } = readReceipts(tmp, "sess-1");
+        expect(errors).toEqual([]);
+        const reviews = receipts.filter(
+            (r): r is ReviewReceipt => r.role === "review"
+        );
+        expect(reviews).toHaveLength(2);
+        // Round 1's own verdict is untouched — this is what "does not
+        // overwrite the first" means concretely.
+        const round1 = reviews.find((r) => (r.round ?? 1) === 1)!;
+        expect(round1.outcome).toBe("blocking");
+        const round2 = reviews.find((r) => r.round === 2)!;
+        expect(round2.outcome).toBe("approve");
+    });
+
+    it("refuses to overwrite an existing receipt, naming the existing file", () => {
+        writeReceipt(tmp, "sess-1", workReceipt());
+        let error: unknown;
+        try {
+            writeReceipt(tmp, "sess-1", workReceipt());
+        } catch (e) {
+            error = e;
+        }
+        expect(error).toBeInstanceOf(Error);
+        const dir = receiptDir(tmp, "sess-1");
+        expect((error as Error).message).toContain(
+            path.join(dir, "2182-implement.json")
+        );
+    });
+
+    it("a repeat write WITH a bumped round does not collide", () => {
+        writeReceipt(tmp, "sess-1", workReceipt({ role: "fixup" }));
+        // Same (issue, role), round bumped — must not throw.
+        expect(() =>
+            writeReceipt(
+                tmp,
+                "sess-1",
+                workReceipt({ role: "fixup", round: 2 })
+            )
+        ).not.toThrow();
+    });
+});
+
+describe("readReceipts detects tampering outside the sanctioned write path", () => {
+    it("flags a live file whose name disagrees with its own contents", () => {
+        const dir = receiptDir(tmp, "sess-1");
+        fs.mkdirSync(dir, { recursive: true });
+        // Content says round 1 (→ receiptFilename would emit the un-suffixed
+        // name), but the file is hand-named as if it were round 2 — nothing
+        // on the sanctioned write path can produce this.
+        fs.writeFileSync(
+            path.join(dir, "2182-implement-2.json"),
+            JSON.stringify(parseReceipt(workReceipt()))
+        );
+
+        const { receipts, errors } = readReceipts(tmp, "sess-1");
+        expect(receipts).toEqual([]);
+        expect(errors).toHaveLength(1);
+        expect(errors[0].file).toMatch(/2182-implement-2\.json$/);
+        expect(errors[0].message).toMatch(/does not match receiptFilename/);
+        expect(errors[0].issue).toBe(2182);
+    });
+
+    it("flags a round sequence with a gap", () => {
+        writeReceipt(tmp, "sess-1", reviewReceipt({ round: 1 }));
+        writeReceipt(tmp, "sess-1", reviewReceipt({ round: 3 }));
+        // Round 2 never landed (deleted, or never written) — 1 and 3 alone
+        // are each individually well-formed and correctly named, but the
+        // SEQUENCE is a gap the single-file check cannot see.
+        const { errors } = readReceipts(tmp, "sess-1");
+        expect(errors).toHaveLength(1);
+        expect(errors[0].message).toMatch(/round sequence has a gap/);
+        expect(errors[0].issue).toBe(2182);
+    });
+
+    it("does not flag a clean, contiguous multi-round sequence", () => {
+        writeReceipt(
+            tmp,
+            "sess-1",
+            reviewReceipt({ outcome: "blocking", findings: ["x"] })
+        );
+        writeReceipt(tmp, "sess-1", reviewReceipt({ round: 2 }));
+        writeReceipt(tmp, "sess-1", reviewReceipt({ round: 3 }));
+        const { errors, receipts } = readReceipts(tmp, "sess-1");
+        expect(errors).toEqual([]);
+        expect(receipts).toHaveLength(3);
+    });
+
+    it("flags a LONE receipt whose round does not start at 1 — the round-1 blocking review was deleted (#2349)", () => {
+        // Reproduces the reviewer's exact scenario: a batch containing
+        // `10-implement.json` + `10-review-2.json` with NO `10-review.json`
+        // on disk. The (issue 10, role review) group has exactly one
+        // receipt, so the old `group.length < 2` guard skipped it — a
+        // tampering signal (the round-1 blocking verdict deleted) that
+        // reported `unreadable: []` and let a stale round-2 "approve" win.
+        writeReceipt(tmp, "sess-1", workReceipt({ issue: 10 }));
+        writeReceipt(
+            tmp,
+            "sess-1",
+            reviewReceipt({ issue: 10, round: 2, outcome: "approve" })
+        );
+        const dir = receiptDir(tmp, "sess-1");
+        expect(fs.existsSync(path.join(dir, "10-implement.json"))).toBe(true);
+        expect(fs.existsSync(path.join(dir, "10-review-2.json"))).toBe(true);
+        expect(fs.existsSync(path.join(dir, "10-review.json"))).toBe(false);
+
+        const { errors } = readReceipts(tmp, "sess-1");
+        const gap = errors.find(
+            (e) => e.issue === 10 && /round sequence has a gap/.test(e.message)
+        );
+        expect(gap, JSON.stringify(errors)).toBeDefined();
+    });
+
+    it("does NOT flag a lone round-1 (or absent-round) receipt — no new false positive", () => {
+        // The common, overwhelmingly frequent shape: one implement, one
+        // review, no re-round. A lone receipt normalising to round 1 must
+        // stay perfectly valid now that the size-1 guard is gone.
+        writeReceipt(tmp, "sess-1", workReceipt());
+        writeReceipt(tmp, "sess-1", reviewReceipt());
+        const { errors, receipts } = readReceipts(tmp, "sess-1");
+        expect(errors).toEqual([]);
+        expect(receipts).toHaveLength(2);
+    });
+
+    it("does NOT flag a lone missing marker sharing an issue with a round-1 work receipt", () => {
+        // `missing` receipts carry no `issue` and are excluded from the
+        // round-sequence grouping entirely (they have no round). Confirms
+        // removing the `group.length < 2` guard does not start pulling
+        // `missing` markers into a group they were never meant to join.
+        writeReceipt(tmp, "sess-1", workReceipt());
+        fs.mkdirSync(receiptDir(tmp, "sess-1"), { recursive: true });
+        fs.writeFileSync(
+            path.join(receiptDir(tmp, "sess-1"), "missing-agent-1.json"),
+            JSON.stringify(
+                parseReceipt({
+                    version: RECEIPT_VERSION,
+                    role: "missing",
+                    outcome: "missing",
+                    session: "sess-1",
+                    transcript: null,
+                    agentId: "agent-1",
+                    agentType: null,
+                    agentTranscript: null,
+                })
+            )
+        );
+        const { errors } = readReceipts(tmp, "sess-1");
+        expect(errors).toEqual([]);
     });
 });
 

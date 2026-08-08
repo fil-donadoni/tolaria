@@ -7,6 +7,8 @@ import * as path from "path";
 import { computeTrainOrder, latestWorkReceipts } from "../lib/train-order";
 import {
     parseReceipt,
+    readReceipts,
+    receiptDir,
     writeReceipt,
     RECEIPT_VERSION,
     type WorkReceipt,
@@ -302,6 +304,51 @@ describe("a fixup receipt supersedes the implement receipt it replaces", () => {
     });
 });
 
+describe("among same-role receipts, the highest round wins — never iteration order", () => {
+    const fixupRound = (round: number, targetFiles: string[]): WorkReceipt =>
+        parseReceipt({
+            version: RECEIPT_VERSION,
+            role: "fixup",
+            issue: 10,
+            outcome: "pr-open",
+            pr: 101,
+            branch: "feat/issue-10",
+            worktree: "/tmp/wt-10",
+            targetFiles,
+            proofOfFailure: [],
+            ...(round > 1 ? { round } : {}),
+        }) as WorkReceipt;
+
+    it("round 2 supersedes round 1 regardless of array order", () => {
+        const round1 = fixupRound(1, ["a.ts"]);
+        const round2 = fixupRound(2, ["a.ts", "b.ts"]);
+
+        // Fed in "wrong" order — round 2 first — to prove the selection is
+        // NOT "whichever arrives last in this array" in disguise.
+        const [only] = latestWorkReceipts([round2, round1]);
+        expect(only.round).toBe(2);
+        expect(only.targetFiles).toEqual(["a.ts", "b.ts"]);
+    });
+
+    it("round 1 does not supersede round 2 when it arrives second", () => {
+        const round1 = fixupRound(1, ["a.ts"]);
+        const round2 = fixupRound(2, ["a.ts", "b.ts"]);
+
+        const [only] = latestWorkReceipts([round1, round2]);
+        expect(only.round).toBe(2);
+    });
+
+    it("round 3 wins over round 2 and round 1 in any arrival order", () => {
+        const round1 = fixupRound(1, ["a.ts"]);
+        const round2 = fixupRound(2, ["a.ts", "b.ts"]);
+        const round3 = fixupRound(3, ["a.ts", "b.ts", "c.ts"]);
+
+        const [only] = latestWorkReceipts([round2, round3, round1]);
+        expect(only.round).toBe(3);
+        expect(only.targetFiles).toEqual(["a.ts", "b.ts", "c.ts"]);
+    });
+});
+
 describe("the queue:train CLI joins receipts into a train plan", () => {
     it("reads a batch off disk and reports order, verdicts and scenarios", () => {
         const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tolaria-train-"));
@@ -481,5 +528,271 @@ describe("the queue:train CLI joins receipts into a train plan", () => {
         );
         expect(result.status).toBe(1);
         expect(result.stderr).toMatch(/receipt\.version/);
+        const plan = JSON.parse(result.stdout) as {
+            unreadable: Array<{ file: string; message: string }>;
+        };
+        expect(plan.unreadable).toHaveLength(1);
+        expect(plan.unreadable[0].file).toMatch(/10-implement\.json$/);
+        expect(plan.unreadable[0].message).toMatch(/receipt\.version/);
+    });
+
+    it("quarantines only the corrupt receipt's issue — every OTHER issue still gets an order", () => {
+        const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tolaria-train-"));
+        const batch = "sess-quarantine";
+        writeReceipt(tmp, batch, {
+            version: RECEIPT_VERSION,
+            role: "implement",
+            issue: 20,
+            outcome: "pr-open",
+            pr: 202,
+            branch: "feat/issue-20",
+            worktree: `${tmp}/wt-20`,
+            targetFiles: ["convex/gre/layers.ts"],
+            proofOfFailure: [],
+        });
+        const dir = receiptDir(tmp, batch);
+        fs.writeFileSync(path.join(dir, "10-implement.json"), '{"version":99}');
+
+        const result = spawnSync(
+            "bun",
+            [
+                path.join(REPO_ROOT, "scripts", "train-order.ts"),
+                "--batch",
+                batch,
+            ],
+            { cwd: tmp, encoding: "utf8" }
+        );
+        // Non-zero — a pass cannot silently ship a short batch...
+        expect(result.status).toBe(1);
+        const plan = JSON.parse(result.stdout) as {
+            order: number[];
+            unreadable: Array<{ file: string; message: string }>;
+        };
+        // ...but #20's order is still reported — it is not the corrupt
+        // receipt's issue, and quarantining the batch instead of the issue
+        // is exactly the failure mode this behaviour replaces.
+        expect(plan.order).toEqual([20]);
+        expect(plan.unreadable).toHaveLength(1);
+        expect(plan.unreadable[0].file).toMatch(/10-implement\.json$/);
+    });
+});
+
+describe("a round-sequence gap quarantines the issue out of the plan entirely", () => {
+    it("excludes the issue from order/entries even though its OWN work receipt parses fine", () => {
+        const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tolaria-train-"));
+        const batch = "sess-round-gap";
+        writeReceipt(tmp, batch, {
+            version: RECEIPT_VERSION,
+            role: "implement",
+            issue: 10,
+            outcome: "pr-open",
+            pr: 101,
+            branch: "feat/issue-10",
+            worktree: `${tmp}/wt-10`,
+            targetFiles: ["a.ts"],
+            proofOfFailure: [],
+        });
+        // Round 1 and round 3 both individually valid and correctly named —
+        // round 2 is simply missing from disk. Neither file is corrupt, so
+        // only the CROSS-file gap check can see this.
+        writeReceipt(tmp, batch, {
+            version: RECEIPT_VERSION,
+            role: "review",
+            issue: 10,
+            outcome: "blocking",
+            pr: 101,
+            findings: ["round 1 finding"],
+        });
+        writeReceipt(tmp, batch, {
+            version: RECEIPT_VERSION,
+            role: "review",
+            issue: 10,
+            round: 3,
+            outcome: "approve",
+            pr: 101,
+            findings: [],
+        });
+        // #20 is unrelated — sound, and must still get an order.
+        writeReceipt(tmp, batch, {
+            version: RECEIPT_VERSION,
+            role: "implement",
+            issue: 20,
+            outcome: "pr-open",
+            pr: 102,
+            branch: "feat/issue-20",
+            worktree: `${tmp}/wt-20`,
+            targetFiles: ["b.ts"],
+            proofOfFailure: [],
+        });
+
+        const result = spawnSync(
+            "bun",
+            [
+                path.join(REPO_ROOT, "scripts", "train-order.ts"),
+                "--batch",
+                batch,
+            ],
+            { cwd: tmp, encoding: "utf8" }
+        );
+        expect(result.status).toBe(1);
+        const plan = JSON.parse(result.stdout) as {
+            order: number[];
+            entries: Array<{ issue: number }>;
+            unreadable: Array<{ file: string; message: string }>;
+        };
+        expect(plan.unreadable.some((u) => u.message.includes("gap"))).toBe(
+            true
+        );
+        // #10 is quarantined — its own implement receipt parsed cleanly, but
+        // the round-gap on its review makes the issue as a whole untrusted.
+        expect(plan.order).not.toContain(10);
+        expect(plan.entries.find((e) => e.issue === 10)).toBeUndefined();
+        // #20 is untouched by #10's problem.
+        expect(plan.order).toContain(20);
+    });
+});
+
+describe("a round-2 review verdict supersedes the round-1 verdict it answers", () => {
+    it("reports the round-2 approve, not the round-1 blocking it was written to answer", () => {
+        const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tolaria-train-"));
+        const batch = "sess-reverdict";
+        writeReceipt(tmp, batch, {
+            version: RECEIPT_VERSION,
+            role: "implement",
+            issue: 10,
+            outcome: "pr-open",
+            pr: 101,
+            branch: "feat/issue-10",
+            worktree: `${tmp}/wt-10`,
+            targetFiles: ["a.ts"],
+            proofOfFailure: [],
+        });
+        writeReceipt(tmp, batch, {
+            version: RECEIPT_VERSION,
+            role: "review",
+            issue: 10,
+            outcome: "blocking",
+            pr: 101,
+            findings: ["a.ts:1 — round 1 finding"],
+        });
+        writeReceipt(tmp, batch, {
+            version: RECEIPT_VERSION,
+            role: "review",
+            issue: 10,
+            round: 2,
+            outcome: "approve",
+            pr: 101,
+            findings: [],
+        });
+
+        const result = spawnSync(
+            "bun",
+            [
+                path.join(REPO_ROOT, "scripts", "train-order.ts"),
+                "--batch",
+                batch,
+            ],
+            { cwd: tmp, encoding: "utf8" }
+        );
+        expect(result.status, result.stderr).toBe(0);
+        const plan = JSON.parse(result.stdout) as {
+            entries: Array<{ issue: number; verdict: string | null }>;
+        };
+        // `12-review-2.json` sorts BEFORE `12-review.json` (alphabetical:
+        // digit "-" sorts before ".") — a filename-order-based selection
+        // would report the round-1 blocking verdict here. Selecting by
+        // ROUND reports the round-2 approve that supersedes it.
+        expect(plan.entries.find((e) => e.issue === 10)!.verdict).toBe(
+            "approve"
+        );
+    });
+});
+
+describe("--dir reads an explicit receipt directory (the documented resume entry point)", () => {
+    it("prints the same plan as --batch on the same batch", () => {
+        const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tolaria-train-"));
+        const batch = "sess-dir";
+        writeReceipt(tmp, batch, {
+            version: RECEIPT_VERSION,
+            role: "implement",
+            issue: 10,
+            outcome: "pr-open",
+            pr: 101,
+            branch: "feat/issue-10",
+            worktree: `${tmp}/wt-10`,
+            targetFiles: ["a.ts"],
+            proofOfFailure: [],
+        });
+
+        const runBatch = spawnSync(
+            "bun",
+            [
+                path.join(REPO_ROOT, "scripts", "train-order.ts"),
+                "--batch",
+                batch,
+            ],
+            { cwd: tmp, encoding: "utf8" }
+        );
+        const runDir = spawnSync(
+            "bun",
+            [
+                path.join(REPO_ROOT, "scripts", "train-order.ts"),
+                "--dir",
+                path.join(tmp, ".claude", "receipts", batch),
+            ],
+            { cwd: tmp, encoding: "utf8" }
+        );
+        expect(runBatch.status, runBatch.stderr).toBe(0);
+        expect(runDir.status, runDir.stderr).toBe(0);
+        expect(JSON.parse(runDir.stdout)).toEqual(JSON.parse(runBatch.stdout));
+    });
+
+    it("exits non-zero when the directory holds no receipts — the old bug printed an empty plan with exit 0", () => {
+        const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tolaria-train-"));
+        const emptyDir = path.join(tmp, ".claude", "receipts", "sess-empty");
+        fs.mkdirSync(emptyDir, { recursive: true });
+
+        const result = spawnSync(
+            "bun",
+            [
+                path.join(REPO_ROOT, "scripts", "train-order.ts"),
+                "--dir",
+                emptyDir,
+            ],
+            { cwd: tmp, encoding: "utf8" }
+        );
+        expect(result.status).toBe(1);
+        expect(result.stderr).toMatch(/holds no receipts/);
+    });
+
+    it("still reproduces the OLD bug's exact symptom if the RECEIPTS_ROOT-join path is used instead — regression guard for the fix itself", () => {
+        // This pins the FAILURE MODE the fix removes: --dir given the
+        // complete directory, run through the naive
+        // readReceipts(dirname(dir), basename(dir)) join, resolves to
+        // `.claude/receipts/.claude/receipts/<batch>` and finds nothing.
+        // `train-order.ts` no longer does this (it calls
+        // `readReceiptsFromDir` directly), so this test documents what would
+        // happen if that regressed, by exercising the join directly against
+        // the library rather than re-deriving it inline.
+        const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tolaria-train-"));
+        const batch = "sess-dir-regress";
+        writeReceipt(tmp, batch, {
+            version: RECEIPT_VERSION,
+            role: "implement",
+            issue: 10,
+            outcome: "pr-open",
+            pr: 101,
+            branch: "feat/issue-10",
+            worktree: `${tmp}/wt-10`,
+            targetFiles: ["a.ts"],
+            proofOfFailure: [],
+        });
+        const dir = path.join(tmp, ".claude", "receipts", batch);
+        const naiveResult = readReceipts(
+            path.dirname(path.resolve(dir)),
+            path.basename(dir)
+        );
+        expect(naiveResult.receipts).toEqual([]);
+        expect(naiveResult.errors).toEqual([]);
     });
 });
