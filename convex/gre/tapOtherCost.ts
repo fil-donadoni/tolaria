@@ -82,6 +82,32 @@ export function canPayTapOtherCost(
     return isTapOtherSelectionComplete(spec, candidates);
 }
 
+/** True when the candidate pool leaves the payer NO decision: the whole pool
+ *  pays the cost and dropping its cheapest member does not (CR 601.2 — a
+ *  "choice" with exactly one legal answer is not a choice). Callers use it to
+ *  auto-commit instead of opening a picker whose only possible answer is
+ *  forced, the same convention every other cost picker follows.
+ *
+ *  Dropping the CHEAPEST candidate is the general test for both shapes: under
+ *  `count` any single removal leaves `length - 1`, so it reduces to
+ *  `length === count`; under `totalPower` (CR 702.122a Crew N) removing the
+ *  cheapest leaves the LARGEST possible proper subset, so if even that falls
+ *  short no proper subset can pay and the pick is forced. */
+export function isTapOtherPickForced(
+    spec: Pick<TapOtherCostSpec, "count" | "totalPower">,
+    candidates: readonly TapOtherCandidate[]
+): boolean {
+    if (!isTapOtherSelectionComplete(spec, candidates)) return false;
+    if (candidates.length === 0) return true;
+    let cheapestIdx = 0;
+    for (let i = 1; i < candidates.length; i++) {
+        if (candidates[i].power < candidates[cheapestIdx].power)
+            cheapestIdx = i;
+    }
+    const without = candidates.filter((_, i) => i !== cheapestIdx);
+    return !isTapOtherSelectionComplete(spec, without);
+}
+
 /** Deterministic payment used by the bot's move applier (`applyMove`), which
  *  does not model the human's free choice of which permanents to tap.
  *  `count` mode: the first `count` candidates (historical behaviour).

@@ -18,14 +18,27 @@ export function formatFilterLabel(filter: PermanentFilter): string {
             ? filter.subtypes
             : [filter.subtypes]
         : [];
-    if (subtypes.length > 0) return `a ${subtypes.join(" or ")}`;
+    if (subtypes.length > 0) return withArticle(subtypes.join(" or "));
     const types = filter.types
         ? Array.isArray(filter.types)
             ? filter.types
             : [filter.types]
         : [];
-    if (types.length > 0) return `a ${types.join(" or ").toLowerCase()}`;
+    if (types.length > 0) {
+        return withArticle(types.join(" or ").toLowerCase());
+    }
     return "a permanent";
+}
+
+/** "a creature" / "an artifact" — the indefinite article agrees with the
+ *  noun's first sound. Every shipped `tapOtherFilter` / `sacrificeFilter` cost
+ *  happened to name a consonant-initial type until Urza, Lord High Artificer's
+ *  "Tap an untapped ARTIFACT you control" (issue #2371), which rendered "tap a
+ *  artifact" in the picker prompt. Approximated by first letter, which is
+ *  correct for every MTG card type, subtype and supertype (there is no
+ *  "a unicorn"-style silent-consonant case in the type line). */
+function withArticle(noun: string): string {
+    return `${/^[aeiou]/i.test(noun) ? "an" : "a"} ${noun}`;
 }
 
 /** Subtitle for an outstanding permanent-cost choice (CR 701.21a / 118.9) —

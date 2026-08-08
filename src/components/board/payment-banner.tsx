@@ -8,17 +8,14 @@ import { usePromptBannerPosition } from "~/hooks/usePromptBannerPosition";
 import { Panel } from "~/components/ui/panel";
 import { Button } from "~/components/ui/button";
 import { isManaCostCovered } from "~/lib/card-utils";
-import {
-    isTapOtherChoicePaid,
-    tapOtherRemaining,
-} from "@convex/gre/tapOtherCost";
+import { isTapOtherChoicePaid } from "@convex/gre/tapOtherCost";
+import { describeTapOtherProgress } from "~/lib/tap-other-progress";
 import {
     spendablePoolForAbility,
     spendablePoolForSpell,
 } from "@convex/gre/state";
 import {
     describeSacrificeChoice,
-    formatFilterLabel,
     isSacrificeComplete,
 } from "~/lib/sacrifice-selection";
 
@@ -30,29 +27,13 @@ import {
 function describeActivationCostChoice(pa: PendingActivation): string {
     const toc = pa.tapOtherChoice;
     if (toc && !isTapOtherChoicePaid(toc)) {
-        const label = formatFilterLabel(toc.filter);
-        const outstanding = tapOtherRemaining(
+        // Shared with the client-local mana-ability tap-other picker's banner
+        // (issue #2371) — see `lib/tap-other-progress.ts`.
+        return describeTapOtherProgress(
             toc,
             toc.pickedIds.length,
             toc.pickedPower ?? 0
         );
-        // CR 702.122a (Crew N) — the total-power shape has no fixed number of
-        // picks, so the prompt counts down POWER, not permanents.
-        if (outstanding.kind === "power") {
-            const bare = label.replace(/^an? /, "");
-            const plural = bare.endsWith("s") ? bare : `${bare}s`;
-            return `tap ${plural} with total power ${outstanding.remaining} or more`;
-        }
-        const remaining = outstanding.remaining;
-        if (remaining > 1) {
-            // Strip the leading article ("a"/"an") before pluralizing —
-            // formatFilterLabel returns "a creature", and "tap 3 more a
-            // creatures" reads as broken English (#954 review).
-            const bare = label.replace(/^an? /, "");
-            const plural = bare.endsWith("s") ? bare : `${bare}s`;
-            return `tap ${remaining} more ${plural}`;
-        }
-        return `tap ${label}`;
     }
     return "pay the activation costs";
 }

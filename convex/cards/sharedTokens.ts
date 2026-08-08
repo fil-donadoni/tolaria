@@ -190,3 +190,46 @@ export const SKELETON_TOKEN: EffectTokenSpec = {
     colors: ["B"],
     staticAbilities: ["menace"],
 };
+/** Construct token (CR 111.1 / 707.2, issue #2371) — the "0/0 colorless
+ *  Construct artifact creature token with 'This token gets +1/+1 for each
+ *  artifact you control'" shape TWO cards create verbatim: Urza's Saga's
+ *  chapter II grant (`sets/mh2/colorless.ts`, issue #1884) and Urza, Lord
+ *  High Artificer's ETB (`sets/mh1/blue.ts`, issue #2371). Extracted here per
+ *  CLAUDE.md primitive reuse ("two consumers earns extraction").
+ *
+ *  A FACTORY, not a bare constant — unlike every other shared spec in this
+ *  file, the two consumers do NOT share one `imagePrintId`: each has its OWN
+ *  printing's Construct token (CR token-print rule, CLAUDE.md § Token/emblem
+ *  art — "the card's OWN printing's token where it exists"), confirmed via
+ *  Scryfall `all_parts` on each card's own set printing (mh1 Urza →
+ *  `tmh1`/Modern Horizons Tokens; mh2 Urza's Saga → `tmh2`/Modern Horizons 2
+ *  Tokens — two distinct token prints, same characteristics). What's shared
+ *  is the STRUCTURAL shape and the CDA registry key
+ *  (`pt-cda-artifacts-you-control`, `cards/tokenStaticEffects.ts`), not the
+ *  art.
+ *
+ *  `TokenSpec` (not `EffectTokenSpec`): the "+1/+1 for each artifact you
+ *  control" clause is a characteristic-defining ability (CR 604.3) — a
+ *  `pt-cda` `compute` CLOSURE the JSON-pure DSL token spec has no slot for
+ *  (see `TokenSpec.staticEffectKeys`'s own doc comment). Both consumers stay
+ *  `resolve()` cards for this reason (ADR 0045 protocol-like exception,
+ *  recorded on each card).
+ *
+ *  BOTH consumers call it: Urza's Saga's `URZAS_SAGA_CONSTRUCT_TOKEN`
+ *  (`sets/mh2/colorless.ts`) was retrofitted onto this factory in the same
+ *  change, so the duplication the extraction exists to remove is actually
+ *  gone — "two consumers earns extraction" is a statement about the code, not
+ *  an intention. */
+export function constructArtifactsYouControlToken(
+    imagePrintId: string
+): TokenSpec {
+    return {
+        name: "Construct",
+        types: ["Artifact", "Creature"],
+        subtypes: ["Construct"],
+        power: 0,
+        toughness: 0,
+        imagePrintId,
+        staticEffectKeys: ["pt-cda-artifacts-you-control"],
+    };
+}

@@ -47,6 +47,7 @@ import type { CardInstance } from "../../types/game";
 import {
     getStackAbilities,
     getGraveyardStackAbilities,
+    getManaCostMenuAbility,
     buildTriggerStateView,
 } from "../card-utils";
 import {
@@ -352,6 +353,17 @@ function shapesOf(a: ActivatedAbility): Shape[] {
     return out;
 }
 
+/** True when a `useStack: false` mana ability both reaches the mana-ability
+ *  menu surface (`getManaCostMenuAbility`'s own predicate: a mana cost, or no
+ *  {T}/sacrifice component to tap through) and declares the one cost shape
+ *  that surface gates. A tap/sacrifice mana ability without a mana cost is
+ *  reached by a plain left-click `tapUntap` instead and has no menu gate to
+ *  sweep. */
+function isManaMenuGated(a: ActivatedAbility): boolean {
+    if (!a.cost.tapOtherFilter) return false;
+    return !!a.cost.mana || (!a.cost.tap && !a.cost.sacrifice);
+}
+
 /** True when the ability's payability rides on a predicate this sweep can't
  *  generically satisfy — reported as a skip rather than a failure. */
 function skipReason(a: ActivatedAbility, def: CardDefinition): string | null {
@@ -441,8 +453,21 @@ const skips: string[] = [];
 
 for (const def of getAllCards()) {
     for (const a of def.activatedAbilities ?? []) {
-        if (!a.useStack) continue; // mana abilities aren't macro-offered
-        const shapes = shapesOf(a);
+        // A `useStack: false` MANA ability is not offered by
+        // `getStackAbilities` at all — its menu entry comes from
+        // `getManaCostMenuAbility`, which carries exactly ONE affordability
+        // gate: `tapOtherFilter` (CR 602.1 / 118.8, issue #2371). Sweeping it
+        // for any other shape would assert a gate that surface does not have
+        // and cannot have (a mana ability's mana leg is auto-tapped, not
+        // hidden). Blanket-skipping every `!useStack` ability — which is what
+        // this loop used to do — is why PR #2419 could ship a mana ability
+        // whose signature cost had no client picker and no affordability gate
+        // with the whole catalogue sweep still green.
+        const manaMenuOffered = !a.useStack;
+        if (manaMenuOffered && !isManaMenuGated(a)) continue;
+        const shapes = manaMenuOffered
+            ? shapesOf(a).filter((s) => s === "tapOtherFilter")
+            : shapesOf(a);
         if (shapes.length === 0) continue;
         const reason = skipReason(a, def);
         if (reason) {
@@ -645,6 +670,13 @@ function env(c: Case, broken: boolean) {
  *  hides those — else the ordinary battlefield helper. */
 function surfacedAbilityIds(c: Case, env_: ReturnType<typeof env>): string[] {
     const { source, view, payerLife, hand } = env_;
+    // CR 605.1a (issue #2371) — a `useStack: false` mana ability's own menu
+    // entry comes from `getManaCostMenuAbility`, never `getStackAbilities`
+    // (which hides every non-stack ability before reaching any cost gate).
+    if (!c.ability.useStack) {
+        const offered = getManaCostMenuAbility(source, view);
+        return offered ? [offered.id] : [];
+    }
     if (c.ability.activateFromGraveyard) {
         return getGraveyardStackAbilities(source, undefined, view).map(
             (x) => x.id

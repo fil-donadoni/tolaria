@@ -3,7 +3,8 @@
 // artifacts (no coloured cost) live here per the colour-split convention.
 
 import { AURA_AFFECTS_HOST } from "../../types";
-import type { CardDefinition, SpellContext, TokenSpec } from "../../types";
+import type { CardDefinition, SpellContext } from "../../types";
+import { constructArtifactsYouControlToken } from "../../sharedTokens";
 import { equipAbility, livingWeapon } from "../../abilities/equipment";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
 
@@ -38,21 +39,13 @@ export const yavimayaCradleOfGrowth: CardDefinition = {
 // 605.1a, #1880) and of `EffectCardFilter.manaCostEquals` (CR 202.3b, #1881).
 // ───────────────────────────────────────────────────────────────────────────
 
-/** The Construct chapter II's granted ability makes (CR 111.1 / 707.2).
- *
- *  "This token gets +1/+1 for each artifact you control" is a
- *  characteristic-defining ability (CR 604.3) on a printed 0/0, so it is a
- *  `pt-cda` static effect whose `compute` returns the DELTA over the base
- *  P/T — the established catalogue convention (Wayfaring Giant,
- *  `sets/inv/white.ts`). The token IS an artifact, so it counts ITSELF: a lone
- *  Construct is 1/1 and never dies to the CR 704.5f zero-toughness SBA.
- *
- *  The CDA is named by KEY, not written inline: a token's definition is
- *  rebuilt from its content-derived id string on every registry miss (a cold
- *  Convex isolate, a client-side engine run), and closures cannot ride a
- *  string. Written inline the Construct decoded as a bare 0/0 and died to the
- *  SBA the moment the registry went cold. See `cards/tokenStaticEffects.ts`,
- *  which holds the factory this key resolves to.
+/** The Construct chapter II's granted ability makes (CR 111.1 / 707.2) — the
+ *  shared "0/0 Construct that gets +1/+1 for each artifact you control" shape
+ *  (`cards/sharedTokens.ts`), the other consumer being Urza, Lord High
+ *  Artificer's ETB (`sets/mh1/blue.ts`, issue #2371). See that factory's own
+ *  doc comment for why the CDA rides a `staticEffectKeys` KEY rather than an
+ *  inline closure, and why the art is a per-consumer argument rather than part
+ *  of the shared spec.
  *
  *  `imagePrintId` is pinned by hand, not left to the `token-prints.json`
  *  lockfile: this spec is handed to `SpellContext.createToken` from a
@@ -61,15 +54,9 @@ export const yavimayaCradleOfGrowth: CardDefinition = {
  *  documented blind spot, same as `sets/ncc/colorless.ts`. The id is the mh2
  *  Construct token print reverse-linked from Urza's Saga's own Scryfall
  *  `all_parts`, so it is this card's own printing's token. */
-const URZAS_SAGA_CONSTRUCT_TOKEN: TokenSpec = {
-    name: "Construct",
-    types: ["Artifact", "Creature"],
-    subtypes: ["Construct"],
-    power: 0,
-    toughness: 0,
-    imagePrintId: "a7caaf39-8f16-4f1d-bee6-a45674306319",
-    staticEffectKeys: ["pt-cda-artifacts-you-control"],
-};
+const URZAS_SAGA_CONSTRUCT_TOKEN = constructArtifactsYouControlToken(
+    "a7caaf39-8f16-4f1d-bee6-a45674306319"
+);
 
 /** Chapter II's granted ability body.
  *
