@@ -62,12 +62,19 @@ export interface ScenarioTestGame {
     blockingActiveGame: BlockingActiveGame | null;
     /** Dismiss the confirm dialog without touching the active game. */
     cancelBlockingActiveGame: () => void;
-    /** Concede the blocking active game via the right mutation for its type
-     *  — `manualConcedeMatch` for `mode === "manual"`, `forfeitMatch`
-     *  otherwise. `concede` (CR 104.3a) is NOT used: it only ends the current
-     *  *Game*, leaving the *Match* — and therefore `findActiveMatchForUser`'s
-     *  block — in place, so `createSoloGame` would still reject the retry.
-     *  On success, retries the scenario launch that was blocked. */
+    /** Free the blocking active game via the right verb for its status/type,
+     *  then retry the scenario launch that was blocked:
+     *  - `status !== "playing"` (a lobby waiting room nobody joined, or a
+     *    `pregame` coin-toss gate) has no Game worth conceding — mirrors
+     *    `ActiveGameNotice`'s non-`playing` branch and uses `leaveGame`. A
+     *    `waiting` 2-player Match has only ONE seat, so `forfeitMatch`'s
+     *    opponent lookup would throw "Seat not found in this match" (#2400
+     *    review round 2).
+     *  - otherwise, `manualConcedeMatch` for `mode === "manual"`,
+     *    `forfeitMatch` otherwise. `concede` (CR 104.3a) is NOT used: it only
+     *    ends the current *Game*, leaving the *Match* — and therefore
+     *    `findActiveMatchForUser`'s block — in place, so `createSoloGame`
+     *    would still reject the retry. */
     resolveBlockingActiveGame: () => void;
     /** True while the concede mutation above (and the retried launch) is in
      *  flight — disables the confirm dialog's buttons. */
@@ -83,6 +90,7 @@ export function useScenarioTestGame(): ScenarioTestGame {
     const setupScenario = useMutation(api.game.debugSetupScenario);
     const forfeitMatch = useMutation(api.game.forfeitMatch);
     const manualConcedeMatch = useMutation(api.game.manualConcedeMatch);
+    const leaveGame = useMutation(api.game.leaveGame);
 
     const [launchingId, setLaunchingId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -95,7 +103,23 @@ export function useScenarioTestGame(): ScenarioTestGame {
     // only one that can be the #155 active-game block; a failure applying the
     // scenario to a game THIS call just created is a different problem and
     // always surfaces as the plain error banner.
-    const launch = async (row: Doc<"debugScenarios">) => {
+    //
+    // `isRetry` (#2400 review round 2): set only by `resolveBlockingActiveGame`
+    // below, right after it just conceded `blockingActiveGame.activeGame`. On
+    // this specific call, `activeGame` — the reactive `myActiveGame` value —
+    // is a STALE closure: it was captured when this `launch` closure was
+    // created, at or before the confirm click, and the async retry never
+    // re-renders the component before running, so it still describes the
+    // game that was JUST conceded, not the live subscription. Re-entering
+    // `if (activeGame)` on a retry failure would re-open the confirm dialog
+    // describing an already-conceded game and swallow whatever the retried
+    // `createSoloGame` actually threw — exactly the misrouting the split
+    // try/catch below exists to prevent. `isRetry` short-circuits that
+    // regardless of how stale (or fresh) the closure happens to be.
+    const launch = async (
+        row: Doc<"debugScenarios">,
+        opts: { isRetry?: boolean } = {}
+    ) => {
         // Point-free `.map(toPresetLobbyDeck)` would pass the array index
         // into the helper's optional banlist-override parameter.
         const decks = (presetDecks ?? []).map((d) => toPresetLobbyDeck(d));
@@ -117,7 +141,7 @@ export function useScenarioTestGame(): ScenarioTestGame {
             });
         } catch (e) {
             setLaunchingId(null);
-            if (activeGame) {
+            if (!opts.isRetry && activeGame) {
                 setBlockingActiveGame({ row, activeGame });
             } else {
                 setError(
@@ -160,16 +184,26 @@ export function useScenarioTestGame(): ScenarioTestGame {
         setResolvingActiveGame(true);
         void (async () => {
             try {
-                if (blocked.mode === "manual") {
+                if (blocked.status !== "playing") {
+                    // A `waiting` room (nobody joined) or a `pregame`
+                    // coin-toss gate has no real opponent/Game to concede —
+                    // mirrors `ActiveGameNotice`'s non-`playing` branch,
+                    // which abandons via `leaveGame` regardless of mode.
+                    await leaveGame({ gameId: blocked.gameId });
+                } else if (blocked.mode === "manual") {
                     // ADR 0080 S12 twin of `forfeitMatch`: manual games run
                     // on `manualStates`, not GRE state, so ending the Match
-                    // goes through `manualConcedeMatch` instead. Mirrors
-                    // `ActiveGameNotice`'s manual branch, always as the P1
-                    // seat (the admin's own active game — solo manual tables
-                    // have both seats owned by this same user).
+                    // goes through `manualConcedeMatch` instead. Same seat
+                    // derivation as the non-manual branch below: solo/vs-AI
+                    // seats are `${userId}-p1`, a genuine 2-player manual
+                    // table (`createManualGame`/`joinManualGame`) seats the
+                    // caller as the bare user id (#2400 review round 2 —
+                    // passing `-p1` unconditionally mis-resolved the seat
+                    // lookup and could record the concede as a win for the
+                    // conceder).
                     await manualConcedeMatch({
                         gameId: blocked.gameId,
-                        playerId: `${user._id}-p1`,
+                        playerId: blocked.solo ? `${user._id}-p1` : user._id,
                     });
                 } else {
                     // Solo/vs-AI seats are `${userId}-p1`; a bare 2-player
@@ -180,7 +214,7 @@ export function useScenarioTestGame(): ScenarioTestGame {
                     });
                 }
                 setBlockingActiveGame(null);
-                await launch(row);
+                await launch(row, { isRetry: true });
             } catch (e) {
                 setBlockingActiveGame(null);
                 setError(

@@ -5,6 +5,29 @@ status: draft
 confidence: medium
 ---
 
-**What is wrong.** Both `ActiveGameNotice.handleForfeit` (`src/components/lobby/active-game-notice.tsx:80-84`) and this issue's new `useScenarioTestGame.resolveBlockingActiveGame` (`src/hooks/useScenarioTestGame.ts`) call `manualConcedeMatch({ gameId, playerId: `${userId}-p1` })` unconditionally for any `mode === "manual"` active game. That seat id is only correct for a **solo** manual table (`createManualSoloGame`, `convex/game.ts:4171`), where both `-p1`/`-p2` seats belong to the same user. A genuine **2-player** manual table (`createManualGame` + `joinManualGame`, `convex/game.ts:4261`) assigns the caller's seat the bare `user._id` (mirroring the 2-player GRE path, `convex/game.ts:3632-3637`), not `${userId}-p1`. Passing the wrong `playerId`to`manualConcedeMatch` (`convex/game.ts:14825`) would hit its `getPlayer`/seat lookup for an id that isn't actually in that Match's `players[]`.
+**Update (#2400 review round 2).** The instance this issue itself created is
+fixed: `useScenarioTestGame.resolveBlockingActiveGame`
+(`src/hooks/useScenarioTestGame.ts`) now derives the manual seat the same way
+the non-manual branch already did — `blocked.solo ? \`${user.\_id}-p1\` :
+user.\_id`— instead of always`-p1`. As defense in depth,
+`manualConcedeMatch` (`convex/game.ts`) was also changed to end the Match via
+`computeForfeitMatch`(the same pure transition`forfeitMatch`uses), which
+fails CLOSED —`null`when the named seat isn't actually in the Match's`players[]`— instead of the old`game.players.find(p => p.id !==
+args.playerId)`, which for an unrecognized `playerId` silently returned the
+FIRST seat (i.e. could attribute the win to the conceder themself). So this
+diff no longer reaches the bad outcome described below.
 
-**Why it may not deserve its own issue.** This issue's own hook mirrors `ActiveGameNotice`'s existing pattern by design (the brief explicitly modeled it, not reused it) — the map for #2400 flagged `ActiveGameNotice` as "not necessarily reuse directly" but the seat-selection bug, if real, predates this issue and is out of scope for it ("Concede/forfeit flows elsewhere in the app" is explicitly out of scope). It is also unverified: I did not trace whether `manualVerbHandler`/`manualConcedeFn` (the state-mutation the `gameId`-scoped call drives) tolerates an unrecognized `playerId` gracefully, nor whether a genuine 2-player manual table is a realistic path into this admin Test flow (the admin only ever _creates_ solo games; the only way `blockingActiveGame.mode === "manual" && !blockingActiveGame.solo` fires is if the admin user separately has an active 2-player manual table open from elsewhere). Worth a human's second look before ticketing.
+**What remains genuinely out of scope for #2400.**
+`ActiveGameNotice.handleForfeit` (`src/components/lobby/active-game-notice.tsx:80-84`)
+still calls `manualConcedeMatch({ gameId, playerId: \`${userId}-p1\` })`unconditionally for any`mode === "manual"`active game, the identical bug
+pattern, in a call site #2400 does not touch ("Concede/forfeit flows
+elsewhere in the app" is explicitly out of scope for this issue). With the
+server-side fail-closed change above, that site now THROWS instead of
+mis-attributing a win for a genuine 2-player manual table — better than
+before, but the "Concede Match" button would still hard-error for that user
+until`ActiveGameNotice`gets the same`solo`-gated seat derivation. Also
+still open: `manualConcede`/`manualConcedeFn` (`convex/manual.ts:1060`, used
+by the in-game concede button via `useManualDispatch`) accepts any
+`playerId`string silently (it only writes`concededBy`) — no seat-ownership
+check comparable to `assertSeatOwnership`on`forfeitMatch`. Worth a human's
+second look before ticketing either.
