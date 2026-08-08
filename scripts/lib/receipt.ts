@@ -75,8 +75,25 @@ interface ReceiptCommon {
     ts?: number;
 }
 
+/**
+ * Which re-attempt of THIS (issue, role) pair this receipt is. Absent means 1
+ * — the common case, and the one that keeps the filename unchanged
+ * (`receiptFilename`). A second review or a second fixup for the same issue
+ * sets `round: 2` explicitly; there is no auto-increment inside the schema,
+ * because only the orchestrator (reading what is already on disk) knows the
+ * next number.
+ *
+ * This is what makes a re-review or a re-fixup writable through
+ * `writeReceipt` at all: before this field existed, a second round had no
+ * filename of its own, so it was either hand-written outside the validator or
+ * it overwrote the first round's verdict.
+ */
+interface RoundedReceipt {
+    round?: number;
+}
+
 /** An implement or fixup subagent's receipt. */
-export interface WorkReceipt extends ReceiptCommon {
+export interface WorkReceipt extends ReceiptCommon, RoundedReceipt {
     role: "implement" | "fixup";
     issue: number;
     outcome: WorkOutcome;
@@ -105,7 +122,7 @@ export interface WorkReceipt extends ReceiptCommon {
 }
 
 /** A reviewer subagent's verdict. */
-export interface ReviewReceipt extends ReceiptCommon {
+export interface ReviewReceipt extends ReceiptCommon, RoundedReceipt {
     role: "review";
     issue: number;
     outcome: ReviewOutcome;
@@ -199,6 +216,26 @@ function requirePositiveInt(
     field: string
 ): number {
     const value = raw[field];
+    if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
+        throw new ReceiptError(field, "expected a positive integer");
+    }
+    return value;
+}
+
+/**
+ * Like {@link requirePositiveInt}, but the field may be absent — absent means
+ * "round 1" to every caller, so `undefined` is a valid parse rather than a
+ * rejection. What is NOT valid is present-but-wrong-shaped: `round: 0`,
+ * `round: "2"`, `round: 1.5` are all rejected rather than coerced, because a
+ * round is a filename component and a coerced value would silently rename the
+ * receipt the caller thinks they are writing.
+ */
+function optionalPositiveInt(
+    raw: Record<string, unknown>,
+    field: string
+): number | undefined {
+    const value = raw[field];
+    if (value === undefined) return undefined;
     if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
         throw new ReceiptError(field, "expected a positive integer");
     }
@@ -358,6 +395,7 @@ export function parseReceipt(value: unknown): Receipt {
                 "a blocking verdict must list at least one finding"
             );
         }
+        const round = optionalPositiveInt(raw, "round");
         return {
             version: RECEIPT_VERSION,
             role,
@@ -365,6 +403,7 @@ export function parseReceipt(value: unknown): Receipt {
             outcome: outcome as ReviewOutcome,
             pr: requirePositiveInt(raw, "pr"),
             findings,
+            ...(round === undefined ? {} : { round }),
             ...(ts === undefined ? {} : { ts }),
         };
     }
@@ -378,6 +417,7 @@ export function parseReceipt(value: unknown): Receipt {
     }
 
     const targetFiles = requireStringArray(raw, "targetFiles");
+    const round = optionalPositiveInt(raw, "round");
     const receipt: WorkReceipt = {
         version: RECEIPT_VERSION,
         role,
@@ -387,6 +427,7 @@ export function parseReceipt(value: unknown): Receipt {
         worktree: requireString(raw, "worktree"),
         targetFiles,
         proofOfFailure: parseProofOfFailure(raw),
+        ...(round === undefined ? {} : { round }),
         ...(ts === undefined ? {} : { ts }),
     };
 
@@ -448,25 +489,48 @@ export function receiptDir(projectRoot: string, batchId: string): string {
 }
 
 /**
- * `12-implement.json`, `12-review.json`, `missing-<agentId>.json`.
+ * `12-implement.json`, `12-review.json`, `missing-<agentId>.json` — and, for a
+ * second or later round of the same (issue, role), `12-review-2.json`,
+ * `12-fixup-3.json`.
+ *
+ * **Round 1 (or an absent `round`) MUST keep the un-suffixed name.** That is
+ * not an implementation detail: `.claude/hooks/receipt-guard.sh`'s accounting,
+ * the scorecard's readers, every test fixture on disk and every doc line that
+ * instructs an agent to write `<issue>-<role>.json` all key off it. Only
+ * `round >= 2` earns a suffix, so the overwhelming common case — one
+ * implement, one review, at most one fixup — is unaffected by this file
+ * existing at all.
  *
  * A missing marker is named for the SUBAGENT, not the moment: `SubagentStop`
  * fires on every yield of a background agent, so a timestamped name mints one
  * file per yield (676 in the worst session on disk) while an agent-keyed one
  * overwrites in place. Only a payload with no `agent_id` falls back to the
- * timestamp, and then the flood is the lesser evil against silence.
+ * timestamp, and then the flood is the lesser evil against silence. A missing
+ * marker has no round — it is not a re-attempt of anything.
  */
 export function receiptFilename(receipt: Receipt): string {
     if (receipt.role !== "missing") {
-        return `${receipt.issue}-${receipt.role}.json`;
+        const round = receipt.round ?? 1;
+        return round <= 1
+            ? `${receipt.issue}-${receipt.role}.json`
+            : `${receipt.issue}-${receipt.role}-${round}.json`;
     }
     return `missing-${receipt.agentId ?? receipt.ts ?? 0}.json`;
 }
 
 /**
- * Validate, then write. Returns the path written. Validation happens BEFORE the
- * write so a malformed receipt never reaches disk to be read back three steps
- * later as an `undefined` field.
+ * Validate, then write **only if the target does not already exist**. Returns
+ * the path written.
+ *
+ * Validation happens BEFORE the write so a malformed receipt never reaches
+ * disk to be read back three steps later as an `undefined` field.
+ *
+ * The existence check is what makes a receipt append-only: nothing today
+ * legitimately re-writes one (each role writes once, and a repeat round gets
+ * its own filename via `round`), so a collision here is either a caller that
+ * forgot to bump `round` or a caller trying to rewrite a verdict it does not
+ * own — both are bugs the throw is supposed to surface, not silently resolve
+ * by picking a winner.
  */
 export function writeReceipt(
     projectRoot: string,
@@ -481,33 +545,168 @@ export function writeReceipt(
     const dir = receiptDir(projectRoot, batchId);
     fs.mkdirSync(dir, { recursive: true });
     const file = path.join(dir, receiptFilename(receipt));
+    if (fs.existsSync(file)) {
+        throw new Error(
+            `writeReceipt: refusing to overwrite existing receipt at ${file} ` +
+                `— a receipt is append-only; a repeat round writes with an ` +
+                `explicit higher "round" instead of overwriting this one`
+        );
+    }
     fs.writeFileSync(file, `${JSON.stringify(receipt, null, 2)}\n`, "utf8");
     return file;
 }
 
 /**
- * Read every receipt in a batch. A file that fails validation throws — a
- * corrupt receipt is a fact worth stopping on, not one to skip past silently.
+ * One receipt file (or, for a round-sequence gap, one receipt GROUP) that
+ * `readReceipts` could not vouch for.
  */
-export function readReceipts(projectRoot: string, batchId: string): Receipt[] {
+export interface ReceiptFileError {
+    /**
+     * The offending path. For a round-sequence gap — which is a property of
+     * several correctly-named files together, not any one of them — this is
+     * a synthetic glob-shaped label (`12-review-*.json`) rather than a real
+     * path, so the caller always has something to print.
+     */
+    file: string;
+    /** The validation message — names the field for a schema failure. */
+    message: string;
+    /**
+     * Best-effort issue attribution, from the filename convention
+     * (`<issue>-<role>[-<round>].json`), so a caller can quarantine just this
+     * issue rather than the whole batch. Derived from the FILENAME, not the
+     * (possibly unparseable, possibly tampered) contents — the file is where
+     * the quarantine has to land regardless of what is inside it. `undefined`
+     * only when the filename itself gives no clue (e.g. a `missing-*` file
+     * that fails to parse, or a name that isn't `<digits>-...`).
+     */
+    issue?: number;
+}
+
+export interface ReadReceiptsResult {
+    /** Every receipt that parsed AND whose on-disk filename matches its own
+     * contents (`receiptFilename`). */
+    receipts: Receipt[];
+    /**
+     * Every file (or file group) `readReceipts` could not vouch for. NON-EMPTY
+     * is a fact worth surfacing, but `readReceipts` itself never throws for
+     * it — one corrupt file must not hide every other receipt in the same
+     * directory from a caller that can still act on them.
+     */
+    errors: ReceiptFileError[];
+}
+
+function issueFromFilename(name: string): number | undefined {
+    const match = /^(\d+)-/.exec(name);
+    return match ? Number(match[1]) : undefined;
+}
+
+/**
+ * Read every receipt in a batch, given its SESSION id — the common path,
+ * joining `projectRoot + RECEIPTS_ROOT + batchId` via `receiptDir`.
+ *
+ * A file that fails validation, or whose name does not match what
+ * `receiptFilename` would emit for its own contents (a tampering signal —
+ * nothing on the sanctioned write path can produce that mismatch), is
+ * reported in `errors` rather than thrown: a corrupt or tampered receipt is a
+ * fact worth stopping ON, but it must quarantine only the issue it names, not
+ * every other receipt sharing its directory.
+ */
+export function readReceipts(
+    projectRoot: string,
+    batchId: string
+): ReadReceiptsResult {
     const dir = receiptDir(projectRoot, batchId);
-    if (!fs.existsSync(dir)) return [];
-    return fs
+    if (!fs.existsSync(dir)) return { receipts: [], errors: [] };
+    return readReceiptsFromDir(dir);
+}
+
+/**
+ * Read every receipt from an EXPLICIT directory — no `RECEIPTS_ROOT` join.
+ *
+ * This is what `--dir <path>` (the documented resume entry point) wants: the
+ * caller already has the receipt directory itself, e.g. from
+ * `.claude/receipts/<batch>` printed by an earlier `ls`. `readReceipts`
+ * re-deriving that path from `(projectRoot, batchId)` and re-appending
+ * `RECEIPTS_ROOT` is exactly the bug this function exists to avoid — feeding
+ * an already-complete directory through that join doubles `RECEIPTS_ROOT`
+ * onto itself, finds nothing, and used to report an empty plan with exit 0.
+ */
+export function readReceiptsFromDir(dir: string): ReadReceiptsResult {
+    if (!fs.existsSync(dir)) return { receipts: [], errors: [] };
+
+    const receipts: Receipt[] = [];
+    const errors: ReceiptFileError[] = [];
+
+    for (const f of fs
         .readdirSync(dir)
         .filter((f) => f.endsWith(".json"))
-        .sort()
-        .map((f) => {
-            const file = path.join(dir, f);
-            try {
-                return parseReceipt(
-                    JSON.parse(fs.readFileSync(file, "utf8")) as unknown
-                );
-            } catch (error) {
-                throw new Error(
-                    `${file}: ${error instanceof Error ? error.message : String(error)}`
-                );
+        .sort()) {
+        const file = path.join(dir, f);
+        try {
+            const parsed = parseReceipt(
+                JSON.parse(fs.readFileSync(file, "utf8")) as unknown
+            );
+            const expected = receiptFilename(parsed);
+            if (expected !== f) {
+                // The sanctioned write path always writes to
+                // receiptFilename(receipt) — this file disagreeing with its
+                // own contents means it was written or edited some other way
+                // (hand-named, or hand-edited after the fact).
+                errors.push({
+                    file,
+                    message:
+                        `filename "${f}" does not match receiptFilename() for its own contents ` +
+                        `("${expected}") — written or edited outside writeReceipt`,
+                    issue: issueFromFilename(f),
+                });
+                continue;
             }
-        });
+            receipts.push(parsed);
+        } catch (error) {
+            errors.push({
+                file,
+                message: error instanceof Error ? error.message : String(error),
+                issue: issueFromFilename(f),
+            });
+        }
+    }
+
+    // Round-sequence gap: the correctly-named receipts for a given (issue,
+    // role) whose rounds are not a contiguous 1..N run starting at 1. This
+    // covers a LONE receipt too — a single round-2 review with no round-1 on
+    // disk is exactly as much a gap as a 1-then-3 sequence missing its 2: in
+    // both cases a round was deleted (or never landed) and the reader cannot
+    // tell whether it approved or blocked, so it is exactly as untrustworthy
+    // as a corrupt file. A lone round-1 (or an absent round, which normalises
+    // to 1) is the common, valid case and must NOT be flagged — the
+    // contiguity check below already lets it through: `[1]` satisfies
+    // `round === i + 1` at i = 0.
+    const groups = new Map<string, Receipt[]>();
+    for (const r of receipts) {
+        if (r.role === "missing") continue;
+        const key = `${r.issue}:${r.role}`;
+        const list = groups.get(key);
+        if (list) list.push(r);
+        else groups.set(key, [r]);
+    }
+    for (const [key, group] of groups) {
+        const rounds = group
+            .map((r) => (r.role === "missing" ? 1 : (r.round ?? 1)))
+            .sort((a, b) => a - b);
+        const contiguous = rounds.every((round, i) => round === i + 1);
+        if (!contiguous) {
+            const [issueStr, role] = key.split(":");
+            errors.push({
+                file: `${issueStr}-${role}-*.json`,
+                message:
+                    `round sequence has a gap or a duplicate: rounds present [${rounds.join(", ")}], ` +
+                    `expected a contiguous run starting at 1`,
+                issue: Number(issueStr),
+            });
+        }
+    }
+
+    return { receipts, errors };
 }
 
 function nowSeconds(): number {

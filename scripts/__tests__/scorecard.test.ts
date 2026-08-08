@@ -118,6 +118,112 @@ describe("issuesShipped — the definition", () => {
     });
 });
 
+// `supersedesWork` (scorecard.ts) is not exported — it is exercised here
+// through `issuesShipped`, the same way the rest of this file pins private
+// selection logic: a receipt set is built to make the two candidate
+// precedence outcomes diverge in the observable `issuesShipped` count, so a
+// broken precedence rule (role-rank ignored, round comparison flipped,
+// absent-round mistreated) flips the assertion rather than passing
+// vacuously.
+describe("supersedesWork precedence — role-rank first, then round", () => {
+    it("a round-2 implement loses to a round-1 fixup", () => {
+        // The fixup (any round) already outranks any implement receipt by
+        // ROLE, before round is even considered. A stray round-2 implement
+        // receipt for the same issue — e.g. a re-run that mislabels its
+        // role — must not unseat the fixup's outcome.
+        const only = summarizeLoop({
+            events: [],
+            receipts: [
+                { batch: "b", role: "implement", issue: 301, outcome: "wip" },
+                {
+                    batch: "b",
+                    role: "fixup",
+                    issue: 301,
+                    outcome: "pr-open",
+                    round: 1,
+                },
+                {
+                    batch: "b",
+                    role: "implement",
+                    issue: 301,
+                    outcome: "wip",
+                    round: 2,
+                },
+            ],
+            window: WINDOW,
+        });
+        // If the round-2 implement won, the latest receipt would be "wip"
+        // and the issue would NOT ship.
+        expect(only.issuesShipped).toBe(1);
+    });
+
+    it("a round-2 fixup beats a round-1 fixup", () => {
+        // Same role, so round breaks the tie: the later fixup round is the
+        // one that actually landed and must be what "shipped" reports.
+        const only = summarizeLoop({
+            events: [],
+            receipts: [
+                {
+                    batch: "b",
+                    role: "fixup",
+                    issue: 302,
+                    outcome: "wip",
+                    round: 1,
+                },
+                {
+                    batch: "b",
+                    role: "fixup",
+                    issue: 302,
+                    outcome: "pr-open",
+                    round: 2,
+                },
+            ],
+            window: WINDOW,
+        });
+        expect(only.issuesShipped).toBe(1);
+    });
+
+    it("a receipt with no round behaves as round 1 — neither outranks an explicit round: 1", () => {
+        // Absent round normalises to 1, not to 0 (which would always lose
+        // to an explicit round: 1) and not to Infinity (which would always
+        // win). Pinned both ways: whichever of the pair is written FIRST
+        // remains "latest", because two round-1 receipts are a tie and
+        // `supersedesWork` requires a STRICTLY higher round to unseat the
+        // held one.
+        const absentFirst = summarizeLoop({
+            events: [],
+            receipts: [
+                { batch: "b", role: "fixup", issue: 303, outcome: "pr-open" },
+                {
+                    batch: "b",
+                    role: "fixup",
+                    issue: 303,
+                    outcome: "wip",
+                    round: 1,
+                },
+            ],
+            window: WINDOW,
+        });
+        expect(absentFirst.issuesShipped).toBe(1);
+
+        const explicitFirst = summarizeLoop({
+            events: [],
+            receipts: [
+                {
+                    batch: "b",
+                    role: "fixup",
+                    issue: 304,
+                    outcome: "pr-open",
+                    round: 1,
+                },
+                { batch: "b", role: "fixup", issue: 304, outcome: "wip" },
+            ],
+            window: WINDOW,
+        });
+        expect(explicitFirst.issuesShipped).toBe(1);
+    });
+});
+
 describe("tokens by role", () => {
     it("splits the fixture exactly", () => {
         const c = card();

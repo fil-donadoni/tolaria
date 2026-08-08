@@ -75,7 +75,11 @@ esac
 accounted="$dir/.accounted"
 [ -f "$accounted" ] || : >"$accounted"
 
-# Receipts present now, excluding the hook's own missing markers.
+# Receipts present now, excluding the hook's own missing markers. A second
+# review/fixup round (`scripts/lib/receipt.ts`'s `round` field) lands as its
+# own filename (`12-review-2.json`, never a rewrite of `12-review.json`), so
+# it needs no special case here: it is just another distinct name the glob
+# below sees once and accounts for once, exactly like round 1.
 new=""
 for file in "$dir"/*.json; do
     [ -e "$file" ] || continue

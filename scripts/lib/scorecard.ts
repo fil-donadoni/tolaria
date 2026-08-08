@@ -47,6 +47,11 @@ export interface ScorecardReceipt {
     session?: string;
     /** Which batch directory it came from — the orchestrator's session id. */
     batch: string;
+    /** Which re-attempt of this (issue, role) pair — absent means round 1.
+     * See `receipt.ts`'s `RoundedReceipt`. A second review or fixup round
+     * carries an explicit `round`, and picking the latest one is what keeps
+     * `shippedIssues` from reporting a superseded round's outcome. */
+    round?: number;
 }
 
 export interface Window {
@@ -123,8 +128,14 @@ export interface Scorecard {
  * Two clauses, each doing real work:
  *
  *   * **Latest** work receipt, so a `fixup` supersedes the `implement` receipt it
- *     replaces. An issue that went to `[WIP]` after three attempts has a `wip`
- *     fixup receipt and is correctly excluded.
+ *     replaces, and — once a second round exists — the highest `round` within
+ *     that role supersedes the round before it. Selection is by round, never
+ *     by the order the receipts happen to iterate in (directory read order is
+ *     not filename-sorted, and even sorted order puts `12-fixup-2.json` before
+ *     `12-fixup.json`): an issue reworked across several fixup rounds must
+ *     report its LAST round's outcome, not whichever one this loop saw last.
+ *     An issue that went to `[WIP]` after three attempts has a `wip` fixup
+ *     receipt as its latest round and is correctly excluded.
  *   * A `blocking` verdict with **no fixup after it** excludes the issue. A
  *     blocking verdict that a fixup answered does NOT: the block was resolved and
  *     the PR did ship. Counting it as unshipped would inflate every per-issue
@@ -143,7 +154,7 @@ function shippedIssues(receipts: ScorecardReceipt[]): Set<string> {
         if (r.role !== "implement" && r.role !== "fixup") continue;
         if (r.role === "fixup") hasFixup.add(k);
         const held = latest.get(k);
-        if (!held || r.role === "fixup") latest.set(k, r);
+        if (!held || supersedesWork(r, held)) latest.set(k, r);
     }
 
     const shipped = new Set<string>();
@@ -153,6 +164,17 @@ function shippedIssues(receipts: ScorecardReceipt[]): Set<string> {
         shipped.add(k);
     }
     return shipped;
+}
+
+/** `candidate` supersedes `held` iff it is a later role (`fixup` over
+ * `implement`), or the same role at a higher round (absent round = 1). */
+function supersedesWork(
+    candidate: ScorecardReceipt,
+    held: ScorecardReceipt
+): boolean {
+    const rank = (r: ScorecardReceipt) => (r.role === "fixup" ? 1 : 0);
+    if (rank(candidate) !== rank(held)) return rank(candidate) > rank(held);
+    return (candidate.round ?? 1) > (held.round ?? 1);
 }
 
 /** An issue is identified by batch + number: the same issue in two passes is two data points. */
