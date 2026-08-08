@@ -7,6 +7,7 @@ import {
 import type { Player } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePileActions, NO_PILE_ACTIONS } from "~/hooks/usePileActionsContext";
+import { usePileBrowseMenu } from "~/hooks/usePileBrowseMenu";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
 import { isExileChoiceActive } from "~/lib/exile-choice";
@@ -33,6 +34,15 @@ export default function PlayerExile({
     // fallback is the empty set, so absent a `PileActionsProvider` the markup
     // below is byte-for-byte what it was (issue #2169).
     const pileActions = usePileActions(player, "exile", NO_PILE_ACTIONS);
+    // Issue #2345 — the collapsed tile's own click must defer to this menu
+    // (rather than opening the browse dialog itself) whenever the menu
+    // exists; browsing becomes the menu's own first item.
+    const {
+        menuActions,
+        open: pileBrowseOpen,
+        onOpenChange: pileBrowseOnOpenChange,
+        hasContextMenu,
+    } = usePileBrowseMenu(pileActions, open, onOpenChange);
 
     // CR 608.2 — mid-resolution exile pick (Dauthi Voidwalker's sacrifice:
     // "choose an exiled card an opponent owns with a void counter on it").
@@ -126,9 +136,14 @@ export default function PlayerExile({
                           ) : null
             }
             // Portrait chip control only drives the normal browse —
-            // never while a blocking exile pick owns the modal.
-            open={isExileChoice ? undefined : open}
-            onOpenChange={isExileChoice ? undefined : onOpenChange}
+            // never while a blocking exile pick owns the modal. Issue #2345
+            // — with pile actions present (and outside chip mode),
+            // `usePileBrowseMenu` lifts this open state so the menu's
+            // "Browse pile…" item can drive it, and `hasContextMenu` tells
+            // `CardsPile` to defer its own click to that menu.
+            open={isExileChoice ? undefined : pileBrowseOpen}
+            onOpenChange={isExileChoice ? undefined : pileBrowseOnOpenChange}
+            hasContextMenu={!isExileChoice && hasContextMenu}
         />
     );
 
@@ -149,7 +164,7 @@ export default function PlayerExile({
                         <div className="relative cursor-pointer">{pile}</div>
                     </ContextMenuTrigger>
                     <ContextMenuContent className="w-56">
-                        {pileActions.map((action) => (
+                        {menuActions.map((action) => (
                             <ContextMenuItem
                                 key={action.key}
                                 inset
