@@ -20,7 +20,12 @@
 
 import { describe, it, expect } from "vitest";
 import { resolveBuybackChoice, finalizeTargetSelection } from "../../game";
-import { getPlayer, resolveTopOfStack, type PendingTarget } from "../state";
+import {
+    buildSpellContext,
+    getPlayer,
+    resolveTopOfStack,
+    type PendingTarget,
+} from "../state";
 import { compactState, expandState } from "../serialize";
 import {
     makeInstance,
@@ -31,6 +36,8 @@ import {
 import { registerTokenDefinition } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
 import { grizzlyBears } from "../../cards/sets/lea";
+import { counterspell } from "../../cards/sets/lea/blue";
+import { regrowth } from "../../cards/sets/lea/green";
 
 // A synthetic probe card carrying a Buyback cost (CR 702.27a — an ADDITIONAL
 // mana cost) and an empty effect body — the resolution-routing tests only
@@ -239,5 +246,214 @@ describe("Buyback — serialization round-trip (schema drift guard, CR 702.27)",
         resolveTopOfStack(round);
         const p1 = getPlayer(round, "p1");
         expect(p1.hand.some((c) => c.id === item.id)).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Issue #2137: `buybackPaid` was cleared in exactly ONE place —
+// `resetStackTransientState`, reached only from the buyback-to-hand branch
+// above. A paid-buyback spell that instead got COUNTERED never touched that
+// branch, so `buybackPaid: true` rode into the graveyard/exile/library/hand
+// untouched — and every cast branch in `convex/game.ts` builds its new stack
+// item as `{ ...card, ...(buybackPaid ? { buybackPaid: true } : {}) }`, a
+// spread that is `{}` (and therefore does not CLEAR the field) whenever the
+// NEW cast doesn't pay buyback. So a spell paid-buyback once, then countered
+// once, then recast UNPAID would resolve back to hand for free forever,
+// defeating CR 702.27's additional cost. Fixed by generalizing the shared
+// exit chokepoint (`resetStackTransientState`, formerly narrower
+// `clearCastKickerSnapshot`) to run at every non-battlefield stack exit, not
+// just the buyback-hand one — see its doc comment in `convex/gre/state.ts`.
+// ---------------------------------------------------------------------------
+describe("Buyback — a COUNTERED spell drops buybackPaid at every SpellContext.counter() destination (CR 400.7 / issue #2137)", () => {
+    function counterAPaidBuybackProbe(
+        destination: "exile" | "library-top" | "hand"
+    ) {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const probe = pushSpell(state, BUYBACK_PROBE_ID, "p1");
+        probe.buybackPaid = true;
+        // A throwaway counter spell — only its presence on the stack is
+        // needed to obtain a `SpellContext`; `SpellContext.counter()` reads
+        // no field of its OWN item, only the target's.
+        const counterer = pushSpell(state, counterspell.id, "p2");
+        const ctx = buildSpellContext(state, counterer);
+        ctx.counter({ type: "spell", id: probe.id }, destination);
+        return { state, probeId: probe.id };
+    }
+
+    it("exile — No More Lies-style redirect strips buybackPaid", () => {
+        const { state, probeId } = counterAPaidBuybackProbe("exile");
+        const inExile = getPlayer(state, "p1").exile.find(
+            (c) => c.id === probeId
+        );
+        expect(inExile).toBeDefined();
+        expect((inExile as { buybackPaid?: boolean }).buybackPaid).toBe(
+            undefined
+        );
+    });
+
+    it("library-top — Memory Lapse-style redirect strips buybackPaid", () => {
+        const { state, probeId } = counterAPaidBuybackProbe("library-top");
+        const inLibrary = getPlayer(state, "p1").library.find(
+            (c) => c.id === probeId
+        );
+        expect(inLibrary).toBeDefined();
+        expect((inLibrary as { buybackPaid?: boolean }).buybackPaid).toBe(
+            undefined
+        );
+    });
+
+    it("hand — Remand-style redirect strips buybackPaid (the branch that used to run NO reset at all)", () => {
+        const { state, probeId } = counterAPaidBuybackProbe("hand");
+        const inHand = getPlayer(state, "p1").hand.find(
+            (c) => c.id === probeId
+        );
+        expect(inHand).toBeDefined();
+        expect((inHand as { buybackPaid?: boolean }).buybackPaid).toBe(
+            undefined
+        );
+    });
+});
+
+// Non-blocking gap flagged in PR #2412 review round 2: `putSpellOnLibrary`
+// (`SpellContext.putSpellOnLibrary`, the Subtlety CR 701.5-adjacent "put
+// target spell on top/bottom of its owner's library" effect — NOT a counter,
+// CR 701.5c) shares `resetStackTransientState` with `counter()`'s
+// library-top/exile/hand branches but had no `buybackPaid` coverage of its
+// own. Genuinely reachable with a paid-buyback spell (Subtlety can target
+// any spell on the stack, including one cast with buyback paid), unlike the
+// resolve-side redirects (`exileOnResolve`/`shuffleIntoLibraryOnResolve`/
+// `reboundFromHand`) which are mutually exclusive with buyback by
+// construction (a spell mid-resolution already chose its own destination).
+describe("Buyback — putSpellOnLibrary (Subtlety) strips buybackPaid (CR 701.5-adjacent / issue #2137)", () => {
+    it("top — a paid-buyback spell put on top of its library carries no buybackPaid", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const probe = pushSpell(state, BUYBACK_PROBE_ID, "p1");
+        probe.buybackPaid = true;
+        // A throwaway spell on the stack — only its presence is needed to
+        // obtain a `SpellContext`; `putSpellOnLibrary` reads no field of its
+        // OWN item, only the target's.
+        const subtletySource = pushSpell(state, counterspell.id, "p2");
+        const ctx = buildSpellContext(state, subtletySource);
+        ctx.putSpellOnLibrary({ type: "spell", id: probe.id }, "top");
+
+        const inLibrary = getPlayer(state, "p1").library.find(
+            (c) => c.id === probe.id
+        );
+        expect(inLibrary).toBeDefined();
+        expect((inLibrary as { buybackPaid?: boolean }).buybackPaid).toBe(
+            undefined
+        );
+    });
+
+    it("bottom — a paid-buyback spell put on the bottom of its library carries no buybackPaid", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const probe = pushSpell(state, BUYBACK_PROBE_ID, "p1");
+        probe.buybackPaid = true;
+        const subtletySource = pushSpell(state, counterspell.id, "p2");
+        const ctx = buildSpellContext(state, subtletySource);
+        ctx.putSpellOnLibrary({ type: "spell", id: probe.id }, "bottom");
+
+        const inLibrary = getPlayer(state, "p1").library.find(
+            (c) => c.id === probe.id
+        );
+        expect(inLibrary).toBeDefined();
+        expect((inLibrary as { buybackPaid?: boolean }).buybackPaid).toBe(
+            undefined
+        );
+    });
+});
+
+describe("Buyback — countered → graveyard → Regrowth → UNPAID recast (issue #2137, proven to fail against pre-fix code)", () => {
+    it("does NOT return to hand on resolution after a later recast that does not pay buyback", () => {
+        // The full reproduction from the issue, shipped cards only:
+        //   1. p1 casts the buyback probe WITH buyback paid.
+        //   2. p2's Counterspell counters it (CR 608.2b) — the spell never
+        //      reaches its own buyback-to-hand redirect, so it heads to the
+        //      GRAVEYARD (counter()'s default destination) still carrying
+        //      `buybackPaid: true` on pre-fix code.
+        //   3. Regrowth returns it from the graveyard to hand — the record
+        //      rides along untouched on pre-fix code.
+        //   4. p1 recasts it WITHOUT paying buyback, through the real
+        //      `finalizeTargetSelection` (the production cast-commit path).
+        //      On pre-fix code the stale `buybackPaid: true` survives the
+        //      `{ ...card, ...(buybackPaid ? {...} : {}) }` spread and the
+        //      spell resolves back to hand again for free — CR 702.27's
+        //      additional cost defeated on every cast after the first.
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    // Only the BASE {B} cost — not enough to pay buyback
+                    // {2}{B} — so a return to hand on the final resolve can
+                    // only be the bug, never an accidental second payment.
+                    manaPool: { W: 0, U: 0, B: 1, R: 0, G: 0, C: 0 },
+                }),
+                makePlayer("p2"),
+            ],
+        });
+
+        // 1. Cast with buyback paid (bypassing cost payment — the payment
+        //    plumbing itself is covered by the "cost fold + flag snapshot"
+        //    describe block above; this test is about the EXIT, not the
+        //    payment).
+        const probe = pushSpell(state, BUYBACK_PROBE_ID, "p1");
+        probe.buybackPaid = true;
+
+        // 2. Counter it — default "graveyard" destination.
+        const counterer = pushSpell(state, counterspell.id, "p2");
+        const ctx = buildSpellContext(state, counterer);
+        ctx.counter({ type: "spell", id: probe.id });
+
+        const afterCounter = getPlayer(state, "p1");
+        const inGraveyard = afterCounter.graveyard.find(
+            (c) => c.id === probe.id
+        );
+        expect(inGraveyard).toBeDefined();
+        // The core assertion the fix guarantees: a COUNTERED buyback spell
+        // reaches the graveyard with no memory of having paid buyback.
+        expect((inGraveyard as { buybackPaid?: boolean }).buybackPaid).toBe(
+            undefined
+        );
+
+        // 3. Regrowth returns it to hand.
+        pushSpell(state, regrowth.id, "p1", [
+            { type: "graveyard-card", id: probe.id, playerId: "p1" },
+        ]);
+        resolveTopOfStack(state);
+        const inHand = getPlayer(state, "p1").hand.find(
+            (c) => c.id === probe.id
+        );
+        expect(inHand).toBeDefined();
+        expect((inHand as { buybackPaid?: boolean }).buybackPaid).toBe(
+            undefined
+        );
+
+        // 4. Recast, UNPAID, through the real production cast-commit path.
+        finalizeTargetSelection(
+            state,
+            {
+                playerId: "p1",
+                cardInstanceId: probe.id,
+                targetType: "any",
+                count: 0,
+                selected: [],
+            },
+            "p1"
+        );
+        const recast = state.stack.find((s) => s.id === probe.id);
+        expect(recast).toBeDefined();
+        expect(recast?.buybackPaid).toBe(undefined);
+
+        resolveTopOfStack(state);
+        const p1 = getPlayer(state, "p1");
+        // The spell must resolve to the GRAVEYARD, exactly like any other
+        // unpaid buyback spell — NOT back to hand for free.
+        expect(p1.graveyard.some((c) => c.id === probe.id)).toBe(true);
+        expect(p1.hand.some((c) => c.id === probe.id)).toBe(false);
     });
 });

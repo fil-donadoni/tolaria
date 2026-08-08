@@ -5289,23 +5289,101 @@ export function emitEntersWithCounterEvents(
     }
 }
 
-/** CR 400.7-style hygiene for a spell that returns from the stack to its
- *  owner's HAND instead of the graveyard (CR 702.27a — Buyback). Strips every
- *  cast/announcement-time snapshot field the `StackItem` extension adds on
- *  top of `CardInstanceState` — `buybackPaid`, `chosenX`, `targets`,
- *  `chosenModeId`, `castById`, and the rest — so the hand card carries none
- *  of them forward.
+/** CR 400.7 — a stack item leaving the stack for anywhere OTHER than the
+ *  battlefield (graveyard, exile, library, hand) becomes a new object with no
+ *  memory of the cast that put it there. Strips every cast/announcement-time
+ *  snapshot field the `StackItem` extension adds on top of
+ *  `CardInstanceState` — `buybackPaid`, `kickerPayments`, `chosenX`,
+ *  `targets`, `chosenModeId`, `castById`, `dynamicCantBeCountered`, and the
+ *  rest below — so the card in its new zone carries none of them forward.
  *
- *  Without this, `finalizeSpellResolution`'s buyback branch used to push
- *  `item` (still carrying `buybackPaid: true`) straight into `owner.hand`.
- *  `announceCast`/`finalizeTargetSelection` (`convex/game.ts`) build a fresh
- *  stack item on RECAST via `{ ...card, ... }`, conditionally overriding
- *  `buybackPaid` only when the new cast itself pays buyback
- *  (`...(buybackPaid ? { buybackPaid: true } : {})`) — when the new cast does
- *  NOT pay buyback that spread is `{}` and does not clear the field, so the
- *  stale `true` from the hand card silently survived onto the new stack item.
- *  The spell then resolved back to hand again for free, defeating the CR
- *  702.27 additional cost on every cast after the first. */
+ *  THE SHARED CHOKEPOINT (issue #2137, generalizing PR #2115's
+ *  `clearCastKickerSnapshot`). Two separate, narrower functions used to live
+ *  here: this one, reached ONLY from the buyback-to-hand branch of
+ *  `finalizeSpellResolution`, and `clearCastKickerSnapshot` — deleting
+ *  `kickerPayments` alone — reached from every OTHER non-battlefield exit:
+ *  `sendStackItemToGraveyard` (resolve/fizzle/counter-default),
+ *  `shuffleIntoLibraryOnResolve`, `exileOnResolve`, `reboundFromHand`,
+ *  `counter()`'s exile/library-top/hand branches, and `putSpellOnLibrary`.
+ *  That split meant `kickerPayments` was defended at every exit but
+ *  `buybackPaid` at exactly one: a paid-buyback spell that got COUNTERED
+ *  (never touching the buyback-hand branch at all) carried `buybackPaid:
+ *  true` straight into the graveyard/exile/library/hand, and every cast
+ *  branch in `convex/game.ts` builds its new stack item as
+ *  `{ ...card, ...(cond ? { field: value } : {}) }` — a spread that is `{}`
+ *  for every field the NEW cast doesn't itself set, so it never CLEARS an
+ *  inherited value. The next UNPAID recast of that same object silently
+ *  returned to hand on resolution for free, defeating CR 702.27's additional
+ *  cost. The two functions are now ONE: every non-battlefield exit calls
+ *  this, so there is exactly one gate a card leaving the stack passes
+ *  through, not one gate per field.
+ *
+ *  WHY THE FULL FIELD LIST IS SAFE HERE, NOT JUST THE PAYMENT FIELDS. The
+ *  fields below split into two groups. (1) Genuine cast-time payment/choice
+ *  snapshot (`kickerPayments`, `buybackPaid`, `chosenX`, `targetAmounts`,
+ *  `chosenModeId`, `additionalSacrificeSnapshot`, `notedManaSpent`,
+ *  `dynamicCantBeCountered`, `castById`, `targets`) plus the one-shot
+ *  cast-fact markers a card's OWN cast can stamp onto the stack item
+ *  (`evoked`, `dashed`, `escaped` — CR 702.74a/702.109a/702.138e; declared on
+ *  `CardInstanceState` because the permanent-side ETB triggers/`EffectValue`s
+ *  that read them run AFTER the item leaves the stack, but stamped at the
+ *  SAME cast-commit seam as `buybackPaid`, so they are exactly as
+ *  cast-instance-scoped) plus the redirect flags a SPELL's own resolution can
+ *  set on itself (`exileOnResolve`, `shuffleIntoLibraryOnResolve`,
+ *  `castFromGraveyard`, `reboundFromHand`, `isCopy`) and multi-step resolve
+ *  bookkeeping (`resolutionStep`, `collectedChoices`, `massRiderTargets`) —
+ *  every one of these is stale by the time any call site below runs (the
+ *  redirect flags have already been READ and branched on; resolution
+ *  bookkeeping only matters mid-resolve; `evoked`/`dashed`/`escaped` are read
+ *  by an ETB `condition`/`conditionOnSelf` on the BATTLEFIELD object, and
+ *  `SpellContext.isEscaped`'s last-known-information fallback also reads
+ *  `escaped` directly off `item` WHILE it is still the currently-resolving
+ *  stack item (`target.id === item.id`) — so the safety argument here is
+ *  ORDERING, not "never read on a StackItem": every such read happens DURING
+ *  the item's OWN resolution, and every call site below runs only AFTER
+ *  resolution decided the item's destination or BEFORE it ever started, on a
+ *  counter). (2) Fields that
+ *  exist ONLY on an ABILITY stack item (`abilityId`, `triggeredAbilityId`,
+ *  `triggerSourceId`, `triggerEvent`, `abilityResolutionRecorded`,
+ *  `madnessTrigger`, `reboundTrigger`, `emblemSourceId`, `stormSnapshot`,
+ *  `stormCopiesRemaining`, `delayedTriggerId`, `delayedPayload`,
+ *  `delayedEffects`, `grantedSourceCardId`, `actingPlayerId`) — an ability
+ *  vanishes instead of moving to a zone (CR 701.5a/113.7a), and every call
+ *  site below is reached ONLY for a genuine spell: `counter()` and
+ *  `putSpellOnLibrary()` return early for `abilityId`/`triggeredAbilityId`/
+ *  `delayedTriggerId` BEFORE ever reaching a call site here, and
+ *  `finalizeSpellResolution`'s non-permanent branch only runs for a spell
+ *  that finished resolving. So group (2) is always already `undefined` at
+ *  every call site — deleting it is a no-op, not a risk — and it stays in
+ *  the list so this function is the ONE place that answers "is this
+ *  cast-instance-scoped" rather than needing a second list kept in sync.
+ *
+ *  EXCLUDED (audited, judged out of scope, see
+ *  `docs/findings/2137-reflexive-trigger-fields.md`): `delayedOracleText` /
+ *  `inlineTargetRequirement` / `reflexiveTrigger` / `designationId` /
+ *  `designationImagePrintId`, which are set only on synthetic non-card
+ *  ability/delayed-trigger stack items (`buildDelayedTriggerStackItem`,
+ *  `buildMonarchDrawStackItem`, `reflexiveTrigger` Op — all in
+ *  `triggers.ts`/here, ALWAYS alongside `delayedTriggerId`) that never reach
+ *  a call site below in the first place (the same `delayedTriggerId`
+ *  early-return covers them). NOT excluded: `evoked`/`dashed`/`escaped` (see
+ *  group (1) above) — a prior version of this comment misclassified them as
+ *  `StackItem`-absent and permanent-side-only; they are stamped directly
+ *  onto the `StackItem` literal at cast commit (`convex/game.ts`) and a
+ *  COUNTERED evoked/dashed/escaped spell reproduces the exact `buybackPaid`
+ *  leak shape this function exists to close. The SIBLING gap on the
+ *  permanent-exit side (`resetBattlefieldTransientState`, a permanent
+ *  bounced directly off the battlefield without ever re-entering the stack)
+ *  is closed too, same trio, issue #2412 fixup round 3 — see that function's
+ *  own doc comment.
+ *
+ *  A TRAP THIS FUNCTION MUST NOT WALK INTO. `castById` is deleted here, but
+ *  the `reboundFromHand` exit branch reads `item.castById` AFTER its own
+ *  redirect decision, to build its next-upkeep delayed trigger
+ *  (`controller`/`targetPlayerId`) — that branch calls this function LAST,
+ *  once the delayed trigger is built, not before. Any new call site must
+ *  keep the same invariant: everything this function deletes must already be
+ *  read by the caller before the call. */
 function resetStackTransientState(item: StackItem): void {
     delete (item as { castById?: string }).castById;
     delete item.targets;
@@ -5316,6 +5394,43 @@ function resetStackTransientState(item: StackItem): void {
     delete item.chosenModeId;
     delete item.additionalSacrificeSnapshot;
     delete item.notedManaSpent;
+    delete item.dynamicCantBeCountered;
+    // CR 702.74a / 702.109a / 702.138e (issue #2412 fixup) — `evoked`,
+    // `dashed`, `escaped` are declared on `CardInstanceState` so they survive
+    // resolution onto the permanent (the ETB triggers that read them run
+    // there), but every cast-commit site in `convex/game.ts` stamps them onto
+    // the `StackItem` literal at the SAME seam as `buybackPaid`
+    // (`finalizeTargetSelection`/`tryAutoCommitPendingCast`:
+    // `...(isEvokeCost ? { evoked: true } : {})` /
+    // `...(isDashCost ? { dashed: true } : {})`, and `escaped` via
+    // `graveyardCastStackFlags`) — a stack item IS its `CardInstanceState`,
+    // the same object. Left off this list, exactly the `buybackPaid` bug
+    // shape recurs: a COUNTERED evoked/dashed/escaped spell rides the flag
+    // into the graveyard/exile/library/hand untouched, and the next HARD
+    // recast's `{ ...card, ...(isEvokeCost ? {...} : {}) }` spread never
+    // CLEARS it because the new cast doesn't pay the alt cost — so
+    // `evokeTrigger`'s `conditionOnSelf: self.evoked === true`
+    // (`cards/abilities/evoke.ts`) sacrifices a hard-cast permanent, `dashed`
+    // bounces one that was never dashed, and an "unless it escaped" clause
+    // inverts. Safe to delete here: every read of these three fields is
+    // either an ETB `condition`/`conditionOnSelf`/the `escaped` `EffectValue`
+    // on the BATTLEFIELD object, or `SpellContext.isEscaped`'s
+    // last-known-information fallback reading `item.escaped` while `item` is
+    // STILL the currently-resolving stack item — ORDERING is what makes this
+    // safe, not the absence of any StackItem-side read: every such read
+    // happens during the item's OWN resolution, strictly before any call
+    // site below runs (which is only reached once resolution has decided the
+    // item's destination, or before it ever started, on a counter) — so by
+    // that point the value has already been read or was never set for this
+    // exit. `resetBattlefieldTransientState` (`convex/gre/state.ts`) is the
+    // SIBLING gate on the permanent-exit side (a permanent bounced directly
+    // off the battlefield, never re-entering the stack — e.g. `dashTrigger`'s
+    // own next-end-step `moveZone $self → hand`) and carries the matching
+    // `delete card.evoked` / `dashed` / `escaped` trio (issue #2412 fixup
+    // round 3).
+    delete item.evoked;
+    delete item.dashed;
+    delete item.escaped;
     delete item.abilityId;
     delete item.grantedSourceCardId;
     delete item.triggeredAbilityId;
@@ -5341,56 +5456,20 @@ function resetStackTransientState(item: StackItem): void {
     delete item.actingPlayerId;
 }
 
-/** CR 400.7 (review of PR #2115) — strip the cast-time KICKER snapshot from a
- *  spell leaving the stack. A card that changes zones becomes a NEW object with
- *  none of the old one's cast-time decisions, so `kickerPayments` — a record of
- *  what the caster paid on THAT cast — must not ride along.
- *
- *  Called at EVERY stack exit that leaves a real card behind, which is:
- *    - `sendStackItemToGraveyard` — the resolve/fizzle/counter-default path,
- *      covering the graveyard AND its CR 614 exile redirect;
- *    - `shuffleIntoLibraryOnResolve` (Green Sun's Zenith);
- *    - `exileOnResolve` (Recall) and the rebound exile (CR 702.88);
- *    - `counter()`'s three NON-graveyard destinations — hand (Remand), library
- *      top (Memory Lapse), exile (No More Lies) — which splice the item off the
- *      stack and push it directly, the hand branch running no reset at all;
- *    - `putSpellOnLibrary` (Subtlety);
- *    - `finalizeSpellResolution`'s CR 614 exile redirect for a resolving
- *      PERMANENT spell (`enterDestination === "exile"`). Dormant today — the
- *      only shipped replacement on that event (Containment Priest) excludes
- *      `wasCast`, so nothing drives a cast spell down it — but structurally
- *      reachable by any future enters-the-battlefield replacement that does
- *      not gate on cast-origin, so it is wired rather than left as the one
- *      unlisted exception. Untestable with shipped cards for the same reason.
- *
- *  Two exits deliberately do NOT call it, and neither is a gap:
- *    - the BATTLEFIELD exit, where `finalizeSpellResolution` snapshots the
- *      payments onto the entering permanent on purpose (the intervening-if twin
- *      read by `kickerPaidCondition`), cleared later by
- *      `resetBattlefieldTransientState` when THAT permanent changes zones;
- *    - the BUYBACK hand exit, which runs the fuller `resetStackTransientState`
- *      (a superset — it deletes `kickerPayments` among everything else).
- *
- *  Why it matters. Every cast branch builds its stack item as
- *  `{ ...card, ..., ...(kickerPayments ? { kickerPayments } : {}) }`
- *  (`convex/game.ts`): that spread is `{}` when the new cast is UNKICKED and
- *  therefore does not CLEAR an inherited field. A stale record surviving to a
- *  recast would make the spell read as kicked for free — `getKickerCount()`
- *  returns 1, `wasKicked` filters match, and (issue #1097) `SPELL_KICKED` is
- *  emitted, handing out a phantom Saproling Infestation token.
- *
- *  This is the FIRST of two independent gates; the second is
- *  `resetBattlefieldTransientState`, reached via `removeFromZone` at every
- *  cast-commit. Verified by mutation on the chain `cast Burst Lightning kicked
- *  → graveyard → Regrowth → recast unkicked`: with BOTH gates removed it emits
- *  a phantom SPELL_KICKED and creates a free Saproling; with EITHER present it
- *  does not. Gate 2 alone would suffice to prevent the wrong outcome — this
- *  gate exists so the invariant holds AT THE SOURCE rather than depending on a
- *  mop-up inside an unrelated function, and so no zone ever stores (or
- *  persists to the DB) a record for a cast that is over. */
-function clearCastKickerSnapshot(item: StackItem): void {
-    delete item.kickerPayments;
-}
+// `clearCastKickerSnapshot` (PR #2115) used to live here, deleting only
+// `kickerPayments` at every non-buyback exit while `resetStackTransientState`
+// (above) — reached from exactly one exit — deleted the full snapshot. Issue
+// #2137: that split left `buybackPaid` undefended everywhere except the
+// buyback-to-hand branch, so a COUNTERED paid-buyback spell rode
+// `buybackPaid: true` into the graveyard/exile/library/hand and returned to
+// hand for free on its next, unpaid recast — the same shape as the
+// `kickerPayments` leak PR #2115 fixed, minus PR #2115's second gate
+// (`resetBattlefieldTransientState` has no analogue for a card that never
+// touches the battlefield). Fixed by generalizing `resetStackTransientState`
+// into the ONE chokepoint every non-battlefield exit calls — see its doc
+// comment above for the full field-by-field justification, the "why the
+// ability-only fields are still safe to include" reasoning, and the
+// `castById`/`reboundFromHand` ordering trap.
 
 /** Moves a stack item (a spell that failed to resolve/finished resolving as
  *  a non-permanent/was countered) into its owner's graveyard — CR 614
@@ -5408,7 +5487,7 @@ function sendStackItemToGraveyard(state: GameState, item: StackItem): void {
         "stack"
     );
     item.zone = destination;
-    clearCastKickerSnapshot(item);
+    resetStackTransientState(item);
     (owner[destination] as CardInstanceState[]).push(item);
     if (destination !== "graveyard") {
         applyGraveyardRedirectCounters(item, tagCounters);
@@ -5472,7 +5551,7 @@ function finalizeSpellResolution(state: GameState, item: StackItem): void {
         );
         if (enterDestination === "exile") {
             item.zone = "exile";
-            clearCastKickerSnapshot(item);
+            resetStackTransientState(item);
             getPlayer(state, item.ownerId).exile.push(item);
             return;
         }
@@ -5673,7 +5752,7 @@ function finalizeSpellResolution(state: GameState, item: StackItem): void {
         // in practice.
         if (item.shuffleIntoLibraryOnResolve) {
             item.zone = "library";
-            clearCastKickerSnapshot(item);
+            resetStackTransientState(item);
             owner.library.push(item);
             // ADR 0026 — a shuffle is an unwitnessed reordering; reuse the
             // exact primitive `shuffleLibrary` calls so this redirect behaves
@@ -5701,10 +5780,6 @@ function finalizeSpellResolution(state: GameState, item: StackItem): void {
             delete item.reboundFromHand;
             markReboundExiled(item);
             item.zone = "exile";
-            // CR 702.88b — the rebound recast is "without paying its mana
-            // cost" and pays no kicker, so the original cast's snapshot must
-            // not ride into exile with it.
-            clearCastKickerSnapshot(item);
             owner.exile.push(item);
             state.nextDelayedSeq = (state.nextDelayedSeq ?? 0) + 1;
             state.delayedTriggers = [
@@ -5723,6 +5798,12 @@ function finalizeSpellResolution(state: GameState, item: StackItem): void {
                     reboundCardInstanceId: item.id,
                 },
             ];
+            // CR 702.88b — the rebound recast is "without paying its mana
+            // cost" and pays no kicker/buyback/etc., so the original cast's
+            // snapshot must not ride into exile with it. Called LAST, after
+            // the delayed trigger above reads `item.castById` — see the
+            // ordering trap noted on `resetStackTransientState`.
+            resetStackTransientState(item);
             return;
         }
         // CR 608.2 — a spell that instructs "Exile <this spell>" as part of its
@@ -5730,7 +5811,7 @@ function finalizeSpellResolution(state: GameState, item: StackItem): void {
         // flag is set by `SpellContext.exileSelf()` during the resolve.
         if (item.exileOnResolve) {
             item.zone = "exile";
-            clearCastKickerSnapshot(item);
+            resetStackTransientState(item);
             owner.exile.push(item);
             return;
         }
@@ -9771,6 +9852,34 @@ export function resetBattlefieldTransientState(card: CardInstanceState): void {
     // paths that never run the creature spell's `resolveSteps`, so no new name
     // is ever asked for) would silently re-lock the old name.
     delete card.chosenName;
+    // CR 702.74a / 702.109a / 702.138e / 400.7 (issue #2412 fixup round 3) —
+    // the PERMANENT-side sibling of the `wasKicked`/`chosenXOnCast` pairs
+    // above, and of `resetStackTransientState`'s `evoked`/`dashed`/`escaped`
+    // clear (round 2, this same function's stack-exit counterpart).
+    // `evoked`/`dashed`/`escaped` are one-shot facts about the OBJECT that
+    // was cast that way; a CR 400.7 zone change makes a new object with no
+    // memory of it. `convex/game.ts` stamps all three directly onto the
+    // `StackItem` literal at cast commit (the same seam as `wasKicked`), and
+    // that object becomes the battlefield permanent for free — so a
+    // permanent bounced DIRECTLY off the battlefield (never re-entering the
+    // stack: a bounce spell, or `dashTrigger`'s own next-end-step
+    // `moveZone $self → hand`, CR 702.109a) still carried the flag on the
+    // object landing in hand/library, left uncleared here. `game.ts`'s cast
+    // branches build every new stack item as
+    // `{ ...card, ...(isDashCost ? { dashed: true } : {}) }` — a spread that
+    // is `{}` whenever the new cast doesn't pay the alt cost, so it never
+    // CLEARS an inherited value. A hard recast of that same object then
+    // inherited `dashed: true`/`evoked: true`/`escaped: true`, incorrectly
+    // re-firing `dashTrigger`'s haste grant + end-step self-bounce (or
+    // `evokeTrigger`'s ETB sacrifice, or an "unless it escaped" clause) on a
+    // permanent nobody dashed/evoked/escaped this time. Reproduced with a
+    // shipped card: Ragavan, Nimble Pilferer (MH2) dashed → resolves →
+    // bounces itself via its own `dashTrigger` end step → hard recast would
+    // silently gain haste and re-schedule ANOTHER self-bounce, every game.
+    // See `convex/gre/__tests__/dash.test.ts` ("battlefield-side leak").
+    delete card.evoked;
+    delete card.dashed;
+    delete card.escaped;
 }
 
 /** Phase 1 of reanimation (issue #1094, CR 400.7): clears battlefield-only
@@ -12262,12 +12371,12 @@ export function buildSpellContext(
             switch (destination) {
                 case "exile":
                     item.zone = "exile";
-                    clearCastKickerSnapshot(item);
+                    resetStackTransientState(item);
                     owner.exile.push(item);
                     break;
                 case "library-top":
                     item.zone = "library";
-                    clearCastKickerSnapshot(item);
+                    resetStackTransientState(item);
                     owner.library.unshift(item);
                     // CR 400.2 / 405.1 (issue #1696) — the countered spell was
                     // a PUBLIC object on the stack, so every player knows which
@@ -12282,7 +12391,7 @@ export function buildSpellContext(
                     break;
                 case "hand":
                     item.zone = "hand";
-                    clearCastKickerSnapshot(item);
+                    resetStackTransientState(item);
                     owner.hand.push(item);
                     // CR 400.2 / 405.1 (issue #1696) — same public→hidden move
                     // as the library-top branch, into the other hidden zone
@@ -12326,7 +12435,7 @@ export function buildSpellContext(
             }
             const owner = getPlayer(state, item.ownerId);
             item.zone = "library";
-            clearCastKickerSnapshot(item);
+            resetStackTransientState(item);
             if (position === "top") owner.library.unshift(item);
             else owner.library.push(item);
             // The spell was a public object on the stack (CR 405.1), so its
