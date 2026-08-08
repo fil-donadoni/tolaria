@@ -50,37 +50,57 @@ export const vampiricTutor: CardDefinition = {
 // battlefield with Necromancy.' Put target creature card from a graveyard
 // onto the battlefield under your control and attach this enchantment to it.
 // When this enchantment leaves the battlefield, that creature's controller
-// sacrifices it." (CR 400.7 reanimation.) STILL BLOCKED — two real engine
-// gaps remain. What #920 originally flagged as the blocker (the
-// self-transform-and-dynamic-attach pattern) IS genuinely closed: `addSubtype`
-// (`convex/gre/state.ts:10425`) turns $source into an Aura mid-resolution;
-// `attach` (`types.ts`, executor `convex/gre/effects/interpreter.ts`) targets
-// a BOUND ref from the same resolution — Cori-Steel Cutter creates a token,
-// binds it (`$monk`), then attaches to `{ ref: "$monk" }` in one script
-// (`tdm/red.ts`); and `leftTrigger`/`PERMANENT_LEFT`
-// (`convex/cards/abilities/triggers/leftTrigger.ts`) covers the
-// sacrifice-on-leave clause. But two clauses beyond that pattern are NOT
-// covered: (a) the per-instance enchant restriction (CR 303.4 / 704.5m) —
-// `checkAuraAttachmentSBA` (`convex/gre/sba.ts:141`) calls
-// `hostMatchesAuraRestriction` (`sba.ts:230-249`), which resolves "enchant
-// creature" from the COMPILE-TIME `def.targetRequirement` (`sba.ts:236`), not
-// from the instance `addSubtype` just mutated. Necromancy has no cast-time
-// `targetRequirement` (its host is chosen by the ETB trigger, CR 303.4i), so
-// this returns `false` and the aura is judged illegally attached the instant
-// the trigger resolves — `removePermanentTo` bins it right away. This is the
-// SAME compile-time-vs-per-instance shape as Carnage's `hasAttackRequirement`
-// (`spm/multicolor.ts`) above. Dance of the Dead (`ice/black.ts:409-415`) is
-// NOT a usable precedent — it works only because it is PRINTED as an Aura
-// with a cast-time `targetRequirement`; giving Necromancy that shape would
-// force a target at cast time and diverge from modern Oracle text (ADR
-// 0004). (b) the "sacrifice at the beginning of the next cleanup step, if
-// cast when a sorcery couldn't have been cast" clause needs a cleanup-step
-// delayed trigger and flash-timing memory, neither of which exist:
-// `DelayedTriggerTiming` (`convex/cards/types.ts:4411-4416`) offers only
-// `next-end-step` / `next-end-of-combat` / `next-draw-step` /
-// `next-main-phase` / `next-upkeep` and an instance-scoped leave-watch — no
-// cleanup boundary — and nothing in the engine records whether a spell was
-// cast when a sorcery couldn't have been.
+// sacrifices it." (CR 400.7 reanimation.) STILL BLOCKED — re-audited against
+// HEAD 890ebd61 on 2026-08-08 (issue #2392); FOUR engine capabilities are
+// missing, one more than #1975 currently scopes. What IS available: the
+// reanimation half — `moveZone { target, to: "battlefield", controller:
+// "controller", bind: "$reanimated" }` (Portal to Phyrexia's shape,
+// `bro/colorless.ts:120-127`); `attach` onto a BOUND ref from the same
+// resolution (`tdm/red.ts:130-137`); and `leftTrigger`/`PERMANENT_LEFT`
+// (`convex/cards/abilities/triggers/leftTrigger.ts:244`, shape at
+// `tsp/colorless.ts:33-42`) for the sacrifice-on-leave clause. CORRECTION to
+// the previous note and to #1975's premise: Cori-Steel Cutter is NOT a
+// self-transform precedent — it is `createToken` → `mayPay` → `attach` and
+// never calls `addSubtype`. `addSubtype` has in fact NEVER been used to turn
+// $self into an Aura: both shipped call sites add a CREATURE subtype to
+// ANOTHER creature (`bro/colorless.ts:129` Phyrexian, `mh3/white.ts:93`
+// Angel), so the self-transform-into-Aura shape is unexercised, not proven.
+// The four gaps: (a) per-instance enchant restriction (CR 303.4 / 704.5m) —
+// `checkAuraAttachmentSBA` (`convex/gre/sba.ts:141`, call site `sba.ts:166`)
+// calls `hostMatchesAuraRestriction` (`sba.ts:247`), which resolves the
+// restriction from the COMPILE-TIME `def.targetRequirement` and bails
+// `if (!req) return false` (`sba.ts:253-254`) — never from the instance
+// `addSubtype` just mutated. Necromancy has no cast-time `targetRequirement`
+// (its host is chosen by the ETB trigger, CR 303.4i), so the aura is judged
+// illegally attached the instant the trigger resolves and `removePermanentTo`
+// bins it. Same compile-time-vs-per-instance shape as Carnage's
+// `hasAttackRequirement` (`spm/multicolor.ts`) above and as #1972. Dance of
+// the Dead (`ice/black.ts:409-415`) is NOT a usable precedent — it works only
+// because it is PRINTED as an Aura with a cast-time `targetRequirement`;
+// giving Necromancy that shape would force a target at cast time and diverge
+// from modern Oracle text (ADR 0004). (b) no cleanup-step delayed-trigger
+// boundary — `DelayedTriggerTiming` (`convex/cards/types.ts:4882-4958`) has
+// ten members and none is a cleanup one, and the `case "CLEANUP"` arm
+// (`convex/gre/phases.ts:2066-2075`) never calls `fireDelayedTriggers` at all,
+// unlike the five phase boundaries that do (`phases.ts:1919,1930,2019,2030,
+// 2041,2045`). `next-end-step` is a real behavioural divergence, not a
+// synonym (CR 514 cleanup is after the end step). (c) no cast-timing MEMORY —
+// nothing anywhere records whether a spell was cast when a sorcery couldn't
+// have been (repo-wide grep for the concept returns zero hits), which is the
+// condition that arms the sacrifice at all. (d) NOT IN #1975's SCOPE, and the
+// reason this card stays blocked even if #1975 lands in full: there is no
+// SELF-granted "you may cast this spell as though it had flash". The only
+// cast-timing permission in the engine is the PLAYER-scoped Teferi grant
+// (`state.castTimingFlashGrants`, `convex/gre/state.ts:3723`; gate
+// `hasCastTimingFlashGrant`, `convex/cards/castRestrictions.ts:152`; consumed
+// in `castTimingBaseLegal`, `convex/gre/rules.ts:388-403`) — a permission a
+// card hands to a PLAYER for a class of spells, not one a card grants itself
+// from hand. The same missing primitive is why Breaking Wave
+// (`inv/blue.ts:784`) and Saproling Symbiosis (`inv/green.ts:1078`) are also
+// commented out. Substituting the plain `flash` keyword would diverge: it
+// changes the card's printed characteristics (CR 205.2 / 604), and the second
+// Oracle sentence's condition is about the TIMING USED, not about possessing
+// the ability. See docs/findings/2392-self-granted-flash-timing-permission.md.
 // tracked-by: #1975
 // export const necromancy: CardDefinition = {
 //     id: "311a6257-dd77-4bb6-81cb-c8e7862350f3",
