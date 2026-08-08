@@ -63,7 +63,20 @@ export default function CardPreviewBody({
     showCopyBadge,
     ...content
 }: CardPreviewBodyProps) {
-    const [mode, setMode] = useState<"computed" | "printed">("computed");
+    const [toggledMode, setToggledMode] = useState<"computed" | "printed">(
+        "computed"
+    );
+    // Manual Game (issue #2346): every computed field is genuinely empty for
+    // a manual card (ADR 0080 — no hydrated CardDefinition, no oracle text,
+    // no granted abilities, no effective P/T), so the live-text face is never
+    // worth showing. Force the printed card image and hide the toggle instead
+    // of letting the player land on the useless default. `content.isManualGame`
+    // is the explicit discriminator forwarded through the shared game context
+    // (`~/lib/manual-game-context`) — never a sniff on a missing definition,
+    // which would also hide a GRE card whose definition genuinely failed to
+    // resolve (a real bug that must stay visible).
+    const isManualGame = !!content.isManualGame;
+    const mode = isManualGame ? "printed" : toggledMode;
     if (originalBody) {
         return (
             <div className="flex w-full items-stretch">
@@ -87,10 +100,16 @@ export default function CardPreviewBody({
     if (mode === "printed" && content.printedImageSrc) {
         return (
             <div className="flex w-full flex-col">
-                <PrintedToggle mode={mode} onChange={setMode} />
+                {!isManualGame && (
+                    <PrintedToggle mode={mode} onChange={setToggledMode} />
+                )}
                 <img
                     src={content.printedImageSrc}
-                    alt={`${content.displayName} (printed)`}
+                    alt={
+                        isManualGame
+                            ? content.displayName
+                            : `${content.displayName} (printed)`
+                    }
                     className="w-full rounded-2xl"
                     onLoad={onImageLoaded}
                 />
@@ -100,8 +119,8 @@ export default function CardPreviewBody({
 
     return (
         <>
-            {content.printedImageSrc && (
-                <PrintedToggle mode={mode} onChange={setMode} />
+            {content.printedImageSrc && !isManualGame && (
+                <PrintedToggle mode={mode} onChange={setToggledMode} />
             )}
             {showCopyBadge && (
                 <div className="px-3 pt-2">

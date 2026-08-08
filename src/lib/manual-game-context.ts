@@ -53,7 +53,19 @@ export function manualPhase(phase: string | undefined): Phase {
  *  VIEWER: nothing reads it for a decision here (the priority indicator does
  *  not mount and the manual player interaction reports `hasPriority: false`),
  *  and pinning it to the viewer keeps any incidental "is it my turn" read from
- *  cueing the player to wait on an opponent who is never asked. */
+ *  cueing the player to wait on an opponent who is never asked.
+ *
+ *  `isManualGame: true` is the explicit discriminator (issue #2346) that lets
+ *  code OUTSIDE this containment boundary — the shared card-preview builder —
+ *  tell a Manual Game from a GRE game without ever special-casing on "the
+ *  definition failed to resolve" (a GRE card with a missing definition is a
+ *  real bug and must stay visible, not silently read as manual). The GRE's
+ *  own `GameContext` value never sets this field, so it's `undefined` there —
+ *  falsy, same as `false` — and every reader treats it that way. This is the
+ *  ONE field on the manual context whose shape isn't part of the `GameContext`
+ *  type declaration (extra properties on a context value are structurally
+ *  fine to read through a narrower, explicitly-typed subset — see
+ *  `PreviewGameCtx` in `~/lib/preview-body`). */
 export function makeManualGameContext(args: {
     gameId: Id<"games">;
     viewerId: string;
@@ -76,5 +88,6 @@ export function makeManualGameContext(args: {
         showAllCards: false,
         debugAllActions: false,
         onSwitchGame,
+        isManualGame: true as const,
     };
 }

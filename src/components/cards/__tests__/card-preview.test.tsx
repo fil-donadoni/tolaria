@@ -13,6 +13,7 @@ import type { ReactNode } from "react";
 import CardPreview, { HOVER_DWELL_MS } from "../card-preview";
 import { resetPreviewSingleton } from "../card-preview-singleton";
 import { GameContext } from "~/hooks/useGameContext";
+import { makeManualGameContext } from "~/lib/manual-game-context";
 import type { Id } from "@convex/_generated/dataModel";
 
 // Minimal GameContext value — the preview only reads it as a presence signal
@@ -33,9 +34,31 @@ const GAME_CTX = {
     onSwitchGame: () => {},
 };
 
+// The REAL seam Manual Mode owns (issue #2346) — built through
+// `makeManualGameContext`, exactly as `manual-board-view.tsx` builds the
+// value it hands to `<GameContext value={...}>`, so this test exercises the
+// actual wiring rather than a hand-rolled stand-in that could drift from it.
+const MANUAL_GAME_CTX = makeManualGameContext({
+    gameId: "g1" as Id<"games">,
+    viewerId: "p1",
+    state: { players: [], turn: 1, activePlayerId: "p1" },
+    allPlayers: [],
+    onSwitchGame: () => {},
+});
+
 function renderOnBoard(children: ReactNode = <div>face</div>) {
     return render(
         <GameContext value={GAME_CTX}>
+            <CardPreview cardId="bolt" cardName="Lightning Bolt">
+                {children}
+            </CardPreview>
+        </GameContext>
+    );
+}
+
+function renderOnManualBoard(children: ReactNode = <div>face</div>) {
+    return render(
+        <GameContext value={MANUAL_GAME_CTX}>
             <CardPreview cardId="bolt" cardName="Lightning Bolt">
                 {children}
             </CardPreview>
@@ -365,6 +388,117 @@ describe("CardPreview — Arena click model (#332)", () => {
                 '[data-card-preview-dock] img[alt*="(printed)"]'
             )
         ).toBeNull();
+    });
+
+    // Issue #2346 — a Manual card is a bare `card: { id }` with no hydrated
+    // CardDefinition (ADR 0080), so the "live text" face has nothing to show:
+    // no oracle text, no granted abilities, no effective P/T. In a Manual
+    // Game the preview must open directly on the printed card image, on all
+    // THREE surfaces, with no toggle to switch away from it. The flag comes
+    // from the real `makeManualGameContext` seam, not a per-surface prop.
+    describe("Manual Game — printed-image-only face, no toggle (issue #2346)", () => {
+        it("hover dock opens on the printed image with no toggle", () => {
+            const { container } = renderOnManualBoard();
+            const root = container.firstElementChild as HTMLElement;
+
+            hoverEnter(root);
+            dwellPast();
+            const d = dock() as HTMLElement;
+            expect(d).toBeTruthy();
+
+            const printedImg = document.querySelector(
+                "[data-card-preview-dock] img"
+            ) as HTMLImageElement;
+            expect(printedImg).toBeTruthy();
+            expect(printedImg.src).toContain("/grid/");
+            expect(printedImg.src).toContain(".webp");
+            // No Live text / Printed card toggle in a Manual Game.
+            expect(
+                document.querySelector(
+                    "[data-card-preview-dock] [data-preview-mode]"
+                )
+            ).toBeNull();
+        });
+
+        it("the anchored pin opens on the printed image with no toggle", () => {
+            const { container } = renderOnManualBoard();
+            const root = container.firstElementChild as HTMLElement;
+
+            rightPress(root);
+            release();
+            const panel = anchored() as HTMLElement;
+            expect(panel).toBeTruthy();
+
+            const printedImg = document.querySelector(
+                "[data-card-preview-anchored] img"
+            ) as HTMLImageElement;
+            expect(printedImg).toBeTruthy();
+            expect(printedImg.src).toContain("/grid/");
+            expect(
+                document.querySelector(
+                    "[data-card-preview-anchored] [data-preview-mode]"
+                )
+            ).toBeNull();
+        });
+
+        it("the mobile long-press overlay opens on the printed image with no toggle", () => {
+            const { container } = renderOnManualBoard();
+            const root = container.firstElementChild as HTMLElement;
+
+            act(() => {
+                fireEvent.touchStart(root, {
+                    touches: [{ clientX: 10, clientY: 10 }],
+                });
+                vi.advanceTimersByTime(400);
+            });
+
+            const overlay = document.querySelector(".fixed.inset-0");
+            expect(overlay).toBeTruthy();
+            const printedImg = overlay!.querySelector(
+                "img"
+            ) as HTMLImageElement;
+            expect(printedImg).toBeTruthy();
+            expect(printedImg.src).toContain("/grid/");
+            expect(overlay!.querySelector("[data-preview-mode]")).toBeNull();
+        });
+    });
+
+    // A GRE game (no `isManualGame` field on its context) must render exactly
+    // as before — the toggle stays, on every surface. Companion assertion to
+    // the Manual-only suite above: pins the "byte-identical" acceptance
+    // criterion on the two surfaces the pre-existing dock test doesn't cover.
+    describe("GRE game preview stays unchanged (issue #2346 regression guard)", () => {
+        it("the anchored pin still shows the Live text / Printed card toggle", () => {
+            const { container } = renderInLobby();
+            const root = container.firstElementChild as HTMLElement;
+
+            rightPress(root);
+            release();
+            expect(anchored()).toBeTruthy();
+            expect(
+                document.querySelector(
+                    '[data-card-preview-anchored] [data-preview-mode="printed"]'
+                )
+            ).toBeTruthy();
+        });
+
+        it("the mobile long-press overlay still shows the toggle", () => {
+            const { container } = renderOnBoard();
+            const root = container.firstElementChild as HTMLElement;
+
+            act(() => {
+                fireEvent.touchStart(root, {
+                    touches: [{ clientX: 10, clientY: 10 }],
+                });
+                vi.advanceTimersByTime(400);
+            });
+
+            const overlay = document.querySelector(".fixed.inset-0");
+            expect(overlay).toBeTruthy();
+            expect(
+                overlay!.querySelector('[data-preview-mode="printed"]')
+            ).toBeTruthy();
+        });
     });
 
     // Portal ≠ React tree: all three preview surfaces are portal'd to

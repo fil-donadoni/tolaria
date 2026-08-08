@@ -84,6 +84,17 @@ export type PreviewBodyContent = {
      *  null only in-game for a card whose oracle text carries such a word; the
      *  preview splices a progress chip next to the word. */
     milestones: Map<string, Milestone> | null;
+    /** True only in a Manual Game (ADR 0080, issue #2346) — forwarded from
+     *  `gameCtx.isManualGame`. A manual card is a bare `card: { id }` with no
+     *  hydrated `CardDefinition`, so every computed field above (oracle text,
+     *  granted abilities, effective P/T) is genuinely empty rather than merely
+     *  unavailable; `CardPreviewBody` uses this to render ONLY the printed
+     *  card image and hide the Live text / Printed card toggle, instead of
+     *  showing an empty "live text" face. Always `false` for the GRE board
+     *  (its `GameContext` never sets `isManualGame`) and for a face built with
+     *  no game context at all (the ORIGINAL face of a copy, emblems,
+     *  designations). */
+    isManualGame: boolean;
 };
 
 // Only the fields of the game context that a preview face reads. Accepting a
@@ -96,6 +107,14 @@ type PreviewGameCtx = {
      *  P/T folds in an owner-scoped emblem anthem. Structurally forwarded from
      *  `GameContext.emblems`. */
     emblems?: EmblemInstance[];
+    /** Manual Game discriminator (issue #2346) — structurally forwarded from
+     *  `GameContext.isManualGame`. Only `makeManualGameContext`
+     *  (`~/lib/manual-game-context`) ever sets it; the GRE's own context value
+     *  never declares the field, so it reads `undefined` there, same as
+     *  `false`. Optional here (rather than required) is exactly what lets
+     *  `GameContext` — which has no such field — satisfy this structural
+     *  subset without changing `useGameContext.ts`. */
+    isManualGame?: boolean;
 };
 
 // Builds one preview face from a definition id.
@@ -253,6 +272,7 @@ export function buildPreviewBody(
                 : null,
         skipNextUntap: !!cardInstance?.skipNextUntap,
         milestones,
+        isManualGame: !!gameCtx?.isManualGame,
     };
 }
 
@@ -294,6 +314,11 @@ export function buildEmblemPreviewBody(
         colorName: null,
         ownerName: null,
         milestones: null,
+        // Emblems are GRE-only (CR 114 command zone) — a Manual Game has no
+        // GRE state to emit one from, so this is never true in practice; kept
+        // explicit rather than defaulted so the field's meaning stays uniform
+        // across every `PreviewBodyContent` producer.
+        isManualGame: false,
     };
 }
 
@@ -332,6 +357,9 @@ export function buildDesignationPreviewBody(designation: {
         colorName: null,
         ownerName: null,
         milestones: null,
+        // Designations (Monarch, City's Blessing) are GRE-only status the
+        // Manual Board never tracks — see buildEmblemPreviewBody above.
+        isManualGame: false,
     };
 }
 

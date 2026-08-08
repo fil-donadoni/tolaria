@@ -138,6 +138,45 @@ describe("buildPreviewBody — Illusionary Terrain chosen types (CR 614.12, ADR 
     });
 });
 
+// Issue #2346 — the explicit Manual-vs-GRE discriminator forwarded from
+// `gameCtx.isManualGame` through `buildPreviewBody`, so `CardPreviewBody` can
+// force the printed-image-only face without ever sniffing "the definition
+// failed to resolve" (a real GRE bug must stay visible, not read as manual).
+describe("buildPreviewBody — isManualGame discriminator (issue #2346)", () => {
+    it("is true when the game context flags a Manual Game", () => {
+        const body = buildPreviewBody(SERRA.id, undefined, {
+            allPlayers: [],
+            playerId: "p1",
+            isManualGame: true,
+        });
+        expect(body.isManualGame).toBe(true);
+    });
+
+    it("is false for a GRE context (no isManualGame field set)", () => {
+        const body = buildPreviewBody(SERRA.id, undefined, {
+            allPlayers: [],
+            playerId: "p1",
+        });
+        expect(body.isManualGame).toBe(false);
+    });
+
+    it("is false with no game context at all (deck builder / ORIGINAL face)", () => {
+        const body = buildPreviewBody(SERRA.id);
+        expect(body.isManualGame).toBe(false);
+    });
+
+    it("never derives from a missing CardDefinition — an unresolved def id still reads false", () => {
+        // A card whose definition genuinely fails to resolve is a real bug
+        // that must stay visible, never silently reinterpreted as "manual".
+        const body = buildPreviewBody("no-such-definition-id", undefined, {
+            allPlayers: [],
+            playerId: "p1",
+        });
+        expect(body.isManualGame).toBe(false);
+        expect(body.displayName).toBe("no-such-definition-id");
+    });
+});
+
 describe("buildEmblemPreviewBody — command-zone emblem face (CR 114, issue #1221)", () => {
     const SORIN_ART = "327ddaaf-b6a7-4c80-9b38-5ab68181b3d6";
     const emblem: EmblemInstance = {
@@ -168,6 +207,8 @@ describe("buildEmblemPreviewBody — command-zone emblem face (CR 114, issue #12
         expect(body.hasPT).toBe(false);
         expect(body.hasBody).toBe(false);
         expect(body.manaCost).toBeNull();
+        // Emblems are GRE-only (CR 114) — never reachable from a Manual Game.
+        expect(body.isManualGame).toBe(false);
     });
 
     it("falls back to a null image (in-app placeholder) when no art print id", () => {
