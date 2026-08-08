@@ -12,14 +12,6 @@ import { projectPublicState } from "../../../../gameProjections";
 // Excavator, from a NON-creature source — the permission scan
 // (`canPlayLandsFromGraveyard`) is card-type-agnostic.
 describe("Crucible of Worlds (play lands from your graveyard, CR 305.1-analog — issue #1190)", () => {
-    it("shape: {3} Artifact with playsLandsFromGraveyard and no other ability", () => {
-        expect(crucibleOfWorlds.manaCost).toEqual({ X: 3 });
-        expect(crucibleOfWorlds.types).toEqual(["Artifact"]);
-        expect(crucibleOfWorlds.playsLandsFromGraveyard).toBe(true);
-        expect(crucibleOfWorlds.triggeredAbilities ?? []).toHaveLength(0);
-        expect(crucibleOfWorlds.activatedAbilities ?? []).toHaveLength(0);
-    });
-
     it("an ARTIFACT source grants the permission, and it ends when the artifact leaves play", () => {
         const crucible = makeInstance(crucibleOfWorlds.id, {
             id: "crucible",

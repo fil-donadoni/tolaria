@@ -622,13 +622,6 @@ describe("Argothian Treefolk (prevent all damage from artifact sources, CR 615)"
 });
 
 describe("Titania's Song ({3}{G} Enchantment — CR 613.1f ability-loss + CR 205 type-add + CR 604.3 mana-value P/T)", () => {
-    it("declares ability-loss + type-add + pt-cda static effects", () => {
-        const kinds = (titaniasSong.staticEffects ?? []).map((e) => e.kind);
-        expect(kinds).toContain("ability-loss");
-        expect(kinds).toContain("type-add");
-        expect(kinds).toContain("pt-cda");
-    });
-
     it("makes every noncreature artifact an artifact creature with P/T = mana value", () => {
         const { state, ring } = withTitaniasSong();
         expect(ring.types).toContain("Creature");

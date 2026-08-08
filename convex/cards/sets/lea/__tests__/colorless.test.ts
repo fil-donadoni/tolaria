@@ -39,7 +39,6 @@ import {
     juggernaut,
     kormusBell,
     libraryOfLeng,
-    lich,
     lightningBolt,
     livingWall,
     llanowarElves,
@@ -53,8 +52,6 @@ import {
     moxPearl,
     moxRuby,
     moxSapphire,
-    orcishArtillery,
-    personalIncarnation,
     phantasmalTerrain,
     plains,
     plateau,
@@ -85,6 +82,7 @@ import {
 } from "..";
 import {
     commitLandsForCost,
+    regenerateOrDestroy,
     removePermanentTo,
     resolveTopOfStack,
     runDamageReplacement,
@@ -109,6 +107,7 @@ import {
     type GameState,
     type StackItem,
 } from "../../../../gre/state";
+import { tapSourceIntoPayment } from "../../../../game";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import {
     getEffectivePower,
@@ -146,7 +145,7 @@ import {
     hasBanding,
 } from "../../../../gre/banding";
 import { compactState, expandState } from "../../../../gre/serialize";
-import type { CardDefinition, CardType } from "../../../types";
+import type { CardType } from "../../../types";
 import {
     makeInstance,
     makePlayer,
@@ -156,24 +155,6 @@ import {
 import { grizzlyBearsId, runUntapForJ } from "./helpers";
 
 describe("Winter Orb (modern Oracle land-only cap, CR 502.1, ADR 0004)", () => {
-    it("is a {2} artifact declaring a single untap-restriction static effect", () => {
-        expect(winterOrb.manaCost).toEqual({ X: 2 });
-        expect(winterOrb.types).toEqual(["Artifact"]);
-        expect(winterOrb.staticEffects).toHaveLength(1);
-        const effect = winterOrb.staticEffects?.[0];
-        expect(effect?.kind).toBe("untap-restriction");
-        if (effect?.kind === "untap-restriction") {
-            expect(effect.maxUntap).toBe(1);
-            expect(effect.filter).toEqual({ types: "Land" });
-        }
-    });
-
-    it("the printed legacy keyword `limits-acl-untap` is no longer declared", () => {
-        expect(winterOrb.staticAbilities ?? []).not.toContain(
-            "limits-acl-untap"
-        );
-    });
-
     // Drives the incoming player's UNTAP step by advancing from END_STEP:
     // CLEANUP auto-resolves, turn flips, UNTAP auto-resolves (or
     // suspends on an `untap-pick` prompt), state settles either in UPKEEP
@@ -357,25 +338,6 @@ describe("Winter Orb (modern Oracle land-only cap, CR 502.1, ADR 0004)", () => {
 });
 
 describe("Juggernaut (CR 508.1d + 509.1b)", () => {
-    it("is a 5/3 Juggernaut for {4} with attack-requirement + block-restriction", () => {
-        expect(juggernaut.manaCost).toEqual({ X: 4 });
-        expect(juggernaut.types).toEqual(["Artifact", "Creature"]);
-        expect(juggernaut.subtypes).toEqual(["Juggernaut"]);
-        expect(juggernaut.power).toBe(5);
-        expect(juggernaut.toughness).toBe(3);
-        expect(juggernaut.staticEffects).toBeDefined();
-        expect(
-            juggernaut.staticEffects!.some(
-                (e) => e.kind === "attack-requirement"
-            )
-        ).toBe(true);
-        expect(
-            juggernaut.staticEffects!.some(
-                (e) => e.kind === "block-restriction"
-            )
-        ).toBe(true);
-    });
-
     it("can't be blocked by Walls (CR 509.1b) — via staticEffects", () => {
         const jug = makeInstance(juggernaut.id, { id: "jug" });
         const wall = makeInstance(wallOfSwords.id, {
@@ -484,14 +446,6 @@ describe("Howling Mine (CR 603.6a phase-begin trigger with intervening-if)", () 
         });
     }
 
-    it("is a {2} artifact with the phase-begin trigger declared", () => {
-        expect(howlingMine.manaCost).toEqual({ X: 2 });
-        expect(howlingMine.types).toContain("Artifact");
-        const trigger = howlingMine.triggeredAbilities?.[0];
-        expect(trigger?.event).toBe("PHASE_BEGIN");
-        expect(trigger?.oracleText).toMatch(/draw step/i);
-    });
-
     it("queues the trigger when the active player's draw step begins", () => {
         const state = setupAtUpkeep();
         advancePhase(state); // UPKEEP → DRAW (turn-based action + trigger)
@@ -582,18 +536,6 @@ describe("Howling Mine (CR 603.6a phase-begin trigger with intervening-if)", () 
 // ---------------------------------------------------------------------------
 
 describe("Sol Ring ({T}: Add {C}{C}, CR 605.1a)", () => {
-    it("is a {1} artifact", () => {
-        expect(solRing.manaCost).toEqual({ X: 1 });
-        expect(solRing.types).toEqual(["Artifact"]);
-    });
-
-    it("declares a tap-for-{C}{C} mana ability (useStack: false)", () => {
-        const ability = solRing.activatedAbilities?.[0];
-        expect(ability?.cost.tap).toBe(true);
-        expect(ability?.useStack).toBe(false);
-        expect(ability?.manaProduced).toEqual({ C: 2 });
-    });
-
     it("engine recognizes the ability and reports 2 colorless produced", () => {
         const ring = makeInstance(solRing.id, { id: "ring" });
         expect(hasManaAbility(ring)).toBe(true);
@@ -624,63 +566,38 @@ describe("Sol Ring ({T}: Add {C}{C}, CR 605.1a)", () => {
 // All five Mox share the makeTapForMana factory; one parameterized describe
 // covers shape, GRE recognition, and wire-format projection per color.
 describe.each([
-    { card: moxPearl, color: "W" as const, abilityId: "mox-pearl-mana" },
-    { card: moxSapphire, color: "U" as const, abilityId: "mox-sapphire-mana" },
-    { card: moxJet, color: "B" as const, abilityId: "mox-jet-mana" },
-    { card: moxRuby, color: "R" as const, abilityId: "mox-ruby-mana" },
-    { card: moxEmerald, color: "G" as const, abilityId: "mox-emerald-mana" },
-])(
-    "$card.name ({T}: Add {$color}, CR 605.1a)",
-    ({ card, color, abilityId }) => {
-        it("is a 0-mana artifact with a tap-for-color mana ability (useStack: false)", () => {
-            expect(card.manaCost).toEqual({ X: 0 });
-            expect(card.types).toEqual(["Artifact"]);
-            const ability = card.activatedAbilities?.[0];
-            expect(ability?.id).toBe(abilityId);
-            expect(ability?.cost).toEqual({ tap: true });
-            expect(ability?.useStack).toBe(false);
-            expect(ability?.manaProduced).toEqual({ [color]: 1 });
-        });
-
-        it("engine recognizes the mana ability and reports the correct color", () => {
-            const inst = makeInstance(card.id, { id: "mox" });
-            expect(hasManaAbility(inst)).toBe(true);
-            expect(getActivatedManaColor(inst)).toBe(color);
-            expect(getFixedManaAmount(inst, color)).toBe(1);
-        });
-
-        it("wire format: mana ability survives projectPublicState", () => {
-            const inst = makeInstance(card.id, { id: "mox" });
-            const state = makeState({
-                players: [
-                    makePlayer("p1", { battlefield: [inst] }),
-                    makePlayer("p2"),
-                ],
-            });
-            const projected = projectPublicState(state, 1, "p1");
-            const slim = projected.players[0].battlefield.find(
-                (c) => c.id === "mox"
-            )!;
-            expect(hasManaAbility(slim as CardInstanceState)).toBe(true);
-            expect(getActivatedManaColor(slim as CardInstanceState)).toBe(
-                color
-            );
-            expect(getFixedManaAmount(slim as CardInstanceState, color)).toBe(
-                1
-            );
-        });
-    }
-);
-
-describe("Jayemdae Tome ({4}, {T}: Draw a card, CR 602.1 + 121.1)", () => {
-    it("is a {4} artifact with a stack-using activated ability", () => {
-        expect(jayemdaeTome.manaCost).toEqual({ X: 4 });
-        expect(jayemdaeTome.types).toEqual(["Artifact"]);
-        const ability = jayemdaeTome.activatedAbilities?.[0];
-        expect(ability?.cost).toEqual({ tap: true, mana: { X: 4 } });
-        expect(ability?.useStack).toBe(true);
+    { card: moxPearl, color: "W" as const },
+    { card: moxSapphire, color: "U" as const },
+    { card: moxJet, color: "B" as const },
+    { card: moxRuby, color: "R" as const },
+    { card: moxEmerald, color: "G" as const },
+])("$card.name ({T}: Add {$color}, CR 605.1a)", ({ card, color }) => {
+    it("engine recognizes the mana ability and reports the correct color", () => {
+        const inst = makeInstance(card.id, { id: "mox" });
+        expect(hasManaAbility(inst)).toBe(true);
+        expect(getActivatedManaColor(inst)).toBe(color);
+        expect(getFixedManaAmount(inst, color)).toBe(1);
     });
 
+    it("wire format: mana ability survives projectPublicState", () => {
+        const inst = makeInstance(card.id, { id: "mox" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [inst] }),
+                makePlayer("p2"),
+            ],
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "mox"
+        )!;
+        expect(hasManaAbility(slim as CardInstanceState)).toBe(true);
+        expect(getActivatedManaColor(slim as CardInstanceState)).toBe(color);
+        expect(getFixedManaAmount(slim as CardInstanceState, color)).toBe(1);
+    });
+});
+
+describe("Jayemdae Tome ({4}, {T}: Draw a card, CR 602.1 + 121.1)", () => {
     it("resolving the ability draws one card for the controller", () => {
         const tome = makeInstance(jayemdaeTome.id, {
             id: "tome",
@@ -739,24 +656,6 @@ describe("Jayemdae Tome ({4}, {T}: Draw a card, CR 602.1 + 121.1)", () => {
 });
 
 describe("Jade Statue (animate until end of combat, CR 208.2 + 511.3 + 602.5)", () => {
-    it("is a {4} artifact with a combat-only {2} activated ability", () => {
-        expect(jadeStatue.manaCost).toEqual({ X: 4 });
-        expect(jadeStatue.types).toEqual(["Artifact"]);
-        const ability = jadeStatue.activatedAbilities?.[0];
-        expect(ability?.id).toBe("jade-statue-animate");
-        expect(ability?.cost).toEqual({ mana: { X: 2 } });
-        expect(ability?.useStack).toBe(true);
-        // CR 602.5 — restriction covers every combat sub-step.
-        expect(ability?.activationPhaseRestriction).toEqual([
-            "BEGINNING_OF_COMBAT",
-            "DECLARE_ATTACKERS",
-            "DECLARE_BLOCKERS",
-            "FIRST_STRIKE_DAMAGE",
-            "COMBAT_DAMAGE",
-            "END_OF_COMBAT",
-        ]);
-    });
-
     function setupAnimationScenario() {
         const statue = makeInstance(jadeStatue.id, {
             id: "statue",
@@ -871,18 +770,6 @@ describe("Jade Statue (animate until end of combat, CR 208.2 + 511.3 + 602.5)", 
 });
 
 describe("Icy Manipulator ({1}, {T}: tap target artifact/creature/land, CR 701.20a)", () => {
-    it("is a {4} artifact with a stack-using activated ability", () => {
-        expect(icyManipulator.manaCost).toEqual({ X: 4 });
-        expect(icyManipulator.types).toEqual(["Artifact"]);
-        const ability = icyManipulator.activatedAbilities?.[0];
-        expect(ability?.cost).toEqual({ tap: true, mana: { X: 1 } });
-        expect(ability?.useStack).toBe(true);
-        expect(ability?.targetRequirement).toEqual({
-            type: ["Artifact", "Creature", "Land"],
-            count: 1,
-        });
-    });
-
     function activate(
         state: ReturnType<typeof makeState>,
         icy: CardInstanceState,
@@ -1034,20 +921,6 @@ describe("Icy Manipulator ({1}, {T}: tap target artifact/creature/land, CR 701.2
 });
 
 describe("Tundra (dual land: {T}: Add {W} or {U})", () => {
-    it("is a Land with both Plains and Island subtypes", () => {
-        expect(tundra.types).toEqual(["Land"]);
-        expect(tundra.subtypes).toEqual(["Plains", "Island"]);
-        // Dual lands are NOT Basic (CR 205.4a).
-        expect(tundra.supertypes).toBeUndefined();
-    });
-
-    it("offers W and U as a single choice ability", () => {
-        const ability = tundra.activatedAbilities?.[0];
-        expect(ability?.cost.tap).toBe(true);
-        expect(ability?.useStack).toBe(false);
-        expect(ability?.manaChoices).toEqual([{ W: 1 }, { U: 1 }]);
-    });
-
     it("commitLandsForCost commits a Tundra tapped for U when paying {U}", () => {
         // Regression: without chosenMana, commitLandsForCost would see Tundra
         // as {W} (via getBasicLandMana on first subtype) and skip it when
@@ -1062,56 +935,6 @@ describe("Tundra (dual land: {T}: Add {W} or {U})", () => {
         commitLandsForCost(p1, { U: 1 });
         expect(p1.battlefield[0].manaCommitted).toBe(true);
     });
-});
-
-describe("Alpha dual lands (snapshot: types, subtypes, mana choices)", () => {
-    // The remaining 8 duals share Tundra's shape. Locking down the triples
-    // guards against typos in subtypes/manaChoices when adding new prints.
-    const duals: Array<{
-        card: CardDefinition;
-        subtypes: string[];
-        choices: [string, string];
-    }> = [
-        {
-            card: badlands,
-            subtypes: ["Swamp", "Mountain"],
-            choices: ["B", "R"],
-        },
-        { card: bayou, subtypes: ["Swamp", "Forest"], choices: ["B", "G"] },
-        {
-            card: plateau,
-            subtypes: ["Mountain", "Plains"],
-            choices: ["R", "W"],
-        },
-        { card: savannah, subtypes: ["Forest", "Plains"], choices: ["G", "W"] },
-        { card: scrubland, subtypes: ["Plains", "Swamp"], choices: ["W", "B"] },
-        { card: taiga, subtypes: ["Mountain", "Forest"], choices: ["R", "G"] },
-        {
-            card: tropicalIsland,
-            subtypes: ["Forest", "Island"],
-            choices: ["G", "U"],
-        },
-        {
-            card: undergroundSea,
-            subtypes: ["Island", "Swamp"],
-            choices: ["U", "B"],
-        },
-    ];
-
-    for (const { card, subtypes, choices } of duals) {
-        it(`${card.name}: land with subtypes ${subtypes.join("/")} and ${choices.join("/")} mana`, () => {
-            expect(card.types).toEqual(["Land"]);
-            expect(card.subtypes).toEqual(subtypes);
-            expect(card.supertypes).toBeUndefined();
-            const ability = card.activatedAbilities?.[0];
-            expect(ability?.cost.tap).toBe(true);
-            expect(ability?.useStack).toBe(false);
-            expect(ability?.manaChoices).toEqual([
-                { [choices[0]]: 1 },
-                { [choices[1]]: 1 },
-            ]);
-        });
-    }
 });
 
 // Per-dual GRE + wire-format coverage. After moving every dual to makeDualLand,
@@ -1166,19 +989,6 @@ describe.each([
         });
     }
 );
-
-describe("Celestial Prism ({2}, {T}: add one mana of any color)", () => {
-    it("declares manaChoices for all 5 colors", () => {
-        const ability = celestialPrism.activatedAbilities?.[0];
-        expect(ability?.cost).toEqual({ mana: { X: 2 }, tap: true });
-        expect(ability?.useStack).toBe(false);
-        expect(ability?.manaChoices).toHaveLength(5);
-        const colors = (ability?.manaChoices ?? []).map(
-            (c) => Object.keys(c)[0]
-        );
-        expect(colors).toEqual(["W", "U", "B", "R", "G"]);
-    });
-});
 
 describe("Copper Tablet (1 dmg to each player at their upkeep)", () => {
     function setup(activePlayerId: string = "p1") {
@@ -1510,12 +1320,6 @@ describe("Conservator ({3}, {T}: prevent next 2 to you this turn)", () => {
         return { state, consv };
     }
 
-    it("declares the {3}, {T} cost shape", () => {
-        const ability = conservator.activatedAbilities?.[0];
-        expect(ability?.cost).toEqual({ mana: { X: 3 }, tap: true });
-        expect(ability?.useStack).toBe(true);
-    });
-
     it("activated → 2-damage shield on the controller", () => {
         const { state, consv } = setup();
         state.stack.push({
@@ -1677,12 +1481,6 @@ describe("The Hive ({5}, {T}: create a 1/1 colorless flying Wasp Insect artifact
 // ---------------------------------------------------------------------------
 
 describe("Basalt Monolith (does-not-untap + {T}: {C}{C}{C} + {3}: untap, CR 502.1)", () => {
-    it("is a {3} artifact declaring the per-permanent does-not-untap keyword", () => {
-        expect(basaltMonolith.manaCost).toEqual({ X: 3 });
-        expect(basaltMonolith.types).toEqual(["Artifact"]);
-        expect(basaltMonolith.staticAbilities).toContain("does-not-untap");
-    });
-
     it("stays tapped through its controller's untap step", () => {
         const monolith = makeInstance(basaltMonolith.id, {
             id: "monolith",
@@ -1826,27 +1624,6 @@ describe("Mana Vault (does-not-untap + upkeep may-pay {4} + draw-step ping, CR 5
 });
 
 describe("Meekstone (creatures with power 3+ don't untap, CR 502.1 + 613 layer 7c)", () => {
-    it("is a {1} artifact declaring a single untap-restriction static effect", () => {
-        expect(meekstone.manaCost).toEqual({ X: 1 });
-        expect(meekstone.types).toEqual(["Artifact"]);
-        expect(meekstone.staticEffects).toHaveLength(1);
-        const effect = meekstone.staticEffects?.[0];
-        expect(effect?.kind).toBe("untap-restriction");
-        if (effect?.kind === "untap-restriction") {
-            expect(effect.maxUntap).toBe(0);
-            expect(effect.filter).toEqual({
-                types: "Creature",
-                powerAtLeast: 3,
-            });
-        }
-    });
-
-    it("the legacy keyword `prevents-untap-of-power-3-or-greater` is no longer declared", () => {
-        expect(meekstone.staticAbilities ?? []).not.toContain(
-            "prevents-untap-of-power-3-or-greater"
-        );
-    });
-
     it("blocks creatures with printed power ≥3; weaker creatures untap", () => {
         const stone = makeInstance(meekstone.id, { id: "stone" });
         const bear = makeInstance(grizzlyBears.id, {
@@ -2814,29 +2591,6 @@ describe("Black Vise (opponent upkeep: deal hand-4 damage)", () => {
     });
 });
 
-describe("Living Wall (0/6 Artifact Creature Wall, defender, {1}: regen)", () => {
-    it("has defender", () => {
-        expect(livingWall.staticAbilities).toContain("defender");
-    });
-
-    it("has {1}: Regenerate activated ability", () => {
-        const ability = livingWall.activatedAbilities?.[0];
-        expect(ability?.id).toBe("living-wall-regenerate");
-        expect(ability?.cost).toEqual({ mana: { X: 1 } });
-        expect(ability?.useStack).toBe(true);
-    });
-
-    it("is 0/6 base stats", () => {
-        expect(livingWall.power).toBe(0);
-        expect(livingWall.toughness).toBe(6);
-    });
-
-    it("types include Artifact and Creature", () => {
-        expect(livingWall.types).toContain("Artifact");
-        expect(livingWall.types).toContain("Creature");
-    });
-});
-
 describe("Ankh of Mishra (land ETB → 2 damage to land's controller)", () => {
     it("triggers on any land entering the battlefield", () => {
         const ankh = makeInstance(ankhOfMishra.id, {
@@ -3071,11 +2825,6 @@ describe("Disrupting Scepter ({3},{T}: target player discards, CR 701.8)", () =>
         expect(state.pendingChoices!.length).toBe(1);
         expect(state.pendingChoices![0].kind).toBe("discard-hand");
     });
-
-    it("can only be activated during controller's turn (controllerTurnOnly)", () => {
-        const ability = disruptingScepter.activatedAbilities![0];
-        expect(ability.controllerTurnOnly).toBe(true);
-    });
 });
 
 // ---------------------------------------------------------------------------
@@ -3266,13 +3015,6 @@ describe("Gauntlet of Might (static pt-buff + tapped trigger)", () => {
 });
 
 describe("Time Vault (skip-turn / extra-turn artifact, CR 614.10 + 500.7)", () => {
-    it("is a {2} Artifact with entersTapped and does-not-untap", () => {
-        expect(timeVault.manaCost).toEqual({ X: 2 });
-        expect(timeVault.types).toEqual(["Artifact"]);
-        expect(timeVault.entersTapped).toBe(true);
-        expect(timeVault.staticAbilities).toContain("does-not-untap");
-    });
-
     it("enters the battlefield tapped", () => {
         const state = makeState();
         pushSpell(state, timeVault.id, "p1");
@@ -4180,14 +3922,6 @@ describe("Cyclopean Tomb ({4} — mire counter + LTB)", () => {
         expect(mtn.subtypes).toEqual(["Forest"]);
         expect(getBasicLandMana(mtn)).toBe("G");
     });
-
-    it("declares activated ability with target non-Swamp land", () => {
-        expect(cyclopeanTomb.activatedAbilities).toHaveLength(1);
-        expect(
-            cyclopeanTomb.activatedAbilities![0].targetRequirement
-                ?.excludeSubtypes
-        ).toEqual(["Swamp"]);
-    });
 });
 
 // ---------------------------------------------------------------------------
@@ -4321,12 +4055,6 @@ describe("Sunglasses of Urza (spend white as though red, CR 609.4b)", () => {
             ],
         });
     }
-
-    it("declares the mana-substitution static effect", () => {
-        expect(sunglassesOfUrza.staticEffects).toEqual([
-            { kind: "mana-substitution", from: "W", to: "R" },
-        ]);
-    });
 
     it("getManaSubstitutions surfaces the rule only for the controller", () => {
         const state = stateWithSunglasses();
@@ -4662,16 +4390,6 @@ describe("Illusionary Mask (masked-cast: {X} -> face-down 2/2, CR 708.2, #123)",
             .battlefield.find((c) => c.id === "bear")!;
         expect(ownPerm.faceDownOf).toBe(grizzlyBears.id);
     });
-
-    it("definition snapshot: registered with the masked-cast activated ability", () => {
-        expect(illusionaryMask.types).toContain("Artifact");
-        expect(illusionaryMask.activatedAbilities?.[0].id).toBe(
-            "illusionary-mask-cast"
-        );
-        expect(illusionaryMask.activatedAbilities?.[0].cost.mana).toEqual({
-            X: "X",
-        });
-    });
 });
 
 describe("Illusionary Mask — face-down turn-up (CR 708.9, ADR 0013, #124)", () => {
@@ -4864,23 +4582,109 @@ describe("Illusionary Mask — face-down turn-up (CR 708.9, ADR 0013, #124)", ()
     });
 });
 
-describe("mana costs match modern Scryfall oracle (Alpha errata)", () => {
-    // The Alpha printings of these cards carried costs later superseded by
-    // official errata; the engine follows the current Scryfall oracle.
-    it("Lich is {B}{B}{B}{B}, not the Alpha {2}{B}{B}", () => {
-        expect(lich.manaCost).toEqual({ B: 4 });
+// Word of Command — Acting Player foundation + land branch (#576, ADR 0037)
+// ---------------------------------------------------------------------------
+
+describe("Celestial Prism ({2}, {T}: Add one mana of any color, CR 605.1a)", () => {
+    it("pays the {2} cost and taps for the chosen color", () => {
+        const prism = makeInstance(celestialPrism.id, {
+            id: "prism",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const player = makePlayer("p1", {
+            battlefield: [prism],
+            manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 2 },
+        });
+        const state = makeState({ players: [player, makePlayer("p2")] });
+        // manaChoices order is [W, U, B, R, G] — index 2 is black.
+        tapSourceIntoPayment(state, player, prism, 2, []);
+        expect(player.manaPool.B).toBe(1);
+        expect(player.manaPool.C).toBe(0); // the {2} generic cost was spent
+        expect(prism.isTapped).toBe(true);
     });
 
-    it("Personal Incarnation is {3}{W}{W}{W}, not the Alpha {4}{W}{W}{W}", () => {
-        expect(personalIncarnation.manaCost).toEqual({ X: 3, W: 3 });
-    });
-
-    it("Orcish Artillery stays {1}{R}{R} (current Scryfall oracle)", () => {
-        // Guard: the EC Alpha 40 'play as printed 1R' note is NOT honored — the
-        // oracle cost is {1}{R}{R}, which is what we ship.
-        expect(orcishArtillery.manaCost).toEqual({ X: 1, R: 2 });
+    it("wire format: tapped state and mana credit survive projectPublicState", () => {
+        const prism = makeInstance(celestialPrism.id, {
+            id: "prism",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const player = makePlayer("p1", {
+            battlefield: [prism],
+            manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 2 },
+        });
+        const state = makeState({ players: [player, makePlayer("p2")] });
+        tapSourceIntoPayment(state, player, prism, 4, []); // index 4 is green
+        expect(player.manaPool.G).toBe(1);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].manaPool.G).toBe(1);
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "prism"
+        )!;
+        expect(slim.isTapped).toBe(true);
     });
 });
 
-// Word of Command — Acting Player foundation + land branch (#576, ADR 0037)
-// ---------------------------------------------------------------------------
+describe("Living Wall (CR 701.15a regenerate)", () => {
+    it("activating the regenerate ability shields it from a destroy effect", () => {
+        const wall = makeInstance(livingWall.id, {
+            id: "wall",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [wall] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push({
+            ...wall,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "living-wall-regenerate",
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        expect(wall.regenerationShields).toBe(1);
+        // A destroy effect (e.g. Terror) now consults `regenerateOrDestroy`:
+        // the shield is consumed and the Wall survives instead of dying.
+        const destroyed = regenerateOrDestroy(state, "wall");
+        expect(destroyed).toBe(false);
+        const onBattlefield = state.players[0].battlefield.find(
+            (c) => c.id === "wall"
+        );
+        expect(onBattlefield).toBeDefined();
+        expect(onBattlefield?.regenerationShields ?? 0).toBe(0);
+        expect(state.players[0].graveyard).toHaveLength(0);
+    });
+
+    it("wire format: still on the battlefield (not the graveyard) after regenerating survives projection", () => {
+        const wall = makeInstance(livingWall.id, {
+            id: "wall",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [wall] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push({
+            ...wall,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "living-wall-regenerate",
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        regenerateOrDestroy(state, "wall");
+        const projected = projectPublicState(state, 1, "p1");
+        expect(
+            projected.players[0].battlefield.some((c) => c.id === "wall")
+        ).toBe(true);
+        expect(projected.players[0].graveyard).toHaveLength(0);
+    });
+});

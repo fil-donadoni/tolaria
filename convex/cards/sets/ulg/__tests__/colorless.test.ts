@@ -21,12 +21,6 @@ function runUntapStep(playerId: string, state: GameState): void {
 }
 
 describe("Grim Monolith (does-not-untap + {T}: {C}{C}{C} + {4}: untap, CR 502.1 / 605.1a)", () => {
-    it("is a {2} artifact declaring the per-permanent does-not-untap keyword", () => {
-        expect(grimMonolith.manaCost).toEqual({ X: 2 });
-        expect(grimMonolith.types).toEqual(["Artifact"]);
-        expect(grimMonolith.staticAbilities).toContain("does-not-untap");
-    });
-
     it("{T}: Add {C}{C}{C} mana ability produces the declared amount", () => {
         const ability = grimMonolith.activatedAbilities![0];
         expect(ability.manaProduced).toEqual({ C: 3 });

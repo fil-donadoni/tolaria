@@ -15,21 +15,6 @@ import { snuffOut } from "../black";
 describe("Snuff Out (destroy nonblack creature, can't regenerate — CR 701.7)", () => {
     const bears = getCardByName("Grizzly Bears"); // green 2/2 — a nonblack creature
 
-    it("declares the pitch alternative cost: pay 4 life if you control a Swamp", () => {
-        expect(snuffOut.alternativeCosts).toEqual([
-            {
-                id: "pitch-pay-4-life",
-                description: "Pay 4 life",
-                life: 4,
-                condition: { kind: "control", filter: { subtypes: "Swamp" } },
-            },
-        ]);
-        expect(snuffOut.targetRequirement).toMatchObject({
-            type: "Creature",
-            excludeColors: "B",
-        });
-    });
-
     it("destroys the target creature", () => {
         const victim = makeInstance(bears.id, {
             id: "v",

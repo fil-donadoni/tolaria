@@ -13,11 +13,9 @@ import {
     heroism,
     icatianInfantry,
     icatianJavelineers,
-    icatianLieutenant,
     icatianMoneychanger,
     icatianPhalanx,
     icatianPriest,
-    icatianScout,
     icatianSkirmishers,
     icatianTown,
     orderOfLeitbur,
@@ -42,7 +40,8 @@ import {
     finalizeTargetSelection,
     tryAutoCommitPendingActivation,
 } from "../../../../game";
-import { grizzlyBears } from "../../lea";
+import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
+import { grizzlyBears, lightningBolt, monssGoblinRaiders } from "../../lea";
 import { matchesPermanentFilter } from "../../../filters";
 import {
     makeInstance,
@@ -50,7 +49,7 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
-import { resolveActivated } from "./helpers";
+import { resolveActivated, resolveTrigger, UPKEEP } from "./helpers";
 
 // ===========================================================================
 // CAPABILITY D — tapOtherFilter activation cost (Hand of Justice, CR 602.1 /
@@ -134,23 +133,6 @@ function handOfJusticeBoard(): {
 }
 
 describe("Hand of Justice — tapOtherFilter cost (CR 602.1 / 118.8)", () => {
-    it("carries the canonical printed characteristics", () => {
-        expect(handOfJustice.manaCost).toEqual({ X: 5, W: 1 });
-        expect(handOfJustice.power).toBe(2);
-        expect(handOfJustice.toughness).toBe(6);
-        expect(handOfJustice.subtypes).toEqual(["Avatar"]);
-        const cost = handOfJustice.activatedAbilities![0].cost;
-        expect(cost.tap).toBe(true);
-        expect(cost.tapOtherFilter).toEqual({
-            filter: {
-                types: "Creature",
-                colors: "W",
-                controllerRelation: "you",
-            },
-            count: 3,
-        });
-    });
-
     it("GRE legality: the candidate pool is the white creatures OTHER than the source", () => {
         const { state, handId } = handOfJusticeBoard();
         const filter =
@@ -261,14 +243,6 @@ function activateFarrelitePriestMana(state: GameState, sourceId: string): void {
 }
 
 describe("Farrelite Priest — activation-count drawback (CR 605.1a / 602.5 / 603.7a)", () => {
-    it("is a non-tap, non-stack repeatable mana ability", () => {
-        const ab = farrelitePriest.activatedAbilities![0];
-        expect(ab.useStack).toBe(false);
-        expect(ab.cost.tap).toBeUndefined();
-        expect(ab.cost.mana).toEqual({ X: 1 });
-        expect(ab.manaProduced).toEqual({ W: 1 });
-    });
-
     it("adds {W} on each activation", () => {
         const priest = makeInstance(farrelitePriest.id, {
             id: "fp",
@@ -511,18 +485,6 @@ function mantleTriggerOnStack(
 }
 
 describe("Farrel's Zealot — CR 603.3d targeted unblocked-attack trigger", () => {
-    it("declares the announcement-time target requirement (target creature)", () => {
-        expect(farrelsZealot.power).toBe(2);
-        expect(farrelsZealot.toughness).toBe(2);
-        expect(farrelsZealot.manaCost).toEqual({ X: 1, W: 2 });
-        expect(farrelsZealot.triggeredAbilities?.[0].event).toBe(
-            "ATTACKER_UNBLOCKED"
-        );
-        expect(farrelsZealot.triggeredAbilities?.[0].targetRequirement).toEqual(
-            { type: "Creature", count: 1 }
-        );
-    });
-
     it("mandatory single legal target auto-locks without raising a choice", () => {
         // Zealot attacking, opponent has no creatures: the only legal "target
         // creature" is the Zealot itself (plain "target creature", no "another"
@@ -581,24 +543,6 @@ describe("Farrel's Zealot — CR 603.3d targeted unblocked-attack trigger", () =
 });
 
 describe("Farrel's Mantle — CR 603.3d targeted unblocked-attack trigger", () => {
-    it("is a {2}{W} Aura carrying an announcement-time target on its trigger", () => {
-        expect(farrelsMantle.types).toEqual(["Enchantment"]);
-        expect(farrelsMantle.subtypes).toEqual(["Aura"]);
-        expect(farrelsMantle.manaCost).toEqual({ X: 2, W: 1 });
-        // The card-level `targetRequirement` is the Aura's "Enchant creature"
-        // cast target — distinct from the trigger's damage target below.
-        expect(farrelsMantle.targetRequirement).toEqual({
-            type: "Creature",
-            count: 1,
-        });
-        expect(farrelsMantle.triggeredAbilities?.[0].event).toBe(
-            "ATTACKER_UNBLOCKED"
-        );
-        expect(farrelsMantle.triggeredAbilities?.[0].targetRequirement).toEqual(
-            { type: "Creature", count: 1 }
-        );
-    });
-
     it("deals power+2 to the chosen creature and marks the attacker (CR 510.1c)", () => {
         // Enchanted 2/2 attacker; the Aura hangs on it; a second creature is
         // the target. Damage = attacker power (2) + 2 = 4.
@@ -673,6 +617,149 @@ describe("Farrel's Mantle — CR 603.3d targeted unblocked-attack trigger", () =
 // Reuse-only white cards — spell / ability outcomes (CR-cited per card).
 // ===========================================================================
 
+// Combat Medic — the DSL smoke sweep skips this script: `preventDamage`
+// registers a dormant shield that only matters when SOMETHING ELSE deals
+// damage later, so the canned-scenario generator can't score it in isolation.
+describe("Combat Medic (activated preventDamage next-n shield on an announced target, CR 615.1)", () => {
+    it("shields the target for 1: a later 3-damage spell is absorbed down to 2 marked", () => {
+        const medic = makeInstance(combatMedic.id, {
+            id: "medic",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const target = makeInstance(grizzlyBears.id, {
+            id: "tgt",
+            controllerId: "p2",
+            ownerId: "p2",
+            toughness: 5, // survives the post-prevention 2 damage (CR 704.5g)
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [medic] }),
+                makePlayer("p2", { battlefield: [target] }),
+            ],
+        });
+        resolveActivated(state, medic, "combat-medic-prevent", [
+            { type: "permanent", id: "tgt" },
+        ]);
+
+        pushSpell(state, lightningBolt.id, "p2", [
+            { type: "permanent", id: "tgt" },
+        ]);
+        resolveTopOfStack(state);
+
+        const after = state.players[1].battlefield.find((c) => c.id === "tgt")!;
+        expect(after.damageMarked).toBe(2); // 3 dealt - 1 prevented
+
+        // Wire format — the marked damage (the prevention's observable
+        // consequence) must survive projection, or the client shows the
+        // target undamaged.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "tgt"
+        )!;
+        expect(slim.damageMarked).toBe(2);
+    });
+});
+
+// Icatian Infantry — the DSL smoke sweep skips both scripts: `grantAbility`
+// targets `$source`, which the generator can't pre-resolve without a live
+// resolution context.
+describe("Icatian Infantry (self-granted activated keywords, grantAbility targets $source, CR 611.1b)", () => {
+    it("gains first strike until end of turn when its {1} ability resolves", () => {
+        const inf = makeInstance(icatianInfantry.id, {
+            id: "inf",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [inf] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(inf.staticAbilities).not.toContain("first strike");
+
+        resolveActivated(state, inf, "icatian-infantry-first-strike");
+
+        const after = state.players[0].battlefield.find((c) => c.id === "inf")!;
+        expect(after.staticAbilities).toContain("first strike");
+    });
+
+    it("wire format: the first strike grant survives projectPublicState", () => {
+        const inf = makeInstance(icatianInfantry.id, {
+            id: "inf2",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [inf] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, inf, "icatian-infantry-first-strike");
+
+        const projected = projectPublicState(state, 0, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "inf2"
+        )!;
+        expect(slim.staticAbilities).toContain("first strike");
+    });
+});
+
+// Icatian Moneychanger — the DSL smoke sweep skips both scripts: the upkeep
+// trigger's `counters` Op targets `$source`, and the sacrifice ability's
+// `gainLife` amount reads a "credit" counter COUNT off the (already
+// sacrificed) source via CR 608.2g last-known information.
+describe("Icatian Moneychanger (credit counters — upkeep counters Op targets $source, sac reads LKI count, CR 122.6 / 608.2g)", () => {
+    it("banks a credit counter each upkeep, visible through projectPublicState", () => {
+        const mc = makeInstance(icatianMoneychanger.id, {
+            id: "mc",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { credit: 3 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mc] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveTrigger(
+            state,
+            mc,
+            "icatian-moneychanger-upkeep-counter",
+            UPKEEP("p1")
+        );
+        const after = state.players[0].battlefield.find((c) => c.id === "mc")!;
+        expect(after.counters?.credit).toBe(4);
+
+        const projected = projectPublicState(state, 0, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "mc"
+        )!;
+        expect(slim.counters?.credit).toBe(4);
+    });
+
+    it("sacrifices to gain life equal to its credit counters, read as last-known information (CR 608.2g)", () => {
+        const mc = makeInstance(icatianMoneychanger.id, {
+            id: "mc2",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { credit: 5 },
+        });
+        // NOT placed on any battlefield — the sacrifice cost is already paid
+        // by the time this activated ability resolves (CR 602.5a); the
+        // resolving stack item is the only surviving snapshot of the counters.
+        const state = makeState({
+            players: [makePlayer("p1", { life: 20 }), makePlayer("p2")],
+        });
+        resolveActivated(state, mc, "icatian-moneychanger-cash-out");
+        expect(state.players[0].life).toBe(25); // 20 + 5 credit counters
+    });
+});
+
 describe("Icatian Town — token creation (CR 707.2)", () => {
     it("creates four 1/1 white Citizen tokens", () => {
         const state = makeState({
@@ -743,11 +830,6 @@ describe("Icatian Priest / Lieutenant — temporary pumps (CR 611 layer 7c)", ()
 });
 
 describe("Order of Leitbur — protection + pump knight (CR 702.16 / 611)", () => {
-    it("carries protection from black", () => {
-        expect(orderOfLeitbur.staticAbilities).toContain(
-            "protection from black"
-        );
-    });
     it("pumps itself +1/+0 until end of turn", () => {
         const knight = makeInstance(orderOfLeitbur.id, {
             id: "k",
@@ -766,13 +848,63 @@ describe("Order of Leitbur — protection + pump knight (CR 702.16 / 611)", () =
     });
 });
 
-describe("Combat Medic — prevention shield (CR 615)", () => {
-    it("carries the {1}{W} prevent-1 activated ability and a 0/2 body", () => {
-        expect(combatMedic.power).toBe(0);
-        expect(combatMedic.toughness).toBe(2);
-        const ab = combatMedic.activatedAbilities![0];
-        expect(ab.cost.mana).toEqual({ X: 1, W: 1 });
-        expect(ab.targetRequirement).toEqual({ type: "any", count: 1 });
+describe("Heroism — sacrifice-a-white-creature punisher prevention on red attackers (CR 615, 117.3a)", () => {
+    function heroismBoard(): {
+        state: GameState;
+        heroismInst: CardInstanceState;
+    } {
+        const heroismInst = makeInstance(heroism.id, {
+            id: "heroism",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const redAttacker = makeInstance(monssGoblinRaiders.id, {
+            id: "red-atk",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+            isAttacking: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [heroismInst] }),
+                makePlayer("p2", { battlefield: [redAttacker] }),
+            ],
+        });
+        return { state, heroismInst };
+    }
+
+    it("marks the attacking red creature to assign no combat damage when its controller declines to pay {2}{R}", () => {
+        const { state, heroismInst } = heroismBoard();
+        resolveActivated(state, heroismInst, "heroism-prevent");
+        const head = state.pendingChoices?.[0];
+        expect(head?.kind).toBe("may-pay");
+        expect(head?.playerId).toBe("p2");
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        expect(sourcePreventionShieldApplies(state, "red-atk", true)).toBe(
+            true
+        );
+
+        // Wire format — `sourcePreventionShieldApplies` is deliberately
+        // structural (see its doc comment) so the SAME predicate runs against
+        // the wire-projected state; the client Brain's combat evaluation only
+        // ever sees the projection, so `sourcePreventionShields` dropping
+        // during projection would silently un-shield the attacker for the bot.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(sourcePreventionShieldApplies(projected, "red-atk", true)).toBe(
+            true
+        );
+    });
+
+    it("does not mark the attacker when its controller pays {2}{R}", () => {
+        const { state, heroismInst } = heroismBoard();
+        state.players[1].manaPool = { C: 2, R: 1 };
+        resolveActivated(state, heroismInst, "heroism-prevent");
+        applyMayPaySubmit(state, { playerId: "p2", accept: true });
+        expect(sourcePreventionShieldApplies(state, "red-atk", true)).toBe(
+            false
+        );
     });
 });
 
@@ -784,47 +916,10 @@ describe("Combat Medic — prevention shield (CR 615)", () => {
 // ===========================================================================
 
 describe("FEM white reuse cards — canonical shapes", () => {
-    it("Heroism is a {2}{W} Enchantment with a sacrifice-a-white-creature cost", () => {
-        expect(heroism.types).toEqual(["Enchantment"]);
-        expect(heroism.manaCost).toEqual({ X: 2, W: 1 });
-        expect(heroism.activatedAbilities![0].cost.sacrificeFilter).toEqual({
-            types: "Creature",
-            colors: "W",
-        });
-    });
-
-    it("Icatian Infantry grants first strike and banding until end of turn", () => {
-        expect(icatianInfantry.power).toBe(1);
-        const ids = icatianInfantry.activatedAbilities!.map((a) => a.id);
-        expect(ids).toContain("icatian-infantry-first-strike");
-        expect(ids).toContain("icatian-infantry-banding");
-    });
-
-    it("Icatian Lieutenant pumps a Soldier creature +1/+0", () => {
-        const req = icatianLieutenant.activatedAbilities![0].targetRequirement;
-        expect(req).toEqual({
-            type: "Creature",
-            count: 1,
-            subtypeFilter: "Soldier",
-        });
-    });
-
-    it("Icatian Moneychanger enters with three credit counters", () => {
-        expect(icatianMoneychanger.entersWith).toEqual({
-            counters: [{ type: "credit", count: 3 }],
-        });
-    });
-
     it("Icatian Phalanx and Skirmishers carry banding", () => {
         expect(icatianPhalanx.staticAbilities).toContain("banding");
         expect(icatianSkirmishers.staticAbilities).toEqual(
             expect.arrayContaining(["first strike", "banding"])
         );
-    });
-
-    it("Icatian Scout grants first strike with a {1},{T} cost", () => {
-        const cost = icatianScout.activatedAbilities![0].cost;
-        expect(cost.tap).toBe(true);
-        expect(cost.mana).toEqual({ X: 1 });
     });
 });

@@ -23,22 +23,6 @@ import {
 import { resolveActivated, resolveTrigger, LEFT } from "./helpers";
 
 describe("Parallax Wave (Fading 5 + remove-fade-counter: exile target creature; return on leave, CR 702.32 / 603.7a)", () => {
-    it("declares fading 5, the remove-fade-counter exile ability, and the return trigger", () => {
-        expect(parallaxWave.staticAbilities).toEqual(["fading 5"]);
-        expect(parallaxWave.types).toEqual(["Enchantment"]);
-        const ability = parallaxWave.activatedAbilities![0];
-        expect(ability.cost).toEqual({
-            removeCounter: { type: "fade", count: 1 },
-        });
-        expect(ability.targetRequirement).toEqual({
-            type: "Creature",
-            count: 1,
-        });
-        expect(parallaxWave.triggeredAbilities?.[0].event).toBe(
-            "PERMANENT_LEFT"
-        );
-    });
-
     it("enters with five fade counters (Fading 5 seam injection, ADR 0054)", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],

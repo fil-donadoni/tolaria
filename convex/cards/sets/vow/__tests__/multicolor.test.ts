@@ -40,25 +40,6 @@ function harvesterEntered(instanceId: string, controllerId: string) {
 }
 
 describe("Bloodtithe Harvester (CR 603.6a self-ETB, 111/701.7 token, 602.5b/602.3b sorcery-speed sac, 613.4c -X/-X pump — issue #1309)", () => {
-    it("is a {B}{R} 3/2 Vampire with a tap+sacrifice sorcery-speed ability", () => {
-        expect(bloodtitheHarvester.manaCost).toEqual({ B: 1, R: 1 });
-        expect(bloodtitheHarvester.types).toEqual(["Creature"]);
-        expect(bloodtitheHarvester.subtypes).toEqual(["Vampire"]);
-        expect(bloodtitheHarvester.power).toBe(3);
-        expect(bloodtitheHarvester.toughness).toBe(2);
-        expect(bloodtitheHarvester.triggeredAbilities).toHaveLength(1);
-        const ability = bloodtitheHarvester.activatedAbilities?.find(
-            (a) => a.id === "bloodtithe-harvester-sac"
-        );
-        expect(ability).toBeDefined();
-        expect(ability!.cost).toEqual({ tap: true, sacrifice: true });
-        expect(ability!.sorcerySpeedOnly).toBe(true);
-        expect(ability!.targetRequirement).toEqual({
-            type: "Creature",
-            count: 1,
-        });
-    });
-
     it("ETB creates a Blood token with its real sac-discard-draw ability", () => {
         const harvester = makeInstance(bloodtitheHarvester.id, {
             id: "harvester-1",

@@ -118,24 +118,6 @@ function flashbackState(pick?: string[]): {
 }
 
 describe("Flash of Insight (JUD 40) — dig + flashback exile cost", () => {
-    it("is an {X}{1}{U} Instant with a {1}{U} flashback + blue-exile cost", () => {
-        expect(flashOfInsight.manaCost).toEqual({ X: "X", generic: 1, U: 1 });
-        expect(flashOfInsight.types).toEqual(["Instant"]);
-        expect(flashOfInsight.flashback).toEqual({ U: 1, generic: 1 });
-        expect(
-            flashOfInsight.additionalCosts?.flashbackExileFromGraveyard
-        ).toEqual({ color: "U" });
-        // The main effect is the shared digToHand Op with an X-driven look.
-        expect(flashOfInsight.effects).toEqual([
-            {
-                op: "digToHand",
-                player: "controller",
-                look: { X: true },
-                take: 1,
-            },
-        ]);
-    });
-
     it("main effect: look: { X: true } looks at chosenX cards (CR 401.4 / 107.3)", () => {
         const state = makeState({
             players: [

@@ -72,14 +72,6 @@ function setupDeathrite(): {
 }
 
 describe("Deathrite Shaman (CR 605.1a — targeted activated abilities, not mana abilities, per WotC 2016-06-08 ruling)", () => {
-    it("definitional: {B/G} hybrid, three graveyard-hate abilities, all useStack: true", () => {
-        expect(deathriteShaman.manaCost).toEqual({ hybrid: [["B", "G"]] });
-        expect(deathriteShaman.activatedAbilities).toHaveLength(3);
-        for (const ability of deathriteShaman.activatedAbilities!) {
-            expect(ability.useStack).toBe(true);
-        }
-    });
-
     describe("{T}: exile target land card from a graveyard, add one mana of any color (CR 605.1a / 701.18)", () => {
         it("exiles the land and adds the chosen color to the caster's mana pool", () => {
             const { state, deathrite } = setupDeathrite();

@@ -20,7 +20,6 @@ import {
     meteorCrater,
     rithsGrove,
     skyshipWeatherlight,
-    skyshipWeatherlightAlt,
     starCompass,
     trevasRuins,
 } from "../colorless";
@@ -131,21 +130,6 @@ const LAIR_CYCLE = [
 describe("Planeshift Lair cycle (CR 117.3a / 701.16 / 701.24, issue #1938)", () => {
     for (const { def, triggerId, colors } of LAIR_CYCLE) {
         describe(def.name, () => {
-            it("is a Land — Lair with one ETB trigger and one {T} tri-colour mana ability", () => {
-                expect(def.types).toEqual(["Land"]);
-                expect(def.subtypes).toEqual(["Lair"]);
-                expect(def.triggeredAbilities).toHaveLength(1);
-                expect(def.triggeredAbilities![0].id).toBe(triggerId);
-                const mana = def.activatedAbilities?.[0];
-                expect(mana?.cost).toEqual({ tap: true });
-                expect(mana?.useStack).toBe(false);
-                expect(mana?.manaChoices).toEqual([
-                    { [colors[0]]: 1 },
-                    { [colors[1]]: 1 },
-                    { [colors[2]]: 1 },
-                ]);
-            });
-
             it("taps for each of its three colours (CR 605.1a)", () => {
                 for (const [index, color] of colors.entries()) {
                     const land = lairInstance(def, "land");
@@ -303,21 +287,6 @@ function manaChoicesFor(
 }
 
 describe("Star Compass (CR 110.5b + 605.1a / 106.4 — colours YOUR basic lands could produce)", () => {
-    it("is a {2} artifact that enters tapped, with the modern oracle text", () => {
-        expect(starCompass.manaCost).toEqual({ X: 2 });
-        expect(starCompass.types).toEqual(["Artifact"]);
-        expect(starCompass.entersTapped).toBe(true);
-        expect(starCompass.oracleText).toBe(
-            "This artifact enters tapped.\n{T}: Add one mana of any color that a basic land you control could produce."
-        );
-    });
-
-    it("is a mana ability — resolves immediately, never uses the stack (CR 605.3a)", () => {
-        const ability = starCompass.activatedAbilities![0];
-        expect(ability.useStack).toBe(false);
-        expect(ability.cost).toEqual({ tap: true });
-    });
-
     it("offers one mana of each colour the controller's BASIC lands produce", () => {
         const compass = makeInstance(starCompass.id, { controllerId: "p1" });
         const state = makeState({
@@ -452,20 +421,6 @@ describe("Star Compass (CR 110.5b + 605.1a / 106.4 — colours YOUR basic lands 
 });
 
 describe("Meteor Crater (CR 605.1a / 105.2 — a COLOUR OF a permanent you control)", () => {
-    it("is a land with the modern oracle text", () => {
-        expect(meteorCrater.manaCost).toEqual({});
-        expect(meteorCrater.types).toEqual(["Land"]);
-        expect(meteorCrater.oracleText).toBe(
-            "{T}: Choose a color of a permanent you control. Add one mana of that color."
-        );
-    });
-
-    it("is a mana ability — resolves immediately, never uses the stack (CR 605.3a)", () => {
-        const ability = meteorCrater.activatedAbilities![0];
-        expect(ability.useStack).toBe(false);
-        expect(ability.cost).toEqual({ tap: true });
-    });
-
     it("reads what a permanent IS, not what it produces — a Forest contributes nothing", () => {
         const crater = makeInstance(meteorCrater.id, { controllerId: "p1" });
         const state = makeState({
@@ -702,30 +657,6 @@ function submitLibraryPick(state: GameState, cardInstanceIds: string[]): void {
 }
 
 describe("Skyship Weatherlight (CR 400.7 / 701.13, issue #1947)", () => {
-    it("is a Legendary Artifact with one search-and-exile ETB trigger and one {4},{T} random-retrieval activated ability", () => {
-        expect(skyshipWeatherlight.types).toEqual(["Artifact"]);
-        expect(skyshipWeatherlight.supertypes).toEqual(["Legendary"]);
-        expect(skyshipWeatherlight.manaCost).toEqual({ X: 4 });
-        expect(skyshipWeatherlight.triggeredAbilities).toHaveLength(1);
-        expect(skyshipWeatherlight.triggeredAbilities![0].id).toBe(
-            "skyship-weatherlight-etb"
-        );
-        const ability = skyshipWeatherlight.activatedAbilities![0];
-        expect(ability.id).toBe("skyship-weatherlight-random");
-        expect(ability.cost).toEqual({ mana: { X: 4 }, tap: true });
-        expect(ability.useStack).toBe(true);
-        expect(ability.effects).toEqual([{ op: "randomExileToHand" }]);
-    });
-
-    it("the alternate PLS 133★ print resolves to the same CardDefinition (ADR 0014)", () => {
-        expect(skyshipWeatherlightAlt.definitionId).toBe(
-            skyshipWeatherlight.id
-        );
-        expect(skyshipWeatherlightAlt.setCode).toBe("pls");
-        expect(skyshipWeatherlightAlt.rarity).toBe("rare");
-        expect(skyshipWeatherlightAlt.printId).not.toBe(skyshipWeatherlight.id);
-    });
-
     describe("ETB — search for any number of artifact and/or creature cards, exile + link, then shuffle", () => {
         function libraryOf(owner: "p1" | "p2") {
             return [
@@ -1087,30 +1018,6 @@ function boardWithDomain(n: number, controllerId: "p1" | "p2" = "p1") {
 }
 
 describe("Domain-driven self cost-reduction (CR 601.2f / 702 preamble, issue #1958)", () => {
-    it("Draco: {16} Artifact Creature — Dragon, 9/9, flying, {2} less per basic land type", () => {
-        expect(draco.manaCost).toEqual({ X: 16 });
-        expect(draco.types).toEqual(["Artifact", "Creature"]);
-        expect(draco.subtypes).toEqual(["Dragon"]);
-        expect(draco.power).toBe(9);
-        expect(draco.toughness).toBe(9);
-        expect(draco.staticAbilities).toContain("flying");
-        expect(draco.selfCostReduction).toEqual({
-            costReduction: { perCount: { X: 2 }, countMode: "domain" },
-        });
-    });
-
-    it("Stratadon: {10} Artifact Creature — Beast, 5/5, trample, {1} less per basic land type", () => {
-        expect(stratadon.manaCost).toEqual({ X: 10 });
-        expect(stratadon.types).toEqual(["Artifact", "Creature"]);
-        expect(stratadon.subtypes).toEqual(["Beast"]);
-        expect(stratadon.power).toBe(5);
-        expect(stratadon.toughness).toBe(5);
-        expect(stratadon.staticAbilities).toContain("trample");
-        expect(stratadon.selfCostReduction).toEqual({
-            costReduction: { perCount: { X: 1 }, countMode: "domain" },
-        });
-    });
-
     it.each([
         [0, 16, 10],
         [1, 14, 9],

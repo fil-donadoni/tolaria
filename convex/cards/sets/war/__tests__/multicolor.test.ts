@@ -60,24 +60,6 @@ function activate(
     resolveTopOfStack(state);
 }
 
-describe("Teferi, Time Raveler — loyalty snapshot (CR 306, ADR 0058)", () => {
-    it("is a 4-loyalty legendary Teferi planeswalker, {1}{W}{U}", () => {
-        expect(teferiTimeRaveler.types).toEqual(["Planeswalker"]);
-        expect(teferiTimeRaveler.supertypes).toEqual(["Legendary"]);
-        expect(teferiTimeRaveler.subtypes).toEqual(["Teferi"]);
-        expect(teferiTimeRaveler.loyalty).toBe(4);
-        expect(teferiTimeRaveler.manaCost).toEqual({ generic: 1, W: 1, U: 1 });
-        const abilities = teferiTimeRaveler.activatedAbilities!;
-        expect(abilities.map((a) => a.id)).toEqual([PLUS1, MINUS3]);
-        expect(abilities.map((a) => a.cost.loyalty)).toEqual([1, -3]);
-        // No resolve() anywhere — both abilities + the static are declarative.
-        expect(abilities.every((a) => a.resolve === undefined)).toBe(true);
-        expect(teferiTimeRaveler.staticEffects![0].kind).toBe(
-            "cast-timing-lock"
-        );
-    });
-});
-
 describe("Teferi, Time Raveler — static: opponents cast at sorcery speed (CR 601.3a)", () => {
     // p2 holds Lightning Bolt (an Instant) with the mana to cast it.
     function boltInOppHand() {

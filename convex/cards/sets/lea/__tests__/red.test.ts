@@ -246,19 +246,6 @@ describe("Fireball ({X}{R} — X damage divided, +{1}/target, CR 107.3 / 120.1 /
         expect(state.players[1].life).toBe(20);
     });
 
-    it("declares additionalGenericPerExtraTarget for the cost modifier", () => {
-        // CR 601.2f: the engine uses this value in finalizeTargetSelection to
-        // grow the generic mana cost with each target beyond the first.
-        expect(fireball.additionalGenericPerExtraTarget).toBe(1);
-    });
-
-    it("declares a variable target count with min 1", () => {
-        expect(fireball.targetRequirement).toEqual({
-            type: "any",
-            count: { min: 1 },
-        });
-    });
-
     it("goes to the caster's graveyard after resolving (CR 608.2k)", () => {
         const state = setupState();
         const item = pushSpell(state, fireball.id, "p1", [
@@ -381,11 +368,6 @@ describe("Wheel of Fortune (each player discards hand + draws 7, CR 701.8 / 121.
             })
         );
     }
-
-    it("is a {2}{R} sorcery", () => {
-        expect(wheelOfFortune.manaCost).toEqual({ X: 2, R: 1 });
-        expect(wheelOfFortune.types).toEqual(["Sorcery"]);
-    });
 
     it("discarded cards land in each player's graveyard, then each draws 7", () => {
         // p1: 3 in hand, 0 in graveyard, 10 in library → after resolve:
@@ -1001,10 +983,6 @@ describe("Mana Flare (extra mana on land tap)", () => {
         ).toBe(false);
     });
 
-    it("declares itself a triggered mana ability (CR 605.1b)", () => {
-        expect(manaFlare.triggeredAbilities?.[0]?.manaAbility).toBe(true);
-    });
-
     // CR 605.4 — resolves immediately, off the stack: the extra mana is in the
     // tapping player's pool within the same game action that tapped the land.
     it("resolves immediately without the stack — bonus mana added", () => {
@@ -1056,10 +1034,6 @@ describe("Manabarbs (1 damage on land tap)", () => {
             manaProduced: { R: 1 },
         };
         expect(trig!.matches(ev, self)).toBe(true);
-    });
-
-    it("is NOT a mana ability — its damage trigger is not flagged", () => {
-        expect(manabarbs.triggeredAbilities?.[0]?.manaAbility).toBeFalsy();
     });
 
     // CR 605.1b — a tap trigger that adds NO mana (Manabarbs deals damage) is
@@ -1214,15 +1188,6 @@ describe("Power Surge (each player takes damage = untapped lands at upkeep)", ()
 // ---------------------------------------------------------------------------
 
 describe("Ironclaw Orcs (can't block creatures with power 2 or greater)", () => {
-    it("declares a block-restriction on the card definition", () => {
-        expect(ironclawOrcs.staticEffects).toBeDefined();
-        expect(
-            ironclawOrcs.staticEffects!.some(
-                (e) => e.kind === "block-restriction" && e.side === "blocker"
-            )
-        ).toBe(true);
-    });
-
     it("blocking a 2/2 attacker is illegal", () => {
         const orc = makeInstance(ironclawOrcs.id, {
             id: "orc",
@@ -1369,15 +1334,6 @@ describe("Dwarven Warriors ({T}: target creature with power 2 or less can't be b
         return { state, dw };
     }
 
-    it("declares power ≤ 2 target requirement", () => {
-        const ability = dwarvenWarriors.activatedAbilities?.[0];
-        expect(ability?.targetRequirement).toEqual({
-            type: "Creature",
-            count: 1,
-            powerFilter: { max: 2 },
-        });
-    });
-
     it("activated → grants 'unblockable' to legal target until EOT", () => {
         const { state, dw } = setup(2);
         state.stack.push({
@@ -1442,24 +1398,6 @@ describe("Dwarven Warriors ({T}: target creature with power 2 or less can't be b
 // ---------------------------------------------------------------------------
 
 describe("Smoke (creature-only untap cap, CR 502.1, ADR 0005)", () => {
-    it("is a {2}{R} enchantment declaring a single untap-restriction static effect", () => {
-        expect(smoke.manaCost).toEqual({ R: 2 });
-        expect(smoke.types).toEqual(["Enchantment"]);
-        expect(smoke.staticEffects).toHaveLength(1);
-        const effect = smoke.staticEffects?.[0];
-        expect(effect?.kind).toBe("untap-restriction");
-        if (effect?.kind === "untap-restriction") {
-            expect(effect.maxUntap).toBe(1);
-            expect(effect.filter).toEqual({ types: "Creature" });
-        }
-    });
-
-    it("the printed legacy keyword `limits-creature-untap-to-one` is no longer declared", () => {
-        expect(smoke.staticAbilities ?? []).not.toContain(
-            "limits-creature-untap-to-one"
-        );
-    });
-
     it("with 0 tapped creatures, no prompt — UNTAP auto-resolves to UPKEEP", () => {
         const enchant = makeInstance(smoke.id, { id: "smoke" });
         const land = makeInstance(plains.id, { id: "l1", isTapped: true });
@@ -1751,19 +1689,6 @@ describe("Modal spells (CR 700.2) — Healing Salve / Blue & Red Elemental Blast
             state.players[1].battlefield.find((c) => c.id === "merfolk")
         ).toBeUndefined();
     });
-
-    it("declares Choose-one mode metadata on the card definition", () => {
-        expect(healingSalve.modes).toBeDefined();
-        expect(healingSalve.modes!.length).toBe(2);
-        expect(healingSalve.modes!.map((m) => m.id)).toEqual([
-            "gain-life",
-            "prevent",
-        ]);
-        expect(blueElementalBlast.modes!.map((m) => m.id)).toEqual([
-            "counter",
-            "destroy",
-        ]);
-    });
 });
 
 describe("Sedge Troll (conditional +1/+1 if Swamp + {B}: regen, CR 611/701.15a)", () => {
@@ -1851,23 +1776,9 @@ describe("Sedge Troll (conditional +1/+1 if Swamp + {B}: regen, CR 611/701.15a)"
         expect(getEffectivePower(projected, slimTroll)).toBe(3);
         expect(getEffectiveToughness(projected, slimTroll)).toBe(3);
     });
-
-    it("has {B}: Regenerate activated ability", () => {
-        const ability = sedgeTroll.activatedAbilities?.[0];
-        expect(ability?.id).toBe("sedge-troll-regenerate");
-        expect(ability?.cost).toEqual({ mana: { B: 1 } });
-        expect(ability?.useStack).toBe(true);
-    });
 });
 
 describe("Dwarven Demolition Team ({T}: destroy target Wall)", () => {
-    it("has a tap-activated ability targeting Walls", () => {
-        const ability = dwarvenDemolitionTeam.activatedAbilities?.[0];
-        expect(ability?.id).toBe("dwarven-demolition-team-destroy");
-        expect(ability?.cost).toEqual({ tap: true });
-        expect(ability?.targetRequirement?.subtypeFilter).toBe("Wall");
-    });
-
     it("destroys a target Wall on resolution", () => {
         const ddt = makeInstance(dwarvenDemolitionTeam.id, {
             id: "ddt",
@@ -1904,14 +1815,6 @@ describe("Dwarven Demolition Team ({T}: destroy target Wall)", () => {
 });
 
 describe("twoHeadedGiantOfForiys — can block 2 attackers (CR 509.1a)", () => {
-    it("has trample", () => {
-        expect(twoHeadedGiantOfForiys.staticAbilities).toContain("trample");
-    });
-
-    it("has canBlockAdditional: 1", () => {
-        expect(twoHeadedGiantOfForiys.canBlockAdditional).toBe(1);
-    });
-
     it("getMaxBlockTargets returns 2", () => {
         const giant = makeInstance(twoHeadedGiantOfForiys.id, {
             id: "giant",
@@ -1959,11 +1862,6 @@ describe("twoHeadedGiantOfForiys — can block 2 attackers (CR 509.1a)", () => {
             controllerId: "p2",
         });
         expect(getMaxBlockTargets(giant)).toBe(2);
-    });
-
-    it("4/4 power and toughness", () => {
-        expect(twoHeadedGiantOfForiys.power).toBe(4);
-        expect(twoHeadedGiantOfForiys.toughness).toBe(4);
     });
 });
 
@@ -2300,14 +2198,6 @@ describe("Dragon Whelp (CR 602.5, 603.7a — activation-count delayed sacrifice)
         resolveTopOfStack(state);
     }
 
-    it("declares flying and a {R} pump ability", () => {
-        expect(dragonWhelp.staticAbilities).toContain("flying");
-        const ability = dragonWhelp.activatedAbilities?.[0];
-        expect(ability?.id).toBe(PUMP_ID);
-        expect(ability?.cost).toEqual({ mana: { R: 1 } });
-        expect(ability?.useStack).toBe(true);
-    });
-
     it("pump 3 times → no delayed sacrifice scheduled", () => {
         const { state, whelp } = setup();
         pumpOnce(state, whelp);
@@ -2401,13 +2291,6 @@ describe("Stone Giant (CR 113.1, 611.1b, 603.7a — dynamic toughness target + f
         });
         resolveTopOfStack(state);
     }
-
-    it("declares a tap-cost ability", () => {
-        const ability = stoneGiant.activatedAbilities?.[0];
-        expect(ability?.id).toBe(ABILITY_ID);
-        expect(ability?.cost).toEqual({ tap: true });
-        expect(ability?.useStack).toBe(true);
-    });
 
     it("getTargetRequirement computes toughnessFilter from source power", () => {
         const ability = stoneGiant.activatedAbilities![0];
@@ -2960,14 +2843,6 @@ describe("Raging River (pile combat — CR 509.2 variant, ADR 0012)", () => {
         };
         return { state, atkA, atkB, flyer, g1, g2 };
     }
-
-    it("is a {R}{R} Enchantment with an ATTACKERS_DECLARED trigger", () => {
-        expect(ragingRiver.manaCost).toEqual({ R: 2 });
-        expect(ragingRiver.types).toEqual(["Enchantment"]);
-        expect(ragingRiver.triggeredAbilities?.[0].event).toBe(
-            "ATTACKERS_DECLARED"
-        );
-    });
 
     it("fires on attack, partitions defenders, labels attackers, sets restrictions", () => {
         const { state } = setup();

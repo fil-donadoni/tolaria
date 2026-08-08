@@ -19,18 +19,6 @@ import type { GameState, CardInstanceState } from "../../../../gre/state";
 // not the raw base `CardInstanceState.power`, so mana output tracks the
 // creature as it grows.
 describe("Viridian Joiner (board-conditional mana from own EFFECTIVE power, CR 106.1 / 605.1a / 613.4)", () => {
-    it("is a {2}{G} 1/2 Elf Druid with one {T} manaAmount ability", () => {
-        expect(viridianJoiner.manaCost).toEqual({ X: 2, G: 1 });
-        expect(viridianJoiner.types).toEqual(["Creature"]);
-        expect(viridianJoiner.subtypes).toEqual(["Elf", "Druid"]);
-        expect(viridianJoiner.power).toBe(1);
-        expect(viridianJoiner.toughness).toBe(2);
-        const ability = viridianJoiner.activatedAbilities?.[0];
-        expect(ability?.cost).toEqual({ tap: true });
-        expect(ability?.useStack).toBe(false);
-        expect(typeof ability?.manaAmount).toBe("function");
-    });
-
     it("at base power (no counters), taps for exactly {G} (CR 106.1)", () => {
         const joiner = makeInstance(viridianJoiner.id);
         const battlefield = [joiner];

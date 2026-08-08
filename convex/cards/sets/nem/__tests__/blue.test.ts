@@ -5,8 +5,9 @@
 // wire coverage per § Card testing convention.
 
 import { describe, it, expect } from "vitest";
-import { accumulatedKnowledge, dominate, daze, parallaxTide } from "..";
+import { accumulatedKnowledge, daze, dominate, parallaxTide } from "..";
 import { grizzlyBears, serraAngel } from "../../lea";
+import { lightningBolt } from "../../lea/red";
 import { ornithopter } from "../../atq/colorless";
 import { island } from "../../lea/colorless";
 import { resolveTopOfStack } from "../../../../gre/state";
@@ -22,6 +23,7 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
+import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import { resolveActivated, resolveTrigger, LEFT } from "./helpers";
 
 // Accumulated Knowledge exercises the `count` construct's NEW dynamic-count
@@ -78,6 +80,67 @@ describe("Accumulated Knowledge ({1}{U}: draw 1 + 1 per copy in all graveyards)"
         // Wire format: the drawn hand survives the client projection.
         const projected = projectPublicState(state, 1, "p1");
         expect(projected.players[0].hand.length).toBe(4);
+    });
+});
+
+// Daze — {1}{U} Instant. "Counter target spell unless its controller pays
+// {1}." The `mayPay` Op suspends the spell on a Pay/Skip decision — the smoke
+// sweep can't scenario-generate the mid-resolution PendingChoice, so it's
+// hand-written here for both branches (CR 701.5a / 117.3a).
+describe("Daze (counter unless controller pays {1}, CR 701.5a / 117.3a)", () => {
+    it("declining the payment counters the target spell", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const bolt = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        pushSpell(state, daze.id, "p1", [{ type: "spell", id: bolt.id }]);
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on may-pay
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("may-pay");
+        expect(head.playerId).toBe("p2"); // the TARGET's controller decides
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        expect(state.stack.find((s) => s.id === bolt.id)).toBeUndefined();
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual([bolt.id]);
+        // The bolt never resolved — no damage dealt.
+        expect(state.players[0].life).toBe(20);
+    });
+
+    it("paying {1} lets the spell resolve normally, spending the mana", () => {
+        const p2 = makePlayer("p2", {
+            manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 1 },
+        });
+        const state = makeState({ players: [makePlayer("p1"), p2] });
+        const bolt = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        pushSpell(state, daze.id, "p1", [{ type: "spell", id: bolt.id }]);
+        resolveTopOfStack(state);
+        applyMayPaySubmit(state, { playerId: "p2", accept: true });
+        expect(state.players[1].manaPool.C).toBe(0);
+        // Daze resolved without countering — bolt is still on the stack, now
+        // on top; resolving it deals its damage.
+        expect(state.stack.find((s) => s.id === bolt.id)).toBeDefined();
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(17);
+    });
+
+    it("the countered-and-graveyarded outcome survives the wire-format projection", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const bolt = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        pushSpell(state, daze.id, "p1", [{ type: "spell", id: bolt.id }]);
+        resolveTopOfStack(state);
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[1].graveyard.map((c) => c.id)).toEqual([
+            bolt.id,
+        ]);
+        expect(projected.stack).toHaveLength(0);
     });
 });
 
@@ -243,51 +306,12 @@ describe("Dominate ({X}{1}{U}{U}: gain control of target creature with MV <= X)"
     });
 });
 
-// Daze — {1}{U} Instant. "You may return an Island you control to its owner's
-// hand rather than pay this spell's mana cost. Counter target spell unless its
-// controller pays {1}." (CR 118.9 pitch cost — return an Island, reusing the
-// existing permanent-return leg (Gush's shape); CR 701.5a counter-unless-pay.)
-// The counter-unless-pay effect (mayPay + if + counter) is the shipped Mana
-// Tithe shape, exercised by the interpreter suite + smoke sweep; here we pin the
-// definition shape.
-describe("Daze (pitch: return an Island; counter unless pays {1})", () => {
-    it("declares the return-Island alternative cost and the counter-unless-pay effect", () => {
-        expect(daze.alternativeCosts).toEqual([
-            {
-                id: "pitch-return-island",
-                description: "Return an Island you control to its owner's hand",
-                permanent: {
-                    action: "return",
-                    count: 1,
-                    filter: { subtypes: "Island" },
-                },
-            },
-        ]);
-        expect(daze.targetRequirement).toEqual({ type: "spell", count: 1 });
-        expect(daze.effects?.[0]).toMatchObject({ op: "mayPay" });
-        expect(daze.effects?.[1]).toMatchObject({ op: "if" });
-    });
-});
-
 // Parallax Tide — protocol card (ADR 0028 exile-and-return bundle, resolve()).
 // Fading 5 rides the getDefinition seam; the repeatable "remove a fade counter:
 // exile target land" activation and the leaves-the-battlefield return both use
 // the resolve()-only `exileWithAttachments` / `returnExiledForSource` pair, so
 // it earns hand-written GRE + wire coverage per § Card testing convention.
 describe("Parallax Tide (Fading 5 + remove-fade-counter: exile target land; return on leave, CR 702.32 / 603.7a)", () => {
-    it("declares fading 5, the remove-fade-counter exile ability, and the return trigger", () => {
-        expect(parallaxTide.staticAbilities).toEqual(["fading 5"]);
-        expect(parallaxTide.types).toEqual(["Enchantment"]);
-        const ability = parallaxTide.activatedAbilities![0];
-        expect(ability.cost).toEqual({
-            removeCounter: { type: "fade", count: 1 },
-        });
-        expect(ability.targetRequirement).toEqual({ type: "Land", count: 1 });
-        expect(parallaxTide.triggeredAbilities?.[0].event).toBe(
-            "PERMANENT_LEFT"
-        );
-    });
-
     it("enters with five fade counters (Fading 5 seam injection, ADR 0054)", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],

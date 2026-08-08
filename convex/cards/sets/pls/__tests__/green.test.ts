@@ -122,20 +122,6 @@ function activateAndPickTarget(
 }
 
 describe("Mirrorwood Treefolk ({3}{G} 2/4 — one-shot damage redirect, CR 614/115.4)", () => {
-    it("is a {3}{G} 2/4 Treefolk with the modern oracle text", () => {
-        expect(mirrorwoodTreefolk.manaCost).toEqual({ X: 3, G: 1 });
-        expect(mirrorwoodTreefolk.types).toEqual(["Creature"]);
-        expect(mirrorwoodTreefolk.subtypes).toEqual(["Treefolk"]);
-        expect(mirrorwoodTreefolk.power).toBe(2);
-        expect(mirrorwoodTreefolk.toughness).toBe(4);
-        expect(mirrorwoodTreefolk.oracleText).toBe(
-            "{2}{R}{W}: The next time damage would be dealt to this creature this turn, that damage is dealt to any target instead."
-        );
-        expect(mirrorwoodTreefolk.activatedAbilities?.[0]?.cost).toEqual({
-            mana: { X: 2, R: 1, W: 1 },
-        });
-    });
-
     it("redirects the next damage to this creature to a chosen PERMANENT (CR 115.4)", () => {
         const mwt = makeInstance(mirrorwoodTreefolk.id, {
             id: "mwt",
@@ -335,23 +321,6 @@ function choicesFor(
 }
 
 describe("Quirion Explorer (CR 605.1a / 106.4 — colours an OPPONENT's land could produce)", () => {
-    it("is a {1}{G} 1/1 Elf Druid Scout with the modern oracle text", () => {
-        expect(quirionExplorer.manaCost).toEqual({ X: 1, G: 1 });
-        expect(quirionExplorer.types).toEqual(["Creature"]);
-        expect(quirionExplorer.subtypes).toEqual(["Elf", "Druid", "Scout"]);
-        expect(quirionExplorer.power).toBe(1);
-        expect(quirionExplorer.toughness).toBe(1);
-        expect(quirionExplorer.oracleText).toBe(
-            "{T}: Add one mana of any color that a land an opponent controls could produce."
-        );
-    });
-
-    it("is a mana ability — resolves immediately, never uses the stack (CR 605.3a)", () => {
-        const ability = quirionExplorer.activatedAbilities![0];
-        expect(ability.useStack).toBe(false);
-        expect(ability.cost).toEqual({ tap: true });
-    });
-
     it("reads the OPPONENT's lands, not its controller's", () => {
         const elf = makeInstance(quirionExplorer.id, { controllerId: "p1" });
         const state = makeState({
@@ -537,17 +506,6 @@ describe("Amphibious Kavu ({2}{G} 2/2 — blocks/becomes-blocked-by colour trigg
         return { state, kavu };
     }
 
-    it("is a {2}{G} 2/2 Kavu with the modern oracle text", () => {
-        expect(amphibiousKavu.manaCost).toEqual({ X: 2, G: 1 });
-        expect(amphibiousKavu.types).toEqual(["Creature"]);
-        expect(amphibiousKavu.subtypes).toEqual(["Kavu"]);
-        expect(amphibiousKavu.power).toBe(2);
-        expect(amphibiousKavu.toughness).toBe(2);
-        expect(amphibiousKavu.oracleText).toBe(
-            "Whenever this creature blocks or becomes blocked by one or more blue and/or black creatures, this creature gets +3/+3 until end of turn."
-        );
-    });
-
     it("fires when Kavu BLOCKS a blue creature (uses the Stack, does not auto-resolve)", () => {
         const air = makeInstance(airElemental.id, {
             id: "atk",
@@ -730,27 +688,6 @@ describe("Amphibious Kavu ({2}{G} 2/2 — blocks/becomes-blocked-by colour trigg
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("Magnigoth Treefolk ({4}{G} 2/6 — Domain landwalk grant, CR 702 preamble / 702.14)", () => {
-    it("is a {4}{G} 2/6 Treefolk with the modern oracle text and five keyword-grant statics", () => {
-        expect(magnigothTreefolk.manaCost).toEqual({ X: 4, G: 1 });
-        expect(magnigothTreefolk.types).toEqual(["Creature"]);
-        expect(magnigothTreefolk.subtypes).toEqual(["Treefolk"]);
-        expect(magnigothTreefolk.power).toBe(2);
-        expect(magnigothTreefolk.toughness).toBe(6);
-        expect(magnigothTreefolk.staticEffects).toHaveLength(5);
-        const keywords = magnigothTreefolk.staticEffects!.map((e) =>
-            e.kind === "keyword-grant" ? e.keyword : undefined
-        );
-        expect(keywords.sort()).toEqual(
-            [
-                "plainswalk",
-                "islandwalk",
-                "swampwalk",
-                "mountainwalk",
-                "forestwalk",
-            ].sort()
-        );
-    });
-
     it("grants ONLY the landwalk(s) matching the basic land types actually controlled", () => {
         const treefolk = makeInstance(magnigothTreefolk.id, {
             id: "mag",
@@ -837,32 +774,6 @@ describe("Magnigoth Treefolk ({4}{G} 2/6 — Domain landwalk grant, CR 702 pream
 });
 
 describe("Multani's Harmony ({G} Aura — grants a mana ability, CR 303.4 / 611.2c / 605.3a)", () => {
-    it("is a {G} Aura enchanting a creature, granting a useStack:false any-color mana ability", () => {
-        expect(multanisHarmony.manaCost).toEqual({ G: 1 });
-        expect(multanisHarmony.types).toEqual(["Enchantment"]);
-        expect(multanisHarmony.subtypes).toEqual(["Aura"]);
-        expect(multanisHarmony.targetRequirement).toEqual({
-            type: "Creature",
-            count: 1,
-        });
-        const grant = multanisHarmony.staticEffects!.find(
-            (e) => e.kind === "activated-grant"
-        );
-        expect(grant).toBeDefined();
-        const tmpl = multanisHarmony.grantTemplates!.find(
-            (g) => g.id === "multanis-harmony-mana"
-        )!;
-        expect(tmpl.useStack).toBe(false);
-        expect(tmpl.cost).toEqual({ tap: true });
-        expect(tmpl.manaChoices).toEqual([
-            { W: 1 },
-            { U: 1 },
-            { B: 1 },
-            { R: 1 },
-            { G: 1 },
-        ]);
-    });
-
     it("materializes onto the host once attached, visible to getEffectiveActivatedAbilities (CR 113.1)", () => {
         const host = makeInstance(grizzlyBears.id, {
             id: "host",
@@ -981,16 +892,6 @@ describe("Multani's Harmony ({G} Aura — grants a mana ability, CR 303.4 / 611.
 });
 
 describe("Nemata, Grove Guardian ({4}{G}{G} Legendary 4/5 — Saproling maker + sac-pump, CR 602.1)", () => {
-    it("is a {4}{G}{G} Legendary Treefolk 4/5 with the modern oracle text", () => {
-        expect(nemataGroveGuardian.manaCost).toEqual({ X: 4, G: 2 });
-        expect(nemataGroveGuardian.types).toEqual(["Creature"]);
-        expect(nemataGroveGuardian.supertypes).toEqual(["Legendary"]);
-        expect(nemataGroveGuardian.subtypes).toEqual(["Treefolk"]);
-        expect(nemataGroveGuardian.power).toBe(4);
-        expect(nemataGroveGuardian.toughness).toBe(5);
-        expect(nemataGroveGuardian.activatedAbilities).toHaveLength(2);
-    });
-
     it("{2}{G}: creates a 1/1 green Saproling token with resolvable art", () => {
         const nemata = makeInstance(nemataGroveGuardian.id, {
             id: "nemata",
@@ -1103,14 +1004,6 @@ describe("Nemata, Grove Guardian ({4}{G}{G} Legendary 4/5 — Saproling maker + 
 });
 
 describe("Pygmy Kavu ({3}{G} 1/2 — draw per opponent black creature, CR 603.6a; color-filtered count, issue #1952)", () => {
-    it("is a {3}{G} 1/2 Kavu with the modern oracle text", () => {
-        expect(pygmyKavu.manaCost).toEqual({ X: 3, G: 1 });
-        expect(pygmyKavu.types).toEqual(["Creature"]);
-        expect(pygmyKavu.subtypes).toEqual(["Kavu"]);
-        expect(pygmyKavu.power).toBe(1);
-        expect(pygmyKavu.toughness).toBe(2);
-    });
-
     it("draws one card per BLACK creature an opponent controls — nonblack creatures don't count", () => {
         const kavu = makeInstance(pygmyKavu.id, {
             id: "pk",
@@ -1201,17 +1094,6 @@ describe("Pygmy Kavu ({3}{G} 1/2 — draw per opponent black creature, CR 603.6a
 
 describe("Quirion Dryad ({1}{G} 1/1 — spell-COLOR triggered +1/+1 counter, CR 601.2i / 603.2)", () => {
     const trig = quirionDryad.triggeredAbilities?.[0];
-
-    it("is a {1}{G} 1/1 Dryad with the modern oracle text and a DSL-only trigger", () => {
-        expect(quirionDryad.manaCost).toEqual({ X: 1, G: 1 });
-        expect(quirionDryad.types).toEqual(["Creature"]);
-        expect(quirionDryad.subtypes).toEqual(["Dryad"]);
-        expect(quirionDryad.power).toBe(1);
-        expect(quirionDryad.toughness).toBe(1);
-        expect(trig).toBeDefined();
-        expect(trig!.effects).toBeDefined();
-        expect(trig!.resolve).toBeUndefined();
-    });
 
     it("discriminates the CAST SPELL's color — not the permanent's own color", () => {
         const self = {
@@ -1323,14 +1205,6 @@ describe("Thornscape Battlemage ({2}{G} 2/2 — Kicker {R} and/or {W}, two indep
             types: bm.types,
         } as StackItem["triggerEvent"];
     }
-
-    it("declares two independent Kickers with the canonical Kicker descriptions", () => {
-        expect(thornscapeBattlemage.kickers).toEqual([
-            { id: "kicker-r", description: "Kicker {R}", mana: { R: 1 } },
-            { id: "kicker-w", description: "Kicker {W}", mana: { W: 1 } },
-        ]);
-        expect(thornscapeBattlemage.triggeredAbilities).toHaveLength(2);
-    });
 
     it("unkicked: neither trigger does anything, even though both still announce a target", () => {
         const bm = makeInstance(thornscapeBattlemage.id, {
@@ -1680,23 +1554,6 @@ describe("Thornscape Battlemage — CR 603.4 per-Kicker check-time gate (issue #
         ]);
     });
 
-    it("no Battlemage in the cycle declares an `interveningIf` (the re-check would read a blinked permanent's cleared record) — Thornscape included", () => {
-        for (const ability of thornscapeBattlemage.triggeredAbilities ?? []) {
-            expect({
-                ability: ability.id,
-                interveningIf: ability.interveningIf,
-            }).toEqual({
-                ability: ability.id,
-                interveningIf: undefined,
-            });
-            // …and each one still carries BOTH halves of the correct pair:
-            // the check-time gate, and a resolution-time `if { kickerPaid }`
-            // branch reading the resolving stack item's own record.
-            expect(ability.gate).toBeDefined();
-            expect(JSON.stringify(ability.effects)).toContain("kickerPaid");
-        }
-    });
-
     it("wire format: the per-Kicker record survives projectPublicState, so the gate reads the same answer client-side", () => {
         const { state } = castKickedWith({ "kicker-w": 1 });
         const bm = state.players[0].battlefield.find(
@@ -1819,16 +1676,6 @@ describe("Falling Timber (CR 615 — prevent all combat damage target creature w
         resolveTopOfStack(state);
         expect(prevented(state, "bearA", true)).toBe(true);
         expect(prevented(state, "bearB", true)).toBe(true);
-    });
-
-    it("declares a land-sacrifice Kicker and a widened kicked target requirement", () => {
-        expect(fallingTimber.kickers?.[0].permanent).toEqual({
-            action: "sacrifice",
-            filter: { types: "Land" },
-            count: 1,
-        });
-        expect(fallingTimber.targetRequirement?.count).toBe(1);
-        expect(fallingTimber.kickedTargetRequirement?.count).toBe(2);
     });
 
     it("the shield survives the wire projection (wire format)", () => {

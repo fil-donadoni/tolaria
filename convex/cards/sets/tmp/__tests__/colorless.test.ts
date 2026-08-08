@@ -43,12 +43,6 @@ function resolveActivated(
 // `dealsDamageToControllerOnColoredTap` rider, firing on EVERY tap
 // regardless of the (here, always colorless) mana produced.
 describe("Ancient Tomb ({T}: Add {C}{C}, self-damage, CR 605.1a / 120)", () => {
-    it("mana ability produces {C}{C} and declares the unconditional damage rider", () => {
-        const ability = ancientTomb.activatedAbilities![0];
-        expect(ability.manaProduced).toEqual({ C: 2 });
-        expect(ability.dealsDamageToControllerOnTap).toBe(2);
-    });
-
     it("tapping for mana deals 2 damage to the controller", () => {
         const tomb = makeInstance(ancientTomb.id, {
             id: "tomb",
@@ -154,20 +148,6 @@ describe("Ancient Tomb ({T}: Add {C}{C}, self-damage, CR 605.1a / 120)", () => {
 
 // Lotus Petal — "{T}, Sacrifice this artifact: Add one mana of any color."
 describe("Lotus Petal ({T}, Sacrifice: any color, CR 605.1a / 701.16)", () => {
-    it("is a {0} artifact with a sacrifice-gated any-color mana ability", () => {
-        expect(lotusPetal.manaCost).toEqual({});
-        expect(lotusPetal.types).toEqual(["Artifact"]);
-        const ability = lotusPetal.activatedAbilities![0];
-        expect(ability.cost).toEqual({ tap: true, sacrifice: true });
-        expect(ability.manaChoices).toEqual([
-            { W: 1 },
-            { U: 1 },
-            { B: 1 },
-            { R: 1 },
-            { G: 1 },
-        ]);
-    });
-
     it("activating for {U} (index 1) sacrifices the petal and adds {U} (CR 701.16)", () => {
         const petal = makeInstance(lotusPetal.id, {
             id: "petal",
@@ -191,18 +171,6 @@ describe("Lotus Petal ({T}, Sacrifice: any color, CR 605.1a / 701.16)", () => {
 });
 
 describe("Wasteland (CR 701.26 mana ability / CR 701.7 destroy nonbasic land)", () => {
-    it("is a Land with a mana ability and a sacrifice-to-destroy ability", () => {
-        expect(wasteland.types).toEqual(["Land"]);
-        expect(wasteland.activatedAbilities).toHaveLength(2);
-        const destroyAbility = wasteland.activatedAbilities!.find(
-            (a) => a.id === "wasteland-destroy"
-        )!;
-        expect(destroyAbility.targetRequirement).toMatchObject({
-            type: "Land",
-            excludeSupertypes: "Basic",
-        });
-    });
-
     it("{T}: Add {C} (CR 106.1)", () => {
         const w = makeInstance(wasteland.id, {
             id: "w",
@@ -371,16 +339,6 @@ describe("Cursed Scroll ({3},{T}: name + random reveal → 2 damage, CR 201.3 / 
             zone: "hand",
         });
     }
-
-    it("definition: {1} rare Artifact, {3}+{T} ability, any target", () => {
-        expect(cursedScroll.manaCost).toEqual({ X: 1 });
-        expect(cursedScroll.types).toEqual(["Artifact"]);
-        expect(cursedScroll.rarity).toBe("rare");
-        const ability = cursedScroll.activatedAbilities![0];
-        expect(ability.cost).toEqual({ tap: true, mana: { X: 3 } });
-        expect(ability.useStack).toBe(true);
-        expect(ability.targetRequirement).toEqual({ type: "any", count: 1 });
-    });
 
     it("one-card hand: the reveal is forced, so naming that card deals 2 (guaranteed)", () => {
         const { state, scroll } = setup([handCard(grizzlyBears, "bears")]);

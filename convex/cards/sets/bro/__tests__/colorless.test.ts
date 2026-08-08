@@ -88,48 +88,6 @@ function choosePortalTarget(
 }
 
 describe("Portal to Phyrexia (CR 603.6a ETB sacrifice + CR 603.3d targeted upkeep reanimation, issue #1965)", () => {
-    it("is a {9} Artifact with an untargeted ETB and a targeted upkeep trigger", () => {
-        expect(portalToPhyrexia.manaCost).toEqual({ X: 9 });
-        expect(portalToPhyrexia.types).toEqual(["Artifact"]);
-        expect(portalToPhyrexia.triggeredAbilities).toHaveLength(2);
-
-        const etb = portalToPhyrexia.triggeredAbilities!.find(
-            (a) => a.id === "portal-to-phyrexia-etb"
-        )!;
-        expect(etb.targetRequirement).toBeUndefined();
-        expect(etb.effects?.[0]).toMatchObject({
-            op: "choice",
-            kind: "sacrifice-permanents",
-            player: "opponent",
-            count: 3,
-        });
-
-        const upkeep = portalToPhyrexia.triggeredAbilities!.find(
-            (a) => a.id === "portal-to-phyrexia-upkeep"
-        )!;
-        // CR 603.3d — a real announced target, "a graveyard" (any player's).
-        expect(upkeep.targetRequirement).toEqual({
-            type: "Creature",
-            count: 1,
-            zone: "graveyard",
-            controller: "any",
-        });
-        expect(upkeep.effects).toEqual([
-            {
-                op: "moveZone",
-                target: { target: 0 },
-                to: "battlefield",
-                controller: "controller",
-                bind: "$reanimated",
-            },
-            {
-                op: "addSubtype",
-                target: { ref: "$reanimated" },
-                subtype: "Phyrexian",
-            },
-        ]);
-    });
-
     it("ETB: each opponent sacrifices three creatures of their choice (CR 701.16)", () => {
         const portal = makeInstance(portalToPhyrexia.id, {
             id: "portal",

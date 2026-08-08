@@ -248,17 +248,6 @@ describe("Fanatic of Rhonas — Eternalize (CR 702.129 / 707.2)", () => {
         tryAutoCommitPendingActivation(state, "p1");
     }
 
-    it("declares the four CR 702.129a seams on the ability itself", () => {
-        // CR 702.129a — functions only from the owner's graveyard, only as a
-        // sorcery, costs the printed mana plus exiling this card, and uses the
-        // stack (it is not a mana ability, CR 605.1a).
-        expect(eternalize.activateFromGraveyard).toBe(true);
-        expect(eternalize.sorcerySpeedOnly).toBe(true);
-        expect(eternalize.cost.exileThis).toBe(true);
-        expect(eternalize.cost.mana).toEqual({ X: 2, G: 2 });
-        expect(eternalize.useStack).toBe(true);
-    });
-
     it("pays by exiling the card from the graveyard as the ability goes on the stack (CR 702.129a / 118.3)", () => {
         const state = graveyardScenario();
         activate(state);

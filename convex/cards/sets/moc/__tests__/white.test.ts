@@ -90,69 +90,6 @@ function attackersDeclaredState(
 }
 
 describe("Guardian Scalelord (Backup 1 + Flying + dynamic power-capped reanimation, CR 702.165/613/603.3d, issue #1378)", () => {
-    it("is a {4}{W} 3/4 Creature — Dragon with Backup 1 and Flying, and exactly two triggered abilities", () => {
-        expect(guardianScalelord.manaCost).toEqual({ X: 4, W: 1 });
-        expect(guardianScalelord.power).toBe(3);
-        expect(guardianScalelord.toughness).toBe(4);
-        expect(guardianScalelord.staticAbilities).toEqual([
-            "backup 1",
-            "flying",
-        ]);
-        expect(guardianScalelord.triggeredAbilities).toHaveLength(2);
-        expect(guardianScalelord.triggeredAbilities!.map((a) => a.id)).toEqual([
-            "backup-1",
-            "guardian-scalelord-attack",
-        ]);
-    });
-
-    // CR 702.165c (issue #1665) — Backup grants EVERY non-backup ability
-    // printed below the line. The end-to-end proof (the recipient actually
-    // firing the granted trigger, capped by ITS power) lives in
-    // `convex/cards/abilities/triggers/__tests__/backupTrigger.test.ts`; this
-    // pins the DEFINITION wiring that makes it possible.
-    it("Backup 1 grants BOTH Flying and the printed attack trigger (CR 702.165c)", () => {
-        // The granted template is the SAME object the card prints on itself —
-        // identical by construction, so the copy can never drift.
-        expect(guardianScalelord.triggeredGrantTemplates).toEqual([
-            ATTACK_TRIGGER,
-        ]);
-        const backup = guardianScalelord.triggeredAbilities!.find(
-            (a) => a.id === "backup-1"
-        )!;
-        // Reminder text says "abilities" (plural) precisely because there are
-        // two of them below the Backup line.
-        expect(backup.oracleText).toBe(
-            "Backup 1 (When this creature enters, put a +1/+1 counter on target creature. If that's another creature, it gains the following abilities until end of turn.)"
-        );
-        // The gated grant emits one `grantAbility` Op per granted ability: the
-        // keyword leg (`ability`) and the triggered leg (`grantedTriggeredId`).
-        const gate = backup.effects!.find((op) => op.op === "if")!;
-        expect(gate.then).toEqual([
-            {
-                op: "grantAbility",
-                target: { target: 0 },
-                ability: "flying",
-                duration: { phase: "end-of-turn" },
-            },
-            {
-                op: "grantAbility",
-                target: { target: 0 },
-                grantedTriggeredId: "guardian-scalelord-attack",
-                duration: { phase: "end-of-turn" },
-            },
-        ]);
-    });
-
-    it("attack trigger's targetRequirement: nonland permanent card (type list + excludeTypes), mana value at most the source's power", () => {
-        expect(ATTACK_TRIGGER.event).toBe("ATTACKERS_DECLARED");
-        expect(ATTACK_TRIGGER.targetRequirement?.zone).toBe("graveyard");
-        expect(ATTACK_TRIGGER.targetRequirement?.controller).toBe("you");
-        expect(ATTACK_TRIGGER.targetRequirement?.excludeTypes).toBe("Land");
-        expect(ATTACK_TRIGGER.targetRequirement?.mvFilter).toEqual({
-            max: "sourcePower",
-        });
-    });
-
     it("legal targets at power 3: the mv-2 creature qualifies; the mv-6 creature, the plain land, and a DUAL-TYPED land Creature do not", () => {
         const { state } = attackersDeclaredState({ power: 3 });
         const legal = getLegalTargets(

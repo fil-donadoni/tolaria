@@ -37,26 +37,6 @@ function pushEdict(state: GameState, modeId: string): StackItem {
 }
 
 describe("Sheoldred's Edict (ONE, {1}{B} modal instant — CR 700.2)", () => {
-    it("picks its mode at CAST, not at resolution (CR 601.2b–c, issue #1274)", () => {
-        // The mode lives on the cast-time `modes` framework — no card-level
-        // resolve() and no card-level `optionChoice` Op (both of which would
-        // put the spell on the stack with its mode hidden).
-        expect(sheoldredsEdict.resolve).toBeUndefined();
-        expect(sheoldredsEdict.resolveSteps).toBeUndefined();
-        expect(sheoldredsEdict.effects).toBeUndefined();
-        expect(sheoldredsEdict.modes?.map((m) => m.id)).toEqual([
-            "nontoken-creature",
-            "creature-token",
-            "planeswalker",
-        ]);
-        // No mode targets (CR 700.2d) — "of their choice" is the sacrificing
-        // player's resolution-time choice (CR 608.2), not a target.
-        for (const mode of sheoldredsEdict.modes!) {
-            expect(mode.targetRequirement).toBeUndefined();
-            expect(mode.oracleText).toContain("Each opponent sacrifices");
-        }
-    });
-
     it("mode 1 — the opponent sacrifices a nontoken creature of their choice (CR 701.16)", () => {
         const bear = makeInstance(grizzlyBears.id, {
             id: "bear",

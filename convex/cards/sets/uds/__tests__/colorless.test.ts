@@ -13,14 +13,6 @@ import type { CardDefinition } from "../../../types";
 import { collectTriggers } from "../../../../gre/triggers";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
-
-// Powder Keg (Premodern SB, PRD #979 / issue #997; homed in its real Urza's
-// Destiny printing per issue #1027). A DSL card that earns a dedicated GRE test
-// because it exercises a NOVEL interaction: reading a source's counter count as
-// LAST-KNOWN information AFTER the source has been sacrificed as an activation
-// COST (CR 608.2g). The interpreter's `counters` EffectValue gained an
-// off-battlefield `$source` fallback for exactly this card.
-const FUSE_TRIGGER = "powder-keg-fuse";
 const DETONATE = "powder-keg-detonate";
 
 type UpkeepEvent = Parameters<typeof collectTriggers>[1][number];
@@ -121,17 +113,6 @@ function activateDetonate(
 }
 
 describe("Powder Keg (uds, issue #997 / #1027)", () => {
-    it("declares its two halves (optional upkeep counter + activated sweep)", () => {
-        expect(powderKeg.name).toBe("Powder Keg");
-        expect(powderKeg.types).toEqual(["Artifact"]);
-        expect(powderKeg.triggeredAbilities?.[0]?.id).toBe(FUSE_TRIGGER);
-        expect(powderKeg.activatedAbilities?.[0]?.id).toBe(DETONATE);
-        expect(powderKeg.activatedAbilities?.[0]?.cost).toEqual({
-            tap: true,
-            sacrifice: true,
-        });
-    });
-
     describe("upkeep fuse-counter accrual (CR 603.5 optional, CR 122.1)", () => {
         it("adds one fuse counter when the controller accepts", () => {
             const keg = makeInstance(powderKeg.id, {

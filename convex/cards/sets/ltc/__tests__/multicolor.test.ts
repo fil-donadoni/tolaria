@@ -9,16 +9,6 @@ import type { GameState } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
 
 describe("Forth Eorlingas! — X tokens + delayed monarch grab (CR 720.2, issue #1199)", () => {
-    it("is registered with the modern Oracle text (LTC, not the paraphrased LTR text)", () => {
-        expect(forthEorlingas.manaCost).toEqual({ X: "X", R: 1, W: 1 });
-        expect(forthEorlingas.types).toEqual(["Sorcery"]);
-        expect(forthEorlingas.oracleText).toBe(
-            "Create X 2/2 red Human Knight creature tokens with trample and haste.\nWhenever one or more creatures you control deal combat damage to one or more players this turn, you become the monarch."
-        );
-        expect(forthEorlingas.resolve).toBeUndefined();
-        expect(forthEorlingas.effects).toBeDefined();
-    });
-
     it("creates X 2/2 red Human Knight tokens with trample and haste", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],

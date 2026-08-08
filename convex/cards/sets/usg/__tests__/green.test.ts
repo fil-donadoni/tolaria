@@ -31,18 +31,6 @@ function answer(state: GameState, picks: string[]): void {
 describe("Argothian Enchantress (draw on enchantment cast, CR 603.2 / 601.2i / 121.1)", () => {
     const trig = argothianEnchantress.triggeredAbilities?.[0];
 
-    it("ships the shroud keyword (CR 702.18) on the printed definition", () => {
-        expect(argothianEnchantress.staticAbilities).toContain("shroud");
-    });
-
-    it("trigger is a DSL Effect Script (mandatory draw), not a resolve closure", () => {
-        expect(trig).toBeDefined();
-        expect(trig!.effects).toEqual([
-            { op: "draw", player: "controller", count: 1 },
-        ]);
-        expect(trig!.resolve).toBeUndefined();
-    });
-
     it("matches enchantment spells you cast, not creatures or opponents' spells", () => {
         const self = {
             id: "aEn",

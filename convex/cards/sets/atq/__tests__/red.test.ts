@@ -113,10 +113,6 @@ describe("Detonate ({X}{R} — destroy artifact of mv X, X damage to controller,
             state.players[1].battlefield.find((c) => c.id === "engine")
         ).toBeUndefined();
     });
-
-    it("declares mvFilter equals X on the target requirement", () => {
-        expect(detonate.targetRequirement?.mvFilter).toEqual({ equals: "X" });
-    });
 });
 
 describe("Shatterstorm (destroy all artifacts, no regen, CR 701.7 / 701.15c)", () => {
@@ -226,12 +222,6 @@ describe("Artifact Blast (counter target artifact spell, CR 701.5a / 114.1)", ()
         expect(ids).toContain(artifactSpell.id);
         expect(ids).not.toContain(instantSpell.id);
     });
-
-    it("declares spellTypeFilter Artifact on the target requirement", () => {
-        expect(artifactBlast.targetRequirement?.spellTypeFilter).toBe(
-            "Artifact"
-        );
-    });
 });
 
 // Goblin Artisans (CR 705 coin flip → draw / counter own artifact spell)
@@ -340,12 +330,6 @@ describe("Goblin Artisans ({T}: flip → draw / counter own artifact spell)", ()
 // ---------------------------------------------------------------------------
 
 describe("Atog (CR 602.1 — sacrifice an artifact: +2/+2)", () => {
-    it("declares the filtered sacrifice cost", () => {
-        const ability = atog.activatedAbilities![0];
-        expect(ability.cost.sacrificeFilter).toEqual({ types: "Artifact" });
-        expect(ability.cost.sacrifice).toBeUndefined();
-    });
-
     it("pumps the source +2/+2 until end of turn on resolution", () => {
         const at = makeInstance(atog.id, { id: "atog-1" });
         const state = makeState({
@@ -381,12 +365,6 @@ describe("Atog (CR 602.1 — sacrifice an artifact: +2/+2)", () => {
 });
 
 describe("Orcish Mechanics (CR 602.1 — {T}, sac artifact: 2 dmg any target)", () => {
-    it("declares tap + artifact sacrifice cost", () => {
-        const ability = orcishMechanics.activatedAbilities![0];
-        expect(ability.cost.tap).toBe(true);
-        expect(ability.cost.sacrificeFilter).toEqual({ types: "Artifact" });
-    });
-
     it("deals 2 damage to a target player on resolution", () => {
         const mech = makeInstance(orcishMechanics.id, { id: "mech-1" });
         const state = makeState({
@@ -403,14 +381,6 @@ describe("Orcish Mechanics (CR 602.1 — {T}, sac artifact: 2 dmg any target)", 
 });
 
 describe("Dwarven Weaponsmith (CR 602.5b — upkeep-only +1/+1 counter)", () => {
-    it("declares upkeep timing + controller-turn + tap/sac cost", () => {
-        const ability = dwarvenWeaponsmith.activatedAbilities![0];
-        expect(ability.activationPhaseRestriction).toEqual(["UPKEEP"]);
-        expect(ability.controllerTurnOnly).toBe(true);
-        expect(ability.cost.tap).toBe(true);
-        expect(ability.cost.sacrificeFilter).toEqual({ types: "Artifact" });
-    });
-
     it("puts a +1/+1 counter on a target creature on resolution", () => {
         const smith = makeInstance(dwarvenWeaponsmith.id, { id: "smith-1" });
         const target = makeInstance(ornithopter.id, { id: "orn-tgt" });

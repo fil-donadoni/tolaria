@@ -23,11 +23,6 @@ const lib = (ids: string[]) =>
     );
 
 describe("Preordain (scry 2 then draw; CR 701.42 / 121.1)", () => {
-    it("is a {U} sorcery", () => {
-        expect(preordain.manaCost).toEqual({ U: 1 });
-        expect(preordain.types).toEqual(["Sorcery"]);
-    });
-
     it("puts a chosen looked-at card on the bottom, keeps the other on top, then draws it", () => {
         const state = makeState({
             players: [

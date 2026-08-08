@@ -19,15 +19,6 @@ function epicureEntered(instanceId: string, controllerId: string) {
 }
 
 describe("Voldaren Epicure (CR 603.6a self-ETB, 120.1 damage, 111/701.7 token — issue #778)", () => {
-    it("definitional: 1/1 Vampire for {R}", () => {
-        expect(voldarenEpicure.manaCost).toEqual({ R: 1 });
-        expect(voldarenEpicure.types).toEqual(["Creature"]);
-        expect(voldarenEpicure.subtypes).toEqual(["Vampire"]);
-        expect(voldarenEpicure.power).toBe(1);
-        expect(voldarenEpicure.toughness).toBe(1);
-        expect(voldarenEpicure.triggeredAbilities).toHaveLength(1);
-    });
-
     it("ETB deals 1 damage to each opponent and creates a Blood token with its real ability", () => {
         const epicure = makeInstance(voldarenEpicure.id, {
             id: "epicure-1",

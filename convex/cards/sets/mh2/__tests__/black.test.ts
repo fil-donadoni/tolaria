@@ -70,15 +70,6 @@ registerTokenDefinition({
 //     surface this issue ships: the `choose-exile-card` choice kind, the
 //     `hasCounter` filter, `sorcerySpeedOnly`, and the free-cast waiver.
 describe("Dauthi Voidwalker (CR 601.3e / 702.28, issue #1156)", () => {
-    it("is a {1}{B} 3/2 Dauthi Rogue with shadow", () => {
-        expect(dauthiVoidwalker.manaCost).toEqual({ B: 2 });
-        expect(dauthiVoidwalker.types).toEqual(["Creature"]);
-        expect(dauthiVoidwalker.subtypes).toEqual(["Dauthi", "Rogue"]);
-        expect(dauthiVoidwalker.power).toBe(3);
-        expect(dauthiVoidwalker.toughness).toBe(2);
-        expect(dauthiVoidwalker.staticAbilities).toContain("shadow");
-    });
-
     describe("ability 1 — graveyard-bound void-exile (shipped mechanism, issue #1145)", () => {
         it("redirects an OPPONENT's discarded card into exile with a void counter instead of the graveyard", () => {
             const dauthi = makeInstance(dauthiVoidwalker.id, {
@@ -196,14 +187,6 @@ describe("Dauthi Voidwalker (CR 601.3e / 702.28, issue #1156)", () => {
     });
 
     describe("ability 2 — {T}, Sacrifice: free-cast an opponent's void-countered exile card (issue #1156)", () => {
-        it("declares {T}+sacrifice cost and sorcerySpeedOnly", () => {
-            const ability = dauthiVoidwalker.activatedAbilities?.[0];
-            expect(ability).toBeDefined();
-            expect(ability!.cost).toEqual({ tap: true, sacrifice: true });
-            expect(ability!.sorcerySpeedOnly).toBe(true);
-            expect(ability!.useStack).toBe(true);
-        });
-
         it("chooses the void-countered card an OPPONENT owns and grants a free cast — filtering out a plain exiled card and the caster's OWN void-countered card", () => {
             const dauthi = makeInstance(dauthiVoidwalker.id, {
                 id: "dauthi3",

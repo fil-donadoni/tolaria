@@ -23,11 +23,6 @@ const lib = (ids: string[]) =>
     );
 
 describe("Stock Up (look 5, two to hand, rest to bottom; CR 401.4 / 401)", () => {
-    it("is a {2}{U} sorcery", () => {
-        expect(stockUp.manaCost).toEqual({ X: 2, U: 1 });
-        expect(stockUp.types).toEqual(["Sorcery"]);
-    });
-
     it("puts two chosen cards into hand and the rest on the bottom", () => {
         const state = makeState({
             players: [

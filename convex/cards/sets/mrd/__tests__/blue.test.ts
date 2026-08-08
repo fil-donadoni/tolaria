@@ -80,18 +80,6 @@ function boardWith(
 }
 
 describe("Thoughtcast — Affinity for artifacts (CR 702.41a)", () => {
-    it("definition: {4}{U} Sorcery declaring the affinity keyword + its reduction", () => {
-        expect(thoughtcast.manaCost).toEqual({ X: 4, U: 1 });
-        expect(thoughtcast.types).toEqual(["Sorcery"]);
-        expect(thoughtcast.staticAbilities).toEqual(["affinity for artifacts"]);
-        expect(thoughtcast.selfCostReduction).toEqual({
-            costReduction: {
-                perCount: { X: 1 },
-                countFilter: { types: "Artifact" },
-            },
-        });
-    });
-
     it("is reachable through the card registry by name", () => {
         expect(getCardByName("Thoughtcast")?.id).toBe(thoughtcast.id);
     });

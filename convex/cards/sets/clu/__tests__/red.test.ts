@@ -45,14 +45,6 @@ function pushTrigger(
 }
 
 describe("Headliner Scarlett (CR 603.6a ETB block-lock + CR 603.6a upkeep impulse)", () => {
-    it("is a {3}{R} 3/3 Legendary Human Warlock with haste", () => {
-        expect(headlinerScarlett.manaCost).toEqual({ X: 3, R: 1 });
-        expect(headlinerScarlett.power).toBe(3);
-        expect(headlinerScarlett.toughness).toBe(3);
-        expect(headlinerScarlett.staticAbilities).toEqual(["haste"]);
-        expect(headlinerScarlett.supertypes).toEqual(["Legendary"]);
-    });
-
     it("ETB sets every opposing creature to can't block this turn", () => {
         const scarlett = makeInstance(headlinerScarlett.id, {
             id: "scarlett",

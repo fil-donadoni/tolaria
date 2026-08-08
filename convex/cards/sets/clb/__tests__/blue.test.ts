@@ -28,7 +28,6 @@ import {
 } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
-import { PERMANENT_TYPES } from "../../../types";
 import { displacerKitten } from "../blue";
 import { lightningBolt } from "../../lea/red";
 import { balduvianBears } from "../../ice/green";
@@ -77,38 +76,6 @@ function kittenOn(controllerId: string): CardInstanceState {
         ownerId: controllerId,
     });
 }
-
-describe("Displacer Kitten — definition (CLB, issue #1375)", () => {
-    it("pins mana cost, stats, subtypes, and declares NO keyword (Avoidance is an ability word)", () => {
-        expect(displacerKitten.manaCost).toEqual({ X: 3, U: 1 });
-        expect(displacerKitten.types).toEqual(["Creature"]);
-        expect(displacerKitten.subtypes).toEqual(["Cat", "Beast"]);
-        expect(displacerKitten.power).toBe(2);
-        expect(displacerKitten.toughness).toBe(2);
-        expect(displacerKitten.staticAbilities).toBeUndefined();
-    });
-
-    it("declares the CR 603.3d target requirement: up to one nonland permanent YOU control", () => {
-        expect(
-            displacerKitten.triggeredAbilities?.[0]?.targetRequirement
-        ).toEqual({
-            type: [...PERMANENT_TYPES],
-            count: { min: 0, max: 1 },
-            excludeTypes: "Land",
-            controller: "you",
-        });
-    });
-
-    it("is DSL-first (ADR 0045): the blink is an exile-bind + moveZone-ref pair, no resolve()", () => {
-        const ability = displacerKitten.triggeredAbilities?.[0];
-        expect(ability?.id).toBe(ABILITY_ID);
-        expect(ability?.resolve).toBeUndefined();
-        expect(ability?.effects).toEqual([
-            { op: "exile", target: { target: 0 }, bind: "$c" },
-            { op: "moveZone", target: { ref: "$c" }, to: "battlefield" },
-        ]);
-    });
-});
 
 describe("Displacer Kitten — trigger condition (CR 603.2 / 601.2i)", () => {
     it("fires when its controller casts a NONCREATURE spell", () => {

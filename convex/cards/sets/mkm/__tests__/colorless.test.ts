@@ -45,25 +45,6 @@ describe("MKM surveil lands (CR 701.44)", () => {
         }
     });
 
-    it("each is a two-basic-subtype land that enters tapped", () => {
-        for (const { card, subtypes } of CYCLE) {
-            expect(card.types).toEqual(["Land"]);
-            expect(card.subtypes).toEqual(subtypes);
-            expect(card.entersTapped).toBe(true);
-            // No fast-land / shock-land entry condition on a surveil land.
-            expect(card.entersTappedUnless).toBeUndefined();
-            expect(card.entersTappedUnlessPay).toBeUndefined();
-        }
-    });
-
-    it("taps for one of its two colors (dual mana ability)", () => {
-        const ability = undercitySewers.activatedAbilities![0];
-        expect(ability.cost).toEqual({ tap: true });
-        expect(ability.useStack).toBe(false);
-        // Undercity Sewers — {T}: Add {U} or {B}.
-        expect(ability.manaChoices).toEqual([{ U: 1 }, { B: 1 }]);
-    });
-
     it("carries a self-ETB surveil 1 trigger (scryReorder → graveyard)", () => {
         const trigger = undercitySewers.triggeredAbilities![0];
         expect(trigger.event).toBe("PERMANENT_ENTERED");

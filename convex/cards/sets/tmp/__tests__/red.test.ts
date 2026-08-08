@@ -141,14 +141,6 @@ describe("Mogg Fanatic (sacrifice-for-effect, CR 602.1 / 701.21 / 120.1)", () =>
 // (`damage.amount`) — hence the imperative resolve (not DSL-migratable, ADR
 // 0045; the EVENT_FIELD_REGISTRY has no numeric family).
 describe("Jackal Pup (self-damage drawback, CR 120.3 / 603.4)", () => {
-    it("has the right P/T and mana cost (2/1 for {R})", () => {
-        expect(jackalPup.power).toBe(2);
-        expect(jackalPup.toughness).toBe(1);
-        expect(jackalPup.manaCost).toEqual({ R: 1 });
-        expect(jackalPup.types).toContain("Creature");
-        expect(jackalPup.triggeredAbilities?.[0]?.event).toBe("DAMAGE_DEALT");
-    });
-
     it("redirects lethal damage to its controller — a bolt that kills it still pings you (CR 603.10 LKI)", () => {
         const pup = makeInstance(jackalPup.id, {
             id: "pup",

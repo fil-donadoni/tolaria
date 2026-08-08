@@ -73,13 +73,6 @@ describe("Argivian Archaeologist ({W}{W},{T}: return artifact from graveyard, CR
         );
         expect(state.players[0].hand.some((c) => c.id === "art")).toBe(true);
     });
-
-    it("is a 1/1 creature (not an artifact) costing {1}{W}{W}", () => {
-        expect(argivianArchaeologist.types).toEqual(["Creature"]);
-        expect(argivianArchaeologist.power).toBe(1);
-        expect(argivianArchaeologist.toughness).toBe(1);
-        expect(argivianArchaeologist.manaCost).toEqual({ X: 1, W: 2 });
-    });
 });
 
 describe("Argivian Blacksmith (prevent next 2 to target creature, CR 615.1)", () => {
@@ -105,11 +98,6 @@ describe("Argivian Blacksmith (prevent next 2 to target creature, CR 615.1)", ()
 
 // Circle of Protection: Artifacts (CR 615.1 source-prevention via COP factory)
 describe("Circle of Protection: Artifacts (CR 615.1)", () => {
-    it("is a {1}{W} enchantment built from the COP factory", () => {
-        expect(circleOfProtectionArtifacts.types).toEqual(["Enchantment"]);
-        expect(circleOfProtectionArtifacts.manaCost).toEqual({ X: 1, W: 1 });
-    });
-
     it("registers an end-of-turn prevention against the chosen artifact source", () => {
         const cop = makeInstance(circleOfProtectionArtifacts.id, { id: "cop" });
         const state = makeState({

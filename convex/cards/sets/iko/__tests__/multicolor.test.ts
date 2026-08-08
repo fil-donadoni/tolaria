@@ -26,35 +26,6 @@ import {
 } from "../../../../gre/rules";
 
 describe("Lutri, the Spellchaser (Companion, Flash, CR 603.6a copy-on-cast ETB)", () => {
-    it("pins the definition (companion + flash keywords, targeted spell-you-control ETB)", () => {
-        expect(lutri.staticAbilities).toEqual(["companion", "flash"]);
-        expect(lutri.types).toEqual(["Creature"]);
-        // CR 205.4a — type line is "Legendary Creature — Elemental Otter"
-        // (Scryfall); regression pin for the missing-supertype bug (legend
-        // rule, CR 704.5j, never applied without this).
-        expect(lutri.supertypes).toEqual(["Legendary"]);
-        expect(lutri.subtypes).toEqual(["Elemental", "Otter"]);
-        expect(lutri.power).toBe(3);
-        expect(lutri.toughness).toBe(2);
-        // Printed cost is the hybrid {1}{U/R}{U/R} — declared via
-        // `manaCost.hybrid` (issue #1338), payable with mana off either
-        // colour of land (#1738/#1739, landed #1755).
-        expect(lutri.manaCost).toEqual({
-            generic: 1,
-            hybrid: [
-                ["U", "R"],
-                ["U", "R"],
-            ],
-        });
-        const etb = lutri.triggeredAbilities?.find((a) => a.id === "lutri-etb");
-        expect(etb?.targetRequirement).toEqual({
-            type: "spell",
-            count: 1,
-            spellTypeFilter: ["Instant", "Sorcery"],
-            controller: "you",
-        });
-    });
-
     it("when CAST, copies a target instant/sorcery spell it controls (CR 707.10)", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
@@ -171,31 +142,6 @@ describe("Lutri, the Spellchaser (Companion, Flash, CR 603.6a copy-on-cast ETB)"
 });
 
 describe("Lurrus of the Dream-Den (Companion, Lifelink, static graveyard-permanent-cast permission, issue #1392)", () => {
-    it("pins the definition (companion + lifelink keywords, castsPermanentsFromGraveyard cap)", () => {
-        expect(lurrus.staticAbilities).toEqual(["companion", "lifelink"]);
-        expect(lurrus.types).toEqual(["Creature"]);
-        // CR 205.4a — type line is "Legendary Creature — Cat Nightmare"
-        // (Scryfall); regression pin for the missing-supertype bug (legend
-        // rule, CR 704.5j, never applied without this).
-        expect(lurrus.supertypes).toEqual(["Legendary"]);
-        expect(lurrus.subtypes).toEqual(["Cat", "Nightmare"]);
-        expect(lurrus.power).toBe(3);
-        expect(lurrus.toughness).toBe(2);
-        // Printed cost is the hybrid {1}{W/B}{W/B} — declared via
-        // `manaCost.hybrid` (issue #1338), payable with mana off either
-        // colour of land (#1738/#1739, landed #1755).
-        expect(lurrus.manaCost).toEqual({
-            generic: 1,
-            hybrid: [
-                ["W", "B"],
-                ["W", "B"],
-            ],
-        });
-        expect(lurrus.castsPermanentsFromGraveyard).toEqual({
-            maxManaValue: 2,
-        });
-    });
-
     it("while on the battlefield, grants the once-per-turn graveyard-permanent-cast permission (CR 702.139) — full GRE + wire coverage lives in gre/__tests__/graveyardPermanentCastPermission.test.ts", () => {
         const lurrusOnBattlefield = makeInstance(lurrus.id, {
             controllerId: "p1",

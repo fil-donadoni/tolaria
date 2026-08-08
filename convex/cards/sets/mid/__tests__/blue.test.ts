@@ -29,11 +29,6 @@ const lib = (ids: string[]) =>
     );
 
 describe("Consider (surveil 1 then draw; CR 701.25 / 121.1)", () => {
-    it("is a {U} instant", () => {
-        expect(consider.manaCost).toEqual({ U: 1 });
-        expect(consider.types).toEqual(["Instant"]);
-    });
-
     it("keeping the top card on top draws it (surveil into graveyard declined)", () => {
         const state = makeState({
             players: [

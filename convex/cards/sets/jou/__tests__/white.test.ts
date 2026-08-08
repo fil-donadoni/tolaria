@@ -11,7 +11,6 @@ import { banishingLight } from "..";
 import { grizzlyBears, flight } from "../../lea";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { getDefinition, getCardByName } from "../../..";
-import { PERMANENT_TYPES } from "../../../types";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     removePermanentTo,
@@ -107,29 +106,9 @@ function chooseExileTarget(state: GameState, targetId: string): void {
 }
 
 describe("Banishing Light (JOU — exile-until-leaves, CR 603.6a/603.7a)", () => {
-    it("is a {2}{W} Enchantment with the modern oracle text", () => {
-        expect(banishingLight.manaCost).toEqual({ X: 2, W: 1 });
-        expect(banishingLight.types).toEqual(["Enchantment"]);
-        expect(banishingLight.rarity).toBe("uncommon");
-        expect(banishingLight.oracleText).toBe(
-            "When this enchantment enters, exile target nonland permanent an opponent controls until this enchantment leaves the battlefield."
-        );
-    });
-
     it("registers by id and name", () => {
         expect(getDefinition(banishingLight.id)).toBe(banishingLight);
         expect(getCardByName("Banishing Light")).toBe(banishingLight);
-    });
-
-    it("declares the CR 603.3d target requirement: one nonland permanent an opponent controls", () => {
-        expect(
-            banishingLight.triggeredAbilities?.[0]?.targetRequirement
-        ).toEqual({
-            type: [...PERMANENT_TYPES],
-            count: 1,
-            excludeTypes: "Land",
-            controller: "opponent",
-        });
     });
 
     it("ETB exiles ONLY the chosen permanent: its Aura dies (SBA), nothing else is held (CR 701.18/704.5n)", () => {

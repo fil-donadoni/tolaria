@@ -119,15 +119,3 @@ describe("Sulfuric Vortex — life-gain lock (CR 614 / 118.6)", () => {
         expect(projected.players[0].life).toBe(20);
     });
 });
-
-describe("Sulfuric Vortex — definition snapshot", () => {
-    it("is a {1}{R}{R} red Enchantment with both effects declared", () => {
-        expect(sulfuricVortex.manaCost).toEqual({ X: 1, R: 2 });
-        expect(sulfuricVortex.types).toEqual(["Enchantment"]);
-        expect(sulfuricVortex.triggeredAbilities).toHaveLength(1);
-        expect(sulfuricVortex.replacementEffects).toHaveLength(1);
-        expect(sulfuricVortex.replacementEffects?.[0].eventKind).toBe(
-            "lifegain"
-        );
-    });
-});

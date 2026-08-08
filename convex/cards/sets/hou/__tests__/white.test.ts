@@ -73,21 +73,6 @@ const horses = (state: GameState, playerIndex: number) =>
         (c) => c.id !== "sunmare" && c.subtypes?.includes("Horse")
     );
 
-describe("Crested Sunmare — shape (HOU, issue #1457)", () => {
-    it("is a {3}{W}{W} 5/5 Horse with the lord grant and one end-step trigger", () => {
-        expect(crestedSunmare.manaCost).toEqual({ X: 3, W: 2 });
-        expect(crestedSunmare.types).toEqual(["Creature"]);
-        expect(crestedSunmare.subtypes).toEqual(["Horse"]);
-        expect(crestedSunmare.power).toBe(5);
-        expect(crestedSunmare.toughness).toBe(5);
-        expect(crestedSunmare.triggeredAbilities).toHaveLength(1);
-        // DSL-first (ADR 0045): the trigger's effect is an Effect Script, not
-        // a `resolve()` closure.
-        expect(crestedSunmare.triggeredAbilities?.[0].effects).toBeDefined();
-        expect(crestedSunmare.triggeredAbilities?.[0].resolve).toBeUndefined();
-    });
-});
-
 describe("Crested Sunmare — 'Other Horses you control have indestructible' (CR 611 layer 6)", () => {
     it("grants indestructible to another Horse you control, but not to itself", () => {
         const otherHorse = makeInstance(SUNMARE_ID, {

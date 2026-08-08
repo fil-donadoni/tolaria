@@ -67,19 +67,6 @@ function fireCombatDamage(
 }
 
 describe("Malcolm, Alluring Scoundrel (CR 603.2 combat-damage trigger, CR 122.1/122.6 counters, CR 608.2f cast-during-resolution issue #1477)", () => {
-    it("is a {1}{U} 2/1 Legendary Siren Pirate with Flash and Flying", () => {
-        expect(malcolmAlluringScoundrel.manaCost).toEqual({ X: 1, U: 1 });
-        expect(malcolmAlluringScoundrel.types).toEqual(["Creature"]);
-        expect(malcolmAlluringScoundrel.supertypes).toEqual(["Legendary"]);
-        expect(malcolmAlluringScoundrel.subtypes).toEqual(["Siren", "Pirate"]);
-        expect(malcolmAlluringScoundrel.power).toBe(2);
-        expect(malcolmAlluringScoundrel.toughness).toBe(1);
-        expect(malcolmAlluringScoundrel.staticAbilities).toEqual([
-            "flash",
-            "flying",
-        ]);
-    });
-
     it("puts a chorus counter on itself, draws a card, then discards the chosen card (below the 4-counter threshold: no free cast is granted)", () => {
         const malcolm = makeInstance(malcolmAlluringScoundrel.id, {
             id: "malcolm1",

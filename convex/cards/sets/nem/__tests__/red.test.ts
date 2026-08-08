@@ -191,19 +191,6 @@ describe("Arc Mage — {2}{R} 2/2 Spellshaper, activated divide-as-you-choose (C
         };
     }
 
-    it("definitional: Spellshaper with a tap + discard + {2}{R} divide ability", () => {
-        expect(arcMage.manaCost).toEqual({ X: 2, R: 1 });
-        expect(arcMage.power).toBe(2);
-        expect(arcMage.toughness).toBe(2);
-        expect(arcMage.subtypes).toEqual(["Human", "Spellshaper"]);
-        const ability = arcMage.activatedAbilities![0];
-        expect(ability.cost.tap).toBe(true);
-        expect(ability.cost.mana).toEqual({ X: 2, R: 1 });
-        expect(ability.cost.discardFilter).toEqual({ filter: {}, count: 1 });
-        expect(ability.targetRequirement?.divideAsChosen).toEqual({ total: 2 });
-        expect(ability.targetRequirement?.count).toEqual({ min: 1 });
-    });
-
     it("integration: divides 2 (1/1) across two targets through the real commit path", () => {
         const { state } = setup();
         const pt = abilityPendingTarget(

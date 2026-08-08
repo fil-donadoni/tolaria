@@ -67,13 +67,6 @@ function boardWithSwarm(): { state: GameState; swarm: CardInstanceState } {
 }
 
 describe("Xantid Swarm (SCG, CR 601.3a — defending player can't cast spells this turn)", () => {
-    it("is a {G} 0/1 flyer", () => {
-        expect(xantidSwarm.manaCost).toEqual({ G: 1 });
-        expect(xantidSwarm.power).toBe(0);
-        expect(xantidSwarm.toughness).toBe(1);
-        expect(xantidSwarm.staticAbilities).toContain("flying");
-    });
-
     it("locks the defending player out of casting when it attacks", () => {
         const { state, swarm } = boardWithSwarm();
         expect(state.cannotCastSpellsThisTurn).toBeUndefined();

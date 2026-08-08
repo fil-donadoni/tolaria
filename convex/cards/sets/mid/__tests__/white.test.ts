@@ -43,20 +43,6 @@ function setupState(p1Overrides: Partial<PlayerState> = {}): GameState {
     });
 }
 
-describe("Adeline, Resplendent Cathar — definition (MID 1)", () => {
-    it("pins mana cost, supertype, subtypes, base P/T, and vigilance", () => {
-        expect(adelineResplendentCathar.manaCost).toEqual({ X: 1, W: 2 });
-        expect(adelineResplendentCathar.supertypes).toEqual(["Legendary"]);
-        expect(adelineResplendentCathar.types).toEqual(["Creature"]);
-        expect(adelineResplendentCathar.subtypes).toEqual(["Human", "Knight"]);
-        // Base P/T is 0/4 — power is the CDA delta, toughness is the fixed
-        // printed value (only power is dynamic).
-        expect(adelineResplendentCathar.power).toBe(0);
-        expect(adelineResplendentCathar.toughness).toBe(4);
-        expect(adelineResplendentCathar.staticAbilities).toEqual(["vigilance"]);
-    });
-});
-
 describe("Adeline power CDA (CR 604.3/208.2) — power = creatures you control", () => {
     it("counts HERSELF: a lone Adeline is a 1/4 (no 'other' exclusion)", () => {
         const adeline = makeInstance(adelineResplendentCathar.id, {

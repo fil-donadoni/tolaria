@@ -19,7 +19,6 @@ import {
     adunOakenshield,
     angusMackenzie,
     arcadesSabboth,
-    barktoothWarbeard,
     bartelRuneaxe,
     borisDevilboon,
     chromium,
@@ -28,9 +27,6 @@ import {
     halfdane,
     jacquesLeVert,
     jasmineBoreal,
-    jeditOjanen,
-    jerrardOfTheClosedFist,
-    kasimirTheLoneWolf,
     keiTakahashi,
     ladyOrca,
     livonyaSilone,
@@ -40,16 +36,10 @@ import {
     pendelhaven,
     princessLucrezia,
     ragnar,
-    ramirezDePietro,
     rasputinDreamweaver,
     rivenTurnbull,
-    sirShandlarOfEberyn,
-    sivitriScarzam,
     solkanarTheSwampKing,
     sunastianFalconer,
-    theLadyOfTheMountain,
-    tobiasAndrion,
-    torstenVonUrsus,
     tuknirDeathlock,
     tundraWolves,
     vaevictisAsmadi,
@@ -120,14 +110,6 @@ describe("LEG registry parity", () => {
 // ---------------------------------------------------------------------------
 
 describe("Jasmine Boreal (vanilla legendary creature, CR 205.4a)", () => {
-    it("carries the Legendary supertype with the canonical stats", () => {
-        expect(jasmineBoreal.types).toEqual(["Creature"]);
-        expect(jasmineBoreal.supertypes).toEqual(["Legendary"]);
-        expect(jasmineBoreal.power).toBe(4);
-        expect(jasmineBoreal.toughness).toBe(5);
-        expect(jasmineBoreal.manaCost).toEqual({ X: 3, G: 1, W: 1 });
-    });
-
     it("resolves from the stack onto the battlefield (CR 608.3)", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
@@ -143,14 +125,6 @@ describe("Jasmine Boreal (vanilla legendary creature, CR 205.4a)", () => {
 });
 
 describe("Lady Orca (vanilla legendary creature, CR 205.4a)", () => {
-    it("carries the Legendary supertype with the canonical stats", () => {
-        expect(ladyOrca.types).toEqual(["Creature"]);
-        expect(ladyOrca.supertypes).toEqual(["Legendary"]);
-        expect(ladyOrca.power).toBe(7);
-        expect(ladyOrca.toughness).toBe(4);
-        expect(ladyOrca.manaCost).toEqual({ X: 5, B: 1, R: 1 });
-    });
-
     it("resolves onto the battlefield and survives projection as Legendary", () => {
         // Wire-format guard: the slim projected instance keeps only `{ id }` on
         // card.card, so its Legendary supertype must be recoverable from the
@@ -197,22 +171,6 @@ describe("Livonya Silone (first strike + legendary landwalk, CR 702.7 / 702.13)"
         });
         return { state, attacker, blocker, defenderBattlefield };
     }
-
-    it("has first strike (CR 702.7)", () => {
-        expect(livonyaSilone.staticAbilities).toContain("first strike");
-    });
-
-    it("has the legendary landwalk keyword (CR 702.13)", () => {
-        expect(livonyaSilone.staticAbilities).toContain("legendary landwalk");
-    });
-
-    it("is a 4/4 Legendary Human Warrior costing {2}{R}{R}{G}{G}", () => {
-        expect(livonyaSilone.power).toBe(4);
-        expect(livonyaSilone.toughness).toBe(4);
-        expect(livonyaSilone.supertypes).toEqual(["Legendary"]);
-        expect(livonyaSilone.subtypes).toEqual(["Human", "Warrior"]);
-        expect(livonyaSilone.manaCost).toEqual({ X: 2, R: 2, G: 2 });
-    });
 
     it("can't be blocked while the defender controls a legendary land (CR 702.13)", () => {
         // Pendelhaven is a Legendary Land (CR 205.4) → evasion is live.
@@ -308,32 +266,6 @@ describe("Livonya Silone (first strike + legendary landwalk, CR 702.7 / 702.13)"
 // ---------------------------------------------------------------------------
 
 describe("LEG multicolor vanilla / keyword legendary creatures (CR 205.4a, 702)", () => {
-    it("ships the vanilla legends with canonical stats and supertype", () => {
-        for (const c of [
-            barktoothWarbeard,
-            jeditOjanen,
-            jerrardOfTheClosedFist,
-            kasimirTheLoneWolf,
-            sirShandlarOfEberyn,
-            sivitriScarzam,
-            theLadyOfTheMountain,
-            tobiasAndrion,
-            torstenVonUrsus,
-        ]) {
-            expect(c.supertypes).toContain("Legendary");
-            expect(c.types).toEqual(["Creature"]);
-            expect(c.staticAbilities).toBeUndefined();
-        }
-        expect(barktoothWarbeard.power).toBe(6);
-        expect(barktoothWarbeard.toughness).toBe(5);
-        expect(sirShandlarOfEberyn.toughness).toBe(7);
-    });
-
-    it("Ramirez DePietro has first strike", () => {
-        expect(ramirezDePietro.staticAbilities).toContain("first strike");
-        expect(ramirezDePietro.supertypes).toContain("Legendary");
-    });
-
     it("registers the multicolor cards by name (pool / debug lookup)", () => {
         expect(getCardByName("Dakkon Blackblade")).toBe(dakkonBlackblade);
         expect(getCardByName("Sol'kanar the Swamp King")).toBe(
@@ -942,21 +874,6 @@ describe("legend rule SBA (CR 704.5j)", () => {
 });
 
 describe("Bartel Runeaxe (can't be targeted by Aura spells, CR 109.5)", () => {
-    it("is a vigilant Legendary 6/5 with an Aura-spell guard", () => {
-        expect(bartelRuneaxe.supertypes).toContain("Legendary");
-        expect(bartelRuneaxe.staticAbilities).toContain("vigilance");
-        const guard = bartelRuneaxe.staticEffects?.find(
-            (e) => e.kind === "permanent-guard"
-        ) as
-            | {
-                  targetSourceSubtypeFilter?: string[];
-                  targetSourceMustBeSpell?: boolean;
-              }
-            | undefined;
-        expect(guard?.targetSourceMustBeSpell).toBe(true);
-        expect(guard?.targetSourceSubtypeFilter).toContain("Aura");
-    });
-
     it("blocks an Aura spell but not a non-Aura spell or an Aura ability", () => {
         const bartel = makeInstance(bartelRuneaxe.id, { id: "bartel" });
         const state = makeState({
@@ -1069,12 +986,6 @@ describe("Elder Dragon Legends (upkeep: sacrifice unless pay {C}{C}{C}, CR 603.6
                     state.players[0].battlefield.some((c) => c.id === "dragon")
                 ).toBe(true);
             });
-
-            it("carries the upkeep trigger in its definition", () => {
-                expect(
-                    def.triggeredAbilities?.some((a) => a.id === ability)
-                ).toBe(true);
-            });
         });
     }
 
@@ -1152,14 +1063,6 @@ describe("Elder Dragon Legends (upkeep: sacrifice unless pay {C}{C}{C}, CR 603.6
 });
 
 describe("Nicol Bolas (damage-to-opponent discard, CR 603.2, issue #1831)", () => {
-    it("carries the damage-discard trigger in its definition", () => {
-        expect(
-            nicolBolas.triggeredAbilities?.some(
-                (a) => a.id === "nicol-bolas-damage-discard"
-            )
-        ).toBe(true);
-    });
-
     it("fires only on ITS OWN damage dealt to an opponent — combat or non-combat alike", () => {
         const bolas = makeInstance(nicolBolas.id, {
             id: "bolas",
@@ -1410,23 +1313,9 @@ describe("Arcades Sabboth (anthem + {W} pump, CR 613.4c / 611.1, issue #1830)", 
         expect(getEffectivePower(state, live)).toBe(7); // unchanged
         expect(getEffectiveToughness(state, live)).toBe(10); // 7 + 2 (anthem) + 1 (pump)
     });
-
-    it("carries the {W} activated ability in its definition", () => {
-        expect(
-            arcadesSabboth.activatedAbilities?.some(
-                (a) => a.id === "arcades-sabboth-pump"
-            )
-        ).toBe(true);
-    });
 });
 
 describe("Rasputin Dreamweaver (dream counters: enters with 7, mana / prevent removal, capped regrow, CR 122)", () => {
-    it("enters with seven dream counters (CR 122.1)", () => {
-        expect(rasputinDreamweaver.entersWith?.counters).toEqual([
-            { type: "dream", count: 7 },
-        ]);
-    });
-
     it("the upkeep regrow is capped at seven and gated on starting the turn untapped", () => {
         const rasputin = makeInstance(rasputinDreamweaver.id, {
             id: "ras",
@@ -1490,37 +1379,9 @@ describe("Rasputin Dreamweaver (dream counters: enters with 7, mana / prevent re
         );
         expect(fired).toBe(false);
     });
-
-    it("the mana ability carries a remove-a-dream-counter cost (CR 122.6)", () => {
-        const mana = rasputinDreamweaver.activatedAbilities?.find(
-            (a) => a.id === "rasputin-dream-mana"
-        );
-        expect(mana?.cost.removeCounter).toEqual({ type: "dream", count: 1 });
-        expect(mana?.useStack).toBe(false);
-    });
 });
 
 describe("Halfdane (upkeep: copy target creature's P/T until next upkeep, CR 613.4b / 500.2 / 603.3d)", () => {
-    it("is a {1}{W}{U}{B} 3/3 Legendary Shapeshifter with an upkeep trigger", () => {
-        expect(halfdane.manaCost).toEqual({ X: 1, W: 1, U: 1, B: 1 });
-        expect(halfdane.power).toBe(3);
-        expect(halfdane.toughness).toBe(3);
-        expect(halfdane.supertypes).toContain("Legendary");
-        expect(halfdane.subtypes).toContain("Shapeshifter");
-        expect(halfdane.triggeredAbilities?.[0]?.event).toBe("PHASE_BEGIN");
-    });
-
-    it("declares the CR 603.3d target requirement: one creature other than Halfdane", () => {
-        // Mandatory single target (no "may" in the modern Oracle text) — the
-        // "other than Halfdane" self-exclusion rides `excludeSource`, resolved
-        // against the on-stack trigger's `triggerSourceId` (CR 603.3d).
-        expect(halfdane.triggeredAbilities?.[0]?.targetRequirement).toEqual({
-            type: "Creature",
-            count: 1,
-            excludeSource: true,
-        });
-    });
-
     function setup(extraP2Creatures: string[] = []) {
         const hd = makeInstance(halfdane.id, {
             id: "hd",

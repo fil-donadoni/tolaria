@@ -36,20 +36,4 @@ describe("Bloodchief's Thirst (Kicker {2}{B}, CR 702.33)", () => {
             state.players[1].battlefield.find((c) => c.id === "angel")
         ).toBeUndefined();
     });
-
-    it("gates the unkicked target set to mana value 2 or less", () => {
-        expect(bloodchiefsThirst.targetRequirement?.mvFilter).toEqual({
-            max: 2,
-        });
-        expect(
-            bloodchiefsThirst.kickedTargetRequirement?.mvFilter
-        ).toBeUndefined();
-        expect(bloodchiefsThirst.kickers).toEqual([
-            {
-                id: "kicker",
-                description: "Kicker {2}{B}",
-                mana: { X: 2, B: 1 },
-            },
-        ]);
-    });
 });

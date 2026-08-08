@@ -35,10 +35,6 @@ beforeAll(() => {
 });
 
 describe("Containment Priest (CR 614, issue #1148)", () => {
-    it("has Flash and no other keyword", () => {
-        expect(containmentPriest.staticAbilities).toEqual(["flash"]);
-    });
-
     it("exiles a nontoken creature reanimated (graveyard -> battlefield) while it's on the battlefield", () => {
         const priest = makeInstance(containmentPriest.id, {
             id: "priest",

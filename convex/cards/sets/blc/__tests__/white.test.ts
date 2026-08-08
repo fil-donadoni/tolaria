@@ -71,23 +71,6 @@ function declareAttackers(state: GameState, attackerIds: string[]): void {
     emitAttackersDeclaredEvents(state);
 }
 
-describe("Jacked Rabbit — card definition (CR 202.1 / 205)", () => {
-    it("has the printed {X}{1}{W} cost — the generic pip is NOT dropped", () => {
-        // The committed stub had `{ X: "X", W: 1 }`, an instance of the
-        // importer defect tracked as #1774 (`parseManaCost` drops generic pips
-        // when {X} is present). `ManaCost.generic` coexists with the "X"
-        // marker; both must be present.
-        expect(jackedRabbit.manaCost).toEqual({ X: "X", generic: 1, W: 1 });
-    });
-
-    it("is a 1/2 Rabbit Warrior", () => {
-        expect(jackedRabbit.types).toEqual(["Creature"]);
-        expect(jackedRabbit.subtypes).toEqual(["Rabbit", "Warrior"]);
-        expect(jackedRabbit.power).toBe(1);
-        expect(jackedRabbit.toughness).toBe(2);
-    });
-});
-
 describe("Jacked Rabbit — Ravenous, entry counters (CR 702.156a / 614.1c)", () => {
     it("X=0 — enters with no +1/+1 counters", () => {
         const { rabbit } = castForX(0);

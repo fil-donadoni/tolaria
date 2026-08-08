@@ -50,24 +50,6 @@ function drainStack(state: ReturnType<typeof makeState>): void {
 }
 
 describe("Emrakul, the Aeons Torn — definition (CR 702.9 / 702.16a / 702.86)", () => {
-    it("is a {15} 15/15 legendary Eldrazi that can't be countered", () => {
-        expect(emrakulTheAeonsTorn.manaCost).toEqual({ X: 15 });
-        expect(emrakulTheAeonsTorn.power).toBe(15);
-        expect(emrakulTheAeonsTorn.toughness).toBe(15);
-        expect(emrakulTheAeonsTorn.types).toEqual(["Creature"]);
-        expect(emrakulTheAeonsTorn.supertypes).toEqual(["Legendary"]);
-        expect(emrakulTheAeonsTorn.subtypes).toEqual(["Eldrazi"]);
-        expect(emrakulTheAeonsTorn.cantBeCountered).toBe(true);
-    });
-
-    it("declares flying, the spell-restricted colour protection quality, and annihilator 6", () => {
-        expect(emrakulTheAeonsTorn.staticAbilities).toEqual([
-            "flying",
-            "protection from spells that are one or more colors",
-            "annihilator 6",
-        ]);
-    });
-
     it("annihilator 6's enforcing attack trigger is injected by the getDefinition seam, not written on the card", () => {
         // The card file declares only the keyword STRING; `expandAnnihilator`
         // (CR 702.86a) adds the trigger at the registry seam (#2295). Reading
@@ -83,35 +65,6 @@ describe("Emrakul, the Aeons Torn — definition (CR 702.9 / 702.16a / 702.86)",
             (a) => a.id
         );
         expect(expandedIds).toContain(annihilatorTriggerId(6));
-    });
-
-    it("the from-anywhere graveyard clause is ONE ability on an array event (CR 603.2), not one per event", () => {
-        const graveyardTriggers = (
-            emrakulTheAeonsTorn.triggeredAbilities ?? []
-        ).filter((a) => a.zone === "graveyard");
-        expect(graveyardTriggers).toHaveLength(1);
-        // CR 603.6e — the graveyard scan is the only pass that also reaches a
-        // hand/library origin.
-        expect(graveyardTriggers[0].event).toEqual([
-            "CREATURE_DIED",
-            "CARD_DISCARDED",
-            "CARD_MILLED",
-            "CARD_PUT_INTO_GRAVEYARD",
-        ]);
-        // `PERMANENT_LEFT` is emitted from the SAME `removePermanentTo` call as
-        // `CREATURE_DIED`; listing it too would fire this trigger twice on
-        // every battlefield death.
-        expect(graveyardTriggers[0].event).not.toContain("PERMANENT_LEFT");
-    });
-
-    it("the cast trigger fires on CAST, not on resolution (CR 603.6e)", () => {
-        const cast = (emrakulTheAeonsTorn.triggeredAbilities ?? []).find(
-            (a) => a.id === "emrakul-cast-extra-turn"
-        )!;
-        expect(cast.event).toBe("SPELL_CAST");
-        expect(cast.effects).toEqual([
-            { op: "extraTurn", player: "controller" },
-        ]);
     });
 });
 

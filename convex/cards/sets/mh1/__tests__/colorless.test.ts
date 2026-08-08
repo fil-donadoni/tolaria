@@ -27,39 +27,14 @@ function resolveActivated(
     resolveTopOfStack(state);
 }
 
-const cases: { card: Def; mana: string; draw: string; colors: object[] }[] = [
-    {
-        card: waterloggedGrove,
-        mana: "waterlogged-grove-mana",
-        draw: "waterlogged-grove-draw",
-        colors: [{ G: 1 }, { U: 1 }],
-    },
-    {
-        card: sunbakedCanyon,
-        mana: "sunbaked-canyon-mana",
-        draw: "sunbaked-canyon-draw",
-        colors: [{ R: 1 }, { W: 1 }],
-    },
+const cases: { card: Def; draw: string }[] = [
+    { card: waterloggedGrove, draw: "waterlogged-grove-draw" },
+    { card: sunbakedCanyon, draw: "sunbaked-canyon-draw" },
 ];
 
 describe.each(cases)(
     "$card.name (Horizon-land painland cantrip, CR 605.1a / 305)",
-    ({ card, mana, draw, colors }) => {
-        it("is a Land with a pay-life dual mana ability and sacrifice cantrip", () => {
-            expect(card.types).toEqual(["Land"]);
-            expect(card.manaCost).toBeUndefined();
-            const m = card.activatedAbilities!.find((a) => a.id === mana)!;
-            expect(m.useStack).toBe(false);
-            expect(m.cost).toMatchObject({ tap: true, life: 1 });
-            expect(m.manaChoices).toEqual(colors);
-            const d = card.activatedAbilities!.find((a) => a.id === draw)!;
-            expect(d.cost).toMatchObject({
-                mana: { X: 1 },
-                tap: true,
-                sacrifice: true,
-            });
-        });
-
+    ({ card, draw }) => {
         it("the cantrip ability draws a card on resolution (CR 121.1)", () => {
             const land = makeInstance(card.id, {
                 id: "land",

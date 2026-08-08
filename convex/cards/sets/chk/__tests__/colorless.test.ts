@@ -28,17 +28,6 @@ const lib = (ids: string[]) =>
     );
 
 describe("Sensei's Divining Top (CR 401.4 look/reorder, CR 121.1 draw, issue #1726 top-of-library)", () => {
-    it("is a {1} artifact with both activated abilities as Effect Scripts (no imperative resolve)", () => {
-        expect(senseisDiviningTop.manaCost).toEqual({ X: 1 });
-        expect(senseisDiviningTop.types).toEqual(["Artifact"]);
-        expect(senseisDiviningTop.activatedAbilities).toHaveLength(2);
-        for (const ability of senseisDiviningTop.activatedAbilities!) {
-            expect(ability.resolve).toBeUndefined();
-            expect(ability.resolveSteps).toBeUndefined();
-            expect(ability.effects).toBeDefined();
-        }
-    });
-
     it("{1}: looks at the top three and reorders them, keeping all three on top (destination: none)", () => {
         const top = makeInstance(senseisDiviningTop.id, {
             id: "top",

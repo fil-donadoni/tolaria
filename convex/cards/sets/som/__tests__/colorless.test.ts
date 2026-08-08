@@ -54,11 +54,6 @@ describe("Copperline Gorge (fast land, CR 614.1c / 605.1a)", () => {
         const played = applyPlayLand(state, player, "gorge")!;
         expect(played.isTapped).toBe(true);
     });
-
-    it("taps for R or G", () => {
-        const ability = copperlineGorge.activatedAbilities![0];
-        expect(ability.manaChoices).toEqual([{ R: 1 }, { G: 1 }]);
-    });
 });
 
 // Mox Opal (issue #1530, parent PRD #1525). "Metalcraft — {T}: Add one mana
@@ -99,23 +94,6 @@ describe("Mox Opal (SOM #179, issue #1530, Metalcraft)", () => {
         });
         return { state, mox: state.players[0].battlefield[0] };
     }
-
-    it("definition sanity — {0} Legendary Artifact, one {T} choice mana ability gated by canActivate", () => {
-        expect(moxOpal.manaCost).toEqual({});
-        expect(moxOpal.types).toEqual(["Artifact"]);
-        expect(moxOpal.supertypes).toEqual(["Legendary"]);
-        const ability = moxOpal.activatedAbilities![0];
-        expect(ability.useStack).toBe(false);
-        expect(ability.cost).toEqual({ tap: true });
-        expect(ability.canActivate).toBeDefined();
-        expect(ability.manaChoices).toEqual([
-            { W: 1 },
-            { U: 1 },
-            { B: 1 },
-            { R: 1 },
-            { G: 1 },
-        ]);
-    });
 
     it("canActivate is false with only Mox Opal itself on the battlefield (1 artifact)", () => {
         const { state, mox } = boardWithArtifacts(1);

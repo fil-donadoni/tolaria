@@ -27,13 +27,6 @@ import { projectPublicState } from "../../../../gameProjections";
 import type { GameState } from "../../../../gre/state";
 
 describe("Natural Order (CR 117.9 additional cost / 701.19 / 400.7 / 701.20)", () => {
-    it("declares the sacrifice-a-green-creature additional cost", () => {
-        expect(naturalOrder.additionalCosts?.sacrificeFilter).toEqual({
-            types: "Creature",
-            colors: "G",
-        });
-    });
-
     it("searches for a green creature card and puts it onto the battlefield", () => {
         const libBear = makeInstance(grizzlyBears.id, {
             id: "bear1",
@@ -154,24 +147,6 @@ function payManaTaxSeam(state: GameState): string | null {
 }
 
 describe("Elephant Grass (CR 508.1c/1g — mana attack tax + colour ban, #1053)", () => {
-    it("has {G}, cumulative upkeep {1}, and both attack-side statics", () => {
-        expect(elephantGrass.manaCost).toEqual({ G: 1 });
-        expect(elephantGrass.types).toContain("Enchantment");
-        expect(elephantGrass.triggeredAbilities?.[0].id).toBe(
-            "elephant-grass-cumulative-upkeep"
-        );
-        expect(
-            elephantGrass.staticEffects?.find(
-                (e) => e.kind === "attack-mana-tax"
-            )
-        ).toBeDefined();
-        expect(
-            elephantGrass.staticEffects?.find(
-                (e) => e.kind === "global-attack-restriction"
-            )
-        ).toBeDefined();
-    });
-
     it("charges {2} per nonblack attacker, scaling with attacker count", () => {
         const one = makeGrassCombat({
             attackers: [{ id: "g1", cardId: grizzlyBears.id }],

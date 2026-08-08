@@ -12,11 +12,8 @@ import {
     fasting,
     fireAndBrimstone,
     holyLight,
-    knightsOfThorn,
     martyrsCry,
     miracleWorker,
-    morale,
-    pikemen,
     preacher,
     scarwoodGoblins,
     squire,
@@ -59,14 +56,6 @@ import { getCardByName } from "../../../index";
 // ---------------------------------------------------------------------------
 
 describe("Squire (vanilla creature, CR 302)", () => {
-    it("carries the canonical stats from DRK.json", () => {
-        expect(squire.types).toEqual(["Creature"]);
-        expect(squire.subtypes).toEqual(["Human", "Soldier"]);
-        expect(squire.power).toBe(1);
-        expect(squire.toughness).toBe(2);
-        expect(squire.manaCost).toEqual({ X: 1, W: 1 });
-    });
-
     it("resolves from the stack onto the battlefield (CR 608.3)", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
@@ -79,33 +68,6 @@ describe("Squire (vanilla creature, CR 302)", () => {
         expect(inPlay).toBeDefined();
         expect(inPlay?.zone).toBe("battlefield");
         expect(state.stack).toHaveLength(0);
-    });
-});
-
-// ---------------------------------------------------------------------------
-// Keyword creatures (CR 702 — keywords map to staticAbilities[]; definition
-// snapshot is the convention for plain keywords)
-// ---------------------------------------------------------------------------
-
-describe("Knights of Thorn — protection from red + banding (CR 702.16 / 702.22)", () => {
-    it("carries the keywords and canonical stats", () => {
-        expect(knightsOfThorn.staticAbilities).toContain("protection from red");
-        expect(knightsOfThorn.staticAbilities).toContain("banding");
-        expect(knightsOfThorn.power).toBe(2);
-        expect(knightsOfThorn.toughness).toBe(2);
-        expect(knightsOfThorn.manaCost).toEqual({ X: 3, W: 1 });
-        expect(knightsOfThorn.subtypes).toEqual(["Human", "Knight"]);
-    });
-});
-
-describe("Pikemen — first strike + banding (CR 702.7 / 702.22)", () => {
-    it("carries the keywords and canonical stats", () => {
-        expect(pikemen.staticAbilities).toContain("first strike");
-        expect(pikemen.staticAbilities).toContain("banding");
-        expect(pikemen.power).toBe(1);
-        expect(pikemen.toughness).toBe(1);
-        expect(pikemen.manaCost).toEqual({ X: 1, W: 1 });
-        expect(pikemen.subtypes).toEqual(["Human", "Soldier"]);
     });
 });
 
@@ -514,17 +476,6 @@ describe("Holy Light — nonwhite creatures get -1/-1 (CR 611.2 / 202.2)", () =>
     });
 });
 
-describe("Morale — attacking creatures get +1/+1 (pump-combat)", () => {
-    it("declares the canonical pump-combat effect", () => {
-        expect(morale.effect).toEqual({
-            kind: "pump-combat",
-            side: "attacking",
-            power: 1,
-            toughness: 1,
-        });
-    });
-});
-
 describe("Martyr's Cry — exile white creatures, draw per exiled (CR 701.18 / 121.1)", () => {
     it("exiles all white creatures and each controller draws one per exiled", () => {
         const w1 = makeInstance(getCardByName("White Knight").id, {
@@ -655,15 +606,6 @@ describe("Fasting (CR 504/614 skip-draw + CR 603.6a hunger counters)", () => {
             zone: "library",
         });
     }
-
-    it("snapshot: card definition wiring (oracle + flag + triggers)", () => {
-        expect(fasting.types).toEqual(["Enchantment"]);
-        expect(fasting.drawStepReplacement).toBe(true);
-        const ids = (fasting.triggeredAbilities ?? []).map((t) => t.id);
-        expect(ids).toContain("fasting-upkeep-hunger");
-        expect(ids).toContain("fasting-draw-skip");
-        expect(ids).toContain("fasting-draw-destroy");
-    });
 
     // (a) Skip-draw golden path: gain 2 life, no card drawn.
     it("on skip, gains 2 life and draws no card (CR 504/119.3)", () => {

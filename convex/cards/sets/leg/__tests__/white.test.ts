@@ -137,9 +137,6 @@ import {
 // ---------------------------------------------------------------------------
 
 describe("LEG white keyword / vanilla creatures (CR 702)", () => {
-    it("Tundra Wolves has first strike", () => {
-        expect(tundraWolves.staticAbilities).toContain("first strike");
-    });
     it("Thunder Spirit has flying and first strike", () => {
         expect(thunderSpirit.staticAbilities).toEqual(
             expect.arrayContaining(["flying", "first strike"])
@@ -149,14 +146,6 @@ describe("LEG white keyword / vanilla creatures (CR 702)", () => {
         expect(wallOfLight.staticAbilities).toEqual(
             expect.arrayContaining(["defender", "protection from black"])
         );
-    });
-    it("Righteous Avengers has plainswalk", () => {
-        expect(righteousAvengers.staticAbilities).toContain("plainswalk");
-    });
-    it("Keepers of the Faith is a vanilla 2/3", () => {
-        expect(keepersOfTheFaith.power).toBe(2);
-        expect(keepersOfTheFaith.toughness).toBe(3);
-        expect(keepersOfTheFaith.staticAbilities).toBeUndefined();
     });
 });
 
@@ -396,9 +385,6 @@ describe("Angelic Voices (+1/+1 while no nonartifact nonwhite creature, CR 611)"
 });
 
 describe("Ivory Guardians (protection from red + conditional anthem, CR 611/702.16)", () => {
-    it("has protection from red", () => {
-        expect(ivoryGuardians.staticAbilities).toContain("protection from red");
-    });
     it("named copies get +1/+1 only while an opponent has a nontoken red permanent", () => {
         const guard = makeInstance(ivoryGuardians.id, {
             id: "guard",
@@ -457,13 +443,6 @@ describe("Fortified Area (Walls you control +1/+0 and have banding, CR 611)", ()
             (c) => c.id === "wall"
         )!;
         expect(getEffectivePower(projected, slim)).toBe(2);
-    });
-    it("declares the banding keyword-grant filtered to your Walls", () => {
-        const grant = fortifiedArea.staticEffects?.find(
-            (e) => e.kind === "keyword-grant"
-        );
-        expect(grant).toBeDefined();
-        expect(grant && "keyword" in grant && grant.keyword).toBe("banding");
     });
 });
 
@@ -632,16 +611,6 @@ describe("Infinite Authority (becomes-blocked-by → end-of-combat destroy + nex
         });
         return { state, host, blocker };
     }
-
-    it("is a {W}{W}{W} Aura that enchants a creature", () => {
-        expect(infiniteAuthority.manaCost).toEqual({ W: 3 });
-        expect(infiniteAuthority.types).toEqual(["Enchantment"]);
-        expect(infiniteAuthority.subtypes).toEqual(["Aura"]);
-        expect(infiniteAuthority.targetRequirement).toEqual({
-            type: "Creature",
-            count: 1,
-        });
-    });
 
     it("triggers when the enchanted creature is blocked by a toughness-≤3 creature", () => {
         const { state } = setupCombat({ blockerToughness: 2 });
@@ -930,12 +899,6 @@ describe("Remove Enchantments (mass conditional return+destroy, CR 108.3/110.2/7
         expect(onBattlefield(state, "myCreature")).toBe(true);
         expect(onBattlefield(state, "oppAttacker")).toBe(true);
     });
-
-    it("is a {W} instant with no target requirement (mass effect, CR 608.2)", () => {
-        expect(removeEnchantments.types).toEqual(["Instant"]);
-        expect(removeEnchantments.manaCost).toEqual({ W: 1 });
-        expect(removeEnchantments.targetRequirement).toBeUndefined();
-    });
 });
 
 describe("Great Defender (+0/+X where X = target's MV, CR 202.3)", () => {
@@ -1194,10 +1157,6 @@ describe("Osai Vultures (end-step carrion accrual + remove-two pump, CR 603.4d /
             phase: "END_STEP" as const,
             activePlayerId: playerId,
         }) as StackItem["triggerEvent"];
-
-    it("has flying", () => {
-        expect(osaiVultures.staticAbilities).toContain("flying");
-    });
 
     it("gains a carrion counter at the end step when a creature died this turn (CR 603.4d)", () => {
         const { state, vultures } = setup(1);
@@ -1463,17 +1422,6 @@ describe("Rapid Fire (CR 117.1b cast timing + CR 702.23 conditional rampage)", (
         return state.players[0].battlefield.find((c) => c.id === "tgt")!;
     }
 
-    it("is a {3}{W} instant restricted to before declare-blockers", () => {
-        expect(rapidFire.manaCost).toEqual({ X: 3, W: 1 });
-        expect(rapidFire.types).toEqual(["Instant"]);
-        // The allow-list stops at DECLARE_ATTACKERS — DECLARE_BLOCKERS and later
-        // combat steps are excluded.
-        expect(rapidFire.castPhaseRestriction).not.toContain(
-            "DECLARE_BLOCKERS"
-        );
-        expect(rapidFire.castPhaseRestriction).toContain("DECLARE_ATTACKERS");
-    });
-
     it("cast is LEGAL up to and including declare-attackers (CR 117.1b)", () => {
         for (const phase of [
             "PRECOMBAT_MAIN",
@@ -1634,12 +1582,6 @@ describe("Divine Intervention (counter-driven game draw, CR 122 / 104.4a)", () =
         return { state, di };
     }
 
-    it("enters with two intervention counters (CR 122.1)", () => {
-        expect(divineIntervention.entersWith?.counters).toEqual([
-            { type: "intervention", count: 2 },
-        ]);
-    });
-
     it("upkeep removal from two → one does NOT end the game", () => {
         const { state, di } = setup(2);
         resolveTrigger(
@@ -1760,14 +1702,6 @@ describe("D'Avenant Archer ({T}: ping attacking-or-blocking, CR 508.1/509.1)", (
 });
 
 describe("Moat (creatures without flying can't attack, CR 508.1c)", () => {
-    it("has the correct definition shape", () => {
-        expect(moat.types).toEqual(["Enchantment"]);
-        expect(moat.supertypes).toBeUndefined();
-        expect(moat.manaCost).toEqual({ X: 2, W: 2 });
-        const eff = moat.staticEffects?.[0];
-        expect(eff?.kind).toBe("global-attack-restriction");
-    });
-
     it("forbids a non-flying creature from attacking", () => {
         const moatInst = makeInstance(moat.id, { controllerId: "p1" });
         const grounded = makeInstance(tundraWolves.id, {
@@ -1898,16 +1832,6 @@ describe("Moat (creatures without flying can't attack, CR 508.1c)", () => {
 });
 
 describe("Akron Legionnaire (only Akron / artifact creatures you control can attack, CR 508.1c)", () => {
-    it("has the correct definition shape", () => {
-        expect(akronLegionnaire.types).toEqual(["Creature"]);
-        expect(akronLegionnaire.power).toBe(8);
-        expect(akronLegionnaire.toughness).toBe(4);
-        expect(akronLegionnaire.manaCost).toEqual({ X: 6, W: 2 });
-        expect(akronLegionnaire.staticEffects?.[0].kind).toBe(
-            "global-attack-restriction"
-        );
-    });
-
     it("locks your non-artifact, non-Akron creatures", () => {
         const akron = makeInstance(akronLegionnaire.id, {
             id: "akron",
@@ -2338,14 +2262,6 @@ describe("Enchanted Being (prevent combat damage from enchanted creatures, CR 61
             )
         ).toBe(true);
     });
-
-    it("declares the static effect on the definition", () => {
-        expect(
-            enchantedBeing.staticEffects?.some(
-                (e) => e.kind === "combat-damage-prevention"
-            )
-        ).toBe(true);
-    });
 });
 
 describe("Petra Sphinx ({T}: name a card, reveal top; match→hand else→graveyard; CR 202.3 / 701.13)", () => {
@@ -2382,19 +2298,6 @@ describe("Petra Sphinx ({T}: name a card, reveal top; match→hand else→gravey
         const state = makeState({ players });
         return { state, sphinx };
     }
-
-    it("definition: {2}{W}{W}{W} 3/4 Sphinx with a tap-only activated ability", () => {
-        expect(petraSphinx.manaCost).toEqual({ X: 2, W: 3 });
-        expect(petraSphinx.power).toBe(3);
-        expect(petraSphinx.toughness).toBe(4);
-        expect(petraSphinx.subtypes).toContain("Sphinx");
-        const ability = petraSphinx.activatedAbilities![0];
-        expect(ability.cost).toEqual({ tap: true });
-        expect(ability.targetRequirement).toEqual({
-            type: "player",
-            count: 1,
-        });
-    });
 
     it("match: named card === top → goes to the chooser's HAND (CR 201.2)", () => {
         const { state, sphinx } = setup("p2");
@@ -2537,19 +2440,6 @@ describe("Clergy of the Holy Nimbus (CR 614.5, 701.15c, 602.1)", () => {
         resolveTopOfStack(state);
     }
 
-    it("definition: 1/1, {W}, auto-regenerate static ability, opponent-only {1} ability", () => {
-        expect(clergyOfTheHolyNimbus.manaCost).toEqual({ W: 1 });
-        expect(clergyOfTheHolyNimbus.power).toBe(1);
-        expect(clergyOfTheHolyNimbus.toughness).toBe(1);
-        expect(clergyOfTheHolyNimbus.staticAbilities).toContain(
-            "auto-regenerate"
-        );
-        const ability = clergyOfTheHolyNimbus.activatedAbilities?.[0];
-        expect(ability?.id).toBe(CANT_REGEN_ID);
-        expect(ability?.cost).toEqual({ mana: { X: 1 } });
-        expect(ability?.activatableByOpponentsOnly).toBe(true);
-    });
-
     it("auto-regenerates when it would be destroyed: survives, tapped, damage removed, not consumed (CR 614.5)", () => {
         const { state, clergy } = setup();
         clergy.damageMarked = 5;
@@ -2655,22 +2545,6 @@ describe("Greater Realm of Preservation (CR 615.1, 615.6 / 202.2)", () => {
         const p1 = makePlayer("p1", { battlefield: [realm] });
         return makeState({ players: [p1, makePlayer("p2")] });
     }
-
-    it("exposes the declarative shape: {1}{W} enchantment, {1}{W} ability, B/R color-any filter", () => {
-        expect(greaterRealmOfPreservation.manaCost).toEqual({ X: 1, W: 1 });
-        expect(greaterRealmOfPreservation.types).toEqual(["Enchantment"]);
-        const ability = greaterRealmOfPreservation.activatedAbilities![0];
-        expect(ability.useStack).toBe(true);
-        expect(ability.cost).toEqual({ mana: { X: 1, W: 1 } });
-        expect(ability.targetRequirement).toEqual({
-            type: ["any", "spell"],
-            count: 1,
-            colorFilterAny: ["B", "R"],
-        });
-        expect(ability.oracleText).toBe(
-            "{1}{W}: The next time a black or red source of your choice would deal damage to you this turn, prevent that damage."
-        );
-    });
 
     // CR 202.2 — legal-target filter: black and red sources qualify; green
     // does not; players are never a colored source.
@@ -2985,19 +2859,6 @@ describe("Wall of Caltrops (conditional banding grant, CR 509.1h / 603.4d / 702.
         return state.players[0].battlefield.find((c) => c.id === "caltrops")!;
     }
 
-    it("carries Defender + the block-time banding trigger", () => {
-        expect(wallOfCaltrops.staticAbilities).toContain("defender");
-        expect(wallOfCaltrops.power).toBe(2);
-        expect(wallOfCaltrops.toughness).toBe(1);
-        expect(wallOfCaltrops.subtypes).toContain("Wall");
-        const trig = wallOfCaltrops.triggeredAbilities?.find(
-            (t) => t.id === "wall-of-caltrops-band"
-        );
-        expect(trig).toBeDefined();
-        expect(trig!.event).toBe("BLOCKERS_CONFIRMED");
-        expect(trig!.interveningIf).toBeDefined();
-    });
-
     it("gains banding EOT when another Wall co-blocks and no non-Wall does", () => {
         const { state } = setupCaltropsBlock([wallOfLight]);
         emitBlockersConfirmedEvents(state);
@@ -3083,17 +2944,6 @@ describe("Equinox (enchant land grants conditional counter, CR 303.4/611.2/701.5
         applySourceStaticEffects(state, equinoxAura);
         return { state, myLand, equinoxAura, oppLand };
     }
-
-    it("definition: {W} enchant-land Aura with the granted {T} counter template", () => {
-        expect(equinox.manaCost).toEqual({ W: 1 });
-        expect(equinox.subtypes).toContain("Aura");
-        expect(equinox.targetRequirement).toEqual({ type: "Land", count: 1 });
-        const tmpl = equinox.grantTemplates?.[0];
-        expect(tmpl?.cost.tap).toBe(true);
-        expect(tmpl?.targetRequirement?.spellWouldDestroyLandYouControl).toBe(
-            true
-        );
-    });
 
     it("the enchanted land gains the granted {T} ability (CR 611.2)", () => {
         const { state } = setup();

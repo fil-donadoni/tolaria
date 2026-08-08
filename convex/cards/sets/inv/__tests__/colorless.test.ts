@@ -30,9 +30,9 @@ import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveActivated, resolveTrigger } from "./helpers";
 import { getDefinition } from "../../../index";
 import { applyDrawCardOnTap, tapSourceIntoPayment } from "../../../../game";
+import { getManaTapOptionsDetailed } from "../../../../gre/constants";
 import {
     alloyGolem,
-    archaeologicalDig,
     chromaticSphere,
     juntuStakes,
     lotusGuardian,
@@ -210,17 +210,6 @@ describe("Tsabo's Web untap lock (CR 502.1, dynamicMatch)", () => {
 // ─────────────────────────────────────────────────────────────────────────
 
 describe("Alloy Golem (ETB choose a color, is the chosen color; CR 105.2 / 613.1e / 603.6b, resolve() justification)", () => {
-    it("is a 4/4 artifact creature with the self-scoped ETB colour-choice trigger", () => {
-        expect(alloyGolem.types).toEqual(["Artifact", "Creature"]);
-        expect(alloyGolem.power).toBe(4);
-        expect(alloyGolem.toughness).toBe(4);
-        const etb = (alloyGolem.triggeredAbilities ?? []).find(
-            (t) => t.id === "alloy-golem-choose-color"
-        );
-        expect(etb).toBeDefined();
-        expect(etb?.event).toBe("PERMANENT_ENTERED");
-    });
-
     it("applies the chosen color indefinitely, surviving the wire projection", () => {
         const golem = makeInstance(alloyGolem.id, {
             id: "golem1",
@@ -269,21 +258,6 @@ describe("Alloy Golem (ETB choose a color, is the chosen color; CR 105.2 / 613.1
 // FOUR call sites in convex/game.ts), so it gets the full GRE test regime
 // per `.claude/rules/gre-development.md`, not just the per-Op DSL sweep.
 describe("Chromatic Sphere ({1}, {T}, Sacrifice: add one mana of any color, draw a card — CR 605.1a / 121.1, issue #1093)", () => {
-    it("declares the mana ability with the drawsCardOnTap rider", () => {
-        expect(chromaticSphere.manaCost).toEqual({ X: 1 });
-        const mana = chromaticSphere.activatedAbilities!.find(
-            (a) => a.id === "chromatic-sphere-mana"
-        )!;
-        expect(mana.useStack).toBe(false);
-        expect(mana.manaChoices).toHaveLength(5);
-        expect(mana.cost).toMatchObject({
-            tap: true,
-            sacrifice: true,
-            mana: { X: 1 },
-        });
-        expect(mana.drawsCardOnTap).toBe(1);
-    });
-
     // CR 605.1a / 601.2f — the payment-tap path is the REAL commit path this
     // card actually goes through (its mana ability has a {1} cost, which only
     // tapSourceIntoPayment/applyManaAbilityManaCost validates — same as
@@ -469,28 +443,7 @@ describe("Juntu Stakes untap lock (CR 502.1, power 1-or-less, dynamicMatch)", ()
     });
 });
 
-describe("Lotus Guardian (flying; {T}: add one mana of any color, CR 702.9b / 605.1a)", () => {
-    it("is a 4/4 flying Dragon with a 5-way any-color mana ability", () => {
-        expect(lotusGuardian.staticAbilities).toContain("flying");
-        expect(lotusGuardian.power).toBe(4);
-        expect(lotusGuardian.toughness).toBe(4);
-        const ability = lotusGuardian.activatedAbilities?.[0];
-        expect(ability?.cost).toEqual({ tap: true });
-        expect(ability?.useStack).toBe(false);
-        expect(ability?.manaChoices).toHaveLength(5);
-    });
-});
-
 describe("Phyrexian Altar (sacrifice a creature: add one mana of any color; CR 602.1/118.5, 605.1a)", () => {
-    it("declares a filtered-sacrifice cost and a 5-mode colour-choice effect", () => {
-        const ability = phyrexianAltar.activatedAbilities?.[0];
-        expect(ability?.cost).toEqual({
-            sacrificeFilter: { types: "Creature" },
-        });
-        expect(ability?.useStack).toBe(true);
-        expect(ability?.effects?.[0]).toMatchObject({ op: "optionChoice" });
-    });
-
     it("resolves the chosen colour into the controller's mana pool", () => {
         const altar = makeInstance(phyrexianAltar.id, { id: "altar" });
         const state = makeState({
@@ -510,15 +463,6 @@ describe("Phyrexian Altar (sacrifice a creature: add one mana of any color; CR 6
             cardInstanceIds: ["B"], // colorChoiceModes ids are the color codes
         });
         expect(state.players[0].manaPool.B).toBe(1);
-    });
-});
-
-describe("Phyrexian Lens ({T}, Pay 1 life: add one mana of any color, CR 605.1a / 118.4)", () => {
-    it("declares a tap + life-payment cost with a 5-way any-color choice", () => {
-        const ability = phyrexianLens.activatedAbilities?.[0];
-        expect(ability?.cost).toEqual({ tap: true, life: 1 });
-        expect(ability?.useStack).toBe(false);
-        expect(ability?.manaChoices).toHaveLength(5);
     });
 });
 
@@ -636,21 +580,6 @@ describe("Sparring Golem (becomes blocked → +1/+1 per blocker, CR 509.1h — e
 });
 
 describe("Tek (land-gated P/T + keyword grants, CR 613.1c/1d, issue #1850)", () => {
-    it("is a 2/2 artifact Dragon with one pt-cda and three keyword-grant static effects, no unconditional staticAbilities", () => {
-        expect(tek.power).toBe(2);
-        expect(tek.toughness).toBe(2);
-        expect(tek.staticAbilities).toBeUndefined();
-        expect(tek.staticEffects?.some((e) => e.kind === "pt-cda")).toBe(true);
-        const grants = (tek.staticEffects ?? []).filter(
-            (e) => e.kind === "keyword-grant"
-        );
-        expect(grants.map((g) => g.keyword)).toEqual([
-            "flying",
-            "first strike",
-            "trample",
-        ]);
-    });
-
     it("gets +0/+2 controlling a Plains and +2/+0 controlling a Swamp, summed", () => {
         const dragon = makeInstance(tek.id, { id: "tek1" });
         const plainsCard = makeInstance(plains.id, { id: "p" });
@@ -896,13 +825,6 @@ describe("Urza's Filter (multicolored spells cost {2} less to cast, CR 601.2f / 
         });
     }
 
-    it("definition: {4} Artifact with a cost-modifier static", () => {
-        expect(urzasFilter.manaCost).toEqual({ X: 4 });
-        expect(
-            urzasFilter.staticEffects?.some((e) => e.kind === "cost-modifier")
-        ).toBe(true);
-    });
-
     it("reduces a multicolored spell's generic mana by {2}, floored at 0 (Spectral Shield {1}{W}{U} → {W}{U})", () => {
         const state = boardWith();
         expect(effectiveSpellCost(state, spectralShield.id, "p1")).toEqual({
@@ -929,22 +851,51 @@ describe("Urza's Filter (multicolored spells cost {2} less to cast, CR 601.2f / 
     });
 });
 
-describe("Archaeological Dig (Land, {T}: add {C}; {T}, sac: add one mana of any color)", () => {
-    it("is a colorless land with a fixed-{C} ability and a self-sac any-color ability", () => {
-        expect(archaeologicalDig.types).toEqual(["Land"]);
-        expect(archaeologicalDig.manaCost).toEqual({});
-        const fixed = archaeologicalDig.activatedAbilities?.find(
-            (a) => a.id === "archaeological-dig-colorless"
-        );
-        expect(fixed?.cost).toEqual({ tap: true });
-        expect(fixed?.useStack).toBe(false);
-        expect(fixed?.manaProduced).toEqual({ C: 1 });
+describe("Phyrexian Lens ({T}, Pay 1 life: Add one mana of any color; CR 605.1a / 118.4)", () => {
+    it("offers all five colors as tap options, one per manaChoices entry", () => {
+        const lens = makeInstance(phyrexianLens.id, {
+            id: "lens",
+            controllerId: "p1",
+        });
+        const player = makePlayer("p1", { battlefield: [lens] });
+        const state = makeState({ players: [player, makePlayer("p2")] });
+        const battlefields = state.players.map((p) => ({
+            playerId: p.id,
+            battlefield: p.battlefield,
+        }));
+        const options = getManaTapOptionsDetailed(lens, "p1", battlefields);
+        expect(options.map((o) => o.mana)).toEqual([
+            { W: 1 },
+            { U: 1 },
+            { B: 1 },
+            { R: 1 },
+            { G: 1 },
+        ]);
+    });
 
-        const sac = archaeologicalDig.activatedAbilities?.find(
-            (a) => a.id === "archaeological-dig-sac"
-        );
-        expect(sac?.cost).toEqual({ tap: true, sacrifice: true });
-        expect(sac?.useStack).toBe(false);
-        expect(sac?.manaChoices).toHaveLength(5);
+    it("tapping for a chosen color pays 1 life and adds that color to the pool", () => {
+        const lens = makeInstance(phyrexianLens.id, {
+            id: "lens2",
+            controllerId: "p1",
+        });
+        const player = makePlayer("p1", { battlefield: [lens] });
+        const state = makeState({ players: [player, makePlayer("p2")] });
+        state.activePlayerId = "p1";
+        tapSourceIntoPayment(state, player, lens, 2, []); // index 2 = B
+        expect(player.manaPool.B).toBe(1);
+        expect(player.life).toBe(19);
+    });
+
+    it("wire format: the life payment survives the projection", () => {
+        const lens = makeInstance(phyrexianLens.id, {
+            id: "lens3",
+            controllerId: "p1",
+        });
+        const player = makePlayer("p1", { battlefield: [lens] });
+        const state = makeState({ players: [player, makePlayer("p2")] });
+        state.activePlayerId = "p1";
+        tapSourceIntoPayment(state, player, lens, 4, []); // index 4 = G
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].life).toBe(19);
     });
 });

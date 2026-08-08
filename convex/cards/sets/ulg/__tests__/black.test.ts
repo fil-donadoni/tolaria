@@ -85,12 +85,4 @@ describe("Unearth (CR 400.7 reanimation, CR 601.2c mvFilter, CR 702.29 Cycling)"
         expect(legalIds).toContain("bears");
         expect(legalIds).not.toContain("wurm");
     });
-
-    it("has Cycling {2}", () => {
-        const cycling = unearth.activatedAbilities?.find(
-            (a) => a.id === "cycling"
-        );
-        expect(cycling?.activateFromHand).toBe(true);
-        expect(cycling?.cost.mana).toEqual({ generic: 2 });
-    });
 });

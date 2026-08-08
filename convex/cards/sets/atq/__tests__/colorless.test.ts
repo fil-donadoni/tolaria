@@ -328,13 +328,6 @@ describe("Wall of Spears (defender + first strike, CR 702.3 / 702.7)", () => {
 // ---------------------------------------------------------------------------
 
 describe("Dragon Engine ({2}: +1/+0 EOT, CR 611.1)", () => {
-    it("is a 1/3 artifact creature — Construct", () => {
-        expect(dragonEngine.power).toBe(1);
-        expect(dragonEngine.toughness).toBe(3);
-        expect(dragonEngine.subtypes).toEqual(["Construct"]);
-        expect(dragonEngine.manaCost).toEqual({ X: 3 });
-    });
-
     it("pumps itself +1/+0 until end of turn", () => {
         const engine = makeInstance(dragonEngine.id, { id: "engine" });
         const state = makeState({
@@ -380,13 +373,6 @@ describe("Dragon Engine ({2}: +1/+0 EOT, CR 611.1)", () => {
 // ---------------------------------------------------------------------------
 
 describe("Clay Statue ({2}: regenerate, CR 701.15)", () => {
-    it("is a 3/1 artifact creature — Golem", () => {
-        expect(clayStatue.power).toBe(3);
-        expect(clayStatue.toughness).toBe(1);
-        expect(clayStatue.subtypes).toEqual(["Golem"]);
-        expect(clayStatue.manaCost).toEqual({ X: 4 });
-    });
-
     it("stacks a regeneration shield on itself", () => {
         const statue = makeInstance(clayStatue.id, { id: "statue" });
         const state = makeState({
@@ -410,13 +396,6 @@ describe("Clay Statue ({2}: regenerate, CR 701.15)", () => {
 // ---------------------------------------------------------------------------
 
 describe("Grapeshot Catapult ({T}: 1 dmg to flyer, CR 120.3 / 702.9)", () => {
-    it("is a 2/3 artifact creature — Construct", () => {
-        expect(grapeshotCatapult.power).toBe(2);
-        expect(grapeshotCatapult.toughness).toBe(3);
-        expect(grapeshotCatapult.subtypes).toEqual(["Construct"]);
-        expect(grapeshotCatapult.manaCost).toEqual({ X: 4 });
-    });
-
     it("only a creature with flying is a legal target", () => {
         const cat = makeInstance(grapeshotCatapult.id, { id: "cat" });
         const flyer = makeInstance(ornithopter.id, {
@@ -517,14 +496,6 @@ describe("Colossus of Sardia (trample + does-not-untap + {9} untap)", () => {
                 .isTapped
         ).toBe(false);
     });
-
-    it("the {9} untap is restricted to the controller's upkeep", () => {
-        const ability = colossusOfSardia.activatedAbilities!.find(
-            (a) => a.id === "colossus-of-sardia-untap"
-        )!;
-        expect(ability.activationPhaseRestriction).toEqual(["UPKEEP"]);
-        expect(ability.controllerTurnOnly).toBe(true);
-    });
 });
 
 // ---------------------------------------------------------------------------
@@ -532,19 +503,6 @@ describe("Colossus of Sardia (trample + does-not-untap + {9} untap)", () => {
 // ---------------------------------------------------------------------------
 
 describe("Strip Mine ({T}: add C; sac: destroy target land, CR 701.7)", () => {
-    it("is a colorless land with no mana cost", () => {
-        expect(stripMine.types).toEqual(["Land"]);
-        expect(stripMine.manaCost).toEqual({});
-    });
-
-    it("the mana ability is a colorless mana ability (useStack: false)", () => {
-        const mana = stripMine.activatedAbilities!.find(
-            (a) => a.id === "strip-mine-mana"
-        )!;
-        expect(mana.useStack).toBe(false);
-        expect(mana.manaProduced).toEqual({ C: 1 });
-    });
-
     it("destroys a target land", () => {
         const mine = makeInstance(stripMine.id, { id: "mine" });
         const victim = makeInstance(stripMine.id, {
@@ -576,11 +534,6 @@ describe("Strip Mine ({T}: add C; sac: destroy target land, CR 701.7)", () => {
 // ---------------------------------------------------------------------------
 
 describe("Obelisk of Undoing ({6},{T}: return your permanent, CR 701.10)", () => {
-    it("is a colorless artifact (mana cost per ATQ.json)", () => {
-        expect(obeliskOfUndoing.types).toEqual(["Artifact"]);
-        expect(obeliskOfUndoing.manaCost).toEqual({ X: 1 });
-    });
-
     it("only the activator's own permanents are legal targets", () => {
         const obelisk = makeInstance(obeliskOfUndoing.id, { id: "obelisk" });
         const mine = makeInstance(clayStatue.id, {
@@ -883,12 +836,6 @@ describe("Candelabra of Tawnos ({X},{T}: untap X target lands, CR 107.3 / 601.2c
         expect(
             state.players[0].battlefield.find((c) => c.id === "l2")?.isTapped
         ).toBe(false);
-    });
-
-    it("declares an X-bound land target count", () => {
-        const ability = candelabraOfTawnos.activatedAbilities![0];
-        expect(ability.targetRequirement).toEqual({ type: "Land", count: "X" });
-        expect(ability.cost.mana).toEqual({ X: "X" });
     });
 
     it("getLegalTargets offers lands (and X scales the count via the engine)", () => {
@@ -1239,15 +1186,6 @@ describe("Armageddon Clock (doom-counter time bomb)", () => {
         expect(state.players[1].life).toBe(17);
     });
 
-    it("{4} remove-doom ability is activatable by any player during any upkeep", () => {
-        const ability = armageddonClock.activatedAbilities!.find(
-            (a) => a.id === "armageddon-clock-remove-doom"
-        )!;
-        expect(ability.activatableByAnyPlayer).toBe(true);
-        expect(ability.activationPhaseRestriction).toEqual(["UPKEEP"]);
-        expect(ability.controllerTurnOnly).toBeUndefined();
-    });
-
     it("remove-doom ability resolves: removes one doom counter", () => {
         const clock = makeClock(3);
         const state = makeState({
@@ -1310,15 +1248,6 @@ describe("Triskelion (3 +1/+1 counters, remove-counter → 1 damage)", () => {
         });
         resolveTopOfStack(state);
         expect(state.players[1].life).toBe(19);
-    });
-
-    it("removal cost is declared as a +1/+1 counter cost; target is any", () => {
-        const ability = triskelion.activatedAbilities![0];
-        expect(ability.cost.removeCounter).toEqual({
-            type: "+1/+1",
-            count: 1,
-        });
-        expect(ability.targetRequirement).toEqual({ type: "any", count: 1 });
     });
 
     it("wire format: counter-driven 4/4 survives projectPublicState", () => {
@@ -1404,14 +1333,6 @@ describe("Clockwork Avian (4 +1/+0 counters, end-of-combat decay)", () => {
         )!;
         // 1 existing + min(5, room=3) = 4, capped at four.
         expect(after.counters?.["+1/+0"]).toBe(4);
-    });
-
-    it("recharge ability is restricted to the controller's upkeep", () => {
-        const ability = clockworkAvian.activatedAbilities!.find(
-            (a) => a.id === "clockwork-avian-recharge"
-        )!;
-        expect(ability.activationPhaseRestriction).toEqual(["UPKEEP"]);
-        expect(ability.controllerTurnOnly).toBe(true);
     });
 
     it("wire format: counter-driven 4/4 survives projectPublicState", () => {
@@ -1558,14 +1479,6 @@ describe("Staff of Zegon ({3},{T}: target -2/-0 EOT, CR 611.1)", () => {
 
 // Mishra's Factory (CR 611.1 animate manland + Assembly-Worker pump)
 describe("Mishra's Factory (animate + Assembly-Worker pump, CR 611.1)", () => {
-    it("{T}: Add {C} is a non-stack mana ability", () => {
-        const mana = mishrasFactory.activatedAbilities!.find(
-            (a) => a.id === "mishras-factory-mana"
-        )!;
-        expect(mana.useStack).toBe(false);
-        expect(mana.manaProduced).toEqual({ C: 1 });
-    });
-
     it("animates the land into a 2/2 Assembly-Worker artifact creature (still a land)", () => {
         const factory = makeInstance(mishrasFactory.id, {
             id: "factory",
@@ -2061,14 +1974,6 @@ describe("Battering Ram (banding grant + destroy blocking Wall)", () => {
 // one ability, keyword picked via `optionChoice` DURING resolution, CR 608.2,
 // not CR 700.2 modality).
 describe("Urza's Avenger ({0}: -1/-1 + chosen keyword EOT via optionChoice)", () => {
-    it("exposes ONE activated ability for the printed line", () => {
-        const ids = urzasAvenger.activatedAbilities!.map((a) => a.id);
-        expect(ids).toEqual(["urzas-avenger-keyword-choice"]);
-        expect(urzasAvenger.activatedAbilities![0].oracleText).toBe(
-            "{0}: This creature gets -1/-1 and gains your choice of banding, flying, first strike, or trample until end of turn."
-        );
-    });
-
     function activateAndSuspend(): {
         state: ReturnType<typeof makeState>;
         avenger: CardInstanceState;
@@ -2271,10 +2176,6 @@ describe("Ashnod's Transmogrant ({T}, sac: +1/+1 on nonartifact creature)", () =
 
 // Mishra's War Machine (CR 603.6a upkeep discard-or-3+tap)
 describe("Mishra's War Machine (upkeep discard or 3 + tap)", () => {
-    it("has banding", () => {
-        expect(mishrasWarMachine.staticAbilities).toContain("banding");
-    });
-
     it("with an empty hand, deals 3 to controller and taps itself", () => {
         const machine = makeInstance(mishrasWarMachine.id, {
             id: "machine",
@@ -2328,12 +2229,6 @@ describe("Mishra's War Machine (upkeep discard or 3 + tap)", () => {
 });
 
 describe("Ashnod's Altar (CR 602.1 — sacrifice a creature: add {C}{C})", () => {
-    it("declares a creature sacrifice cost and no tap", () => {
-        const ability = ashnodsAltar.activatedAbilities![0];
-        expect(ability.cost.sacrificeFilter).toEqual({ types: "Creature" });
-        expect(ability.cost.tap).toBeUndefined();
-    });
-
     it("adds {C}{C} on resolution", () => {
         const altar = makeInstance(ashnodsAltar.id, { id: "altar-1" });
         const state = makeState({
@@ -2725,14 +2620,6 @@ describe("Urza land trio (board-conditional mana, CR 106.1)", () => {
 // ---------------------------------------------------------------------------
 
 describe("Ashnod's Battle Gear (+2/-2 while tapped, CR 611.2)", () => {
-    it("is a {2} Artifact with the optional-untap keyword", () => {
-        expect(ashnodsBattleGear.manaCost).toEqual({ X: 2 });
-        expect(ashnodsBattleGear.types).toEqual(["Artifact"]);
-        expect(ashnodsBattleGear.staticAbilities).toContain(
-            "may-choose-not-to-untap"
-        );
-    });
-
     it("grants +2/-2 to a creature you control while the Gear stays tapped", () => {
         const gear = makeInstance(ashnodsBattleGear.id, {
             id: "gear",
@@ -2858,13 +2745,6 @@ describe("Ashnod's Battle Gear (+2/-2 while tapped, CR 611.2)", () => {
 });
 
 describe("Tawnos's Weaponry (+1/+1 while tapped, CR 611.2)", () => {
-    it("is a {2} Artifact with the optional-untap keyword", () => {
-        expect(tawnossWeaponry.manaCost).toEqual({ X: 2 });
-        expect(tawnossWeaponry.staticAbilities).toContain(
-            "may-choose-not-to-untap"
-        );
-    });
-
     it("grants +1/+1 to any creature while the Weaponry stays tapped", () => {
         const weap = makeInstance(tawnossWeaponry.id, {
             id: "weap",
@@ -2985,13 +2865,6 @@ describe("Primal Clay (choose-body-on-entry, CR 614.12 / 702.3 / 702.9)", () => 
     function bodyOf(state: ReturnType<typeof castPrimalClay>["state"]) {
         return state.players[0].battlefield.find((c) => c.id === "clay1")!;
     }
-
-    it("definition: 0/0 artifact creature with the entry-choice resolveStep", () => {
-        expect(primalClay.types).toEqual(["Artifact", "Creature"]);
-        expect(primalClay.power).toBe(0);
-        expect(primalClay.toughness).toBe(0);
-        expect(primalClay.resolveSteps).toHaveLength(1);
-    });
 
     it("entry choice 3/3 sets base P/T, no extra subtype/keyword", () => {
         const { state, item } = castPrimalClay();
@@ -3127,17 +3000,6 @@ describe("Shapeshifter (choose-number-on-entry + upkeep, CR 614.12 / 603.6a)", (
     function bodyOf(state: ReturnType<typeof castShapeshifter>["state"]) {
         return state.players[0].battlefield.find((c) => c.id === "shift1")!;
     }
-
-    it("definition: 0/0 with entry resolveStep + upkeep re-choice trigger", () => {
-        expect(shapeshifter.types).toEqual(["Artifact", "Creature"]);
-        expect(shapeshifter.subtypes).toEqual(["Shapeshifter"]);
-        expect(shapeshifter.resolveSteps).toHaveLength(1);
-        expect(
-            shapeshifter.triggeredAbilities?.some(
-                (t) => t.id === "shapeshifter-upkeep-renumber"
-            )
-        ).toBe(true);
-    });
 
     it("entry choice 3 → 3/4 (power=N, toughness=7-N)", () => {
         const { state, item } = castShapeshifter();
@@ -3563,10 +3425,6 @@ describe("Rocket Launcher ({2}: 1 damage any target; destroy at end step)", () =
         return { state, launcher };
     };
 
-    it("enters summoning-sick (tracksControlContinuity)", () => {
-        expect(rocketLauncher.tracksControlContinuity).toBe(true);
-    });
-
     it("canActivate is false while controlled this turn (summoning sick)", () => {
         const { state, launcher } = place(true);
         const ability = rocketLauncher.activatedAbilities![0];
@@ -3621,11 +3479,6 @@ describe("Tawnos's Wand ({2},{T}: target power ≤ 2 can't be blocked)", () => {
         });
         return { state, wand, attacker, blocker };
     };
-
-    it("only targets creatures with power 2 or less", () => {
-        const req = tawnossWand.activatedAbilities![0].targetRequirement!;
-        expect(req.powerFilter).toEqual({ max: 2 });
-    });
 
     it("flags the target as unblockable; blockers become ineligible", () => {
         const { state, wand, attacker, blocker } = setup();
@@ -3712,21 +3565,6 @@ describe("Tetravus (token provenance link, CR 111 / 122 / 303.4)", () => {
             (c) => c.createdBy === "tet1"
         );
     }
-
-    it("definition: 1/1 flying artifact Construct, enters with three +1/+1", () => {
-        expect(tetravus.types).toEqual(["Artifact", "Creature"]);
-        expect(tetravus.subtypes).toEqual(["Construct"]);
-        expect(tetravus.power).toBe(1);
-        expect(tetravus.toughness).toBe(1);
-        expect(tetravus.staticAbilities).toContain("flying");
-        expect(tetravus.entersWith).toEqual({
-            counters: [{ type: "+1/+1", count: 3 }],
-        });
-        expect(tetravus.triggeredAbilities?.map((t) => t.id)).toEqual([
-            "tetravus-counters-to-tokens",
-            "tetravus-tokens-to-counters",
-        ]);
-    });
 
     it("ETB counters make it effectively 4/4 (1/1 + three +1/+1)", () => {
         const { state, tet } = tetravusOnBattlefield(3);

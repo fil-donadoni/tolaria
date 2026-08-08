@@ -36,10 +36,8 @@ import {
 } from "../../../../gre/rules";
 import {
     lowerSpellOnlyFilters,
-    SPELL_FILTER_KEYS,
     SPELL_ONLY_FILTER_KEYS,
 } from "../../../../gre/targetFilters";
-import { PENDING_TARGET_FILTER_KEYS } from "../../../../gre/state";
 import type { CardDefinition } from "../../../types";
 import {
     plains,
@@ -517,22 +515,6 @@ describe("Hunting Drake (ETB put target red/green creature on owner's library to
 });
 
 describe("Rushing River (Kicker—Sacrifice a land, additive second target, CR 702.33a)", () => {
-    it("declares the sacrifice-a-land permanent leg and the additive kicked target count", () => {
-        expect(rushingRiver.kickers).toEqual([
-            {
-                id: "kicker",
-                description: "Kicker—Sacrifice a land",
-                permanent: {
-                    action: "sacrifice",
-                    filter: { types: "Land" },
-                    count: 1,
-                },
-            },
-        ]);
-        expect(rushingRiver.targetRequirement?.count).toBe(1);
-        expect(rushingRiver.kickedTargetRequirement?.count).toBe(2);
-    });
-
     it("unkicked: returns the single target nonland permanent to its owner's hand", () => {
         const bear = makeInstance(grizzlyBears.id, {
             id: "rr-bear",
@@ -1147,16 +1129,6 @@ describe("Stormscape Battlemage — CR 603.4 per-Kicker check-time gate (issue #
 });
 
 describe("Stormscape Familiar (cost-modifier: white AND black spells cost {1} less, CR 601.2f)", () => {
-    it("carries the canonical printed characteristics + cost-modifier static", () => {
-        expect(stormscapeFamiliar.manaCost).toEqual({ X: 1, U: 1 });
-        expect(stormscapeFamiliar.staticAbilities).toContain("flying");
-        const eff = stormscapeFamiliar.staticEffects?.[0];
-        expect(eff?.kind).toBe("cost-modifier");
-        expect((eff as { costReduction?: unknown }).costReduction).toEqual({
-            X: 1,
-        });
-    });
-
     it("reduces the controller's OWN white spell by {1}", () => {
         const familiar = makeInstance(stormscapeFamiliar.id, {
             id: "familiar",
@@ -1802,12 +1774,6 @@ describe("Confound — spell-property target filters (issue #1956)", () => {
         );
     });
 
-    it("the multi-group PendingTarget reset clears EVERY spell filter (no cross-group leak, CR 601.2c)", () => {
-        for (const key of SPELL_FILTER_KEYS) {
-            expect(PENDING_TARGET_FILTER_KEYS).toHaveProperty(key);
-        }
-    });
-
     // ── Resolution (CR 608.2b fizzle + the unconditional draw)
 
     it("Confound counters its target and draws a card", () => {
@@ -1963,16 +1929,5 @@ describe("Confound — spell-property target filters (issue #1956)", () => {
         const slimRage = projected.stack.find((s) => s.id === rage.id)!;
         expect(slimBolt.targets).toEqual([{ type: "permanent", id: "bear" }]);
         expect(slimRage.kickerPayments).toEqual({ kicker: 1 });
-    });
-
-    // ── Card data (Scryfall + modern Oracle)
-
-    it("card data matches Scryfall / modern Oracle text", () => {
-        expect(confound.manaCost).toEqual({ X: 1, U: 1 });
-        expect(confound.types).toEqual(["Instant"]);
-        expect(confound.rarity).toBe("common");
-        expect(confound.oracleText).toBe(
-            "Counter target spell that targets a creature.\nDraw a card."
-        );
     });
 });

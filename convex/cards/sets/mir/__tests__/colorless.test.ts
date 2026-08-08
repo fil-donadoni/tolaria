@@ -25,28 +25,6 @@ const GRIZZLY_BEARS_ID = "ce2d603a-3231-4a8c-bf39-1617586ea870";
 // a count comfortably above any reachable hand size — clamped to the actual
 // hand size (CR 118.3), so every card discards regardless of hand size.
 describe("Lion's Eye Diamond ({T}, Sacrifice, discard hand: 3 of one color, CR 118.3 / 605.1a)", () => {
-    it("is a {0} artifact whose cost discards the whole hand and sacrifices itself", () => {
-        expect(lionsEyeDiamond.manaCost).toEqual({});
-        expect(lionsEyeDiamond.types).toEqual(["Artifact"]);
-        const ability = lionsEyeDiamond.activatedAbilities![0];
-        expect(ability.cost.sacrifice).toBe(true);
-        // A count safely above any reachable hand size — the primitive
-        // clamps to the actual hand, so this always discards everything.
-        expect(ability.cost.discardAtRandom).toBeGreaterThanOrEqual(99);
-        expect(ability.useStack).toBe(false);
-    });
-
-    it("offers 3 mana of any ONE color (not 1 mana of any color x3)", () => {
-        const ability = lionsEyeDiamond.activatedAbilities![0];
-        expect(ability.manaChoices).toEqual([
-            { W: 3 },
-            { U: 3 },
-            { B: 3 },
-            { R: 3 },
-            { G: 3 },
-        ]);
-    });
-
     // Full path through the real tap-for-mana entry point
     // (`tapSourceIntoPayment` — the choice branch, since LED has no {T} cost
     // but a `manaChoices`-shaped mana ability). Exercises the discard-at-
@@ -176,14 +154,6 @@ function dreadnoughtCost(): MayPayCost {
 }
 
 describe("Phyrexian Dreadnought (threshold sacrifice cost, CR 118 / 701.16 / 603.6a)", () => {
-    it("is a {1} 12/12 Artifact Creature with trample", () => {
-        expect(phyrexianDreadnought.power).toBe(12);
-        expect(phyrexianDreadnought.toughness).toBe(12);
-        expect(phyrexianDreadnought.types).toEqual(["Artifact", "Creature"]);
-        expect(phyrexianDreadnought.staticAbilities).toContain("trample");
-        expect(phyrexianDreadnought.manaCost).toEqual({ X: 1 });
-    });
-
     it("decline: the ETB sacrifices the Dreadnought itself (CR 608.2b)", () => {
         const dread = makeInstance(phyrexianDreadnought.id, {
             id: "dread",

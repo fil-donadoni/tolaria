@@ -67,27 +67,6 @@ function answerOptionPick(state: GameState, optionId: string): void {
 }
 
 describe("Subtlety — targeted trigger over a stack spell (CR 603.3d / 113, #1205)", () => {
-    it("pins the definition (flash/flying, blue evoke, up-to-one spell target)", () => {
-        expect(subtlety.staticAbilities).toEqual(["flash", "flying"]);
-        expect(subtlety.evoke).toEqual({
-            id: "evoke",
-            description: "Evoke—Exile a blue card from your hand",
-            hand: {
-                action: "exile",
-                requirements: [{ filter: { color: "U" }, count: 1 }],
-            },
-        });
-        const etb = subtlety.triggeredAbilities?.find(
-            (a) => a.id === "subtlety-etb"
-        );
-        expect(etb?.targetRequirement).toEqual({
-            type: "spell",
-            count: { min: 0, max: 1 },
-            spellStackKind: "spell",
-            spellTypeFilter: ["Creature", "Planeswalker"],
-        });
-    });
-
     it("targets only a creature/planeswalker spell (not an instant) and puts it on top of the owner's library", () => {
         const treefolk = getCardByName("Ironroot Treefolk"); // creature
         const state = makeState({
@@ -222,17 +201,6 @@ describe("Thought Monitor — Affinity for artifacts + flying + ETB draw (CR 702
         expect(getCardByName("Thought Monitor")?.id).toBe(thoughtMonitor.id);
     });
 
-    it("declares BOTH keywords — the affinity factory must not swallow flying", () => {
-        // The failure this guards: spreading `affinityForArtifacts()` and then
-        // re-declaring `staticAbilities` for flying would drop the affinity
-        // string, leaving the reduction unannounced on the board (and Guard A
-        // silent, since the surviving keyword is implemented).
-        expect(thoughtMonitor.staticAbilities).toContain(
-            "affinity for artifacts"
-        );
-        expect(thoughtMonitor.staticAbilities).toContain("flying");
-    });
-
     it("costs {1} less per artifact, coloured pip untouched, floored at {U}", () => {
         const costWithArtifacts = (n: number) => {
             const state = makeState({
@@ -264,18 +232,5 @@ describe("Thought Monitor — Affinity for artifacts + flying + ETB draw (CR 702
         expect(costWithArtifacts(2)).toEqual({ X: 4, U: 1 });
         expect(costWithArtifacts(6)).toEqual({ U: 1 });
         expect(costWithArtifacts(9)).toEqual({ U: 1 });
-    });
-
-    it("ETB triggered ability draws two cards (CR 603.6a)", () => {
-        // `draw` is an already-exercised Op (gre-development.md § per-Op
-        // regime): a definition-level assertion covers the wiring, the Op's
-        // behaviour is the interpreter suite's.
-        const trigger = thoughtMonitor.triggeredAbilities?.find((t) =>
-            t.oracleText?.includes("draw two cards")
-        );
-        expect(trigger).toBeDefined();
-        expect(trigger?.effects).toEqual([
-            { op: "draw", player: "controller", count: 2 },
-        ]);
     });
 });

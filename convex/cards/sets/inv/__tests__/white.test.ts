@@ -510,14 +510,6 @@ describe("Harsh Judgment (CR 614 redirect — chosen-color instant/sorcery damag
 // ---------------------------------------------------------------------------
 
 describe("Shackles (CR 502.1 does-not-untap Aura + return-to-hand ability)", () => {
-    it("declares the does-not-untap host-grant", () => {
-        const grant = shackles.staticEffects?.[0];
-        expect(grant?.kind).toBe("keyword-grant");
-        if (grant?.kind === "keyword-grant") {
-            expect(grant.keyword).toBe("does-not-untap");
-        }
-    });
-
     it("grants does-not-untap to the enchanted host on resolution", () => {
         const bears = makeInstance(balduvianBears.id, {
             id: "bears",
@@ -538,16 +530,6 @@ describe("Shackles (CR 502.1 does-not-untap Aura + return-to-hand ability)", () 
             (c) => c.id === "bears"
         )!;
         expect(host.staticAbilities).toContain("does-not-untap");
-    });
-
-    it("returns itself to its owner's hand for {W}", () => {
-        const ability = shackles.activatedAbilities!.find(
-            (a) => a.id === "shackles-return"
-        )!;
-        expect(ability.cost.mana).toEqual({ W: 1 });
-        expect(ability.effects).toEqual([
-            { op: "moveZone", target: { ref: "$source" }, to: "hand" },
-        ]);
     });
 });
 
@@ -694,17 +676,6 @@ function chooseReyaTarget(
 }
 
 describe("Reya Dawnbringer (CR 603.3d targeted upkeep reanimation, issue #1193)", () => {
-    it("declares the CR 603.3d target requirement: up to one graveyard creature you control", () => {
-        expect(
-            reyaDawnbringer.triggeredAbilities?.[0]?.targetRequirement
-        ).toEqual({
-            type: "Creature",
-            count: { min: 0, max: 1 },
-            zone: "graveyard",
-            controller: "you",
-        });
-    });
-
     it("returns the targeted graveyard creature to the battlefield", () => {
         const reya = makeInstance(reyaDawnbringer.id, {
             id: "reya",
@@ -1340,15 +1311,6 @@ describe("Winnow (CR 608.2 resolution condition + CR 201.2 same name, issue #206
             state.players[1].battlefield.some((c) => c.id === "vise-target")
         ).toBe(false);
         expect(state.players[0].hand.map((c) => c.id)).toContain("draw-me");
-    });
-
-    it("targets any nonland permanent — the condition is NOT a targeting restriction", () => {
-        expect(winnow.targetRequirement?.excludeTypes).toBe("Land");
-        expect(winnow.targetRequirement?.count).toBe(1);
-        // No name/condition field on the requirement: legality at announcement
-        // (CR 601.2c) is name-blind, so Winnow can be cast on a lone permanent
-        // and simply do nothing on resolution.
-        expect(JSON.stringify(winnow.targetRequirement)).not.toMatch(/name/);
     });
 
     it("the destroy survives projection (wire format)", () => {

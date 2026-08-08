@@ -47,18 +47,6 @@ function inGraveyard(
 }
 
 describe("Solitary Confinement ({2}{W} Enchantment, CR 504/614/615/702.18, #1130)", () => {
-    it("is a {2}{W} Enchantment with the modern oracle wording", () => {
-        expect(solitaryConfinement.manaCost).toEqual({ X: 2, W: 1 });
-        expect(solitaryConfinement.types).toEqual(["Enchantment"]);
-        expect(solitaryConfinement.rarity).toBe("rare");
-        expect(solitaryConfinement.oracleText).toBe(
-            "At the beginning of your upkeep, sacrifice this enchantment unless you discard a card.\nSkip your draw step.\nYou have shroud. (You can't be the target of spells or abilities.)\nPrevent all damage that would be dealt to you."
-        );
-        expect(solitaryConfinement.id).toBe(
-            "e7a8eb7a-eb3f-405e-8f44-d8ea64d76386"
-        );
-    });
-
     // --- Clause 2: skip draw step (CR 504/614) ------------------------------
     it("skips the controller's draw step while in play (CR 504.1/614)", () => {
         const confinement = makeInstance(solitaryConfinement.id, {

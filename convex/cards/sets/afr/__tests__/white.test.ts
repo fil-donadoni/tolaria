@@ -4,7 +4,6 @@
 import { describe, it, expect } from "vitest";
 import { portableHole } from "../white";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { PERMANENT_TYPES } from "../../../types";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     removePermanentTo,
@@ -89,26 +88,6 @@ function chooseTarget(state: GameState, targetId: string) {
 }
 
 describe("Portable Hole (AFR — exile-until-leaves scoped to mv<=2, CR 603.6a/603.7a)", () => {
-    it("is a {W} Artifact with the modern oracle text", () => {
-        expect(portableHole.manaCost).toEqual({ W: 1 });
-        expect(portableHole.types).toEqual(["Artifact"]);
-        expect(portableHole.oracleText).toBe(
-            "When this artifact enters, exile target nonland permanent an opponent controls with mana value 2 or less until this artifact leaves the battlefield."
-        );
-    });
-
-    it("declares the CR 603.3d target requirement: a nonland permanent an opponent controls with mv<=2", () => {
-        expect(portableHole.triggeredAbilities?.[0]?.targetRequirement).toEqual(
-            {
-                type: [...PERMANENT_TYPES],
-                count: 1,
-                excludeTypes: "Land",
-                controller: "opponent",
-                mvFilter: { max: 2 },
-            }
-        );
-    });
-
     it("single legal target auto-selects at stack placement, then exiles it (CR 603.3d)", () => {
         const { state, ph } = setup();
         const trig = putTriggerOnStack(state, ph);

@@ -24,28 +24,10 @@ import {
     resolvePlayLandSourceZone,
 } from "../../../../gre/playLand";
 import { projectPublicState } from "../../../../gameProjections";
-import { courserOfKruphix } from "../green";
 import { courserBoard } from "./courserBoard";
 import { forest, mountain } from "../../lea/colorless";
 import { stompingGround } from "../../gpt/colorless";
 import { grizzlyBears } from "../../lea/green";
-
-describe("Courser of Kruphix — card definition", () => {
-    it("is a 2/4 Enchantment Creature — Centaur for {1}{G}{G}", () => {
-        expect(courserOfKruphix.manaCost).toEqual({ X: 1, G: 2 });
-        expect(courserOfKruphix.types).toEqual(["Enchantment", "Creature"]);
-        expect(courserOfKruphix.subtypes).toEqual(["Centaur"]);
-        expect(courserOfKruphix.power).toBe(2);
-        expect(courserOfKruphix.toughness).toBe(4);
-    });
-
-    it("declares BOTH the top-card reveal and the play-from-top permission", () => {
-        // CR does not tie the two clauses together, so they are separate
-        // fields; the card printing both is what makes it declare both.
-        expect(courserOfKruphix.revealsLibraryTop).toBe("controller");
-        expect(courserOfKruphix.playsLandsFromTopOfLibrary).toBe(true);
-    });
-});
 
 describe("play-lands-from-top permission (CR 305.1-analog)", () => {
     it("canPlayLandsFromTopOfLibrary is true only for the Courser's controller", () => {

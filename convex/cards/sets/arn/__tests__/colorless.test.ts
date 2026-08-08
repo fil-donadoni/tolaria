@@ -8,26 +8,20 @@ import {
     aladdinsLamp,
     aladdinsRing,
     bazaarOfBaghdad,
-    birdMaiden,
     bottleOfSuleiman,
     brassMan,
     cityOfBrass,
-    dancingScimitar,
     desert,
     ebonyHorse,
     elephantGraveyard,
     fishliverOil,
     flyingCarpet,
-    flyingMen,
     islandOfWakWak,
     jandorsRing,
     jandorsSaddlebags,
     libraryOfAlexandria,
-    moorishCavalry,
     oasis,
     pyramids,
-    repentantBlacksmith,
-    stoneThrowingDevils,
     warElephant,
 } from "..";
 import {
@@ -72,27 +66,6 @@ import {
 } from "./helpers";
 
 describe("ARN keyword creatures (CR 702 — staticAbilities)", () => {
-    it("Flying Men has flying", () => {
-        expect(flyingMen.staticAbilities).toContain("flying");
-    });
-    it("Bird Maiden has flying", () => {
-        expect(birdMaiden.staticAbilities).toContain("flying");
-    });
-    it("Moorish Cavalry has trample", () => {
-        expect(moorishCavalry.staticAbilities).toContain("trample");
-    });
-    it("Stone-Throwing Devils has first strike", () => {
-        expect(stoneThrowingDevils.staticAbilities).toContain("first strike");
-    });
-    it("Dancing Scimitar is an artifact creature with flying", () => {
-        expect(dancingScimitar.types).toEqual(["Artifact", "Creature"]);
-        expect(dancingScimitar.staticAbilities).toContain("flying");
-    });
-    it("Repentant Blacksmith has protection from red", () => {
-        expect(repentantBlacksmith.staticAbilities).toContain(
-            "protection from red"
-        );
-    });
     it("War Elephant has trample and banding", () => {
         expect(warElephant.staticAbilities).toEqual(
             expect.arrayContaining(["trample", "banding"])
@@ -257,12 +230,6 @@ describe("City of Brass (becomes tapped → 1 damage; {T}: any color)", () => {
         } as StackItem["triggerEvent"]);
         expect(state.players[0].life).toBe(19);
     });
-    it("offers all five colors as mana choices", () => {
-        const mana = cityOfBrass.activatedAbilities?.find(
-            (a) => a.id === "city-of-brass-mana"
-        );
-        expect(mana?.manaChoices).toHaveLength(5);
-    });
 });
 
 describe("Elephant Graveyard ({T}: regenerate target Elephant)", () => {
@@ -352,9 +319,6 @@ describe("Library of Alexandria ({T}: draw if exactly 7 cards in hand)", () => {
 });
 
 describe("Brass Man (does-not-untap + pay {1} to untap on upkeep)", () => {
-    it("has the does-not-untap keyword", () => {
-        expect(brassMan.staticAbilities).toContain("does-not-untap");
-    });
     it("paying {1} untaps it on upkeep", () => {
         const brass = makeInstance(brassMan.id, {
             id: "brass",
@@ -699,13 +663,6 @@ describe("Bottle of Suleiman (random-reveal coin flip, CR 705 / ADR 0023)", () =
             choiceId: head.choiceId,
         });
     }
-
-    it("definition snapshot: {4} Artifact, {1}+sacrifice flip ability", () => {
-        expect(bottleOfSuleiman.types).toEqual(["Artifact"]);
-        expect(bottleOfSuleiman.manaCost).toEqual({ X: 4 });
-        const ability = bottleOfSuleiman.activatedAbilities![0];
-        expect(ability.cost).toEqual({ mana: { X: 1 }, sacrifice: true });
-    });
 
     it("suspends on a random-reveal choice BEFORE applying the consequence", () => {
         const { state, bottle } = setup(WIN_SEED);

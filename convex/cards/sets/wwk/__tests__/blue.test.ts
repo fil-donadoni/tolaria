@@ -61,26 +61,6 @@ function activate(
     resolveTopOfStack(state);
 }
 
-describe("Jace, the Mind Sculptor — loyalty snapshot (CR 306, ADR 0058)", () => {
-    it("is a 3-loyalty legendary Jace planeswalker with four loyalty abilities", () => {
-        expect(jaceTheMindSculptor.types).toEqual(["Planeswalker"]);
-        expect(jaceTheMindSculptor.supertypes).toEqual(["Legendary"]);
-        expect(jaceTheMindSculptor.subtypes).toEqual(["Jace"]);
-        expect(jaceTheMindSculptor.loyalty).toBe(3);
-        expect(jaceTheMindSculptor.manaCost).toEqual({ generic: 2, U: 2 });
-        const abilities = jaceTheMindSculptor.activatedAbilities!;
-        expect(abilities.map((a) => a.id)).toEqual([
-            PLUS2,
-            ZERO,
-            MINUS1,
-            MINUS12,
-        ]);
-        expect(abilities.map((a) => a.cost.loyalty)).toEqual([2, 0, -1, -12]);
-        // No resolve() anywhere — all four are Effect Scripts (ADR 0045).
-        expect(abilities.every((a) => a.resolve === undefined)).toBe(true);
-    });
-});
-
 describe("Jace, the Mind Sculptor — +2 fateseal (CR 701.20, chooser param, issue #1532)", () => {
     function fatesealState() {
         return makeState({

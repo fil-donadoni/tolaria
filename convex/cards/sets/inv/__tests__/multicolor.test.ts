@@ -13,7 +13,7 @@
 // authored them and import the definition from its home module.
 
 import { describe, it, expect } from "vitest";
-import type { CardDefinition, CardType, TargetSelection } from "../../../types";
+import type { CardType, TargetSelection } from "../../../types";
 import {
     orderedMigration,
     coalitionVictory,
@@ -32,9 +32,10 @@ import {
     hoodedKavu,
     plagueSpores,
     recklessAssault,
-    shivanZombie,
+    shivanOasis,
     smolderingTar,
     trenchWurm,
+    trollHornCameo,
     urborgVolcano,
     viciousKavu,
     artifactMutation,
@@ -44,34 +45,20 @@ import {
     meteorStorm,
     ragingKavu,
     voraciousCobra,
-    yavimayaBarbarian,
     yavimayaKavu,
     firebrandRanger,
     savageOffensive,
     viashinoGrappler,
-    trollHornCameo,
-    shivanOasis,
     armadilloCloak,
     auraShards,
     captainSisay,
     chargingTroll,
     hornedCheetah,
-    llanowarKnight,
     noblePanther,
     sabertoothNishoba,
     dromar,
     rith,
     treva,
-    crosisAttendant,
-    darigaazAttendant,
-    dromarAttendant,
-    rithAttendant,
-    trevaAttendant,
-    ancientSpring,
-    geothermalCrevice,
-    irrigationDitch,
-    sulfurVent,
-    tinderFarm,
     stormscapeApprentice,
     stormscapeMaster,
     nightscapeMaster,
@@ -101,7 +88,11 @@ import {
     type StackItem,
 } from "../../../../gre/state";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
-import { finalizeTargetSelection } from "../../../../game";
+import {
+    finalizeTargetSelection,
+    tapSourceIntoPayment,
+} from "../../../../game";
+import { getManaTapOptionsDetailed } from "../../../../gre/constants";
 import {
     plains,
     island,
@@ -524,16 +515,6 @@ describe("Teferi's Moat (chosen-color no-fly attack lock, CR 508/509 + 603.6b)",
 // ─────────────────────────────────────────────────────────────────────────
 
 describe("Sleeper's Robe (fear keyword-grant + combat-damage draw, CR 702.14b / 510.4)", () => {
-    it("declares a keyword-grant for fear (Snow Devil pattern)", () => {
-        expect(sleepersRobe.staticEffects?.[0]).toMatchObject({
-            kind: "keyword-grant",
-            keyword: "fear",
-        });
-        expect(sleepersRobe.targetRequirement).toMatchObject({
-            type: "Creature",
-        });
-    });
-
     it("grants fear to the host when the Aura resolves onto it", () => {
         const host = makeInstance(grizzlyBears.id, {
             id: "host",
@@ -713,25 +694,9 @@ describe("Stalking Assassin (two tap-cost activated abilities, CR 605 / 701.26 /
             true
         );
     });
-
-    it("the destroy ability's target requirement is filtered to TAPPED creatures only", () => {
-        const destroyAbility = stalkingAssassin.activatedAbilities!.find(
-            (a) => a.id === "stalking-assassin-destroy"
-        )!;
-        expect(destroyAbility.targetRequirement?.tappedFilter).toBe("tapped");
-    });
 });
 
 describe("Urborg Drake (flying + attacks-each-combat-if-able, CR 702.9b / 508.1d)", () => {
-    it("has flying and a declared attack-requirement static effect", () => {
-        expect(urborgDrake.staticAbilities).toContain("flying");
-        expect(
-            (urborgDrake.staticEffects ?? []).some(
-                (e) => e.kind === "attack-requirement"
-            )
-        ).toBe(true);
-    });
-
     it("mustAttack is true when eligible, false when tapped or summoning sick", () => {
         const drake = makeInstance(urborgDrake.id, { id: "drake" });
         const state = makeState();
@@ -767,17 +732,6 @@ describe("Vile Consumption (triggered-grant to every creature, CR 113.1/611 + up
         applySourceStaticEffects(state, vc);
         return { state, vc, bear };
     }
-
-    it("declares a triggered-grant static and the granted template (not on triggeredAbilities)", () => {
-        const kinds = (vileConsumption.staticEffects ?? []).map((e) => e.kind);
-        expect(kinds).toContain("triggered-grant");
-        expect(vileConsumption.triggeredAbilities ?? []).toHaveLength(0);
-        expect(
-            vileConsumption.triggeredGrantTemplates?.some(
-                (t) => t.id === "vile-consumption-upkeep"
-            )
-        ).toBe(true);
-    });
 
     it("grants the upkeep tax to every creature in play, either player's", () => {
         const { bear } = withVileConsumption("p2");
@@ -969,21 +923,6 @@ describe("Agonizing Demise (CR 702.33 Kicker + 701.8 destroy + 701.15c regen-sup
         return state;
     }
 
-    it("declares Kicker {1}{R}, a nonblack-creature target filter, and a can't-be-regenerated destroy", () => {
-        expect(agonizingDemise.kickers).toEqual([
-            {
-                id: "kicker",
-                description: "Kicker {1}{R}",
-                mana: { X: 1, R: 1 },
-            },
-        ]);
-        expect(agonizingDemise.targetRequirement?.excludeColors).toBe("B");
-        expect(agonizingDemise.effects?.[0]).toMatchObject({
-            op: "destroy",
-            cantBeRegenerated: true,
-        });
-    });
-
     it("unkicked: destroys the target creature, no damage dealt", () => {
         const state = cast(false);
         expect(state.players[1].battlefield.some((c) => c.id === "foe")).toBe(
@@ -1075,15 +1014,6 @@ describe("Blazing Specter (CR 702.9b flying + 702.10b haste + combat-damage disc
     });
 });
 
-describe("Bloodstone Cameo (CR 605.1a choice-of-color mana ability, issue #1077)", () => {
-    it("is a mana ability (useStack:false) offering B or R", () => {
-        const ability = bloodstoneCameo.activatedAbilities![0];
-        expect(ability.useStack).toBe(false);
-        expect(ability.manaChoices).toEqual([{ B: 1 }, { R: 1 }]);
-        expect(ability.cost.tap).toBe(true);
-    });
-});
-
 describe("Firescreamer (CR 613.4c firebreathing pump, issue #1077)", () => {
     it("{R}: gets +1/+0 until end of turn", () => {
         const creature = makeInstance(firescreamer.id, {
@@ -1122,16 +1052,6 @@ describe("Hooded Kavu (CR 702.14b fear temporary grant, issue #1077)", () => {
 });
 
 describe("Plague Spores (CR 701.8 destroy x2 + 701.15c regen-suppression, issue #1077)", () => {
-    it("targets a nonblack creature AND an independent land slot", () => {
-        expect(plagueSpores.targetRequirement).toMatchObject({
-            type: "Creature",
-            excludeColors: "B",
-        });
-        expect(plagueSpores.additionalTargetRequirements?.[0]).toMatchObject({
-            type: "Land",
-        });
-    });
-
     it("destroys both the creature and the land, neither regenerable", () => {
         const foe = makeInstance(grizzlyBears.id, {
             id: "foe",
@@ -1163,12 +1083,6 @@ describe("Plague Spores (CR 701.8 destroy x2 + 701.15c regen-suppression, issue 
 });
 
 describe("Reckless Assault (CR 602.1/118.5 mana+life activation cost, issue #1077)", () => {
-    it("costs {1} and 2 life", () => {
-        const ability = recklessAssault.activatedAbilities![0];
-        expect(ability.cost.mana).toEqual({ X: 1 });
-        expect(ability.cost.life).toBe(2);
-    });
-
     it("deals 1 damage to any target", () => {
         const ench = makeInstance(recklessAssault.id, {
             id: "ra",
@@ -1187,30 +1101,7 @@ describe("Reckless Assault (CR 602.1/118.5 mana+life activation cost, issue #107
     });
 });
 
-describe("Shivan Zombie (CR 702.16 protection, issue #1077)", () => {
-    it("has protection from white", () => {
-        expect(shivanZombie.staticAbilities).toContain("protection from white");
-    });
-});
-
 describe("Smoldering Tar (CR 603.6a upkeep target-player drain + 701.16 sacrifice-for-damage, issue #1077)", () => {
-    it("the detonate ability is sacrifice-only and sorcery-speed-restricted", () => {
-        const detonate = smolderingTar.activatedAbilities![0];
-        expect(detonate.cost).toEqual({ sacrifice: true });
-        expect(detonate.controllerTurnOnly).toBe(true);
-        expect(detonate.activationPhaseRestriction).toEqual([
-            "PRECOMBAT_MAIN",
-            "POSTCOMBAT_MAIN",
-        ]);
-    });
-
-    it("declares a CR 603.3d target-player requirement on the upkeep trigger", () => {
-        const upkeep = smolderingTar.triggeredAbilities!.find(
-            (a) => a.id === "smoldering-tar-upkeep"
-        )!;
-        expect(upkeep.targetRequirement).toEqual({ type: "player", count: 1 });
-    });
-
     it("upkeep trigger: the chosen target player loses 1 life (CR 603.3d — target at stack placement)", () => {
         const tar = makeInstance(smolderingTar.id, {
             id: "tar",
@@ -1308,11 +1199,6 @@ describe("Smoldering Tar (CR 603.6a upkeep target-player drain + 701.16 sacrific
 });
 
 describe("Trench Wurm (CR 605 activated ability, 701.8 destroy nonbasic land, issue #1077)", () => {
-    it("targets a nonbasic land", () => {
-        const ability = trenchWurm.activatedAbilities![0];
-        expect(ability.targetRequirement?.excludeSupertypes).toBe("Basic");
-    });
-
     it("{2}{R}, {T}: destroys target nonbasic land", () => {
         const wurm = makeInstance(trenchWurm.id, {
             id: "wurm",
@@ -1338,15 +1224,6 @@ describe("Trench Wurm (CR 605 activated ability, 701.8 destroy nonbasic land, is
         expect(state.players[1].graveyard.some((c) => c.id === "vol")).toBe(
             true
         );
-    });
-});
-
-describe("Urborg Volcano (CR 110.5b enters tapped + 605.1a choice-of-color mana ability, issue #1077)", () => {
-    it("enters tapped and taps for B or R", () => {
-        expect(urborgVolcano.entersTapped).toBe(true);
-        const ability = urborgVolcano.activatedAbilities![0];
-        expect(ability.useStack).toBe(false);
-        expect(ability.manaChoices).toEqual([{ B: 1 }, { R: 1 }]);
     });
 });
 
@@ -1522,17 +1399,6 @@ describe("Frenzied Tilling (CR 701.8 destroy + 401.4 search/tapped/701.20 shuffl
 });
 
 describe("Hunting Kavu (CR 602.1 tap ability, CR 508.1/509.1 attacking-without-flying target filter, CR 701.13 exile, issue #1078)", () => {
-    it("targets an opponent's attacking, non-flying creature", () => {
-        const ability = huntingKavu.activatedAbilities![0];
-        expect(ability.targetRequirement).toMatchObject({
-            type: "Creature",
-            controller: "opponent",
-            combatRoleFilter: "attacking",
-            excludeAbility: "flying",
-        });
-        expect(ability.cost).toEqual({ mana: { X: 1, R: 1, G: 1 }, tap: true });
-    });
-
     it("exiles itself and the target creature", () => {
         const kavu = makeInstance(huntingKavu.id, {
             id: "hk",
@@ -1566,12 +1432,6 @@ describe("Hunting Kavu (CR 602.1 tap ability, CR 508.1/509.1 attacking-without-f
 });
 
 describe("Meteor Storm (CR 118.3/701.8 random-discard activation cost + 120.1 damage, issue #1078)", () => {
-    it("costs {2}{R}{G} and discarding two cards at random", () => {
-        const ability = meteorStorm.activatedAbilities![0];
-        expect(ability.cost.mana).toEqual({ X: 2, R: 1, G: 1 });
-        expect(ability.cost.discardAtRandom).toBe(2);
-    });
-
     it("deals 4 damage to any target", () => {
         const ench = makeInstance(meteorStorm.id, {
             id: "ms",
@@ -1642,10 +1502,6 @@ describe("Simoon (CR 115 target-opponent player selector + 120.1 damage sweep, i
 });
 
 describe("Voracious Cobra (CR 702.7 first strike + 510.4/603.2 combat-damage-to-a-creature destroys it, issue #1078)", () => {
-    it("has first strike", () => {
-        expect(voraciousCobra.staticAbilities).toContain("first strike");
-    });
-
     it("triggers only on its own combat damage dealt to a permanent", () => {
         const cobra = makeInstance(voraciousCobra.id, {
             id: "cobra",
@@ -1704,14 +1560,6 @@ describe("Voracious Cobra (CR 702.7 first strike + 510.4/603.2 combat-damage-to-
         ).toBe(false);
         expect(state.players[1].graveyard.some((c) => c.id === "victim")).toBe(
             true
-        );
-    });
-});
-
-describe("Yavimaya Barbarian (CR 702.16 protection, issue #1078)", () => {
-    it("has protection from blue", () => {
-        expect(yavimayaBarbarian.staticAbilities).toContain(
-            "protection from blue"
         );
     });
 });
@@ -1817,12 +1665,6 @@ describe("Savage Offensive (CR 702.33 Kicker + 611/613 temporary keyword grant +
         return state;
     }
 
-    it("declares Kicker {G}", () => {
-        expect(savageOffensive.kickers).toEqual([
-            { id: "kicker", description: "Kicker {G}", mana: { G: 1 } },
-        ]);
-    });
-
     it("unkicked: grants first strike, no +1/+1", () => {
         const state = cast(false);
         const live = state.players[0].battlefield.find((c) => c.id === "mine")!;
@@ -1855,24 +1697,6 @@ describe("Viashino Grappler (CR 613.4c temporary trample grant, issue #1078)", (
         resolveActivated(state, creature, "viashino-grappler-trample");
         const live = state.players[0].battlefield.find((c) => c.id === "vg")!;
         expect(live.staticAbilities).toContain("trample");
-    });
-});
-
-describe("Troll-Horn Cameo (CR 605.1a choice-of-color mana ability, issue #1078)", () => {
-    it("is a mana ability (useStack:false) offering R or G", () => {
-        const ability = trollHornCameo.activatedAbilities![0];
-        expect(ability.useStack).toBe(false);
-        expect(ability.manaChoices).toEqual([{ R: 1 }, { G: 1 }]);
-        expect(ability.cost.tap).toBe(true);
-    });
-});
-
-describe("Shivan Oasis (CR 110.5b enters tapped + 605.1a choice-of-color mana ability, issue #1078)", () => {
-    it("enters tapped and taps for R or G", () => {
-        expect(shivanOasis.entersTapped).toBe(true);
-        const ability = shivanOasis.activatedAbilities![0];
-        expect(ability.useStack).toBe(false);
-        expect(ability.manaChoices).toEqual([{ R: 1 }, { G: 1 }]);
     });
 });
 
@@ -1921,12 +1745,6 @@ describe("Armadillo Cloak (Aura +2/+2 + trample, CR 611/613 layer 6/7c, + resolv
         const host = state.players[0].battlefield.find((c) => c.id === "host")!;
         expect(getEffectivePower(state, host)).toBe(4);
         expect(getEffectiveToughness(state, host)).toBe(4);
-    });
-    it("grants trample to the enchanted creature", () => {
-        const grants = (armadilloCloak.staticEffects ?? [])
-            .filter((e) => e.kind === "keyword-grant")
-            .map((e) => (e as { keyword: string }).keyword);
-        expect(grants).toEqual(["trample"]);
     });
     it("wire format: the +2/+2 survives projectPublicState", () => {
         const { state } = setup();
@@ -1983,13 +1801,6 @@ describe("Aura Shards (CR 603.6a creature-you-control ETB + resolve() may-destro
                 shards
             )
         ).toBe(false);
-    });
-
-    it("declares a CR 603.3d up-to-one target artifact/enchantment requirement", () => {
-        expect(auraShards.triggeredAbilities![0].targetRequirement).toEqual({
-            type: ["Artifact", "Enchantment"],
-            count: { min: 0, max: 1 },
-        });
     });
 
     /** Puts the ETB trigger on the stack with an un-set target slot (CR
@@ -2139,9 +1950,6 @@ describe("Captain Sisay (CR 605 tap ability, CR 701.23 search-by-supertype + rev
 });
 
 describe("Charging Troll (CR 702.20b vigilance + CR 701.15a self-regenerate, GW issue #1079)", () => {
-    it("has vigilance", () => {
-        expect(chargingTroll.staticAbilities).toContain("vigilance");
-    });
     it("stacks a regeneration shield on itself for {G}", () => {
         const troll = makeInstance(chargingTroll.id, {
             id: "troll",
@@ -2182,14 +1990,6 @@ describe("Horned Cheetah (CR 120.3/603.2 resolve() damage-dealt lifegain, GW iss
             isCombat: true,
         } as never);
         expect(state.players[0].life).toBe(22);
-    });
-});
-
-describe("Llanowar Knight (CR 702.16 protection, GW issue #1079)", () => {
-    it("has protection from black", () => {
-        expect(llanowarKnight.staticAbilities).toContain(
-            "protection from black"
-        );
     });
 });
 
@@ -2248,10 +2048,6 @@ describe("Dromar, the Banisher (CR 702.9b flying + 510.4/603.2 combat-damage tri
         });
         return { state, dromarInst, blueGuy, greenGuy };
     }
-
-    it("has flying", () => {
-        expect(dromar.staticAbilities).toContain("flying");
-    });
 
     it("paying {2}{U} and choosing blue bounces only the blue creature", () => {
         const { state } = setup();
@@ -2321,10 +2117,6 @@ describe("Rith, the Awakener (CR 702.9b flying + 510.4/603.2 combat-damage trigg
         return { state, rithInst, greenGuy1 };
     }
 
-    it("has flying", () => {
-        expect(rith.staticAbilities).toContain("flying");
-    });
-
     it("paying {2}{G} and choosing green creates one Saproling per green permanent", () => {
         const { state } = setup();
         const rithLive = state.players[0].battlefield.find(
@@ -2354,10 +2146,6 @@ describe("Rith, the Awakener (CR 702.9b flying + 510.4/603.2 combat-damage trigg
 });
 
 describe("Treva, the Renewer (CR 702.9b flying + 510.4/603.2 combat-damage trigger + 117.3a/118.4 mayPay + 700.2 modal + 119.3a life gain scaled by count, issue #1080)", () => {
-    it("has flying", () => {
-        expect(treva.staticAbilities).toContain("flying");
-    });
-
     it("paying {2}{W} and choosing white gains 1 life per white permanent", () => {
         const trevaInst = makeInstance(treva.id, {
             id: "treva",
@@ -2395,60 +2183,6 @@ describe("Treva, the Renewer (CR 702.9b flying + 510.4/603.2 combat-damage trigg
         // both battlefields).
         expect(state.players[0].life).toBe(23);
     });
-});
-
-describe("Attendants (CR 605.1a sacrifice-for-3-colour mana, issue #1080)", () => {
-    const cases: Array<
-        [
-            CardDefinition,
-            { W?: number; U?: number; B?: number; R?: number; G?: number },
-        ]
-    > = [
-        [crosisAttendant, { U: 1, B: 1, R: 1 }],
-        [darigaazAttendant, { B: 1, R: 1, G: 1 }],
-        [dromarAttendant, { W: 1, U: 1, B: 1 }],
-        [rithAttendant, { R: 1, G: 1, W: 1 }],
-        [trevaAttendant, { G: 1, W: 1, U: 1 }],
-    ];
-    it.each(cases)(
-        "%s sacrifices itself for {1} to add its 3 colours",
-        (card, mana) => {
-            const ability = card.activatedAbilities![0];
-            expect(ability.useStack).toBe(false);
-            expect(ability.cost.sacrifice).toBe(true);
-            expect(ability.cost.mana).toEqual({ X: 1 });
-            expect(ability.manaProduced).toEqual(mana);
-        }
-    );
-});
-
-describe("Tri-lands (CR 110.5b enters tapped + 605.1a own-colour tap + sacrifice-for-2-colour, issue #1080)", () => {
-    const cases: Array<
-        [
-            CardDefinition,
-            { W?: number; U?: number; B?: number; R?: number; G?: number },
-            { W?: number; U?: number; B?: number; R?: number; G?: number },
-        ]
-    > = [
-        [ancientSpring, { U: 1 }, { W: 1, B: 1 }],
-        [geothermalCrevice, { R: 1 }, { B: 1, G: 1 }],
-        [irrigationDitch, { W: 1 }, { G: 1, U: 1 }],
-        [sulfurVent, { B: 1 }, { U: 1, R: 1 }],
-        [tinderFarm, { G: 1 }, { R: 1, W: 1 }],
-    ];
-    it.each(cases)(
-        "%s enters tapped, taps for its own colour, sacrifices for the other 2",
-        (card, own, other) => {
-            expect(card.entersTapped).toBe(true);
-            const [tapAbility, sacAbility] = card.activatedAbilities!;
-            expect(tapAbility.useStack).toBe(false);
-            expect(tapAbility.cost.sacrifice).toBeFalsy();
-            expect(tapAbility.manaProduced).toEqual(own);
-            expect(sacAbility.useStack).toBe(false);
-            expect(sacAbility.cost.sacrifice).toBe(true);
-            expect(sacAbility.manaProduced).toEqual(other);
-        }
-    );
 });
 
 describe("Stormscape Apprentice (CR 602.1 tap-cost activated abilities, issue #1080)", () => {
@@ -2718,21 +2452,6 @@ describe("Sterling Grove (CR 611/613 layer 6 keyword grant + 702.18 Shroud, issu
     // so which player controls the source is irrelevant to the guard.
     const SRC = { isSpell: true, controllerId: "p1" } as const;
 
-    it("declares the shroud keyword-grant + permanent-guard scoped to other enchantments", () => {
-        const grant = sterlingGrove.staticEffects?.find(
-            (e) => e.kind === "keyword-grant"
-        );
-        const guard = sterlingGrove.staticEffects?.find(
-            (e) => e.kind === "permanent-guard"
-        );
-        expect(grant).toBeDefined();
-        expect((grant as { keyword: string }).keyword).toBe("shroud");
-        expect(guard).toBeDefined();
-        expect((guard as { cantBeTargeted?: boolean }).cantBeTargeted).toBe(
-            true
-        );
-    });
-
     it("grants shroud to another enchantment you control (cantBeTargeted true)", () => {
         const { state, otherEnch } = makeBoard();
         expect(isGuardedAgainst(state, otherEnch, "cantBeTargeted", SRC)).toBe(
@@ -2893,14 +2612,6 @@ describe("Reviving Vapors (CR 401.4 look, issue #1101)", () => {
 // choice). The bounced creature also stays PUBLIC knowledge (every player
 // watched it leave the battlefield), so it is not a hidden hand slot.
 describe("Barrin's Spite (CR 601.2c sameController cross-slot targeting + candidate-narrowed sacrifice choice, issue #1104)", () => {
-    it("targetRequirement declares the cross-slot same-controller constraint", () => {
-        expect(barrinsSpite.targetRequirement).toEqual({
-            type: "Creature",
-            count: 2,
-            sameController: true,
-        });
-    });
-
     it("offers exactly the two announced creatures as the pick, to their controller", () => {
         const bear = makeInstance(grizzlyBears.id, {
             id: "bs0-bear",
@@ -3113,10 +2824,6 @@ describe("Lobotomy (CR 201.2 dynamic same-name filter + CR 400.7 multi-zone swee
 });
 
 describe("Seer's Vision (CR 702-adjacent opponents-hand-reveal static + sac-for-discard ability, issue #1104)", () => {
-    it("card definition declares the opponents-scoped hand-reveal static", () => {
-        expect(seersVision.revealsHand).toBe("opponents");
-    });
-
     it("wire format — the CONTROLLER sees their opponent's hand revealed", () => {
         const sv = makeInstance(seersVision.id, {
             id: "sv-perm",
@@ -3644,21 +3351,6 @@ function combatState(
 }
 
 describe("Dueling Grounds (CR 508.1a / 509.1a — declared-set count caps)", () => {
-    it("has the printed definition shape and one cap per Oracle line", () => {
-        expect(duelingGrounds.manaCost).toEqual({ X: 1, G: 1, W: 1 });
-        expect(duelingGrounds.types).toEqual(["Enchantment"]);
-        expect(duelingGrounds.oracleText).toBe(
-            "No more than one creature can attack each combat.\nNo more than one creature can block each combat."
-        );
-        const caps = (duelingGrounds.staticEffects ?? []).filter(
-            (e) => e.kind === "combat-declaration-cap"
-        );
-        expect(caps.map((c) => [c.side, c.max])).toEqual([
-            ["attack", 1],
-            ["block", 1],
-        ]);
-    });
-
     it("caps both declarations at one, scanned from the OPPONENT's battlefield (CR 109.2 — symmetric)", () => {
         const grounds = makeInstance(duelingGrounds.id, { controllerId: "p2" });
         const state = combatState([capCreature("a", "p1")], [grounds]);
@@ -3749,3 +3441,67 @@ describe("Dueling Grounds (CR 508.1a / 509.1a — declared-set count caps)", () 
         });
     });
 });
+
+// Bloodstone Cameo / Troll-Horn Cameo / Shivan Oasis — three near-identical
+// two-color choice-of-color tap mana sources (CR 605.1a `manaChoices`), the
+// mana sweep's own skip list (`manaAbility.catalogue.test.ts`) explicitly
+// excludes `manaChoices` abilities since the board-dependent CHOICE index is
+// load-bearing. Mirrors the Talisman painland cycle pattern
+// (`sets/mrd/__tests__/colorless.test.ts`), minus the coloured-tap self-
+// damage rider — none of these three has one.
+describe.each([
+    { def: bloodstoneCameo, colors: ["B", "R"] as const },
+    { def: trollHornCameo, colors: ["R", "G"] as const },
+    { def: shivanOasis, colors: ["R", "G"] as const },
+])(
+    "$def.name ({T}: Add one of two colors; CR 605.1a manaChoices)",
+    ({ def, colors }) => {
+        it("offers both colors as tap options, in printed order", () => {
+            const source = makeInstance(def.id, {
+                id: `${def.id}-options`,
+                controllerId: "p1",
+            });
+            const player = makePlayer("p1", { battlefield: [source] });
+            const state = makeState({ players: [player, makePlayer("p2")] });
+            const battlefields = state.players.map((p) => ({
+                playerId: p.id,
+                battlefield: p.battlefield,
+            }));
+            const options = getManaTapOptionsDetailed(
+                source,
+                "p1",
+                battlefields
+            );
+            expect(options.map((o) => o.mana)).toEqual([
+                { [colors[0]]: 1 },
+                { [colors[1]]: 1 },
+            ]);
+        });
+
+        it(`tapping index 1 adds {${colors[1]}} to the pool, no life cost`, () => {
+            const source = makeInstance(def.id, {
+                id: `${def.id}-tap`,
+                controllerId: "p1",
+            });
+            const player = makePlayer("p1", { battlefield: [source] });
+            const state = makeState({ players: [player, makePlayer("p2")] });
+            state.activePlayerId = "p1";
+            tapSourceIntoPayment(state, player, source, 1, []);
+            expect(player.manaPool[colors[1]]).toBe(1);
+            expect(player.life).toBe(20);
+        });
+
+        it("wire format: the tapped-for mana pool survives the projection", () => {
+            const source = makeInstance(def.id, {
+                id: `${def.id}-wire`,
+                controllerId: "p1",
+            });
+            const player = makePlayer("p1", { battlefield: [source] });
+            const state = makeState({ players: [player, makePlayer("p2")] });
+            state.activePlayerId = "p1";
+            tapSourceIntoPayment(state, player, source, 0, []);
+            const projected = projectPublicState(state, 1, "p1");
+            expect(projected.players[0].manaPool[colors[0]]).toBe(1);
+        });
+    }
+);

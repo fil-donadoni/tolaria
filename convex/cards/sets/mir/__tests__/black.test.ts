@@ -38,11 +38,6 @@ describe("Shallow Grave (CR 404.3 ordered graveyard, CR 400.7 reanimation, CR 70
             zone: "graveyard",
         });
 
-    it("definitional: {1}{B} Instant", () => {
-        expect(shallowGrave.manaCost).toEqual({ X: 1, B: 1 });
-        expect(shallowGrave.types).toEqual(["Instant"]);
-    });
-
     it("returns the TOP (last-inserted) creature card of YOUR graveyard, hasted, and exiles it at the next end step", () => {
         const state = makeState({
             players: [

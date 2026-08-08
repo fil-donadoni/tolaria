@@ -50,14 +50,6 @@ const cremateLikeInstant: CardInstanceState = {
 };
 
 describe("Lion Sash (CR 702.151 Reconfigure, issue #1311)", () => {
-    it("definition sanity — mana cost, types, subtypes, base P/T", () => {
-        expect(lionSash.manaCost).toEqual({ generic: 1, W: 1 });
-        expect(lionSash.types).toEqual(["Artifact", "Creature"]);
-        expect(lionSash.subtypes).toEqual(["Equipment", "Cat"]);
-        expect(lionSash.power).toBe(1);
-        expect(lionSash.toughness).toBe(1);
-    });
-
     it("{W}: exiling a permanent card from a graveyard puts a +1/+1 counter on Lion Sash", () => {
         const lion = makeInstance(lionSash.id, {
             id: "lion1",

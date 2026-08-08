@@ -60,16 +60,6 @@ const onBattlefield = (
     state.players.flatMap((p) => p.battlefield).find((c) => c.id === id);
 
 describe("Blastoderm (Shroud + Fading 3, CR 702.18 / 702.32)", () => {
-    it("declares shroud + fading 3 as decorative keywords and a self-guard", () => {
-        expect(blastoderm.staticAbilities).toEqual(["shroud", "fading 3"]);
-        expect(blastoderm.power).toBe(5);
-        expect(blastoderm.toughness).toBe(5);
-        expect(blastoderm.staticEffects?.[0]).toMatchObject({
-            kind: "permanent-guard",
-            cantBeTargeted: true,
-        });
-    });
-
     it("enters with three fade counters (CR 702.32a, ADR 0054 ETB injection)", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
@@ -165,21 +155,6 @@ describe("Blastoderm (Shroud + Fading 3, CR 702.18 / 702.32)", () => {
 });
 
 describe("Deep Forest Hermit (Vanishing 3 + Squirrel factory/anthem, CR 702.63 / 111 / 613)", () => {
-    it("declares vanishing 3, the ETB Squirrel trigger, and the Squirrel anthem", () => {
-        expect(deepForestHermit.staticAbilities).toEqual(["vanishing 3"]);
-        expect(deepForestHermit.subtypes).toEqual(["Elf", "Druid"]);
-        expect(deepForestHermit.power).toBe(1);
-        expect(deepForestHermit.toughness).toBe(1);
-        expect(deepForestHermit.triggeredAbilities?.[0].id).toBe(
-            "deep-forest-hermit-squirrels"
-        );
-        expect(deepForestHermit.staticEffects?.[0]).toMatchObject({
-            kind: "pt-buff",
-            power: 1,
-            toughness: 1,
-        });
-    });
-
     it("enters with three time counters (Vanishing 3 seam injection, ADR 0054)", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],

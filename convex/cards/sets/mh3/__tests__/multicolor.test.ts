@@ -100,26 +100,6 @@ const frogOnBattlefield = () =>
     });
 
 describe("Psychic Frog ({U}{B} 1/2 Frog; CR 510.4 / 122.1 / 611.1b)", () => {
-    it("is a {U}{B} 1/2 Frog", () => {
-        expect(psychicFrog.manaCost).toEqual({ U: 1, B: 1 });
-        expect(psychicFrog.power).toBe(1);
-        expect(psychicFrog.toughness).toBe(2);
-        expect(psychicFrog.subtypes).toEqual(["Frog"]);
-    });
-
-    it("declares the exile-three-from-graveyard cost on the flying ability", () => {
-        const ability = psychicFrog.activatedAbilities!.find(
-            (a) => a.id === "psychic-frog-exile-flying"
-        )!;
-        // `owner: "you"` — Oracle says "Exile three cards from YOUR graveyard",
-        // so the cost may not be paid from an opponent's (unlike Night Soil,
-        // which reads "from a single graveyard").
-        expect(ability.cost.exileFromGraveyard).toEqual({
-            count: 3,
-            owner: "you",
-        });
-    });
-
     it("discard ability: discards a chosen card and adds a +1/+1 counter", () => {
         const frog = frogOnBattlefield();
         const handCard = makeInstance(psychicFrog.id, {
@@ -217,14 +197,6 @@ describe("Phlage, Titan of Fire's Fury (enters/attacks value: 3 damage any targe
             ownerId: controllerId,
             zone: "battlefield",
         });
-
-    it("declares the CR 603.3d 'any target' requirement on both value triggers", () => {
-        const triggers = phlageTitanOfFiresFury.triggeredAbilities!;
-        const enters = triggers.find((t) => t.id === "phlage-enters-value")!;
-        const attacks = triggers.find((t) => t.id === "phlage-attacks-value")!;
-        expect(enters.targetRequirement).toEqual({ type: "any", count: 1 });
-        expect(attacks.targetRequirement).toEqual({ type: "any", count: 1 });
-    });
 
     it("enters trigger: 3 damage to the chosen player, controller gains 3 life", () => {
         const phlage = phlageOnBattlefield("phlage", "p1");
@@ -384,25 +356,6 @@ function becameTarget(
 }
 
 describe("Nadu, Winged Wisdom ({1}{G}{U} — CR 611 triggered-grant + CR 603.2b became-target + CR 603.2 per-turn cap)", () => {
-    it("declares flying and keeps the granted template OFF triggeredAbilities", () => {
-        expect(naduWingedWisdom.staticAbilities).toContain("flying");
-        expect(naduWingedWisdom.manaCost).toEqual({ X: 1, G: 1, U: 1 });
-        expect(naduWingedWisdom.supertypes).toContain("Legendary");
-        expect(naduWingedWisdom.power).toBe(3);
-        expect(naduWingedWisdom.toughness).toBe(4);
-        // The template lives on triggeredGrantTemplates so Nadu doesn't fire a
-        // SECOND copy on top of the one it receives as a creature it controls.
-        expect(naduWingedWisdom.triggeredAbilities ?? []).toHaveLength(0);
-        expect(
-            naduWingedWisdom.triggeredGrantTemplates?.some(
-                (t) => t.id === "nadu-became-target"
-            )
-        ).toBe(true);
-        expect(
-            (naduWingedWisdom.staticEffects ?? []).map((e) => e.kind)
-        ).toContain("triggered-grant");
-    });
-
     it("grants the trigger to creatures you control — including Nadu itself", () => {
         const { bear, nadu } = withNadu();
         for (const c of [bear, nadu]) {

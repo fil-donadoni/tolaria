@@ -18,7 +18,6 @@ import {
     merseineFemB,
     riverMerfolk,
     seasinger,
-    svyelunitePriest,
     tidalFlats,
     tidalInfluence,
     vodalianKnights,
@@ -72,15 +71,6 @@ const ALL_FEM_PRINTS = [
 // ---------------------------------------------------------------------------
 
 describe("Vodalian Soldiers (vanilla creature, CR 302)", () => {
-    it("carries the canonical FEM printed characteristics", () => {
-        expect(vodalianSoldiers.types).toEqual(["Creature"]);
-        expect(vodalianSoldiers.subtypes).toEqual(["Merfolk", "Soldier"]);
-        expect(vodalianSoldiers.power).toBe(1);
-        expect(vodalianSoldiers.toughness).toBe(2);
-        expect(vodalianSoldiers.manaCost).toEqual({ X: 1, U: 1 });
-        expect(vodalianSoldiers.rarity).toBe("common");
-    });
-
     it("resolves from the stack onto the battlefield (CR 608.3)", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
@@ -131,21 +121,6 @@ describe("Vodalian Soldiers multi-art prints (ADR 0014)", () => {
         }
     });
 
-    it("carries the fem set code and common rarity on every print", () => {
-        for (const print of ALL_FEM_PRINTS) {
-            expect(print.setCode).toBe("fem");
-            expect(print.rarity).toBe("common");
-        }
-    });
-
-    it("uses a distinct printId per artwork (no duplicates)", () => {
-        const ids = [
-            vodalianSoldiers.id,
-            ...ALL_FEM_PRINTS.map((p) => p.printId),
-        ];
-        expect(new Set(ids).size).toBe(ids.length);
-    });
-
     it("lists all FEM artworks as printings, original first (deck builder)", () => {
         const printings = getPrintingsForCard(vodalianSoldiers.id);
         expect(printings[0]).toEqual({
@@ -181,13 +156,6 @@ function makeWithTide(
 }
 
 describe("Homarid — tide counter P/T cycle (CR 611.2c, 603.6a, 603.8)", () => {
-    it("carries the canonical FEM characteristics", () => {
-        expect(homarid.manaCost).toEqual({ X: 2, U: 1 });
-        expect(homarid.subtypes).toEqual(["Homarid"]);
-        expect(homarid.power).toBe(2);
-        expect(homarid.toughness).toBe(2);
-    });
-
     // CR 121.6 / 614.1c (issue #1693) — "This creature enters with a tide
     // counter on it" is a REPLACEMENT effect. As a trigger, Homarid sat on the
     // battlefield at ZERO tide counters (reading as a plain 2/2) until the
@@ -565,14 +533,6 @@ describe("Vodalian Mage — counter-unless-pay (CR 701.5a, 117.3a)", () => {
 });
 
 describe("Vodalian Knights — Island-matters knight (CR 508.1c, 603.8, 702.9)", () => {
-    it("carries first strike and the {U} flying grant", () => {
-        expect(vodalianKnights.staticAbilities).toContain("first strike");
-        const fly = vodalianKnights.activatedAbilities?.find(
-            (a) => a.id === "vodalian-knights-fly"
-        );
-        expect(fly).toBeDefined();
-    });
-
     it("sacrifices itself when its controller controls no Islands (CR 603.8)", () => {
         const inst = makeInstance(vodalianKnights.id, {
             id: "vk",
@@ -596,10 +556,6 @@ describe("Vodalian Knights — Island-matters knight (CR 508.1c, 603.8, 702.9)",
 });
 
 describe("Seasinger — conditional gainControl (CR 611.2c) + may-not-untap (CR 502.1)", () => {
-    it("declares the may-choose-not-to-untap static ability (CAPABILITY I reuse)", () => {
-        expect(seasinger.staticAbilities).toContain("may-choose-not-to-untap");
-    });
-
     it("steals a creature whose controller controls an Island, for as long as Seasinger stays tapped", () => {
         const singer = makeInstance(seasinger.id, {
             id: "singer",
@@ -805,25 +761,6 @@ describe("Merseine — net counters + dynamic cost K (CR 122, 502.1, 601.2f, 202
 });
 
 describe("Vodalian War Machine — tapOtherFilter cost (CAPABILITY D reuse)", () => {
-    it("declares defender plus two tap-a-Merfolk abilities", () => {
-        expect(vodalianWarMachine.staticAbilities).toContain("defender");
-        const ids = (vodalianWarMachine.activatedAbilities ?? []).map(
-            (a) => a.id
-        );
-        expect(ids).toContain("vodalian-war-machine-attack");
-        expect(ids).toContain("vodalian-war-machine-pump");
-        for (const a of vodalianWarMachine.activatedAbilities ?? []) {
-            expect(a.cost.tapOtherFilter).toEqual({
-                filter: {
-                    types: "Creature",
-                    subtypes: "Merfolk",
-                    controllerRelation: "you",
-                },
-                count: 1,
-            });
-        }
-    });
-
     it("the pump ability grants +2/+1 until end of turn", () => {
         const machine = makeInstance(vodalianWarMachine.id, {
             id: "vwm",
@@ -956,22 +893,80 @@ describe("Homarid Shaman — tap a green creature (CR 701.21)", () => {
     });
 });
 
-describe("Svyelunite Priest — upkeep-only shroud grant (CR 602.5)", () => {
-    it("is restricted to its controller's upkeep", () => {
-        const ability = svyelunitePriest.activatedAbilities?.find(
-            (a) => a.id === "svyelunite-priest-shroud"
-        );
-        expect(ability?.controllerTurnOnly).toBe(true);
-        expect(ability?.activationPhaseRestriction).toEqual(["UPKEEP"]);
-    });
-});
+describe("Tidal Flats — per-attacker may-pay first strike grant (CR 509, 117.3a)", () => {
+    /** A non-flying attacker for p2, blocked by a single p1 creature, with
+     *  Tidal Flats on p1's battlefield. The live combat state
+     *  (`getBlockersByAttacker`) is what the resolve() body reads. */
+    function tidalFlatsBoard(): {
+        state: GameState;
+        flats: CardInstanceState;
+        blocker: CardInstanceState;
+    } {
+        const flats = makeInstance(tidalFlats.id, {
+            id: "flats",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const blocker = makeInstance(homarid.id, {
+            id: "blocker",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            isBlocking: true,
+        });
+        const attacker = makeInstance(vodalianSoldiers.id, {
+            id: "att",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+            isAttacking: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [flats, blocker] }),
+                makePlayer("p2", { battlefield: [attacker] }),
+            ],
+            phase: "DECLARE_BLOCKERS",
+            combat: {
+                attackerIds: ["att"],
+                confirmed: true,
+                blockerAssignments: { blocker: ["att"] },
+                blockersConfirmed: true,
+            },
+        });
+        return { state, flats, blocker };
+    }
 
-describe("Tidal Flats — first strike for blockers unless attacker pays (CR 509, 117.3a)", () => {
-    it("carries the {U}{U} combat ability", () => {
-        const ability = tidalFlats.activatedAbilities?.find(
-            (a) => a.id === "tidal-flats-first-strike"
-        );
-        expect(ability).toBeDefined();
-        expect(ability?.cost.mana).toEqual({ U: 2 });
+    it("grants its blockers first strike when the attacker's controller declines to pay {1}", () => {
+        const { state, flats, blocker } = tidalFlatsBoard();
+        resolveActivated(state, flats, "tidal-flats-first-strike");
+        const head = state.pendingChoices?.[0];
+        expect(head?.kind).toBe("may-pay");
+        expect(head?.playerId).toBe("p2");
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        const onBoard = state.players[0].battlefield.find(
+            (c) => c.id === blocker.id
+        )!;
+        expect(onBoard.staticAbilities).toContain("first strike");
+
+        // Wire format — the granted keyword must survive projection, or the
+        // client never shows the blocker as having first strike.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === blocker.id
+        )!;
+        expect(slim.staticAbilities).toContain("first strike");
+    });
+
+    it("grants no first strike when the attacker's controller pays {1}", () => {
+        const { state, flats, blocker } = tidalFlatsBoard();
+        state.players[1].manaPool = { C: 1 };
+        resolveActivated(state, flats, "tidal-flats-first-strike");
+        applyMayPaySubmit(state, { playerId: "p2", accept: true });
+        const onBoard = state.players[0].battlefield.find(
+            (c) => c.id === blocker.id
+        )!;
+        expect(onBoard.staticAbilities).not.toContain("first strike");
     });
 });

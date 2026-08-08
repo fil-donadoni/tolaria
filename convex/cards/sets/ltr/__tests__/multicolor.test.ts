@@ -39,23 +39,6 @@ function resolveActivated(
     resolveTopOfStack(state);
 }
 
-describe("Arwen, Mortal Queen — definition (LTR, issue #1318)", () => {
-    it("matches Scryfall oracle ({1}{G}{W} 2/2 Legendary Creature — Elf Noble)", () => {
-        expect(arwenMortalQueen.manaCost).toEqual({ generic: 1, G: 1, W: 1 });
-        expect(arwenMortalQueen.types).toEqual(["Creature"]);
-        expect(arwenMortalQueen.supertypes).toEqual(["Legendary"]);
-        expect(arwenMortalQueen.subtypes).toEqual(["Elf", "Noble"]);
-        expect(arwenMortalQueen.power).toBe(2);
-        expect(arwenMortalQueen.toughness).toBe(2);
-        // No PRINTED keywords (Scryfall `keywords: []`) — lifelink/
-        // indestructible are entirely CR 122.1c counter-driven.
-        expect(arwenMortalQueen.staticAbilities ?? []).toEqual([]);
-        expect(arwenMortalQueen.entersWith).toEqual({
-            counters: [{ type: "indestructible", count: 1 }],
-        });
-    });
-});
-
 describe("Arwen, Mortal Queen — ETB indestructible counter (CR 122.1c, issue #1318 ETB gap)", () => {
     it("enters with an indestructible counter and gains indestructible immediately, not just after a later addCounter", () => {
         const state = makeState();

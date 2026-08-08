@@ -39,22 +39,6 @@ describe.each([
 ])(
     "$def.name (Talisman painland cycle, CR 605.1a / 120)",
     ({ def, colors }) => {
-        it("is a {2} Artifact with one {T} choice mana ability: {C} (index 0) + the two colours carrying a 1-damage rider", () => {
-            expect(def.types).toEqual(["Artifact"]);
-            expect(def.manaCost).toEqual({ X: 2 });
-            const mana = def.activatedAbilities?.find(
-                (a) => !a.useStack && a.manaChoices
-            );
-            expect(mana?.useStack).toBe(false);
-            expect(mana?.cost).toEqual({ tap: true });
-            expect(mana?.manaChoices).toEqual([
-                { C: 1 },
-                { [colors[0]]: 1 },
-                { [colors[1]]: 1 },
-            ]);
-            expect(mana?.dealsDamageToControllerOnColoredTap).toBe(1);
-        });
-
         it("tapping for {C} (the painless choice) costs no life and adds {C}", () => {
             const rock = makeInstance(def.id, {
                 id: "rock",
@@ -136,11 +120,6 @@ function submitChoice(state: GameState, cardInstanceIds: string[]) {
 }
 
 describe("Chrome Mox ({0} Artifact — imprint exile + colour-gated mana, CR 603.6a / 605.1a)", () => {
-    it("is a {0} Artifact", () => {
-        expect(chromeMox.manaCost).toEqual({});
-        expect(chromeMox.types).toEqual(["Artifact"]);
-    });
-
     it("ETB exiles the chosen nonartifact, nonland hand card and stamps its colours as imprint counters", () => {
         const mox = makeInstance(chromeMox.id, {
             id: "mox",
@@ -319,26 +298,6 @@ describe("Lightning Greaves (MRD #199, issue #1530)", () => {
         };
     }
 
-    it("definition sanity — cost, types, equip cost, DSL-only", () => {
-        expect(lightningGreaves.manaCost).toEqual({ generic: 2 });
-        expect(lightningGreaves.types).toEqual(["Artifact"]);
-        expect(lightningGreaves.subtypes).toEqual(["Equipment"]);
-        const equip = lightningGreaves.activatedAbilities![0];
-        expect(equip.cost).toEqual({ mana: {} });
-        expect(equip.sorcerySpeedOnly).toBe(true);
-        expect(equip.resolve).toBeUndefined();
-        const grants = (lightningGreaves.staticEffects ?? [])
-            .filter((e) => e.kind === "keyword-grant")
-            .map((e) => (e as { keyword: string }).keyword);
-        expect(grants).toEqual(["haste", "shroud"]);
-        const guard = lightningGreaves.staticEffects?.find(
-            (e) => e.kind === "permanent-guard"
-        );
-        expect((guard as { cantBeTargeted?: boolean }).cantBeTargeted).toBe(
-            true
-        );
-    });
-
     it("grants haste to the equipped creature (staticAbilities materialized on attach)", () => {
         const { state } = setup();
         equipGreavesTo(state, "greaves1", "bear1");
@@ -427,15 +386,6 @@ describe("Frogmite — Affinity for artifacts (CR 702.41a)", () => {
         Array.from({ length: n }, (_, i) =>
             makeInstance(solRing.id, { id: `art-${i}`, controllerId: "p1" })
         );
-
-    it("definition: {4} Artifact Creature — Frog 2/2 declaring the affinity keyword", () => {
-        expect(frogmite.manaCost).toEqual({ X: 4 });
-        expect(frogmite.types).toEqual(["Artifact", "Creature"]);
-        expect(frogmite.subtypes).toEqual(["Frog"]);
-        expect(frogmite.power).toBe(2);
-        expect(frogmite.toughness).toBe(2);
-        expect(frogmite.staticAbilities).toEqual(["affinity for artifacts"]);
-    });
 
     it("reduces to {0} at four artifacts — affinity has NO minTotalMana floor", () => {
         expect(costWith(artifacts(4))).toEqual({});

@@ -15,7 +15,6 @@ import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import { collectTriggers } from "../../../../gre/triggers";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
-import { PERMANENT_TYPES } from "../../../types";
 import { fireDelayedTriggers } from "../../../../gre/phases";
 import { projectPublicState } from "../../../../gameProjections";
 import { guideOfSouls, ocelotPride, phelia } from "../white";
@@ -25,35 +24,6 @@ import {
 } from "../../../../gre/cityBlessing";
 import { balduvianBears } from "../../ice/green";
 import { forest } from "../../lea/colorless";
-
-// Guide of Souls — {W} 1/2 Human Cleric (MH3, issue #1194). "Whenever another
-// creature you control enters, you gain 1 life and get {E}. Whenever you
-// attack, you may pay {E}{E}{E}. When you do, put two +1/+1 counters and a
-// flying counter on target attacking creature. It becomes an Angel in
-// addition to its other types." First card exercising: keyword counters
-// (CR 122.1c), the `addSubtype` Op (CR 613.1d), and the `mayPay` energy leg.
-
-describe("Guide of Souls — definition", () => {
-    it("pins mana cost, stats, and both triggered abilities", () => {
-        expect(guideOfSouls.manaCost).toEqual({ W: 1 });
-        expect(guideOfSouls.types).toEqual(["Creature"]);
-        expect(guideOfSouls.subtypes).toEqual(["Human", "Cleric"]);
-        expect(guideOfSouls.power).toBe(1);
-        expect(guideOfSouls.toughness).toBe(2);
-        const etb = guideOfSouls.triggeredAbilities?.find(
-            (a) => a.id === "guide-of-souls-etb"
-        );
-        expect(etb).toBeDefined();
-        const attack = guideOfSouls.triggeredAbilities?.find(
-            (a) => a.id === "guide-of-souls-attack"
-        );
-        expect(attack?.targetRequirement).toEqual({
-            type: "Creature",
-            count: 1,
-            combatRoleFilter: "attacking",
-        });
-    });
-});
 
 describe("Guide of Souls — ETB (CR 603.6a): another creature entering", () => {
     it("gains 1 life and 1 energy when ANOTHER creature you control enters", () => {
@@ -347,29 +317,6 @@ function choosePheliaTarget(state: GameState, targetId: string | null) {
         state.pendingTarget!.playerId
     );
 }
-
-describe("Phelia, Exuberant Shepherd — definition", () => {
-    it("pins mana cost, stats, supertype, and Flash", () => {
-        expect(phelia.manaCost).toEqual({ X: 1, W: 1 });
-        expect(phelia.types).toEqual(["Creature"]);
-        expect(phelia.subtypes).toEqual(["Dog"]);
-        expect(phelia.supertypes).toEqual(["Legendary"]);
-        expect(phelia.power).toBe(2);
-        expect(phelia.toughness).toBe(2);
-        expect(phelia.staticAbilities).toEqual(["flash"]);
-        expect(phelia.triggeredAbilities?.[0]?.id).toBe("phelia-attack");
-        expect(phelia.delayedTriggers?.[0]?.id).toBe("phelia-return");
-    });
-
-    it("declares the CR 603.3d target requirement: up to one other nonland permanent", () => {
-        expect(phelia.triggeredAbilities?.[0]?.targetRequirement).toEqual({
-            type: [...PERMANENT_TYPES],
-            count: { min: 0, max: 1 },
-            excludeTypes: "Land",
-            excludeSource: true,
-        });
-    });
-});
 
 describe("Phelia — attack trigger (CR 603.6a exile + CR 603.7a delayed return)", () => {
     it("exiles the chosen OTHER nonland permanent and schedules a next-end-step return", () => {
@@ -769,29 +716,6 @@ const p1Tokens = (state: GameState) =>
 
 const catTokens = (state: GameState) =>
     p1Tokens(state).filter((c) => c.subtypes?.includes("Cat"));
-
-describe("Ocelot Pride — shape (MH3, issue #1461)", () => {
-    it("pins the real Scryfall id, cost, stats and keywords", () => {
-        expect(ocelotPride.id).toBe("89cf6f57-230f-497e-a14e-ad1e8737fd42");
-        expect(ocelotPride.manaCost).toEqual({ W: 1 });
-        expect(ocelotPride.types).toEqual(["Creature"]);
-        expect(ocelotPride.subtypes).toEqual(["Cat"]);
-        expect(ocelotPride.power).toBe(1);
-        expect(ocelotPride.toughness).toBe(1);
-        expect(ocelotPride.staticAbilities).toContain("first strike");
-        expect(ocelotPride.staticAbilities).toContain("lifelink");
-        expect(ocelotPride.staticAbilities).toContain("ascend");
-    });
-
-    it("is DSL-first: one Effect Script trigger, no resolve() anywhere", () => {
-        expect(ocelotPride.triggeredAbilities).toHaveLength(1);
-        const trig = ocelotPride.triggeredAbilities![0];
-        expect(trig.effects).toBeDefined();
-        expect(trig.resolve).toBeUndefined();
-        expect(trig.resolveSteps).toBeUndefined();
-        expect(ocelotPride.resolve).toBeUndefined();
-    });
-});
 
 describe("Ocelot Pride — intervening-if 'if you gained life this turn' (CR 603.4)", () => {
     it("does not even trigger when no life was gained this turn", () => {

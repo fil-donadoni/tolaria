@@ -49,15 +49,4 @@ describe("Lava Spike (3 damage to target player, CR 120.1 — first DSL-only car
             lavaSpike.id
         );
     });
-
-    it("declares the printed characteristics (Scryfall CHK)", () => {
-        expect(lavaSpike.manaCost).toEqual({ R: 1 });
-        expect(lavaSpike.types).toEqual(["Sorcery"]);
-        expect(lavaSpike.subtypes).toEqual(["Arcane"]);
-        expect(lavaSpike.rarity).toBe("common");
-        expect(lavaSpike.targetRequirement).toEqual({
-            type: ["player", "Planeswalker"],
-            count: 1,
-        });
-    });
 });

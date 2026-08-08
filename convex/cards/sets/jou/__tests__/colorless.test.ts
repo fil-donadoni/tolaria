@@ -12,20 +12,6 @@ import { projectPublicState } from "../../../../gameProjections";
 // no per-choice damage rider) — a plain any-colour mana ability with a life
 // tax on the whole activation.
 describe("Mana Confluence ({T}, Pay 1 life: Add one mana of any color, CR 605.1a / 118.4)", () => {
-    it("is a Land whose mana ability costs 1 life and offers all five colours", () => {
-        expect(manaConfluence.types).toEqual(["Land"]);
-        const mana = manaConfluence.activatedAbilities?.[0];
-        expect(mana?.useStack).toBe(false);
-        expect(mana?.cost).toEqual({ tap: true, life: 1 });
-        expect(mana?.manaChoices).toEqual([
-            { W: 1 },
-            { U: 1 },
-            { B: 1 },
-            { R: 1 },
-            { G: 1 },
-        ]);
-    });
-
     it("tapping for any colour costs 1 life and adds that colour", () => {
         const land = makeInstance(manaConfluence.id, {
             id: "conf",

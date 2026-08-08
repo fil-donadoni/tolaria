@@ -48,21 +48,6 @@ function backupEtbOnStack(
 }
 
 describe("Consuming Aetherborn (CR 702.165 Backup, issue #1315)", () => {
-    it("pins the definition — backup 1 + lifelink, targeted ETB trigger", () => {
-        expect(consumingAetherborn.staticAbilities).toEqual([
-            "backup 1",
-            "lifelink",
-        ]);
-        const etb = consumingAetherborn.triggeredAbilities?.find(
-            (a) => a.id === "backup-1"
-        );
-        expect(etb).toBeDefined();
-        expect(etb?.targetRequirement).toEqual({
-            type: "Creature",
-            count: 1,
-        });
-    });
-
     it("self-target: puts a +1/+1 counter, does not re-grant its own lifelink", () => {
         const source = makeInstance(consumingAetherborn.id, {
             id: "aetherborn1",

@@ -23,7 +23,6 @@ import {
     inferno,
     manaClash,
     orcGeneral,
-    sistersOfTheFlame,
 } from "..";
 import { answerChoice, resolveActivated, resolveTrigger } from "./helpers";
 import {
@@ -91,13 +90,6 @@ function withBloodMoon(landCardId: string = tropicalIsland.id): {
 }
 
 describe("Blood Moon ({2}{R} Enchantment — CR 305.7 subtype-set + CR 613.1f ability-loss)", () => {
-    it("declares exactly subtype-set + ability-loss static effects (no new primitive)", () => {
-        const kinds = (bloodMoon.staticEffects ?? []).map((e) => e.kind);
-        expect(kinds).toContain("subtype-set");
-        expect(kinds).toContain("ability-loss");
-        expect(kinds).toHaveLength(2);
-    });
-
     it("turns a nonbasic dual land into a Mountain (subtype replaced) — CR 305.7", () => {
         const { land } = withBloodMoon();
         expect(land.subtypes).toEqual(["Mountain"]);
@@ -299,14 +291,6 @@ describe("Blood Moon ({2}{R} Enchantment — CR 305.7 subtype-set + CR 613.1f ab
 });
 
 describe("Goblin Hero (vanilla creature, CR 302)", () => {
-    it("carries the canonical stats from DRK.json", () => {
-        expect(goblinHero.types).toEqual(["Creature"]);
-        expect(goblinHero.subtypes).toEqual(["Goblin"]);
-        expect(goblinHero.power).toBe(2);
-        expect(goblinHero.toughness).toBe(2);
-        expect(goblinHero.manaCost).toEqual({ X: 2, R: 1 });
-    });
-
     it("resolves from the stack onto the battlefield (CR 608.3)", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
@@ -327,16 +311,6 @@ describe("Goblin Hero (vanilla creature, CR 302)", () => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("Ball Lightning — trample, haste, end-step sacrifice (CR 702.19 / 702.10 / 603.6a)", () => {
-    it("carries canonical stats and keywords from DRK.json", () => {
-        expect(ballLightning.manaCost).toEqual({ R: 3 });
-        expect(ballLightning.types).toEqual(["Creature"]);
-        expect(ballLightning.subtypes).toEqual(["Elemental"]);
-        expect(ballLightning.power).toBe(6);
-        expect(ballLightning.toughness).toBe(1);
-        expect(ballLightning.staticAbilities).toContain("trample");
-        expect(ballLightning.staticAbilities).toContain("haste");
-    });
-
     it("sacrifices itself when its end-step trigger resolves (CR 603.6a)", () => {
         const ball = makeInstance(ballLightning.id, { controllerId: "p1" });
         const state = makeState({
@@ -438,14 +412,6 @@ describe("Eternal Flame — X = Mountains; X to target, ceil(X/2) to you (CR 120
 });
 
 describe("Fire Drake — flying + once-per-turn pump (CR 702.9 / 602.5)", () => {
-    it("has flying and a oncePerTurn pump ability", () => {
-        expect(fireDrake.staticAbilities).toContain("flying");
-        const pump = fireDrake.activatedAbilities?.find(
-            (a) => a.id === "fire-drake-pump"
-        );
-        expect(pump?.oncePerTurn).toBe(true);
-    });
-
     it("gives +1/+0 until end of turn", () => {
         const drake = makeInstance(fireDrake.id, { controllerId: "p1" });
         const state = makeState({
@@ -461,10 +427,6 @@ describe("Fire Drake — flying + once-per-turn pump (CR 702.9 / 602.5)", () => 
 });
 
 describe("Fissure — destroy target creature or land, no regen (CR 701.7)", () => {
-    it("accepts both creature and land targets", () => {
-        expect(fissure.targetRequirement?.type).toEqual(["Creature", "Land"]);
-    });
-
     it("destroys a target creature without it being regeneratable", () => {
         const victim = makeInstance(goblinHero.id, {
             id: "victim",
@@ -563,11 +525,6 @@ describe("Goblin Digging Team — {T}, Sac this: destroy target Wall (CR 701.7)"
         expect(
             state.players[1].battlefield.find((c) => c.id === wall.id)
         ).toBeUndefined();
-    });
-
-    it("restricts targets to Walls", () => {
-        const ability = goblinDiggingTeam.activatedAbilities![0];
-        expect(ability.targetRequirement?.subtypeFilter).toBe("Wall");
     });
 });
 
@@ -713,10 +670,6 @@ describe("Goblin Wizard — put Goblin from hand + grant protection from white (
 });
 
 describe("Goblins of the Flarg — mountainwalk + sac when you control a Dwarf (CR 702.19 / 603.8)", () => {
-    it("has mountainwalk", () => {
-        expect(goblinsOfTheFlarg.staticAbilities).toContain("mountainwalk");
-    });
-
     it("sacrifices itself when its controller controls a Dwarf", () => {
         const flarg = makeInstance(goblinsOfTheFlarg.id, {
             controllerId: "p1",
@@ -806,13 +759,5 @@ describe("Orc General — {T}, Sac another Orc/Goblin: other Orcs +1/+1 EOT (CR 
         expect(getEffectiveToughness(state, otherOrc)).toBe(3);
         // The General does NOT buff itself ("Other Orc creatures").
         expect(getEffectivePower(state, general)).toBe(2);
-    });
-});
-
-describe("Sisters of the Flame — {T}: Add {R} (CR 605.1a mana ability)", () => {
-    it("is a non-stack mana ability producing {R}", () => {
-        const ability = sistersOfTheFlame.activatedAbilities![0];
-        expect(ability.useStack).toBe(false);
-        expect(ability.manaProduced).toEqual({ R: 1 });
     });
 });

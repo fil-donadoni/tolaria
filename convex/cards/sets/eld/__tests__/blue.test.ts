@@ -72,23 +72,6 @@ describe("Emry, Lurker of the Loch (count-driven self cost-reduction, CR 601.2f 
         });
     }
 
-    it("definition: {2}{U} Legendary Creature — Merfolk Wizard, 1/2, with a self-host cost reduction", () => {
-        expect(emryLurkerOfTheLoch.manaCost).toEqual({ X: 2, U: 1 });
-        expect(emryLurkerOfTheLoch.types).toEqual(["Creature"]);
-        // CR 704.5j legend rule needs the supertype — `isLegendaryPermanent`
-        // (gre/sba.ts) reads `permanentDefinition(card)?.supertypes`.
-        expect(emryLurkerOfTheLoch.supertypes).toEqual(["Legendary"]);
-        expect(emryLurkerOfTheLoch.subtypes).toEqual(["Merfolk", "Wizard"]);
-        expect(emryLurkerOfTheLoch.power).toBe(1);
-        expect(emryLurkerOfTheLoch.toughness).toBe(2);
-        expect(emryLurkerOfTheLoch.selfCostReduction).toEqual({
-            costReduction: {
-                perCount: { X: 1 },
-                countFilter: { types: "Artifact" },
-            },
-        });
-    });
-
     it("costs the full {2}{U} with no artifacts controlled", () => {
         expect(effectiveCastCost(boardWithArtifacts(0))).toEqual({
             X: 2,
@@ -138,16 +121,6 @@ describe("Emry, Lurker of the Loch (count-driven self cost-reduction, CR 601.2f 
             ],
         });
         expect(effectiveCastCost(state)).toEqual({ X: 2, U: 1 });
-    });
-
-    it("ETB triggered ability mills four cards (CR 603.6a)", () => {
-        // `mill` is an already-exercised Op (gre-development.md § per-Op
-        // regime) — a definition-level assertion covers the wiring; the Op's
-        // own behavior is covered by the interpreter suite.
-        const trigger = emryLurkerOfTheLoch.triggeredAbilities?.find((t) =>
-            t.oracleText?.includes("mill four cards")
-        );
-        expect(trigger).toBeDefined();
     });
 
     it("castability (server legalActions) is NOT offered without enough mana or artifacts", () => {
@@ -304,30 +277,6 @@ function gyCard(
 }
 
 describe("Emry, Lurker of the Loch — {T}: graveyard artifact cast permission (CR 601.2c / 601.3e, issue #1650)", () => {
-    it("declares a tap ability targeting an artifact card in YOUR graveyard", () => {
-        const ability = emryLurkerOfTheLoch.activatedAbilities!.find(
-            (a) => a.id === EMRY_GRANT_ABILITY
-        )!;
-        expect(ability.cost).toEqual({ tap: true });
-        expect(ability.useStack).toBe(true);
-        expect(ability.targetRequirement).toEqual({
-            type: "Artifact",
-            count: 1,
-            zone: "graveyard",
-            controller: "you",
-        });
-        // The permission is NOT free — Emry's reminder text is explicit that
-        // "You still pay its costs."
-        expect(ability.effects).toEqual([
-            {
-                op: "grantCastFromGraveyard",
-                card: { target: 0 },
-                player: "controller",
-                window: "this-turn",
-            },
-        ]);
-    });
-
     it("only artifact cards in the activator's OWN graveyard are legal targets (CR 601.2c)", () => {
         const { state } = emryBoard([
             gyCard(solRing.id, "gy-artifact"),

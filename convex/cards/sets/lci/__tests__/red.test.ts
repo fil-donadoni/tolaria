@@ -65,13 +65,6 @@ function boardWithAttackingInti(): {
 }
 
 describe("Inti, Seneschal of the Sun (CR 603.3c reflexive trigger + impulse draw, issue #1527)", () => {
-    it("is a {1}{R} 2/2 Legendary Creature — Human Knight", () => {
-        expect(intiSeneschalOfTheSun.manaCost).toEqual({ X: 1, R: 1 });
-        expect(intiSeneschalOfTheSun.power).toBe(2);
-        expect(intiSeneschalOfTheSun.toughness).toBe(2);
-        expect(intiSeneschalOfTheSun.subtypes).toEqual(["Human", "Knight"]);
-    });
-
     it("declining the discard does nothing — no reflexive trigger, hand untouched", () => {
         const { state, inti } = boardWithAttackingInti();
         pushAttackTrigger(state, inti);

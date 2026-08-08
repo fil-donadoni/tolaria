@@ -194,14 +194,6 @@ describe("Volcanic Eruption ({X}{U}{U}{U} — destroy X target Mountains, deal t
         });
     }
 
-    it("declares X-bound count and Mountain subtype filter", () => {
-        expect(volcanicEruption.targetRequirement).toEqual({
-            type: "Land",
-            subtypeFilter: "Mountain",
-            count: "X",
-        });
-    });
-
     it("destroys X Mountains and deals X damage to each creature and each player", () => {
         const state = setupBoard();
         const item = pushSpell(state, volcanicEruption.id, "p1", [
@@ -480,13 +472,6 @@ describe("Braingeyser ({X}{U}{U} — target player draws X, CR 107.3 / 121.1)", 
         expect(projectedItem.chosenX).toBe(3);
         expect(projectedItem.targets).toEqual([{ type: "player", id: "p2" }]);
     });
-
-    it("declares a single-player target requirement", () => {
-        expect(braingeyser.targetRequirement).toEqual({
-            type: "player",
-            count: 1,
-        });
-    });
 });
 
 describe("Counterspell (counter target spell, CR 701.5a)", () => {
@@ -520,18 +505,6 @@ describe("Counterspell (counter target spell, CR 701.5a)", () => {
 });
 
 describe("Sea Serpent (CR 508.1c attack restriction + CR 603.8 state trigger)", () => {
-    it("uses data-driven attack-restriction (no magic string)", () => {
-        expect(seaSerpent.staticAbilities).not.toContain(
-            "cant-attack-unless-defender-controls-Island"
-        );
-        expect(seaSerpent.staticEffects).toBeDefined();
-        expect(
-            seaSerpent.staticEffects!.some(
-                (e) => e.kind === "attack-restriction"
-            )
-        ).toBe(true);
-    });
-
     function setup(opts: {
         controllerHasIsland: boolean;
         defenderHasIsland: boolean;
@@ -753,15 +726,6 @@ describe("Sea Serpent (CR 508.1c attack restriction + CR 603.8 state trigger)", 
 });
 
 describe("Control Magic (Aura control-change, CR 613.1b layer 2 + 702.10c)", () => {
-    it("is a {2}{U}{U} Aura that targets a creature and declares a control-change effect", () => {
-        expect(controlMagic.manaCost).toEqual({ X: 2, U: 2 });
-        expect(controlMagic.types).toEqual(["Enchantment"]);
-        expect(controlMagic.subtypes).toEqual(["Aura"]);
-        expect(controlMagic.targetRequirement?.type).toBe("Creature");
-        expect(controlMagic.staticEffects).toHaveLength(1);
-        expect(controlMagic.staticEffects?.[0].kind).toBe("control-change");
-    });
-
     it("on resolve, transfers control of the enchanted creature and sets summoning sickness", () => {
         const bear = makeInstance(grizzlyBears.id, {
             id: "bear",
@@ -1072,15 +1036,6 @@ describe("Control Magic (Aura control-change, CR 613.1b layer 2 + 702.10c)", () 
 });
 
 describe("Steal Artifact (Aura control-change on artifacts, CR 613.1b layer 2)", () => {
-    it("is a {2}{U}{U} Aura that targets an artifact and declares a control-change effect", () => {
-        expect(stealArtifact.manaCost).toEqual({ X: 2, U: 2 });
-        expect(stealArtifact.types).toEqual(["Enchantment"]);
-        expect(stealArtifact.subtypes).toEqual(["Aura"]);
-        expect(stealArtifact.targetRequirement?.type).toBe("Artifact");
-        expect(stealArtifact.staticEffects).toHaveLength(1);
-        expect(stealArtifact.staticEffects?.[0].kind).toBe("control-change");
-    });
-
     it("on resolve, transfers control of the enchanted artifact (no summoning sickness — artifacts aren't creatures)", () => {
         const statue = makeInstance(jadeStatue.id, {
             id: "statue",
@@ -1234,11 +1189,6 @@ describe("Steal Artifact (Aura control-change on artifacts, CR 613.1b layer 2)",
 });
 
 describe("Time Walk (extra turn after this one, CR 500.7)", () => {
-    it("is a {1}{U} sorcery", () => {
-        expect(timeWalk.manaCost).toEqual({ X: 1, U: 1 });
-        expect(timeWalk.types).toEqual(["Sorcery"]);
-    });
-
     it("resolves by queueing an extra turn for the caster", () => {
         const state = makeState();
         pushSpell(state, timeWalk.id, "p1");
@@ -1315,11 +1265,6 @@ describe("Timetwister (each player reshuffles + draws 7, CR 121.1 / 701.20)", ()
             })
         );
     }
-
-    it("is a {2}{U} sorcery", () => {
-        expect(timetwister.manaCost).toEqual({ X: 2, U: 1 });
-        expect(timetwister.types).toEqual(["Sorcery"]);
-    });
 
     it("each player ends with 7 cards in hand, graveyard empty, remainder in library", () => {
         // p1 totals 10 cards across private zones (3 hand + 2 gy + 5 lib);
@@ -1767,15 +1712,6 @@ describe("Feedback (Aura on Enchantment — 1 dmg to host's controller at upkeep
         });
     }
 
-    it("declares Aura targeting Enchantment", () => {
-        expect(feedback.types).toEqual(["Enchantment"]);
-        expect(feedback.subtypes).toEqual(["Aura"]);
-        expect(feedback.targetRequirement).toEqual({
-            type: "Enchantment",
-            count: 1,
-        });
-    });
-
     it("queues + resolves into 1 damage to host's controller at their upkeep", () => {
         const state = setup("p1");
         const before = state.players[0].life;
@@ -1871,18 +1807,6 @@ describe("Jump (instant — target creature gains flying until end of turn)", ()
 });
 
 describe("Pirate Ship ({T}: 1 dmg + can't attack unless defender controls Island)", () => {
-    it("uses data-driven attack-restriction (no magic string)", () => {
-        expect(pirateShip.staticAbilities).not.toContain(
-            "cant-attack-unless-defender-controls-Island"
-        );
-        expect(pirateShip.staticEffects).toBeDefined();
-        expect(
-            pirateShip.staticEffects!.some(
-                (e) => e.kind === "attack-restriction"
-            )
-        ).toBe(true);
-    });
-
     function setup(opts: { defenderHasIsland: boolean }) {
         const ship = makeInstance(pirateShip.id, {
             id: "ship",
@@ -1999,13 +1923,6 @@ describe("Prodigal Sorcerer ({T}: 1 dmg to any target — original Tim)", () => 
             ],
         });
     }
-
-    it("declares a 'tap, target any, deal 1' activated ability", () => {
-        const ability = prodigalSorcerer.activatedAbilities?.[0];
-        expect(ability?.cost).toEqual({ tap: true });
-        expect(ability?.useStack).toBe(true);
-        expect(ability?.targetRequirement?.type).toBe("any");
-    });
 
     it("deals 1 damage to a target player", () => {
         const state = setup();
@@ -2590,31 +2507,6 @@ describe("Stasis (players skip their untap step + upkeep sacrifice unless {U}, C
         return { state };
     }
 
-    it("declares a single untap-restriction static effect (maxUntap 0, any-permanent filter)", () => {
-        expect(stasis.manaCost).toEqual({ X: 1, U: 1 });
-        expect(stasis.types).toEqual(["Enchantment"]);
-        // No opaque skip-untap-step keyword — restriction lives in
-        // `staticEffects` per ADR 0005.
-        expect(stasis.staticAbilities ?? []).not.toContain("skip-untap-step");
-        expect(stasis.staticEffects).toHaveLength(1);
-        const effect = stasis.staticEffects?.[0];
-        expect(effect?.kind).toBe("untap-restriction");
-        if (effect?.kind === "untap-restriction") {
-            expect(effect.maxUntap).toBe(0);
-            // Filter matches every permanent type — equivalent to "any".
-            expect(effect.filter).toEqual({
-                types: [
-                    "Artifact",
-                    "Creature",
-                    "Enchantment",
-                    "Land",
-                    "Planeswalker",
-                    "Battle",
-                ],
-            });
-        }
-    });
-
     it("the active player's untap step is a no-op when Stasis is in play (no prompt, no untaps)", () => {
         const { state } = setup();
         runUntapForJ("p1", state);
@@ -2885,12 +2777,6 @@ describe("Spell Blast ({X}{U} — counter target spell with mv = X)", () => {
         resolveTopOfStack(state);
         expect(state.stack.find((s) => s.id === bg.id)).toBeUndefined();
     });
-
-    it("declares mvFilter equals X on the target requirement", () => {
-        expect(spellBlast.targetRequirement?.mvFilter).toEqual({
-            equals: "X",
-        });
-    });
 });
 
 // ---------------------------------------------------------------------------
@@ -2898,15 +2784,6 @@ describe("Spell Blast ({X}{U} — counter target spell with mv = X)", () => {
 // ---------------------------------------------------------------------------
 
 describe("Mana Short (tap all lands + drain mana pool, CR 106.4)", () => {
-    it("is a {2}{U} Instant targeting a player", () => {
-        expect(manaShort.manaCost).toEqual({ X: 2, U: 1 });
-        expect(manaShort.types).toEqual(["Instant"]);
-        expect(manaShort.targetRequirement).toEqual({
-            type: "player",
-            count: 1,
-        });
-    });
-
     it("taps all target's lands and empties their mana pool", () => {
         const land1 = makeInstance(forest.id, {
             id: "f1",
@@ -2972,15 +2849,6 @@ describe("Mana Short (tap all lands + drain mana pool, CR 106.4)", () => {
 });
 
 describe("Drain Power (tap lands + transfer mana, CR 106.4)", () => {
-    it("is a {U}{U} Sorcery targeting a player", () => {
-        expect(drainPower.manaCost).toEqual({ U: 2 });
-        expect(drainPower.types).toEqual(["Sorcery"]);
-        expect(drainPower.targetRequirement).toEqual({
-            type: "player",
-            count: 1,
-        });
-    });
-
     it("taps target's lands, drains their mana, and adds it to caster", () => {
         const land1 = makeInstance(forest.id, {
             id: "f1",
@@ -3124,18 +2992,6 @@ describe("Phantasmal Terrain ({U}{U} — modal aura: choose basic land type)", (
 
         unapplySourceStaticEffects(state, aura);
         expect(mtn.subtypes).toEqual(["Mountain"]);
-    });
-
-    it("has 5 modes (one per basic land type)", () => {
-        expect(phantasmalTerrain.modes).toHaveLength(5);
-        const ids = phantasmalTerrain.modes!.map((m) => m.id);
-        expect(ids).toEqual([
-            "plains",
-            "island",
-            "swamp",
-            "mountain",
-            "forest",
-        ]);
     });
 });
 
@@ -3564,17 +3420,6 @@ describe("Vesuvan Doppelganger (copy w/ colour + ability exceptions, CR 707.9d)"
         ).toBe(true);
     });
 
-    it("declares the CR 603.3d target requirement on the retained upkeep re-copy: target creature", () => {
-        const recopy = vesuvanDoppelganger.triggeredAbilities?.find(
-            (a) => a.id === "vesuvan-doppelganger-recopy"
-        );
-        expect(recopy?.targetRequirement).toEqual({
-            type: "Creature",
-            count: 1,
-        });
-        expect(recopy?.retainedThroughCopy).toBe(true);
-    });
-
     it("upkeep re-copy switches to a new target via CR 603.3d target machinery, still blue, still retains the ability", () => {
         const state = vesuvanCopyOf(SERRA, "serra");
         const bears = makeInstance(BEARS, {
@@ -3639,22 +3484,6 @@ describe("Magical Hack (text-changing effect — CR 612, layer 3)", () => {
         spell.chosenModeId = toMode;
         resolveTopOfStack(state);
     }
-
-    it("is a {U} Instant targeting a spell or permanent, with five modes", () => {
-        expect(magicalHack.manaCost).toEqual({ U: 1 });
-        expect(magicalHack.types).toEqual(["Instant"]);
-        expect(magicalHack.targetRequirement).toEqual({
-            type: "spell-or-permanent",
-            count: 1,
-        });
-        expect(magicalHack.modes?.map((m) => m.id)).toEqual([
-            "plains",
-            "island",
-            "swamp",
-            "mountain",
-            "forest",
-        ]);
-    });
 
     it("changes a basic land's type so it taps for the new color (CR 305.6)", () => {
         const forestInst = makeInstance(forest.id, {
@@ -3863,22 +3692,6 @@ describe("Sleight of Mind (color-word text change — CR 612, layer 3)", () => {
         spell.chosenModeId = toMode;
         resolveTopOfStack(state);
     }
-
-    it("is a {U} Instant targeting a spell or permanent, with five color modes", () => {
-        expect(sleightOfMind.manaCost).toEqual({ U: 1 });
-        expect(sleightOfMind.types).toEqual(["Instant"]);
-        expect(sleightOfMind.targetRequirement).toEqual({
-            type: "spell-or-permanent",
-            count: 1,
-        });
-        expect(sleightOfMind.modes?.map((m) => m.id)).toEqual([
-            "white",
-            "blue",
-            "black",
-            "red",
-            "green",
-        ]);
-    });
 
     it("changes a protection color word so protection follows the new color (CR 702.16)", () => {
         // Black Knight has "protection from white".
@@ -4153,13 +3966,6 @@ describe("Camouflage (random pile combat — CR 509 variant, #563, ADR 0012)", (
             ownerId: "p2",
         });
     }
-
-    it("is a {G} Instant castable only during your declare attackers step", () => {
-        expect(camouflage.manaCost).toEqual({ G: 1 });
-        expect(camouflage.types).toEqual(["Instant"]);
-        expect(camouflage.castPhaseRestriction).toEqual(["DECLARE_ATTACKERS"]);
-        expect(camouflage.castTurnRestriction).toBe("self");
-    });
 
     it("forces a legal block from the pile (N=1) and marks the combat", () => {
         const blocker = ground("b1");

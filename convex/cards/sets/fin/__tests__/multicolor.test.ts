@@ -35,22 +35,6 @@ function battlefieldsOf(
 }
 
 describe("Vivi Ornitier (CR 605.1a / 605.3c / 602.5b — non-tap choice-based mana ability, issue #1179)", () => {
-    it("declares a free, non-tap, non-stack, once-per-turn, controller-turn-only mana ability with no static manaChoices fallback", () => {
-        const ability = viviOrnitier.activatedAbilities!.find(
-            (a) => a.id === ABILITY_ID
-        )!;
-        expect(ability.useStack).toBe(false);
-        expect(ability.cost).toEqual({});
-        expect(ability.controllerTurnOnly).toBe(true);
-        expect(ability.oncePerTurn).toBe(true);
-        expect(typeof ability.getManaChoices).toBe("function");
-        // Deliberately no static `manaChoices` — see the card-file comment:
-        // a truthy fallback would make `getActivatedManaAbility` (the
-        // click-to-TAP recognizer) mistake this free ability for a tappable
-        // mana source.
-        expect(ability.manaChoices).toBeUndefined();
-    });
-
     it("getManaChoices enumerates every {U}/{R} split summing to her CURRENT effective power (CR 613.4, issue #927)", () => {
         const vivi = makeInstance(VIVI_ID, {
             id: "vivi",

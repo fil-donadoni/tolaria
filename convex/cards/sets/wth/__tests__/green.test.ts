@@ -54,15 +54,6 @@ function resolveTrigger(
 }
 
 describe("Gaea's Blessing — mill self-trigger (CR 701.17 / 603.6e, issue #1055)", () => {
-    it("declares a CARD_MILLED graveyard-zone triggered ability", () => {
-        const trig = gaeasBlessing.triggeredAbilities?.find(
-            (t) => t.id === MILL_ABILITY
-        );
-        expect(trig).toBeDefined();
-        expect(trig?.event).toBe("CARD_MILLED");
-        expect(trig?.zone).toBe("graveyard");
-    });
-
     it("collectTriggers fires the trigger when THIS card is milled (self-scope)", () => {
         const gaea = makeInstance(gaeasBlessing.id, {
             id: "gaea",

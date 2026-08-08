@@ -415,3 +415,41 @@ export function answerHeadMayPay(state: GameState, accept: boolean): void {
     const head = state.pendingChoices![0];
     applyMayPaySubmit(state, { playerId: head.playerId, accept });
 }
+
+// ---------------------------------------------------------------------------
+// Exile-and-return bundle synthetic events (ADR 0028) — mirrors the `LEFT` /
+// ETB event builders other sets' helpers use (e.g. `nem/__tests__/helpers.ts`)
+// so a card combining `exileWithAttachments` on ETB with `returnExiledForSource`
+// on leave (Icy Prison) can be driven through `resolveTrigger` without each
+// test hand-rolling the event shape.
+// ---------------------------------------------------------------------------
+
+/** A PERMANENT_ENTERED event for `instanceId` entering under `controllerId`
+ *  (CR 603.6a). */
+export const ENTERED = (
+    instanceId: string,
+    controllerId: string,
+    types: ReadonlyArray<CardType> = ["Enchantment"]
+): StackItem["triggerEvent"] =>
+    ({
+        type: "PERMANENT_ENTERED" as const,
+        instanceId,
+        controllerId,
+        types,
+    }) as StackItem["triggerEvent"];
+
+/** A PERMANENT_LEFT event for `sourceId` leaving the battlefield to the
+ *  graveyard (CR 603.7a). Mirrors `nem/__tests__/helpers.ts`'s `LEFT`. */
+export const LEFT = (
+    sourceId: string,
+    controllerId = "p1"
+): StackItem["triggerEvent"] =>
+    ({
+        type: "PERMANENT_LEFT" as const,
+        instanceId: sourceId,
+        controllerId,
+        ownerId: controllerId,
+        types: ["Enchantment"] as const,
+        wasAura: false,
+        toZone: "graveyard" as const,
+    }) as StackItem["triggerEvent"];

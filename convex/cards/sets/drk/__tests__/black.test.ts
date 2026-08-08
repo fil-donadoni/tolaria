@@ -8,7 +8,6 @@ import { describe, it, expect } from "vitest";
 import {
     ashesToAshes,
     banshee,
-    bogImp,
     bogRats,
     curseArtifact,
     eaterOfTheDead,
@@ -167,14 +166,6 @@ describe("Banshee — {X},{T}: half X down to any target, half X up to you (CR 6
         resolveTopOfStack(state);
         expect(state.players[1].life).toBe(20);
         expect(state.players[0].life).toBe(20);
-    });
-});
-
-describe("Bog Imp — vanilla flier (CR 702.9)", () => {
-    it("has flying", () => {
-        expect(bogImp.staticAbilities).toContain("flying");
-        expect(bogImp.power).toBe(1);
-        expect(bogImp.toughness).toBe(1);
     });
 });
 
@@ -557,10 +548,6 @@ describe("Rag Man — {B}{B}{B},{T}: opponent discards a creature at random (CR 
         expect(state.players[1].hand.map((c) => c.id)).toEqual(["land"]);
         expect(state.players[1].graveyard.map((c) => c.id)).toEqual(["cre"]);
     });
-
-    it("can only be activated during the controller's turn", () => {
-        expect(ragMan.activatedAbilities![0].controllerTurnOnly).toBe(true);
-    });
 });
 
 describe("Season of the Witch — upkeep pay-2-life-or-sac + end-step mass destroy (CR 603.6a)", () => {
@@ -825,13 +812,6 @@ function withWorms(): { state: GameState; worms: CardInstanceState } {
 }
 
 describe("Worms of the Earth ({2}{B}{B}{B} Enchantment — land-play/ETB lock)", () => {
-    it("has the correct cost, type, and prohibition marker", () => {
-        expect(wormsOfTheEarth.manaCost).toEqual({ X: 2, B: 3 });
-        expect(wormsOfTheEarth.types).toEqual(["Enchantment"]);
-        expect(wormsOfTheEarth.preventsLandPlayAndETB).toBe(true);
-        expect(wormsOfTheEarth.triggeredAbilities).toHaveLength(1);
-    });
-
     describe("land-play prohibition (CR 305.1) — path 1", () => {
         it('a land in hand has NO "play" action while Worms is in play', () => {
             const { state } = withWorms();

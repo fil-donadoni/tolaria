@@ -51,19 +51,6 @@ describe("Luminarch Aspirant (CR 603.6a beginning-of-combat trigger; CR 122 coun
         return state.stack[state.stack.length - 1];
     }
 
-    it("shape: 1/1 for {1}{W} with the beginning-of-combat trigger declared", () => {
-        expect(luminarchAspirant.manaCost).toEqual({ X: 1, W: 1 });
-        expect(luminarchAspirant.power).toBe(1);
-        expect(luminarchAspirant.toughness).toBe(1);
-        expect(luminarchAspirant.triggeredAbilities).toHaveLength(1);
-    });
-
-    it("declares the CR 603.3d target requirement: one creature you control", () => {
-        expect(
-            luminarchAspirant.triggeredAbilities?.[0]?.targetRequirement
-        ).toEqual({ type: "Creature", count: 1, controller: "you" });
-    });
-
     it("auto-selects the sole legal target (CR 603.3d) and puts a +1/+1 counter on it", () => {
         const { state } = setup();
         const trig = pushCombatTrigger(state);

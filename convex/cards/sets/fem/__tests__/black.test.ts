@@ -169,14 +169,6 @@ describe("FEM black registry parity + multi-art prints (ADR 0014)", () => {
             expect(print.setCode).toBe("fem");
         }
     });
-
-    it("uses a distinct id/printId across all definitions and prints (no dupes)", () => {
-        const ids = [
-            ...C5_DEFS.map((d) => d.id),
-            ...C5_MULTI_ART_PRINTS.map((m) => m.print.printId),
-        ];
-        expect(new Set(ids).size).toBe(ids.length);
-    });
 });
 
 // ---------------------------------------------------------------------------
@@ -185,17 +177,6 @@ describe("FEM black registry parity + multi-art prints (ADR 0014)", () => {
 // ---------------------------------------------------------------------------
 
 describe("Basal Thrull — sac-self mana ability (CAPABILITY C, ADR 0039, CR 605.1a)", () => {
-    it("carries the canonical printed characteristics + a useStack:false sac mana ability", () => {
-        expect(basalThrull.manaCost).toEqual({ B: 2 });
-        expect(basalThrull.subtypes).toEqual(["Thrull"]);
-        expect(basalThrull.power).toBe(1);
-        expect(basalThrull.toughness).toBe(2);
-        const ability = basalThrull.activatedAbilities?.[0];
-        expect(ability?.useStack).toBe(false); // mana ability — no stack (CR 605.1a)
-        expect(ability?.cost).toEqual({ tap: true, sacrifice: true });
-        expect(ability?.manaProduced).toEqual({ B: 2 });
-    });
-
     it("full path: tapSourceIntoPayment SACRIFICES the source (not taps) and adds {B}{B}", () => {
         // Drive the real tap-mana payment path: the sac-self fixed-output ability
         // routes through tapSourceIntoPayment, which (ADR 0039) sacrifices the
@@ -254,16 +235,6 @@ describe("Basal Thrull — sac-self mana ability (CAPABILITY C, ADR 0039, CR 605
 // ---------------------------------------------------------------------------
 
 describe("Armor Thrull — sac-self +1/+2 counter (CR 602.1, 122.1)", () => {
-    it("carries the canonical printed characteristics", () => {
-        expect(armorThrull.manaCost).toEqual({ X: 2, B: 1 });
-        expect(armorThrull.subtypes).toEqual(["Thrull"]);
-        expect(armorThrull.power).toBe(1);
-        expect(armorThrull.toughness).toBe(3);
-        const cost = armorThrull.activatedAbilities![0].cost;
-        expect(cost.tap).toBe(true);
-        expect(cost.sacrifice).toBe(true);
-    });
-
     it("puts a +1/+2 counter on the target, lifting its effective P/T", () => {
         const armorer = makeInstance(armorThrull.id, {
             id: "armorer",
@@ -321,19 +292,6 @@ describe("Armor Thrull — sac-self +1/+2 counter (CR 602.1, 122.1)", () => {
 // ---------------------------------------------------------------------------
 
 describe("Soul Exchange — exile-as-cost + reanimate + Thrull +2/+2 (CAPABILITY E, CR 117.9/601.2f/406)", () => {
-    it("declares the exileFilter additional cost (you-control) + graveyard target", () => {
-        expect(soulExchange.additionalCosts?.exileFilter).toEqual({
-            types: "Creature",
-            controllerRelation: "you",
-        });
-        expect(soulExchange.additionalCosts?.sacrificeFilter).toBeUndefined();
-        expect(soulExchange.targetRequirement).toMatchObject({
-            type: "Creature",
-            zone: "graveyard",
-            controller: "you",
-        });
-    });
-
     it("GRE: reanimates the targeted graveyard creature; +2/+2 when the exiled creature was a Thrull", () => {
         // The exiled creature's subtypes are snapshotted on the stack item; a
         // Thrull adds a +2/+2 counter to the reanimated creature (CR 117.9).
@@ -543,18 +501,6 @@ describe("Hymn to Tourach — random discard two (CR 701.8a)", () => {
 // ---------------------------------------------------------------------------
 
 describe("Derelor — controller's black spells cost {B} more (CR 601.2f)", () => {
-    it("carries the canonical printed characteristics + cost-modifier static", () => {
-        expect(derelor.manaCost).toEqual({ X: 3, B: 1 });
-        expect(derelor.power).toBe(4);
-        expect(derelor.toughness).toBe(4);
-        expect(derelor.subtypes).toEqual(["Thrull"]);
-        const eff = derelor.staticEffects?.[0];
-        expect(eff?.kind).toBe("cost-modifier");
-        expect((eff as { costIncrease?: unknown }).costIncrease).toEqual({
-            B: 1,
-        });
-    });
-
     it("taxes the controller's OWN black spell by {B}, but not a colorless spell", () => {
         const der = makeInstance(derelor.id, {
             id: "der",
@@ -641,13 +587,6 @@ describe("Initiates of the Ebon Hand — 4th-activation delayed sacrifice (CAPAB
         resolveTopOfStack(state);
     }
 
-    it("is a {1}: Add {B} mana ability (no stack)", () => {
-        const ability = initiatesOfTheEbonHand.activatedAbilities?.[0];
-        expect(ability?.useStack).toBe(false);
-        expect(ability?.manaProduced).toEqual({ B: 1 });
-        expect(ability?.cost).toEqual({ mana: { X: 1 } });
-    });
-
     it("3 activations → no delayed sacrifice scheduled", () => {
         const { state, initiates } = setup();
         activateOnce(state, initiates);
@@ -688,16 +627,6 @@ describe("Initiates of the Ebon Hand — 4th-activation delayed sacrifice (CAPAB
 // ---------------------------------------------------------------------------
 
 describe("Ebon Praetor — upkeep -2/-2 + once-per-turn Thrull-sac bonus (CR 602.5, 122.1)", () => {
-    it("carries first strike, trample, and a once-per-turn upkeep-only sac ability", () => {
-        expect(ebonPraetor.staticAbilities).toContain("first strike");
-        expect(ebonPraetor.staticAbilities).toContain("trample");
-        const ability = ebonPraetor.activatedAbilities![0];
-        expect(ability.oncePerTurn).toBe(true);
-        expect(ability.controllerTurnOnly).toBe(true);
-        expect(ability.activationPhaseRestriction).toEqual(["UPKEEP"]);
-        expect(ability.cost.sacrificeFilter).toEqual({ types: "Creature" });
-    });
-
     it("upkeep trigger puts a -2/-2 counter, dropping effective P/T", () => {
         const praetor = makeInstance(ebonPraetor.id, {
             id: "praetor",
@@ -926,14 +855,6 @@ describe("Necrite — unblocked sac → destroy a defender's creature (CR 603.3d
         return state.stack[state.stack.length - 1];
     }
 
-    it("declares the CR 603.3d target requirement: a creature the defending player controls", () => {
-        expect(necrite.triggeredAbilities?.[0]?.targetRequirement).toEqual({
-            type: "Creature",
-            count: 1,
-            controller: "opponent",
-        });
-    });
-
     it("sole legal target auto-selects at stack placement (no PendingTarget); accepting the sac destroys it", () => {
         const necr = makeInstance(necrite.id, {
             id: "necrite",
@@ -1048,15 +969,6 @@ describe("Necrite — unblocked sac → destroy a defender's creature (CR 603.3d
 // ---------------------------------------------------------------------------
 
 describe("Order of the Ebon Hand — protection + pump knight (CR 702.16, 611.2c)", () => {
-    it("declares protection from white and two pump abilities", () => {
-        expect(orderOfTheEbonHand.staticAbilities).toContain(
-            "protection from white"
-        );
-        const ids = orderOfTheEbonHand.activatedAbilities!.map((a) => a.id);
-        expect(ids).toContain("order-ebon-hand-first-strike");
-        expect(ids).toContain("order-ebon-hand-pump");
-    });
-
     it("{B}{B} pump grants +1/+0 until end of turn", () => {
         const order = makeInstance(orderOfTheEbonHand.id, {
             id: "order",
@@ -1261,14 +1173,6 @@ describe("Thrull Wizard — counter black spell unless pay {B} or {3} (CR 701.5a
         ]);
         return { state, blackSpell };
     };
-
-    it("only targets black spells (colorFilter B)", () => {
-        const ability = thrullWizard.activatedAbilities![0];
-        expect(ability.targetRequirement).toMatchObject({
-            type: "spell",
-            colorFilter: "B",
-        });
-    });
 
     it("counters the black spell when its controller declines BOTH {B} and {3}", () => {
         const { state, blackSpell } = setup();

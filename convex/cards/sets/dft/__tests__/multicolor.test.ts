@@ -30,15 +30,6 @@ registerTokenDefinition({
 });
 
 describe("Brightglass Gearhulk (CR 603.6a ETB / 701.19 / 400.7 / 701.20, issue #677)", () => {
-    it("is a 4/4 first strike, trample artifact creature", () => {
-        expect(brightglassGearhulk.power).toBe(4);
-        expect(brightglassGearhulk.toughness).toBe(4);
-        expect(brightglassGearhulk.staticAbilities).toEqual([
-            "first strike",
-            "trample",
-        ]);
-    });
-
     it("ETB: may search for up to two cheap artifact/creature/enchantment cards, put them into hand", () => {
         const hulk = makeInstance(brightglassGearhulk.id, {
             id: "hulk1",

@@ -94,10 +94,6 @@ function fireCombatDamage(
 }
 
 describe("Barrowgoyf (CR 604.3 all-graveyards CDA P/T, CR 603.4/701.17 combat-damage mill)", () => {
-    it("declares deathtouch and lifelink", () => {
-        expect(barrowgoyf.staticAbilities).toEqual(["deathtouch", "lifelink"]);
-    });
-
     it("power/toughness = distinct card types among ALL players' graveyards", () => {
         const goyf = makeInstance(barrowgoyf.id, {
             id: "goyf",

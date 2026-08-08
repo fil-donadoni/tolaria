@@ -15,16 +15,14 @@ import {
     amrouKithkin,
     arboria,
     barbaryApes,
-    catWarriors,
     cocoon,
     concordantCrossroads,
+    crawGiant,
     durkwoodBoars,
     elvenRiders,
     emeraldDragonfly,
-    fireSprites,
     giantTurtle,
     gravitySphere,
-    hornetCobra,
     hundingGjornersen,
     killerBees,
     masterOfTheHunt,
@@ -39,9 +37,13 @@ import {
     typhoon,
     wallOfLight,
     whirlingDervish,
+    wolverinePack,
 } from "..";
 import { projectPublicState } from "../../../../gameProjections";
-import { isLegalBandComposition } from "../../../../gre/banding";
+import {
+    isLegalBandComposition,
+    recordBlockedAttackers,
+} from "../../../../gre/banding";
 import {
     arboriaForbidsAttack,
     validateAttackerEligibility,
@@ -52,12 +54,17 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { enumerateMoves, type Move } from "../../../../gre/moves";
-import { finalizeCleanup, untapStep } from "../../../../gre/phases";
+import {
+    emitBlockersConfirmedEvents,
+    finalizeCleanup,
+    untapStep,
+} from "../../../../gre/phases";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import {
     applySourceStaticEffects,
     resolveTopOfStack,
     type CardInstanceState,
+    type GameState,
 } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
 import {
@@ -82,15 +89,6 @@ describe("LEG green — vanilla / keyword definitions (CR 110.1 / 702)", () => {
         expect(durkwoodBoars.toughness).toBe(4);
         expect(mossMonster.power).toBe(3);
         expect(mossMonster.toughness).toBe(6);
-    });
-    it("declares the printed keywords (CR 702)", () => {
-        expect(catWarriors.staticAbilities).toContain("forestwalk");
-        expect(hornetCobra.staticAbilities).toContain("first strike");
-        expect(emeraldDragonfly.staticAbilities).toContain("flying");
-        expect(fireSprites.staticAbilities).toContain("flying");
-        expect(killerBees.staticAbilities).toContain("flying");
-        expect(pixieQueen.staticAbilities).toContain("flying");
-        expect(rabidWombat.staticAbilities).toContain("vigilance");
     });
 });
 
@@ -217,14 +215,6 @@ describe("Emerald Dragonfly ({G}{G}: gains first strike EOT, CR 611.1b)", () => 
                 (g) => g.ability === "first strike"
             )
         ).toBe(true);
-    });
-});
-
-describe("Fire Sprites ({G}, {T}: Add {R}, CR 605.1a mana ability)", () => {
-    it("declares a mana ability that does not use the stack", () => {
-        const ability = fireSprites.activatedAbilities?.[0];
-        expect(ability?.useStack).toBe(false);
-        expect(ability?.manaProduced).toEqual({ R: 1 });
     });
 });
 
@@ -579,11 +569,6 @@ describe("world rule SBA (CR 704.5m)", () => {
 });
 
 describe("Concordant Crossroads (World — all creatures have haste, CR 702.10)", () => {
-    it("carries the World supertype as data", () => {
-        expect(concordantCrossroads.supertypes).toEqual(["World"]);
-        expect(concordantCrossroads.types).toEqual(["Enchantment"]);
-    });
-
     it("grants haste to every creature, regardless of controller (wire format)", () => {
         const cc = makeInstance(concordantCrossroads.id, {
             id: "cc",
@@ -826,12 +811,6 @@ describe("Whirling Dervish (end-step +1/+1 if it dealt damage to an opponent thi
         return { state, dervish };
     }
 
-    it("has protection from black", () => {
-        expect(whirlingDervish.staticAbilities).toContain(
-            "protection from black"
-        );
-    });
-
     it("the end-step trigger fires (and grows) only when it dealt damage to an opponent", () => {
         const yes = setup(true);
         const fired = collectTriggers(yes.state, [
@@ -861,12 +840,6 @@ describe("Whirling Dervish (end-step +1/+1 if it dealt damage to an opponent thi
 });
 
 describe("Arboria (CR 508.1c — defender-history attack restriction)", () => {
-    it("has the correct definition shape", () => {
-        expect(arboria.supertypes).toEqual(["World"]);
-        expect(arboria.types).toEqual(["Enchantment"]);
-        expect(arboria.manaCost).toEqual({ X: 2, G: 2 });
-    });
-
     it("does not restrict attacks when not on the battlefield", () => {
         const state = makeState();
         expect(arboriaForbidsAttack(state, "p2")).toBe(false);
@@ -935,20 +908,6 @@ describe("Arboria (CR 508.1c — defender-history attack restriction)", () => {
 });
 
 describe("Giant Turtle (#490 — self attack restriction, CR 508.1)", () => {
-    it("has the correct definition shape (cost / P-T / oracle)", () => {
-        expect(giantTurtle.name).toBe("Giant Turtle");
-        expect(giantTurtle.manaCost).toEqual({ X: 1, G: 2 });
-        expect(giantTurtle.power).toBe(2);
-        expect(giantTurtle.toughness).toBe(4);
-        expect(giantTurtle.oracleText).toBe(
-            "This creature can't attack if it attacked during your last turn."
-        );
-        const restriction = giantTurtle.staticEffects?.find(
-            (e) => e.kind === "attack-restriction"
-        );
-        expect(restriction).toBeDefined();
-    });
-
     it("can attack on a turn it did not attack last turn (CR 508.1)", () => {
         // First turn it sees combat: attackedDuringLastTurn is unset → legal.
         const turtle = makeInstance(giantTurtle.id, {
@@ -1147,5 +1106,101 @@ describe("Giant Turtle (#490 — self attack restriction, CR 508.1)", () => {
             restriction?.kind === "attack-restriction" &&
                 restriction.predicate(slim as never, [])
         ).toBe(false);
+    });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// Rampage N (CR 702.23) on Craw Giant / Wolverine Pack — the generic
+// mechanism is exercised catalogue-wide in leg/red.test.ts (frostGiant,
+// aerathiBerserker); these two prove the SPECIFIC cards actually carry the
+// matching `rampageTrigger(2)` and fire it through the real combat path
+// (`emitBlockersConfirmedEvents` → `resolveTopOfStack`), not just declare
+// the keyword.
+// ──────────────────────────────────────────────────────────────────────────
+
+/** Attacker (from `def`) blocked by `blockerCount` Grizzly Bears, all
+ *  assigned to it at DECLARE_BLOCKERS. */
+function setupRampageCombat(
+    def: { id: string },
+    blockerCount: number
+): { state: GameState; attackerId: string } {
+    const attacker = makeInstance(def.id, {
+        id: "rampager",
+        controllerId: "p1",
+        ownerId: "p1",
+        isAttacking: true,
+    });
+    const blockerIds = Array.from(
+        { length: blockerCount },
+        (_, i) => `blk${i}`
+    );
+    const blockers = blockerIds.map((id) =>
+        makeInstance(grizzlyBears.id, {
+            id,
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+        })
+    );
+    const blockerAssignments: Record<string, string[]> = {};
+    for (const id of blockerIds) blockerAssignments[id] = ["rampager"];
+    const state = makeState({
+        players: [
+            makePlayer("p1", { battlefield: [attacker] }),
+            makePlayer("p2", { battlefield: blockers }),
+        ],
+        phase: "DECLARE_BLOCKERS",
+        combat: {
+            attackerIds: ["rampager"],
+            confirmed: true,
+            blockerAssignments,
+            blockersConfirmed: true,
+        },
+    });
+    recordBlockedAttackers(state);
+    return { state, attackerId: attacker.id };
+}
+
+describe("Craw Giant (CR 702.19 trample + CR 702.23 rampage 2)", () => {
+    it("blocked by two creatures: rampage fires once for +2/+2 (base 6/4 → 8/6)", () => {
+        const { state, attackerId } = setupRampageCombat(crawGiant, 2);
+        emitBlockersConfirmedEvents(state);
+        expect(
+            state.stack.filter((s) => s.triggeredAbilityId === "rampage-2")
+        ).toHaveLength(1);
+        resolveTopOfStack(state);
+        const atk = state.players[0].battlefield.find(
+            (c) => c.id === attackerId
+        )!;
+        expect(getEffectivePower(state, atk)).toBe(8);
+        expect(getEffectiveToughness(state, atk)).toBe(6);
+    });
+
+    it("wire format: pumped P/T survives projectPublicState", () => {
+        const { state, attackerId } = setupRampageCombat(crawGiant, 2);
+        emitBlockersConfirmedEvents(state);
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === attackerId
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(8);
+        expect(getEffectiveToughness(projected, slim)).toBe(6);
+    });
+});
+
+describe("Wolverine Pack (CR 702.23 rampage 2)", () => {
+    it("blocked by two creatures: rampage fires once for +2/+2 (base 2/4 → 4/6)", () => {
+        const { state, attackerId } = setupRampageCombat(wolverinePack, 2);
+        emitBlockersConfirmedEvents(state);
+        expect(
+            state.stack.filter((s) => s.triggeredAbilityId === "rampage-2")
+        ).toHaveLength(1);
+        resolveTopOfStack(state);
+        const atk = state.players[0].battlefield.find(
+            (c) => c.id === attackerId
+        )!;
+        expect(getEffectivePower(state, atk)).toBe(4);
+        expect(getEffectiveToughness(state, atk)).toBe(6);
     });
 });

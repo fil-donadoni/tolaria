@@ -12,13 +12,8 @@ import {
     hallowedGround,
     kelsinkoRanger,
     kjeldoranKnight,
-    kjeldoranPhalanx,
-    kjeldoranSkycaptain,
-    kjeldoranSkyknight,
-    kjeldoranWarrior,
     lostOrderOfJarkeld,
     mercenaries,
-    orderOfTheSacredTorch,
     orderOfTheWhiteShield,
     rally,
     shieldBearer,
@@ -62,10 +57,17 @@ import {
     kjeldoranGuard,
     battleCry,
     enduringRenewal,
+    adarkarUnicorn,
+    orderOfTheSacredTorch,
 } from "../../ice";
 import { plains } from "../../lea";
 import { getDefinition, getCardByName } from "../../../index";
-import { tryAutoCommitPendingCast, selectTarget } from "../../../../game";
+import {
+    tryAutoCommitPendingCast,
+    selectTarget,
+    tapSourceIntoPayment,
+} from "../../../../game";
+import { getManaTapOptionsDetailed } from "../../../../gre/constants";
 import { applyDamageReplacements } from "../../../../gre/replacements";
 import {
     resolveTopOfStack,
@@ -178,46 +180,6 @@ describe("ICE White reprints (CardPrint wiring, ADR 0014)", () => {
         );
         expect(getDefinition(circleOfProtectionWhiteIce.printId).name).toBe(
             "Circle of Protection: White"
-        );
-    });
-});
-
-// --- Keyword creatures (CR 702 — snapshot checks) --------------------------
-
-describe("ICE White keyword creatures (CR 702)", () => {
-    it("Kjeldoran Phalanx has first strike + banding", () => {
-        expect(kjeldoranPhalanx.staticAbilities).toEqual([
-            "first strike",
-            "banding",
-        ]);
-        expect(kjeldoranPhalanx.power).toBe(2);
-        expect(kjeldoranPhalanx.toughness).toBe(5);
-    });
-    it("Kjeldoran Skycaptain has flying + first strike + banding", () => {
-        expect(kjeldoranSkycaptain.staticAbilities).toEqual([
-            "flying",
-            "first strike",
-            "banding",
-        ]);
-    });
-    it("Kjeldoran Skyknight has flying + first strike + banding", () => {
-        expect(kjeldoranSkyknight.staticAbilities).toEqual([
-            "flying",
-            "first strike",
-            "banding",
-        ]);
-    });
-    it("Kjeldoran Warrior has banding", () => {
-        expect(kjeldoranWarrior.staticAbilities).toEqual(["banding"]);
-    });
-    it("Shield Bearer is a 0/3 with banding", () => {
-        expect(shieldBearer.staticAbilities).toEqual(["banding"]);
-        expect(shieldBearer.power).toBe(0);
-        expect(shieldBearer.toughness).toBe(3);
-    });
-    it("Order of the White Shield has protection from black", () => {
-        expect(orderOfTheWhiteShield.staticAbilities).toContain(
-            "protection from black"
         );
     });
 });
@@ -357,14 +319,6 @@ describe("Elvish Healer ({T}: damage prevention, CR 615)", () => {
             { type: "permanent", id: "redc" },
         ]);
         expect(state.stack).toHaveLength(0);
-    });
-
-    it("the ability is targeted at any target", () => {
-        const ability = elvishHealer.activatedAbilities!.find(
-            (a) => a.id === "elvish-healer-prevent"
-        )!;
-        expect(ability.targetRequirement).toMatchObject({ type: "any" });
-        expect(ability.cost).toMatchObject({ tap: true });
     });
 });
 
@@ -548,15 +502,6 @@ describe("Snow Hound (self + green/blue bounce, CR 701.14)", () => {
         ).toBeDefined();
         expect(state.players[0].hand.find((c) => c.id === "blu")).toBeDefined();
     });
-    it("targets green-or-blue creatures you control", () => {
-        const ability = snowHound.activatedAbilities!.find(
-            (a) => a.id === "snow-hound-bounce"
-        )!;
-        expect(ability.targetRequirement).toMatchObject({
-            controller: "you",
-            colorFilterAny: ["G", "U"],
-        });
-    });
 });
 
 // --- Hallowed Ground ({W}{W}: bounce your land, CR 701.14) ------------------
@@ -566,14 +511,6 @@ describe("Hallowed Ground (return your land, CR 701.14)", () => {
         (a) => a.id === "hallowed-ground-bounce"
     )!;
     const bounceReq = bounceAbility.targetRequirement!;
-
-    it("declares the nonsnow exclusion on its targetRequirement", () => {
-        expect(bounceReq).toMatchObject({
-            type: "Land",
-            controller: "you",
-            excludeSupertypes: "Snow",
-        });
-    });
 
     it("returns the target land you control to hand", () => {
         const ground = makeInstance(hallowedGround.id, {
@@ -752,12 +689,6 @@ describe("Rally (blocking creatures +1/+1, CR 611.1b)", () => {
 // --- Warning (prevent combat damage by target attacker) --------------------
 
 describe("Warning (attacker assigns no combat damage, CR 510.1c)", () => {
-    it("targets an attacking creature", () => {
-        expect(warning.targetRequirement).toMatchObject({
-            type: "Creature",
-            combatRoleFilter: "attacking",
-        });
-    });
     it("resolves and marks the attacker as assigning no combat damage", () => {
         const attacker = vanilla("atk", 3, 3, {
             controllerId: "p2",
@@ -784,12 +715,6 @@ describe("Warning (attacker assigns no combat damage, CR 510.1c)", () => {
 // --- Mercenaries ({3}: prevent its damage to you, any player) --------------
 
 describe("Mercenaries (open prevention, CR 602.1)", () => {
-    it("is activatable by any player", () => {
-        const ability = mercenaries.activatedAbilities!.find(
-            (a) => a.id === "mercenaries-prevent"
-        )!;
-        expect(ability.activatableByAnyPlayer).toBe(true);
-    });
     it("resolves a prevention shield without error", () => {
         const merc = makeInstance(mercenaries.id, {
             id: "merc",
@@ -804,21 +729,6 @@ describe("Mercenaries (open prevention, CR 602.1)", () => {
         });
         resolveActivated(state, merc, "mercenaries-prevent");
         expect(state.stack).toHaveLength(0);
-    });
-});
-
-// --- Order of the Sacred Torch ({T}, pay 1 life: counter black spell) ------
-
-describe("Order of the Sacred Torch (counter black spell, CR 701.5)", () => {
-    it("targets a black spell on the stack and costs 1 life", () => {
-        const ability = orderOfTheSacredTorch.activatedAbilities!.find(
-            (a) => a.id === "order-sacred-torch-counter"
-        )!;
-        expect(ability.targetRequirement).toMatchObject({
-            type: "spell",
-            colorFilter: "B",
-        });
-        expect(ability.cost).toMatchObject({ tap: true, life: 1 });
     });
 });
 
@@ -861,15 +771,6 @@ describe("Scarab cycle (#653) — colour block-restriction + conditional +2/+2",
         });
         return { state, aura, host };
     }
-
-    it("definition shape: {W} Aura with block-restriction + pt-buff (Black Scarab)", () => {
-        expect(blackScarab.manaCost).toEqual({ W: 1 });
-        expect(blackScarab.types).toEqual(["Enchantment"]);
-        expect(blackScarab.subtypes).toEqual(["Aura"]);
-        const kinds = (blackScarab.staticEffects ?? []).map((e) => e.kind);
-        expect(kinds).toContain("block-restriction");
-        expect(kinds).toContain("pt-buff");
-    });
 
     it("registers all five Scarabs in the deck-builder index", () => {
         for (const s of [
@@ -993,24 +894,6 @@ describe("Scarab cycle (#653) — colour block-restriction + conditional +2/+2",
 // ---------------------------------------------------------------------------
 
 describe("Caribou Range (#653) — grant token-maker + sacrifice-for-life", () => {
-    it("definition shape: {2}{W}{W} land Aura with an activated-grant + lifegain ability", () => {
-        expect(caribouRange.manaCost).toEqual({ X: 2, W: 2 });
-        expect(caribouRange.subtypes).toEqual(["Aura"]);
-        expect(caribouRange.targetRequirement).toEqual({
-            type: "Land",
-            count: 1,
-            controller: "you",
-        });
-        const kinds = (caribouRange.staticEffects ?? []).map((e) => e.kind);
-        expect(kinds).toContain("activated-grant");
-        expect(caribouRange.grantTemplates?.[0]?.id).toBe(
-            "caribou-range-make-caribou"
-        );
-        expect(
-            caribouRange.activatedAbilities?.[0]?.cost.sacrificeFilter
-        ).toEqual({ subtypes: "Caribou", isToken: true });
-    });
-
     it("the granted ability creates a 0/1 white Caribou token under the land's controller", () => {
         // Ice Floe is a registered ICE land — use it as the enchanted host.
         const land = makeInstance("85ce04fb-e687-41e0-ae9a-16a51df5d943", {
@@ -1094,14 +977,6 @@ describe("Fylgja (#653) — healing-counter prevention Aura", () => {
         return { state, aura, host };
     }
 
-    it("definition shape: {W} Aura entering with four healing counters", () => {
-        expect(fylgja.manaCost).toEqual({ W: 1 });
-        expect(fylgja.subtypes).toEqual(["Aura"]);
-        expect(fylgja.entersWith).toEqual({
-            counters: [{ type: "healing", count: 4 }],
-        });
-    });
-
     it("the {2}{W} ability adds a healing counter to the Aura", () => {
         const { state, aura } = fylgjaBoard(4);
         resolveActivated(state, aura, "fylgja-add-counter");
@@ -1145,13 +1020,6 @@ describe("Justice (#653) — upkeep pay-or-sac + reflect red damage", () => {
         return { state, inst };
     }
 
-    it("definition shape: {2}{W}{W} enchantment with upkeep + damage-watch triggers", () => {
-        expect(justice.manaCost).toEqual({ X: 2, W: 2 });
-        const ids = (justice.triggeredAbilities ?? []).map((t) => t.id);
-        expect(ids).toContain("justice-upkeep");
-        expect(ids).toContain("justice-reflect");
-    });
-
     it("reflects red creature damage back to that source's controller (CR 603.4)", () => {
         const { state, inst } = justiceBoard();
         resolveTrigger(state, inst, "justice-reflect", {
@@ -1193,19 +1061,6 @@ describe("Justice (#653) — upkeep pay-or-sac + reflect red damage", () => {
 // ---------------------------------------------------------------------------
 
 describe("Seraph (#653) — reanimate creatures it killed at the next end step", () => {
-    it("definition shape: {6}{W} 4/4 flying Angel with the death + delayed triggers", () => {
-        expect(seraph.manaCost).toEqual({ X: 6, W: 1 });
-        expect(seraph.power).toBe(4);
-        expect(seraph.toughness).toBe(4);
-        expect(seraph.staticAbilities).toContain("flying");
-        expect((seraph.triggeredAbilities ?? []).map((t) => t.id)).toContain(
-            "seraph-mark"
-        );
-        expect((seraph.delayedTriggers ?? []).map((t) => t.id)).toContain(
-            "seraph-reanimate"
-        );
-    });
-
     it("the delayed reanimate trigger puts the dead card onto the controller's battlefield (CR 603.7c)", () => {
         const seraphInst = makeInstance(seraph.id, {
             id: "seraph",
@@ -1551,15 +1406,6 @@ describe("Hipparion (can't block power 3+ unless you pay {1}, CR 509.1b)", () =>
         return { state };
     }
 
-    it("declares a blocker-side block-restriction carrying a bypass cost", () => {
-        const r = (hipparion.staticEffects ?? [])[0];
-        expect(r?.kind).toBe("block-restriction");
-        if (r?.kind === "block-restriction") {
-            expect(r.side).toBe("blocker");
-            expect(r.bypassCost).toEqual({ X: 1 });
-        }
-    });
-
     it("blocks a power-2 creature for free (no bypass charge)", () => {
         const { state } = setup(2, 0);
         const atk = state.players[0].battlefield[0];
@@ -1642,17 +1488,6 @@ describe("Prismatic Ward (colour-filtered damage prevention, CR 615)", () => {
         });
         return { state };
     }
-
-    it("has an Enchant creature target requirement and five colour modes", () => {
-        expect(prismaticWard.targetRequirement?.type).toBe("Creature");
-        expect((prismaticWard.modes ?? []).map((m) => m.id)).toEqual([
-            "W",
-            "U",
-            "B",
-            "R",
-            "G",
-        ]);
-    });
 
     it("prevents all damage to the host from a source of the chosen colour", () => {
         const { state } = setup();
@@ -1852,29 +1687,6 @@ describe("Sacred Boon (prevented-amount readback → counters, CR 615.1)", () =>
 // static, the Mudslide shape with the polarity flipped).
 // ===========================================================================
 describe("Energy Storm (CR 702.24 / 615.1 / 502.1)", () => {
-    it("definition shape: {1}{W} enchantment with all three clauses wired", () => {
-        expect(energyStorm.manaCost).toEqual({ X: 1, W: 1 });
-        expect(energyStorm.types).toEqual(["Enchantment"]);
-        expect(
-            (energyStorm.triggeredAbilities ?? []).some(
-                (t) => t.id === "energy-storm-cumulative-upkeep"
-            )
-        ).toBe(true);
-        expect(energyStorm.replacementEffects?.[0]?.eventKind).toBe("damage");
-    });
-
-    it("declares a flyers-don't-untap restriction with maxUntap 0 (CR 502.1)", () => {
-        const restriction = (energyStorm.staticEffects ?? []).find(
-            (e) => e.kind === "untap-restriction"
-        );
-        expect(restriction).toBeDefined();
-        expect(
-            (restriction as { filter: { requireAbility?: string } }).filter
-                .requireAbility
-        ).toBe("flying");
-        expect((restriction as { maxUntap: number }).maxUntap).toBe(0);
-    });
-
     it("prevents damage dealt by an instant or sorcery spell (CR 615.1)", () => {
         const storm = makeInstance(energyStorm.id, {
             id: "storm",
@@ -2046,27 +1858,7 @@ describe("Kjeldoran Royal Guard — combat-damage redirect (CR 614.6)", () => {
 });
 
 describe("Arenson's Aura — destroy/counter enchantment (CR 701.7 / 701.5a)", () => {
-    const destroyAbility = arensonsAura.activatedAbilities![0];
     const counterAbility = arensonsAura.activatedAbilities![1];
-
-    it("has {2}{W} cost, a sac-an-enchantment destroy and an enchantment-spell counter", () => {
-        expect(arensonsAura.manaCost).toEqual({ X: 2, W: 1 });
-        expect(arensonsAura.types).toEqual(["Enchantment"]);
-        expect(destroyAbility.cost).toEqual({
-            mana: { W: 1 },
-            sacrificeFilter: { types: "Enchantment" },
-        });
-        expect(destroyAbility.targetRequirement).toEqual({
-            type: "Enchantment",
-            count: 1,
-        });
-        expect(counterAbility.cost).toEqual({ mana: { X: 3, U: 2 } });
-        expect(counterAbility.targetRequirement).toEqual({
-            type: "spell",
-            count: 1,
-            spellTypeFilter: "Enchantment",
-        });
-    });
 
     it("destroys the target enchantment — gone from board, survives projection (wire format)", () => {
         const aura = makeInstance(arensonsAura.id, {
@@ -2202,25 +1994,6 @@ function jarkeldCombat(opts?: {
 }
 
 describe("General Jarkeld — reassign blockers between attackers (CR 509.1)", () => {
-    it("card definition: Legendary 1/2, {T} two-attacker target ability gated to declare-blockers", () => {
-        expect(generalJarkeld.types).toEqual(["Creature"]);
-        expect(generalJarkeld.supertypes).toEqual(["Legendary"]);
-        expect(generalJarkeld.manaCost).toEqual({ X: 3, W: 1 });
-        expect(generalJarkeld.power).toBe(1);
-        expect(generalJarkeld.toughness).toBe(2);
-        const ab = generalJarkeld.activatedAbilities![0];
-        expect(ab.cost).toEqual({ tap: true });
-        expect(ab.useStack).toBe(true);
-        expect(ab.activationPhaseRestriction).toEqual(["DECLARE_BLOCKERS"]);
-        expect(ab.targetRequirement).toEqual({
-            type: "Creature",
-            count: 2,
-            combatRoleFilter: "attacking",
-        });
-        // The oracle has NO controller clause — the ability is symmetric.
-        expect(ab.targetRequirement).not.toHaveProperty("controller");
-    });
-
     it("legal reassignment: each blocker blocking exactly one attacker moves to the other", () => {
         const { state, jarkeld } = jarkeldCombat();
         resolveActivated(state, jarkeld, "general-jarkeld-reassign-blockers", [
@@ -2359,18 +2132,6 @@ describe("Drought (CR 601.2f / 118.5 — static per-pip non-mana additional cost
             ownerId: "p1",
             zone: "hand",
         });
-
-    it("ships the upkeep tax + the board-wide additional-cost static", () => {
-        expect(drought.manaCost).toEqual({ X: 2, W: 2 });
-        expect(drought.types).toContain("Enchantment");
-        // Upkeep "sacrifice unless you pay {W}{W}" (CR 117.3a).
-        expect(drought.triggeredAbilities?.length ?? 0).toBeGreaterThan(0);
-        // The per-pip additional cost rides the additional-cost static kind.
-        const eff = drought.staticEffects?.find(
-            (e) => e.kind === "additional-cost"
-        );
-        expect(eff).toBeDefined();
-    });
 
     it("imposes one Swamp sacrifice per black pip on EVERY player's spells (board-wide, CR 601.2f)", () => {
         // p2 controls Drought; p1 is the caster — the cost still applies.
@@ -2707,13 +2468,6 @@ function activateGuardPump(
 }
 
 describe("Kjeldoran Elite Guard (instance leave-watch, CR 603.7a / 603.10)", () => {
-    it("is registered with the modern oracle text and {3}{W} cost", () => {
-        expect(kjeldoranEliteGuard.manaCost).toEqual({ X: 3, W: 1 });
-        expect(kjeldoranEliteGuard.oracleText).toContain(
-            "When that creature leaves the battlefield this turn, sacrifice this creature"
-        );
-    });
-
     it("pumps the target +2/+2 and schedules a leaves-battlefield watch keyed to it", () => {
         const { state, guardId, targetId } = activateGuardPump(
             kjeldoranEliteGuard.id,
@@ -2806,13 +2560,6 @@ describe("Kjeldoran Elite Guard (instance leave-watch, CR 603.7a / 603.10)", () 
 });
 
 describe("Kjeldoran Guard (snow-gated instance leave-watch, CR 205.4a / 603.7a)", () => {
-    it("is registered with the modern oracle text and {1}{W} cost", () => {
-        expect(kjeldoranGuard.manaCost).toEqual({ X: 1, W: 1 });
-        expect(kjeldoranGuard.oracleText).toContain(
-            "only if defending player controls no snow lands"
-        );
-    });
-
     it("pumps +1/+1 and sacrifices the guard when the buffed creature leaves", () => {
         const { state, guardId, targetId } = activateGuardPump(
             kjeldoranGuard.id,
@@ -2864,16 +2611,6 @@ describe("Kjeldoran Guard (snow-gated instance leave-watch, CR 205.4a / 603.7a)"
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("Battle Cry (untap-all-white + repeating block-buff delayed trigger, CR 603.7d / 701.26b, issue #884)", () => {
-    it("is registered with the modern oracle text, {2}{W} cost, and no resolve() (DSL-first)", () => {
-        expect(battleCry.manaCost).toEqual({ X: 2, W: 1 });
-        expect(battleCry.types).toEqual(["Instant"]);
-        expect(battleCry.oracleText).toBe(
-            "Untap all white creatures you control.\nWhenever a creature blocks this turn, it gets +0/+1 until end of turn."
-        );
-        expect(battleCry.resolve).toBeUndefined();
-        expect(battleCry.effects).toBeDefined();
-    });
-
     it("untaps every white creature you control, leaves a non-white creature tapped", () => {
         const whiteGuy = makeInstance(shieldBearer.id, {
             id: "white1",
@@ -3220,5 +2957,133 @@ describe("Enduring Renewal (draw-reveal + hand-reveal + return, CR 614/700.4, #7
         expect(p1View.hand).toHaveLength(1);
         expect(p1View.hand[0]).not.toBeNull();
         expect(p1View.hand[0]!.card.id).toBe(bearsId);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Adarkar Unicorn — "{T}: Add {U} or {C}{U}. Spend this mana only to pay
+// cumulative upkeep costs." (CR 106.6 restricted mana / 605.1a manaChoices).
+// The mana-ability catalogue sweep skips a `manaChoices` ability by design,
+// so the index → restricted-pool deposit earns a hand-written per-card test.
+// ---------------------------------------------------------------------------
+
+describe("Adarkar Unicorn ({T}: Add {U} or {C}{U}, CU-restricted, CR 106.6 / 605.1a)", () => {
+    it("offers both manaChoices options: {U} and {C}{U}", () => {
+        const unicorn = makeInstance(adarkarUnicorn.id, {
+            id: "unicorn",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const player = makePlayer("p1", { battlefield: [unicorn] });
+        const options = getManaTapOptionsDetailed(unicorn, "p1", [
+            { playerId: "p1", battlefield: player.battlefield },
+        ]);
+        expect(options.map((o) => o.mana)).toEqual([{ U: 1 }, { C: 1, U: 1 }]);
+    });
+
+    it("tapping index 0 floats {U} into the CU-restricted pool, not the fungible pool", () => {
+        const unicorn = makeInstance(adarkarUnicorn.id, {
+            id: "unicorn",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const player = makePlayer("p1", { battlefield: [unicorn] });
+        const state = makeState({ players: [player, makePlayer("p2")] });
+        tapSourceIntoPayment(state, player, unicorn, 0, []);
+        expect(player.manaPool.U).toBe(0);
+        expect(player.restrictedMana).toEqual([
+            { color: "U", amount: 1, restriction: "cumulative-upkeep" },
+        ]);
+    });
+
+    it("tapping index 1 floats {C} AND {U}, both CU-restricted", () => {
+        const unicorn = makeInstance(adarkarUnicorn.id, {
+            id: "unicorn",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const player = makePlayer("p1", { battlefield: [unicorn] });
+        const state = makeState({ players: [player, makePlayer("p2")] });
+        tapSourceIntoPayment(state, player, unicorn, 1, []);
+        expect(player.manaPool).toEqual({
+            W: 0,
+            U: 0,
+            B: 0,
+            R: 0,
+            G: 0,
+            C: 0,
+        });
+        const byColor = Object.fromEntries(
+            (player.restrictedMana ?? []).map((r) => [r.color, r])
+        );
+        expect(byColor.C).toEqual({
+            color: "C",
+            amount: 1,
+            restriction: "cumulative-upkeep",
+        });
+        expect(byColor.U).toEqual({
+            color: "U",
+            amount: 1,
+            restriction: "cumulative-upkeep",
+        });
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Order of the Sacred Torch — {T}, Pay 1 life: Counter target black spell
+// (CR 701.5a). The smoke sweep skips it because the `counter` Op targets a
+// live spell on the stack, which the canned-scenario generator cannot seed.
+// ---------------------------------------------------------------------------
+
+describe("Order of the Sacred Torch ({T}, Pay 1 life: Counter target black spell, CR 701.5a)", () => {
+    function withOrder() {
+        const order = makeInstance(orderOfTheSacredTorch.id, {
+            id: "order",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [order], life: 20 }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, order };
+    }
+
+    it("counters the targeted black spell, sending it to its owner's graveyard", () => {
+        const { state, order } = withOrder();
+        const knight = pushSpell(state, knightOfStromgald.id, "p2");
+        resolveActivated(state, order, "order-sacred-torch-counter", [
+            { type: "spell", id: knight.id },
+        ]);
+        expect(state.stack.find((s) => s.id === knight.id)).toBeUndefined();
+        expect(state.players[1].graveyard.some((c) => c.id === knight.id)).toBe(
+            true
+        );
+        expect(
+            state.players[1].battlefield.some((c) => c.id === knight.id)
+        ).toBe(false);
+    });
+
+    it("only offers BLACK spells as legal targets (colorFilter, CR 601.2c)", () => {
+        const { state } = withOrder();
+        const blackSpell = pushSpell(state, knightOfStromgald.id, "p2");
+        const whiteSpell = pushSpell(state, kjeldoranGuard.id, "p2");
+        const req =
+            orderOfTheSacredTorch.activatedAbilities![0].targetRequirement!;
+        const legal = getLegalTargets(state, req, NO_TARGETING_SOURCE);
+        expect(legal.map((t) => t.id)).toContain(blackSpell.id);
+        expect(legal.map((t) => t.id)).not.toContain(whiteSpell.id);
+    });
+
+    it("wire format: the countered spell is gone from the projected stack", () => {
+        const { state, order } = withOrder();
+        const knight = pushSpell(state, knightOfStromgald.id, "p2");
+        resolveActivated(state, order, "order-sacred-torch-counter", [
+            { type: "spell", id: knight.id },
+        ]);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.stack.find((s) => s.id === knight.id)).toBeUndefined();
     });
 });

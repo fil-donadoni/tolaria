@@ -60,23 +60,6 @@ describe("Faerie Mastermind (CR 121.1 Nth-draw trigger, issue #781)", () => {
         processPendingActionTriggers(state);
     }
 
-    it("pins the card shape: flash, flying, the draw trigger, and the each-player-draws activated ability", () => {
-        expect(faerieMastermind.staticAbilities).toEqual(["flash", "flying"]);
-        expect(faerieMastermind.manaCost).toEqual({ X: 1, U: 1 });
-        expect(faerieMastermind.power).toBe(2);
-        expect(faerieMastermind.toughness).toBe(1);
-        expect(
-            faerieMastermind.triggeredAbilities?.some(
-                (t) => t.id === "faerie-mastermind-opponent-second-draw"
-            )
-        ).toBe(true);
-        const ability = faerieMastermind.activatedAbilities?.find(
-            (a) => a.id === "faerie-mastermind-each-draws"
-        );
-        expect(ability?.cost.mana).toEqual({ X: 3, U: 1 });
-        expect(ability?.useStack).toBe(true);
-    });
-
     it("fires exactly on an opponent's SECOND draw this turn, not their first or third (CR 121.1)", () => {
         const mastermind = makeMastermind("p1");
         const p1 = makePlayer("p1", {

@@ -56,30 +56,6 @@ describe("Moonshadow (CR 702.111 menace; CR 122.1 counters; CR 603.2 graveyard-f
         return { state, shadow, other };
     }
 
-    it("shape: 7/7 for {B} with menace, an entry-counters REPLACEMENT and ONE triggered ability", () => {
-        expect(moonshadow.manaCost).toEqual({ B: 1 });
-        expect(moonshadow.power).toBe(7);
-        expect(moonshadow.toughness).toBe(7);
-        expect(moonshadow.staticAbilities).toContain("menace");
-        // CR 121.6 / 614.1c (issue #1693) — the six -1/-1 counters are a
-        // REPLACEMENT effect, declared on `entersWith`, NOT a trigger.
-        expect(moonshadow.entersWith?.counters).toEqual([
-            { type: "-1/-1", count: 6 },
-        ]);
-        // Leaving exactly ONE "put into graveyard from anywhere" trigger,
-        // listening via an array `event` (CR 603.2) on all FOUR events that
-        // partition graveyard entry — not four near-duplicate entries.
-        expect(moonshadow.triggeredAbilities).toHaveLength(1);
-        const removeCounter = moonshadow.triggeredAbilities![0];
-        expect(removeCounter.id).toBe("moonshadow-remove-counter");
-        expect(removeCounter.event).toEqual([
-            "PERMANENT_LEFT",
-            "CARD_DISCARDED",
-            "CARD_MILLED",
-            "CARD_PUT_INTO_GRAVEYARD",
-        ]);
-    });
-
     // CR 121.6 / 614.1c (issue #1693) — a printed 7/7 that enters with six
     // -1/-1 counters is a 1/1 the first instant it is observable. As an ETB
     // TRIGGER it briefly sat on the battlefield as a real 7/7 with a
@@ -259,13 +235,6 @@ describe("Iron-Shield Elf (CR 702.12 indestructible grant + CR 701.26 tap, disca
         state.stack.push(stackItem);
         resolveTopOfStack(state);
     }
-
-    it("definitional: a no-mana discard-a-card activated ability", () => {
-        const ability = ironShieldElf.activatedAbilities![0];
-        expect(ability.cost.mana).toBeUndefined();
-        expect(ability.cost.tap).toBeUndefined();
-        expect(ability.cost.discardFilter).toEqual({ filter: {}, count: 1 });
-    });
 
     it("grants indestructible until end of turn and taps itself", () => {
         const { state, elf } = setup();

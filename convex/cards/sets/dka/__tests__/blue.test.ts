@@ -22,15 +22,6 @@ const libFor = (owner: string, ids: string[]) =>
     );
 
 describe("Thought Scour (target mills two, draw one; CR 701.13a / 121.1)", () => {
-    it("is a {U} instant targeting a player", () => {
-        expect(thoughtScour.manaCost).toEqual({ U: 1 });
-        expect(thoughtScour.types).toEqual(["Instant"]);
-        expect(thoughtScour.targetRequirement).toMatchObject({
-            type: "player",
-            count: 1,
-        });
-    });
-
     it("mills the target's top two cards and draws one for the caster", () => {
         const state = makeState({
             players: [

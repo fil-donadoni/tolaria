@@ -33,20 +33,6 @@ function resolveActivated(
 // smoke sweep (a fixed-count, fixed-controller `createToken` — no hand test
 // required for that half).
 describe("Sandstorm Salvager (Cube FREE residue token-maker, issue #1304)", () => {
-    it("is a 1/1 with an ETB Golem-creation trigger and the mass-buff activated ability (structural shape; the ETB half's END-TO-END firing is covered by the DSL smoke sweep, effectScriptSmoke.test.ts — no forEach, fixed controller/count)", () => {
-        expect(sandstormSalvager.power).toBe(1);
-        expect(sandstormSalvager.toughness).toBe(1);
-        expect(
-            sandstormSalvager.triggeredAbilities!.some(
-                (t) => t.id === "sandstorm-salvager-etb-golem"
-            )
-        ).toBe(true);
-        const buff = sandstormSalvager.activatedAbilities!.find(
-            (a) => a.id === "sandstorm-salvager-token-buff"
-        )!;
-        expect(buff.cost).toMatchObject({ mana: { generic: 2 }, tap: true });
-    });
-
     it("mass-buffs creature tokens you control: +1/+1 counter + trample until end of turn (CR 122.6 / 611.2c), leaving non-tokens and opponent's tokens untouched", () => {
         const salvager = makeInstance(sandstormSalvager.id, {
             id: "salvager1",

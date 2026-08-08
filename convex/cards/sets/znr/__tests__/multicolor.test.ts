@@ -49,20 +49,6 @@ function setup() {
 }
 
 describe("Omnath, Locus of Creation (CR 603.6a ETB / Landfall CAP #694 / issue #1189)", () => {
-    it("shape: 4/4 for {R}{G}{W}{U} with the ETB draw + Landfall triggers declared", () => {
-        expect(omnathLocusOfCreation.manaCost).toEqual({
-            R: 1,
-            G: 1,
-            W: 1,
-            U: 1,
-        });
-        expect(omnathLocusOfCreation.power).toBe(4);
-        expect(omnathLocusOfCreation.toughness).toBe(4);
-        expect(omnathLocusOfCreation.supertypes).toEqual(["Legendary"]);
-        expect(omnathLocusOfCreation.subtypes).toEqual(["Elemental"]);
-        expect(omnathLocusOfCreation.triggeredAbilities).toHaveLength(2);
-    });
-
     it("ETB: draws a card when Omnath enters (CR 603.6a)", () => {
         const { state } = setup();
         const libCard = makeInstance(grizzlyBears.id, {

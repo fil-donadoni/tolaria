@@ -69,13 +69,6 @@ describe("Giver of Runes (CR 702.16 protection incl. colorless; CR 109.2 'anothe
         return { state, giver, target };
     }
 
-    it("shape: {W} 1/2 with a single {T} activated ability", () => {
-        expect(giverOfRunes.manaCost).toEqual({ W: 1 });
-        expect(giverOfRunes.power).toBe(1);
-        expect(giverOfRunes.toughness).toBe(2);
-        expect(giverOfRunes.activatedAbilities).toHaveLength(1);
-    });
-
     it("excludes itself from the dynamic target requirement ('another target creature you control')", () => {
         const { state, giver } = setup();
         const ability = giverOfRunes.activatedAbilities![0];

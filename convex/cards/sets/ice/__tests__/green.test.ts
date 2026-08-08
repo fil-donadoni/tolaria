@@ -6,45 +6,38 @@ import { describe, it, expect } from "vitest";
 import {
     balduvianBears,
     fyndhornBrownie,
-    fyndhornElder,
     fyndhornElves,
     blizzard,
     chubToad,
-    direWolves,
     earthlore,
     elderDruid,
     essenceFilter,
     fanaticalFever,
     folkOfThePines,
-    forbiddenLore,
     freyalisesCharm,
     gorillaPack,
+    forbiddenLore,
+    hotSprings,
     thermokarst,
     thoughtleech,
     venomousBreath,
     wiitigo,
     giantGrowthIce,
-    hotSprings,
     hurricaneIce,
     johtullWurm,
-    juniperOrderDruid,
     lhurgoyf,
     lureIce,
     naturesLore,
-    paleBears,
-    pygmyAllosaurus,
     regenerationIce,
     scaledWurm,
     shamblingStrider,
     stampede,
     stuntedGrowth,
-    tarpan,
     tinderWall,
     trailblazer,
     wallOfPineNeedles,
     wildGrowthIce,
     woollySpider,
-    yavimayaGnats,
     aurochs,
     vexingArcanix,
     hymnOfRebirth,
@@ -70,11 +63,13 @@ import {
     tapPermanent,
     emitPermanentTapped,
     applySourceStaticEffects,
+    dealDamageFromPermanentToPlayer,
 } from "../../../../gre/state";
 import {
     getEffectivePower,
     getEffectiveToughness,
 } from "../../../../gre/layers";
+import { getEffectiveActivatedAbilities } from "../../../../gre/activatedAbilities";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     emitBlockersConfirmedEvents,
@@ -134,16 +129,6 @@ import {
 // ---------------------------------------------------------------------------
 
 describe("Balduvian Bears (vanilla creature, CR 302)", () => {
-    it("carries the canonical ICE printed characteristics", () => {
-        expect(balduvianBears.types).toEqual(["Creature"]);
-        expect(balduvianBears.subtypes).toEqual(["Bear"]);
-        expect(balduvianBears.power).toBe(2);
-        expect(balduvianBears.toughness).toBe(2);
-        expect(balduvianBears.manaCost).toEqual({ X: 1, G: 1 });
-        expect(balduvianBears.rarity).toBe("common");
-        expect(balduvianBears.oracleText).toBe("");
-    });
-
     it("resolves from the stack onto the battlefield (CR 608.3)", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
@@ -187,17 +172,6 @@ describe("Balduvian Bears (vanilla creature, CR 302)", () => {
 // --- Mana dorks (CR 605.1a mana ability) -----------------------------------
 
 describe("Fyndhorn Elves / Elder (CR 605.1a mana ability)", () => {
-    it("Fyndhorn Elves taps for {G} as a non-stack mana ability", () => {
-        const ability = fyndhornElves.activatedAbilities![0];
-        expect(ability.useStack).toBe(false);
-        expect(ability.cost).toMatchObject({ tap: true });
-        expect(ability.manaProduced).toEqual({ G: 1 });
-    });
-    it("Fyndhorn Elder taps for {G}{G}", () => {
-        const ability = fyndhornElder.activatedAbilities![0];
-        expect(ability.useStack).toBe(false);
-        expect(ability.manaProduced).toEqual({ G: 2 });
-    });
     it("Fyndhorn Elves' effect adds {G} to its controller's pool", () => {
         // Mana abilities resolve via their `effect` (CR 605.3b), not the stack;
         // drive it directly with a minimal context (mirrors how the engine
@@ -240,10 +214,6 @@ describe("Fyndhorn Brownie / Juniper Order Druid (CR 701.20a untap)", () => {
             (c) => c.id === "ally"
         )!;
         expect(after.isTapped).toBe(false);
-    });
-    it("Juniper Order Druid targets a land", () => {
-        const ability = juniperOrderDruid.activatedAbilities![0];
-        expect(ability.targetRequirement).toMatchObject({ type: "Land" });
     });
 });
 
@@ -350,32 +320,6 @@ describe("Lhurgoyf (CR 604.3 graveyard-counting CDA P/T)", () => {
     });
 });
 
-// --- Keyword / vanilla creatures (CR 302, 702 keywords) --------------------
-
-describe("Green vanilla / keyword creatures", () => {
-    it("Scaled Wurm is a 7/6 vanilla Wurm", () => {
-        expect(scaledWurm.power).toBe(7);
-        expect(scaledWurm.toughness).toBe(6);
-        expect(scaledWurm.activatedAbilities).toBeUndefined();
-    });
-    it("Pale Bears has islandwalk", () => {
-        expect(paleBears.staticAbilities).toContain("islandwalk");
-    });
-    it("Pygmy Allosaurus has swampwalk", () => {
-        expect(pygmyAllosaurus.staticAbilities).toContain("swampwalk");
-    });
-    it("Yavimaya Gnats has flying", () => {
-        expect(yavimayaGnats.staticAbilities).toContain("flying");
-    });
-    it("Tinder Wall and Wall of Pine Needles have defender", () => {
-        expect(tinderWall.staticAbilities).toContain("defender");
-        expect(wallOfPineNeedles.staticAbilities).toContain("defender");
-    });
-    it("Woolly Spider has reach", () => {
-        expect(woollySpider.staticAbilities).toContain("reach");
-    });
-});
-
 // --- Regeneration via {G} (CR 701.15 regeneration shield) ------------------
 
 describe("Wall of Pine Needles / Yavimaya Gnats regenerate (CR 701.15)", () => {
@@ -428,14 +372,6 @@ describe("Shambling Strider (CR 611.1 +1/-1 self-pump)", () => {
 // --- Tinder Wall sac-for-mana + bolt (CR 605.1a / 120.1) -------------------
 
 describe("Tinder Wall (CR 605.1a mana sac + CR 120.1 bolt)", () => {
-    it("the mana ability is non-stack with a sacrifice cost producing {R}{R}", () => {
-        const mana = tinderWall.activatedAbilities!.find(
-            (a) => a.id === "tinder-wall-mana"
-        )!;
-        expect(mana.useStack).toBe(false);
-        expect(mana.cost).toMatchObject({ sacrifice: true });
-        expect(mana.manaProduced).toEqual({ R: 2 });
-    });
     it("the bolt deals 2 damage to its target", () => {
         const wall = makeInstance(tinderWall.id, {
             id: "wall",
@@ -459,31 +395,6 @@ describe("Tinder Wall (CR 605.1a mana sac + CR 120.1 bolt)", () => {
             (c) => c.id === "victim"
         )!;
         expect(after.damageMarked).toBe(2);
-    });
-});
-
-// --- Tarpan dies-trigger lifegain (CR 700.4 / 119.3) -----------------------
-
-describe("Tarpan (CR 700.4 dies trigger lifegain)", () => {
-    it("declares a self-scoped died trigger", () => {
-        expect(tarpan.triggeredAbilities).toHaveLength(1);
-        expect(tarpan.triggeredAbilities![0].id).toBe("tarpan-death-lifegain");
-    });
-});
-
-// --- Hurricane (X to fliers + players) — covered by LEA; ICE is a reprint ---
-
-describe("Hot Springs (CR 611 activated-grant on a land)", () => {
-    it("enchants a land you control and grants a prevention activated ability", () => {
-        expect(hotSprings.targetRequirement).toMatchObject({
-            type: "Land",
-            controller: "you",
-        });
-        const grant = hotSprings.staticEffects!.find(
-            (e) => e.kind === "activated-grant"
-        );
-        expect(grant).toBeDefined();
-        expect(hotSprings.grantTemplates![0].id).toBe("hot-springs-prevent");
     });
 });
 
@@ -764,30 +675,6 @@ describe("Woolly Spider (CR 509.1h block-a-flier pump)", () => {
     });
 });
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Green completion (#657)
-// ═══════════════════════════════════════════════════════════════════════════
-
-// --- Blizzard — flyer untap-lock + cumulative upkeep (CR 502.1 / 702.24) ----
-
-describe("Blizzard (CR 502.1 flyer untap-lock + CR 702.24 CU)", () => {
-    it("declares an untap restriction on flyers and a cumulative upkeep {2}", () => {
-        const restriction = blizzard.staticEffects!.find(
-            (e) => e.kind === "untap-restriction"
-        )!;
-        expect(restriction).toMatchObject({
-            kind: "untap-restriction",
-            filter: { types: "Creature", requireAbility: "flying" },
-            maxUntap: 0,
-        });
-        expect(
-            blizzard.triggeredAbilities?.some(
-                (t) => t.id === "blizzard-cumulative-upkeep"
-            )
-        ).toBe(true);
-    });
-});
-
 // --- Chub Toad — +2/+2 on block or becomes-blocked (CR 509.1h) --------------
 
 describe("Chub Toad (CR 509.1h +2/+2 when blocking or blocked)", () => {
@@ -846,14 +733,6 @@ describe("Chub Toad (CR 509.1h +2/+2 when blocking or blocked)", () => {
         const toad = state.players[0].battlefield.find((c) => c.id === "toad")!;
         expect(getEffectivePower(state, toad)).toBe(3);
         expect(getEffectiveToughness(state, toad)).toBe(3);
-    });
-});
-
-// --- Dire Wolves — banding (CR 702.21) --------------------------------------
-
-describe("Dire Wolves (CR 702.21 banding)", () => {
-    it("has the banding keyword (Plains condition simplified to always-on)", () => {
-        expect(direWolves.staticAbilities).toContain("banding");
     });
 });
 
@@ -916,17 +795,6 @@ describe("Earthlore (CR 611 activated-grant on enchanted land)", () => {
         const after = state.players[0].battlefield.find((c) => c.id === "blk")!;
         expect(getEffectivePower(state, after)).toBe(2);
         expect(getEffectiveToughness(state, after)).toBe(3);
-    });
-});
-
-describe("Forbidden Lore (CR 611 activated-grant on enchanted land)", () => {
-    it("grants the land a tap pump targeting any creature (+2/+1)", () => {
-        expect(forbiddenLore.targetRequirement).toMatchObject({ type: "Land" });
-        const tmpl = forbiddenLore.grantTemplates!.find(
-            (g) => g.id === "forbidden-lore-pump"
-        )!;
-        expect(tmpl.cost).toMatchObject({ tap: true });
-        expect(tmpl.targetRequirement).toMatchObject({ type: "Creature" });
     });
 });
 
@@ -1378,11 +1246,6 @@ describe("Venomous Breath (CR 603.7a delayed combat-partner destroy, ADR 0049 li
 // --- Wiitigo — enters with six +1/+1; upkeep growth/shrink (CR 122) ---------
 
 describe("Wiitigo (CR 122 counter growth/shrink on upkeep)", () => {
-    it("enters with six +1/+1 counters", () => {
-        expect(wiitigo.entersWith).toEqual({
-            counters: [{ type: "+1/+1", count: 6 }],
-        });
-    });
     it("removes a +1/+1 counter at upkeep when it has not blocked", () => {
         const yeti = makeInstance(wiitigo.id, {
             id: "yeti",
@@ -1726,11 +1589,6 @@ describe("Pyknite (1/1 Ouphe with self-ETB cantrip, CR 603.6a)", () => {
         resolveTopOfStack(state);
         expect(state.players[0].hand.map((c) => c.id)).toContain("a");
     });
-    it("is a 1/1 Ouphe", () => {
-        expect(pyknite.power).toBe(1);
-        expect(pyknite.toughness).toBe(1);
-        expect(pyknite.subtypes).toContain("Ouphe");
-    });
 });
 
 describe("Touch of Vitae (until-EOT haste + granted {0} untap, once; CR 611.1b)", () => {
@@ -1940,18 +1798,6 @@ describe("Whiteout — graveyard-activated recursion (CR 113.6b, issue #2235)", 
     // upkeep/your-turn clause.
     const ability = whiteout.activatedAbilities![0];
 
-    it("declares the graveyard-activated snow-land-sacrifice ability with no timing restriction", () => {
-        expect(ability.id).toBe("whiteout-return");
-        expect(ability.activateFromGraveyard).toBe(true);
-        expect(ability.useStack).toBe(true);
-        expect(ability.cost.sacrificeFilter).toEqual({
-            types: "Land",
-            supertypes: ["Snow"],
-        });
-        expect(ability.controllerTurnOnly).toBeUndefined();
-        expect(ability.activationPhaseRestriction).toBeUndefined();
-    });
-
     /** Whiteout in the graveyard + one snow-covered Forest on the battlefield
      *  (unless `withSnowLand` is false, exercising the illegal-activation
      *  case), owned/controlled by p1. */
@@ -2098,13 +1944,6 @@ describe("Whiteout — graveyard-activated recursion (CR 113.6b, issue #2235)", 
 });
 
 describe("Freyalise's Winds (counter-keyed untap replacement, CR 614.6)", () => {
-    it("is a {2}{G}{G} Enchantment with a tap → wind-counter trigger", () => {
-        expect(freyalisesWinds.manaCost).toEqual({ X: 2, G: 2 });
-        expect(freyalisesWinds.types).toEqual(["Enchantment"]);
-        const trig = freyalisesWinds.triggeredAbilities?.[0];
-        expect(trig?.event).toBe("PERMANENT_TAPPED");
-    });
-
     it("registers by id and name", () => {
         expect(getDefinition(freyalisesWinds.id)).toBe(freyalisesWinds);
         expect(getCardByName("Freyalise's Winds")).toBe(freyalisesWinds);
@@ -2286,14 +2125,6 @@ describe("Forgotten Lore (iterative may-pay over a shrinking set, CR 608.2 / 117
         expect(state.pendingChoices ?? []).toEqual([]);
         expect(state.players[0].hand).toHaveLength(0);
     });
-
-    it("targets an opponent (definition shape, CR 115)", () => {
-        expect(forgottenLore.targetRequirement).toEqual({
-            type: "player",
-            count: 1,
-            controller: "opponent",
-        });
-    });
 });
 
 describe("Freyalise Supplicant ({T}, Sac R/W creature: damage = floor(power/2), CR 608.2h)", () => {
@@ -2386,31 +2217,11 @@ describe("Freyalise Supplicant ({T}, Sac R/W creature: damage = floor(power/2), 
         const p2 = projected.players.find((p) => p.id === "p2")!;
         expect(p2.life).toBe(18);
     });
-
-    it("the sacrifice filter excludes the green source itself (R/W only)", () => {
-        const ability = freyaliseSupplicant.activatedAbilities![0];
-        expect(ability.cost.tap).toBe(true);
-        expect(ability.cost.sacrificeFilter).toEqual({
-            types: "Creature",
-            colors: ["R", "W"],
-        });
-    });
 });
 
 // --- Ritual of Subdual — colourless land-mana lock (CR 614 / 702.24, #726) --
 
 describe("Ritual of Subdual (lands → colourless, CR 614/702.24)", () => {
-    it("shape: cumulative upkeep {2} + single-colour {C} substitution", () => {
-        expect(ritualOfSubdual.manaCost).toEqual({ X: 4, G: 2 });
-        expect(ritualOfSubdual.types).toEqual(["Enchantment"]);
-        expect(ritualOfSubdual.landManaSubstitution).toEqual({ color: "C" });
-        expect(
-            ritualOfSubdual.triggeredAbilities?.some(
-                (t) => t.id === "ritual-of-subdual-cumulative-upkeep"
-            )
-        ).toBe(true);
-    });
-
     it("rewrites a Mountain's tapped mana to {C}, surviving the wire (CR 614)", () => {
         const ritual = makeInstance(ritualOfSubdual.id, {
             id: "ritual",
@@ -2492,15 +2303,6 @@ describe("Brown Ouphe — filtered ability counter (CR 701.5a / 113.7a)", () => 
             targets: [],
         };
     }
-
-    it("has the {1}{G}, {T} cost and the activated-ability/artifact filter", () => {
-        expect(brownOuphe.manaCost).toEqual({ G: 1 });
-        const ab = brownOuphe.activatedAbilities![0];
-        expect(ab.cost).toEqual({ mana: { X: 1, G: 1 }, tap: true });
-        expect(req.type).toBe("spell");
-        expect(req.spellStackKind).toBe("activated-ability");
-        expect(req.stackSourceTypeFilter).toBe("Artifact");
-    });
 
     it("targets an activated ability whose source is an artifact", () => {
         const state = makeState();
@@ -2764,5 +2566,172 @@ describe("Blizzard — cast only if you control a snow land (CR 601.3a)", () => 
                 strippedState.state
             )
         ).toBeDefined();
+    });
+});
+
+// --- Forbidden Lore — activated-grant land pump (CR 611 activated-grant) ---
+
+describe("Forbidden Lore (CR 611 activated-grant on enchanted land)", () => {
+    function setup(withAura: boolean) {
+        const land = makeInstance(getCardByName("Plains").id, {
+            id: "land",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const battlefield: CardInstanceState[] = [land];
+        if (withAura) {
+            battlefield.push(
+                makeInstance(forbiddenLore.id, {
+                    id: "aura",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    attachedTo: "land",
+                })
+            );
+        }
+        const target = vanilla("t", 2, 2, {
+            id: "t",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield }),
+                makePlayer("p2", { battlefield: [target] }),
+            ],
+        });
+        if (withAura) {
+            applySourceStaticEffects(
+                state,
+                battlefield.find((c) => c.id === "aura")!
+            );
+        }
+        return {
+            state,
+            land: state.players[0].battlefield.find((c) => c.id === "land")!,
+        };
+    }
+
+    it("without Forbidden Lore attached, the land has no granted ability", () => {
+        const { land } = setup(false);
+        expect(getEffectiveActivatedAbilities(land)).toEqual([]);
+    });
+
+    it("attached, grants the land a tap-pump ability that survives the wire and resolves +2/+1 (CR 611.1b)", () => {
+        const { state, land } = setup(true);
+        expect(land.grantedActivatedAbilities).toHaveLength(1);
+        expect(land.grantedActivatedAbilities![0].abilityId).toBe(
+            "forbidden-lore-pump"
+        );
+        expect(land.grantedActivatedAbilities![0].sourceCardId).toBe(
+            forbiddenLore.id
+        );
+
+        // Wire format: the granted ability must survive projection, or the
+        // UI never offers the land's tap-pump affordance.
+        const projected = projectPublicState(state, 1, "p1");
+        const slimLand = projected.players[0].battlefield.find(
+            (c) => c.id === "land"
+        )!;
+        expect(slimLand.grantedActivatedAbilities).toHaveLength(1);
+        expect(slimLand.grantedActivatedAbilities![0].abilityId).toBe(
+            "forbidden-lore-pump"
+        );
+
+        // Activate the granted ability, driven via the host land (CR 113.1).
+        state.stack.push({
+            ...land,
+            zone: "stack",
+            castById: "p1",
+            grantedSourceCardId: forbiddenLore.id,
+            abilityId: "forbidden-lore-pump",
+            targets: [{ type: "permanent", id: "t" }],
+        });
+        resolveTopOfStack(state);
+        const after = state.players[1].battlefield.find((c) => c.id === "t")!;
+        expect(getEffectivePower(state, after)).toBe(4);
+        expect(getEffectiveToughness(state, after)).toBe(3);
+    });
+});
+
+// --- Hot Springs — activated-grant prevention on enchanted land (CR 611 / 615) ---
+
+describe("Hot Springs (CR 611 activated-grant prevention on enchanted land)", () => {
+    function setup(withAura: boolean) {
+        const land = makeInstance(getCardByName("Plains").id, {
+            id: "land",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const battlefield: CardInstanceState[] = [land];
+        if (withAura) {
+            battlefield.push(
+                makeInstance(hotSprings.id, {
+                    id: "aura",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    attachedTo: "land",
+                })
+            );
+        }
+        const state = makeState({
+            players: [makePlayer("p1", { battlefield }), makePlayer("p2")],
+        });
+        if (withAura) {
+            applySourceStaticEffects(
+                state,
+                battlefield.find((c) => c.id === "aura")!
+            );
+        }
+        return {
+            state,
+            land: state.players[0].battlefield.find((c) => c.id === "land")!,
+        };
+    }
+
+    it("without Hot Springs attached, the land has no granted ability", () => {
+        const { land } = setup(false);
+        expect(getEffectiveActivatedAbilities(land)).toEqual([]);
+    });
+
+    it("attached, grants a prevention shield that survives the wire and absorbs the next 1 damage (CR 615.1)", () => {
+        const { state, land } = setup(true);
+        expect(land.grantedActivatedAbilities).toHaveLength(1);
+        expect(land.grantedActivatedAbilities![0].abilityId).toBe(
+            "hot-springs-prevent"
+        );
+
+        // Wire format: the granted ability must survive projection.
+        const projected = projectPublicState(state, 1, "p1");
+        const slimLand = projected.players[0].battlefield.find(
+            (c) => c.id === "land"
+        )!;
+        expect(slimLand.grantedActivatedAbilities).toHaveLength(1);
+        expect(slimLand.grantedActivatedAbilities![0].abilityId).toBe(
+            "hot-springs-prevent"
+        );
+
+        // Activate the granted ability targeting p1 (CR 113.1: the host land
+        // is the source), arming a prevent-the-next-1 shield.
+        state.stack.push({
+            ...land,
+            zone: "stack",
+            castById: "p1",
+            grantedSourceCardId: hotSprings.id,
+            abilityId: "hot-springs-prevent",
+            targets: [{ type: "player", id: "p1" }],
+        });
+        resolveTopOfStack(state);
+
+        // Real consumer: a permanent deals 3 damage to p1 — the shield
+        // absorbs exactly 1, so only 2 gets through.
+        const burner = vanilla("burner", 3, 3, {
+            id: "burner",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        state.players[1].battlefield.push(burner);
+        dealDamageFromPermanentToPlayer(state, burner, "p2", "p1", 3);
+        expect(state.players[0].life).toBe(18);
     });
 });

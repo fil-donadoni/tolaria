@@ -818,18 +818,6 @@ describe("Ifh-Bíff Efreet (any-player-activatable mass flyer damage, CR 113.3c 
         expect(bf(state, 0, "p1-ground").damageMarked).toBeUndefined();
     });
 
-    it("definition snapshot: {2}{G}{G} 3/3 Efreet with flying and an any-player {G} ability", () => {
-        expect(ifhBiffEfreet.manaCost).toEqual({ X: 2, G: 2 });
-        expect(ifhBiffEfreet.power).toBe(3);
-        expect(ifhBiffEfreet.toughness).toBe(3);
-        expect(ifhBiffEfreet.subtypes).toEqual(["Efreet"]);
-        expect(ifhBiffEfreet.staticAbilities).toContain("flying");
-        const ability = ifhBiffEfreet.activatedAbilities![0];
-        expect(ability.cost).toEqual({ mana: { G: 1 } });
-        expect(ability.useStack).toBe(true);
-        expect(ability.activatableByAnyPlayer).toBe(true);
-    });
-
     it("wire format: the flyer-only damage survives projection", () => {
         const { state, efreet } = setup();
         fire(state, efreet, "p2");

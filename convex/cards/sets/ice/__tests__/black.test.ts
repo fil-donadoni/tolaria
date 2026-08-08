@@ -5,13 +5,13 @@
 import { describe, it, expect } from "vitest";
 import {
     balduvianBears,
+    abyssalSpecter,
     cloakOfConfusion,
     gazeOfPain,
     burntOffering,
     spoilsOfWar,
     kjeldoranWarrior,
     seaSpirit,
-    abyssalSpecter,
     brineShaman,
     darkBanishing,
     darkRitualIce,
@@ -23,7 +23,6 @@ import {
     hyalopterousLemure,
     kjeldoranDead,
     knightOfStromgald,
-    krovikanVampire,
     leshracsRite,
     mindWarp,
     minionOfTeveshSzat,
@@ -32,7 +31,6 @@ import {
     pestilenceRats,
     songsOfTheDamned,
     spoilsOfEvil,
-    stromgaldCabal,
     callToArms,
     stenchOfEvil,
     limDLsCohort,
@@ -55,7 +53,6 @@ import {
     gangrenousZombies,
     icequake,
     legionsOfLimDL,
-    rimeDryad,
     infernalDarkness,
     necropotence,
     oathOfLimDul,
@@ -64,8 +61,10 @@ import {
     soulBurn,
     ashenGhoul,
     dreadWight,
+    krovikanVampire,
+    stromgaldCabal,
 } from "../../ice";
-import { plains, island, swamp } from "../../lea";
+import { plains, island, swamp, benalishHero } from "../../lea";
 import { grizzlyBears } from "../../lea/green";
 import { applyLandManaReplacement, manaValue } from "../../../../gre/constants";
 import {
@@ -81,6 +80,7 @@ import {
     emitPermanentTapped,
     dealDamageFromPermanentToPlayer,
     applySourceStaticEffects,
+    removePermanentTo,
 } from "../../../../gre/state";
 import { sourcePreventionShieldApplies } from "../../../../gre/state";
 import {
@@ -166,49 +166,7 @@ describe("ICE Black reprints (CardPrint wiring, ADR 0014)", () => {
     });
 });
 
-describe("ICE Black keyword creatures (CR 702)", () => {
-    it("Moor Fiend is a 3/3 with swampwalk", () => {
-        expect(moorFiend.staticAbilities).toEqual(["swampwalk"]);
-        expect(moorFiend.power).toBe(3);
-        expect(moorFiend.toughness).toBe(3);
-    });
-    it("Knight of Stromgald has protection from white", () => {
-        expect(knightOfStromgald.staticAbilities).toEqual([
-            "protection from white",
-        ]);
-    });
-    it("Abyssal Specter has flying", () => {
-        expect(abyssalSpecter.staticAbilities).toEqual(["flying"]);
-    });
-});
-
-describe("Abyssal Specter (damage → discard, CR 603.4 / 701.8)", () => {
-    it("declares a damage-to-player trigger that forces a discard", () => {
-        const trigger = abyssalSpecter.triggeredAbilities!.find(
-            (t) => t.id === "abyssal-specter-discard"
-        )!;
-        expect(trigger).toBeDefined();
-        expect(abyssalSpecter.oracleText).toContain("discards a card");
-    });
-});
-
 describe("Brine Shaman (sacrifice engine, CR 602.1 / 118.5)", () => {
-    it("declares a sacrifice-cost pump and a counter ability", () => {
-        const pump = brineShaman.activatedAbilities!.find(
-            (a) => a.id === "brine-shaman-pump"
-        )!;
-        expect(pump.cost).toMatchObject({
-            tap: true,
-            sacrificeFilter: { types: "Creature" },
-        });
-        const counter = brineShaman.activatedAbilities!.find(
-            (a) => a.id === "brine-shaman-counter"
-        )!;
-        expect(counter.targetRequirement).toMatchObject({
-            type: "spell",
-            spellTypeFilter: "Creature",
-        });
-    });
     it("pumps the target +2/+2 until end of turn", () => {
         const shaman = makeInstance(brineShaman.id, {
             id: "bs",
@@ -235,12 +193,6 @@ describe("Brine Shaman (sacrifice engine, CR 602.1 / 118.5)", () => {
 });
 
 describe("Dark Banishing (destroy nonblack creature, CR 701.7)", () => {
-    it("restricts its target to nonblack creatures", () => {
-        expect(darkBanishing.targetRequirement).toMatchObject({
-            type: "Creature",
-            excludeColors: "B",
-        });
-    });
     it("destroys the target creature", () => {
         const victim = vanilla("v", 2, 2, {
             controllerId: "p2",
@@ -442,15 +394,6 @@ describe("Knight of Stromgald (grants + pump, CR 611.1b)", () => {
 });
 
 describe("Leshrac's Rite (Aura grants swampwalk, CR 611 / 702.13)", () => {
-    it("declares a keyword-grant for swampwalk (Snow Devil pattern)", () => {
-        expect(leshracsRite.staticEffects?.[0]).toMatchObject({
-            kind: "keyword-grant",
-            keyword: "swampwalk",
-        });
-        expect(leshracsRite.targetRequirement).toMatchObject({
-            type: "Creature",
-        });
-    });
     it("grants swampwalk to the host when the Aura resolves onto it", () => {
         const host = vanilla("host", 2, 2, {
             controllerId: "p1",
@@ -479,11 +422,6 @@ describe("Leshrac's Rite (Aura grants swampwalk, CR 611 / 702.13)", () => {
 });
 
 describe("Mind Warp (look + discard X, CR 701.8)", () => {
-    it("targets a player and is an X spell", () => {
-        expect(mindWarp.manaCost).toMatchObject({ X: "X", B: 1 });
-        expect(mindWarp.targetRequirement).toMatchObject({ type: "player" });
-    });
-
     // Regression (#1719 review finding 1) — the #1698 fix gated the
     // cross-player hand exposure on `kind === "choose-hand-card"`, missing
     // Mind Warp's IDENTICAL "look at target player's hand, caster picks which
@@ -676,32 +614,6 @@ describe("Spoils of Evil (mana + life per opp graveyard, CR 606)", () => {
     });
 });
 
-describe("Stromgald Cabal (counter white spell, CR 701.5)", () => {
-    it("restricts its target to white spells", () => {
-        const ability = stromgaldCabal.activatedAbilities!.find(
-            (a) => a.id === "stromgald-cabal-counter"
-        )!;
-        expect(ability.targetRequirement).toMatchObject({
-            type: "spell",
-            colorFilter: "W",
-        });
-        expect(ability.cost).toMatchObject({ tap: true, life: 1 });
-    });
-});
-
-describe("Krovikan Vampire (delayed reanimation, CR 603.2 / 603.7c)", () => {
-    it("declares a died-trigger keyed on its own damage and a delayed reanimation", () => {
-        const trigger = krovikanVampire.triggeredAbilities!.find(
-            (t) => t.id === "krovikan-vampire-mark"
-        )!;
-        expect(trigger).toBeDefined();
-        const delayed = krovikanVampire.delayedTriggers!.find(
-            (d) => d.id === "krovikan-vampire-reanimate"
-        )!;
-        expect(delayed.timing).toBe("next-end-step");
-    });
-});
-
 // --- Registry parity for the Black tranche ----------------------------------
 
 describe("ICE Black tranche registry parity", () => {
@@ -878,12 +790,6 @@ describe("Lim-Dûl's Cohort (blocks/becomes-blocked → can't be regenerated, CR
         return { state, cohort };
     }
 
-    it("declares the BLOCKERS_CONFIRMED trigger", () => {
-        expect(limDLsCohort.triggeredAbilities?.[0]?.event).toBe(
-            "BLOCKERS_CONFIRMED"
-        );
-    });
-
     it("marks the other creature as can't-be-regenerated this turn", () => {
         const { state, cohort } = setup();
         resolveTrigger(state, cohort, "lim-duls-cohort-no-regen", {
@@ -978,12 +884,6 @@ describe("Mind Whip (host-controller upkeep pay {3} or 2 dmg + tap, CR 603.6a)",
 });
 
 describe("Minion of Leshrac (protection, sac-or-5, {T} destroy, CR 702.16 / 603.6a / 701.7)", () => {
-    it("carries protection from black", () => {
-        expect(minionOfLeshrac.staticAbilities).toContain(
-            "protection from black"
-        );
-    });
-
     it("declining the sacrifice deals 5 to controller and taps Minion", () => {
         const minion = makeInstance(minionOfLeshrac.id, {
             id: "minion",
@@ -1219,15 +1119,6 @@ describe("Norritt (untap blue / force-attack, CR 701.20b / 508.1d)", () => {
         (a) => a.id === "norritt-force-attack"
     )!;
 
-    it("declares BOTH halves of the active-player-continuous-control clause (issue #1824)", () => {
-        expect(forceAttack.targetRequirement).toMatchObject({
-            type: "Creature",
-            excludeSubtypes: "Wall",
-            controller: "active",
-            controlledSinceTurnStart: true,
-        });
-    });
-
     it("offers only the active player's continuously-held non-Wall creature (CR 102.1 / 302.6 / 400.7)", () => {
         const norr = makeInstance(norritt.id, {
             id: "norr",
@@ -1370,15 +1261,6 @@ describe("Norritt (untap blue / force-attack, CR 701.20b / 508.1d)", () => {
 });
 
 describe("Dance of the Dead (graveyard-reanimation aura, CR 303.4i / 611)", () => {
-    it("declares the graveyard target and the +1/+1 / does-not-untap statics", () => {
-        expect(danceOfTheDead.targetRequirement).toMatchObject({
-            zone: "graveyard",
-        });
-        const kinds = danceOfTheDead.staticEffects!.map((e) => e.kind);
-        expect(kinds).toContain("pt-buff");
-        expect(kinds).toContain("keyword-grant");
-    });
-
     it("reanimates the enchanted card and applies +1/+1 (it enters tapped)", () => {
         const deadId = getCardByName("Grizzly Bears").id;
         const dead = makeInstance(deadId, {
@@ -1464,13 +1346,6 @@ describe("Krovikan Elementalist (pump / fly+sac, CR 611.1b / 603.7a)", () => {
 });
 
 describe("Leshrac's Sigil (green-cast discard / return, CR 603.2 / 701.8)", () => {
-    it("declares an opponents-green-spell cast trigger and the return ability", () => {
-        expect(leshracsSigil.triggeredAbilities?.[0]?.event).toBe("SPELL_CAST");
-        expect(leshracsSigil.activatedAbilities?.[0]?.id).toBe(
-            "leshracs-sigil-return"
-        );
-    });
-
     it("{B}{B} returns the enchantment to its owner's hand", () => {
         const sigil = makeInstance(leshracsSigil.id, {
             id: "sigil",
@@ -1546,15 +1421,6 @@ describe("Leshrac's Sigil (green-cast discard / return, CR 603.2 / 701.8)", () =
 });
 
 describe("Flow of Maggots (cumulative upkeep {1} + Walls-only block, CR 702.24 / 509.1b)", () => {
-    it("declares a cumulative-upkeep trigger and a block-restriction static", () => {
-        expect(flowOfMaggots.triggeredAbilities?.[0]?.id).toBe(
-            "flow-of-maggots-cumulative-upkeep"
-        );
-        expect(flowOfMaggots.staticEffects?.[0]?.kind).toBe(
-            "block-restriction"
-        );
-    });
-
     it("can be blocked by a Wall but not by a non-Wall creature (CR 509.1b)", () => {
         const flow = makeInstance(flowOfMaggots.id, {
             id: "flow",
@@ -1830,10 +1696,6 @@ describe("snow landwalk (CR 702.13 / 205.4a)", () => {
         ]);
         expect(res.eligible).toBe(true);
     });
-
-    it("Rime Dryad has snow forestwalk", () => {
-        expect(rimeDryad.staticAbilities).toContain("snow forestwalk");
-    });
 });
 
 describe("Soul Burn ({X}{2}{B} — X damage, lifegain capped by {B} spent on X, CR 119)", () => {
@@ -1942,16 +1804,6 @@ describe("Spoils of War ({X}{B} — distribute X +1/+1 counters as you choose; X
         });
     }
 
-    it("declares cast-time graveyard-derived X (artifact and/or creature) and counter distribution", () => {
-        expect(spoilsOfWar.manaCost).toEqual({ X: "X", B: 1 });
-        expect(spoilsOfWar.additionalCosts?.xFromOpponentGraveyard).toEqual({
-            cardTypes: ["Artifact", "Creature"],
-        });
-        expect(spoilsOfWar.targetRequirement?.divideAsChosen).toEqual({
-            total: "X",
-        });
-    });
-
     it("distributes X +1/+1 counters unevenly across target creatures", () => {
         const state = setup(["a", "b"]);
         const item = pushSpell(state, spoilsOfWar.id, "p1", [
@@ -1986,16 +1838,6 @@ describe("Spoils of War ({X}{B} — distribute X +1/+1 counters as you choose; X
 });
 
 describe("Infernal Darkness — lands produce {B} (CR 614, #665)", () => {
-    it("shape: cumulative-upkeep {B} and 1 life + single-colour land substitution", () => {
-        expect(infernalDarkness.types).toContain("Enchantment");
-        expect(infernalDarkness.manaCost).toEqual({ X: 2, B: 2 });
-        expect(infernalDarkness.landManaSubstitution).toEqual({ color: "B" });
-        const cu = infernalDarkness.triggeredAbilities?.find((t) =>
-            t.id?.includes("cumulative-upkeep")
-        );
-        expect(cu).toBeTruthy();
-    });
-
     it("every basic land tapped for mana produces {B} instead", () => {
         const enchant = makeInstance(infernalDarkness.id, {
             id: "id",
@@ -2044,20 +1886,6 @@ describe("Necropotence (CR 504/614 skip-draw + CR 701.8 discard→exile)", () =>
     // A distinct vanilla filler in the named zone (library/hand/graveyard).
     const filler = (id: string, zone: CardInstanceState["zone"]) =>
         makeInstance(balduvianBears.id, { id, controllerId: "p1", zone });
-
-    it("is a {B}{B}{B} Enchantment with the modern oracle wording (#667)", () => {
-        expect(necropotence.manaCost).toEqual({ B: 3 });
-        expect(necropotence.types).toEqual(["Enchantment"]);
-        expect(necropotence.rarity).toBe("rare");
-        expect(necropotence.oracleText).toBe(
-            "Skip your draw step.\nWhenever you discard a card, exile that card from your graveyard.\nPay 1 life: Exile the top card of your library face down. Put that card into your hand at the beginning of your next end step."
-        );
-        // CR 504/614 — skip-draw via the shipped flag.
-        expect(necropotence.drawStepReplacement).toBe(true);
-        // CR 701.8/603 — the discard→exile trigger subscribes to CARD_DISCARDED.
-        const trig = necropotence.triggeredAbilities?.[0];
-        expect(trig?.event).toBe("CARD_DISCARDED");
-    });
 
     it("registers by id and name (#667)", () => {
         expect(getDefinition(necropotence.id)).toBe(necropotence);
@@ -2307,19 +2135,6 @@ describe("Necropotence (CR 504/614 skip-draw + CR 701.8 discard→exile)", () =>
 });
 
 describe("LIFE_LOST seam + Oath of Lim-Dûl (CR 119.3 / 603)", () => {
-    it("is a {3}{B} Enchantment with a LIFE_LOST trigger and a {B}{B} draw (modern oracle)", () => {
-        expect(oathOfLimDul.manaCost).toEqual({ X: 3, B: 1 });
-        expect(oathOfLimDul.types).toEqual(["Enchantment"]);
-        expect(oathOfLimDul.rarity).toBe("rare");
-        expect(oathOfLimDul.oracleText).toBe(
-            "Whenever you lose life, for each 1 life you lost, sacrifice a permanent other than this enchantment unless you discard a card. (Damage dealt to you causes you to lose life.)\n{B}{B}: Draw a card."
-        );
-        expect(oathOfLimDul.triggeredAbilities?.[0].event).toBe("LIFE_LOST");
-        expect(oathOfLimDul.activatedAbilities?.[0].cost).toEqual({
-            mana: { B: 2 },
-        });
-    });
-
     it("registers by id and name", () => {
         expect(getDefinition(oathOfLimDul.id)).toBe(oathOfLimDul);
         expect(getCardByName("Oath of Lim-Dûl")).toBe(oathOfLimDul);
@@ -2448,15 +2263,6 @@ describe("LIFE_LOST seam + Oath of Lim-Dûl (CR 119.3 / 603)", () => {
 });
 
 describe("Seizures (host-scoped becomes-tapped, CR 303.4b / 701.20a)", () => {
-    it("is a {1}{B} Aura enchanting a creature with a host-tapped trigger", () => {
-        expect(seizures.manaCost).toEqual({ X: 1, B: 1 });
-        expect(seizures.types).toEqual(["Enchantment"]);
-        expect(seizures.subtypes).toEqual(["Aura"]);
-        expect(seizures.targetRequirement).toMatchObject({ type: "Creature" });
-        const trig = seizures.triggeredAbilities?.[0];
-        expect(trig?.event).toBe("PERMANENT_TAPPED");
-    });
-
     it("registers by id and name", () => {
         expect(getDefinition(seizures.id)).toBe(seizures);
         expect(getCardByName("Seizures")).toBe(seizures);
@@ -2603,16 +2409,6 @@ describe("Stench of Evil (destroy all Plains + pay-{2}-or-1 rider, CR 701.7 / 11
 });
 
 describe("Hecatomb (tap-a-Swamp activation cost + ETB sac-4, CR 602.1 / 118.8)", () => {
-    it("the ping ability requires tapping an untapped Swamp (definition shape)", () => {
-        const ability = hecatomb.activatedAbilities![0];
-        expect(ability.cost.tapOtherFilter).toEqual({
-            filter: { subtypes: "Swamp", controllerRelation: "you" },
-            count: 1,
-        });
-        expect(ability.cost.tap ?? false).toBe(false); // not the source's own {T}
-        expect(ability.targetRequirement).toEqual({ type: "any", count: 1 });
-    });
-
     it("commit taps the chosen Swamp and the ability deals 1 damage", () => {
         const hec = makeInstance(hecatomb.id, {
             id: "hec",
@@ -2693,12 +2489,6 @@ describe("Hecatomb (tap-a-Swamp activation cost + ETB sac-4, CR 602.1 / 118.8)",
 });
 
 describe("Burnt Offering ({B} — sac creature, add X {B}/{R}, X = sac MV, CR 202.3)", () => {
-    it("declares the sacrifice-a-creature additional cost", () => {
-        expect(burntOffering.additionalCosts?.sacrificeFilter).toEqual({
-            types: "Creature",
-        });
-    });
-
     it("adds mana split black/red per the choice, total = sacrificed MV", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
@@ -2789,13 +2579,6 @@ describe("Ashen Ghoul (graveyard-source activated ability, CR 113.6 / 602.5b / 6
     }
 
     const ability = ashenGhoul.activatedAbilities![0];
-
-    it("declares haste and the graveyard-activation seam", () => {
-        expect(ashenGhoul.staticAbilities).toContain("haste");
-        expect(ability.activateFromGraveyard).toBe(true);
-        expect(ability.controllerTurnOnly).toBe(true);
-        expect(ability.activationPhaseRestriction).toEqual(["UPKEEP"]);
-    });
 
     it("canActivate requires three or more creature cards above it (CR 603.6e)", () => {
         const state3 = setup(3);
@@ -3383,5 +3166,219 @@ describe("Dread Wight — paralyzation counters (CR 511.3 / 122.1 / 502.1 / 611)
                 slim as unknown as CardInstanceState
             ).map((g) => g.ability.id)
         ).toContain("dread-wight-remove-paralyzation");
+    });
+});
+
+describe("Abyssal Specter (flying + damage-dealt discard trigger, CR 120.3 / 603.4)", () => {
+    it("the damaged player discards a card when Abyssal Specter deals damage", () => {
+        const specter = makeInstance(abyssalSpecter.id, {
+            id: "specter",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const h1 = makeInstance(balduvianBears.id, {
+            id: "h1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const h2 = makeInstance(balduvianBears.id, {
+            id: "h2",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [specter] }),
+                makePlayer("p2", { hand: [h1, h2] }),
+            ],
+        });
+        resolveTrigger(state, specter, "abyssal-specter-discard", {
+            type: "DAMAGE_DEALT",
+            sourceInstanceId: "specter",
+            sourceControllerId: "p1",
+            target: { type: "player", id: "p2" },
+            amount: 2,
+            isCombat: true,
+        } as StackItem["triggerEvent"]);
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("discard-hand");
+        submitChoice(state, ["h1"]);
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["h2"]);
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain("h1");
+
+        // Wire format: the discard is board-visible — the defending
+        // player's own client must see the shrunk hand too, not just raw
+        // GameState.
+        const projected = projectPublicState(state, 1, "p2");
+        expect(projected.players[1].hand.map((c) => c?.id)).toEqual(["h2"]);
+    });
+
+    it("no discard is prompted when the damaged player's hand is already empty", () => {
+        const specter = makeInstance(abyssalSpecter.id, {
+            id: "specter",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [specter] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveTrigger(state, specter, "abyssal-specter-discard", {
+            type: "DAMAGE_DEALT",
+            sourceInstanceId: "specter",
+            sourceControllerId: "p1",
+            target: { type: "player", id: "p2" },
+            amount: 2,
+            isCombat: true,
+        } as StackItem["triggerEvent"]);
+        expect(state.pendingChoices ?? []).toEqual([]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Krovikan Vampire — imperative death-trigger + delayed-trigger reanimation
+// (CR 603.2 / 603.7c). `resolve()`-only (no catalogue sweep covers it):
+// `krovikan-vampire-mark` schedules a `next-end-step` delayed trigger which
+// itself reanimates the dead creature. Both `resolve()` bodies are exercised
+// through the REAL trigger-collection pipeline (`removePermanentTo` +
+// `collectAndStack`), not a hand-built event, so the `condition` gate
+// (`damagedBySources.includes(self.id)`) is genuinely proven.
+//
+// The card's own comment documents that `returnToBattlefield`'s pile-owner
+// arg is the VAMPIRE'S controller, not the dying creature's actual owner
+// (tracked-by #1600) — so this fixture places the dead creature in the
+// Vampire controller's own graveyard, the one call shape the current
+// implementation reliably supports.
+// ---------------------------------------------------------------------------
+
+describe("Krovikan Vampire (reanimates a creature it killed, CR 603.2 / 603.7c)", () => {
+    it("schedules a next-end-step reanimation when a creature damaged by it dies, then returns it under its control", () => {
+        const vamp = makeInstance(krovikanVampire.id, {
+            id: "vamp",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const dead = vanilla("dead", 2, 2, {
+            id: "dead",
+            controllerId: "p1",
+            ownerId: "p1",
+            damagedBySources: ["vamp"],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [vamp, dead] }),
+                makePlayer("p2"),
+            ],
+        });
+        // CR 700.4 — the real death emitter, not a hand-built event: snapshots
+        // `damagedBySources` from the live instance onto CREATURE_DIED.
+        removePermanentTo(state, "dead", "graveyard");
+        const trig = collectAndStack(state, "krovikan-vampire-mark");
+        expect(trig).toBeDefined();
+        resolveTopOfStack(state);
+        expect(state.delayedTriggers).toHaveLength(1);
+        expect(state.delayedTriggers![0].triggerId).toBe(
+            "krovikan-vampire-reanimate"
+        );
+
+        fireDelayedTriggers(state, "next-end-step");
+        expect(state.stack).toHaveLength(1);
+        resolveTopOfStack(state);
+
+        expect(state.players[0].graveyard.some((c) => c.id === "dead")).toBe(
+            false
+        );
+        const reanimated = state.players[0].battlefield.find(
+            (c) => c.id === "dead"
+        );
+        expect(reanimated).toBeDefined();
+        expect(reanimated?.controllerId).toBe("p1");
+
+        // Wire format: the reanimated creature must actually show up on the
+        // battlefield the client renders, not just in raw GameState.
+        const projected = projectPublicState(state, 1, "p1");
+        const slimReanimated = projected.players[0].battlefield.find(
+            (c) => c.id === "dead"
+        );
+        expect(slimReanimated).toBeDefined();
+        expect(slimReanimated?.controllerId).toBe("p1");
+    });
+
+    it("does NOT fire the death trigger for a creature Krovikan Vampire never damaged this turn (CR 603.4 condition gate)", () => {
+        const vamp = makeInstance(krovikanVampire.id, {
+            id: "vamp",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const dead = vanilla("dead2", 2, 2, {
+            id: "dead2",
+            controllerId: "p1",
+            ownerId: "p1",
+            // No damagedBySources — this creature died some other way.
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [vamp, dead] }),
+                makePlayer("p2"),
+            ],
+        });
+        removePermanentTo(state, "dead2", "graveyard");
+        const trig = collectAndStack(state, "krovikan-vampire-mark");
+        expect(trig).toBeUndefined();
+        expect(state.delayedTriggers ?? []).toHaveLength(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Stromgald Cabal — {T}, Pay 1 life: Counter target white spell (CR 701.5a).
+// The smoke sweep skips it because the `counter` Op targets a live spell on
+// the stack, which the canned-scenario generator can't seed.
+// ---------------------------------------------------------------------------
+
+describe("Stromgald Cabal ({T}, Pay 1 life: Counter target white spell, CR 701.5a)", () => {
+    it("counters the targeted white spell, sending it to its owner's graveyard", () => {
+        const cabal = makeInstance(stromgaldCabal.id, {
+            id: "cabal",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [cabal], life: 20 }),
+                makePlayer("p2"),
+            ],
+        });
+        const hero = pushSpell(state, benalishHero.id, "p2");
+        resolveActivated(state, cabal, "stromgald-cabal-counter", [
+            { type: "spell", id: hero.id },
+        ]);
+        expect(state.stack.find((s) => s.id === hero.id)).toBeUndefined();
+        expect(state.players[1].graveyard.some((c) => c.id === hero.id)).toBe(
+            true
+        );
+    });
+
+    it("wire format: the countered spell disappears from the projected stack", () => {
+        const cabal = makeInstance(stromgaldCabal.id, {
+            id: "cabal",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [cabal], life: 20 }),
+                makePlayer("p2"),
+            ],
+        });
+        const hero = pushSpell(state, benalishHero.id, "p2");
+        resolveActivated(state, cabal, "stromgald-cabal-counter", [
+            { type: "spell", id: hero.id },
+        ]);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.stack.find((s) => s.id === hero.id)).toBeUndefined();
     });
 });

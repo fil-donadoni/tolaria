@@ -8,7 +8,6 @@ import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
-import { PERMANENT_TYPES } from "../../../types";
 import { fireDelayedTriggers } from "../../../../gre/phases";
 import { projectPublicState } from "../../../../gameProjections";
 import type { GameState, StackItem } from "../../../../gre/state";
@@ -62,21 +61,6 @@ function chooseTarget(state: GameState, targetId: string) {
 }
 
 describe("Flickerwisp (CR 603.6a exile + CR 603.7a delayed return, next end step)", () => {
-    it("is a {1}{W}{W} 3/1 Elemental with flying", () => {
-        expect(flickerwisp.manaCost).toEqual({ X: 1, W: 2 });
-        expect(flickerwisp.power).toBe(3);
-        expect(flickerwisp.toughness).toBe(1);
-        expect(flickerwisp.staticAbilities).toEqual(["flying"]);
-    });
-
-    it("declares the CR 603.3d target requirement: another target permanent", () => {
-        expect(flickerwisp.triggeredAbilities?.[0]?.targetRequirement).toEqual({
-            type: [...PERMANENT_TYPES],
-            count: 1,
-            excludeSource: true,
-        });
-    });
-
     it("exiles the chosen target permanent (any controller) and schedules a next-end-step return", () => {
         const wisp = makeInstance(flickerwisp.id, {
             id: "wisp",

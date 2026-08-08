@@ -15,13 +15,6 @@ import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 // ---------------------------------------------------------------------------
 
 describe("Circle of Protection: Black", () => {
-    it("is a {1}{W} enchantment with a black color filter on its ability", () => {
-        expect(circleOfProtectionBlack.types).toEqual(["Enchantment"]);
-        expect(circleOfProtectionBlack.manaCost).toEqual({ X: 1, W: 1 });
-        const ability = circleOfProtectionBlack.activatedAbilities?.[0];
-        expect(ability?.targetRequirement?.colorFilter).toBe("B");
-    });
-
     it("only offers black spells/permanents as legal targets", () => {
         const blackSpell = makeInstance(terror.id, {
             id: "terror",

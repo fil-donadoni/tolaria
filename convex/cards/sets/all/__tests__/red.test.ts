@@ -17,23 +17,6 @@ import { pyrokinesis } from "../red";
 describe("Pyrokinesis (divided damage — CR 120.4)", () => {
     const treefolk = getCardByName("Ironroot Treefolk"); // 3/5 — survives 2 damage
 
-    it("declares the pitch alternative cost: exile a red card from hand", () => {
-        expect(pyrokinesis.alternativeCosts).toEqual([
-            {
-                id: "pitch-exile-red",
-                description: "Exile a red card from your hand",
-                hand: {
-                    action: "exile",
-                    requirements: [{ filter: { color: "R" }, count: 1 }],
-                },
-            },
-        ]);
-        expect(pyrokinesis.targetRequirement).toMatchObject({
-            type: "Creature",
-            divideAsChosen: { total: 4 },
-        });
-    });
-
     it("splits 4 damage across two target creatures as chosen", () => {
         const a = makeInstance(treefolk.id, {
             id: "a",

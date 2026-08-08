@@ -29,40 +29,6 @@ import { projectPublicState } from "../../../../gameProjections";
 // skip (`convex/gre/effects/scenarioGenerator.ts`), which is this file's
 // justification for a hand-written test.
 describe("Toxic Deluge ({X}{2}{B} sorcery — pay X life, all creatures get -X/-X, CR 118.4 / 611.2, issue #926)", () => {
-    it("has a fixed-generic mana cost, payXLife additional cost, and a controller-less negate-X pump sweep", () => {
-        // The {2} is numeric generic (X: 2), NOT the variable "X" — the
-        // variable X lives in additionalCosts.payXLife (mirrors Fire
-        // Covenant's manaCost.X convention).
-        expect(toxicDeluge.manaCost).toEqual({ X: 2, B: 1 });
-        expect(typeof (toxicDeluge.manaCost as { X?: unknown }).X).toBe(
-            "number"
-        );
-        expect(toxicDeluge.additionalCosts?.payXLife).toBe(true);
-        const effects = toxicDeluge.effects!;
-        expect(effects).toHaveLength(1);
-        const forEachOp = effects[0] as Extract<
-            (typeof effects)[number],
-            { op: "forEach" }
-        >;
-        expect(forEachOp.op).toBe("forEach");
-        // No `controller` on the select — ALL creatures, not just the
-        // caster's (CR "All creatures get -X/-X", not "creatures you control").
-        expect(forEachOp.select).toEqual({
-            set: "permanents",
-            zone: "battlefield",
-            filter: { type: "Creature" },
-        });
-        expect(forEachOp.effects).toEqual([
-            {
-                op: "pump",
-                target: { ref: "$each" },
-                power: { negate: { X: true } },
-                toughness: { negate: { X: true } },
-                duration: { phase: "end-of-turn" },
-            },
-        ]);
-    });
-
     it("sweeps every creature on BOTH sides for -X/-X — a 2/2 dies (CR 704.5f), a 6/4 survives shrunk", () => {
         const bear = makeInstance(grizzlyBears.id, {
             id: "deluge-bear",

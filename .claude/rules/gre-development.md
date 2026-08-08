@@ -122,12 +122,25 @@ non-trivial card gets a `describe` block in the parallel per-colour test file
 `convex/cards/__tests__/setup.ts` (`makeInstance`, `makePlayer`, `makeState`,
 `pushSpell`) — never duplicate them.
 
-| Card has                       | GRE test                                               | Wire format test                                |
-| ------------------------------ | ------------------------------------------------------ | ----------------------------------------------- |
-| `resolve()` (spell)            | yes — push, `resolveTopOfStack`, assert outcome        | only if visible client-side                     |
-| `staticEffects[]` (layer 7c)   | yes — `getEffectivePower/Toughness` with/without       | **YES, mandatory** — re-assert after projection |
-| `staticAbilities[]` (keywords) | snapshot check on the definition                       | not needed                                      |
-| `activatedAbilities[]`         | yes — trigger via GRE entry point, assert state change | **YES, mandatory** if outcome visible on board  |
+| Card has                     | GRE test                                               | Wire format test                                |
+| ---------------------------- | ------------------------------------------------------ | ----------------------------------------------- |
+| `resolve()` (spell)          | yes — push, `resolveTopOfStack`, assert outcome        | only if visible client-side                     |
+| `staticEffects[]` (layer 7c) | yes — `getEffectivePower/Toughness` with/without       | **YES, mandatory** — re-assert after projection |
+| `activatedAbilities[]`       | yes — trigger via GRE entry point, assert state change | **YES, mandatory** if outcome visible on board  |
+
+`staticAbilities[]` (keywords) has no row: it needs **no per-card test at all**.
+`mechanicsRegistry.test.ts` already fails CI catalogue-wide when a shipped
+keyword does not resolve to an `implemented` registry row (Guard A above) — a
+strictly stronger check than the "snapshot the definition" row that used to sit
+here, which only proved the definition equals itself.
+
+**Every per-card test MUST call something.** A block that reads definition
+fields and asserts them, with no engine entry point, no fixture builder and no
+reducer between the read and the `expect`, is the definition written twice: it
+goes red on correct edits, green on a card that is inert in the engine, and
+counts as coverage while proving nothing. 916 such blocks were deleted in
+#2363; `scripts/__tests__/identity-only-card-tests.test.ts` now fails CI on a
+new one, with an allowlist that is empty and meant to stay empty.
 
 **Why wire tests are mandatory for visible effects:** the projection
 (`convex/gameProjections.ts`) strips `card.card` → `{ id }`, reshapes arrays

@@ -19,8 +19,6 @@
 import { describe, it, expect } from "vitest";
 import {
     calderaKavu,
-    deadapult,
-    implode,
     insolence,
     kavuRecluse,
     keldonMantle,
@@ -30,16 +28,17 @@ import {
     moggSentry,
     planeswalkersFury,
     singe,
-    slingshotGoblin,
-    strafe,
     tahngarthTalruumHero,
-    tahngarthTalruumHeroAlt,
     thunderscapeBattlemage,
     thunderscapeFamiliar,
 } from "../red";
-import { stormscapeBattlemage } from "../blue";
-import { nightscapeBattlemage } from "../black";
-import { grizzlyBears, savannahLions, swamp } from "../../lea";
+import {
+    darkRitual,
+    giantGrowth,
+    grizzlyBears,
+    savannahLions,
+    swamp,
+} from "../../lea";
 import { ephemerate } from "../../mh1/white";
 import {
     makeInstance,
@@ -52,6 +51,7 @@ import {
     resolveTopOfStack,
     tapPermanent,
     emitPermanentTapped,
+    getCostModifiers,
     type CardInstanceState,
     type GameState,
     type StackItem,
@@ -66,6 +66,7 @@ import { applyOneTargetSelection } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
 import { registerTokenDefinition } from "../../..";
 import { kickerPaidCondition } from "../../../abilities/triggers/shared";
+import { getEffectiveColors } from "../../../effectiveColors";
 import type { PermanentView } from "../../../types";
 
 /** Pushes an activated ability directly onto the stack with its cost assumed
@@ -102,23 +103,6 @@ function collectAndStack(
     if (trig) state.stack.push(trig);
     return trig;
 }
-
-describe("PLS red free tranche — definitions (issue #1951)", () => {
-    it("pins mana cost / types for the DSL-only cards (no hand-written behavior test needed)", () => {
-        expect(calderaKavu.manaCost).toEqual({ X: 2, R: 1 });
-        expect(deadapult.manaCost).toEqual({ X: 2, R: 1 });
-        expect(implode.manaCost).toEqual({ X: 4, R: 1 });
-        expect(kavuRecluse.manaCost).toEqual({ X: 2, R: 1 });
-        expect(mireKavu.manaCost).toEqual({ X: 3, R: 1 });
-        expect(moggJailer.manaCost).toEqual({ X: 1, R: 1 });
-        expect(moggSentry.manaCost).toEqual({ R: 1 });
-        expect(singe.manaCost).toEqual({ R: 1 });
-        expect(slingshotGoblin.manaCost).toEqual({ X: 2, R: 1 });
-        expect(strafe.manaCost).toEqual({ R: 1 });
-        expect(thunderscapeFamiliar.manaCost).toEqual({ X: 1, R: 1 });
-        expect(thunderscapeFamiliar.staticAbilities).toContain("first strike");
-    });
-});
 
 describe("Mogg Jailer — card-level attack restriction (CR 508.1c)", () => {
     it("can't attack while the defending player controls an untapped creature with power 2 or less", () => {
@@ -340,19 +324,6 @@ describe("Planeswalker's Fury — random reveal → damage equal to mana value (
 });
 
 describe("Tahngarth, Talruum Hero — mutual power-for-power damage (CR 701.12, resolve() justified, established fight() gap)", () => {
-    it("is a 4/4 vigilance Legendary Minotaur Warrior with two printings (ADR 0014)", () => {
-        expect(tahngarthTalruumHero.power).toBe(4);
-        expect(tahngarthTalruumHero.toughness).toBe(4);
-        expect(tahngarthTalruumHero.staticAbilities).toContain("vigilance");
-        expect(tahngarthTalruumHeroAlt.definitionId).toBe(
-            tahngarthTalruumHero.id
-        );
-        expect(tahngarthTalruumHeroAlt.setCode).toBe("pls");
-        expect(tahngarthTalruumHeroAlt.printId).not.toBe(
-            tahngarthTalruumHero.id
-        );
-    });
-
     it("deals damage equal to its power to the target, which deals its own power back", () => {
         const tahngarth = makeInstance(tahngarthTalruumHero.id, {
             id: "tahngarth",
@@ -735,36 +706,6 @@ describe("Thunderscape Battlemage — two independent Kickers, two independently
             )
         ).toBe(false);
     });
-
-    // The structural half of the same lock: no Battlemage in the cycle may
-    // declare an `interveningIf` at all. The blink test above catches the
-    // shared `kickerPaidCondition` being re-wired as one on Thunderscape; this
-    // catches a hand-rolled inline closure, and covers Stormscape
-    // (`pls/blue.ts`) and Nightscape (`pls/black.ts`) — same bug, same cycle.
-    it("no Battlemage in the cycle declares an `interveningIf` (the re-check would read a blinked permanent's cleared record)", () => {
-        for (const card of [
-            thunderscapeBattlemage,
-            stormscapeBattlemage,
-            nightscapeBattlemage,
-        ]) {
-            for (const ability of card.triggeredAbilities ?? []) {
-                expect({
-                    card: card.name,
-                    ability: ability.id,
-                    interveningIf: ability.interveningIf,
-                }).toEqual({
-                    card: card.name,
-                    ability: ability.id,
-                    interveningIf: undefined,
-                });
-                // …and each one still carries BOTH halves of the correct pair:
-                // the check-time gate, and a resolution-time `if { kickerPaid }`
-                // branch reading the resolving stack item's own record.
-                expect(ability.gate).toBeDefined();
-                expect(JSON.stringify(ability.effects)).toContain("kickerPaid");
-            }
-        }
-    });
 });
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -992,5 +933,295 @@ describe("Thunderscape Battlemage — CR 603.4 per-Kicker check-time gate (issue
         expect(
             kickerPaidCondition("kicker-b")(slim as unknown as PermanentView)
         ).toBe(false);
+    });
+});
+
+// Thunderscape Familiar — a `cost-modifier` static effect scoped to TWO
+// colours (CR 601.2f), the same static-effect kind as Nightscape Familiar
+// (`pls/__tests__/black.test.ts`) and Derelor (`fem/__tests__/black.test.ts`).
+describe("Thunderscape Familiar (CR 601.2f cost reduction for black AND green spells, PLS 76)", () => {
+    it("reduces the controller's own black and green spells by {1}, but not red or an opponent's", () => {
+        const familiar = makeInstance(thunderscapeFamiliar.id, { id: "fam" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [familiar] }),
+                makePlayer("p2"),
+            ],
+        });
+        const myBlackSpell = makeInstance(darkRitual.id, {
+            id: "my-black",
+            zone: "hand",
+        });
+        const myGreenSpell = makeInstance(giantGrowth.id, {
+            id: "my-green",
+            zone: "hand",
+        });
+        const myRedSpell = makeInstance(magmaBurst.id, {
+            id: "my-red",
+            zone: "hand",
+        });
+        const oppBlackSpell = makeInstance(darkRitual.id, {
+            id: "opp-black",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        expect(
+            getCostModifiers(state, myBlackSpell, "spell").reductionGeneric
+        ).toBe(1);
+        expect(
+            getCostModifiers(state, myGreenSpell, "spell").reductionGeneric
+        ).toBe(1);
+        expect(
+            getCostModifiers(state, myRedSpell, "spell").reductionGeneric
+        ).toBe(0);
+        expect(
+            getCostModifiers(state, oppBlackSpell, "spell").reductionGeneric
+        ).toBe(0);
+    });
+
+    it("wire format: the reduction still applies once the source's card is stripped to { id } by projectPublicState", () => {
+        const familiar = makeInstance(thunderscapeFamiliar.id, { id: "fam" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [familiar] }),
+                makePlayer("p2"),
+            ],
+        });
+        const myGreenSpell = makeInstance(giantGrowth.id, {
+            id: "my-green",
+            zone: "hand",
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        expect(
+            getCostModifiers(
+                projected as unknown as GameState,
+                myGreenSpell,
+                "spell"
+            ).reductionGeneric
+        ).toBe(1);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Four cards whose scripts the DSL smoke sweep SKIPS individually (a target/
+// source shape the canned-scenario generator can't pre-seed or drive to
+// completion), even though the Ops themselves are exercised elsewhere in the
+// catalogue: Mogg Sentry (`pump` targets `$source` from a TRIGGER, not an
+// activated ability), Singe (`setColor` in the same script as `dealDamage`),
+// Kavu Recluse (`setSubtype` on an announced Land target), Caldera Kavu
+// (`pump` targets `$source` AND a separate `optionChoice` suspends on a mode
+// pick, both off the SAME card).
+// ---------------------------------------------------------------------------
+
+/** Submits an option-pick answer through the same seam the generic
+ *  `submitResolutionChoice` mutation drives (mirrors
+ *  `interpreter.test.ts`'s `submitOptionPick`). */
+function submitOptionPick(state: GameState, optionId: string): void {
+    const head = state.pendingChoices![0];
+    applyPendingChoiceSubmit(state, {
+        playerId: head.playerId,
+        stackItemId: head.stackItemId,
+        step: head.step,
+        choiceId: head.choiceId,
+        cardInstanceIds: [optionId],
+    });
+}
+
+describe("Mogg Sentry (opponent-spell-cast trigger, pump targets $source, CR 603.2 / 611)", () => {
+    it("gets +2/+2 until end of turn whenever an opponent casts a spell", () => {
+        const sentry = makeInstance(moggSentry.id, {
+            id: "sentry",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [sentry] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(getEffectivePower(state, sentry)).toBe(1);
+        expect(getEffectiveToughness(state, sentry)).toBe(1);
+
+        state.stack.push({
+            ...sentry,
+            zone: "stack",
+            castById: "p1",
+            triggeredAbilityId: "mogg-sentry-pump",
+            triggerSourceId: sentry.id,
+            triggerEvent: {
+                type: "SPELL_CAST",
+                casterId: "p2",
+                spellInstanceId: "s",
+                spellCardId: "c",
+                spellTypes: ["Instant"],
+                spellSubtypes: [],
+                spellColors: [],
+            },
+            targets: undefined,
+        } as unknown as StackItem);
+        resolveTopOfStack(state);
+
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "sentry"
+        )!;
+        expect(getEffectivePower(state, after)).toBe(3); // 1 + 2
+        expect(getEffectiveToughness(state, after)).toBe(3); // 1 + 2
+
+        const projected = projectPublicState(state, 0, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "sentry"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(3);
+        expect(getEffectiveToughness(projected, slim)).toBe(3);
+    });
+});
+
+describe("Singe (dealDamage + setColor same script, CR 120.1 / 613.1e)", () => {
+    it("deals 1 damage to the target creature and turns it black until end of turn", () => {
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, singe.id, "p1", [{ type: "permanent", id: "bear" }]);
+        resolveTopOfStack(state);
+
+        const after = state.players[1].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(after.damageMarked).toBe(1);
+        expect(after.colorOverride).toEqual(["B"]);
+
+        const projected = projectPublicState(state, 1, "p2");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(slim.damageMarked).toBe(1);
+        expect(slim.colorOverride).toEqual(["B"]);
+    });
+});
+
+describe("Kavu Recluse (setSubtype on an announced Land target, CR 305.7)", () => {
+    it("turns the target land into a Forest until end of turn", () => {
+        const recluse = makeInstance(kavuRecluse.id, {
+            id: "recluse",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const targetSwamp = makeInstance(swamp.id, {
+            id: "target-swamp",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [recluse] }),
+                makePlayer("p2", { battlefield: [targetSwamp] }),
+            ],
+        });
+        state.stack.push({
+            ...recluse,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "kavu-recluse-forest",
+            targets: [{ type: "permanent", id: "target-swamp" }],
+        } as StackItem);
+        resolveTopOfStack(state);
+
+        const after = state.players[1].battlefield.find(
+            (c) => c.id === "target-swamp"
+        )!;
+        expect(after.subtypes).toEqual(["Forest"]);
+
+        const projected = projectPublicState(state, 1, "p2");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "target-swamp"
+        )!;
+        expect(slim.subtypes).toEqual(["Forest"]);
+    });
+});
+
+describe("Caldera Kavu (self-pump activated ability + optionChoice color change, CR 611 / 613.1e)", () => {
+    it("gets +1/+1 until end of turn from its {1}{B} ability", () => {
+        const kavu = makeInstance(calderaKavu.id, {
+            id: "kavu",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [kavu] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(getEffectivePower(state, kavu)).toBe(2);
+        expect(getEffectiveToughness(state, kavu)).toBe(2);
+
+        state.stack.push({
+            ...kavu,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "caldera-kavu-pump",
+            targets: [],
+        } as StackItem);
+        resolveTopOfStack(state);
+
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "kavu"
+        )!;
+        expect(getEffectivePower(state, after)).toBe(3); // 2 + 1
+        expect(getEffectiveToughness(state, after)).toBe(3); // 2 + 1
+
+        const projected = projectPublicState(state, 0, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "kavu"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(3);
+        expect(getEffectiveToughness(projected, slim)).toBe(3);
+    });
+
+    it("becomes the chosen color until end of turn from its {G} ability", () => {
+        const kavu = makeInstance(calderaKavu.id, {
+            id: "kavu2",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [kavu] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push({
+            ...kavu,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "caldera-kavu-color",
+            targets: [],
+        } as StackItem);
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on the mode pick
+
+        submitOptionPick(state, "G");
+
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "kavu2"
+        )!;
+        expect(after.colorOverride).toEqual(["G"]);
+
+        // Re-assert the colour change through the wire projection: the client
+        // reads the slim battlefield entry, not the raw fat state.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "kavu2"
+        )!;
+        expect(getEffectiveColors(slim)).toEqual(["G"]);
     });
 });

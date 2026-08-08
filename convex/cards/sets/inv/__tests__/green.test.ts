@@ -78,13 +78,6 @@ function answer(state: GameState, picks: string[]): void {
 }
 
 describe("Blurred Mongoose (CR 701.5c can't-be-countered, 702.18 Shroud)", () => {
-    it("declares cantBeCountered and shroud", () => {
-        expect(blurredMongoose.cantBeCountered).toBe(true);
-        expect(blurredMongoose.staticAbilities).toContain("shroud");
-        expect(blurredMongoose.power).toBe(2);
-        expect(blurredMongoose.toughness).toBe(1);
-    });
-
     it("shroud makes it an illegal target for a spell/ability, from any source (CR 702.18)", () => {
         const mongoose = makeInstance(blurredMongoose.id, {
             id: "mongoose",
@@ -121,17 +114,6 @@ describe("Blurred Mongoose (CR 701.5c can't-be-countered, 702.18 Shroud)", () =>
 });
 
 describe("Kavu Chameleon (CR 701.5c can't-be-countered, 305.7 / 613.1d colour change)", () => {
-    it("declares cantBeCountered and its stats", () => {
-        expect(kavuChameleon.cantBeCountered).toBe(true);
-        expect(kavuChameleon.power).toBe(4);
-        expect(kavuChameleon.toughness).toBe(4);
-        expect(
-            kavuChameleon.activatedAbilities?.some(
-                (a) => a.id === "kavu-chameleon-color"
-            )
-        ).toBe(true);
-    });
-
     it("becomes the chosen color and reverts to its printed color at CLEANUP (CR 514.2)", () => {
         const kavu = makeInstance(kavuChameleon.id, {
             id: "kavu",
@@ -380,12 +362,6 @@ describe("Canopy Surge (Kicker {2}, CR 702.33 / 120.1, issue #1097)", () => {
         expect(grounded.damageMarked ?? 0).toBe(0);
     });
 
-    it("declares the kicker cost {2}", () => {
-        expect(canopySurge.kickers).toEqual([
-            { id: "kicker", description: "Kicker {2}", mana: { X: 2 } },
-        ]);
-    });
-
     it("wire format — damage to the flying creature and both players survives projectPublicState", () => {
         const state = castCanopySurge(false);
         const projected = projectPublicState(state, 1, "p1");
@@ -432,15 +408,6 @@ describe("Restock (CR 400.7 return, CR 608.2 exile-self, issue #1097)", () => {
             state.players[0].graveyard.find((c) => c.id === item.id)
         ).toBeUndefined();
         expect(state.players[0].exile.map((c) => c.id)).toContain(item.id);
-    });
-
-    it("declares a two-card own-graveyard target requirement", () => {
-        expect(restock.targetRequirement).toEqual({
-            type: "card",
-            count: 2,
-            zone: "graveyard",
-            controller: "you",
-        });
     });
 
     it("wire format — the returned cards and the self-exile survive projectPublicState", () => {
@@ -490,15 +457,6 @@ describe("Elfhame Sanctuary (CR 504.1 skip-draw-step, CR 603.6a upkeep, issue #1
             ownerId: "p1",
         });
     }
-
-    it("snapshot: card definition wiring (oracle + upkeep trigger)", () => {
-        expect(elfhameSanctuary.types).toEqual(["Enchantment"]);
-        expect(elfhameSanctuary.manaCost).toEqual({ X: 1, G: 1 });
-        const ids = (elfhameSanctuary.triggeredAbilities ?? []).map(
-            (t) => t.id
-        );
-        expect(ids).toContain("elfhame-sanctuary-upkeep");
-    });
 
     it("decline: no search, no skip — draws normally next draw step (CR 608.2b)", () => {
         const sanctuary = makeSanctuary();
@@ -773,45 +731,6 @@ describe("Tangle (CR 615 all-combat prevention + CR 508.1/502.1 attacker untap-l
 });
 
 describe("Quirion Elves (CR 700.2c ETB colour choice + CR 605.1a two mana abilities, issue #1097)", () => {
-    it("is a 1/1 Elf for {1}{G} with a 5-mode ETB colour choice", () => {
-        expect(quirionElves.manaCost).toEqual({ X: 1, G: 1 });
-        expect(quirionElves.types).toEqual(["Creature"]);
-        expect(quirionElves.subtypes).toEqual(["Elf", "Druid"]);
-        expect(quirionElves.power).toBe(1);
-        expect(quirionElves.toughness).toBe(1);
-        expect(quirionElves.modes?.map((m) => m.id)).toEqual([
-            "W",
-            "U",
-            "B",
-            "R",
-            "G",
-        ]);
-        // No mode carries its own resolve/effects body (Prismatic Ward
-        // idiom) — the choice is purely stored as `chosenModeId`.
-        for (const mode of quirionElves.modes ?? []) {
-            expect(mode.resolve).toBeUndefined();
-            expect(mode.effects).toBeUndefined();
-        }
-    });
-
-    it("declares two separate {T} mana abilities: fixed {G} and chosen-colour", () => {
-        const [green, chosen] = quirionElves.activatedAbilities ?? [];
-        expect(green.cost).toEqual({ tap: true });
-        expect(green.useStack).toBe(false);
-        expect(green.manaProduced).toEqual({ G: 1 });
-        expect(chosen.cost).toEqual({ tap: true });
-        expect(chosen.useStack).toBe(false);
-        // Fallback list (no live instance) is every colour it could have
-        // chosen at ETB (CR 106.4 "could produce").
-        expect(chosen.manaChoices).toEqual([
-            { W: 1 },
-            { U: 1 },
-            { B: 1 },
-            { R: 1 },
-            { G: 1 },
-        ]);
-    });
-
     it("getActivatedManaColor resolves the FIXED {G} ability (first manaProduced ability)", () => {
         const elf = makeInstance(quirionElves.id, {
             id: "qe-color",
@@ -1103,16 +1022,6 @@ describe("Saproling Infestation (CR 702.33d / 603.2)", () => {
             spellColors: ["R"],
         } as StackItem["triggerEvent"];
     }
-
-    it("declares the SPELL_KICKED trigger with the Oracle text", () => {
-        expect(saprolingInfestation.manaCost).toEqual({ X: 1, G: 1 });
-        expect(saprolingInfestation.types).toEqual(["Enchantment"]);
-        const ability = saprolingInfestation.triggeredAbilities![0];
-        expect(ability.event).toBe("SPELL_KICKED");
-        expect(ability.oracleText).toBe(saprolingInfestation.oracleText);
-        // NOT batched: CR 702.33d makes each kick its own trigger.
-        expect(ability.oncePerEventBatch).toBeUndefined();
-    });
 
     it("creates one 1/1 green Saproling for its CONTROLLER when a player kicks", () => {
         const { state, infest } = boardWithInfestation("p1");

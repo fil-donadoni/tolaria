@@ -24,12 +24,17 @@ import {
     vodalianSoldiers,
 } from "..";
 import { resolveTopOfStack } from "../../../../gre/state";
-import type { CardInstanceState } from "../../../../gre/state";
+import type { CardInstanceState, StackItem } from "../../../../gre/state";
 import {
     getEffectivePower,
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
+import { untapStep } from "../../../../gre/phases";
+import {
+    applyMayPaySubmit,
+    applyPendingChoiceSubmit,
+} from "../../../../gre/pendingChoiceSubmit";
 import {
     makeInstance,
     makePlayer,
@@ -57,14 +62,6 @@ function makeWithSpores(
 }
 
 describe("Thallid — spore engine (CR 122.1, 122.6, 707.1)", () => {
-    it("carries the canonical FEM characteristics", () => {
-        expect(thallid.manaCost).toEqual({ G: 1 });
-        expect(thallid.types).toEqual(["Creature"]);
-        expect(thallid.subtypes).toEqual(["Fungus"]);
-        expect(thallid.power).toBe(1);
-        expect(thallid.toughness).toBe(1);
-    });
-
     it("adds a spore counter at the beginning of its controller's upkeep", () => {
         const thallidInst = makeWithSpores(thallid.id, 0);
         const state = makeState({
@@ -418,40 +415,7 @@ describe("Thelonite Monk — land becomes a Forest indefinitely (CR 305.7)", () 
     });
 });
 
-describe("Thelon's Curse — symmetric untap-lock on blue creatures (CR 611)", () => {
-    it("declares an untap restriction filtered to blue creatures with cap 0", () => {
-        const eff = thelonsCurse.staticEffects?.find(
-            (e) => e.kind === "untap-restriction"
-        );
-        expect(eff).toBeDefined();
-        if (eff && eff.kind === "untap-restriction") {
-            expect(eff.maxUntap).toBe(0);
-            expect(eff.filter).toMatchObject({
-                types: "Creature",
-                colors: "U",
-            });
-        }
-    });
-});
-
-describe("Thelon's Chant — upkeep tax + Swamp punisher (CR 117.3a, 603.6a)", () => {
-    it("declares an upkeep pay-or-sacrifice trigger and a Swamp-ETB trigger", () => {
-        const ids = (thelonsChant.triggeredAbilities ?? []).map((t) => t.id);
-        expect(ids).toContain("thelons-chant-upkeep");
-        expect(ids).toContain("thelons-chant-swamp-punish");
-    });
-});
-
 describe("Night Soil — exile-from-graveyard cost (CR 602.1, 118.5, 707.1)", () => {
-    it("declares an exile-from-graveyard cost of two creature cards", () => {
-        const ability = nightSoil.activatedAbilities?.[0];
-        expect(ability?.cost.exileFromGraveyard).toEqual({
-            count: 2,
-            cardType: "Creature",
-        });
-        expect(ability?.cost.mana).toEqual({ X: 1 });
-    });
-
     it("creates a 1/1 green Saproling on resolve (cost paid by the mutation)", () => {
         const soil = makeInstance(nightSoil.id, {
             controllerId: "p1",
@@ -469,5 +433,261 @@ describe("Night Soil — exile-from-graveyard cost (CR 602.1, 118.5, 707.1)", ()
         );
         expect(tokens).toHaveLength(1);
         expect(getEffectivePower(state, tokens[0])).toBe(1);
+    });
+});
+
+/** A PERMANENT_ENTERED event for a Swamp entering under `playerId`, the
+ *  payload Thelon's Chant's `resolve` reads via the factory's flattened
+ *  `entered` view. */
+function swampEntered(playerId: string): StackItem["triggerEvent"] {
+    return {
+        type: "PERMANENT_ENTERED",
+        instanceId: "swamp-1",
+        controllerId: playerId,
+        types: ["Land"],
+    } as StackItem["triggerEvent"];
+}
+
+describe("Thelon's Chant — punisher damage on a Swamp entering (CR 603.2, 117.3a)", () => {
+    it("deals 3 damage to the entering player when they control no creature", () => {
+        const chant = makeInstance(thelonsChant.id, {
+            id: "chant",
+            controllerId: "p2",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20 }),
+                makePlayer("p2", { battlefield: [chant] }),
+            ],
+        });
+        resolveTrigger(
+            state,
+            chant,
+            "thelons-chant-swamp-punish",
+            swampEntered("p1")
+        );
+        expect(state.players[0].life).toBe(17);
+
+        // Wire format — life total must survive projection, or the client
+        // shows the punished player at their pre-damage total.
+        const projected = projectPublicState(state, 1, "p2");
+        expect(projected.players[0].life).toBe(17);
+    });
+
+    it("suspends on a put-a-counter-or-take-3 punisher choice when a creature is available, and deals 3 damage if declined", () => {
+        const chant = makeInstance(thelonsChant.id, {
+            id: "chant",
+            controllerId: "p2",
+            zone: "battlefield",
+        });
+        const creature = makeInstance(vodalianSoldiers.id, {
+            id: "vs",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20, battlefield: [creature] }),
+                makePlayer("p2", { battlefield: [chant] }),
+            ],
+        });
+        resolveTrigger(
+            state,
+            chant,
+            "thelons-chant-swamp-punish",
+            swampEntered("p1")
+        );
+        const head = state.pendingChoices?.[0];
+        expect(head?.kind).toBe("choose-permanents");
+        expect(head?.playerId).toBe("p1");
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head!.stackItemId,
+            step: head!.step,
+            choiceId: head!.choiceId,
+            cardInstanceIds: [],
+        });
+        expect(state.players[0].life).toBe(17);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "vs")?.counters?.[
+                "-1/-1"
+            ]
+        ).toBeUndefined();
+    });
+
+    it("puts a -1/-1 counter on the chosen creature instead, taking no damage", () => {
+        const chant = makeInstance(thelonsChant.id, {
+            id: "chant",
+            controllerId: "p2",
+            zone: "battlefield",
+        });
+        const creature = makeInstance(vodalianSoldiers.id, {
+            id: "vs",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20, battlefield: [creature] }),
+                makePlayer("p2", { battlefield: [chant] }),
+            ],
+        });
+        resolveTrigger(
+            state,
+            chant,
+            "thelons-chant-swamp-punish",
+            swampEntered("p1")
+        );
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["vs"],
+        });
+        expect(state.players[0].life).toBe(20);
+        const onBoard = state.players[0].battlefield.find(
+            (c) => c.id === "vs"
+        )!;
+        expect(onBoard.counters?.["-1/-1"]).toBe(1);
+    });
+});
+
+describe("Thelon's Curse — blue creatures don't untap during untap steps (CR 502.1)", () => {
+    it("keeps a tapped blue creature from untapping while Thelon's Curse is on the battlefield", () => {
+        const curse = makeInstance(thelonsCurse.id, {
+            id: "curse",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        const blueCreature = makeInstance(vodalianSoldiers.id, {
+            id: "blue-c",
+            controllerId: "p2",
+            zone: "battlefield",
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [curse] }),
+                makePlayer("p2", { battlefield: [blueCreature] }),
+            ],
+            activePlayerId: "p2",
+            phase: "UNTAP",
+        });
+        untapStep(state);
+        const onBoard = state.players[1].battlefield.find(
+            (c) => c.id === "blue-c"
+        )!;
+        expect(onBoard.isTapped).toBe(true);
+
+        // Wire format — the lock's effect (the creature staying tapped) must
+        // survive projection, or the client shows it as untapped.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "blue-c"
+        )!;
+        expect(slim.isTapped).toBe(true);
+    });
+
+    it("lets a blue creature untap normally without Thelon's Curse (control)", () => {
+        const blueCreature = makeInstance(vodalianSoldiers.id, {
+            id: "blue-c",
+            controllerId: "p2",
+            zone: "battlefield",
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [blueCreature] }),
+            ],
+            activePlayerId: "p2",
+            phase: "UNTAP",
+        });
+        untapStep(state);
+        const onBoard = state.players[1].battlefield.find(
+            (c) => c.id === "blue-c"
+        )!;
+        expect(onBoard.isTapped).toBe(false);
+    });
+});
+
+describe("Thelon's Curse — pay {U} at upkeep to untap a tapped blue creature (CR 117.3a)", () => {
+    it("untaps the tapped blue creature when its controller pays {U}", () => {
+        const curse = makeInstance(thelonsCurse.id, {
+            id: "curse",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        const blueCreature = makeInstance(vodalianSoldiers.id, {
+            id: "blue-c",
+            controllerId: "p2",
+            zone: "battlefield",
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [curse] }),
+                makePlayer("p2", {
+                    battlefield: [blueCreature],
+                    manaPool: { U: 1 },
+                }),
+            ],
+        });
+        resolveTrigger(
+            state,
+            curse,
+            "thelons-curse-untap-escape",
+            UPKEEP("p2")
+        );
+        const head = state.pendingChoices?.[0];
+        expect(head?.kind).toBe("may-pay");
+        expect(head?.playerId).toBe("p2");
+        applyMayPaySubmit(state, { playerId: "p2", accept: true });
+        const onBoard = state.players[1].battlefield.find(
+            (c) => c.id === "blue-c"
+        )!;
+        expect(onBoard.isTapped).toBe(false);
+
+        // Wire format — the untap must survive projection, or the client
+        // still shows the creature as tapped.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "blue-c"
+        )!;
+        expect(slim.isTapped).toBe(false);
+    });
+
+    it("leaves the creature tapped when its controller declines to pay {U}", () => {
+        const curse = makeInstance(thelonsCurse.id, {
+            id: "curse",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        const blueCreature = makeInstance(vodalianSoldiers.id, {
+            id: "blue-c",
+            controllerId: "p2",
+            zone: "battlefield",
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [curse] }),
+                makePlayer("p2", { battlefield: [blueCreature] }),
+            ],
+        });
+        resolveTrigger(
+            state,
+            curse,
+            "thelons-curse-untap-escape",
+            UPKEEP("p2")
+        );
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        const onBoard = state.players[1].battlefield.find(
+            (c) => c.id === "blue-c"
+        )!;
+        expect(onBoard.isTapped).toBe(true);
     });
 });
