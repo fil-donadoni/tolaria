@@ -78,9 +78,17 @@ export default function ActiveGameNotice({ activeGame, userId }: Props) {
         setIsBusy(true);
         try {
             if (isManual) {
+                // #2400 review round 2 (blocking, round 3): `manualConcede`
+                // now fails CLOSED on a seat that isn't in the Match
+                // (`computeForfeitMatch` returning `null`). A genuine
+                // 2-player Tabletop table (`createManualGame`/
+                // `joinManualGame`) seats the caller as the bare user id, not
+                // `-p1` — the same `playerId` already derived above for the
+                // non-manual branch, so reuse it here instead of hardcoding
+                // the solo seat.
                 await manualConcede({
                     gameId: activeGame.gameId,
-                    playerId: p1Id,
+                    playerId,
                 });
             } else {
                 await forfeitMatch({

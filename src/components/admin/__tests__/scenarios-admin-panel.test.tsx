@@ -347,6 +347,39 @@ describe("ScenariosAdminPanel", () => {
             expect(navigate).toHaveBeenCalledWith({ to: "/game" });
         });
 
+        it("routes a `finished`-game/still-active-Match block through forfeitMatch, not leaveGame", async () => {
+            // #2400 review round 2, blocking (round 3 fix): `myActiveGame`
+            // reports the GAME row's status (`waiting | pregame | playing |
+            // finished`), and `finished` is reachable while the MATCH is
+            // still active — a Bo3 whose G1 just ended has a `finished` Game
+            // row but a Match sitting in `sideboarding`, with
+            // `currentGameId` still pointing at the finished Game.
+            // `leaveGame` only accepts `waiting`/`pregame` and throws
+            // otherwise, so a wide `status !== "playing"` check would route
+            // this case into a throw that never frees the user — the exact
+            // failure round 1 already fixed for a different status. This
+            // case must fall through to `forfeitMatch`, exactly like round
+            // 1's unconditional behaviour.
+            activeGame = { ...VS_AI_GAME, status: "finished", vsAi: false };
+            createSoloGame.mockRejectedValueOnce(new Error("blocked"));
+            render(<ScenariosAdminPanel />);
+            fireEvent.click(screen.getAllByText("Test")[0]);
+            await waitFor(() =>
+                expect(screen.getByText("Concede active game?")).toBeTruthy()
+            );
+
+            fireEvent.click(screen.getByText("Concede & Start"));
+
+            await waitFor(() => expect(navigate).toHaveBeenCalled());
+            expect(forfeitMatch).toHaveBeenCalledWith({
+                matchId: "m0",
+                playerId: "user-1-p1",
+            });
+            expect(leaveGame).not.toHaveBeenCalled();
+            expect(createSoloGame).toHaveBeenCalledTimes(2);
+            expect(navigate).toHaveBeenCalledWith({ to: "/game" });
+        });
+
         it("a retried createSoloGame failure surfaces via the plain banner, never re-opening the confirm dialog", async () => {
             // #2400 review round 2, finding 3: the retry must not re-enter
             // the `if (activeGame) -> setBlockingActiveGame` branch even

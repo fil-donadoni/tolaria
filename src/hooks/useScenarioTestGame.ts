@@ -64,17 +64,20 @@ export interface ScenarioTestGame {
     cancelBlockingActiveGame: () => void;
     /** Free the blocking active game via the right verb for its status/type,
      *  then retry the scenario launch that was blocked:
-     *  - `status !== "playing"` (a lobby waiting room nobody joined, or a
-     *    `pregame` coin-toss gate) has no Game worth conceding — mirrors
-     *    `ActiveGameNotice`'s non-`playing` branch and uses `leaveGame`. A
-     *    `waiting` 2-player Match has only ONE seat, so `forfeitMatch`'s
-     *    opponent lookup would throw "Seat not found in this match" (#2400
-     *    review round 2).
-     *  - otherwise, `manualConcedeMatch` for `mode === "manual"`,
-     *    `forfeitMatch` otherwise. `concede` (CR 104.3a) is NOT used: it only
-     *    ends the current *Game*, leaving the *Match* — and therefore
-     *    `findActiveMatchForUser`'s block — in place, so `createSoloGame`
-     *    would still reject the retry. */
+     *  - `status === "waiting" || status === "pregame"` (a lobby waiting room
+     *    nobody joined, or a `pregame` coin-toss gate) has no Game worth
+     *    conceding — mirrors `ActiveGameNotice`'s non-`playing` branch and
+     *    uses `leaveGame`. A `waiting` 2-player Match has only ONE seat, so
+     *    `forfeitMatch`'s opponent lookup would throw "Seat not found in
+     *    this match" (#2400 review round 2). These are the EXACT statuses
+     *    `leaveGame` accepts — `status !== "playing"` is too wide, since a
+     *    Bo3 mid-Match can have a `finished` Game row while the Match is
+     *    still active (#2400 review round 2, round 3 fix).
+     *  - otherwise (including `finished`), `manualConcedeMatch` for
+     *    `mode === "manual"`, `forfeitMatch` otherwise. `concede`
+     *    (CR 104.3a) is NOT used: it only ends the current *Game*, leaving
+     *    the *Match* — and therefore `findActiveMatchForUser`'s block — in
+     *    place, so `createSoloGame` would still reject the retry. */
     resolveBlockingActiveGame: () => void;
     /** True while the concede mutation above (and the retried launch) is in
      *  flight — disables the confirm dialog's buttons. */
@@ -184,11 +187,32 @@ export function useScenarioTestGame(): ScenarioTestGame {
         setResolvingActiveGame(true);
         void (async () => {
             try {
-                if (blocked.status !== "playing") {
+                if (
+                    blocked.status === "waiting" ||
+                    blocked.status === "pregame"
+                ) {
                     // A `waiting` room (nobody joined) or a `pregame`
                     // coin-toss gate has no real opponent/Game to concede —
                     // mirrors `ActiveGameNotice`'s non-`playing` branch,
                     // which abandons via `leaveGame` regardless of mode.
+                    //
+                    // Gate on the EXACT statuses `leaveGame` accepts, not
+                    // `status !== "playing"` (#2400 review round 2, blocking,
+                    // round 3): `myActiveGame` reports the GAME row's status
+                    // (`waiting | pregame | playing | finished`), and
+                    // `finished` is reachable while the Match is still
+                    // active — a Bo3 whose G1 just ended has a `finished`
+                    // Game row but a Match sitting in `sideboarding` (an
+                    // ACTIVE_MATCH_STATUS), with `currentGameId` still
+                    // pointing at the finished Game. `leaveGame` only
+                    // accepts `waiting`/`pregame` and throws otherwise
+                    // ("Cannot leave a game in progress; concede instead"),
+                    // so a wide `!== "playing"` check would route a
+                    // `finished`-but-still-in-Match block into a throw that
+                    // never frees the user. Everything else (including
+                    // `finished`) falls through to the concede/forfeit
+                    // branches below, which is what round 1 did
+                    // unconditionally and is correct here too.
                     await leaveGame({ gameId: blocked.gameId });
                 } else if (blocked.mode === "manual") {
                     // ADR 0080 S12 twin of `forfeitMatch`: manual games run
