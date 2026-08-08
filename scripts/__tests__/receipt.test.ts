@@ -495,6 +495,68 @@ describe("readReceipts detects tampering outside the sanctioned write path", () 
         expect(errors).toEqual([]);
         expect(receipts).toHaveLength(3);
     });
+
+    it("flags a LONE receipt whose round does not start at 1 — the round-1 blocking review was deleted (#2349)", () => {
+        // Reproduces the reviewer's exact scenario: a batch containing
+        // `10-implement.json` + `10-review-2.json` with NO `10-review.json`
+        // on disk. The (issue 10, role review) group has exactly one
+        // receipt, so the old `group.length < 2` guard skipped it — a
+        // tampering signal (the round-1 blocking verdict deleted) that
+        // reported `unreadable: []` and let a stale round-2 "approve" win.
+        writeReceipt(tmp, "sess-1", workReceipt({ issue: 10 }));
+        writeReceipt(
+            tmp,
+            "sess-1",
+            reviewReceipt({ issue: 10, round: 2, outcome: "approve" })
+        );
+        const dir = receiptDir(tmp, "sess-1");
+        expect(fs.existsSync(path.join(dir, "10-implement.json"))).toBe(true);
+        expect(fs.existsSync(path.join(dir, "10-review-2.json"))).toBe(true);
+        expect(fs.existsSync(path.join(dir, "10-review.json"))).toBe(false);
+
+        const { errors } = readReceipts(tmp, "sess-1");
+        const gap = errors.find(
+            (e) => e.issue === 10 && /round sequence has a gap/.test(e.message)
+        );
+        expect(gap, JSON.stringify(errors)).toBeDefined();
+    });
+
+    it("does NOT flag a lone round-1 (or absent-round) receipt — no new false positive", () => {
+        // The common, overwhelmingly frequent shape: one implement, one
+        // review, no re-round. A lone receipt normalising to round 1 must
+        // stay perfectly valid now that the size-1 guard is gone.
+        writeReceipt(tmp, "sess-1", workReceipt());
+        writeReceipt(tmp, "sess-1", reviewReceipt());
+        const { errors, receipts } = readReceipts(tmp, "sess-1");
+        expect(errors).toEqual([]);
+        expect(receipts).toHaveLength(2);
+    });
+
+    it("does NOT flag a lone missing marker sharing an issue with a round-1 work receipt", () => {
+        // `missing` receipts carry no `issue` and are excluded from the
+        // round-sequence grouping entirely (they have no round). Confirms
+        // removing the `group.length < 2` guard does not start pulling
+        // `missing` markers into a group they were never meant to join.
+        writeReceipt(tmp, "sess-1", workReceipt());
+        fs.mkdirSync(receiptDir(tmp, "sess-1"), { recursive: true });
+        fs.writeFileSync(
+            path.join(receiptDir(tmp, "sess-1"), "missing-agent-1.json"),
+            JSON.stringify(
+                parseReceipt({
+                    version: RECEIPT_VERSION,
+                    role: "missing",
+                    outcome: "missing",
+                    session: "sess-1",
+                    transcript: null,
+                    agentId: "agent-1",
+                    agentType: null,
+                    agentTranscript: null,
+                })
+            )
+        );
+        const { errors } = readReceipts(tmp, "sess-1");
+        expect(errors).toEqual([]);
+    });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

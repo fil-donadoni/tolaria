@@ -671,11 +671,16 @@ export function readReceiptsFromDir(dir: string): ReadReceiptsResult {
         }
     }
 
-    // Round-sequence gap: two or more correctly-named receipts for the same
-    // (issue, role) whose rounds are not a contiguous 1..N run. A gap means a
-    // round is missing from disk (deleted, or never landed) — the reader
-    // cannot tell whether the missing round approved or blocked, so it is
-    // exactly as untrustworthy as a corrupt file.
+    // Round-sequence gap: the correctly-named receipts for a given (issue,
+    // role) whose rounds are not a contiguous 1..N run starting at 1. This
+    // covers a LONE receipt too — a single round-2 review with no round-1 on
+    // disk is exactly as much a gap as a 1-then-3 sequence missing its 2: in
+    // both cases a round was deleted (or never landed) and the reader cannot
+    // tell whether it approved or blocked, so it is exactly as untrustworthy
+    // as a corrupt file. A lone round-1 (or an absent round, which normalises
+    // to 1) is the common, valid case and must NOT be flagged — the
+    // contiguity check below already lets it through: `[1]` satisfies
+    // `round === i + 1` at i = 0.
     const groups = new Map<string, Receipt[]>();
     for (const r of receipts) {
         if (r.role === "missing") continue;
@@ -685,7 +690,6 @@ export function readReceiptsFromDir(dir: string): ReadReceiptsResult {
         else groups.set(key, [r]);
     }
     for (const [key, group] of groups) {
-        if (group.length < 2) continue;
         const rounds = group
             .map((r) => (r.role === "missing" ? 1 : (r.round ?? 1)))
             .sort((a, b) => a - b);
