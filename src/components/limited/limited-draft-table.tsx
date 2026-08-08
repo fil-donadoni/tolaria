@@ -240,7 +240,6 @@ export default function LimitedDraftTable({
                             onChange={boosterZoom.set}
                             label="Booster card size"
                         />
-                        <LimitedDraftTimer pickDeadline={seat.pickDeadline} />
                         <span>
                             {queueCount > 0
                                 ? `${queueCount} pack${queueCount === 1 ? "" : "s"} queued`
@@ -250,6 +249,19 @@ export default function LimitedDraftTable({
                 </div>
 
                 {error && <Banner tone="danger">{error}</Banner>}
+
+                {/* Full-width, mounted directly above the Booster grid (issue
+                 *  #2238) — a 12px badge sharing the meta row's text-xs
+                 *  muted tone with the zoom slider and queue count was not
+                 *  findable under time pressure. `pack.length` is the SAME
+                 *  cards-remaining count the server used to look up this
+                 *  Pick's allowance (`assignFreshPack`), which is how the
+                 *  bar derives its own denominator without a second
+                 *  server-written field. */}
+                <LimitedDraftTimer
+                    pickDeadline={seat.pickDeadline}
+                    cardsRemaining={pack.length}
+                />
 
                 <LimitedDraftPack
                     pack={pack}
