@@ -12,7 +12,6 @@ Elite Spellbinder
 Skyclave Apparition
 Tamiyo, Inquisitive Student
 Urza, Lord High Artificer
-Emrakul
 Craterhoof
 Gut
 Hexdrinker
@@ -24,8 +23,6 @@ Mox Diamond
 Fallen Shinobi
 Grist
 Necromancy
-Shallow Grave
-Corpse Dance
 Through the Breach
 Sentinel of the Nameless City
 Six
@@ -48,6 +45,8 @@ Fable of the mirror-breaker
 ## UX da migliorare
 
 - se la carta in cima alla library è rivelata, deve supportare gli eventi di card-preview
+- l'icona drag sulle carte nel deckbuilder non serve
+- ci sono parecchi punti in cui il layout è scadente e non responsive, non solo su schermi piccoli ma anche su desktop non larghissimi.
 
 # Bug gameplay
 
@@ -55,15 +54,6 @@ Fable of the mirror-breaker
 - gli scenari che specificano carte nella library non funzionano, mi ritrovo sempre e solo terre base nella library invece delle carte indicate.
 
 # Bug bot
-
-Segnalazione 2026-07-29 — tutti tracciati, raggruppati per root cause:
-
-- #1887 — cast no-op provabili: Damnation su board vuoto, Sheoldred's Edict senza creature/PW avversari, Sandstorm Salvager senza token, Vision Charm mode inutile, Chrome Mox senza imprint
-- #1888 — choice priors: Wild Growth su terra avversaria, Flash of Insight X=0, Chrome Mox che non imprinta, Vision Charm mode sbagliata
-- #1889 — engine: Everflowing Chalice con 0 charge counters tappato per mana → cast fallisce in loop
-- #1890 — timing attivazioni: Mother of Runes a sorcery speed, Mishra's Factory animata post-combat
-
-Causa strutturale sotto i 4 cluster: mappa wayfinder #1892 (soffitto di forza del bot — fedeltà dell'eval, non profondità di ricerca).
 
 # Note su Draft Arena
 
