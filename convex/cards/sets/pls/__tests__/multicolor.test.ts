@@ -1858,10 +1858,6 @@ describe("Treva's Charm ({G}{W}{U} modal instant, CR 601.2b, issue #1954)", () =
 });
 
 describe("Ertai, the Corrupted ({2}{W}{U}{B}, CR 701.5a, issue #1954)", () => {
-    const ABILITY = ertaiTheCorrupted.activatedAbilities!.find(
-        (a) => a.id === "ertai-corrupted-counter"
-    )!;
-
     it("counters target spell on resolution", () => {
         const ertai = makeInstance(ertaiTheCorrupted.id, {
             id: "ertai-1",

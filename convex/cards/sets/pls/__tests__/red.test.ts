@@ -989,7 +989,11 @@ describe("Thunderscape Familiar (CR 601.2f cost reduction for black AND green sp
         });
         const projected = projectPublicState(state, 1, "p1");
         expect(
-            getCostModifiers(projected, myGreenSpell, "spell").reductionGeneric
+            getCostModifiers(
+                projected as unknown as GameState,
+                myGreenSpell,
+                "spell"
+            ).reductionGeneric
         ).toBe(1);
     });
 });

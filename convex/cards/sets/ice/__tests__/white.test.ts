@@ -1851,7 +1851,6 @@ describe("Kjeldoran Royal Guard — combat-damage redirect (CR 614.6)", () => {
 });
 
 describe("Arenson's Aura — destroy/counter enchantment (CR 701.7 / 701.5a)", () => {
-    const destroyAbility = arensonsAura.activatedAbilities![0];
     const counterAbility = arensonsAura.activatedAbilities![1];
 
     it("destroys the target enchantment — gone from board, survives projection (wire format)", () => {

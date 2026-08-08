@@ -19,7 +19,6 @@ import {
     alchorsTomb,
     blackManaBattery,
     blueManaBattery,
-    cathedralOfSerra,
     greenManaBattery,
     hundingGjornersen,
     manaMatrix,
@@ -30,10 +29,8 @@ import {
     planarGate,
     redManaBattery,
     relicBarrier,
-    seafarersQuay,
     tolaria,
     tundraWolves,
-    unholyCitadel,
     whiteManaBattery,
 } from "..";
 import { tapSourceIntoPayment } from "../../../../game";
@@ -575,17 +572,6 @@ describe("Pendelhaven (Legendary land: {T}: Add {G}; {T}: pump a 1/1, CR 305 / 6
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("Bands-with-other grant-lands (CR 702.22j, keyword-grant)", () => {
-    const LANDS = [
-        adventurersGuildhouse,
-        cathedralOfSerra,
-        mountainStronghold,
-        seafarersQuay,
-        unholyCitadel,
-    ];
-
-    for (const land of LANDS) {
-    }
-
     it("Adventurers' Guildhouse grants the keyword to your GREEN legendary creature only", () => {
         // Hunding Gjornersen ({W}{U}) is not green; Marhault Elsdragon ({R}{G}) is.
         const land = makeInstance(adventurersGuildhouse.id, {
@@ -837,30 +823,6 @@ describe("named counters: add / remove / count independent of +1/+1 (CR 122.6)",
 // `tapForActivationPayment`) routes through — so the cost/output coupling is
 // tested end-to-end, not just the card definition's chooser.
 describe("Mana Batteries (charge-counter scaling mana ability, CR 106 / 605)", () => {
-    const BATTERIES = [
-        {
-            def: blackManaBattery,
-            color: "B" as const,
-            name: "Black Mana Battery",
-        },
-        {
-            def: blueManaBattery,
-            color: "U" as const,
-            name: "Blue Mana Battery",
-        },
-        {
-            def: greenManaBattery,
-            color: "G" as const,
-            name: "Green Mana Battery",
-        },
-        { def: redManaBattery, color: "R" as const, name: "Red Mana Battery" },
-        {
-            def: whiteManaBattery,
-            color: "W" as const,
-            name: "White Mana Battery",
-        },
-    ];
-
     it("adds a charge counter via the {2},{T} ability (CR 122.1)", () => {
         const battery = makeInstance(redManaBattery.id, {
             id: "battery",

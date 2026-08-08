@@ -12,19 +12,14 @@ import {
     delifsCone,
     delifsCube,
     draconianCylix,
-    dwarvenHold,
-    dwarvenRuins,
     ebonStronghold,
     elvenLyre,
-    havenwoodBattleground,
     hollowTrees,
     icatianStore,
     implementsOfSacrifice,
     rainbowVale,
-    ruinsOfTrokair,
     sandSilos,
     spiritShield,
-    svyeluniteTemple,
     vodalianSoldiers,
     zelyonSword,
 } from "..";
@@ -87,14 +82,6 @@ describe("FEM registry parity", () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("FEM C6 sacrifice-land cycle (sac-self mana, ADR 0039 / CR 605.1a)", () => {
-    const CYCLE = [
-        { def: ruinsOfTrokair, color: "W" as const },
-        { def: svyeluniteTemple, color: "U" as const },
-        { def: ebonStronghold, color: "B" as const },
-        { def: dwarvenRuins, color: "R" as const },
-        { def: havenwoodBattleground, color: "G" as const },
-    ];
-
     it("the plain {T} ability adds one mana of the land's colour (CR 605.1a)", () => {
         const land = makeInstance(ebonStronghold.id, {
             id: "land",
@@ -109,14 +96,6 @@ describe("FEM C6 sacrifice-land cycle (sac-self mana, ADR 0039 / CR 605.1a)", ()
 });
 
 describe("FEM C6 storage-land cycle (variable counter-removal → variable mana, CAPABILITY H, CR 106.1/122.6)", () => {
-    const CYCLE = [
-        { def: icatianStore, color: "W" as const },
-        { def: sandSilos, color: "U" as const },
-        { def: bottomlessVault, color: "B" as const },
-        { def: dwarvenHold, color: "R" as const },
-        { def: hollowTrees, color: "G" as const },
-    ];
-
     it("banks a storage counter each upkeep while tapped (CR 603.4)", () => {
         const land = makeInstance(bottomlessVault.id, {
             id: "land",

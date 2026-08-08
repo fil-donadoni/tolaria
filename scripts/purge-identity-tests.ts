@@ -14,6 +14,24 @@
  * `--keep <file:line>` (repeatable) spares one block — used during the triage
  * pass for the handful of identity blocks that were CONVERTED to behaviour
  * tests by hand rather than deleted.
+ *
+ * ── Known residue: run `bun run lint` after it ───────────────────────────────
+ * The binding cleanup below is deliberately conservative — it drops MODULE-level
+ * `const`s and import specifiers only, because an over-eager remover deletes a
+ * binding something else still needs and the failure is a broken build, not a
+ * lint warning. So a real run leaves three shapes behind, and ESLint names every
+ * one of them:
+ *
+ *   - a `const` inside a `describe` whose only reader was a deleted block
+ *     (`no-unused-vars`);
+ *   - a `for (… of TABLE) { }` whose body was a single deleted `it`
+ *     (`no-empty`, then `TABLE` goes unused in turn);
+ *   - the import cascade those two release, one layer per round.
+ *
+ * The #2363 run left exactly 9 such errors across 6 files, cleared by hand and
+ * by an eslint-driven loop over the unused-import cascade. Anyone re-running
+ * this from the pre-purge tree should expect the same 9 and finish the same
+ * way: `bunx eslint convex/cards/sets/` until it is silent.
  */
 import * as fs from "fs";
 import * as path from "path";

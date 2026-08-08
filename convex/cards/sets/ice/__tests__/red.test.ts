@@ -73,7 +73,6 @@ import {
     resolveTopOfStack,
     applyExistingGrantsTo,
     refreshCounterGatedStatics,
-    applySourceStaticEffects,
 } from "../../../../gre/state";
 import { sourcePreventionShieldApplies } from "../../../../gre/state";
 import {
