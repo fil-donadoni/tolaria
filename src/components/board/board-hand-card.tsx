@@ -4,6 +4,7 @@ import { api } from "@convex/_generated/api";
 import type { CardInstance } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
+import { useAbilityCardClick } from "~/hooks/useAbilityCardClick";
 import { isSelectableHandChoiceCard } from "~/lib/hand-choice";
 import { isSeenByOpponent } from "~/lib/hand-knowledge";
 import { useHandCardCommit } from "~/hooks/useHandCardCommit";
@@ -17,13 +18,22 @@ import {
     trackGameIntent,
 } from "~/lib/pending-intent-store";
 import { LIFTED_CARD_Z } from "~/lib/board-motion";
+import { useManualHandInteraction } from "~/lib/manual-card-verbs";
 import CardImage from "../cards/card-image";
 import CardTilt3D from "./card-tilt-3d";
 import SeenByOpponentBadge from "./seen-by-opponent-badge";
+import ActivatableAbilityMenu from "./activatable-ability-menu";
+import type { ActivatableAbility } from "./battlefield-card";
 import HandCardActionMenu, {
     type HandCardPrimaryAction,
 } from "./hand-card-action-menu";
 import HandCardConfirmPill from "./hand-card-confirm-pill";
+
+/** Stable empty list so a GRE-board render (no manual provider) never
+ *  allocates a fresh array for `useAbilityCardClick`'s dependency array
+ *  (issue #2347 — see {@link useManualHandInteraction} for the seam this
+ *  serves). */
+const NO_MANUAL_ABILITIES: ActivatableAbility[] = [];
 
 /** Upward travel (px) of a card STAGED by a touch tap (#1767) — the same
  *  "lifting out of the hand" read as the drag gesture, at a rest offset. */
@@ -134,6 +144,27 @@ export default function BoardHandCard({
     } = useGameContext();
     const activateAbility = useMutation(api.game.activateAbility);
     const bufferCtx = usePendingChoiceBuffer();
+
+    // Issue #2347 — present only under `ManualHandInteractionProvider`
+    // (`manual-board-view.tsx`). Computed unconditionally, alongside every
+    // other hook here, so the manual branch below stays a plain `if` after
+    // the hooks rather than a conditional hook call; when absent (every GRE
+    // board) `manualAbilities` is always the empty list and the click/touch
+    // handlers below are simply never wired to the DOM.
+    const manualInteraction = useManualHandInteraction();
+    const manualAbilities = manualInteraction
+        ? manualInteraction.getVerbs(card.id)
+        : NO_MANUAL_ABILITIES;
+    const manualActivate = (abilityId: string, keepPriority: boolean) => {
+        // Hand verbs never pay a cost — `keepPriority` only exists to match
+        // `useAbilityCardClick`'s shared contract with the battlefield card.
+        void keepPriority;
+        manualInteraction?.activate(card.id, abilityId);
+    };
+    const manualAbilityClick = useAbilityCardClick(
+        manualAbilities,
+        manualActivate
+    );
 
     // Mid-resolution hand pick (CR 608.2, ADR 0007). When the active choice
     // targets the hand zone and this is one of the viewer's own selectable
@@ -334,6 +365,46 @@ export default function BoardHandCard({
             onDragEnd?.();
         }
     }, [state.dragging, state.pointerX, onDragMove, onDragEnd]);
+
+    // Manual Board variant (issue #2347). Rendered AFTER every hook above
+    // runs, exactly like the choice-toggle branch below — every GRE hook
+    // still ran this render, but NONE of its handlers are spread onto this
+    // markup, so the cast/play pipeline never fires. The root binds NO
+    // pointer handlers of its own (unlike the GRE branch's `useDragToCommit`
+    // wiring below): a manual hand card's drag is the board-level
+    // `useManualDrag` gesture bound on `<main>` (`manual-board-view.tsx`),
+    // which hit-tests this same `data-board-hand-card` attribute — this
+    // branch only has to keep carrying it, never intercept the pointerdown
+    // that gesture bubbles up to. Click/touch are the ONE gesture this
+    // branch owns, via the same `ActivatableAbilityMenu` +
+    // `useAbilityCardClick` pair the battlefield permanents already ride
+    // (`battlefield-card.tsx`).
+    if (manualInteraction) {
+        return (
+            <ActivatableAbilityMenu
+                abilities={manualAbilities}
+                onActivate={manualActivate}
+                sheetOpen={manualAbilityClick.sheetOpen}
+                onSheetClose={manualAbilityClick.onSheetClose}
+            >
+                <div
+                    data-board-hand-card={card.id}
+                    className={
+                        manualAbilities.length > 0 ? "cursor-pointer" : ""
+                    }
+                    onClick={manualAbilityClick.onClick}
+                    onTouchStart={manualAbilityClick.onTouchStart}
+                >
+                    <CardImage
+                        card={card}
+                        sizes={sizes}
+                        includeThumb={includeThumb}
+                    />
+                    {seen && <SeenByOpponentBadge />}
+                </div>
+            </ActivatableAbilityMenu>
+        );
+    }
 
     // Choice-toggle variant (CR 608.2). Rendered AFTER every hook above runs so
     // the rules-of-hooks contract holds; the drag pipeline is already inert

@@ -41,6 +41,12 @@ import {
 import { adaptManualPlayers } from "~/lib/manual-board-adapter";
 import { makeCatalogueRowLookup } from "~/lib/manual-band";
 import { makeManualBattlefieldInteraction } from "~/lib/manual-battlefield-interaction";
+import {
+    dispatchManualCardVerb,
+    manualHandVerbs,
+    ManualHandInteractionProvider,
+    type ManualHandInteraction,
+} from "~/lib/manual-card-verbs";
 import { makeManualControllerActions } from "~/lib/manual-controller-actions";
 import { makeManualGameContext } from "~/lib/manual-game-context";
 import { makeManualPileActions } from "~/lib/manual-pile-actions";
@@ -87,9 +93,23 @@ const NO_SWITCH_GAME = () => {};
  *    shuffle and the graveyard-and-exile "move a card out", replacing the GRE
  *    `api.game.drawCard` family that has no `gameStates` row to land in here.
  *
- *  Two things are OPTED OUT of rather than injected, both presentational: the
- *  priority indicator (Manual Mode has no priority) and the interactive hand
- *  (its cards dispatch GRE casts). Hand cards move by drag instead.
+ *  One thing is OPTED OUT of rather than injected, presentational: the
+ *  priority indicator (Manual Mode has no priority).
+ *
+ *  The hand USED to be opted out entirely (`handInteractive={false}`) because
+ *  the interactive hand card's ONE code path bundled two different things:
+ *  dispatching a GRE cast/play, which Manual Mode genuinely has no
+ *  `gameStates` row for, and carrying the ability-menu affordance, which it
+ *  does not need to opt out of (issue #2347 — the symptom was a hand with no
+ *  menu at all, drag its only gesture). The seam is split now:
+ *  `handInteractive={true}` mounts the SAME `BoardHandCard` a GRE board does,
+ *  but `manualHandInteraction` below (injected through
+ *  `ManualHandInteractionProvider`) makes it render ONLY the manual verb menu
+ *  (`manualHandVerbs`/`dispatchManualCardVerb` — the same synthetic-ability
+ *  encoding and dispatcher `manual-battlefield-interaction.tsx` already uses,
+ *  just narrowed to a hand-appropriate list) and never wires its GRE cast/play
+ *  pipeline to the DOM. Drag is unaffected either way — it was always the
+ *  board-level `useManualDrag` gesture below, never `BoardHandCard`'s own.
  *
  *  The log's open/closed state (issue #2172) lives here as plain `useState` —
  *  it is a view-only toggle, not a manual verb, so it has no place on
@@ -196,6 +216,32 @@ export default function ManualBoardView({
         () => makeManualBattlefieldInteraction(runtime),
         [runtime]
     );
+    // Issue #2347 — the hand's half of the same seam
+    // `makeManualBattlefieldInteraction` opened for the battlefield: looked up
+    // by instance id (never assumes the id resolves — an id that isn't in
+    // `cardById`, e.g. a stale render or an opponent slot this board never
+    // mounts a manual hand card for, degrades to "no menu" / "no-op" rather
+    // than throwing), so `board-hand-card.tsx` never needs to know the manual
+    // `ProjectedManualCard` shape.
+    const manualHandInteraction = useMemo<ManualHandInteraction>(
+        () => ({
+            getVerbs: (cardId) => {
+                const manual = runtime.cardById.get(cardId);
+                return manual ? manualHandVerbs(manual) : [];
+            },
+            activate: (cardId, abilityId) => {
+                const manual = runtime.cardById.get(cardId);
+                if (!manual) return;
+                dispatchManualCardVerb(
+                    manual,
+                    abilityId,
+                    runtime.dispatch,
+                    runtime.requestVerbInput
+                );
+            },
+        }),
+        [runtime]
+    );
     const playerInteraction = useMemo(
         () => makeManualPlayerInteraction(runtime),
         [runtime]
@@ -254,90 +300,100 @@ export default function ManualBoardView({
                                     <BattlefieldInteractionProvider
                                         value={battlefieldInteraction}
                                     >
-                                        <PlayerInteractionProvider
-                                            value={playerInteraction}
+                                        <ManualHandInteractionProvider
+                                            value={manualHandInteraction}
                                         >
-                                            <PileActionsProvider
-                                                value={pileActions}
+                                            <PlayerInteractionProvider
+                                                value={playerInteraction}
                                             >
-                                                <ControllerActionsContext
-                                                    value={controllerActions}
+                                                <PileActionsProvider
+                                                    value={pileActions}
                                                 >
-                                                    <main
-                                                        // The drag binds only
-                                                        // `pointerdown` here; move
-                                                        // / up / cancel live on the
-                                                        // window so a release over
-                                                        // the sibling log surface
-                                                        // (issue #2172) still
-                                                        // terminates the gesture
-                                                        // (see `useManualDrag`).
-                                                        // `data-manual-board` is
-                                                        // load-bearing for it: the
-                                                        // hook reads it to tell a
-                                                        // release over the board
-                                                        // from one over the log.
-                                                        data-manual-board
-                                                        className="flex h-full w-full flex-col relative overflow-hidden select-none"
-                                                        onPointerDown={
-                                                            drag.handlers
-                                                                .onPointerDown
-                                                        }
-                                                        onClickCapture={
-                                                            drag.handlers
-                                                                .onClickCapture
+                                                    <ControllerActionsContext
+                                                        value={
+                                                            controllerActions
                                                         }
                                                     >
-                                                        <BoardBackground />
-                                                        <BoardSurface
-                                                            opponent={opponent}
-                                                            me={me}
-                                                            orderedPlayers={
-                                                                orderedPlayers
+                                                        <main
+                                                            // The drag binds only
+                                                            // `pointerdown` here; move
+                                                            // / up / cancel live on the
+                                                            // window so a release over
+                                                            // the sibling log surface
+                                                            // (issue #2172) still
+                                                            // terminates the gesture
+                                                            // (see `useManualDrag`).
+                                                            // `data-manual-board` is
+                                                            // load-bearing for it: the
+                                                            // hook reads it to tell a
+                                                            // release over the board
+                                                            // from one over the log.
+                                                            data-manual-board
+                                                            className="flex h-full w-full flex-col relative overflow-hidden select-none"
+                                                            onPointerDown={
+                                                                drag.handlers
+                                                                    .onPointerDown
                                                             }
-                                                            viewerId={viewerId}
-                                                            activePlayerId={
-                                                                state.activePlayerId
+                                                            onClickCapture={
+                                                                drag.handlers
+                                                                    .onClickCapture
                                                             }
-                                                            stackItems={[]}
-                                                            extraArrows={
-                                                                manualArrows
-                                                            }
-                                                            isPortrait={
-                                                                isPortrait
-                                                            }
-                                                            landscapeCompact={
-                                                                landscapeCompact
-                                                            }
-                                                            viewportHeight={
-                                                                viewportHeight
-                                                            }
-                                                            landscapeCards={
-                                                                landscapeCards
-                                                            }
-                                                            landscapeHandLayout={
-                                                                landscapeHandLayout
-                                                            }
-                                                            showPriorityIndicator={
-                                                                false
-                                                            }
-                                                            handInteractive={
-                                                                false
-                                                            }
-                                                            rowClassifier={
-                                                                rowClassifier
-                                                            }
-                                                        />
-                                                        <Controller
-                                                            onOpenMenu={
-                                                                NO_SWITCH_GAME
-                                                            }
-                                                        />
-                                                        {drag.ghost}
-                                                    </main>
-                                                </ControllerActionsContext>
-                                            </PileActionsProvider>
-                                        </PlayerInteractionProvider>
+                                                        >
+                                                            <BoardBackground />
+                                                            <BoardSurface
+                                                                opponent={
+                                                                    opponent
+                                                                }
+                                                                me={me}
+                                                                orderedPlayers={
+                                                                    orderedPlayers
+                                                                }
+                                                                viewerId={
+                                                                    viewerId
+                                                                }
+                                                                activePlayerId={
+                                                                    state.activePlayerId
+                                                                }
+                                                                stackItems={[]}
+                                                                extraArrows={
+                                                                    manualArrows
+                                                                }
+                                                                isPortrait={
+                                                                    isPortrait
+                                                                }
+                                                                landscapeCompact={
+                                                                    landscapeCompact
+                                                                }
+                                                                viewportHeight={
+                                                                    viewportHeight
+                                                                }
+                                                                landscapeCards={
+                                                                    landscapeCards
+                                                                }
+                                                                landscapeHandLayout={
+                                                                    landscapeHandLayout
+                                                                }
+                                                                showPriorityIndicator={
+                                                                    false
+                                                                }
+                                                                handInteractive={
+                                                                    true
+                                                                }
+                                                                rowClassifier={
+                                                                    rowClassifier
+                                                                }
+                                                            />
+                                                            <Controller
+                                                                onOpenMenu={
+                                                                    NO_SWITCH_GAME
+                                                                }
+                                                            />
+                                                            {drag.ghost}
+                                                        </main>
+                                                    </ControllerActionsContext>
+                                                </PileActionsProvider>
+                                            </PlayerInteractionProvider>
+                                        </ManualHandInteractionProvider>
                                     </BattlefieldInteractionProvider>
                                 </MinimizedChoiceContext>
                             </DivideBufferContext>

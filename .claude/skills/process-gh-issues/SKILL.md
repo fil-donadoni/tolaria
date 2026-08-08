@@ -42,6 +42,7 @@ SUBAGENT rather than by the orchestrator — pass the path, never the contents.
 | `references/reviewer-brief.md`        | spawning a reviewer subagent                                         | **the reviewer** |
 | `references/merge-train.md`           | picking the gate lane (once per run); `gh pr merge` misbehaves       | orchestrator     |
 | `references/scenario-registration.md` | a receipt carried a `scenario` (§5)                                  | orchestrator     |
+| `references/afk-driver.md`            | setting up or debugging `bun run loop:drain` (§ Running unattended)  | the human/user   |
 
 Nothing here is duplicated there. If you find yourself restating a reference in
 this frame, move the sentence rather than copying it — two copies of a rule
@@ -371,9 +372,7 @@ This skill implements **one pass**. Continuous operation is an outer loop that r
 | which tree is known green | `.claude/telemetry/green-sha`       |
 | in-flight work            | the pushed branch + open PR         |
 
-So a fresh process per batch loses nothing and resets context to zero. Drive it with `/loop` (or a shell wrapper around `claude -p "/process-gh-issues"`), one invocation per batch. **Never** try to run many passes inside one conversation to "save" the startup cost — context growth across passes is the failure mode this design removes.
-
-Exit codes the driver acts on: **queue empty** → stop the loop (nothing left to do; do not poll aggressively — a human must refill it). **Red baseline it did not cause** (§0b row 3) → stop and surface. Anything else → relaunch.
+So a fresh process per batch loses nothing and resets context to zero. **Do NOT drive this with `/loop`** — `/loop` re-fires its prompt inside the SAME conversation, so context never resets between passes and `.claude/hooks/deny-guard.sh` denies the second `bun run queue:plan` in that session, killing pass 2 immediately. Drive it with **`bun run loop:drain`** instead (`scripts/loop-drain.sh`, ADR 0097; see `references/afk-driver.md` for stop reasons, the budget proxy, and the kill switch). **Never** try to run many passes inside one conversation to "save" the startup cost — context growth across passes is the failure mode this design removes.
 
 ## The queue is the only source of work
 

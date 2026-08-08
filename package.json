@@ -34,6 +34,8 @@
         "check:all": "bun scripts/gate.ts heavy 'bun run check:all:inner'",
         "check:pr": "bun scripts/gate.ts light 'bun run check:all:inner && bun run check:guards'",
         "worktree:init": "bun scripts/bootstrap-worktree.ts",
+        "usage:window": "bun scripts/usage-window.ts",
+        "loop:drain": "sh scripts/loop-drain.sh",
         "check:all:inner": "(bun run format:check || (printf '\\033[31m✗ Formatting drift — run: bun run format\\033[0m\\n' && exit 1)) && bun run lint && bun run check:ts && bun run check:index && bun run check:stubs && printf '\\033[32m✓ All checks passed\\033[0m\\n' || (printf '\\033[31m✗ Checks failed\\033[0m\\n' && exit 1)",
         "preview": "vite preview",
         "prepare": "husky"
