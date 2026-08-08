@@ -14,6 +14,8 @@ is the difference between gating the tree that LANDS and gating a tree `main` ha
       --jq '.required_status_checks | {strict, contexts}'   # 404 → no protection
     ```
 
+    **In Tolaria the answer is settled: Lane B, always.** The probe returns 403 (branch protection needs GitHub Pro) and since 2026-08-08 the repo has no workflows at all — the Actions minutes ran out and, ungated, the jobs were reports nobody blocked on. Skip the probe here; run it in a repo whose CI posture you do not already know.
+
     **Lane A — required CI checks exist and cover the test suites (PREFERRED).** CI is the gate; do **not** re-run the full suite locally.
     - Push the rebased branch (`git push --force-with-lease`) and wait for the required checks to go green, then `gh pr merge --squash --delete-branch`.
     - Run locally **only what the required set does not cover.** Required contexts are frequently just the test suites, leaving type-check / lint / format in a non-required job — run those yourself (`bun run check:all`), they are minutes, not the suite.

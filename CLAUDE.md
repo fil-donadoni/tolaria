@@ -280,11 +280,22 @@ hook is silent — it vanished for six weeks once).
 on drift, run `bun run format` and re-run (#1807: a gate that repairs what it
 checks can never fail).
 
-**Two suites, one gate command:** `bun run test` = `test:app` (everything not
+**Three suites, one gate command:** `bun run test` = `test:app` (everything not
 `*.bot.test.ts`, ~580 files) then `test:bot` (ISMCTS/eval/driver/self-play,
 `*.bot.test.ts` — separate invocation so heavy episodes get an uncontended
-run). **Name any new bot/AI test `*.bot.test.ts`** —
-`scripts/__tests__/bot-suite-boundary.test.ts` enforces the boundary.
+run) then `test:blade` (must tier, own config, ~42s). **Name any new bot/AI
+test `*.bot.test.ts`** — `scripts/__tests__/bot-suite-boundary.test.ts`
+enforces the boundary. Blade's stretch tier stays report-only and manual
+(`bun run test:blade:stretch`).
+
+**There is no CI.** The three GitHub Actions workflows (`lint`, `test`,
+`blade`) were deleted 2026-08-08: the plan's Actions minutes ran out, and with
+no branch protection on this repo (`/branches/main/protection` → 403, needs
+Pro) they gated nothing — every job duplicated a command the local gate
+already runs. Consequence: **the local gate is the only gate**, so nothing may
+be left to CI, and the merge-train always takes Lane B (local full gate on the
+rebased tree). Re-adding a workflow only makes sense together with branch
+protection — otherwise it is a report nobody blocks on.
 
 **CPU admission control** (`scripts/gate.ts`) — several sessions share this
 machine:

@@ -978,11 +978,25 @@ perché sono ciò che ferma la deriva:
 | `check:index`                        | lockfile carte fuori sincrono; carta implementata contro una ristampa           |
 | `check:stubs`                        | stub senza issue di copertura                                                   |
 
-### 9.6 CI
+### 9.6 CI: non c'è
 
-Tre workflow: `lint.yml` (format, lint, typecheck), `test.yml` (le due suite),
-`blade.yml` (correttezza del bot). I check richiesti hanno `strict: true`, quindi
-presidiano l'albero esatto che atterra.
+I tre workflow (`lint.yml`, `test.yml`, `blade.yml`) sono stati rimossi
+l'8 agosto 2026. Due ragioni, entrambe sufficienti: i minuti Actions inclusi nel
+piano sono esauriti, e su questo repo la branch protection non esiste
+(`/branches/main/protection` risponde 403 — serve GitHub Pro), quindi nessun
+check è mai stato _richiesto_: erano referti, non cancelli. Ogni job duplicava
+un comando che il gate locale già esegue — `lint.yml` è un sottoinsieme di
+`check:all`, `test.yml` è esattamente `bun run test`.
+
+L'unica cosa che i workflow coprivano e il locale no era la suite blade: ora è
+la terza gamba di `bun run test` (tier `must`; lo `stretch` resta manuale e
+report-only).
+
+**Conseguenza operativa: il gate locale è l'unico gate.** Niente può essere
+lasciato "alla CI", il merge-train usa sempre la corsia locale, e le vie di
+fuga (`TOLARIA_SKIP_PUSH_GATE=1`, `git push --no-verify`, un worktree senza
+`bun run worktree:init`) non hanno più nessuna rete sotto. Rimettere un
+workflow ha senso solo insieme alla branch protection.
 
 **Zero rosso è assoluto.** `main` è sempre verde. "Non è il mio test" non è
 un'esenzione: una suite rossa blocca il merge a prescindere da chi l'ha causata.
