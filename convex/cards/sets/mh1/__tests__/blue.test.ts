@@ -28,7 +28,14 @@ import { grizzlyBears } from "../../lea";
 import { lightningBolt } from "../../lea/red";
 import { ornithopter } from "../../atq/colorless";
 import { projectPublicState } from "../../../../gameProjections";
-import { payTapOtherAbilityCost } from "../../../../game";
+import { activateManaAbility } from "../../../../game";
+import {
+    makeMutationCtx,
+    runMutation,
+    gameStateSeed,
+    type Handler,
+} from "../../../../__tests__/gameMutationHarness";
+import type { Id } from "../../../../_generated/dataModel";
 import { FACE_DOWN_CARD_ID } from "../../../index";
 
 function bears(owner: string, count: number, prefix: string, zone: string) {
@@ -250,8 +257,28 @@ describe("Urza, Lord High Artificer — ETB Construct (CR 603.6a / 604.3 CDA)", 
     });
 });
 
+// Full-path integration coverage for clause 2, driven through the REAL
+// registered `activateManaAbility` `_handler` (`gameMutationHarness.ts`) — the
+// discipline the harness's own header demands and its sibling
+// `convex/__tests__/tapUntapManaAbilityManaCost.test.ts` follows for the same
+// free-ramp bug class. The round-1 version of this block called the exported
+// helper directly and hand-mirrored the mutation's resolve step; deleting the
+// mutation's entire `payTapOtherAbilityCost(...)` call — i.e. restoring the
+// free-mana bug the change exists to prevent — left all of it green (PR #2419
+// review, finding 3). Driving `_handler` is what makes "the artifact is tapped"
+// and "an unpaid activation is refused" assertions about the deployed code.
 describe("Urza, Lord High Artificer — tap-another-artifact mana ability (CR 605.1a / 602.1, issue #2371)", () => {
-    function board() {
+    const GAME_ID = "game-1" as Id<"games">;
+
+    type ActivateManaArgs = {
+        gameId: Id<"games">;
+        playerId: string;
+        cardInstanceId: string;
+        abilityId: string;
+        tapOtherIds?: string[];
+    };
+
+    function board(extra: CardInstanceState[] = []) {
         const urza = makeInstance(urzaLordHighArtificer.id, {
             id: "urza",
             controllerId: "p1",
@@ -262,84 +289,95 @@ describe("Urza, Lord High Artificer — tap-another-artifact mana ability (CR 60
             controllerId: "p1",
             ownerId: "p1",
         });
-        const state = makeState({
+        return makeState({
             players: [
-                makePlayer("p1", { battlefield: [urza, artifact] }),
+                makePlayer("p1", { battlefield: [urza, artifact, ...extra] }),
                 makePlayer("p2"),
             ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
         });
-        return {
-            state,
-            urza: state.players[0].battlefield[0],
-            artifact: state.players[0].battlefield[1],
-        };
     }
-    const spec = urzaLordHighArtificer.activatedAbilities!.find(
-        (a) => a.id === "urza-lha-mana"
-    )!.cost.tapOtherFilter!;
 
-    it("taps the chosen OTHER artifact and produces {U}, never tapping Urza itself", () => {
-        const { state, urza, artifact } = board();
-        payTapOtherAbilityCost(state, state.players[0], urza.id, spec, [
-            artifact.id,
-        ]);
-        // The cost payment taps the OTHER permanent, never the source.
-        expect(artifact.isTapped).toBe(true);
-        expect(urza.isTapped).toBe(false);
+    function activate(state: GameState, tapOtherIds?: string[]) {
+        const stub = makeMutationCtx("p1", [gameStateSeed(state)]);
+        const run = runMutation<ActivateManaArgs, void>(
+            activateManaAbility as unknown as Handler<ActivateManaArgs, void>,
+            stub.ctx,
+            {
+                gameId: GAME_ID,
+                playerId: "p1",
+                cardInstanceId: "urza",
+                abilityId: "urza-lha-mana",
+                ...(tapOtherIds ? { tapOtherIds } : {}),
+            }
+        );
+        return { stub, run };
+    }
 
-        // Mirror of `activateManaAbility`'s own resolve step (same pattern as
-        // Farrelite Priest, `fem/__tests__/white.test.ts`): push a transient
-        // stack item for the ability and resolve it through the real
-        // interpreter seam (`effects: [{ op: "addMana" }]`).
-        state.stack.push({
-            ...urza,
-            zone: "stack",
-            castById: "p1",
-            abilityId: "urza-lha-mana",
-        });
-        resolveTopOfStack(state);
-        expect(state.players[0].manaPool.U).toBe(1);
+    const perm = (state: GameState, id: string) =>
+        state.players[0].battlefield.find((c) => c.id === id)!;
+
+    it("taps the chosen OTHER artifact and produces exactly {U}, never tapping Urza itself", async () => {
+        const { stub, run } = activate(board(), ["art"]);
+        await run;
+
+        const after = stub.state();
+        // The cost taps the OTHER permanent (CR 602.1 "another"); Urza declares
+        // no `cost.tap` of its own, so it stays untapped and can still attack.
+        expect(perm(after, "art").isTapped).toBe(true);
+        expect(perm(after, "urza").isTapped).toBe(false);
+        // Exactly one {U} — the ability declares BOTH `manaProduced` and an
+        // `addMana` effect script, and only the script runs on this path.
+        expect(after.players[0].manaPool.U).toBe(1);
     });
 
-    it("rejects tapping the ability's own source (Urza is not an 'other' permanent)", () => {
-        const { state, urza } = board();
-        expect(() =>
-            payTapOtherAbilityCost(state, state.players[0], urza.id, spec, [
-                urza.id,
-            ])
-        ).toThrow("Cannot tap the ability's own source");
+    it("REJECTS the activation when no tap-other pick is supplied — no free mana, board untouched", async () => {
+        const { stub, run } = activate(board());
+        await expect(run).rejects.toThrow(/Not enough untapped permanents/);
+
+        // CR 601.2 — a rejected activation pays nothing and produces nothing.
+        // This is the assertion that goes red when the mutation's
+        // `payTapOtherAbilityCost` call is deleted: without it the ability is
+        // free ramp, and this activation SUCCEEDS with {U} in the pool.
+        const after = stub.state();
+        expect(after.players[0].manaPool.U ?? 0).toBe(0);
+        expect(perm(after, "art").isTapped).toBe(false);
+        expect(perm(after, "urza").isTapped).toBe(false);
     });
 
-    it("rejects paying with an already-tapped artifact", () => {
-        const { state, urza, artifact } = board();
-        artifact.isTapped = true;
-        expect(() =>
-            payTapOtherAbilityCost(state, state.players[0], urza.id, spec, [
-                artifact.id,
-            ])
-        ).toThrow("already tapped");
+    it("rejects tapping the ability's own source (Urza is not an 'other' permanent)", async () => {
+        const { stub, run } = activate(board(), ["urza"]);
+        await expect(run).rejects.toThrow(/own source/);
+        expect(stub.state().players[0].manaPool.U ?? 0).toBe(0);
     });
 
-    it("rejects when no untapped artifact is available to pay the cost", () => {
-        const { state, urza } = board();
-        expect(() =>
-            payTapOtherAbilityCost(state, state.players[0], urza.id, spec, [])
-        ).toThrow("Not enough untapped permanents");
+    it("rejects paying with an already-tapped artifact", async () => {
+        const state = board();
+        perm(state, "art").isTapped = true;
+        const { stub, run } = activate(state, ["art"]);
+        await expect(run).rejects.toThrow(/already tapped/);
+        expect(stub.state().players[0].manaPool.U ?? 0).toBe(0);
     });
 
-    it("rejects a non-artifact permanent (the filter requires types: Artifact)", () => {
-        const { state, urza } = board();
+    it("rejects naming the same artifact twice to cover a multi-pick cost", async () => {
+        const { run } = activate(board(), ["art", "art"]);
+        await expect(run).rejects.toThrow(/already selected/);
+    });
+
+    it("rejects a non-artifact permanent (the filter requires types: Artifact)", async () => {
         const bear = makeInstance(grizzlyBears.id, {
             id: "bear",
             controllerId: "p1",
             ownerId: "p1",
         });
-        state.players[0].battlefield.push(bear);
-        expect(() =>
-            payTapOtherAbilityCost(state, state.players[0], urza.id, spec, [
-                bear.id,
-            ])
-        ).toThrow("does not match the tap cost filter");
+        const { stub, run } = activate(board([bear]), ["bear"]);
+        await expect(run).rejects.toThrow(/does not match the tap cost filter/);
+        // Validation runs over EVERY pick before tapping any of them, so a
+        // rejected activation leaves the board exactly as it was.
+        const after = stub.state();
+        expect(perm(after, "bear").isTapped).toBe(false);
+        expect(perm(after, "art").isTapped).toBe(false);
     });
 });
 

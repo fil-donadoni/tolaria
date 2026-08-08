@@ -5,7 +5,10 @@ import type { AbilityMode } from "@convex/cards/types";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { useAttackSequence } from "~/hooks/useAttackSequence";
-import { useBattlefieldVisualState } from "~/hooks/useBattlefieldVisualState";
+import {
+    useBattlefieldVisualState,
+    type ManaTapOtherPick,
+} from "~/hooks/useBattlefieldVisualState";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { getDefinition } from "@convex/cards";
@@ -16,6 +19,8 @@ import {
     getNonTapManaChoices,
     getActivatedManaMenuEntry,
     getEffectiveClientAbilities,
+    getManaCostMenuAbility,
+    tapOtherCostCandidates,
     canRefundManaTap,
     getStackAbilities,
     getAnyPlayerStackAbilities,
@@ -36,9 +41,16 @@ import {
     hasPendingGameIntent,
     trackGameIntent,
 } from "~/lib/pending-intent-store";
-import { isTapOtherChoicePaid } from "@convex/gre/tapOtherCost";
+import {
+    canPayTapOtherCost,
+    isTapOtherChoicePaid,
+    isTapOtherPickForced,
+    isTapOtherSelectionComplete,
+    type TapOtherCandidate,
+} from "@convex/gre/tapOtherCost";
 import type { ActivatableAbility } from "~/components/board/battlefield-card";
 import ManaChoicePicker from "~/components/board/mana-choice-picker";
+import ManaTapOtherBanner from "~/components/board/mana-tap-other-banner";
 import CastCostDialog from "~/components/cards/cast-cost-dialog";
 import ModePicker from "~/components/cards/mode-picker";
 import ErrorToast from "~/components/board/error-toast";
@@ -161,11 +173,29 @@ export function useBattlefieldInteraction(player: Player) {
     const bufferCtx = usePendingChoiceBuffer();
     const attackSequence = useAttackSequence();
 
+    // CR 602.1 / 118.8 / 605.3c (issue #2371) — a NON-stack mana ability's
+    // `cost.tapOtherFilter` picks ("Tap an untapped artifact you control: Add
+    // {U}", Urza, Lord High Artificer). Parked here between the ability-menu
+    // click and the single `activateManaAbility` dispatch that carries the
+    // finished `tapOtherIds`: unlike its `useStack: true` sibling there is no
+    // stack item to defer the pick onto server-side
+    // (`pendingActivation.tapOtherChoice`) because a mana ability resolves
+    // inside one mutation call. See {@link ManaTapOtherPick}.
+    const [manaTapOtherPick, setManaTapOtherPick] =
+        useState<ManaTapOtherPick | null>(null);
+
     // Board-coupled visual state (combat rings, tap, damage, legal-target
     // highlight) and the interaction predicate live in the shared visual-state
     // hook so both boards read identical state (#256). Re-exposed here so a
-    // consumer gets visuals + interaction from one call.
-    const { getVisualState, canInteract } = useBattlefieldVisualState(player);
+    // consumer gets visuals + interaction from one call. The client-local
+    // tap-other pick is handed DOWN so `canInteract` and the pick rings agree
+    // with `handleClick`'s router below — a picker whose clickability and
+    // highlight are derived independently is how a "highlighted but inert"
+    // permanent ships.
+    const { getVisualState, canInteract } = useBattlefieldVisualState(
+        player,
+        manaTapOtherPick
+    );
 
     // Mana choice picker state. `inPayment` routes the selection to
     // tapForPayment (committing the cast) vs tapUntap (floating mana).
@@ -242,6 +272,24 @@ export function useBattlefieldInteraction(player: Player) {
     // routing branch below (`handleClick`) agrees with the `canInteract` gate
     // that decided the click was legal in the first place.
     const manaGateView = buildTriggerStateView(allPlayers, activePlayerId);
+
+    /** The FULL viewer-visible board projection every ability-menu gate and
+     *  every cost-pick computation reads. One builder, deliberately: the menu
+     *  decides an ability is offerable from this view, and `handleActivateAbility`
+     *  then computes the cost's candidate set from it — two different views
+     *  would let the menu offer an ability whose picker then finds nothing
+     *  (issue #2371). Carries the turn-scoped facts a `controlledSinceTurnStart`
+     *  / `enteredThisTurn` filter dimension needs (CR 302.6 / 400.7, #1824);
+     *  without them those dimensions stay undefined and fail closed. */
+    function abilityStateView() {
+        return buildTriggerStateView(
+            allPlayers,
+            activePlayerId,
+            cannotActivateAbilitiesThisTurn,
+            lifeGainedThisTurn,
+            controlContinuity
+        );
+    }
 
     // CR 106.1 (issue #1889) — `allPlayers` is handed to `hasManaAbility` below
     // (the same list `getManaChoices` already gets), so this branch agrees with
@@ -402,6 +450,30 @@ export function useBattlefieldInteraction(player: Player) {
 
     function handleClick(card: CardInstance) {
         if (!canInteract(card)) return;
+
+        // CR 602.1 / 118.8 / 605.3c (issue #2371) — a click while the mana
+        // ability's tap-other picker is open commits ONE pick; the whole set
+        // is dispatched the moment the cost is covered. Modal, mirroring
+        // `canInteract`'s own precedence: while this is open nothing else on
+        // the board is a legal click.
+        if (manaTapOtherPick) {
+            const candidate = manaTapOtherPick.candidates.find(
+                (c) => c.id === card.id
+            );
+            if (!candidate) return;
+            if (manaTapOtherPick.picked.some((p) => p.id === card.id)) return;
+            const picked = [...manaTapOtherPick.picked, candidate];
+            if (isTapOtherSelectionComplete(manaTapOtherPick.spec, picked)) {
+                submitManaTapOther(
+                    manaTapOtherPick.sourceId,
+                    manaTapOtherPick.abilityId,
+                    picked
+                );
+                return;
+            }
+            setManaTapOtherPick({ ...manaTapOtherPick, picked });
+            return;
+        }
 
         if (isSelectingChoice) {
             bufferCtx.toggle(card.id);
@@ -716,13 +788,7 @@ export function useBattlefieldInteraction(player: Player) {
         // Whistle. Without it the dimension stays undefined and the gate fails
         // open, offering the ability on a board where every candidate entered
         // this turn — a dead menu entry the server then rejects.
-        const stateView = buildTriggerStateView(
-            allPlayers,
-            activePlayerId,
-            cannotActivateAbilitiesThisTurn,
-            lifeGainedThisTurn,
-            controlContinuity
-        );
+        const stateView = abilityStateView();
         // CR 113.3c — on a permanent the viewer does NOT control, only
         // "any player may activate" / "opponents only" / "the enchanted
         // creature's controller may activate" abilities are offered, and only
@@ -799,33 +865,20 @@ export function useBattlefieldInteraction(player: Player) {
         // not yet committed to a cost), the same entry flips to a refund —
         // `tapUntap` toggles in both directions so reusing the ability id is
         // sufficient on the server side; only the label changes here.
-        // CR 605.1a / 601.2f / 605.3c (issue #1179) — a mana ability must NOT
-        // be a silent left-click tap-for-mana when EITHER: (a) its cost
-        // includes MANA, tap or not (Chromatic Star "{1}, {T}, Sacrifice: Add
-        // any", Farrelite Priest "{1}: Add {W}") — the player has to choose to
-        // pay it; OR (b) it has no {T}/sacrifice component at all (Vivi
-        // Ornitier's free "{0}:" runtime {U}/{R} split) — there is no tap
-        // toggle to reach it through in the first place. Surface it as an
-        // explicit menu entry either way. Selecting it routes through the
-        // colour picker + `tapUntap` (tap) or `activateManaAbility` (non-tap)
-        // in `handleActivateAbility`, so the cost is charged / the choice is
-        // resolved. Independent of the plain `getActivatedManaMenuEntry` tap
-        // toggle below (free-to-activate, no-mana-cost TAP mana sources).
-        // Repeatable, so always offered.
+        // CR 605.1a / 601.2f / 605.3c (issue #1179) — the mana ability that
+        // must NOT be a silent left-click tap-for-mana (a cost-bearing one, or
+        // one with no {T}/sacrifice component to tap through at all). Selecting
+        // it routes through the colour picker, the tap-other picker, `tapUntap`
+        // (tap) or `activateManaAbility` (non-tap) in `handleActivateAbility`,
+        // so the cost is charged / the choice is resolved. Independent of the
+        // plain `getActivatedManaMenuEntry` tap toggle below (free-to-activate,
+        // no-mana-cost TAP mana sources). Repeatable, so always offered.
         //
-        // POST-LAYER set (CR 113.1 / 611.1b, issue #1880): read via
-        // `getEffectiveClientAbilities`, never `getDefinition(...).
-        // activatedAbilities`. A GRANTED "{1}, {T}: Add {W}" is invisible to
-        // the printed list, so it got no explicit entry and — with no
-        // co-existing stack ability — the permanent fell through to the plain
-        // left-click `tapUntap` path, silently charging its {1}: exactly the
-        // invariant the paragraph above declares.
-        const manaCostAbility = getEffectiveClientAbilities(card).find(
-            (a) =>
-                !a.useStack &&
-                a.oracleText &&
-                (!!a.cost.mana || (!a.cost.tap && !a.cost.sacrifice))
-        );
+        // The predicate — including its post-layer read and the CR 602.1 /
+        // 118.8 `tapOtherFilter` affordability gate — lives in
+        // `getManaCostMenuAbility` (`lib/card-utils.ts`), where the catalogue
+        // affordability sweep can reach it; see that helper's doc comment.
+        const manaCostAbility = getManaCostMenuAbility(card, stateView);
         const manaCostEntry: ActivatableAbility[] = manaCostAbility
             ? [
                   {
@@ -855,6 +908,32 @@ export function useBattlefieldInteraction(player: Player) {
         if (isTapLockedBySummoningSickness(card))
             return [...manaCostEntry, ...stack];
         return [manaToggle, ...manaCostEntry, ...stack];
+    }
+
+    /** Fires a NON-stack mana ability with its FINISHED tap-other pick set
+     *  (CR 602.1 / 605.3c, issue #2371). One mutation call carries both, so
+     *  there is no window in which the cost is half-paid: `activateManaAbility`
+     *  validates every pick before tapping any of them
+     *  (`payTapOtherAbilityCost`, `convex/game.ts`) and a rejection leaves the
+     *  board untouched. The parked pick clears first either way — a server
+     *  rejection surfaces through `guardMutation`'s toast like every other
+     *  doomed dispatch, and leaving the picker open on a stale board would
+     *  strand the player in a modal click mode. */
+    function submitManaTapOther(
+        cardInstanceId: string,
+        abilityId: string,
+        picks: readonly TapOtherCandidate[]
+    ) {
+        setManaTapOtherPick(null);
+        guardMutation(
+            activateManaAbility({
+                gameId,
+                playerId,
+                cardInstanceId,
+                abilityId,
+                tapOtherIds: picks.map((p) => p.id),
+            })
+        );
     }
 
     function handleActivateAbility(
@@ -895,6 +974,41 @@ export function useBattlefieldInteraction(player: Player) {
             // picker first and submit the chosen index alongside the
             // mutation instead of firing it directly.
             if (!ability.cost.tap && !ability.cost.sacrifice) {
+                // CR 602.1 / 118.8 (issue #2371) — "Tap an untapped artifact
+                // you control" as this mana ability's own cost. The server
+                // wants the WHOLE pick set up front (`tapOtherIds`), so the
+                // picks are collected client-side first: auto-committed when
+                // the board leaves no real choice, otherwise parked for the
+                // player to click (the "auto-resolve a zero-branch choice"
+                // convention every other picker follows).
+                if (ability.cost.tapOtherFilter) {
+                    const spec = ability.cost.tapOtherFilter;
+                    // The SAME view `getManaCostMenuAbility` gated the menu
+                    // entry on — see `abilityStateView`.
+                    const candidates = tapOtherCostCandidates(
+                        spec,
+                        card.id,
+                        playerId,
+                        abilityStateView()
+                    );
+                    // CR 602.5b — unpayable cost, unactivatable ability. The
+                    // menu gate (`getManaCostMenuAbility`) already withholds
+                    // the entry; this is the belt to its braces, never a
+                    // doomed dispatch.
+                    if (!canPayTapOtherCost(spec, candidates)) return;
+                    if (isTapOtherPickForced(spec, candidates)) {
+                        submitManaTapOther(card.id, abilityId, candidates);
+                        return;
+                    }
+                    setManaTapOtherPick({
+                        sourceId: card.id,
+                        abilityId,
+                        spec,
+                        candidates,
+                        picked: [],
+                    });
+                    return;
+                }
                 const nonTapChoices = getNonTapManaChoices(card, allPlayers);
                 if (nonTapChoices) {
                     setManaChoiceState({
@@ -986,6 +1100,15 @@ export function useBattlefieldInteraction(player: Player) {
     // its layout needs them (classic: battlefield root; spatial: board root).
     const overlays = (
         <>
+            {manaTapOtherPick && (
+                <ManaTapOtherBanner
+                    pick={manaTapOtherPick}
+                    source={player.battlefield.find(
+                        (c) => c.id === manaTapOtherPick.sourceId
+                    )}
+                    onCancel={() => setManaTapOtherPick(null)}
+                />
+            )}
             {manaChoiceState && (
                 <ManaChoicePicker
                     choices={manaChoiceState.choices}

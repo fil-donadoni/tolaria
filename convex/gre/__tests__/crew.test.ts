@@ -16,6 +16,7 @@ import {
     canPayTapOtherCost,
     crewPowerContribution,
     isTapOtherChoicePaid,
+    isTapOtherPickForced,
     isTapOtherSelectionComplete,
     pickTapOtherPayment,
     tapOtherRemaining,
@@ -260,6 +261,34 @@ describe("tap-other cost predicates (CR 602.1 / 118.8, CR 702.122a)", () => {
             kind: "count",
             remaining: 2,
         });
+    });
+
+    // CR 601.2 (issue #2371) — the picker auto-commits instead of prompting
+    // when the pool leaves exactly one legal payment. Urza, Lord High
+    // Artificer's `count: 1` with a lone untapped artifact is the motivating
+    // case; the `totalPower` arm matters for Crew N.
+    it("a pick is FORCED only when no proper subset of the pool can pay", () => {
+        const one = [{ id: "a", power: 0 }];
+        const two = [
+            { id: "a", power: 0 },
+            { id: "b", power: 0 },
+        ];
+        expect(isTapOtherPickForced({ count: 1 }, one)).toBe(true);
+        // Two candidates for a one-pick cost is a REAL choice — prompt.
+        expect(isTapOtherPickForced({ count: 1 }, two)).toBe(false);
+        // An unpayable pool is not "forced", it is unactivatable.
+        expect(isTapOtherPickForced({ count: 2 }, one)).toBe(false);
+
+        // totalPower: dropping the CHEAPEST leaves the largest proper subset,
+        // so it is the sharpest single test of "some subset also pays".
+        const crew = [
+            { id: "big", power: 3 },
+            { id: "small", power: 1 },
+        ];
+        expect(isTapOtherPickForced({ totalPower: 4 }, crew)).toBe(true);
+        // 3 alone already crews for 3 — tapping the 1-power creature too is a
+        // choice the player must not have made for them.
+        expect(isTapOtherPickForced({ totalPower: 3 }, crew)).toBe(false);
     });
 });
 

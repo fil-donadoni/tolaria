@@ -104,9 +104,10 @@ export const forceOfNegation: CardDefinition = {
 //      111.1 / 604.3.) The IDENTICAL token Urza's Saga's chapter II grant
 //      creates (`sets/mh2/colorless.ts`, issue #1884) — shared shape/CDA-key
 //      extracted to `constructArtifactsYouControlToken` (`sharedTokens.ts`,
-//      "two consumers earns extraction"; see that factory's own doc comment
-//      for why it's a factory, not a bare shared constant, and why Urza's
-//      Saga's local copy isn't retrofitted in this change).
+//      "two consumers earns extraction" — Urza's Saga was retrofitted onto it
+//      in the same change, so both call sites really do share one spec); see
+//      that factory's own doc comment for why it's a factory rather than a
+//      bare shared constant.
 //
 //      DSL-first exception (ADR 0045), PROTOCOL-LIKE, recorded justification
 //      — identical to Urza's Saga's own: the token's "+1/+1 for each artifact
@@ -128,22 +129,33 @@ export const forceOfNegation: CardDefinition = {
 //      mana-ability output declaration. This is the FIRST catalogue ability
 //      to pair `tapOtherFilter` with a non-tap (`useStack: false`) mana
 //      ability — every existing `tapOtherFilter` cost belongs to a
-//      `useStack: true` ability paid through the deferred stack-ability
-//      picker (`selectActivationCost`, `convex/game.ts`), which assumes a
-//      stack item to defer onto. A mana ability resolves in one call with no
-//      deferred step (CR 605.3c), so `activateManaAbility` (`convex/game.ts`)
-//      gained a sibling payment path, `payTapOtherAbilityCost` — see its doc
-//      comment there for the full rationale and why the auto-tap-while-
-//      casting-a-spell planner (`getManaTapOptionsDetailed` /
-//      `tapSourceIntoPayment`, used when paying for an unrelated spell)
-//      deliberately does NOT surface this ability: that planner already
-//      refuses to auto-commit a sacrifice-only source ("a strategic choice,
-//      never an auto-payment") for the identical reason a tap-SOME-OTHER-
-//      permanent cost shouldn't be silently spent on an unrelated cast
-//      either — a documented scope decision, not an oversight (see the PR
-//      description / docs/findings for the standalone-Move bot-visibility
-//      gap this shares with the already-shipped Farrelite Priest,
-//      `fem/white.ts`, a same-shaped `useStack: false` non-tap mana ability).
+//      `useStack: true` ability paid through the stack-ability picker
+//      (`selectActivationCost`, `convex/game.ts`), which parks the picks on
+//      `pendingActivation.tapOtherChoice` and therefore assumes a stack item
+//      to park them against. A mana ability resolves inside ONE mutation call
+//      (CR 605.3c), so the whole pick set travels up front instead:
+//      `activateManaAbility` gained a `tapOtherIds` arg and a sibling payment
+//      path, `payTapOtherAbilityCost` (see its doc comment there).
+//
+//      Client side, `useBattlefieldInteraction` collects those picks before
+//      dispatching: the menu entry is withheld when no untapped artifact
+//      matches (`getManaCostMenuAbility`, `lib/card-utils.ts`), a forced pick
+//      auto-commits (`isTapOtherPickForced`), and anything else opens the
+//      board picker — gold rings on the legal artifacts, `ManaTapOtherBanner`
+//      for the prompt, one click per pick. Both the click gate and the rings
+//      read the SAME `tapOtherCostCandidates` list the affordability gate
+//      does, which is the whole point of that helper existing.
+//
+//      The BOT still cannot reach this ability, and that half is genuinely
+//      out of scope here rather than forgotten: closing it means either a new
+//      standalone Move kind for `useStack: false` abilities
+//      (`enumerateAbilityMoves` excludes every one of them, and floating mana
+//      with no spend plan valuates as neutral — a standalone Move would be
+//      the wrong shape, not merely a missing one) or generalizing
+//      `planManaPayment`'s one-card-one-tap `PlanSource` model to a source
+//      that taps a DIFFERENT permanent, which every spell the bot casts runs
+//      through. tracked-by: #2420; the shape is shared with the
+//      already-shipped Farrelite Priest (`fem/white.ts`).
 //
 //   3. "{5}: Shuffle your library, then exile the top card. Until end of
 //      turn, you may play that card without paying its mana cost." (CR
@@ -173,6 +185,12 @@ const URZA_CONSTRUCT_TOKEN = constructArtifactsYouControlToken(
     "85f212cd-4fc6-42fe-b268-22d8e3b2b7eb"
 );
 
+// NOT-DSL-migratable — assessed, not merely un-migrated. `createToken`'s Op
+// takes a JSON-pure `EffectTokenSpec` (ADR 0046) with no `staticEffectKeys`
+// slot, and this token's P/T is a characteristic-defining ability (CR 604.3),
+// i.e. a `compute` closure. See clause 1 of the card comment above; the
+// migration classifier reads this marker (`scripts/migration-classifier.mjs`)
+// so the FREE tranche stops re-listing a closure already confirmed unskinnable.
 function createUrzaConstruct(ctx: SpellContext): void {
     ctx.createToken(URZA_CONSTRUCT_TOKEN, ctx.controller, 1);
 }
@@ -252,6 +270,12 @@ export const urzaLordHighArtificer: CardDefinition = {
                 "{5}: Shuffle your library, then exile the top card. Until end of turn, you may play that card without paying its mana cost.",
             cost: { mana: { X: 5 } },
             useStack: true,
+            // NOT-DSL-migratable — assessed, not merely un-migrated. No Op
+            // reaches "exile the top card of a library, no target, no choice"
+            // and then grants cast-from-exile over it; see clause 3 of the card
+            // comment above for the per-Op walk. The migration classifier reads
+            // this marker (`scripts/migration-classifier.mjs`) so the FREE
+            // tranche stops re-listing a closure already confirmed unskinnable.
             resolve: (ctx: SpellContext) => {
                 // CR 701.20 — shuffle FIRST (the oracle's own ordering), then
                 // exile the (new) top card.

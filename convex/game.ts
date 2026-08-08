@@ -2036,11 +2036,15 @@ function tapOtherCandidates(
  *  not the ability's own source, matching `spec.filter` — BEFORE tapping any
  *  of them, so a rejected activation leaves the board untouched. Reuses the
  *  SAME `tapOtherFilter` predicates (`gre/tapOtherCost.ts`) the picker above
- *  and the bot's `pickTapOtherPayment` share. Exported so a test drives the
- *  REAL validation branch order rather than a hand-mirrored copy (mirrors
- *  `tapSourceIntoPayment`'s / `selectActivationCostOnState`'s own
- *  rationale). */
-export function payTapOtherAbilityCost(
+ *  and the bot's `pickTapOtherPayment` share.
+ *
+ *  Deliberately NOT exported. Its coverage runs through the registered
+ *  `activateManaAbility` `_handler` (`cards/sets/mh1/__tests__/blue.test.ts`
+ *  via `gameMutationHarness.ts`), because a test that calls this directly
+ *  stays green when the mutation stops calling it at all — which is exactly
+ *  what shipped in PR #2419 round 1 and what the harness's own header comment
+ *  forbids. */
+function payTapOtherAbilityCost(
     state: GameState,
     player: PlayerState,
     sourceId: string,

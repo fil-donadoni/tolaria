@@ -18,6 +18,8 @@ import {
 import {
     canPayTapOtherCost,
     crewPowerContribution,
+    type TapOtherCandidate,
+    type TapOtherCostSpec,
 } from "@convex/gre/tapOtherCost";
 import {
     hasControlledSinceTurnStart,
@@ -501,6 +503,95 @@ export function getNonTapManaChoices(
             playerId: p.id,
             battlefield: p.battlefield as unknown as CardInstanceState[],
         }))
+    );
+}
+
+/** Every permanent that can legally be tapped to pay a `cost.tapOtherFilter`
+ *  cost leg (CR 602.1 / 118.8), weighed exactly as the SERVER weighs them
+ *  (`crewPowerContribution`, `gre/tapOtherCost.ts`) off the viewer-visible
+ *  board projection. The ability's own source never counts (CR 602.1's
+ *  "another") and an already-tapped permanent never counts.
+ *
+ *  ONE authority for the three client surfaces that must not disagree: the
+ *  menu affordability gates ({@link getStackAbilities} for a stack ability,
+ *  {@link getManaCostMenuAbility} for a `useStack: false` mana ability), the
+ *  picker's own candidate set, and — through the shared
+ *  `matchesPermanentFilter` / `canPayTapOtherCost` predicates — the server's
+ *  `selectActivationCost` / `payTapOtherAbilityCost` validation. A private
+ *  copy in any one of them is how a "clickable but rejected" permanent ships.
+ *
+ *  Without a `stateView` there is no board to weigh, so the caller gets an
+ *  empty list — callers gate on `canPayTapOtherCost` and must treat the
+ *  no-view case as "stay offered, let the server decide" (the existing
+ *  UI-hint convention, #436). */
+export function tapOtherCostCandidates(
+    spec: TapOtherCostSpec,
+    sourceId: string,
+    controllerId: string,
+    stateView: TriggerStateView
+): TapOtherCandidate[] {
+    const mine = stateView.players.find((p) => p.id === controllerId);
+    return (mine?.battlefield ?? [])
+        .filter(
+            (c) =>
+                c.id !== sourceId &&
+                !c.isTapped &&
+                matchesEnginePermanentFilter(c, spec.filter, {
+                    selfControllerId: controllerId,
+                })
+        )
+        .map((c) => ({
+            id: c.id,
+            power: crewPowerContribution(c.power ?? 0, c.crewPowerBonus ?? 0),
+        }));
+}
+
+/** The NON-stack mana ability that gets its OWN entry in the ability context
+ *  menu, or null (CR 605.1a / 601.2f / 605.3c, issue #1179). A mana ability
+ *  must not be a silent left-click tap-for-mana when EITHER (a) its cost
+ *  includes MANA, tap or not (Chromatic Star, Farrelite Priest "{1}: Add
+ *  {W}") — the player has to choose to pay it; OR (b) it has no
+ *  {T}/sacrifice component at all (Vivi Ornitier's free "{0}:", Urza, Lord
+ *  High Artificer's "Tap an untapped artifact you control: Add {U}") — there
+ *  is no tap toggle to reach it through in the first place.
+ *
+ *  POST-LAYER set (CR 113.1 / 611.1b, issue #1880) — read through
+ *  {@link getEffectiveClientAbilities}, never `getDefinition(...).
+ *  activatedAbilities`: a GRANTED "{1}, {T}: Add {W}" is invisible to the
+ *  printed list, so it got no explicit entry and fell through to the plain
+ *  left-click `tapUntap`, silently charging its {1}.
+ *
+ *  AFFORDABILITY (CR 602.1 / 118.8, issue #2371) — a `tapOtherFilter` cost
+ *  leg is unpayable when the controller has no matching untapped permanent to
+ *  tap, so the entry is withheld rather than offered as a doomed dispatch.
+ *  This is the same gate {@link getStackAbilities} applies to a `useStack:
+ *  true` ability's tap-other cost; it lives HERE, not inline in
+ *  `useBattlefieldInteraction`, so the catalogue affordability sweep
+ *  (`activation-affordability.catalogue.test.ts`) can reach the mana-ability
+ *  menu surface at all — its `if (!a.useStack) continue` used to make every
+ *  gate on this path structurally unguarded. */
+export function getManaCostMenuAbility(
+    card: CardInstance,
+    stateView?: TriggerStateView
+): ActivatedAbility | null {
+    return (
+        getEffectiveClientAbilities(card).find(
+            (a) =>
+                !a.useStack &&
+                a.oracleText &&
+                (!!a.cost.mana || (!a.cost.tap && !a.cost.sacrifice)) &&
+                (!a.cost.tapOtherFilter ||
+                    !stateView ||
+                    canPayTapOtherCost(
+                        a.cost.tapOtherFilter,
+                        tapOtherCostCandidates(
+                            a.cost.tapOtherFilter,
+                            card.id,
+                            card.controllerId,
+                            stateView
+                        )
+                    ))
+        ) ?? null
     );
 }
 
@@ -1779,27 +1870,12 @@ export function getStackAbilities(
         // `crewPowerBonus`. Without the `stateView` there is no board to weigh,
         // so the ability stays offered and the server rejects it.
         if (a.cost.tapOtherFilter && stateView) {
-            const mine = stateView.players.find(
-                (p) => p.id === card.controllerId
+            const candidates = tapOtherCostCandidates(
+                a.cost.tapOtherFilter,
+                card.id,
+                card.controllerId,
+                stateView
             );
-            const candidates = (mine?.battlefield ?? [])
-                .filter(
-                    (c) =>
-                        c.id !== card.id &&
-                        !c.isTapped &&
-                        matchesEnginePermanentFilter(
-                            c,
-                            a.cost.tapOtherFilter!.filter,
-                            { selfControllerId: card.controllerId }
-                        )
-                )
-                .map((c) => ({
-                    id: c.id,
-                    power: crewPowerContribution(
-                        c.power ?? 0,
-                        c.crewPowerBonus ?? 0
-                    ),
-                }));
             if (!canPayTapOtherCost(a.cost.tapOtherFilter, candidates)) {
                 return false;
             }

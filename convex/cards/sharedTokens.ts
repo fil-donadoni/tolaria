@@ -165,7 +165,6 @@ export const PHYREXIAN_GERM_TOKEN: EffectTokenSpec = {
     colors: ["B"],
 };
 
-
 /** Skeleton token (CR 111 / 707.2, issue #2373). "4/1 black Skeleton creature
  *  token with menace" — created today by Gut, True Soul Zealot's attack
  *  trigger (`sets/clb/red.ts`). Vanilla apart from the keyword, the
@@ -216,12 +215,11 @@ export const SKELETON_TOKEN: EffectTokenSpec = {
  *  `resolve()` cards for this reason (ADR 0045 protocol-like exception,
  *  recorded on each card).
  *
- *  NOT retrofitted onto Urza's Saga's own local `URZAS_SAGA_CONSTRUCT_TOKEN`
- *  constant (`sets/mh2/colorless.ts`) in the change that added this factory:
- *  sibling agents were editing other `convex/cards/sets/**` directories in
- *  the same batch (concurrency constraint), and `mh2` was out of that PR's
- *  declared scope. Tracked as a follow-up in
- *  `docs/findings/2371-construct-token-dedup.md`. */
+ *  BOTH consumers call it: Urza's Saga's `URZAS_SAGA_CONSTRUCT_TOKEN`
+ *  (`sets/mh2/colorless.ts`) was retrofitted onto this factory in the same
+ *  change, so the duplication the extraction exists to remove is actually
+ *  gone — "two consumers earns extraction" is a statement about the code, not
+ *  an intention. */
 export function constructArtifactsYouControlToken(
     imagePrintId: string
 ): TokenSpec {

@@ -25,13 +25,42 @@ import {
 } from "~/lib/card-utils";
 import { pendingChoiceRoutesToBattlefield } from "~/lib/pending-choice-labels";
 import { isUntargetableByPending } from "~/lib/targeting";
-import { isTapOtherChoicePaid } from "@convex/gre/tapOtherCost";
+import {
+    isTapOtherChoicePaid,
+    type TapOtherCandidate,
+    type TapOtherCostSpec,
+} from "@convex/gre/tapOtherCost";
 import {
     activeSacrificeSelection,
     nextSacrificeRequirement,
 } from "~/lib/sacrifice-selection";
 import { COMBAT_GROUP_RING, COMBAT_GROUP_BG } from "~/lib/combat-colors";
 import type { CardVisualState } from "~/components/board/battlefield-card";
+
+/** A NON-stack (`useStack: false`) mana ability's `cost.tapOtherFilter` pick,
+ *  parked CLIENT-side between the ability-menu click and the single
+ *  `activateManaAbility` dispatch that carries the finished `tapOtherIds`
+ *  (CR 602.1 / 118.8 / 605.3c, issue #2371 — Urza, Lord High Artificer's "Tap
+ *  an untapped artifact you control: Add {U}").
+ *
+ *  Client-local, unlike its `useStack: true` sibling
+ *  `pendingActivation.tapOtherChoice`: a mana ability resolves in ONE mutation
+ *  call with no stack item to defer the pick onto (CR 605.3c), so the picks are
+ *  collected here and submitted whole. `useBattlefieldInteraction` owns the
+ *  state; this hook receives it so `canInteract` and the pick rings agree with
+ *  the click router — the two surfaces disagreeing is exactly the "clickable
+ *  but rejected" bug the shared `tapOtherCostCandidates` authority exists to
+ *  prevent. */
+export interface ManaTapOtherPick {
+    /** The ability's own source. Never a legal pick (CR 602.1 "another"). */
+    sourceId: string;
+    abilityId: string;
+    spec: TapOtherCostSpec;
+    /** Every legal pick, weighed, from `tapOtherCostCandidates`. */
+    candidates: TapOtherCandidate[];
+    /** Picks committed so far, a subset of `candidates`. */
+    picked: TapOtherCandidate[];
+}
 
 /** Board-coupled visual state for one player's battlefield (PRD #249, slice
  *  #256). This is the single source of truth for how a permanent reads on the
@@ -44,7 +73,12 @@ import type { CardVisualState } from "~/components/board/battlefield-card";
  *  Reads ONLY projected (`PublicGameState` / `FullGameState`) fields exposed
  *  through `useGameContext()` — no GRE engine import, consistent with the
  *  wire-format rule in CLAUDE.md. */
-export function useBattlefieldVisualState(player: Player) {
+export function useBattlefieldVisualState(
+    player: Player,
+    /** See {@link ManaTapOtherPick}. Absent/null for every board that is not
+     *  mid-pick, which is the byte-identical pre-#2371 behaviour. */
+    manaTapOtherPick?: ManaTapOtherPick | null
+) {
     const {
         playerId,
         activePlayerId,
@@ -200,6 +234,23 @@ export function useBattlefieldVisualState(player: Player) {
         return false;
     }
 
+    // Non-stack MANA ability tap-other cost picker (CR 602.1 / 118.8 / 605.3c,
+    // issue #2371 — Urza, Lord High Artificer). Client-local sibling of
+    // `isPickingActivationCost` above; see {@link ManaTapOtherPick}.
+    const isPickingManaTapOther = isMe && !!manaTapOtherPick;
+
+    /** Eligibility for the mana-ability tap-other picker — one permanent per
+     *  call, gating BOTH `canInteract` and the gold ring so the two never
+     *  disagree. The candidate set was computed ONCE by the shared
+     *  `tapOtherCostCandidates` (source excluded, tapped excluded, filter
+     *  applied), so this is pure set membership minus what is already picked —
+     *  there is deliberately no second copy of the eligibility rule here. */
+    function matchesManaTapOtherPick(card: CardInstance): boolean {
+        if (!manaTapOtherPick) return false;
+        if (manaTapOtherPick.picked.some((p) => p.id === card.id)) return false;
+        return manaTapOtherPick.candidates.some((c) => c.id === card.id);
+    }
+
     const isSelectingAttackers =
         phase === "DECLARE_ATTACKERS" &&
         !!combat &&
@@ -318,6 +369,13 @@ export function useBattlefieldVisualState(player: Player) {
     }
 
     function canInteract(card: CardInstance): boolean {
+        // The mana-ability tap-other pick is MODAL while it is open (CR 602.1 —
+        // the cost is being paid; nothing else on the board is a legal click),
+        // so it takes precedence over every branch below, exactly as the
+        // server-parked pickers lock the board for their own duration.
+        if (isPickingManaTapOther) {
+            return matchesManaTapOtherPick(card);
+        }
         if (isSelectingChoice && activeChoice) {
             if (bufferCtx.buffer.includes(card.id)) return true;
             // Precomputed allow-list (e.g. legend-keep, CR 704.5j): only the
@@ -711,7 +769,8 @@ export function useBattlefieldVisualState(player: Player) {
                     pendingCast.additionalCost.filter,
                     controlContinuity
                 )) ||
-            (isPickingActivationCost && matchesActivationCostPick(card));
+            (isPickingActivationCost && matchesActivationCostPick(card)) ||
+            (isPickingManaTapOther && matchesManaTapOtherPick(card));
         // Already-committed picks in a multi-element cost choice (Fireblast's
         // two Mountains, Thwart's three Islands, Hand of Justice's tap-others).
         // `matches*Pick` excludes picked ids, so without this branch a chosen
@@ -724,7 +783,9 @@ export function useBattlefieldVisualState(player: Player) {
             (isPickingActivationCost &&
                 !!pendingActivation?.tapOtherChoice?.pickedIds.includes(
                     card.id
-                ));
+                )) ||
+            (isPickingManaTapOther &&
+                !!manaTapOtherPick?.picked.some((p) => p.id === card.id));
         if (!ringClass && isCostPicked) {
             ringClass = "ring-2 ring-signal-self rounded-sm";
         } else if (!ringClass && isValidSacrificePick) {
